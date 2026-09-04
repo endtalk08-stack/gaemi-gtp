@@ -2,10 +2,11 @@
 <html lang="ko" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>gaemiGTP</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- 백테스트 차트 엔진 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
   <style>
@@ -36,11 +37,12 @@
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
   </style>
 </head>
-<body class="bg-white dark:bg-[#09090b] text-[#0f172a] dark:text-[#f4f4f5] flex h-screen overflow-hidden transition-colors duration-200 relative">
+<body class="bg-white dark:bg-[#09090b] text-[#0f172a] dark:text-[#f4f4f5] flex h-[100dvh] w-screen overflow-hidden transition-colors duration-200 relative select-none">
 
+  <!-- 📱 모바일 배경 어두운 오버레이 -->
   <div id="sidebarBackdrop" onclick="closeAllSidebars()" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity duration-300"></div>
 
-  <!-- 1. 메인 히어로 뷰 (접속 초기 화면) -->
+  <!-- ================= [뷰 1] 메인 히어로 첫 화면 ================= -->
   <div id="mainHeroView" class="fixed inset-0 z-30 bg-[#0c0d0e] text-white flex flex-col justify-between overflow-hidden">
     <header class="h-16 flex items-center justify-between px-6 shrink-0">
       <div class="flex items-center gap-3">
@@ -59,27 +61,28 @@
       </div>
 
       <div class="w-full relative">
-        <div id="modeSelectPopup" class="absolute bottom-16 right-12 z-50 bg-[#1e1f23] border border-[#2e3036] rounded-2xl p-2 w-48 shadow-2xl hidden text-left space-y-1 animate-fade">
-          <button type="button" onclick="selectSearchMode('gaemi', '도움을 받으세요')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
+        <!-- 팝업 모드 드롭다운 (Hero용) -->
+        <div id="heroModePopup" class="absolute bottom-16 right-12 z-50 bg-[#1e1f23] border border-[#2e3036] rounded-2xl p-2 w-48 shadow-2xl hidden text-left space-y-1 animate-fade">
+          <button type="button" onclick="selectSearchMode('gaemi', '도움을 받으세요', 'hero')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
             <div>
               <div class="text-xs font-bold text-white group-hover:text-emerald-400">gaemi</div>
               <div class="text-[11px] text-[#71717a]">도움을 받으세요</div>
             </div>
-            <span id="check-gaemi" class="text-emerald-400 text-sm font-bold">✓</span>
+            <span id="hero-check-gaemi" class="text-emerald-400 text-sm font-bold">✓</span>
           </button>
-          <button type="button" onclick="selectSearchMode('info', '정보를 확인하세요')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
+          <button type="button" onclick="selectSearchMode('info', '정보를 확인하세요', 'hero')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
             <div>
               <div class="text-xs font-bold text-white group-hover:text-emerald-400">info</div>
               <div class="text-[11px] text-[#71717a]">정보를 확인하세요</div>
             </div>
-            <span id="check-info" class="text-emerald-400 text-sm font-bold hidden">✓</span>
+            <span id="hero-check-info" class="text-emerald-400 text-sm font-bold hidden">✓</span>
           </button>
-          <button type="button" onclick="selectSearchMode('pro', '실력을 키우세요')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
+          <button type="button" onclick="selectSearchMode('pro', '실력을 키우세요', 'hero')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
             <div>
               <div class="text-xs font-bold text-white group-hover:text-emerald-400">pro</div>
               <div class="text-[11px] text-[#71717a]">실력을 키우세요</div>
             </div>
-            <span id="check-pro" class="text-emerald-400 text-sm font-bold hidden">✓</span>
+            <span id="hero-check-pro" class="text-emerald-400 text-sm font-bold hidden">✓</span>
           </button>
         </div>
 
@@ -91,8 +94,8 @@
             class="w-full bg-[#18191d] border border-[#282a30] hover:border-[#3a3d46] focus:border-[#4a4e5a] rounded-full px-6 py-4 text-sm sm:text-base text-white placeholder-[#52525b] focus:outline-none pr-36 shadow-xl transition"
           >
           <div class="absolute right-2.5 flex items-center gap-1.5">
-            <button type="button" onclick="toggleModePopup(event)" class="text-xs font-semibold text-[#a1a1aa] hover:text-white px-3 py-2 rounded-full hover:bg-[#262830] transition flex items-center gap-1 cursor-pointer">
-              <span id="selectedModeText">gaemi</span>
+            <button type="button" onclick="toggleHeroModePopup(event)" class="text-xs font-semibold text-[#a1a1aa] hover:text-white px-3 py-2 rounded-full hover:bg-[#262830] transition flex items-center gap-1 cursor-pointer">
+              <span id="heroSelectedMode">gaemi</span>
               <span class="text-[10px]">▲</span>
             </button>
             <button type="submit" class="w-9 h-9 rounded-full bg-[#2a2b30] hover:bg-white hover:text-black text-[#a1a1aa] flex items-center justify-center transition cursor-pointer shadow">
@@ -110,21 +113,13 @@
         <button type="button" onclick="switchToAnalysisMode('비트코인')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">비트코인</button>
       </div>
     </div>
-
-    <div class="fixed right-3 top-4 flex flex-col items-center gap-5 text-[#52525b] text-sm hidden sm:flex">
-      <button type="button" onclick="toggleTheme()" class="hover:text-white" title="테마 토글">☀️</button>
-      <button type="button" onclick="switchToAnalysisMode('SK하이닉스')" class="hover:text-white" title="대시보드 열기">»</button>
-      <span class="w-1.5 h-1.5 rounded-full bg-[#282a30]"></span>
-      <button type="button" onclick="openUpgradeModal('관심종목')" class="hover:text-white" title="관심종목">♡</button>
-      <button type="button" class="hover:text-white" title="히스토리">⏱</button>
-      <button type="button" onclick="switchToAnalysisMode('SK하이닉스')" class="hover:text-white" title="분석 도크">⊞</button>
-    </div>
-
     <div class="h-6"></div>
   </div>
 
 
-  <!-- 2. 분석 대시보드 화면 -->
+  <!-- ================= [뷰 2] 본문 분석 대시보드 화면 ================= -->
+
+  <!-- 1. 좌측 사이드바 -->
   <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#121215] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
     <div class="p-4 flex flex-col gap-5 overflow-y-auto">
       <div class="flex items-center justify-between px-1">
@@ -135,6 +130,7 @@
         <button type="button" onclick="closeAllSidebars()" class="lg:hidden text-[#71717a] hover:text-white text-lg p-1">✕</button>
       </div>
 
+      <!-- 실전 전략 3인방 -->
       <div class="flex flex-col gap-2">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">실전 전략 3인방</span>
         <button type="button" onclick="requestStock('서학개미'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -151,6 +147,7 @@
         </button>
       </div>
 
+      <!-- 전문가 2인방 -->
       <div class="flex flex-col gap-2">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">전문가 2인방</span>
         <button type="button" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -163,6 +160,7 @@
         </button>
       </div>
 
+      <!-- 서비스 센터 -->
       <div class="flex flex-col gap-2 pt-2 border-t border-[#e2e8f0] dark:border-[#27272a]">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">서비스 센터</span>
         <button type="button" onclick="openUpgradeModal('매매기법'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -192,7 +190,9 @@
     </div>
   </aside>
 
+  <!-- 2. 중앙 메인 분석 영역 -->
   <main class="flex-1 flex flex-col h-full bg-white dark:bg-[#09090b] overflow-hidden min-w-0">
+    <!-- 헤더 -->
     <header class="h-16 border-b border-[#e2e8f0] dark:border-[#27272a] flex items-center justify-between px-4 sm:px-6 bg-white/80 dark:bg-[#121215]/80 backdrop-blur shrink-0 z-10">
       <div class="flex items-center gap-3">
         <button type="button" onclick="toggleLeftSidebar()" class="lg:hidden p-1.5 rounded-lg border border-[#cbd5e1] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#18181b] text-base text-[#0f172a] dark:text-white cursor-pointer">
@@ -213,25 +213,62 @@
       </div>
     </header>
 
+    <!-- 대화 스크롤 영역 -->
     <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 max-w-5xl mx-auto w-full scroll-smooth"></div>
 
-    <div class="p-4 border-t border-[#e2e8f0] dark:border-[#27272a] bg-white dark:bg-[#09090b] shrink-0">
-      <div class="max-w-5xl mx-auto">
-        <form class="relative flex items-center" onsubmit="event.preventDefault(); handleFormSubmit();">
-          <input 
-            id="stockInput" 
-            type="text" 
-            placeholder="종목명을 입력하세요 (예: SK하이닉스, 삼성전자)" 
-            class="w-full bg-[#f8fafc] dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] rounded-xl px-4 py-3.5 text-base text-[#0f172a] dark:text-white placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none focus:border-[#0f172a] dark:focus:border-white pr-20 transition"
-          >
-          <button type="submit" class="absolute right-2 bg-[#0f172a] dark:bg-white hover:bg-[#334155] dark:hover:bg-[#e4e4e7] text-white dark:text-black font-black px-4 py-2 rounded-lg text-sm transition cursor-pointer">
-            진단
+    <!-- 하단 채팅창 (메인과 100% 동일한 캡슐 디자인 + 모바일 상시 노출) -->
+    <div class="shrink-0 p-3 sm:p-4 bg-white/95 dark:bg-[#09090b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
+      <div class="max-w-4xl mx-auto relative">
+        
+        <!-- 하단 전용 모드 팝업 드롭다운 (위로 열림) -->
+        <div id="bottomModePopup" class="absolute bottom-full mb-3 right-12 z-50 bg-[#1e1f23] border border-[#2e3036] rounded-2xl p-2 w-48 shadow-2xl hidden text-left space-y-1 animate-fade">
+          <button type="button" onclick="selectSearchMode('gaemi', '도움을 받으세요', 'bottom')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
+            <div>
+              <div class="text-xs font-bold text-white group-hover:text-emerald-400">gaemi</div>
+              <div class="text-[11px] text-[#71717a]">도움을 받으세요</div>
+            </div>
+            <span id="bottom-check-gaemi" class="text-emerald-400 text-sm font-bold">✓</span>
           </button>
+          <button type="button" onclick="selectSearchMode('info', '정보를 확인하세요', 'bottom')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
+            <div>
+              <div class="text-xs font-bold text-white group-hover:text-emerald-400">info</div>
+              <div class="text-[11px] text-[#71717a]">정보를 확인하세요</div>
+            </div>
+            <span id="bottom-check-info" class="text-emerald-400 text-sm font-bold hidden">✓</span>
+          </button>
+          <button type="button" onclick="selectSearchMode('pro', '실력을 키우세요', 'bottom')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
+            <div>
+              <div class="text-xs font-bold text-white group-hover:text-emerald-400">pro</div>
+              <div class="text-[11px] text-[#71717a]">실력을 키우세요</div>
+            </div>
+            <span id="bottom-check-pro" class="text-emerald-400 text-sm font-bold hidden">✓</span>
+          </button>
+        </div>
+
+        <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
+          <input 
+            id="bottomStockInput" 
+            type="text" 
+            placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, NVDA, BTC)" 
+            class="w-full bg-[#f8fafc] dark:bg-[#18191d] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-white placeholder-[#94a3b8] dark:placeholder-[#52525b] focus:outline-none pr-32 sm:pr-36 shadow-lg transition"
+          >
+          
+          <div class="absolute right-2 flex items-center gap-1 sm:gap-1.5">
+            <button type="button" onclick="toggleBottomModePopup(event)" class="text-xs font-semibold text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full hover:bg-slate-200 dark:hover:bg-[#262830] transition flex items-center gap-1 cursor-pointer">
+              <span id="bottomSelectedMode">gaemi</span>
+              <span class="text-[10px]">▲</span>
+            </button>
+            <button type="submit" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0f172a] dark:bg-[#2a2b30] hover:bg-[#334155] dark:hover:bg-white text-white dark:text-[#a1a1aa] dark:hover:text-black flex items-center justify-center transition cursor-pointer shadow">
+              <span class="text-sm sm:text-base font-black">↑</span>
+            </button>
+          </div>
         </form>
+
       </div>
     </div>
   </main>
 
+  <!-- 3. 우측 사이드바 -->
   <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#121215] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform translate-x-full xl:translate-x-0 xl:static transition-transform duration-300 ease-in-out shadow-2xl xl:shadow-none">
     <div class="p-5 flex flex-col gap-6 overflow-y-auto">
       <div class="flex items-center justify-between">
@@ -244,6 +281,7 @@
 
       <div class="flex flex-col gap-2">
         <span class="text-xs font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">관심 종목 모니터링</span>
+        
         <button type="button" onclick="requestStock('SK하이닉스'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
           <div class="flex flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">SK하이닉스</span>
@@ -251,6 +289,7 @@
           </div>
           <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+3.4%</span>
         </button>
+
         <button type="button" onclick="requestStock('삼성전자'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
           <div class="flex flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">삼성전자</span>
@@ -258,6 +297,7 @@
           </div>
           <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">0.0%</span>
         </button>
+
         <button type="button" onclick="requestStock('엔비디아'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
           <div class="flex flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">NVIDIA</span>
@@ -267,6 +307,7 @@
         </button>
       </div>
     </div>
+
     <div class="p-4 border-t border-[#e2e8f0] dark:border-[#27272a]">
       <div class="p-3 bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] rounded-xl text-center space-y-1 shadow-sm">
         <span class="text-xs text-[#64748b] dark:text-[#71717a] font-bold block">시장 감도 지수</span>
@@ -302,6 +343,7 @@
     </div>
   </div>
 
+  <!-- 알림 모달 -->
   <div id="upgradeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
     <div class="bg-white dark:bg-[#18181b] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-md w-full p-6 relative shadow-2xl animate-fade">
       <button type="button" onclick="closeUpgradeModal()" class="absolute top-5 right-5 text-[#94a3b8] dark:text-[#71717a] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
@@ -318,6 +360,7 @@
     let activeStock = 'SK하이닉스';
     let currentChartInstance = null;
 
+    // 🔄 뷰 전환
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
       closeAllSidebars();
@@ -333,28 +376,50 @@
       switchToAnalysisMode(val || 'SK하이닉스');
     }
 
-    function toggleModePopup(event) {
-      event.stopPropagation();
-      const popup = document.getElementById('modeSelectPopup');
-      popup.classList.toggle('hidden');
-    }
-
-    function selectSearchMode(modeKey, desc) {
-      document.getElementById('selectedModeText').innerText = modeKey;
-      ['gaemi', 'info', 'pro'].forEach(k => {
-        const el = document.getElementById(`check-${k}`);
-        if (el) el.classList.toggle('hidden', k !== modeKey);
-      });
-      document.getElementById('modeSelectPopup').classList.add('hidden');
-    }
-
-    document.addEventListener('click', () => {
-      const popup = document.getElementById('modeSelectPopup');
-      if (popup && !popup.classList.contains('hidden')) {
-        popup.classList.add('hidden');
+    function handleBottomSearch() {
+      const val = document.getElementById('bottomStockInput').value;
+      if (val) {
+        requestStock(val);
+        document.getElementById('bottomStockInput').value = '';
       }
+    }
+
+    // 드롭다운 토글
+    function toggleHeroModePopup(event) {
+      event.stopPropagation();
+      document.getElementById('heroModePopup').classList.toggle('hidden');
+    }
+
+    function toggleBottomModePopup(event) {
+      event.stopPropagation();
+      document.getElementById('bottomModePopup').classList.toggle('hidden');
+    }
+
+    function selectSearchMode(modeKey, desc, target) {
+      if (target === 'hero') {
+        document.getElementById('heroSelectedMode').innerText = modeKey;
+        ['gaemi', 'info', 'pro'].forEach(k => {
+          document.getElementById(`hero-check-${k}`).classList.toggle('hidden', k !== modeKey);
+        });
+        document.getElementById('heroModePopup').classList.add('hidden');
+      } else {
+        document.getElementById('bottomSelectedMode').innerText = modeKey;
+        ['gaemi', 'info', 'pro'].forEach(k => {
+          document.getElementById(`bottom-check-${k}`).classList.toggle('hidden', k !== modeKey);
+        });
+        document.getElementById('bottomModePopup').classList.add('hidden');
+      }
+    }
+
+    // 바깥 클릭 시 드롭다운 닫기
+    document.addEventListener('click', () => {
+      const hp = document.getElementById('heroModePopup');
+      const bp = document.getElementById('bottomModePopup');
+      if (hp && !hp.classList.contains('hidden')) hp.classList.add('hidden');
+      if (bp && !bp.classList.contains('hidden')) bp.classList.add('hidden');
     });
 
+    // 사이드바 제어
     function toggleLeftSidebar() {
       const leftBar = document.getElementById('leftSidebar');
       const rightBar = document.getElementById('rightSidebar');
@@ -429,22 +494,15 @@
       document.getElementById('upgradeModal').classList.add('hidden');
     }
 
-    function handleFormSubmit() {
-      const val = document.getElementById('stockInput').value;
-      if (val) requestStock(val);
-    }
-
     function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
       activeStock = stockName;
 
       const chatArea = document.getElementById('chatArea');
-      chatArea.innerHTML = ''; 
+      chatArea.innerHTML = '';
 
       appendUserQuery(stockName);
-      const inputEl = document.getElementById('stockInput');
-      if (inputEl) inputEl.value = '';
 
       const loaderInfo = appendCenteredAntLoader(stockName);
 
@@ -505,133 +563,109 @@
       return { id, timerId };
     }
 
-    // 🔥 [핵심 수정] 1~10번 항목마다 독립적으로 G 아바타 마크를 부착
+    // 📋 [1번 원본 사진] 전체 전문 리포트 단락 데이터
+    const fullReportSections = [
+      {
+        title: "",
+        content: "먼저 결론부터 말씀드리겠습니다.\n현재 SK하이닉스를 이해하려면 한국 반도체 뉴스만 보면 안 됩니다.\n가장 중요한 출발점은 미국입니다.\n\n미국의 엔비디아·마이크로소프트·아마존·구글·메타가 AI 데이터센터에 얼마나 많은 돈을 투자하느냐가 출발점이고,\n↓\n그 돈으로 데이터센터가 만들어지고\n↓\n그 안에 엔비디아 GPU가 들어가고\n↓\nGPU가 제대로 작동하려면 HBM이 필요하고\n↓\nHBM을 만드는 핵심 기업 중 하나가 SK하이닉스입니다.\n\n즉,\n미국 빅테크의 AI 투자 → 엔비디아 → HBM 수요 → SK하이닉스 실적 → SK하이닉스 주가\n이 구조를 이해해야 합니다.\nSK하이닉스는 2026년 2분기 매출 79조3,187억원, 영업이익 60조5,426억원으로 분기 기준 사상 최대 실적을 기록했고, HBM4 양산 출하도 2분기부터 시작했습니다."
+      },
+      {
+        title: "① 앞으로 SK하이닉스 주가는 얼마나 더 갈 수 있을까?",
+        content: "이 질문이 가장 중요합니다.\n하지만 애널리스트 입장에서는 “몇 만원까지 간다”라고 먼저 말하면 안 됩니다.\n먼저 주가를 움직이는 실적의 방향을 봐야 합니다.\n현재 가장 중요한 것은 AI 투자 사이클이 계속되는가입니다.\n여기서 미국 시장을 봐야 합니다.\n엔비디아의 AI 데이터센터 사업이 계속 성장하고, 미국 빅테크들이 AI 인프라 투자를 계속한다면 SK하이닉스의 HBM 수요에도 긍정적인 영향을 줄 가능성이 높습니다.\n왜냐하면 엔비디아의 차세대 AI 가속기인 베라 루빈은 HBM4를 핵심 메모리로 사용하기 때문입니다.\n따라서 현재 SK하이닉스 주가를 볼 때는 “하이닉스가 좋은 회사냐?”보다 “미국 AI 투자가 앞으로 얼마나 오래 지속되느냐?”가 더 중요합니다."
+      },
+      {
+        title: "② HBM4가 SK하이닉스 실적을 얼마나 키울까?",
+        content: "여기서 초보자분들이 HBM을 어렵게 생각할 필요가 없습니다.\n쉽게 말하면, GPU가 AI 계산을 담당하는 두뇌라면 HBM은 그 두뇌 옆에서 데이터를 엄청나게 빠르게 공급해주는 초고속 메모리입니다.\nAI 모델이 커질수록 더 많은 데이터를 더 빠르게 공급해야 합니다. 그래서 HBM이 중요합니다.\n\n현재 중요한 변화는 HBM3E → HBM4 입니다.\nSK하이닉스는 2026년 2분기부터 HBM4 양산 공급을 시작했고 하반기에 생산을 본격적으로 확대하고 있습니다.\n이게 왜 중요하냐면, HBM4는 단순히 제품 하나가 바뀌는 것이 아닙니다. AI GPU의 세대가 바뀌면서 필요한 메모리도 같이 업그레이드되는 것입니다.\n\n따라서\n블랙웰 → 루빈\nHBM3E → HBM4\n라는 변화가 이어집니다. 결국 엔비디아의 차세대 GPU 판매량이 증가할수록 HBM4 수요도 증가할 가능성이 높습니다."
+      },
+      {
+        title: "③ 엔비디아가 오르면 SK하이닉스는 얼마나 따라갈까?",
+        content: "여기서 굉장히 중요한 투자 포인트가 있습니다.\n엔비디아와 SK하이닉스는 같은 회사가 아니지만 AI라는 하나의 공급망으로 연결되어 있습니다.\n예를 들어 미국에서\n엔비디아 실적 발표 → AI 데이터센터 투자 확대 → GPU 수요 증가 → HBM 수요 증가 → SK하이닉스 수혜 라는 흐름이 발생할 수 있습니다.\n\n하지만 여기서 중요한 함정이 있습니다.\n엔비디아 +10% = 하이닉스 +10% 이런 공식은 없습니다.\n왜냐하면 하이닉스 주가는\n엔비디아 + HBM 가격 + DRAM 가격 + 삼성전자 경쟁 + 환율 + 외국인 수급 + 한국 증시 분위기 를 동시에 반영하기 때문입니다.\n그래서 저는 엔비디아를 “하이닉스 주가의 선행 신호” 중 하나로 봅니다."
+      },
+      {
+        title: "④ 그렇다면 SK하이닉스 실적은 얼마나 좋아질까?",
+        content: "현재 실적만 보면 이미 엄청납니다. SK하이닉스는 2026년 2분기 매출 79조3,187억원, 영업이익 60조5,426억원을 기록했습니다. 영업이익률은 무려 76%였습니다.\n\n여기서 초보자분들이 꼭 알아야 할 게 있습니다.\n주가는 과거 실적보다 미래 실적을 더 중요하게 봅니다.\n예를 들어 “하이닉스가 올해 돈을 많이 벌었다” 이것보다 “내년에도 이 정도 돈을 계속 벌 수 있는가?”가 주가에는 더 중요합니다.\n\n그래서 앞으로 확인해야 할 것은 HBM4 판매 증가 + HBM 가격 + DRAM 가격 + 출하량 입니다.\n특히 SK하이닉스는 HBM뿐 아니라 AI 서버용 DRAM과 eSSD 등 고부가 제품에서도 강한 수익성을 보이고 있습니다. 즉, HBM 하나만 보는 것은 부족합니다."
+      },
+      {
+        title: "⑤ 지금 SK하이닉스 주가는 비싼가, 싼가?",
+        content: "이것도 초보자들이 가장 많이 하는 질문입니다. 그런데 반도체주는 일반 기업처럼 단순히 PER 하나만 보고 판단하면 위험합니다.\n메모리 산업은 원래\n호황 → 가격 상승 → 이익 증가 → 투자 확대 → 공급 증가 → 가격 하락 → 이익 감소\n라는 사이클을 반복하기 때문입니다.\n\n그런데 지금은 조금 다릅니다. AI 데이터센터 때문에 HBM이라는 고부가 메모리 시장이 크게 성장하고 있습니다.\n또한 SK하이닉스는 주요 고객들과 장기 공급계약을 확대하고 있습니다. 이것은 상당히 중요한 변화입니다.\n“만들어 놓고 팔 곳을 찾는 메모리”에서 “고객이 미리 물량을 확보하려는 메모리”로 시장 구조가 변할 가능성이 있기 때문입니다.\n따라서 SK하이닉스의 밸류에이션을 판단할 때는 단순히 현재 PER만 보는 것이 아니라 앞으로의 이익 증가율과 HBM 사업의 지속 가능성을 함께 봐야 합니다."
+      },
+      {
+        title: "⑥ 외국인과 기관 수급은 왜 중요한가?",
+        content: "실적이 좋아도 주가가 바로 오르는 것은 아닙니다. 주식은 결국 누가 사고 누가 파느냐가 중요합니다.\n특히 SK하이닉스처럼 시가총액이 큰 대형주는 외국인 자금의 영향을 크게 받습니다.\n\n따라서 하이닉스를 볼 때\n① 외국인 순매수 ② 기관 순매수 ③ 거래대금 ④ 주가 상승폭 을 같이 봐야 합니다.\n예를 들어 [엔비디아 상승 + 미국 반도체주 상승 + 마이크론 상승 + 외국인 하이닉스 순매수]가 동시에 발생한다면 상당히 좋은 조합입니다.\n반대로 [엔비디아 상승 + 미국 반도체주 상승]인데 [하이닉스 외국인 매도]라면 “미국 AI 분위기는 좋은데 한국 시장에서는 이미 기대감이 주가에 반영된 것 아닌가?”라고 의심해야 합니다."
+      },
+      {
+        title: "⑦ 삼성전자와 SK하이닉스 중 누가 더 좋은가?",
+        content: "이 질문도 미국 시장과 연결하면 훨씬 쉽게 이해할 수 있습니다.\n현재 투자자들이 보는 핵심은 HBM 경쟁력과 AI 메모리 수익성입니다.\nSK하이닉스는 HBM 분야에서 오랫동안 강한 위치를 유지해왔습니다. 2026년 1분기 글로벌 HBM 시장에서 SK하이닉스의 매출 기준 점유율은 약 58%로 삼성전자와 마이크론을 앞선 것으로 집계됐습니다.\n\n하지만 삼성전자를 무시하면 안 됩니다. 최근 HBM4 경쟁은 더욱 치열해지고 있고, 삼성전자의 HBM4 공급 확대 가능성도 커지고 있습니다.\n따라서 앞으로 중요한 것은 “SK하이닉스가 HBM 시장에서 1등을 계속 유지할 수 있는가?”입니다. 이것이 깨지기 시작하면 하이닉스의 프리미엄도 줄어들 수 있습니다."
+      },
+      {
+        title: "⑧ 메모리 슈퍼사이클은 언제까지 갈까?",
+        content: "제가 가장 조심스럽게 보는 부분입니다. 현재 AI 투자는 강합니다. 하지만 영원히 강할 수는 없습니다.\n미국 데이터센터 업체들이 AI 서버를 계속 증설하면 메모리 수요가 증가하지만, [AI 투자 증가 → 메모리 가격 상승 → 3사 생산 확대 → 공급 증가]가 발생합니다.\n결국 어느 순간 공급이 수요를 따라잡으면 가격 상승세가 둔화될 수 있습니다.\n\n따라서 저는 2026~2027년을 무조건적인 상승 구간이라고 단정하지 않습니다. 오히려 “AI 수요가 강한 동안 얼마나 높은 가격과 수익성을 유지하느냐”가 핵심입니다.\n현재 SK하이닉스는 AI 인프라 투자와 고부가 메모리 수요가 내년 이후에도 견조할 것으로 보고 있으며, CEO 역시 최근 메모리 부족이 2030년까지 이어질 가능성을 언급했습니다. 다만 이것은 회사의 전망이지 확정된 미래는 아닙니다."
+      },
+      {
+        title: "⑨ 그렇다면 SK하이닉스의 가장 큰 위험은?",
+        content: "여기서는 냉정하게 봐야 합니다.\n\n• 첫 번째 위험: 엔비디아 AI 투자가 둔화되는 것 (가장 큼)\n• 두 번째 위험: 삼성전자와 마이크론의 HBM 경쟁력 상승\n• 세 번째 위험: AI 칩의 HBM 탑재량 감소\n• 네 번째 위험: 주가가 실적보다 먼저 너무 많이 올라가는 것\n\n회사가 아무리 좋은 실적을 내더라도 기대가 이미 주가에 너무 많이 들어가 있다면 실적 발표 후 주가가 오히려 떨어질 수 있습니다. 좋은 기업 = 무조건 좋은 매수가격 은 아닙니다."
+      },
+      {
+        title: "⑩ 그래서 실제 매수 타점은 어디인가?",
+        content: "기업 분석과 매매 타점은 분리해서 봐야 합니다.\n\n1단계 — 미국 시장: 엔비디아 → 마이크론 → 필라델피아 반도체지수 → 미국 AI 데이터센터 투자 확인\n2단계 — 메모리 시장: HBM 가격, DRAM 가격, HBM4 공급, 메모리 공급 부족 여부 확인\n3단계 — SK하이닉스: 실적 전망 → HBM4 출하량 → 영업이익 전망 → 외국인·기관 수급 확인\n4단계 — 마지막 차트: 20일선, 60일선, 볼린저밴드, 거래량 등으로 실제 진입 타점 포착\n\n미국 시장이 먼저 방향을 알려주고 → 실적이 확인되고 → 수급이 들어오고 → 차트에서 타점을 잡는 방식입니다."
+      },
+      {
+        title: "🔥 10가지를 하나로 연결하면 & 🎯 현재 판단",
+        content: "미국 빅테크 AI 투자 지속 → 엔비디아 GPU 수요 증가 → 차세대 루빈 HBM4 중요성 확대 → SK하이닉스 HBM4 양산 및 고부가 제품 비중 확대 → 실적 및 이익 지속 → 외국인 수급 유입 → 주가 추가 상승\n(그러나 경쟁 심화, 공급 과잉, 투자 둔화 시 사이클 꺾임 주의)\n\n현재 확인되는 데이터만 보면 AI 수요 자체가 무너지고 있다는 신호보다 견조한 수요가 이어진다는 신호가 더 많습니다. 다만 “AI가 좋으니까 하이닉스는 무조건 오른다”가 아니라 앞으로 좋아질 정도보다 주가가 덜 올라갔는가를 냉정하게 판단해야 합니다."
+      },
+      {
+        title: "🐜 한마디로 정리하면",
+        content: "미국에서 엔비디아가 돈을 벌고 빅테크가 AI 투자를 늘려 HBM이 더 필요해지고, SK하이닉스가 HBM4를 공급해 이익이 늘고 외인이 매수하면 주가가 상승합니다. 반대로 AI 투자가 꺾이면 하락합니다.\n따라서 SK하이닉스만 보면 안 되고 미국의 엔비디아와 마이크론을 반드시 함께 봐야 합니다."
+      }
+    ];
+
+    // 🔥 [1번 사진 원본 100% 일치]: 사각형 테두리 박스 없이 순수 텍스트로 자연스럽게 출력
     function startTypewriterFlow(stockName) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
 
-      // 전체 컨테이너 생성
-      const wrapper = document.createElement('div');
-      wrapper.id = wrapperId;
-      wrapper.className = "space-y-8 animate-fade py-2";
-
-      chatArea.appendChild(wrapper);
-
-      // 전체 리포트 데이터
-      const reportSections = [
-        {
-          title: "",
-          content: "먼저 결론부터 말씀드리겠습니다.\n현재 SK하이닉스를 이해하려면 한국 반도체 뉴스만 보면 안 됩니다.\n가장 중요한 출발점은 미국입니다.\n\n미국의 엔비디아·마이크로소프트·아마존·구글·메타가 AI 데이터센터에 얼마나 많은 돈을 투자하느냐가 출발점이고,\n↓\n그 돈으로 데이터센터가 만들어지고\n↓\n그 안에 엔비디아 GPU가 들어가고\n↓\nGPU가 제대로 작동하려면 HBM이 필요하고\n↓\nHBM을 만드는 핵심 기업 중 하나가 SK하이닉스입니다.\n\n즉,\n미국 빅테크의 AI 투자 → 엔비디아 → HBM 수요 → SK하이닉스 실적 → SK하이닉스 주가\n이 구조를 이해해야 합니다.\nSK하이닉스는 2026년 2분기 매출 79조3,187억원, 영업이익 60조5,426억원으로 분기 기준 사상 최대 실적을 기록했고, HBM4 양산 출하도 2분기부터 시작했습니다."
-        },
-        {
-          title: "① 앞으로 SK하이닉스 주가는 얼마나 더 갈 수 있을까?",
-          content: "이 질문이 가장 중요합니다.\n하지만 애널리스트 입장에서는 “몇 만원까지 간다”라고 먼저 말하면 안 됩니다.\n먼저 주가를 움직이는 실적의 방향을 봐야 합니다.\n현재 가장 중요한 것은 AI 투자 사이클이 계속되는가입니다.\n여기서 미국 시장을 봐야 합니다.\n엔비디아의 AI 데이터센터 사업이 계속 성장하고, 미국 빅테크들이 AI 인프라 투자를 계속한다면 SK하이닉스의 HBM 수요에도 긍정적인 영향을 줄 가능성이 높습니다.\n왜냐하면 엔비디아의 차세대 AI 가속기인 베라 루빈은 HBM4를 핵심 메모리로 사용하기 때문입니다.\n따라서 현재 SK하이닉스 주가를 볼 때는 “하이닉스가 좋은 회사냐?”보다 “미국 AI 투자가 앞으로 얼마나 오래 지속되느냐?”가 더 중요합니다."
-        },
-        {
-          title: "② HBM4가 SK하이닉스 실적을 얼마나 키울까?",
-          content: "여기서 초보자분들이 HBM을 어렵게 생각할 필요가 없습니다.\n쉽게 말하면, GPU가 AI 계산을 담당하는 두뇌라면 HBM은 그 두뇌 옆에서 데이터를 엄청나게 빠르게 공급해주는 초고속 메모리입니다.\nAI 모델이 커질수록 더 많은 데이터를 더 빠르게 공급해야 합니다. 그래서 HBM이 중요합니다.\n\n현재 중요한 변화는 HBM3E → HBM4 입니다.\nSK하이닉스는 2026년 2분기부터 HBM4 양산 공급을 시작했고 하반기에 생산을 본격적으로 확대하고 있습니다.\n이게 왜 중요하냐면, HBM4는 단순히 제품 하나가 바뀌는 것이 아닙니다. AI GPU의 세대가 바뀌면서 필요한 메모리도 같이 업그레이드되는 것입니다.\n\n따라서\n블랙웰 → 루빈\nHBM3E → HBM4\n라는 변화가 이어집니다. 결국 엔비디아의 차세대 GPU 판매량이 증가할수록 HBM4 수요도 증가할 가능성이 높습니다."
-        },
-        {
-          title: "③ 엔비디아가 오르면 SK하이닉스는 얼마나 따라갈까?",
-          content: "여기서 굉장히 중요한 투자 포인트가 있습니다.\n엔비디아와 SK하이닉스는 같은 회사가 아니지만 AI라는 하나의 공급망으로 연결되어 있습니다.\n예를 들어 미국에서\n엔비디아 실적 발표 → AI 데이터센터 투자 확대 → GPU 수요 증가 → HBM 수요 증가 → SK하이닉스 수혜 라는 흐름이 발생할 수 있습니다.\n\n하지만 여기서 중요한 함정이 있습니다.\n엔비디아 +10% = 하이닉스 +10% 이런 공식은 없습니다.\n왜냐하면 하이닉스 주가는\n엔비디아 + HBM 가격 + DRAM 가격 + 삼성전자 경쟁 + 환율 + 외국인 수급 + 한국 증시 분위기 를 동시에 반영하기 때문입니다.\n그래서 저는 엔비디아를 “하이닉스 주가의 선행 신호” 중 하나로 봅니다."
-        },
-        {
-          title: "④ 그렇다면 SK하이닉스 실적은 얼마나 좋아질까?",
-          content: "현재 실적만 보면 이미 엄청납니다. SK하이닉스는 2026년 2분기 매출 79조3,187억원, 영업이익 60조5,426억원을 기록했습니다. 영업이익률은 무려 76%였습니다.\n\n여기서 초보자분들이 꼭 알아야 할 게 있습니다.\n주가는 과거 실적보다 미래 실적을 더 중요하게 봅니다.\n예를 들어 “하이닉스가 올해 돈을 많이 벌었다” 이것보다 “내년에도 이 정도 돈을 계속 벌 수 있는가?”가 주가에는 더 중요합니다.\n\n그래서 앞으로 확인해야 할 것은 HBM4 판매 증가 + HBM 가격 + DRAM 가격 + 출하량 입니다.\n특히 SK하이닉스는 HBM뿐 아니라 AI 서버용 DRAM과 eSSD 등 고부가 제품에서도 강한 수익성을 보이고 있습니다. 즉, HBM 하나만 보는 것은 부족합니다."
-        },
-        {
-          title: "⑤ 지금 SK하이닉스 주가는 비싼가, 싼가?",
-          content: "이것도 초보자들이 가장 많이 하는 질문입니다. 그런데 반도체주는 일반 기업처럼 단순히 PER 하나만 보고 판단하면 위험합니다.\n메모리 산업은 원래\n호황 → 가격 상승 → 이익 증가 → 투자 확대 → 공급 증가 → 가격 하락 → 이익 감소\n라는 사이클을 반복하기 때문입니다.\n\n그런데 지금은 조금 다릅니다. AI 데이터센터 때문에 HBM이라는 고부가 메모리 시장이 크게 성장하고 있습니다.\n또한 SK하이닉스는 주요 고객들과 장기 공급계약을 확대하고 있습니다. 이것은 상당히 중요한 변화입니다.\n“만들어 놓고 팔 곳을 찾는 메모리”에서 “고객이 미리 물량을 확보하려는 메모리”로 시장 구조가 변할 가능성이 있기 때문입니다.\n따라서 SK하이닉스의 밸류에이션을 판단할 때는 단순히 현재 PER만 보는 것이 아니라 앞으로의 이익 증가율과 HBM 사업의 지속 가능성을 함께 봐야 합니다."
-        },
-        {
-          title: "⑥ 외국인과 기관 수급은 왜 중요한가?",
-          content: "실적이 좋아도 주가가 바로 오르는 것은 아닙니다. 주식은 결국 누가 사고 누가 파느냐가 중요합니다.\n특히 SK하이닉스처럼 시가총액이 큰 대형주는 외국인 자금의 영향을 크게 받습니다.\n\n따라서 하이닉스를 볼 때\n① 외국인 순매수 ② 기관 순매수 ③ 거래대금 ④ 주가 상승폭 을 같이 봐야 합니다.\n예를 들어 [엔비디아 상승 + 미국 반도체주 상승 + 마이크론 상승 + 외국인 하이닉스 순매수]가 동시에 발생한다면 상당히 좋은 조합입니다.\n반대로 [엔비디아 상승 + 미국 반도체주 상승]인데 [하이닉스 외국인 매도]라면 “미국 AI 분위기는 좋은데 한국 시장에서는 이미 기대감이 주가에 반영된 것 아닌가?”라고 의심해야 합니다."
-        },
-        {
-          title: "⑦ 삼성전자와 SK하이닉스 중 누가 더 좋은가?",
-          content: "이 질문도 미국 시장과 연결하면 훨씬 쉽게 이해할 수 있습니다.\n현재 투자자들이 보는 핵심은 HBM 경쟁력과 AI 메모리 수익성입니다.\nSK하이닉스는 HBM 분야에서 오랫동안 강한 위치를 유지해왔습니다. 2026년 1분기 글로벌 HBM 시장에서 SK하이닉스의 매출 기준 점유율은 약 58%로 삼성전자와 마이크론을 앞선 것으로 집계됐습니다.\n\n하지만 삼성전자를 무시하면 안 됩니다. 최근 HBM4 경쟁은 더욱 치열해지고 있고, 삼성전자의 HBM4 공급 확대 가능성도 커지고 있습니다.\n따라서 앞으로 중요한 것은 “SK하이닉스가 HBM 시장에서 1등을 계속 유지할 수 있는가?”입니다. 이것이 깨지기 시작하면 하이닉스의 프리미엄도 줄어들 수 있습니다."
-        },
-        {
-          title: "⑧ 메모리 슈퍼사이클은 언제까지 갈까?",
-          content: "제가 가장 조심스럽게 보는 부분입니다. 현재 AI 투자는 강합니다. 하지만 영원히 강할 수는 없습니다.\n미국 데이터센터 업체들이 AI 서버를 계속 증설하면 메모리 수요가 증가하지만, [AI 투자 증가 → 메모리 가격 상승 → 3사 생산 확대 → 공급 증가]가 발생합니다.\n결국 어느 순간 공급이 수요를 따라잡으면 가격 상승세가 둔화될 수 있습니다.\n\n따라서 저는 2026~2027년을 무조건적인 상승 구간이라고 단정하지 않습니다. 오히려 “AI 수요가 강한 동안 얼마나 높은 가격과 수익성을 유지하느냐”가 핵심입니다.\n현재 SK하이닉스는 AI 인프라 투자와 고부가 메모리 수요가 내년 이후에도 견조할 것으로 보고 있으며, CEO 역시 최근 메모리 부족이 2030년까지 이어질 가능성을 언급했습니다. 다만 이것은 회사의 전망이지 확정된 미래는 아닙니다."
-        },
-        {
-          title: "⑨ 그렇다면 SK하이닉스의 가장 큰 위험은?",
-          content: "여기서는 냉정하게 봐야 합니다.\n\n• 첫 번째 위험: 엔비디아 AI 투자가 둔화되는 것 (가장 큼)\n• 두 번째 위험: 삼성전자와 마이크론의 HBM 경쟁력 상승\n• 세 번째 위험: AI 칩의 HBM 탑재량 감소\n• 네 번째 위험: 주가가 실적보다 먼저 너무 많이 올라가는 것\n\n회사가 아무리 좋은 실적을 내더라도 기대가 이미 주가에 너무 많이 들어가 있다면 실적 발표 후 주가가 오히려 떨어질 수 있습니다. 좋은 기업 = 무조건 좋은 매수가격 은 아닙니다."
-        },
-        {
-          title: "⑩ 그래서 실제 매수 타점은 어디인가?",
-          content: "기업 분석과 매매 타점은 분리해서 봐야 합니다.\n\n1단계 — 미국 시장: 엔비디아 → 마이크론 → 필라델피아 반도체지수 → 미국 AI 데이터센터 투자 확인\n2단계 — 메모리 시장: HBM 가격, DRAM 가격, HBM4 공급, 메모리 공급 부족 여부 확인\n3단계 — SK하이닉스: 실적 전망 → HBM4 출하량 → 영업이익 전망 → 외국인·기관 수급 확인\n4단계 — 마지막 차트: 20일선, 60일선, 볼린저밴드, 거래량 등으로 실제 진입 타점 포착\n\n미국 시장이 먼저 방향을 알려주고 → 실적이 확인되고 → 수급이 들어오고 → 차트에서 타점을 잡는 방식입니다."
-        },
-        {
-          title: "🔥 10가지를 하나로 연결하면 & 🎯 현재 판단",
-          content: "미국 빅테크 AI 투자 지속 → 엔비디아 GPU 수요 증가 → 차세대 루빈 HBM4 중요성 확대 → SK하이닉스 HBM4 양산 및 고부가 제품 비중 확대 → 실적 및 이익 지속 → 외국인 수급 유입 → 주가 추가 상승\n(그러나 경쟁 심화, 공급 과잉, 투자 둔화 시 사이클 꺾임 주의)\n\n현재 확인되는 데이터만 보면 AI 수요 자체가 무너지고 있다는 신호보다 견조한 수요가 이어진다는 신호가 더 많습니다. 다만 “AI가 좋으니까 하이닉스는 무조건 오른다”가 아니라 앞으로 좋아질 정도보다 주가가 덜 올라갔는가를 냉정하게 판단해야 합니다."
-        },
-        {
-          title: "🐜 한마디로 정리하면",
-          content: "미국에서 엔비디아가 돈을 벌고 빅테크가 AI 투자를 늘려 HBM이 더 필요해지고, SK하이닉스가 HBM4를 공급해 이익이 늘고 외인이 매수하면 주가가 상승합니다. 반대로 AI 투자가 꺾이면 하락합니다.\n따라서 SK하이닉스만 보면 안 되고 미국의 엔비디아와 마이크론을 반드시 함께 봐야 합니다."
-        }
-      ];
+      const mainContainer = document.createElement('div');
+      mainContainer.id = wrapperId;
+      mainContainer.className = "space-y-8 py-2";
+      chatArea.appendChild(mainContainer);
 
       let secIdx = 0;
 
       function typeNextSection() {
-        if (secIdx >= reportSections.length) {
-          renderStrategySelection(wrapper.id);
+        if (secIdx >= fullReportSections.length) {
+          renderStrategySelectionBlock(wrapperId, stockName);
           return;
         }
 
-        const sec = reportSections[secIdx];
+        const sec = fullReportSections[secIdx];
         
-        // 1. 각 섹션마다 새로운 G 마크 컨테이너 생성
-        const blockDiv = document.createElement('div');
-        blockDiv.className = "relative pl-11 sm:pl-12";
-        
-        // G 마크 아이콘
-        const gMark = document.createElement('div');
-        gMark.className = "absolute left-0 top-0.5 w-8 h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm";
-        gMark.innerText = "G";
-        blockDiv.appendChild(gMark);
+        // 1번 사진처럼 테두리 박스 없이 [G] + 제목 + 본문 텍스트 바로 배치
+        const textBlock = document.createElement('div');
+        textBlock.className = "relative pl-11 sm:pl-12 animate-fade";
+        textBlock.innerHTML = `
+          <div class="absolute left-0 top-0.5 w-8 h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm">G</div>
+          <div class="space-y-2">
+            ${sec.title ? `<h4 class="font-black text-base text-[#0f172a] dark:text-white flex items-center gap-1.5">${sec.title}</h4>` : ''}
+            <p id="p-content-${secIdx}" class="text-sm sm:text-base text-[#334155] dark:text-[#e4e4e7] leading-7 whitespace-pre-line typing-cursor"></p>
+          </div>
+        `;
+        mainContainer.appendChild(textBlock);
 
-        // 내용 영역
-        const contentArea = document.createElement('div');
-        contentArea.className = "space-y-3 pb-4";
-        
-        // 타이틀 렌더링
-        if (secIdx === 0) {
-          const mainTitle = document.createElement('h3');
-          mainTitle.className = "font-black text-base sm:text-lg text-[#0f172a] dark:text-white";
-          mainTitle.innerText = `${stockName} (000660) - 기본 시장 진단`;
-          contentArea.appendChild(mainTitle);
-        } else if (sec.title) {
-          const subTitle = document.createElement('h4');
-          subTitle.className = "font-black text-base text-[#0f172a] dark:text-white";
-          subTitle.innerText = sec.title;
-          contentArea.appendChild(subTitle);
-        }
-
-        // 텍스트 타이핑 렌더링
-        const p = document.createElement('p');
-        p.className = "text-base text-[#334155] dark:text-[#e4e4e7] leading-7 whitespace-pre-line typing-cursor";
-        contentArea.appendChild(p);
-
-        blockDiv.appendChild(contentArea);
-        wrapper.appendChild(blockDiv);
-        
+        const pEl = document.getElementById(`p-content-${secIdx}`);
         let charIdx = 0;
         const text = sec.content;
-        const chunkSize = 12;
+        const chunkSize = 20;
 
         function typeChunk() {
           if (charIdx < text.length) {
-            p.textContent += text.substr(charIdx, chunkSize);
+            pEl.textContent += text.substr(charIdx, chunkSize);
             charIdx += chunkSize;
             chatArea.scrollTop = chatArea.scrollHeight;
-            setTimeout(typeChunk, 4); // 타이핑 속도
+            setTimeout(typeChunk, 6);
           } else {
-            p.classList.remove('typing-cursor');
+            pEl.classList.remove('typing-cursor');
             secIdx++;
-            setTimeout(typeNextSection, 150); // 다음 문단 대기 시간
+            setTimeout(typeNextSection, 100);
           }
         }
 
@@ -641,30 +675,28 @@
       typeNextSection();
     }
 
-    // 🔥 마지막 전략 선택 영역 렌더링 함수
-    function renderStrategySelection(wrapperId) {
+    // 1번 사진과 완벽 일치하는 실전 전략 3인방 카드 블록
+    function renderStrategySelectionBlock(wrapperId, stockName) {
       const chatArea = document.getElementById('chatArea');
-      const wrapper = document.getElementById(wrapperId);
+      const container = document.getElementById(wrapperId);
 
       const hoodieDiv = document.createElement('div');
-      hoodieDiv.id = `${wrapperId}-hoodie`;
-      hoodieDiv.className = "relative pl-11 sm:pl-12 opacity-0 transition-opacity duration-700 pt-4";
-      
+      hoodieDiv.className = "relative pl-11 sm:pl-12 animate-fade pt-2";
       hoodieDiv.innerHTML = `
-        <div class="absolute left-0 top-4 w-8 h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm">G</div>
+        <div class="absolute left-0 top-3 w-8 h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm">G</div>
         <div class="space-y-5">
-          <div class="border-b border-[#e2e8f0] dark:border-[#27272a] pb-3">
+          <div class="pb-1">
             <h3 class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 실전 gaemiGTP 전략을 확인하세요.</h3>
           </div>
 
           <div class="space-y-3 pt-1">
-            <!-- 서학개미 -->
+            <!-- 서학개미 (1번 사진 완벽 일치: US 태그) -->
             <div class="space-y-2">
-              <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#27272a] transition relative cursor-pointer">
+              <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div class="space-y-1">
                     <div class="flex items-center gap-2">
-                      <span class="text-lg">🇺🇸</span>
+                      <span class="text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]">US</span>
                       <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">서학개미 (장기)</span>
                     </div>
                     <p class="text-sm text-[#64748b] dark:text-[#a1a1aa]">미국 빅테크 메가트렌드 진입 후 분할익절과 잔여물량으로 추종.</p>
@@ -684,13 +716,13 @@
               <div id="dash-slot-서학" class="hidden animate-fade"></div>
             </div>
 
-            <!-- 국장개미 -->
+            <!-- 국장개미 (1번 사진 완벽 일치: KR 태그) -->
             <div class="space-y-2">
-              <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#27272a] transition relative cursor-pointer">
+              <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div class="space-y-1">
                     <div class="flex items-center gap-2">
-                      <span class="text-lg">🇰🇷</span>
+                      <span class="text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]">KR</span>
                       <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">국장개미 (스윙)</span>
                     </div>
                     <p class="text-sm text-[#64748b] dark:text-[#a1a1aa]">코스피 시총 상위주 20일선 지지 반등 및 외국인 순매수 턴어라운드 노림수.</p>
@@ -710,13 +742,13 @@
               <div id="dash-slot-국장" class="hidden animate-fade"></div>
             </div>
 
-            <!-- 트레이더 -->
+            <!-- 트레이더 (1번 사진 완벽 일치: 번개 아이콘) -->
             <div class="space-y-2">
-              <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#27272a] transition relative cursor-pointer">
+              <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div class="space-y-1">
                     <div class="flex items-center gap-2">
-                      <span class="text-lg">⚡</span>
+                      <span class="text-amber-400">⚡</span>
                       <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">트레이더 (단기)</span>
                     </div>
                     <p class="text-sm text-[#64748b] dark:text-[#a1a1aa]">15시 15분 당일 거래대금 양봉 매수 후 익일 개장 초반 시가 갭 분할 청산.</p>
@@ -735,24 +767,19 @@
               </button>
               <div id="dash-slot-트레이더" class="hidden animate-fade"></div>
             </div>
-
           </div>
 
           <div class="pt-4 flex justify-center">
-            <button type="button" onclick="openMeme('${activeStock}')" class="w-full sm:w-auto px-7 py-3 rounded-xl bg-[#f1f5f9] dark:bg-[#18181b] hover:bg-[#e2e8f0] dark:hover:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] text-[#0f172a] dark:text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer">
+            <button type="button" onclick="openMeme('${stockName}')" class="w-full sm:w-auto px-7 py-3 rounded-xl bg-[#f1f5f9] dark:bg-[#18181b] hover:bg-[#e2e8f0] dark:hover:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] text-[#0f172a] dark:text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-sm">
               <span class="text-lg">📸</span>
               <span>카카오톡 공유용 짤 카드 만들기</span>
             </button>
           </div>
         </div>
       `;
-      wrapper.appendChild(hoodieDiv);
 
-      setTimeout(() => {
-        hoodieDiv.classList.remove('opacity-0');
-        hoodieDiv.classList.add('opacity-100');
-        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
-      }, 50);
+      container.appendChild(hoodieDiv);
+      chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
     }
 
     const strategyData = {
@@ -843,7 +870,7 @@
 
       targetSlot.innerHTML = `
         <div class="space-y-3.5 my-2 animate-fade">
-          
+          <!-- 1. 실전 투자 전략 박스 -->
           <div class="bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
             <div class="flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] pb-3">
               <div class="flex items-center gap-2.5">
@@ -865,6 +892,7 @@
             </div>
           </div>
 
+          <!-- 2. 실전 대시보드 박스 -->
           <div class="bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] rounded-3xl p-5 sm:p-7 space-y-6 shadow-md">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#e2e8f0] dark:border-[#27272a] pb-5">
               <div class="space-y-1">
@@ -915,7 +943,6 @@
               <p class="text-xs sm:text-sm text-[#475569] dark:text-[#a1a1aa] leading-relaxed">${data.point}</p>
             </div>
           </div>
-
         </div>
       `;
 
