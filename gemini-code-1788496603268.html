@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>gaemiGTP</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- 백테스트 차트 엔진 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>
+    body {
+      font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans KR", sans-serif;
+      letter-spacing: -0.015em;
+    }
+    ::-webkit-scrollbar { display: none; width: 0px; }
+    html, body, #chatArea, aside {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade { animation: fadeIn 0.25s ease-out forwards; }
+
+    .typing-cursor::after {
+      content: '▋';
+      display: inline-block;
+      vertical-align: baseline;
+      margin-left: 4px;
+      color: #71717a;
+      animation: blink 0.8s infinite;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+  </style>
+</head>
+<body class="bg-white dark:bg-[#09090b] text-[#0f172a] dark:text-[#f4f4f5] flex h-screen overflow-hidden transition-colors duration-200 relative">
+
+  <!-- 📱 모바일 배경 어두운 오버레이 -->
+  <div id="sidebarBackdrop" onclick="closeAllSidebars()" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity duration-300"></div>
+
+  <!-- 1. 좌측 사이드바 (PC: 고정 / 모바일: 슬라이드 드로어) -->
+  <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#121215] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
+    <div class="p-4 flex flex-col gap-5 overflow-y-auto">
+      <div class="flex items-center justify-between px-1">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">🐜</span>
+          <span class="font-black text-xl text-[#0f172a] dark:text-white tracking-tight">gaemiGTP</span>
+        </div>
+        <button type="button" onclick="closeAllSidebars()" class="lg:hidden text-[#71717a] hover:text-white text-lg p-1">✕</button>
+      </div>
+
+      <!-- 실전 전략 3인방 -->
+      <div class="flex flex-col gap-2">
+        <span class="text-[11px] font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">실전 전략 3인방</span>
+        <button type="button" onclick="requestStock('서학개미'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+          <div class="flex items-center gap-2"><span>🇺🇸</span> <span class="font-bold">서학개미 (장기)</span></div>
+          <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa] font-bold">24.5억</span>
+        </button>
+        <button type="button" onclick="requestStock('국장개미'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+          <div class="flex items-center gap-2"><span>🇰🇷</span> <span class="font-bold">국장개미 (스윙)</span></div>
+          <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa] font-bold">24.5억</span>
+        </button>
+        <button type="button" onclick="requestStock('트레이더'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+          <div class="flex items-center gap-2"><span>⚡</span> <span class="font-bold">트레이더 (단기)</span></div>
+          <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa] font-bold">32.4억</span>
+        </button>
+      </div>
+
+      <!-- 전문가 2인방 -->
+      <div class="flex flex-col gap-2">
+        <span class="text-[11px] font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">전문가 2인방</span>
+        <button type="button" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+          <div class="flex items-center gap-2"><span>🕶️</span> <span class="font-bold">A전문가</span></div>
+          <span class="text-[10px] bg-[#f1f5f9] dark:bg-[#27272a] text-[#475569] dark:text-[#a1a1aa] px-1.5 py-0.5 rounded font-bold">VIP</span>
+        </button>
+        <button type="button" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+          <div class="flex items-center gap-2"><span>🕶️</span> <span class="font-bold">B전문가</span></div>
+          <span class="text-[10px] bg-[#f1f5f9] dark:bg-[#27272a] text-[#475569] dark:text-[#a1a1aa] px-1.5 py-0.5 rounded font-bold">VIP</span>
+        </button>
+      </div>
+
+      <!-- 서비스 센터 -->
+      <div class="flex flex-col gap-2 pt-2 border-t border-[#e2e8f0] dark:border-[#27272a]">
+        <span class="text-[11px] font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">서비스 센터</span>
+        <button type="button" onclick="openUpgradeModal('매매기법'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+          <div class="flex items-center gap-2"><span>📘</span> <span class="font-bold">매매기법 신청</span></div>
+          <span class="text-[10px] bg-[#0f172a] dark:bg-white text-white dark:text-black px-1.5 py-0.5 rounded font-black">PRO</span>
+        </button>
+        <button type="button" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center gap-2 transition cursor-pointer shadow-sm">
+          <span>💰</span> <span class="font-bold">페이백 신청</span>
+        </button>
+        <button type="button" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center gap-2 transition cursor-pointer shadow-sm">
+          <span>📢</span> <span class="font-bold">광고신청</span>
+        </button>
+        <button type="button" class="text-left text-xs bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center gap-2 transition cursor-pointer shadow-sm">
+          <span>🛒</span> <span class="font-bold">개미마켓</span>
+        </button>
+      </div>
+    </div>
+    
+    <div class="p-4 border-t border-[#e2e8f0] dark:border-[#27272a]">
+      <button type="button" onclick="openUpgradeModal('통합 실시간'); closeAllSidebars();" class="w-full p-2.5 rounded-xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#3f3f46] text-xs flex items-center justify-between hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] transition cursor-pointer shadow-sm">
+        <div class="flex items-center gap-2">
+          <span>🔔</span>
+          <span class="font-bold text-[#0f172a] dark:text-white">텔레그램 알림</span>
+        </div>
+        <span class="text-[10px] bg-[#0f172a] dark:bg-white text-white dark:text-black px-1.5 py-0.5 rounded font-black">PRO</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- 2. 중앙 메인 영역 -->
+  <main class="flex-1 flex flex-col h-full bg-white dark:bg-[#09090b] overflow-hidden min-w-0">
+    <header class="h-16 border-b border-[#e2e8f0] dark:border-[#27272a] flex items-center justify-between px-4 sm:px-6 bg-white/80 dark:bg-[#121215]/80 backdrop-blur shrink-0 z-10">
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="toggleLeftSidebar()" class="lg:hidden p-1.5 rounded-lg border border-[#cbd5e1] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#18181b] text-base text-[#0f172a] dark:text-white cursor-pointer">
+          ☰
+        </button>
+        <span class="font-bold text-[#0f172a] dark:text-white text-base">gaemiGTP</span>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button type="button" onclick="toggleTheme()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#f1f5f9] dark:bg-[#18181b] text-[#0f172a] dark:text-white border border-[#cbd5e1] dark:border-[#3f3f46] rounded-full hover:bg-[#e2e8f0] dark:hover:bg-[#27272a] transition cursor-pointer shadow-sm">
+          <span id="themeIcon">🌙</span>
+          <span id="themeText">다크 모드</span>
+        </button>
+
+        <button type="button" onclick="toggleRightSidebar()" class="xl:hidden p-1.5 rounded-lg border border-[#cbd5e1] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#18181b] text-sm text-[#0f172a] dark:text-white font-bold flex items-center gap-1 cursor-pointer">
+          <span>📈</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 대화 스크롤 영역 -->
+    <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 max-w-5xl mx-auto w-full scroll-smooth">
+      <div id="welcomeMessage" class="flex flex-col items-center justify-center h-full text-center space-y-4 animate-fade mt-10">
+        <div class="flex items-center gap-3">
+          <div class="w-14 h-14 rounded-2xl bg-[#f8fafc] dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-center text-2xl shadow-sm">🐜</div>
+          <span class="text-xl text-[#cbd5e1] dark:text-[#52525b] font-bold">×</span>
+          <div class="w-14 h-14 rounded-2xl bg-[#0f172a] text-white border border-[#0f172a] flex items-center justify-center text-2xl shadow-sm">🕶️</div>
+        </div>
+        <h2 class="text-xl sm:text-2xl font-bold text-[#0f172a] dark:text-white">개미들아! 오늘도 같이 똑똑하게 투자하자!</h2>
+        <p class="text-sm sm:text-base text-[#475569] dark:text-[#a1a1aa] max-w-md leading-relaxed">
+          아래 버튼을 누르면 SK하이닉스 심층 분석 리포트와 실전 전략 선택창이 실행됩니다.
+        </p>
+        <div class="flex gap-2.5 mt-4">
+          <button type="button" onclick="requestStock('SK하이닉스')" class="text-sm bg-[#0f172a] dark:bg-white text-white dark:text-black px-5 py-2.5 rounded-xl hover:bg-[#334155] dark:hover:bg-[#e4e4e7] transition shadow-md font-black cursor-pointer">
+            SK하이닉스 (종합 분석)
+          </button>
+          <button type="button" onclick="requestStock('삼성전자')" class="text-sm bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] text-[#334155] dark:text-[#e4e4e7] px-5 py-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] transition shadow-sm font-bold cursor-pointer">
+            삼성전자
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 하단 종목 검색 바 -->
+    <div class="p-4 border-t border-[#e2e8f0] dark:border-[#27272a] bg-white dark:bg-[#09090b] shrink-0">
+      <div class="max-w-5xl mx-auto">
+        <form class="relative flex items-center" onsubmit="event.preventDefault(); handleFormSubmit();">
+          <input 
+            id="stockInput" 
+            type="text" 
+            placeholder="종목명을 입력하세요 (예: SK하이닉스, 삼성전자)" 
+            class="w-full bg-[#f8fafc] dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] rounded-xl px-4 py-3.5 text-base text-[#0f172a] dark:text-white placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none focus:border-[#0f172a] dark:focus:border-white pr-20 transition"
+          >
+          <button type="submit" class="absolute right-2 bg-[#0f172a] dark:bg-white hover:bg-[#334155] dark:hover:bg-[#e4e4e7] text-white dark:text-black font-black px-4 py-2 rounded-lg text-sm transition cursor-pointer">
+            진단
+          </button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <!-- 3. 우측 대칭 사이드바 -->
+  <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#121215] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform translate-x-full xl:translate-x-0 xl:static transition-transform duration-300 ease-in-out shadow-2xl xl:shadow-none">
+    <div class="p-5 flex flex-col gap-6 overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-base">📈</span>
+          <span class="font-bold text-sm text-[#0f172a] dark:text-white tracking-tight">실시간 시그널 포착</span>
+        </div>
+        <button type="button" onclick="closeAllSidebars()" class="xl:hidden text-[#71717a] hover:text-white text-lg p-1">✕</button>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <span class="text-xs font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">관심 종목 모니터링</span>
+        
+        <button type="button" onclick="requestStock('SK하이닉스'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+          <div class="flex flex-col">
+            <span class="font-bold text-[#0f172a] dark:text-white">SK하이닉스</span>
+            <span class="text-[11px] text-[#64748b] dark:text-[#71717a]">000660</span>
+          </div>
+          <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+3.4%</span>
+        </button>
+
+        <button type="button" onclick="requestStock('삼성전자'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+          <div class="flex flex-col">
+            <span class="font-bold text-[#0f172a] dark:text-white">삼성전자</span>
+            <span class="text-[11px] text-[#64748b] dark:text-[#71717a]">005930</span>
+          </div>
+          <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">0.0%</span>
+        </button>
+
+        <button type="button" onclick="requestStock('엔비디아'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+          <div class="flex flex-col">
+            <span class="font-bold text-[#0f172a] dark:text-white">NVIDIA</span>
+            <span class="text-[11px] text-[#64748b] dark:text-[#71717a]">NVDA</span>
+          </div>
+          <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+1.8%</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="p-4 border-t border-[#e2e8f0] dark:border-[#27272a]">
+      <div class="p-3 bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] rounded-xl text-center space-y-1 shadow-sm">
+        <span class="text-xs text-[#64748b] dark:text-[#71717a] font-bold block">시장 감도 지수</span>
+        <span class="text-sm font-black text-[#0f172a] dark:text-white">🔥 탐욕 68p</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 📸 짤 카드 모달 -->
+  <div id="memeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
+    <div class="bg-white dark:bg-[#18181b] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-sm w-full p-6 relative shadow-2xl animate-fade">
+      <button type="button" onclick="document.getElementById('memeModal').classList.add('hidden')" class="absolute top-4 right-4 text-[#94a3b8] dark:text-[#71717a] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
+      <div class="text-center mb-4">
+        <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold uppercase tracking-wider">gaemiGTP 짤 카드</span>
+        <h3 class="text-base font-bold text-[#0f172a] dark:text-white mt-1">카카오톡 공유 카드</h3>
+      </div>
+      <div id="memeCardToRender" class="bg-[#f8fafc] dark:bg-[#09090b] border border-[#cbd5e1] dark:border-[#27272a] rounded-2xl p-5 text-center shadow-inner space-y-3">
+        <div class="flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] pb-2 text-sm">
+          <span class="font-black text-[#0f172a] dark:text-white">gaemiGTP</span>
+          <span id="memeStockBadge" class="bg-white dark:bg-[#18181b] text-[#0f172a] dark:text-white border border-[#cbd5e1] dark:border-[#3f3f46] px-2 py-0.5 rounded font-bold shadow-sm">SK하이닉스</span>
+        </div>
+        <div id="memeEmoji" class="text-5xl my-2">😎</div>
+        <h4 id="memeTitle" class="font-bold text-base text-[#0f172a] dark:text-white">"20일선 눌림목 반등 타점 포착!"</h4>
+        <p id="memeSub" class="text-sm text-[#475569] dark:text-[#a1a1aa] leading-relaxed">개미들아 쫄지 마라! 후드 개미 시그널 탑승 완료.</p>
+      </div>
+      <div class="grid grid-cols-4 gap-1.5 mt-4">
+        <button type="button" onclick="setMood('자신감')" class="bg-[#f1f5f9] dark:bg-[#27272a] hover:bg-[#e2e8f0] dark:hover:bg-[#3f3f46] py-2 rounded-xl text-center border border-[#cbd5e1] dark:border-[#3f3f46] cursor-pointer"><span class="text-base block">😎</span><span class="text-xs text-[#334155] dark:text-[#e4e4e7] font-bold">자신감</span></button>
+        <button type="button" onclick="setMood('익절')" class="bg-[#f1f5f9] dark:bg-[#27272a] hover:bg-[#e2e8f0] dark:hover:bg-[#3f3f46] py-2 rounded-xl text-center border border-[#cbd5e1] dark:border-[#3f3f46] cursor-pointer"><span class="text-base block">🤑</span><span class="text-xs text-[#334155] dark:text-[#e4e4e7] font-bold">익절</span></button>
+        <button type="button" onclick="setMood('고민')" class="bg-[#f1f5f9] dark:bg-[#27272a] hover:bg-[#e2e8f0] dark:hover:bg-[#3f3f46] py-2 rounded-xl text-center border border-[#cbd5e1] dark:border-[#3f3f46] cursor-pointer"><span class="text-base block">🤔</span><span class="text-xs text-[#334155] dark:text-[#e4e4e7] font-bold">고민</span></button>
+        <button type="button" onclick="setMood('절망')" class="bg-[#f1f5f9] dark:bg-[#27272a] hover:bg-[#e2e8f0] dark:hover:bg-[#3f3f46] py-2 rounded-xl text-center border border-[#cbd5e1] dark:border-[#3f3f46] cursor-pointer"><span class="text-base block">😭</span><span class="text-xs text-[#334155] dark:text-[#e4e4e7] font-bold">절망</span></button>
+      </div>
+      <button type="button" onclick="downloadMemeImage()" class="w-full mt-4 bg-[#0f172a] dark:bg-white hover:bg-[#334155] dark:hover:bg-[#e4e4e7] text-white dark:text-black font-black py-3 rounded-xl text-sm shadow-md cursor-pointer">📸 짤 카드 다운로드 (카톡 공유)</button>
+    </div>
+  </div>
+
+  <!-- 알림 모달 -->
+  <div id="upgradeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
+    <div class="bg-white dark:bg-[#18181b] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-md w-full p-6 relative shadow-2xl animate-fade">
+      <button type="button" onclick="closeUpgradeModal()" class="absolute top-5 right-5 text-[#94a3b8] dark:text-[#71717a] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
+      <div class="text-center space-y-2 mb-6">
+        <div class="text-4xl mx-auto">🕶️</div>
+        <h3 class="text-lg font-bold text-[#0f172a] dark:text-white" id="modalTitle">알림/신청</h3>
+        <p class="text-sm text-[#475569] dark:text-[#a1a1aa]">장중 실시간 지지선 도달 및 15:15 종가 배팅 수급 포착 시 즉시 전송</p>
+      </div>
+      <button type="button" onclick="alert('텔레그램 VIP 시그널 방 연동 준비 중입니다!'); closeUpgradeModal();" class="w-full bg-[#0f172a] dark:bg-white hover:bg-[#334155] dark:hover:bg-[#e4e4e7] text-white dark:text-black font-black py-3 rounded-xl text-sm shadow-md transition cursor-pointer">실시간 알림 신청하기</button>
+    </div>
+  </div>
+
+  <script>
+    let activeStock = 'SK하이닉스';
+    let currentChartInstance = null;
+
+    function toggleLeftSidebar() {
+      const leftBar = document.getElementById('leftSidebar');
+      const rightBar = document.getElementById('rightSidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+
+      rightBar.classList.add('translate-x-full');
+      rightBar.classList.remove('translate-x-0');
+
+      if (leftBar.classList.contains('-translate-x-full')) {
+        leftBar.classList.remove('-translate-x-full');
+        leftBar.classList.add('translate-x-0');
+        backdrop.classList.remove('hidden');
+      } else {
+        closeAllSidebars();
+      }
+    }
+
+    function toggleRightSidebar() {
+      const leftBar = document.getElementById('leftSidebar');
+      const rightBar = document.getElementById('rightSidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+
+      leftBar.classList.add('-translate-x-full');
+      leftBar.classList.remove('translate-x-0');
+
+      if (rightBar.classList.contains('translate-x-full')) {
+        rightBar.classList.remove('translate-x-full');
+        rightBar.classList.add('translate-x-0');
+        backdrop.classList.remove('hidden');
+      } else {
+        closeAllSidebars();
+      }
+    }
+
+    function closeAllSidebars() {
+      const leftBar = document.getElementById('leftSidebar');
+      const rightBar = document.getElementById('rightSidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+
+      leftBar.classList.add('-translate-x-full');
+      leftBar.classList.remove('translate-x-0');
+      rightBar.classList.add('translate-x-full');
+      rightBar.classList.remove('translate-x-0');
+      backdrop.classList.add('hidden');
+    }
+
+    function toggleTheme() {
+      const htmlEl = document.documentElement;
+      const themeIcon = document.getElementById('themeIcon');
+      const themeText = document.getElementById('themeText');
+
+      if (htmlEl.classList.contains('dark')) {
+        htmlEl.classList.remove('dark');
+        if (themeIcon) themeIcon.innerText = '☀️';
+        if (themeText) themeText.innerText = '라이트 모드';
+      } else {
+        htmlEl.classList.add('dark');
+        if (themeIcon) themeIcon.innerText = '🌙';
+        if (themeText) themeText.innerText = '다크 모드';
+      }
+    }
+
+    function openUpgradeModal(name) {
+      document.getElementById('modalTitle').innerText = `${name} 알림/신청`;
+      document.getElementById('upgradeModal').classList.remove('hidden');
+    }
+    function closeUpgradeModal() {
+      document.getElementById('upgradeModal').classList.add('hidden');
+    }
+
+    function handleFormSubmit() {
+      const val = document.getElementById('stockInput').value;
+      if (val) requestStock(val);
+    }
+
+    function requestStock(stockName) {
+      if (!stockName || !stockName.trim()) return;
+      stockName = stockName.trim();
+      activeStock = stockName;
+
+      const chatArea = document.getElementById('chatArea');
+      const welcomeMsg = document.getElementById('welcomeMessage');
+      if (welcomeMsg) welcomeMsg.style.display = 'none';
+
+      appendUserQuery(stockName);
+      const inputEl = document.getElementById('stockInput');
+      if (inputEl) inputEl.value = '';
+
+      const loaderInfo = appendCenteredAntLoader(stockName);
+
+      setTimeout(() => {
+        if (loaderInfo.timerId) clearInterval(loaderInfo.timerId);
+        const loaderEl = document.getElementById(loaderInfo.id);
+        if (loaderEl) loaderEl.remove();
+
+        startTypewriterFlow(stockName);
+      }, 700);
+    }
+
+    function appendUserQuery(text) {
+      const chatArea = document.getElementById('chatArea');
+      const div = document.createElement('div');
+      div.className = "flex justify-end animate-fade";
+      div.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#27272a] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl rounded-tr-none border border-[#cbd5e1] dark:border-[#3f3f46]">${text}</div>`;
+      chatArea.appendChild(div);
+      chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+    }
+
+    function appendCenteredAntLoader(stockName) {
+      const chatArea = document.getElementById('chatArea');
+      const id = 'loader-' + Date.now();
+      const div = document.createElement('div');
+      div.id = id;
+      div.className = "flex flex-col items-center justify-center p-8 bg-white dark:bg-[#18181b] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl my-2 animate-fade text-center shadow-sm";
+      
+      div.innerHTML = `
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-12 h-12 rounded-full bg-[#f8fafc] dark:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] flex items-center justify-center text-xl">🐜</div>
+          <span class="text-[#94a3b8] dark:text-[#71717a] font-bold text-lg">×</span>
+          <div class="w-12 h-12 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black font-black flex items-center justify-center text-xl">🕶️</div>
+        </div>
+        <h4 class="font-bold text-base text-[#0f172a] dark:text-white">
+          <span class="text-[#475569] dark:text-[#a1a1aa]">${stockName}</span> 정밀 퀀트 분석 중
+        </h4>
+        <p id="antStatusMsg" class="text-sm text-[#64748b] dark:text-[#a1a1aa] mt-1.5 font-medium transition-all duration-300">
+          📡 나스닥 매크로 및 글로벌 지표 스캔 중...
+        </p>
+      `;
+      chatArea.appendChild(div);
+      chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+
+      const messages = [
+        "📡 나스닥 매크로 및 글로벌 지표 스캔 중...",
+        "📰 핵심 테마 재료 및 실적 발표 일정 검증 중...",
+        "📊 외인·기관 누적 수급 데이터 대조 중...",
+        "💡 3인 실전 전문가 매매 시나리오 산출 중..."
+      ];
+      let idx = 0;
+      const timerId = setInterval(() => {
+        idx = (idx + 1) % messages.length;
+        const textEl = document.getElementById('antStatusMsg');
+        if (textEl) textEl.innerText = messages[idx];
+      }, 500);
+
+      return { id, timerId };
+    }
+
+    function startTypewriterFlow(stockName) {
+      const chatArea = document.getElementById('chatArea');
+      const wrapperId = 'stream-' + Date.now();
+
+      const wrapper = document.createElement('div');
+      wrapper.id = wrapperId;
+      wrapper.className = "space-y-10 animate-fade py-2";
+
+      wrapper.innerHTML = `
+        <!-- [문단 1] 기본 시장 진단 -->
+        <div class="relative pl-11 sm:pl-12">
+          <div class="absolute left-0 top-0.5 w-8 h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm">G</div>
+          <div class="space-y-4">
+            <h3 class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">${stockName} (000660) - 기본 시장 진단</h3>
+            <div id="${wrapperId}-content" class="text-base text-[#334155] dark:text-[#e4e4e7] leading-relaxed space-y-5 typing-cursor"></div>
+          </div>
+        </div>
+
+        <!-- [문단 2] 전략 선택 영역 -->
+        <div id="${wrapperId}-hoodie" class="relative pl-11 sm:pl-12 opacity-0 transition-opacity duration-700">
+          <div class="absolute left-0 top-0.5 w-8 h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm">G</div>
+          <div class="space-y-5">
+            <div class="border-b border-[#e2e8f0] dark:border-[#27272a] pb-3">
+              <h3 class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 실전 gaemiGTP 전략을 확인하세요.</h3>
+            </div>
+
+            <!-- 전략 3종 카드 -->
+            <div class="space-y-3 pt-1">
+              
+              <!-- 서학개미 (장기) -->
+              <div class="space-y-2">
+                <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#27272a] transition relative cursor-pointer">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="space-y-1">
+                      <div class="flex items-center gap-2">
+                        <span class="text-lg">🇺🇸</span>
+                        <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">서학개미 (장기)</span>
+                      </div>
+                      <p class="text-sm text-[#64748b] dark:text-[#a1a1aa]">미국 빅테크 메가트렌드 진입 후 분할익절과 잔여물량으로 추종.</p>
+                    </div>
+                    <div class="flex items-center gap-5 sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#27272a]">
+                      <div>
+                        <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                        <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">+2,335%</div>
+                      </div>
+                      <div>
+                        <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                        <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+                <div id="dash-slot-서학" class="hidden animate-fade"></div>
+              </div>
+
+              <!-- 국장개미 (스윙) -->
+              <div class="space-y-2">
+                <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#27272a] transition relative cursor-pointer">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="space-y-1">
+                      <div class="flex items-center gap-2">
+                        <span class="text-lg">🇰🇷</span>
+                        <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">국장개미 (스윙)</span>
+                      </div>
+                      <p class="text-sm text-[#64748b] dark:text-[#a1a1aa]">코스피 시총 상위주 20일선 지지 반등 및 외국인 순매수 턴어라운드 노림수.</p>
+                    </div>
+                    <div class="flex items-center gap-5 sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#27272a]">
+                      <div>
+                        <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                        <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">+2,335%</div>
+                      </div>
+                      <div>
+                        <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                        <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+                <div id="dash-slot-국장" class="hidden animate-fade"></div>
+              </div>
+
+              <!-- 트레이더 (단기) -->
+              <div class="space-y-2">
+                <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#27272a] transition relative cursor-pointer">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="space-y-1">
+                      <div class="flex items-center gap-2">
+                        <span class="text-lg">⚡</span>
+                        <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">트레이더 (단기)</span>
+                      </div>
+                      <p class="text-sm text-[#64748b] dark:text-[#a1a1aa]">15시 15분 당일 거래대금 양봉 매수 후 익일 개장 초반 시가 갭 분할 청산.</p>
+                    </div>
+                    <div class="flex items-center gap-5 sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#27272a]">
+                      <div>
+                        <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                        <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">+2,335%</div>
+                      </div>
+                      <div>
+                        <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                        <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">32.4억</div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+                <div id="dash-slot-트레이더" class="hidden animate-fade"></div>
+              </div>
+
+            </div>
+
+            <!-- 하단 짤 카드 버튼 -->
+            <div class="pt-4 flex justify-center">
+              <button type="button" onclick="openMeme('${stockName}')" class="w-full sm:w-auto px-7 py-3 rounded-xl bg-[#f1f5f9] dark:bg-[#18181b] hover:bg-[#e2e8f0] dark:hover:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] text-[#0f172a] dark:text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer">
+                <span class="text-lg">📸</span>
+                <span>카카오톡 공유용 짤 카드 만들기</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      `;
+
+      chatArea.appendChild(wrapper);
+
+      // 리포트 단락
+      const reportSections = [
+        {
+          title: "",
+          content: "먼저 결론부터 말씀드리겠습니다.\n현재 SK하이닉스를 이해하려면 한국 반도체 뉴스만 보면 안 됩니다.\n가장 중요한 출발점은 미국입니다.\n\n미국의 엔비디아·마이크로소프트·아마존·구글·메타가 AI 데이터센터에 얼마나 많은 돈을 투자하느냐가 출발점이고,\n↓\n그 돈으로 데이터센터가 만들어지고\n↓\n그 안에 엔비디아 GPU가 들어가고\n↓\nGPU가 제대로 작동하려면 HBM이 필요하고\n↓\nHBM을 만드는 핵심 기업 중 하나가 SK하이닉스입니다.\n\n즉,\n미국 빅테크의 AI 투자 → 엔비디아 → HBM 수요 → SK하이닉스 실적 → SK하이닉스 주가\n이 구조를 이해해야 합니다.\nSK하이닉스는 2026년 2분기 매출 79조3,187억원, 영업이익 60조5,426억원으로 분기 기준 사상 최대 실적을 기록했고, HBM4 양산 출하도 2분기부터 시작했습니다."
+        },
+        {
+          title: "① 앞으로 SK하이닉스 주가는 얼마나 더 갈 수 있을까?",
+          content: "이 질문이 가장 중요합니다.\n하지만 애널리스트 입장에서는 “몇 만원까지 간다”라고 먼저 말하면 안 됩니다.\n먼저 주가를 움직이는 실적의 방향을 봐야 합니다.\n현재 가장 중요한 것은 AI 투자 사이클이 계속되는가입니다.\n여기서 미국 시장을 봐야 합니다.\n엔비디아의 AI 데이터센터 사업이 계속 성장하고, 미국 빅테크들이 AI 인프라 투자를 계속한다면 SK하이닉스의 HBM 수요에도 긍정적인 영향을 줄 가능성이 높습니다.\n왜냐하면 엔비디아의 차세대 AI 가속기인 베라 루빈은 HBM4를 핵심 메모리로 사용하기 때문입니다.\n따라서 현재 SK하이닉스 주가를 볼 때는 “하이닉스가 좋은 회사냐?”보다 “미국 AI 투자가 앞으로 얼마나 오래 지속되느냐?”가 더 중요합니다."
+        },
+        {
+          title: "② HBM4가 SK하이닉스 실적을 얼마나 키울까?",
+          content: "여기서 초보자분들이 HBM을 어렵게 생각할 필요가 없습니다.\n쉽게 말하면, GPU가 AI 계산을 담당하는 두뇌라면 HBM은 그 두뇌 옆에서 데이터를 엄청나게 빠르게 공급해주는 초고속 메모리입니다.\nAI 모델이 커질수록 더 많은 데이터를 더 빠르게 공급해야 합니다. 그래서 HBM이 중요합니다.\n\n현재 중요한 변화는 HBM3E → HBM4 입니다.\nSK하이닉스는 2026년 2분기부터 HBM4 양산 공급을 시작했고 하반기에 생산을 본격적으로 확대하고 있습니다.\n이게 왜 중요하냐면, HBM4는 단순히 제품 하나가 바뀌는 것이 아닙니다. AI GPU의 세대가 바뀌면서 필요한 메모리도 같이 업그레이드되는 것입니다.\n\n따라서\n블랙웰 → 루빈\nHBM3E → HBM4\n라는 변화가 이어집니다. 결국 엔비디아의 차세대 GPU 판매량이 증가할수록 HBM4 수요도 증가할 가능성이 높습니다."
+        },
+        {
+          title: "③ 엔비디아가 오르면 SK하이닉스는 얼마나 따라갈까?",
+          content: "여기서 굉장히 중요한 투자 포인트가 있습니다.\n엔비디아와 SK하이닉스는 같은 회사가 아니지만 AI라는 하나의 공급망으로 연결되어 있습니다.\n예를 들어 미국에서\n엔비디아 실적 발표 → AI 데이터센터 투자 확대 → GPU 수요 증가 → HBM 수요 증가 → SK하이닉스 수혜 라는 흐름이 발생할 수 있습니다.\n\n하지만 여기서 중요한 함정이 있습니다.\n엔비디아 +10% = 하이닉스 +10% 이런 공식은 없습니다.\n왜냐하면 하이닉스 주가는\n엔비디아 + HBM 가격 + DRAM 가격 + 삼성전자 경쟁 + 환율 + 외국인 수급 + 한국 증시 분위기 를 동시에 반영하기 때문입니다.\n그래서 저는 엔비디아를 “하이닉스 주가의 선행 신호” 중 하나로 봅니다."
+        },
+        {
+          title: "④ 그렇다면 SK하이닉스 실적은 얼마나 좋아질까?",
+          content: "현재 실적만 보면 이미 엄청납니다. SK하이닉스는 2026년 2분기 매출 79조3,187억원, 영업이익 60조5,426억원을 기록했습니다. 영업이익률은 무려 76%였습니다.\n\n여기서 초보자분들이 꼭 알아야 할 게 있습니다.\n주가는 과거 실적보다 미래 실적을 더 중요하게 봅니다.\n예를 들어 “하이닉스가 올해 돈을 많이 벌었다” 이것보다 “내년에도 이 정도 돈을 계속 벌 수 있는가?”가 주가에는 더 중요합니다.\n\n그래서 앞으로 확인해야 할 것은 HBM4 판매 증가 + HBM 가격 + DRAM 가격 + 출하량 입니다.\n특히 SK하이닉스는 HBM뿐 아니라 AI 서버용 DRAM과 eSSD 등 고부가 제품에서도 강한 수익성을 보이고 있습니다. 즉, HBM 하나만 보는 것은 부족합니다."
+        },
+        {
+          title: "⑤ 지금 SK하이닉스 주가는 비싼가, 싼가?",
+          content: "이것도 초보자들이 가장 많이 하는 질문입니다. 그런데 반도체주는 일반 기업처럼 단순히 PER 하나만 보고 판단하면 위험합니다.\n메모리 산업은 원래\n호황 → 가격 상승 → 이익 증가 → 투자 확대 → 공급 증가 → 가격 하락 → 이익 감소\n라는 사이클을 반복하기 때문입니다.\n\n그런데 지금은 조금 다릅니다. AI 데이터센터 때문에 HBM이라는 고부가 메모리 시장이 크게 성장하고 있습니다.\n또한 SK하이닉스는 주요 고객들과 장기 공급계약을 확대하고 있습니다. 이것은 상당히 중요한 변화입니다.\n“만들어 놓고 팔 곳을 찾는 메모리”에서 “고객이 미리 물량을 확보하려는 메모리”로 시장 구조가 변할 가능성이 있기 때문입니다.\n따라서 SK하이닉스의 밸류에이션을 판단할 때는 단순히 현재 PER만 보는 것이 아니라 앞으로의 이익 증가율과 HBM 사업의 지속 가능성을 함께 봐야 합니다."
+        },
+        {
+          title: "⑥ 외국인과 기관 수급은 왜 중요한가?",
+          content: "실적이 좋아도 주가가 바로 오르는 것은 아닙니다. 주식은 결국 누가 사고 누가 파느냐가 중요합니다.\n특히 SK하이닉스처럼 시가총액이 큰 대형주는 외국인 자금의 영향을 크게 받습니다.\n\n따라서 하이닉스를 볼 때\n① 외국인 순매수 ② 기관 순매수 ③ 거래대금 ④ 주가 상승폭 을 같이 봐야 합니다.\n예를 들어 [엔비디아 상승 + 미국 반도체주 상승 + 마이크론 상승 + 외국인 하이닉스 순매수]가 동시에 발생한다면 상당히 좋은 조합입니다.\n반대로 [엔비디아 상승 + 미국 반도체주 상승]인데 [하이닉스 외국인 매도]라면 “미국 AI 분위기는 좋은데 한국 시장에서는 이미 기대감이 주가에 반영된 것 아닌가?”라고 의심해야 합니다."
+        },
+        {
+          title: "⑦ 삼성전자와 SK하이닉스 중 누가 더 좋은가?",
+          content: "이 질문도 미국 시장과 연결하면 훨씬 쉽게 이해할 수 있습니다.\n현재 투자자들이 보는 핵심은 HBM 경쟁력과 AI 메모리 수익성입니다.\nSK하이닉스는 HBM 분야에서 오랫동안 강한 위치를 유지해왔습니다. 2026년 1분기 글로벌 HBM 시장에서 SK하이닉스의 매출 기준 점유율은 약 58%로 삼성전자와 마이크론을 앞선 것으로 집계됐습니다.\n\n하지만 삼성전자를 무시하면 안 됩니다. 최근 HBM4 경쟁은 더욱 치열해지고 있고, 삼성전자의 HBM4 공급 확대 가능성도 커지고 있습니다.\n따라서 앞으로 중요한 것은 “SK하이닉스가 HBM 시장에서 1등을 계속 유지할 수 있는가?”입니다. 이것이 깨지기 시작하면 하이닉스의 프리미엄도 줄어들 수 있습니다."
+        },
+        {
+          title: "⑧ 메모리 슈퍼사이클은 언제까지 갈까?",
+          content: "제가 가장 조심스럽게 보는 부분입니다. 현재 AI 투자는 강합니다. 하지만 영원히 강할 수는 없습니다.\n미국 데이터센터 업체들이 AI 서버를 계속 증설하면 메모리 수요가 증가하지만, [AI 투자 증가 → 메모리 가격 상승 → 3사 생산 확대 → 공급 증가]가 발생합니다.\n결국 어느 순간 공급이 수요를 따라잡으면 가격 상승세가 둔화될 수 있습니다.\n\n따라서 저는 2026~2027년을 무조건적인 상승 구간이라고 단정하지 않습니다. 오히려 “AI 수요가 강한 동안 얼마나 높은 가격과 수익성을 유지하느냐”가 핵심입니다.\n현재 SK하이닉스는 AI 인프라 투자와 고부가 메모리 수요가 내년 이후에도 견조할 것으로 보고 있으며, CEO 역시 최근 메모리 부족이 2030년까지 이어질 가능성을 언급했습니다. 다만 이것은 회사의 전망이지 확정된 미래는 아닙니다."
+        },
+        {
+          title: "⑨ 그렇다면 SK하이닉스의 가장 큰 위험은?",
+          content: "여기서는 냉정하게 봐야 합니다.\n\n• 첫 번째 위험: 엔비디아 AI 투자가 둔화되는 것 (가장 큼)\n• 두 번째 위험: 삼성전자와 마이크론의 HBM 경쟁력 상승\n• 세 번째 위험: AI 칩의 HBM 탑재량 감소\n• 네 번째 위험: 주가가 실적보다 먼저 너무 많이 올라가는 것\n\n회사가 아무리 좋은 실적을 내더라도 기대가 이미 주가에 너무 많이 들어가 있다면 실적 발표 후 주가가 오히려 떨어질 수 있습니다. 좋은 기업 = 무조건 좋은 매수가격 은 아닙니다."
+        },
+        {
+          title: "⑩ 그래서 실제 매수 타점은 어디인가?",
+          content: "기업 분석과 매매 타점은 분리해서 봐야 합니다.\n\n1단계 — 미국 시장: 엔비디아 → 마이크론 → 필라델피아 반도체지수 → 미국 AI 데이터센터 투자 확인\n2단계 — 메모리 시장: HBM 가격, DRAM 가격, HBM4 공급, 메모리 공급 부족 여부 확인\n3단계 — SK하이닉스: 실적 전망 → HBM4 출하량 → 영업이익 전망 → 외국인·기관 수급 확인\n4단계 — 마지막 차트: 20일선, 60일선, 볼린저밴드, 거래량 등으로 실제 진입 타점 포착\n\n미국 시장이 먼저 방향을 알려주고 → 실적이 확인되고 → 수급이 들어오고 → 차트에서 타점을 잡는 방식입니다."
+        },
+        {
+          title: "🔥 10가지를 하나로 연결하면 & 🎯 현재 판단",
+          content: "미국 빅테크 AI 투자 지속 → 엔비디아 GPU 수요 증가 → 차세대 루빈 HBM4 중요성 확대 → SK하이닉스 HBM4 양산 및 고부가 제품 비중 확대 → 실적 및 이익 지속 → 외국인 수급 유입 → 주가 추가 상승\n(그러나 경쟁 심화, 공급 과잉, 투자 둔화 시 사이클 꺾임 주의)\n\n현재 확인되는 데이터만 보면 AI 수요 자체가 무너지고 있다는 신호보다 견조한 수요가 이어진다는 신호가 더 많습니다. 다만 “AI가 좋으니까 하이닉스는 무조건 오른다”가 아니라 앞으로 좋아질 정도보다 주가가 덜 올라갔는가를 냉정하게 판단해야 합니다."
+        },
+        {
+          title: "🐜 한마디로 정리하면",
+          content: "미국에서 엔비디아가 돈을 벌고 빅테크가 AI 투자를 늘려 HBM이 더 필요해지고, SK하이닉스가 HBM4를 공급해 이익이 늘고 외인이 매수하면 주가가 상승합니다. 반대로 AI 투자가 꺾이면 하락합니다.\n따라서 SK하이닉스만 보면 안 되고 미국의 엔비디아와 마이크론을 반드시 함께 봐야 합니다."
+        }
+      ];
+
+      const contentEl = document.getElementById(`${wrapperId}-content`);
+      let secIdx = 0;
+
+      function typeNextSection() {
+        if (secIdx >= reportSections.length) {
+          if (contentEl) contentEl.classList.remove('typing-cursor');
+          const hoodieEl = document.getElementById(`${wrapperId}-hoodie`);
+          if (hoodieEl) {
+            hoodieEl.classList.remove('opacity-0');
+            hoodieEl.classList.add('opacity-100');
+          }
+          chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+          return;
+        }
+
+        const sec = reportSections[secIdx];
+        const secDiv = document.createElement('div');
+        secDiv.className = "space-y-3 pb-3";
+
+        if (sec.title) {
+          const h4 = document.createElement('h4');
+          h4.className = "font-black text-base text-[#0f172a] dark:text-white pt-4 border-t border-[#e2e8f0] dark:border-[#27272a]";
+          h4.innerText = sec.title;
+          secDiv.appendChild(h4);
+        }
+
+        const p = document.createElement('p');
+        p.className = "text-base text-[#334155] dark:text-[#e4e4e7] leading-7 whitespace-pre-line";
+        secDiv.appendChild(p);
+
+        contentEl.appendChild(secDiv);
+
+        let charIdx = 0;
+        const text = sec.content;
+        const chunkSize = 12;
+
+        function typeChunk() {
+          if (charIdx < text.length) {
+            p.textContent += text.substr(charIdx, chunkSize);
+            charIdx += chunkSize;
+            chatArea.scrollTop = chatArea.scrollHeight;
+            setTimeout(typeChunk, 4);
+          } else {
+            secIdx++;
+            setTimeout(typeNextSection, 30);
+          }
+        }
+
+        typeChunk();
+      }
+
+      typeNextSection();
+    }
+
+    const strategyData = {
+      '서학': {
+        name: '서학개미',
+        icon: '🇺🇸',
+        title: '서학개미 (US Long-Term) 전략 대시보드',
+        sub: '지표 기반 10% 계단식 무한 분할익절 & 복리 재투자 모델',
+        badge: '최종 24.5억 (+2,335%)',
+        color: '#0f172a',
+        chartData: [1.0, 1.8, 3.2, 7.5, 15.8, 24.5],
+        benchData: [1.0, 1.3, 1.8, 2.5, 3.4, 4.2],
+        formulas: [
+          '✓ <strong>진입</strong>: (1차 50%) + (2차 50%) 분할 매수',
+          '✓ <strong>익절</strong>: +100%(2배), +200%(3배)... 도달 시 10%씩 매도',
+          '✓ <strong>방어</strong>: 2배 달성 즉시 잔여물량 스탑로스를 본절가로 이동',
+          '✓ <strong>복리</strong>: 회수된 현금은 다음 과매도 시그널에 100% 재투자'
+        ],
+        point: '엔비디아(120배), 테슬라(28배) 같은 메가트렌드 종목의 후반 폭등을 10% 잔여 지분으로 끝까지 추종하여 자산 24.5억을 완성했습니다.'
+      },
+      '국장': {
+        name: '국장개미',
+        icon: '🇰🇷',
+        title: '국장개미 (KR Swing) 전략 대시보드',
+        sub: '대형주 20일선 지지 및 외국인 수급 턴어라운드 노림수 (보유 3~7일)',
+        badge: '최종 24.5억 (+2,335%)',
+        color: '#0f172a',
+        chartData: [1.0, 2.1, 4.5, 9.2, 17.1, 24.5],
+        benchData: [1.0, 1.1, 1.3, 1.4, 1.7, 2.1],
+        formulas: [
+          '✓ <strong>진입</strong>: 20일선 지지 터치 + 외국인 순매수 전환 확인 시 1차 분할 매수',
+          '✓ <strong>익절</strong>: 단기 저항선 부근 (+4.5% ~ +6.5%) 도달 시 절반 분할 청산',
+          '✓ <strong>손절</strong>: 진입가 대비 -2.8% 이탈 시 미련 없이 기계적 전량 청산',
+          '✓ <strong>복리</strong>: 회전율 주 1~2회 유지하며 수익금 전액 다음 눌림목 재투입'
+        ],
+        point: '박스권에 갇히기 쉬운 국내 대형주에서 20일선 지지와 외인 턴어라운드 자리만 기계적으로 공략하여 10년 누적 24.5억을 달성했습니다.'
+      },
+      '트레이더': {
+        name: '트레이더',
+        icon: '⚡',
+        title: '트레이더 (Day/Closing) 전략 대시보드',
+        sub: '15시 15분 당일 거래대금 양봉 매수 → 익일 장초반 갭 분할 청산',
+        badge: '최종 32.4억 (+2,335%)',
+        color: '#0f172a',
+        chartData: [1.0, 2.8, 6.4, 13.5, 23.0, 32.4],
+        benchData: [1.0, 1.1, 1.2, 1.3, 1.5, 1.8],
+        formulas: [
+          '✓ <strong>진입</strong>: 15시 15분 기준 당일 거래대금 상위 + 3분봉 20선 안착 양봉',
+          '✓ <strong>익절</strong>: 익일 09:00~09:20 시가 갭(+2.5% 이상) 형성 시 전량 매도',
+          '✓ <strong>손절</strong>: 당일 종가 매수가 대비 -1.5% 터치 시 즉시 전량 청산',
+          '✓ <strong>복리</strong>: 매일 발생한 수익금을 원금에 합산하여 일일 복리 극대화'
+        ],
+        point: '장중 리스크를 최소화하고 당일 돈이 가장 강하게 쏠린 종목의 종가 배팅만 매일 반복하여 1억을 최종 자산 32.4억으로 만들었습니다.'
+      }
+    };
+
+    // 🔥 [핵심 수정] 카드 클릭 시: [1. 투자전략 박스] ➔ [2. 대시보드 박스] 순서로 전개
+    function toggleStrategyDashboard(type, btnElement) {
+      const allTypes = ['서학', '국장', '트레이더'];
+      const targetSlot = document.getElementById(`dash-slot-${type}`);
+      const isAlreadyOpen = targetSlot && !targetSlot.classList.contains('hidden');
+
+      if (currentChartInstance) {
+        currentChartInstance.destroy();
+        currentChartInstance = null;
+      }
+
+      allTypes.forEach(t => {
+        const slot = document.getElementById(`dash-slot-${t}`);
+        if (slot) {
+          slot.innerHTML = '';
+          slot.classList.add('hidden');
+        }
+        const btn = document.getElementById(`card-btn-${t}`);
+        if (btn) {
+          btn.classList.remove('border-2', 'border-[#0f172a]', 'dark:border-white', 'bg-[#f1f5f9]', 'dark:bg-[#27272a]');
+          btn.classList.add('border-[#cbd5e1]', 'dark:border-[#27272a]');
+        }
+      });
+
+      if (isAlreadyOpen) return;
+
+      if (btnElement) {
+        btnElement.classList.remove('border-[#cbd5e1]', 'dark:border-[#27272a]');
+        btnElement.classList.add('border-2', 'border-[#0f172a]', 'dark:border-white', 'bg-[#f1f5f9]', 'dark:bg-[#27272a]');
+      }
+
+      const data = strategyData[type];
+
+      targetSlot.innerHTML = `
+        <div class="space-y-3.5 my-2 animate-fade">
+          
+          <!-- 1. 실전 투자 전략 박스 (상단에 위치) -->
+          <div class="bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
+            <div class="flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] pb-3">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xl">📋</span>
+                <h4 class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">${data.name} 실전 투자 전략</h4>
+              </div>
+              <span class="text-[11px] font-bold bg-[#f1f5f9] dark:bg-[#27272a] text-[#64748b] dark:text-[#a1a1aa] border border-[#cbd5e1] dark:border-[#3f3f46] px-2.5 py-1 rounded-full">전략 시나리오</span>
+            </div>
+            
+            <div class="p-4 sm:p-5 rounded-2xl bg-[#f8fafc] dark:bg-[#09090b] border border-dashed border-[#cbd5e1] dark:border-[#27272a] space-y-2">
+              <div class="flex items-center gap-2 text-xs font-bold text-[#64748b] dark:text-[#71717a]">
+                <span>⚡</span> <span>[${data.name}] 전용 실전 투자 전략 상세 가이드라인이 입력될 영역입니다.</span>
+              </div>
+              <p class="text-xs sm:text-sm text-[#475569] dark:text-[#a1a1aa] leading-relaxed">
+                • 매매 성향별 목표 타겟가 설정 및 분할 진입/청산 시나리오<br>
+                • 시장 변동성(글로벌 매크로, 수급 지표) 급변 시 위기관리 및 헤징 규칙<br>
+                • 손익비(Risk/Reward) 극대화를 위한 잔여물량 추종 가이드
+              </p>
+            </div>
+          </div>
+
+          <!-- 2. 실전 대시보드 박스 (하단에 위치) -->
+          <div class="bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] rounded-3xl p-5 sm:p-7 space-y-6 shadow-md">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#e2e8f0] dark:border-[#27272a] pb-5">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2.5">
+                  <span class="text-2xl">${data.icon}</span>
+                  <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${data.title}</h4>
+                </div>
+                <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa]">${data.sub}</p>
+              </div>
+              <button type="button" onclick="openUpgradeModal('${data.name}')" class="bg-[#0f172a] dark:bg-white hover:bg-[#334155] dark:hover:bg-[#e4e4e7] text-white dark:text-black font-black px-5 py-3 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow transition shrink-0 cursor-pointer">
+                <span>🔔</span> <span>실시간 타점 알림 신청</span>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              <div class="lg:col-span-7 bg-[#f8fafc] dark:bg-[#09090b] border border-[#cbd5e1] dark:border-[#27272a] rounded-2xl p-4 sm:p-5 space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-xs sm:text-sm text-[#334155] dark:text-[#e4e4e7] flex items-center gap-1.5">
+                    📈 누적 자산 성장 곡선 (단기/복리)
+                  </span>
+                  <span class="text-xs font-black bg-[#e2e8f0] dark:bg-[#18181b] text-[#0f172a] dark:text-white border dark:border-[#3f3f46] px-2.5 py-0.5 rounded-md">
+                    ${data.badge}
+                  </span>
+                </div>
+                <div class="h-56 sm:h-64 relative w-full">
+                  <canvas id="canvas-${type}"></canvas>
+                </div>
+                <div class="flex items-center justify-center gap-6 text-[11px] text-[#64748b] dark:text-[#a1a1aa] pt-1">
+                  <span class="flex items-center gap-1.5"><span class="w-3 h-1 bg-[#0f172a] dark:bg-white inline-block rounded"></span> 캐릭터 포트폴리오</span>
+                  <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 border-t border-dashed border-[#94a3b8] dark:border-[#71717a] inline-block"></span> 벤치마크 단순보유</span>
+                </div>
+              </div>
+
+              <div class="lg:col-span-5 bg-[#f8fafc] dark:bg-[#09090b] border border-[#cbd5e1] dark:border-[#27272a] rounded-2xl p-4 sm:p-5 space-y-3.5">
+                <h5 class="font-black text-sm text-[#0f172a] dark:text-white flex items-center gap-1.5">
+                  <span>$</span> 캐릭터 핵심 실행 공식
+                </h5>
+                <div class="text-xs sm:text-sm text-[#475569] dark:text-[#e4e4e7] space-y-2.5 leading-relaxed">
+                  ${data.formulas.map(f => `<p>${f}</p>`).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-[#f8fafc] dark:bg-[#09090b] border border-[#cbd5e1] dark:border-[#27272a] rounded-2xl p-4 sm:p-5 space-y-1.5">
+              <div class="font-bold text-xs text-[#0f172a] dark:text-white flex items-center gap-1">
+                <span>💡</span> 백테스트 핵심 포인트
+              </div>
+              <p class="text-xs sm:text-sm text-[#475569] dark:text-[#a1a1aa] leading-relaxed">${data.point}</p>
+            </div>
+          </div>
+
+        </div>
+      `;
+
+      targetSlot.classList.remove('hidden');
+
+      if (typeof Chart !== 'undefined') {
+        renderAccordionChart(`canvas-${type}`, data);
+      }
+
+      if (btnElement) {
+        setTimeout(() => {
+          btnElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+      }
+    }
+
+    function renderAccordionChart(canvasId, data) {
+      const ctx = document.getElementById(canvasId);
+      if (!ctx || typeof Chart === 'undefined') return;
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const lineColor = isDark ? '#ffffff' : '#0f172a';
+
+      currentChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['2016', '2018', '2020', '2022', '2024', '2026'],
+          datasets: [
+            {
+              label: '캐릭터 포트폴리오',
+              data: data.chartData,
+              borderColor: lineColor,
+              borderWidth: 3,
+              tension: 0.35,
+              fill: false,
+              pointBackgroundColor: lineColor,
+              pointBorderColor: isDark ? '#09090b' : '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: [0, 5, 0, 5, 0, 6]
+            },
+            {
+              label: '벤치마크 단순보유',
+              data: data.benchData,
+              borderColor: '#71717a',
+              borderWidth: 1.5,
+              borderDash: [5, 5],
+              tension: 0.2,
+              fill: false,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: isDark ? '#18181b' : '#0f172a',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff',
+              borderColor: '#3f3f46',
+              borderWidth: 1,
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label + ': ' + context.parsed.y + '억 원';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(150, 150, 150, 0.1)' },
+              ticks: { color: '#71717a', font: { size: 11 } }
+            },
+            y: {
+              grid: { color: 'rgba(150, 150, 150, 0.1)' },
+              ticks: { color: '#71717a', font: { size: 11 } },
+              suggestedMax: 35
+            }
+          }
+        }
+      });
+    }
+
+    function openMeme(stockName) {
+      activeStock = stockName;
+      document.getElementById('memeStockBadge').innerText = stockName;
+      setMood('자신감');
+      document.getElementById('memeModal').classList.remove('hidden');
+    }
+
+    function setMood(mood) {
+      const emoji = document.getElementById('memeEmoji');
+      const title = document.getElementById('memeTitle');
+      const sub = document.getElementById('memeSub');
+
+      if (mood === '자신감') {
+        emoji.innerText = '😎';
+        title.innerText = `"${activeStock} 수급 반등 포착!"`;
+        sub.innerText = "개미들아 쫄지 마라! 후드 개미 시그널 탑승 완료.";
+      } else if (mood === '익절') {
+        emoji.innerText = '🤑';
+        title.innerText = `"${activeStock} 시원하게 익절 완료!"`;
+        sub.innerText = "목표 수익 달성! 욕심 안 부리고 깔끔하게 챙깁니다.";
+      } else if (mood === '고민') {
+        emoji.innerText = '🤔';
+        title.innerText = `"${activeStock} 중요한 변곡점 진입"`;
+        sub.innerText = "지금 추격 매수할까 말까? 스마트 개미 팩트 확인 중.";
+      } else if (mood === '절망') {
+        emoji.innerText = '😭';
+        title.innerText = `"${activeStock}에 또 물렸다..."`;
+        sub.innerText = "손절 기준가 이탈... 물타지 말고 기계적으로 대응하자!";
+      }
+    }
+
+    function downloadMemeImage() {
+      const card = document.getElementById('memeCardToRender');
+      const isDark = document.documentElement.classList.contains('dark');
+      if (typeof html2canvas !== 'undefined') {
+        html2canvas(card, { backgroundColor: isDark ? '#09090b' : '#ffffff', scale: 2 }).then(canvas => {
+          const a = document.createElement('a');
+          a.download = `gaemiGTP_${activeStock}_짤카드.png`;
+          a.href = canvas.toDataURL('image/png');
+          a.click();
+        });
+      } else {
+        alert('화면 캡처를 이용하여 공유할 수 있습니다.');
+      }
+    }
+  </script>
+</body>
+</html>
