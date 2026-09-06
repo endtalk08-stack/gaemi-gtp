@@ -43,10 +43,10 @@
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden transition-colors duration-200 relative select-none">
 
-  <!-- 📱 모바일 배경 오버레이 -->
+  <!-- 모바일 배경 오버레이 -->
   <div id="sidebarBackdrop" onclick="closeAllSidebars()" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity duration-300"></div>
 
-  <!-- 🐜 깜짝 개미 순간 팝업 (분석 완료 시 약 1초 등장) -->
+  <!-- 깜짝 개미 순간 팝업 -->
   <div id="surpriseAntPopup" class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none hidden">
     <div class="bg-white/95 dark:bg-[#1e1f24]/95 backdrop-blur-md border border-[#cbd5e1] dark:border-[#3f3f46] rounded-3xl p-6 flex flex-col items-center gap-3 shadow-2xl animate-pop">
       <div class="text-6xl animate-bounce">🐜✨</div>
@@ -55,7 +55,7 @@
     </div>
   </div>
 
-  <!-- [뷰 1] 메인 히어로 첫 화면 -->
+  <!-- 메인 첫 화면 -->
   <div id="mainHeroView" class="fixed inset-0 z-30 bg-[#0f1013] text-white flex flex-col justify-between overflow-hidden">
     <header class="h-16 flex items-center justify-between px-6 shrink-0">
       <div class="flex items-center gap-3">
@@ -74,30 +74,6 @@
       </div>
 
       <div class="w-full relative">
-        <div id="heroModePopup" class="absolute bottom-16 right-12 z-50 bg-[#1e1f23] border border-[#2e3036] rounded-2xl p-2 w-48 shadow-2xl hidden text-left space-y-1 animate-fade">
-          <button type="button" onclick="selectSearchMode('gaemi', 'hero')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
-            <div>
-              <div class="text-xs font-bold text-white group-hover:text-emerald-400">gaemi</div>
-              <div class="text-[11px] text-[#71717a]">도움을 받으세요</div>
-            </div>
-            <span id="hero-check-gaemi" class="text-emerald-400 text-sm font-bold">✓</span>
-          </button>
-          <button type="button" onclick="selectSearchMode('info', 'hero')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
-            <div>
-              <div class="text-xs font-bold text-white group-hover:text-emerald-400">info</div>
-              <div class="text-[11px] text-[#71717a]">정보를 확인하세요</div>
-            </div>
-            <span id="hero-check-info" class="text-emerald-400 text-sm font-bold hidden">✓</span>
-          </button>
-          <button type="button" onclick="selectSearchMode('pro', 'hero')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
-            <div>
-              <div class="text-xs font-bold text-white group-hover:text-emerald-400">pro</div>
-              <div class="text-[11px] text-[#71717a]">실력을 키우세요</div>
-            </div>
-            <span id="hero-check-pro" class="text-emerald-400 text-sm font-bold hidden">✓</span>
-          </button>
-        </div>
-
         <form class="relative flex items-center" onsubmit="event.preventDefault(); handleHeroSearch();">
           <input 
             id="heroStockInput" 
@@ -106,10 +82,6 @@
             class="w-full bg-[#18191d] border border-[#282a30] hover:border-[#3a3d46] focus:border-[#4a4e5a] rounded-full px-6 py-4 text-sm sm:text-base text-white placeholder-[#71717a] focus:outline-none pr-36 shadow-xl transition"
           >
           <div class="absolute right-2.5 flex items-center gap-1.5">
-            <button type="button" onclick="toggleHeroModePopup(event)" class="text-xs font-semibold text-[#a1a1aa] hover:text-white px-3 py-2 rounded-full hover:bg-[#262830] transition flex items-center gap-1 cursor-pointer">
-              <span id="heroSelectedMode">gaemi</span>
-              <span class="text-[10px]">▲</span>
-            </button>
             <button type="submit" class="w-9 h-9 rounded-full bg-[#2a2b30] hover:bg-white hover:text-black text-[#a1a1aa] flex items-center justify-center transition cursor-pointer shadow">
               <span class="text-base font-black">↑</span>
             </button>
@@ -128,7 +100,7 @@
     <div class="h-6"></div>
   </div>
 
-  <!-- 1. 좌측 사이드바 (모든 메뉴 100% 보존) -->
+  <!-- 1. 좌측 사이드바 -->
   <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
     <div class="p-4 flex flex-col gap-5 overflow-y-auto">
       <div class="flex items-center justify-between px-1">
@@ -139,7 +111,6 @@
         <button type="button" onclick="closeAllSidebars()" class="lg:hidden text-[#71717a] hover:text-white text-lg p-1">✕</button>
       </div>
 
-      <!-- 실전 전략 3인방 -->
       <div class="flex flex-col gap-2">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">실전 전략 3인방</span>
         <button type="button" onclick="requestStock('서학개미'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -156,7 +127,6 @@
         </button>
       </div>
 
-      <!-- 전문가 2인방 -->
       <div class="flex flex-col gap-2">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">전문가 2인방</span>
         <button type="button" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -169,7 +139,6 @@
         </button>
       </div>
 
-      <!-- 서비스 센터 -->
       <div class="flex flex-col gap-2 pt-2 border-t border-[#e2e8f0] dark:border-[#27272a]">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">서비스 센터</span>
         <button type="button" onclick="openUpgradeModal('매매기법'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -211,17 +180,14 @@
         <button type="button" onclick="toggleTheme()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white border border-[#cbd5e1] dark:border-[#3f3f46] rounded-full hover:bg-[#e2e8f0] dark:hover:bg-[#27272a] transition cursor-pointer shadow-sm">
           <span id="themeIcon">🌙</span><span id="themeText">다크 모드</span>
         </button>
-        <!-- 우측 사이드바 열기 버튼 복원 -->
         <button type="button" onclick="toggleRightSidebar()" class="xl:hidden p-1.5 rounded-lg border border-[#cbd5e1] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#1e1f24] text-sm text-[#0f172a] dark:text-white font-bold flex items-center gap-1 cursor-pointer">
           <span>📈</span>
         </button>
       </div>
     </header>
 
-    <!-- 대화 스크롤 영역 (맨 위에서부터 편안하게 읽음) -->
     <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 max-w-5xl mx-auto w-full"></div>
 
-    <!-- 하단 검색창 -->
     <div class="shrink-0 p-3 sm:p-4 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-4xl mx-auto relative">
         <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
@@ -241,7 +207,7 @@
     </div>
   </main>
 
-  <!-- 3. 우측 사이드바 (완벽 복원) -->
+  <!-- 3. 우측 사이드바 -->
   <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform translate-x-full xl:translate-x-0 xl:static transition-transform duration-300 ease-in-out shadow-2xl xl:shadow-none">
     <div class="p-5 flex flex-col gap-6 overflow-y-auto">
       <div class="flex items-center justify-between">
@@ -289,7 +255,7 @@
     </div>
   </aside>
 
-  <!-- 📸 짤 카드 모달 -->
+  <!-- 짤 카드 모달 -->
   <div id="memeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
     <div class="bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-sm w-full p-6 relative shadow-2xl animate-fade">
       <button type="button" onclick="document.getElementById('memeModal').classList.add('hidden')" class="absolute top-4 right-4 text-[#94a3b8] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
@@ -310,7 +276,6 @@
     </div>
   </div>
 
-  <!-- 알림 모달 -->
   <div id="upgradeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
     <div class="bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-md w-full p-6 relative shadow-2xl animate-fade">
       <button type="button" onclick="closeUpgradeModal()" class="absolute top-5 right-5 text-[#94a3b8] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
@@ -348,7 +313,6 @@
       }
     }
 
-    // 좌우 사이드바 토글 함수 완벽 복구
     function toggleLeftSidebar() {
       const leftBar = document.getElementById('leftSidebar');
       const rightBar = document.getElementById('rightSidebar');
@@ -415,7 +379,6 @@
       document.getElementById('upgradeModal').classList.add('hidden');
     }
 
-    // 서버 통신
     async function fetchAnalysisFromBackend(stockName) {
       try {
         const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`);
@@ -431,8 +394,8 @@
       return [
         {
           title: "🔥 그래서 오늘은 왜 올랐어?",
-          content: `개미들아! ${stockName} 수급 유입 중이야! 야호~\n현재 20일선 부근에서 강력한 지지선 형성!\n\n#실시간수급 #기관순매수 #20일선지지`,
-          tags: ["#실시간수급", "#20일선지지"]
+          content: `개미들아! ${stockName} 수급 유입 중이야! 야호~\n현재 지지선 부근에서 매수세 형성!\n\n#실시간수급 #기관순매수 #지지선`,
+          tags: ["#실시간수급", "#지지선"]
         },
         {
           title: "지금 세력은 사고 있어, 팔고 있어?",
@@ -440,16 +403,15 @@
         },
         {
           title: "여기 깨지면 도망쳐라!",
-          content: "🛡️생존 지지선: 20일선 이탈 시 미련 없이 비중 축소!\n🧱악성 매물대: 전고점 부근에 개미들의 본전 대기 매물 주의 ㅠㅠ."
+          content: "🛡️생존 지지선: 지지선 이탈 시 미련 없이 비중 축소!\n🧱악성 매물대: 전고점 부근에 개미들의 본전 대기 매물 주의 ㅠㅠ."
         },
         {
           title: "🐜 오늘 밤, 내일 무슨 일이 있나?",
-          content: "📅주의 일정: 미국 CPI 및 빅테크 실적 발표 예정!\n📝공시 체크: 시간외 단일가 변동성 주의해랔!"
+          content: "📅주의 일정: 미국 경제 지표 발표 예정!\n📝공시 체크: 시간외 단일가 변동성 주의해랔!"
         }
       ];
     }
 
-    // 5초 분석 → 깜짝 개미 → 맨 위 첫 줄 고정 타자 프로세스
     async function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
@@ -499,7 +461,6 @@
       clearInterval(timerInterval);
       loaderDiv.remove();
 
-      // 깜짝 개미 등장 (1.1초)
       const surprisePopup = document.getElementById('surpriseAntPopup');
       surprisePopup.classList.remove('hidden');
       await new Promise(res => setTimeout(res, 1100));
@@ -519,7 +480,6 @@
       chatArea.appendChild(mainContainer);
 
       chatArea.scrollTop = 0;
-
       let secIdx = 0;
 
       function typeNextSection() {
@@ -562,30 +522,39 @@
       typeNextSection();
     }
 
-    // ★ 개미 투표 위 줄(border-t) 완전 삭제 및 3인방 아코디언 차트 온전 복원
+    // 개미 투표 위 G마크 헤더가 장착된 하단 위젯 렌더러
     function renderBottomWidgets(wrapperId, stockName) {
       const container = document.getElementById(wrapperId);
       const bottomDiv = document.createElement('div');
-      bottomDiv.className = "space-y-6 pt-4 animate-fade"; // border-t 제거 완료!
+      bottomDiv.className = "space-y-6 pt-4 animate-fade";
       bottomDiv.innerHTML = `
-        <!-- 개미 투표 위젯 (위에 줄 없음) -->
-        <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] rounded-3xl p-5 space-y-4 shadow-sm">
-          <div class="flex items-center justify-between">
-            <span class="font-black text-base text-[#0f172a] dark:text-white">개미 투표</span>
-            <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">내일 주가 전망</span>
+        <!-- 개미 투표 섹션 -->
+        <div class="space-y-3">
+          <!-- G마크 헤더 -->
+          <div class="flex items-center gap-2.5 pb-1">
+            <div class="w-7 h-7 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm shrink-0">G</div>
+            <h3 class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">개미들아, 내일 어떻게 될 거 같아? 실력 발휘해 봐!</h3>
           </div>
-          <div class="space-y-2">
-            <div class="flex items-center justify-between text-xs font-black">
-              <span id="voteUpLabel" class="text-emerald-500 dark:text-emerald-400">상승 68%</span>
-              <span id="voteDownLabel" class="text-sky-500 dark:text-sky-400">하락 32%</span>
+
+          <!-- 투표 박스 본체 -->
+          <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] rounded-3xl p-5 space-y-4 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="font-black text-base text-[#0f172a] dark:text-white">개미 투표</span>
+              <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">내일 주가 전망</span>
             </div>
-            <div class="w-full h-2 bg-sky-400 rounded-full overflow-hidden flex">
-              <div id="voteProgressBar" class="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-500" style="width: 68%;"></div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between text-xs font-black">
+                <span id="voteUpLabel" class="text-emerald-500 dark:text-emerald-400">상승 68%</span>
+                <span id="voteDownLabel" class="text-sky-500 dark:text-sky-400">하락 32%</span>
+              </div>
+              <div class="w-full h-2 bg-sky-400 rounded-full overflow-hidden flex">
+                <div id="voteProgressBar" class="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-500" style="width: 68%;"></div>
+              </div>
             </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <button type="button" onclick="castVote('up')" id="btnVoteUp" class="py-3 rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 font-black text-sm">상승 전망</button>
-            <button type="button" onclick="castVote('down')" id="btnVoteDown" class="py-3 rounded-xl border border-[#cbd5e1] dark:border-[#282a30] bg-[#f8fafc] dark:bg-[#18191d] text-[#64748b] dark:text-[#a1a1aa] font-black text-sm">하락 전망</button>
+            <div class="grid grid-cols-2 gap-3">
+              <button type="button" onclick="castVote('up')" id="btnVoteUp" class="py-3 rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 font-black text-sm">상승 전망</button>
+              <button type="button" onclick="castVote('down')" id="btnVoteDown" class="py-3 rounded-xl border border-[#cbd5e1] dark:border-[#282a30] bg-[#f8fafc] dark:bg-[#18191d] text-[#64748b] dark:text-[#a1a1aa] font-black text-sm">하락 전망</button>
+            </div>
           </div>
         </div>
 
@@ -666,7 +635,6 @@
       container.appendChild(bottomDiv);
     }
 
-    // 3인방 백테스트 대시보드 데이터 & 아코디언 로직
     const strategyData = {
       '서학': {
         name: '서학개미', icon: '🇺🇸', title: '서학개미 (US Long-Term) 전략 대시보드',
@@ -677,7 +645,7 @@
           '✓ <strong>익절</strong>: +100%(2배), +200%(3배)... 도달 시 10%씩 매도',
           '✓ <strong>방어</strong>: 2배 달성 즉시 잔여물량 스탑로스를 본절가로 이동',
           '✓ <strong>복리</strong>: 회수된 현금은 다음 과매도 시그널에 100% 재투자'
-        ], point: '엔비디아(120배), 테슬라(28배) 같은 메가트렌드 종목의 후반 폭등을 10% 잔여 지분으로 끝까지 추종하여 자산 24.5억을 완성했습니다.'
+        ], point: '엔비디아, 테슬라 같은 메가트렌드 종목의 후반 폭등을 10% 잔여 지분으로 끝까지 추종하여 자산 24.5억을 완성했습니다.'
       },
       '국장': {
         name: '국장개미', icon: '🇰🇷', title: '국장개미 (KR Swing) 전략 대시보드',
