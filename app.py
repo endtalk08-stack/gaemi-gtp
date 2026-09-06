@@ -11,36 +11,74 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-# 주요 인기 종목 바로가기 사전 (초고속 캐싱)
+# 국내/해외 핵심 50대 종목 즉시 캐싱 사전 (0.1초 즉시 호출)
 TICKERS = {
     '삼성전자': '005930.KS',
     'SK하이닉스': '000660.KS',
+    '현대차': '005380.KS',
+    '현대자동차': '005380.KS',
+    '기아': '000270.KS',
+    '셀트리온': '068270.KS',
+    '에코프로': '086520.KQ',
+    '에코프로비엠': '247540.KQ',
     '알테오젠': '196170.KQ',
     '카카오': '035720.KS',
+    '카카오페이': '377300.KS',
+    '카카오뱅크': '323410.KS',
+    'NAVER': '035420.KS',
+    '네이버': '035420.KS',
+    'LG에너지솔루션': '373220.KS',
+    '삼성바이오로직스': '207940.KS',
+    'POSCO홀딩스': '005490.KS',
+    '포스코홀딩스': '005490.KS',
+    '포스코퓨처엠': '003670.KS',
+    '삼성SDI': '006400.KS',
+    'LG화학': '051910.KS',
+    '한미반도체': '042700.KS',
+    '삼천당제약': '000250.KQ',
+    '레인보우로보틱스': '277810.KQ',
+    '리가켐바이오': '141080.KQ',
+    'HLB': '028300.KQ',
+    '에이치엘비': '028300.KQ',
+    '크래프톤': '259960.KS',
+    '신한지주': '055550.KS',
+    'KB금융': '105560.KS',
+    '두산에너빌리티': '034020.KS',
+    '두산로보틱스': '454910.KS',
+    '현대모비스': '012330.KS',
+    'HD현대중공업': '329180.KS',
+    '한화에어로스페이스': '012450.KS',
+    '하이브': '352820.KS',
+    '한국전력': '015760.KS',
+    '엔씨소프트': '036570.KS',
+    '유한양행': '000100.KS',
+    '루닛': '328130.KQ',
     '엔비디아': 'NVDA',
     '테슬라': 'TSLA',
     '애플': 'AAPL',
+    '마이크로소프트': 'MSFT',
+    '아마존': 'AMZN',
+    '구글': 'GOOGL',
     '비트코인': 'BTC-USD'
 }
 
-# 1. 네이버 금융 전 종목(2,500개) 실시간 코드 검색 함수
+# 네이버 자동완성 JSON 검색 (사전에 없는 중소형주 2,500개 대응)
 def search_krx_code(stock_name):
     try:
-        encoded_query = urllib.parse.quote(stock_name.encode('euc-kr'))
-        url = f"https://finance.naver.com/search/searchList.naver?query={encoded_query}"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-            'Referer': 'https://finance.naver.com/'
-        }
-        req = urllib.request.Request(url, headers=headers)
+        url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=3) as resp:
-            html = resp.read().decode('euc-kr', 'replace')
-            matches = re.findall(r'/item/main\.naver\?code=(\d{6})', html)
-            if matches:
-                return matches[0]  # 최상단 일치 종목 코드 반환
+            res_json = json.loads(resp.read().decode('utf-8'))
+            items = res_json.get('items', [])
+            if items and len(items[0]) > 0:
+                first = items[0][0]
+                code = first[0]
+                market = first[3].upper()
+                suffix = '.KS' if 'KOSPI' in market else '.KQ'
+                return f"{code}{suffix}", code
     except Exception:
         pass
-    return None
+    return None, None
 
 def fetch_realtime_news(stock_name):
     try:
@@ -63,6 +101,7 @@ def fetch_realtime_news(stock_name):
         return []
 
 def fetch_krx_supply_demand(code_six):
+    # 1차 시도: 네이버 증권 웹 (HTML 태그 제거 후 정수 추출)
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
@@ -77,17 +116,37 @@ def fetch_krx_supply_demand(code_six):
                 row_html = match.group(0)
                 tds = row_html.split('<td')
                 if len(tds) > 7:
-                    inst_clean = re.sub(r'[^0-9\-]', '', tds[6])
-                    foreign_clean = re.sub(r'[^0-9\-]', '', tds[7])
+                    inst_text = re.sub(r'<[^>]+>', '', tds[6]).strip().replace(',', '').replace('+', '')
+                    foreign_text = re.sub(r'<[^>]+>', '', tds[7]).strip().replace(',', '').replace('+', '')
                     
-                    if inst_clean and foreign_clean:
-                        inst_val = int(inst_clean)
-                        foreign_val = int(foreign_clean)
+                    if inst_text and foreign_text:
+                        inst_val = int(inst_text)
+                        foreign_val = int(foreign_text)
                         if inst_val != 0 or foreign_val != 0:
                             indiv_val = -(inst_val + foreign_val)
                             return indiv_val, foreign_val, inst_val
     except Exception:
         pass
+
+    # 2차 시도: 다음(Daum) 금융 API 백업
+    try:
+        url = f"https://finance.daum.net/api/investor/days?symbolCode=A{code_six}&page=1&perPage=1"
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'Referer': 'https://finance.daum.net/'
+        })
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if 'data' in data and len(data['data']) > 0:
+                latest = data['data'][0]
+                foreign_val = int(latest.get('foreignStraightPurchaseVolume', 0))
+                inst_val = int(latest.get('institutionStraightPurchaseVolume', 0))
+                indiv_val = int(latest.get('individualStraightPurchaseVolume', -(foreign_val + inst_val)))
+                if foreign_val != 0 or inst_val != 0:
+                    return indiv_val, foreign_val, inst_val
+    except Exception:
+        pass
+
     return None, None, None
 
 def format_shares(n):
@@ -135,52 +194,40 @@ def home():
 def analyze():
     raw_name = request.args.get('stock', 'SK하이닉스').strip()
     ticker_symbol = TICKERS.get(raw_name)
+    clean_code = None
     hist = None
 
     try:
-        # 1. 티커 심볼 및 주가 데이터 동적 탐색
+        # 1. 티커 매핑
         if ticker_symbol:
+            clean_code = ''.join(filter(str.isdigit, ticker_symbol))
+            ticker = yf.Ticker(ticker_symbol)
+            hist = ticker.history(period="1mo")
+        elif re.match(r'^\d{6}$', raw_name):
+            clean_code = raw_name
+            t_ks = yf.Ticker(f"{clean_code}.KS")
+            h_ks = t_ks.history(period="1mo")
+            if not h_ks.empty:
+                ticker, hist, ticker_symbol = t_ks, h_ks, f"{clean_code}.KS"
+            else:
+                t_kq = yf.Ticker(f"{clean_code}.KQ")
+                h_kq = t_kq.history(period="1mo")
+                if not h_kq.empty:
+                    ticker, hist, ticker_symbol = t_kq, h_kq, f"{clean_code}.KQ"
+        elif re.match(r'^[A-Za-z\-]+$', raw_name):
+            ticker_symbol = raw_name.upper()
             ticker = yf.Ticker(ticker_symbol)
             hist = ticker.history(period="1mo")
         else:
-            # A. 6자리 종목코드 직접 입력된 경우 (예: 005380)
-            if re.match(r'^\d{6}$', raw_name):
-                code = raw_name
-                t_ks = yf.Ticker(f"{code}.KS")
-                h_ks = t_ks.history(period="1mo")
-                if not h_ks.empty:
-                    ticker, hist, ticker_symbol = t_ks, h_ks, f"{code}.KS"
-                else:
-                    t_kq = yf.Ticker(f"{code}.KQ")
-                    h_kq = t_kq.history(period="1mo")
-                    if not h_kq.empty:
-                        ticker, hist, ticker_symbol = t_kq, h_kq, f"{code}.KQ"
-
-            # B. 영문 티커 (예: AMD, PLTR, MSFT)
-            elif re.match(r'^[A-Za-z\-]+$', raw_name):
-                ticker_symbol = raw_name.upper()
+            ticker_symbol, clean_code = search_krx_code(raw_name)
+            if ticker_symbol:
                 ticker = yf.Ticker(ticker_symbol)
                 hist = ticker.history(period="1mo")
-
-            # C. 한글 종목명 (네이버 금융 2,500개 전 종목 자동 매핑)
-            else:
-                found_code = search_krx_code(raw_name)
-                if found_code:
-                    # 코스피(.KS) 먼저 시도 후 코스닥(.KQ) 검증
-                    t_ks = yf.Ticker(f"{found_code}.KS")
-                    h_ks = t_ks.history(period="1mo")
-                    if not h_ks.empty:
-                        ticker, hist, ticker_symbol = t_ks, h_ks, f"{found_code}.KS"
-                    else:
-                        t_kq = yf.Ticker(f"{found_code}.KQ")
-                        h_kq = t_kq.history(period="1mo")
-                        if not h_kq.empty:
-                            ticker, hist, ticker_symbol = t_kq, h_kq, f"{found_code}.KQ"
 
         if hist is None or hist.empty:
             raise ValueError("데이터 없음")
 
-        # 2. 가격 및 변동률 산출
+        # 2. 가격 및 변동률 계산
         current_price = hist['Close'].iloc[-1]
         prev_close = hist['Close'].iloc[-2] if len(hist) >= 2 else current_price
         change_pct = ((current_price - prev_close) / prev_close) * 100
@@ -203,9 +250,8 @@ def analyze():
         news_list = fetch_realtime_news(raw_name)
         main_news = news_list[0] if len(news_list) > 0 else f"{raw_name} 관련 메이저 재료 포착"
 
-        clean_code = ''.join(filter(str.isdigit, ticker_symbol))
         indiv, foreign, inst = (None, None, None)
-        if len(clean_code) == 6:
+        if clean_code and len(clean_code) == 6:
             indiv, foreign, inst = fetch_krx_supply_demand(clean_code)
 
         if foreign is not None and inst is not None and (foreign != 0 or inst != 0):
@@ -249,7 +295,7 @@ def analyze():
             },
             {
                 "title": "여기 깨지면 도망쳐라!",
-                "content": f"🛡️생존 지지선: {ma20_str} (딱! 기억해놔!)\n이 가격 깨지면 투매 나오니까 절대 미련 갖지 말고 비중 줄여!\n🧱악성 매물대: 최근 고점 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
+                "content": f"🛡️생존 지지선: {ma20_str} (딱! 기억해놔!)\n이 가격 깨지면 투매 나오니까 절대 미련 갖지 말고 비중 줄여!\n🧱악성 매물대: 최근 고점 부근에 과거 물려있는 개미들의 본전 대기 물량이쏟아질 수 있어 ㅠㅠ."
             },
             {
                 "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
