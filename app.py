@@ -11,7 +11,6 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-# 핵심 50대 우량주 즉시 호출 사전 (0.1초 고속 로딩)
 TICKERS = {
     '삼성전자': '005930.KS',
     'SK하이닉스': '000660.KS',
@@ -239,7 +238,23 @@ def analyze():
             price_str = f"${current_price:,.2f}"
             ma20_str = f"${ma20:,.2f}"
 
-        is_up = change_pct >= 0
+        # --- 3단계 등락률 판단 추가 (상승/하락/보합) ---
+        if change_pct > 0.005:  # 부동소수점 오차 방지 (0초과)
+            status_emoji = '🔥'
+            status_word = '상승'
+            title_word = '올랐어'
+            desc_word = '상승중이야!!!'
+        elif change_pct < -0.005: # (0미만)
+            status_emoji = '❄️'
+            status_word = '하락'
+            title_word = '숨고르기일까'
+            desc_word = '하락중이야 ㅠㅠ'
+        else: # (정확히 0에 수렴하는 보합)
+            status_emoji = '⚖️'
+            status_word = '보합'
+            title_word = '보합일까'
+            desc_word = '보합(숨고르기) 중이야. 폭풍 전야의 고요함이 느껴지지 않아?'
+            change_pct = 0.0 # 강제 0 치환 (마이너스 0.00 방지)
 
         news_list = fetch_realtime_news(raw_name)
         main_news = news_list[0] if len(news_list) > 0 else f"{raw_name} 관련 메이저 재료 포착"
@@ -254,17 +269,16 @@ def analyze():
             ind_abs = format_shares(abs(indiv)).replace('+', '')
 
             if foreign > 0 and inst > 0:
-                flow_msg = f"🚀 외놈들이 {f_abs}, 기관 아찌들이 {i_abs} 쌍끌이 풀매수 드가자!! \n개미들만 {ind_abs} 털리는 중, 지금 안 타면 버스 떠난다 꽉 잡아!"
+                flow_msg = f"🚀 외놈들이 {f_abs}, 기관 성님들이 {i_abs} 쌍끌이 풀매수 드가자!! 개미들만 {ind_abs} 털리는 중, 지금 안 타면 버스 떠난다 꽉 잡아!"
             elif foreign < 0 and inst < 0:
-                flow_msg = f"🚨 삐용삐용! 외놈들이 {f_abs}, 기관 아찌들이 {i_abs} 동반 투매 폭격 중! \n개미 혼자 {ind_abs} 받다가 피 흘린다, 일단 튀어 ㅠㅠ"
+                flow_msg = f"🚨 삐용삐용! 외놈들이 {f_abs}, 기관 아찌들이 {i_abs} 동반 투매 폭격 중! 개미 혼자 {ind_abs} 받다가 피 흘린다, 일단 튀어 ㅠㅠ"
             elif foreign > 0:
-                flow_msg = f"👱‍♂️ 외놈들이 혼자 {f_abs} 쓸어 담으면서 멱살 잡고 캐리 중! \n여의도 성님들은 {i_abs} 던지면서 간 보고 있어."
+                flow_msg = f"👱‍♂️ 외놈들이 혼자 {f_abs} 쓸어 담으면서 멱살 잡고 캐리 중! 여의도 성님들은 {i_abs} 던지면서 간 보고 있어."
             elif inst > 0:
-                flow_msg = f"👔 여의도 기관 성님들이 바닥에서 {i_abs} 묵직하게 줍줍 중! \n(외놈들은 {f_abs} 패대기 치는 중) 뭔가 냄새가 난다!"
+                flow_msg = f"👔 여의도 기관 성님들이 바닥에서 {i_abs} 묵직하게 줍줍 중! (외놈들은 {f_abs} 패대기 치는 중) 뭔가 냄새가 난다!"
             else:
-                flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! \n세력들 눈치싸움 팽팽하다."
+                flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! 세력들 눈치싸움 팽팽하다."
 
-            # 중복 리스트를 제거하고 멘트만 시원하게 출력
             supply_content = flow_msg
         else:
             supply_content = (
@@ -272,10 +286,11 @@ def analyze():
                 f"현재 주요 매물대 부근에서 치열한 손바뀜 공방전 진행 중. 세력들의 의도를 잘 파악해 보자!"
             )
 
+        # --- 보합/상승/하락 멘트 동적 적용 ---
         sections = [
             {
-                "title": f"{'🔥' if is_up else '❄️'} 그래서 오늘은 왜 {'올랐어' if is_up else '숨고르기일까'}?",
-                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {'상승' if is_up else '하락'}중이야!!!\n현재 실시간 주가는 {price_str} 기록 중!\n\n오늘 터진 핵심 뉴스 헤드라인이야:\n📰 \"{main_news}\"\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!",
+                "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
+                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {desc_word}\n현재 실시간 주가는 {price_str} 기록 중!\n\n오늘 터진 핵심 뉴스 헤드라인이야:\n📰 \"{main_news}\"\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
