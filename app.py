@@ -4,6 +4,7 @@ import yfinance as yf
 import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
+import json
 import re
 
 app = Flask(__name__)
@@ -20,7 +21,7 @@ TICKERS = {
     '비트코인': 'BTC-USD'
 }
 
-# 1. 무료 구글 실시간 뉴스 수집 함수
+# 1. 무료 구글 실시간 뉴스 수집
 def fetch_realtime_news(stock_name):
     try:
         query = urllib.parse.quote(f"{stock_name}")
@@ -41,46 +42,45 @@ def fetch_realtime_news(stock_name):
     except Exception:
         return []
 
-# 2. 봇 차단 우회(스텔스) 수급 스크래핑 함수
+# 2. 강력 수급 수집 (다음 증권 + 네이버 프록시 우회)
 def fetch_krx_supply_demand(code_six):
-    # ★ 핵심: 네이버 경비원을 속이는 가짜 신분증(Headers)
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Referer': f'https://finance.naver.com/item/main.naver?code={code_six}'
-    }
-    
+    # 1순위: 다음(Daum) 증권 API (서버 차단이 거의 없음)
     try:
-        url = f"https://finance.naver.com/item/frgn.naver?code={code_six}"
-        req = urllib.request.Request(url, headers=headers)
+        url = f"https://finance.daum.net/api/investor/days?symbolCode=A{code_six}&page=1&perPage=1"
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'Referer': 'https://finance.daum.net/'
+        })
         with urllib.request.urlopen(req, timeout=4) as resp:
-            html = resp.read().decode('euc-kr', 'replace')
-            
-            # HTML 표 가위질 시작
-            table_split = html.split('summary="외국인 기관 순매매 거래량에 관한표')
-            if len(table_split) < 2: return None, None, None
-            
-            table_html = table_split[1].split('</table>')[0]
-            row_split = table_html.split('onmouseover="mouseOver(this)"')
-            if len(row_split) < 2: return None, None, None
-            
-            first_row = row_split[1].split('</tr>')[0]
-            tds = first_row.split('<td')
-            
-            if len(tds) > 7:
-                # 숫자와 마이너스(-) 기호만 깔끔하게 남기기
-                inst_text = re.sub(r'[^0-9\-]', '', tds[6])
-                foreign_text = re.sub(r'[^0-9\-]', '', tds[7])
-                
-                if inst_text and foreign_text:
-                    inst_val = int(inst_text)
-                    foreign_val = int(foreign_text)
-                    indiv_val = -(inst_val + foreign_val) # 개인 매수 = -(기관+외국인)
-                    return indiv_val, foreign_val, inst_val
+            data = json.loads(resp.read().decode('utf-8'))
+            if 'data' in data and len(data['data']) > 0:
+                latest = data['data'][0]
+                foreign = int(latest.get('foreignStraightPurchaseVol', 0))
+                inst = int(latest.get('institutionStraightPurchaseVol', 0))
+                indiv = int(latest.get('individualStraightPurchaseVol', 0))
+                return indiv, foreign, inst
     except Exception as e:
-        print("스크래핑 에러:", e)
+        print("Daum Error:", e)
         pass
-    
+
+    # 2순위: 네이버 증권 모바일 API (글로벌 우회망 Proxy 통과)
+    try:
+        target_url = f"https://m.stock.naver.com/api/stock/{code_six}/trend"
+        proxy_url = f"https://api.allorigins.win/raw?url={urllib.parse.quote(target_url)}"
+        req = urllib.request.Request(proxy_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            items = data if isinstance(data, list) else data.get('result', data.get('itemList', []))
+            if items:
+                latest = items[0]
+                indiv = int(latest.get('individualPureBuyQuant', 0))
+                foreign = int(latest.get('foreignerPureBuyQuant', 0))
+                inst = int(latest.get('organPureBuyQuant', 0))
+                return indiv, foreign, inst
+    except Exception as e:
+        print("Naver Proxy Error:", e)
+        pass
+
     return None, None, None
 
 def format_shares(n):
@@ -92,7 +92,7 @@ def format_shares(n):
 
 @app.route('/')
 def home():
-    return "gaemiGTP 스텔스 엔진 정상 가동 중!"
+    return "gaemiGTP 강력 수급 엔진 정상 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
@@ -147,7 +147,7 @@ def analyze():
                 f"• 외국인: {foreign_str}\n"
                 f"• 기  관: {inst_str}\n"
                 f"• 개  인: {indiv_str}\n\n"
-                f"{flow_msg} 과연 내일도 이 흐름이 이어질까? 두근두근"
+                f"{flow_msg} 과연 전고점을 돌파할까? 두근두근"
             )
         else:
             supply_content = (
