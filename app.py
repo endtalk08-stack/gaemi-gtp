@@ -4,6 +4,7 @@ import yfinance as yf
 import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
+import json
 import re
 
 app = Flask(__name__)
@@ -20,7 +21,6 @@ TICKERS = {
     '비트코인': 'BTC-USD'
 }
 
-# 1. 무료 구글 실시간 뉴스 수집 함수
 def fetch_realtime_news(stock_name):
     try:
         query = urllib.parse.quote(f"{stock_name}")
@@ -41,58 +41,68 @@ def fetch_realtime_news(stock_name):
     except Exception:
         return []
 
-# 2. 봇 차단 우회(스텔스) 수급 스크래핑 함수
 def fetch_krx_supply_demand(code_six):
-    # ★ 핵심: 네이버 경비원을 속이는 가짜 신분증(Headers)
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Referer': f'https://finance.naver.com/item/main.naver?code={code_six}'
-    }
-    
+    # 1차 시도: 네이버 증권 외국인/기관 매매동향 웹 표 파싱 (정밀 정규식)
     try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': f'https://finance.naver.com/item/main.naver?code={code_six}'
+        }
         url = f"https://finance.naver.com/item/frgn.naver?code={code_six}"
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=4) as resp:
             html = resp.read().decode('euc-kr', 'replace')
             
-            # HTML 표 가위질 시작
-            table_split = html.split('summary="외국인 기관 순매매 거래량에 관한표')
-            if len(table_split) < 2: return None, None, None
-            
-            table_html = table_split[1].split('</table>')[0]
-            row_split = table_html.split('onmouseover="mouseOver(this)"')
-            if len(row_split) < 2: return None, None, None
-            
-            first_row = row_split[1].split('</tr>')[0]
-            tds = first_row.split('<td')
-            
-            if len(tds) > 7:
-                # 숫자와 마이너스(-) 기호만 깔끔하게 남기기
-                inst_text = re.sub(r'[^0-9\-]', '', tds[6])
-                foreign_text = re.sub(r'[^0-9\-]', '', tds[7])
-                
-                if inst_text and foreign_text:
-                    inst_val = int(inst_text)
-                    foreign_val = int(foreign_text)
-                    indiv_val = -(inst_val + foreign_val) # 개인 매수 = -(기관+외국인)
-                    return indiv_val, foreign_val, inst_val
-    except Exception as e:
-        print("스크래핑 에러:", e)
+            # 날짜(YYYY.MM.DD)가 포함된 첫 번째 데이터 행 추출
+            match = re.search(r'<tr[^>]*>\s*<td class="tc">\s*<span class="tah p10 gray03">\d{4}\.\d{2}\.\d{2}</span>.*?</tr>', html, re.DOTALL)
+            if match:
+                row_html = match.group(0)
+                tds = row_html.split('<td')
+                if len(tds) > 7:
+                    # 6번째 칸: 기관, 7번째 칸: 외국인
+                    inst_clean = re.sub(r'<[^>]+>', '', tds[6]).strip().replace(',', '').replace('+', '')
+                    foreign_clean = re.sub(r'<[^>]+>', '', tds[7]).strip().replace(',', '').replace('+', '')
+                    
+                    if inst_clean and foreign_clean:
+                        inst_val = int(inst_clean)
+                        foreign_val = int(foreign_clean)
+                        if inst_val != 0 or foreign_val != 0:
+                            indiv_val = -(inst_val + foreign_val)
+                            return indiv_val, foreign_val, inst_val
+    except Exception:
         pass
-    
+
+    # 2차 시도: 다음(Daum) 증권 API (정확한 영문 키 매핑)
+    try:
+        url = f"https://finance.daum.net/api/investor/days?symbolCode=A{code_six}&page=1&perPage=1"
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'Referer': 'https://finance.daum.net/'
+        })
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if 'data' in data and len(data['data']) > 0:
+                latest = data['data'][0]
+                foreign_val = int(latest.get('foreignStraightPurchaseVolume', 0))
+                inst_val = int(latest.get('institutionStraightPurchaseVolume', 0))
+                indiv_val = int(latest.get('individualStraightPurchaseVolume', -(foreign_val + inst_val)))
+                if foreign_val != 0 or inst_val != 0:
+                    return indiv_val, foreign_val, inst_val
+    except Exception:
+        pass
+
     return None, None, None
 
 def format_shares(n):
     if n is None: return "집계 중"
     sign = "+" if n > 0 else ""
     if abs(n) >= 10000:
-        return f"{sign}{n / 10000:,.0f}만 주"
+        return f"{sign}{n / 10000:,.1f}만 주"
     return f"{sign}{n:,}주"
 
 @app.route('/')
 def home():
-    return "gaemiGTP 스텔스 엔진 정상 가동 중!"
+    return "gaemiGTP 수급 엔진 정상 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
@@ -100,7 +110,6 @@ def analyze():
     ticker_symbol = TICKERS.get(stock_name, stock_name)
 
     try:
-        # 1. 주가 계산
         ticker = yf.Ticker(ticker_symbol)
         hist = ticker.history(period="1mo")
         if hist.empty: raise ValueError("데이터 없음")
@@ -115,18 +124,17 @@ def analyze():
         ma20_str = f"{currency}{ma20:,.0f}" if currency == "₩" else f"{currency}{ma20:,.2f}"
         is_up = change_pct >= 0
 
-        # 2. 뉴스 수집
         news_list = fetch_realtime_news(stock_name)
         main_news = news_list[0] if len(news_list) > 0 else f"{stock_name} 관련 메이저 재료 포착"
         sub_news = news_list[1] if len(news_list) > 1 else "기관·외국인 프로그램 매매 공방전"
 
-        # 3. 실시간 수급 뜯어오기 (한국 주식 전용)
         clean_code = ''.join(filter(str.isdigit, ticker_symbol))
         indiv, foreign, inst = (None, None, None)
         if len(clean_code) == 6:
             indiv, foreign, inst = fetch_krx_supply_demand(clean_code)
 
-        if foreign is not None and inst is not None:
+        # 수급 데이터가 유의미하게 존재하는 경우에만 팩트 체크 출력
+        if foreign is not None and inst is not None and (foreign != 0 or inst != 0):
             foreign_str = format_shares(foreign)
             inst_str = format_shares(inst)
             indiv_str = format_shares(indiv)
@@ -143,19 +151,18 @@ def analyze():
                 flow_msg = "개인과 세력 간의 팽팽한 눈치싸움 공방전이 벌어지고 있어."
 
             supply_content = (
-                f"🔥실시간 수급 팩트 체크 (단위: 만 주)\n"
+                f"🔥실시간 수급 팩트 체크:\n"
                 f"• 외국인: {foreign_str}\n"
                 f"• 기  관: {inst_str}\n"
                 f"• 개  인: {indiv_str}\n\n"
-                f"{flow_msg} 과연 내일도 이 흐름이 이어질까? 두근두근"
+                f"{flow_msg} 과연 전고점을 돌파할까? 두근두근"
             )
         else:
             supply_content = (
                 f"🔥수급 레이더: 시장에서 \"{sub_news}\" 관련 세력 손바뀜이 활발해!\n"
-                f"현재 치열한 공방전 진행 중. 과연 전고점을 뚫을까? 두근두근"
+                f"현재 주요 매물대 부근에서 치열한 공방전 진행 중. 과연 전고점을 뚫을까? 두근두근"
             )
 
-        # 4. 리포트 조립
         sections = [
             {
                 "title": f"{'🔥' if is_up else '❄️'} 그래서 오늘은 왜 {'올랐어' if is_up else '숨고르기일까'}?",
@@ -172,7 +179,7 @@ def analyze():
             },
             {
                 "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
-                "content": "📅주의 일정: 내일(목) 주요 경제 지표 발표와 나스닥 선물 체크 필수!\n📝공시 체크: 대규모 보호예수 물량이나 시간외 단일가 움직임에 오버나잇(밤샘 보유) 주의해랔!"
+                "content": "📅주의 일정: 내일 주요 경제 지표 발표와 나스닥 선물 체크 필수!\n📝공시 체크: 대규모 보호예수 물량이나 시간외 단일가 움직임에 오버나잇(밤샘 보유) 주의해랔!"
             }
         ]
         return jsonify({"sections": sections})
