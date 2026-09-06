@@ -259,24 +259,28 @@ def analyze():
             inst_str = format_shares(inst)
             indiv_str = format_shares(indiv)
 
-            # --- 이 부분이 새롭게 바뀐 커뮤니티 도파민 스타일 멘트입니다 ---
+            # 문맥에 자연스럽게 녹이기 위한 부호 없는 절대값 수치 생성
+            f_abs = format_shares(abs(foreign)).replace('+', '')
+            i_abs = format_shares(abs(inst)).replace('+', '')
+            ind_abs = format_shares(abs(indiv)).replace('+', '')
+
             if foreign > 0 and inst > 0:
-                flow_msg = "🚀 외인·기관 형님들 쌍끌이 풀매수 드가자~!! 지금 안 타면 버스 떠난다 꽉 잡아!"
+                flow_msg = f"🚀 외놈들이 {f_abs}, 기관 성님들이 {i_abs} 쌍끌이 풀매수 드가자!! 개미들만 {ind_abs} 털리는 중, 지금 안 타면 버스 떠난다 꽉 잡아!"
             elif foreign < 0 and inst < 0:
-                flow_msg = "🚨 삐용삐용! 외인·기관 양매도 폭격 중! 떨어지는 칼날은 일단 피하고 보자 ㅠㅠ"
+                flow_msg = f"🚨 삐용삐용! 외놈들이 {f_abs}, 기관 성님들이 {i_abs} 동반 투매 폭격 중! 개미 혼자 {ind_abs} 받다가 피 흘린다, 일단 튀어 ㅠㅠ"
             elif foreign > 0:
-                flow_msg = "👱‍♂️ 검은머리 외국인일까 찐 외인일까? 일단 외국인 형님들이 멱살 잡고 끌어올리는 중!"
+                flow_msg = f"👱‍♂️ 외놈들이 혼자 {f_abs} 쓸어 담으면서 멱살 잡고 캐리 중! 여의도 성님들은 {i_abs} 던지면서 간 보고 있어."
             elif inst > 0:
-                flow_msg = "👔 여의도 기관 성님들이 바닥에서 줍줍하고 있어! 뭔가 냄새가 나는데?"
+                flow_msg = f"👔 여의도 기관 성님들이 바닥에서 {i_abs} 묵직하게 줍줍 중! (외놈들은 {f_abs} 패대기 치는 중) 뭔가 냄새가 난다!"
             else:
-                flow_msg = "👀 세력들도 서로 눈치만 보는 중! 섣부른 배팅보다는 방향성 터질 때까지 대기 타자."
+                flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! 세력들 눈치싸움 팽팽하다."
 
             supply_content = (
                 f"🔥실시간 수급 팩트 체크:\n"
                 f"• 외국인: {foreign_str}\n"
                 f"• 기  관: {inst_str}\n"
                 f"• 개  인: {indiv_str}\n\n"
-                f"{flow_msg} 과연 전고점을 돌파할까? 두근두근"
+                f"{flow_msg}"
             )
         else:
             supply_content = (
