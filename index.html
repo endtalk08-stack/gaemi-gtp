@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>gaemiGTP</title>
   
-  <!-- Pretendard 웹폰트 정식 CDN -->
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   
   <script src="https://cdn.tailwindcss.com"></script>
@@ -45,7 +44,6 @@
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden transition-colors duration-200 relative">
 
-  <!-- 📱 모바일 배경 어두운 오버레이 -->
   <div id="sidebarBackdrop" onclick="closeAllSidebars()" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity duration-300"></div>
 
   <!-- ================= [뷰 1] 메인 히어로 첫 화면 ================= -->
@@ -122,7 +120,6 @@
   </div>
 
   <!-- ================= [뷰 2] 본문 분석 대시보드 화면 ================= -->
-  <!-- 1. 좌측 사이드바 -->
   <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
     <div class="p-4 flex flex-col gap-5 overflow-y-auto">
       <div class="flex items-center justify-between px-1">
@@ -190,7 +187,6 @@
     </div>
   </aside>
 
-  <!-- 2. 중앙 메인 분석 영역 -->
   <main class="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-[#121316] overflow-hidden min-w-0">
     <header class="h-16 border-b border-[#e2e8f0] dark:border-[#27272a] flex items-center justify-between px-4 sm:px-6 bg-white/80 dark:bg-[#16171b]/80 backdrop-blur shrink-0 z-10">
       <div class="flex items-center gap-3">
@@ -212,10 +208,8 @@
       </div>
     </header>
 
-    <!-- 대화 스크롤 영역 -->
     <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 max-w-5xl mx-auto w-full scroll-smooth"></div>
 
-    <!-- 하단 채팅창 -->
     <div class="shrink-0 p-3 sm:p-4 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-4xl mx-auto relative">
         <div id="bottomModePopup" class="absolute bottom-full mb-3 right-12 z-50 bg-[#1e1f23] border border-[#2e3036] rounded-2xl p-2 w-48 shadow-2xl hidden text-left space-y-1 animate-fade">
@@ -249,7 +243,6 @@
             placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, NVDA, BTC)" 
             class="w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-[#f4f4f5] placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-32 sm:pr-36 shadow-md transition"
           >
-          
           <div class="absolute right-2 flex items-center gap-1 sm:gap-1.5">
             <button type="button" onclick="toggleBottomModePopup(event)" class="text-xs font-semibold text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full hover:bg-slate-200 dark:hover:bg-[#262830] transition flex items-center gap-1 cursor-pointer">
               <span id="bottomSelectedMode">gaemi</span>
@@ -264,7 +257,6 @@
     </div>
   </main>
 
-  <!-- 3. 우측 사이드바 -->
   <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform translate-x-full xl:translate-x-0 xl:static transition-transform duration-300 ease-in-out shadow-2xl xl:shadow-none">
     <div class="p-5 flex flex-col gap-6 overflow-y-auto">
       <div class="flex items-center justify-between">
@@ -312,7 +304,6 @@
     </div>
   </aside>
 
-  <!-- 📸 짤 카드 모달 -->
   <div id="memeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
     <div class="bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-sm w-full p-6 relative shadow-2xl animate-fade">
       <button type="button" onclick="document.getElementById('memeModal').classList.add('hidden')" class="absolute top-4 right-4 text-[#94a3b8] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
@@ -339,7 +330,6 @@
     </div>
   </div>
 
-  <!-- 알림 모달 -->
   <div id="upgradeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
     <div class="bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-md w-full p-6 relative shadow-2xl animate-fade">
       <button type="button" onclick="closeUpgradeModal()" class="absolute top-5 right-5 text-[#94a3b8] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
@@ -353,6 +343,9 @@
   </div>
 
   <script>
+    // 🌐 [렌더 백엔드 주방 통신 주소]
+    const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
+
     let activeStock = 'SK하이닉스';
     let currentChartInstance = null;
 
@@ -486,81 +479,26 @@
       document.getElementById('upgradeModal').classList.add('hidden');
     }
 
-    function requestStock(stockName) {
-      if (!stockName || !stockName.trim()) return;
-      stockName = stockName.trim();
-      activeStock = stockName;
-
-      const chatArea = document.getElementById('chatArea');
-      chatArea.innerHTML = '';
-
-      appendUserQuery(stockName);
-      const loaderInfo = appendCenteredAntLoader(stockName);
-
-      setTimeout(() => {
-        if (loaderInfo.timerId) clearInterval(loaderInfo.timerId);
-        
-        const loaderEl = document.getElementById(loaderInfo.id);
-        if (loaderEl) {
-          loaderEl.className = "flex justify-center pb-2 animate-fade";
-          loaderEl.innerHTML = `
-            <div class="inline-flex items-center gap-2.5 bg-white dark:bg-[#1e1f24] text-[#0f172a] dark:text-white px-5 py-2.5 rounded-full text-sm font-bold border border-[#cbd5e1] dark:border-[#3f3f46] shadow-sm">
-              <span class="animate-bounce text-lg">🐜</span> 
-              <span>gaemiGTP가 리포트를 작성 중이야...</span>
-            </div>
-          `;
-        }
-
-        startTypewriterFlow(stockName, loaderInfo.id);
-      }, 2500); 
-    }
-
-    function appendUserQuery(text) {
-      const chatArea = document.getElementById('chatArea');
-      const div = document.createElement('div');
-      div.className = "flex justify-end animate-fade";
-      div.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl rounded-tr-none border border-[#cbd5e1] dark:border-[#3f3f46]">${text}</div>`;
-      chatArea.appendChild(div);
-      chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
-    }
-
-    function appendCenteredAntLoader(stockName) {
-      const chatArea = document.getElementById('chatArea');
-      const id = 'loader-' + Date.now();
-      const div = document.createElement('div');
-      div.id = id;
-      div.className = "flex flex-col items-center justify-center p-8 bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl my-2 animate-fade text-center shadow-sm";
-      
-      div.innerHTML = `
-        <div class="flex items-center gap-4 mb-3">
-          <div class="w-12 h-12 rounded-full bg-[#f8fafc] dark:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] flex items-center justify-center text-xl">🐜</div>
-          <span class="text-[#94a3b8] dark:text-[#71717a] font-bold text-lg">×</span>
-          <div class="w-12 h-12 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black font-black flex items-center justify-center text-xl">🕶️</div>
-        </div>
-        <h4 class="font-bold text-base text-[#0f172a] dark:text-white">
-          <span class="text-[#475569] dark:text-[#a1a1aa]">${stockName}</span> 정밀 퀀트 분석 중
-        </h4>
-        <p id="antStatusMsg" class="text-sm text-[#64748b] dark:text-[#a1a1aa] mt-1.5 font-medium transition-all duration-300">
-          📡 나스닥 매크로 및 글로벌 지표 스캔 중...
-        </p>
-      `;
-      chatArea.appendChild(div);
-      chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
-
-      const messages = [
-        "📡 나스닥 매크로 및 글로벌 지표 스캔 중...",
-        "📰 핵심 테마 재료 및 실적 발표 일정 검증 중...",
-        "📊 외인·기관 누적 수급 데이터 대조 중...",
-        "💡 3인 실전 전문가 매매 시나리오 산출 중..."
-      ];
-      let idx = 0;
-      const timerId = setInterval(() => {
-        idx = (idx + 1) % messages.length;
-        const textEl = document.getElementById('antStatusMsg');
-        if (textEl) textEl.innerText = messages[idx];
-      }, 500);
-
-      return { id, timerId };
+    // 📡 [렌더 백엔드 API 호출]
+    async function fetchAnalysisFromBackend(stockName) {
+      try {
+        const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) throw new Error('서버 응답 에러');
+        const data = await response.json();
+        return [
+          {
+            title: data.title || "🔥 그래서 오늘은 왜 올랐어?",
+            content: data.content || `${stockName} 관련 주요 수급 및 공시 분석 완료.`,
+            tags: data.tags || ["#외인순매수", "#수급포착"]
+          }
+        ];
+      } catch (err) {
+        console.warn("백엔드 오프라인, 기본 브라우저 엔진 전환:", err);
+        return getReportSections(stockName);
+      }
     }
 
     function getReportSections(stockName) {
@@ -602,68 +540,100 @@
             content: "📅주의 일정: 내일(목) 미국 CPI 발표가 있네!\n📝공시 체크: 3일 뒤 대규모 보호예수 물량(전환사채) 상장이 예정되어 있으니 오버나잇(밤샘 보유)에 주의해랔!"
           }
         ];
-      } else if (stockName === '알테오젠') {
-        return [
-          {
-            title: "🔥 그래서 오늘은 왜 올랐어?",
-            content: "개미들아! 알테오젠 +8% 상승중이야! 야호~\n 차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대!\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있네.\n\n#블랙웰수요폭증 #목표주가상향 #글로벌주도주"
-          },
-          {
-            title: "지금 세력은 사고 있어, 팔고 있어?",
-            content: "🔥수급 경고: 최근 3일간 개인이 50만 주를 샀지만, 외국인은 100만 주를 팔았어!\n🔥수급 폭발: 기관이 5거래일 연속 쓸어 담고 있네. 기관 추정 매수 단가는 15,200원이야. 과연 고점을 돌파할까? 두근두근" 
-          },
-          {
-            title: "여기 깨지면 도망쳐라!",
-            content: "🛡️생존 지지선: 12,000원 이 가격이 깨지면 투매가 나올 수 있으니 조심해야해!\n🧱악성 매물대: 14,500원 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
-          },
-          {
-            title: "🐜 오늘 밤, 내일 무슨 일이 있나?",
-            content: "📅주의 일정: 내일(목) 미국 CPI 발표가 있네!\n📝공시 체크: 3일 뒤 대규모 보호예수 물량(전환사채) 상장이 예정되어 있으니 오버나잇(밤샘 보유)에 주의해랔!"
-          }
-        ];
-      } else if (stockName === '비트코인' || stockName.toUpperCase() === 'BTC') {
-        return [
-          {
-            title: "🔥 그래서 오늘은 왜 올랐어?",
-            content: "개미들아! 비트코인 +8% 상승중이야! 야호~\n 차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대!\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있네.\n\n#블랙웰수요폭증 #빅테크AI투자 #목표주가상향"
-          },
-          {
-            title: "지금 세력은 사고 있어, 팔고 있어?",
-            content: "🔥수급 경고: 최근 3일간 개인이 50만 주를 샀지만, 외국인은 100만 주를 팔았어!\n🔥수급 폭발: 기관이 5거래일 연속 쓸어 담고 있네. 기관 추정 매수 단가는 15,200원이야. 과연 고점을 돌파할까? 두근두근" 
-          },
-          {
-            title: "여기 깨지면 도망쳐라!",
-            content: "🛡️생존 지지선: 12,000원 이 가격이 깨지면 투매가 나올 수 있으니 조심해야해!\n🧱악성 매물대: 14,500원 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
-          },
-          {
-            title: "🐜 오늘 밤, 내일 무슨 일이 있나?",
-            content: "📅주의 일정: 내일(목) 미국 CPI 발표가 있네!\n📝공시 체크: 3일 뒤 대규모 보호예수 물량(전환사채) 상장이 예정되어 있으니 오버나잇(밤샘 보유)에 주의해랔!"
-          }
-        ];
       }
 
       return [
         {
           title: "🔥 그래서 오늘은 왜 올랐어?",
-          content: "개미들아! SK하이닉스 +8% 상승중이야! 야호~\n 차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대!\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있네.\n\n#블랙웰수요폭증 #빅테크AI투자 #글로벌주도주"
+          content: `개미들아! ${stockName} 수급 유입 중이야! 야호~\n외국인 및 기관 중심의 프로그램 순매수 전환이 확인되었어.\n실시간 차트상 핵심 단기 이평선 지지 후 턴어라운드 흐름이 지속되고 있네.`,
+          tags: ["#외인기관매수", "#실시간수급유입"]
         },
         {
           title: "지금 세력은 사고 있어, 팔고 있어?",
-          content: "🔥수급 경고: 최근 3일간 개인이 50만 주를 샀지만, 외국인은 100만 주를 팔았어!\n🔥수급 폭발: 기관이 5거래일 연속 쓸어 담고 있네. 기관 추정 매수 단가는 15,200원이야. 과연 고점을 돌파할까? 두근두근" 
+          content: "🔥수급 분석: 최근 메이저 수급이 양매수로 전환되며 하방 경직성을 확보하고 있어. 과연 전고점을 돌파할 수 있을지 주목해봐!" 
         },
         {
           title: "여기 깨지면 도망쳐라!",
-          content: "🛡️생존 지지선: 12,000원 이 가격이 깨지면 투매가 나올 수 있으니 조심해야해!\n🧱악성 매물대: 14,500원 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
+          content: "🛡️생존 지지선: 최근 5일 저점 이탈 시 단기 차익 실현 매물이 쏟아질 수 있으니 리스크 관리가 필요해!"
         },
         {
           title: "🐜 오늘 밤, 내일 무슨 일이 있나?",
-          content: "📅주의 일정: 내일(목) 미국 CPI 발표가 있네!\n📝공시 체크: 3일 뒤 대규모 보호예수 물량(전환사채) 상장이 예정되어 있으니 오버나잇(밤샘 보유)에 주의해랔!"
+          content: "📅주의 일정: 글로벌 거시 지표 및 미국 주요 선물 지수 흐름을 반드시 체크해야 해!"
         }
       ];
     }
 
-    // ★ 수정: G마크를 제목 옆으로 이동하고 왼쪽 들여쓰기 여백(pl-12) 제거
-    function startTypewriterFlow(stockName, loaderId) {
+    async function requestStock(stockName) {
+      if (!stockName || !stockName.trim()) return;
+      stockName = stockName.trim();
+      activeStock = stockName;
+
+      const chatArea = document.getElementById('chatArea');
+      chatArea.innerHTML = '';
+
+      appendUserQuery(stockName);
+      const loaderInfo = appendCenteredAntLoader(stockName);
+
+      const fetchPromise = fetchAnalysisFromBackend(stockName);
+      const minDelayPromise = new Promise(resolve => setTimeout(resolve, 800));
+      const [sections] = await Promise.all([fetchPromise, minDelayPromise]);
+
+      if (loaderInfo.timerId) clearInterval(loaderInfo.timerId);
+      const loaderEl = document.getElementById(loaderInfo.id);
+      if (loaderEl) loaderEl.remove();
+
+      startTypewriterFlow(stockName, sections);
+    }
+
+    function appendUserQuery(text) {
+      const chatArea = document.getElementById('chatArea');
+      const div = document.createElement('div');
+      div.className = "flex justify-end animate-fade";
+      div.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl rounded-tr-none border border-[#cbd5e1] dark:border-[#3f3f46]">${text}</div>`;
+      chatArea.appendChild(div);
+      chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+    }
+
+    function appendCenteredAntLoader(stockName) {
+      const chatArea = document.getElementById('chatArea');
+      const id = 'loader-' + Date.now();
+      const div = document.createElement('div');
+      div.id = id;
+      div.className = "flex flex-col items-center justify-center p-8 bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl my-2 animate-fade text-center shadow-sm";
+      
+      div.innerHTML = `
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-12 h-12 rounded-full bg-[#f8fafc] dark:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] flex items-center justify-center text-xl">🐜</div>
+          <span class="text-[#94a3b8] dark:text-[#71717a] font-bold text-lg">×</span>
+          <div class="w-12 h-12 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black font-black flex items-center justify-center text-xl">🕶️</div>
+        </div>
+        <h4 class="font-bold text-base text-[#0f172a] dark:text-white">
+          <span class="text-[#475569] dark:text-[#a1a1aa]">${stockName}</span> 정밀 퀀트 분석 중
+        </h4>
+        <p id="antStatusMsg" class="text-sm text-[#64748b] dark:text-[#a1a1aa] mt-1.5 font-medium transition-all duration-300">
+          📡 렌더 클라우드 엔진 연결 및 데이터 스캔 중...
+        </p>
+      `;
+      chatArea.appendChild(div);
+      chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+
+      const messages = [
+        "📡 렌더 클라우드 엔진 연결 및 데이터 스캔 중...",
+        "📰 DART 공시 및 핵심 테마 재료 검증 중...",
+        "📊 외인·기관 누적 수급 데이터 대조 중...",
+        "💡 3인 실전 전문가 매매 시나리오 산출 중..."
+      ];
+      let idx = 0;
+      const timerId = setInterval(() => {
+        idx = (idx + 1) % messages.length;
+        const textEl = document.getElementById('antStatusMsg');
+        if (textEl) textEl.innerText = messages[idx];
+      }, 500);
+
+      return { id, timerId };
+    }
+
+    function startTypewriterFlow(stockName, sections) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
 
@@ -672,15 +642,10 @@
       mainContainer.className = "space-y-8 py-2";
       chatArea.appendChild(mainContainer);
 
-      const sections = getReportSections(stockName);
       let secIdx = 0;
 
       function typeNextSection() {
         if (secIdx >= sections.length) {
-          if (loaderId) {
-            const lEl = document.getElementById(loaderId);
-            if (lEl) lEl.remove();
-          }
           renderStrategySelectionBlock(wrapperId, stockName);
           return;
         }
@@ -707,6 +672,7 @@
           if (charIdx < text.length) {
             pEl.textContent += text.substr(charIdx, chunkSize);
             charIdx += chunkSize;
+            chatArea.scrollTop = chatArea.scrollHeight;
             setTimeout(typeChunk, 20);
           } else {
             pEl.classList.remove('typing-cursor');
@@ -721,19 +687,91 @@
       typeNextSection();
     }
 
-    // ★ 수정: 전략 안내 블록도 제목 옆 인라인 G배지로 정렬 통일
+    // 🗳️ [개미 투표 실시간 상태 관리]
+    let voteStats = { up: 68, down: 32, voted: null };
+
+    function handleVote(choice) {
+      if (voteStats.voted) {
+        alert('이미 투표에 참여하셨습니다. (내일 장 마감 후 최종 결과 확인)');
+        return;
+      }
+      voteStats.voted = choice;
+      if (choice === 'up') {
+        voteStats.up += 1;
+      } else {
+        voteStats.down += 1;
+      }
+      const total = voteStats.up + voteStats.down;
+      const upPct = Math.round((voteStats.up / total) * 100);
+      const downPct = 100 - upPct;
+
+      const upLabel = document.getElementById('voteUpLabel');
+      const downLabel = document.getElementById('voteDownLabel');
+      const barEl = document.getElementById('voteProgressBar');
+      const btnUp = document.getElementById('btnVoteUp');
+      const btnDown = document.getElementById('btnVoteDown');
+
+      if (upLabel) upLabel.innerText = `상승 ${upPct}%`;
+      if (downLabel) downLabel.innerText = `하락 ${downPct}%`;
+      if (barEl) barEl.style.width = `${upPct}%`;
+
+      if (choice === 'up' && btnUp) {
+        btnUp.classList.remove('border-emerald-500/40', 'bg-emerald-950/20');
+        btnUp.classList.add('border-emerald-400', 'bg-emerald-500/30', 'ring-2', 'ring-emerald-400');
+      } else if (choice === 'down' && btnDown) {
+        btnDown.classList.remove('border-[#282a30]', 'bg-[#1e1f24]');
+        btnDown.classList.add('border-sky-400', 'bg-sky-500/30', 'ring-2', 'ring-sky-400');
+      }
+    }
+
     function renderStrategySelectionBlock(wrapperId, stockName) {
       const container = document.getElementById(wrapperId);
       const hoodieDiv = document.createElement('div');
-      hoodieDiv.className = "space-y-5 animate-fade pt-4";
+      hoodieDiv.className = "space-y-6 animate-fade pt-4";
       hoodieDiv.innerHTML = `
+        <!-- 🗳️ [개미 투표 위젯] -->
+        <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl">
+          <div class="flex items-center justify-between">
+            <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">개미 투표</span>
+            <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">내일 주가 전망</span>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-xs sm:text-sm font-black">
+              <span id="voteUpLabel" class="text-emerald-500 dark:text-emerald-400">상승 68%</span>
+              <span id="voteDownLabel" class="text-sky-500 dark:text-sky-400">하락 32%</span>
+            </div>
+            <div class="w-full h-2.5 bg-sky-400 rounded-full overflow-hidden flex">
+              <div id="voteProgressBar" class="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-500" style="width: 68%;"></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-1">
+            <button 
+              type="button" 
+              id="btnVoteUp" 
+              onclick="handleVote('up')" 
+              class="w-full py-3 rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 font-black text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <span>상승 전망</span>
+            </button>
+            <button 
+              type="button" 
+              id="btnVoteDown" 
+              onclick="handleVote('down')" 
+              class="w-full py-3 rounded-xl border border-[#cbd5e1] dark:border-[#282a30] bg-[#f8fafc] dark:bg-[#18191d] hover:bg-slate-200 dark:hover:bg-[#252830] text-[#64748b] dark:text-[#a1a1aa] hover:text-sky-500 dark:hover:text-sky-400 font-black text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <span>하락 전망</span>
+            </button>
+          </div>
+        </div>
+
         <div class="flex items-center gap-2.5 pb-1">
           <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
           <h3 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 전략도 확인해바.</h3>
         </div>
 
         <div class="space-y-3 pt-1">
-          <!-- 서학개미 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -759,7 +797,6 @@
             <div id="dash-slot-서학" class="hidden animate-fade"></div>
           </div>
 
-          <!-- 국장개미 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -785,7 +822,6 @@
             <div id="dash-slot-국장" class="hidden animate-fade"></div>
           </div>
 
-          <!-- 트레이더 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -821,6 +857,7 @@
       `;
 
       container.appendChild(hoodieDiv);
+      chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
     }
 
     const strategyData = {
@@ -911,7 +948,6 @@
 
       targetSlot.innerHTML = `
         <div class="space-y-3.5 my-2 animate-fade">
-          <!-- 1. 실전 투자 전략 박스 -->
           <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
             <div class="flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] pb-3">
               <div class="flex items-center gap-2.5">
@@ -923,17 +959,16 @@
             
             <div class="p-4 sm:p-5 rounded-2xl bg-[#f8fafc] dark:bg-[#121316] border border-dashed border-[#cbd5e1] dark:border-[#27272a] space-y-2">
               <div class="flex items-center gap-2 text-sm font-bold text-[#64748b] dark:text-[#a1a1aa]">
-                <span>⚡</span> <span>[${data.name}] 전용 실전 투자 전략 상세 가이드라인이 입력될 영역입니다.</span>
+                <span>⚡</span> <span>[${data.name}] 전용 실전 투자 전략 상세 가이드라인</span>
               </div>
               <p class="text-sm sm:text-base text-[#475569] dark:text-[#a1a1aa] leading-relaxed">
                 • 매매 성향별 목표 타겟가 설정 및 분할 진입/청산 시나리오<br>
-                • 시장 변동성(글로벌 매크로, 수급 지표) 급변 시 위기관리 및 헤징 규칙<br>
-                • 손익비(Risk/Reward) 극대화를 위한 잔여물량 추종 가이드
+                • 시장 변동성 급변 시 위기관리 및 헤징 규칙<br>
+                • 손익비 극대화를 위한 잔여물량 추종 가이드
               </p>
             </div>
           </div>
 
-          <!-- 2. 실전 대시보드 박스 -->
           <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] rounded-3xl p-5 sm:p-7 space-y-6 shadow-md">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#e2e8f0] dark:border-[#27272a] pb-5">
               <div class="space-y-1">
