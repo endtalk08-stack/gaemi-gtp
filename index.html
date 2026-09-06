@@ -643,25 +643,26 @@
       }
 
       return [
-         {
-            title: "🔥 그래서 오늘은 왜 올랐어?",
-            content: "개미들아! SK하이닉스 +8% 상승중이야! 야호~\n 차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대 지속!\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있네.\n\n#블랙웰수요폭증 #빅테크AI투자 #목표주가상향 #글로벌주도주"
-          },
-          {
-            title: "지금 세력은 사고 있어, 팔고 있어?",
-            content: "🔥수급 경고: 최근 3일간 개인이 50만 주를 샀지만, 외국인은 100만 주를 팔았어!\n🔥수급 폭발: 기관이 5거래일 연속 쓸어 담고 있네. 기관 추정 매수 단가는 15,200원이야. 과연 고점을 돌파할까? 두근두근" 
-          },
-          {
-            title: "여기 깨지면 도망쳐라!",
-            content: "🛡️생존 지지선: 12,000원 이 가격이 깨지면 투매가 나올 수 있으니 조심해야해!\n🧱악성 매물대: 14,500원 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
-          },
-          {
-            title: "🐜 오늘 밤, 내일 무슨 일이 있나?",
-            content: "📅주의 일정: 내일(목) 미국 CPI 발표가 있네!\n📝공시 체크: 3일 뒤 대규모 보호예수 물량(전환사채) 상장이 예정되어 있으니 오버나잇(밤샘 보유)에 주의해랔!"
-          }
-        ];
-      }
+        {
+          title: "🔥 그래서 오늘은 왜 올랐어?",
+          content: "개미들아! SK하이닉스 +8% 상승중이야! 야호~\n 차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대 지속!\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있네.\n\n#블랙웰수요폭증 #빅테크AI투자 #목표주가상향 #글로벌주도주"
+        },
+        {
+          title: "지금 세력은 사고 있어, 팔고 있어?",
+          content: "🔥수급 경고: 최근 3일간 개인이 50만 주를 샀지만, 외국인은 100만 주를 팔았어!\n🔥수급 폭발: 기관이 5거래일 연속 쓸어 담고 있네. 기관 추정 매수 단가는 15,200원이야. 과연 고점을 돌파할까? 두근두근" 
+        },
+        {
+          title: "여기 깨지면 도망쳐라!",
+          content: "🛡️생존 지지선: 12,000원 이 가격이 깨지면 투매가 나올 수 있으니 조심해야해!\n🧱악성 매물대: 14,500원 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
+        },
+        {
+          title: "🐜 오늘 밤, 내일 무슨 일이 있나?",
+          content: "📅주의 일정: 내일(목) 미국 CPI 발표가 있네!\n📝공시 체크: 3일 뒤 대규모 보호예수 물량(전환사채) 상장이 예정되어 있으니 오버나잇(밤샘 보유)에 주의해랔!"
+        }
+      ];
+    }
 
+    // ★ 수정: G마크를 제목 옆으로 이동하고 왼쪽 들여쓰기 여백(pl-12) 제거
     function startTypewriterFlow(stockName, loaderId) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -687,14 +688,13 @@
         const sec = sections[secIdx];
         
         const textBlock = document.createElement('div');
-        textBlock.className = "relative pl-12 sm:pl-14 animate-fade";
+        textBlock.className = "space-y-3 animate-fade";
         textBlock.innerHTML = `
-          <div class="absolute left-0 top-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-sm sm:text-base shadow-sm">G</div>
-          
-          <div class="space-y-2.5">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
             ${sec.title ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white flex items-center gap-1.5">${sec.title}</h4>` : ''}
-            <p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>
           </div>
+          <p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>
         `;
         mainContainer.appendChild(textBlock);
 
@@ -721,103 +721,102 @@
       typeNextSection();
     }
 
+    // ★ 수정: 전략 안내 블록도 제목 옆 인라인 G배지로 정렬 통일
     function renderStrategySelectionBlock(wrapperId, stockName) {
       const container = document.getElementById(wrapperId);
       const hoodieDiv = document.createElement('div');
-      hoodieDiv.className = "relative pl-12 sm:pl-14 animate-fade pt-2";
+      hoodieDiv.className = "space-y-5 animate-fade pt-4";
       hoodieDiv.innerHTML = `
-        <div class="absolute left-0 top-1 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-sm sm:text-base shadow-sm">G</div>
-        <div class="space-y-5">
-          <div class="pb-1">
-            <h3 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 실전 gaemiGTP 전략을 확인해바.</h3>
-          </div>
+        <div class="flex items-center gap-2.5 pb-1">
+          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
+          <h3 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 실전 gaemiGTP 전략을 확인해바.</h3>
+        </div>
 
-          <div class="space-y-3 pt-1">
-            <!-- 서학개미 -->
-            <div class="space-y-2">
-              <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div class="space-y-1">
-                    <div class="flex items-center gap-2">
-                      <span class="text-sm font-bold text-[#64748b] dark:text-[#a1a1aa]">US</span>
-                      <span class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">서학개미 (장기)</span>
-                    </div>
-                    <p class="text-base text-[#64748b] dark:text-[#a1a1aa]">미국 빅테크 메가트렌드 진입 후 분할익절과 잔여물량으로 추종.</p>
+        <div class="space-y-3 pt-1">
+          <!-- 서학개미 -->
+          <div class="space-y-2">
+            <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-[#64748b] dark:text-[#a1a1aa]">US</span>
+                    <span class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">서학개미 (장기)</span>
                   </div>
-                  <div class="flex items-center gap-5 sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#27272a]">
-                    <div>
-                      <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
-                      <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">+2,335%</div>
-                    </div>
-                    <div>
-                      <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
-                      <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">24.5억</div>
-                    </div>
+                  <p class="text-base text-[#64748b] dark:text-[#a1a1aa]">미국 빅테크 메가트렌드 진입 후 분할익절과 잔여물량으로 추종.</p>
+                </div>
+                <div class="flex items-center gap-5 sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#27272a]">
+                  <div>
+                    <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                    <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">+2,335%</div>
+                  </div>
+                  <div>
+                    <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                    <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">24.5억</div>
                   </div>
                 </div>
-              </button>
-              <div id="dash-slot-서학" class="hidden animate-fade"></div>
-            </div>
-
-            <!-- 국장개미 -->
-            <div class="space-y-2">
-              <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div class="space-y-1">
-                    <div class="flex items-center gap-2">
-                      <span class="text-sm font-bold text-[#64748b] dark:text-[#a1a1aa]">KR</span>
-                      <span class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">국장개미 (스윙)</span>
-                    </div>
-                    <p class="text-base text-[#64748b] dark:text-[#a1a1aa]">코스피 시총 상위주 20일선 지지 반등 및 외국인 순매수 턴어라운드 노림수.</p>
-                  </div>
-                  <div class="flex items-center gap-5 sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#27272a]">
-                    <div>
-                      <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
-                      <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">+2,335%</div>
-                    </div>
-                    <div>
-                      <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
-                      <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">24.5억</div>
-                    </div>
-                  </div>
-                </div>
-              </button>
-              <div id="dash-slot-국장" class="hidden animate-fade"></div>
-            </div>
-
-            <!-- 트레이더 -->
-            <div class="space-y-2">
-              <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div class="space-y-1">
-                    <div class="flex items-center gap-2">
-                      <span class="text-amber-400 text-lg">⚡</span>
-                      <span class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">트레이더 (단기)</span>
-                    </div>
-                    <p class="text-base text-[#64748b] dark:text-[#a1a1aa]">15시 15분 당일 거래대금 양봉 매수 후 익일 개장 초반 시가 갭 분할 청산.</p>
-                  </div>
-                  <div class="flex items-center gap-5 sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#27272a]">
-                    <div>
-                      <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
-                      <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">+2,335%</div>
-                    </div>
-                    <div>
-                      <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
-                      <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">32.4억</div>
-                    </div>
-                  </div>
-                </div>
-              </button>
-              <div id="dash-slot-트레이더" class="hidden animate-fade"></div>
-            </div>
-          </div>
-
-          <div class="pt-4 flex justify-center">
-            <button type="button" onclick="openMeme('${stockName}')" class="w-full sm:w-auto px-7 py-3 rounded-xl bg-[#f1f5f9] dark:bg-[#1e1f24] hover:bg-[#e2e8f0] dark:hover:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] text-[#0f172a] dark:text-white font-bold text-base transition flex items-center justify-center gap-2 cursor-pointer shadow-sm">
-              <span class="text-xl">📸</span>
-              <span>카카오톡 공유용 짤 카드 만들기</span>
+              </div>
             </button>
+            <div id="dash-slot-서학" class="hidden animate-fade"></div>
           </div>
+
+          <!-- 국장개미 -->
+          <div class="space-y-2">
+            <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-[#64748b] dark:text-[#a1a1aa]">KR</span>
+                    <span class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">국장개미 (스윙)</span>
+                  </div>
+                  <p class="text-base text-[#64748b] dark:text-[#a1a1aa]">코스피 시총 상위주 20일선 지지 반등 및 외국인 순매수 턴어라운드 노림수.</p>
+                </div>
+                <div class="flex items-center gap-5 sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#27272a]">
+                  <div>
+                    <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                    <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">+2,335%</div>
+                  </div>
+                  <div>
+                    <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                    <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">24.5억</div>
+                  </div>
+                </div>
+              </div>
+            </button>
+            <div id="dash-slot-국장" class="hidden animate-fade"></div>
+          </div>
+
+          <!-- 트레이더 -->
+          <div class="space-y-2">
+            <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-amber-400 text-lg">⚡</span>
+                    <span class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">트레이더 (단기)</span>
+                  </div>
+                  <p class="text-base text-[#64748b] dark:text-[#a1a1aa]">15시 15분 당일 거래대금 양봉 매수 후 익일 개장 초반 시가 갭 분할 청산.</p>
+                </div>
+                <div class="flex items-center gap-5 sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#e2e8f0] dark:border-[#27272a]">
+                  <div>
+                    <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                    <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">+2,335%</div>
+                  </div>
+                  <div>
+                    <div class="text-[13px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                    <div class="text-lg sm:text-xl font-black text-[#0f172a] dark:text-white">32.4억</div>
+                  </div>
+                </div>
+              </div>
+            </button>
+            <div id="dash-slot-트레이더" class="hidden animate-fade"></div>
+          </div>
+        </div>
+
+        <div class="pt-4 flex justify-center">
+          <button type="button" onclick="openMeme('${stockName}')" class="w-full sm:w-auto px-7 py-3 rounded-xl bg-[#f1f5f9] dark:bg-[#1e1f24] hover:bg-[#e2e8f0] dark:hover:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] text-[#0f172a] dark:text-white font-bold text-base transition flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+            <span class="text-xl">📸</span>
+            <span>카카오톡 공유용 짤 카드 만들기</span>
+          </button>
         </div>
       `;
 
