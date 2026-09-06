@@ -11,7 +11,7 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-# 국내/해외 핵심 50대 종목 즉시 캐싱 사전 (0.1초 즉시 호출)
+# 핵심 50대 우량주 즉시 호출 사전 (0.1초 고속 로딩)
 TICKERS = {
     '삼성전자': '005930.KS',
     'SK하이닉스': '000660.KS',
@@ -62,7 +62,7 @@ TICKERS = {
     '비트코인': 'BTC-USD'
 }
 
-# 네이버 자동완성 JSON 검색 (사전에 없는 중소형주 2,500개 대응)
+# 네이버 자동완성 API를 통한 2,500개 전 종목 코드 실시간 검색
 def search_krx_code(stock_name):
     try:
         url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
@@ -76,8 +76,8 @@ def search_krx_code(stock_name):
                 market = first[3].upper()
                 suffix = '.KS' if 'KOSPI' in market else '.KQ'
                 return f"{code}{suffix}", code
-    except Exception:
-        pass
+    except Exception as e:
+        print("검색 에러:", e)
     return None, None
 
 def fetch_realtime_news(stock_name):
@@ -101,7 +101,7 @@ def fetch_realtime_news(stock_name):
         return []
 
 def fetch_krx_supply_demand(code_six):
-    # 1차 시도: 네이버 증권 웹 (HTML 태그 제거 후 정수 추출)
+    # 1순위: 네이버 금융 실시간 표 스크래핑
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
@@ -116,19 +116,19 @@ def fetch_krx_supply_demand(code_six):
                 row_html = match.group(0)
                 tds = row_html.split('<td')
                 if len(tds) > 7:
-                    inst_text = re.sub(r'<[^>]+>', '', tds[6]).strip().replace(',', '').replace('+', '')
-                    foreign_text = re.sub(r'<[^>]+>', '', tds[7]).strip().replace(',', '').replace('+', '')
+                    inst_clean = re.sub(r'[^0-9\-]', '', tds[6])
+                    foreign_clean = re.sub(r'[^0-9\-]', '', tds[7])
                     
-                    if inst_text and foreign_text:
-                        inst_val = int(inst_text)
-                        foreign_val = int(foreign_text)
+                    if inst_clean and foreign_clean and inst_clean != '-' and foreign_clean != '-':
+                        inst_val = int(inst_clean)
+                        foreign_val = int(foreign_clean)
                         if inst_val != 0 or foreign_val != 0:
                             indiv_val = -(inst_val + foreign_val)
                             return indiv_val, foreign_val, inst_val
-    except Exception:
-        pass
+    except Exception as e:
+        print("네이버 수급 에러:", e)
 
-    # 2차 시도: 다음(Daum) 금융 API 백업
+    # 2순위: 다음 금융 API 백업
     try:
         url = f"https://finance.daum.net/api/investor/days?symbolCode=A{code_six}&page=1&perPage=1"
         req = urllib.request.Request(url, headers={
@@ -144,8 +144,8 @@ def fetch_krx_supply_demand(code_six):
                 indiv_val = int(latest.get('individualStraightPurchaseVolume', -(foreign_val + inst_val)))
                 if foreign_val != 0 or inst_val != 0:
                     return indiv_val, foreign_val, inst_val
-    except Exception:
-        pass
+    except Exception as e:
+        print("다음 수급 에러:", e)
 
     return None, None, None
 
@@ -198,7 +198,7 @@ def analyze():
     hist = None
 
     try:
-        # 1. 티커 매핑
+        # 1. 티커 심볼 판별 및 데이터 가져오기
         if ticker_symbol:
             clean_code = ''.join(filter(str.isdigit, ticker_symbol))
             ticker = yf.Ticker(ticker_symbol)
@@ -225,7 +225,7 @@ def analyze():
                 hist = ticker.history(period="1mo")
 
         if hist is None or hist.empty:
-            raise ValueError("데이터 없음")
+            raise ValueError("주가 데이터 조회 실패")
 
         # 2. 가격 및 변동률 계산
         current_price = hist['Close'].iloc[-1]
@@ -260,15 +260,15 @@ def analyze():
             indiv_str = format_shares(indiv)
 
             if foreign > 0 and inst > 0:
-                flow_msg = "외인과 기관이 쌍끌이 순매수로 물량을 쓸어 담고 있어! 추가 상승 탄력 기대해볼 만해."[cite: 1]
+                flow_msg = "외인과 기관이 쌍끌이 순매수로 물량을 쓸어 담고 있어! 추가 상승 탄력 기대해볼 만해."
             elif foreign < 0 and inst < 0:
-                flow_msg = "외인과 기관이 동반 차익 매도 중이야. 개인만 물량을 받아내고 있으니 무리한 추격매수는 조심해!"[cite: 1]
+                flow_msg = "외인과 기관이 동반 차익 매도 중이야. 개인만 물량을 받아내고 있으니 무리한 추격매수는 조심해!"
             elif foreign > 0:
-                flow_msg = "외국인 중심의 순매수가 들어오며 주가 하방을 탄탄하게 지지해 주고 있어."[cite: 1]
+                flow_msg = "외국인 중심의 순매수가 들어오며 주가 하방을 탄탄하게 지지해 주고 있어."
             elif inst > 0:
-                flow_msg = "기관 중심의 순매수가 들어오며 저가 물량을 영리하게 모아가는 흐름이야."[cite: 1]
+                flow_msg = "기관 중심의 순매수가 들어오며 저가 물량을 영리하게 모아가는 흐름이야."
             else:
-                flow_msg = "개인과 세력 간의 팽팽한 눈치싸움 공방전이 벌어지고 있어."[cite: 1]
+                flow_msg = "개인과 세력 간의 팽팽한 눈치싸움 공방전이 벌어지고 있어."
 
             supply_content = (
                 f"🔥실시간 수급 팩트 체크:\n"
@@ -295,7 +295,7 @@ def analyze():
             },
             {
                 "title": "여기 깨지면 도망쳐라!",
-                "content": f"🛡️생존 지지선: {ma20_str} (딱! 기억해놔!)\n이 가격 깨지면 투매 나오니까 절대 미련 갖지 말고 비중 줄여!\n🧱악성 매물대: 최근 고점 부근에 과거 물려있는 개미들의 본전 대기 물량이쏟아질 수 있어 ㅠㅠ."
+                "content": f"🛡️생존 지지선: {ma20_str} (딱! 기억해놔!)\n이 가격 깨지면 투매 나오니까 절대 미련 갖지 말고 비중 줄여!\n🧱악성 매물대: 최근 고점 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
             },
             {
                 "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
@@ -304,7 +304,8 @@ def analyze():
         ]
         return jsonify({"sections": sections})
 
-    except Exception:
+    except Exception as e:
+        print("분석 처리 중 에러 발생:", e)
         return jsonify({"error": "데이터 지연"}), 500
 
 if __name__ == '__main__':
