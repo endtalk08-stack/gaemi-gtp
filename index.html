@@ -5,19 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>gaemiGTP</title>
   
-  <!-- Pretendard 웹폰트 정식 CDN (폰트 깨짐 및 흐림 방지) -->
+  <!-- Pretendard 웹폰트 정식 CDN -->
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <!-- 백테스트 차트 엔진 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
   <style>
     body {
       font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans KR", sans-serif;
       letter-spacing: -0.015em;
-      /* 윈도우 환경 폰트 번짐 및 계단 현상 제거 */
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       text-rendering: optimizeLegibility;
@@ -45,7 +43,6 @@
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
   </style>
 </head>
-<!-- select-none 제거 및 눈부심 완화를 위해 배경을 부드러운 차콜(#121316)로 변경 -->
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden transition-colors duration-200 relative">
 
   <!-- 📱 모바일 배경 어두운 오버레이 -->
@@ -70,7 +67,6 @@
       </div>
 
       <div class="w-full relative">
-        <!-- 팝업 모드 드롭다운 (Hero용) -->
         <div id="heroModePopup" class="absolute bottom-16 right-12 z-50 bg-[#1e1f23] border border-[#2e3036] rounded-2xl p-2 w-48 shadow-2xl hidden text-left space-y-1 animate-fade">
           <button type="button" onclick="selectSearchMode('gaemi', '도움을 받으세요', 'hero')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
             <div>
@@ -126,7 +122,6 @@
   </div>
 
   <!-- ================= [뷰 2] 본문 분석 대시보드 화면 ================= -->
-
   <!-- 1. 좌측 사이드바 -->
   <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
     <div class="p-4 flex flex-col gap-5 overflow-y-auto">
@@ -138,7 +133,6 @@
         <button type="button" onclick="closeAllSidebars()" class="lg:hidden text-[#71717a] hover:text-white text-lg p-1">✕</button>
       </div>
 
-      <!-- 실전 전략 3인방 -->
       <div class="flex flex-col gap-2">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">실전 전략 3인방</span>
         <button type="button" onclick="requestStock('서학개미'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -155,7 +149,6 @@
         </button>
       </div>
 
-      <!-- 전문가 2인방 -->
       <div class="flex flex-col gap-2">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">전문가 2인방</span>
         <button type="button" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -168,7 +161,6 @@
         </button>
       </div>
 
-      <!-- 서비스 센터 -->
       <div class="flex flex-col gap-2 pt-2 border-t border-[#e2e8f0] dark:border-[#27272a]">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">서비스 센터</span>
         <button type="button" onclick="openUpgradeModal('매매기법'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -200,7 +192,6 @@
 
   <!-- 2. 중앙 메인 분석 영역 -->
   <main class="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-[#121316] overflow-hidden min-w-0">
-    <!-- 헤더 -->
     <header class="h-16 border-b border-[#e2e8f0] dark:border-[#27272a] flex items-center justify-between px-4 sm:px-6 bg-white/80 dark:bg-[#16171b]/80 backdrop-blur shrink-0 z-10">
       <div class="flex items-center gap-3">
         <button type="button" onclick="toggleLeftSidebar()" class="lg:hidden p-1.5 rounded-lg border border-[#cbd5e1] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#1e1f24] text-base text-[#0f172a] dark:text-white cursor-pointer">
@@ -227,8 +218,6 @@
     <!-- 하단 채팅창 -->
     <div class="shrink-0 p-3 sm:p-4 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-4xl mx-auto relative">
-        
-        <!-- 하단 전용 모드 팝업 드롭다운 (위로 열림) -->
         <div id="bottomModePopup" class="absolute bottom-full mb-3 right-12 z-50 bg-[#1e1f23] border border-[#2e3036] rounded-2xl p-2 w-48 shadow-2xl hidden text-left space-y-1 animate-fade">
           <button type="button" onclick="selectSearchMode('gaemi', '도움을 받으세요', 'bottom')" class="w-full p-2.5 rounded-xl hover:bg-[#2a2c32] flex items-center justify-between transition text-left group">
             <div>
@@ -271,7 +260,6 @@
             </button>
           </div>
         </form>
-
       </div>
     </div>
   </main>
@@ -498,6 +486,7 @@
       document.getElementById('upgradeModal').classList.add('hidden');
     }
 
+    // ★ 수정 포인트 1: 로딩 유지 시간 연장 및 점프 개미로 트랜지션
     function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
@@ -507,16 +496,27 @@
       chatArea.innerHTML = '';
 
       appendUserQuery(stockName);
-
       const loaderInfo = appendCenteredAntLoader(stockName);
 
+      // 분석 로딩 시간을 0.7초에서 2.5초로 연장
       setTimeout(() => {
         if (loaderInfo.timerId) clearInterval(loaderInfo.timerId);
+        
         const loaderEl = document.getElementById(loaderInfo.id);
-        if (loaderEl) loaderEl.remove();
+        if (loaderEl) {
+          // 박스를 지우지 않고 춤추는 개미 아이콘으로 변신시킵니다.
+          loaderEl.className = "flex justify-center pb-2 animate-fade";
+          loaderEl.innerHTML = `
+            <div class="inline-flex items-center gap-2.5 bg-white dark:bg-[#1e1f24] text-[#0f172a] dark:text-white px-5 py-2.5 rounded-full text-sm font-bold border border-[#cbd5e1] dark:border-[#3f3f46] shadow-sm">
+              <span class="animate-bounce text-lg">🐜</span> 
+              <span>gaemiGTP가 실시간 리포트를 작성 중입니다...</span>
+            </div>
+          `;
+        }
 
-        startTypewriterFlow(stockName);
-      }, 700);
+        // 로더 아이디를 넘겨주어 글이 다 작성되면 삭제하도록 합니다.
+        startTypewriterFlow(stockName, loaderInfo.id);
+      }, 2500); 
     }
 
     function appendUserQuery(text) {
@@ -571,7 +571,7 @@
       if (stockName === '삼성전자') {
         return [
           {
-            title: "❄️ 오늘 왜 숨고르기일까?",
+            title: "❄️ 오늘 왜 숨고르기일까? (핵심 변동 요약)",
             content: "DRAM 레거시 공급 과잉 우려 및 외국인 수급 관망세 지속\n차세대 HBM4 퀄테스트 통과 기대감이 유입되며 20일선 부근에서 강력한 하방 경직성을 형성하고 있습니다.\n\n#HBM4퀄테스트 #외인수급관망 #20일선지지 #기술적반등"
           },
           {
@@ -590,7 +590,7 @@
       } else if (stockName === '엔비디아' || stockName.toUpperCase() === 'NVDA') {
         return [
           {
-            title: "🔥 오늘 왜 올랐어?",
+            title: "🔥 오늘 왜 올랐어? (핵심 변동 요약)",
             content: "차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대 지속\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있습니다.\n\n#블랙웰수요폭증 #빅테크AI투자 #목표주가상향 #글로벌주도주"
           },
           {
@@ -605,7 +605,7 @@
       } else if (stockName === '알테오젠') {
         return [
           {
-            title: "🔥 오늘 왜 올랐어?",
+            title: "🔥 오늘 왜 올랐어? (핵심 변동 요약)",
             content: "피하주사(SC) 플랫폼 독점 계약 확대 및 글로벌 빅파마 로열티 유입 기대\n외국인과 기관의 강력한 동반 쌍끌이 순매수가 이어지며 코스닥 바이오 대장주 랠리를 견인하고 있습니다.\n\n#히알루로니다제 #빅파마독점계약 #외인기관쌍끌이 #코스닥대장주"
           },
           {
@@ -620,7 +620,7 @@
       } else if (stockName === '비트코인' || stockName.toUpperCase() === 'BTC') {
         return [
           {
-            title: "🔥 오늘 왜 움직였어?",
+            title: "🔥 오늘 왜 움직였어? (핵심 변동 요약)",
             content: "미국 현물 ETF로의 기관 자금 순유입 및 연준 금리 인하 기대감 연동\n글로벌 유동성 공급 재개 조짐 속에 가상자산 전반으로 위험자산 선호 심리가 확산되고 있습니다.\n\n#비트코인ETF #현물자금유입 #디지털골드 #유동성확대"
           },
           {
@@ -636,7 +636,7 @@
 
       return [
         {
-          title: "🔥 오늘 왜 올랐어?",
+          title: "🔥 오늘 왜 올랐어? (핵심 변동 요약)",
           content: "단일판매 공급계약 체결 공시와 함께 외국인 대량 매수세 유입\n미국 필라델피아 반도체(SOXX) 급등 연동 및 외국인·기관의 3일 연속 대량 순매수가 맞물리며 지지선 돌파가 진행 중입니다.\n\n#HBM공급계약 #외인대량순매수 #글로벌AI훈풍 #신고가돌파"
         },
         {
@@ -669,7 +669,7 @@
         },
         {
           title: "⑦ 삼성전자와 SK하이닉스 중 누가 더 좋은가?",
-          content: "이 질문도 미국 시장과 연결하면 훨씬 쉽게 이해할 수 있습니다.\n현재 투자자들이 보는 핵심은 HBM 경쟁력과 AI 메모리 수익성입니다.\nSK하이닉스는 HBM 분야에서 오랫동안 강한 위치를 유지해왔습니다. 2026년 1분기 글로벌 HBM 시장에서 SK하이닉스의 매출 기준 점유율은 약 58%로 삼성전자와 마이크론을 앞선 것으로 집계됐습니다.\n\n하지만 삼성전자를 무시하면 안 됩니다. 최근 HBM4 경쟁은 더욱 치열해지고 있고, 삼성전자의 HBM4 공급 확대 가능성도 커지고 있습니다.\n따라서 앞으로 중요한 것은 “SK하이닉스가 HBM 시장에서 1등을 계속 유지할 수 있는가?”입니다. 이것이 깨지기 시작하면 하이닉스의 프리미엄도 줄어들 수 있습니다."
+          content: "이 질문도 미국 시장과 연결하면 훨씬 쉽게 이해할 수 있습니다.\n현재 투자자들이 보는 핵심은 HBM경쟁력과 AI 메모리 수익성입니다.\nSK하이닉스는 HBM 분야에서 오랫동안 강한 위치를 유지해왔습니다. 2026년 1분기 글로벌 HBM 시장에서 SK하이닉스의 매출 기준 점유율은 약 58%로 삼성전자와 마이크론을 앞선 것으로 집계됐습니다.\n\n하지만 삼성전자를 무시하면 안 됩니다. 최근 HBM4 경쟁은 더욱 치열해지고 있고, 삼성전자의 HBM4 공급 확대 가능성도 커지고 있습니다.\n따라서 앞으로 중요한 것은 “SK하이닉스가 HBM 시장에서 1등을 계속 유지할 수 있는가?”입니다. 이것이 깨지기 시작하면 하이닉스의 프리미엄도 줄어들 수 있습니다."
         },
         {
           title: "⑧ 메모리 슈퍼사이클은 언제까지 갈까?",
@@ -694,8 +694,8 @@
       ];
     }
 
-    // 🚀 타이핑 떨림(진동) 제거 및 눈 편한 렌더링 엔진
-    function startTypewriterFlow(stockName) {
+    // ★ 수정 포인트 2 & 3: 타자치는 동안 캐릭터 연출 및 강제 스크롤 금지
+    function startTypewriterFlow(stockName, loaderId) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
 
@@ -709,6 +709,11 @@
 
       function typeNextSection() {
         if (secIdx >= sections.length) {
+          // 글이 모두 끝나면 상단에 있던 춤추는 개미 삭제
+          if (loaderId) {
+            const lEl = document.getElementById(loaderId);
+            if (lEl) lEl.remove();
+          }
           renderStrategySelectionBlock(wrapperId, stockName);
           return;
         }
@@ -716,17 +721,12 @@
         const sec = sections[secIdx];
         
         const textBlock = document.createElement('div');
-        // 여백(padding)도 G마크가 커진 만큼 살짝 더 넓혔습니다 (pl-12 sm:pl-14)
         textBlock.className = "relative pl-12 sm:pl-14 animate-fade";
         textBlock.innerHTML = `
-          <!-- 1. G마크 크기 변경 (w-8 h-8 -> w-9 h-9 sm:w-10 sm:h-10), 폰트(text-sm sm:text-base) -->
           <div class="absolute left-0 top-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-sm sm:text-base shadow-sm">G</div>
           
           <div class="space-y-2.5">
-            <!-- 2. 제목 크기 변경 (text-base -> text-lg sm:text-xl) -->
             ${sec.title ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white flex items-center gap-1.5">${sec.title}</h4>` : ''}
-            
-            <!-- 3. 본문 글씨 크기 변경 (text-sm sm:text-base -> text-base sm:text-lg) 및 줄간격(leading-relaxed) 적용 -->
             <p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>
           </div>
         `;
@@ -741,12 +741,11 @@
           if (charIdx < text.length) {
             pEl.textContent += text.substr(charIdx, chunkSize);
             charIdx += chunkSize;
-            // 6ms -> 20ms로 조정하여 초점 흔들림 방지
+            
+            // ★ 아래로 끌려내려가는 스크롤 기능 삭제 (사용자 시선 고정) ★
             setTimeout(typeChunk, 20);
           } else {
             pEl.classList.remove('typing-cursor');
-            // 문단 출력이 완료될 때만 부드럽게 스크롤하여 화면 진동 원천 차단
-            chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
             secIdx++;
             setTimeout(typeNextSection, 90);
           }
@@ -758,10 +757,9 @@
       typeNextSection();
     }
 
+    // 전략 카드 부분에서도 강제 스크롤 삭제
     function renderStrategySelectionBlock(wrapperId, stockName) {
-      const chatArea = document.getElementById('chatArea');
       const container = document.getElementById(wrapperId);
-
       const hoodieDiv = document.createElement('div');
       hoodieDiv.className = "relative pl-12 sm:pl-14 animate-fade pt-2";
       hoodieDiv.innerHTML = `
@@ -861,7 +859,7 @@
       `;
 
       container.appendChild(hoodieDiv);
-      chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+      // 최종 카드가 렌더링될 때도 강제 스크롤 안 함으로써 독서를 방해하지 않습니다.
     }
 
     const strategyData = {
