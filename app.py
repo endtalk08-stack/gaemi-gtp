@@ -254,15 +254,15 @@ def analyze():
             ind_abs = format_shares(abs(indiv)).replace('+', '')
 
             if foreign > 0 and inst > 0:
-                flow_msg = f"🚀 외놈들이 {f_abs}, 기관 성님들이 {i_abs} 쌍끌이 풀매수 드가자!! 개미들만 {ind_abs} 털리는 중, 지금 안 타면 버스 떠난다 꽉 잡아!"
+                flow_msg = f"🚀 외놈들이 {f_abs}, 기관 아찌들이 {i_abs} 쌍끌이 풀매수 드가자!! \n개미들만 {ind_abs} 털리는 중, 지금 안 타면 버스 떠난다 꽉 잡아!"
             elif foreign < 0 and inst < 0:
-                flow_msg = f"🚨 삐용삐용! 외놈들이 {f_abs}, 기관 성님들이 {i_abs} 동반 투매 폭격 중! 개미 혼자 {ind_abs} 받다가 피 흘린다, 일단 튀어 ㅠㅠ"
+                flow_msg = f"🚨 삐용삐용! 외놈들이 {f_abs}, 기관 아찌들이 {i_abs} 동반 투매 폭격 중! \n개미 혼자 {ind_abs} 받다가 피 흘린다, 일단 튀어 ㅠㅠ"
             elif foreign > 0:
-                flow_msg = f"👱‍♂️ 외놈들이 혼자 {f_abs} 쓸어 담으면서 멱살 잡고 캐리 중! 여의도 성님들은 {i_abs} 던지면서 간 보고 있어."
+                flow_msg = f"👱‍♂️ 외놈들이 혼자 {f_abs} 쓸어 담으면서 멱살 잡고 캐리 중! \n여의도 성님들은 {i_abs} 던지면서 간 보고 있어."
             elif inst > 0:
-                flow_msg = f"👔 여의도 기관 성님들이 바닥에서 {i_abs} 묵직하게 줍줍 중! (외놈들은 {f_abs} 패대기 치는 중) 뭔가 냄새가 난다!"
+                flow_msg = f"👔 여의도 기관 성님들이 바닥에서 {i_abs} 묵직하게 줍줍 중! \n(외놈들은 {f_abs} 패대기 치는 중) 뭔가 냄새가 난다!"
             else:
-                flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! 세력들 눈치싸움 팽팽하다."
+                flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! \n세력들 눈치싸움 팽팽하다."
 
             # 중복 리스트를 제거하고 멘트만 시원하게 출력
             supply_content = flow_msg
