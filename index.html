@@ -289,7 +289,7 @@
         <span class="text-xs font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">관심 종목 모니터링</span>
         
         <button type="button" onclick="requestStock('SK하이닉스'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
-          <div class="flex bulk-stock flex-col">
+          <div class="flex flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">SK하이닉스</span>
             <span class="text-[11px] text-[#64748b] dark:text-[#71717a]">000660</span>
           </div>
@@ -570,7 +570,6 @@
     }
 
     // 📋 [G 마크 기반 핵심 팩트 생성기]
-    // 부연설명을 과감히 빼고 사진 스타일의 "굵은 2줄 결론 + 컬러 알약 태그"로 압축
     function getReportSections(stockName) {
       if (stockName === '삼성전자') {
         return [
@@ -616,7 +615,7 @@
       ];
     }
 
-    // 🚀 [G 글자 크기 극대화 + 굵고 선명한 2줄 타이포그래피 렌더링 엔진]
+    // 🚀 [Flexbox 구조: G 배지와 글자가 절대 겹치지 않는 완전 안전 레이아웃]
     function startTypewriterFlow(stockName) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -637,16 +636,16 @@
 
         const sec = sections[secIdx];
         
-        // 🌟 지름 36px(w-9 h-9) 안에 'G' 글자를 text-xl(20px font-black)로 꽉 채운 균형잡힌 배지
+        // flex 구조로 배지와 본문이 나란히 배치되어 겹침이 원천 차단됨
         const textBlock = document.createElement('div');
-        textBlock.className = "relative pl-13 sm:pl-14 animate-fade";
+        textBlock.className = "flex items-start gap-3 sm:gap-4 animate-fade";
         textBlock.innerHTML = `
-          <div class="absolute left-0 top-0.5 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center font-black text-xl leading-none shadow-md">G</div>
-          <div class="space-y-3">
+          <div class="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-black flex items-center justify-center font-black text-base sm:text-lg leading-none shadow-md mt-0.5">G</div>
+          <div class="space-y-2.5 flex-1 min-w-0">
             <h3 class="font-black text-lg sm:text-xl text-white tracking-tight leading-snug">${sec.title}</h3>
             <p id="p-content-${secIdx}" class="text-lg sm:text-xl text-white font-extrabold leading-snug whitespace-pre-line typing-cursor"></p>
-            <div id="tags-${secIdx}" class="flex flex-wrap gap-2 pt-2 hidden">
-              ${(sec.tags || []).map(t => `<span class="bg-red-500/20 border border-red-500/30 text-red-400 font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-xl shadow-sm tracking-tight">${t}</span>`).join('')}
+            <div id="tags-${secIdx}" class="flex flex-wrap gap-2 pt-1.5 hidden">
+              ${(sec.tags || []).map(t => `<span class="bg-[#2a1315] border border-[#ef4444]/40 text-[#f87171] font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-xl shadow-sm tracking-tight">${t}</span>`).join('')}
             </div>
           </div>
         `;
@@ -678,16 +677,16 @@
       typeNextSection();
     }
 
-    // 🌟 실전 전략 3인방 카드 블록 (G 마크 배지도 동일하게 G 글자 크기 극대화 적용)
+    // 🌟 실전 전략 3인방 카드 블록 (Flexbox 적용으로 겹침 원천 차단)
     function renderStrategySelectionBlock(wrapperId, stockName) {
       const chatArea = document.getElementById('chatArea');
       const container = document.getElementById(wrapperId);
 
       const hoodieDiv = document.createElement('div');
-      hoodieDiv.className = "relative pl-13 sm:pl-14 animate-fade pt-2";
+      hoodieDiv.className = "flex items-start gap-3 sm:gap-4 animate-fade pt-2";
       hoodieDiv.innerHTML = `
-        <div class="absolute left-0 top-2.5 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center font-black text-xl leading-none shadow-md">G</div>
-        <div class="space-y-5">
+        <div class="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-black flex items-center justify-center font-black text-base sm:text-lg leading-none shadow-md mt-1">G</div>
+        <div class="space-y-5 flex-1 min-w-0">
           <div class="pb-1">
             <h3 class="font-black text-base sm:text-lg text-white">내 투자 스타일에 맞는 실전 gaemiGTP 전략을 확인하세요.</h3>
           </div>
