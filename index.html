@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>gaemiGTP</title>
   
-  <!-- 글자 깨짐 방지: 선명한 프리텐다드 고화질 폰트 불러오기 -->
+  <!-- 글자 깨짐 방지: 프리텐다드 고화질 폰트 로드 -->
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   
   <script src="https://cdn.tailwindcss.com"></script>
@@ -289,7 +289,7 @@
         <span class="text-xs font-bold text-[#64748b] dark:text-[#71717a] uppercase px-1">관심 종목 모니터링</span>
         
         <button type="button" onclick="requestStock('SK하이닉스'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#18181b] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
-          <div class="flex flex-col">
+          <div class="flex bulk-stock flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">SK하이닉스</span>
             <span class="text-[11px] text-[#64748b] dark:text-[#71717a]">000660</span>
           </div>
@@ -570,47 +570,53 @@
     }
 
     // 📋 [G 마크 기반 핵심 팩트 생성기]
+    // 부연설명을 과감히 빼고 사진 스타일의 "굵은 2줄 결론 + 컬러 알약 태그"로 압축
     function getReportSections(stockName) {
       if (stockName === '삼성전자') {
         return [
           {
             title: "오늘 왜 올랐을까?",
-            content: "DRAM 레거시 공급 과잉 우려 및 외국인 수급 관망세 지속\n차세대 HBM4 퀄테스트 통과 기대감이 유입되며 20일선 부근에서 강력한 하방 경직성을 형성하고 있습니다.\n\n#HBM4퀄테스트 #외인수급관망 #20일선지지 #기술적반등"
+            content: "차세대 HBM4 퀄테스트 통과 기대감과 함께\n기관 중심 대량 저가 매수세 유입",
+            tags: ["# HBM4 퀄테스트", "# 기관순매수"]
           }
         ];
       } else if (stockName === '엔비디아' || stockName.toUpperCase() === 'NVDA') {
         return [
           {
             title: "오늘 왜 올랐을까?",
-            content: "차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대 지속\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있습니다.\n\n#블랙웰수요폭증 #빅테크AI투자 #목표주가상향 #글로벌주도주"
+            content: "차세대 AI 칩 수요 폭발 공시와 함께\n글로벌 빅테크 투자 확대 가속화",
+            tags: ["# 블랙웰수요폭증", "# 빅테크AI투자"]
           }
         ];
       } else if (stockName === '알테오젠') {
         return [
           {
             title: "오늘 왜 올랐을까?",
-            content: "피하주사(SC) 플랫폼 독점 계약 확대 및 글로벌 빅파마 로열티 유입 기대\n외국인과 기관의 강력한 동반 쌍끌이 순매수가 이어지며 코스닥 바이오 대장주 랠리를 견인하고 있습니다.\n\n#히알루로니다제 #빅파마독점계약 #외인기관쌍끌이 #코스닥대장주"
+            content: "피하주사(SC) 플랫폼 독점 계약 확대와 함께\n외인·기관 대량 쌍끌이 매수세 유입",
+            tags: ["# 플랫폼독점계약", "# 메이저쌍끌이"]
           }
         ];
       } else if (stockName === '비트코인' || stockName.toUpperCase() === 'BTC') {
         return [
           {
             title: "오늘 왜 올랐을까?",
-            content: "미국 현물 ETF로의 기관 자금 순유입 및 연준 금리 인하 기대감 연동\n글로벌 유동성 공급 재개 조짐 속에 가상자산 전반으로 위험자산 선호 심리가 확산되고 있습니다.\n\n#비트코인ETF #현물자금유입 #디지털골드 #유동성확대"
+            content: "미국 현물 ETF 기관 자금 유입과 함께\n글로벌 유동성 공급 기대감 반영",
+            tags: ["# 비트코인ETF", "# 기관자금유입"]
           }
         ];
       }
 
-      // 기본값 (SK하이닉스 등)
+      // 기본값 (SK하이닉스)
       return [
         {
           title: "오늘 왜 올랐을까?",
-          content: "단일판매 공급계약 체결 공시와 함께 외국인 대량 매수세 유입\n미국 필라델피아 반도체(SOXX) 급등 연동 및 외국인·기관의 3일 연속 대량 순매수가 맞물리며 지지선 돌파가 진행 중입니다.\n\n#HBM공급계약 #외인대량순매수 #글로벌AI훈풍 #신고가돌파"
+          content: "단일판매 공급계약 체결 공시와 함께\n외국인 대량 매수세 유입",
+          tags: ["# HBM 공급계약", "# 외인순매수"]
         }
       ];
     }
 
-    // 🚀 [시원하고 선명한 G 마크 + 확대된 텍스트 렌더링 엔진]
+    // 🚀 [G 글자 크기 극대화 + 굵고 선명한 2줄 타이포그래피 렌더링 엔진]
     function startTypewriterFlow(stockName) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -631,14 +637,17 @@
 
         const sec = sections[secIdx];
         
-        // 🌟 지름 40px(w-10 h-10)의 큼직한 G 마크 배지 + 20px 굵은 제목 + 16px 선명한 본문
+        // 🌟 지름 36px(w-9 h-9) 안에 'G' 글자를 text-xl(20px font-black)로 꽉 채운 균형잡힌 배지
         const textBlock = document.createElement('div');
-        textBlock.className = "relative pl-14 sm:pl-16 animate-fade";
+        textBlock.className = "relative pl-13 sm:pl-14 animate-fade";
         textBlock.innerHTML = `
-          <div class="absolute left-0 top-0.5 w-10 h-10 rounded-full bg-white text-black flex items-center justify-center font-black text-base shadow-md">G</div>
+          <div class="absolute left-0 top-0.5 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center font-black text-xl leading-none shadow-md">G</div>
           <div class="space-y-3">
             <h3 class="font-black text-lg sm:text-xl text-white tracking-tight leading-snug">${sec.title}</h3>
-            <p id="p-content-${secIdx}" class="text-[15px] sm:text-base text-[#f4f4f5] leading-relaxed whitespace-pre-line font-medium typing-cursor"></p>
+            <p id="p-content-${secIdx}" class="text-lg sm:text-xl text-white font-extrabold leading-snug whitespace-pre-line typing-cursor"></p>
+            <div id="tags-${secIdx}" class="flex flex-wrap gap-2 pt-2 hidden">
+              ${(sec.tags || []).map(t => `<span class="bg-red-500/20 border border-red-500/30 text-red-400 font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-xl shadow-sm tracking-tight">${t}</span>`).join('')}
+            </div>
           </div>
         `;
         mainContainer.appendChild(textBlock);
@@ -656,6 +665,8 @@
             setTimeout(typeChunk, 6);
           } else {
             pEl.classList.remove('typing-cursor');
+            const tagEl = document.getElementById(`tags-${secIdx}`);
+            if (tagEl) tagEl.classList.remove('hidden');
             secIdx++;
             setTimeout(typeNextSection, 100);
           }
@@ -667,15 +678,15 @@
       typeNextSection();
     }
 
-    // 🌟 실전 전략 3인방 카드 블록 (G 마크 배지도 동일하게 확대 적용)
+    // 🌟 실전 전략 3인방 카드 블록 (G 마크 배지도 동일하게 G 글자 크기 극대화 적용)
     function renderStrategySelectionBlock(wrapperId, stockName) {
       const chatArea = document.getElementById('chatArea');
       const container = document.getElementById(wrapperId);
 
       const hoodieDiv = document.createElement('div');
-      hoodieDiv.className = "relative pl-14 sm:pl-16 animate-fade pt-2";
+      hoodieDiv.className = "relative pl-13 sm:pl-14 animate-fade pt-2";
       hoodieDiv.innerHTML = `
-        <div class="absolute left-0 top-2.5 w-10 h-10 rounded-full bg-white text-black flex items-center justify-center font-black text-base shadow-md">G</div>
+        <div class="absolute left-0 top-2.5 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center font-black text-xl leading-none shadow-md">G</div>
         <div class="space-y-5">
           <div class="pb-1">
             <h3 class="font-black text-base sm:text-lg text-white">내 투자 스타일에 맞는 실전 gaemiGTP 전략을 확인하세요.</h3>
