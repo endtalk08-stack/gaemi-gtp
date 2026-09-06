@@ -6,10 +6,14 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import json
 import datetime
+import os
 import re
 
 app = Flask(__name__)
 CORS(app)
+
+# Render 환경 변수에서 Finnhub API Key 자동 로드
+FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip()
 
 TICKERS = {
     '삼성전자': '005930.KS',
@@ -58,6 +62,8 @@ TICKERS = {
     '마이크로소프트': 'MSFT',
     '아마존': 'AMZN',
     '구글': 'GOOGL',
+    '오라클': 'ORCL',
+    'ORCL': 'ORCL',
     '비트코인': 'BTC-USD'
 }
 
@@ -164,27 +170,80 @@ def round_krw_tick(price):
     else:
         return int(price // 10) * 10
 
-def get_economic_calendar_comment(stock_name):
-    weekday = datetime.datetime.now().weekday()
-    if weekday in [0, 1]:
-        return (
-            f"📅주의 일정: 이번 주 미국 핵심 경제지표 및 주요 CPI 발표 대기 중!\n"
-            f"📝실적 체크: {stock_name} 관련 밸류체인 실적 가이던스 확인하고, 미 증시 선물 변동성에 오버나잇 비중 조절해랔!"
-        )
-    elif weekday in [2, 3]:
-        return (
-            f"📅주의 일정: 오늘 밤 미국 경제지표 발표 및 연준 인사 발언 예정!\n"
-            f"📝결과 체크: 예상치 상회 여부에 따라 야간 나스닥 선물이 출렁일 수 있으니 시간외 단일가 무리한 베팅 금지!"
-        )
-    else:
-        return (
-            f"📅주의 일정: 주말 간 글로벌 지정학적 이슈와 월요일 개장 전 미 선물 체크 필수!\n"
-            f"📝실적 체크: 최근 실적치 반영되며 세력들의 포트폴리오 리밸런싱 예상되니 차분히 대응하자!"
-        )
+# Finnhub 실시간 경제 일정 및 실적 데이터 수집 함수
+def get_live_calendar_data(stock_name, ticker_symbol):
+    today = datetime.date.today()
+    start_date = (today - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+    end_date = (today + datetime.timedelta(days=3)).strftime('%Y-%m-%d')
+
+    earnings_msg = None
+    macro_msg = None
+
+    if FINNHUB_KEY:
+        # 1. 미국 주식인 경우 기업 실적 일정 조회 (예: ORCL, NVDA)
+        is_us_stock = bool(re.match(r'^[A-Za-z]+$', ticker_symbol))
+        if is_us_stock:
+            try:
+                url = f"https://finnhub.io/api/v1/calendar/earnings?from={start_date}&to={end_date}&symbol={ticker_symbol}&token={FINNHUB_KEY}"
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    earnings_list = data.get('earningsCalendar', [])
+                    if earnings_list:
+                        item = earnings_list[0]
+                        act = item.get('epsActual')
+                        est = item.get('epsEstimate')
+                        date_str = item.get('date', '')
+
+                        if act is not None and est is not None:
+                            diff = act - est
+                            status = "어닝 서프라이즈! 🚀" if diff >= 0 else "예상치 하회(쇼크) ⚠️"
+                            earnings_msg = f"📝실적 발표 결과: {stock_name} {status}\n• 실제 EPS: ${act:.2f} (예상치 ${est:.2f} 대비 {diff:+.2f})"
+                        elif est is not None:
+                            earnings_msg = f"📝실적 발표 대기: {stock_name} ({date_str})\n• 시장 예상 EPS: ${est:.2f} (결과 발표 시 변동성 주의!)"
+            except Exception as e:
+                print("실적 조회 에러:", e)
+
+        # 2. 미국 주요 거시 경제지표 발표 일정 조회 (CPI, 금리 등)
+        try:
+            macro_url = f"https://finnhub.io/api/v1/calendar/economic?from={start_date}&to={end_date}&token={FINNHUB_KEY}"
+            req = urllib.request.Request(macro_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                m_data = json.loads(resp.read().decode('utf-8'))
+                events = m_data.get('economicCalendar', [])
+                # 미국 이벤트 중 중요도가 높은 지표 선별
+                us_events = [e for e in events if e.get('country') == 'US' and e.get('estimate') is not None]
+                if us_events:
+                    ev = us_events[0]
+                    ev_name = ev.get('event', '미국 핵심 경제지표')
+                    ev_est = ev.get('estimate')
+                    ev_act = ev.get('actual')
+
+                    if ev_act is not None:
+                        macro_msg = f"📅미국 경제지표 결과: {ev_name}\n• 실제치: {ev_act} | 예상치: {ev_est} (시장 실시간 반영 중)"
+                    else:
+                        macro_msg = f"📅미국 경제지표 발표: {ev_name}\n• 시장 예상치: {ev_est} (오늘 밤 발표 직후 나스닥 선물 체크!)"
+        except Exception as e:
+            print("경제 일정 조회 에러:", e)
+
+    # API 데이터가 없거나 국내 주식 기본 대체 텍스트
+    if not macro_msg:
+        weekday = datetime.datetime.now().weekday()
+        if weekday in [0, 1]:
+            macro_msg = "📅주의 일정: 이번 주 미국 핵심 경제지표 및 주요 CPI 발표 대기 중!"
+        elif weekday in [2, 3]:
+            macro_msg = "📅주의 일정: 오늘 밤 미국 경제지표 발표 및 연준 인사 발언 예정!"
+        else:
+            macro_msg = "📅주의 일정: 주말 간 글로벌 지정학적 이슈와 월요일 개장 전 미 선물 체크 필수!"
+
+    if not earnings_msg:
+        earnings_msg = f"📝실적 체크: {stock_name} 주요 밸류체인 실적 가이던스 확인하고, 야간 선물 변동성에 오버나잇 비중 조절하자!"
+
+    return f"{macro_msg}\n{earnings_msg}"
 
 @app.route('/')
 def home():
-    return "gaemiGTP 전 종목 검색 & 수급 엔진 정상 가동 중!"
+    return "gaemiGTP 전 종목 검색 & Finnhub 실시간 캘린더 정상 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
@@ -238,23 +297,13 @@ def analyze():
             price_str = f"${current_price:,.2f}"
             ma20_str = f"${ma20:,.2f}"
 
-        # --- 3단계 등락률 판단 추가 (상승/하락/보합) ---
-        if change_pct > 0.005:  # 부동소수점 오차 방지 (0초과)
-            status_emoji = '🔥'
-            status_word = '상승'
-            title_word = '올랐어'
-            desc_word = '상승중이야!!!'
-        elif change_pct < -0.005: # (0미만)
-            status_emoji = '❄️'
-            status_word = '하락'
-            title_word = '숨고르기일까'
-            desc_word = '하락중이야 ㅠㅠ'
-        else: # (정확히 0에 수렴하는 보합)
-            status_emoji = '⚖️'
-            status_word = '보합'
-            title_word = '보합일까'
-            desc_word = '보합(숨고르기) 중이야. 폭풍 전야의 고요함이 느껴지지 않아?'
-            change_pct = 0.0 # 강제 0 치환 (마이너스 0.00 방지)
+        if change_pct > 0.005:
+            status_emoji, title_word, desc_word = '🔥', '올랐어', '상승중이야!!!'
+        elif change_pct < -0.005:
+            status_emoji, title_word, desc_word = '❄️', '숨고르기일까', '하락중이야 ㅠㅠ'
+        else:
+            status_emoji, title_word, desc_word = '⚖️', '보합일까', '보합(숨고르기) 중이야. 폭풍 전야의 고요함이 느껴지지 않아?'
+            change_pct = 0.0
 
         news_list = fetch_realtime_news(raw_name)
         main_news = news_list[0] if len(news_list) > 0 else f"{raw_name} 관련 메이저 재료 포착"
@@ -286,7 +335,6 @@ def analyze():
                 f"현재 주요 매물대 부근에서 치열한 손바뀜 공방전 진행 중. 세력들의 의도를 잘 파악해 보자!"
             )
 
-        # --- 보합/상승/하락 멘트 동적 적용 ---
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
@@ -303,7 +351,7 @@ def analyze():
             },
             {
                 "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
-                "content": get_economic_calendar_comment(raw_name)
+                "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ]
         return jsonify({"sections": sections})
