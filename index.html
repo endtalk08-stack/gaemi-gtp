@@ -78,7 +78,7 @@
           <input 
             id="heroStockInput" 
             type="text" 
-            placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, NVDA, 비트코인)" 
+            placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, 현대차, 에코프로, NVDA)" 
             class="w-full bg-[#18191d] border border-[#282a30] hover:border-[#3a3d46] focus:border-[#4a4e5a] rounded-full px-6 py-4 text-sm sm:text-base text-white placeholder-[#71717a] focus:outline-none pr-36 shadow-xl transition"
           >
           <div class="absolute right-2.5 flex items-center gap-1.5">
@@ -92,6 +92,7 @@
       <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
         <button type="button" onclick="switchToAnalysisMode('SK하이닉스')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">SK하이닉스</button>
         <button type="button" onclick="switchToAnalysisMode('삼성전자')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">삼성전자</button>
+        <button type="button" onclick="switchToAnalysisMode('현대차')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">현대차</button>
         <button type="button" onclick="switchToAnalysisMode('알테오젠')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">알테오젠</button>
         <button type="button" onclick="switchToAnalysisMode('엔비디아')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">엔비디아</button>
         <button type="button" onclick="switchToAnalysisMode('비트코인')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">비트코인</button>
@@ -100,7 +101,7 @@
     <div class="h-6"></div>
   </div>
 
-  <!-- 1. 좌측 사이드바 -->
+  <!-- 좌측 사이드바 -->
   <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
     <div class="p-4 flex flex-col gap-5 overflow-y-auto">
       <div class="flex items-center justify-between px-1">
@@ -168,7 +169,7 @@
     </div>
   </aside>
 
-  <!-- 2. 중앙 메인 분석 영역 -->
+  <!-- 중앙 메인 분석 영역 -->
   <main class="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-[#121316] overflow-hidden min-w-0">
     <header class="h-16 border-b border-[#e2e8f0] dark:border-[#27272a] flex items-center justify-between px-4 sm:px-6 bg-white/80 dark:bg-[#16171b]/80 backdrop-blur shrink-0 z-10">
       <div class="flex items-center gap-3">
@@ -194,7 +195,7 @@
           <input 
             id="bottomStockInput" 
             type="text" 
-            placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, NVDA, BTC)" 
+            placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, 현대차, 에코프로, NVDA)" 
             class="w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-[#f4f4f5] placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-32 sm:pr-36 shadow-md transition"
           >
           <div class="absolute right-2 flex items-center gap-1 sm:gap-1.5">
@@ -207,7 +208,7 @@
     </div>
   </main>
 
-  <!-- 3. 우측 사이드바 -->
+  <!-- 우측 사이드바 -->
   <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform translate-x-full xl:translate-x-0 xl:static transition-transform duration-300 ease-in-out shadow-2xl xl:shadow-none">
     <div class="p-5 flex flex-col gap-6 overflow-y-auto">
       <div class="flex items-center justify-between">
@@ -237,12 +238,12 @@
           <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">0.0%</span>
         </button>
 
-        <button type="button" onclick="requestStock('엔비디아'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+        <button type="button" onclick="requestStock('현대차'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
           <div class="flex flex-col">
-            <span class="font-bold text-[#0f172a] dark:text-white">NVIDIA</span>
-            <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">NVDA</span>
+            <span class="font-bold text-[#0f172a] dark:text-white">현대차</span>
+            <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">005380</span>
           </div>
-          <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+1.8%</span>
+          <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+1.2%</span>
         </button>
       </div>
     </div>
@@ -276,6 +277,7 @@
     </div>
   </div>
 
+  <!-- VIP 알림 모달 -->
   <div id="upgradeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
     <div class="bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-md w-full p-6 relative shadow-2xl animate-fade">
       <button type="button" onclick="closeUpgradeModal()" class="absolute top-5 right-5 text-[#94a3b8] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
@@ -494,7 +496,7 @@
         textBlock.innerHTML = `
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
-            ${sec.title ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${sec.title}</h4>` : ''}
+            ${sec.title ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 900;">${sec.title}</h4>` : ''}
           </div>
           <p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor pl-9"></p>
         `;
@@ -522,7 +524,7 @@
       typeNextSection();
     }
 
-    // 개미 투표 위 G마크 헤더가 장착된 하단 위젯 렌더러
+    // 상단 리포트 제목과 100% 동일한 폰트 크기 및 G마크 규격을 강제 지정한 위젯 렌더러
     function renderBottomWidgets(wrapperId, stockName) {
       const container = document.getElementById(wrapperId);
       const bottomDiv = document.createElement('div');
@@ -530,12 +532,11 @@
       bottomDiv.innerHTML = `
         <!-- 개미 투표 섹션 -->
         <div class="space-y-3">
-          <!-- G마크 헤더 -->
-      <!-- 투표 상단 G마크 헤더 (다른 섹션과 동일한 폰트 크기 규격) -->
-<div class="flex items-center gap-2.5 pb-1">
-  <div class="w-7 h-7 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm shrink-0">G</div>
-  <h3 class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">내일 어디로 튈까? 네 실력좀 보여줘!</h3>
-</div>
+          <!-- G마크 헤더: 상단 섹션과 완전히 동일한 규격 강제 지정 -->
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
+            <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 900;">내일 어디로 튈까? 네 실력좀 보여줘!</h4>
+          </div>
 
           <!-- 투표 박스 본체 -->
           <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] rounded-3xl p-5 space-y-4 shadow-sm">
@@ -561,9 +562,10 @@
 
         <!-- 전략 3인방 아코디언 -->
         <div class="space-y-3">
-          <div class="flex items-center gap-2.5 pb-1">
-            <div class="w-7 h-7 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm shrink-0">G</div>
-            <h3 class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 전략도 확인해바.</h3>
+          <!-- G마크 헤더: 상단 섹션과 완전히 동일한 규격 강제 지정 -->
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
+            <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 900;">내 투자 스타일에 맞는 전략도 확인해바.</h4>
           </div>
 
           <!-- 서학개미 -->
