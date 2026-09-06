@@ -5,7 +5,6 @@ import yfinance as yf
 app = Flask(__name__)
 CORS(app)
 
-# 종목명과 주식 코드(티커)를 연결해주는 사전
 TICKERS = {
     '삼성전자': '005930.KS',
     'SK하이닉스': '000660.KS',
@@ -17,66 +16,56 @@ TICKERS = {
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
-    stock_name = request.args.get('stock', 'SK하이닉스')
+    stock_name = request.args.get('stock', 'SK하이닉스').strip()
     ticker_symbol = TICKERS.get(stock_name)
 
-    # 사전에 없는 종목을 검색했을 때
     if not ticker_symbol:
-        return jsonify({
-            "title": f"🤔 {stock_name} 데이터 준비 중",
-            "content": "현재 실시간 연동이 지원되지 않는 종목입니다.\n조만간 더 많은 종목의 데이터를 긁어올 수 있도록 엔진을 업그레이드할 예정입니다!",
-            "tags": ["#업데이트예정"]
-        })
+        ticker_symbol = stock_name
 
     try:
-        # 야후 파이낸스에서 실시간 주가 데이터 긁어오기 (최근 2일치)
+        # 야후 파이낸스 실시간 데이터
         ticker = yf.Ticker(ticker_symbol)
-        hist = ticker.history(period="2d")
+        hist = ticker.history(period="1mo")
         
-        if len(hist) >= 2:
-            prev_close = hist['Close'].iloc[0] # 어제 종가
-            current_price = hist['Close'].iloc[1] # 오늘 현재가
-        else:
-            prev_close = hist['Close'].iloc[0]
-            current_price = hist['Close'].iloc[0]
+        if hist.empty:
+            raise ValueError("데이터 없음")
 
-        # 등락률 계산
+        current_price = hist['Close'].iloc[-1]
+        prev_close = hist['Close'].iloc[-2] if len(hist) >= 2 else current_price
         change_pct = ((current_price - prev_close) / prev_close) * 100
-        
-        # 상승/하락에 따른 반응 분기
-        if change_pct > 0:
-            trend = "상승"
-            emoji = "🔥"
-            tag1 = "#가즈아"
-        elif change_pct < 0:
-            trend = "하락"
-            emoji = "❄️"
-            tag1 = "#방어력테스트"
-        else:
-            trend = "보합"
-            emoji = "🤔"
-            tag1 = "#눈치보기"
 
-        # 한국 주식은 원화(₩), 미국 주식/코인은 달러($) 표시
-        currency = "$" if ticker_symbol in ['NVDA', 'BTC-USD'] else "₩"
+        ma20 = hist['Close'].mean()
+        currency = "$" if ('-' in ticker_symbol or not ticker_symbol.endswith(('.KS', '.KQ'))) else "₩"
         price_str = f"{currency}{current_price:,.0f}" if currency == "₩" else f"{currency}{current_price:,.2f}"
+        ma20_str = f"{currency}{ma20:,.0f}" if currency == "₩" else f"{currency}{ma20:,.2f}"
 
-        title = f"{emoji} {stock_name}, 현재 {trend} 중!"
-        content = f"현재 실시간 주가는 {price_str} ({change_pct:+.2f}%)를 기록하고 있어!\n\nAI 알고리즘이 야후 파이낸스 데이터를 스캔한 결과, 글로벌 매크로 지표에 따라 세력들의 알고리즘 매매가 치열하게 돌아가는 중이야. 꽉 잡아!"
-        tags = [tag1, "#실시간주가연동", f"#{stock_name}"]
+        is_up = change_pct >= 0
+        
+        # 대표님이 만드셨던 4단 구성 + 실시간 데이터 결합!
+        sections = [
+            {
+                "title": f"{'🔥' if is_up else '❄️'} 그래서 오늘은 왜 {'올랐어' if is_up else '숨고르기일까'}?",
+                "content": f"개미들아! {stock_name} {change_pct:+.2f}% {'상승' if is_up else '하락'}중이야!!!\n현재 실시간 주가는 {price_str} 기록 중!\n\n최근 글로벌 지표와 수급에 따라 세력들의 알고리즘 매매가 치열하게 돌아가는 중이야. 꽉 잡아!",
+                "tags": [f"#{stock_name}", f"#{change_pct:+.2f}%", "#실시간주가"]
+            },
+            {
+                "title": "지금 세력은 사고 있어, 팔고 있어?",
+                "content": "🔥수급 경고: 최근 개인과 외국인의 눈치싸움이 치열해!\n현재 기관 추정 매수 단가 부근에서 공방전이 벌어지고 있어. 과연 고점을 돌파할까? 두근두근"
+            },
+            {
+                "title": "여기 깨지면 도망쳐라!",
+                "content": f"🛡️생존 지지선: {ma20_str} (20일선)\n이 가격이 깨지면 투매가 나올 수 있으니 조심해야 해!\n🧱악성 매물대: 최근 단기 고점 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
+            },
+            {
+                "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
+                "content": "📅주의 일정: 내일(목) 주요 경제 지표 발표가 대기 중이네!\n📝공시 체크: 대규모 보호예수 물량이나 시간외 단일가 움직임에 오버나잇(밤샘 보유) 주의해랔!"
+            }
+        ]
 
-        return jsonify({
-            "title": title,
-            "content": content,
-            "tags": tags
-        })
+        return jsonify({"sections": sections})
 
-    except Exception as e:
-        return jsonify({
-            "title": "🚨 통신 지연",
-            "content": "주가 서버(Yahoo Finance) 접속에 병목이 발생했습니다.\n잠시 후 다시 검색해주세요.",
-            "tags": ["#서버혼잡"]
-        })
+    except Exception:
+        return jsonify({"error": "데이터 지연"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
