@@ -4,10 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>gaemiGTP</title>
-  
-  <!-- 글자 깨짐 방지: 프리텐다드 고화질 폰트 로드 -->
-  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
-  
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <!-- 백테스트 차트 엔진 -->
@@ -17,8 +13,6 @@
     body {
       font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans KR", sans-serif;
       letter-spacing: -0.015em;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
     }
     ::-webkit-scrollbar { display: none; width: 0px; }
     html, body, #chatArea, aside {
@@ -222,7 +216,7 @@
     <!-- 대화 스크롤 영역 -->
     <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 max-w-5xl mx-auto w-full scroll-smooth"></div>
 
-    <!-- 하단 채팅창 -->
+    <!-- 하단 채팅창 (메인과 100% 동일한 캡슐 디자인 + 모바일 상시 노출) -->
     <div class="shrink-0 p-3 sm:p-4 bg-white/95 dark:bg-[#09090b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-4xl mx-auto relative">
         
@@ -569,53 +563,137 @@
       return { id, timerId };
     }
 
-    // 📋 [G 마크 기반 핵심 팩트 생성기]
+    // 📋 [G 마크 기반 종목별 전문 리포트 단락 생성기]
+    // 최상단에 "오늘 왜 올랐어? (핵심 변동 요약)"가 항상 첫 번째로 배치됩니다.
     function getReportSections(stockName) {
       if (stockName === '삼성전자') {
         return [
           {
-            title: "오늘 왜 올랐을까?",
-            content: "차세대 HBM4 퀄테스트 통과 기대감과 함께\n기관 중심 대량 저가 매수세 유입",
-            tags: ["# HBM4 퀄테스트", "# 기관순매수"]
+            title: "❄️ 오늘 왜 숨고르기일까? (핵심 변동 요약)",
+            content: "DRAM 레거시 공급 과잉 우려 및 외국인 수급 관망세 지속\n차세대 HBM4 퀄테스트 통과 기대감이 유입되며 20일선 부근에서 강력한 하방 경직성을 형성하고 있습니다.\n\n#HBM4퀄테스트 #외인수급관망 #20일선지지 #기술적반등"
+          },
+          {
+            title: "① 삼성전자의 현재 핵심 포인트는?",
+            content: "삼성전자는 현재 HBM3E 공급 확대와 차세대 커스텀 HBM4 진입 시점이 가장 중요한 변곡점입니다.\n외국인 수급이 단기적으로 관망세를 보이고 있으나, 파운드리 적자 축소와 메모리 단가 회복이 실적의 바닥을 지지하고 있습니다."
+          },
+          {
+            title: "② 수급 및 지지선 점검",
+            content: "최근 5거래일 동안 기관이 분할 매수에 나서며 저가 매수세를 형성 중입니다.\n단기 박스권 하단 지지선 가격대 방어 여부가 추가 추세 전환의 핵심 기준이 됩니다."
+          },
+          {
+            title: "🐜 한마디로 정리하면",
+            content: "미국 빅테크의 추가 수주 및 HBM 공급 가시화가 확인되는 순간 강한 턴어라운드가 가능합니다. 성급한 추격보다는 눌림목 분할 접근이 유효합니다."
           }
         ];
       } else if (stockName === '엔비디아' || stockName.toUpperCase() === 'NVDA') {
         return [
           {
-            title: "오늘 왜 올랐을까?",
-            content: "차세대 AI 칩 수요 폭발 공시와 함께\n글로벌 빅테크 투자 확대 가속화",
-            tags: ["# 블랙웰수요폭증", "# 빅테크AI투자"]
+            title: "🔥 오늘 왜 올랐어? (핵심 변동 요약)",
+            content: "차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대 지속\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있습니다.\n\n#블랙웰수요폭증 #빅테크AI투자 #목표주가상향 #글로벌주도주"
+          },
+          {
+            title: "① AI 데이터센터 메가트렌드",
+            content: "마이크로소프트, 메타, 구글, 아마존 등 빅테크의 자본적 지출(CAPEX)이 꺾이지 않는 한 엔비디아의 독점적 시장 지위는 지속될 가능성이 매우 높습니다."
+          },
+          {
+            title: "🐜 한마디로 정리하면",
+            content: "AI 인프라 혁명의 최전선에서 여전히 시장의 절대 주도주 역할을 하고 있습니다. 단기 변동성에 흔들리지 말고 트렌드를 추종하는 전략이 유리합니다."
           }
         ];
       } else if (stockName === '알테오젠') {
         return [
           {
-            title: "오늘 왜 올랐을까?",
-            content: "피하주사(SC) 플랫폼 독점 계약 확대와 함께\n외인·기관 대량 쌍끌이 매수세 유입",
-            tags: ["# 플랫폼독점계약", "# 메이저쌍끌이"]
+            title: "🔥 오늘 왜 올랐어? (핵심 변동 요약)",
+            content: "피하주사(SC) 플랫폼 독점 계약 확대 및 글로벌 빅파마 로열티 유입 기대\n외국인과 기관의 강력한 동반 쌍끌이 순매수가 이어지며 코스닥 바이오 대장주 랠리를 견인하고 있습니다.\n\n#히알루로니다제 #빅파마독점계약 #외인기관쌍끌이 #코스닥대장주"
+          },
+          {
+            title: "① 바이오 플랫폼의 독보적 경쟁력",
+            content: "키트루다 SC 제형 전환 가속화에 따른 마일스톤 및 로열티 수취가 현실화되면서 단순 기대감이 아닌 실적 기반의 바이오 기업으로 재평가받고 있습니다."
+          },
+          {
+            title: "🐜 한마디로 정리하면",
+            content: "메이저 수급이 든든하게 받쳐주는 전형적인 우상향 차트입니다. 5일선 추세를 이탈하기 전까지는 분할 익절 관점으로 수익을 극대화할 수 있습니다."
           }
         ];
       } else if (stockName === '비트코인' || stockName.toUpperCase() === 'BTC') {
         return [
           {
-            title: "오늘 왜 올랐을까?",
-            content: "미국 현물 ETF 기관 자금 유입과 함께\n글로벌 유동성 공급 기대감 반영",
-            tags: ["# 비트코인ETF", "# 기관자금유입"]
+            title: "🔥 오늘 왜 움직였어? (핵심 변동 요약)",
+            content: "미국 현물 ETF로의 기관 자금 순유입 및 연준 금리 인하 기대감 연동\n글로벌 유동성 공급 재개 조짐 속에 가상자산 전반으로 위험자산 선호 심리가 확산되고 있습니다.\n\n#비트코인ETF #현물자금유입 #디지털골드 #유동성확대"
+          },
+          {
+            title: "① 온체인 데이터 및 수급 분석",
+            content: "장기 보유자(HODLer)들의 지갑 이동이 제한적인 가운데 거래소 내 보유 물량이 역대 최저치를 기록하며 공급 쇼크 가능성이 유지되고 있습니다."
+          },
+          {
+            title: "🐜 한마디로 정리하면",
+            content: "거시 경제 유동성에 철저히 연동되는 구간입니다. 분할 적립식 매매를 원칙으로 주요 지지선 이탈 여부를 상시 점검하세요."
           }
         ];
       }
 
-      // 기본값 (SK하이닉스)
+      // 기본값 및 SK하이닉스 전문 리포트
       return [
         {
-          title: "오늘 왜 올랐을까?",
-          content: "단일판매 공급계약 체결 공시와 함께\n외국인 대량 매수세 유입",
-          tags: ["# HBM 공급계약", "# 외인순매수"]
+          title: "🔥 오늘 왜 올랐어? (핵심 변동 요약)",
+          content: "단일판매 공급계약 체결 공시와 함께 외국인 대량 매수세 유입\n미국 필라델피아 반도체(SOXX) 급등 연동 및 외국인·기관의 3일 연속 대량 순매수가 맞물리며 지지선 돌파가 진행 중입니다.\n\n#HBM공급계약 #외인대량순매수 #글로벌AI훈풍 #신고가돌파"
+        },
+        {
+          title: "📌 핵심 출발점과 거시적 구조",
+          content: "먼저 결론부터 말씀드리겠습니다.\n현재 SK하이닉스를 이해하려면 한국 반도체 뉴스만 보면 안 됩니다.\n가장 중요한 출발점은 미국입니다.\n\n미국의 엔비디아·마이크로소프트·아마존·구글·메타가 AI 데이터센터에 얼마나 많은 돈을 투자하느냐가 출발점이고,\n↓\n그 돈으로 데이터센터가 만들어지고\n↓\n그 안에 엔비디아 GPU가 들어가고\n↓\nGPU가 제대로 작동하려면 HBM이 필요하고\n↓\nHBM을 만드는 핵심 기업 중 하나가 SK하이닉스입니다.\n\n즉,\n미국 빅테크의 AI 투자 → 엔비디아 → HBM 수요 → SK하이닉스 실적 → SK하이닉스 주가\n이 구조를 이해해야 합니다.\nSK하이닉스는 2026년 2분기 매출 79조3,187억원, 영업이익 60조5,426억원으로 분기 기준 사상 최대 실적을 기록했고, HBM4 양산 출하도 2분기부터 시작했습니다."
+        },
+        {
+          title: "① 앞으로 SK하이닉스 주가는 얼마나 더 갈 수 있을까?",
+          content: "이 질문이 가장 중요합니다.\n하지만 애널리스트 입장에서는 “몇 만원까지 간다”라고 먼저 말하면 안 됩니다.\n먼저 주가를 움직이는 실적의 방향을 봐야 합니다.\n현재 가장 중요한 것은 AI 투자 사이클이 계속되는가입니다.\n여기서 미국 시장을 봐야 합니다.\n엔비디아의 AI 데이터센터 사업이 계속 성장하고, 미국 빅테크들이 AI 인프라 투자를 계속한다면 SK하이닉스의 HBM 수요에도 긍정적인 영향을 줄 가능성이 높습니다.\n왜냐하면 엔비디아의 차세대 AI 가속기인 베라 루빈은 HBM4를 핵심 메모리로 사용하기 때문입니다.\n따라서 현재 SK하이닉스 주가를 볼 때는 “하이닉스가 좋은 회사냐?”보다 “미국 AI 투자가 앞으로 얼마나 오래 지속되느냐?”가 더 중요합니다."
+        },
+        {
+          title: "② HBM4가 SK하이닉스 실적을 얼마나 키울까?",
+          content: "여기서 초보자분들이 HBM을 어렵게 생각할 필요가 없습니다.\n쉽게 말하면, GPU가 AI 계산을 담당하는 두뇌라면 HBM은 그 두뇌 옆에서 데이터를 엄청나게 빠르게 공급해주는 초고속 메모리입니다.\nAI 모델이 커질수록 더 많은 데이터를 더 빠르게 공급해야 합니다. 그래서 HBM이 중요합니다.\n\n현재 중요한 변화는 HBM3E → HBM4 입니다.\nSK하이닉스는 2026년 2분기부터 HBM4 양산 공급을 시작했고 하반기에 생산을 본격적으로 확대하고 있습니다.\n이게 왜 중요하냐면, HBM4는 단순히 제품 하나가 바뀌는 것이 아닙니다. AI GPU의 세대가 바뀌면서 필요한 메모리도 같이 업그레이드되는 것입니다.\n\n따라서\n블랙웰 → 루빈\nHBM3E → HBM4\n라는 변화가 이어집니다. 결국 엔비디아의 차세대 GPU 판매량이 증가할수록 HBM4 수요도 증가할 가능성이 높습니다."
+        },
+        {
+          title: "③ 엔비디아가 오르면 SK하이닉스는 얼마나 따라갈까?",
+          content: "여기서 굉장히 중요한 투자 포인트가 있습니다.\n엔비디아와 SK하이닉스는 같은 회사가 아니지만 AI라는 하나의 공급망으로 연결되어 있습니다.\n예를 들어 미국에서\n엔비디아 실적 발표 → AI 데이터센터 투자 확대 → GPU 수요 증가 → HBM 수요 증가 → SK하이닉스 수혜 라는 흐름이 발생할 수 있습니다.\n\n하지만 여기서 중요한 함정이 있습니다.\n엔비디아 +10% = 하이닉스 +10% 이런 공식은 없습니다.\n왜냐하면 하이닉스 주가는\n엔비디아 + HBM 가격 + DRAM 가격 + 삼성전자 경쟁 + 환율 + 외국인 수급 + 한국 증시 분위기 를 동시에 반영하기 때문입니다.\n그래서 저는 엔비디아를 “하이닉스 주가의 선행 신호” 중 하나로 봅니다."
+        },
+        {
+          title: "④ 그렇다면 SK하이닉스 실적은 얼마나 좋아질까?",
+          content: "현재 실적만 보면 이미 엄청납니다. SK하이닉스는 2026년 2분기 매출 79조3,187억원, 영업이익 60조5,426억원을 기록했습니다. 영업이익률은 무려 76%였습니다.\n\n여기서 초보자분들이 꼭 알아야 할 게 있습니다.\n주가는 과거 실적보다 미래 실적을 더 중요하게 봅니다.\n예를 들어 “하이닉스가 올해 돈을 많이 벌었다” 이것보다 “내년에도 이 정도 돈을 계속 벌 수 있는가?”가 주가에는 더 중요합니다.\n\n그래서 앞으로 확인해야 할 것은 HBM4 판매 증가 + HBM 가격 + DRAM 가격 + 출하량 입니다.\n특히 SK하이닉스는 HBM뿐 아니라 AI 서버용 DRAM과 eSSD 등 고부가 제품에서도 강한 수익성을 보이고 있습니다. 즉, HBM 하나만 보는 것은 부족합니다."
+        },
+        {
+          title: "⑤ 지금 SK하이닉스 주가는 비싼가, 싼가?",
+          content: "이것도 초보자들이 가장 많이 하는 질문입니다. 그런데 반도체주는 일반 기업처럼 단순히 PER 하나만 보고 판단하면 위험합니다.\n메모리 산업은 원래\n호황 → 가격 상승 → 이익 증가 → 투자 확대 → 공급 증가 → 가격 하락 → 이익 감소\n라는 사이클을 반복하기 때문입니다.\n\n그런데 지금은 조금 다릅니다. AI 데이터센터 때문에 HBM이라는 고부가 메모리 시장이 크게 성장하고 있습니다.\n또한 SK하이닉스는 주요 고객들과 장기 공급계약을 확대하고 있습니다. 이것은 상당히 중요한 변화입니다.\n“만들어 놓고 팔 곳을 찾는 메모리”에서 “고객이 미리 물량을 확보하려는 메모리”로 시장 구조가 변할 가능성이 있기 때문입니다.\n따라서 SK하이닉스의 밸류에이션을 판단할 때는 단순히 현재 PER만 보는 것이 아니라 앞으로의 이익 증가율과 HBM 사업의 지속 가능성을 함께 봐야 합니다."
+        },
+        {
+          title: "⑥ 외국인과 기관 수급은 왜 중요한가?",
+          content: "실적이 좋아도 주가가 바로 오르는 것은 아닙니다. 주식은 결국 누가 사고 누가 파느냐가 중요합니다.\n특히 SK하이닉스처럼 시가총액이 큰 대형주는 외국인 자금의 영향을 크게 받습니다.\n\n따라서 하이닉스를 볼 때\n① 외국인 순매수 ② 기관 순매수 ③ 거래대금 ④ 주가 상승폭 을 같이 봐야 합니다.\n예를 들어 [엔비디아 상승 + 미국 반도체주 상승 + 마이크론 상승 + 외국인 하이닉스 순매수]가 동시에 발생한다면 상당히 좋은 조합입니다.\n반대로 [엔비디아 상승 + 미국 반도체주 상승]인데 [하이닉스 외국인 매도]라면 “미국 AI 분위기는 좋은데 한국 시장에서는 이미 기대감이 주가에 반영된 것 아닌가?”라고 의심해야 합니다."
+        },
+        {
+          title: "⑦ 삼성전자와 SK하이닉스 중 누가 더 좋은가?",
+          content: "이 질문도 미국 시장과 연결하면 훨씬 쉽게 이해할 수 있습니다.\n현재 투자자들이 보는 핵심은 HBM 경쟁력과 AI 메모리 수익성입니다.\nSK하이닉스는 HBM 분야에서 오랫동안 강한 위치를 유지해왔습니다. 2026년 1분기 글로벌 HBM 시장에서 SK하이닉스의 매출 기준 점유율은 약 58%로 삼성전자와 마이크론을 앞선 것으로 집계됐습니다.\n\n하지만 삼성전자를 무시하면 안 됩니다. 최근 HBM4 경쟁은 더욱 치열해지고 있고, 삼성전자의 HBM4 공급 확대 가능성도 커지고 있습니다.\n따라서 앞으로 중요한 것은 “SK하이닉스가 HBM 시장에서 1등을 계속 유지할 수 있는가?”입니다. 이것이 깨지기 시작하면 하이닉스의 프리미엄도 줄어들 수 있습니다."
+        },
+        {
+          title: "⑧ 메모리 슈퍼사이클은 언제까지 갈까?",
+          content: "제가 가장 조심스럽게 보는 부분입니다. 현재 AI 투자는 강합니다. 하지만 영원히 강할 수는 없습니다.\n미국 데이터센터 업체들이 AI 서버를 계속 증설하면 메모리 수요가 증가하지만, [AI 투자 증가 → 메모리 가격 상승 → 3사 생산 확대 → 공급 증가]가 발생합니다.\n결국 어느 순간 공급이 수요를 따라잡으면 가격 상승세가 둔화될 수 있습니다.\n\n따라서 저는 2026~2027년을 무조건적인 상승 구간이라고 단정하지 않습니다. 오히려 “AI 수요가 강한 동안 얼마나 높은 가격과 수익성을 유지하느냐”가 핵심입니다.\n현재 SK하이닉스는 AI 인프라 투자와 고부가 메모리 수요가 내년 이후에도 견조할 것으로 보고 있으며, CEO 역시 최근 메모리 부족이 2030년까지 이어질 가능성을 언급했습니다. 다만 이것은 회사의 전망이지 확정된 미래는 아닙니다."
+        },
+        {
+          title: "⑨ 그렇다면 SK하이닉스의 가장 큰 위험은?",
+          content: "여기서는 냉정하게 봐야 합니다.\n\n• 첫 번째 위험: 엔비디아 AI 투자가 둔화되는 것 (가장 큼)\n• 두 번째 위험: 삼성전자와 마이크론의 HBM 경쟁력 상승\n• 세 번째 위험: AI 칩의 HBM 탑재량 감소\n• 네 번째 위험: 주가가 실적보다 먼저 너무 많이 올라가는 것\n\n회사가 아무리 좋은 실적을 내더라도 기대가 이미 주가에 너무 많이 들어가 있다면 실적 발표 후 주가가 오히려 떨어질 수 있습니다. 좋은 기업 = 무조건 좋은 매수가격 은 아닙니다."
+        },
+        {
+          title: "⑩ 그래서 실제 매수 타점은 어디인가?",
+          content: "기업 분석과 매매 타점은 분리해서 봐야 합니다.\n\n1단계 — 미국 시장: 엔비디아 → 마이크론 → 필라델피아 반도체지수 → 미국 AI 데이터센터 투자 확인\n2단계 — 메모리 시장: HBM 가격, DRAM 가격, HBM4 공급, 메모리 공급 부족 여부 확인\n3단계 — SK하이닉스: 실적 전망 → HBM4 출하량 → 영업이익 전망 → 외국인·기관 수급 확인\n4단계 — 마지막 차트: 20일선, 60일선, 볼린저밴드, 거래량 등으로 실제 진입 타점 포착\n\n미국 시장이 먼저 방향을 알려주고 → 실적이 확인되고 → 수급이 들어오고 → 차트에서 타점을 잡는 방식입니다."
+        },
+        {
+          title: "🔥 10가지를 하나로 연결하면 & 🎯 현재 판단",
+          content: "미국 빅테크 AI 투자 지속 → 엔비디아 GPU 수요 증가 → 차세대 루빈 HBM4 중요성 확대 → SK하이닉스 HBM4 양산 및 고부가 제품 비중 확대 → 실적 및 이익 지속 → 외국인 수급 유입 → 주가 추가 상승\n(그러나 경쟁 심화, 공급 과잉, 투자 둔화 시 사이클 꺾임 주의)\n\n현재 확인되는 데이터만 보면 AI 수요 자체가 무너지고 있다는 신호보다 견조한 수요가 이어진다는 신호가 더 많습니다. 다만 “AI가 좋으니까 하이닉스는 무조건 오른다”가 아니라 앞으로 좋아질 정도보다 주가가 덜 올라갔는가를 냉정하게 판단해야 합니다."
+        },
+        {
+          title: "🐜 한마디로 정리하면",
+          content: "미국에서 엔비디아가 돈을 벌고 빅테크가 AI 투자를 늘려 HBM이 더 필요해지고, SK하이닉스가 HBM4를 공급해 이익이 늘고 외인이 매수하면 주가가 상승합니다. 반대로 AI 투자가 꺾이면 하락합니다.\n따라서 SK하이닉스만 보면 안 되고 미국의 엔비디아와 마이크론을 반드시 함께 봐야 합니다."
         }
       ];
     }
 
-    // 🚀 [Flexbox 구조: G 배지와 글자가 절대 겹치지 않는 완전 안전 레이아웃]
+    // 🚀 [G 마크 기반 순수 텍스트 타이핑 출력 엔진]
     function startTypewriterFlow(stockName) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -636,17 +714,14 @@
 
         const sec = sections[secIdx];
         
-        // flex 구조로 배지와 본문이 나란히 배치되어 겹침이 원천 차단됨
+        // 원형 G 마크 배지 + 제목 + 본문 텍스트 바로 배치
         const textBlock = document.createElement('div');
-        textBlock.className = "flex items-start gap-3 sm:gap-4 animate-fade";
+        textBlock.className = "relative pl-11 sm:pl-12 animate-fade";
         textBlock.innerHTML = `
-          <div class="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-black flex items-center justify-center font-black text-base sm:text-lg leading-none shadow-md mt-0.5">G</div>
-          <div class="space-y-2.5 flex-1 min-w-0">
-            <h3 class="font-black text-lg sm:text-xl text-white tracking-tight leading-snug">${sec.title}</h3>
-            <p id="p-content-${secIdx}" class="text-lg sm:text-xl text-white font-extrabold leading-snug whitespace-pre-line typing-cursor"></p>
-            <div id="tags-${secIdx}" class="flex flex-wrap gap-2 pt-1.5 hidden">
-              ${(sec.tags || []).map(t => `<span class="bg-[#2a1315] border border-[#ef4444]/40 text-[#f87171] font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-xl shadow-sm tracking-tight">${t}</span>`).join('')}
-            </div>
+          <div class="absolute left-0 top-0.5 w-8 h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm">G</div>
+          <div class="space-y-2">
+            ${sec.title ? `<h4 class="font-black text-base text-[#0f172a] dark:text-white flex items-center gap-1.5">${sec.title}</h4>` : ''}
+            <p id="p-content-${secIdx}" class="text-sm sm:text-base text-[#334155] dark:text-[#e4e4e7] leading-7 whitespace-pre-line typing-cursor"></p>
           </div>
         `;
         mainContainer.appendChild(textBlock);
@@ -664,8 +739,6 @@
             setTimeout(typeChunk, 6);
           } else {
             pEl.classList.remove('typing-cursor');
-            const tagEl = document.getElementById(`tags-${secIdx}`);
-            if (tagEl) tagEl.classList.remove('hidden');
             secIdx++;
             setTimeout(typeNextSection, 100);
           }
@@ -677,22 +750,22 @@
       typeNextSection();
     }
 
-    // 🌟 실전 전략 3인방 카드 블록 (Flexbox 적용으로 겹침 원천 차단)
+    // 1번 사진과 완벽 일치하는 실전 전략 3인방 카드 블록
     function renderStrategySelectionBlock(wrapperId, stockName) {
       const chatArea = document.getElementById('chatArea');
       const container = document.getElementById(wrapperId);
 
       const hoodieDiv = document.createElement('div');
-      hoodieDiv.className = "flex items-start gap-3 sm:gap-4 animate-fade pt-2";
+      hoodieDiv.className = "relative pl-11 sm:pl-12 animate-fade pt-2";
       hoodieDiv.innerHTML = `
-        <div class="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-black flex items-center justify-center font-black text-base sm:text-lg leading-none shadow-md mt-1">G</div>
-        <div class="space-y-5 flex-1 min-w-0">
+        <div class="absolute left-0 top-3 w-8 h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs shadow-sm">G</div>
+        <div class="space-y-5">
           <div class="pb-1">
-            <h3 class="font-black text-base sm:text-lg text-white">내 투자 스타일에 맞는 실전 gaemiGTP 전략을 확인하세요.</h3>
+            <h3 class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 실전 gaemiGTP 전략을 확인하세요.</h3>
           </div>
 
           <div class="space-y-3 pt-1">
-            <!-- 서학개미 (US 태그) -->
+            <!-- 서학개미 (1번 사진 완벽 일치: US 태그) -->
             <div class="space-y-2">
               <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -718,7 +791,7 @@
               <div id="dash-slot-서학" class="hidden animate-fade"></div>
             </div>
 
-            <!-- 국장개미 (KR 태그) -->
+            <!-- 국장개미 (1번 사진 완벽 일치: KR 태그) -->
             <div class="space-y-2">
               <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="strat-card w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#18181b] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] hover:bg-[#f8fafc] dark:hover:bg-[#202126] transition relative cursor-pointer shadow-sm">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
