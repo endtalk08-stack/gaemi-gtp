@@ -11,6 +11,7 @@ import re
 app = Flask(__name__)
 CORS(app)
 
+# 주요 인기 종목 바로가기 사전 (초고속 캐싱)
 TICKERS = {
     '삼성전자': '005930.KS',
     'SK하이닉스': '000660.KS',
@@ -21,6 +22,25 @@ TICKERS = {
     '애플': 'AAPL',
     '비트코인': 'BTC-USD'
 }
+
+# 1. 네이버 금융 전 종목(2,500개) 실시간 코드 검색 함수
+def search_krx_code(stock_name):
+    try:
+        encoded_query = urllib.parse.quote(stock_name.encode('euc-kr'))
+        url = f"https://finance.naver.com/search/searchList.naver?query={encoded_query}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://finance.naver.com/'
+        }
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            html = resp.read().decode('euc-kr', 'replace')
+            matches = re.findall(r'/item/main\.naver\?code=(\d{6})', html)
+            if matches:
+                return matches[0]  # 최상단 일치 종목 코드 반환
+    except Exception:
+        pass
+    return None
 
 def fetch_realtime_news(stock_name):
     try:
@@ -43,7 +63,6 @@ def fetch_realtime_news(stock_name):
         return []
 
 def fetch_krx_supply_demand(code_six):
-    # 검증 완료된 네이버 증권 외국인/기관 실시간 수급 스크래핑
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
@@ -58,8 +77,8 @@ def fetch_krx_supply_demand(code_six):
                 row_html = match.group(0)
                 tds = row_html.split('<td')
                 if len(tds) > 7:
-                    inst_clean = re.sub(r'<[^>]+>', '', tds[6]).strip().replace(',', '').replace('+', '')
-                    foreign_clean = re.sub(r'<[^>]+>', '', tds[7]).strip().replace(',', '').replace('+', '')
+                    inst_clean = re.sub(r'[^0-9\-]', '', tds[6])
+                    foreign_clean = re.sub(r'[^0-9\-]', '', tds[7])
                     
                     if inst_clean and foreign_clean:
                         inst_val = int(inst_clean)
@@ -78,7 +97,6 @@ def format_shares(n):
         return f"{sign}{n / 10000:,.1f}만 주"
     return f"{sign}{n:,}주"
 
-# 한국 주식 호가 단위 버림 계산
 def round_krw_tick(price):
     if price >= 500_000:
         return int(price // 1000) * 1000
@@ -111,18 +129,58 @@ def get_economic_calendar_comment(stock_name):
 
 @app.route('/')
 def home():
-    return "gaemiGTP 수급 & 시세 엔진 정상 가동 중!"
+    return "gaemiGTP 전 종목 검색 & 수급 엔진 정상 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
-    stock_name = request.args.get('stock', 'SK하이닉스').strip()
-    ticker_symbol = TICKERS.get(stock_name, stock_name)
+    raw_name = request.args.get('stock', 'SK하이닉스').strip()
+    ticker_symbol = TICKERS.get(raw_name)
+    hist = None
 
     try:
-        ticker = yf.Ticker(ticker_symbol)
-        hist = ticker.history(period="1mo")
-        if hist.empty: raise ValueError("데이터 없음")
+        # 1. 티커 심볼 및 주가 데이터 동적 탐색
+        if ticker_symbol:
+            ticker = yf.Ticker(ticker_symbol)
+            hist = ticker.history(period="1mo")
+        else:
+            # A. 6자리 종목코드 직접 입력된 경우 (예: 005380)
+            if re.match(r'^\d{6}$', raw_name):
+                code = raw_name
+                t_ks = yf.Ticker(f"{code}.KS")
+                h_ks = t_ks.history(period="1mo")
+                if not h_ks.empty:
+                    ticker, hist, ticker_symbol = t_ks, h_ks, f"{code}.KS"
+                else:
+                    t_kq = yf.Ticker(f"{code}.KQ")
+                    h_kq = t_kq.history(period="1mo")
+                    if not h_kq.empty:
+                        ticker, hist, ticker_symbol = t_kq, h_kq, f"{code}.KQ"
 
+            # B. 영문 티커 (예: AMD, PLTR, MSFT)
+            elif re.match(r'^[A-Za-z\-]+$', raw_name):
+                ticker_symbol = raw_name.upper()
+                ticker = yf.Ticker(ticker_symbol)
+                hist = ticker.history(period="1mo")
+
+            # C. 한글 종목명 (네이버 금융 2,500개 전 종목 자동 매핑)
+            else:
+                found_code = search_krx_code(raw_name)
+                if found_code:
+                    # 코스피(.KS) 먼저 시도 후 코스닥(.KQ) 검증
+                    t_ks = yf.Ticker(f"{found_code}.KS")
+                    h_ks = t_ks.history(period="1mo")
+                    if not h_ks.empty:
+                        ticker, hist, ticker_symbol = t_ks, h_ks, f"{found_code}.KS"
+                    else:
+                        t_kq = yf.Ticker(f"{found_code}.KQ")
+                        h_kq = t_kq.history(period="1mo")
+                        if not h_kq.empty:
+                            ticker, hist, ticker_symbol = t_kq, h_kq, f"{found_code}.KQ"
+
+        if hist is None or hist.empty:
+            raise ValueError("데이터 없음")
+
+        # 2. 가격 및 변동률 산출
         current_price = hist['Close'].iloc[-1]
         prev_close = hist['Close'].iloc[-2] if len(hist) >= 2 else current_price
         change_pct = ((current_price - prev_close) / prev_close) * 100
@@ -141,8 +199,9 @@ def analyze():
 
         is_up = change_pct >= 0
 
-        news_list = fetch_realtime_news(stock_name)
-        main_news = news_list[0] if len(news_list) > 0 else f"{stock_name} 관련 메이저 재료 포착"
+        # 3. 실시간 뉴스 및 수급 수집
+        news_list = fetch_realtime_news(raw_name)
+        main_news = news_list[0] if len(news_list) > 0 else f"{raw_name} 관련 메이저 재료 포착"
 
         clean_code = ''.join(filter(str.isdigit, ticker_symbol))
         indiv, foreign, inst = (None, None, None)
@@ -155,15 +214,15 @@ def analyze():
             indiv_str = format_shares(indiv)
 
             if foreign > 0 and inst > 0:
-                flow_msg = "외인과 기관이 쌍끌이 순매수로 물량을 쓸어 담고 있어! 추가 상승 탄력 기대해볼 만해."
+                flow_msg = "외인과 기관이 쌍끌이 순매수로 물량을 쓸어 담고 있어! 추가 상승 탄력 기대해볼 만해."[cite: 1]
             elif foreign < 0 and inst < 0:
-                flow_msg = "외인과 기관이 동반 차익 매도 중이야. 개인만 물량을 받아내고 있으니 무리한 추격매수는 조심해!"
+                flow_msg = "외인과 기관이 동반 차익 매도 중이야. 개인만 물량을 받아내고 있으니 무리한 추격매수는 조심해!"[cite: 1]
             elif foreign > 0:
-                flow_msg = "외국인 중심의 순매수가 들어오며 주가 하방을 탄탄하게 지지해 주고 있어."
+                flow_msg = "외국인 중심의 순매수가 들어오며 주가 하방을 탄탄하게 지지해 주고 있어."[cite: 1]
             elif inst > 0:
-                flow_msg = "기관 중심의 순매수가 들어오며 저가 물량을 영리하게 모아가는 흐름이야."
+                flow_msg = "기관 중심의 순매수가 들어오며 저가 물량을 영리하게 모아가는 흐름이야."[cite: 1]
             else:
-                flow_msg = "개인과 세력 간의 팽팽한 눈치싸움 공방전이 벌어지고 있어."
+                flow_msg = "개인과 세력 간의 팽팽한 눈치싸움 공방전이 벌어지고 있어."[cite: 1]
 
             supply_content = (
                 f"🔥실시간 수급 팩트 체크:\n"
@@ -181,8 +240,8 @@ def analyze():
         sections = [
             {
                 "title": f"{'🔥' if is_up else '❄️'} 그래서 오늘은 왜 {'올랐어' if is_up else '숨고르기일까'}?",
-                "content": f"개미들아! {stock_name} {change_pct:+.2f}% {'상승' if is_up else '하락'}중이야!!!\n현재 실시간 주가는 {price_str} 기록 중!\n\n오늘 터진 핵심 뉴스 헤드라인이야:\n📰 \"{main_news}\"\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!",
-                "tags": [f"#{stock_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
+                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {'상승' if is_up else '하락'}중이야!!!\n현재 실시간 주가는 {price_str} 기록 중!\n\n오늘 터진 핵심 뉴스 헤드라인이야:\n📰 \"{main_news}\"\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!",
+                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
                 "title": "지금 세력은 사고 있어, 팔고 있어?",
@@ -194,7 +253,7 @@ def analyze():
             },
             {
                 "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
-                "content": get_economic_calendar_comment(stock_name)
+                "content": get_economic_calendar_comment(raw_name)
             }
         ]
         return jsonify({"sections": sections})
