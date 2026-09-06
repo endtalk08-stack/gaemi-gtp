@@ -62,7 +62,6 @@ TICKERS = {
     '비트코인': 'BTC-USD'
 }
 
-# 네이버 자동완성 API를 통한 2,500개 전 종목 코드 실시간 검색
 def search_krx_code(stock_name):
     try:
         url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
@@ -101,7 +100,6 @@ def fetch_realtime_news(stock_name):
         return []
 
 def fetch_krx_supply_demand(code_six):
-    # 1순위: 네이버 금융 실시간 표 스크래핑
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
@@ -128,7 +126,6 @@ def fetch_krx_supply_demand(code_six):
     except Exception as e:
         print("네이버 수급 에러:", e)
 
-    # 2순위: 다음 금융 API 백업
     try:
         url = f"https://finance.daum.net/api/investor/days?symbolCode=A{code_six}&page=1&perPage=1"
         req = urllib.request.Request(url, headers={
@@ -198,7 +195,6 @@ def analyze():
     hist = None
 
     try:
-        # 1. 티커 심볼 판별 및 데이터 가져오기
         if ticker_symbol:
             clean_code = ''.join(filter(str.isdigit, ticker_symbol))
             ticker = yf.Ticker(ticker_symbol)
@@ -227,7 +223,6 @@ def analyze():
         if hist is None or hist.empty:
             raise ValueError("주가 데이터 조회 실패")
 
-        # 2. 가격 및 변동률 계산
         current_price = hist['Close'].iloc[-1]
         prev_close = hist['Close'].iloc[-2] if len(hist) >= 2 else current_price
         change_pct = ((current_price - prev_close) / prev_close) * 100
@@ -246,7 +241,6 @@ def analyze():
 
         is_up = change_pct >= 0
 
-        # 3. 실시간 뉴스 및 수급 수집
         news_list = fetch_realtime_news(raw_name)
         main_news = news_list[0] if len(news_list) > 0 else f"{raw_name} 관련 메이저 재료 포착"
 
@@ -255,11 +249,6 @@ def analyze():
             indiv, foreign, inst = fetch_krx_supply_demand(clean_code)
 
         if foreign is not None and inst is not None and (foreign != 0 or inst != 0):
-            foreign_str = format_shares(foreign)
-            inst_str = format_shares(inst)
-            indiv_str = format_shares(indiv)
-
-            # 문맥에 자연스럽게 녹이기 위한 부호 없는 절대값 수치 생성
             f_abs = format_shares(abs(foreign)).replace('+', '')
             i_abs = format_shares(abs(inst)).replace('+', '')
             ind_abs = format_shares(abs(indiv)).replace('+', '')
@@ -275,13 +264,8 @@ def analyze():
             else:
                 flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! 세력들 눈치싸움 팽팽하다."
 
-            supply_content = (
-                f"🔥실시간 수급 팩트 체크:\n"
-                f"• 외국인: {foreign_str}\n"
-                f"• 기  관: {inst_str}\n"
-                f"• 개  인: {indiv_str}\n\n"
-                f"{flow_msg}"
-            )
+            # 중복 리스트를 제거하고 멘트만 시원하게 출력
+            supply_content = flow_msg
         else:
             supply_content = (
                 f"🔥수급 레이더: 메이저 세력들의 차익 실현과 신규 매집이 맞물리는 구간이야!\n"
