@@ -486,7 +486,6 @@
       document.getElementById('upgradeModal').classList.add('hidden');
     }
 
-    // ★ 수정 포인트 1: 로딩 유지 시간 연장 및 점프 개미로 트랜지션
     function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
@@ -498,13 +497,11 @@
       appendUserQuery(stockName);
       const loaderInfo = appendCenteredAntLoader(stockName);
 
-      // 분석 로딩 시간을 0.7초에서 2.5초로 연장
       setTimeout(() => {
         if (loaderInfo.timerId) clearInterval(loaderInfo.timerId);
         
         const loaderEl = document.getElementById(loaderInfo.id);
         if (loaderEl) {
-          // 박스를 지우지 않고 춤추는 개미 아이콘으로 변신시킵니다.
           loaderEl.className = "flex justify-center pb-2 animate-fade";
           loaderEl.innerHTML = `
             <div class="inline-flex items-center gap-2.5 bg-white dark:bg-[#1e1f24] text-[#0f172a] dark:text-white px-5 py-2.5 rounded-full text-sm font-bold border border-[#cbd5e1] dark:border-[#3f3f46] shadow-sm">
@@ -514,7 +511,6 @@
           `;
         }
 
-        // 로더 아이디를 넘겨주어 글이 다 작성되면 삭제하도록 합니다.
         startTypewriterFlow(stockName, loaderInfo.id);
       }, 2500); 
     }
@@ -575,23 +571,23 @@
             content: "개미들아! 삼성전자 -2% 하락중이야!!!\n DRAM 레거시 공급 과잉 우려 및 외국인 수급 관망세 지속\n차세대 HBM4 퀄테스트 통과 기대감이 유입되며 20일선 부근에서 강력한 하방 경직성을 형성하고 있습니다.\n\n#HBM4퀄테스트 #외인수급관망 #20일선지지 #기술적반등"
           },
           {
-            title: "① 지금 세력은 사고 있어, 팔고 있어?",
+            title: "지금 세력은 사고 있어, 팔고 있어?",
             content: "삼성전자는 현재 HBM3E 공급 확대와 차세대 커스텀 HBM4 진입 시점이 가장 중요한 변곡점입니다.\n외국인 수급이 단기적으로 관망세를 보이고 있으나, 파운드리 적자 축소와 메모리 단가 회복이 실적의 바닥을 지지하고 있습니다."
           },
           {
-            title: "② 여기 깨지면 도망쳐라!",
+            title: "여기 깨지면 도망쳐라!",
             content: "> 🛡️ **생존 지지선**: 12,000원 이 가격이 깨지면 투매가 나올 수 있으니 비중을 줄여야될걸!\n> 🧱 **악성 매물대**: 14,500원 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
           },
           {
             title: "🐜 오늘 밤, 내일 무슨 일이 있나?",
-            content: "📅 **주의 일정**: 내일(목) 미국 CPI 발표가 있오!\n>📝 **공시 체크**: 3일 뒤 대규모 보호예수 물량(전환사채) 상장이 예정되어 있으니 오버나잇(밤샘 보유)에 주의해랔!
+            content: "📅 **주의 일정**: 내일(목) 미국 CPI 발표가 있오!\n>📝 **공시 체크**: 3일 뒤 대규모 보호예수 물량(전환사채) 상장이 예정되어 있으니 오버나잇(밤샘 보유)에 주의해랔!"
           }
         ];
       } else if (stockName === '엔비디아' || stockName.toUpperCase() === 'NVDA') {
         return [
           {
             title: "🔥 오늘 왜 올랐어?",
-            content: "개미들아! 엔비디아 +8% 상승중이야!!!\nn차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대 지속\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있습니다.\n\n#블랙웰수요폭증 #빅테크AI투자 #목표주가상향 #글로벌주도주"
+            content: "개미들아! 엔비디아 +8% 상승중이야!!!\n차세대 AI 칩 수요 폭발 및 빅테크 AI 데이터센터 투자 확대 지속\n월가 주요 투자은행들의 목표주가 일제 상향 조정과 함께 글로벌 AI 모멘텀이 강화되며 상승을 주도하고 있습니다.\n\n#블랙웰수요폭증 #빅테크AI투자 #목표주가상향 #글로벌주도주"
           },
           {
             title: "① AI 데이터센터 메가트렌드",
@@ -694,7 +690,6 @@
       ];
     }
 
-    // ★ 수정 포인트 2 & 3: 타자치는 동안 캐릭터 연출 및 강제 스크롤 금지
     function startTypewriterFlow(stockName, loaderId) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -709,7 +704,6 @@
 
       function typeNextSection() {
         if (secIdx >= sections.length) {
-          // 글이 모두 끝나면 상단에 있던 춤추는 개미 삭제
           if (loaderId) {
             const lEl = document.getElementById(loaderId);
             if (lEl) lEl.remove();
@@ -741,8 +735,6 @@
           if (charIdx < text.length) {
             pEl.textContent += text.substr(charIdx, chunkSize);
             charIdx += chunkSize;
-            
-            // ★ 아래로 끌려내려가는 스크롤 기능 삭제 (사용자 시선 고정) ★
             setTimeout(typeChunk, 20);
           } else {
             pEl.classList.remove('typing-cursor');
@@ -757,7 +749,6 @@
       typeNextSection();
     }
 
-    // 전략 카드 부분에서도 강제 스크롤 삭제
     function renderStrategySelectionBlock(wrapperId, stockName) {
       const container = document.getElementById(wrapperId);
       const hoodieDiv = document.createElement('div');
@@ -859,7 +850,6 @@
       `;
 
       container.appendChild(hoodieDiv);
-      // 최종 카드가 렌더링될 때도 강제 스크롤 안 함으로써 독서를 방해하지 않습니다.
     }
 
     const strategyData = {
