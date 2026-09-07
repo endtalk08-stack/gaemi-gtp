@@ -110,7 +110,7 @@ def fetch_realtime_news(stock_name):
     except Exception:
         return []
 
-# [성능 최적화] 증권사 API 연결 전까지 웹 크롤링 수급 중단 (속도 대폭 향상)
+# [성능 최적화] 웹 크롤링 수급 중단 (속도 대폭 향상 - 증권사 API로 대체 예정)
 def fetch_krx_supply_demand(code_six):
     return None, None, None
 
@@ -137,15 +137,17 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
+# [복구 완료] 방화벽 우회 헤더 완벽 적용 (날짜 및 시간 표기 정상화)
 def fetch_live_macro_events():
     try:
         url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
         }
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             kst_tz = datetime.timezone(datetime.timedelta(hours=9))
             now_kst = datetime.datetime.now(kst_tz)
@@ -303,7 +305,7 @@ def analyze():
         news_list = fetch_realtime_news(raw_name)
         main_news = news_list[0] if len(news_list) > 0 else f"{raw_name} 관련 메이저 재료 포착"
 
-        # [변경점] 속도 저하를 유발하던 네이버 크롤링 부분 제거하고, 증권사 API 티저 멘트로 고정
+        # 속도 저하 방지용 수급 Bypass 멘트 유지
         supply_content = (
             "⚙️ 실시간 프로그램 수급 엔진 연동 준비 중!\n"
             "증권사 API 다이렉트 연결을 통해 더욱 정교한 틱 단위 세력 매수/매도 데이터를 제공할 예정입니다.\n"
