@@ -391,7 +391,7 @@ def analyze():
                 f_abs = format_shares(f_5d)
                 i_abs = format_shares(i_5d)
                 ind_abs = format_shares(ind_5d)
-                tag_line = f"#외국인 {f_abs}   #기관 {i_abs}   #개인 {ind_abs}"
+                tag_line = f"#외국인 {f_abs} #기관 {i_abs} #개인 {ind_abs}"
 
                 if f_5d > 0 and i_5d > 0:
                     supply_content = f"{tag_line}\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
