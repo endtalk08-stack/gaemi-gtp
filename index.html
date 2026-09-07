@@ -627,10 +627,10 @@
               formatted = formatted.replace(/#콜\(상승\)\s+([\d,.]+(?:만건|건))/g, `<span class="inline-block mr-4" style="color: #FF8DA1;">#콜(상승) $1</span>`);
               formatted = formatted.replace(/#풋\(하락\)\s+([\d,.]+(?:만건|건))/g, `<span class="inline-block mr-4" style="color: #38BDF8;">#풋(하락) $1</span>`);
               formatted = formatted.replace(/#베팅비율\s+([\d.]+)/g, `<span class="inline-block mr-4" style="color: #94a3b8;">#베팅비율 $1</span>`);
-            // 1섹션: 오직 등락률(+%, -%)만 핑크/파랑 적용 (종목명과 일반 태그는 색상 변경 없음)
+            // 1섹션: 등락률 태그 (+면 핑크, -면 파랑) 및 기본 해시태그
             } else {
-              formatted = formatted.replace(/(#[+-][\d,.]+%)/g, function(tag) {
-                let color = tag.includes('+') ? '#FF8DA1' : '#38BDF8';
+              formatted = formatted.replace(/(#[^\s#]+)/g, function(tag) {
+                let color = tag.includes('+') ? '#FF8DA1' : (tag.includes('-') ? '#38BDF8' : '#FF8DA1');
                 return `<span style="color: ${color};">${tag}</span>`;
               });
             }
