@@ -66,7 +66,6 @@ TICKERS = {
     '비트코인': 'BTC-USD'
 }
 
-# [핵심 엔진] 한국 종목과 미국 대장주의 밸류체인(테마) 매핑 사전
 THEME_CHAIN = {
     '반도체': {'us_boss': ['NVDA', 'MSFT', 'ORCL'], 'kr_kids': ['삼성전자', 'SK하이닉스', '한미반도체']},
     '2차전지': {'us_boss': ['TSLA'], 'kr_kids': ['LG에너지솔루션', '삼성SDI', '에코프로', '에코프로비엠', '포스코퓨처엠', 'LG화학']},
@@ -138,7 +137,6 @@ def fetch_krx_supply_demand(code_six):
     except Exception:
         pass
     
-    # 2순위 다음 API 호출 생략 (안정성 위주)
     return None, None, None
 
 def format_shares(n):
@@ -155,7 +153,6 @@ def round_krw_tick(price):
     elif price >= 10_000: return int(price // 50) * 50
     else: return int(price // 10) * 10
 
-# API 호출로 글로벌 대장주 실적이 이번 주에 있는지 확인하는 헬퍼 함수
 def check_us_boss_earnings(boss_ticker):
     if not FINNHUB_KEY: return None
     today = datetime.date.today()
@@ -177,7 +174,6 @@ def get_live_calendar_data(stock_name, ticker_symbol):
     macro_start = (today - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
     macro_end = (today + datetime.timedelta(days=3)).strftime('%Y-%m-%d')
     
-    # 내 실적 탐색 기간 30일로 대폭 확장
     earn_start = (today - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
     earn_end = (today + datetime.timedelta(days=30)).strftime('%Y-%m-%d')
 
@@ -187,7 +183,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
     if FINNHUB_KEY:
         is_us_stock = bool(re.match(r'^[A-Za-z]+$', ticker_symbol))
         
-        # 1. 미국 주식인 경우 자신의 30일 이내 실적 조회
+        # 1. 미국 주식 실적 조회
         if is_us_stock:
             try:
                 url = f"https://finnhub.io/api/v1/calendar/earnings?from={earn_start}&to={earn_end}&symbol={ticker_symbol}&token={FINNHUB_KEY}"
@@ -210,7 +206,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
             except Exception as e:
                 print("미국 실적 조회 에러:", e)
         
-        # 2. 한국 주식인 경우 -> 밸류체인 대장주(엔비디아, 테슬라 등) 실적 이번주에 있는지 체크
+        # 2. 한국 주식 밸류체인 체크
         else:
             for theme, chain in THEME_CHAIN.items():
                 if stock_name in chain['kr_kids']:
@@ -222,7 +218,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                             break
                 if earnings_msg: break
 
-        # 3. 미국 주요 거시 경제지표 발표 일정 조회 (단기 3일)
+        # 3. 미국 주요 거시 경제지표 시간 포함 변환 및 조회
         try:
             macro_url = f"https://finnhub.io/api/v1/calendar/economic?from={macro_start}&to={macro_end}&token={FINNHUB_KEY}"
             req = urllib.request.Request(macro_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -235,15 +231,32 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                     ev_name = ev.get('event', '미국 핵심 경제지표')
                     ev_est = ev.get('estimate')
                     ev_act = ev.get('actual')
+                    time_str = ev.get('time', '')
+                    
+                    # [핵심] UTC 시간을 한국 시간(KST)으로 변환하는 로직
+                    formatted_time = ""
+                    if time_str:
+                        try:
+                            # Finnhub 제공 시간 예: "2024-09-11 12:30:00" (UTC)
+                            utc_time = datetime.datetime.strptime(time_str[:19], '%Y-%m-%d %H:%M:%S')
+                            # UTC + 9시간 = 한국 시간(KST)
+                            kst_time = utc_time + datetime.timedelta(hours=9)
+                            weekdays = ['월', '화', '수', '목', '금', '토', '일']
+                            wd = weekdays[kst_time.weekday()]
+                            formatted_time = kst_time.strftime(f'%m/%d({wd}) %H:%M')
+                        except Exception as parse_e:
+                            print("시간 변환 에러:", parse_e)
+                            formatted_time = time_str
+                    
+                    time_display = f" [{formatted_time}]" if formatted_time else ""
 
                     if ev_act is not None:
-                        macro_msg = f"📅미국 경제지표 결과: {ev_name}\n• 실제치: {ev_act} | 예상치: {ev_est} (시장 실시간 반영 중)"
+                        macro_msg = f"📅미국 경제지표 결과: {ev_name}{time_display}\n• 실제치: {ev_act} | 예상치: {ev_est} (시장 실시간 반영 중)"
                     else:
-                        macro_msg = f"📅미국 경제지표 발표 대기: {ev_name}\n• 시장 예상치: {ev_est} (오늘 밤 발표 직후 나스닥 선물 체크!)"
+                        macro_msg = f"📅미국 경제지표 발표 대기: {ev_name}{time_display}\n• 시장 예상치: {ev_est} (발표 시간대 변동성 주의!)"
         except Exception as e:
             print("경제 일정 조회 에러:", e)
 
-    # 기본 대체 텍스트
     if not macro_msg:
         weekday = datetime.datetime.now().weekday()
         if weekday in [0, 1]: macro_msg = "📅주의 일정: 이번 주 미국 핵심 경제지표 및 주요 CPI 발표 대기 중!"
@@ -257,7 +270,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
 @app.route('/')
 def home():
-    return "gaemiGTP 전 종목 검색 & 밸류체인 레이더 정상 가동 중!"
+    return "gaemiGTP 전 종목 검색 & 밸류체인/시간변환 레이더 정상 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
