@@ -329,22 +329,22 @@ def analyze():
             price_str = f"${current_price:,.2f}"
             ma20_str = f"${ma20:,.2f}"
 
-        # 5단계 멘트 적용 (줄바꿈 추가, 이모지 배제, 담백한 구어체, 마침표 제거)
+        # 5단계 멘트 (1행: 팩트 헤드라인 / 2행: 개미들아! 호칭 및 티키타카)
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
+            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
         elif 0.5 <= change_pct < 5.0:
             status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n분위기 나쁘지 않은데? 이대로만 가자"
+            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
         elif -0.5 < change_pct < 0.5:
             status_emoji, title_word = '⚖️', '보합일까'
-            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네\n폭풍 전야처럼 조용한데?"
+            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네\n개미들아! 폭풍 전야처럼 조용한데?"
         elif -5.0 < change_pct <= -0.5:
             status_emoji, title_word = '❄️', '숨고르기일까'
-            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n물 한잔 마시고 차분하게 보자"
+            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
         else: # change_pct <= -5.0
             status_emoji, title_word = '❄️', '빠질까'
-            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지는데 형님들 멘탈 꽉 잡아\n지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
+            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
 
         news_list = fetch_realtime_news(raw_name)
         if news_list:
@@ -385,7 +385,7 @@ def analyze():
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
-                "title": "세력 형님들 지금 매집 중이야, 털고 있어?",
+                "title": "큰손들은 담고 있을까, 털고 있을까?",
                 "content": supply_content
             },
             {
