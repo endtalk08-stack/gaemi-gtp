@@ -615,8 +615,8 @@
             // 수급 해시태그 2색(핑크/블루) 및 굵기 적용
             if (formatted.includes('#외국인')) {
               formatted = formatted.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주))/g, function(_, name, val) {
-                let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : 'currentColor');
-                return `<span class="inline-block mr-4 font-bold text-[#0f172a] dark:text-white">#${name} <span style="color: ${color}; font-weight: 900;">${val}</span></span>`;
+                let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
+                return `<span class="inline-block mr-4 font-black" style="color: ${color};">#${name} ${val}</span>`;
               });
             } else {
               formatted = formatted.replace(/(#[^\s#]+)/g, '<span style="color: #FF8DA1; font-weight: 700;">$1</span>');
