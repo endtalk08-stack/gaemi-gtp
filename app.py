@@ -370,7 +370,7 @@ def analyze():
         resistance_price = 0.0
         supply_content = ""
 
-        # ---------------- 1. 국내 주식: 네이버 직접 연동 (차단 없음, 100% 실시간) ----------------
+        # ---------------- 1. 국내 주식: 네이버 직접 연동 ----------------
         if is_krw and clean_code:
             cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
@@ -433,12 +433,14 @@ def analyze():
                         pc_ratio = put_vol / call_vol
                         c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
                         p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
-                        tag_line = f"#콜(상승) {c_str}   #풋(하락) {p_str}   #베팅비율 {pc_ratio:.2f}"
+                        
+                        # 요청 반영: (상승), (하락), 베팅 단어 삭제
+                        tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
 
                         if pc_ratio <= 0.7:
-                            supply_content = f"{tag_line}\n\n최근 5일간 월가 큰손들이 상방 쪽에 강하게 베팅하고 있어!\n콜옵션(상승) 거래량이 풋옵션(하락)을 압도하면서 위로 쏠릴 준비를 하고 있으니 탄력 한번 기대해 보자."
+                            supply_content = f"{tag_line}\n\n최근 5일간 월가 큰손들이 상방 쪽에 강하게 베팅하고 있어!\n콜옵션 거래량이 풋옵션을 압도하면서 위로 쏠릴 준비를 하고 있으니 탄력 한번 기대해 보자."
                         elif pc_ratio >= 1.1:
-                            supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션(하락) 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
+                            supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
                         else:
                             supply_content = f"{tag_line}\n\n최근 5일간 월가 세력들이 팽팽하게 눈치싸움 중이야.\n상승과 하락 양쪽에 돈이 비슷하게 걸려 있는 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
             except Exception:
