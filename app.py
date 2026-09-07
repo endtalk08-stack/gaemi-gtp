@@ -105,7 +105,7 @@ def search_krx_code(stock_name):
     return None, None
 
 def fetch_yahoo_direct_v8(ticker_str):
-    """야후 실시간 meta 데이터와 차트를 동시 파싱하여 실시간 현재가 추출"""
+    """야후 차트 API에서 '전일 종가(closes[-2])'를 정확히 추출하여 당일 등락률 산출"""
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker_str}?range=1mo&interval=1d"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
@@ -114,24 +114,16 @@ def fetch_yahoo_direct_v8(ticker_str):
             data = json.loads(resp.read().decode('utf-8'))
             res = data.get('chart', {}).get('result', [])
             if res:
-                meta = res[0].get('meta', {})
                 quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
                 closes = [c for c in quotes.get('close', []) if c is not None and not math.isnan(c)]
                 highs = [h for h in quotes.get('high', []) if h is not None and not math.isnan(h)]
 
-                # 실시간 마켓 가격을 1순위로 가져옴
-                cur_p = meta.get('regularMarketPrice')
-                prev_p = meta.get('chartPreviousClose') or meta.get('previousClose')
-
-                if not cur_p and closes:
-                    cur_p = float(closes[-1])
-                if not prev_p and len(closes) >= 2:
-                    prev_p = float(closes[-2])
-
-                if cur_p:
-                    ma20 = sum(closes) / len(closes) if closes else cur_p
+                if len(closes) >= 2:
+                    cur_p = float(closes[-1])   # 오늘 종가 (1,783,000원)
+                    prev_p = float(closes[-2])  # 어제 종가 (1,647,000원)
+                    ma20 = sum(closes) / len(closes)
                     res_p = max(highs) if highs else cur_p * 1.05
-                    return float(cur_p), float(prev_p), float(ma20), float(res_p)
+                    return cur_p, prev_p, ma20, res_p
     except Exception as e:
         print("야후 v8 조회 실패:", e)
     return None, None, None, None
