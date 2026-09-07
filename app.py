@@ -136,37 +136,49 @@ def fetch_realtime_news(stock_name):
 
 def fetch_krx_5d_supply_demand(code_six):
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': f'https://finance.naver.com/item/main.naver?code={code_six}'
-        }
-        url = f"https://finance.naver.com/item/frgn.naver?code={code_six}"
-        req = urllib.request.Request(url, headers=headers)
+        url = f"https://m.stock.naver.com/api/stock/{code_six}/investor?page=1&pageSize=5"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=5) as resp:
-            html = resp.read().decode('euc-kr', 'replace')
-            rows = re.findall(r'<tr[^>]*>\s*<td class="tc">\s*<span class="tah p10 gray03">\d{4}\.\d{2}\.\d{2}</span>.*?</tr>', html, re.DOTALL)
+            data = json.loads(resp.read().decode('utf-8'))
             
-            if rows:
+            if data and isinstance(data, list):
                 sum_inst = 0
                 sum_foreign = 0
-                valid_days = 0
+                valid_days = len(data)
 
-                for r in rows[:5]:
-                    tds = r.split('<td')
-                    if len(tds) > 7:
-                        inst_clean = re.sub(r'[^0-9\-]', '', tds[6])
-                        foreign_clean = re.sub(r'[^0-9\-]', '', tds[7])
-                        if inst_clean and foreign_clean and inst_clean != '-' and foreign_clean != '-':
-                            sum_inst += int(inst_clean)
-                            sum_foreign += int(foreign_clean)
-                            valid_days += 1
+                for row in data:
+                    frgn = str(row.get('frgnPureBuyQuant', '0')).replace(',', '')
+                    insti = str(row.get('instiPureBuyQuant', '0')).replace(',', '')
+                    sum_foreign += int(frgn)
+                    sum_inst += int(insti)
 
                 if valid_days > 0:
                     sum_indiv = -(sum_inst + sum_foreign)
                     return sum_indiv, sum_foreign, sum_inst, valid_days
     except Exception as e:
-        print("5일 수급 집계 에러:", e)
+        print("모바일 5일 수급 집계 에러:", e)
     return None, None, None, 0
+
+def fetch_us_put_call_ratio(ticker_obj):
+    try:
+        opts = ticker_obj.options
+        if not opts:
+            return None
+        
+        opt = ticker_obj.option_chain(opts[0])
+        calls = opt.calls
+        puts = opt.puts
+        
+        call_vol = calls['volume'].sum() if 'volume' in calls else 0
+        put_vol = puts['volume'].sum() if 'volume' in puts else 0
+        
+        if call_vol == 0:
+            return None
+            
+        return put_vol / call_vol
+    except Exception as e:
+        print("미국 옵션 수급 집계 에러:", e)
+        return None
 
 def format_shares(n):
     if n is None: return "0주"
@@ -318,18 +330,28 @@ def analyze():
         change_pct = ((current_price - prev_close) / prev_close) * 100
         ma20 = hist['Close'].mean()
 
+        # 최근 1개월(20거래일) 중 최대 거래량 터진 날의 종가를 악성 매물대 가격으로 산출
+        if 'Volume' in hist.columns and hist['Volume'].sum() > 0:
+            max_vol_date = hist['Volume'].idxmax()
+            resistance_price = hist.loc[max_vol_date, 'Close']
+        else:
+            resistance_price = hist['High'].max()
+
         is_krw = ('-' not in ticker_symbol and ticker_symbol.endswith(('.KS', '.KQ')))
         
         if is_krw:
             clean_price = round_krw_tick(current_price)
             clean_ma20 = round_krw_tick(ma20)
+            clean_res = round_krw_tick(resistance_price)
             price_str = f"{clean_price:,}원"
-            ma20_str = f"₩{clean_ma20:,}"
+            ma20_str = f"{clean_ma20:,}원"
+            res_str = f"{clean_res:,}원"
         else:
             price_str = f"${current_price:,.2f}"
             ma20_str = f"${ma20:,.2f}"
+            res_str = f"${resistance_price:,.2f}"
 
-        # 5단계 멘트 (1행: 팩트 헤드라인 / 2행: 개미들아! 호칭 및 티키타카)
+        # 1섹션: 5단계 멘트
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
@@ -352,36 +374,46 @@ def analyze():
         else:
             news_lines = f"📰 \"{raw_name} 관련 메이저 재료 포착\""
 
-        indiv_5d, foreign_5d, inst_5d, days = (None, None, None, 0)
-        if clean_code and len(clean_code) == 6:
-            indiv_5d, foreign_5d, inst_5d, days = fetch_krx_5d_supply_demand(clean_code)
+        # 2섹션: 한국 수급(네이버 모바일) vs 미국 수급(옵션 Put/Call 비율)
+        if is_krw:
+            indiv_5d, foreign_5d, inst_5d, days = fetch_krx_5d_supply_demand(clean_code) if clean_code else (None, None, None, 0)
+            if foreign_5d is not None and inst_5d is not None and days > 0:
+                f_abs = format_shares(foreign_5d)
+                i_abs = format_shares(inst_5d)
+                ind_abs = format_shares(indiv_5d)
 
-        if foreign_5d is not None and inst_5d is not None and days > 0:
-            f_abs = format_shares(foreign_5d)
-            i_abs = format_shares(inst_5d)
-            ind_abs = format_shares(indiv_5d)
-
-            if foreign_5d > 0 and inst_5d > 0:
-                supply_content = f"🔥 쌍끌이 매집 폭발!\n최근 5일간 외놈들이 {f_abs}, 기관행님들이 {i_abs}를 미친 듯이 쓸어 담으며 바닥을 단단히 다졌어! 메이저 세력이 개미들 물량 털어먹고 위로 쏠 준비 중이니까, 잔파도에 털리지 말고 꽉 쥐고 가자!"
-            elif foreign_5d < 0 and inst_5d < 0:
-                supply_content = f"🚨 비상! 세력 양매도 폭격 경보!\n최근 5일간 외놈들이 {f_abs}, 기관행님들이 {i_abs}를 시장에 대놓고 패대기치고 있어! 우리 순진한 개미들만 온몸으로 물받이하고 있는 위험한 형국이니까, 절대 물타지 말고 지지선 깨지면 튀어야 해!"
-            elif foreign_5d > 0:
-                supply_content = f"🛸 외놈들의 단독 방어전!\n기관행님들이 {i_abs} 던지면서 간을 보고 있지만, 외놈들이 {f_abs}를 묵직하게 받아내며 방어선을 치고 있어! 외놈들 매수 단가 위에서 버텨준다면 단기 반등 탄력 기대해 볼 만해."
-            elif inst_5d > 0:
-                supply_content = f"🏢 여의도 기관행님들 연속 매집 중!\n외놈들이 {f_abs} 던지며 발을 빼는데도, 기관행님들이 {i_abs} 뚝심 있게 순매수하며 주가를 주도하고 있어! 토종 기관의 바닥 지지력이 살아있으니 20일선 지지 여부 꼭 체크하자!"
+                if foreign_5d > 0 and inst_5d > 0:
+                    supply_content = f"🔥 쌍끌이 매집 폭발!\n최근 5일간 외놈들이 {f_abs}, 기관들이 {i_abs}를 미친 듯이 쓸어 담으며 바닥을 단단히 다졌어! 메이저 세력이 개미들 물량 털어먹고 위로 쏠 준비 중이니까, 잔파도에 털리지 말고 꽉 쥐고 가자!"
+                elif foreign_5d < 0 and inst_5d < 0:
+                    supply_content = f"🚨 비상! 세력 양매도 폭격 경보!\n최근 5일간 외놈들이 {f_abs}, 기관들이 {i_abs}를 시장에 대놓고 패대기치고 있어! 우리 순진한 개미들만 온몸으로 물받이하고 있는 위험한 형국이니까, 절대 물타지 말고 지지선 깨지면 튀어야 해!"
+                elif foreign_5d > 0:
+                    supply_content = f"🛸 외놈들의 단독 방어전!\n기관들이 {i_abs} 던지면서 간을 보고 있지만, 외놈들이 {f_abs}를 묵직하게 받아내며 방어선을 치고 있어! 외놈들 매수 단가 위에서 버텨준다면 단기 반등 탄력 기대해 볼 만해."
+                elif inst_5d > 0:
+                    supply_content = f"🏢 여의도 기관들 연속 매집 중!\n외놈들이 {f_abs} 던지며 발을 빼는데도, 기관들이 {i_abs} 뚝심 있게 순매수하며 주가를 주도하고 있어! 토종 기관의 바닥 지지력이 살아있으니 20일선 지지 여부 꼭 체크하자!"
+                else:
+                    supply_content = f"⚖️ 수급 눈치싸움 중!\n최근 5일간 외놈({f_abs})과 기관({i_abs})의 힘겨루기가 팽팽하게 이어지고 있어! 개미 수급({ind_abs})이 엇갈리며 박스권 눈치싸움이 치열하니까 기준 가격만 철저히 지키자."
             else:
-                supply_content = f"⚖️ 수급 눈치싸움 중!\n최근 5일간 외놈({f_abs})과 기관행님({i_abs})의 힘겨루기가 팽팽하게 이어지고 있어! 개미 수급({ind_abs})이 엇갈리며 박스권 눈치싸움이 치열하니까 기준 가격만 철저히 지키자."
+                supply_content = "📊 거래소 수급 집계 대기\n현재 거래소 수급 데이터를 수집 중이야! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
         else:
-            supply_content = "📊 거래소 수급 집계 대기 / 해외 종목\n현재 거래소 수급 데이터를 수집 중이거나 일별 집계가 지원되지 않는 해외 종목이야! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
+            pc_ratio = fetch_us_put_call_ratio(ticker)
+            if pc_ratio is not None:
+                if pc_ratio <= 0.7:
+                    supply_content = f"🛸 월가 큰손 옵션 포지션 포착!\n콜옵션 거래량이 풋옵션을 압도 중이야! (풋/콜 비율 {pc_ratio:.2f}) 큰손들이 위로 쏘는 쪽에 강하게 베팅하고 있으니 탄력 기대해 보자!"
+                elif pc_ratio >= 1.1:
+                    supply_content = f"🚨 월가 헤지 물량 급증 경보!\n풋옵션 거래량이 콜옵션을 넘어서고 있어! (풋/콜 비율 {pc_ratio:.2f}) 큰손들이 하락 방어벽을 치고 눈치 보는 구간이니 지지선 꼭 체크하자!"
+                else:
+                    supply_content = f"⚖️ 월가 세력들 눈치싸움 중!\n풋옵션과 콜옵션 거래량이 팽팽하게 맞서고 있어! (풋/콜 비율 {pc_ratio:.2f}) 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자!"
+            else:
+                supply_content = "📊 월가 옵션 수급 대기 중\n현재 옵션 포지션 데이터를 수집 중이야! 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
 
-        tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #실시간속보"
-        news_intro = "형님들이 궁금해 할거 같아서 오늘 어떤 재료가 있나 가져왔어 ㅎ"
+        tags_str = f"<span style=\"color: #FF8DA1; font-weight: bold;\">#{raw_name} &nbsp; #{change_pct:+.2f}% &nbsp; #실시간속보</span>"
+        news_intro = "궁금해할 거 같아서 오늘 어떤 뉴스가 있나 가져왔어 ㅎ"
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
 
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n{news_intro}\n\n{news_lines}\n\n{news_transition}\n\n{tags_str}",
+                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n{news_intro}\n\n{news_lines}\n\n{news_transition}\n\n{tags_str}",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
@@ -389,8 +421,8 @@ def analyze():
                 "content": supply_content
             },
             {
-                "title": "여기 깨지면 도망쳐라!",
-                "content": f"🛡️생존 지지선: {ma20_str} (딱! 기억해놔!)\n이 가격 깨지면 투매 나오니까 절대 미련 갖지 말고 비중 줄여!\n🧱악성 매물대: 최근 고점 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
+                "title": "여기 깨지면 도망쳐",
+                "content": f"🛡️생존 지지선 {ma20_str} ~ 딱! 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여!\n🧱악성 매물대 {res_str} ~ 최근 고점 부근에 과거 물려있는 개미들의 본전 대기 악성 매물이 쏟아질 수 있어 ㅠㅠ 조심해!"
             },
             {
                 "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
