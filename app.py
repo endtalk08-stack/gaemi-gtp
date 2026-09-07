@@ -12,15 +12,11 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-# 환경 변수 로드
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip()
 KIWOOM_APP_KEY = os.environ.get('KIWOOM_APP_KEY', '').strip()
 KIWOOM_APP_SECRET = os.environ.get('KIWOOM_APP_SECRET', '').strip()
-
-# 모의투자 계좌면 True, 실전투자 계좌면 False
 KIWOOM_IS_MOCK = False
 
-# 미국 대장주 한글-티커 매핑
 US_KOREAN_NAMES = {
     'ORCL': '오라클(ORCL)',
     'NVDA': '엔비디아(NVDA)',
@@ -110,6 +106,7 @@ def search_krx_code(stock_name):
         pass
     return None, None
 
+# 뉴스 3개 수집 (제목 및 원문 URL 확보)
 def fetch_realtime_news(stock_name):
     try:
         query = urllib.parse.quote(f"{stock_name}")
@@ -120,7 +117,7 @@ def fetch_realtime_news(stock_name):
             root = ET.fromstring(xml_data)
             items = root.findall('.//item')
             headlines = []
-            for item in items[:2]:
+            for item in items[:3]:
                 title_el = item.find('title')
                 if title_el is not None and title_el.text:
                     clean = title_el.text.rsplit(' - ', 1)[0]
@@ -130,7 +127,6 @@ def fetch_realtime_news(stock_name):
     except Exception:
         return []
 
-# 키움 REST API 접근 토큰 발급 함수
 def get_kiwoom_token():
     if not KIWOOM_APP_KEY or not KIWOOM_APP_SECRET:
         return None
@@ -148,10 +144,9 @@ def get_kiwoom_token():
             data = json.loads(resp.read().decode('utf-8'))
             return data.get('access_token') or data.get('token')
     except Exception as e:
-        print("키움 토큰 발급 에러:", e)
+        print("키움 토큰 에러:", e)
         return None
 
-# 당일 외인·기관 확정 수급 수집기 (장마감 및 실시간 공통)
 def fetch_krx_supply_demand(code_six):
     try:
         headers = {
@@ -290,7 +285,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 @app.route('/')
 def home():
     token_status = "연동됨" if get_kiwoom_token() else "대기중"
-    return f"gaemiGTP 수급 및 매크로 엔진 정상 가동 중! (키움 API: {token_status})"
+    return f"gaemiGTP 3대 뉴스 & 실시간 수급 엔진 가동 중! (키움: {token_status})"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
@@ -352,8 +347,12 @@ def analyze():
             status_emoji, title_word, desc_word = '⚖️', '보합일까', '보합(숨고르기) 중이야. 폭풍 전야의 고요함이 느껴지지 않아?'
             change_pct = 0.0
 
+        # 핵심 뉴스 3개 포맷팅
         news_list = fetch_realtime_news(raw_name)
-        main_news = news_list[0] if len(news_list) > 0 else f"{raw_name} 관련 메이저 재료 포착"
+        if news_list:
+            news_lines = "\n".join([f"• 📰 \"{title}\"" for title in news_list])
+        else:
+            news_lines = f"• 📰 \"{raw_name} 관련 메이저 재료 포착\""
 
         # 수급 데이터 계산
         indiv, foreign, inst = (None, None, None)
@@ -386,7 +385,7 @@ def analyze():
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {desc_word}\n현재 실시간 주가는 {price_str} 기록 중!\n\n오늘 터진 핵심 뉴스 헤드라인이야:\n📰 \"{main_news}\"\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!",
+                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {desc_word}\n현재 실시간 주가는 {price_str} 기록 중!\n\n오늘 시장을 뒤흔든 핵심 뉴스 3선이야:\n{news_lines}\n\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
