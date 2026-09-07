@@ -12,7 +12,6 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-# Render 환경 변수에서 Finnhub API Key 자동 로드
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip()
 
 TICKERS = {
@@ -67,6 +66,14 @@ TICKERS = {
     '비트코인': 'BTC-USD'
 }
 
+# [핵심 엔진] 한국 종목과 미국 대장주의 밸류체인(테마) 매핑 사전
+THEME_CHAIN = {
+    '반도체': {'us_boss': ['NVDA', 'MSFT', 'ORCL'], 'kr_kids': ['삼성전자', 'SK하이닉스', '한미반도체']},
+    '2차전지': {'us_boss': ['TSLA'], 'kr_kids': ['LG에너지솔루션', '삼성SDI', '에코프로', '에코프로비엠', '포스코퓨처엠', 'LG화학']},
+    '바이오': {'us_boss': ['LLY', 'NVO'], 'kr_kids': ['삼성바이오로직스', '셀트리온', '알테오젠', '삼천당제약', '리가켐바이오', 'HLB', '유한양행']},
+    '플랫폼': {'us_boss': ['GOOGL', 'META', 'AAPL'], 'kr_kids': ['NAVER', '네이버', '카카오']},
+}
+
 def search_krx_code(stock_name):
     try:
         url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
@@ -80,8 +87,8 @@ def search_krx_code(stock_name):
                 market = first[3].upper()
                 suffix = '.KS' if 'KOSPI' in market else '.KQ'
                 return f"{code}{suffix}", code
-    except Exception as e:
-        print("검색 에러:", e)
+    except Exception:
+        pass
     return None, None
 
 def fetch_realtime_news(stock_name):
@@ -128,27 +135,10 @@ def fetch_krx_supply_demand(code_six):
                         if inst_val != 0 or foreign_val != 0:
                             indiv_val = -(inst_val + foreign_val)
                             return indiv_val, foreign_val, inst_val
-    except Exception as e:
-        print("네이버 수급 에러:", e)
-
-    try:
-        url = f"https://finance.daum.net/api/investor/days?symbolCode=A{code_six}&page=1&perPage=1"
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-            'Referer': 'https://finance.daum.net/'
-        })
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            if 'data' in data and len(data['data']) > 0:
-                latest = data['data'][0]
-                foreign_val = int(latest.get('foreignStraightPurchaseVolume', 0))
-                inst_val = int(latest.get('institutionStraightPurchaseVolume', 0))
-                indiv_val = int(latest.get('individualStraightPurchaseVolume', -(foreign_val + inst_val)))
-                if foreign_val != 0 or inst_val != 0:
-                    return indiv_val, foreign_val, inst_val
-    except Exception as e:
-        print("다음 수급 에러:", e)
-
+    except Exception:
+        pass
+    
+    # 2순위 다음 API 호출 생략 (안정성 위주)
     return None, None, None
 
 def format_shares(n):
@@ -159,32 +149,48 @@ def format_shares(n):
     return f"{sign}{n:,}주"
 
 def round_krw_tick(price):
-    if price >= 500_000:
-        return int(price // 1000) * 1000
-    elif price >= 100_000:
-        return int(price // 500) * 500
-    elif price >= 50_000:
-        return int(price // 100) * 100
-    elif price >= 10_000:
-        return int(price // 50) * 50
-    else:
-        return int(price // 10) * 10
+    if price >= 500_000: return int(price // 1000) * 1000
+    elif price >= 100_000: return int(price // 500) * 500
+    elif price >= 50_000: return int(price // 100) * 100
+    elif price >= 10_000: return int(price // 50) * 50
+    else: return int(price // 10) * 10
 
-# Finnhub 실시간 경제 일정 및 실적 데이터 수집 함수
-def get_live_calendar_data(stock_name, ticker_symbol):
+# API 호출로 글로벌 대장주 실적이 이번 주에 있는지 확인하는 헬퍼 함수
+def check_us_boss_earnings(boss_ticker):
+    if not FINNHUB_KEY: return None
     today = datetime.date.today()
     start_date = (today - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-    end_date = (today + datetime.timedelta(days=3)).strftime('%Y-%m-%d')
+    end_date = (today + datetime.timedelta(days=7)).strftime('%Y-%m-%d')
+    try:
+        url = f"https://finnhub.io/api/v1/calendar/earnings?from={start_date}&to={end_date}&symbol={boss_ticker}&token={FINNHUB_KEY}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if data.get('earningsCalendar'):
+                return data['earningsCalendar'][0]
+    except:
+        pass
+    return None
+
+def get_live_calendar_data(stock_name, ticker_symbol):
+    today = datetime.date.today()
+    macro_start = (today - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+    macro_end = (today + datetime.timedelta(days=3)).strftime('%Y-%m-%d')
+    
+    # 내 실적 탐색 기간 30일로 대폭 확장
+    earn_start = (today - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
+    earn_end = (today + datetime.timedelta(days=30)).strftime('%Y-%m-%d')
 
     earnings_msg = None
     macro_msg = None
 
     if FINNHUB_KEY:
-        # 1. 미국 주식인 경우 기업 실적 일정 조회 (예: ORCL, NVDA)
         is_us_stock = bool(re.match(r'^[A-Za-z]+$', ticker_symbol))
+        
+        # 1. 미국 주식인 경우 자신의 30일 이내 실적 조회
         if is_us_stock:
             try:
-                url = f"https://finnhub.io/api/v1/calendar/earnings?from={start_date}&to={end_date}&symbol={ticker_symbol}&token={FINNHUB_KEY}"
+                url = f"https://finnhub.io/api/v1/calendar/earnings?from={earn_start}&to={earn_end}&symbol={ticker_symbol}&token={FINNHUB_KEY}"
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                 with urllib.request.urlopen(req, timeout=3) as resp:
                     data = json.loads(resp.read().decode('utf-8'))
@@ -200,18 +206,29 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                             status = "어닝 서프라이즈! 🚀" if diff >= 0 else "예상치 하회(쇼크) ⚠️"
                             earnings_msg = f"📝실적 발표 결과: {stock_name} {status}\n• 실제 EPS: ${act:.2f} (예상치 ${est:.2f} 대비 {diff:+.2f})"
                         elif est is not None:
-                            earnings_msg = f"📝실적 발표 대기: {stock_name} ({date_str})\n• 시장 예상 EPS: ${est:.2f} (결과 발표 시 변동성 주의!)"
+                            earnings_msg = f"📝실적 발표 대기: {stock_name} ({date_str})\n• 시장 예상 EPS: ${est:.2f} (발표 전후 큰 변동성 주의!)"
             except Exception as e:
-                print("실적 조회 에러:", e)
+                print("미국 실적 조회 에러:", e)
+        
+        # 2. 한국 주식인 경우 -> 밸류체인 대장주(엔비디아, 테슬라 등) 실적 이번주에 있는지 체크
+        else:
+            for theme, chain in THEME_CHAIN.items():
+                if stock_name in chain['kr_kids']:
+                    for boss in chain['us_boss']:
+                        boss_event = check_us_boss_earnings(boss)
+                        if boss_event:
+                            boss_date = boss_event.get('date', '')
+                            earnings_msg = f"📝실적 연동 경고: 글로벌 대장주 {boss} 실적 발표 대기 ({boss_date})!\n• {theme} 밸류체인 연동으로 큰 투심 변화가 예상되니 단단히 대비해!"
+                            break
+                if earnings_msg: break
 
-        # 2. 미국 주요 거시 경제지표 발표 일정 조회 (CPI, 금리 등)
+        # 3. 미국 주요 거시 경제지표 발표 일정 조회 (단기 3일)
         try:
-            macro_url = f"https://finnhub.io/api/v1/calendar/economic?from={start_date}&to={end_date}&token={FINNHUB_KEY}"
+            macro_url = f"https://finnhub.io/api/v1/calendar/economic?from={macro_start}&to={macro_end}&token={FINNHUB_KEY}"
             req = urllib.request.Request(macro_url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=3) as resp:
                 m_data = json.loads(resp.read().decode('utf-8'))
                 events = m_data.get('economicCalendar', [])
-                # 미국 이벤트 중 중요도가 높은 지표 선별
                 us_events = [e for e in events if e.get('country') == 'US' and e.get('estimate') is not None]
                 if us_events:
                     ev = us_events[0]
@@ -222,28 +239,25 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                     if ev_act is not None:
                         macro_msg = f"📅미국 경제지표 결과: {ev_name}\n• 실제치: {ev_act} | 예상치: {ev_est} (시장 실시간 반영 중)"
                     else:
-                        macro_msg = f"📅미국 경제지표 발표: {ev_name}\n• 시장 예상치: {ev_est} (오늘 밤 발표 직후 나스닥 선물 체크!)"
+                        macro_msg = f"📅미국 경제지표 발표 대기: {ev_name}\n• 시장 예상치: {ev_est} (오늘 밤 발표 직후 나스닥 선물 체크!)"
         except Exception as e:
             print("경제 일정 조회 에러:", e)
 
-    # API 데이터가 없거나 국내 주식 기본 대체 텍스트
+    # 기본 대체 텍스트
     if not macro_msg:
         weekday = datetime.datetime.now().weekday()
-        if weekday in [0, 1]:
-            macro_msg = "📅주의 일정: 이번 주 미국 핵심 경제지표 및 주요 CPI 발표 대기 중!"
-        elif weekday in [2, 3]:
-            macro_msg = "📅주의 일정: 오늘 밤 미국 경제지표 발표 및 연준 인사 발언 예정!"
-        else:
-            macro_msg = "📅주의 일정: 주말 간 글로벌 지정학적 이슈와 월요일 개장 전 미 선물 체크 필수!"
+        if weekday in [0, 1]: macro_msg = "📅주의 일정: 이번 주 미국 핵심 경제지표 및 주요 CPI 발표 대기 중!"
+        elif weekday in [2, 3]: macro_msg = "📅주의 일정: 오늘 밤 미국 경제지표 발표 및 연준 인사 발언 예정!"
+        else: macro_msg = "📅주의 일정: 주말 간 글로벌 지정학적 이슈와 월요일 개장 전 미 선물 체크 필수!"
 
     if not earnings_msg:
-        earnings_msg = f"📝실적 체크: {stock_name} 주요 밸류체인 실적 가이던스 확인하고, 야간 선물 변동성에 오버나잇 비중 조절하자!"
+        earnings_msg = f"📝실적 체크: {stock_name} 개별 모멘텀 장세 지속 중! 수급 턴어라운드 타점에 집중하자."
 
     return f"{macro_msg}\n{earnings_msg}"
 
 @app.route('/')
 def home():
-    return "gaemiGTP 전 종목 검색 & Finnhub 실시간 캘린더 정상 가동 중!"
+    return "gaemiGTP 전 종목 검색 & 밸류체인 레이더 정상 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
@@ -327,7 +341,6 @@ def analyze():
                 flow_msg = f"👔 여의도 기관 성님들이 바닥에서 {i_abs} 묵직하게 줍줍 중! (외놈들은 {f_abs} 패대기 치는 중) 뭔가 냄새가 난다!"
             else:
                 flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! 세력들 눈치싸움 팽팽하다."
-
             supply_content = flow_msg
         else:
             supply_content = (
