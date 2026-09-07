@@ -612,12 +612,17 @@
             pEl.classList.remove('typing-cursor');
             let formatted = pEl.textContent;
 
-            // 굵기 손대지 않고 원래 본문 폰트 그대로 색상만 핑크/블루로 적용
+            // 국장: 외인/기관/개인 수급 색상 처리 (굵기 변형 없이 원래 본문 글씨 유지)
             if (formatted.includes('#외국인')) {
               formatted = formatted.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주))/g, function(_, name, val) {
                 let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
                 return `<span class="inline-block mr-4" style="color: ${color};">#${name} ${val}</span>`;
               });
+            // 미장: 콜(상승) 핑크 / 풋(하락) 블루 / 베팅비율 회색 적용
+            } else if (formatted.includes('#콜(상승)')) {
+              formatted = formatted.replace(/#콜\(상승\)\s+([\d,.]+(?:만건|건))/g, `<span class="inline-block mr-4" style="color: #FF8DA1;">#콜(상승) $1</span>`);
+              formatted = formatted.replace(/#풋\(하락\)\s+([\d,.]+(?:만건|건))/g, `<span class="inline-block mr-4" style="color: #38BDF8;">#풋(하락) $1</span>`);
+              formatted = formatted.replace(/#베팅비율\s+([\d.]+)/g, `<span class="inline-block mr-4" style="color: #94a3b8;">#베팅비율 $1</span>`);
             } else {
               formatted = formatted.replace(/(#[^\s#]+)/g, '<span style="color: #FF8DA1;">$1</span>');
             }
