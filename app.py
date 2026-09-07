@@ -14,17 +14,18 @@ CORS(app)
 
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
 
+# 괄호 제거를 위해 US_KOREAN_NAMES 수정
 US_KOREAN_NAMES = {
-    'ORCL': '오라클(ORCL)',
-    'NVDA': '엔비디아(NVDA)',
-    'MSFT': '마이크로소프트(MSFT)',
-    'TSLA': '테슬라(TSLA)',
-    'AAPL': '애플(AAPL)',
-    'GOOGL': '구글(GOOGL)',
-    'AMZN': '아마존(AMZN)',
-    'META': '메타(META)',
-    'LLY': '일라이릴리(LLY)',
-    'NVO': '노보노디스크(NVO)'
+    'ORCL': '오라클',
+    'NVDA': '엔비디아',
+    'MSFT': '마이크로소프트',
+    'TSLA': '테슬라',
+    'AAPL': '애플',
+    'GOOGL': '구글',
+    'AMZN': '아마존',
+    'META': '메타',
+    'LLY': '일라이릴리',
+    'NVO': '노보노디스크'
 }
 
 TICKERS = {
@@ -113,7 +114,7 @@ def fetch_realtime_news(stock_name):
             root = ET.fromstring(xml_data)
             items = root.findall('.//item')
             headlines = []
-            for item in items[:3]:
+            for item in items[:2]: # 너무 길어지지 않게 2개만 추출
                 title_el = item.find('title')
                 if title_el is not None and title_el.text:
                     clean = title_el.text.rsplit(' - ', 1)[0]
@@ -187,18 +188,18 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
-# [개선] 기계적 서식을 없애고 문장에 자연스럽게 녹인 매크로 일정
 def get_official_macro_schedule():
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
     
+    # 괄호 제거 및 자연스러운 이름으로 수정
     schedule = [
-        {"name": "미국 8월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%"},
+        {"name": "미국 8월 소비자물가지수 CPI", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%"},
         {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%"},
-        {"name": "미국 생산자물가지수(PPI)", "dt": datetime.datetime(2026, 9, 18, 21, 30, tzinfo=kst_tz), "est": "0.2%"},
-        {"name": "미국 개인소비지출(PCE) 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%"},
-        {"name": "미국 9월 비농업 고용보고서(NFP)", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건"},
-        {"name": "미국 9월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 10, 14, 21, 30, tzinfo=kst_tz), "est": "시장 전망치 대기"},
+        {"name": "미국 생산자물가지수 PPI", "dt": datetime.datetime(2026, 9, 18, 21, 30, tzinfo=kst_tz), "est": "0.2%"},
+        {"name": "미국 개인소비지출 PCE 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%"},
+        {"name": "미국 9월 비농업 고용보고서 NFP", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건"},
+        {"name": "미국 9월 소비자물가지수 CPI", "dt": datetime.datetime(2026, 10, 14, 21, 30, tzinfo=kst_tz), "est": "시장 전망치 대기"},
         {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 10, 29, 3, 0, tzinfo=kst_tz), "est": "금리 추가 인하 여부 촉각"}
     ]
 
@@ -207,12 +208,12 @@ def get_official_macro_schedule():
         if ev['dt'] >= now_kst:
             dt = ev['dt']
             wd = weekdays[dt.weekday()]
-            time_str = dt.strftime(f"%m/%d({wd}) %H:%M")
-            return f"일정 체크해 보면, 다가오는 {time_str}에 {ev['name']} 발표가 예정되어 있어! 시장 예상치는 {ev['est']} 수준인데 발표 직후 야간 선물이 크게 출렁일 수 있으니 꼭 주의하자."
+            # 날짜 표기도 대화하듯 수정
+            time_str = f"{dt.month}월 {dt.day}일 {wd}요일"
+            return f"일정 체크해 보면, 다가오는 {time_str}에 {ev['name']} 발표가 예정되어 있어. 시장 예상치는 {ev['est']} 수준인데 발표 직후 야간 선물이 크게 출렁일 수 있으니 꼭 주의하자."
 
-    return "글로벌 매크로 지표 일정이 촘촘하게 잡혀 있는 구간이야. 지수 변동성에 유의하면서 지지선 잘 지키자!"
+    return "글로벌 매크로 지표 일정이 촘촘하게 잡혀 있는 구간이야. 지수 변동성에 유의하면서 지지선 잘 지키자."
 
-# [개선] 기계적 박스를 없애고 말하듯 이어지는 일정 및 실적 코멘트
 def get_live_calendar_data(stock_name, ticker_symbol):
     today = datetime.date.today()
     earn_start = (today - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
@@ -240,8 +241,14 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                         if act is not None and est is not None:
                             diff = act - est
                             status = "어닝 서프라이즈를 터뜨렸어!" if diff >= 0 else "예상치를 밑돌며 실적 쇼크가 나왔어 ㅠㅠ"
-                            earnings_msg = f"실적 소식으로는 방금 {kr_label} 실적이 발표됐는데 {status} 실제 EPS가 ${act:.2f}(예상치 ${est:.2f})로 찍혔으니 참고해 둬."
+                            earnings_msg = f"실적 소식으로는 방금 {kr_label} 실적이 발표됐는데 {status} 실제 EPS가 ${act:.2f}로 찍혔으니 참고해 둬."
                         elif est is not None:
+                            # YYYY-MM-DD 형식을 O월 O일로 변환
+                            try:
+                                e_date = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+                                date_str = f"{e_date.month}월 {e_date.day}일"
+                            except:
+                                pass
                             earnings_msg = f"실적도 눈여겨봐야 해. {date_str}에 {kr_label} 실적 발표가 잡혀 있거든! 예상 EPS는 ${est:.2f}인데 발표 전후로 롤러코스터 탈 수 있으니 조심해."
             except Exception:
                 pass
@@ -253,16 +260,23 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                         if boss_event:
                             boss_date = boss_event.get('date', '')
                             kr_boss_name = US_KOREAN_NAMES.get(boss, boss)
-                            earnings_msg = f"그리고 우리 {theme} 대장 격인 미국 {kr_boss_name} 실적이 {boss_date}에 나오거든! 대장주 실적에 따라 국내 관련주도 같이 춤출 테니 꽉 잡아."
+                            
+                            try:
+                                b_date = datetime.datetime.strptime(boss_date, '%Y-%m-%d')
+                                boss_date = f"{b_date.month}월 {b_date.day}일"
+                            except:
+                                pass
+
+                            earnings_msg = f"그리고 우리 {theme} 대장 격인 미국 {kr_boss_name} 실적이 {boss_date}에 나오거든. 대장주 실적에 따라 국내 관련주도 같이 춤출 테니 꽉 잡아."
                             break
                 if earnings_msg: break
 
     macro_msg = get_official_macro_schedule()
 
     if earnings_msg:
-        return f"{macro_msg}\n\n{earnings_msg}"
+        return f"{macro_msg} {earnings_msg}"
     else:
-        return f"{macro_msg}\n\n지금은 개별 종목 수급 장세인 만큼 세력 평단가와 수급 턴어라운드 타이밍에 집중하자!"
+        return f"{macro_msg} 지금은 개별 종목 수급 장세인 만큼 세력 평단가와 수급 턴어라운드 타이밍에 집중하자."
 
 @app.route('/')
 def home():
@@ -314,11 +328,11 @@ def analyze():
         if is_krw:
             clean_price = round_krw_tick(current_price)
             clean_ma20 = round_krw_tick(ma20)
-            price_str = f"₩{clean_price:,}"
-            ma20_str = f"₩{clean_ma20:,}"
+            price_str = f"{clean_price:,}원"
+            ma20_str = f"{clean_ma20:,}원"
         else:
-            price_str = f"${current_price:,.2f}"
-            ma20_str = f"${ma20:,.2f}"
+            price_str = f"{current_price:,.2f}달러"
+            ma20_str = f"{ma20:,.2f}달러"
 
         if change_pct > 0.005:
             status_emoji, title_word, desc_word = '🔥', '올랐어', '상승중이야!!!'
@@ -328,13 +342,16 @@ def analyze():
             status_emoji, title_word, desc_word = '⚖️', '보합일까', '보합(숨고르기) 중이야. 폭풍 전야의 고요함이 느껴지지 않아?'
             change_pct = 0.0
 
+        # 뉴스 문장화
         news_list = fetch_realtime_news(raw_name)
         if news_list:
-            news_lines = "\n".join([f"• 📰 \"{title}\"" for title in news_list])
+            if len(news_list) > 1:
+                news_lines = f"오늘 장중에 보니까 '{news_list[0]}' 이런 이슈가 가장 컸고, 이어서 '{news_list[1]}' 소식도 돌면서 시장이 반응하더라구."
+            else:
+                news_lines = f"오늘 장중에 보니까 '{news_list[0]}' 이슈가 돌면서 시장이 크게 반응하더라구."
         else:
-            news_lines = f"• 📰 \"{raw_name} 관련 메이저 재료 포착\""
+            news_lines = f"지금 딱히 두드러지는 뉴스 기사보다는 세력들 수급 눈치싸움으로 주가가 움직이는 거 같아."
 
-        # [개선] 5일 누적 수급 - 네모 괄호 및 따옴표 제거, 완전 대화형 직결
         indiv_5d, foreign_5d, inst_5d, days = (None, None, None, 0)
         if clean_code and len(clean_code) == 6:
             indiv_5d, foreign_5d, inst_5d, days = fetch_krx_5d_supply_demand(clean_code)
@@ -345,22 +362,22 @@ def analyze():
             ind_abs = format_shares(indiv_5d)
 
             if foreign_5d > 0 and inst_5d > 0:
-                supply_content = f"외놈들이 최근 {days}일간 무려 {f_abs}를 미친 듯이 쓸어 담으면서 바닥을 다지고 있어! 기관도 {i_abs} 거들면서 쌍끌이 매집 패턴이 뚜렷해. 단기 흔들기가 나오더라도 세력 평단 위라면 꽉 쥐고 가보자!"
+                supply_content = f"외놈들이 최근 {days}일간 무려 {f_abs}를 미친 듯이 쓸어 담으면서 바닥을 다지고 있어! 기관도 {i_abs} 거들면서 쌍끌이 매집 패턴이 뚜렷해. 단기 흔들기가 나오더라도 세력 평단 위라면 꽉 쥐고 가보자."
             elif foreign_5d < 0 and inst_5d < 0:
-                supply_content = f"비상이야! 최근 {days}일간 외놈({f_abs})과 기관({i_abs})이 쌍끌이 투매 폭격을 퍼붓고 있어! 개미들만 {ind_abs} 온몸으로 물량을 받는 형국이니까, 절대 섣불리 물타지 말고 관망하자."
+                supply_content = f"비상이야! 최근 {days}일간 외놈 {f_abs} 물량과 기관 {i_abs} 물량이 쌍끌이로 쏟아지고 있어. 개미들만 {ind_abs} 온몸으로 물량을 받는 형국이니까 절대 섣불리 물타지 말고 관망하자."
             elif foreign_5d > 0:
-                supply_content = f"외놈들이 최근 {days}일간 무려 {f_abs}를 묵직하게 쓸어 담으며 버팀목 역할을 해주고 있어! 기관이 {i_abs} 던지면서 간을 보고 있지만 외인 매수세가 받쳐주니 든든한 상태야."
+                supply_content = f"외놈들이 최근 {days}일간 무려 {f_abs}를 묵직하게 쓸어 담으며 버팀목 역할을 해주고 있어. 기관이 {i_abs} 던지면서 간을 보고 있지만 외인 매수세가 받쳐주니 든든한 상태야."
             elif inst_5d > 0:
                 supply_content = f"여의도 기관 성님들이 최근 {days}일간 무려 {i_abs}를 연속 매집 중이야! 외놈들이 {f_abs} 던져도 기관이 바닥을 탄탄하게 받쳐주고 있으니 수급 신호는 긍정적이야."
             else:
-                supply_content = f"최근 {days}일간 외놈({f_abs})과 기관({i_abs})의 힘겨루기가 팽팽하게 이어지고 있어! 개미 수급({ind_abs})이 엇갈리며 박스권 눈치싸움이 치열하니까 기준 가격만 철저히 지키자."
+                supply_content = f"최근 {days}일간 외놈 {f_abs} 물량과 기관 {i_abs} 물량이 엇갈리면서 힘겨루기가 팽팽하게 이어지고 있어. 개미 수급도 눈치싸움이 치열하니까 기준 가격만 철저히 지키자."
         else:
             supply_content = "현재 거래소 수급 데이터 집계 준비 중이거나 해외 종목이야! 20일선 지지 라인을 세력의 방어선으로 보고 접근하는 게 안전해."
 
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {desc_word}\n현재 주가는 {price_str} 기록 중!\n\n오늘 시장을 뒤흔든 핵심 뉴스 3선이야:\n{news_lines}\n\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!",
+                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {desc_word}\n현재 주가는 {price_str} 기록 중이야.\n\n{news_lines}\n\n이슈가 전해지면서 세력들의 매매가 요동치고 있으니까 꽉 잡아!",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
@@ -369,7 +386,7 @@ def analyze():
             },
             {
                 "title": "여기 깨지면 도망쳐라!",
-                "content": f"🛡️생존 지지선: {ma20_str} (딱! 기억해놔!)\n이 가격 깨지면 투매 나오니까 절대 미련 갖지 말고 비중 줄여!\n🧱악성 매물대: 최근 고점 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
+                "content": f"차트 흐름을 보면 20일선 기준 가격이 딱 {ma20_str}이야. 이거 꼭 기억해 놔! 이 가격 깨지면 최근 고점에 물려있던 악성 대기 물량들이 투매로 쏟아질 수 있으니까, 절대 미련 갖지 말고 비중부터 줄이는 게 좋아."
             },
             {
                 "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
