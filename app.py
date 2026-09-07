@@ -113,12 +113,18 @@ def fetch_realtime_news(stock_name):
             root = ET.fromstring(xml_data)
             items = root.findall('.//item')
             headlines = []
-            for item in items[:3]:
+            for item in items:
                 title_el = item.find('title')
                 if title_el is not None and title_el.text:
-                    clean = title_el.text.rsplit(' - ', 1)[0]
-                    clean = re.sub(r'<[^>]+>', '', clean).strip()
-                    headlines.append(clean)
+                    title = title_el.text
+                    title = re.sub(r'\[.*?\]', '', title)
+                    title = re.sub(r'\s*[-–—|]\s*[^-–—|]+$', '', title)
+                    title = re.sub(r'<[^>]+>', '', title)
+                    clean = title.strip().strip('"\'“”')
+                    if clean:
+                        headlines.append(clean)
+                    if len(headlines) == 3:
+                        break
             return headlines
     except Exception:
         return []
@@ -131,7 +137,7 @@ def fetch_krx_5d_supply_demand(code_six):
         }
         url = f"https://finance.naver.com/item/frgn.naver?code={code_six}"
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             html = resp.read().decode('euc-kr', 'replace')
             rows = re.findall(r'<tr[^>]*>\s*<td class="tc">\s*<span class="tah p10 gray03">\d{4}\.\d{2}\.\d{2}</span>.*?</tr>', html, re.DOTALL)
             
@@ -187,7 +193,6 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
-# [개선] 기계적 서식을 없애고 문장에 자연스럽게 녹인 매크로 일정
 def get_official_macro_schedule():
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
@@ -212,7 +217,6 @@ def get_official_macro_schedule():
 
     return "글로벌 매크로 지표 일정이 촘촘하게 잡혀 있는 구간이야. 지수 변동성에 유의하면서 지지선 잘 지키자!"
 
-# [개선] 기계적 박스를 없애고 말하듯 이어지는 일정 및 실적 코멘트
 def get_live_calendar_data(stock_name, ticker_symbol):
     today = datetime.date.today()
     earn_start = (today - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
@@ -255,7 +259,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                             kr_boss_name = US_KOREAN_NAMES.get(boss, boss)
                             earnings_msg = f"그리고 우리 {theme} 대장 격인 미국 {kr_boss_name} 실적이 {boss_date}에 나오거든! 대장주 실적에 따라 국내 관련주도 같이 춤출 테니 꽉 잡아."
                             break
-                if earnings_msg: break
+                    if earnings_msg: break
 
     macro_msg = get_official_macro_schedule()
 
@@ -314,7 +318,7 @@ def analyze():
         if is_krw:
             clean_price = round_krw_tick(current_price)
             clean_ma20 = round_krw_tick(ma20)
-            price_str = f"₩{clean_price:,}"
+            price_str = f"{clean_price:,}원"
             ma20_str = f"₩{clean_ma20:,}"
         else:
             price_str = f"${current_price:,.2f}"
@@ -330,11 +334,10 @@ def analyze():
 
         news_list = fetch_realtime_news(raw_name)
         if news_list:
-            news_lines = "\n".join([f"• 📰 \"{title}\"" for title in news_list])
+            news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list])
         else:
-            news_lines = f"• 📰 \"{raw_name} 관련 메이저 재료 포착\""
+            news_lines = f"📰 \"{raw_name} 관련 메이저 재료 포착\""
 
-        # [개선] 5일 누적 수급 - 네모 괄호 및 따옴표 제거, 완전 대화형 직결
         indiv_5d, foreign_5d, inst_5d, days = (None, None, None, 0)
         if clean_code and len(clean_code) == 6:
             indiv_5d, foreign_5d, inst_5d, days = fetch_krx_5d_supply_demand(clean_code)
@@ -357,10 +360,12 @@ def analyze():
         else:
             supply_content = "현재 거래소 수급 데이터 집계 준비 중이거나 해외 종목이야! 20일선 지지 라인을 세력의 방어선으로 보고 접근하는 게 안전해."
 
+        tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #실시간속보"
+
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {desc_word}\n현재 주가는 {price_str} 기록 중!\n\n오늘 시장을 뒤흔든 핵심 뉴스 3선이야:\n{news_lines}\n\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!",
+                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {desc_word}\n현재 주가는 {price_str} 기록 중!\n\n오늘 시장을 뒤흔든 핵심 뉴스 3선이야:\n\n{news_lines}\n\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!\n\n{tags_str}",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
