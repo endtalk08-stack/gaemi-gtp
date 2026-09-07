@@ -8,7 +8,7 @@
         word-break: keep-all !important; 
         letter-spacing: -0.02em !important;
     }
-</style>
+  </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>gaemiGTP</title>
@@ -611,17 +611,17 @@
           } else {
             pEl.classList.remove('typing-cursor');
             let formatted = pEl.textContent;
-            
-            // 수급 해시태그 2색(핑크/블루) 및 굵기 적용
+
+            // 굵기 손대지 않고 원래 본문 폰트 그대로 색상만 핑크/블루로 적용
             if (formatted.includes('#외국인')) {
               formatted = formatted.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주))/g, function(_, name, val) {
                 let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
-                return `<span class="return `<span class="inline-block mr-4" style="color: ${color};">#${name} ${val}</span>`;" style="color: ${color};">#${name} ${val}</span>`;
+                return `<span class="inline-block mr-4" style="color: ${color};">#${name} ${val}</span>`;
               });
             } else {
-              formatted = formatted.replace(/(#[^\s#]+)/g, '<span style="color: #FF8DA1; font-weight: 700;">$1</span>');
+              formatted = formatted.replace(/(#[^\s#]+)/g, '<span style="color: #FF8DA1;">$1</span>');
             }
-            
+
             pEl.innerHTML = formatted;
             secIdx++;
             setTimeout(typeNextSection, 80);
@@ -644,7 +644,7 @@
             <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 900;">내일 어디로 튈까? 네 실력좀 보여줘!</h4>
           </div>
 
-          <!-- 개미 투표 위젯 (핑크/블루 2색 적용) -->
+          <!-- 개미 투표 위젯 (상승 핑크 #FF8DA1 / 하락 블루 #38BDF8) -->
           <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] rounded-3xl p-5 space-y-4 shadow-sm">
             <div class="flex items-center justify-between">
               <span class="font-black text-base text-[#0f172a] dark:text-white">개미 투표</span>
@@ -801,7 +801,6 @@
               <div class="flex items-center gap-2.5"><span class="text-xl">📋</span><h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${data.name} 실전 투자 전략</h4></div>
               <span class="text-xs font-bold bg-[#f1f5f9] dark:bg-[#27272a] text-[#64748b] dark:text-[#a1a1aa] border border-[#cbd5e1] dark:border-[#3f3f46] px-3 py-1.5 rounded-full">전략 시나리오</span>
             </div>
-            <!-- 기호(대괄호, 불릿) 제거된 가이드라인 영역 -->
             <div class="p-4 sm:p-5 rounded-2xl bg-[#f8fafc] dark:bg-[#121316] border border-dashed border-[#cbd5e1] dark:border-[#27272a] space-y-2">
               <div class="flex items-center gap-2 text-sm font-bold text-[#64748b] dark:text-[#a1a1aa]"><span>⚡</span> <span>${data.name} 전용 실전 투자 전략 상세 가이드라인</span></div>
               <p class="text-sm sm:text-base text-[#475569] dark:text-[#a1a1aa] leading-relaxed">매매 성향별 목표 타겟가 설정 및 분할 진입/청산 시나리오<br>시장 변동성 급변 시 위기관리 및 헤징 규칙<br>손익비 극대화를 위한 잔여물량 추종 가이드</p>
