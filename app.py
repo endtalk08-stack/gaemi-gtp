@@ -136,7 +136,6 @@ def fetch_krx_supply_demand(code_six):
                             return indiv_val, foreign_val, inst_val
     except Exception:
         pass
-    
     return None, None, None
 
 def format_shares(n):
@@ -169,16 +168,57 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
+# 무료 실시간 경제 캘린더 피드 수집 (한국 시간 자동 변환)
+def fetch_live_macro_events():
+    try:
+        url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            kst_tz = datetime.timezone(datetime.timedelta(hours=9))
+            now_kst = datetime.datetime.now(kst_tz)
+            
+            upcoming_events = []
+            past_events = []
+            
+            for item in data:
+                if item.get('country') == 'USD' and item.get('impact') in ['High', 'Medium']:
+                    title = item.get('title', '')
+                    if any(k in title for k in ['CPI', 'PPI', 'Rate', 'Fed', 'FOMC', 'Payroll', 'Claims', 'Retail']):
+                        raw_date = item.get('date', '')
+                        if raw_date:
+                            dt = datetime.datetime.fromisoformat(raw_date).astimezone(kst_tz)
+                            item['dt_kst'] = dt
+                            if dt >= now_kst - datetime.timedelta(hours=6):
+                                upcoming_events.append(item)
+                            else:
+                                past_events.append(item)
+            
+            target = upcoming_events[0] if upcoming_events else (past_events[-1] if past_events else None)
+            if target:
+                dt = target['dt_kst']
+                weekdays = ['월', '화', '수', '목', '금', '토', '일']
+                wd = weekdays[dt.weekday()]
+                time_str = dt.strftime(f"%m/%d({wd}) %H:%M")
+                
+                title = target.get('title', '미국 핵심 경제지표')
+                forecast = target.get('forecast') or '미정'
+                actual = target.get('actual')
+                
+                if actual:
+                    return f"📅미국 경제지표 결과: {title} [{time_str}]\n• 실제치: {actual} | 예상치: {forecast} (시장 실시간 반영 중)"
+                else:
+                    return f"📅미국 경제지표 발표 대기: {title} [{time_str}]\n• 시장 예상치: {forecast} (한국 시간 발표 직후 선물 체크!)"
+    except Exception as e:
+        print("무료 캘린더 수집 에러:", e)
+    return None
+
 def get_live_calendar_data(stock_name, ticker_symbol):
     today = datetime.date.today()
-    macro_start = (today - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-    macro_end = (today + datetime.timedelta(days=3)).strftime('%Y-%m-%d')
-    
     earn_start = (today - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
     earn_end = (today + datetime.timedelta(days=30)).strftime('%Y-%m-%d')
 
     earnings_msg = None
-    macro_msg = None
 
     if FINNHUB_KEY:
         is_us_stock = bool(re.match(r'^[A-Za-z]+$', ticker_symbol))
@@ -218,49 +258,13 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                             break
                 if earnings_msg: break
 
-        # 3. 미국 주요 거시 경제지표 시간 포함 변환 및 조회
-        try:
-            macro_url = f"https://finnhub.io/api/v1/calendar/economic?from={macro_start}&to={macro_end}&token={FINNHUB_KEY}"
-            req = urllib.request.Request(macro_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                m_data = json.loads(resp.read().decode('utf-8'))
-                events = m_data.get('economicCalendar', [])
-                us_events = [e for e in events if e.get('country') == 'US' and e.get('estimate') is not None]
-                if us_events:
-                    ev = us_events[0]
-                    ev_name = ev.get('event', '미국 핵심 경제지표')
-                    ev_est = ev.get('estimate')
-                    ev_act = ev.get('actual')
-                    time_str = ev.get('time', '')
-                    
-                    # [핵심] UTC 시간을 한국 시간(KST)으로 변환하는 로직
-                    formatted_time = ""
-                    if time_str:
-                        try:
-                            # Finnhub 제공 시간 예: "2024-09-11 12:30:00" (UTC)
-                            utc_time = datetime.datetime.strptime(time_str[:19], '%Y-%m-%d %H:%M:%S')
-                            # UTC + 9시간 = 한국 시간(KST)
-                            kst_time = utc_time + datetime.timedelta(hours=9)
-                            weekdays = ['월', '화', '수', '목', '금', '토', '일']
-                            wd = weekdays[kst_time.weekday()]
-                            formatted_time = kst_time.strftime(f'%m/%d({wd}) %H:%M')
-                        except Exception as parse_e:
-                            print("시간 변환 에러:", parse_e)
-                            formatted_time = time_str
-                    
-                    time_display = f" [{formatted_time}]" if formatted_time else ""
-
-                    if ev_act is not None:
-                        macro_msg = f"📅미국 경제지표 결과: {ev_name}{time_display}\n• 실제치: {ev_act} | 예상치: {ev_est} (시장 실시간 반영 중)"
-                    else:
-                        macro_msg = f"📅미국 경제지표 발표 대기: {ev_name}{time_display}\n• 시장 예상치: {ev_est} (발표 시간대 변동성 주의!)"
-        except Exception as e:
-            print("경제 일정 조회 에러:", e)
+    # 3. 실시간 거시 경제 일정 가져오기
+    macro_msg = fetch_live_macro_events()
 
     if not macro_msg:
         weekday = datetime.datetime.now().weekday()
-        if weekday in [0, 1]: macro_msg = "📅주의 일정: 이번 주 미국 핵심 경제지표 및 주요 CPI 발표 대기 중!"
-        elif weekday in [2, 3]: macro_msg = "📅주의 일정: 오늘 밤 미국 경제지표 발표 및 연준 인사 발언 예정!"
+        if weekday in [0, 1]: macro_msg = "📅주의 일정: 이번 주 미국 핵심 경제지표(CPI/고용) 발표 대기 중!"
+        elif weekday in [2, 3]: macro_msg = "📅주의 일정: 오늘 밤 미국 핵심 경제지표 발표 및 연준 인사 발언 예정!"
         else: macro_msg = "📅주의 일정: 주말 간 글로벌 지정학적 이슈와 월요일 개장 전 미 선물 체크 필수!"
 
     if not earnings_msg:
@@ -270,7 +274,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
 @app.route('/')
 def home():
-    return "gaemiGTP 전 종목 검색 & 밸류체인/시간변환 레이더 정상 가동 중!"
+    return "gaemiGTP 전 종목 검색 & 실시간 경제 캘린더 엔진 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
@@ -356,9 +360,11 @@ def analyze():
                 flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! 세력들 눈치싸움 팽팽하다."
             supply_content = flow_msg
         else:
+            # 거짓 느낌의 문구를 걷어내고 솔직한 잠정 집계 대기 멘트로 교체
             supply_content = (
-                f"🔥수급 레이더: 메이저 세력들의 차익 실현과 신규 매집이 맞물리는 구간이야!\n"
-                f"현재 주요 매물대 부근에서 치열한 손바뀜 공방전 진행 중. 세력들의 의도를 잘 파악해 보자!"
+                "⚠️ 실시간 수급 팩트 체크 안내:\n"
+                "외인·기관 장중 수급은 실시간이 아니라 거래소 잠정 집계(09:30, 11:20 등) 시간에 공시돼!\n"
+                "지금은 잠정 집계 대기 구간이야. 세력들의 페이크에 흔들리지 말고 프로그램 순매수와 차트 지지선에 집중하자!"
             )
 
         sections = [
