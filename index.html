@@ -25,7 +25,7 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       text-rendering: optimizeLegibility;
-      word-break: keep-all; /* 단어 중간에 끊어지는 것 방지 */
+      word-break: keep-all;
     }
     #chatArea p {
       line-height: 1.65;
@@ -228,13 +228,11 @@
       </div>
     </header>
 
-    <!-- ★ 채팅 본문 가로폭 축소 (max-w-3xl) ★ -->
+    <!-- 채팅 본문 영역 -->
     <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
 
     <!-- 하단 검색 바 -->
     <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
-      
-      <!-- ★ 하단 입력창 가로폭 축소 (max-w-3xl) ★ -->
       <div class="max-w-3xl mx-auto relative">
         <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
           <input 
@@ -498,16 +496,16 @@
           tags: ["#실시간수급", "#지지선"]
         },
         {
-          title: "지금 세력은 사고 있어, 팔고 있어?",
-          content: "🔥수급 경고: 최근 개인과 외국인의 치열한 공방전 진행 중!\n기관 추정 매수 단가 부근을 돌파할지 두근두근 지켜보자!" 
+          title: "큰손들은 담고 있을까, 털고 있을까?",
+          content: "#외국인 0주   #기관 0주   #개인 0주\n\n수급 눈치싸움 중이야!\n지지선 확인하면서 방향 잡힐 때까지 기다리자."
         },
         {
-          title: "여기 깨지면 도망쳐라!",
+          title: "여기 깨지면 도망쳐",
           content: "🛡️생존 지지선: 지지선 이탈 시 미련 없이 비중 축소!\n🧱악성 매물대: 전고점 부근에 개미들의 본전 대기 매물 주의 ㅠㅠ."
         },
         {
           title: "오늘 밤, 이번주 무슨 일이 있나?",
-          content: "📅주의 일정: 미국 경제 지표 발표 예정!\n📝공시 체크: 시간외 단일가 변동성 주의해랔!"
+          content: "주의 일정: 미국 경제 지표 발표 예정!\n공시 체크: 시간외 단일가 변동성 주의하자!"
         }
       ];
     }
@@ -612,7 +610,19 @@
             setTimeout(typeChunk, 15);
           } else {
             pEl.classList.remove('typing-cursor');
-            pEl.innerHTML = pEl.textContent.replace(/(#[^\s#]+)/g, '<span style="color: #FF8DA1; font-weight: 700;">$1</span>');
+            let formatted = pEl.textContent;
+            
+            // 수급 해시태그 2색(핑크/블루) 및 굵기 적용
+            if (formatted.includes('#외국인')) {
+              formatted = formatted.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주))/g, function(_, name, val) {
+                let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : 'currentColor');
+                return `<span class="inline-block mr-4 font-bold text-[#0f172a] dark:text-white">#${name} <span style="color: ${color}; font-weight: 900;">${val}</span></span>`;
+              });
+            } else {
+              formatted = formatted.replace(/(#[^\s#]+)/g, '<span style="color: #FF8DA1; font-weight: 700;">$1</span>');
+            }
+            
+            pEl.innerHTML = formatted;
             secIdx++;
             setTimeout(typeNextSection, 80);
           }
@@ -634,6 +644,7 @@
             <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 900;">내일 어디로 튈까? 네 실력좀 보여줘!</h4>
           </div>
 
+          <!-- 개미 투표 위젯 (핑크/블루 2색 적용) -->
           <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] rounded-3xl p-5 space-y-4 shadow-sm">
             <div class="flex items-center justify-between">
               <span class="font-black text-base text-[#0f172a] dark:text-white">개미 투표</span>
@@ -641,16 +652,16 @@
             </div>
             <div class="space-y-2">
               <div class="flex items-center justify-between text-xs font-black">
-                <span id="voteUpLabel" class="text-emerald-500 dark:text-emerald-400">상승 68%</span>
-                <span id="voteDownLabel" class="text-sky-500 dark:text-sky-400">하락 32%</span>
+                <span id="voteUpLabel" class="text-[#FF8DA1]">상승 68%</span>
+                <span id="voteDownLabel" class="text-[#38BDF8]">하락 32%</span>
               </div>
-              <div class="w-full h-2 bg-sky-400 rounded-full overflow-hidden flex">
-                <div id="voteProgressBar" class="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-500" style="width: 68%;"></div>
+              <div class="w-full h-2 bg-[#38BDF8] rounded-full overflow-hidden flex">
+                <div id="voteProgressBar" class="h-full bg-[#FF8DA1] rounded-full transition-all duration-500" style="width: 68%;"></div>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <button type="button" onclick="castVote('up')" id="btnVoteUp" class="py-3 rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 font-black text-sm">상승 전망</button>
-              <button type="button" onclick="castVote('down')" id="btnVoteDown" class="py-3 rounded-xl border border-[#cbd5e1] dark:border-[#282a30] bg-[#f8fafc] dark:bg-[#18191d] text-[#64748b] dark:text-[#a1a1aa] font-black text-sm">하락 전망</button>
+              <button type="button" onclick="castVote('up')" id="btnVoteUp" class="py-3 rounded-xl border border-[#FF8DA1] bg-[#FF8DA1]/10 hover:bg-[#FF8DA1]/20 text-[#FF8DA1] font-black text-sm transition">상승 전망</button>
+              <button type="button" onclick="castVote('down')" id="btnVoteDown" class="py-3 rounded-xl border border-[#38BDF8] bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 text-[#38BDF8] font-black text-sm transition">하락 전망</button>
             </div>
           </div>
         </div>
@@ -790,9 +801,10 @@
               <div class="flex items-center gap-2.5"><span class="text-xl">📋</span><h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${data.name} 실전 투자 전략</h4></div>
               <span class="text-xs font-bold bg-[#f1f5f9] dark:bg-[#27272a] text-[#64748b] dark:text-[#a1a1aa] border border-[#cbd5e1] dark:border-[#3f3f46] px-3 py-1.5 rounded-full">전략 시나리오</span>
             </div>
+            <!-- 기호(대괄호, 불릿) 제거된 가이드라인 영역 -->
             <div class="p-4 sm:p-5 rounded-2xl bg-[#f8fafc] dark:bg-[#121316] border border-dashed border-[#cbd5e1] dark:border-[#27272a] space-y-2">
-              <div class="flex items-center gap-2 text-sm font-bold text-[#64748b] dark:text-[#a1a1aa]"><span>⚡</span> <span>[${data.name}] 전용 실전 투자 전략 상세 가이드라인</span></div>
-              <p class="text-sm sm:text-base text-[#475569] dark:text-[#a1a1aa] leading-relaxed">• 매매 성향별 목표 타겟가 설정 및 분할 진입/청산 시나리오<br>• 시장 변동성 급변 시 위기관리 및 헤징 규칙<br>• 손익비 극대화를 위한 잔여물량 추종 가이드</p>
+              <div class="flex items-center gap-2 text-sm font-bold text-[#64748b] dark:text-[#a1a1aa]"><span>⚡</span> <span>${data.name} 전용 실전 투자 전략 상세 가이드라인</span></div>
+              <p class="text-sm sm:text-base text-[#475569] dark:text-[#a1a1aa] leading-relaxed">매매 성향별 목표 타겟가 설정 및 분할 진입/청산 시나리오<br>시장 변동성 급변 시 위기관리 및 헤징 규칙<br>손익비 극대화를 위한 잔여물량 추종 가이드</p>
             </div>
           </div>
           <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] rounded-3xl p-5 sm:p-7 space-y-6 shadow-md">
