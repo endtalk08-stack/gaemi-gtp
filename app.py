@@ -118,18 +118,18 @@ def fetch_realtime_news(stock_name):
                 if title_el is not None and title_el.text:
                     title = title_el.text
                     
-                    # 1. [단독] 등의 대괄호 및 HTML 태그 제거
+                    # 1. 대괄호 및 HTML 태그 제거
                     title = re.sub(r'\[.*?\]', '', title)
                     title = re.sub(r'<[^>]+>', '', title)
                     
-                    # 2. 끝에 붙은 언론사 꼬리표(- 머니투데이 등) 2중 제거
+                    # 2. 끝에 붙은 언론사 꼬리표 2중 제거
                     title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
                     title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
                     
-                    # 3. 문장 맨 끝에 남은 말줄임표(...) 완전 삭제
+                    # 3. 문장 끝 말줄임표 삭제
                     title = re.sub(r'[\.…]+\s*$', '', title)
                     
-                    # 4. 문장 중간의 점 세 개(...)를 가운뎃점( · )으로 깔끔하게 치환
+                    # 4. 문장 중간 점 세 개(...)를 가운뎃점( · )으로 치환
                     title = re.sub(r'\.{2,}|…', ' · ', title)
                     
                     clean = title.strip().strip('"\'“”')
@@ -336,22 +336,22 @@ def analyze():
             price_str = f"${current_price:,.2f}"
             ma20_str = f"${ma20:,.2f}"
 
-        # 5단계 감성 멘트 적용 (대표님 피드백 반영)
+        # 5단계 자연스러운 감성 오프닝 (수익률 % 반영)
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"오!! {raw_name} 오늘 축제야? 🎉 수익 달달하겠다! 나까지 심장이 다 뛰네 ㅋㅋㅋ"
+            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승!! 오늘 축제야? 🎉 수익 달달하겠다! 나까지 심장이 다 뛰네 ㅋㅋㅋ"
         elif 0.5 <= change_pct < 5.0:
             status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"스멀스멀 우상향 중! 분위기 나쁘지 않은데? 이대로만 가자!"
+            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중! 분위기 나쁘지 않은데? 이대로만 가자!"
         elif -0.5 < change_pct < 0.5:
             status_emoji, title_word = '⚖️', '보합일까'
-            intro_ment = f"하아.. {raw_name} 지금 완전 눈치싸움 중이네. 폭풍 전야처럼 조용한데? 😅"
+            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네. 폭풍 전야처럼 조용한데? 😅"
         elif -5.0 < change_pct <= -0.5:
             status_emoji, title_word = '❄️', '숨고르기일까'
-            intro_ment = f"아이고 ㅠㅠ {raw_name} 파란불 켜져서 속 쓰리겠다.. 물 한잔 마시고 차분하게 보자."
+            intro_ment = f"아이고 ㅠㅠ {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다.. 물 한잔 마시고 차분하게 보자."
         else: # change_pct <= -5.0
             status_emoji, title_word = '❄️', '빠질까'
-            intro_ment = f"헐... 😱 {raw_name} 무섭게 빠지는데 형님들 멘탈 꽉 잡아! 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야!"
+            intro_ment = f"헐... 😱 {raw_name} {change_pct:+.2f}% 무섭게 빠지는데 형님들 멘탈 꽉 잡아! 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야!"
 
         news_list = fetch_realtime_news(raw_name)
         if news_list:
@@ -382,12 +382,13 @@ def analyze():
             supply_content = "📊 거래소 수급 집계 대기 / 해외 종목\n현재 거래소 수급 데이터를 수집 중이거나 일별 집계가 지원되지 않는 해외 종목이야! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
 
         tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #실시간속보"
-        news_transition = "이런 뉴스들이 돌고 있는데, 과연 진짜 돈 많은 세력들은 뉴스 믿고 사고 있을까, 아니면 뒤에서 팔고 튈 준비 중일까? 한 번 까보자!"
+        news_intro = "형님들이 궁금해 할거 같아서 오늘 어떤 재료가 있나 가져왔어 ㅎ"
+        news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지.\""
 
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"{intro_ment}\n현재 주가는 {price_str} 기록 중!\n\n오늘 시장을 뒤흔든 핵심 뉴스 3선이야:\n\n{news_lines}\n\n{news_transition}\n\n{tags_str}",
+                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n{news_intro}\n\n{news_lines}\n\n{news_transition}\n\n{tags_str}",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
