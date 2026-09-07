@@ -2,7 +2,7 @@
 <html lang="ko" class="dark">
 <head>
   <style>
-    /* gaemiGTP 모바일 가독성 심폐소생술 (글자 겹침 방지, 단어 끊김 방지) */
+    /* gaemiGTP 모바일 가독성 심폐소생술 */
     body, p, div, span {
         line-height: 1.6 !important; 
         word-break: keep-all !important; 
@@ -86,13 +86,12 @@
         <p class="text-sm sm:base text-[#a1a1aa] font-medium">종목명 하나면 10초 만에 끝납니다</p>
       </div>
 
-      <!-- 메인 검색 바 & gaemi/info/pro 셀렉터 -->
       <div class="w-full relative">
         <form class="relative flex items-center" onsubmit="event.preventDefault(); handleHeroSearch();">
           <input 
             id="heroStockInput" 
             type="text" 
-            placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, NVDA, BTC)" 
+            placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, NVDA, TSLA)" 
             class="w-full bg-[#18191d] border border-[#282a30] hover:border-[#3a3d46] focus:border-[#4a4e5a] rounded-full px-6 py-4 text-sm sm:text-base text-white placeholder-[#71717a] focus:outline-none pr-44 shadow-xl transition"
           >
           <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -136,7 +135,7 @@
         <button type="button" onclick="switchToAnalysisMode('현대차')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">현대차</button>
         <button type="button" onclick="switchToAnalysisMode('알테오젠')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">알테오젠</button>
         <button type="button" onclick="switchToAnalysisMode('엔비디아')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">엔비디아</button>
-        <button type="button" onclick="switchToAnalysisMode('비트코인')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">비트코인</button>
+        <button type="button" onclick="switchToAnalysisMode('테슬라')" class="text-xs bg-[#18191d] hover:bg-[#262830] text-[#a1a1aa] hover:text-white border border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">테슬라</button>
       </div>
     </div>
     <div class="h-6"></div>
@@ -238,7 +237,7 @@
           <input 
             id="bottomStockInput" 
             type="text" 
-            placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, 현대차, NVDA, BTC)" 
+            placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, NVDA, TSLA)" 
             class="w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-[#f4f4f5] placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-md transition leading-normal"
           >
           <div class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -297,7 +296,7 @@
             <span class="font-bold text-[#0f172a] dark:text-white">SK하이닉스</span>
             <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">000660</span>
           </div>
-          <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+3.4%</span>
+          <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+8.26%</span>
         </button>
 
         <button type="button" onclick="requestStock('삼성전자'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -305,7 +304,7 @@
             <span class="font-bold text-[#0f172a] dark:text-white">삼성전자</span>
             <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">005930</span>
           </div>
-          <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">0.0%</span>
+          <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+5.68%</span>
         </button>
 
         <button type="button" onclick="requestStock('현대차'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
@@ -372,7 +371,6 @@
 
     function selectAppMode(mode) {
       currentMode = mode;
-      
       const hLbl = document.getElementById('heroModeLabel');
       const bLbl = document.getElementById('bottomModeLabel');
       if (hLbl) hLbl.innerText = mode;
@@ -492,20 +490,19 @@
       return [
         {
           title: "🔥 그래서 오늘은 왜 올랐어?",
-          content: `개미들아! ${stockName} 수급 유입 중이야! 야호~\n현재 지지선 부근에서 매수세 형성!\n\n#실시간수급 #기관순매수 #지지선`,
-          tags: ["#실시간수급", "#지지선"]
+          content: `오!! ${stockName} +8.26% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ\n\n현재 주가는 1,783,000원 기록 중!\n궁금해할 거 같아서 오늘 어떤 뉴스가 있나 가져왔어 ㅎ\n\n📰 "${stockName} 관련 메이저 재료 포착"\n\n"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지"\n\n#${stockName}   #+8.26%   #가즈아   #불기둥`
         },
         {
           title: "큰손들은 담고 있을까, 털고 있을까?",
-          content: "#외국인 0주   #기관 0주   #개인 0주\n\n최근 5일간 세력들이 눈치싸움 중이야!\n지지선 확인하면서 방향 잡힐 때까지 기다리자."
+          content: "#외국인 +48.2만주   #기관 +21.4만주   #개인 -69.6만주\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
         },
         {
           title: "여기 깨지면 도망쳐",
-          content: "#생존 지지선 0원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 0원 딱 메모해놔! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
+          content: "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 딱 메모해놔! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
         },
         {
           title: "오늘 밤, 이번주 무슨 일이 있나?",
-          content: "주의 일정: 미국 경제 지표 발표 예정!\n공시 체크: 시간외 단일가 변동성 주의하자!"
+          content: "⏰ 09/11(금) 21:30 미국 8월 소비자물가지수(CPI) 발표\n시장 예상치 0.2%\n발표 직후 야간 선물 출렁일 수 있으니 주의해!\n\n이번 주 핵심 체크 (★★★)\n🗓️ 09/11(금) 21:30 미국 8월 소비자물가지수(CPI) ★★★\n🗓️ 09/17(목) 03:00 미국 연준 FOMC 기준금리 결정 ★★★"
         }
       ];
     }
@@ -612,22 +609,36 @@
             pEl.classList.remove('typing-cursor');
             let formatted = pEl.textContent;
 
+            // 2섹션 국장: 수급 해시태그 (모바일 1줄 고정 flex 컨테이너 적용)
+            if (formatted.includes('#외국인')) {
+              let lines = formatted.split('\n\n');
+              let tagLine = lines[0];
+              let rest = lines.slice(1).join('\n\n');
+
+              tagLine = tagLine.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주))/g, function(_, name, val) {
+                let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
+                return `<span class="whitespace-nowrap font-bold" style="color: ${color};">#${name} ${val}</span>`;
+              });
+              formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-xs sm:text-sm md:text-base py-0.5 tracking-tight">${tagLine}</div>\n\n${rest}`;
+
+            // 2섹션 미장: 콜(상승)/풋(하락)/베팅비율 (모바일 1줄 고정 flex 컨테이너 적용)
+            } else if (formatted.includes('#콜(상승)')) {
+              let lines = formatted.split('\n\n');
+              let tagLine = lines[0];
+              let rest = lines.slice(1).join('\n\n');
+
+              tagLine = tagLine.replace(/#콜\(상승\)\s+([\d,.]+(?:만건|건))/g, `<span class="whitespace-nowrap font-bold" style="color: #FF8DA1;">#콜(상승) $1</span>`);
+              tagLine = tagLine.replace(/#풋\(하락\)\s+([\d,.]+(?:만건|건))/g, `<span class="whitespace-nowrap font-bold" style="color: #38BDF8;">#풋(하락) $1</span>`);
+              tagLine = tagLine.replace(/#베팅비율\s+([\d.]+)/g, `<span class="whitespace-nowrap font-bold" style="color: #94a3b8;">#베팅비율 $1</span>`);
+
+              formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-xs sm:text-sm md:text-base py-0.5 tracking-tight">${tagLine}</div>\n\n${rest}`;
+
             // 3섹션: 생존 지지선 핑크(#FF8DA1) & 악성 매물대 파랑(#38BDF8)
-            if (formatted.includes('#생존 지지선')) {
+            } else if (formatted.includes('#생존 지지선')) {
               formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
               formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
-            // 2섹션 국장: 수급 해시태그 (+ 핑크, - 파랑)
-            } else if (formatted.includes('#외국인')) {
-              formatted = formatted.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주))/g, function(_, name, val) {
-                let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
-                return `<span class="inline-block mr-4" style="color: ${color};">#${name} ${val}</span>`;
-              });
-            // 2섹션 미장: 콜 핑크(#FF8DA1), 풋 파랑(#38BDF8), 베팅비율 회색
-            } else if (formatted.includes('#콜(상승)')) {
-              formatted = formatted.replace(/#콜\(상승\)\s+([\d,.]+(?:만건|건))/g, `<span class="inline-block mr-4" style="color: #FF8DA1;">#콜(상승) $1</span>`);
-              formatted = formatted.replace(/#풋\(하락\)\s+([\d,.]+(?:만건|건))/g, `<span class="inline-block mr-4" style="color: #38BDF8;">#풋(하락) $1</span>`);
-              formatted = formatted.replace(/#베팅비율\s+([\d.]+)/g, `<span class="inline-block mr-4" style="color: #94a3b8;">#베팅비율 $1</span>`);
-            // 1섹션: 본문 첫 문장의 등락률(+3.20%, -3.20%)만 핑크/파랑 적용
+
+            // 1섹션: 본문 등락률(+8.26%, -3.20%)만 핑크/파랑 강조
             } else {
               formatted = formatted.replace(/(#?[+-]\d+(?:\.\d+)?%)/g, function(match) {
                 let color = match.includes('+') ? '#FF8DA1' : '#38BDF8';
@@ -657,7 +668,6 @@
             <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 900;">내일 어디로 튈까? 네 실력좀 보여줘!</h4>
           </div>
 
-          <!-- 개미 투표 위젯 (상승 핑크 #FF8DA1 / 하락 블루 #38BDF8) -->
           <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] rounded-3xl p-5 space-y-4 shadow-sm">
             <div class="flex items-center justify-between">
               <span class="font-black text-base text-[#0f172a] dark:text-white">개미 투표</span>
