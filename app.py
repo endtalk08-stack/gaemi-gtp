@@ -433,8 +433,6 @@ def analyze():
                         pc_ratio = put_vol / call_vol
                         c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
                         p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
-                        
-                        # 요청 반영: (상승), (하락), 베팅 단어 삭제
                         tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
 
                         if pc_ratio <= 0.7:
