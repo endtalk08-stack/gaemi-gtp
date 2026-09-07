@@ -133,9 +133,7 @@ def fetch_realtime_news(stock_name):
     except Exception:
         return []
 
-# 네이버 모바일 정규 trend API + PC 백업 2중 수급 집계
 def fetch_krx_5d_supply_demand(code_six):
-    # 1차: 모바일 trend API
     try:
         url = f"https://m.stock.naver.com/api/stock/{code_six}/trend?page=1&pageSize=5"
         headers = {
@@ -164,7 +162,6 @@ def fetch_krx_5d_supply_demand(code_six):
     except Exception as e:
         print("모바일 1차 수급 집계 예외:", e)
 
-    # 2차: PC 웹 백업 크롤링
     try:
         headers_pc = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36',
@@ -218,7 +215,7 @@ def format_shares(n):
     if n is None: return "0주"
     sign = "+" if n > 0 else ""
     if abs(n) >= 10000:
-        return f"{sign}{n / 10000:,.1f}만 주"
+        return f"{sign}{n / 10000:,.1f}만주"
     return f"{sign}{n:,}주"
 
 def round_krw_tick(price):
@@ -244,7 +241,6 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
-# 4섹션: 2번째 카드/불릿형 + 이번 주 핵심 체크 레이아웃
 def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
@@ -268,11 +264,10 @@ def get_live_calendar_data(stock_name, ticker_symbol):
         f_dt = first['dt']
         f_wd = weekdays[f_dt.weekday()]
         time_str = f_dt.strftime(f"%m/%d({f_wd}) %H:%M")
-        main_card = f"⏰ {time_str} | {first['name']} 발표\n• 시장 예상치: {first['est']}\n• 개미 행동요령: 발표 직후 야간 선물 출렁일 수 있으니 주의"
+        main_card = f"⏰ {time_str} {first['name']} 발표\n시장 예상치 {first['est']}\n발표 직후 야간 선물 출렁일 수 있으니 주의해!"
     else:
-        main_card = "⏰ 현재 주요 매크로 일정 대기 중\n• 개미 행동요령: 개별 종목 수급과 지지선 방어에 집중하자"
+        main_card = "⏰ 현재 주요 매크로 일정 대기 중\n개별 종목 수급과 지지선 방어에 집중하자"
 
-    # 기업 실적 카드
     earnings_card = ""
     today = datetime.date.today()
     earn_start = (today - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
@@ -296,9 +291,9 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                         if act is not None and est is not None:
                             diff = act - est
                             status = "어닝 서프라이즈" if diff >= 0 else "실적 쇼크"
-                            earnings_card = f"🏢 최근 발표 | {kr_label} 실적\n• 결과: EPS ${act:.2f} (예상치 ${est:.2f}) - {status}\n• 개미 행동요령: 실적 결과에 따른 단기 방향성 확인 필수"
+                            earnings_card = f"🏢 최근 발표 {kr_label} 실적\n결과 EPS ${act:.2f} (예상치 ${est:.2f}) {status}\n실적 결과에 따른 단기 방향성 확인 필수"
                         elif est is not None:
-                            earnings_card = f"🏢 {date_str} | {kr_label} 실적 발표\n• 예상치: EPS ${est:.2f}\n• 개미 행동요령: 대장주 실적이라 변동성 커질 수 있으니 조심"
+                            earnings_card = f"🏢 {date_str} {kr_label} 실적 발표\n예상치 EPS ${est:.2f}\n대장주 실적이라 변동성 커질 수 있으니 조심"
             except Exception:
                 pass
         else:
@@ -309,11 +304,10 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                         if boss_event:
                             boss_date = boss_event.get('date', '')
                             kr_boss_name = US_KOREAN_NAMES.get(boss, boss)
-                            earnings_card = f"🏢 {boss_date} | {kr_boss_name} 실적 발표\n• 테마: {theme} 글로벌 대장주\n• 개미 행동요령: 대장주 실적에 따라 국내 관련주 동반 변동성 조심"
+                            earnings_card = f"🏢 {boss_date} {kr_boss_name} 실적 발표\n테마 {theme} 글로벌 대장주\n대장주 실적에 따라 국내 관련주 동반 변동성 조심"
                             break
                     if earnings_card: break
 
-    # 이번 주 핵심 체크 리스트 (3개)
     check_lines = []
     for ev in upcoming[:3]:
         e_dt = ev['dt']
@@ -376,7 +370,6 @@ def analyze():
         change_pct = ((current_price - prev_close) / prev_close) * 100
         ma20 = hist['Close'].mean()
 
-        # 최근 1개월 최대 거래량 터진 날의 종가를 악성 매물대 가격으로 산출
         if 'Volume' in hist.columns and hist['Volume'].sum() > 0:
             max_vol_date = hist['Volume'].idxmax()
             resistance_price = hist.loc[max_vol_date, 'Close']
@@ -397,7 +390,6 @@ def analyze():
             ma20_str = f"${ma20:,.2f}"
             res_str = f"${resistance_price:,.2f}"
 
-        # 1섹션: 5단계 멘트
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
@@ -428,31 +420,32 @@ def analyze():
                 i_abs = format_shares(inst_5d)
                 ind_abs = format_shares(indiv_5d)
 
+                tag_line = f"#외국인 {f_abs}   #기관 {i_abs}   #개인 {ind_abs}"
+
                 if foreign_5d > 0 and inst_5d > 0:
-                    supply_content = f"🔥 쌍끌이 매집 폭발!\n최근 5일간 외놈들이 {f_abs}, 기관들이 {i_abs}를 미친 듯이 쓸어 담으며 바닥을 단단히 다졌어! 메이저 세력이 개미들 물량 털어먹고 위로 쏠 준비 중이니까, 잔파도에 털리지 말고 꽉 쥐고 가자!"
+                    supply_content = f"{tag_line}\n\n외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
                 elif foreign_5d < 0 and inst_5d < 0:
-                    supply_content = f"🚨 비상! 세력 양매도 폭격 경보!\n최근 5일간 외놈들이 {f_abs}, 기관들이 {i_abs}를 시장에 대놓고 패대기치고 있어! 우리 순진한 개미들만 온몸으로 물받이하고 있는 위험한 형국이니까, 절대 물타지 말고 지지선 깨지면 튀어야 해!"
+                    supply_content = f"{tag_line}\n\n큰손들이 시장에서 발을 빼며 물량을 털어내고 있어.\n개미들만 물량을 떠안는 위험한 자리니까 절대 물타지 말고 조심해야 돼."
                 elif foreign_5d > 0:
-                    supply_content = f"🛸 외놈들의 단독 방어전!\n기관들이 {i_abs} 던지면서 간을 보고 있지만, 외놈들이 {f_abs}를 묵직하게 받아내며 방어선을 치고 있어! 외놈들 매수 단가 위에서 버텨준다면 단기 반등 탄력 기대해 볼 만해."
+                    supply_content = f"{tag_line}\n\n세력이 개미를 압도하는 완벽한 판세야.\n기관이 관망하는 사이 외국인이 지친 개미들 물량을 싹 쓸어 담았어.\n돈의 힘이 상방으로 쏠렸으니 단기 슈팅 흐름 기대해 봐도 좋아."
                 elif inst_5d > 0:
-                    supply_content = f"🏢 여의도 기관들 연속 매집 중!\n외놈들이 {f_abs} 던지며 발을 빼는데도, 기관들이 {i_abs} 뚝심 있게 순매수하며 주가를 주도하고 있어! 토종 기관의 바닥 지지력이 살아있으니 20일선 지지 여부 꼭 체크하자!"
+                    supply_content = f"{tag_line}\n\n국내 기관들이 뚝심 있게 순매수하며 주가를 끌고 있어!\n토종 세력의 바닥 지지력이 살아있으니 20일선 지지 여부 보면서 따라가 보자."
                 else:
-                    supply_content = f"⚖️ 수급 눈치싸움 중!\n최근 5일간 외놈({f_abs})과 기관({i_abs})의 힘겨루기가 팽팽하게 이어지고 있어! 개미 수급({ind_abs})이 엇갈리며 박스권 눈치싸움이 치열하니까 기준 가격만 철저히 지키자."
+                    supply_content = f"{tag_line}\n\n세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
             else:
-                supply_content = "📊 거래소 수급 집계 대기\n현재 거래소 수급 데이터를 수집 중이야! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
+                supply_content = "거래소 수급 집계 대기\n현재 거래소 수급 데이터를 수집 중이야! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
         else:
             pc_ratio = fetch_us_put_call_ratio(ticker)
             if pc_ratio is not None:
                 if pc_ratio <= 0.7:
-                    supply_content = f"🛸 월가 큰손 옵션 포지션 포착!\n콜옵션 거래량이 풋옵션을 압도 중이야! (풋/콜 비율 {pc_ratio:.2f}) 큰손들이 위로 쏘는 쪽에 강하게 베팅하고 있으니 탄력 기대해 보자!"
+                    supply_content = f"월가 큰손 옵션 포지션 포착\n콜옵션 거래량이 풋옵션을 압도 중이야! (풋/콜 비율 {pc_ratio:.2f}) 큰손들이 위로 쏘는 쪽에 강하게 베팅하고 있으니 탄력 기대해 보자!"
                 elif pc_ratio >= 1.1:
-                    supply_content = f"🚨 월가 헤지 물량 급증 경보!\n풋옵션 거래량이 콜옵션을 넘어서고 있어! (풋/콜 비율 {pc_ratio:.2f}) 큰손들이 하락 방어벽을 치고 눈치 보는 구간이니 지지선 꼭 체크하자!"
+                    supply_content = f"월가 헤지 물량 급증 경보\n풋옵션 거래량이 콜옵션을 넘어서고 있어! (풋/콜 비율 {pc_ratio:.2f}) 큰손들이 하락 방어벽을 치고 눈치 보는 구간이니 지지선 꼭 체크하자!"
                 else:
-                    supply_content = f"⚖️ 월가 세력들 눈치싸움 중!\n풋옵션과 콜옵션 거래량이 팽팽하게 맞서고 있어! (풋/콜 비율 {pc_ratio:.2f}) 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자!"
+                    supply_content = f"월가 세력들 눈치싸움 중\n풋옵션과 콜옵션 거래량이 팽팽하게 맞서고 있어! (풋/콜 비율 {pc_ratio:.2f}) 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자!"
             else:
-                supply_content = "📊 월가 옵션 수급 대기 중\n현재 옵션 포지션 데이터를 수집 중이야! 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
+                supply_content = "월가 옵션 수급 대기 중\n현재 옵션 포지션 데이터를 수집 중이야! 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
 
-        # HTML 태그 제거: 프론트엔드 마크다운 파서 오류 원천 차단
         tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #실시간속보"
         news_intro = "궁금해할 거 같아서 오늘 어떤 뉴스가 있나 가져왔어 ㅎ"
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
