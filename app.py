@@ -117,7 +117,6 @@ def fetch_realtime_news(stock_name):
                 title_el = item.find('title')
                 if title_el is not None and title_el.text:
                     title = title_el.text
-                    
                     title = re.sub(r'\[.*?\]', '', title)
                     title = re.sub(r'<[^>]+>', '', title)
                     title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
@@ -134,29 +133,68 @@ def fetch_realtime_news(stock_name):
     except Exception:
         return []
 
+# 네이버 모바일 정규 trend API + PC 백업 2중 수급 집계
 def fetch_krx_5d_supply_demand(code_six):
+    # 1차: 모바일 trend API
     try:
-        url = f"https://m.stock.naver.com/api/stock/{code_six}/investor?page=1&pageSize=5"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        url = f"https://m.stock.naver.com/api/stock/{code_six}/trend?page=1&pageSize=5"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            'Referer': 'https://m.stock.naver.com/'
+        }
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=4) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-            
             if data and isinstance(data, list):
                 sum_inst = 0
                 sum_foreign = 0
-                valid_days = len(data)
-
+                valid_days = 0
                 for row in data:
-                    frgn = str(row.get('frgnPureBuyQuant', '0')).replace(',', '')
-                    insti = str(row.get('instiPureBuyQuant', '0')).replace(',', '')
-                    sum_foreign += int(frgn)
-                    sum_inst += int(insti)
+                    frgn = row.get('foreignerPureBuyQuant') or row.get('frgnPureBuyQuant') or 0
+                    insti = row.get('institutionPureBuyQuant') or row.get('instiPureBuyQuant') or 0
+                    f_val = int(str(frgn).replace(',', ''))
+                    i_val = int(str(insti).replace(',', ''))
+                    sum_foreign += f_val
+                    sum_inst += i_val
+                    valid_days += 1
 
                 if valid_days > 0:
                     sum_indiv = -(sum_inst + sum_foreign)
                     return sum_indiv, sum_foreign, sum_inst, valid_days
     except Exception as e:
-        print("모바일 5일 수급 집계 에러:", e)
+        print("모바일 1차 수급 집계 예외:", e)
+
+    # 2차: PC 웹 백업 크롤링
+    try:
+        headers_pc = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36',
+            'Referer': f'https://finance.naver.com/item/main.naver?code={code_six}'
+        }
+        url_pc = f"https://finance.naver.com/item/frgn.naver?code={code_six}"
+        req_pc = urllib.request.Request(url_pc, headers=headers_pc)
+        with urllib.request.urlopen(req_pc, timeout=4) as resp:
+            html = resp.read().decode('euc-kr', 'replace')
+            rows = re.findall(r'<tr[^>]*>\s*<td class="tc">\s*<span class="tah p10 gray03">\d{4}\.\d{2}\.\d{2}</span>.*?</tr>', html, re.DOTALL)
+            if rows:
+                sum_inst = 0
+                sum_foreign = 0
+                valid_days = 0
+                for r in rows[:5]:
+                    tds = r.split('<td')
+                    if len(tds) > 7:
+                        inst_clean = re.sub(r'[^0-9\-]', '', tds[6])
+                        foreign_clean = re.sub(r'[^0-9\-]', '', tds[7])
+                        if inst_clean and foreign_clean and inst_clean != '-' and foreign_clean != '-':
+                            sum_inst += int(inst_clean)
+                            sum_foreign += int(foreign_clean)
+                            valid_days += 1
+
+                if valid_days > 0:
+                    sum_indiv = -(sum_inst + sum_foreign)
+                    return sum_indiv, sum_foreign, sum_inst, valid_days
+    except Exception as e:
+        print("PC 2차 수급 백업 집계 예외:", e)
+
     return None, None, None, 0
 
 def fetch_us_put_call_ratio(ticker_obj):
@@ -164,17 +202,13 @@ def fetch_us_put_call_ratio(ticker_obj):
         opts = ticker_obj.options
         if not opts:
             return None
-        
         opt = ticker_obj.option_chain(opts[0])
         calls = opt.calls
         puts = opt.puts
-        
         call_vol = calls['volume'].sum() if 'volume' in calls else 0
         put_vol = puts['volume'].sum() if 'volume' in puts else 0
-        
         if call_vol == 0:
             return None
-            
         return put_vol / call_vol
     except Exception as e:
         print("미국 옵션 수급 집계 에러:", e)
@@ -210,40 +244,42 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
-def get_official_macro_schedule():
+# 4섹션: 2번째 카드/불릿형 + 이번 주 핵심 체크 레이아웃
+def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
     
     schedule = [
-        {"name": "미국 8월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%"},
-        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%"},
-        {"name": "미국 생산자물가지수(PPI)", "dt": datetime.datetime(2026, 9, 18, 21, 30, tzinfo=kst_tz), "est": "0.2%"},
-        {"name": "미국 개인소비지출(PCE) 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%"},
-        {"name": "미국 9월 비농업 고용보고서(NFP)", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건"},
-        {"name": "미국 9월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 10, 14, 21, 30, tzinfo=kst_tz), "est": "시장 전망치 대기"},
-        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 10, 29, 3, 0, tzinfo=kst_tz), "est": "금리 추가 인하 여부 촉각"}
+        {"name": "미국 8월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★★"},
+        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%", "star": "★★★"},
+        {"name": "미국 생산자물가지수(PPI)", "dt": datetime.datetime(2026, 9, 18, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★☆"},
+        {"name": "미국 개인소비지출(PCE) 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%", "star": "★★★"},
+        {"name": "미국 9월 비농업 고용보고서(NFP)", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건", "star": "★★★"},
+        {"name": "미국 9월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 10, 14, 21, 30, tzinfo=kst_tz), "est": "시장 전망치 대기", "star": "★★★"},
+        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 10, 29, 3, 0, tzinfo=kst_tz), "est": "금리 추가 인하 여부 촉각", "star": "★★★"}
     ]
 
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
-    for ev in schedule:
-        if ev['dt'] >= now_kst:
-            dt = ev['dt']
-            wd = weekdays[dt.weekday()]
-            time_str = dt.strftime(f"%m/%d({wd}) %H:%M")
-            return f"일정 체크해 보면, 다가오는 {time_str}에 {ev['name']} 발표가 예정되어 있어! 시장 예상치는 {ev['est']} 수준인데 발표 직후 야간 선물이 크게 출렁일 수 있으니 꼭 주의하자."
+    upcoming = [ev for ev in schedule if ev['dt'] >= now_kst]
 
-    return "글로벌 매크로 지표 일정이 촘촘하게 잡혀 있는 구간이야. 지수 변동성에 유의하면서 지지선 잘 지키자!"
+    main_card = ""
+    if upcoming:
+        first = upcoming[0]
+        f_dt = first['dt']
+        f_wd = weekdays[f_dt.weekday()]
+        time_str = f_dt.strftime(f"%m/%d({f_wd}) %H:%M")
+        main_card = f"⏰ {time_str} | {first['name']} 발표\n• 시장 예상치: {first['est']}\n• 개미 행동요령: 발표 직후 야간 선물 출렁일 수 있으니 주의"
+    else:
+        main_card = "⏰ 현재 주요 매크로 일정 대기 중\n• 개미 행동요령: 개별 종목 수급과 지지선 방어에 집중하자"
 
-def get_live_calendar_data(stock_name, ticker_symbol):
+    # 기업 실적 카드
+    earnings_card = ""
     today = datetime.date.today()
     earn_start = (today - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
     earn_end = (today + datetime.timedelta(days=30)).strftime('%Y-%m-%d')
 
-    earnings_msg = ""
-
     if FINNHUB_KEY:
         is_us_stock = bool(re.match(r'^[A-Za-z]+$', ticker_symbol))
-        
         if is_us_stock:
             try:
                 url = f"https://finnhub.io/api/v1/calendar/earnings?from={earn_start}&to={earn_end}&symbol={ticker_symbol}&token={FINNHUB_KEY}"
@@ -257,13 +293,12 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                         est = item.get('epsEstimate')
                         date_str = item.get('date', '')
                         kr_label = US_KOREAN_NAMES.get(ticker_symbol, stock_name)
-
                         if act is not None and est is not None:
                             diff = act - est
-                            status = "어닝 서프라이즈를 터뜨렸어!" if diff >= 0 else "예상치를 밑돌며 실적 쇼크가 나왔어 ㅠㅠ"
-                            earnings_msg = f"실적 소식으로는 방금 {kr_label} 실적이 발표됐는데 {status} 실제 EPS가 ${act:.2f}(예상치 ${est:.2f})로 찍혔으니 참고해 둬."
+                            status = "어닝 서프라이즈" if diff >= 0 else "실적 쇼크"
+                            earnings_card = f"🏢 최근 발표 | {kr_label} 실적\n• 결과: EPS ${act:.2f} (예상치 ${est:.2f}) - {status}\n• 개미 행동요령: 실적 결과에 따른 단기 방향성 확인 필수"
                         elif est is not None:
-                            earnings_msg = f"실적도 눈여겨봐야 해. {date_str}에 {kr_label} 실적 발표가 잡혀 있거든! 예상 EPS는 ${est:.2f}인데 발표 전후로 롤러코스터 탈 수 있으니 조심해."
+                            earnings_card = f"🏢 {date_str} | {kr_label} 실적 발표\n• 예상치: EPS ${est:.2f}\n• 개미 행동요령: 대장주 실적이라 변동성 커질 수 있으니 조심"
             except Exception:
                 pass
         else:
@@ -274,16 +309,27 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                         if boss_event:
                             boss_date = boss_event.get('date', '')
                             kr_boss_name = US_KOREAN_NAMES.get(boss, boss)
-                            earnings_msg = f"그리고 우리 {theme} 대장 격인 미국 {kr_boss_name} 실적이 {boss_date}에 나오거든! 대장주 실적에 따라 국내 관련주도 같이 춤출 테니 꽉 잡아."
+                            earnings_card = f"🏢 {boss_date} | {kr_boss_name} 실적 발표\n• 테마: {theme} 글로벌 대장주\n• 개미 행동요령: 대장주 실적에 따라 국내 관련주 동반 변동성 조심"
                             break
-                    if earnings_msg: break
+                    if earnings_card: break
 
-    macro_msg = get_official_macro_schedule()
+    # 이번 주 핵심 체크 리스트 (3개)
+    check_lines = []
+    for ev in upcoming[:3]:
+        e_dt = ev['dt']
+        e_wd = weekdays[e_dt.weekday()]
+        e_time = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
+        check_lines.append(f"🗓️ {e_time} {ev['name']} {ev['star']}")
 
-    if earnings_msg:
-        return f"{macro_msg}\n\n{earnings_msg}"
-    else:
-        return f"{macro_msg}\n\n지금은 개별 종목 수급 장세인 만큼 세력 평단가와 수급 턴어라운드 타이밍에 집중하자!"
+    check_block = "이번 주 핵심 체크 (★★★)\n" + "\n".join(check_lines) if check_lines else ""
+
+    sections = [main_card]
+    if earnings_card:
+        sections.append(earnings_card)
+    if check_block:
+        sections.append(check_block)
+
+    return "\n\n".join(sections)
 
 @app.route('/')
 def home():
@@ -330,7 +376,7 @@ def analyze():
         change_pct = ((current_price - prev_close) / prev_close) * 100
         ma20 = hist['Close'].mean()
 
-        # 최근 1개월(20거래일) 중 최대 거래량 터진 날의 종가를 악성 매물대 가격으로 산출
+        # 최근 1개월 최대 거래량 터진 날의 종가를 악성 매물대 가격으로 산출
         if 'Volume' in hist.columns and hist['Volume'].sum() > 0:
             max_vol_date = hist['Volume'].idxmax()
             resistance_price = hist.loc[max_vol_date, 'Close']
@@ -364,7 +410,7 @@ def analyze():
         elif -5.0 < change_pct <= -0.5:
             status_emoji, title_word = '❄️', '숨고르기일까'
             intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
-        else: # change_pct <= -5.0
+        else:
             status_emoji, title_word = '❄️', '빠질까'
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
 
@@ -374,7 +420,7 @@ def analyze():
         else:
             news_lines = f"📰 \"{raw_name} 관련 메이저 재료 포착\""
 
-        # 2섹션: 한국 수급(네이버 모바일) vs 미국 수급(옵션 Put/Call 비율)
+        # 2섹션: 한국 수급 vs 미국 수급
         if is_krw:
             indiv_5d, foreign_5d, inst_5d, days = fetch_krx_5d_supply_demand(clean_code) if clean_code else (None, None, None, 0)
             if foreign_5d is not None and inst_5d is not None and days > 0:
@@ -406,7 +452,8 @@ def analyze():
             else:
                 supply_content = "📊 월가 옵션 수급 대기 중\n현재 옵션 포지션 데이터를 수집 중이야! 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
 
-        tags_str = f"<span style=\"color: #FF8DA1; font-weight: bold;\">#{raw_name} &nbsp; #{change_pct:+.2f}% &nbsp; #실시간속보</span>"
+        # HTML 태그 제거: 프론트엔드 마크다운 파서 오류 원천 차단
+        tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #실시간속보"
         news_intro = "궁금해할 거 같아서 오늘 어떤 뉴스가 있나 가져왔어 ㅎ"
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
 
@@ -425,7 +472,7 @@ def analyze():
                 "content": f"🛡️생존 지지선 {ma20_str} ~ 딱! 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여!\n🧱악성 매물대 {res_str} ~ 최근 고점 부근에 과거 물려있는 개미들의 본전 대기 악성 매물이 쏟아질 수 있어 ㅠㅠ 조심해!"
             },
             {
-                "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
+                "title": "오늘 밤, 이번주 무슨 일이 있나?",
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ]
