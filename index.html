@@ -70,7 +70,7 @@
     <div class="flex-1 flex flex-col items-center justify-center px-4 -mt-12 w-full max-w-3xl mx-auto text-center space-y-6">
       <div class="space-y-2">
         <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-white">gaemiGTP</h1>
-        <p class="text-sm sm:text-base text-[#a1a1aa] font-medium">종목명 하나면 10초 만에 끝납니다</p>
+        <p class="text-sm sm:base text-[#a1a1aa] font-medium">종목명 하나면 10초 만에 끝납니다</p>
       </div>
 
       <!-- 메인 검색 바 & gaemi/info/pro 셀렉터 -->
@@ -82,7 +82,7 @@
             placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, NVDA, BTC)" 
             class="w-full bg-[#18191d] border border-[#282a30] hover:border-[#3a3d46] focus:border-[#4a4e5a] rounded-full px-6 py-4 text-sm sm:text-base text-white placeholder-[#71717a] focus:outline-none pr-44 shadow-xl transition"
           >
-          <div class="absolute right-2.5 flex items-center gap-2">
+          <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-2">
             <!-- 모드 선택 버튼 -->
             <button type="button" onclick="toggleModeDropdown('hero')" id="heroModeBtn" class="flex items-center gap-1 text-xs font-bold text-[#a1a1aa] hover:text-white px-2 py-1.5 rounded-lg hover:bg-[#282a30] transition cursor-pointer">
               <span id="heroModeLabel">gaemi</span> <span class="text-[10px]">▲</span>
@@ -219,17 +219,17 @@
 
     <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 max-w-5xl mx-auto w-full"></div>
 
-    <!-- 하단 검색 바 (채팅창 입력 영역) -->
-    <div class="shrink-0 p-3 sm:p-4 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
+    <!-- 하단 검색 바 (채팅창 입력 영역 - 일자 수평 및 중앙 정렬 강화) -->
+    <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-4xl mx-auto relative">
         <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
           <input 
             id="bottomStockInput" 
             type="text" 
             placeholder="종목명 입력 (예: SK하이닉스, 삼성전자, 현대차, NVDA, BTC)" 
-            class="w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-[#f4f4f5] placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-md transition"
+            class="w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-[#f4f4f5] placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-md transition leading-normal"
           >
-          <div class="absolute right-2 flex items-center gap-2">
+          <div class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
             <!-- 하단 모드 선택 버튼 -->
             <button type="button" onclick="toggleModeDropdown('bottom')" id="bottomModeBtn" class="flex items-center gap-1 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white px-2 py-1.5 rounded-lg hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition cursor-pointer">
               <span id="bottomModeLabel">gaemi</span> <span class="text-[10px]">▲</span>
@@ -355,7 +355,6 @@
     let currentMode = 'gaemi';
     let currentChartInstance = null;
 
-    // 모드 드롭다운 토글 및 선택 로직
     function toggleModeDropdown(pos) {
       const menu = document.getElementById(pos === 'hero' ? 'heroModeMenu' : 'bottomModeMenu');
       if (menu) menu.classList.toggle('hidden');
@@ -364,13 +363,11 @@
     function selectAppMode(mode) {
       currentMode = mode;
       
-      // 버튼 라벨 갱신
       const hLbl = document.getElementById('heroModeLabel');
       const bLbl = document.getElementById('bottomModeLabel');
       if (hLbl) hLbl.innerText = mode;
       if (bLbl) bLbl.innerText = mode;
 
-      // 체크마크 갱신
       ['gaemi', 'info', 'pro'].forEach(m => {
         const chkH = document.getElementById(`chk-hero-${m}`);
         const chkB = document.getElementById(`chk-bottom-${m}`);
@@ -378,7 +375,6 @@
         if (chkB) chkB.classList.toggle('hidden', m !== mode);
       });
 
-      // 메뉴 닫기
       const hMenu = document.getElementById('heroModeMenu');
       const bMenu = document.getElementById('bottomModeMenu');
       if (hMenu) hMenu.classList.add('hidden');
@@ -604,6 +600,7 @@
             setTimeout(typeChunk, 15);
           } else {
             pEl.classList.remove('typing-cursor');
+            pEl.innerHTML = pEl.textContent.replace(/(#[^\s#]+)/g, '<span style="color: #ff3366; font-weight: 700;">$1</span>');
             secIdx++;
             setTimeout(typeNextSection, 80);
           }
@@ -614,13 +611,11 @@
       typeNextSection();
     }
 
-    // 하단 위젯 렌더러
     function renderBottomWidgets(wrapperId, stockName) {
       const container = document.getElementById(wrapperId);
       const bottomDiv = document.createElement('div');
       bottomDiv.className = "space-y-6 pt-4 animate-fade";
       bottomDiv.innerHTML = `
-        <!-- 개미 투표 섹션 -->
         <div class="space-y-3">
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
@@ -648,14 +643,12 @@
           </div>
         </div>
 
-        <!-- 전략 3인방 아코디언 -->
         <div class="space-y-3">
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
             <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 900;">내 투자 스타일에 맞는 전략도 확인해바.</h4>
           </div>
 
-          <!-- 서학개미 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] transition cursor-pointer shadow-sm">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -675,7 +668,6 @@
             <div id="dash-slot-서학" class="hidden animate-fade"></div>
           </div>
 
-          <!-- 국장개미 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] transition cursor-pointer shadow-sm">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -695,7 +687,6 @@
             <div id="dash-slot-국장" class="hidden animate-fade"></div>
           </div>
 
-          <!-- 트레이더 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] hover:border-[#94a3b8] dark:hover:border-[#52525b] transition cursor-pointer shadow-sm">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
