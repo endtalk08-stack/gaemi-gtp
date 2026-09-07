@@ -257,21 +257,21 @@
               <div class="font-bold text-sm text-[#0f172a] dark:text-white">gaemi</div>
               <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">도움을 받으세요</div>
             </div>
-            <span id="chk-bottom-gaemi" class="text-sky-500 dark:text-sky-400 text-sm font-bold">✓</span>
+            <span id="chk-hero-gaemi" class="text-sky-500 dark:text-sky-400 text-sm font-bold">✓</span>
           </button>
           <button type="button" onclick="selectAppMode('info')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
             <div>
               <div class="font-bold text-sm text-[#0f172a] dark:text-white">info</div>
               <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">정보를 확인하세요</div>
             </div>
-            <span id="chk-bottom-info" class="text-sky-500 dark:text-sky-400 text-sm font-bold hidden">✓</span>
+            <span id="chk-hero-info" class="text-sky-500 dark:text-sky-400 text-sm font-bold hidden">✓</span>
           </button>
           <button type="button" onclick="selectAppMode('pro')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
             <div>
               <div class="font-bold text-sm text-[#0f172a] dark:text-white">pro</div>
               <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">실력을 키우세요</div>
             </div>
-            <span id="chk-bottom-pro" class="text-sky-500 dark:text-sky-400 text-sm font-bold hidden">✓</span>
+            <span id="chk-hero-pro" class="text-sky-500 dark:text-sky-400 text-sm font-bold hidden">✓</span>
           </button>
         </div>
       </div>
@@ -497,11 +497,11 @@
         },
         {
           title: "큰손들은 담고 있을까, 털고 있을까?",
-          content: "#외국인 0주   #기관 0주   #개인 0주\n\n수급 눈치싸움 중이야!\n지지선 확인하면서 방향 잡힐 때까지 기다리자."
+          content: "#외국인 0주   #기관 0주   #개인 0주\n\n최근 5일간 세력들이 눈치싸움 중이야!\n지지선 확인하면서 방향 잡힐 때까지 기다리자."
         },
         {
           title: "여기 깨지면 도망쳐",
-          content: "🛡️생존 지지선: 지지선 이탈 시 미련 없이 비중 축소!\n🧱악성 매물대: 전고점 부근에 개미들의 본전 대기 매물 주의 ㅠㅠ."
+          content: "#생존 지지선 0원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 0원 딱 메모해놔! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
         },
         {
           title: "오늘 밤, 이번주 무슨 일이 있나?",
@@ -612,19 +612,27 @@
             pEl.classList.remove('typing-cursor');
             let formatted = pEl.textContent;
 
-            // 국장: 외인/기관/개인 수급 색상 처리 (굵기 변형 없이 원래 본문 글씨 유지)
-            if (formatted.includes('#외국인')) {
+            // 3섹션: 생존 지지선 핑크(#FF8DA1) & 악성 매물대 파랑(#38BDF8)
+            if (formatted.includes('#생존 지지선')) {
+              formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
+              formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
+            // 2섹션 국장: 수급 해시태그 (+ 핑크, - 파랑)
+            } else if (formatted.includes('#외국인')) {
               formatted = formatted.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주))/g, function(_, name, val) {
                 let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
                 return `<span class="inline-block mr-4" style="color: ${color};">#${name} ${val}</span>`;
               });
-            // 미장: 콜(상승) 핑크 / 풋(하락) 블루 / 베팅비율 회색 적용
+            // 2섹션 미장: 콜 핑크(#FF8DA1), 풋 파랑(#38BDF8), 베팅비율 회색
             } else if (formatted.includes('#콜(상승)')) {
               formatted = formatted.replace(/#콜\(상승\)\s+([\d,.]+(?:만건|건))/g, `<span class="inline-block mr-4" style="color: #FF8DA1;">#콜(상승) $1</span>`);
               formatted = formatted.replace(/#풋\(하락\)\s+([\d,.]+(?:만건|건))/g, `<span class="inline-block mr-4" style="color: #38BDF8;">#풋(하락) $1</span>`);
               formatted = formatted.replace(/#베팅비율\s+([\d.]+)/g, `<span class="inline-block mr-4" style="color: #94a3b8;">#베팅비율 $1</span>`);
+            // 1섹션: 등락률 태그 (+면 핑크, -면 파랑) 및 기본 해시태그
             } else {
-              formatted = formatted.replace(/(#[^\s#]+)/g, '<span style="color: #FF8DA1;">$1</span>');
+              formatted = formatted.replace(/(#[^\s#]+)/g, function(tag) {
+                let color = tag.includes('+') ? '#FF8DA1' : (tag.includes('-') ? '#38BDF8' : '#FF8DA1');
+                return `<span style="color: ${color};">${tag}</span>`;
+              });
             }
 
             pEl.innerHTML = formatted;
