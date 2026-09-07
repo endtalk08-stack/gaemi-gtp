@@ -446,7 +446,27 @@ def analyze():
             else:
                 supply_content = "월가 옵션 수급 대기 중\n현재 옵션 포지션 데이터를 수집 중이야! 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
 
-        tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #실시간속보"
+        # 1섹션: 5단계 멘트 및 상황별 해시태그 분기
+        if change_pct >= 5.0:
+            status_emoji, title_word = '🔥', '올랐어'
+            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #가즈아   #불기둥"
+        elif 0.5 <= change_pct < 5.0:
+            status_emoji, title_word = '🔥', '올랐어'
+            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #우상향   #야금야금"
+        elif -0.5 < change_pct < 0.5:
+            status_emoji, title_word = '⚖️', '보합일까'
+            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네\n개미들아! 폭풍 전야처럼 조용한데?"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #눈치싸움   #방향탐색"
+        elif -5.0 < change_pct <= -0.5:
+            status_emoji, title_word = '❄️', '숨고르기일까'
+            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #숨고르기   #버텨보자"
+        else:
+            status_emoji, title_word = '❄️', '빠질까'
+            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
         news_intro = "궁금해할 거 같아서 오늘 어떤 뉴스가 있나 가져왔어 ㅎ"
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
 
