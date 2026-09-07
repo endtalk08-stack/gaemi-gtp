@@ -12,11 +12,13 @@ import re
 app = Flask(__name__)
 CORS(app)
 
+# 환경 변수 로드 (공백 제거)
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip()
 KIWOOM_APP_KEY = os.environ.get('KIWOOM_APP_KEY', '').strip()
 KIWOOM_APP_SECRET = os.environ.get('KIWOOM_APP_SECRET', '').strip()
 KIWOOM_IS_MOCK = False
 
+# 미국 대장주 한글-티커 매핑
 US_KOREAN_NAMES = {
     'ORCL': '오라클(ORCL)',
     'NVDA': '엔비디아(NVDA)',
@@ -106,7 +108,6 @@ def search_krx_code(stock_name):
         pass
     return None, None
 
-# 뉴스 3개 수집 (제목 및 원문 URL 확보)
 def fetch_realtime_news(stock_name):
     try:
         query = urllib.parse.quote(f"{stock_name}")
@@ -127,25 +128,63 @@ def fetch_realtime_news(stock_name):
     except Exception:
         return []
 
+# [개선] 키움 REST API OAuth2 토큰 자동 발급 모듈
+_KIWOOM_TOKEN_CACHE = None
 def get_kiwoom_token():
+    global _KIWOOM_TOKEN_CACHE
+    if _KIWOOM_TOKEN_CACHE:
+        return _KIWOOM_TOKEN_CACHE
+    
     if not KIWOOM_APP_KEY or not KIWOOM_APP_SECRET:
         return None
-    try:
-        host = 'https://mockapi.kiwoom.com' if KIWOOM_IS_MOCK else 'https://api.kiwoom.com'
-        url = f"{host}/oauth2/token"
-        headers = {'Content-Type': 'application/json;charset=UTF-8'}
-        body = json.dumps({
-            "grant_type": "client_credentials",
-            "appkey": KIWOOM_APP_KEY,
-            "secretkey": KIWOOM_APP_SECRET
-        }).encode('utf-8')
-        req = urllib.request.Request(url, data=body, headers=headers, method='POST')
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            return data.get('access_token') or data.get('token')
-    except Exception as e:
-        print("키움 토큰 에러:", e)
-        return None
+
+    hosts = ['https://openapi.kiwoom.com', 'https://api.kiwoom.com']
+    for host in hosts:
+        try:
+            url = f"{host}/oauth2/token"
+            # 1. Form Data 시도
+            params = urllib.parse.urlencode({
+                "grant_type": "client_credentials",
+                "appkey": KIWOOM_APP_KEY,
+                "secretkey": KIWOOM_APP_SECRET
+            }).encode('utf-8')
+            
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0'
+            }
+            req = urllib.request.Request(url, data=params, headers=headers, method='POST')
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                tok = data.get('access_token') or data.get('token')
+                if tok:
+                    _KIWOOM_TOKEN_CACHE = tok
+                    return tok
+        except Exception:
+            pass
+
+        try:
+            # 2. JSON Body 시도
+            body = json.dumps({
+                "grant_type": "client_credentials",
+                "appkey": KIWOOM_APP_KEY,
+                "secretkey": KIWOOM_APP_SECRET
+            }).encode('utf-8')
+            headers = {
+                'Content-Type': 'application/json;charset=UTF-8',
+                'User-Agent': 'Mozilla/5.0'
+            }
+            req = urllib.request.Request(url, data=body, headers=headers, method='POST')
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                tok = data.get('access_token') or data.get('token')
+                if tok:
+                    _KIWOOM_TOKEN_CACHE = tok
+                    return tok
+        except Exception:
+            pass
+
+    return None
 
 def fetch_krx_supply_demand(code_six):
     try:
@@ -170,8 +209,8 @@ def fetch_krx_supply_demand(code_six):
                         if inst_val != 0 or foreign_val != 0:
                             indiv_val = -(inst_val + foreign_val)
                             return indiv_val, foreign_val, inst_val
-    except Exception as e:
-        print("수급 집계 에러:", e)
+    except Exception:
+        pass
     return None, None, None
 
 def format_shares(n):
@@ -214,198 +253,4 @@ def get_official_macro_schedule():
         {"name": "미국 생산자물가지수(PPI) 발표", "dt": datetime.datetime(2026, 9, 18, 21, 30, tzinfo=kst_tz), "est": "0.2% (전월대비)"},
         {"name": "미국 개인소비지출(PCE) 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6% (전년대비)"},
         {"name": "미국 9월 비농업 고용보고서(NFP)", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건 (예상)"},
-        {"name": "미국 9월 소비자물가지수(CPI) 발표", "dt": datetime.datetime(2026, 10, 14, 21, 30, tzinfo=kst_tz), "est": "시장 전망치 대기"},
-        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 10, 29, 3, 0, tzinfo=kst_tz), "est": "금리 추가 인하 여부 촉각"},
-        {"name": "미국 10월 소비자물가지수(CPI) 발표", "dt": datetime.datetime(2026, 11, 10, 22, 30, tzinfo=kst_tz), "est": "시장 전망치 대기"},
-        {"name": "미국 11월 소비자물가지수(CPI) 발표", "dt": datetime.datetime(2026, 12, 10, 22, 30, tzinfo=kst_tz), "est": "시장 전망치 대기"},
-        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 12, 10, 4, 0, tzinfo=kst_tz), "est": "연말 금리 향방 결정"}
-    ]
-
-    weekdays = ['월', '화', '수', '목', '금', '토', '일']
-    for ev in schedule:
-        if ev['dt'] >= now_kst:
-            dt = ev['dt']
-            wd = weekdays[dt.weekday()]
-            time_str = dt.strftime(f"%m/%d({wd}) %H:%M")
-            return f"📅미국 경제지표 발표 대기: {ev['name']} [{time_str}]\n• 시장 예상치: {ev['est']} (한국 시간 발표 직후 선물 체크!)"
-
-    return "📅주의 일정: 주요국 통화정책 및 글로벌 매크로 지표 변동성 주의!"
-
-def get_live_calendar_data(stock_name, ticker_symbol):
-    today = datetime.date.today()
-    earn_start = (today - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
-    earn_end = (today + datetime.timedelta(days=30)).strftime('%Y-%m-%d')
-
-    earnings_msg = None
-
-    if FINNHUB_KEY:
-        is_us_stock = bool(re.match(r'^[A-Za-z]+$', ticker_symbol))
-        
-        if is_us_stock:
-            try:
-                url = f"https://finnhub.io/api/v1/calendar/earnings?from={earn_start}&to={earn_end}&symbol={ticker_symbol}&token={FINNHUB_KEY}"
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=3) as resp:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    earnings_list = data.get('earningsCalendar', [])
-                    if earnings_list:
-                        item = earnings_list[0]
-                        act = item.get('epsActual')
-                        est = item.get('epsEstimate')
-                        date_str = item.get('date', '')
-                        kr_label = US_KOREAN_NAMES.get(ticker_symbol, stock_name)
-
-                        if act is not None and est is not None:
-                            diff = act - est
-                            status = "어닝 서프라이즈! 🚀" if diff >= 0 else "예상치 하회(쇼크) ⚠️"
-                            earnings_msg = f"📝실적 발표 결과: {kr_label} {status}\n• 실제 EPS: ${act:.2f} (예상치 ${est:.2f} 대비 {diff:+.2f})"
-                        elif est is not None:
-                            earnings_msg = f"📝실적 발표 대기: {kr_label} ({date_str})\n• 시장 예상 EPS: ${est:.2f} (발표 전후 큰 변동성 주의!)"
-            except Exception as e:
-                print("미국 실적 조회 에러:", e)
-        else:
-            for theme, chain in THEME_CHAIN.items():
-                if stock_name in chain['kr_kids']:
-                    for boss in chain['us_boss']:
-                        boss_event = check_us_boss_earnings(boss)
-                        if boss_event:
-                            boss_date = boss_event.get('date', '')
-                            kr_boss_name = US_KOREAN_NAMES.get(boss, boss)
-                            earnings_msg = f"📝실적 연동 경고: 글로벌 대장주 {kr_boss_name} 실적 발표 대기 ({boss_date})!\n• {theme} 밸류체인 연동으로 큰 투심 변화가 예상되니 단단히 대비해!"
-                            break
-                if earnings_msg: break
-
-    macro_msg = get_official_macro_schedule()
-
-    if not earnings_msg:
-        earnings_msg = f"📝실적 체크: {stock_name} 개별 모멘텀 장세 지속 중! 수급 턴어라운드 타점에 집중하자."
-
-    return f"{macro_msg}\n{earnings_msg}"
-
-@app.route('/')
-def home():
-    token_status = "연동됨" if get_kiwoom_token() else "대기중"
-    return f"gaemiGTP 3대 뉴스 & 실시간 수급 엔진 가동 중! (키움: {token_status})"
-
-@app.route('/analyze', methods=['GET'])
-def analyze():
-    raw_name = request.args.get('stock', 'SK하이닉스').strip()
-    ticker_symbol = TICKERS.get(raw_name)
-    clean_code = None
-    hist = None
-
-    try:
-        if ticker_symbol:
-            clean_code = ''.join(filter(str.isdigit, ticker_symbol))
-            ticker = yf.Ticker(ticker_symbol)
-            hist = ticker.history(period="1mo")
-        elif re.match(r'^\d{6}$', raw_name):
-            clean_code = raw_name
-            t_ks = yf.Ticker(f"{clean_code}.KS")
-            h_ks = t_ks.history(period="1mo")
-            if not h_ks.empty:
-                ticker, hist, ticker_symbol = t_ks, h_ks, f"{clean_code}.KS"
-            else:
-                t_kq = yf.Ticker(f"{clean_code}.KQ")
-                h_kq = t_kq.history(period="1mo")
-                if not h_kq.empty:
-                    ticker, hist, ticker_symbol = t_kq, h_kq, f"{clean_code}.KQ"
-        elif re.match(r'^[A-Za-z\-]+$', raw_name):
-            ticker_symbol = raw_name.upper()
-            ticker = yf.Ticker(ticker_symbol)
-            hist = ticker.history(period="1mo")
-        else:
-            ticker_symbol, clean_code = search_krx_code(raw_name)
-            if ticker_symbol:
-                ticker = yf.Ticker(ticker_symbol)
-                hist = ticker.history(period="1mo")
-
-        if hist is None or hist.empty:
-            raise ValueError("주가 데이터 조회 실패")
-
-        current_price = hist['Close'].iloc[-1]
-        prev_close = hist['Close'].iloc[-2] if len(hist) >= 2 else current_price
-        change_pct = ((current_price - prev_close) / prev_close) * 100
-        ma20 = hist['Close'].mean()
-
-        is_krw = ('-' not in ticker_symbol and ticker_symbol.endswith(('.KS', '.KQ')))
-        
-        if is_krw:
-            clean_price = round_krw_tick(current_price)
-            clean_ma20 = round_krw_tick(ma20)
-            price_str = f"₩{clean_price:,}"
-            ma20_str = f"₩{clean_ma20:,}"
-        else:
-            price_str = f"${current_price:,.2f}"
-            ma20_str = f"${ma20:,.2f}"
-
-        if change_pct > 0.005:
-            status_emoji, title_word, desc_word = '🔥', '올랐어', '상승중이야!!!'
-        elif change_pct < -0.005:
-            status_emoji, title_word, desc_word = '❄️', '숨고르기일까', '하락중이야 ㅠㅠ'
-        else:
-            status_emoji, title_word, desc_word = '⚖️', '보합일까', '보합(숨고르기) 중이야. 폭풍 전야의 고요함이 느껴지지 않아?'
-            change_pct = 0.0
-
-        # 핵심 뉴스 3개 포맷팅
-        news_list = fetch_realtime_news(raw_name)
-        if news_list:
-            news_lines = "\n".join([f"• 📰 \"{title}\"" for title in news_list])
-        else:
-            news_lines = f"• 📰 \"{raw_name} 관련 메이저 재료 포착\""
-
-        # 수급 데이터 계산
-        indiv, foreign, inst = (None, None, None)
-        if clean_code and len(clean_code) == 6:
-            indiv, foreign, inst = fetch_krx_supply_demand(clean_code)
-
-        if foreign is not None and inst is not None and (foreign != 0 or inst != 0):
-            f_abs = format_shares(abs(foreign)).replace('+', '')
-            i_abs = format_shares(abs(inst)).replace('+', '')
-            ind_abs = format_shares(abs(indiv)).replace('+', '')
-
-            if foreign > 0 and inst > 0:
-                flow_msg = f"🚀 외놈들이 {f_abs}, 기관 성님들이 {i_abs} 쌍끌이 풀매수 드가자!! 개미들만 {ind_abs} 털리는 중, 지금 안 타면 버스 떠난다 꽉 잡아!"
-            elif foreign < 0 and inst < 0:
-                flow_msg = f"🚨 삐용삐용! 외놈들이 {f_abs}, 기관 아찌들이 {i_abs} 동반 투매 폭격 중! 개미 혼자 {ind_abs} 받다가 피 흘린다, 일단 튀어 ㅠㅠ"
-            elif foreign > 0:
-                flow_msg = f"👱‍♂️ 외놈들이 혼자 {f_abs} 쓸어 담으면서 멱살 잡고 캐리 중! 여의도 성님들은 {i_abs} 던지면서 간 보고 있어."
-            elif inst > 0:
-                flow_msg = f"👔 여의도 기관 성님들이 바닥에서 {i_abs} 묵직하게 줍줍 중! (외놈들은 {f_abs} 패대기 치는 중) 뭔가 냄새가 난다!"
-            else:
-                flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! 세력들 눈치싸움 팽팽하다."
-            supply_content = flow_msg
-        else:
-            supply_content = (
-                "⚠️ 실시간 수급 팩트 체크 안내:\n"
-                "외인·기관 장중 수급은 실시간이 아니라 거래소 잠정 집계(09:30, 11:20 등) 시간에 공시돼!\n"
-                "지금은 잠정 집계 대기 구간이야. 세력들의 페이크에 흔들리지 말고 차트 지지선에 집중하자!"
-            )
-
-        sections = [
-            {
-                "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"개미들아! {raw_name} {change_pct:+.2f}% {desc_word}\n현재 실시간 주가는 {price_str} 기록 중!\n\n오늘 시장을 뒤흔든 핵심 뉴스 3선이야:\n{news_lines}\n\n이슈가 전해지면서 세력들의 매매가 요동치고 있어. 꽉 잡아!",
-                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
-            },
-            {
-                "title": "지금 세력은 사고 있어, 팔고 있어?",
-                "content": supply_content
-            },
-            {
-                "title": "여기 깨지면 도망쳐라!",
-                "content": f"🛡️생존 지지선: {ma20_str} (딱! 기억해놔!)\n이 가격 깨지면 투매 나오니까 절대 미련 갖지 말고 비중 줄여!\n🧱악성 매물대: 최근 고점 부근에 과거 물려있는 개미들의 본전 대기 물량이 쏟아질 수 있어 ㅠㅠ."
-            },
-            {
-                "title": "🐜 오늘 밤, 내일 무슨 일이 있나?",
-                "content": get_live_calendar_data(raw_name, ticker_symbol)
-            }
-        ]
-        return jsonify({"sections": sections})
-
-    except Exception as e:
-        print("분석 처리 중 에러 발생:", e)
-        return jsonify({"error": "데이터 지연"}), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+        {"name": "미국 9월 소비자물가지수(CPI) 발표", "dt": datetime.datetime(2026, 10, 14
