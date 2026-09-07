@@ -123,7 +123,6 @@ def fetch_realtime_news(stock_name):
                     title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
                     title = re.sub(r'[\.…]+\s*$', '', title)
                     title = re.sub(r'\.{2,}|…', ' · ', title)
-                    
                     clean = title.strip().strip('"\'“”')
                     if clean:
                         headlines.append(clean)
@@ -193,23 +192,6 @@ def fetch_krx_5d_supply_demand(code_six):
         print("PC 2차 수급 백업 집계 예외:", e)
 
     return None, None, None, 0
-
-def fetch_us_put_call_ratio(ticker_obj):
-    try:
-        opts = ticker_obj.options
-        if not opts:
-            return None
-        opt = ticker_obj.option_chain(opts[0])
-        calls = opt.calls
-        puts = opt.puts
-        call_vol = calls['volume'].sum() if 'volume' in calls else 0
-        put_vol = puts['volume'].sum() if 'volume' in puts else 0
-        if call_vol == 0:
-            return None
-        return put_vol / call_vol
-    except Exception as e:
-        print("미국 옵션 수급 집계 에러:", e)
-        return None
 
 def format_shares(n):
     if n is None: return "0주"
@@ -390,63 +372,7 @@ def analyze():
             ma20_str = f"${ma20:,.2f}"
             res_str = f"${resistance_price:,.2f}"
 
-        if change_pct >= 5.0:
-            status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
-        elif 0.5 <= change_pct < 5.0:
-            status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
-        elif -0.5 < change_pct < 0.5:
-            status_emoji, title_word = '⚖️', '보합일까'
-            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네\n개미들아! 폭풍 전야처럼 조용한데?"
-        elif -5.0 < change_pct <= -0.5:
-            status_emoji, title_word = '❄️', '숨고르기일까'
-            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
-        else:
-            status_emoji, title_word = '❄️', '빠질까'
-            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
-
-        news_list = fetch_realtime_news(raw_name)
-        if news_list:
-            news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list])
-        else:
-            news_lines = f"📰 \"{raw_name} 관련 메이저 재료 포착\""
-
-        # 2섹션: 한국 수급 vs 미국 수급
-        if is_krw:
-            indiv_5d, foreign_5d, inst_5d, days = fetch_krx_5d_supply_demand(clean_code) if clean_code else (None, None, None, 0)
-            if foreign_5d is not None and inst_5d is not None and days > 0:
-                f_abs = format_shares(foreign_5d)
-                i_abs = format_shares(inst_5d)
-                ind_abs = format_shares(indiv_5d)
-
-                tag_line = f"#외국인 {f_abs}   #기관 {i_abs}   #개인 {ind_abs}"
-
-                if foreign_5d > 0 and inst_5d > 0:
-                    supply_content = f"{tag_line}\n\n외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
-                elif foreign_5d < 0 and inst_5d < 0:
-                    supply_content = f"{tag_line}\n\n큰손들이 시장에서 발을 빼며 물량을 털어내고 있어.\n개미들만 물량을 떠안는 위험한 자리니까 절대 물타지 말고 조심해야 돼."
-                elif foreign_5d > 0:
-                    supply_content = f"{tag_line}\n\n세력이 개미를 압도하는 완벽한 판세야.\n기관이 관망하는 사이 외국인이 지친 개미들 물량을 싹 쓸어 담았어.\n돈의 힘이 상방으로 쏠렸으니 단기 슈팅 흐름 기대해 봐도 좋아."
-                elif inst_5d > 0:
-                    supply_content = f"{tag_line}\n\n국내 기관들이 뚝심 있게 순매수하며 주가를 끌고 있어!\n토종 세력의 바닥 지지력이 살아있으니 20일선 지지 여부 보면서 따라가 보자."
-                else:
-                    supply_content = f"{tag_line}\n\n세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
-            else:
-                supply_content = "거래소 수급 집계 대기\n현재 거래소 수급 데이터를 수집 중이야! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
-        else:
-            pc_ratio = fetch_us_put_call_ratio(ticker)
-            if pc_ratio is not None:
-                if pc_ratio <= 0.7:
-                    supply_content = f"월가 큰손 옵션 포지션 포착\n콜옵션 거래량이 풋옵션을 압도 중이야! (풋/콜 비율 {pc_ratio:.2f}) 큰손들이 위로 쏘는 쪽에 강하게 베팅하고 있으니 탄력 기대해 보자!"
-                elif pc_ratio >= 1.1:
-                    supply_content = f"월가 헤지 물량 급증 경보\n풋옵션 거래량이 콜옵션을 넘어서고 있어! (풋/콜 비율 {pc_ratio:.2f}) 큰손들이 하락 방어벽을 치고 눈치 보는 구간이니 지지선 꼭 체크하자!"
-                else:
-                    supply_content = f"월가 세력들 눈치싸움 중\n풋옵션과 콜옵션 거래량이 팽팽하게 맞서고 있어! (풋/콜 비율 {pc_ratio:.2f}) 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자!"
-            else:
-                supply_content = "월가 옵션 수급 대기 중\n현재 옵션 포지션 데이터를 수집 중이야! 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
-
-        # 1섹션: 5단계 멘트 및 상황별 해시태그 분기
+        # 1섹션: 주가 등락 멘트 및 태그 결정
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
@@ -467,8 +393,66 @@ def analyze():
             status_emoji, title_word = '❄️', '빠질까'
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
+
+        news_list = fetch_realtime_news(raw_name)
+        if news_list:
+            news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list])
+        else:
+            news_lines = f"📰 \"{raw_name} 관련 메이저 재료 포착\""
+
         news_intro = "궁금해할 거 같아서 오늘 어떤 뉴스가 있나 가져왔어 ㅎ"
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
+
+        # 2섹션: 한국 수급 (5일 누적) vs 미국 수급 (옵션 풋/콜 및 5일 멘트)
+        if is_krw:
+            indiv_5d, foreign_5d, inst_5d, days = fetch_krx_5d_supply_demand(clean_code) if clean_code else (None, None, None, 0)
+            if foreign_5d is not None and inst_5d is not None and days > 0:
+                f_abs = format_shares(foreign_5d)
+                i_abs = format_shares(inst_5d)
+                ind_abs = format_shares(indiv_5d)
+
+                tag_line = f"#외국인 {f_abs}   #기관 {i_abs}   #개인 {ind_abs}"
+
+                if foreign_5d > 0 and inst_5d > 0:
+                    supply_content = f"{tag_line}\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
+                elif foreign_5d < 0 and inst_5d < 0:
+                    supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼며 물량을 털어내고 있어.\n개미들만 물량을 떠안는 위험한 자리니까 절대 물타지 말고 조심해야 돼."
+                elif foreign_5d > 0:
+                    supply_content = f"{tag_line}\n\n최근 5일간 세력이 개미를 압도하는 완벽한 판세야.\n기관이 관망하는 사이 외국인이 지친 개미들 물량을 싹 쓸어 담았어.\n돈의 힘이 상방으로 쏠렸으니 단기 슈팅 흐름 기대해 봐도 좋아."
+                elif inst_5d > 0:
+                    supply_content = f"{tag_line}\n\n최근 5일 동안 국내 기관들이 뚝심 있게 순매수하며 주가를 끌고 있어!\n토종 세력의 바닥 지지력이 살아있으니 20일선 지지 여부 보면서 따라가 보자."
+                else:
+                    supply_content = f"{tag_line}\n\n최근 5일간 세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
+            else:
+                supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
+        else:
+            try:
+                opts = ticker.options
+                if opts:
+                    opt = ticker.option_chain(opts[0])
+                    call_vol = int(opt.calls['volume'].sum()) if 'volume' in opt.calls else 0
+                    put_vol = int(opt.puts['volume'].sum()) if 'volume' in opt.puts else 0
+                    
+                    if call_vol > 0:
+                        pc_ratio = put_vol / call_vol
+                        c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
+                        p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
+                        
+                        tag_line = f"#콜(상승) {c_str}   #풋(하락) {p_str}   #베팅비율 {pc_ratio:.2f}"
+
+                        if pc_ratio <= 0.7:
+                            supply_content = f"{tag_line}\n\n최근 5일간 월가 큰손들이 상방 쪽에 강하게 베팅하고 있어!\n콜옵션(상승) 거래량이 풋옵션(하락)을 압도하면서 위로 쏠릴 준비를 하고 있으니 탄력 한번 기대해 보자."
+                        elif pc_ratio >= 1.1:
+                            supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션(하락) 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
+                        else:
+                            supply_content = f"{tag_line}\n\n최근 5일간 월가 세력들이 팽팽하게 눈치싸움 중이야.\n상승과 하락 양쪽에 돈이 비슷하게 걸려 있는 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
+                    else:
+                        supply_content = "월가 옵션 수급 대기 중\n현재 옵션 거래량이 집계되지 않고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡고 대응하자."
+                else:
+                    supply_content = "월가 옵션 수급 대기 중\n현재 옵션 데이터를 수집 중이야! 지지/저항선 잘 체크하며 대응하자."
+            except Exception as e:
+                print("미국 옵션 수급 에러:", e)
+                supply_content = "월가 수급 데이터 지연\n옵션 시장 데이터를 불러오는 중이야. 잠시 후 다시 확인해 줘!"
 
         sections = [
             {
