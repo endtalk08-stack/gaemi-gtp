@@ -117,9 +117,21 @@ def fetch_realtime_news(stock_name):
                 title_el = item.find('title')
                 if title_el is not None and title_el.text:
                     title = title_el.text
+                    
+                    # 1. [단독] 등의 대괄호 및 HTML 태그 제거
                     title = re.sub(r'\[.*?\]', '', title)
-                    title = re.sub(r'\s*[-–—|]\s*[^-–—|]+$', '', title)
                     title = re.sub(r'<[^>]+>', '', title)
+                    
+                    # 2. 끝에 붙은 언론사 꼬리표(- 머니투데이 등) 2중 제거
+                    title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
+                    title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
+                    
+                    # 3. 문장 맨 끝에 남은 말줄임표(...) 완전 삭제
+                    title = re.sub(r'[\.…]+\s*$', '', title)
+                    
+                    # 4. 문장 중간의 점 세 개(...)를 가운뎃점( · )으로 깔끔하게 치환
+                    title = re.sub(r'\.{2,}|…', ' · ', title)
+                    
                     clean = title.strip().strip('"\'“”')
                     if clean:
                         headlines.append(clean)
