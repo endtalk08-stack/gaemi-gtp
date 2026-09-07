@@ -110,40 +110,9 @@ def fetch_realtime_news(stock_name):
     except Exception:
         return []
 
+# [성능 최적화] 증권사 API 연결 전까지 웹 크롤링 수급 중단 (속도 대폭 향상)
 def fetch_krx_supply_demand(code_six):
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-            'Referer': f'https://finance.naver.com/item/main.naver?code={code_six}'
-        }
-        url = f"https://finance.naver.com/item/frgn.naver?code={code_six}"
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            html = resp.read().decode('euc-kr', 'replace')
-            match = re.search(r'<tr[^>]*>\s*<td class="tc">\s*<span class="tah p10 gray03">\d{4}\.\d{2}\.\d{2}</span>.*?</tr>', html, re.DOTALL)
-            if match:
-                row_html = match.group(0)
-                tds = row_html.split('<td')
-                if len(tds) > 7:
-                    inst_clean = re.sub(r'[^0-9\-]', '', tds[6])
-                    foreign_clean = re.sub(r'[^0-9\-]', '', tds[7])
-                    
-                    if inst_clean and foreign_clean and inst_clean != '-' and foreign_clean != '-':
-                        inst_val = int(inst_clean)
-                        foreign_val = int(foreign_clean)
-                        if inst_val != 0 or foreign_val != 0:
-                            indiv_val = -(inst_val + foreign_val)
-                            return indiv_val, foreign_val, inst_val
-    except Exception:
-        pass
     return None, None, None
-
-def format_shares(n):
-    if n is None: return "집계 중"
-    sign = "+" if n > 0 else ""
-    if abs(n) >= 10000:
-        return f"{sign}{n / 10000:,.1f}만 주"
-    return f"{sign}{n:,}주"
 
 def round_krw_tick(price):
     if price >= 500_000: return int(price // 1000) * 1000
@@ -172,12 +141,11 @@ def fetch_live_macro_events():
     try:
         url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json'
         }
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             kst_tz = datetime.timezone(datetime.timedelta(hours=9))
             now_kst = datetime.datetime.now(kst_tz)
@@ -270,7 +238,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
 @app.route('/')
 def home():
-    return "gaemiGTP 전 종목 검색 & 실시간 경제 캘린더 엔진 가동 중!"
+    return "gaemiGTP API 연동 준비 및 속도 최적화 모드 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
@@ -335,32 +303,12 @@ def analyze():
         news_list = fetch_realtime_news(raw_name)
         main_news = news_list[0] if len(news_list) > 0 else f"{raw_name} 관련 메이저 재료 포착"
 
-        indiv, foreign, inst = (None, None, None)
-        if clean_code and len(clean_code) == 6:
-            indiv, foreign, inst = fetch_krx_supply_demand(clean_code)
-
-        if foreign is not None and inst is not None and (foreign != 0 or inst != 0):
-            f_abs = format_shares(abs(foreign)).replace('+', '')
-            i_abs = format_shares(abs(inst)).replace('+', '')
-            ind_abs = format_shares(abs(indiv)).replace('+', '')
-
-            if foreign > 0 and inst > 0:
-                flow_msg = f"🚀 외놈들이 {f_abs}, 기관 성님들이 {i_abs} 쌍끌이 풀매수 드가자!! 개미들만 {ind_abs} 털리는 중, 지금 안 타면 버스 떠난다 꽉 잡아!"
-            elif foreign < 0 and inst < 0:
-                flow_msg = f"🚨 삐용삐용! 외놈들이 {f_abs}, 기관 아찌들이 {i_abs} 동반 투매 폭격 중! 개미 혼자 {ind_abs} 받다가 피 흘린다, 일단 튀어 ㅠㅠ"
-            elif foreign > 0:
-                flow_msg = f"👱‍♂️ 외놈들이 혼자 {f_abs} 쓸어 담으면서 멱살 잡고 캐리 중! 여의도 성님들은 {i_abs} 던지면서 간 보고 있어."
-            elif inst > 0:
-                flow_msg = f"👔 여의도 기관 성님들이 바닥에서 {i_abs} 묵직하게 줍줍 중! (외놈들은 {f_abs} 패대기 치는 중) 뭔가 냄새가 난다!"
-            else:
-                flow_msg = f"👀 외놈(-{f_abs})·기관(-{i_abs}) 양매도에 개미 군단이 {ind_abs} 온몸으로 받아내는 중! 세력들 눈치싸움 팽팽하다."
-            supply_content = flow_msg
-        else:
-            supply_content = (
-                "⚠️ 실시간 수급 팩트 체크 안내:\n"
-                "외인·기관 장중 수급은 실시간이 아니라 거래소 잠정 집계(09:30, 11:20 등) 시간에 공시돼!\n"
-                "지금은 잠정 집계 대기 구간이야. 세력들의 페이크에 흔들리지 말고 프로그램 순매수와 차트 지지선에 집중하자!"
-            )
+        # [변경점] 속도 저하를 유발하던 네이버 크롤링 부분 제거하고, 증권사 API 티저 멘트로 고정
+        supply_content = (
+            "⚙️ 실시간 프로그램 수급 엔진 연동 준비 중!\n"
+            "증권사 API 다이렉트 연결을 통해 더욱 정교한 틱 단위 세력 매수/매도 데이터를 제공할 예정입니다.\n"
+            "시스템 업데이트 전까지는 차트 지지선과 밸류체인 모멘텀에 집중해 주세요!"
+        )
 
         sections = [
             {
