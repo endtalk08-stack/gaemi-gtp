@@ -1,14 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko" class="dark">
 <head>
-  <style>
-    /* gaemiGTP 모바일 가독성 심폐소생술 (글자 겹침 방지, 단어 끊김 방지) */
-    body, p, div, span {
-        line-height: 1.6 !important; 
-        word-break: keep-all !important; 
-        letter-spacing: -0.02em !important;
-    }
-</style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>gaemiGTP</title>
@@ -25,6 +17,11 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       text-rendering: optimizeLegibility;
+      word-break: keep-all;
+    }
+    #chatArea p {
+      line-height: 1.65;
+      letter-spacing: -0.02em;
     }
     ::-webkit-scrollbar { display: none; width: 0px; }
     html, body, #chatArea, aside { scrollbar-width: none; -ms-overflow-style: none; }
@@ -91,7 +88,6 @@
             class="w-full bg-[#18191d] border border-[#282a30] hover:border-[#3a3d46] focus:border-[#4a4e5a] rounded-full px-6 py-4 text-sm sm:text-base text-white placeholder-[#71717a] focus:outline-none pr-44 shadow-xl transition"
           >
           <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-2">
-            <!-- 모드 선택 버튼 -->
             <button type="button" onclick="toggleModeDropdown('hero')" id="heroModeBtn" class="flex items-center gap-1 text-xs font-bold text-[#a1a1aa] hover:text-white px-2 py-1.5 rounded-lg hover:bg-[#282a30] transition cursor-pointer">
               <span id="heroModeLabel">gaemi</span> <span class="text-[10px]">▲</span>
             </button>
@@ -101,7 +97,6 @@
           </div>
         </form>
 
-        <!-- 모드 선택 드롭다운 팝업 -->
         <div id="heroModeMenu" class="absolute right-12 bottom-16 bg-[#1e1f24] border border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
           <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#282a30] transition">
             <div>
@@ -227,7 +222,7 @@
 
     <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 max-w-5xl mx-auto w-full"></div>
 
-    <!-- 하단 검색 바 (채팅창 입력 영역 - 일자 수평 및 중앙 정렬 강화) -->
+    <!-- 하단 검색 바 -->
     <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-4xl mx-auto relative">
         <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
@@ -238,7 +233,6 @@
             class="w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-[#f4f4f5] placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-md transition leading-normal"
           >
           <div class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-            <!-- 하단 모드 선택 버튼 -->
             <button type="button" onclick="toggleModeDropdown('bottom')" id="bottomModeBtn" class="flex items-center gap-1 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white px-2 py-1.5 rounded-lg hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition cursor-pointer">
               <span id="bottomModeLabel">gaemi</span> <span class="text-[10px]">▲</span>
             </button>
@@ -248,7 +242,6 @@
           </div>
         </form>
 
-        <!-- 하단 모드 선택 드롭다운 팝업 -->
         <div id="bottomModeMenu" class="absolute right-12 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
           <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
             <div>
@@ -502,7 +495,7 @@
           content: "🛡️생존 지지선: 지지선 이탈 시 미련 없이 비중 축소!\n🧱악성 매물대: 전고점 부근에 개미들의 본전 대기 매물 주의 ㅠㅠ."
         },
         {
-          title: "🐜 오늘 밤, 내일 무슨 일이 있나?",
+          title: "오늘 밤, 이번주 무슨 일이 있나?",
           content: "📅주의 일정: 미국 경제 지표 발표 예정!\n📝공시 체크: 시간외 단일가 변동성 주의해랔!"
         }
       ];
@@ -592,7 +585,7 @@
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
             ${sec.title ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 900;">${sec.title}</h4>` : ''}
           </div>
-          <p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor pl-9"></p>
+          <p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>
         `;
         mainContainer.appendChild(textBlock);
 
@@ -608,7 +601,7 @@
             setTimeout(typeChunk, 15);
           } else {
             pEl.classList.remove('typing-cursor');
-            pEl.innerHTML = pEl.textContent.replace(/(#[^\s#]+)/g, '<span style="color: #ff3366; font-weight: 700;">$1</span>');
+            pEl.innerHTML = pEl.textContent.replace(/(#[^\s#]+)/g, '<span style="color: #FF8DA1; font-weight: 700;">$1</span>');
             secIdx++;
             setTimeout(typeNextSection, 80);
           }
