@@ -17,7 +17,7 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       text-rendering: optimizeLegibility;
-      word-break: keep-all;
+      word-break: keep-all; /* 단어 중간에 끊어지는 것 방지 */
     }
     #chatArea p {
       line-height: 1.65;
@@ -220,11 +220,14 @@
       </div>
     </header>
 
-    <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 max-w-5xl mx-auto w-full"></div>
+    <!-- ★ 채팅 본문 가로폭 축소 (max-w-3xl) ★ -->
+    <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
 
     <!-- 하단 검색 바 -->
     <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
-      <div class="max-w-4xl mx-auto relative">
+      
+      <!-- ★ 하단 입력창 가로폭 축소 (max-w-3xl) ★ -->
+      <div class="max-w-3xl mx-auto relative">
         <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
           <input 
             id="bottomStockInput" 
