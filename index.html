@@ -616,7 +616,7 @@
             if (formatted.includes('#외국인')) {
               formatted = formatted.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주))/g, function(_, name, val) {
                 let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
-                return `<span class="inline-block mr-4 font-black" style="color: ${color};">#${name} ${val}</span>`;
+                return `<span class="return `<span class="inline-block mr-4 font-black" style="color: ${color};">#${name} ${val}</span>`;" style="color: ${color};">#${name} ${val}</span>`;
               });
             } else {
               formatted = formatted.replace(/(#[^\s#]+)/g, '<span style="color: #FF8DA1; font-weight: 700;">$1</span>');
