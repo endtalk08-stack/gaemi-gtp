@@ -13,6 +13,22 @@ app = Flask(__name__)
 CORS(app)
 
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip()
+KIWOOM_APP_KEY = os.environ.get('KIWOOM_APP_KEY', '').strip()
+KIWOOM_APP_SECRET = os.environ.get('KIWOOM_APP_SECRET', '').strip()
+
+# 미국 대장주 한글-티커 매핑
+US_KOREAN_NAMES = {
+    'ORCL': '오라클(ORCL)',
+    'NVDA': '엔비디아(NVDA)',
+    'MSFT': '마이크로소프트(MSFT)',
+    'TSLA': '테슬라(TSLA)',
+    'AAPL': '애플(AAPL)',
+    'GOOGL': '구글(GOOGL)',
+    'AMZN': '아마존(AMZN)',
+    'META': '메타(META)',
+    'LLY': '일라이릴리(LLY)',
+    'NVO': '노보노디스크(NVO)'
+}
 
 TICKERS = {
     '삼성전자': '005930.KS',
@@ -133,12 +149,10 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
-# 미국 연준(Fed) 및 노동통계국(BLS) 공식 발표 스케줄 기반 엔진 (429 차단 문제 해결)
 def get_official_macro_schedule():
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
     
-    # 공식 발표 확정 캘린더 (한국 시간 KST 기준 변환 완료)
     schedule = [
         {"name": "미국 8월 소비자물가지수(CPI) 발표", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2% (전월대비)"},
         {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%"},
@@ -184,13 +198,14 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                         act = item.get('epsActual')
                         est = item.get('epsEstimate')
                         date_str = item.get('date', '')
+                        kr_label = US_KOREAN_NAMES.get(ticker_symbol, stock_name)
 
                         if act is not None and est is not None:
                             diff = act - est
                             status = "어닝 서프라이즈! 🚀" if diff >= 0 else "예상치 하회(쇼크) ⚠️"
-                            earnings_msg = f"📝실적 발표 결과: {stock_name} {status}\n• 실제 EPS: ${act:.2f} (예상치 ${est:.2f} 대비 {diff:+.2f})"
+                            earnings_msg = f"📝실적 발표 결과: {kr_label} {status}\n• 실제 EPS: ${act:.2f} (예상치 ${est:.2f} 대비 {diff:+.2f})"
                         elif est is not None:
-                            earnings_msg = f"📝실적 발표 대기: {stock_name} ({date_str})\n• 시장 예상 EPS: ${est:.2f} (발표 전후 큰 변동성 주의!)"
+                            earnings_msg = f"📝실적 발표 대기: {kr_label} ({date_str})\n• 시장 예상 EPS: ${est:.2f} (발표 전후 큰 변동성 주의!)"
             except Exception as e:
                 print("미국 실적 조회 에러:", e)
         else:
@@ -200,7 +215,8 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                         boss_event = check_us_boss_earnings(boss)
                         if boss_event:
                             boss_date = boss_event.get('date', '')
-                            earnings_msg = f"📝실적 연동 경고: 글로벌 대장주 {boss} 실적 발표 대기 ({boss_date})!\n• {theme} 밸류체인 연동으로 큰 투심 변화가 예상되니 단단히 대비해!"
+                            kr_boss_name = US_KOREAN_NAMES.get(boss, boss)
+                            earnings_msg = f"📝실적 연동 경고: 글로벌 대장주 {kr_boss_name} 실적 발표 대기 ({boss_date})!\n• {theme} 밸류체인 연동으로 큰 투심 변화가 예상되니 단단히 대비해!"
                             break
                 if earnings_msg: break
 
@@ -213,7 +229,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
 @app.route('/')
 def home():
-    return "gaemiGTP 초고속 공식 매크로 캘린더 엔진 가동 중!"
+    return "gaemiGTP 초고속 매크로 & 대장주 한글화 엔진 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
