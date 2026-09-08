@@ -81,7 +81,7 @@ TICKERS = {
 }
 
 THEME_CHAIN = {
-    '반도체': {'us_boss': ['NVDA', 'MSFT', 'ORCL'], 'kr_kids': ['삼성전자', 'SK하이닉스', '한미반도체']},
+    '반도체': {'us_boss': ['ORCL', 'NVDA', 'MSFT'], 'kr_kids': ['삼성전자', 'SK하이닉스', '한미반도체']},
     '2차전지': {'us_boss': ['TSLA'], 'kr_kids': ['LG에너지솔루션', '삼성SDI', '에코프로', '에코프로비엠', '포스코퓨처엠', 'LG화학']},
     '바이오': {'us_boss': ['LLY', 'NVO'], 'kr_kids': ['삼성바이오로직스', '셀트리온', '알테오젠', '삼천당제약', '리가켐바이오', 'HLB', '유한양행']},
     '플랫폼': {'us_boss': ['GOOGL', 'META', 'AAPL'], 'kr_kids': ['NAVER', '네이버', '카카오']},
@@ -105,7 +105,6 @@ def search_krx_code(stock_name):
     return None, None
 
 def fetch_kr_stock_realtime(code_six):
-    """네이버 실시간 시세 (실시간 현재가, 공식 등락률 정밀 수신)"""
     try:
         url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code_six}"
         headers = {
@@ -127,7 +126,6 @@ def fetch_kr_stock_realtime(code_six):
     return None, None, None
 
 def fetch_krx_trend_and_supply(code_six):
-    """네이버 트렌드 API: 20일선, 매물대 및 최근 5일 외인/기관(organ) 정밀 집계"""
     try:
         url = f"https://m.stock.naver.com/api/stock/{code_six}/trend?page=1&pageSize=20"
         headers = {
@@ -170,7 +168,6 @@ def fetch_krx_trend_and_supply(code_six):
     return 0, 0, None, None, None, 0
 
 def fetch_yahoo_direct_v8(ticker_str):
-    """미국 주식 전용: 야후 v8 직접 조회"""
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker_str}?range=1mo&interval=1d"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
@@ -244,7 +241,7 @@ def check_us_boss_earnings(boss_ticker):
     if not FINNHUB_KEY: return None
     today = datetime.date.today()
     start_date = (today - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-    end_date = (today + datetime.timedelta(days=7)).strftime('%Y-%m-%d')
+    end_date = (today + datetime.timedelta(days=14)).strftime('%Y-%m-%d')
     try:
         url = f"https://finnhub.io/api/v1/calendar/earnings?from={start_date}&to={end_date}&symbol={boss_ticker}&token={FINNHUB_KEY}"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -256,85 +253,124 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
+# ★ 사용자가 요청한 바로 그 멘트 & 시간순 완벽 정렬 함수
 def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
-    
-    schedule = [
-        {"name": "미국 8월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★★"},
-        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%", "star": "★★★"},
-        {"name": "미국 생산자물가지수(PPI)", "dt": datetime.datetime(2026, 9, 18, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★☆"},
-        {"name": "미국 개인소비지출(PCE) 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%", "star": "★★★"},
-        {"name": "미국 9월 비농업 고용보고서(NFP)", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건", "star": "★★★"},
-        {"name": "미국 9월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 10, 14, 21, 30, tzinfo=kst_tz), "est": "시장 전망치 대기", "star": "★★★"},
-        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 10, 29, 3, 0, tzinfo=kst_tz), "est": "금리 추가 인하 여부 촉각", "star": "★★★"}
+    weekdays = ['월', '화', '수', '목', '금', '토', '일']
+
+    # 1. 매크로 경제 일정 (2026년 기준)
+    macro_schedule = [
+        {"name": "미국 8월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★★", "type": "cpi"},
+        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%", "star": "★★★", "type": "fomc"},
+        {"name": "미국 생산자물가지수(PPI)", "dt": datetime.datetime(2026, 9, 18, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★☆", "type": "ppi"},
+        {"name": "미국 개인소비지출(PCE) 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%", "star": "★★★", "type": "pce"},
+        {"name": "미국 9월 비농업 고용보고서(NFP)", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건", "star": "★★★", "type": "nfp"},
+        {"name": "미국 9월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 10, 14, 21, 30, tzinfo=kst_tz), "est": "시장 전망치 대기", "star": "★★★", "type": "cpi"},
+        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 10, 29, 3, 0, tzinfo=kst_tz), "est": "추가 인하 여부 촉각", "star": "★★★", "type": "fomc"}
     ]
 
-    weekdays = ['월', '화', '수', '목', '금', '토', '일']
-    upcoming = [ev for ev in schedule if ev['dt'] >= now_kst]
+    all_events = list(macro_schedule)
 
-    main_card = ""
-    if upcoming:
-        first = upcoming[0]
-        f_dt = first['dt']
-        f_wd = weekdays[f_dt.weekday()]
-        time_str = f_dt.strftime(f"%m/%d({f_wd}) %H:%M")
-        main_card = f"⏰ {time_str} {first['name']} 발표\n시장 예상치 {first['est']}\n발표 직후 야간 선물 출렁일 수 있으니 주의해!"
+    # 2. 관련 대장주 실적 일정 확인
+    target_boss = None
+    target_theme = "AI·반도체"
+    is_us = bool(ticker_symbol and re.match(r'^[A-Za-z]+$', ticker_symbol))
+
+    if is_us:
+        target_boss = ticker_symbol
+        target_theme = "미국 빅테크"
     else:
-        main_card = "⏰ 현재 주요 매크로 일정 대기 중\n개별 종목 수급과 지지선 방어에 집중하자"
+        for theme, chain in THEME_CHAIN.items():
+            if stock_name in chain['kr_kids']:
+                target_boss = chain['us_boss'][0] if chain['us_boss'] else 'ORCL'
+                target_theme = theme
+                break
 
-    earnings_card = ""
-    today = datetime.date.today()
-    earn_start = (today - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
-    earn_end = (today + datetime.timedelta(days=30)).strftime('%Y-%m-%d')
-
-    if FINNHUB_KEY and ticker_symbol:
-        is_us_stock = bool(re.match(r'^[A-Za-z]+$', ticker_symbol))
-        if is_us_stock:
+    # 기본 대장주 이벤트 생성 (09/10 오라클 실적)
+    boss_ticker = target_boss if target_boss else 'ORCL'
+    kr_boss_name = US_KOREAN_NAMES.get(boss_ticker, '오라클(ORCL)')
+    
+    # API 조회 시도
+    earn_dt = datetime.datetime(2026, 9, 10, 5, 0, tzinfo=kst_tz) # 기본값: 9월 10일 목요일 05:00
+    time_desc = "(장 마감 직후)"
+    
+    if FINNHUB_KEY:
+        boss_event = check_us_boss_earnings(boss_ticker)
+        if boss_event and boss_event.get('date'):
             try:
-                url = f"https://finnhub.io/api/v1/calendar/earnings?from={earn_start}&to={earn_end}&symbol={ticker_symbol}&token={FINNHUB_KEY}"
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=3) as resp:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    earnings_list = data.get('earningsCalendar', [])
-                    if earnings_list:
-                        item = earnings_list[0]
-                        act = item.get('epsActual')
-                        est = item.get('epsEstimate')
-                        date_str = item.get('date', '')
-                        kr_label = US_KOREAN_NAMES.get(ticker_symbol, stock_name)
-                        if act is not None and est is not None:
-                            diff = act - est
-                            status = "어닝 서프라이즈" if diff >= 0 else "실적 쇼크"
-                            earnings_card = f"🏢 최근 발표 {kr_label} 실적\n결과 EPS ${act:.2f} (예상치 ${est:.2f}) {status}\n실적 결과에 따른 단기 방향성 확인 필수"
-                        elif est is not None:
-                            earnings_card = f"🏢 {date_str} {kr_label} 실적 발표\n예상치 EPS ${est:.2f}\n대장주 실적이라 변동성 커질 수 있으니 조심"
-            except Exception:
+                date_str = boss_event.get('date')
+                y, m, d = map(int, date_str.split('-'))
+                hour_code = str(boss_event.get('hour', 'amc')).lower()
+                if hour_code == 'amc':
+                    earn_dt = datetime.datetime(y, m, d, 5, 0, tzinfo=kst_tz) + datetime.timedelta(days=1)
+                    time_desc = "(장 마감 직후)"
+                else:
+                    earn_dt = datetime.datetime(y, m, d, 21, 0, tzinfo=kst_tz)
+                    time_desc = "(장 시작 전)"
+            except:
                 pass
-        else:
-            for theme, chain in THEME_CHAIN.items():
-                if stock_name in chain['kr_kids']:
-                    for boss in chain['us_boss']:
-                        boss_event = check_us_boss_earnings(boss)
-                        if boss_event:
-                            boss_date = boss_event.get('date', '')
-                            kr_boss_name = US_KOREAN_NAMES.get(boss, boss)
-                            earnings_card = f"🏢 {boss_date} {kr_boss_name} 실적 발표\n테마 {theme} 글로벌 대장주\n대장주 실적에 따라 국내 관련주 동반 변동성 조심"
-                            break
-                    if earnings_card: break
 
+    all_events.append({
+        "name": f"{kr_boss_name} 실적 발표 {time_desc}",
+        "dt": earn_dt,
+        "est": "시장 예상치 대기",
+        "star": "★★★",
+        "type": "earnings",
+        "kr_name": kr_boss_name,
+        "theme": target_theme
+    })
+
+    # 3. ★ 전체 일정을 가장 빠른 시간순으로 정렬
+    all_events.sort(key=lambda x: x['dt'])
+    upcoming = [ev for ev in all_events if ev['dt'] >= now_kst]
+    if not upcoming:
+        upcoming = all_events[:4]
+
+    # 4. 사용자가 요청한 바로 그 대화형 멘트 조합
+    intro_lead = (
+        "🚨 야, 차트만 보고 방심하면 안 돼!\n"
+        "이번 주에 우리 주가 뒤흔들 빅이벤트가 줄줄이 대기 중이거든? 딱 이것만 메모해 둬."
+    )
+
+    # 본문 세부 설명 카드들 (시간순)
+    detail_cards = []
+    for ev in upcoming[:2]:
+        e_dt = ev['dt']
+        e_wd = weekdays[e_dt.weekday()]
+        time_str = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
+
+        if ev['type'] == 'earnings':
+            detail_cards.append(
+                f"🏢 {time_str} 글로벌 대장주 {ev['kr_name']} 실적 발표! {time_desc}\n"
+                f"글로벌 {ev['theme']} 큰형님이 드디어 성적표를 까거든? 형님이 기침하면 국장 동생들도 감기 걸릴 수 있으니까 실적 발표 전후로는 무리해서 베팅하지 말고 차분하게 보자고!"
+            )
+        elif ev['type'] == 'cpi':
+            detail_cards.append(
+                f"⏰ {time_str} {ev['name']}\n"
+                f"시장 예상치는 {ev['est']}로 보고 있어. 예상치보다 튀면 오늘 밤 야간 선물부터 요동칠 수 있으니까, 포지션 무겁게 들고 가지 말고 멘탈 챙기자!"
+            )
+        else:
+            detail_cards.append(
+                f"⏰ {time_str} {ev['name']}\n"
+                f"시장 전망치({ev['est']}) 확인 필수! 발표 직후 시장 변동성 커질 수 있으니 무리한 베팅은 자제하자."
+            )
+
+    # 하단 주간 체크리스트 (별표 일정)
     check_lines = []
-    for ev in upcoming[:3]:
+    for ev in upcoming[:4]:
         e_dt = ev['dt']
         e_wd = weekdays[e_dt.weekday()]
         e_time = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
-        check_lines.append(f"🗓️ {e_time} {ev['name']} {ev['star']}")
+        check_lines.append(f"• {e_time} {ev['name']} {ev['star']}")
 
-    check_block = "이번 주 핵심 체크 (★★★)\n" + "\n".join(check_lines) if check_lines else ""
+    check_block = (
+        "🗓️ 이번 주 개미 캘린더 별표(★★★) 일정\n" +
+        "\n".join(check_lines) +
+        "\n\n\"지표 발표 전후로는 호가창 얇아지니까 뇌동매매 절대 금지야! 알았제?\""
+    )
 
-    sections = [main_card]
-    if earnings_card: sections.append(earnings_card)
-    if check_block: sections.append(check_block)
+    sections = [intro_lead] + detail_cards + [check_block]
     return "\n\n".join(sections)
 
 @app.route('/')
@@ -370,7 +406,7 @@ def analyze():
         resistance_price = 0.0
         supply_content = ""
 
-        # ---------------- 1. 국내 주식: 네이버 직접 연동 ----------------
+        # 1. 국내 주식: 네이버 직접 연동
         if is_krw and clean_code:
             cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
@@ -404,7 +440,7 @@ def analyze():
                 else:
                     supply_content = f"{tag_line}\n\n최근 5일간 세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
 
-        # ---------------- 2. 미국 주식: 옵션 풋/콜 및 야후 v8 ----------------
+        # 2. 미국 주식: 옵션 풋/콜 및 야후 v8
         else:
             cur_p, prev_p, ma20_val, res_val = fetch_yahoo_direct_v8(ticker_symbol)
             if cur_p and prev_p:
@@ -447,7 +483,7 @@ def analyze():
         if not supply_content:
             supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
 
-        # ---------------- 3. 등락률 상황별 멘트 분기 ----------------
+        # 3. 등락률 상황별 멘트 분기
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
