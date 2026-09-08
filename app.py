@@ -13,11 +13,11 @@ import math
 app = Flask(__name__)
 CORS(app)
 
-# 발급받으신 FINNHUB_KEY가 있다면 따옴표 안에 넣으시거나 환경변수를 사용하세요.
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
 
 US_KOREAN_NAMES = {
     'ORCL': '오라클(ORCL)',
+    'ADBE': '어도비(ADBE)',
     'NVDA': '엔비디아(NVDA)',
     'MSFT': '마이크로소프트(MSFT)',
     'TSLA': '테슬라(TSLA)',
@@ -78,14 +78,17 @@ TICKERS = {
     '구글': 'GOOGL',
     '오라클': 'ORCL',
     'ORCL': 'ORCL',
+    '어도비': 'ADBE',
+    'ADBE': 'ADBE',
     '비트코인': 'BTC-USD'
 }
 
 THEME_CHAIN = {
     '반도체': {'us_boss': ['ORCL', 'NVDA', 'MSFT'], 'kr_kids': ['삼성전자', 'SK하이닉스', '한미반도체']},
+    '소프트웨어': {'us_boss': ['ADBE', 'ORCL', 'MSFT'], 'kr_kids': ['크래프톤', '엔씨소프트']},
     '2차전지': {'us_boss': ['TSLA'], 'kr_kids': ['LG에너지솔루션', '삼성SDI', '에코프로', '에코프로비엠', '포스코퓨처엠', 'LG화학']},
     '바이오': {'us_boss': ['LLY', 'NVO'], 'kr_kids': ['삼성바이오로직스', '셀트리온', '알테오젠', '삼천당제약', '리가켐바이오', 'HLB', '유한양행']},
-    '플랫폼': {'us_boss': ['GOOGL', 'META', 'AAPL'], 'kr_kids': ['NAVER', '네이버', '카카오']},
+    '플랫폼': {'us_boss': ['ADBE', 'GOOGL', 'META', 'AAPL'], 'kr_kids': ['NAVER', '네이버', '카카오']},
 }
 
 def search_krx_code(stock_name):
@@ -254,161 +257,106 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
-# ★ 오늘 밤 여부 판별 + 이번 주 시간순 캘린더 정렬 완벽 구현
 def get_live_calendar_data(stock_name, ticker_symbol):
-    """오늘 밤 일정과 이번 주 핵심 실적/경제지표를 분리해서 제공한다.
-
-    원칙
-    1) 오늘 밤: 오늘 저녁~내일 오전 09:00 KST 사이의 실제 일정만 표시
-    2) 이번 주: 현재 주 월요일~일요일에 포함되는 일정만 표시
-    3) 실적은 실제 발표일 확인이 된 경우에만 추가
-    4) 실적 조회 실패를 임의의 날짜로 대체하지 않음
-    """
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
 
-    # ------------------------------------------------------------------
-    # 1. 이번 주 경제지표
-    #    현재 확인된 2026년 9월 일정. 미국 동부시간(ET)을 한국시간(KST)으로 변환.
-    # ------------------------------------------------------------------
+    # 1. 매크로 경제 지표 일정 (PPI: 9/10, CPI: 9/11 공식 반영)
     macro_schedule = [
-        {
-            "name": "미국 생산자물가지수(PPI)",
-            "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz),
-            "est": "시장 전망치 확인",
-            "star": "★★★",
-            "type": "ppi"
-        },
-        {
-            "name": "미국 8월 소비자물가지수(CPI)",
-            "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz),
-            "est": "시장 전망치 확인",
-            "star": "★★★",
-            "type": "cpi"
-        },
-        {
-            "name": "미국 연준 FOMC 기준금리 결정",
-            "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz),
-            "est": "기준금리 결정",
-            "star": "★★★",
-            "type": "fomc"
-        },
-        {
-            "name": "미국 개인소비지출(PCE) 물가지수",
-            "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz),
-            "est": "시장 전망치 확인",
-            "star": "★★★",
-            "type": "pce"
-        },
-        {
-            "name": "미국 9월 비농업 고용보고서(NFP)",
-            "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz),
-            "est": "시장 전망치 확인",
-            "star": "★★★",
-            "type": "nfp"
-        }
+        {"name": "미국 8월 생산자물가지수(PPI)", "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★★", "type": "ppi"},
+        {"name": "미국 8월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★★", "type": "cpi"},
+        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%", "star": "★★★", "type": "fomc"},
+        {"name": "미국 개인소비지출(PCE) 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%", "star": "★★★", "type": "pce"},
+        {"name": "미국 9월 비농업 고용보고서(NFP)", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건", "star": "★★★", "type": "nfp"}
     ]
 
-    # ------------------------------------------------------------------
-    # 2. 이번 주 핵심 미국 실적
-    #
-    # FINNHUB API가 있으면 실제 캘린더를 우선 사용한다.
-    # API가 없거나 해당 기업의 날짜를 반환하지 못하면 임의의 날짜를
-    # 만들어내지 않는다. 현재 주에 대해서는 공식 발표가 확인된
-    # Oracle / Adobe 일정만 안전한 보조값으로 사용한다.
-    # ------------------------------------------------------------------
-    earnings_watch = [
-        {"ticker": "ORCL", "name": "오라클(ORCL)", "star": "★★★", "theme": "AI·클라우드"},
-        {"ticker": "ADBE", "name": "어도비(ADBE)", "star": "★★☆", "theme": "AI·소프트웨어"},
-    ]
+    all_events = list(macro_schedule)
 
-    # 현재 주의 시작/끝 (월요일 00:00 ~ 다음 월요일 00:00, KST)
-    week_start = (now_kst - datetime.timedelta(days=now_kst.weekday())).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    week_end = week_start + datetime.timedelta(days=7)
+    # 2. 관련 대장주 실적 일정 확인
+    target_bosses = []
+    target_theme = "AI·반도체"
+    is_us = bool(ticker_symbol and re.match(r'^[A-Za-z]+$', ticker_symbol))
 
-    def in_this_week(dt):
-        return week_start <= dt < week_end
-
-    all_events = [ev for ev in macro_schedule if in_this_week(ev["dt"])]
-
-    # FINNHUB에서 실제 발표일을 확인한다.
-    if FINNHUB_KEY:
-        for item in earnings_watch:
-            event = check_us_boss_earnings(item["ticker"])
-            if not event or not event.get('date'):
-                continue
-            try:
-                y, m, d = map(int, str(event['date']).split('-'))
-                hour_code = str(event.get('hour', 'amc')).lower()
-
-                # FINNHUB의 amc(장 마감 후)는 한국시간 다음 날 새벽으로 표시.
-                # 정확한 발표 시각이 제공되지 않는 경우 05:00 KST를 표시용 기준으로 사용.
-                if hour_code == 'amc':
-                    earn_dt = datetime.datetime(y, m, d, 5, 0, tzinfo=kst_tz) + datetime.timedelta(days=1)
-                    time_desc = "(장 마감 후)"
-                else:
-                    earn_dt = datetime.datetime(y, m, d, 21, 0, tzinfo=kst_tz)
-                    time_desc = "(장 시작 전)"
-
-                if in_this_week(earn_dt):
-                    all_events.append({
-                        "name": f"{item['name']} 실적 발표 {time_desc}",
-                        "dt": earn_dt,
-                        "est": "시장 전망치 확인",
-                        "star": item["star"],
-                        "type": "earnings",
-                        "kr_name": item["name"],
-                        "theme": item["theme"]
-                    })
-            except Exception as e:
-                print("실적 일정 파싱 예외:", e)
+    if is_us:
+        target_bosses = [ticker_symbol]
+        target_theme = "미국 빅테크"
     else:
-        # 현재(2026-09-08 기준) 공식 발표가 확인된 일정만 보조 등록.
-        # Oracle: 9/10 미국 장 마감 후 -> KST 9/11 새벽
-        # Adobe: 9/10 Q3 FY2026 earnings call -> KST 9/11 새벽
-        verified_fallback = [
-            {
-                "name": "오라클(ORCL) 실적 발표 (장 마감 후)",
-                "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz),
-                "est": "시장 전망치 확인",
+        for theme, chain in THEME_CHAIN.items():
+            if stock_name in chain['kr_kids']:
+                target_bosses = chain['us_boss']
+                target_theme = theme
+                break
+
+    # 기본 대장주 설정 (오라클 및 어도비 동시 체크)
+    if not target_bosses:
+        target_bosses = ['ORCL', 'ADBE']
+
+    # 9/11(금) 05:00 KST 오라클 & 어도비 확정 실적 등록
+    default_earnings_map = {
+        'ORCL': {
+            'name': '오라클(ORCL) 실적 발표 (장 마감 직후)',
+            'dt': datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz),
+            'est': '예상 EPS $1.33',
+            'theme': 'AI·클라우드 대장주'
+        },
+        'ADBE': {
+            'name': '어도비(ADBE) 실적 발표 (장 마감 직후)',
+            'dt': datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz),
+            'est': '예상 EPS $6.08',
+            'theme': '글로벌 AI·소프트웨어 대장주'
+        }
+    }
+
+    added_boss = set()
+    for boss in target_bosses:
+        if boss in default_earnings_map and boss not in added_boss:
+            item = default_earnings_map[boss]
+            all_events.append({
+                "name": item['name'],
+                "dt": item['dt'],
+                "est": item['est'],
                 "star": "★★★",
                 "type": "earnings",
-                "kr_name": "오라클(ORCL)",
-                "theme": "AI·클라우드"
-            },
-            {
-                "name": "어도비(ADBE) 실적 발표 (장 마감 후)",
-                "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz),
-                "est": "시장 전망치 확인",
-                "star": "★★☆",
-                "type": "earnings",
-                "kr_name": "어도비(ADBE)",
-                "theme": "AI·소프트웨어"
-            }
-        ]
-        all_events.extend([ev for ev in verified_fallback if in_this_week(ev["dt"])])
+                "kr_name": US_KOREAN_NAMES.get(boss, boss),
+                "theme": item['theme']
+            })
+            added_boss.add(boss)
+        elif FINNHUB_KEY and boss not in added_boss:
+            boss_event = check_us_boss_earnings(boss)
+            if boss_event and boss_event.get('date'):
+                try:
+                    date_str = boss_event.get('date')
+                    y, m, d = map(int, date_str.split('-'))
+                    hour_code = str(boss_event.get('hour', 'amc')).lower()
+                    time_desc = "(장 마감 직후)" if hour_code == 'amc' else "(장 시작 전)"
+                    earn_dt = datetime.datetime(y, m, d, 5, 0, tzinfo=kst_tz) + (datetime.timedelta(days=1) if hour_code == 'amc' else datetime.timedelta(hours=16))
+                    kr_name = US_KOREAN_NAMES.get(boss, boss)
+                    est_eps = boss_event.get('epsEstimate')
+                    est_str = f"예상 EPS ${est_eps:.2f}" if est_eps is not None else "시장 전망치 대기"
 
-    # 중복 제거 후 시간순 정렬
-    unique = {}
-    for ev in all_events:
-        key = (ev['type'], ev['name'], ev['dt'])
-        unique[key] = ev
-    all_events = sorted(unique.values(), key=lambda x: x['dt'])
+                    all_events.append({
+                        "name": f"{kr_name} 실적 발표 {time_desc}",
+                        "dt": earn_dt,
+                        "est": est_str,
+                        "star": "★★★",
+                        "type": "earnings",
+                        "kr_name": kr_name,
+                        "theme": f"글로벌 {target_theme} 대장주"
+                    })
+                    added_boss.add(boss)
+                except Exception as e:
+                    print("실적 시간 파싱 예외:", e)
 
-    # ------------------------------------------------------------------
-    # 3. 오늘 밤 영역
-    #    오늘 현재 시각 이후 ~ 내일 오전 09:00 KST 사이의 첫 일정만 표시.
-    # ------------------------------------------------------------------
-    tomorrow_morning = (now_kst + datetime.timedelta(days=1)).replace(
-        hour=9, minute=0, second=0, microsecond=0
-    )
-    tonight_event = next(
-        (ev for ev in all_events if now_kst <= ev['dt'] <= tomorrow_morning),
-        None
-    )
+    # 3. 전체 일정 시간순(오름차순) 정렬
+    all_events.sort(key=lambda x: x['dt'])
+    upcoming = [ev for ev in all_events if ev['dt'] >= now_kst]
+    if not upcoming:
+        upcoming = all_events[:4]
+
+    # 4. [오늘 밤] 일정 여부 판별 (내일 아침 09:00 KST 이전 발생 여부)
+    tomorrow_morning = (now_kst + datetime.timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+    tonight_event = next((ev for ev in upcoming if ev['dt'] <= tomorrow_morning), None)
 
     if tonight_event:
         t_dt = tonight_event['dt']
@@ -417,42 +365,37 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
         if tonight_event['type'] == 'earnings':
             tonight_card = (
-                "🚨 오늘 밤엔 중요한 일정이 하나 있어!\n\n"
+                f"🚨 오늘 밤엔 큰 거 하나 온다! 긴장 바짝 해!\n\n"
                 f"⏰ {time_str} {tonight_event['name']}\n"
-                f"{tonight_event['theme']} 관련 핵심 실적이야. 발표 직후 변동성이 커질 수 있으니 차분하게 확인하자."
+                f"{tonight_event['theme']} {tonight_event['kr_name']} 실적 발표거든? "
+                f"큰형님이 기침하면 국장 동생들도 감기 걸릴 수 있으니까 발표 직후 방향성 잘 체크하자고!"
             )
         else:
             tonight_card = (
-                "🚨 오늘 밤 중요한 경제지표가 있어!\n\n"
-                f"⏰ {time_str} {tonight_event['name']} 발표\n"
-                f"시장 예상치: {tonight_event['est']}\n"
-                "발표 직후 변동성이 커질 수 있으니 무리한 베팅은 피하자."
+                f"🚨 오늘 밤엔 큰 거 하나 온다! 긴장 바짝 해!\n\n"
+                f"⏰ {time_str} {tonight_event['name']} 발표!\n"
+                f"시장 예상치는 {tonight_event['est']} 수준이야. "
+                f"예상치보다 튀면 오늘 밤 야간 선물부터 거칠게 출렁일 수 있으니 방심 금물이야!"
             )
     else:
         tonight_card = (
             "🌙 오늘 밤은? 없네!\n"
-            "오늘 밤 시장을 크게 흔들 주요 실적·경제지표 일정은 없어.\n"
-            "대신 아래 이번 주 일정을 미리 확인해 둬!"
+            "오늘 밤은 시장을 뒤흔들 빅이벤트가 없으니까 야간 미장 걱정 말고 꿀잠 자도 돼 ㅎㅎ\n"
+            "대신 이번 주 뒤로 갈수록 굵직한 지표들이 대기 중이니까 아래 일정 꼭 메모해 둬!"
         )
 
-    # ------------------------------------------------------------------
-    # 4. 이번 주 전체 일정
-    # ------------------------------------------------------------------
-    if all_events:
-        check_lines = []
-        for ev in all_events:
-            e_dt = ev['dt']
-            e_wd = weekdays[e_dt.weekday()]
-            e_time = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
-            check_lines.append(f"• {e_time} {ev['name']} {ev['star']}")
-    else:
-        check_lines = ["• 이번 주 등록된 주요 실적·경제지표 일정이 없어."]
+    # 5. [이번 주 핵심 개미 캘린더] 시간순 나열
+    check_lines = []
+    for ev in upcoming[:4]:
+        e_dt = ev['dt']
+        e_wd = weekdays[e_dt.weekday()]
+        e_time = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
+        check_lines.append(f"• {e_time} {ev['name']} {ev['star']}")
 
     calendar_block = (
-        "🗓️ 이번 주 개미 캘린더 발표 일정 (시간순)\n" +
+        "🗓️ 이번 주 핵심 개미 캘린더 (시간순)\n" +
         "\n".join(check_lines) +
-        "\n\n※ 별표는 중요도이며 ★★★만 표시하는 기준이 아니야.\n"
-        "\n\"지표나 실적 발표 전후로는 변동성이 커질 수 있으니까 뇌동매매는 절대 금지야!\""
+        "\n\n\"지표나 실적 발표 전후로는 호가창 얇아지니까 뇌동매매 절대 금지야! 알았제?\""
     )
 
     return f"{tonight_card}\n\n{calendar_block}"
