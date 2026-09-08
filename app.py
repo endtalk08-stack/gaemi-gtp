@@ -241,7 +241,7 @@ def check_us_boss_earnings(boss_ticker):
     if not FINNHUB_KEY: return None
     today = datetime.date.today()
     start_date = (today - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-    end_date = (today + datetime.timedelta(days=14)).strftime('%Y-%m-%d')
+    end_date = (today + datetime.timedelta(days=21)).strftime('%Y-%m-%d')
     try:
         url = f"https://finnhub.io/api/v1/calendar/earnings?from={start_date}&to={end_date}&symbol={boss_ticker}&token={FINNHUB_KEY}"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -253,13 +253,13 @@ def check_us_boss_earnings(boss_ticker):
         pass
     return None
 
-# ★ 사용자가 요청한 바로 그 멘트 & 시간순 완벽 정렬 함수
+# ★ 향후 2~3주 핵심 일정 5~6개 시간순 완벽 정렬 함수
 def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
 
-    # 1. 매크로 경제 일정 (2026년 기준)
+    # 1. 2026년 9월~10월 굵직한 핵심 매크로 일정
     macro_schedule = [
         {"name": "미국 8월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★★", "type": "cpi"},
         {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%", "star": "★★★", "type": "fomc"},
@@ -267,12 +267,12 @@ def get_live_calendar_data(stock_name, ticker_symbol):
         {"name": "미국 개인소비지출(PCE) 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%", "star": "★★★", "type": "pce"},
         {"name": "미국 9월 비농업 고용보고서(NFP)", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건", "star": "★★★", "type": "nfp"},
         {"name": "미국 9월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 10, 14, 21, 30, tzinfo=kst_tz), "est": "시장 전망치 대기", "star": "★★★", "type": "cpi"},
-        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 10, 29, 3, 0, tzinfo=kst_tz), "est": "추가 인하 여부 촉각", "star": "★★★", "type": "fomc"}
+        {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 10, 29, 3, 0, tzinfo=kst_tz), "est": "금리 추가 인하 촉각", "star": "★★★", "type": "fomc"}
     ]
 
     all_events = list(macro_schedule)
 
-    # 2. 관련 대장주 실적 일정 확인
+    # 2. 관련 글로벌 대장주 실적 일정 확인 및 매칭
     target_boss = None
     target_theme = "AI·반도체"
     is_us = bool(ticker_symbol and re.match(r'^[A-Za-z]+$', ticker_symbol))
@@ -287,14 +287,12 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                 target_theme = theme
                 break
 
-    # 기본 대장주 이벤트 생성 (09/10 오라클 실적)
     boss_ticker = target_boss if target_boss else 'ORCL'
     kr_boss_name = US_KOREAN_NAMES.get(boss_ticker, '오라클(ORCL)')
-    
-    # API 조회 시도
-    earn_dt = datetime.datetime(2026, 9, 10, 5, 0, tzinfo=kst_tz) # 기본값: 9월 10일 목요일 05:00
+
+    earn_dt = datetime.datetime(2026, 9, 10, 5, 0, tzinfo=kst_tz) # 9월 10일(목) 05:00
     time_desc = "(장 마감 직후)"
-    
+
     if FINNHUB_KEY:
         boss_event = check_us_boss_earnings(boss_ticker)
         if boss_event and boss_event.get('date'):
@@ -321,19 +319,18 @@ def get_live_calendar_data(stock_name, ticker_symbol):
         "theme": target_theme
     })
 
-    # 3. ★ 전체 일정을 가장 빠른 시간순으로 정렬
+    # 3. 전체 일정 시간순(오름차순) 자동 정렬
     all_events.sort(key=lambda x: x['dt'])
     upcoming = [ev for ev in all_events if ev['dt'] >= now_kst]
     if not upcoming:
-        upcoming = all_events[:4]
+        upcoming = all_events[:6]
 
-    # 4. 사용자가 요청한 바로 그 대화형 멘트 조합
+    # 4. 사용자 요청 멘트 생성 (인트로 + 직전 2대 메인 이벤트)
     intro_lead = (
         "🚨 야, 차트만 보고 방심하면 안 돼!\n"
-        "이번 주에 우리 주가 뒤흔들 빅이벤트가 줄줄이 대기 중이거든? 딱 이것만 메모해 둬."
+        "이번 주부터 2~3주간 우리 주가 뒤흔들 빅이벤트가 줄줄이 대기 중이거든? 딱 이것만 메모해 둬."
     )
 
-    # 본문 세부 설명 카드들 (시간순)
     detail_cards = []
     for ev in upcoming[:2]:
         e_dt = ev['dt']
@@ -350,22 +347,27 @@ def get_live_calendar_data(stock_name, ticker_symbol):
                 f"⏰ {time_str} {ev['name']}\n"
                 f"시장 예상치는 {ev['est']}로 보고 있어. 예상치보다 튀면 오늘 밤 야간 선물부터 요동칠 수 있으니까, 포지션 무겁게 들고 가지 말고 멘탈 챙기자!"
             )
+        elif ev['type'] == 'fomc':
+            detail_cards.append(
+                f"⏰ {time_str} {ev['name']}\n"
+                f"연준의 금리 결정 본게임이야! 시장 예상치는 {ev['est']} 수준인데 파월 의장 한마디에 환율이랑 증시가 다 뒤집힐 수 있으니 무조건 주목해야 돼."
+            )
         else:
             detail_cards.append(
                 f"⏰ {time_str} {ev['name']}\n"
-                f"시장 전망치({ev['est']}) 확인 필수! 발표 직후 시장 변동성 커질 수 있으니 무리한 베팅은 자제하자."
+                f"시장 전망치({ev['est']}) 확인 필수! 지표 직후 방향성 흔들릴 수 있으니 포지션 조절 잘해두자."
             )
 
-    # 하단 주간 체크리스트 (별표 일정)
+    # 5. ★ 2~3주 치 핵심 일정 5~6개 노출 (upcoming[:6])
     check_lines = []
-    for ev in upcoming[:4]:
+    for ev in upcoming[:6]:
         e_dt = ev['dt']
         e_wd = weekdays[e_dt.weekday()]
         e_time = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
         check_lines.append(f"• {e_time} {ev['name']} {ev['star']}")
 
     check_block = (
-        "🗓️ 이번 주 개미 캘린더 별표(★★★) 일정\n" +
+        "🗓️ 향후 2~3주 핵심 개미 캘린더 (★★★) 일정\n" +
         "\n".join(check_lines) +
         "\n\n\"지표 발표 전후로는 호가창 얇아지니까 뇌동매매 절대 금지야! 알았제?\""
     )
