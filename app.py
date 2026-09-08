@@ -263,7 +263,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
     macro_schedule = [
         {"name": "미국 8월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★★", "type": "cpi"},
         {"name": "미국 연준 FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%", "star": "★★★", "type": "fomc"},
-        {"name": "미국 생산자물가지수(PPI)", "dt": datetime.datetime(2026, 9, 18, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★☆", "type": "ppi"},
+        {"name": "미국 생산자물가지수(PPI)", "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz), "est": "0.2%", "star": "★★☆", "type": "ppi"},
         {"name": "미국 개인소비지출(PCE) 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%", "star": "★★★", "type": "pce"},
         {"name": "미국 9월 비농업 고용보고서(NFP)", "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz), "est": "15만 건", "star": "★★★", "type": "nfp"},
         {"name": "미국 9월 소비자물가지수(CPI)", "dt": datetime.datetime(2026, 10, 14, 21, 30, tzinfo=kst_tz), "est": "시장 전망치 대기", "star": "★★★", "type": "cpi"},
