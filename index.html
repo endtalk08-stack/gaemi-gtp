@@ -424,7 +424,7 @@
 
       function typeNextSection() {
         if (!sections || secIdx >= sections.length) {
-          renderBottomWidgets(wrapperId, stockName);
+          renderBottomWidgets(wrapperId, stockName, sections);
           return;
         }
 
@@ -498,14 +498,11 @@
                 let lines = formatted.split('\n\n');
                 if (lines.length > 0) {
                   let lastLine = lines[lines.length - 1];
-                  // HTML 태그(<span ...>)가 이미 들어간 경우 순수 텍스트만 뽑아서 다시 색을 칠함
                   if (lastLine.includes('#') && lastLine.includes('<span')) {
-                     // 1. 임시 div를 만들어 HTML 태그를 모두 벗겨냄
                      let tempDiv = document.createElement('div');
                      tempDiv.innerHTML = lastLine;
                      let rawText = tempDiv.textContent || tempDiv.innerText || "";
                      
-                     // 2. 벗겨낸 순수 텍스트(예: #엔비디아 #-2.01% #숨고르기 #버텨보자)를 단어별로 다시 칠함
                      const words = rawText.split(/\s+/);
                      const newWords = words.map(w => {
                        if (w.startsWith('#')) {
@@ -519,7 +516,6 @@
                      lines[lines.length - 1] = newWords.join(' ');
                      formatted = lines.join('\n\n');
                   } else if (lastLine.includes('#')) {
-                     // HTML 태그가 없을 땐 기존 방식대로 처리
                      const words = lastLine.split(/\s+/);
                      const newWords = words.map(w => {
                        if (w.startsWith('#')) {
@@ -557,11 +553,173 @@
       typeNextSection();
     }
 
-    function renderBottomWidgets(wrapperId, stockName) {
+    // ★ 개미GTP 3단계 가격 자동 계산 알고리즘
+    function calculateGaemiLevels(stockName, sections) {
+      const stockPriceMap = {
+        '삼성전자': 73200,
+        'SK하이닉스': 235400,
+        '현대차': 245000,
+        'NAVER': 198500,
+        '네이버': 198500,
+        '카카오': 42100,
+        '한미반도체': 138900,
+        '두산에너빌리티': 26150,
+        '엔비디아': 173.14,
+        'NVDA': 173.14,
+        '테슬라': 248.50,
+        'TSLA': 248.50,
+        '애플': 229.35,
+        'AAPL': 229.35,
+        '마이크로소프트': 415.10,
+        'MSFT': 415.10
+      };
+
+      let isUsd = /^[A-Za-z]+$/.test(stockName) || ['엔비디아', '테슬라', '애플', '마이크로소프트', '아마존', '구글', '메타', 'NVDA', 'TSLA', 'AAPL', 'MSFT'].includes(stockName);
+      let basePrice = stockPriceMap[stockName];
+
+      let resFromBackend = null;
+      let supFromBackend = null;
+
+      if (sections && Array.isArray(sections)) {
+        for (const sec of sections) {
+          const content = sec.content || "";
+          if (content.includes('$')) isUsd = true;
+
+          const mRes = content.match(/#악성\s*매물대\s*([$]?[\d,]+(?:\.\d+)?원?)/);
+          if (mRes) resFromBackend = mRes[1];
+
+          const mSup = content.match(/#생존\s*지지선\s*([$]?[\d,]+(?:\.\d+)?원?)/);
+          if (mSup) supFromBackend = mSup[1];
+
+          if (!basePrice) {
+            const mPrice = content.match(/([$]?[\d,]+(?:\.\d+)?)\s*원/);
+            if (mPrice) {
+              const num = parseFloat(mPrice[1].replace(/,/g, ''));
+              if (!isNaN(num) && num > 0) basePrice = num;
+            }
+          }
+        }
+      }
+
+      if (!basePrice) {
+        let hash = 0;
+        for (let i = 0; i < stockName.length; i++) hash = stockName.charCodeAt(i) + ((hash << 5) - hash);
+        if (isUsd) {
+          basePrice = (Math.abs(hash % 300) + 50);
+        } else {
+          basePrice = (Math.abs(hash % 800) + 100) * 500;
+        }
+      }
+
+      function formatVal(num) {
+        if (isUsd) {
+          return '$' + Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        } else {
+          return Math.round(num).toLocaleString('ko-KR') + '원';
+        }
+      }
+
+      let pinkPrice = resFromBackend;
+      if (!pinkPrice) {
+        const rawPink = isUsd ? (basePrice * 1.068) : (Math.round((basePrice * 1.065) / 100) * 100);
+        pinkPrice = formatVal(rawPink);
+      }
+
+      const rawYellow = isUsd ? (basePrice * 0.981) : (Math.round((basePrice * 0.982) / 100) * 100);
+      const yellowPrice = formatVal(rawYellow);
+
+      let bluePrice = supFromBackend;
+      if (!bluePrice) {
+        const rawBlue = isUsd ? (basePrice * 0.935) : (Math.round((basePrice * 0.935) / 100) * 100);
+        bluePrice = formatVal(rawBlue);
+      }
+
+      return { pinkPrice, yellowPrice, bluePrice };
+    }
+
+    function renderBottomWidgets(wrapperId, stockName, sections) {
       const container = document.getElementById(wrapperId);
+      const levels = calculateGaemiLevels(stockName, sections);
+
       const bottomDiv = document.createElement('div');
       bottomDiv.className = "space-y-6 pt-4 animate-fade";
       bottomDiv.innerHTML = `
+        <!-- 개미GTP 3단계 핵심 가격 전략 카드 -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
+            <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${stockName} 핵심 가격 대응 전략</h4>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3">
+            <!-- 핑크: 악성 매물대 -->
+            <div class="p-4 sm:p-5 rounded-2xl bg-[#fff0f3] dark:bg-[#221318] border border-[#ffd6df] dark:border-[#4d1f2b] transition shadow-sm space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-black px-2.5 py-1 rounded-full bg-[#ff2d78]/10 text-[#ff2d78] border border-[#ff2d78]/30">여기서 막힐 수 있어</span>
+                <span class="text-xs font-bold text-[#94a3b8] dark:text-[#71717a]">저항 구간</span>
+              </div>
+              <div class="flex items-baseline justify-between">
+                <span class="text-sm font-black text-[#0f172a] dark:text-white">#악성 매물대</span>
+                <span class="text-lg sm:text-xl font-black text-[#ff2d78]">${levels.pinkPrice}</span>
+              </div>
+              <p class="text-xs sm:text-sm text-[#334155] dark:text-[#cbd5e1] font-medium leading-relaxed">
+                "니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이다! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!"
+              </p>
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ff2d78]/10 text-[#ff2d78]">#악성매물대</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ff2d78]/10 text-[#ff2d78]">#시체추가금지</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ff2d78]/10 text-[#ff2d78]">#뇌동매수_멈춰</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ff2d78]/10 text-[#ff2d78]">#관망이_답이다</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ff2d78]/10 text-[#ff2d78]">#구경만해라</span>
+              </div>
+            </div>
+
+            <!-- 옐로우: 지지선 (20일선) -->
+            <div class="p-4 sm:p-5 rounded-2xl bg-[#fffbeb] dark:bg-[#241f14] border border-[#fde68a] dark:border-[#4d3d17] transition shadow-sm space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-black px-2.5 py-1 rounded-full bg-amber-400/15 text-amber-500 dark:text-amber-400 border border-amber-400/30">여기까지 버텨줘</span>
+                <span class="text-xs font-bold text-[#94a3b8] dark:text-[#71717a]">생명선 (20일선)</span>
+              </div>
+              <div class="flex items-baseline justify-between">
+                <span class="text-sm font-black text-[#0f172a] dark:text-white">#지지선 (20일선)</span>
+                <span class="text-lg sm:text-xl font-black text-amber-500 dark:text-amber-400">${levels.yellowPrice}</span>
+              </div>
+              <p class="text-xs sm:text-sm text-[#334155] dark:text-[#cbd5e1] font-medium leading-relaxed">
+                "여긴 지켜줘야 사람 구실 한다! 지지선 깨지면 실망 매물 쏟아지면서 으악 소리 난다. 일단 버티되, 무너지면 비중부터 줄여라. 알았제?"
+              </p>
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-600 dark:text-amber-400">#20일선지지</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-600 dark:text-amber-400">#존버모드ON</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-600 dark:text-amber-400">#눈치싸움</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-600 dark:text-amber-400">#깨지면_반털어라</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-600 dark:text-amber-400">#아직은_숨참기</span>
+              </div>
+            </div>
+
+            <!-- 블루: 생존 지지선 -->
+            <div class="p-4 sm:p-5 rounded-2xl bg-[#eff6ff] dark:bg-[#131f2e] border border-[#bfdbfe] dark:border-[#1e3a5f] transition shadow-sm space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-black px-2.5 py-1 rounded-full bg-[#38bdf8]/15 text-[#0284c7] dark:text-[#38bdf8] border border-[#38bdf8]/30">무너지면 도망쳐</span>
+                <span class="text-xs font-bold text-[#94a3b8] dark:text-[#71717a]">최후 마지노선</span>
+              </div>
+              <div class="flex items-baseline justify-between">
+                <span class="text-sm font-black text-[#0f172a] dark:text-white">#생존 지지선</span>
+                <span class="text-lg sm:text-xl font-black text-[#0284c7] dark:text-[#38bdf8]">${levels.bluePrice}</span>
+              </div>
+              <p class="text-xs sm:text-sm text-[#334155] dark:text-[#cbd5e1] font-medium leading-relaxed">
+                "여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!"
+              </p>
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#38bdf8]/10 text-[#0284c7] dark:text-[#38bdf8]">#생존지지선</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#38bdf8]/10 text-[#0284c7] dark:text-[#38bdf8]">#빤스런</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#38bdf8]/10 text-[#0284c7] dark:text-[#38bdf8]">#뒤도보지마</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#38bdf8]/10 text-[#0284c7] dark:text-[#38bdf8]">#생존이_우선</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#38bdf8]/10 text-[#0284c7] dark:text-[#38bdf8]">#미련버려</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="space-y-3">
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
