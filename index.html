@@ -55,8 +55,10 @@
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden transition-colors duration-200 relative select-none">
 
+  <!-- 모바일 배경 오버레이 -->
   <div id="sidebarBackdrop" onclick="closeAllSidebars()" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity duration-300"></div>
 
+  <!-- 깜짝 개미 순간 팝업 -->
   <div id="surpriseAntPopup" class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none hidden">
     <div class="bg-white/95 dark:bg-[#1e1f24]/95 backdrop-blur-md border border-[#cbd5e1] dark:border-[#3f3f46] rounded-3xl p-6 flex flex-col items-center gap-3 shadow-2xl animate-pop">
       <div class="text-6xl animate-bounce">🐜✨</div>
@@ -65,6 +67,7 @@
     </div>
   </div>
 
+  <!-- 메인 첫 화면 -->
   <div id="mainHeroView" class="fixed inset-0 z-30 bg-[#0f1013] text-white flex flex-col justify-between overflow-hidden">
     <header class="h-16 flex items-center justify-between px-6 shrink-0">
       <div class="flex items-center gap-3">
@@ -137,6 +140,7 @@
     <div class="h-6"></div>
   </div>
 
+  <!-- 좌측 사이드바 -->
   <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
     <div class="p-4 flex flex-col gap-5 overflow-y-auto">
       <div class="flex items-center justify-between px-1">
@@ -176,6 +180,7 @@
     </div>
   </aside>
 
+  <!-- 중앙 메인 분석 영역 -->
   <main class="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-[#121316] overflow-hidden min-w-0">
     <header class="h-16 border-b border-[#e2e8f0] dark:border-[#27272a] flex items-center justify-between px-4 sm:px-6 bg-white/80 dark:bg-[#16171b]/80 backdrop-blur shrink-0 z-10">
       <div class="flex items-center gap-3">
@@ -217,6 +222,7 @@
     </div>
   </main>
 
+  <!-- 우측 사이드바 -->
   <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform translate-x-full xl:translate-x-0 xl:static transition-transform duration-300 ease-in-out shadow-2xl xl:shadow-none">
     <div class="p-5 flex flex-col gap-6 overflow-y-auto">
       <div class="flex items-center justify-between">
@@ -253,6 +259,27 @@
       </div>
     </div>
   </aside>
+
+  <!-- 짤 카드 모달 -->
+  <div id="memeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
+    <div class="bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-sm w-full p-6 relative shadow-2xl animate-fade">
+      <button type="button" onclick="document.getElementById('memeModal').classList.add('hidden')" class="absolute top-4 right-4 text-[#94a3b8] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
+      <div class="text-center mb-4">
+        <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold uppercase tracking-wider">gaemiGTP 짤 카드</span>
+        <h3 class="text-base font-bold text-[#0f172a] dark:text-white mt-1">카카오톡 공유 카드</h3>
+      </div>
+      <div id="memeCardToRender" class="bg-[#f8fafc] dark:bg-[#121316] border border-[#cbd5e1] dark:border-[#27272a] rounded-2xl p-5 text-center shadow-inner space-y-3">
+        <div class="flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] pb-2 text-sm">
+          <span class="font-black text-[#0f172a] dark:text-white">gaemiGTP</span>
+          <span id="memeStockBadge" class="bg-white dark:bg-[#1e1f24] text-[#0f172a] dark:text-white border border-[#cbd5e1] dark:border-[#3f3f46] px-2 py-0.5 rounded font-bold shadow-sm">SK하이닉스</span>
+        </div>
+        <div id="memeEmoji" class="text-5xl my-2">😎</div>
+        <h4 id="memeTitle" class="font-bold text-base text-[#0f172a] dark:text-white">"20일선 눌림목 반등 타점 포착!"</h4>
+        <p id="memeSub" class="text-sm text-[#475569] dark:text-[#a1a1aa] leading-relaxed">개미들아 쫄지 마라! 후드 개미 시그널 탑승 완료.</p>
+      </div>
+      <button type="button" onclick="downloadMemeImage()" class="w-full mt-4 bg-[#0f172a] dark:bg-white hover:bg-[#334155] dark:hover:bg-[#e4e4e7] text-white dark:text-black font-black py-3 rounded-xl text-sm shadow-md cursor-pointer">📸 짤 카드 다운로드 (카톡 공유)</button>
+    </div>
+  </div>
 
   <script>
     const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
@@ -383,7 +410,7 @@
       startTypewriterFlow(stockName, sections);
     }
 
-    // 타이핑 출력 및 실적(핑크)/경제지표(블루) 컬러 치환 엔진
+    // 타이핑 출력 & 실적(핑크)/지표(블루) 색상 치환
     function startTypewriterFlow(stockName, sections) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -459,11 +486,13 @@
       typeNextSection();
     }
 
+    // ★ 투표 + 전략 3인방 카드 + 백테스트 대시보드 완벽 복구
     function renderBottomWidgets(wrapperId, stockName) {
       const container = document.getElementById(wrapperId);
       const bottomDiv = document.createElement('div');
       bottomDiv.className = "space-y-6 pt-4 animate-fade";
       bottomDiv.innerHTML = `
+        <!-- 개미 투표 -->
         <div class="space-y-3">
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
@@ -477,21 +506,412 @@
             </div>
             <div class="space-y-2">
               <div class="flex items-center justify-between text-xs font-black">
-                <span class="text-[#FF8DA1]">상승 68%</span>
-                <span class="text-[#38BDF8]">하락 32%</span>
+                <span id="voteUpLabel" class="text-[#FF8DA1]">상승 68%</span>
+                <span id="voteDownLabel" class="text-[#38BDF8]">하락 32%</span>
               </div>
               <div class="w-full h-2 bg-[#38BDF8] rounded-full overflow-hidden flex">
-                <div class="h-full bg-[#FF8DA1] rounded-full" style="width: 68%;"></div>
+                <div id="voteProgressBar" class="h-full bg-[#FF8DA1] rounded-full transition-all duration-500" style="width: 68%;"></div>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <button type="button" class="py-3 rounded-xl border border-[#FF8DA1] bg-[#FF8DA1]/10 text-[#FF8DA1] font-black text-sm">상승 전망</button>
-              <button type="button" class="py-3 rounded-xl border border-[#38BDF8] bg-[#38BDF8]/10 text-[#38BDF8] font-black text-sm">하락 전망</button>
+              <button type="button" onclick="castVote('up')" class="py-3 rounded-xl border border-[#FF8DA1] bg-[#FF8DA1]/10 hover:bg-[#FF8DA1]/20 text-[#FF8DA1] font-black text-sm transition cursor-pointer">상승 전망</button>
+              <button type="button" onclick="castVote('down')" class="py-3 rounded-xl border border-[#38BDF8] bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 text-[#38BDF8] font-black text-sm transition cursor-pointer">하락 전망</button>
             </div>
           </div>
         </div>
+
+        <!-- 가로형 캐릭터 전략 3인방 ('장기/스윙/단기' 캡슐 뱃지) -->
+        <div class="space-y-4">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
+            <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 전략도 확인해바.</h4>
+          </div>
+
+          <!-- 카드 1: 서학개미 (장기) -->
+          <div class="space-y-2">
+            <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#ff2d78] dark:hover:border-[#ff2d78] transition cursor-pointer shadow-sm">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#231b26] border border-[#482035] flex items-center justify-center shrink-0 p-1">
+                    <svg viewBox="0 0 64 64" class="w-full h-full">
+                      <circle cx="32" cy="38" r="17" fill="#3f3f46"/>
+                      <path d="M26 23 Q18 10 13 16 M38 23 Q46 10 51 16" stroke="#71717a" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                      <rect x="18" y="32" width="12" height="7" rx="2" fill="#09090b"/>
+                      <rect x="34" y="32" width="12" height="7" rx="2" fill="#09090b"/>
+                      <line x1="30" y1="35.5" x2="34" y2="35.5" stroke="#09090b" stroke-width="2"/>
+                      <rect x="15" y="44" width="10" height="7" rx="1" fill="#ef4444"/>
+                      <rect x="15" y="44" width="5" height="4" fill="#2563eb"/>
+                    </svg>
+                  </div>
+                  <div class="space-y-0.5 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">서학개미</span>
+                      <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ff2d78]/10 text-[#ff2d78] border border-[#ff2d78]/30 shrink-0">장기</span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">좋은 기업을 길게, 시간이 수익을 만든다.</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
+                  <div>
+                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                    <div class="text-base sm:text-lg font-black text-[#ff2d78]">+2,335%</div>
+                  </div>
+                  <div>
+                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                    <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
+                  </div>
+                </div>
+              </div>
+            </button>
+            <div id="dash-slot-서학" class="hidden animate-fade"></div>
+          </div>
+
+          <!-- 카드 2: 국장개미 (스윙) -->
+          <div class="space-y-2">
+            <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#00b8ff] dark:hover:border-[#00b8ff] transition cursor-pointer shadow-sm">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#14232c] border border-[#1b3a4a] flex items-center justify-center shrink-0 p-1 relative">
+                    <svg viewBox="0 0 64 64" class="w-full h-full">
+                      <path d="M47 17 L53 11 M53 11 L48 11 M53 11 L53 16" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+                      <circle cx="32" cy="40" r="17" fill="#475569"/>
+                      <path d="M17 33 Q32 19 47 33 Z" fill="#0284c7"/>
+                      <text x="32" y="29" font-size="9" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">K</text>
+                      <circle cx="26" cy="40" r="2.5" fill="#ffffff"/>
+                      <circle cx="38" cy="40" r="2.5" fill="#ffffff"/>
+                    </svg>
+                  </div>
+                  <div class="space-y-0.5 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">국장개미</span>
+                      <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#00b8ff]/10 text-[#00b8ff] border border-[#00b8ff]/30 shrink-0">스윙</span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">흐름을 타는 똑똑한 개미의 선택!</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
+                  <div>
+                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                    <div class="text-base sm:text-lg font-black text-[#00b8ff]">+2,335%</div>
+                  </div>
+                  <div>
+                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                    <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
+                  </div>
+                </div>
+              </div>
+            </button>
+            <div id="dash-slot-국장" class="hidden animate-fade"></div>
+          </div>
+
+          <!-- 카드 3: 트레이더 (단기) -->
+          <div class="space-y-2">
+            <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-amber-400 dark:hover:border-amber-400 transition cursor-pointer shadow-sm">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#241f2a] border border-[#44354c] flex items-center justify-center shrink-0 p-1">
+                    <svg viewBox="0 0 64 64" class="w-full h-full">
+                      <path d="M15 37 A17 17 0 0 1 49 37" stroke="#a1a1aa" stroke-width="3" fill="none"/>
+                      <rect x="13" y="32" width="6" height="13" rx="3" fill="#ef4444"/>
+                      <rect x="45" y="32" width="6" height="13" rx="3" fill="#ef4444"/>
+                      <circle cx="32" cy="39" r="16" fill="#3f3f46"/>
+                      <path d="M20 33 L28 36" stroke="#f43f5e" stroke-width="2" stroke-linecap="round"/>
+                      <path d="M44 33 L36 36" stroke="#f43f5e" stroke-width="2" stroke-linecap="round"/>
+                      <ellipse cx="25" cy="40" rx="3.5" ry="4" fill="#ffffff"/>
+                      <circle cx="26" cy="40" r="2" fill="#09090b"/>
+                      <ellipse cx="39" cy="40" rx="3.5" ry="4" fill="#ffffff"/>
+                      <circle cx="38" cy="40" r="2" fill="#09090b"/>
+                    </svg>
+                  </div>
+                  <div class="space-y-0.5 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">트레이더</span>
+                      <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/30 shrink-0">단기</span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">기회를 놓치지 않는 빠른 판단!</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
+                  <div>
+                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                    <div class="text-base sm:text-lg font-black text-amber-400">+3,140%</div>
+                  </div>
+                  <div>
+                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                    <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">32.4억</div>
+                  </div>
+                </div>
+              </div>
+            </button>
+            <div id="dash-slot-트레이더" class="hidden animate-fade"></div>
+          </div>
+        </div>
+
+        <!-- 짤 카드 버튼 -->
+        <div class="pt-2 pb-4 flex justify-center">
+          <button type="button" onclick="openMeme('${stockName}')" class="px-6 py-3 rounded-xl bg-[#f1f5f9] dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#3f3f46] text-[#0f172a] dark:text-white font-bold text-sm flex items-center gap-2 shadow-sm cursor-pointer hover:bg-[#e2e8f0] dark:hover:bg-[#27272a] transition">
+            <span>📸</span> <span>카카오톡 공유용 짤 카드 만들기</span>
+          </button>
+        </div>
       `;
       container.appendChild(bottomDiv);
+    }
+
+    const strategyData = {
+      '서학': {
+        name: '서학개미 전략', icon: '🇺🇸', quote: '"데이터는 거짓말을 하지 않는다."',
+        dateRange: '2016.08.28 ~ 2026.08.27', initial: '1억원', finalAsset: '24.5억',
+        totalReturn: '+2,335%', cagr: '38.6%', mdd: '-24.8%', trades: '286회', winRate: '62.9%',
+        badgeText: '10년의 시간이 만든 확실한 차이', accentColor: '#ff2d78', benchLabel: '벤치마크 (QQQ)',
+        chartData: [1.0, 1.8, 2.7, 4.5, 7.8, 11.2, 8.9, 14.5, 18.2, 21.4, 24.5],
+        benchData: [1.0, 1.2, 1.5, 1.8, 2.4, 3.1, 2.3, 3.2, 3.8, 4.0, 4.2],
+        labels: ['2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026']
+      },
+      '국장': {
+        name: '국장개미 전략', icon: '🇰🇷', quote: '"박스권 국장에서도 외인 턴어라운드는 통한다."',
+        dateRange: '2016.08.28 ~ 2026.08.27', initial: '1억원', finalAsset: '24.5억',
+        totalReturn: '+2,335%', cagr: '38.6%', mdd: '-18.4%', trades: '412회', winRate: '68.2%',
+        badgeText: '코스피를 압도한 10년 퀀트 성과', accentColor: '#00b8ff', benchLabel: '벤치마크 (KOSPI)',
+        chartData: [1.0, 2.1, 3.4, 5.8, 9.2, 13.5, 11.0, 16.8, 19.5, 22.1, 24.5],
+        benchData: [1.0, 1.05, 1.2, 1.15, 1.4, 1.6, 1.3, 1.45, 1.5, 1.65, 1.8],
+        labels: ['2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026']
+      },
+      '트레이더': {
+        name: '트레이더 전략', icon: '⚡', quote: '"가장 강한 돈이 쏠린 자리에만 베팅한다."',
+        dateRange: '2016.08.28 ~ 2026.08.27', initial: '1억원', finalAsset: '32.4억',
+        totalReturn: '+3,140%', cagr: '42.1%', mdd: '-15.2%', trades: '1,240회', winRate: '74.5%',
+        badgeText: '매일 15:15 종가 배팅 복리 극대화', accentColor: '#eab308', benchLabel: '벤치마크 (무위험)',
+        chartData: [1.0, 2.8, 4.9, 8.2, 13.5, 18.2, 16.8, 23.0, 26.5, 29.8, 32.4],
+        benchData: [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0],
+        labels: ['2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026']
+      }
+    };
+
+    function toggleStrategyDashboard(type, btnElement) {
+      const allTypes = ['서학', '국장', '트레이더'];
+      const targetSlot = document.getElementById(`dash-slot-${type}`);
+      const isAlreadyOpen = targetSlot && !targetSlot.classList.contains('hidden');
+
+      if (currentChartInstance) { 
+        currentChartInstance.destroy(); 
+        currentChartInstance = null; 
+      }
+
+      allTypes.forEach(t => {
+        const slot = document.getElementById(`dash-slot-${t}`);
+        if (slot) { 
+          slot.innerHTML = ''; 
+          slot.classList.add('hidden'); 
+        }
+        const btn = document.getElementById(`card-btn-${t}`);
+        if (btn) {
+          btn.classList.remove('border-2', 'border-[#ff2d78]', 'border-[#00b8ff]', 'border-amber-400');
+          btn.classList.add('border-[#cbd5e1]', 'dark:border-[#272935]');
+        }
+      });
+
+      if (isAlreadyOpen) return;
+
+      const data = strategyData[type];
+      const activeBorderClass = type === '서학' ? 'border-[#ff2d78]' : (type === '국장' ? 'border-[#00b8ff]' : 'border-amber-400');
+      if (btnElement) {
+        btnElement.classList.remove('border-[#cbd5e1]', 'dark:border-[#272935]');
+        btnElement.classList.add('border-2', activeBorderClass);
+      }
+
+      targetSlot.innerHTML = `
+        <div class="bg-[#121318] border border-[#22242f] rounded-[2rem] p-5 sm:p-7 shadow-2xl relative space-y-6 my-3 animate-fade text-white">
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[#1f212c] pb-5">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-[#ff2d78]/10 border border-[#ff2d78]/20 flex items-center justify-center text-2xl shrink-0">
+                ${data.icon}
+              </div>
+              <div>
+                <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">실제 백테스트 검증</h2>
+                <p class="text-xs sm:text-sm text-[#8e92a4] mt-0.5 font-medium">과거 데이터로 증명된, 개미GTP의 투자 전략입니다.</p>
+              </div>
+            </div>
+            <div class="sm:text-right font-serif italic text-xs sm:text-sm text-[#7e8294] shrink-0">
+              ${data.quote}
+              <div class="text-[11px] text-[#525565] not-italic font-sans mt-0.5">- gaemiGTP -</div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-[#8e92a4] font-medium">
+            <span class="font-black text-white text-base">${data.name}</span>
+            <span class="text-[#363949]">|</span>
+            <span>${data.dateRange}</span>
+            <span class="text-[#363949]">|</span>
+            <span>초기자금 ${data.initial}</span>
+            <span class="text-[#363949]">|</span>
+            <span class="text-emerald-400">수수료 포함</span>
+          </div>
+
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-5 bg-[#161720] border border-[#262837] rounded-3xl p-5 sm:p-6">
+            <div class="space-y-1">
+              <div class="text-2xl sm:text-4xl font-black text-white tracking-tight">
+                1억 → <span class="text-white">${data.finalAsset}</span>
+              </div>
+              <div class="text-xs text-[#717588] font-bold">최종 자산</div>
+            </div>
+
+            <div class="space-y-1">
+              <div class="text-xs text-[#8e92a4] font-bold">누적수익률</div>
+              <div class="text-2xl sm:text-4xl font-black tracking-tight" style="color: ${data.accentColor};">
+                ${data.totalReturn}
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 bg-[#261722] border border-[#482035] px-4 py-3 rounded-2xl shrink-0">
+              <span class="text-2xl">🏆</span>
+              <div class="text-xs sm:text-sm font-black text-[#f871a0] leading-snug">
+                ${data.badgeText}
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-[#171821] border border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#7e8294] font-bold">CAGR</div>
+              <div class="text-xl sm:text-2xl font-black" style="color: ${data.accentColor};">${data.cagr}</div>
+            </div>
+            <div class="bg-[#171821] border border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#7e8294] font-bold">MDD</div>
+              <div class="text-xl sm:text-2xl font-black text-[#00b8ff]">${data.mdd}</div>
+            </div>
+            <div class="bg-[#171821] border border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#7e8294] font-bold">총 거래</div>
+              <div class="text-xl sm:text-2xl font-black text-white">${data.trades}</div>
+            </div>
+            <div class="bg-[#171821] border border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#7e8294] font-bold">승률</div>
+              <div class="text-xl sm:text-2xl font-black text-white">${data.winRate}</div>
+            </div>
+          </div>
+
+          <div class="bg-[#161720] border border-[#262837] rounded-3xl p-4 sm:p-6 space-y-3">
+            <div class="flex items-center justify-between text-xs sm:text-sm">
+              <div class="flex items-center gap-2 font-black text-white">
+                <span>실제 백테스트 자산곡선</span>
+                <span class="text-[#717588]">ⓘ</span>
+              </div>
+              <div class="flex items-center gap-4 text-xs font-bold">
+                <span class="flex items-center gap-1.5" style="color: ${data.accentColor};">
+                  <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${data.accentColor};"></span> 전략 수익률
+                </span>
+                <span class="flex items-center gap-1.5 text-[#7e8294]">
+                  <span class="w-2.5 h-2.5 rounded-full bg-[#7e8294] inline-block"></span> ${data.benchLabel}
+                </span>
+              </div>
+            </div>
+
+            <div class="relative w-full h-56 sm:h-64">
+              <canvas id="canvas-acc-${type}"></canvas>
+            </div>
+          </div>
+
+          <a href="https://www.quantconnect.com" target="_blank" rel="noopener noreferrer" class="block w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#00a6f4] via-[#00c5ff] to-[#008be3] hover:brightness-110 text-white font-black text-center text-sm sm:text-base shadow-lg shadow-sky-500/20 transition cursor-pointer">
+            QuantConnect 원본 결과 보기 ↗
+          </a>
+        </div>
+      `;
+
+      targetSlot.classList.remove('hidden');
+
+      const ctx = document.getElementById(`canvas-acc-${type}`).getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 240);
+      gradient.addColorStop(0, data.accentColor + '55');
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+      currentChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [
+            {
+              label: '전략 수익률',
+              data: data.chartData,
+              borderColor: data.accentColor,
+              backgroundColor: gradient,
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.35,
+              pointRadius: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+              pointBackgroundColor: data.accentColor,
+              pointBorderColor: '#121318',
+              pointBorderWidth: 2
+            },
+            {
+              label: data.benchLabel,
+              data: data.benchData,
+              borderColor: '#4e5264',
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              fill: false,
+              tension: 0.2,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#686c80', font: { size: 10, weight: 'bold' } }
+            },
+            y: {
+              position: 'right',
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: {
+                color: '#686c80',
+                font: { size: 10, weight: 'bold' },
+                callback: v => v + '억'
+              },
+              suggestedMax: 35
+            }
+          }
+        }
+      });
+    }
+
+    let voted = false;
+    function castVote(type) {
+      if (voted) return alert('이미 투표하셨습니다!');
+      voted = true;
+      const bar = document.getElementById('voteProgressBar');
+      const upLbl = document.getElementById('voteUpLabel');
+      const downLbl = document.getElementById('voteDownLabel');
+      if (type === 'up') {
+        bar.style.width = '74%';
+        upLbl.innerText = '상승 74%';
+        downLbl.innerText = '하락 26%';
+      } else {
+        bar.style.width = '61%';
+        upLbl.innerText = '상승 61%';
+        downLbl.innerText = '하락 39%';
+      }
+    }
+
+    function openMeme(stockName) {
+      activeStock = stockName;
+      document.getElementById('memeStockBadge').innerText = stockName;
+      document.getElementById('memeModal').classList.remove('hidden');
+    }
+
+    function downloadMemeImage() {
+      const card = document.getElementById('memeCardToRender');
+      const isDark = document.documentElement.classList.contains('dark');
+      if (typeof html2canvas !== 'undefined') {
+        html2canvas(card, { backgroundColor: isDark ? '#121316' : '#ffffff', scale: 2 }).then(canvas => {
+          const a = document.createElement('a');
+          a.download = `gaemiGTP_${activeStock}_짤카드.png`;
+          a.href = canvas.toDataURL('image/png');
+          a.click();
+        });
+      }
     }
   </script>
 </body>
