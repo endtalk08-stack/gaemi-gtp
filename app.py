@@ -16,17 +16,17 @@ CORS(app)
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
 
 US_KOREAN_NAMES = {
-    'ORCL': '오라클(ORCL)',
-    'ADBE': '어도비(ADBE)',
-    'NVDA': '엔비디아(NVDA)',
-    'MSFT': '마이크로소프트(MSFT)',
-    'TSLA': '테슬라(TSLA)',
-    'AAPL': '애플(AAPL)',
-    'GOOGL': '구글(GOOGL)',
-    'AMZN': '아마존(AMZN)',
-    'META': '메타(META)',
-    'LLY': '일라이릴리(LLY)',
-    'NVO': '노보노디스크(NVO)'
+    'ORCL': '오라클 ORCL',
+    'ADBE': '어도비 ADBE',
+    'NVDA': '엔비디아 NVDA',
+    'MSFT': '마이크로소프트 MSFT',
+    'TSLA': '테슬라 TSLA',
+    'AAPL': '애플 AAPL',
+    'GOOGL': '구글 GOOGL',
+    'AMZN': '아마존 AMZN',
+    'META': '메타 META',
+    'LLY': '일라이릴리 LLY',
+    'NVO': '노보노디스크 NVO'
 }
 
 TICKERS = {
@@ -233,74 +233,58 @@ def round_krw_tick(price):
     except Exception:
         return 0
 
-# ★ 전 업종 공통 초대형 실적 & 핵심 지표 통합 시간순 캘린더
 def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
 
-    # 시장 전체를 흔드는 주요 매크로 지표 및 빅테크 핵심 실적 풀 (시간순)
+    # 태그가 적용된 통합 마스터 일정
     master_events = [
         {
-            "name": "미국 8월 생산자물가지수(PPI)",
+            "name": "미국 8월 생산자물가지수 #PPI",
             "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz),
             "est": "0.2%",
-            "star": "★★★",
             "type": "ppi"
         },
         {
-            "name": "오라클(ORCL) 실적 발표 (장 마감 직후)",
+            "name": "#오라클 ORCL 실적 발표",
             "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz),
             "est": "예상 EPS $1.33",
-            "star": "★★★",
             "type": "earnings",
             "target": "글로벌 AI·클라우드 대장주"
         },
         {
-            "name": "어도비(ADBE) 실적 발표 (장 마감 직후)",
+            "name": "#어도비 ADBE 실적 발표",
             "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz),
             "est": "예상 EPS $6.08",
-            "star": "★★★",
             "type": "earnings",
             "target": "글로벌 AI·소프트웨어 대장주"
         },
         {
-            "name": "미국 8월 소비자물가지수(CPI)",
+            "name": "미국 8월 소비자물가지수 #CPI",
             "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz),
             "est": "0.2%",
-            "star": "★★★",
             "type": "cpi"
         },
         {
-            "name": "미국 연준 FOMC 기준금리 결정",
+            "name": "미국 연준 #FOMC 기준금리 결정",
             "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz),
             "est": "기준금리 3.50%~3.75%",
-            "star": "★★★",
             "type": "fomc"
         },
         {
-            "name": "미국 개인소비지출(PCE) 물가지수",
+            "name": "미국 개인소비지출 #PCE 물가지수",
             "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz),
             "est": "2.6%",
-            "star": "★★★",
             "type": "pce"
-        },
-        {
-            "name": "미국 9월 비농업 고용보고서(NFP)",
-            "dt": datetime.datetime(2026, 10, 2, 21, 30, tzinfo=kst_tz),
-            "est": "15만 건",
-            "star": "★★★",
-            "type": "nfp"
         }
     ]
 
-    # 시간순(오름차순) 자동 정렬
     master_events.sort(key=lambda x: x['dt'])
     upcoming = [ev for ev in master_events if ev['dt'] >= now_kst]
     if not upcoming:
         upcoming = master_events[:4]
 
-    # [오늘 밤] 일정 여부 판별 (내일 아침 09:00 KST 이전 이벤트가 있는지 확인)
     tomorrow_morning = (now_kst + datetime.timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
     tonight_event = next((ev for ev in upcoming if ev['dt'] <= tomorrow_morning), None)
 
@@ -330,16 +314,15 @@ def get_live_calendar_data(stock_name, ticker_symbol):
             "대신 이번 주 뒤로 갈수록 굵직한 지표와 메이저 실적들이 대기 중이니까 아래 일정 꼭 메모해 둬!"
         )
 
-    # [이번 주 핵심 개미 캘린더] 시간순 4개 나열
     check_lines = []
     for ev in upcoming[:4]:
         e_dt = ev['dt']
         e_wd = weekdays[e_dt.weekday()]
         e_time = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
-        check_lines.append(f"• {e_time} {ev['name']} {ev['star']}")
+        check_lines.append(f"• {e_time} {ev['name']}")
 
     calendar_block = (
-        "🗓️ 이번 주 핵심 개미 캘린더 (시간순)\n" +
+        "🗓️ 이번 주 핵심 개미 캘린더 ★★★\n" +
         "\n".join(check_lines) +
         "\n\n\"지표나 실적 발표 전후로는 호가창 얇아지니까 뇌동매매 절대 금지야! 알았제?\""
     )
