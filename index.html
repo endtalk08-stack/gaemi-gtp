@@ -89,6 +89,7 @@
           </div>
         </form>
 
+        <!-- 히어로 개미/인포/프로 드롭다운 -->
         <div id="heroModeMenu" class="absolute right-12 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
           <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
             <div class="text-left flex-1">
@@ -192,6 +193,7 @@
           </div>
         </form>
 
+        <!-- 하단 개미/인포/프로 드롭다운 -->
         <div id="bottomModeMenu" class="absolute right-14 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
           <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
             <div class="text-left flex-1">
@@ -408,7 +410,7 @@
       startTypewriterFlow(stockName, sections);
     }
 
-    // [수정1 & 수정2] HTML 태그 노출 버그 방지 & 미국주식 #콜/#풋 블록 색상 분리 처리
+    // ★ 버그 완벽 수정된 텍스트 파싱 로직
     function startTypewriterFlow(stockName, sections) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -453,28 +455,32 @@
             let formatted = pEl.textContent;
 
             try {
-              // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크(#FF8DA1)
+              // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크
               formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
 
-              // 2. 경제 지표(#PPI, #CPI, #FOMC, #PCE, #NFP) -> 블루(#38BDF8)
+              // 2. 경제 지표(#PPI, #CPI, #FOMC, #PCE, #NFP) -> 블루
               formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
 
-              // 3. 지지선 / 저항선 색상 치환
+              // 3. 지지선 / 저항선 색상
               if (formatted.includes('#생존 지지선')) {
                 formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
                 formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
               } 
-              // 4. 국내 수급 및 미국 옵션 색상 치환 (콜=핑크, 풋=블루)
+              // 4. 수급 매매동향 및 콜/풋 옵션 색상 
               else if (formatted.includes('#외국인') || formatted.includes('#콜')) {
                 let lines = formatted.split('\n\n');
                 let tagLine = lines[0];
                 let rest = lines.slice(1).join('\n\n');
 
                 if (tagLine.includes('#콜')) {
-                  // 미국 주식 콜/풋/비율 처리
-                  tagLine = tagLine.replace(/#콜\s+([\d,.]+(?:만건|건))/g, '<span class="whitespace-nowrap font-bold" style="color: #FF8DA1;">#콜 $1</span>');
-                  tagLine = tagLine.replace(/#풋\s+([\d,.]+(?:만건|건))/g, '<span class="whitespace-nowrap font-bold" style="color: #38BDF8;">#풋 $1</span>');
-                  tagLine = tagLine.replace(/#비율\s+([\d.]+)/g, '<span class="whitespace-nowrap font-bold" style="color: #94a3b8;">#비율 $1</span>');
+                  // 미국 주식 콜/풋/비율 분할 처리 (#콜은 전체 핑크, #풋은 전체 블루)
+                  const parts = tagLine.split(/\s+(?=#)/);
+                  let coloredTags = parts.map(part => {
+                    if (part.startsWith('#콜')) return `<span class="whitespace-nowrap font-bold" style="color: #FF8DA1;">${part}</span>`;
+                    if (part.startsWith('#풋')) return `<span class="whitespace-nowrap font-bold" style="color: #38BDF8;">${part}</span>`;
+                    return `<span class="whitespace-nowrap font-bold" style="color: #94a3b8;">${part}</span>`;
+                  });
+                  tagLine = coloredTags.join(' ');
                 } else {
                   // 국내 주식 외인/기관/개인 처리
                   tagLine = tagLine.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주|관망)?)/g, function(_, name, val) {
@@ -484,20 +490,32 @@
                 }
                 formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
               } 
-              // 5. 첫 섹션 태그 라인 (#삼성전자 #-0.19% #눈치싸움 #방향탐색) 색상 복구 (HTML 속성 침범 방지 정규식)
-              else if (formatted.includes('#') && !formatted.includes('캘린더') && !formatted.includes('<span')) {
+              // 5. 첫 섹션 태그 라인 오류 완전 해결 (공백 분할 방식으로 안전하게 치환)
+              else if (formatted.includes('#') && !formatted.includes('캘린더')) {
                 const isDown = formatted.includes('-') || formatted.includes('보합') || formatted.includes('눈치싸움') || formatted.includes('파란불') || formatted.includes('숨고르기') || formatted.includes('투매');
-                const themeTagColor = isDown ? '#38BDF8' : '#FF8DA1';
+                const themeColor = isDown ? '#38BDF8' : '#FF8DA1';
                 
-                formatted = formatted.replace(/#([^\s#<]+)/g, function(match, tagName) {
-                  let color = themeTagColor;
-                  if (tagName.startsWith('+')) color = '#FF8DA1';
-                  else if (tagName.startsWith('-')) color = '#38BDF8';
-                  return `<span class="font-bold" style="color: ${color};">#${tagName}</span>`;
-                });
+                let lines = formatted.split('\n\n');
+                if (lines.length > 0) {
+                  let lastLine = lines[lines.length - 1];
+                  if (lastLine.includes('#')) {
+                    const words = lastLine.split(/\s+/);
+                    const newWords = words.map(w => {
+                      if (w.startsWith('#')) {
+                        let color = themeColor;
+                        if (w.includes('+')) color = '#FF8DA1';
+                        else if (w.includes('-')) color = '#38BDF8';
+                        return `<span class="font-bold" style="color: ${color};">${w}</span>`;
+                      }
+                      return w;
+                    });
+                    lines[lines.length - 1] = newWords.join(' ');
+                    formatted = lines.join('\n\n');
+                  }
+                }
               }
 
-              // 6. 본문 텍스트 내 등락률 (-0.19%, +8.26% 등) 색상 복구
+              // 6. 본문 텍스트 내 등락률 (-0.19%, +8.26% 등)
               formatted = formatted.replace(/(?:\s|^)([+-]\d+(?:\.\d+)?%)/g, function(match, p1) {
                 const color = p1.startsWith('+') ? '#FF8DA1' : '#38BDF8';
                 return match.replace(p1, `<span class="font-bold" style="color: ${color};">${p1}</span>`);
