@@ -89,7 +89,6 @@
           </div>
         </form>
 
-        <!-- 히어로 개미/인포/프로 드롭다운 (완벽한 왼쪽 정렬 및 문구 수정) -->
         <div id="heroModeMenu" class="absolute right-12 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
           <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
             <div class="text-left flex-1">
@@ -193,7 +192,6 @@
           </div>
         </form>
 
-        <!-- 하단 개미/인포/프로 드롭다운 (완벽한 왼쪽 정렬 및 문구 수정) -->
         <div id="bottomModeMenu" class="absolute right-14 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
           <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
             <div class="text-left flex-1">
@@ -410,6 +408,7 @@
       startTypewriterFlow(stockName, sections);
     }
 
+    // [수정1 & 수정2] HTML 태그 노출 버그 방지 & 미국주식 #콜/#풋 블록 색상 분리 처리
     function startTypewriterFlow(stockName, sections) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -465,19 +464,28 @@
                 formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
                 formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
               } 
-              // 4. 수급 매매동향 색상 치환
-              else if (formatted.includes('#외국인')) {
+              // 4. 국내 수급 및 미국 옵션 색상 치환 (콜=핑크, 풋=블루)
+              else if (formatted.includes('#외국인') || formatted.includes('#콜')) {
                 let lines = formatted.split('\n\n');
                 let tagLine = lines[0];
                 let rest = lines.slice(1).join('\n\n');
-                tagLine = tagLine.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주|관망)?)/g, function(_, name, val) {
-                  let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
-                  return `<span class="whitespace-nowrap font-bold" style="color: ${color};">#${name} ${val}</span>`;
-                });
+
+                if (tagLine.includes('#콜')) {
+                  // 미국 주식 콜/풋/비율 처리
+                  tagLine = tagLine.replace(/#콜\s+([\d,.]+(?:만건|건))/g, '<span class="whitespace-nowrap font-bold" style="color: #FF8DA1;">#콜 $1</span>');
+                  tagLine = tagLine.replace(/#풋\s+([\d,.]+(?:만건|건))/g, '<span class="whitespace-nowrap font-bold" style="color: #38BDF8;">#풋 $1</span>');
+                  tagLine = tagLine.replace(/#비율\s+([\d.]+)/g, '<span class="whitespace-nowrap font-bold" style="color: #94a3b8;">#비율 $1</span>');
+                } else {
+                  // 국내 주식 외인/기관/개인 처리
+                  tagLine = tagLine.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주|관망)?)/g, function(_, name, val) {
+                    let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
+                    return `<span class="whitespace-nowrap font-bold" style="color: ${color};">#${name} ${val}</span>`;
+                  });
+                }
                 formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
               } 
-              // 5. 첫 섹션 태그 라인 (#삼성전자 #-0.19% #눈치싸움 #방향탐색) 색상 복구
-              else if (formatted.includes('#') && !formatted.includes('캘린더')) {
+              // 5. 첫 섹션 태그 라인 (#삼성전자 #-0.19% #눈치싸움 #방향탐색) 색상 복구 (HTML 속성 침범 방지 정규식)
+              else if (formatted.includes('#') && !formatted.includes('캘린더') && !formatted.includes('<span')) {
                 const isDown = formatted.includes('-') || formatted.includes('보합') || formatted.includes('눈치싸움') || formatted.includes('파란불') || formatted.includes('숨고르기') || formatted.includes('투매');
                 const themeTagColor = isDown ? '#38BDF8' : '#FF8DA1';
                 
@@ -515,7 +523,6 @@
       const bottomDiv = document.createElement('div');
       bottomDiv.className = "space-y-6 pt-4 animate-fade";
       bottomDiv.innerHTML = `
-        <!-- 개미 투표 -->
         <div class="space-y-3">
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
@@ -543,14 +550,12 @@
           </div>
         </div>
 
-        <!-- 전략 3인방 카드 -->
         <div class="space-y-4">
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
             <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 전략도 확인해바.</h4>
           </div>
 
-          <!-- 서학개미 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#ff2d78] transition shadow-sm cursor-pointer">
               <div class="flex items-center justify-between gap-3">
@@ -583,7 +588,6 @@
             <div id="dash-slot-서학" class="hidden animate-fade"></div>
           </div>
 
-          <!-- 국장개미 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#00b8ff] transition shadow-sm cursor-pointer">
               <div class="flex items-center justify-between gap-3">
@@ -615,7 +619,6 @@
             <div id="dash-slot-국장" class="hidden animate-fade"></div>
           </div>
 
-          <!-- 트레이더 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-amber-400 transition shadow-sm cursor-pointer">
               <div class="flex items-center justify-between gap-3">
@@ -716,7 +719,6 @@
 
       targetSlot.innerHTML = `
         <div class="bg-white dark:bg-[#121318] border border-[#cbd5e1] dark:border-[#22242f] rounded-3xl p-5 sm:p-7 shadow-2xl space-y-6 my-3 animate-fade text-[#0f172a] dark:text-white">
-          
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[#e2e8f0] dark:border-[#1f212c] pb-5">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 rounded-2xl bg-[#ff2d78]/10 border border-[#ff2d78]/20 flex items-center justify-center text-2xl shrink-0">
