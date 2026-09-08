@@ -238,7 +238,6 @@ def get_live_calendar_data(stock_name, ticker_symbol):
     now_kst = datetime.datetime.now(kst_tz)
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
 
-    # 태그가 적용된 통합 마스터 일정
     master_events = [
         {
             "name": "미국 8월 생산자물가지수 #PPI",
@@ -437,9 +436,9 @@ def analyze():
                 pass
 
         if not supply_content:
-            supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 생존 지지선으로 잡는 게 안전해."
+            supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
 
-        # 3. 등락률 분기
+        # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
@@ -463,13 +462,13 @@ def analyze():
 
         news_list = fetch_realtime_news(raw_name)
         news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else f"📰 \"{raw_name} 관련 메이저 재료 포착\""
-        news_intro = "궁금해할 거 같아서 오늘 어떤 뉴스가 있나 가져왔어 ㅎ"
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
 
+        # 불필요한 멘트 제거 및 줄바꿈 정리
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n{news_intro}\n\n{news_lines}\n\n{news_transition}\n\n{tags_str}",
+                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n{news_lines}\n\n{news_transition}\n\n{tags_str}",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
@@ -478,7 +477,7 @@ def analyze():
             },
             {
                 "title": "여기 깨지면 도망쳐",
-                "content": f"#생존 지지선 {ma20_str} 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여!\n\n#악성 매물대 {res_str} 이 가격은 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
+                "content": f"#생존 지지선 {ma20_str} 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 {res_str} 딱 메모해놔! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
             },
             {
                 "title": "오늘 밤, 이번주 무슨 일이 있나?",
@@ -501,7 +500,7 @@ def analyze():
                 },
                 {
                     "title": "여기 깨지면 도망쳐",
-                    "content": "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 딱 메모해놔! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
+                    "content": "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 이 가격은! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
                 },
                 {
                     "title": "오늘 밤, 이번주 무슨 일이 있나?",
