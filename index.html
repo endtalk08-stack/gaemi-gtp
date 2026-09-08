@@ -52,6 +52,27 @@
       animation: blink 0.8s infinite;
     }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+  /* 전략 카드: 모바일에서도 캐릭터를 크게 유지하면서 가로 잘림 방지 */
+  @media (max-width: 767px) {
+    #chatArea .strategy-card-inner { min-width: 0; }
+    #chatArea .strategy-card-copy { min-width: 0; flex: 1 1 auto; }
+    #chatArea .strategy-card-copy p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #chatArea .strategy-card-metrics { flex: 0 0 auto; gap: 8px; padding-left: 8px; }
+    #chatArea .strategy-card-metrics > div { min-width: 0; }
+    #chatArea .strategy-card-metrics .metric-label { font-size: 9px; white-space: nowrap; }
+    #chatArea .strategy-card-metrics .metric-value { font-size: 15px; white-space: nowrap; }
+  }
+  @media (max-width: 420px) {
+    #chatArea .strategy-card-button { padding: 10px; }
+    #chatArea .strategy-card-character { width: 68px; height: 68px; }
+    #chatArea .strategy-card-inner { gap: 8px; }
+    #chatArea .strategy-card-left { gap: 8px; }
+    #chatArea .strategy-card-copy .strategy-title { font-size: 15px; }
+    #chatArea .strategy-card-copy p { font-size: 10px; }
+    #chatArea .strategy-card-metrics { gap: 6px; padding-left: 6px; }
+    #chatArea .strategy-card-metrics .metric-label { font-size: 8px; }
+    #chatArea .strategy-card-metrics .metric-value { font-size: 14px; }
+  }
   </style>
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden transition-colors duration-200 relative select-none">
@@ -693,36 +714,28 @@
 
           <!-- 카드 1: 서학개미 -->
           <div class="space-y-2">
-            <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#ff2d78] dark:hover:border-[#ff2d78] transition cursor-pointer shadow-sm">
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
-                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#231b26] border border-[#482035] flex items-center justify-center shrink-0 p-1">
-                    <svg viewBox="0 0 64 64" class="w-full h-full">
-                      <circle cx="32" cy="38" r="17" fill="#3f3f46"/>
-                      <path d="M26 23 Q18 10 13 16 M38 23 Q46 10 51 16" stroke="#71717a" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-                      <rect x="18" y="32" width="12" height="7" rx="2" fill="#09090b"/>
-                      <rect x="34" y="32" width="12" height="7" rx="2" fill="#09090b"/>
-                      <line x1="30" y1="35.5" x2="34" y2="35.5" stroke="#09090b" stroke-width="2"/>
-                      <rect x="15" y="44" width="10" height="7" rx="1" fill="#ef4444"/>
-                      <rect x="15" y="44" width="5" height="4" fill="#2563eb"/>
-                    </svg>
+            <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="strategy-card-button w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#ff2d78] dark:hover:border-[#ff2d78] transition cursor-pointer shadow-sm">
+              <div class="strategy-card-inner flex items-center justify-between gap-3">
+                <div class="strategy-card-left flex items-center gap-3.5 sm:gap-4 min-w-0">
+                  <div class="strategy-card-character w-[72px] h-[72px] sm:w-[72px] sm:h-[72px] rounded-2xl bg-[#231b26] border border-[#482035] flex items-center justify-center shrink-0 p-1">
+                    <img src="seohak_character.png" alt="서학개미 캐릭터" class="w-full h-full object-contain rounded-xl">
                   </div>
-                  <div class="space-y-0.5 min-w-0">
+                  <div class="strategy-card-copy space-y-0.5 min-w-0">
                     <div class="flex items-center gap-2">
-                      <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">서학개미</span>
+                      <span class="strategy-title font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">서학개미</span>
                       <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ff2d78]/10 text-[#ff2d78] border border-[#ff2d78]/30 shrink-0">장기</span>
                     </div>
                     <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">좋은 기업을 길게, 시간이 수익을 만든다.</p>
                   </div>
                 </div>
-                <div class="flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
+                <div class="strategy-card-metrics flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
                   <div>
-                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
-                    <div class="text-base sm:text-lg font-black text-[#ff2d78]">+2,335%</div>
+                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                    <div class="metric-value text-base sm:text-lg font-black text-[#ff2d78]">+2,335%</div>
                   </div>
                   <div>
-                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
-                    <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
+                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                    <div class="metric-value text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
                   </div>
                 </div>
               </div>
@@ -732,35 +745,28 @@
 
           <!-- 카드 2: 국장개미 -->
           <div class="space-y-2">
-            <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#00b8ff] dark:hover:border-[#00b8ff] transition cursor-pointer shadow-sm">
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
-                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#14232c] border border-[#1b3a4a] flex items-center justify-center shrink-0 p-1 relative">
-                    <svg viewBox="0 0 64 64" class="w-full h-full">
-                      <path d="M47 17 L53 11 M53 11 L48 11 M53 11 L53 16" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
-                      <circle cx="32" cy="40" r="17" fill="#475569"/>
-                      <path d="M17 33 Q32 19 47 33 Z" fill="#0284c7"/>
-                      <text x="32" y="29" font-size="9" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">K</text>
-                      <circle cx="26" cy="40" r="2.5" fill="#ffffff"/>
-                      <circle cx="38" cy="40" r="2.5" fill="#ffffff"/>
-                    </svg>
+            <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="strategy-card-button w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#00b8ff] dark:hover:border-[#00b8ff] transition cursor-pointer shadow-sm">
+              <div class="strategy-card-inner flex items-center justify-between gap-3">
+                <div class="strategy-card-left flex items-center gap-3.5 sm:gap-4 min-w-0">
+                  <div class="strategy-card-character w-[72px] h-[72px] sm:w-[72px] sm:h-[72px] rounded-2xl bg-[#14232c] border border-[#1b3a4a] flex items-center justify-center shrink-0 p-1 relative">
+                    <img src="gukjang_character.png" alt="국장개미 캐릭터" class="w-full h-full object-contain rounded-xl">
                   </div>
-                  <div class="space-y-0.5 min-w-0">
+                  <div class="strategy-card-copy space-y-0.5 min-w-0">
                     <div class="flex items-center gap-2">
-                      <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">국장개미</span>
+                      <span class="strategy-title font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">국장개미</span>
                       <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#00b8ff]/10 text-[#00b8ff] border border-[#00b8ff]/30 shrink-0">스윙</span>
                     </div>
                     <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">흐름을 타는 똑똑한 개미의 선택!</p>
                   </div>
                 </div>
-                <div class="flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
+                <div class="strategy-card-metrics flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
                   <div>
-                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
-                    <div class="text-base sm:text-lg font-black text-[#00b8ff]">+2,335%</div>
+                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                    <div class="metric-value text-base sm:text-lg font-black text-[#00b8ff]">+2,335%</div>
                   </div>
                   <div>
-                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
-                    <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
+                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                    <div class="metric-value text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
                   </div>
                 </div>
               </div>
@@ -770,41 +776,28 @@
 
           <!-- 카드 3: 트레이더 -->
           <div class="space-y-2">
-            <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-amber-400 dark:hover:border-amber-400 transition cursor-pointer shadow-sm">
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
-                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#241f2a] border border-[#44354c] flex items-center justify-center shrink-0 p-1">
-                    <svg viewBox="0 0 64 64" class="w-full h-full">
-                      <!-- 헤드셋 -->
-                      <path d="M15 37 A17 17 0 0 1 49 37" stroke="#a1a1aa" stroke-width="3" fill="none"/>
-                      <rect x="13" y="32" width="6" height="13" rx="3" fill="#ef4444"/>
-                      <rect x="45" y="32" width="6" height="13" rx="3" fill="#ef4444"/>
-                      <circle cx="32" cy="39" r="16" fill="#3f3f46"/>
-                      <!-- 날카로운 트레이더 눈빛 -->
-                      <path d="M20 33 L28 36" stroke="#f43f5e" stroke-width="2" stroke-linecap="round"/>
-                      <path d="M44 33 L36 36" stroke="#f43f5e" stroke-width="2" stroke-linecap="round"/>
-                      <ellipse cx="25" cy="40" rx="3.5" ry="4" fill="#ffffff"/>
-                      <circle cx="26" cy="40" r="2" fill="#09090b"/>
-                      <ellipse cx="39" cy="40" rx="3.5" ry="4" fill="#ffffff"/>
-                      <circle cx="38" cy="40" r="2" fill="#09090b"/>
-                    </svg>
+            <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="strategy-card-button w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-amber-400 dark:hover:border-amber-400 transition cursor-pointer shadow-sm">
+              <div class="strategy-card-inner flex items-center justify-between gap-3">
+                <div class="strategy-card-left flex items-center gap-3.5 sm:gap-4 min-w-0">
+                  <div class="strategy-card-character w-[72px] h-[72px] sm:w-[72px] sm:h-[72px] rounded-2xl bg-[#241f2a] border border-[#44354c] flex items-center justify-center shrink-0 p-1">
+                    <img src="trader_character.png" alt="트레이더 캐릭터" class="w-full h-full object-contain rounded-xl">
                   </div>
-                  <div class="space-y-0.5 min-w-0">
+                  <div class="strategy-card-copy space-y-0.5 min-w-0">
                     <div class="flex items-center gap-2">
-                      <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">트레이더</span>
+                      <span class="strategy-title font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">트레이더</span>
                       <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/30 shrink-0">단기</span>
                     </div>
                     <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">기회를 놓치지 않는 빠른 판단!</p>
                   </div>
                 </div>
-                <div class="flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
+                <div class="strategy-card-metrics flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
                   <div>
-                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
-                    <div class="text-base sm:text-lg font-black text-amber-400">+3,140%</div>
+                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                    <div class="metric-value text-base sm:text-lg font-black text-amber-400">+3,140%</div>
                   </div>
                   <div>
-                    <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
-                    <div class="text-base sm:text-lg font-black text-[#0f172a] dark:text-white">32.4억</div>
+                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
+                    <div class="metric-value text-base sm:text-lg font-black text-[#0f172a] dark:text-white">32.4억</div>
                   </div>
                 </div>
               </div>
@@ -933,30 +926,23 @@
             <span class="text-emerald-400">수수료 포함</span>
           </div>
 
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-5 bg-[#161720] border border-[#262837] rounded-3xl p-5 sm:p-6">
-            <div class="space-y-1">
-              <div class="text-2xl sm:text-4xl font-black text-white tracking-tight">
-                1억 → <span class="text-white">${data.finalAsset}</span>
-              </div>
-              <div class="text-xs text-[#717588] font-bold">최종 자산</div>
-            </div>
+          <div class="grid grid-cols-2 gap-0 bg-[#161720] border border-[#262837] rounded-3xl overflow-hidden">
+             <div class="p-5 sm:p-6 text-center border-r border-[#262837] flex flex-col justify-center min-h-[150px]">
+               <div class="text-xs sm:text-sm text-[#8e92a4] font-bold mb-2">최종 자산</div>
+               <div class="text-2xl sm:text-4xl font-black text-white tracking-tight">
+                 1억 → <span class="text-white">${data.finalAsset}</span>
+               </div>
+             </div>
 
-            <div class="space-y-1">
-              <div class="text-xs text-[#8e92a4] font-bold">누적수익률</div>
-              <div class="text-2xl sm:text-4xl font-black tracking-tight" style="color: ${data.accentColor};">
-                ${data.totalReturn}
-              </div>
-            </div>
+             <div class="p-5 sm:p-6 text-center flex flex-col justify-center min-h-[150px]">
+               <div class="text-xs sm:text-sm text-[#8e92a4] font-bold mb-2">누적수익률</div>
+               <div class="text-2xl sm:text-4xl font-black tracking-tight" style="color: ${data.accentColor};">
+                 ${data.totalReturn}
+               </div>
+             </div>
+           </div>
 
-            <div class="flex items-center gap-3 bg-[#261722] border border-[#482035] px-4 py-3 rounded-2xl shrink-0">
-              <span class="text-2xl">🏆</span>
-              <div class="text-xs sm:text-sm font-black text-[#f871a0] leading-snug">
-                ${data.badgeText}
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div class="bg-[#171821] border border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
               <div class="text-xs text-[#7e8294] font-bold">CAGR</div>
               <div class="text-xl sm:text-2xl font-black" style="color: ${data.accentColor};">${data.cagr}</div>
