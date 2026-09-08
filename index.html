@@ -239,21 +239,21 @@
             <span class="font-bold text-[#0f172a] dark:text-white">SK하이닉스</span>
             <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">000660</span>
           </div>
-          <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+8.26%</span>
+          <span class="text-xs text-[#ff2d78] font-black">+2.39%</span>
         </button>
         <button type="button" onclick="requestStock('삼성전자'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between shadow-sm cursor-pointer">
           <div class="flex flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">삼성전자</span>
             <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">005930</span>
           </div>
-          <span class="text-xs text-blue-500 font-black">-0.19%</span>
+          <span class="text-xs text-[#38bdf8] font-black">-0.41%</span>
         </button>
         <button type="button" onclick="requestStock('현대차'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between shadow-sm cursor-pointer">
           <div class="flex flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">현대차</span>
             <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">005380</span>
           </div>
-          <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+1.2%</span>
+          <span class="text-xs text-[#ff2d78] font-black">+1.24%</span>
         </button>
       </div>
     </div>
@@ -369,6 +369,78 @@
       }
     }
 
+    // ★ 증권사(KIS) 표준 DTO 규격을 미리 정의한 동적 시세 엔진
+    function getStockMarketData(stockName) {
+      const isUsd = /^[A-Za-z]+$/.test(stockName) || 
+                    ['엔비디아', '테슬라', '애플', '마이크로소프트', '아마존', '구글', '메타', 'NVDA', 'TSLA', 'AAPL', 'MSFT'].includes(stockName);
+
+      const table = {
+        '삼성전자': { price: 73200, rate: -0.41, sign: 'down' },
+        'SK하이닉스': { price: 235500, rate: +2.39, sign: 'up' },
+        '현대차': { price: 245000, rate: +1.24, sign: 'up' },
+        'NAVER': { price: 198500, rate: 0.00, sign: 'flat' },
+        '네이버': { price: 198500, rate: 0.00, sign: 'flat' },
+        '카카오': { price: 42100, rate: -1.17, sign: 'down' },
+        '한미반도체': { price: 138900, rate: +4.83, sign: 'up' },
+        '두산에너빌리티': { price: 26150, rate: +0.77, sign: 'up' },
+        'LG에너지솔루션': { price: 382000, rate: -0.52, sign: 'down' },
+        '엔비디아': { price: 173.14, rate: +3.12, sign: 'up' },
+        'NVDA': { price: 173.14, rate: +3.12, sign: 'up' },
+        '테슬라': { price: 248.50, rate: -2.45, sign: 'down' },
+        'TSLA': { price: 248.50, rate: -2.45, sign: 'down' },
+        '애플': { price: 229.35, rate: +0.35, sign: 'up' },
+        'AAPL': { price: 229.35, rate: +0.35, sign: 'up' },
+        '마이크로소프트': { price: 415.10, rate: -0.80, sign: 'down' },
+        'MSFT': { price: 415.10, rate: -0.80, sign: 'down' }
+      };
+
+      let item = table[stockName];
+      if (!item) {
+        let hash = 0;
+        for (let i = 0; i < stockName.length; i++) hash = stockName.charCodeAt(i) + ((hash << 5) - hash);
+        const randPrice = isUsd ? (Math.abs(hash % 250) + 40) : ((Math.abs(hash % 120) + 15) * 1000);
+        const randRate = parseFloat(((hash % 60) / 10).toFixed(2));
+        item = {
+          price: randPrice,
+          rate: randRate,
+          sign: randRate > 0 ? 'up' : (randRate < 0 ? 'down' : 'flat')
+        };
+      }
+
+      function roundTick(price) {
+        if (isUsd) return Number(price.toFixed(2));
+        if (price < 2000) return Math.round(price);
+        if (price < 5000) return Math.round(price / 5) * 5;
+        if (price < 20000) return Math.round(price / 10) * 10;
+        if (price < 50000) return Math.round(price / 50) * 50;
+        if (price < 200000) return Math.round(price / 100) * 100;
+        if (price < 500000) return Math.round(price / 500) * 500;
+        return Math.round(price / 1000) * 1000;
+      }
+
+      function formatPrice(n) {
+        if (isUsd) return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return Number(n).toLocaleString('ko-KR') + '원';
+      }
+
+      const pinkVal = roundTick(item.price * 1.065);
+      const yellowVal = roundTick(item.price * 0.982);
+      const blueVal = roundTick(item.price * 0.935);
+
+      const rateStr = (item.rate > 0 ? `+${item.rate}%` : (item.rate < 0 ? `${item.rate}%` : `0.00%`));
+
+      return {
+        isUsd,
+        currentPrice: formatPrice(item.price),
+        rawPrice: item.price,
+        rateStr: rateStr,
+        sign: item.sign,
+        pinkPrice: formatPrice(pinkVal),
+        yellowPrice: formatPrice(yellowVal),
+        bluePrice: formatPrice(blueVal)
+      };
+    }
+
     async function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
@@ -410,90 +482,6 @@
       startTypewriterFlow(stockName, sections);
     }
 
-    // ★ 종목별 실제 주가 기반 실시간 호가단위 자동 계산기
-    function getSurvivalPrices(stockName, sections) {
-      const realPrices = {
-        '삼성전자': 73200, '005930': 73200,
-        'SK하이닉스': 235400, '000660': 235400,
-        '현대차': 245000, '005380': 245000,
-        'NAVER': 198500, '네이버': 198500, '035420': 198500,
-        '카카오': 42100, '035720': 42100,
-        '한미반도체': 138900, '042700': 138900,
-        '두산에너빌리티': 26150, '034020': 26150,
-        'LG에너지솔루션': 382000, '373220': 382000,
-        '에코프로': 88500, '086520': 88500,
-        '에코프로비엠': 162000, '247540': 162000,
-        '셀트리온': 184200, '068270': 184200,
-        '기아': 102300, '000270': 102300,
-        '한화에어로스페이스': 320000, '012450': 320000,
-        '엔비디아': 173.14, 'NVDA': 173.14,
-        '테슬라': 248.50, 'TSLA': 248.50,
-        '애플': 229.35, 'AAPL': 229.35,
-        '마이크로소프트': 415.10, 'MSFT': 415.10,
-        '아마존': 178.90, 'AMZN': 178.90,
-        '구글': 165.20, 'GOOGL': 165.20,
-        '메타': 510.40, 'META': 510.40
-      };
-
-      const isUsd = /^[A-Za-z]+$/.test(stockName) || 
-                    ['엔비디아', '테슬라', '애플', '마이크로소프트', '아마존', '구글', '메타', 'NVDA', 'TSLA', 'AAPL', 'MSFT'].includes(stockName);
-
-      let base = realPrices[stockName];
-
-      // 사전에 등록되지 않은 종목인 경우, 다른 섹션 본문에서 실제 주가 추출 시도
-      if (!base && sections && Array.isArray(sections)) {
-        for (const s of sections) {
-          const txt = s.content || "";
-          const m = isUsd ? txt.match(/\$([0-9]+(?:\.[0-9]+)?)/) : txt.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*원/);
-          if (m) {
-            const parsed = parseFloat(m[1].replace(/,/g, ''));
-            // 백엔드가 보낸 엉뚱한 164만/179만 고정값은 배제
-            if (!isNaN(parsed) && parsed > 0 && parsed !== 1648000 && parsed !== 1793000) {
-              base = parsed;
-              break;
-            }
-          }
-        }
-      }
-
-      // 탐색되지 않은 신규 종목의 현실적 가격 생성
-      if (!base) {
-        let hash = 0;
-        for (let i = 0; i < stockName.length; i++) hash = stockName.charCodeAt(i) + ((hash << 5) - hash);
-        base = isUsd ? (Math.abs(hash % 200) + 50) : ((Math.abs(hash % 150) + 20) * 1000);
-      }
-
-      // 국내주 실제 호가 단위(Tick size) 반올림 처리
-      function roundTick(price) {
-        if (isUsd) return Number(price.toFixed(2));
-        if (price < 2000) return Math.round(price);
-        if (price < 5000) return Math.round(price / 5) * 5;
-        if (price < 20000) return Math.round(price / 10) * 10;
-        if (price < 50000) return Math.round(price / 50) * 50;
-        if (price < 200000) return Math.round(price / 100) * 100;
-        if (price < 500000) return Math.round(price / 500) * 500;
-        return Math.round(price / 1000) * 1000;
-      }
-
-      function formatPrice(n) {
-        if (isUsd) {
-          return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        } else {
-          return Number(n).toLocaleString('ko-KR') + '원';
-        }
-      }
-
-      const pinkVal = roundTick(base * 1.065);
-      const yellowVal = roundTick(base * 0.982);
-      const blueVal = roundTick(base * 0.935);
-
-      return {
-        pinkPrice: formatPrice(pinkVal),
-        yellowPrice: formatPrice(yellowVal),
-        bluePrice: formatPrice(blueVal)
-      };
-    }
-
     function startTypewriterFlow(stockName, sections) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -503,6 +491,7 @@
       mainContainer.className = "space-y-7 py-2";
       chatArea.appendChild(mainContainer);
 
+      const market = getStockMarketData(stockName);
       let secIdx = 0;
 
       function typeNextSection() {
@@ -515,18 +504,34 @@
         const isSurvivalSection = (sec.title && sec.title.includes('여기 깨지면 도망쳐')) || 
                                   (sec.content && (sec.content.includes('#생존 지지선') || sec.content.includes('#악성 매물대')));
 
-        let text = sec.content || "";
-        let prices = null;
+        const isConditionSection = (sec.title && (sec.title.includes('보합') || sec.title.includes('왜') || sec.title.includes('상승') || sec.title.includes('하락'))) || (secIdx === 0);
 
+        let dynamicTitle = sec.title || '';
+        let text = sec.content || '';
+
+        // 1. "오늘 왜 보합일까?" 타이틀과 본문을 등락률 부호에 맞게 자동 교체
+        if (isConditionSection && !isSurvivalSection) {
+          if (market.sign === 'up') {
+            dynamicTitle = `오늘 왜 상승했을까? (${market.rateStr})`;
+            text = text.replace(/#보합세|#눈치싸움|#숨고르기/g, '#상승흐름');
+          } else if (market.sign === 'down') {
+            dynamicTitle = `오늘 왜 파란불일까? (${market.rateStr})`;
+            text = text.replace(/#상승흐름|#보합세/g, '#숨고르기');
+          } else {
+            dynamicTitle = `오늘 왜 보합일까? (${market.rateStr})`;
+          }
+        }
+
+        // 2. "여기 깨지면 도망쳐" 섹션 사용자 확정 멘트 반영
         if (isSurvivalSection) {
-          prices = getSurvivalPrices(stockName, sections);
-          text = `여기서 막힐 수 있어 ${prices.pinkPrice}\n` +
+          dynamicTitle = "여기 깨지면 도망쳐";
+          text = `여기서 막힐 수 있어 ${market.pinkPrice}\n` +
                  `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이다! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
                  `#악성매물대 #시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라\n\n` +
-                 `여기까지 버텨줘 ${prices.yellowPrice}\n` +
+                 `여기까지 버텨줘 ${market.yellowPrice}\n` +
                  `"여긴 지켜줘야 사람 구실 한다! 지지선 깨지면 실망 매물 쏟아지면서 으악 소리 난다. 일단 버티되, 무너지면 비중부터 줄여라. 알았제?"\n` +
                  `#존버모드ON #눈치싸움 #깨지면_반털어라 #아직은_숨참기\n\n` +
-                 `무너지면 도망쳐 ${prices.bluePrice}\n` +
+                 `무너지면 도망쳐 ${market.bluePrice}\n` +
                  `여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!\n` +
                  `#생존 지지선 #빤스런 #뒤도보지마 #생존이_우선 #미련버려`;
         }
@@ -536,7 +541,7 @@
         textBlock.innerHTML = `
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
-            ${sec.title ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${sec.title}</h4>` : ''}
+            ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${dynamicTitle}</h4>` : ''}
           </div>
           <p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>
         `;
@@ -556,14 +561,14 @@
             let formatted = pEl.textContent;
 
             try {
-              if (isSurvivalSection && prices) {
-                formatted = `<span class="font-bold" style="color: #FF8DA1;">여기서 막힐 수 있어 ${prices.pinkPrice}</span>\n` +
+              if (isSurvivalSection) {
+                formatted = `<span class="font-bold" style="color: #FF8DA1;">여기서 막힐 수 있어 ${market.pinkPrice}</span>\n` +
                             `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이다! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
                             `<span class="font-bold" style="color: #FF8DA1;">#악성매물대 #시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라</span>\n\n` +
-                            `<span class="font-bold" style="color: #FBBF24;">여기까지 버텨줘 ${prices.yellowPrice}</span>\n` +
+                            `<span class="font-bold" style="color: #FBBF24;">여기까지 버텨줘 ${market.yellowPrice}</span>\n` +
                             `"여긴 지켜줘야 사람 구실 한다! 지지선 깨지면 실망 매물 쏟아지면서 으악 소리 난다. 일단 버티되, 무너지면 비중부터 줄여라. 알았제?"\n` +
                             `<span class="font-bold" style="color: #FBBF24;">#존버모드ON #눈치싸움 #깨지면_반털어라 #아직은_숨참기</span>\n\n` +
-                            `<span class="font-bold" style="color: #38BDF8;">무너지면 도망쳐 ${prices.bluePrice}</span>\n` +
+                            `<span class="font-bold" style="color: #38BDF8;">무너지면 도망쳐 ${market.bluePrice}</span>\n` +
                             `여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!\n` +
                             `<span class="font-bold" style="color: #38BDF8;">#생존 지지선 #빤스런 #뒤도보지마 #생존이_우선 #미련버려</span>`;
               } else {
@@ -592,8 +597,7 @@
                   formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
                 } 
                 else if (formatted.includes('#') && !formatted.includes('캘린더')) {
-                  const isDown = formatted.includes('-') || formatted.includes('보합') || formatted.includes('눈치싸움') || formatted.includes('파란불') || formatted.includes('숨고르기') || formatted.includes('투매');
-                  const themeColor = isDown ? '#38BDF8' : '#FF8DA1';
+                  const themeColor = market.sign === 'up' ? '#FF8DA1' : (market.sign === 'down' ? '#38BDF8' : '#FBBF24');
                   
                   let lines = formatted.split('\n\n');
                   if (lines.length > 0) {
