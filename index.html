@@ -490,7 +490,7 @@
                 }
                 formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
               } 
-              // 5. 첫 섹션 태그 라인 오류 완전 해결 (공백 분할 방식으로 안전하게 치환)
+              // 5. 첫 섹션 태그 라인 오류 완전 해결
               else if (formatted.includes('#') && !formatted.includes('캘린더')) {
                 const isDown = formatted.includes('-') || formatted.includes('보합') || formatted.includes('눈치싸움') || formatted.includes('파란불') || formatted.includes('숨고르기') || formatted.includes('투매');
                 const themeColor = isDown ? '#38BDF8' : '#FF8DA1';
@@ -498,19 +498,40 @@
                 let lines = formatted.split('\n\n');
                 if (lines.length > 0) {
                   let lastLine = lines[lines.length - 1];
-                  if (lastLine.includes('#')) {
-                    const words = lastLine.split(/\s+/);
-                    const newWords = words.map(w => {
-                      if (w.startsWith('#')) {
-                        let color = themeColor;
-                        if (w.includes('+')) color = '#FF8DA1';
-                        else if (w.includes('-')) color = '#38BDF8';
-                        return `<span class="font-bold" style="color: ${color};">${w}</span>`;
-                      }
-                      return w;
-                    });
-                    lines[lines.length - 1] = newWords.join(' ');
-                    formatted = lines.join('\n\n');
+                  // HTML 태그(<span ...>)가 이미 들어간 경우 순수 텍스트만 뽑아서 다시 색을 칠함
+                  if (lastLine.includes('#') && lastLine.includes('<span')) {
+                     // 1. 임시 div를 만들어 HTML 태그를 모두 벗겨냄
+                     let tempDiv = document.createElement('div');
+                     tempDiv.innerHTML = lastLine;
+                     let rawText = tempDiv.textContent || tempDiv.innerText || "";
+                     
+                     // 2. 벗겨낸 순수 텍스트(예: #엔비디아 #-2.01% #숨고르기 #버텨보자)를 단어별로 다시 칠함
+                     const words = rawText.split(/\s+/);
+                     const newWords = words.map(w => {
+                       if (w.startsWith('#')) {
+                         let color = themeColor;
+                         if (w.includes('+')) color = '#FF8DA1';
+                         else if (w.includes('-')) color = '#38BDF8';
+                         return `<span class="font-bold" style="color: ${color};">${w}</span>`;
+                       }
+                       return w;
+                     });
+                     lines[lines.length - 1] = newWords.join(' ');
+                     formatted = lines.join('\n\n');
+                  } else if (lastLine.includes('#')) {
+                     // HTML 태그가 없을 땐 기존 방식대로 처리
+                     const words = lastLine.split(/\s+/);
+                     const newWords = words.map(w => {
+                       if (w.startsWith('#')) {
+                         let color = themeColor;
+                         if (w.includes('+')) color = '#FF8DA1';
+                         else if (w.includes('-')) color = '#38BDF8';
+                         return `<span class="font-bold" style="color: ${color};">${w}</span>`;
+                       }
+                       return w;
+                     });
+                     lines[lines.length - 1] = newWords.join(' ');
+                     formatted = lines.join('\n\n');
                   }
                 }
               }
