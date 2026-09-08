@@ -55,7 +55,7 @@
     </div>
   </div>
 
-  <!-- 메인 히어로 첫 화면 (라이트/다크 모드 완벽 동기화) -->
+  <!-- 메인 히어로 첫 화면 -->
   <div id="mainHeroView" class="fixed inset-0 z-30 bg-[#f8fafc] dark:bg-[#0f1013] text-[#0f172a] dark:text-white flex flex-col justify-between overflow-hidden">
     <header class="h-16 flex items-center justify-between px-6 shrink-0">
       <div class="flex items-center gap-3">
@@ -89,28 +89,28 @@
           </div>
         </form>
 
-        <!-- 히어로 개미/인포/프로 드롭다운 -->
+        <!-- 히어로 개미/인포/프로 드롭다운 (완벽한 왼쪽 정렬 및 문구 수정) -->
         <div id="heroModeMenu" class="absolute right-12 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
-          <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div>
-              <div class="font-bold text-sm text-[#0f172a] dark:text-white">gaemi</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">도움을 받으세요</div>
+          <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">gaemi</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">정보를 확인하세요</div>
             </div>
-            <span id="chk-hero-gaemi" class="text-sky-500 font-bold">✓</span>
+            <span id="chk-hero-gaemi" class="text-sky-500 font-bold ml-auto">✓</span>
           </button>
-          <button type="button" onclick="selectAppMode('info')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div>
-              <div class="font-bold text-sm text-[#0f172a] dark:text-white">info</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">정보를 확인하세요</div>
+          <button type="button" onclick="selectAppMode('info')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">info</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">도움을 받으세요</div>
             </div>
-            <span id="chk-hero-info" class="text-sky-500 font-bold hidden">✓</span>
+            <span id="chk-hero-info" class="text-sky-500 font-bold ml-auto hidden">✓</span>
           </button>
-          <button type="button" onclick="selectAppMode('pro')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div>
-              <div class="font-bold text-sm text-[#0f172a] dark:text-white">pro</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">실력을 키우세요</div>
+          <button type="button" onclick="selectAppMode('pro')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">pro</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">실력을 키우세요</div>
             </div>
-            <span id="chk-hero-pro" class="text-sky-500 font-bold hidden">✓</span>
+            <span id="chk-hero-pro" class="text-sky-500 font-bold ml-auto hidden">✓</span>
           </button>
         </div>
       </div>
@@ -193,35 +193,35 @@
           </div>
         </form>
 
-        <!-- 하단 개미/인포/프로 드롭다운 -->
+        <!-- 하단 개미/인포/프로 드롭다운 (완벽한 왼쪽 정렬 및 문구 수정) -->
         <div id="bottomModeMenu" class="absolute right-14 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
-          <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div>
-              <div class="font-bold text-sm text-[#0f172a] dark:text-white">gaemi</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">도움을 받으세요</div>
+          <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">gaemi</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">정보를 확인하세요</div>
             </div>
-            <span id="chk-bottom-gaemi" class="text-sky-500 font-bold">✓</span>
+            <span id="chk-bottom-gaemi" class="text-sky-500 font-bold ml-auto">✓</span>
           </button>
-          <button type="button" onclick="selectAppMode('info')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div>
-              <div class="font-bold text-sm text-[#0f172a] dark:text-white">info</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">정보를 확인하세요</div>
+          <button type="button" onclick="selectAppMode('info')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">info</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">도움을 받으세요</div>
             </div>
-            <span id="chk-bottom-info" class="text-sky-500 font-bold hidden">✓</span>
+            <span id="chk-bottom-info" class="text-sky-500 font-bold ml-auto hidden">✓</span>
           </button>
-          <button type="button" onclick="selectAppMode('pro')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div>
-              <div class="font-bold text-sm text-[#0f172a] dark:text-white">pro</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">실력을 키우세요</div>
+          <button type="button" onclick="selectAppMode('pro')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">pro</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">실력을 키우세요</div>
             </div>
-            <span id="chk-bottom-pro" class="text-sky-500 font-bold hidden">✓</span>
+            <span id="chk-bottom-pro" class="text-sky-500 font-bold ml-auto hidden">✓</span>
           </button>
         </div>
       </div>
     </div>
   </main>
 
-  <!-- 우측 사이드바 (실시간 시그널 포착 복구) -->
+  <!-- 우측 사이드바 -->
   <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform translate-x-full xl:translate-x-0 xl:static transition-transform duration-300 shadow-2xl xl:shadow-none">
     <div class="p-5 flex flex-col gap-6 overflow-y-auto">
       <div class="flex items-center justify-between">
@@ -282,7 +282,6 @@
       }
     }
 
-    // 모드 선택 (gaemi / info / pro)
     function toggleModeDropdown(which) {
       const heroMenu = document.getElementById('heroModeMenu');
       const bottomMenu = document.getElementById('bottomModeMenu');
@@ -407,12 +406,10 @@
       await new Promise(res => setTimeout(res, 600));
       surprisePopup.classList.add('hidden');
 
-      // ★ 검색 후 무조건 맨 위(0)에서부터 시작 (스크롤 튕김 방지)
       chatArea.scrollTop = 0;
       startTypewriterFlow(stockName, sections);
     }
 
-    // 타이핑 엔진 (스크롤 강제 이동 제거 + 1섹션 해시태그/등락률 컬러 복구)
     function startTypewriterFlow(stockName, sections) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -513,7 +510,6 @@
       typeNextSection();
     }
 
-    // 하단 투표 및 전략 3인방 카드 복구
     function renderBottomWidgets(wrapperId, stockName) {
       const container = document.getElementById(wrapperId);
       const bottomDiv = document.createElement('div');
@@ -547,14 +543,14 @@
           </div>
         </div>
 
-        <!-- 전략 3인방 카드 (원래 개미 캐릭터 SVG 일러스트 복구) -->
+        <!-- 전략 3인방 카드 -->
         <div class="space-y-4">
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
             <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 전략도 확인해바.</h4>
           </div>
 
-          <!-- 서학개미 (3D 안경 개미) -->
+          <!-- 서학개미 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#ff2d78] transition shadow-sm cursor-pointer">
               <div class="flex items-center justify-between gap-3">
@@ -587,7 +583,7 @@
             <div id="dash-slot-서학" class="hidden animate-fade"></div>
           </div>
 
-          <!-- 국장개미 (파란 K모자 개미) -->
+          <!-- 국장개미 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#00b8ff] transition shadow-sm cursor-pointer">
               <div class="flex items-center justify-between gap-3">
@@ -619,7 +615,7 @@
             <div id="dash-slot-국장" class="hidden animate-fade"></div>
           </div>
 
-          <!-- 트레이더 (헤드셋 개미) -->
+          <!-- 트레이더 -->
           <div class="space-y-2">
             <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-amber-400 transition shadow-sm cursor-pointer">
               <div class="flex items-center justify-between gap-3">
@@ -689,7 +685,6 @@
       }
     };
 
-    // ★ 백테스트 상세 대시보드 (라이트/다크 모드 완벽 호환 + 요청하신 3대 박스 복구)
     function toggleStrategyDashboard(type, btnElement) {
       const allTypes = ['서학', '국장', '트레이더'];
       const targetSlot = document.getElementById(`dash-slot-${type}`);
@@ -719,11 +714,9 @@
         btnElement.classList.add('border-2', activeBorderClass);
       }
 
-      // 1: 상단 헤더 및 메타바 복구 / 2: 50:50 가운데 정렬 / 3: 링크 버튼 복구 / 4: 라이트/다크 클래스 적용
       targetSlot.innerHTML = `
         <div class="bg-white dark:bg-[#121318] border border-[#cbd5e1] dark:border-[#22242f] rounded-3xl p-5 sm:p-7 shadow-2xl space-y-6 my-3 animate-fade text-[#0f172a] dark:text-white">
           
-          <!-- [1] 상단 헤더 & 메타바 원본 복구 -->
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[#e2e8f0] dark:border-[#1f212c] pb-5">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 rounded-2xl bg-[#ff2d78]/10 border border-[#ff2d78]/20 flex items-center justify-center text-2xl shrink-0">
@@ -740,7 +733,6 @@
             </div>
           </div>
 
-          <!-- 하단 메타바 복구 -->
           <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-[#64748b] dark:text-[#8e92a4] font-medium">
             <span class="font-black text-[#0f172a] dark:text-white text-base">${data.name}</span>
             <span class="text-[#cbd5e1] dark:text-[#363949]">|</span>
@@ -751,7 +743,6 @@
             <span class="text-emerald-600 dark:text-emerald-400 font-bold">수수료 포함</span>
           </div>
 
-          <!-- [2] 가운데 기준 50:50 분할 & 정중앙 정렬 -->
           <div class="grid grid-cols-2 divide-x divide-[#e2e8f0] dark:divide-[#262837] bg-[#f8fafc] dark:bg-[#161720] border border-[#e2e8f0] dark:border-[#262837] rounded-3xl p-5 sm:p-6 text-center">
             <div class="flex flex-col items-center justify-center space-y-1 pr-2 sm:pr-4">
               <div class="text-xs text-[#64748b] dark:text-[#717588] font-bold">1억 → 최종 자산</div>
@@ -763,7 +754,6 @@
             </div>
           </div>
 
-          <!-- 4대 지표 박스 -->
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
               <div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">CAGR</div>
@@ -783,7 +773,6 @@
             </div>
           </div>
 
-          <!-- 자산 곡선 차트 -->
           <div class="bg-[#f8fafc] dark:bg-[#161720] border border-[#e2e8f0] dark:border-[#262837] rounded-3xl p-4 sm:p-6 space-y-3">
             <div class="flex items-center justify-between text-xs sm:text-sm">
               <div class="flex items-center gap-2 font-black text-[#0f172a] dark:text-white">
@@ -803,7 +792,6 @@
             </div>
           </div>
 
-          <!-- [3] 하단 백테스트 링크 버튼 복구 -->
           <a href="https://www.quantconnect.com" target="_blank" rel="noopener noreferrer" class="block w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#00a6f4] via-[#00c5ff] to-[#008be3] hover:brightness-110 text-white font-black text-center text-sm sm:text-base shadow-lg shadow-sky-500/20 transition cursor-pointer">
             QuantConnect 원본 결과 보기 ↗
           </a>
