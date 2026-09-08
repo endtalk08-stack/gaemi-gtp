@@ -2,7 +2,6 @@
 <html lang="ko" class="dark">
 <head>
   <style>
-    /* gaemiGTP 모바일 가독성 심폐소생술 */
     body, p, div, span {
         line-height: 1.6 !important; 
         word-break: keep-all !important; 
@@ -52,35 +51,12 @@
       animation: blink 0.8s infinite;
     }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-  /* 전략 카드: 모바일에서도 캐릭터를 크게 유지하면서 가로 잘림 방지 */
-  @media (max-width: 767px) {
-    #chatArea .strategy-card-inner { min-width: 0; }
-    #chatArea .strategy-card-copy { min-width: 0; flex: 1 1 auto; }
-    #chatArea .strategy-card-copy p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #chatArea .strategy-card-metrics { flex: 0 0 auto; gap: 8px; padding-left: 8px; }
-    #chatArea .strategy-card-metrics > div { min-width: 0; }
-    #chatArea .strategy-card-metrics .metric-label { font-size: 9px; white-space: nowrap; }
-    #chatArea .strategy-card-metrics .metric-value { font-size: 15px; white-space: nowrap; }
-  }
-  @media (max-width: 420px) {
-    #chatArea .strategy-card-button { padding: 10px; }
-    #chatArea .strategy-card-character { width: 68px; height: 68px; }
-    #chatArea .strategy-card-inner { gap: 8px; }
-    #chatArea .strategy-card-left { gap: 8px; }
-    #chatArea .strategy-card-copy .strategy-title { font-size: 15px; }
-    #chatArea .strategy-card-copy p { font-size: 10px; }
-    #chatArea .strategy-card-metrics { gap: 6px; padding-left: 6px; }
-    #chatArea .strategy-card-metrics .metric-label { font-size: 8px; }
-    #chatArea .strategy-card-metrics .metric-value { font-size: 14px; }
-  }
   </style>
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden transition-colors duration-200 relative select-none">
 
-  <!-- 모바일 배경 오버레이 -->
   <div id="sidebarBackdrop" onclick="closeAllSidebars()" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity duration-300"></div>
 
-  <!-- 깜짝 개미 순간 팝업 -->
   <div id="surpriseAntPopup" class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none hidden">
     <div class="bg-white/95 dark:bg-[#1e1f24]/95 backdrop-blur-md border border-[#cbd5e1] dark:border-[#3f3f46] rounded-3xl p-6 flex flex-col items-center gap-3 shadow-2xl animate-pop">
       <div class="text-6xl animate-bounce">🐜✨</div>
@@ -89,7 +65,6 @@
     </div>
   </div>
 
-  <!-- 메인 첫 화면 -->
   <div id="mainHeroView" class="fixed inset-0 z-30 bg-[#0f1013] text-white flex flex-col justify-between overflow-hidden">
     <header class="h-16 flex items-center justify-between px-6 shrink-0">
       <div class="flex items-center gap-3">
@@ -162,7 +137,6 @@
     <div class="h-6"></div>
   </div>
 
-  <!-- 좌측 사이드바 -->
   <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
     <div class="p-4 flex flex-col gap-5 overflow-y-auto">
       <div class="flex items-center justify-between px-1">
@@ -189,48 +163,19 @@
         </button>
       </div>
 
-      <div class="flex flex-col gap-2">
-        <span class="text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">전문가 2인방</span>
-        <button type="button" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
-          <div class="flex items-center gap-2"><span>🕶️</span> <span class="font-bold">A전문가</span></div>
-          <span class="text-[10px] bg-[#f1f5f9] dark:bg-[#27272a] text-[#475569] dark:text-[#a1a1aa] px-1.5 py-0.5 rounded font-bold">VIP</span>
-        </button>
-        <button type="button" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
-          <div class="flex items-center gap-2"><span>🕶️</span> <span class="font-bold">B전문가</span></div>
-          <span class="text-[10px] bg-[#f1f5f9] dark:bg-[#27272a] text-[#475569] dark:text-[#a1a1aa] px-1.5 py-0.5 rounded font-bold">VIP</span>
-        </button>
-      </div>
-
       <div class="flex flex-col gap-2 pt-2 border-t border-[#e2e8f0] dark:border-[#27272a]">
         <span class="text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">서비스 센터</span>
-        <button type="button" onclick="openUpgradeModal('매매기법'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
+        <button type="button" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
           <div class="flex items-center gap-2"><span>📘</span> <span class="font-bold">매매기법 신청</span></div>
           <span class="text-[10px] bg-[#0f172a] dark:bg-white text-white dark:text-black px-1.5 py-0.5 rounded font-black">PRO</span>
         </button>
         <button type="button" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center gap-2 transition cursor-pointer shadow-sm">
           <span>💰</span> <span class="font-bold">페이백 신청</span>
         </button>
-        <button type="button" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center gap-2 transition cursor-pointer shadow-sm">
-          <span>📢</span> <span class="font-bold">광고신청</span>
-        </button>
-        <button type="button" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center gap-2 transition cursor-pointer shadow-sm">
-          <span>🛒</span> <span class="font-bold">개미마켓</span>
-        </button>
       </div>
-    </div>
-    
-    <div class="p-4 border-t border-[#e2e8f0] dark:border-[#27272a]">
-      <button type="button" onclick="openUpgradeModal('통합 실시간'); closeAllSidebars();" class="w-full p-2.5 rounded-xl bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#3f3f46] text-xs flex items-center justify-between hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] transition cursor-pointer shadow-sm">
-        <div class="flex items-center gap-2">
-          <span>🔔</span>
-          <span class="font-bold text-[#0f172a] dark:text-white">텔레그램 알림</span>
-        </div>
-        <span class="text-[10px] bg-[#0f172a] dark:bg-white text-white dark:text-black px-1.5 py-0.5 rounded font-black">PRO</span>
-      </button>
     </div>
   </aside>
 
-  <!-- 중앙 메인 분석 영역 -->
   <main class="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-[#121316] overflow-hidden min-w-0">
     <header class="h-16 border-b border-[#e2e8f0] dark:border-[#27272a] flex items-center justify-between px-4 sm:px-6 bg-white/80 dark:bg-[#16171b]/80 backdrop-blur shrink-0 z-10">
       <div class="flex items-center gap-3">
@@ -242,17 +187,14 @@
         <button type="button" onclick="toggleTheme()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white border border-[#cbd5e1] dark:border-[#3f3f46] rounded-full hover:bg-[#e2e8f0] dark:hover:bg-[#27272a] transition cursor-pointer shadow-sm">
           <span id="themeIcon">🌙</span><span id="themeText">다크 모드</span>
         </button>
-        <!-- 우측 사이드바 토글 버튼 (모바일/태블릿용) -->
         <button type="button" onclick="toggleRightSidebar()" class="xl:hidden p-1.5 rounded-lg border border-[#cbd5e1] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#1e1f24] text-sm text-[#0f172a] dark:text-white font-bold flex items-center gap-1 cursor-pointer">
           <span>📈</span>
         </button>
       </div>
     </header>
 
-    <!-- 채팅 본문 영역 -->
     <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
 
-    <!-- 하단 검색 바 -->
     <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-3xl mx-auto relative">
         <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
@@ -271,35 +213,10 @@
             </button>
           </div>
         </form>
-
-        <div id="bottomModeMenu" class="absolute right-12 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
-          <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div>
-              <div class="font-bold text-sm text-[#0f172a] dark:text-white">gaemi</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">도움을 받으세요</div>
-            </div>
-            <span id="chk-hero-gaemi" class="text-sky-500 dark:text-sky-400 text-sm font-bold">✓</span>
-          </button>
-          <button type="button" onclick="selectAppMode('info')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div>
-              <div class="font-bold text-sm text-[#0f172a] dark:text-white">info</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">정보를 확인하세요</div>
-            </div>
-            <span id="chk-hero-info" class="text-sky-500 dark:text-sky-400 text-sm font-bold hidden">✓</span>
-          </button>
-          <button type="button" onclick="selectAppMode('pro')" class="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div>
-              <div class="font-bold text-sm text-[#0f172a] dark:text-white">pro</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a]">실력을 키우세요</div>
-            </div>
-            <span id="chk-hero-pro" class="text-sky-500 dark:text-sky-400 text-sm font-bold hidden">✓</span>
-          </button>
-        </div>
       </div>
     </div>
   </main>
 
-  <!-- 우측 사이드바 (완벽 복구: PC 화면에서는 오른쪽에 기본 고정 노출) -->
   <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform translate-x-full xl:translate-x-0 xl:static transition-transform duration-300 ease-in-out shadow-2xl xl:shadow-none">
     <div class="p-5 flex flex-col gap-6 overflow-y-auto">
       <div class="flex items-center justify-between">
@@ -312,7 +229,6 @@
 
       <div class="flex flex-col gap-2">
         <span class="text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">관심 종목 모니터링</span>
-        
         <button type="button" onclick="requestStock('SK하이닉스'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
           <div class="flex flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">SK하이닉스</span>
@@ -320,7 +236,6 @@
           </div>
           <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+8.26%</span>
         </button>
-
         <button type="button" onclick="requestStock('삼성전자'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
           <div class="flex flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">삼성전자</span>
@@ -328,7 +243,6 @@
           </div>
           <span class="text-xs text-emerald-600 dark:text-emerald-400 font-black">+5.68%</span>
         </button>
-
         <button type="button" onclick="requestStock('현대차'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between transition cursor-pointer shadow-sm">
           <div class="flex flex-col">
             <span class="font-bold text-[#0f172a] dark:text-white">현대차</span>
@@ -338,79 +252,12 @@
         </button>
       </div>
     </div>
-
-    <div class="p-4 border-t border-[#e2e8f0] dark:border-[#27272a]">
-      <div class="p-3 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#27272a] rounded-xl text-center space-y-1 shadow-sm">
-        <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold block">시장 감도 지수</span>
-        <span class="text-sm font-black text-[#0f172a] dark:text-white">🔥 탐욕 68p</span>
-      </div>
-    </div>
   </aside>
-
-  <!-- 짤 카드 모달 -->
-  <div id="memeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
-    <div class="bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-sm w-full p-6 relative shadow-2xl animate-fade">
-      <button type="button" onclick="document.getElementById('memeModal').classList.add('hidden')" class="absolute top-4 right-4 text-[#94a3b8] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
-      <div class="text-center mb-4">
-        <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold uppercase tracking-wider">gaemiGTP 짤 카드</span>
-        <h3 class="text-base font-bold text-[#0f172a] dark:text-white mt-1">카카오톡 공유 카드</h3>
-      </div>
-      <div id="memeCardToRender" class="bg-[#f8fafc] dark:bg-[#121316] border border-[#cbd5e1] dark:border-[#27272a] rounded-2xl p-5 text-center shadow-inner space-y-3">
-        <div class="flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] pb-2 text-sm">
-          <span class="font-black text-[#0f172a] dark:text-white">gaemiGTP</span>
-          <span id="memeStockBadge" class="bg-white dark:bg-[#1e1f24] text-[#0f172a] dark:text-white border border-[#cbd5e1] dark:border-[#3f3f46] px-2 py-0.5 rounded font-bold shadow-sm">SK하이닉스</span>
-        </div>
-        <div id="memeEmoji" class="text-5xl my-2">😎</div>
-        <h4 id="memeTitle" class="font-bold text-base text-[#0f172a] dark:text-white">"20일선 눌림목 반등 타점 포착!"</h4>
-        <p id="memeSub" class="text-sm text-[#475569] dark:text-[#a1a1aa] leading-relaxed">개미들아 쫄지 마라! 후드 개미 시그널 탑승 완료.</p>
-      </div>
-      <button type="button" onclick="downloadMemeImage()" class="w-full mt-4 bg-[#0f172a] dark:bg-white hover:bg-[#334155] dark:hover:bg-[#e4e4e7] text-white dark:text-black font-black py-3 rounded-xl text-sm shadow-md cursor-pointer">📸 짤 카드 다운로드 (카톡 공유)</button>
-    </div>
-  </div>
-
-  <!-- 업그레이드 모달 -->
-  <div id="upgradeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 hidden">
-    <div class="bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl max-w-md w-full p-6 relative shadow-2xl animate-fade">
-      <button type="button" onclick="closeUpgradeModal()" class="absolute top-5 right-5 text-[#94a3b8] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white text-base font-bold cursor-pointer">✕</button>
-      <div class="text-center space-y-2 mb-6">
-        <div class="text-4xl mx-auto">🕶️</div>
-        <h3 class="text-lg font-bold text-[#0f172a] dark:text-white" id="modalTitle">알림/신청</h3>
-        <p class="text-sm text-[#475569] dark:text-[#a1a1aa]">장중 실시간 지지선 도달 및 15:15 종가 배팅 수급 포착 시 즉시 전송</p>
-      </div>
-      <button type="button" onclick="alert('텔레그램 VIP 시그널 방 연동 준비 중입니다!'); closeUpgradeModal();" class="w-full bg-[#0f172a] dark:bg-white hover:bg-[#334155] dark:hover:bg-[#e4e4e7] text-white dark:text-black font-black py-3 rounded-xl text-sm shadow-md transition cursor-pointer">실시간 알림 신청하기</button>
-    </div>
-  </div>
 
   <script>
     const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let activeStock = 'SK하이닉스';
-    let currentMode = 'gaemi';
     let currentChartInstance = null;
-
-    function toggleModeDropdown(pos) {
-      const menu = document.getElementById(pos === 'hero' ? 'heroModeMenu' : 'bottomModeMenu');
-      if (menu) menu.classList.toggle('hidden');
-    }
-
-    function selectAppMode(mode) {
-      currentMode = mode;
-      const hLbl = document.getElementById('heroModeLabel');
-      const bLbl = document.getElementById('bottomModeLabel');
-      if (hLbl) hLbl.innerText = mode;
-      if (bLbl) bLbl.innerText = mode;
-
-      ['gaemi', 'info', 'pro'].forEach(m => {
-        const chkH = document.getElementById(`chk-hero-${m}`);
-        const chkB = document.getElementById(`chk-bottom-${m}`);
-        if (chkH) chkH.classList.toggle('hidden', m !== mode);
-        if (chkB) chkB.classList.toggle('hidden', m !== mode);
-      });
-
-      const hMenu = document.getElementById('heroModeMenu');
-      const bMenu = document.getElementById('bottomModeMenu');
-      if (hMenu) hMenu.classList.add('hidden');
-      if (bMenu) bMenu.classList.add('hidden');
-    }
 
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
@@ -436,12 +283,7 @@
       const leftBar = document.getElementById('leftSidebar');
       const rightBar = document.getElementById('rightSidebar');
       const backdrop = document.getElementById('sidebarBackdrop');
-
-      if (rightBar) {
-        rightBar.classList.add('translate-x-full');
-        rightBar.classList.remove('translate-x-0');
-      }
-
+      if (rightBar) { rightBar.classList.add('translate-x-full'); rightBar.classList.remove('translate-x-0'); }
       if (leftBar.classList.contains('-translate-x-full')) {
         leftBar.classList.remove('-translate-x-full');
         leftBar.classList.add('translate-x-0');
@@ -455,12 +297,7 @@
       const leftBar = document.getElementById('leftSidebar');
       const rightBar = document.getElementById('rightSidebar');
       const backdrop = document.getElementById('sidebarBackdrop');
-
-      if (leftBar) {
-        leftBar.classList.add('-translate-x-full');
-        leftBar.classList.remove('translate-x-0');
-      }
-
+      if (leftBar) { leftBar.classList.add('-translate-x-full'); leftBar.classList.remove('translate-x-0'); }
       if (rightBar.classList.contains('translate-x-full')) {
         rightBar.classList.remove('translate-x-full');
         rightBar.classList.add('translate-x-0');
@@ -494,44 +331,15 @@
       }
     }
 
-    function openUpgradeModal(name) {
-      document.getElementById('modalTitle').innerText = `${name} 알림/신청`;
-      document.getElementById('upgradeModal').classList.remove('hidden');
-    }
-    function closeUpgradeModal() {
-      document.getElementById('upgradeModal').classList.add('hidden');
-    }
-
     async function fetchAnalysisFromBackend(stockName) {
       try {
         const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`);
         if (!response.ok) throw new Error('서버 에러');
         const data = await response.json();
-        return data.sections || getFallbackSections(stockName);
+        return data.sections;
       } catch (err) {
-        return getFallbackSections(stockName);
+        return [];
       }
-    }
-
-    function getFallbackSections(stockName) {
-      return [
-        {
-          title: "🔥 그래서 오늘은 왜 올랐어?",
-          content: `오!! ${stockName} +8.26% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ\n\n현재 주가는 1,783,000원 기록 중!\n궁금해할 거 같아서 오늘 어떤 뉴스가 있나 가져왔어 ㅎ\n\n📰 "${stockName} 관련 메이저 재료 포착"\n\n"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지"\n\n#${stockName}   #+8.26%   #가즈아   #불기둥`
-        },
-        {
-          title: "큰손들은 담고 있을까, 털고 있을까?",
-          content: "#콜 32.7만건   #풋 27.9만건   #비율 0.85\n\n최근 5일간 월가 세력들이 팽팽하게 눈치싸움 중이야.\n상승과 하락 양쪽에 돈이 비슷하게 걸려 있는 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
-        },
-        {
-          title: "여기 깨지면 도망쳐",
-          content: "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 딱 메모해놔! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
-        },
-        {
-          title: "오늘 밤, 이번주 무슨 일이 있나?",
-          content: "⏰ 09/11(금) 21:30 미국 8월 소비자물가지수(CPI) 발표\n시장 예상치 0.2%\n발표 직후 야간 선물 출렁일 수 있으니 주의해!\n\n이번 주 핵심 체크 (★★★)\n🗓️ 09/11(금) 21:30 미국 8월 소비자물가지수(CPI) ★★★\n🗓️ 09/17(목) 03:00 미국 연준 FOMC 기준금리 결정 ★★★"
-        }
-      ];
     }
 
     async function requestStock(stockName) {
@@ -561,7 +369,7 @@
       chatArea.appendChild(loaderDiv);
 
       const fetchPromise = fetchAnalysisFromBackend(stockName);
-      const delayPromise = new Promise(resolve => setTimeout(resolve, 2500));
+      const delayPromise = new Promise(resolve => setTimeout(resolve, 2000));
       const [sections] = await Promise.all([fetchPromise, delayPromise]);
 
       loaderDiv.remove();
@@ -575,6 +383,7 @@
       startTypewriterFlow(stockName, sections);
     }
 
+    // 타이핑 출력 및 실적(핑크)/경제지표(블루) 컬러 치환 엔진
     function startTypewriterFlow(stockName, sections) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -618,8 +427,17 @@
             pEl.classList.remove('typing-cursor');
             let formatted = pEl.textContent;
 
-            // 2섹션 국장: 수급 해시태그
-            if (formatted.includes('#외국인')) {
+            // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크(#FF8DA1)
+            formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
+
+            // 2. 경제 지표(#PPI, #CPI, #FOMC, #PCE, #NFP) -> 블루(#38BDF8)
+            formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
+
+            // 3. 지지선/저항선 색상
+            if (formatted.includes('#생존 지지선')) {
+              formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
+              formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
+            } else if (formatted.includes('#외국인')) {
               let lines = formatted.split('\n\n');
               let tagLine = lines[0];
               let rest = lines.slice(1).join('\n\n');
@@ -628,37 +446,6 @@
                 return `<span class="whitespace-nowrap font-bold" style="color: ${color};">#${name} ${val}</span>`;
               });
               formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
-
-            // 2섹션 미장: #콜 #풋 #비율
-            } else if (formatted.includes('#콜') || formatted.includes('#콜(상승)')) {
-              let lines = formatted.split('\n\n');
-              let tagLine = lines[0];
-              let rest = lines.slice(1).join('\n\n');
-              tagLine = tagLine.replace(/#콜(?:\(상승\))?\s+([\d,.]+(?:만건|건))/g, `<span class="whitespace-nowrap font-bold" style="color: #FF8DA1;">#콜 $1</span>`);
-              tagLine = tagLine.replace(/#풋(?:\(하락\))?\s+([\d,.]+(?:만건|건))/g, `<span class="whitespace-nowrap font-bold" style="color: #38BDF8;">#풋 $1</span>`);
-              tagLine = tagLine.replace(/#(?:베팅)?비율\s+([\d.]+)/g, `<span class="whitespace-nowrap font-bold" style="color: #94a3b8;">#비율 $1</span>`);
-              formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
-
-            // 3섹션: 생존 지지선 & 악성 매물대
-            } else if (formatted.includes('#생존 지지선')) {
-              formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
-              formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
-
-            // 1섹션: 등락률 및 태그 전체 색상
-            } else {
-              let isPositive = formatted.includes('+');
-              let statusColor = isPositive ? '#FF8DA1' : '#38BDF8';
-              let lines = formatted.split('\n');
-              for (let i = lines.length - 1; i >= 0; i--) {
-                let trimmed = lines[i].trim();
-                if (trimmed.startsWith('#')) {
-                  lines[i] = trimmed.replace(/#([^\s#]+)/g, `<span class="font-bold" style="color: ${statusColor};">#$1</span>`);
-                  break;
-                }
-              }
-              formatted = lines.join('\n');
-              formatted = formatted.replace(/(?<!>)(\+[0-9]+(?:\.[0-9]+)?%)/g, '<span style="color: #FF8DA1;">$1</span>');
-              formatted = formatted.replace(/(?<!>)(-[0-9]+(?:\.[0-9]+)?%)/g, '<span style="color: #38BDF8;">$1</span>');
             }
 
             pEl.innerHTML = formatted;
@@ -677,7 +464,6 @@
       const bottomDiv = document.createElement('div');
       bottomDiv.className = "space-y-6 pt-4 animate-fade";
       bottomDiv.innerHTML = `
-        <!-- 개미 투표 -->
         <div class="space-y-3">
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
@@ -691,399 +477,21 @@
             </div>
             <div class="space-y-2">
               <div class="flex items-center justify-between text-xs font-black">
-                <span id="voteUpLabel" class="text-[#FF8DA1]">상승 68%</span>
-                <span id="voteDownLabel" class="text-[#38BDF8]">하락 32%</span>
+                <span class="text-[#FF8DA1]">상승 68%</span>
+                <span class="text-[#38BDF8]">하락 32%</span>
               </div>
               <div class="w-full h-2 bg-[#38BDF8] rounded-full overflow-hidden flex">
-                <div id="voteProgressBar" class="h-full bg-[#FF8DA1] rounded-full transition-all duration-500" style="width: 68%;"></div>
+                <div class="h-full bg-[#FF8DA1] rounded-full" style="width: 68%;"></div>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <button type="button" onclick="castVote('up')" id="btnVoteUp" class="py-3 rounded-xl border border-[#FF8DA1] bg-[#FF8DA1]/10 hover:bg-[#FF8DA1]/20 text-[#FF8DA1] font-black text-sm transition cursor-pointer">상승 전망</button>
-              <button type="button" onclick="castVote('down')" id="btnVoteDown" class="py-3 rounded-xl border border-[#38BDF8] bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 text-[#38BDF8] font-black text-sm transition cursor-pointer">하락 전망</button>
+              <button type="button" class="py-3 rounded-xl border border-[#FF8DA1] bg-[#FF8DA1]/10 text-[#FF8DA1] font-black text-sm">상승 전망</button>
+              <button type="button" class="py-3 rounded-xl border border-[#38BDF8] bg-[#38BDF8]/10 text-[#38BDF8] font-black text-sm">하락 전망</button>
             </div>
           </div>
-        </div>
-
-        <!-- 가로형 캐릭터 전략 3인방 (단어 중복 제거 및 '장기/스윙/단기' 캡슐 뱃지 적용) -->
-        <div class="space-y-4">
-          <div class="flex items-center gap-2.5">
-            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
-            <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 전략도 확인해바.</h4>
-          </div>
-
-          <!-- 카드 1: 서학개미 -->
-          <div class="space-y-2">
-            <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="strategy-card-button w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#ff2d78] dark:hover:border-[#ff2d78] transition cursor-pointer shadow-sm">
-              <div class="strategy-card-inner flex items-center justify-between gap-3">
-                <div class="strategy-card-left flex items-center gap-3.5 sm:gap-4 min-w-0">
-                  <div class="strategy-card-character w-[72px] h-[72px] sm:w-[72px] sm:h-[72px] rounded-2xl bg-[#231b26] border border-[#482035] flex items-center justify-center shrink-0 p-1">
-                    <img src="seohak_character.png" alt="서학개미 캐릭터" class="w-full h-full object-contain rounded-xl">
-                  </div>
-                  <div class="strategy-card-copy space-y-0.5 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="strategy-title font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">서학개미</span>
-                      <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ff2d78]/10 text-[#ff2d78] border border-[#ff2d78]/30 shrink-0">장기</span>
-                    </div>
-                    <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">좋은 기업을 길게, 시간이 수익을 만든다.</p>
-                  </div>
-                </div>
-                <div class="strategy-card-metrics flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
-                  <div>
-                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
-                    <div class="metric-value text-base sm:text-lg font-black text-[#ff2d78]">+2,335%</div>
-                  </div>
-                  <div>
-                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
-                    <div class="metric-value text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
-                  </div>
-                </div>
-              </div>
-            </button>
-            <div id="dash-slot-서학" class="hidden animate-fade"></div>
-          </div>
-
-          <!-- 카드 2: 국장개미 -->
-          <div class="space-y-2">
-            <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="strategy-card-button w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#00b8ff] dark:hover:border-[#00b8ff] transition cursor-pointer shadow-sm">
-              <div class="strategy-card-inner flex items-center justify-between gap-3">
-                <div class="strategy-card-left flex items-center gap-3.5 sm:gap-4 min-w-0">
-                  <div class="strategy-card-character w-[72px] h-[72px] sm:w-[72px] sm:h-[72px] rounded-2xl bg-[#14232c] border border-[#1b3a4a] flex items-center justify-center shrink-0 p-1 relative">
-                    <img src="gukjang_character.png" alt="국장개미 캐릭터" class="w-full h-full object-contain rounded-xl">
-                  </div>
-                  <div class="strategy-card-copy space-y-0.5 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="strategy-title font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">국장개미</span>
-                      <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#00b8ff]/10 text-[#00b8ff] border border-[#00b8ff]/30 shrink-0">스윙</span>
-                    </div>
-                    <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">흐름을 타는 똑똑한 개미의 선택!</p>
-                  </div>
-                </div>
-                <div class="strategy-card-metrics flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
-                  <div>
-                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
-                    <div class="metric-value text-base sm:text-lg font-black text-[#00b8ff]">+2,335%</div>
-                  </div>
-                  <div>
-                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
-                    <div class="metric-value text-base sm:text-lg font-black text-[#0f172a] dark:text-white">24.5억</div>
-                  </div>
-                </div>
-              </div>
-            </button>
-            <div id="dash-slot-국장" class="hidden animate-fade"></div>
-          </div>
-
-          <!-- 카드 3: 트레이더 -->
-          <div class="space-y-2">
-            <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="strategy-card-button w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-amber-400 dark:hover:border-amber-400 transition cursor-pointer shadow-sm">
-              <div class="strategy-card-inner flex items-center justify-between gap-3">
-                <div class="strategy-card-left flex items-center gap-3.5 sm:gap-4 min-w-0">
-                  <div class="strategy-card-character w-[72px] h-[72px] sm:w-[72px] sm:h-[72px] rounded-2xl bg-[#241f2a] border border-[#44354c] flex items-center justify-center shrink-0 p-1">
-                    <img src="trader_character.png" alt="트레이더 캐릭터" class="w-full h-full object-contain rounded-xl">
-                  </div>
-                  <div class="strategy-card-copy space-y-0.5 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="strategy-title font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">트레이더</span>
-                      <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/30 shrink-0">단기</span>
-                    </div>
-                    <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">기회를 놓치지 않는 빠른 판단!</p>
-                  </div>
-                </div>
-                <div class="strategy-card-metrics flex items-center gap-3 sm:gap-6 text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
-                  <div>
-                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
-                    <div class="metric-value text-base sm:text-lg font-black text-amber-400">+3,140%</div>
-                  </div>
-                  <div>
-                    <div class="metric-label text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">1억 → 최종 자산</div>
-                    <div class="metric-value text-base sm:text-lg font-black text-[#0f172a] dark:text-white">32.4억</div>
-                  </div>
-                </div>
-              </div>
-            </button>
-            <div id="dash-slot-트레이더" class="hidden animate-fade"></div>
-          </div>
-        </div>
-
-        <div class="pt-2 pb-4 flex justify-center">
-          <button type="button" onclick="openMeme('${stockName}')" class="px-6 py-3 rounded-xl bg-[#f1f5f9] dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#3f3f46] text-[#0f172a] dark:text-white font-bold text-sm flex items-center gap-2 shadow-sm cursor-pointer">
-            <span>📸</span> <span>카카오톡 공유용 짤 카드 만들기</span>
-          </button>
         </div>
       `;
       container.appendChild(bottomDiv);
-    }
-
-    const strategyData = {
-      '서학': {
-        name: '서학개미 전략', icon: '🇺🇸', quote: '"데이터는 거짓말을 하지 않는다."',
-        dateRange: '2016.08.28 ~ 2026.08.27', initial: '1억원', finalAsset: '24.5억',
-        totalReturn: '+2,335%', cagr: '38.6%', mdd: '-24.8%', trades: '286회', winRate: '62.9%',
-        badgeText: '10년의 시간이 만든 확실한 차이', accentColor: '#ff2d78', benchLabel: '벤치마크 (QQQ)',
-        chartData: [1.0, 1.8, 2.7, 4.5, 7.8, 11.2, 8.9, 14.5, 18.2, 21.4, 24.5],
-        benchData: [1.0, 1.2, 1.5, 1.8, 2.4, 3.1, 2.3, 3.2, 3.8, 4.0, 4.2],
-        labels: ['2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'],
-        point: '엔비디아, 테슬라 등 글로벌 빅테크 메가트렌드 종목의 폭등을 10% 무한 잔여 지분으로 추종하여 1억원을 24.5억으로 완성했습니다.',
-        formulas: [
-          '✓ <strong>진입</strong>: 빅테크 주도주 1차(50%) + 2차 눌림목(50%) 분할 매수',
-          '✓ <strong>익절</strong>: +100%, +200% 도달 시 원금 회수 후 10%씩 무한 분할 익절',
-          '✓ <strong>방어</strong>: 2배 달성 즉시 잔여물량 스탑로스를 본절가로 기계적 이동',
-          '✓ <strong>복리</strong>: 회수된 현금은 다음 과매도 시그널에 100% 재투자'
-        ]
-      },
-      '국장': {
-        name: '국장개미 전략', icon: '🇰🇷', quote: '"박스권 국장에서도 외인 턴어라운드는 통한다."',
-        dateRange: '2016.08.28 ~ 2026.08.27', initial: '1억원', finalAsset: '24.5억',
-        totalReturn: '+2,335%', cagr: '38.6%', mdd: '-18.4%', trades: '412회', winRate: '68.2%',
-        badgeText: '코스피를 압도한 10년 퀀트 성과', accentColor: '#00b8ff', benchLabel: '벤치마크 (KOSPI)',
-        chartData: [1.0, 2.1, 3.4, 5.8, 9.2, 13.5, 11.0, 16.8, 19.5, 22.1, 24.5],
-        benchData: [1.0, 1.05, 1.2, 1.15, 1.4, 1.6, 1.3, 1.45, 1.5, 1.65, 1.8],
-        labels: ['2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'],
-        point: '국내 대형주 20일선 지지와 외국인·기관 쌍끌이 턴어라운드 타점만 기계적으로 공략하여 누적 24.5억을 달성했습니다.',
-        formulas: [
-          '✓ <strong>진입</strong>: 시총 상위주 20일선 지지 + 외국인 순매수 전환 확인 시 1차 분할 매수',
-          '✓ <strong>익절</strong>: 직전 고점 매물대 (+4.5% ~ +6.5%) 도달 시 절반 분할 청산',
-          '✓ <strong>손절</strong>: 진입가 대비 -2.8% 이탈 시 미련 없이 기계적 전량 청산',
-          '✓ <strong>복리</strong>: 주 1~2회 빠른 회전율로 수익금 전액 다음 눌림목 재투입'
-        ]
-      },
-      '트레이더': {
-        name: '트레이더 전략', icon: '⚡', quote: '"가장 강한 돈이 쏠린 자리에만 베팅한다."',
-        dateRange: '2016.08.28 ~ 2026.08.27', initial: '1억원', finalAsset: '32.4억',
-        totalReturn: '+3,140%', cagr: '42.1%', mdd: '-15.2%', trades: '1,240회', winRate: '74.5%',
-        badgeText: '매일 15:15 종가 배팅 복리 극대화', accentColor: '#eab308', benchLabel: '벤치마크 (무위험)',
-        chartData: [1.0, 2.8, 4.9, 8.2, 13.5, 18.2, 16.8, 23.0, 26.5, 29.8, 32.4],
-        benchData: [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0],
-        labels: ['2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'],
-        point: '장중 변동성 리스크를 차단하고 당일 돈이 가장 강하게 몰린 거래대금 1위 종목의 종가 배팅만 매일 반복하여 32.4억을 달성했습니다.',
-        formulas: [
-          '✓ <strong>진입</strong>: 15시 15분 당일 거래대금 상위 + 3분봉 20선 안착 양봉 종가 매수',
-          '✓ <strong>익절</strong>: 익일 09:00~09:20 시가 갭(+2.5% 이상) 형성 시 전량 매도',
-          '✓ <strong>손절</strong>: 당일 종가 매수가 대비 -1.5% 터치 시 즉시 기계적 청산',
-          '✓ <strong>복리</strong>: 매일 발생한 수익금을 원금에 합산하여 일일 복리 극대화'
-        ]
-      }
-    };
-
-    function toggleStrategyDashboard(type, btnElement) {
-      const allTypes = ['서학', '국장', '트레이더'];
-      const targetSlot = document.getElementById(`dash-slot-${type}`);
-      const isAlreadyOpen = targetSlot && !targetSlot.classList.contains('hidden');
-
-      if (currentChartInstance) { 
-        currentChartInstance.destroy(); 
-        currentChartInstance = null; 
-      }
-
-      allTypes.forEach(t => {
-        const slot = document.getElementById(`dash-slot-${t}`);
-        if (slot) { 
-          slot.innerHTML = ''; 
-          slot.classList.add('hidden'); 
-        }
-        const btn = document.getElementById(`card-btn-${t}`);
-        if (btn) {
-          btn.classList.remove('border-2', 'border-[#ff2d78]', 'border-[#00b8ff]', 'border-amber-400');
-          btn.classList.add('border-[#cbd5e1]', 'dark:border-[#272935]');
-        }
-      });
-
-      if (isAlreadyOpen) return;
-
-      const data = strategyData[type];
-      const activeBorderClass = type === '서학' ? 'border-[#ff2d78]' : (type === '국장' ? 'border-[#00b8ff]' : 'border-amber-400');
-      if (btnElement) {
-        btnElement.classList.remove('border-[#cbd5e1]', 'dark:border-[#272935]');
-        btnElement.classList.add('border-2', activeBorderClass);
-      }
-
-      targetSlot.innerHTML = `
-        <div class="bg-[#121318] border border-[#22242f] rounded-[2rem] p-5 sm:p-7 shadow-2xl relative space-y-6 my-3 animate-fade text-white">
-          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[#1f212c] pb-5">
-            <div class="flex items-center gap-3">
-              <div class="w-12 h-12 rounded-2xl bg-[#ff2d78]/10 border border-[#ff2d78]/20 flex items-center justify-center text-2xl shrink-0">
-                ${data.icon}
-              </div>
-              <div>
-                <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">실제 백테스트 검증</h2>
-                <p class="text-xs sm:text-sm text-[#8e92a4] mt-0.5 font-medium">과거 데이터로 증명된, 개미GTP의 투자 전략입니다.</p>
-              </div>
-            </div>
-            <div class="sm:text-right font-serif italic text-xs sm:text-sm text-[#7e8294] shrink-0">
-              ${data.quote}
-              <div class="text-[11px] text-[#525565] not-italic font-sans mt-0.5">- gaemiGTP -</div>
-            </div>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-[#8e92a4] font-medium">
-            <span class="font-black text-white text-base">${data.name}</span>
-            <span class="text-[#363949]">|</span>
-            <span>${data.dateRange}</span>
-            <span class="text-[#363949]">|</span>
-            <span>초기자금 ${data.initial}</span>
-            <span class="text-[#363949]">|</span>
-            <span class="text-emerald-400">수수료 포함</span>
-          </div>
-
-          <div class="grid grid-cols-2 gap-0 bg-[#161720] border border-[#262837] rounded-3xl overflow-hidden">
-             <div class="p-5 sm:p-6 text-center border-r border-[#262837] flex flex-col justify-center min-h-[150px]">
-               <div class="text-xs sm:text-sm text-[#8e92a4] font-bold mb-2">최종 자산</div>
-               <div class="text-2xl sm:text-4xl font-black text-white tracking-tight">
-                 1억 → <span class="text-white">${data.finalAsset}</span>
-               </div>
-             </div>
-
-             <div class="p-5 sm:p-6 text-center flex flex-col justify-center min-h-[150px]">
-               <div class="text-xs sm:text-sm text-[#8e92a4] font-bold mb-2">누적수익률</div>
-               <div class="text-2xl sm:text-4xl font-black tracking-tight" style="color: ${data.accentColor};">
-                 ${data.totalReturn}
-               </div>
-             </div>
-           </div>
-
-           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div class="bg-[#171821] border border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
-              <div class="text-xs text-[#7e8294] font-bold">CAGR</div>
-              <div class="text-xl sm:text-2xl font-black" style="color: ${data.accentColor};">${data.cagr}</div>
-            </div>
-            <div class="bg-[#171821] border border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
-              <div class="text-xs text-[#7e8294] font-bold">MDD</div>
-              <div class="text-xl sm:text-2xl font-black text-[#00b8ff]">${data.mdd}</div>
-            </div>
-            <div class="bg-[#171821] border border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
-              <div class="text-xs text-[#7e8294] font-bold">총 거래</div>
-              <div class="text-xl sm:text-2xl font-black text-white">${data.trades}</div>
-            </div>
-            <div class="bg-[#171821] border border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
-              <div class="text-xs text-[#7e8294] font-bold">승률</div>
-              <div class="text-xl sm:text-2xl font-black text-white">${data.winRate}</div>
-            </div>
-          </div>
-
-          <div class="bg-[#161720] border border-[#262837] rounded-3xl p-4 sm:p-6 space-y-3">
-            <div class="flex items-center justify-between text-xs sm:text-sm">
-              <div class="flex items-center gap-2 font-black text-white">
-                <span>실제 백테스트 자산곡선</span>
-                <span class="text-[#717588]">ⓘ</span>
-              </div>
-              <div class="flex items-center gap-4 text-xs font-bold">
-                <span class="flex items-center gap-1.5" style="color: ${data.accentColor};">
-                  <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${data.accentColor};"></span> 전략 수익률
-                </span>
-                <span class="flex items-center gap-1.5 text-[#7e8294]">
-                  <span class="w-2.5 h-2.5 rounded-full bg-[#7e8294] inline-block"></span> ${data.benchLabel}
-                </span>
-              </div>
-            </div>
-
-            <div class="relative w-full h-56 sm:h-64">
-              <canvas id="canvas-acc-${type}"></canvas>
-            </div>
-          </div>
-
-          <a href="https://www.quantconnect.com" target="_blank" rel="noopener noreferrer" class="block w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#00a6f4] via-[#00c5ff] to-[#008be3] hover:brightness-110 text-white font-black text-center text-sm sm:text-base shadow-lg shadow-sky-500/20 transition cursor-pointer">
-            QuantConnect 원본 결과 보기 ↗
-          </a>
-        </div>
-      `;
-
-      targetSlot.classList.remove('hidden');
-
-      const ctx = document.getElementById(`canvas-acc-${type}`).getContext('2d');
-      const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-      gradient.addColorStop(0, data.accentColor + '55');
-      gradient.addColorStop(1, 'rgba(0,0,0,0)');
-
-      currentChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: data.labels,
-          datasets: [
-            {
-              label: '전략 수익률',
-              data: data.chartData,
-              borderColor: data.accentColor,
-              backgroundColor: gradient,
-              borderWidth: 2.5,
-              fill: true,
-              tension: 0.35,
-              pointRadius: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
-              pointBackgroundColor: data.accentColor,
-              pointBorderColor: '#121318',
-              pointBorderWidth: 2
-            },
-            {
-              label: data.benchLabel,
-              data: data.benchData,
-              borderColor: '#4e5264',
-              borderWidth: 1.5,
-              borderDash: [4, 4],
-              fill: false,
-              tension: 0.2,
-              pointRadius: 0
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: {
-              grid: { color: 'rgba(255, 255, 255, 0.05)' },
-              ticks: { color: '#686c80', font: { size: 10, weight: 'bold' } }
-            },
-            y: {
-              position: 'right',
-              grid: { color: 'rgba(255, 255, 255, 0.05)' },
-              ticks: {
-                color: '#686c80',
-                font: { size: 10, weight: 'bold' },
-                callback: v => v + '억'
-              },
-              suggestedMax: 35
-            }
-          }
-        }
-      });
-    }
-
-    let voted = false;
-    function castVote(type) {
-      if (voted) return alert('이미 투표하셨습니다!');
-      voted = true;
-      const bar = document.getElementById('voteProgressBar');
-      const upLbl = document.getElementById('voteUpLabel');
-      const downLbl = document.getElementById('voteDownLabel');
-      if (type === 'up') {
-        bar.style.width = '74%';
-        upLbl.innerText = '상승 74%';
-        downLbl.innerText = '하락 26%';
-      } else {
-        bar.style.width = '61%';
-        upLbl.innerText = '상승 61%';
-        downLbl.innerText = '하락 39%';
-      }
-    }
-
-    function openMeme(stockName) {
-      activeStock = stockName;
-      document.getElementById('memeStockBadge').innerText = stockName;
-      document.getElementById('memeModal').classList.remove('hidden');
-    }
-
-    function downloadMemeImage() {
-      const card = document.getElementById('memeCardToRender');
-      const isDark = document.documentElement.classList.contains('dark');
-      if (typeof html2canvas !== 'undefined') {
-        html2canvas(card, { backgroundColor: isDark ? '#121316' : '#ffffff', scale: 2 }).then(canvas => {
-          const a = document.createElement('a');
-          a.download = `gaemiGTP_${activeStock}_짤카드.png`;
-          a.href = canvas.toDataURL('image/png');
-          a.click();
-        });
-      }
     }
   </script>
 </body>
