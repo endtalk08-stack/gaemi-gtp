@@ -669,7 +669,7 @@ def background_collector_loop():
                 try:
                     data = build_stock_payload(name, code)
                     # 3일 동안 즉시 반환 가능하도록 저장
-                    redis_client.set(f"stock_view_{name}", json.dumps(data, ensure_ascii=False))
+                    redis_client.set(f"stock_view_v2_{name}", json.dumps(data, ensure_ascii=False))
                     print(f"  ⚡ [{name}] 사전 진열 완료")
                 except Exception as e:
                     print(f"  ⚠️ [{name}] 백그라운드 수집 에러:", e)
@@ -690,7 +690,7 @@ def analyze():
     raw_name = request.args.get('stock', '삼성전자').strip()
 
     # 1. ⚡ [0.01초 응답] 백그라운드 워커가 미리 구워둔 캐시가 있으면 즉시 리턴
-    cache_key = f"stock_view_{raw_name}"
+    cache_key = f"stock_view_v2_{raw_name}"
     if redis_client:
         try:
             cached_data = redis_client.get(cache_key)
