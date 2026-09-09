@@ -110,7 +110,6 @@ def search_krx_code(stock_name):
 
     return None, None
 
-# ⚡ [초고속 개편] 해외 Render 서버에서도 0.1초 만에 뚫리는 네이버 모바일 기본 시세 API
 def fetch_kr_stock_realtime(code_six):
     try:
         url = f"https://m.stock.naver.com/api/stock/{code_six}/basic"
@@ -171,7 +170,6 @@ def fetch_krx_trend_and_supply(code_six):
         print("네이버 수급 집계 예외:", e)
     return 0, 0, None, None, None, 0
 
-# 야후 파이낸스는 미국 주식 전용 (타임아웃 3초로 단축)
 def fetch_yahoo_direct_v8(ticker_str):
     try:
         stock = yf.Ticker(ticker_str)
@@ -202,7 +200,7 @@ def get_active_gemini_model():
     except: pass
     return 'gemini-3.6-flash'
 
-def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
+def analyze_news_and_reason_with_gemini(headlines, stock_name):
     def fallback(h_list):
         return "주요 공시와 호가창 매물대 흐름을 체크하며 방향성을 탐색 중이야.", [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h).strip().strip('"\'“”') for h in h_list[:3]], False
 
@@ -212,12 +210,12 @@ def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
     try:
         model = genai.GenerativeModel(get_active_gemini_model())
         prompt = (
-            f"종목:{stock_name} / 등락률:{change_pct:+.2f}%\n"
-            f"아래 뉴스를 분석해 오늘 주가 등락의 핵심 원인을 찾고, 반드시 아래 JSON 형식으로만 출력해.\n"
-            f"다른 설명은 절대 하지 마.\n\n"
+            f"종목:{stock_name}\n"
+            f"아래 뉴스를 분석해 오늘 주가 흐름의 핵심 재료를 찾고, 반드시 아래 JSON 형식으로만 출력해.\n"
+            f"※ 주의: 퍼센트(%)나 구체적인 가격 숫자는 절대 언급하지 마. 오직 핵심 원인과 재료만 써.\n\n"
             f"{{\n"
             f'  "judgment": "호재" (또는 "악재", "불명확"),\n'
-            f'  "reason": "왜 올랐는지(또는 빠졌는지) 개미 말투로 화끈하게 1~2줄 설명",\n'
+            f'  "reason": "숫자 없이 왜 오르거나 내리는지 재료 중심 개미 말투로 1~2줄 화끈하게 설명",\n'
             f'  "news": ["핵심 뉴스 1 요약", "핵심 뉴스 2 요약", "핵심 뉴스 3 요약"]\n'
             f"}}\n\n"
             f"[뉴스 원문]\n"
@@ -255,8 +253,8 @@ def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
         print("Gemini 완벽 JSON 분석 예외:", e)
         return fallback(headlines)
 
-def fetch_realtime_news_and_reason(stock_name, change_pct):
-    cache_key = f"news_v12_{stock_name}"
+def fetch_realtime_news_and_reason(stock_name):
+    cache_key = f"news_v14_{stock_name}"
     
     if redis_client:
         try:
@@ -290,7 +288,7 @@ def fetch_realtime_news_and_reason(stock_name, change_pct):
                     if len(headlines) >= 8:
                         break
             
-            reason, filtered_news, is_ai_success = analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct)
+            reason, filtered_news, is_ai_success = analyze_news_and_reason_with_gemini(headlines, stock_name)
             
             if redis_client and is_ai_success:
                 try:
@@ -427,7 +425,6 @@ def analyze():
         resistance_price = 0.0
         supply_content = ""
 
-        # 🚨 [핵심 개선] 한국 주식은 100% 네이버로만 처리 (야후 파이낸스 절대 안 부름 -> 20초 딜레이 박살)
         if is_krw and clean_code:
             cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
@@ -464,7 +461,6 @@ def analyze():
                 supply_content = "현재 수급 데이터를 집계 중이야. 지지선과 20일선 먼저 체크하고 대응하자!"
 
         else:
-            # 미국 주식일 때만 야후 파이낸스 호출
             cur_p, prev_p, ma20_val, res_val = fetch_yahoo_direct_v8(ticker_symbol)
             if cur_p and prev_p:
                 current_price = cur_p
@@ -538,7 +534,8 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
-        ai_reason, news_list = fetch_realtime_news_and_reason(raw_name, change_pct)
+        # 🚨 AI 분석 호출 시 등락률 인자 제거 완료 (숫자 충돌 영구 제거)
+        ai_reason, news_list = fetch_realtime_news_and_reason(raw_name)
         news_lines = "\n".join([f"📰 {title}" for title in news_list]) if news_list else f"📰 {raw_name} 관련 메이저 재료 분석 중"
 
         escape_content = (
