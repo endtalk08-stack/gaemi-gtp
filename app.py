@@ -44,7 +44,9 @@ def check_groq_access():
         url,
         headers={
             "Authorization": f"Bearer {GROQ_KEY}",
-            "User-Agent": "gaemiGTP/1.0"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
         },
         method="GET"
     )
@@ -267,7 +269,9 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {GROQ_KEY}",
-                "User-Agent": "gaemiGTP/1.0"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
             },
             method="POST"
         )
