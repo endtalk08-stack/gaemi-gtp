@@ -413,84 +413,98 @@ def analyze():
             ma20_str = f"${ma20:,.2f}"
             res_str = f"${resistance_price:,.2f}"
 
-            # 미국 옵션 수급: Finnhub API 우선 + yfinance 보조 조회
-            # Yahoo crumb 방식은 429가 발생하므로 사용하지 않는다.
-            # 실패 시 화면에는 "NVDA 조회 실패 HTTP 429"처럼 상태코드만 표시한다.
+            # 미국 옵션 수급: CBOE 공개 지연 옵션체인 사용
+            # Yahoo crumb 방식은 사용하지 않는다. CBOE 엔드포인트는 API 키가 필요 없고
+            # 옵션 계약별 volume을 제공한다. (약 15분 지연)
             try:
                 call_vol = 0
                 put_vol = 0
-                source = ""
-                option_http_error = None
+                option_error = None
 
-                # 1차: Render 환경에 이미 등록된 FINNHUB_API_KEY 사용
-                if FINNHUB_KEY:
-                    try:
-                        finnhub_url = (
-                            "https://finnhub.io/api/v1/stock/option-chain?"
-                            f"symbol={urllib.parse.quote(ticker_symbol)}&"
-                            f"token={urllib.parse.quote(FINNHUB_KEY)}"
-                        )
-                        req = urllib.request.Request(
-                            finnhub_url,
-                            headers={
-                                "User-Agent": "gaemiGTP/1.0",
-                                "Accept": "application/json"
-                            }
-                        )
-                        with urllib.request.urlopen(req, timeout=8) as resp:
-                            data = json.loads(resp.read().decode("utf-8"))
+                try:
+                    cboe_url = (
+                        f"https://cdn.cboe.com/api/global/delayed_quotes/options/"
+                        f"{urllib.parse.quote(ticker_symbol)}.json"
+                    )
+                    req = urllib.request.Request(
+                        cboe_url,
+                        headers={
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                          "Chrome/152.0.0.0 Safari/537.36",
+                            "Accept": "application/json,text/plain,*/*",
+                        }
+                    )
 
-                        # Finnhub option-chain 응답: data[] -> expirationDate + options.CALL / options.PUT
-                        for chain in (data.get("data") or []):
-                            options = chain.get("options") or {}
-                            calls = options.get("CALL") or []
-                            puts = options.get("PUT") or []
-                            call_vol += sum(int(float(x.get("volume") or 0)) for x in calls)
-                            put_vol += sum(int(float(x.get("volume") or 0)) for x in puts)
+                    with urllib.request.urlopen(req, timeout=8) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
 
-                        if call_vol or put_vol:
-                            source = "finnhub"
-                            print(
-                                f"[미국 옵션] {ticker_symbol} 성공 / {source} / "
-                                f"CALL={call_vol} PUT={put_vol}"
-                            )
-                    except urllib.error.HTTPError as e:
-                        option_http_error = e.code
-                        print(f"[미국 옵션] Finnhub 실패 {ticker_symbol}: HTTP {e.code}")
-                    except Exception as finnhub_err:
+                    rows = data.get("data") or []
+                    if isinstance(rows, dict):
+                        rows = [rows]
+
+                    for row in rows:
+                        if not isinstance(row, dict):
+                            continue
+                        options = row.get("options") or []
+                        if isinstance(options, dict):
+                            options = [options]
+
+                        for opt in options:
+                            if not isinstance(opt, dict):
+                                continue
+
+                            contract = str(
+                                opt.get("option")
+                                or opt.get("contractSymbol")
+                                or opt.get("symbol")
+                                or ""
+                            ).upper()
+
+                            volume = opt.get("volume", 0)
+                            if isinstance(volume, str):
+                                volume = volume.replace(",", "").strip()
+                            try:
+                                volume = int(float(volume or 0))
+                            except Exception:
+                                volume = 0
+
+                            # CBOE 옵션 심볼은 계약 문자열 안에 C/P가 들어간다.
+                            # 일반 OCC 형식은 날짜 뒤에 C 또는 P가 위치한다.
+                            cp_pos = -1
+                            if contract:
+                                m = re.search(r"\d{6}([CP])", contract)
+                                if m:
+                                    cp_pos = m.start(1)
+
+                            if cp_pos >= 0:
+                                side = contract[cp_pos]
+                            else:
+                                side = str(opt.get("type") or opt.get("optionType") or "").upper()
+
+                            if side in ("C", "CALL"):
+                                call_vol += volume
+                            elif side in ("P", "PUT"):
+                                put_vol += volume
+
+                    if call_vol == 0 and put_vol == 0:
+                        print(f"[미국 옵션] {ticker_symbol} CBOE 조회 성공했지만 거래량 데이터가 없습니다.")
+                    else:
                         print(
-                            f"[미국 옵션] Finnhub 실패 {ticker_symbol}: "
-                            f"{type(finnhub_err).__name__}: {finnhub_err}"
+                            f"[미국 옵션] {ticker_symbol} 성공 / CBOE / "
+                            f"CALL={call_vol} PUT={put_vol}"
                         )
 
-                # 2차: Finnhub에서 데이터를 못 받았을 때만 기존 yfinance 보조 조회
-                # Yahoo crumb 직접조회는 429 문제 때문에 제거한다.
-                if not source:
-                    try:
-                        t_obj = yf.Ticker(ticker_symbol)
-                        opts = t_obj.options
-                        if opts:
-                            for expiry in opts:
-                                opt = t_obj.option_chain(expiry)
-                                calls = opt.calls
-                                puts = opt.puts
-                                c = calls['volume'].fillna(0).sum() if 'volume' in calls else 0
-                                p = puts['volume'].fillna(0).sum() if 'volume' in puts else 0
-                                if c or p:
-                                    call_vol = int(c)
-                                    put_vol = int(p)
-                                    source = f"yfinance:{expiry}"
-                                    break
-                    except urllib.error.HTTPError as yf_err:
-                        option_http_error = yf_err.code
-                        print(f"[미국 옵션] yfinance 실패 {ticker_symbol}: HTTP {yf_err.code}")
-                    except Exception as yf_err:
-                        print(
-                            f"[미국 옵션] yfinance 실패 {ticker_symbol}: "
-                            f"{type(yf_err).__name__}: {yf_err}"
-                        )
+                except urllib.error.HTTPError as e:
+                    option_error = e.code
+                    print(f"[미국 옵션] CBOE 실패 {ticker_symbol}: HTTP {e.code}")
+                except Exception as e:
+                    print(
+                        f"[미국 옵션] CBOE 실패 {ticker_symbol}: "
+                        f"{type(e).__name__}: {e}"
+                    )
 
-                if source and call_vol > 0:
+                if call_vol > 0:
                     pc_ratio = put_vol / call_vol
                     c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
                     p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
@@ -514,12 +528,10 @@ def analyze():
                             "현재 옵션 시장이 팽팽하게 눈치싸움 중이야.\n"
                             "콜과 풋 거래량이 크게 벌어지지 않아 방향성을 조금 더 확인할 필요가 있어."
                         )
-                elif source:
-                    supply_content = f"{ticker_symbol} 조회 성공 거래량 0"
-                elif option_http_error:
-                    supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_http_error}"
+                elif call_vol == 0 and put_vol == 0 and option_error:
+                    supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_error}"
                 else:
-                    supply_content = f"{ticker_symbol} 조회 실패"
+                    supply_content = f"{ticker_symbol} 조회 성공 거래량 0"
 
             except urllib.error.HTTPError as option_err:
                 supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_err.code}"
@@ -531,6 +543,36 @@ def analyze():
                     f"{type(option_err).__name__}: {option_err}"
                 )
 
+        if not supply_content:
+            supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
+
+        # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
+        if change_pct >= 5.0:
+            status_emoji, title_word = '🔥', '올랐어'
+            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #가즈아   #불기둥"
+        elif 0.5 <= change_pct < 5.0:
+            status_emoji, title_word = '🔥', '올랐어'
+            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #우상향   #야금야금"
+        elif -0.5 < change_pct < 0.5:
+            status_emoji, title_word = '⚖️', '보합일까'
+            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네\n개미들아! 폭풍 전야처럼 조용한데?"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #눈치싸움   #방향탐색"
+        elif -5.0 < change_pct <= -0.5:
+            status_emoji, title_word = '❄️', '숨고르기일까'
+            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #숨고르기   #버텨보자"
+        else:
+            status_emoji, title_word = '❄️', '빠질까'
+            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
+
+        news_list = fetch_realtime_news(raw_name)
+        news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else f"📰 \"{raw_name} 관련 메이저 재료 포착\""
+        news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
+
+        # 불필요한 멘트 제거 및 줄바꿈 정리
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
