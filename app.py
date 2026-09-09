@@ -192,7 +192,8 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.1,
-            "max_completion_tokens": 160,
+            "max_completion_tokens": 500,
+            "reasoning_effort": "low",
             "response_format": {"type": "json_object"}
         }
 
@@ -207,9 +208,18 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
             method="POST"
         )
 
-        # Gemini의 장시간 무료쿼터 재시도 문제를 피하기 위해 짧게 실패 처리한다.
-        with urllib.request.urlopen(req, timeout=4.0) as resp:
-            res_json = json.loads(resp.read().decode("utf-8"))
+        # Groq는 정상 응답을 빠르게 반환하도록 하되, 네트워크 지연 시에도 무한 대기하지 않는다.
+        try:
+            with urllib.request.urlopen(req, timeout=8.0) as resp:
+                raw_response = resp.read().decode("utf-8")
+                res_json = json.loads(raw_response)
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8", errors="replace")
+            print(f"❌ Groq HTTP 오류 {e.code}: {error_body[:1000]}")
+            return f"[원인 불명확] Groq API 오류({e.code})"
+        except Exception as e:
+            print(f"❌ Groq 네트워크 오류: {type(e).__name__}: {e}")
+            return "[원인 불명확] Groq API 연결에 실패했어."
 
         content = (
             res_json.get("choices", [{}])[0]
@@ -219,7 +229,15 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
         )
 
         try:
-            parsed = json.loads(content)
+            # 모델이 혹시 코드펜스까지 붙여도 JSON만 안전하게 추출한다.
+            cleaned = content.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            elif cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            parsed = json.loads(cleaned.strip())
             judgment = str(parsed.get("judgment", "")).strip()
             reason = str(parsed.get("main_reason", "")).strip()
 
@@ -232,6 +250,7 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
             if judgment == "원인 불명확":
                 return f"[원인 불명확] {reason}"
 
+            print(f"🟢 Groq 분석 성공: {stock_name} / {judgment}")
             return f"[{judgment} 🚨] {reason}"
 
         except Exception:
