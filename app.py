@@ -9,11 +9,20 @@ import datetime
 import os
 import re
 import math
+import google.generativeai as genai
 
 app = Flask(__name__)
 CORS(app)
 
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
+
+# Render 환경변수에 등록한 무료 키 자동 로드 (보안 유지)
+GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip().strip('\'"')
+if GEMINI_KEY:
+    try:
+        genai.configure(api_key=GEMINI_KEY)
+    except Exception as e:
+        print("Gemini API 설정 예외:", e)
 
 US_KOREAN_NAMES = {
     'ORCL': '오라클 ORCL',
@@ -185,6 +194,26 @@ def fetch_yahoo_direct_v8(ticker_str):
         print("미국 야후 v8 예외:", e)
     return None, None, None, None
 
+def filter_hojae_news_with_gemini(headlines, stock_name):
+    """구글 무료 AI를 활용해 악재를 쳐내고 호재 뉴스만 엄선 (에러 시 원본 반환)"""
+    if not headlines or not GEMINI_KEY:
+        return headlines[:3]
+    
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = (
+            f"주식 분석 전문가 관점에서 아래 {stock_name} 관련 뉴스 헤드라인 중 주가 상승에 도움되는 '호재 뉴스'만 최대 3개 골라줘.\n"
+            f"호재가 없다면 가장 중요하고 객관적인 핵심 뉴스 최대 3개를 골라줘.\n"
+            f"설명이나 번호표 없이 헤드라인 내용만 한 줄에 하나씩 출력해.\n\n"
+            + "\n".join(headlines)
+        )
+        response = model.generate_content(prompt)
+        filtered = [line.strip().lstrip('1234567890.-•* ') for line in response.text.strip().split('\n') if line.strip()]
+        return filtered[:3] if filtered else headlines[:3]
+    except Exception as e:
+        print("Gemini 필터링 건너뛰기 (기본 뉴스로 안전 대체):", e)
+        return headlines[:3]
+
 def fetch_realtime_news(stock_name):
     try:
         query = urllib.parse.quote(f"{stock_name}")
@@ -207,9 +236,11 @@ def fetch_realtime_news(stock_name):
                     clean = title.strip().strip('"\'“”')
                     if clean:
                         headlines.append(clean)
-                    if len(headlines) == 3:
+                    if len(headlines) >= 8:  # AI가 판단할 수 있도록 넉넉히 수집
                         break
-            return headlines
+            
+            # 수집된 뉴스 중 호재 뉴스만 AI로 선별
+            return filter_hojae_news_with_gemini(headlines, stock_name)
     except Exception:
         return []
 
@@ -438,7 +469,7 @@ def analyze():
         if not supply_content:
             supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
 
-        # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
+        # 3. 등락률 분기
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
@@ -460,11 +491,11 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
+        # 실시간 뉴스 크롤링 후 구글 AI가 호재 위주로 선별
         news_list = fetch_realtime_news(raw_name)
         news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else f"📰 \"{raw_name} 관련 메이저 재료 포착\""
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
 
-        # 불필요한 멘트 제거 및 줄바꿈 정리
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
