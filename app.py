@@ -513,18 +513,21 @@ def analyze():
                     if pc_ratio <= 0.7:
                         supply_content = (
                             f"{tag_line}\n\n"
+                            "CBOE Options Volume\n\n"
                             "현재 옵션 거래량이 상방 쪽으로 기울어 있어!\n"
                             "콜옵션 거래량이 풋옵션보다 많아 상승 쪽 베팅이 상대적으로 강한 구간이야."
                         )
                     elif pc_ratio >= 1.1:
                         supply_content = (
                             f"{tag_line}\n\n"
-                            "🚨 현재 옵션 거래량이 하방 쪽으로 기울어 있어!\n"
+                            "CBOE Options Volume\n\n"
+                            "현재 옵션 거래량이 하방 쪽으로 기울어 있어!\n"
                             "풋옵션 거래량이 콜옵션을 넘어 하락 방어 수요가 상대적으로 강한 구간이야."
                         )
                     else:
                         supply_content = (
                             f"{tag_line}\n\n"
+                            "CBOE Options Volume\n\n"
                             "현재 옵션 시장이 팽팽하게 눈치싸움 중이야.\n"
                             "콜과 풋 거래량이 크게 벌어지지 않아 방향성을 조금 더 확인할 필요가 있어."
                         )
