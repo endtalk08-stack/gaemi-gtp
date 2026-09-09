@@ -192,19 +192,62 @@ def fetch_yahoo_direct_v8(ticker_str):
         print("야후 데이터 조회 예외:", e)
     return None, None, None, None
 
+# 404 방지: API 키에서 사용 가능한 최신 모델 자동 확인
+_cached_active_model = None
+
+def get_active_gemini_model():
+    global _cached_active_model
+    if _cached_active_model:
+        return _cached_active_model
+    
+    preferred_models = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-flash-latest',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash',
+        'gemini-pro'
+    ]
+    
+    try:
+        available_models = [
+            m.name.replace('models/', '') 
+            for m in genai.list_models() 
+            if 'generateContent' in m.supported_generation_methods
+        ]
+        for pref in preferred_models:
+            if pref in available_models:
+                _cached_active_model = pref
+                print(f"✅ 사용 가능한 Gemini 최신 모델 자동 감지: {_cached_active_model}")
+                return _cached_active_model
+        
+        flash_candidates = [m for m in available_models if 'flash' in m]
+        if flash_candidates:
+            _cached_active_model = flash_candidates[0]
+            return _cached_active_model
+            
+        if available_models:
+            _cached_active_model = available_models[0]
+            return _cached_active_model
+    except Exception as e:
+        print("사용 가능 모델 탐색 실패, 기본 모델로 전환:", e)
+
+    _cached_active_model = 'gemini-2.5-flash'
+    return _cached_active_model
+
 def filter_core_news_with_gemini(headlines, stock_name):
-    # API 오류 시 복붙용 클렌징
     def clean_fallback(h_list):
         return [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h).strip().strip('"\'“”') for h in h_list[:3]]
 
     if not headlines or not GEMINI_KEY:
-        return clean_fallback(headlines)
+        return clean_fallback(headlines), False
     
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        # 🚨 요금을 극한으로 줄인 초경량 프롬프트 (글자수 최소화)
+        model_name = get_active_gemini_model()
+        model = genai.GenerativeModel(model_name)
+        
         prompt = (
-            f"{stock_name} 뉴스 중 호재/악재 팩트 3개만 각각 1줄(30자 내외)로 요약해.\n"
+            f"{stock_name} 뉴스 중 주가 영향력이 큰 팩트 3개만 각각 1줄(30자 내외)로 요약해.\n"
             f"조건: 원문 복사 금지, 언론사명/따옴표/기호 제외, 한 줄에 하나씩 출력.\n\n"
             + "\n".join(headlines)
         )
@@ -217,13 +260,17 @@ def filter_core_news_with_gemini(headlines, stock_name):
                 clean_line = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', line.lstrip('1234567890.-•* ')).strip('"\'“”')
                 filtered.append(clean_line)
         
-        return filtered[:3] if filtered else clean_fallback(headlines)
+        if filtered:
+            return filtered[:3], True
+        else:
+            return clean_fallback(headlines), False
+            
     except Exception as e:
-        print("Gemini 요약 예외:", e)
-        return clean_fallback(headlines)
+        print("Gemini 요약 예외 발생:", e)
+        return clean_fallback(headlines), False
 
 def fetch_realtime_news(stock_name):
-    cache_key = f"news_v6_{stock_name}" # 캐시 키 v6로 올려서 과거 쓰레기 데이터 초기화
+    cache_key = f"news_v8_{stock_name}"
     
     if redis_client:
         try:
@@ -257,11 +304,12 @@ def fetch_realtime_news(stock_name):
                     if len(headlines) >= 12:
                         break
             
-            filtered_news = filter_core_news_with_gemini(headlines, stock_name)
+            filtered_news, is_ai_success = filter_core_news_with_gemini(headlines, stock_name)
             
-            if redis_client and filtered_news:
+            if redis_client and is_ai_success:
                 try:
                     redis_client.setex(cache_key, 86400, json.dumps(filtered_news, ensure_ascii=False))
+                    print(f"[{stock_name}] AI 3줄 요약 Redis 저장 완료!")
                 except Exception as e:
                     print("Redis 쓰기 에러:", e)
                     
