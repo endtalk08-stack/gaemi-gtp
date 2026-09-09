@@ -24,6 +24,21 @@ redis_client = None
 # Groq API 접근 진단 결과는 프로세스당 1회만 확인해 반복 호출을 막는다.
 GROQ_DIAG = None
 GROQ_MODEL = "qwen/qwen3.6-27b"
+FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip("\'\"")
+
+# 미국 주식 입력 보정(자주 쓰는 종목만 별칭 제공, 나머지는 Finnhub 검색으로 찾음)
+US_NAME_ALIASES = {
+    '엔비디아': 'NVDA', 'NVIDIA': 'NVDA',
+    '테슬라': 'TSLA', 'TESLA': 'TSLA',
+    '애플': 'AAPL', 'APPLE': 'AAPL',
+    '마이크로소프트': 'MSFT', 'MICROSOFT': 'MSFT',
+    '아마존': 'AMZN', 'AMAZON': 'AMZN',
+    '메타': 'META', 'META': 'META',
+    '브로드컴': 'AVGO', 'BROADCOM': 'AVGO',
+    '마이크론': 'MU', 'MICRON': 'MU',
+    'AMD': 'AMD', '인텔': 'INTC', 'INTEL': 'INTC',
+    '구글': 'GOOGL', '알파벳': 'GOOGL', 'GOOGLE': 'GOOGL',
+}
 
 def check_groq_access():
     """
@@ -105,6 +120,98 @@ PRELOAD_TARGETS = [
     ('알테오젠', '196170'), ('카카오', '035720'), ('네이버', '035420'),
     ('LG에너지솔루션', '373220'), ('한미반도체', '042700'), ('가온전선', '000500')
 ]
+
+def finnhub_get(path, params):
+    """Finnhub REST 공통 호출. API 키는 URL에만 붙이고 로그에는 절대 출력하지 않는다."""
+    if not FINNHUB_KEY:
+        return None
+    query = dict(params or {})
+    query['token'] = FINNHUB_KEY
+    url = 'https://finnhub.io/api/v1/' + path + '?' + urllib.parse.urlencode(query)
+    req = urllib.request.Request(url, headers={
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            return json.loads(resp.read().decode('utf-8'))
+    except Exception as e:
+        print(f'⚠️ Finnhub {path} 오류: {type(e).__name__}')
+        return None
+
+def resolve_us_symbol(stock_name):
+    """미국 종목명/티커를 Finnhub 심볼로 변환한다."""
+    raw = stock_name.strip()
+    alias = US_NAME_ALIASES.get(raw) or US_NAME_ALIASES.get(raw.upper())
+    if alias:
+        return alias
+    if re.fullmatch(r'[A-Za-z]{1,5}', raw):
+        return raw.upper()
+    data = finnhub_get('search', {'q': raw})
+    if isinstance(data, dict):
+        results = data.get('result', [])
+        for item in results:
+            symbol = str(item.get('symbol', ''))
+            typ = str(item.get('type', '')).lower()
+            if symbol and ('common stock' in typ or typ == 'stock'):
+                return symbol
+        if results:
+            symbol = str(results[0].get('symbol', ''))
+            if symbol:
+                return symbol
+    return None
+
+def is_us_stock_input(stock_name):
+    raw = stock_name.strip()
+    if raw in US_NAME_ALIASES or raw.upper() in US_NAME_ALIASES:
+        return True
+    return bool(re.fullmatch(r'[A-Za-z]{1,5}', raw))
+
+def fetch_us_stock_data(symbol):
+    """Finnhub quote + candle 기반 미국주식 가격/20일 평균/최근 고점."""
+    quote = finnhub_get('quote', {'symbol': symbol})
+    if not isinstance(quote, dict) or quote.get('c') is None:
+        return None, None, None, 0, 0, 0
+
+    current = float(quote.get('c') or 0)
+    prev = float(quote.get('pc') or 0)
+    change_pct = float(quote.get('dp') or 0)
+
+    end = int(time.time())
+    start = end - 45 * 86400
+    candles = finnhub_get('stock/candle', {
+        'symbol': symbol, 'resolution': 'D', 'from': start, 'to': end
+    })
+    closes = []
+    volumes = []
+    if isinstance(candles, dict) and candles.get('s') == 'ok':
+        closes = [float(x) for x in candles.get('c', []) if x is not None]
+        volumes = [float(x) for x in candles.get('v', []) if x is not None]
+    recent = closes[-20:] if closes else []
+    ma20 = sum(recent) / len(recent) if recent else current * 0.95
+    resistance = max(recent) if recent else current * 1.05
+    volume = volumes[-1] if volumes else 0
+    avg_volume = sum(volumes[-20:]) / len(volumes[-20:]) if volumes[-20:] else 0
+    return current, change_pct, prev, ma20, resistance, volume, avg_volume
+
+def fetch_us_news(symbol):
+    """최근 미국 종목 뉴스 제목 최대 5개. AI는 이 결과만 사용한다."""
+    now = datetime.datetime.now(datetime.timezone.utc).date()
+    from_date = now - datetime.timedelta(days=3)
+    data = finnhub_get('company-news', {
+        'symbol': symbol,
+        'from': from_date.isoformat(),
+        'to': now.isoformat()
+    })
+    titles = []
+    if isinstance(data, list):
+        for item in data:
+            title = str(item.get('headline') or '').strip()
+            if title and title not in titles:
+                titles.append(title)
+            if len(titles) >= 5:
+                break
+    return titles
 
 def search_krx_code(stock_name):
     try:
@@ -188,7 +295,7 @@ def fetch_fast_news(code_six, stock_name):
 
 def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
                    foreign_5d=None, institution_5d=None, individual_5d=None,
-                   calendar_text=""):
+                   calendar_text="", market="KR", volume=0, avg_volume=0):
     """
     Groq 분석 엔진.
     기존 데이터 수집 구조는 유지하고 Gemini 대신 Groq가 수집된 데이터를 판단한다.
@@ -232,9 +339,12 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
 8. 퍼센트나 구체적인 가격 숫자는 summary에 쓰지 마라.
 9. 제공되지 않은 사실을 만들어내지 마라.
 
+시장: {market}
 종목: {stock_name}
 현재 주가: {current_price}
 오늘 등락률: {change_pct}%
+거래량: {volume}
+20일 평균 거래량: {avg_volume}
 
 수급:
 {supply_block}
@@ -365,27 +475,76 @@ def get_live_calendar_data():
     )
 
 # ⚡ [엔진 핵심] 단일 종목 데이터 수집 + AI 조리 후 UI 포맷 생성 함수
-def build_stock_payload(stock_name, clean_code):
+def build_stock_payload(stock_name, clean_code, market='KR'):
+    if market == 'US':
+        symbol = clean_code
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            f_market = executor.submit(fetch_us_stock_data, symbol)
+            f_news = executor.submit(fetch_us_news, symbol)
+            market_data = f_market.result()
+            news_list = f_news.result()
+
+        current_price, change_pct, prev_price, ma20, resistance_price, volume, avg_volume = market_data
+        if current_price is None or current_price <= 0:
+            return {"sections": [{"title": f"⚠️ {stock_name} 미국주식 데이터를 가져오지 못했어", "content": "잠시 후 다시 검색해줘!"}]}
+
+        calendar_text = get_live_calendar_data()
+        # 미국주식은 국내식 외국인/기관 5일 순매수 데이터가 제공되지 않으므로 허위 수급을 만들지 않는다.
+        us_supply = f"거래량 {volume:,.0f}주\n20일 평균 거래량 {avg_volume:,.0f}주"
+        ai_reason = analyze_fast_ai(
+            stock_name=f"{stock_name} ({symbol})",
+            news_list=news_list,
+            current_price=current_price,
+            change_pct=change_pct,
+            foreign_5d=None,
+            institution_5d=None,
+            individual_5d=None,
+            calendar_text=calendar_text,
+            market='US',
+            volume=volume,
+            avg_volume=avg_volume
+        )
+
+        if change_pct >= 0.5:
+            status_emoji, title_word = '🔥', '상승했을까'
+            intro_ment = f"{change_pct:+.2f}% 상승 중이야"
+        elif change_pct <= -0.5:
+            status_emoji, title_word = '❄️', '하락했을까'
+            intro_ment = f"{change_pct:+.2f}% 하락 중이야"
+        else:
+            status_emoji, title_word = '⚖️', '보합일까'
+            intro_ment = f"{change_pct:+.2f}%로 눈치싸움 중이야"
+
+        price_str = f"${current_price:,.2f}"
+        ma20_str = f"${ma20:,.2f}"
+        res_str = f"${resistance_price:,.2f}"
+        news_lines = "\n".join([f"📰 {t}" for t in news_list]) if news_list else "📰 최근 수집된 미국 종목 뉴스가 없어"
+        volume_ratio = (volume / avg_volume) if avg_volume > 0 else 0
+        volume_line = f"거래량은 20일 평균 대비 {volume_ratio:.1f}배야." if volume_ratio > 0 else "거래량 비교 데이터가 없어."
+
+        payload = {
+            "sections": [
+                {"title": f"{status_emoji} 오늘 왜 {title_word}?", "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n#{symbol} #{change_pct:+.2f}%", "tags": [f"#{symbol}", f"#{change_pct:+.2f}%"]},
+                {"title": "거래량은 붙었을까?", "content": f"{us_supply}\n\n{volume_line}"},
+                {"title": "여기 깨지면 조심", "content": f"#20일 평균선 {ma20_str}\n\n#최근 20일 고점 {res_str}"},
+                {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": calendar_text}
+            ]
+        }
+        return payload
+
+    # 한국주식 기존 로직
     with ThreadPoolExecutor(max_workers=3) as executor:
         f_price = executor.submit(fetch_kr_stock_realtime, clean_code)
         f_supply = executor.submit(fetch_krx_trend_and_supply, clean_code)
         f_news = executor.submit(fetch_fast_news, clean_code, stock_name)
-
         cur_p, diff, ratio = f_price.result()
         ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = f_supply.result()
         news_list = f_news.result()
 
     calendar_text = get_live_calendar_data()
-    ai_reason = analyze_fast_ai(
-        stock_name,
-        news_list,
-        current_price=cur_p or 0,
-        change_pct=ratio if ratio is not None else 0,
-        foreign_5d=f_5d,
-        institution_5d=i_5d,
-        individual_5d=ind_5d,
-        calendar_text=calendar_text
-    )
+    ai_reason = analyze_fast_ai(stock_name, news_list, current_price=cur_p or 0, change_pct=ratio if ratio is not None else 0,
+                                foreign_5d=f_5d, institution_5d=i_5d, individual_5d=ind_5d,
+                                calendar_text=calendar_text, market='KR')
 
     current_price = cur_p or ma20_val or 0.0
     change_pct = ratio if ratio is not None else 0.0
@@ -409,30 +568,19 @@ def build_stock_payload(stock_name, clean_code):
         supply_content = "현재 수급 데이터를 집계 중이야."
 
     if change_pct >= 0.5:
-        status_emoji, title_word = '🔥', '상승했을까'
-        intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
+        status_emoji, title_word = '🔥', '상승했을까'; intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
     elif change_pct <= -0.5:
-        status_emoji, title_word = '❄️', '하락했을까'
-        intro_ment = f"아이고 {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
+        status_emoji, title_word = '❄️', '하락했을까'; intro_ment = f"아이고 {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
     else:
-        status_emoji, title_word = '⚖️', '보합일까'
-        intro_ment = f"{change_pct:+.2f}%로 팽팽한 눈치싸움 중이야"
+        status_emoji, title_word = '⚖️', '보합일까'; intro_ment = f"{change_pct:+.2f}%로 팽팽한 눈치싸움 중이야"
 
     news_lines = "\n".join([f"📰 {t}" for t in news_list])
-
-    payload = {
-        "sections": [
-            {
-                "title": f"{status_emoji} 오늘 왜 {title_word}?",
-                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n#{stock_name} #{change_pct:+.2f}%",
-                "tags": [f"#{stock_name}", f"#{change_pct:+.2f}%"]
-            },
-            {"title": "큰손들은 담고 있을까, 털고 있을까?", "content": supply_content},
-            {"title": "여기 깨지면 도망쳐", "content": f"#생존 지지선 {ma20_str} 기억해! 깨지면 비중 줄여!\n\n#악성 매물대 {res_str}\n돌파한다고 무지성 매수 타면 물린다잉!"},
-            {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": calendar_text}
-        ]
-    }
-    return payload
+    return {"sections": [
+        {"title": f"{status_emoji} 오늘 왜 {title_word}?", "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n#{stock_name} #{change_pct:+.2f}%", "tags": [f"#{stock_name}", f"#{change_pct:+.2f}%"]},
+        {"title": "큰손들은 담고 있을까, 털고 있을까?", "content": supply_content},
+        {"title": "여기 깨지면 도망쳐", "content": f"#생존 지지선 {ma20_str} 기억해! 깨지면 비중 줄여!\n\n#악성 매물대 {res_str}\n돌파한다고 무지성 매수 타면 물린다잉!"},
+        {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": calendar_text}
+    ]}
 
 # ⚡ [백그라운드 워커] 주기적으로 주요 종목을 미리 긁어 Redis에 저장 (사용자는 0.01초 컷)
 def background_collector_loop():
@@ -477,19 +625,28 @@ def analyze():
 
     # 2. 캐시에 없으면(처음 검색된 종목) 즉시 실시간 수집 후 캐시에 구워둠
     clean_code = TICKERS.get(raw_name)
-    if not clean_code:
-        if re.match(r'^\d{6}$', raw_name):
-            clean_code = raw_name
+    market = 'KR'
+    if clean_code:
+        market = 'KR'
+    elif re.match(r'^\d{6}$', raw_name):
+        clean_code = raw_name
+        market = 'KR'
+    else:
+        us_symbol = resolve_us_symbol(raw_name)
+        if us_symbol:
+            clean_code = us_symbol
+            market = 'US'
         else:
             clean_code = search_krx_code(raw_name)
+            market = 'KR' if clean_code else None
 
-    if not clean_code:
+    if not clean_code or not market:
         return jsonify({
             "sections": [{"title": f"⚠️ '{raw_name}' 종목을 찾을 수 없어!", "content": "정확한 종목명이나 6자리 코드로 다시 검색해줘!"}]
         })
 
     try:
-        fresh_payload = build_stock_payload(raw_name, clean_code)
+        fresh_payload = build_stock_payload(raw_name, clean_code, market=market)
         if redis_client:
             try:
                 redis_client.setex(cache_key, 86400, json.dumps(fresh_payload, ensure_ascii=False))
