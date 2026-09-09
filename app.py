@@ -11,26 +11,22 @@ import re
 import math
 import google.generativeai as genai
 
-# 레디스(Redis) 라이브러리 불러오기
+# Upstash Redis 라이브러리
 from upstash_redis import Redis
 
 app = Flask(__name__)
 CORS(app)
 
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
-
-# Render 환경변수에 등록한 무료 키 자동 로드
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip().strip('\'"')
+
 if GEMINI_KEY:
     try:
         genai.configure(api_key=GEMINI_KEY)
     except Exception as e:
         print("Gemini API 설정 예외:", e)
 
-# ---------------------------------------------------------
-# [정석] Upstash Redis 연결 설정
-# Render 환경변수에 등록한 URL과 TOKEN을 자동으로 가져옵니다.
-# ---------------------------------------------------------
+# Upstash Redis 연결 설정
 REDIS_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
 REDIS_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
 redis_client = None
@@ -216,7 +212,7 @@ def filter_core_news_with_gemini(headlines, stock_name):
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = (
-            f"주식 분석 전문가 관점에서 아래 {stock_name} 관련 뉴스 헤드라인 중, 주가 상승이나 하락에 가장 큰 영향을 미치는 '핵심 뉴스(호재/악재 모두 포함)'를 최대 5개 골라줘.\n"
+            f"주식 분석 전문가 관점에서 아래 {stock_name} 관련 뉴스 헤드라인 중, 주가 상승이나 하락에 가장 큰 영향을 미치는 '핵심 뉴스(호재/악재 모두 포함)'를 최대 3개 골라줘.\n"
             f"단순 광고나 의미 없는 찌라시는 제외하고, 설명이나 번호표 없이 헤드라인 내용만 한 줄에 하나씩 출력해.\n\n"
             + "\n".join(headlines)
         )
@@ -225,22 +221,24 @@ def filter_core_news_with_gemini(headlines, stock_name):
         return filtered[:3] if filtered else headlines[:3]
     except Exception as e:
         print("Gemini 필터링 건너뛰기:", e)
-        return headlines[:5]
+        return headlines[:3]
 
 def fetch_realtime_news(stock_name):
-    cache_key = f"news_cache_{stock_name}"
+    cache_key = f"news_v2_{stock_name}"
     
-    # 1. 서버가 재부팅되어도 안전한 Redis에서 24시간 고정 뉴스 꺼내오기
+    # 1. 서버 재부팅과 무관한 Redis 캐시 조회
     if redis_client:
         try:
             cached_data = redis_client.get(cache_key)
             if cached_data:
+                if isinstance(cached_data, str):
+                    cached_data = json.loads(cached_data)
                 print(f"[{stock_name}] Redis DB에서 뉴스 불러옴 (무료 한도 보호중!)")
                 return cached_data
         except Exception as e:
             print("Redis 읽기 에러:", e)
 
-    # 2. Redis에 없으면 (하루가 지났거나 처음 검색할 때) 새로 찾기
+    # 2. Redis에 없으면 새로 스크래핑 및 Gemini 요약
     try:
         query = urllib.parse.quote(f"{stock_name}")
         url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
@@ -267,10 +265,10 @@ def fetch_realtime_news(stock_name):
             
             filtered_news = filter_core_news_with_gemini(headlines, stock_name)
             
-            # 3. 새로 찾은 뉴스를 Redis DB에 24시간(86400초) 동안 저장!
+            # 3. JSON 포맷으로 인코딩하여 24시간 동안 Redis에 보관
             if redis_client and filtered_news:
                 try:
-                    redis_client.setex(cache_key, 86400, filtered_news)
+                    redis_client.setex(cache_key, 86400, json.dumps(filtered_news, ensure_ascii=False))
                     print(f"[{stock_name}] Redis DB에 하루치 뉴스 저장 완료!")
                 except Exception as e:
                     print("Redis 쓰기 에러:", e)
