@@ -211,7 +211,7 @@ def fetch_yahoo_direct_v8(ticker_str):
 
 def filter_core_news_with_gemini(headlines, stock_name):
     if not headlines or not GEMINI_KEY:
-        return headlines[:5]
+        return headlines[:3]
     
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
