@@ -369,13 +369,15 @@
       }
     }
 
-    // ★ 백엔드 본문 텍스트에서 실제 주가와 등락률을 100% 동기화 추출하는 파서
+    // ★ 백엔드 본문 텍스트에서 실제 주가, 등락률, 진짜 20일선, 악성매물대를 100% 동기화 추출하는 파서
     function extractMarketSyncData(stockName, sections) {
       let isUsd = /^[A-Za-z]+$/.test(stockName) || 
                     ['엔비디아', '테슬라', '애플', '마이크로소프트', '아마존', '구글', '메타', 'NVDA', 'TSLA', 'AAPL', 'MSFT'].includes(stockName);
 
       let foundPrice = null;
       let foundRate = null;
+      let foundMa20 = null;
+      let foundRes = null;
       let sign = 'flat';
 
       if (sections && Array.isArray(sections)) {
@@ -383,7 +385,7 @@
           const txt = s.content || "";
           if (txt.includes('$')) isUsd = true;
 
-          // 1. 본문 내 현재가 추출 ("현재 주가는 1,805,000원", "$173.14" 등)
+          // 1. 본문 내 현재가 추출 ("현재 주가는 257,500원", "$173.14" 등)
           if (!foundPrice) {
             const mPrice = isUsd ? txt.match(/\$([0-9]+(?:\.[0-9]+)?)/) : txt.match(/현재\s*주가는\s*([0-9,]+)\s*원/) || txt.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*원/);
             if (mPrice) {
@@ -392,7 +394,7 @@
             }
           }
 
-          // 2. 본문 내 등락률 추출 ("+0.67%", "-2.4%" 등)
+          // 2. 본문 내 등락률 추출 ("+13.19%", "-2.4%" 등)
           if (!foundRate) {
             const mRate = txt.match(/([+-]\d+(?:\.\d+)?%)/);
             if (mRate) {
@@ -401,16 +403,30 @@
               else if (foundRate.startsWith('-')) sign = 'down';
             }
           }
+
+          // 3. 백엔드에서 넘겨준 진짜 20일선(생존 지지선) 추출
+          if (!foundMa20) {
+            const mMa = isUsd ? txt.match(/#생존\s*지지선\s*\$([0-9,.]+)/) : txt.match(/#생존\s*지지선\s*([0-9,]+)\s*원/);
+            if (mMa) {
+              const p = parseFloat(mMa[1].replace(/,/g, ''));
+              if (!isNaN(p) && p > 0) foundMa20 = p;
+            }
+          }
+
+          // 4. 백엔드에서 넘겨준 진짜 악성 매물대(고점 저항선) 추출
+          if (!foundRes) {
+            const mRes = isUsd ? txt.match(/#악성\s*매물대\s*\$([0-9,.]+)/) : txt.match(/#악성\s*매물대\s*([0-9,]+)\s*원/);
+            if (mRes) {
+              const p = parseFloat(mRes[1].replace(/,/g, ''));
+              if (!isNaN(p) && p > 0) foundRes = p;
+            }
+          }
         }
       }
 
-      // 만약 백엔드에서 못 찾았을 경우의 예비값
-      if (!foundPrice) {
-        foundPrice = isUsd ? 180.00 : 70000;
-      }
-      if (!foundRate) {
-        foundRate = "0.00%";
-      }
+      // 백엔드 미수신 시 안전 예비값
+      if (!foundPrice) foundPrice = isUsd ? 180.00 : 70000;
+      if (!foundRate) foundRate = "0.00%";
 
       function roundTick(price) {
         if (isUsd) return Number(price.toFixed(2));
@@ -428,10 +444,20 @@
         return Number(n).toLocaleString('ko-KR') + '원';
       }
 
-      // 본문에서 찾은 현재가를 바탕으로 3대 가격 계산 (+6.5%, -1.8%, -6.5%)
-      const pinkVal = roundTick(foundPrice * 1.065);
-      const yellowVal = roundTick(foundPrice * 0.982);
-      const blueVal = roundTick(foundPrice * 0.935);
+      // 1. [핑크] 악성 매물대 (백엔드 실제 최근 고점 반영)
+      const pinkVal = foundRes ? roundTick(foundRes) : roundTick(foundPrice * 1.065);
+
+      // 2. [블루] 생존 지지선 (백엔드 실제 20일 이동평균선 정확히 반영)
+      const blueVal = foundMa20 ? roundTick(foundMa20) : roundTick(foundPrice * 0.935);
+
+      // 3. [옐로우] 여기까지 버텨줘 (현재가와 20일선 사이의 단기 1차 지지선)
+      let yellowVal;
+      if (foundPrice > blueVal) {
+        const calcYellow = roundTick(foundPrice * 0.965);
+        yellowVal = (calcYellow > blueVal) ? calcYellow : roundTick((foundPrice + blueVal) / 2);
+      } else {
+        yellowVal = roundTick(foundPrice * 0.98);
+      }
 
       return {
         isUsd,
@@ -512,7 +538,7 @@
         let dynamicTitle = sec.title || '';
         let text = sec.content || '';
 
-        // 1. 첫 섹션 타이틀: 본문에서 읽어온 실제 등락률(+0.67% 등)을 제목에 100% 동기화
+        // 1. 첫 섹션 타이틀: 등락 징후에 따라 깔끔하게 분기 (괄호 없음)
         if (isConditionSection && !isSurvivalSection) {
           if (syncData.sign === 'up') {
             dynamicTitle = `오늘 왜 상승했을까?`;
@@ -523,7 +549,7 @@
           }
         }
 
-        // 2. "여기 깨지면 도망쳐" 섹션: 본문 주가(180만 원대)에 정확히 맞춘 3대 가격 반영
+        // 2. "여기 깨지면 도망쳐" 섹션: 백엔드 실제 20일선 및 악성 매물대 연동
         if (isSurvivalSection) {
           dynamicTitle = "여기 깨지면 도망쳐";
           text = `악성 매물대 ${syncData.pinkPrice}\n` +
