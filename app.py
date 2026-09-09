@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import urllib.request
+import urllib.error
 import urllib.parse
 import json
 import datetime
@@ -19,6 +20,61 @@ GROQ_KEY = os.environ.get('GROQ_API_KEY', '').strip().strip('\'"')
 REDIS_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
 REDIS_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
 redis_client = None
+
+# Groq API 접근 진단 결과는 프로세스당 1회만 확인해 반복 호출을 막는다.
+GROQ_DIAG = None
+GROQ_MODEL = "qwen/qwen3.6-27b"
+
+def check_groq_access():
+    """
+    같은 GROQ_API_KEY로 /models를 호출해 API 키/프로젝트 접근 상태를 확인한다.
+    실제 분석 요청 전 1회만 실행한다.
+    """
+    global GROQ_DIAG
+    if GROQ_DIAG is not None:
+        return GROQ_DIAG
+
+    if not GROQ_KEY:
+        GROQ_DIAG = (False, "GROQ_API_KEY 없음")
+        print("🔴 Groq 진단: GROQ_API_KEY가 없습니다.")
+        return GROQ_DIAG
+
+    url = "https://api.groq.com/openai/v1/models"
+    req = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {GROQ_KEY}"},
+        method="GET"
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            status = resp.status
+            body = resp.read().decode("utf-8")
+
+        data = json.loads(body)
+        models = data.get("data", []) if isinstance(data, dict) else []
+        model_ids = {str(m.get("id", "")) for m in models if isinstance(m, dict)}
+        model_exists = GROQ_MODEL in model_ids
+
+        print(f"🟢 Groq /models 응답: HTTP {status}")
+        print(f"   - 사용 가능한 모델 수: {len(model_ids)}")
+        print(f"   - {GROQ_MODEL} 목록 확인: {'YES' if model_exists else 'NO'}")
+
+        if model_exists:
+            GROQ_DIAG = (True, "API 접근 정상 / 대상 모델 목록 확인")
+        else:
+            GROQ_DIAG = (True, "API 접근 정상 / 대상 모델이 /models 목록에 없음")
+        return GROQ_DIAG
+
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8", errors="replace")
+        print(f"🔴 Groq /models HTTP 오류 {e.code}: {error_body[:1500]}")
+        GROQ_DIAG = (False, f"/models HTTP {e.code}")
+        return GROQ_DIAG
+    except Exception as e:
+        print(f"🔴 Groq /models 네트워크 오류: {type(e).__name__}: {e}")
+        GROQ_DIAG = (False, f"/models 연결 실패: {type(e).__name__}")
+        return GROQ_DIAG
 
 if REDIS_URL and REDIS_TOKEN:
     try:
@@ -136,6 +192,10 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
     if not GROQ_KEY:
         return "[원인 불명확] GROQ_API_KEY가 설정되지 않았어."
 
+    diag_ok, diag_message = check_groq_access()
+    if not diag_ok:
+        return f"[원인 불명확] Groq 접근 진단 실패: {diag_message}"
+
     try:
         news_block = "\n".join(
             f"- {title}" for title in (news_list or []) if title
@@ -183,7 +243,7 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
 
         api_url = "https://api.groq.com/openai/v1/chat/completions"
         payload = {
-            "model": "openai/gpt-oss-120b",
+            "model": GROQ_MODEL,
             "messages": [
                 {
                     "role": "system",
@@ -193,7 +253,7 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
             ],
             "temperature": 0.1,
             "max_completion_tokens": 500,
-            "reasoning_effort": "low",
+            "reasoning_effort": "none",
             "response_format": {"type": "json_object"}
         }
 
@@ -208,6 +268,8 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
             method="POST"
         )
 
+        print(f"🔎 Groq Chat 요청: model={GROQ_MODEL}")
+
         # Groq는 정상 응답을 빠르게 반환하도록 하되, 네트워크 지연 시에도 무한 대기하지 않는다.
         try:
             with urllib.request.urlopen(req, timeout=8.0) as resp:
@@ -215,7 +277,7 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
                 res_json = json.loads(raw_response)
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8", errors="replace")
-            print(f"❌ Groq HTTP 오류 {e.code}: {error_body[:1000]}")
+            print(f"❌ Groq HTTP 오류 {e.code}: {error_body[:1500]}")
             return f"[원인 불명확] Groq API 오류({e.code})"
         except Exception as e:
             print(f"❌ Groq 네트워크 오류: {type(e).__name__}: {e}")
