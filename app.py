@@ -15,7 +15,6 @@ from upstash_redis import Redis
 app = Flask(__name__)
 CORS(app)
 
-# ⚡ [Groq API 키 적용]
 GROQ_KEY = os.environ.get('GROQ_API_KEY', '').strip().strip('\'"')
 REDIS_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
 REDIS_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
@@ -126,43 +125,121 @@ def fetch_fast_news(code_six, stock_name):
         titles = [f"{stock_name} 주요 공시 및 호가창 수급 집중", f"{stock_name} 외국인·기관 거래량 변동성 확대"]
     return titles[:3]
 
-# ⚡ [Groq LPU 초광속 추론] (0.08초 만에 생성 완료)
-def analyze_fast_ai(stock_name, news_list):
-    fallback_ment = "주요 공시와 호가창 매물대 흐름을 체크하며 방향성을 탐색 중이야."
-    if not GROQ_KEY or not news_list:
-        return fallback_ment
+def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
+                   foreign_5d=None, institution_5d=None, individual_5d=None,
+                   calendar_text=""):
+    """
+    Groq 분석 엔진.
+    기존 데이터 수집 구조는 유지하고 Gemini 대신 Groq가 수집된 데이터를 판단한다.
+    뉴스 검색은 하지 않고 코드가 수집한 뉴스만 분석한다.
+    """
+    if not GROQ_KEY:
+        return "[원인 불명확] GROQ_API_KEY가 설정되지 않았어."
 
     try:
-        news_block = "\n".join(news_list)
-        prompt = (
-            f"종목명: {stock_name}\n최신 뉴스:\n{news_block}\n\n"
-            "위 내용을 바탕으로 반드시 '[호재 🚨]' 또는 '[악재 🚨]'로 시작해서, 구체적인 퍼센트(%)나 가격 숫자 없이 왜 그런지 주식 고수 개미 말투로 딱 한 줄(50자 이내)만 써."
+        news_block = "\n".join(
+            f"- {title}" for title in (news_list or []) if title
         )
+
+        supply_block = (
+            f"최근 5일 외국인 순매수: {foreign_5d}주\n"
+            f"최근 5일 기관 순매수: {institution_5d}주\n"
+            f"최근 5일 개인 순매수: {individual_5d}주"
+        )
+
+        prompt = f"""
+너는 한국 주식의 '왜 올랐을까/왜 내렸을까' 원인을 판단하는 분석 AI다.
+
+중요 규칙:
+1. 웹 검색을 하지 마라. 제공된 데이터만 분석하라.
+2. 뉴스 제목 하나를 무조건 원인으로 단정하지 마라.
+3. 주가 등락, 수급, 뉴스와 일정의 연관성을 비교하라.
+4. 가장 영향력이 큰 원인 1개만 선택하라.
+5. 근거가 부족하면 억지로 만들지 말고 '원인 불명확'으로 판단하라.
+6. 반드시 JSON으로만 출력하라.
+7. JSON 형식:
+{{
+  "judgment": "호재" 또는 "악재" 또는 "원인 불명확",
+  "main_reason": "핵심 원인 1개",
+  "summary": "왜 주가에 영향을 줬는지 한 문장",
+  "confidence": "높음" 또는 "중간" 또는 "낮음"
+}}
+8. 퍼센트나 구체적인 가격 숫자는 summary에 쓰지 마라.
+9. 제공되지 않은 사실을 만들어내지 마라.
+
+종목: {stock_name}
+현재 주가: {current_price}
+오늘 등락률: {change_pct}%
+
+수급:
+{supply_block}
+
+뉴스:
+{news_block if news_block else "- 수집된 뉴스 없음"}
+
+관련 일정:
+{calendar_text}
+""".strip()
 
         api_url = "https://api.groq.com/openai/v1/chat/completions"
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
             "messages": [
-                {"role": "system", "content": "너는 한국 실전 주식 단타 베테랑 고수야. 간결하고 날카롭게 핵심만 말해."},
+                {
+                    "role": "system",
+                    "content": "주식 원인 분석 전문가. 제공된 데이터만 사용하고 핵심 원인 하나만 판단한다."
+                },
                 {"role": "user", "content": prompt}
             ],
-            "temperature": 0.2,
-            "max_tokens": 80
+            "temperature": 0.1,
+            "max_completion_tokens": 160,
+            "response_format": {"type": "json_object"}
         }
-        
-        req_data = json.dumps(payload).encode('utf-8')
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {GROQ_KEY}'
-        }
-        req = urllib.request.Request(api_url, data=req_data, headers=headers, method='POST')
 
-        with urllib.request.urlopen(req, timeout=2.0) as resp:
-            res_json = json.loads(resp.read().decode('utf-8'))
-            return res_json['choices'][0]['message']['content'].strip()
+        req_data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            api_url,
+            data=req_data,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {GROQ_KEY}"
+            },
+            method="POST"
+        )
+
+        # Gemini의 장시간 무료쿼터 재시도 문제를 피하기 위해 짧게 실패 처리한다.
+        with urllib.request.urlopen(req, timeout=4.0) as resp:
+            res_json = json.loads(resp.read().decode("utf-8"))
+
+        content = (
+            res_json.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+        )
+
+        try:
+            parsed = json.loads(content)
+            judgment = str(parsed.get("judgment", "")).strip()
+            reason = str(parsed.get("main_reason", "")).strip()
+
+            if judgment not in ("호재", "악재", "원인 불명확"):
+                judgment = "원인 불명확"
+
+            if not reason:
+                reason = "제공된 데이터만으로 핵심 원인을 특정하기 어렵습니다."
+
+            if judgment == "원인 불명확":
+                return f"[원인 불명확] {reason}"
+
+            return f"[{judgment} 🚨] {reason}"
+
+        except Exception:
+            return content[:100] if content else "[원인 불명확] AI 분석 결과가 없습니다."
+
     except Exception as e:
-        print("Groq API 호출 예외:", e)
-        return fallback_ment
+        print("❌ Groq 분석 오류:", e)
+        return "[원인 불명확] AI 분석 요청에 실패했어."
 
 def format_shares(n):
     if n is None: return "0주"
@@ -188,13 +265,17 @@ def get_live_calendar_data():
     ]
     upcoming = [e for e in events if e['dt'] >= now][:4] or events[:4]
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
-    lines = [f"• {e['dt'].strftime(f'%m/%d({weekdays[e[\"dt\"].weekday()]}) %H:%M')} {e['name']}" for e in upcoming]
+    lines = [
+        f"• {e['dt'].strftime('%m/%d')}({weekdays[e['dt'].weekday()]}) {e['dt'].strftime('%H:%M')} {e['name']}"
+        for e in upcoming
+    ]
     return (
         "🚨 오늘 밤엔 큰 거 하나 온다! 긴장 바짝 해!\n\n"
         "🗓️ 이번 주 핵심 개미 캘린더 ★★★\n" + "\n".join(lines) +
         "\n\n\"지표나 실적 발표 전후로는 호가창 얇아지니까 뇌동매매 절대 금지야! 알았제?\""
     )
 
+# ⚡ [엔진 핵심] 단일 종목 데이터 수집 + AI 조리 후 UI 포맷 생성 함수
 def build_stock_payload(stock_name, clean_code):
     with ThreadPoolExecutor(max_workers=3) as executor:
         f_price = executor.submit(fetch_kr_stock_realtime, clean_code)
@@ -205,7 +286,17 @@ def build_stock_payload(stock_name, clean_code):
         ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = f_supply.result()
         news_list = f_news.result()
 
-    ai_reason = analyze_fast_ai(stock_name, news_list)
+    calendar_text = get_live_calendar_data()
+    ai_reason = analyze_fast_ai(
+        stock_name,
+        news_list,
+        current_price=cur_p or 0,
+        change_pct=ratio if ratio is not None else 0,
+        foreign_5d=f_5d,
+        institution_5d=i_5d,
+        individual_5d=ind_5d,
+        calendar_text=calendar_text
+    )
 
     current_price = cur_p or ma20_val or 0.0
     change_pct = ratio if ratio is not None else 0.0
@@ -249,39 +340,42 @@ def build_stock_payload(stock_name, clean_code):
             },
             {"title": "큰손들은 담고 있을까, 털고 있을까?", "content": supply_content},
             {"title": "여기 깨지면 도망쳐", "content": f"#생존 지지선 {ma20_str} 기억해! 깨지면 비중 줄여!\n\n#악성 매물대 {res_str}\n돌파한다고 무지성 매수 타면 물린다잉!"},
-            {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": get_live_calendar_data()}
+            {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": calendar_text}
         ]
     }
     return payload
 
+# ⚡ [백그라운드 워커] 주기적으로 주요 종목을 미리 긁어 Redis에 저장 (사용자는 0.01초 컷)
 def background_collector_loop():
-    time.sleep(5)
+    time.sleep(5)  # 서버 부팅 후 5초 뒤부터 주기적 수집 가동
     while True:
         if redis_client:
-            print("🔄 [백그라운드 워커] 주요 종목 Groq 초고속 수집/분석 시작...")
+            print("🔄 [백그라운드 워커] 주요 종목 사전 수집 및 AI 분석 시작...")
             for name, code in PRELOAD_TARGETS:
                 try:
                     data = build_stock_payload(name, code)
+                    # 3일 동안 즉시 반환 가능하도록 저장
                     redis_client.set(f"stock_view_{name}", json.dumps(data, ensure_ascii=False))
-                    print(f"  ⚡ [{name}] Groq 사전 진열 완료")
+                    print(f"  ⚡ [{name}] 사전 진열 완료")
                 except Exception as e:
                     print(f"  ⚠️ [{name}] 백그라운드 수집 에러:", e)
-                time.sleep(1.0)
-            print("✅ [백그라운드 워커] 1회 주기 완료.")
-        time.sleep(600)
+                time.sleep(1.5)  # 네이버 차단 방지용 안전 딜레이
+            print("✅ [백그라운드 워커] 1회 주기 완료. 다음 갱신 대기 중...")
+        time.sleep(600)  # 10분마다 자동 갱신
 
+# 백그라운드 스레드 가동
 collector_thread = threading.Thread(target=background_collector_loop, daemon=True)
 collector_thread.start()
 
 @app.route('/')
 def home():
-    return "gaemiGTP Groq 초고속 LPU 엔진 가동 중!"
+    return "gaemiGTP 백그라운드 수집 & 0.01초 캐시 엔진 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
     raw_name = request.args.get('stock', '삼성전자').strip()
 
-    # 1. ⚡ [0.01초 반환] 백그라운드가 구워둔 캐시 즉시 리턴
+    # 1. ⚡ [0.01초 응답] 백그라운드 워커가 미리 구워둔 캐시가 있으면 즉시 리턴
     cache_key = f"stock_view_{raw_name}"
     if redis_client:
         try:
@@ -292,7 +386,7 @@ def analyze():
         except Exception:
             pass
 
-    # 2. 신규 검색 종목 즉시 Groq 호출
+    # 2. 캐시에 없으면(처음 검색된 종목) 즉시 실시간 수집 후 캐시에 구워둠
     clean_code = TICKERS.get(raw_name)
     if not clean_code:
         if re.match(r'^\d{6}$', raw_name):
