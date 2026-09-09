@@ -1,6 +1,9 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import yfinance as yf
+try:
+    import yfinance as yf
+except Exception:
+    yf = None
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -231,19 +234,66 @@ def fetch_us_stock_data(ticker):
     return None, None, None, None
 
 def fetch_us_option_flow(ticker):
-    """백업본과 동일하게 yfinance의 첫 옵션 만기 CALL/PUT 거래량을 사용한다."""
+    """
+    미국 옵션 수급.
+    1차: 기존 복원본과 동일한 yfinance
+    2차: Yahoo Finance options REST fallback
+    CALL/PUT 거래량과 Put/Call 비율을 반환한다.
+    """
+    # 1차: 기존 yfinance 방식 유지
+    if yf is not None:
+        try:
+            t_obj = yf.Ticker(ticker)
+            opts = t_obj.options
+            if opts:
+                # 가장 가까운 만기부터 확인하고 실제 거래량이 있는 체인을 선택
+                for expiry in opts[:4]:
+                    try:
+                        opt = t_obj.option_chain(expiry)
+                        call_vol = int(opt.calls['volume'].fillna(0).sum()) if 'volume' in opt.calls else 0
+                        put_vol = int(opt.puts['volume'].fillna(0).sum()) if 'volume' in opt.puts else 0
+                        if call_vol > 0 or put_vol > 0:
+                            pc_ratio = (put_vol / call_vol) if call_vol > 0 else None
+                            if pc_ratio is not None:
+                                print(f"🟢 미국 옵션 수급(yfinance): {ticker} / CALL {call_vol} / PUT {put_vol} / P/C {pc_ratio:.2f}")
+                                return call_vol, put_vol, pc_ratio
+                    except Exception:
+                        continue
+        except Exception as e:
+            print(f"미국 옵션 yfinance 예외({ticker}):", e)
+
+    # 2차: Yahoo Finance options REST fallback
     try:
-        t_obj = yf.Ticker(ticker)
-        opts = t_obj.options
-        if opts:
-            opt = t_obj.option_chain(opts[0])
-            call_vol = int(opt.calls['volume'].sum()) if 'volume' in opt.calls else 0
-            put_vol = int(opt.puts['volume'].sum()) if 'volume' in opt.puts else 0
-            if call_vol > 0:
-                pc_ratio = put_vol / call_vol
-                return call_vol, put_vol, pc_ratio
+        url = f"https://query1.finance.yahoo.com/v7/finance/options/{urllib.parse.quote(ticker)}"
+        req = urllib.request.Request(
+            url,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                              '(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
+                'Accept': 'application/json'
+            }
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+
+        result = (data.get('optionChain', {}).get('result') or [])
+        if result:
+            result = result[0]
+            chains = result.get('options') or []
+            # 가까운 만기 체인부터 실제 거래량이 있는 체인을 선택
+            for chain in chains[:4]:
+                calls = chain.get('calls') or []
+                puts = chain.get('puts') or []
+                call_vol = sum(int(x.get('volume') or 0) for x in calls)
+                put_vol = sum(int(x.get('volume') or 0) for x in puts)
+                if call_vol > 0:
+                    pc_ratio = put_vol / call_vol
+                    print(f"🟢 미국 옵션 수급(Yahoo fallback): {ticker} / CALL {call_vol} / PUT {put_vol} / P/C {pc_ratio:.2f}")
+                    return call_vol, put_vol, pc_ratio
     except Exception as e:
-        print(f"미국 옵션 데이터 수집 예외({ticker}):", e)
+        print(f"미국 옵션 Yahoo fallback 예외({ticker}):", e)
+
+    print(f"🔴 미국 옵션 수급 데이터 없음: {ticker}")
     return None, None, None
 
 def fetch_us_news(ticker, stock_name):
@@ -450,24 +500,52 @@ def round_krw_tick(p):
     return int(p // 10) * 10
 
 def get_live_calendar_data():
+    """
+    모든 종목에 공통으로 보여주는 미국 핵심 일정.
+    오늘 일정이 있으면 오늘 일정을 먼저 표시하고, 이후 주요 일정도 함께 표시한다.
+    """
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now = datetime.datetime.now(kst_tz)
     events = [
         {"name": "미국 8월 생산자물가지수 #PPI", "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz)},
+        {"name": "미국 신규 실업수당청구건수", "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz)},
+        {"name": "미국 8월 기존주택판매", "dt": datetime.datetime(2026, 9, 10, 23, 0, tzinfo=kst_tz)},
+        {"name": "#어도비 ADBE 실적 발표", "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz)},
         {"name": "#오라클 ORCL 실적 발표", "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz)},
         {"name": "미국 8월 소비자물가지수 #CPI", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz)},
+        {"name": "미국 미시간대 소비자심리지수", "dt": datetime.datetime(2026, 9, 11, 23, 0, tzinfo=kst_tz)},
         {"name": "미국 연준 #FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz)}
     ]
-    upcoming = [e for e in events if e['dt'] >= now][:4] or events[:4]
+
+    today = now.date()
+    today_events = [e for e in events if e["dt"].date() == today and e["dt"] >= now]
+    upcoming = [e for e in events if e["dt"] > now and e["dt"].date() != today][:4]
+
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
-    lines = [
-        f"• {e['dt'].strftime('%m/%d')}({weekdays[e['dt'].weekday()]}) {e['dt'].strftime('%H:%M')} {e['name']}"
-        for e in upcoming
-    ]
+    lines = []
+
+    if today_events:
+        lines.append("📌 오늘 주요 일정")
+        lines.extend(
+            f"• {e['dt'].strftime('%m/%d')}({weekdays[e['dt'].weekday()]}) {e['dt'].strftime('%H:%M')} {e['name']}"
+            for e in today_events
+        )
+
+    if upcoming:
+        lines.append("")
+        lines.append("🗓️ 이번 주 핵심 일정")
+        lines.extend(
+            f"• {e['dt'].strftime('%m/%d')}({weekdays[e['dt'].weekday()]}) {e['dt'].strftime('%H:%M')} {e['name']}"
+            for e in upcoming
+        )
+
+    if not lines:
+        lines.append("📌 오늘 예정된 핵심 일정이 없습니다.")
+
     return (
-        "🚨 오늘 밤엔 큰 거 하나 온다! 긴장 바짝 해!\n\n"
-        "🗓️ 이번 주 핵심 개미 캘린더 ★★★\n" + "\n".join(lines) +
-        "\n\n\"지표나 실적 발표 전후로는 호가창 얇아지니까 뇌동매매 절대 금지야! 알았제?\""
+        "🚨 미국 핵심 일정 체크!\n\n"
+        + "\n".join(lines)
+        + "\n\n\"지표나 실적 발표 전후로는 변동성이 커질 수 있으니 뇌동매매는 조심하자!\""
     )
 
 # ⚡ [엔진 핵심] 단일 종목 데이터 수집 + AI 조리 후 UI 포맷 생성 함수
@@ -591,7 +669,7 @@ def background_collector_loop():
                 try:
                     data = build_stock_payload(name, code)
                     # 3일 동안 즉시 반환 가능하도록 저장
-                    redis_client.set(f"stock_view_v2_{name}", json.dumps(data, ensure_ascii=False))
+                    redis_client.set(f"stock_view_{name}", json.dumps(data, ensure_ascii=False))
                     print(f"  ⚡ [{name}] 사전 진열 완료")
                 except Exception as e:
                     print(f"  ⚠️ [{name}] 백그라운드 수집 에러:", e)
@@ -612,7 +690,7 @@ def analyze():
     raw_name = request.args.get('stock', '삼성전자').strip()
 
     # 1. ⚡ [0.01초 응답] 백그라운드 워커가 미리 구워둔 캐시가 있으면 즉시 리턴
-    cache_key = f"stock_view_v2_{raw_name}"
+    cache_key = f"stock_view_{raw_name}"
     if redis_client:
         try:
             cached_data = redis_client.get(cache_key)
