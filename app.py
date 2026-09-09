@@ -17,7 +17,7 @@ CORS(app)
 
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
 
-# Render 환경변수에 등록한 무료 키 자동 로드 (보안 유지)
+# Render 환경변수에 등록한 무료 키 자동 로드
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip().strip('\'"')
 if GEMINI_KEY:
     try:
@@ -26,10 +26,10 @@ if GEMINI_KEY:
         print("Gemini API 설정 예외:", e)
 
 # ---------------------------------------------------------
-# [핵심] 무료 한도 보호를 위한 뉴스 캐싱(메모장) 설정
+# 뉴스 24시간 고정 (과금 100% 방어)
 # ---------------------------------------------------------
-NEWS_CACHE = {}      # AI가 정리한 뉴스를 임시 저장할 딕셔너리
-CACHE_TTL = 86400      # 24시간 = 하루 종일 똑같은 호재 뉴스 유지
+NEWS_CACHE = {}      
+CACHE_TTL = 86400    
 
 US_KOREAN_NAMES = {
     'ORCL': '오라클 ORCL',
@@ -112,8 +112,8 @@ def search_krx_code(stock_name):
                 market = first[3].upper()
                 suffix = '.KS' if 'KOSPI' in market else '.KQ'
                 return f"{code}{suffix}", code
-    except Exception:
-        pass
+    except Exception as e:
+        print("네이버 종목검색 예외:", e) # 원상복구
     return None, None
 
 def fetch_kr_stock_realtime(code_six):
@@ -134,7 +134,7 @@ def fetch_kr_stock_realtime(code_six):
                 ratio = float(str(item.get('fluctuationsRatio', 0)).replace(',', ''))
                 return cur_p, diff, ratio
     except Exception as e:
-        print("네이버 실시간 시세 조회 예외:", e)
+        print("네이버 실시간 시세 조회 예외:", e) # 원상복구
     return None, None, None
 
 def fetch_krx_trend_and_supply(code_six):
@@ -176,7 +176,7 @@ def fetch_krx_trend_and_supply(code_six):
 
                 return ma20, resistance, sum_foreign, sum_inst, sum_indiv, valid_days
     except Exception as e:
-        print("네이버 수급 집계 예외:", e)
+        print("네이버 수급 집계 예외:", e) # 원상복구
     return 0, 0, None, None, None, 0
 
 def fetch_yahoo_direct_v8(ticker_str):
@@ -198,11 +198,10 @@ def fetch_yahoo_direct_v8(ticker_str):
                     res_p = max(highs) if highs else cur_p * 1.05
                     return cur_p, prev_p, ma20, res_p
     except Exception as e:
-        print("미국 야후 v8 예외:", e)
+        print("미국 야후 v8 예외:", e) # 원상복구
     return None, None, None, None
 
 def filter_core_news_with_gemini(headlines, stock_name):
-    """구글 무료 AI를 활용해 찌라시를 쳐내고 호재/악재 포함 핵심 뉴스만 5개 엄선"""
     if not headlines or not GEMINI_KEY:
         return headlines[:5]
     
@@ -217,20 +216,16 @@ def filter_core_news_with_gemini(headlines, stock_name):
         filtered = [line.strip().lstrip('1234567890.-•* ') for line in response.text.strip().split('\n') if line.strip()]
         return filtered[:5] if filtered else headlines[:5]
     except Exception as e:
-        print("Gemini 필터링 건너뛰기 (기본 뉴스로 안전 대체):", e)
+        print("Gemini 필터링 건너뛰기:", e) # 추가
         return headlines[:5]
 
 def fetch_realtime_news(stock_name):
-    # 1. 서버 메모장(캐시) 확인 로직
     now = time.time()
     if stock_name in NEWS_CACHE:
         cached_time, cached_news = NEWS_CACHE[stock_name]
-        # 저장된 지 10분(600초)이 지나지 않았다면, 구글 API 부르지 않고 기존 뉴스 바로 반환! (돈/한도 방어 완료)
         if now - cached_time < CACHE_TTL:
-            print(f"[{stock_name}] 메모장에 저장된 뉴스를 바로 꺼내서 보여줍니다. (API 호출 안 함)")
             return cached_news
 
-    # 2. 메모장에 없거나 10분이 지났으면 새로 검색 시작
     try:
         query = urllib.parse.quote(f"{stock_name}")
         url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
@@ -252,18 +247,15 @@ def fetch_realtime_news(stock_name):
                     clean = title.strip().strip('"\'“”')
                     if clean:
                         headlines.append(clean)
-                    if len(headlines) >= 12:  # AI가 5개를 넉넉히 선별할 수 있도록 12개 수집
+                    if len(headlines) >= 12:
                         break
             
-            # 수집된 뉴스 12개 중 가장 핵심적인 5개 뉴스(호재/악재)만 AI로 선별
             filtered_news = filter_core_news_with_gemini(headlines, stock_name)
-            
-            # 3. 새로 골라낸 뉴스를 다음 사람들을 위해 서버 메모장에 저장!
             NEWS_CACHE[stock_name] = (now, filtered_news)
-            print(f"[{stock_name}] 구글 AI로 새로 정리해서 메모장에 업데이트 완료!")
             
             return filtered_news
-    except Exception:
+    except Exception as e:
+        print("구글 뉴스 검색 예외:", e) # 추가
         return []
 
 def format_shares(n):
@@ -414,7 +406,6 @@ def analyze():
         resistance_price = 0.0
         supply_content = ""
 
-        # 1. 국내 주식
         if is_krw and clean_code:
             cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
@@ -448,7 +439,6 @@ def analyze():
                 else:
                     supply_content = f"{tag_line}\n\n최근 5일간 세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
 
-        # 2. 미국 주식
         else:
             cur_p, prev_p, ma20_val, res_val = fetch_yahoo_direct_v8(ticker_symbol)
             if cur_p and prev_p:
@@ -485,13 +475,12 @@ def analyze():
                             supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
                         else:
                             supply_content = f"{tag_line}\n\n최근 5일간 월가 세력들이 팽팽하게 눈치싸움 중이야.\n상승과 하락 양쪽에 돈이 비슷하게 걸려 있는 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
-            except Exception:
-                pass
+            except Exception as e:
+                print("옵션 데이터 예외:", e) # 원상복구
 
         if not supply_content:
             supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
 
-        # 3. 등락률 분기
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
@@ -513,7 +502,6 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
-        # 캐시가 적용된 뉴스 가져오기
         news_list = fetch_realtime_news(raw_name)
         news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else f"📰 \"{raw_name} 관련 메이저 재료 포착\""
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
@@ -540,7 +528,7 @@ def analyze():
         return jsonify({"sections": sections})
 
     except Exception as e:
-        print("전체 예외 안전 복구 가동:", e)
+        print("전체 예외 안전 복구 가동:", e) # 원상복구
         return jsonify({
             "sections": [
                 {
