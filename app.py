@@ -6,6 +6,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import json
 import datetime
+import time
 import os
 import re
 import math
@@ -23,6 +24,12 @@ if GEMINI_KEY:
         genai.configure(api_key=GEMINI_KEY)
     except Exception as e:
         print("Gemini API 설정 예외:", e)
+
+# ---------------------------------------------------------
+# [핵심] 무료 한도 보호를 위한 뉴스 캐싱(메모장) 설정
+# ---------------------------------------------------------
+NEWS_CACHE = {}      # AI가 정리한 뉴스를 임시 저장할 딕셔너리
+CACHE_TTL = 86400      # 24시간 = 하루 종일 똑같은 호재 뉴스 유지
 
 US_KOREAN_NAMES = {
     'ORCL': '오라클 ORCL',
@@ -214,6 +221,16 @@ def filter_core_news_with_gemini(headlines, stock_name):
         return headlines[:5]
 
 def fetch_realtime_news(stock_name):
+    # 1. 서버 메모장(캐시) 확인 로직
+    now = time.time()
+    if stock_name in NEWS_CACHE:
+        cached_time, cached_news = NEWS_CACHE[stock_name]
+        # 저장된 지 10분(600초)이 지나지 않았다면, 구글 API 부르지 않고 기존 뉴스 바로 반환! (돈/한도 방어 완료)
+        if now - cached_time < CACHE_TTL:
+            print(f"[{stock_name}] 메모장에 저장된 뉴스를 바로 꺼내서 보여줍니다. (API 호출 안 함)")
+            return cached_news
+
+    # 2. 메모장에 없거나 10분이 지났으면 새로 검색 시작
     try:
         query = urllib.parse.quote(f"{stock_name}")
         url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
@@ -239,7 +256,13 @@ def fetch_realtime_news(stock_name):
                         break
             
             # 수집된 뉴스 12개 중 가장 핵심적인 5개 뉴스(호재/악재)만 AI로 선별
-            return filter_core_news_with_gemini(headlines, stock_name)
+            filtered_news = filter_core_news_with_gemini(headlines, stock_name)
+            
+            # 3. 새로 골라낸 뉴스를 다음 사람들을 위해 서버 메모장에 저장!
+            NEWS_CACHE[stock_name] = (now, filtered_news)
+            print(f"[{stock_name}] 구글 AI로 새로 정리해서 메모장에 업데이트 완료!")
+            
+            return filtered_news
     except Exception:
         return []
 
@@ -490,7 +513,7 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
-        # 실시간 뉴스 5개 출력
+        # 캐시가 적용된 뉴스 가져오기
         news_list = fetch_realtime_news(raw_name)
         news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else f"📰 \"{raw_name} 관련 메이저 재료 포착\""
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
