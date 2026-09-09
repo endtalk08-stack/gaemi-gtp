@@ -445,10 +445,10 @@
       }
 
       // 1. [핑크] 악성 매물대 (백엔드 실제 최근 고점 반영)
-      const pinkVal = foundRes ? roundTick(foundRes) : roundTick(foundPrice * 1.065);
+      const pinkVal = (foundRes && foundRes > foundPrice) ? roundTick(foundRes) : roundTick(foundPrice * 1.065);
 
-      // 2. [블루] 생존 지지선 (백엔드 실제 20일 이동평균선 정확히 반영)
-      const blueVal = foundMa20 ? roundTick(foundMa20) : roundTick(foundPrice * 0.935);
+      // 2. [블루] 생존 지지선 (20일선이 현재가보다 아래일 때만 사용, 깨졌으면 현재가 -6.5%)
+      const blueVal = (foundMa20 && foundMa20 < foundPrice) ? roundTick(foundMa20) : roundTick(foundPrice * 0.935);
 
       // 3. [옐로우] 여기까지 버텨줘 (현재가와 20일선 사이의 단기 1차 지지선)
       let yellowVal;
