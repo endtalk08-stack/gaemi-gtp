@@ -526,15 +526,15 @@
         // 2. "여기 깨지면 도망쳐" 섹션: 본문 주가(180만 원대)에 정확히 맞춘 3대 가격 반영
         if (isSurvivalSection) {
           dynamicTitle = "여기 깨지면 도망쳐";
-          text = `여기서 막힐 수 있어 ${syncData.pinkPrice}\n` +
-                 `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이다! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
-                 `#악성매물대 #시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라\n\n` +
+          text = `악성 매물대 ${syncData.pinkPrice}\n` +
+                 `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
+                 `#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라\n\n` +
                  `여기까지 버텨줘 ${syncData.yellowPrice}\n` +
-                 `"여긴 지켜줘야 사람 구실 한다! 지지선 깨지면 실망 매물 쏟아지면서 으악 소리 난다. 일단 버티되, 무너지면 비중부터 줄여라. 알았제?"\n` +
+                 `"여긴 지켜줘야 사람 구실 한다! 지지선 깨지면 실망 매물 쏟아지면서 으악 소리 난는거야. 일단 버티되, 무너지면 비중부터 줄여라. 알았제?"\n` +
                  `#존버모드ON #눈치싸움 #깨지면_반털어라 #아직은_숨참기\n\n` +
-                 `무너지면 도망쳐 ${syncData.bluePrice}\n` +
+                 `생존 지지선 ${syncData.bluePrice}\n` +
                  `여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!\n` +
-                 `#생존 지지선 #빤스런 #뒤도보지마 #생존이_우선 #미련버려`;
+                 `#빤스런 #뒤도보지마 #생존이_우선 #미련버려`;
         }
 
         const textBlock = document.createElement('div');
@@ -563,15 +563,15 @@
 
             try {
               if (isSurvivalSection) {
-                formatted = `<span class="font-bold" style="color: #FF8DA1;">여기서 막힐 수 있어 ${syncData.pinkPrice}</span>\n` +
-                            `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이다! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
-                            `<span class="font-bold" style="color: #FF8DA1;">#악성매물대 #시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라</span>\n\n` +
+                formatted = `<span class="font-bold" style="color: #FF8DA1;">악성 매물대 ${syncData.pinkPrice}</span>\n` +
+                            `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
+                            `<span class="font-bold" style="color: #FF8DA1;">#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라</span>\n\n` +
                             `<span class="font-bold" style="color: #FBBF24;">여기까지 버텨줘 ${syncData.yellowPrice}</span>\n` +
-                            `"여긴 지켜줘야 사람 구실 한다! 지지선 깨지면 실망 매물 쏟아지면서 으악 소리 난다. 일단 버티되, 무너지면 비중부터 줄여라. 알았제?"\n` +
+                            `"여긴 지켜줘야 사람 구실 한다! 지지선 깨지면 실망 매물 쏟아지면서 으악 소리 난는거야. 일단 버티되, 무너지면 비중부터 줄여라. 알았제?"\n` +
                             `<span class="font-bold" style="color: #FBBF24;">#존버모드ON #눈치싸움 #깨지면_반털어라 #아직은_숨참기</span>\n\n` +
-                            `<span class="font-bold" style="color: #38BDF8;">무너지면 도망쳐 ${syncData.bluePrice}</span>\n` +
+                            `<span class="font-bold" style="color: #38BDF8;">생존 지지선 ${syncData.bluePrice}</span>\n` +
                             `여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!\n` +
-                            `<span class="font-bold" style="color: #38BDF8;">#생존 지지선 #빤스런 #뒤도보지마 #생존이_우선 #미련버려</span>`;
+                            `<span class="font-bold" style="color: #38BDF8;">#빤스런 #뒤도보지마 #생존이_우선 #미련버려</span>`;
               } else {
                 formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
                 formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
