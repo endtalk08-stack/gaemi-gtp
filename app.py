@@ -42,7 +42,10 @@ def check_groq_access():
     url = "https://api.groq.com/openai/v1/models"
     req = urllib.request.Request(
         url,
-        headers={"Authorization": f"Bearer {GROQ_KEY}"},
+        headers={
+            "Authorization": f"Bearer {GROQ_KEY}",
+            "User-Agent": "gaemiGTP/1.0"
+        },
         method="GET"
     )
 
@@ -263,7 +266,8 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
             data=req_data,
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {GROQ_KEY}"
+                "Authorization": f"Bearer {GROQ_KEY}",
+                "User-Agent": "gaemiGTP/1.0"
             },
             method="POST"
         )
