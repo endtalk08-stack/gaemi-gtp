@@ -6,11 +6,13 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import json
 import datetime
-import time
 import os
 import re
 import math
 import google.generativeai as genai
+
+# 레디스(Redis) 라이브러리 불러오기
+from upstash_redis import Redis
 
 app = Flask(__name__)
 CORS(app)
@@ -26,10 +28,19 @@ if GEMINI_KEY:
         print("Gemini API 설정 예외:", e)
 
 # ---------------------------------------------------------
-# 뉴스 24시간 고정 (과금 100% 방어)
+# [정석] Upstash Redis 연결 설정
+# Render 환경변수에 등록한 URL과 TOKEN을 자동으로 가져옵니다.
 # ---------------------------------------------------------
-NEWS_CACHE = {}      
-CACHE_TTL = 86400    
+REDIS_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
+REDIS_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+redis_client = None
+
+if REDIS_URL and REDIS_TOKEN:
+    try:
+        redis_client = Redis(url=REDIS_URL, token=REDIS_TOKEN)
+        print("✅ Redis 캐시 서버 연결 성공!")
+    except Exception as e:
+        print("❌ Redis 연결 실패:", e)
 
 US_KOREAN_NAMES = {
     'ORCL': '오라클 ORCL',
@@ -113,7 +124,7 @@ def search_krx_code(stock_name):
                 suffix = '.KS' if 'KOSPI' in market else '.KQ'
                 return f"{code}{suffix}", code
     except Exception as e:
-        print("네이버 종목검색 예외:", e) # 원상복구
+        print("네이버 종목검색 예외:", e)
     return None, None
 
 def fetch_kr_stock_realtime(code_six):
@@ -134,7 +145,7 @@ def fetch_kr_stock_realtime(code_six):
                 ratio = float(str(item.get('fluctuationsRatio', 0)).replace(',', ''))
                 return cur_p, diff, ratio
     except Exception as e:
-        print("네이버 실시간 시세 조회 예외:", e) # 원상복구
+        print("네이버 실시간 시세 조회 예외:", e)
     return None, None, None
 
 def fetch_krx_trend_and_supply(code_six):
@@ -176,29 +187,26 @@ def fetch_krx_trend_and_supply(code_six):
 
                 return ma20, resistance, sum_foreign, sum_inst, sum_indiv, valid_days
     except Exception as e:
-        print("네이버 수급 집계 예외:", e) # 원상복구
+        print("네이버 수급 집계 예외:", e)
     return 0, 0, None, None, None, 0
 
 def fetch_yahoo_direct_v8(ticker_str):
     try:
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker_str}?range=1mo&interval=1d"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            res = data.get('chart', {}).get('result', [])
-            if res:
-                quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
-                closes = [c for c in quotes.get('close', []) if c is not None and not math.isnan(c)]
-                highs = [h for h in quotes.get('high', []) if h is not None and not math.isnan(h)]
-                if len(closes) >= 2:
-                    cur_p = float(closes[-1])
-                    prev_p = float(closes[-2])
-                    ma20 = sum(closes) / len(closes)
-                    res_p = max(highs) if highs else cur_p * 1.05
-                    return cur_p, prev_p, ma20, res_p
+        stock = yf.Ticker(ticker_str)
+        hist = stock.history(period="1mo")
+        if not hist.empty and len(hist) >= 2:
+            cur_p = float(hist['Close'].iloc[-1])
+            prev_p = float(hist['Close'].iloc[-2])
+            
+            closes = hist['Close'].dropna().tolist()
+            ma20 = sum(closes) / len(closes) if closes else cur_p
+            
+            highs = hist['High'].dropna().tolist()
+            res_p = max(highs) if highs else cur_p * 1.05
+            
+            return cur_p, prev_p, ma20, res_p
     except Exception as e:
-        print("미국 야후 v8 예외:", e) # 원상복구
+        print("미국 주식 야후 데이터 차단 예외:", e)
     return None, None, None, None
 
 def filter_core_news_with_gemini(headlines, stock_name):
@@ -216,16 +224,23 @@ def filter_core_news_with_gemini(headlines, stock_name):
         filtered = [line.strip().lstrip('1234567890.-•* ') for line in response.text.strip().split('\n') if line.strip()]
         return filtered[:5] if filtered else headlines[:5]
     except Exception as e:
-        print("Gemini 필터링 건너뛰기:", e) # 추가
+        print("Gemini 필터링 건너뛰기:", e)
         return headlines[:5]
 
 def fetch_realtime_news(stock_name):
-    now = time.time()
-    if stock_name in NEWS_CACHE:
-        cached_time, cached_news = NEWS_CACHE[stock_name]
-        if now - cached_time < CACHE_TTL:
-            return cached_news
+    cache_key = f"news_cache_{stock_name}"
+    
+    # 1. 서버가 재부팅되어도 안전한 Redis에서 24시간 고정 뉴스 꺼내오기
+    if redis_client:
+        try:
+            cached_data = redis_client.get(cache_key)
+            if cached_data:
+                print(f"[{stock_name}] Redis DB에서 뉴스 불러옴 (무료 한도 보호중!)")
+                return cached_data
+        except Exception as e:
+            print("Redis 읽기 에러:", e)
 
+    # 2. Redis에 없으면 (하루가 지났거나 처음 검색할 때) 새로 찾기
     try:
         query = urllib.parse.quote(f"{stock_name}")
         url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
@@ -251,11 +266,18 @@ def fetch_realtime_news(stock_name):
                         break
             
             filtered_news = filter_core_news_with_gemini(headlines, stock_name)
-            NEWS_CACHE[stock_name] = (now, filtered_news)
             
+            # 3. 새로 찾은 뉴스를 Redis DB에 24시간(86400초) 동안 저장!
+            if redis_client and filtered_news:
+                try:
+                    redis_client.setex(cache_key, 86400, filtered_news)
+                    print(f"[{stock_name}] Redis DB에 하루치 뉴스 저장 완료!")
+                except Exception as e:
+                    print("Redis 쓰기 에러:", e)
+                    
             return filtered_news
     except Exception as e:
-        print("구글 뉴스 검색 예외:", e) # 추가
+        print("구글 뉴스 검색 예외:", e)
         return []
 
 def format_shares(n):
@@ -476,10 +498,10 @@ def analyze():
                         else:
                             supply_content = f"{tag_line}\n\n최근 5일간 월가 세력들이 팽팽하게 눈치싸움 중이야.\n상승과 하락 양쪽에 돈이 비슷하게 걸려 있는 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
             except Exception as e:
-                print("옵션 데이터 예외:", e) # 원상복구
+                print("옵션 데이터 예외:", e)
 
         if not supply_content:
-            supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
+            supply_content = "미국 주식은 실시간 옵션 데이터(콜/풋)로 큰손들의 방향성을 분석합니다.\n아직 장 시작 전이거나 옵션 거래량이 적어 방향성이 명확하지 않은 상태입니다. 20일 이동평균선을 생존 지지선으로 잡고 대응하세요."
 
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
@@ -528,7 +550,7 @@ def analyze():
         return jsonify({"sections": sections})
 
     except Exception as e:
-        print("전체 예외 안전 복구 가동:", e) # 원상복구
+        print("전체 예외 안전 복구 가동:", e)
         return jsonify({
             "sections": [
                 {
