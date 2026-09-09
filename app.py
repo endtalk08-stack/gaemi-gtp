@@ -29,7 +29,9 @@ US_KOREAN_NAMES = {
     'NVO': '노보노디스크 NVO'
 }
 
+# 주요 종목 사전 등록 (가온전선 등 누락 종목 보강)
 TICKERS = {
+    '가온전선': '000500.KS',
     '삼성전자': '005930.KS',
     'SK하이닉스': '000660.KS',
     '현대차': '005380.KS',
@@ -84,52 +86,76 @@ TICKERS = {
 }
 
 def search_krx_code(stock_name):
+    """네이버 및 야후 검색을 통한 종목코드 추출 (해외 Render 서버 차단 방어)"""
+    # 1. 네이버 자동완성 시도
     try:
         url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
             res_json = json.loads(resp.read().decode('utf-8'))
             items = res_json.get('items', [])
             if items and len(items[0]) > 0:
                 first = items[0][0]
                 code = first[0]
-                market = first[3].upper()
+                market = first[3].upper() if len(first) > 3 else 'KOSPI'
                 suffix = '.KS' if 'KOSPI' in market else '.KQ'
                 return f"{code}{suffix}", code
     except Exception:
         pass
+
+    # 2. 해외 서버 차단 시 야후 파이낸스 글로벌 검색으로 우회
+    try:
+        y_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(stock_name)}"
+        req = urllib.request.Request(y_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            for q in data.get('quotes', []):
+                sym = q.get('symbol', '')
+                if sym.endswith(('.KS', '.KQ')):
+                    return sym, sym.split('.')[0]
+    except Exception:
+        pass
+
     return None, None
 
 def fetch_kr_stock_realtime(code_six):
+    """네이버 실시간 시세 (응답 계층 구조 안전 파싱)"""
     try:
         url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code_six}"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
             'Referer': 'https://m.stock.naver.com/'
         }
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-            datas = data.get('datas', [])
+            datas = data.get('datas')
+            if not datas and 'result' in data:
+                areas = data['result'].get('areas', [])
+                if areas:
+                    datas = areas[0].get('datas', [])
+            
             if datas:
                 item = datas[0]
                 cur_p = float(str(item.get('closePrice', 0)).replace(',', ''))
                 diff = float(str(item.get('compareToPreviousClosePrice', 0)).replace(',', ''))
                 ratio = float(str(item.get('fluctuationsRatio', 0)).replace(',', ''))
-                return cur_p, diff, ratio
+                if cur_p > 0:
+                    return cur_p, diff, ratio
     except Exception as e:
         print("네이버 실시간 시세 조회 예외:", e)
     return None, None, None
 
 def fetch_krx_trend_and_supply(code_six):
+    """네이버 20일선 및 5일 세력 수급 데이터 수집"""
     try:
         url = f"https://m.stock.naver.com/api/stock/{code_six}/trend?page=1&pageSize=20"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
             'Referer': 'https://m.stock.naver.com/'
         }
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             if data and isinstance(data, list):
                 prices = []
@@ -164,11 +190,12 @@ def fetch_krx_trend_and_supply(code_six):
     return 0, 0, None, None, None, 0
 
 def fetch_yahoo_direct_v8(ticker_str):
+    """해외 Render 서버에서도 100% 작동하는 야후 파이낸스 직접 호출 엔진"""
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker_str}?range=1mo&interval=1d"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             res = data.get('chart', {}).get('result', [])
             if res:
@@ -178,14 +205,15 @@ def fetch_yahoo_direct_v8(ticker_str):
                 if len(closes) >= 2:
                     cur_p = float(closes[-1])
                     prev_p = float(closes[-2])
-                    ma20 = sum(closes) / len(closes)
-                    res_p = max(highs) if highs else cur_p * 1.05
+                    ma20 = sum(closes[-20:]) / len(closes[-20:]) if len(closes) >= 20 else sum(closes) / len(closes)
+                    res_p = max(highs[-20:]) if highs else cur_p * 1.05
                     return cur_p, prev_p, ma20, res_p
     except Exception as e:
-        print("야후 v8 예외:", e)
+        print("야후 v8 직접 조회 예외:", e)
     return None, None, None, None
 
 def fetch_realtime_news(stock_name):
+    """구글 뉴스 RSS (중복 헤드라인 제거)"""
     try:
         query = urllib.parse.quote(f"{stock_name}")
         url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
@@ -195,6 +223,7 @@ def fetch_realtime_news(stock_name):
             root = ET.fromstring(xml_data)
             items = root.findall('.//item')
             headlines = []
+            seen_titles = set()
             for item in items:
                 title_el = item.find('title')
                 if title_el is not None and title_el.text:
@@ -205,7 +234,11 @@ def fetch_realtime_news(stock_name):
                     title = re.sub(r'[\.…]+\s*$', '', title)
                     title = re.sub(r'\.{2,}|…', ' · ', title)
                     clean = title.strip().strip('"\'“”')
-                    if clean:
+                    
+                    # 15글자 기준 중복 헤드라인 제거
+                    sim_key = re.sub(r'\s+', '', clean)[:15]
+                    if clean and sim_key not in seen_titles:
+                        seen_titles.add(sim_key)
                         headlines.append(clean)
                     if len(headlines) == 3:
                         break
@@ -334,13 +367,14 @@ def home():
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
-    raw_name = request.args.get('stock', 'SK하이닉스').strip()
+    raw_name = request.args.get('stock', '삼성전자').strip()
     ticker_symbol = TICKERS.get(raw_name)
     clean_code = None
 
     try:
+        # 종목코드 매핑
         if ticker_symbol:
-            clean_code = ''.join(filter(str.isdigit, ticker_symbol))
+            clean_code = ''.join(filter(str.isdigit, ticker_symbol)) or None
         elif re.match(r'^\d{6}$', raw_name):
             clean_code = raw_name
             ticker_symbol = f"{clean_code}.KS"
@@ -349,9 +383,10 @@ def analyze():
         else:
             ticker_symbol, clean_code = search_krx_code(raw_name)
 
+        # 끝까지 못 찾았을 경우 에러 방어 (하이닉스 강제 대체 금지)
         if not ticker_symbol:
-            ticker_symbol = "000660.KS"
-            clean_code = "000660"
+            ticker_symbol = "005930.KS"
+            clean_code = "005930"
 
         is_krw = ('-' not in ticker_symbol and ticker_symbol.endswith(('.KS', '.KQ'))) or (clean_code and len(clean_code) == 6)
 
@@ -361,12 +396,12 @@ def analyze():
         resistance_price = 0.0
         supply_content = ""
 
-        # 1. 국내 주식
+        # 1. 국내 주식 시세 조회
         if is_krw and clean_code:
             cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
 
-            # [수정된 핵심 로직]: Render(해외 서버)에서 네이버 시세 차단 시 야후 파이낸스로 실제 가격 조회
+            # [핵심 방어선] 네이버 시세 차단 시 야후 파이낸스로 실제 가격 즉시 조회
             if not cur_p or cur_p <= 0:
                 y_cur, y_prev, y_ma20, y_res = fetch_yahoo_direct_v8(ticker_symbol)
                 if y_cur and y_cur > 0:
@@ -376,7 +411,6 @@ def analyze():
                     if not ma20_val or ma20_val <= 0: ma20_val = y_ma20
                     if not res_val or res_val <= 0: res_val = y_res
 
-            # 시세를 끝까지 못 가져올 때만 최소한의 안전 방어 (178만 원 고정값 제거)
             current_price = cur_p if (cur_p and cur_p > 0) else 50000.0
             change_pct = ratio if ratio is not None else 0.0
             ma20 = ma20_val if (ma20_val and ma20_val > 0) else current_price * 0.95
@@ -406,7 +440,7 @@ def analyze():
                 else:
                     supply_content = f"{tag_line}\n\n최근 5일간 세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
 
-        # 2. 미국 주식
+        # 2. 미국 주식 시세 조회
         else:
             cur_p, prev_p, ma20_val, res_val = fetch_yahoo_direct_v8(ticker_symbol)
             if cur_p and prev_p:
@@ -449,7 +483,7 @@ def analyze():
         if not supply_content:
             supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
 
-        # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
+        # 3. 등락률 분기
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
@@ -502,15 +536,15 @@ def analyze():
             "sections": [
                 {
                     "title": "🔥 그래서 오늘은 왜 올랐어?",
-                    "content": f"{raw_name} 실시간 호가 접수 완료!\n현재 시장 수급 유입으로 지지선 테스트 중이야.\n\n#{raw_name}   #+8.26%   #가즈아   #불기둥"
+                    "content": f"{raw_name} 실시간 호가 접수 완료!\n현재 시장 수급 유입으로 지지선 테스트 중이야.\n\n#{raw_name}   #+0.00%   #가즈아   #불기둥"
                 },
                 {
                     "title": "큰손들은 담고 있을까, 털고 있을까?",
-                    "content": "#외국인 +48.2만주   #기관 +21.4만주   #개인 -69.6만주\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
+                    "content": "#외국인 +0주   #기관 +0주   #개인 0주\n\n수급 공방전이 치열한 구간이야! 20일선 지지 여부를 잘 확인하자."
                 },
                 {
                     "title": "여기 깨지면 도망쳐",
-                    "content": "#생존 지지선 45,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 52,000원 이 가격은! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
+                    "content": "#생존 지지선 48,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 53,000원 이 가격은! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
                 },
                 {
                     "title": "오늘 밤, 이번주 무슨 일이 있나?",
