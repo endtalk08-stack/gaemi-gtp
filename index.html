@@ -515,11 +515,11 @@
         // 1. 첫 섹션 타이틀: 본문에서 읽어온 실제 등락률(+0.67% 등)을 제목에 100% 동기화
         if (isConditionSection && !isSurvivalSection) {
           if (syncData.sign === 'up') {
-            dynamicTitle = `오늘 왜 상승했을까? (${syncData.rateStr})`;
+            dynamicTitle = `오늘 왜 상승했을까?`;
           } else if (syncData.sign === 'down') {
-            dynamicTitle = `오늘 왜 파란불일까? (${syncData.rateStr})`;
+            dynamicTitle = `오늘 왜 파란불일까?`;
           } else {
-            dynamicTitle = `오늘 왜 보합일까? (${syncData.rateStr})`;
+            dynamicTitle = `오늘 왜 보합일까?`;
           }
         }
 
