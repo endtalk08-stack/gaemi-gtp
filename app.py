@@ -3,6 +3,7 @@ from flask_cors import CORS
 import urllib.request
 import urllib.error
 import urllib.parse
+import xml.etree.ElementTree as ET
 import json
 import datetime
 import os
@@ -24,21 +25,6 @@ redis_client = None
 # Groq API 접근 진단 결과는 프로세스당 1회만 확인해 반복 호출을 막는다.
 GROQ_DIAG = None
 GROQ_MODEL = "qwen/qwen3.6-27b"
-FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip("\'\"")
-
-# 미국 주식 입력 보정(자주 쓰는 종목만 별칭 제공, 나머지는 Finnhub 검색으로 찾음)
-US_NAME_ALIASES = {
-    '엔비디아': 'NVDA', 'NVIDIA': 'NVDA',
-    '테슬라': 'TSLA', 'TESLA': 'TSLA',
-    '애플': 'AAPL', 'APPLE': 'AAPL',
-    '마이크로소프트': 'MSFT', 'MICROSOFT': 'MSFT',
-    '아마존': 'AMZN', 'AMAZON': 'AMZN',
-    '메타': 'META', 'META': 'META',
-    '브로드컴': 'AVGO', 'BROADCOM': 'AVGO',
-    '마이크론': 'MU', 'MICRON': 'MU',
-    'AMD': 'AMD', '인텔': 'INTC', 'INTEL': 'INTC',
-    '구글': 'GOOGL', '알파벳': 'GOOGL', 'GOOGLE': 'GOOGL',
-}
 
 def check_groq_access():
     """
@@ -111,7 +97,26 @@ TICKERS = {
     '카카오': '035720', '카카오페이': '377300', '카카오뱅크': '323410',
     'NAVER': '035420', '네이버': '035420', 'LG에너지솔루션': '373220',
     '삼성바이오로직스': '207940', 'POSCO홀딩스': '005490', '포스코홀딩스': '005490',
-    '한미반도체': '042700', '가온전선': '000500'
+    '한미반도체': '042700', '가온전선': '000500',
+    # 미국주식
+    '엔비디아': 'NVDA', 'NVDA': 'NVDA',
+    '테슬라': 'TSLA', 'TSLA': 'TSLA',
+    '애플': 'AAPL', 'AAPL': 'AAPL',
+    '마이크로소프트': 'MSFT', 'MSFT': 'MSFT',
+    '아마존': 'AMZN', 'AMZN': 'AMZN',
+    '구글': 'GOOGL', 'GOOGL': 'GOOGL',
+    '메타': 'META', 'META': 'META',
+    '브로드컴': 'AVGO', 'AVGO': 'AVGO',
+    '마이크론': 'MU', 'MU': 'MU',
+    '오라클': 'ORCL', 'ORCL': 'ORCL',
+    '어도비': 'ADBE', 'ADBE': 'ADBE',
+    '팔란티어': 'PLTR', 'PLTR': 'PLTR'
+}
+
+US_KOREAN_NAMES = {
+    'NVDA': '엔비디아', 'TSLA': '테슬라', 'AAPL': '애플', 'MSFT': '마이크로소프트',
+    'AMZN': '아마존', 'GOOGL': '구글', 'META': '메타', 'AVGO': '브로드컴',
+    'MU': '마이크론', 'ORCL': '오라클', 'ADBE': '어도비', 'PLTR': '팔란티어'
 }
 
 PRELOAD_TARGETS = [
@@ -120,98 +125,6 @@ PRELOAD_TARGETS = [
     ('알테오젠', '196170'), ('카카오', '035720'), ('네이버', '035420'),
     ('LG에너지솔루션', '373220'), ('한미반도체', '042700'), ('가온전선', '000500')
 ]
-
-def finnhub_get(path, params):
-    """Finnhub REST 공통 호출. API 키는 URL에만 붙이고 로그에는 절대 출력하지 않는다."""
-    if not FINNHUB_KEY:
-        return None
-    query = dict(params or {})
-    query['token'] = FINNHUB_KEY
-    url = 'https://finnhub.io/api/v1/' + path + '?' + urllib.parse.urlencode(query)
-    req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=3.0) as resp:
-            return json.loads(resp.read().decode('utf-8'))
-    except Exception as e:
-        print(f'⚠️ Finnhub {path} 오류: {type(e).__name__}')
-        return None
-
-def resolve_us_symbol(stock_name):
-    """미국 종목명/티커를 Finnhub 심볼로 변환한다."""
-    raw = stock_name.strip()
-    alias = US_NAME_ALIASES.get(raw) or US_NAME_ALIASES.get(raw.upper())
-    if alias:
-        return alias
-    if re.fullmatch(r'[A-Za-z]{1,5}', raw):
-        return raw.upper()
-    data = finnhub_get('search', {'q': raw})
-    if isinstance(data, dict):
-        results = data.get('result', [])
-        for item in results:
-            symbol = str(item.get('symbol', ''))
-            typ = str(item.get('type', '')).lower()
-            if symbol and ('common stock' in typ or typ == 'stock'):
-                return symbol
-        if results:
-            symbol = str(results[0].get('symbol', ''))
-            if symbol:
-                return symbol
-    return None
-
-def is_us_stock_input(stock_name):
-    raw = stock_name.strip()
-    if raw in US_NAME_ALIASES or raw.upper() in US_NAME_ALIASES:
-        return True
-    return bool(re.fullmatch(r'[A-Za-z]{1,5}', raw))
-
-def fetch_us_stock_data(symbol):
-    """Finnhub quote + candle 기반 미국주식 가격/20일 평균/최근 고점."""
-    quote = finnhub_get('quote', {'symbol': symbol})
-    if not isinstance(quote, dict) or quote.get('c') is None:
-        return None, None, None, 0, 0, 0
-
-    current = float(quote.get('c') or 0)
-    prev = float(quote.get('pc') or 0)
-    change_pct = float(quote.get('dp') or 0)
-
-    end = int(time.time())
-    start = end - 45 * 86400
-    candles = finnhub_get('stock/candle', {
-        'symbol': symbol, 'resolution': 'D', 'from': start, 'to': end
-    })
-    closes = []
-    volumes = []
-    if isinstance(candles, dict) and candles.get('s') == 'ok':
-        closes = [float(x) for x in candles.get('c', []) if x is not None]
-        volumes = [float(x) for x in candles.get('v', []) if x is not None]
-    recent = closes[-20:] if closes else []
-    ma20 = sum(recent) / len(recent) if recent else current * 0.95
-    resistance = max(recent) if recent else current * 1.05
-    volume = volumes[-1] if volumes else 0
-    avg_volume = sum(volumes[-20:]) / len(volumes[-20:]) if volumes[-20:] else 0
-    return current, change_pct, prev, ma20, resistance, volume, avg_volume
-
-def fetch_us_news(symbol):
-    """최근 미국 종목 뉴스 제목 최대 5개. AI는 이 결과만 사용한다."""
-    now = datetime.datetime.now(datetime.timezone.utc).date()
-    from_date = now - datetime.timedelta(days=3)
-    data = finnhub_get('company-news', {
-        'symbol': symbol,
-        'from': from_date.isoformat(),
-        'to': now.isoformat()
-    })
-    titles = []
-    if isinstance(data, list):
-        for item in data:
-            title = str(item.get('headline') or '').strip()
-            if title and title not in titles:
-                titles.append(title)
-            if len(titles) >= 5:
-                break
-    return titles
 
 def search_krx_code(stock_name):
     try:
@@ -293,9 +206,98 @@ def fetch_fast_news(code_six, stock_name):
         titles = [f"{stock_name} 주요 공시 및 호가창 수급 집중", f"{stock_name} 외국인·기관 거래량 변동성 확대"]
     return titles[:3]
 
+def fetch_us_stock_data(ticker):
+    """Yahoo Finance chart API로 미국주식 시세/20일 평균/최근 고점을 수집한다."""
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(ticker)}?range=1mo&interval=1d"
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
+            'Accept': 'application/json'
+        })
+        with urllib.request.urlopen(req, timeout=4.0) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        result = data.get('chart', {}).get('result', [])
+        if not result:
+            return None, None, None, None
+        quote = result[0].get('indicators', {}).get('quote', [{}])[0]
+        closes = [float(x) for x in quote.get('close', []) if x is not None]
+        highs = [float(x) for x in quote.get('high', []) if x is not None]
+        volumes = [float(x) for x in quote.get('volume', []) if x is not None]
+        if len(closes) < 2:
+            return None, None, None, None
+        cur_p = closes[-1]
+        prev_p = closes[-2]
+        ma20 = sum(closes[-20:]) / min(20, len(closes))
+        res_p = max(highs[-20:]) if highs else cur_p * 1.05
+        return cur_p, prev_p, ma20, res_p
+    except Exception as e:
+        print(f"미국 시세 조회 예외({ticker}):", e)
+        return None, None, None, None
+
+
+def fetch_us_option_flow(ticker):
+    """기존 미국주식 옵션 수급 방식: 첫 만기 옵션의 CALL/PUT 거래량과 Put/Call 비율."""
+    try:
+        url = f"https://query1.finance.yahoo.com/v7/finance/options/{urllib.parse.quote(ticker)}"
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
+            'Accept': 'application/json'
+        })
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        result = data.get('optionChain', {}).get('result', [])
+        if not result:
+            return None, None, None
+        opt = result[0].get('options', [{}])[0]
+        calls = opt.get('calls', []) or []
+        puts = opt.get('puts', []) or []
+        call_vol = sum(int(x.get('volume') or 0) for x in calls)
+        put_vol = sum(int(x.get('volume') or 0) for x in puts)
+        if call_vol == 0:
+            call_oi = sum(int(x.get('openInterest') or 0) for x in calls)
+            put_oi = sum(int(x.get('openInterest') or 0) for x in puts)
+            call_vol, put_vol = call_oi, put_oi
+        if call_vol <= 0:
+            return 0, 0, None
+        return call_vol, put_vol, put_vol / call_vol
+    except Exception as e:
+        print(f"미국 옵션 데이터 수집 예외({ticker}):", e)
+        return None, None, None
+
+
+def fetch_us_news(ticker, stock_name):
+    """Google News RSS에서 미국주식 관련 최신 제목을 코드로 수집한다. AI 검색은 하지 않는다."""
+    titles = []
+    try:
+        query = urllib.parse.quote(f"{stock_name} {ticker}")
+        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            root = ET.fromstring(resp.read())
+        for item in root.findall('.//item'):
+            title_el = item.find('title')
+            if title_el is None or not title_el.text:
+                continue
+            clean = re.sub(r'\s*[-–—|]\s*[^-–—|]+$', '', title_el.text).strip()
+            if clean and clean not in titles:
+                titles.append(clean)
+            if len(titles) >= 3:
+                break
+    except Exception as e:
+        print(f"미국 뉴스 조회 예외({ticker}):", e)
+    return titles[:3]
+
+
+def format_option_count(n):
+    if n is None:
+        return "0건"
+    return f"{n/10000:.1f}만건" if n >= 10000 else f"{n:,}건"
+
+
 def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
                    foreign_5d=None, institution_5d=None, individual_5d=None,
-                   calendar_text="", market="KR", volume=0, avg_volume=0):
+                   calendar_text="", option_call=None, option_put=None, option_pc_ratio=None,
+                   market_type="KR"):
     """
     Groq 분석 엔진.
     기존 데이터 수집 구조는 유지하고 Gemini 대신 Groq가 수집된 데이터를 판단한다.
@@ -313,14 +315,24 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
             f"- {title}" for title in (news_list or []) if title
         )
 
-        supply_block = (
-            f"최근 5일 외국인 순매수: {foreign_5d}주\n"
-            f"최근 5일 기관 순매수: {institution_5d}주\n"
-            f"최근 5일 개인 순매수: {individual_5d}주"
-        )
+        if market_type == "US":
+            supply_block = (
+                f"미국주식 옵션 CALL 거래량: {option_call}건\n"
+                f"미국주식 옵션 PUT 거래량: {option_put}건\n"
+                f"Put/Call 비율: {option_pc_ratio}"
+            )
+        else:
+            supply_block = (
+                f"최근 5일 외국인 순매수: {foreign_5d}주\n"
+                f"최근 5일 기관 순매수: {institution_5d}주\n"
+                f"최근 5일 개인 순매수: {individual_5d}주"
+            )
 
         prompt = f"""
-너는 한국 주식의 '왜 올랐을까/왜 내렸을까' 원인을 판단하는 분석 AI다.
+너는 주식의 '왜 올랐을까/왜 내렸을까' 원인을 판단하는 분석 AI다.
+시장: {market_type}
+
+미국주식인 경우 옵션 CALL/PUT과 Put/Call 비율을 수급 판단의 핵심 데이터로 사용하라.
 
 중요 규칙:
 1. 웹 검색을 하지 마라. 제공된 데이터만 분석하라.
@@ -339,12 +351,9 @@ def analyze_fast_ai(stock_name, news_list, current_price=0, change_pct=0,
 8. 퍼센트나 구체적인 가격 숫자는 summary에 쓰지 마라.
 9. 제공되지 않은 사실을 만들어내지 마라.
 
-시장: {market}
 종목: {stock_name}
 현재 주가: {current_price}
 오늘 등락률: {change_pct}%
-거래량: {volume}
-20일 평균 거래량: {avg_volume}
 
 수급:
 {supply_block}
@@ -475,112 +484,117 @@ def get_live_calendar_data():
     )
 
 # ⚡ [엔진 핵심] 단일 종목 데이터 수집 + AI 조리 후 UI 포맷 생성 함수
-def build_stock_payload(stock_name, clean_code, market='KR'):
-    if market == 'US':
-        symbol = clean_code
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            f_market = executor.submit(fetch_us_stock_data, symbol)
-            f_news = executor.submit(fetch_us_news, symbol)
-            market_data = f_market.result()
-            news_list = f_news.result()
+def build_stock_payload(stock_name, clean_code):
+    # 미국주식은 티커가 영문이며, 기존 한국주식 코드(6자리)와 구분한다.
+    is_us = bool(clean_code and re.match(r'^[A-Za-z]+$', clean_code))
 
-        current_price, change_pct, prev_price, ma20, resistance_price, volume, avg_volume = market_data
-        if current_price is None or current_price <= 0:
-            return {"sections": [{"title": f"⚠️ {stock_name} 미국주식 데이터를 가져오지 못했어", "content": "잠시 후 다시 검색해줘!"}]}
+    if is_us:
+        ticker = clean_code.upper()
+        cur_p, prev_p, ma20_val, res_val = fetch_us_stock_data(ticker)
+        current_price = cur_p or 0.0
+        change_pct = ((cur_p - prev_p) / prev_p) * 100 if cur_p is not None and prev_p else 0.0
+        ma20 = ma20_val or (current_price * 0.95 if current_price else 0.0)
+        resistance_price = res_val or (current_price * 1.05 if current_price else 0.0)
+
+        call_vol, put_vol, pc_ratio = fetch_us_option_flow(ticker)
+        news_list = fetch_us_news(ticker, stock_name)
+        if not news_list:
+            news_list = [f"{stock_name} 최신 주요 뉴스 수집 중"]
 
         calendar_text = get_live_calendar_data()
-        # 미국주식은 국내식 외국인/기관 5일 순매수 데이터가 제공되지 않으므로 허위 수급을 만들지 않는다.
-        us_supply = f"거래량 {volume:,.0f}주\n20일 평균 거래량 {avg_volume:,.0f}주"
         ai_reason = analyze_fast_ai(
-            stock_name=f"{stock_name} ({symbol})",
-            news_list=news_list,
+            stock_name,
+            news_list,
             current_price=current_price,
             change_pct=change_pct,
-            foreign_5d=None,
-            institution_5d=None,
-            individual_5d=None,
             calendar_text=calendar_text,
-            market='US',
-            volume=volume,
-            avg_volume=avg_volume
+            option_call=format_option_count(call_vol),
+            option_put=format_option_count(put_vol),
+            option_pc_ratio=f"{pc_ratio:.2f}" if pc_ratio is not None else "데이터 없음",
+            market_type="US"
         )
-
-        if change_pct >= 0.5:
-            status_emoji, title_word = '🔥', '상승했을까'
-            intro_ment = f"{change_pct:+.2f}% 상승 중이야"
-        elif change_pct <= -0.5:
-            status_emoji, title_word = '❄️', '하락했을까'
-            intro_ment = f"{change_pct:+.2f}% 하락 중이야"
-        else:
-            status_emoji, title_word = '⚖️', '보합일까'
-            intro_ment = f"{change_pct:+.2f}%로 눈치싸움 중이야"
 
         price_str = f"${current_price:,.2f}"
         ma20_str = f"${ma20:,.2f}"
         res_str = f"${resistance_price:,.2f}"
-        news_lines = "\n".join([f"📰 {t}" for t in news_list]) if news_list else "📰 최근 수집된 미국 종목 뉴스가 없어"
-        volume_ratio = (volume / avg_volume) if avg_volume > 0 else 0
-        volume_line = f"거래량은 20일 평균 대비 {volume_ratio:.1f}배야." if volume_ratio > 0 else "거래량 비교 데이터가 없어."
 
-        payload = {
-            "sections": [
-                {"title": f"{status_emoji} 오늘 왜 {title_word}?", "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n#{symbol} #{change_pct:+.2f}%", "tags": [f"#{symbol}", f"#{change_pct:+.2f}%"]},
-                {"title": "거래량은 붙었을까?", "content": f"{us_supply}\n\n{volume_line}"},
-                {"title": "여기 깨지면 조심", "content": f"#20일 평균선 {ma20_str}\n\n#최근 20일 고점 {res_str}"},
-                {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": calendar_text}
-            ]
-        }
-        return payload
-
-    # 한국주식 기존 로직
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        f_price = executor.submit(fetch_kr_stock_realtime, clean_code)
-        f_supply = executor.submit(fetch_krx_trend_and_supply, clean_code)
-        f_news = executor.submit(fetch_fast_news, clean_code, stock_name)
-        cur_p, diff, ratio = f_price.result()
-        ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = f_supply.result()
-        news_list = f_news.result()
-
-    calendar_text = get_live_calendar_data()
-    ai_reason = analyze_fast_ai(stock_name, news_list, current_price=cur_p or 0, change_pct=ratio if ratio is not None else 0,
-                                foreign_5d=f_5d, institution_5d=i_5d, individual_5d=ind_5d,
-                                calendar_text=calendar_text, market='KR')
-
-    current_price = cur_p or ma20_val or 0.0
-    change_pct = ratio if ratio is not None else 0.0
-    ma20 = ma20_val if ma20_val else current_price * 0.95
-    resistance_price = res_val if res_val else current_price * 1.05
-    price_str = f"{round_krw_tick(current_price):,}원"
-    ma20_str = f"{round_krw_tick(ma20):,}원"
-    res_str = f"{round_krw_tick(resistance_price):,}원"
-
-    if f_5d is not None and i_5d is not None and v_days > 0:
-        tag_line = f"#외국인 {format_shares(f_5d)}   #기관 {format_shares(i_5d)}   #개인 {format_shares(ind_5d)}"
-        if f_5d > 0 and i_5d > 0:
-            supply_content = f"{tag_line}\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 다져놨으니 흔들려도 버티는 게 맞아."
-        elif f_5d < 0 and i_5d < 0:
-            supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼고 있어.\n절대 무리하게 물타지 말고 조심해야 돼."
-        elif f_5d > 0:
-            supply_content = f"{tag_line}\n\n최근 5일간 외국인이 지친 개미 물량을 싹 쓸어 담았어.\n단기 슈팅 흐름 기대해 봐도 좋아."
+        if call_vol is not None and put_vol is not None and pc_ratio is not None:
+            tag_line = f"#콜 {format_option_count(call_vol)}   #풋 {format_option_count(put_vol)}   #비율 {pc_ratio:.2f}"
+            if pc_ratio <= 0.7:
+                supply_content = f"{tag_line}\n\n최근 옵션 흐름은 콜 쪽이 강해 상방 베팅이 우세한 모습이야.\n콜옵션 거래량이 풋옵션보다 크게 많으면 상승 기대가 상대적으로 강한 구간으로 볼 수 있어."
+            elif pc_ratio >= 1.1:
+                supply_content = f"{tag_line}\n\n최근 옵션 흐름은 풋 쪽이 강해 하방 베팅이 우세한 모습이야.\n풋옵션 거래량이 콜옵션보다 많으면 하락 방어 또는 하방 기대가 상대적으로 커진 구간이야."
+            else:
+                supply_content = f"{tag_line}\n\n콜과 풋이 팽팽하게 맞서고 있어.\n옵션만으로 방향을 단정하기 어려우니 주가와 뉴스 흐름을 함께 확인하자."
         else:
-            supply_content = f"{tag_line}\n\n세력들이 팽팽하게 눈치싸움 중이야. 기준선 지키는지 확인하자."
+            supply_content = "현재 미국 옵션 수급 데이터를 집계 중이야."
     else:
-        supply_content = "현재 수급 데이터를 집계 중이야."
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            f_price = executor.submit(fetch_kr_stock_realtime, clean_code)
+            f_supply = executor.submit(fetch_krx_trend_and_supply, clean_code)
+            f_news = executor.submit(fetch_fast_news, clean_code, stock_name)
+            cur_p, diff, ratio = f_price.result()
+            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = f_supply.result()
+            news_list = f_news.result()
+
+        calendar_text = get_live_calendar_data()
+        ai_reason = analyze_fast_ai(
+            stock_name,
+            news_list,
+            current_price=cur_p or 0,
+            change_pct=ratio if ratio is not None else 0,
+            foreign_5d=f_5d,
+            institution_5d=i_5d,
+            individual_5d=ind_5d,
+            calendar_text=calendar_text,
+            market_type="KR"
+        )
+
+        current_price = cur_p or ma20_val or 0.0
+        change_pct = ratio if ratio is not None else 0.0
+        ma20 = ma20_val if ma20_val else current_price * 0.95
+        resistance_price = res_val if res_val else current_price * 1.05
+        price_str = f"{round_krw_tick(current_price):,}원"
+        ma20_str = f"{round_krw_tick(ma20):,}원"
+        res_str = f"{round_krw_tick(resistance_price):,}원"
+
+        if f_5d is not None and i_5d is not None and v_days > 0:
+            tag_line = f"#외국인 {format_shares(f_5d)}   #기관 {format_shares(i_5d)}   #개인 {format_shares(ind_5d)}"
+            if f_5d > 0 and i_5d > 0:
+                supply_content = f"{tag_line}\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 다져놨으니 흔들려도 버티는 게 맞아."
+            elif f_5d < 0 and i_5d < 0:
+                supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼고 있어.\n절대 무리하게 물타지 말고 조심해야 돼."
+            elif f_5d > 0:
+                supply_content = f"{tag_line}\n\n최근 5일간 외국인이 지친 개미 물량을 싹 쓸어 담았어.\n단기 슈팅 흐름 기대해 봐도 좋아."
+            else:
+                supply_content = f"{tag_line}\n\n세력들이 팽팽하게 눈치싸움 중이야. 기준선 지키는지 확인하자."
+        else:
+            supply_content = "현재 수급 데이터를 집계 중이야."
 
     if change_pct >= 0.5:
-        status_emoji, title_word = '🔥', '상승했을까'; intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
+        status_emoji, title_word = '🔥', '상승했을까'
+        intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
     elif change_pct <= -0.5:
-        status_emoji, title_word = '❄️', '하락했을까'; intro_ment = f"아이고 {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
+        status_emoji, title_word = '❄️', '하락했을까'
+        intro_ment = f"아이고 {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
     else:
-        status_emoji, title_word = '⚖️', '보합일까'; intro_ment = f"{change_pct:+.2f}%로 팽팽한 눈치싸움 중이야"
+        status_emoji, title_word = '⚖️', '보합일까'
+        intro_ment = f"{change_pct:+.2f}%로 팽팽한 눈치싸움 중이야"
 
     news_lines = "\n".join([f"📰 {t}" for t in news_list])
-    return {"sections": [
-        {"title": f"{status_emoji} 오늘 왜 {title_word}?", "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n#{stock_name} #{change_pct:+.2f}%", "tags": [f"#{stock_name}", f"#{change_pct:+.2f}%"]},
-        {"title": "큰손들은 담고 있을까, 털고 있을까?", "content": supply_content},
-        {"title": "여기 깨지면 도망쳐", "content": f"#생존 지지선 {ma20_str} 기억해! 깨지면 비중 줄여!\n\n#악성 매물대 {res_str}\n돌파한다고 무지성 매수 타면 물린다잉!"},
-        {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": calendar_text}
-    ]}
+    payload = {
+        "sections": [
+            {
+                "title": f"{status_emoji} 오늘 왜 {title_word}?",
+                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n#{stock_name} #{change_pct:+.2f}%",
+                "tags": [f"#{stock_name}", f"#{change_pct:+.2f}%"]
+            },
+            {"title": "큰손들은 담고 있을까, 털고 있을까?", "content": supply_content},
+            {"title": "여기 깨지면 도망쳐", "content": f"#생존 지지선 {ma20_str} 기억해! 깨지면 비중 줄여!\n\n#악성 매물대 {res_str}\n돌파한다고 무지성 매수 타면 물린다잉!"},
+            {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": calendar_text}
+        ]
+    }
+    return payload
 
 # ⚡ [백그라운드 워커] 주기적으로 주요 종목을 미리 긁어 Redis에 저장 (사용자는 0.01초 컷)
 def background_collector_loop():
@@ -625,28 +639,22 @@ def analyze():
 
     # 2. 캐시에 없으면(처음 검색된 종목) 즉시 실시간 수집 후 캐시에 구워둠
     clean_code = TICKERS.get(raw_name)
-    market = 'KR'
-    if clean_code:
-        market = 'KR'
-    elif re.match(r'^\d{6}$', raw_name):
-        clean_code = raw_name
-        market = 'KR'
-    else:
-        us_symbol = resolve_us_symbol(raw_name)
-        if us_symbol:
-            clean_code = us_symbol
-            market = 'US'
+    if not clean_code:
+        # 영문 티커는 미국주식으로 바로 처리
+        if re.match(r'^[A-Za-z]{1,6}$', raw_name):
+            clean_code = raw_name.upper()
+        elif re.match(r'^\d{6}$', raw_name):
+            clean_code = raw_name
         else:
             clean_code = search_krx_code(raw_name)
-            market = 'KR' if clean_code else None
 
-    if not clean_code or not market:
+    if not clean_code:
         return jsonify({
             "sections": [{"title": f"⚠️ '{raw_name}' 종목을 찾을 수 없어!", "content": "정확한 종목명이나 6자리 코드로 다시 검색해줘!"}]
         })
 
     try:
-        fresh_payload = build_stock_payload(raw_name, clean_code, market=market)
+        fresh_payload = build_stock_payload(raw_name, clean_code)
         if redis_client:
             try:
                 redis_client.setex(cache_key, 86400, json.dumps(fresh_payload, ensure_ascii=False))
