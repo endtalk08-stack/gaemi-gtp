@@ -194,25 +194,24 @@ def fetch_yahoo_direct_v8(ticker_str):
         print("미국 야후 v8 예외:", e)
     return None, None, None, None
 
-def filter_hojae_news_with_gemini(headlines, stock_name):
-    """구글 무료 AI를 활용해 악재를 쳐내고 호재 뉴스만 엄선 (에러 시 원본 반환)"""
+def filter_core_news_with_gemini(headlines, stock_name):
+    """구글 무료 AI를 활용해 찌라시를 쳐내고 호재/악재 포함 핵심 뉴스만 5개 엄선"""
     if not headlines or not GEMINI_KEY:
-        return headlines[:3]
+        return headlines[:5]
     
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = (
-            f"주식 분석 전문가 관점에서 아래 {stock_name} 관련 뉴스 헤드라인 중 주가 상승에 도움되는 '호재 뉴스'만 최대 3개 골라줘.\n"
-            f"호재가 없다면 가장 중요하고 객관적인 핵심 뉴스 최대 3개를 골라줘.\n"
-            f"설명이나 번호표 없이 헤드라인 내용만 한 줄에 하나씩 출력해.\n\n"
+            f"주식 분석 전문가 관점에서 아래 {stock_name} 관련 뉴스 헤드라인 중, 주가 상승이나 하락에 가장 큰 영향을 미치는 '핵심 뉴스(호재/악재 모두 포함)'를 최대 5개 골라줘.\n"
+            f"단순 광고나 의미 없는 찌라시는 제외하고, 설명이나 번호표 없이 헤드라인 내용만 한 줄에 하나씩 출력해.\n\n"
             + "\n".join(headlines)
         )
         response = model.generate_content(prompt)
         filtered = [line.strip().lstrip('1234567890.-•* ') for line in response.text.strip().split('\n') if line.strip()]
-        return filtered[:3] if filtered else headlines[:3]
+        return filtered[:5] if filtered else headlines[:5]
     except Exception as e:
         print("Gemini 필터링 건너뛰기 (기본 뉴스로 안전 대체):", e)
-        return headlines[:3]
+        return headlines[:5]
 
 def fetch_realtime_news(stock_name):
     try:
@@ -236,11 +235,11 @@ def fetch_realtime_news(stock_name):
                     clean = title.strip().strip('"\'“”')
                     if clean:
                         headlines.append(clean)
-                    if len(headlines) >= 8:  # AI가 판단할 수 있도록 넉넉히 수집
+                    if len(headlines) >= 12:  # AI가 5개를 넉넉히 선별할 수 있도록 12개 수집
                         break
             
-            # 수집된 뉴스 중 호재 뉴스만 AI로 선별
-            return filter_hojae_news_with_gemini(headlines, stock_name)
+            # 수집된 뉴스 12개 중 가장 핵심적인 5개 뉴스(호재/악재)만 AI로 선별
+            return filter_core_news_with_gemini(headlines, stock_name)
     except Exception:
         return []
 
@@ -458,7 +457,7 @@ def analyze():
                         tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
 
                         if pc_ratio <= 0.7:
-                            supply_content = f"{tag_line}\n\n최근 5일간 월가 큰손들이 상방 쪽에 강하게 베팅하고 있어!\n콜옵션 거래량이 풋옵션을 압도하면서 위로 쏠릴 준비를 하고 있으니 탄력 한번 기대해 보자."
+                            supply_content = f"{tag_line}\n\n최근 5일간 월가 큰손들이 상방 쪽에 강하게 베팅하고 있어!\n콜옵션 거래량이 풋옵션을 압도하면서 위로 쏠릴 준비를 평하고 있으니 탄력 한번 기대해 보자."
                         elif pc_ratio >= 1.1:
                             supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
                         else:
@@ -491,7 +490,7 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
-        # 실시간 뉴스 크롤링 후 구글 AI가 호재 위주로 선별
+        # 실시간 뉴스 5개 출력
         news_list = fetch_realtime_news(raw_name)
         news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else f"📰 \"{raw_name} 관련 메이저 재료 포착\""
         news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
