@@ -413,27 +413,103 @@ def analyze():
             ma20_str = f"${ma20:,.2f}"
             res_str = f"${resistance_price:,.2f}"
 
+            # 미국 옵션 수급: yfinance 우선 + Yahoo Finance 직접 조회 fallback
+            # 화면/한국주식 로직은 건드리지 않고, CALL/PUT 수집 부분만 보강한다.
             try:
-                t_obj = yf.Ticker(ticker_symbol)
-                opts = t_obj.options
-                if opts:
-                    opt = t_obj.option_chain(opts[0])
-                    call_vol = int(opt.calls['volume'].sum()) if 'volume' in opt.calls else 0
-                    put_vol = int(opt.puts['volume'].sum()) if 'volume' in opt.puts else 0
-                    if call_vol > 0:
-                        pc_ratio = put_vol / call_vol
-                        c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
-                        p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
-                        tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
+                call_vol = 0
+                put_vol = 0
+                source = ""
 
-                        if pc_ratio <= 0.7:
-                            supply_content = f"{tag_line}\n\n최근 5일간 월가 큰손들이 상방 쪽에 강하게 베팅하고 있어!\n콜옵션 거래량이 풋옵션을 압도하면서 위로 쏠릴 준비를 하고 있으니 탄력 한번 기대해 보자."
-                        elif pc_ratio >= 1.1:
-                            supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
-                        else:
-                            supply_content = f"{tag_line}\n\n최근 5일간 월가 세력들이 팽팽하게 눈치싸움 중이야.\n상승과 하락 양쪽에 돈이 비슷하게 걸려 있는 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
-            except Exception:
-                pass
+                # 1차: 기존 yfinance 방식 유지
+                try:
+                    t_obj = yf.Ticker(ticker_symbol)
+                    opts = t_obj.options
+                    if opts:
+                        for expiry in opts:
+                            opt = t_obj.option_chain(expiry)
+                            calls = opt.calls
+                            puts = opt.puts
+                            c = calls['volume'].fillna(0).sum() if 'volume' in calls else 0
+                            p = puts['volume'].fillna(0).sum() if 'volume' in puts else 0
+                            if c or p:
+                                call_vol = int(c)
+                                put_vol = int(p)
+                                source = f"yfinance:{expiry}"
+                                break
+                except Exception as yf_err:
+                    print(f"[미국 옵션] yfinance 실패 {ticker_symbol}: {type(yf_err).__name__}: {yf_err}")
+
+                # 2차: Yahoo Finance v7 옵션 API 직접 조회
+                if not source:
+                    try:
+                        import http.cookiejar
+                        cj = http.cookiejar.CookieJar()
+                        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+                        ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+                        base_headers = {
+                            'User-Agent': ua,
+                            'Accept': 'application/json,text/plain,*/*',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                        }
+
+                        # Yahoo 옵션 API는 cookie + crumb이 필요한 경우가 있어 순서대로 확보한다.
+                        try:
+                            req = urllib.request.Request('https://fc.yahoo.com/', headers=base_headers)
+                            with opener.open(req, timeout=5):
+                                pass
+                        except Exception:
+                            # fc.yahoo.com은 404/리다이렉트를 줄 수 있어 여기서는 쿠키 확보만 시도한다.
+                            pass
+
+                        crumb_req = urllib.request.Request(
+                            'https://query1.finance.yahoo.com/v1/test/getcrumb',
+                            headers=base_headers
+                        )
+                        with opener.open(crumb_req, timeout=5) as resp:
+                            crumb = resp.read().decode('utf-8').strip()
+
+                        if crumb:
+                            options_url = (
+                                f"https://query1.finance.yahoo.com/v7/finance/options/"
+                                f"{urllib.parse.quote(ticker_symbol)}?crumb={urllib.parse.quote(crumb)}"
+                            )
+                            opt_req = urllib.request.Request(options_url, headers=base_headers)
+                            with opener.open(opt_req, timeout=7) as resp:
+                                data = json.loads(resp.read().decode('utf-8'))
+
+                            result = (data.get('optionChain') or {}).get('result') or []
+                            if result:
+                                groups = result[0].get('options') or []
+                                for group in groups:
+                                    calls = group.get('calls') or []
+                                    puts = group.get('puts') or []
+                                    c = sum(int(x.get('volume') or 0) for x in calls)
+                                    p = sum(int(x.get('volume') or 0) for x in puts)
+                                    if c or p:
+                                        call_vol = c
+                                        put_vol = p
+                                        source = 'yahoo_direct'
+                                        break
+                    except Exception as yahoo_err:
+                        print(f"[미국 옵션] Yahoo 직접 조회 실패 {ticker_symbol}: {type(yahoo_err).__name__}: {yahoo_err}")
+
+                if source and call_vol > 0:
+                    pc_ratio = put_vol / call_vol
+                    c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
+                    p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
+                    tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
+                    print(f"[미국 옵션] {ticker_symbol} 성공 / {source} / CALL={call_vol} PUT={put_vol} P/C={pc_ratio:.2f}")
+
+                    if pc_ratio <= 0.7:
+                        supply_content = f"{tag_line}\n\n현재 옵션 거래량이 상방 쪽으로 기울어 있어!\n콜옵션 거래량이 풋옵션을 압도하면서 상승 쪽 베팅이 상대적으로 강한 구간이야."
+                    elif pc_ratio >= 1.1:
+                        supply_content = f"{tag_line}\n\n🚨 현재 옵션 거래량이 하방 쪽으로 기울어 있어!\n풋옵션 거래량이 콜옵션을 넘어 하락 방어 수요가 상대적으로 강한 구간이야."
+                    else:
+                        supply_content = f"{tag_line}\n\n현재 옵션 시장이 팽팽하게 눈치싸움 중이야.\n콜과 풋 거래량이 크게 벌어지지 않아 방향성을 조금 더 확인할 필요가 있어."
+                elif source and call_vol == 0 and put_vol == 0:
+                    print(f"[미국 옵션] {ticker_symbol} 조회 성공했지만 현재 거래량이 0입니다.")
+            except Exception as option_err:
+                print(f"[미국 옵션] 전체 처리 실패 {ticker_symbol}: {type(option_err).__name__}: {option_err}")
 
         if not supply_content:
             supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
