@@ -192,27 +192,44 @@ def fetch_yahoo_direct_v8(ticker_str):
         print("야후 데이터 조회 예외:", e)
     return None, None, None, None
 
+# 단순 복붙 방지: AI가 뉴스를 읽고 직접 1줄 팩트 요약문으로 재가공하는 함수
 def filter_core_news_with_gemini(headlines, stock_name):
     if not headlines or not GEMINI_KEY:
-        return headlines[:3]
+        cleaned = []
+        for h in headlines[:3]:
+            h = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h)
+            cleaned.append(h.strip().strip('"\'“”'))
+        return cleaned
     
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = (
-            f"주식 분석 전문가 관점에서 아래 {stock_name} 관련 뉴스 헤드라인 중, 주가 상승이나 하락에 가장 큰 영향을 미치는 '핵심 뉴스(호재/악재 모두 포함)'를 최대 3개 골라줘.\n"
-            f"중복되거나 유사한 내용의 기사는 하나만 남겨야 해.\n"
-            f"단순 광고나 의미 없는 찌라시는 제외하고, 설명이나 번호표 없이 헤드라인 내용만 한 줄에 하나씩 출력해.\n\n"
+            f"너는 시장의 핵심 재료를 꿰뚫어 보는 주식 전문 애널리스트야.\n"
+            f"아래 {stock_name} 관련 최신 뉴스 헤드라인들을 종합 분석해서, 주가에 실질적인 영향을 준 '핵심 이슈 3가지'를 개미들이 이해하기 쉽게 각각 1줄 요약문(20~35자 내외)으로 재작성해줘.\n\n"
+            f"[필수 규칙]\n"
+            f"1. 원문 헤드라인을 그대로 복사하지 말고, 핵심 팩트(사건, 실적, 호재/악재)만 뽑아 자연스러운 1줄 요약문으로 작성할 것.\n"
+            f"2. 언론사 이름(예: - 조선비즈, 매일경제 등), 기사 송고 날짜, 번호(1., 2.), 특수문자 따옴표(\", ')는 일절 쓰지 말 것.\n"
+            f"3. 단순 홍보나 수상 같은 잡음은 버리고, 딱 3줄만 한 줄에 하나씩 출력할 것.\n\n"
+            f"[기사 헤드라인 목록]\n"
             + "\n".join(headlines)
         )
         response = model.generate_content(prompt)
-        filtered = [line.strip().lstrip('1234567890.-•* ') for line in response.text.strip().split('\n') if line.strip()]
+        filtered = [
+            re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', line.strip().lstrip('1234567890.-•* ')).strip('"\'“”')
+            for line in response.text.strip().split('\n')
+            if line.strip()
+        ]
         return filtered[:3] if filtered else headlines[:3]
     except Exception as e:
-        print("Gemini 필터링 건너뛰기:", e)
-        return headlines[:3]
+        print("Gemini 요약 예외:", e)
+        cleaned = []
+        for h in headlines[:3]:
+            h = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h)
+            cleaned.append(h.strip().strip('"\'“”'))
+        return cleaned
 
 def fetch_realtime_news(stock_name):
-    cache_key = f"news_v4_{stock_name}"
+    cache_key = f"news_v5_{stock_name}"
     
     if redis_client:
         try:
@@ -239,8 +256,6 @@ def fetch_realtime_news(stock_name):
                     title = title_el.text
                     title = re.sub(r'\[.*?\]', '', title)
                     title = re.sub(r'<[^>]+>', '', title)
-                    title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
-                    title = re.sub(r'[\.…]+\s*$', '', title)
                     title = re.sub(r'\.{2,}|…', ' · ', title)
                     clean = title.strip().strip('"\'“”')
                     if clean and clean not in headlines:
@@ -443,7 +458,6 @@ def analyze():
             ma20_str = f"${ma20:,.2f}"
             res_str = f"${resistance_price:,.2f}"
 
-            # 미국 실시간 옵션(콜/풋) 거래량 및 미결제약정 수급 집계
             try:
                 t_obj = yf.Ticker(ticker_symbol)
                 opts = t_obj.options
@@ -452,7 +466,6 @@ def analyze():
                     c_vol = opt.calls['volume'].dropna().sum() if 'volume' in opt.calls else 0
                     p_vol = opt.puts['volume'].dropna().sum() if 'volume' in opt.puts else 0
 
-                    # 장마감/거래량 미집계 시 미결제약정(openInterest)으로 큰손 포지션 파악
                     if c_vol == 0 and 'openInterest' in opt.calls:
                         c_vol = opt.calls['openInterest'].dropna().sum()
                         p_vol = opt.puts['openInterest'].dropna().sum() if 'openInterest' in opt.puts else 0
@@ -475,7 +488,6 @@ def analyze():
             except Exception as e:
                 print("옵션 데이터 수집 예외:", e)
 
-            # 야후 옵션 API가 통신 에러를 낼 때도 빈 문구 대신 실시간 등락률 기반 분석 자동 보강
             if not supply_content:
                 if change_pct >= 0:
                     tag_line = "#콜 18.4만건   #풋 11.2만건   #비율 0.61"
@@ -484,7 +496,7 @@ def analyze():
                     tag_line = "#콜 12.1만건   #풋 16.8만건   #비율 1.39"
                     supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
 
-        # --- 등락률별 화끈한 인트로 개미 멘트 복구 ---
+        # --- 등락률별 화끈한 인트로 개미 멘트 ---
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
@@ -507,10 +519,9 @@ def analyze():
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
         news_list = fetch_realtime_news(raw_name)
-        news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else f"📰 \"{raw_name} 관련 메이저 재료 포착\""
-        news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
+        news_lines = "\n".join([f"📰 {title}" for title in news_list]) if news_list else f"📰 {raw_name} 관련 메이저 재료 분석 중"
+        news_transition = "\"이런 핵심 재료들이 맞물리면서 지금 호가창이 반응하고 있는 거지\""
 
-        # --- 악성 매물대 및 도망쳐 멘트 100% 원복 ---
         escape_content = (
             f"#생존 지지선 {ma20_str} 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n"
             f"#악성 매물대 {res_str}\n"
