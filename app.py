@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import yfinance as yf
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -207,86 +208,72 @@ def fetch_fast_news(code_six, stock_name):
     return titles[:3]
 
 def fetch_us_stock_data(ticker):
-    """Yahoo Finance chart API로 미국주식 시세/20일 평균/최근 고점을 수집한다."""
+    """백업본과 동일한 Yahoo Finance 일봉 계산: 1개월 종가 평균과 최근 고점."""
     try:
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(ticker)}?range=1mo&interval=1d"
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
-            'Accept': 'application/json'
-        })
-        with urllib.request.urlopen(req, timeout=4.0) as resp:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=1mo&interval=1d"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=4) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-        result = data.get('chart', {}).get('result', [])
-        if not result:
-            return None, None, None, None
-        quote = result[0].get('indicators', {}).get('quote', [{}])[0]
-        closes = [float(x) for x in quote.get('close', []) if x is not None]
-        highs = [float(x) for x in quote.get('high', []) if x is not None]
-        volumes = [float(x) for x in quote.get('volume', []) if x is not None]
-        if len(closes) < 2:
-            return None, None, None, None
-        cur_p = closes[-1]
-        prev_p = closes[-2]
-        ma20 = sum(closes[-20:]) / min(20, len(closes))
-        res_p = max(highs[-20:]) if highs else cur_p * 1.05
-        return cur_p, prev_p, ma20, res_p
+            res = data.get('chart', {}).get('result', [])
+            if res:
+                quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
+                closes = [c for c in quotes.get('close', []) if c is not None and not math.isnan(c)]
+                highs = [h for h in quotes.get('high', []) if h is not None and not math.isnan(h)]
+                if len(closes) >= 2:
+                    cur_p = float(closes[-1])
+                    prev_p = float(closes[-2])
+                    ma20 = sum(closes) / len(closes)
+                    res_p = max(highs) if highs else cur_p * 1.05
+                    return cur_p, prev_p, ma20, res_p
     except Exception as e:
-        print(f"미국 시세 조회 예외({ticker}):", e)
-        return None, None, None, None
-
+        print("미국 야후 v8 예외:", e)
+    return None, None, None, None
 
 def fetch_us_option_flow(ticker):
-    """기존 미국주식 옵션 수급 방식: 첫 만기 옵션의 CALL/PUT 거래량과 Put/Call 비율."""
+    """백업본과 동일하게 yfinance의 첫 옵션 만기 CALL/PUT 거래량을 사용한다."""
     try:
-        url = f"https://query1.finance.yahoo.com/v7/finance/options/{urllib.parse.quote(ticker)}"
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
-            'Accept': 'application/json'
-        })
-        with urllib.request.urlopen(req, timeout=5.0) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-        result = data.get('optionChain', {}).get('result', [])
-        if not result:
-            return None, None, None
-        opt = result[0].get('options', [{}])[0]
-        calls = opt.get('calls', []) or []
-        puts = opt.get('puts', []) or []
-        call_vol = sum(int(x.get('volume') or 0) for x in calls)
-        put_vol = sum(int(x.get('volume') or 0) for x in puts)
-        if call_vol == 0:
-            call_oi = sum(int(x.get('openInterest') or 0) for x in calls)
-            put_oi = sum(int(x.get('openInterest') or 0) for x in puts)
-            call_vol, put_vol = call_oi, put_oi
-        if call_vol <= 0:
-            return 0, 0, None
-        return call_vol, put_vol, put_vol / call_vol
+        t_obj = yf.Ticker(ticker)
+        opts = t_obj.options
+        if opts:
+            opt = t_obj.option_chain(opts[0])
+            call_vol = int(opt.calls['volume'].sum()) if 'volume' in opt.calls else 0
+            put_vol = int(opt.puts['volume'].sum()) if 'volume' in opt.puts else 0
+            if call_vol > 0:
+                pc_ratio = put_vol / call_vol
+                return call_vol, put_vol, pc_ratio
     except Exception as e:
         print(f"미국 옵션 데이터 수집 예외({ticker}):", e)
-        return None, None, None
-
+    return None, None, None
 
 def fetch_us_news(ticker, stock_name):
-    """Google News RSS에서 미국주식 관련 최신 제목을 코드로 수집한다. AI 검색은 하지 않는다."""
+    """백업본과 동일하게 Google News RSS에서 종목명으로 최신 제목 3개를 수집한다. AI 검색은 하지 않는다."""
     titles = []
     try:
-        query = urllib.parse.quote(f"{stock_name} {ticker}")
-        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        query = urllib.parse.quote(f"{stock_name}")
+        url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3.0) as resp:
-            root = ET.fromstring(resp.read())
-        for item in root.findall('.//item'):
-            title_el = item.find('title')
-            if title_el is None or not title_el.text:
-                continue
-            clean = re.sub(r'\s*[-–—|]\s*[^-–—|]+$', '', title_el.text).strip()
-            if clean and clean not in titles:
-                titles.append(clean)
-            if len(titles) >= 3:
-                break
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            xml_data = resp.read()
+            root = ET.fromstring(xml_data)
+            items = root.findall('.//item')
+            for item in items:
+                title_el = item.find('title')
+                if title_el is not None and title_el.text:
+                    title = title_el.text
+                    title = re.sub(r'\[.*?\]', '', title)
+                    title = re.sub(r'<[^>]+>', '', title)
+                    title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
+                    title = re.sub(r'[\.…]+\s*$', '', title)
+                    title = re.sub(r'\.{2,}|…', ' · ', title)
+                    clean = title.strip().strip('"\'“”')
+                    if clean:
+                        titles.append(clean)
+                    if len(titles) == 3:
+                        break
     except Exception as e:
         print(f"미국 뉴스 조회 예외({ticker}):", e)
     return titles[:3]
-
 
 def format_option_count(n):
     if n is None:
@@ -486,7 +473,7 @@ def get_live_calendar_data():
 # ⚡ [엔진 핵심] 단일 종목 데이터 수집 + AI 조리 후 UI 포맷 생성 함수
 def build_stock_payload(stock_name, clean_code):
     # 미국주식은 티커가 영문이며, 기존 한국주식 코드(6자리)와 구분한다.
-    is_us = bool(clean_code and re.match(r'^[A-Za-z]+$', clean_code))
+    is_us = bool(clean_code and not (str(clean_code).endswith(('.KS', '.KQ')) or (str(clean_code).isdigit() and len(str(clean_code)) == 6)))
 
     if is_us:
         ticker = clean_code.upper()
@@ -498,8 +485,6 @@ def build_stock_payload(stock_name, clean_code):
 
         call_vol, put_vol, pc_ratio = fetch_us_option_flow(ticker)
         news_list = fetch_us_news(ticker, stock_name)
-        if not news_list:
-            news_list = [f"{stock_name} 최신 주요 뉴스 수집 중"]
 
         calendar_text = get_live_calendar_data()
         ai_reason = analyze_fast_ai(
@@ -521,13 +506,13 @@ def build_stock_payload(stock_name, clean_code):
         if call_vol is not None and put_vol is not None and pc_ratio is not None:
             tag_line = f"#콜 {format_option_count(call_vol)}   #풋 {format_option_count(put_vol)}   #비율 {pc_ratio:.2f}"
             if pc_ratio <= 0.7:
-                supply_content = f"{tag_line}\n\n최근 옵션 흐름은 콜 쪽이 강해 상방 베팅이 우세한 모습이야.\n콜옵션 거래량이 풋옵션보다 크게 많으면 상승 기대가 상대적으로 강한 구간으로 볼 수 있어."
+                supply_content = f"{tag_line}\n\n최근 5일간 월가 큰손들이 상방 쪽에 강하게 베팅하고 있어!\n콜옵션 거래량이 풋옵션을 압도하면서 위로 쏠릴 준비를 하고 있으니 탄력 한번 기대해 보자."
             elif pc_ratio >= 1.1:
-                supply_content = f"{tag_line}\n\n최근 옵션 흐름은 풋 쪽이 강해 하방 베팅이 우세한 모습이야.\n풋옵션 거래량이 콜옵션보다 많으면 하락 방어 또는 하방 기대가 상대적으로 커진 구간이야."
+                supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
             else:
-                supply_content = f"{tag_line}\n\n콜과 풋이 팽팽하게 맞서고 있어.\n옵션만으로 방향을 단정하기 어려우니 주가와 뉴스 흐름을 함께 확인하자."
+                supply_content = f"{tag_line}\n\n최근 5일간 월가 세력들이 팽팽하게 눈치싸움 중이야.\n상승과 하락 양쪽에 돈이 비슷하게 걸려 있는 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
         else:
-            supply_content = "현재 미국 옵션 수급 데이터를 집계 중이야."
+            supply_content = "미국 옵션 수급 데이터를 가져오지 못했어. 잠시 후 다시 확인해줘."
     else:
         with ThreadPoolExecutor(max_workers=3) as executor:
             f_price = executor.submit(fetch_kr_stock_realtime, clean_code)
