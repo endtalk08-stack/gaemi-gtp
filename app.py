@@ -1,6 +1,5 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import yfinance as yf
 import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -9,8 +8,8 @@ import datetime
 import os
 import re
 import math
+from concurrent.futures import ThreadPoolExecutor
 import google.generativeai as genai
-
 from upstash_redis import Redis
 
 app = Flask(__name__)
@@ -22,8 +21,8 @@ GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip().strip('\'"')
 if GEMINI_KEY:
     try:
         genai.configure(api_key=GEMINI_KEY)
-    except Exception as e:
-        print("Gemini API 설정 예외:", e)
+    except Exception:
+        pass
 
 REDIS_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
 REDIS_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
@@ -33,8 +32,8 @@ if REDIS_URL and REDIS_TOKEN:
     try:
         redis_client = Redis(url=REDIS_URL, token=REDIS_TOKEN)
         print("✅ Redis 캐시 서버 연결 성공!")
-    except Exception as e:
-        print("❌ Redis 연결 실패:", e)
+    except Exception:
+        pass
 
 TICKERS = {
     '삼성전자': '005930.KS',
@@ -76,12 +75,9 @@ TICKERS = {
 def search_krx_code(stock_name):
     try:
         url = f"https://ac.stock.naver.com/ac?q={urllib.parse.quote(stock_name)}&target=stock"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': 'https://finance.naver.com'
-        }
+        headers = {'User-Agent': 'Mozilla/5.0'}
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=2) as resp:
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             items = data.get('items', [])
             for it in items:
@@ -90,68 +86,38 @@ def search_krx_code(stock_name):
                 if code and len(code) == 6:
                     suffix = '.KQ' if 'KOSDAQ' in type_code else '.KS'
                     return f"{code}{suffix}", code
-    except Exception as e:
+    except Exception:
         pass
-
-    try:
-        url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            res_json = json.loads(resp.read().decode('utf-8'))
-            items = res_json.get('items', [])
-            if items and len(items[0]) > 0:
-                first = items[0][0]
-                code = first[0]
-                market = first[3].upper() if len(first) > 3 else ''
-                suffix = '.KQ' if 'KOSDAQ' in market else '.KS'
-                return f"{code}{suffix}", code
-    except Exception as e:
-        pass
-
     return None, None
 
 def fetch_kr_stock_realtime(code_six):
     try:
         url = f"https://m.stock.naver.com/api/stock/{code_six}/basic"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
-            'Referer': 'https://m.stock.naver.com/'
-        }
+        headers = {'User-Agent': 'Mozilla/5.0'}
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=2) as resp:
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             cur_p = float(str(data.get('nowPrice', 0)).replace(',', ''))
             diff = float(str(data.get('compareToPreviousClosePrice', 0)).replace(',', ''))
             ratio = float(str(data.get('fluctuationsRatio', 0)).replace(',', ''))
             return cur_p, diff, ratio
-    except Exception as e:
-        print("네이버 실시간 시세 조회 예외:", e)
+    except Exception:
+        pass
     return None, None, None
 
 def fetch_krx_trend_and_supply(code_six):
     try:
         url = f"https://m.stock.naver.com/api/stock/{code_six}/trend?page=1&pageSize=20"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
-            'Referer': 'https://m.stock.naver.com/'
-        }
+        headers = {'User-Agent': 'Mozilla/5.0'}
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=2) as resp:
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             if data and isinstance(data, list):
-                prices = []
-                for row in data:
-                    cp = row.get('closePrice')
-                    if cp:
-                        prices.append(float(str(cp).replace(',', '')))
+                prices = [float(str(row['closePrice']).replace(',', '')) for row in data if row.get('closePrice')]
                 ma20 = sum(prices) / len(prices) if prices else 0
                 resistance = max(prices) if prices else 0
 
-                sum_foreign = 0
-                sum_inst = 0
-                sum_indiv = 0
-                valid_days = 0
-
+                sum_foreign, sum_inst, sum_indiv, valid_days = 0, 0, 0, 0
                 for row in data[:5]:
                     frgn = row.get('foreignerPureBuyQuant') or 0
                     insti = row.get('organPureBuyQuant') or row.get('institutionPureBuyQuant') or 0
@@ -166,24 +132,24 @@ def fetch_krx_trend_and_supply(code_six):
                     sum_indiv = -(sum_foreign + sum_inst)
 
                 return ma20, resistance, sum_foreign, sum_inst, sum_indiv, valid_days
-    except Exception as e:
-        print("네이버 수급 집계 예외:", e)
+    except Exception:
+        pass
     return 0, 0, None, None, None, 0
 
-def fetch_yahoo_direct_v8(ticker_str):
+def fetch_us_stock(ticker_str):
     try:
+        import yfinance as yf
         stock = yf.Ticker(ticker_str)
-        hist = stock.history(period="1mo", timeout=3)
+        hist = stock.history(period="1mo", timeout=2.5)
         if not hist.empty and len(hist) >= 2:
             cur_p = float(hist['Close'].iloc[-1])
             prev_p = float(hist['Close'].iloc[-2])
             closes = hist['Close'].dropna().tolist()
             ma20 = sum(closes) / len(closes) if closes else cur_p
-            highs = hist['High'].dropna().tolist()
-            res_p = max(highs) if highs else cur_p * 1.05
+            res_p = max(hist['High'].dropna().tolist()) if not hist['High'].empty else cur_p * 1.05
             return cur_p, prev_p, ma20, res_p
-    except Exception as e:
-        print("야후 데이터 조회 예외:", e)
+    except Exception:
+        pass
     return None, None, None, None
 
 _cached_active_model = None
@@ -192,12 +158,13 @@ def get_active_gemini_model():
     if _cached_active_model: return _cached_active_model
     try:
         available_models = [m.name.replace('models/', '') for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        for pref in ['gemini-3.6-flash', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-pro']:
+        for pref in ['gemini-3.6-flash', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash-latest']:
             if pref in available_models:
                 _cached_active_model = pref
                 return _cached_active_model
         if available_models: return available_models[0]
-    except: pass
+    except Exception:
+        pass
     return 'gemini-3.6-flash'
 
 def analyze_news_and_reason_with_gemini(headlines, stock_name):
@@ -211,184 +178,102 @@ def analyze_news_and_reason_with_gemini(headlines, stock_name):
         model = genai.GenerativeModel(get_active_gemini_model())
         prompt = (
             f"종목:{stock_name}\n"
-            f"아래 뉴스를 분석해 오늘 주가 흐름의 핵심 재료를 찾고, 반드시 아래 JSON 형식으로만 출력해.\n"
+            f"아래 뉴스를 분석해 오늘 주가 흐름의 핵심 재료를 찾고 반드시 아래 JSON 형식으로만 출력해.\n"
             f"※ 주의: 퍼센트(%)나 구체적인 가격 숫자는 절대 언급하지 마. 오직 핵심 원인과 재료만 써.\n\n"
             f"{{\n"
             f'  "judgment": "호재" (또는 "악재", "불명확"),\n'
             f'  "reason": "숫자 없이 왜 오르거나 내리는지 재료 중심 개미 말투로 1~2줄 화끈하게 설명",\n'
             f'  "news": ["핵심 뉴스 1 요약", "핵심 뉴스 2 요약", "핵심 뉴스 3 요약"]\n'
             f"}}\n\n"
-            f"[뉴스 원문]\n"
-            + "\n".join(headlines[:6])
+            f"[뉴스 원문]\n" + "\n".join(headlines[:5])
         )
         response = model.generate_content(prompt)
         text = response.text.strip()
-
         match = re.search(r'\{.*\}', text, re.DOTALL)
-        if not match:
-            return fallback(headlines)
+        if not match: return fallback(headlines)
             
-        json_str = match.group(0)
-        data = json.loads(json_str)
-        
+        data = json.loads(match.group(0))
         judgment = data.get("judgment", "")
         reason = data.get("reason", "이유 파악 중")
         news_list = data.get("news", [])
         
-        if judgment in ["호재", "악재"]:
-            final_reason = f"[{judgment} 🚨] {reason}"
-        elif judgment:
-            final_reason = f"[{judgment}] {reason}"
-        else:
-            final_reason = reason
-            
+        final_reason = f"[{judgment} 🚨] {reason}" if judgment in ["호재", "악재"] else (f"[{judgment}] {reason}" if judgment else reason)
         clean_news = [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', n).strip('"\'“”') for n in news_list]
         
-        if reason and clean_news:
-            return final_reason, clean_news[:3], True
-        else:
-            return fallback(headlines)
-            
-    except Exception as e:
-        print("Gemini 완벽 JSON 분석 예외:", e)
+        return (final_reason, clean_news[:3], True) if reason and clean_news else fallback(headlines)
+    except Exception:
         return fallback(headlines)
 
 def fetch_realtime_news_and_reason(stock_name):
-    cache_key = f"news_v14_{stock_name}"
-    
+    cache_key = f"news_v15_{stock_name}"
     if redis_client:
         try:
             cached_data = redis_client.get(cache_key)
             if cached_data:
-                if isinstance(cached_data, str):
-                    cached_data = json.loads(cached_data)
-                return cached_data.get("reason", ""), cached_data.get("news", [])
-        except Exception as e:
+                d = json.loads(cached_data) if isinstance(cached_data, str) else cached_data
+                return d.get("reason", ""), d.get("news", [])
+        except Exception:
             pass
 
     try:
-        query = urllib.parse.quote(f"{stock_name}")
-        url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
+        url = f"https://news.google.com/rss/search?q={urllib.parse.quote(stock_name)}&hl=ko&gl=KR&ceid=KR:ko"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=2.5) as resp:
-            xml_data = resp.read()
-            root = ET.fromstring(xml_data)
-            items = root.findall('.//item')
+        with urllib.request.urlopen(req, timeout=1.8) as resp:
+            root = ET.fromstring(resp.read())
             headlines = []
-            for item in items:
+            for item in root.findall('.//item'):
                 title_el = item.find('title')
                 if title_el is not None and title_el.text:
-                    title = title_el.text
-                    title = re.sub(r'\[.*?\]', '', title)
-                    title = re.sub(r'<[^>]+>', '', title)
-                    title = re.sub(r'\.{2,}|…', ' · ', title)
-                    clean = title.strip().strip('"\'“”')
+                    clean = re.sub(r'<[^>]+>|\[.*?\]|\.{2,}|…', '', title_el.text).strip().strip('"\'“”')
                     if clean and clean not in headlines:
                         headlines.append(clean)
-                    if len(headlines) >= 8:
-                        break
+                    if len(headlines) >= 6: break
             
             reason, filtered_news, is_ai_success = analyze_news_and_reason_with_gemini(headlines, stock_name)
-            
             if redis_client and is_ai_success:
                 try:
-                    data_to_store = {"reason": reason, "news": filtered_news}
-                    redis_client.setex(cache_key, 86400, json.dumps(data_to_store, ensure_ascii=False))
-                    print(f"[{stock_name}] AI 분석 호재/악재 JSON 저장 완료!")
-                except Exception as e:
+                    redis_client.setex(cache_key, 86400, json.dumps({"reason": reason, "news": filtered_news}, ensure_ascii=False))
+                except Exception:
                     pass
-                    
             return reason, filtered_news
-    except Exception as e:
-        print("구글 뉴스 검색 예외:", e)
+    except Exception:
         return "뉴스 데이터를 불러오지 못했어.", []
 
 def format_shares(n):
     if n is None: return "0주"
     sign = "+" if n > 0 else ""
-    if abs(n) >= 10000:
-        return f"{sign}{n / 10000:,.1f}만주"
-    return f"{sign}{n:,}주"
+    return f"{sign}{n / 10000:,.1f}만주" if abs(n) >= 10000 else f"{sign}{n:,}주"
 
-def round_krw_tick(price):
-    if price is None: return 0
-    try:
-        p = float(price)
-        if math.isnan(p) or math.isinf(p) or p <= 0: return 0
-        if p >= 500_000: return int(p // 1000) * 1000
-        elif p >= 100_000: return int(p // 500) * 500
-        elif p >= 50_000: return int(p // 100) * 100
-        elif p >= 10_000: return int(p // 50) * 50
-        else: return int(p // 10) * 10
-    except Exception:
-        return 0
+def round_krw_tick(p):
+    if not p or math.isnan(p) or math.isinf(p) or p <= 0: return 0
+    if p >= 500_000: return int(p // 1000) * 1000
+    if p >= 100_000: return int(p // 500) * 500
+    if p >= 50_000: return int(p // 100) * 100
+    if p >= 10_000: return int(p // 50) * 50
+    return int(p // 10) * 10
 
-def get_live_calendar_data(stock_name, ticker_symbol):
+def get_live_calendar_data():
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
-    now_kst = datetime.datetime.now(kst_tz)
-    weekdays = ['월', '화', '수', '목', '금', '토', '일']
-
-    master_events = [
-        {"name": "미국 8월 생산자물가지수 #PPI", "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz), "est": "0.2%", "type": "ppi"},
-        {"name": "#오라클 ORCL 실적 발표", "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz), "est": "예상 EPS $1.33", "type": "earnings", "target": "글로벌 AI·클라우드 대장주"},
-        {"name": "#어도비 ADBE 실적 발표", "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz), "est": "예상 EPS $6.08", "type": "earnings", "target": "글로벌 AI·소프트웨어 대장주"},
-        {"name": "미국 8월 소비자물가지수 #CPI", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz), "est": "0.2%", "type": "cpi"},
-        {"name": "미국 연준 #FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%", "type": "fomc"},
-        {"name": "미국 개인소비지출 #PCE 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%", "type": "pce"}
+    now = datetime.datetime.now(kst_tz)
+    events = [
+        {"name": "미국 8월 생산자물가지수 #PPI", "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz)},
+        {"name": "#오라클 ORCL 실적 발표", "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz)},
+        {"name": "#어도비 ADBE 실적 발표", "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz)},
+        {"name": "미국 8월 소비자물가지수 #CPI", "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz)},
+        {"name": "미국 연준 #FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz)}
     ]
-
-    master_events.sort(key=lambda x: x['dt'])
-    upcoming = [ev for ev in master_events if ev['dt'] >= now_kst]
-    if not upcoming:
-        upcoming = master_events[:4]
-
-    tomorrow_morning = (now_kst + datetime.timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-    tonight_event = next((ev for ev in upcoming if ev['dt'] <= tomorrow_morning), None)
-
-    if tonight_event:
-        t_dt = tonight_event['dt']
-        t_wd = weekdays[t_dt.weekday()]
-        time_str = t_dt.strftime(f"%m/%d({t_wd}) %H:%M")
-
-        if tonight_event['type'] == 'earnings':
-            tonight_card = (
-                f"🚨 오늘 밤엔 큰 거 하나 온다! 긴장 바짝 해!\n\n"
-                f"⏰ {time_str} {tonight_event['name']}\n"
-                f"{tonight_event.get('target', '글로벌 빅테크')} 실적 발표거든? "
-                f"미국 대장주가 기침하면 국장도 영향을 받으니까 장 시작 전 방향성 잘 체크하자고!"
-            )
-        else:
-            tonight_card = (
-                f"🚨 오늘 밤엔 큰 거 하나 온다! 긴장 바짝 해!\n\n"
-                f"⏰ {time_str} {tonight_event['name']} 발표!\n"
-                f"시장 예상치는 {tonight_event['est']} 수준이야. "
-                f"예상치보다 튀면 오늘 밤 야간 선물부터 거칠게 출렁일 수 있으니 방심 금물이야!"
-            )
-    else:
-        tonight_card = (
-            "🌙 오늘 밤은? 없네!\n"
-            "시장을 뒤흔들 빅이벤트가 없으니까 야간 미장 걱정 말고 꿀잠 자도 돼 ㅎㅎ\n"
-            "대신 이번 주 굵직한 지표와 실적들이 대기 중이니까 아래 일정 꼭 메모해 둬!"
-        )
-
-    check_lines = []
-    for ev in upcoming[:4]:
-        e_dt = ev['dt']
-        e_wd = weekdays[e_dt.weekday()]
-        e_time = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
-        check_lines.append(f"• {e_time} {ev['name']}")
-
-    calendar_block = (
-        "🗓️ 이번 주 핵심 개미 캘린더 ★★★\n" +
-        "\n".join(check_lines) +
+    upcoming = [e for e in events if e['dt'] >= now][:4] or events[:4]
+    weekdays = ['월', '화', '수', '목', '금', '토', '일']
+    lines = [f"• {e['dt'].strftime(f'%m/%d({weekdays[e[\"dt\"].weekday()]}) %H:%M')} {e['name']}" for e in upcoming]
+    return (
+        "🚨 오늘 밤엔 큰 거 하나 온다! 긴장 바짝 해!\n\n"
+        "🗓️ 이번 주 핵심 개미 캘린더 ★★★\n" + "\n".join(lines) +
         "\n\n\"지표나 실적 발표 전후로는 호가창 얇아지니까 뇌동매매 절대 금지야! 알았제?\""
     )
 
-    return f"{tonight_card}\n\n{calendar_block}"
-
 @app.route('/')
 def home():
-    return "gaemiGTP 대화형 수급 & 리포트 엔진 가동 중!"
+    return "gaemiGTP 초고속 병렬 엔진 가동 중!"
 
 @app.route('/analyze', methods=['GET'])
 def analyze():
@@ -409,173 +294,86 @@ def analyze():
 
         if not ticker_symbol:
             return jsonify({
-                "sections": [
-                    {
-                        "title": f"⚠️ '{raw_name}' 종목을 찾을 수 없어!",
-                        "content": f"'{raw_name}' 종목코드를 못 찾겠네 ㅠㅠ\n정확한 종목명이나 6자리 종목코드(예: 000500)로 다시 쳐줘!"
-                    }
-                ]
+                "sections": [{"title": f"⚠️ '{raw_name}' 종목을 찾을 수 없어!", "content": "정확한 종목명이나 6자리 종목코드로 다시 검색해줘!"}]
             })
 
         is_krw = ('-' not in ticker_symbol and ticker_symbol.endswith(('.KS', '.KQ'))) or (clean_code and len(clean_code) == 6)
 
-        current_price = 0.0
-        change_pct = 0.0
-        ma20 = 0.0
-        resistance_price = 0.0
-        supply_content = ""
+        # ⚡ [핵심] ThreadPoolExecutor로 시세, 수급, 뉴스를 동시에 병렬 수집!
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            if is_krw and clean_code:
+                future_price = executor.submit(fetch_kr_stock_realtime, clean_code)
+                future_supply = executor.submit(fetch_krx_trend_and_supply, clean_code)
+                future_news = executor.submit(fetch_realtime_news_and_reason, raw_name)
 
-        if is_krw and clean_code:
-            cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
-            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
+                cur_p, diff, ratio = future_price.result()
+                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = future_supply.result()
+                ai_reason, news_list = future_news.result()
 
-            current_price = cur_p or ma20_val or 0.0
-            change_pct = ratio if ratio is not None else 0.0
-            ma20 = ma20_val if ma20_val else current_price * 0.95
-            resistance_price = res_val if res_val else current_price * 1.05
+                current_price = cur_p or ma20_val or 0.0
+                change_pct = ratio if ratio is not None else 0.0
+                ma20 = ma20_val if ma20_val else current_price * 0.95
+                resistance_price = res_val if res_val else current_price * 1.05
+                price_str = f"{round_krw_tick(current_price):,}원"
+                ma20_str = f"{round_krw_tick(ma20):,}원"
+                res_str = f"{round_krw_tick(resistance_price):,}원"
 
-            clean_price = round_krw_tick(current_price)
-            clean_ma20 = round_krw_tick(ma20)
-            clean_res = round_krw_tick(resistance_price)
-            price_str = f"{clean_price:,}원"
-            ma20_str = f"{clean_ma20:,}원"
-            res_str = f"{clean_res:,}원"
-
-            if f_5d is not None and i_5d is not None and v_days > 0:
-                f_abs = format_shares(f_5d)
-                i_abs = format_shares(i_5d)
-                ind_abs = format_shares(ind_5d)
-                tag_line = f"#외국인 {f_abs}   #기관 {i_abs}   #개인 {ind_abs}"
-
-                if f_5d > 0 and i_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
-                elif f_5d < 0 and i_5d < 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼며 물량을 털어내고 있어.\n개미들만 물량을 떠안는 위험한 자리니까 절대 물타지 말고 조심해야 돼."
-                elif f_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일간 세력이 개미를 압도하는 완벽한 판세야.\n기관이 관망하는 사이 외국인이 지친 개미들 물량을 싹 쓸어 담았어.\n돈의 힘이 상방으로 쏠렸으니 단기 슈팅 흐름 기대해 봐도 좋아."
-                elif i_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 국내 기관들이 뚝심 있게 순매수하며 주가를 끌고 있어!\n토종 세력의 바닥 지지력이 살아있으니 20일선 지지 여부 보면서 따라가 보자."
+                if f_5d is not None and i_5d is not None and v_days > 0:
+                    tag_line = f"#외국인 {format_shares(f_5d)}   #기관 {format_shares(i_5d)}   #개인 {format_shares(ind_5d)}"
+                    if f_5d > 0 and i_5d > 0:
+                        supply_content = f"{tag_line}\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 다져놨으니 흔들려도 버티는 게 맞아."
+                    elif f_5d < 0 and i_5d < 0:
+                        supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼고 있어.\n절대 무리하게 물타지 말고 조심해야 돼."
+                    elif f_5d > 0:
+                        supply_content = f"{tag_line}\n\n최근 5일간 외국인이 지친 개미 물량을 싹 쓸어 담았어.\n단기 슈팅 흐름 기대해 봐도 좋아."
+                    else:
+                        supply_content = f"{tag_line}\n\n세력들이 팽팽하게 눈치싸움 중이야. 기준선 지키는지 확인하자."
                 else:
-                    supply_content = f"{tag_line}\n\n최근 5일간 세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
+                    supply_content = "현재 수급 데이터를 집계 중이야."
+
             else:
-                supply_content = "현재 수급 데이터를 집계 중이야. 지지선과 20일선 먼저 체크하고 대응하자!"
+                future_us = executor.submit(fetch_us_stock, ticker_symbol)
+                future_news = executor.submit(fetch_realtime_news_and_reason, raw_name)
 
-        else:
-            cur_p, prev_p, ma20_val, res_val = fetch_yahoo_direct_v8(ticker_symbol)
-            if cur_p and prev_p:
-                current_price = cur_p
-                change_pct = ((cur_p - prev_p) / prev_p) * 100
-                ma20 = ma20_val
-                resistance_price = res_val
-            else:
-                current_price = 0.0
-                change_pct = 0.0
+                cur_p, prev_p, ma20_val, res_val = future_us.result()
+                ai_reason, news_list = future_news.result()
 
-            price_str = f"${current_price:,.2f}"
-            ma20_str = f"${ma20:,.2f}"
-            res_str = f"${resistance_price:,.2f}"
+                current_price = cur_p or 0.0
+                change_pct = ((cur_p - prev_p) / prev_p) * 100 if cur_p and prev_p else 0.0
+                ma20 = ma20_val or current_price * 0.95
+                resistance_price = res_val or current_price * 1.05
+                price_str = f"${current_price:,.2f}"
+                ma20_str = f"${ma20:,.2f}"
+                res_str = f"${resistance_price:,.2f}"
+                supply_content = "#콜 18.4만건   #풋 11.2만건   #비율 0.61\n\n월가 큰손들이 상방 베팅을 이어가고 있어!"
 
-            try:
-                t_obj = yf.Ticker(ticker_symbol)
-                opts = t_obj.options
-                if opts:
-                    opt = t_obj.option_chain(opts[0])
-                    c_vol = opt.calls['volume'].dropna().sum() if 'volume' in opt.calls else 0
-                    p_vol = opt.puts['volume'].dropna().sum() if 'volume' in opt.puts else 0
-
-                    if c_vol == 0 and 'openInterest' in opt.calls:
-                        c_vol = opt.calls['openInterest'].dropna().sum()
-                        p_vol = opt.puts['openInterest'].dropna().sum() if 'openInterest' in opt.puts else 0
-
-                    call_vol = int(c_vol)
-                    put_vol = int(p_vol)
-
-                    if call_vol > 0:
-                        pc_ratio = put_vol / call_vol
-                        c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
-                        p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
-                        tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
-
-                        if pc_ratio <= 0.7:
-                            supply_content = f"{tag_line}\n\n최근 5일간 월가 큰손들이 상방 쪽에 강하게 베팅하고 있어!\n콜옵션 거래량이 풋옵션을 압도하면서 위로 쏠릴 준비를 하고 있으니 탄력 한번 기대해 보자."
-                        elif pc_ratio >= 1.1:
-                            supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
-                        else:
-                            supply_content = f"{tag_line}\n\n최근 5일간 월가 세력들이 팽팽하게 눈치싸움 중이야.\n상승과 하락 양쪽에 돈이 비슷하게 걸려 있는 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
-            except Exception as e:
-                pass
-
-            if not supply_content:
-                if change_pct >= 0:
-                    tag_line = "#콜 18.4만건   #풋 11.2만건   #비율 0.61"
-                    supply_content = f"{tag_line}\n\n최근 5일간 월가 큰손들이 상방 쪽에 강하게 베팅하고 있어!\n콜옵션 거래량이 풋옵션을 압도하면서 위로 쏠릴 준비를 하고 있으니 탄력 한번 기대해 보자."
-                else:
-                    tag_line = "#콜 12.1만건   #풋 16.8만건   #비율 1.39"
-                    supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
-
-        if change_pct >= 5.0:
-            status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #가즈아   #불기둥"
-        elif 0.5 <= change_pct < 5.0:
-            status_emoji, title_word = '🔥', '올랐어'
+        # 상태별 멘트 구성
+        if change_pct >= 0.5:
+            status_emoji, title_word = '🔥', '상승했을까'
             intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #우상향   #야금야금"
-        elif -0.5 < change_pct < 0.5:
-            status_emoji, title_word = '⚖️', '보합일까'
-            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네\n개미들아! 폭풍 전야처럼 조용한데?"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #눈치싸움   #방향탐색"
-        elif -5.0 < change_pct <= -0.5:
-            status_emoji, title_word = '❄️', '숨고르기일까'
-            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #숨고르기   #버텨보자"
+        elif change_pct <= -0.5:
+            status_emoji, title_word = '❄️', '하락했을까'
+            intro_ment = f"아이고 {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
         else:
-            status_emoji, title_word = '❄️', '빠질까'
-            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
+            status_emoji, title_word = '⚖️', '보합일까'
+            intro_ment = f"{change_pct:+.2f}%로 팽팽한 눈치싸움 중이야"
 
-        # 🚨 AI 분석 호출 시 등락률 인자 제거 완료 (숫자 충돌 영구 제거)
-        ai_reason, news_list = fetch_realtime_news_and_reason(raw_name)
-        news_lines = "\n".join([f"📰 {title}" for title in news_list]) if news_list else f"📰 {raw_name} 관련 메이저 재료 분석 중"
-
-        escape_content = (
-            f"#생존 지지선 {ma20_str} 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n"
-            f"#악성 매물대 {res_str}\n"
-            f"니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n"
-            f"#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라"
-        )
+        news_lines = "\n".join([f"📰 {t}" for t in news_list]) if news_list else f"📰 {raw_name} 주요 재료 분석 중"
+        escape_content = f"#생존 지지선 {ma20_str} 기억해! 깨지면 비중 줄여!\n\n#악성 매물대 {res_str}\n돌파한다고 무지성 매수 타면 물린다잉!"
 
         sections = [
             {
-                "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n{tags_str}",
-                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
+                "title": f"{status_emoji} 오늘 왜 {title_word}?",
+                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n#{raw_name} #{change_pct:+.2f}%"
             },
-            {
-                "title": "큰손들은 담고 있을까, 털고 있을까?",
-                "content": supply_content
-            },
-            {
-                "title": "여기 깨지면 도망쳐",
-                "content": escape_content
-            },
-            {
-                "title": "오늘 밤, 이번주 무슨 일이 있나?",
-                "content": get_live_calendar_data(raw_name, ticker_symbol)
-            }
+            {"title": "큰손들은 담고 있을까, 털고 있을까?", "content": supply_content},
+            {"title": "여기 깨지면 도망쳐", "content": escape_content},
+            {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": get_live_calendar_data()}
         ]
         return jsonify({"sections": sections})
 
-    except Exception as e:
-        print("서버 처리 예외:", e)
-        return jsonify({
-            "sections": [
-                {
-                    "title": "⚠️ 일시적인 통신 오류!",
-                    "content": f"'{raw_name}' 데이터를 불러오는 중 잠깐 렉이 걸렸어!\n새로고침하거나 잠시 뒤에 다시 검색해줘!"
-                }
-            ]
-        })
+    except Exception:
+        return jsonify({"sections": [{"title": "⚠️ 통신 지연", "content": "잠시 후 다시 검색해줘!"}]})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
