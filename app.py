@@ -192,44 +192,38 @@ def fetch_yahoo_direct_v8(ticker_str):
         print("야후 데이터 조회 예외:", e)
     return None, None, None, None
 
-# 단순 복붙 방지: AI가 뉴스를 읽고 직접 1줄 팩트 요약문으로 재가공하는 함수
 def filter_core_news_with_gemini(headlines, stock_name):
+    # API 오류 시 복붙용 클렌징
+    def clean_fallback(h_list):
+        return [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h).strip().strip('"\'“”') for h in h_list[:3]]
+
     if not headlines or not GEMINI_KEY:
-        cleaned = []
-        for h in headlines[:3]:
-            h = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h)
-            cleaned.append(h.strip().strip('"\'“”'))
-        return cleaned
+        return clean_fallback(headlines)
     
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
+        # 🚨 요금을 극한으로 줄인 초경량 프롬프트 (글자수 최소화)
         prompt = (
-            f"너는 시장의 핵심 재료를 꿰뚫어 보는 주식 전문 애널리스트야.\n"
-            f"아래 {stock_name} 관련 최신 뉴스 헤드라인들을 종합 분석해서, 주가에 실질적인 영향을 준 '핵심 이슈 3가지'를 개미들이 이해하기 쉽게 각각 1줄 요약문(20~35자 내외)으로 재작성해줘.\n\n"
-            f"[필수 규칙]\n"
-            f"1. 원문 헤드라인을 그대로 복사하지 말고, 핵심 팩트(사건, 실적, 호재/악재)만 뽑아 자연스러운 1줄 요약문으로 작성할 것.\n"
-            f"2. 언론사 이름(예: - 조선비즈, 매일경제 등), 기사 송고 날짜, 번호(1., 2.), 특수문자 따옴표(\", ')는 일절 쓰지 말 것.\n"
-            f"3. 단순 홍보나 수상 같은 잡음은 버리고, 딱 3줄만 한 줄에 하나씩 출력할 것.\n\n"
-            f"[기사 헤드라인 목록]\n"
+            f"{stock_name} 뉴스 중 호재/악재 팩트 3개만 각각 1줄(30자 내외)로 요약해.\n"
+            f"조건: 원문 복사 금지, 언론사명/따옴표/기호 제외, 한 줄에 하나씩 출력.\n\n"
             + "\n".join(headlines)
         )
         response = model.generate_content(prompt)
-        filtered = [
-            re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', line.strip().lstrip('1234567890.-•* ')).strip('"\'“”')
-            for line in response.text.strip().split('\n')
-            if line.strip()
-        ]
-        return filtered[:3] if filtered else headlines[:3]
+        
+        filtered = []
+        for line in response.text.strip().split('\n'):
+            line = line.strip()
+            if line:
+                clean_line = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', line.lstrip('1234567890.-•* ')).strip('"\'“”')
+                filtered.append(clean_line)
+        
+        return filtered[:3] if filtered else clean_fallback(headlines)
     except Exception as e:
         print("Gemini 요약 예외:", e)
-        cleaned = []
-        for h in headlines[:3]:
-            h = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h)
-            cleaned.append(h.strip().strip('"\'“”'))
-        return cleaned
+        return clean_fallback(headlines)
 
 def fetch_realtime_news(stock_name):
-    cache_key = f"news_v5_{stock_name}"
+    cache_key = f"news_v6_{stock_name}" # 캐시 키 v6로 올려서 과거 쓰레기 데이터 초기화
     
     if redis_client:
         try:
@@ -398,7 +392,6 @@ def analyze():
         resistance_price = 0.0
         supply_content = ""
 
-        # --- 국내 주식 수급 및 시세 처리 ---
         if is_krw and clean_code:
             cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
@@ -442,7 +435,6 @@ def analyze():
             else:
                 supply_content = "현재 수급 데이터를 집계 중이야. 지지선과 20일선 먼저 체크하고 대응하자!"
 
-        # --- 미국 주식 수급 및 시세 처리 ---
         else:
             cur_p, prev_p, ma20_val, res_val = fetch_yahoo_direct_v8(ticker_symbol)
             if cur_p and prev_p:
@@ -496,7 +488,6 @@ def analyze():
                     tag_line = "#콜 12.1만건   #풋 16.8만건   #비율 1.39"
                     supply_content = f"{tag_line}\n\n🚨 비상! 최근 5일간 월가 헤지 물량이 급증하고 있어!\n풋옵션 베팅이 콜옵션을 넘어서며 큰손들이 하락 방어벽을 치는 구간이야. 지지선 절대 깨지면 안 돼!"
 
-        # --- 등락률별 화끈한 인트로 개미 멘트 ---
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
