@@ -369,42 +369,47 @@
       }
     }
 
-    // ★ 증권사(KIS) 표준 DTO 규격을 미리 정의한 동적 시세 엔진
-    function getStockMarketData(stockName) {
-      const isUsd = /^[A-Za-z]+$/.test(stockName) || 
+    // ★ 백엔드 본문 텍스트에서 실제 주가와 등락률을 100% 동기화 추출하는 파서
+    function extractMarketSyncData(stockName, sections) {
+      let isUsd = /^[A-Za-z]+$/.test(stockName) || 
                     ['엔비디아', '테슬라', '애플', '마이크로소프트', '아마존', '구글', '메타', 'NVDA', 'TSLA', 'AAPL', 'MSFT'].includes(stockName);
 
-      const table = {
-        '삼성전자': { price: 73200, rate: -0.41, sign: 'down' },
-        'SK하이닉스': { price: 235500, rate: +2.39, sign: 'up' },
-        '현대차': { price: 245000, rate: +1.24, sign: 'up' },
-        'NAVER': { price: 198500, rate: 0.00, sign: 'flat' },
-        '네이버': { price: 198500, rate: 0.00, sign: 'flat' },
-        '카카오': { price: 42100, rate: -1.17, sign: 'down' },
-        '한미반도체': { price: 138900, rate: +4.83, sign: 'up' },
-        '두산에너빌리티': { price: 26150, rate: +0.77, sign: 'up' },
-        'LG에너지솔루션': { price: 382000, rate: -0.52, sign: 'down' },
-        '엔비디아': { price: 173.14, rate: +3.12, sign: 'up' },
-        'NVDA': { price: 173.14, rate: +3.12, sign: 'up' },
-        '테슬라': { price: 248.50, rate: -2.45, sign: 'down' },
-        'TSLA': { price: 248.50, rate: -2.45, sign: 'down' },
-        '애플': { price: 229.35, rate: +0.35, sign: 'up' },
-        'AAPL': { price: 229.35, rate: +0.35, sign: 'up' },
-        '마이크로소프트': { price: 415.10, rate: -0.80, sign: 'down' },
-        'MSFT': { price: 415.10, rate: -0.80, sign: 'down' }
-      };
+      let foundPrice = null;
+      let foundRate = null;
+      let sign = 'flat';
 
-      let item = table[stockName];
-      if (!item) {
-        let hash = 0;
-        for (let i = 0; i < stockName.length; i++) hash = stockName.charCodeAt(i) + ((hash << 5) - hash);
-        const randPrice = isUsd ? (Math.abs(hash % 250) + 40) : ((Math.abs(hash % 120) + 15) * 1000);
-        const randRate = parseFloat(((hash % 60) / 10).toFixed(2));
-        item = {
-          price: randPrice,
-          rate: randRate,
-          sign: randRate > 0 ? 'up' : (randRate < 0 ? 'down' : 'flat')
-        };
+      if (sections && Array.isArray(sections)) {
+        for (const s of sections) {
+          const txt = s.content || "";
+          if (txt.includes('$')) isUsd = true;
+
+          // 1. 본문 내 현재가 추출 ("현재 주가는 1,805,000원", "$173.14" 등)
+          if (!foundPrice) {
+            const mPrice = isUsd ? txt.match(/\$([0-9]+(?:\.[0-9]+)?)/) : txt.match(/현재\s*주가는\s*([0-9,]+)\s*원/) || txt.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*원/);
+            if (mPrice) {
+              const p = parseFloat(mPrice[1].replace(/,/g, ''));
+              if (!isNaN(p) && p > 0) foundPrice = p;
+            }
+          }
+
+          // 2. 본문 내 등락률 추출 ("+0.67%", "-2.4%" 등)
+          if (!foundRate) {
+            const mRate = txt.match(/([+-]\d+(?:\.\d+)?%)/);
+            if (mRate) {
+              foundRate = mRate[1];
+              if (foundRate.startsWith('+')) sign = 'up';
+              else if (foundRate.startsWith('-')) sign = 'down';
+            }
+          }
+        }
+      }
+
+      // 만약 백엔드에서 못 찾았을 경우의 예비값
+      if (!foundPrice) {
+        foundPrice = isUsd ? 180.00 : 70000;
+      }
+      if (!foundRate) {
+        foundRate = "0.00%";
       }
 
       function roundTick(price) {
@@ -423,18 +428,15 @@
         return Number(n).toLocaleString('ko-KR') + '원';
       }
 
-      const pinkVal = roundTick(item.price * 1.065);
-      const yellowVal = roundTick(item.price * 0.982);
-      const blueVal = roundTick(item.price * 0.935);
-
-      const rateStr = (item.rate > 0 ? `+${item.rate}%` : (item.rate < 0 ? `${item.rate}%` : `0.00%`));
+      // 본문에서 찾은 현재가를 바탕으로 3대 가격 계산 (+6.5%, -1.8%, -6.5%)
+      const pinkVal = roundTick(foundPrice * 1.065);
+      const yellowVal = roundTick(foundPrice * 0.982);
+      const blueVal = roundTick(foundPrice * 0.935);
 
       return {
         isUsd,
-        currentPrice: formatPrice(item.price),
-        rawPrice: item.price,
-        rateStr: rateStr,
-        sign: item.sign,
+        rateStr: foundRate,
+        sign: sign,
         pinkPrice: formatPrice(pinkVal),
         yellowPrice: formatPrice(yellowVal),
         bluePrice: formatPrice(blueVal)
@@ -491,7 +493,8 @@
       mainContainer.className = "space-y-7 py-2";
       chatArea.appendChild(mainContainer);
 
-      const market = getStockMarketData(stockName);
+      // 백엔드 본문 내용과 100% 동기화된 데이터 세트 생성
+      const syncData = extractMarketSyncData(stockName, sections);
       let secIdx = 0;
 
       function typeNextSection() {
@@ -509,29 +512,27 @@
         let dynamicTitle = sec.title || '';
         let text = sec.content || '';
 
-        // 1. "오늘 왜 보합일까?" 타이틀과 본문을 등락률 부호에 맞게 자동 교체
+        // 1. 첫 섹션 타이틀: 본문에서 읽어온 실제 등락률(+0.67% 등)을 제목에 100% 동기화
         if (isConditionSection && !isSurvivalSection) {
-          if (market.sign === 'up') {
-            dynamicTitle = `오늘 왜 상승했을까? (${market.rateStr})`;
-            text = text.replace(/#보합세|#눈치싸움|#숨고르기/g, '#상승흐름');
-          } else if (market.sign === 'down') {
-            dynamicTitle = `오늘 왜 파란불일까? (${market.rateStr})`;
-            text = text.replace(/#상승흐름|#보합세/g, '#숨고르기');
+          if (syncData.sign === 'up') {
+            dynamicTitle = `오늘 왜 상승했을까? (${syncData.rateStr})`;
+          } else if (syncData.sign === 'down') {
+            dynamicTitle = `오늘 왜 파란불일까? (${syncData.rateStr})`;
           } else {
-            dynamicTitle = `오늘 왜 보합일까? (${market.rateStr})`;
+            dynamicTitle = `오늘 왜 보합일까? (${syncData.rateStr})`;
           }
         }
 
-        // 2. "여기 깨지면 도망쳐" 섹션 사용자 확정 멘트 반영
+        // 2. "여기 깨지면 도망쳐" 섹션: 본문 주가(180만 원대)에 정확히 맞춘 3대 가격 반영
         if (isSurvivalSection) {
           dynamicTitle = "여기 깨지면 도망쳐";
-          text = `여기서 막힐 수 있어 ${market.pinkPrice}\n` +
+          text = `여기서 막힐 수 있어 ${syncData.pinkPrice}\n` +
                  `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이다! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
                  `#악성매물대 #시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라\n\n` +
-                 `여기까지 버텨줘 ${market.yellowPrice}\n` +
+                 `여기까지 버텨줘 ${syncData.yellowPrice}\n` +
                  `"여긴 지켜줘야 사람 구실 한다! 지지선 깨지면 실망 매물 쏟아지면서 으악 소리 난다. 일단 버티되, 무너지면 비중부터 줄여라. 알았제?"\n` +
                  `#존버모드ON #눈치싸움 #깨지면_반털어라 #아직은_숨참기\n\n` +
-                 `무너지면 도망쳐 ${market.bluePrice}\n` +
+                 `무너지면 도망쳐 ${syncData.bluePrice}\n` +
                  `여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!\n` +
                  `#생존 지지선 #빤스런 #뒤도보지마 #생존이_우선 #미련버려`;
         }
@@ -562,13 +563,13 @@
 
             try {
               if (isSurvivalSection) {
-                formatted = `<span class="font-bold" style="color: #FF8DA1;">여기서 막힐 수 있어 ${market.pinkPrice}</span>\n` +
+                formatted = `<span class="font-bold" style="color: #FF8DA1;">여기서 막힐 수 있어 ${syncData.pinkPrice}</span>\n` +
                             `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이다! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
                             `<span class="font-bold" style="color: #FF8DA1;">#악성매물대 #시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라</span>\n\n` +
-                            `<span class="font-bold" style="color: #FBBF24;">여기까지 버텨줘 ${market.yellowPrice}</span>\n` +
+                            `<span class="font-bold" style="color: #FBBF24;">여기까지 버텨줘 ${syncData.yellowPrice}</span>\n` +
                             `"여긴 지켜줘야 사람 구실 한다! 지지선 깨지면 실망 매물 쏟아지면서 으악 소리 난다. 일단 버티되, 무너지면 비중부터 줄여라. 알았제?"\n` +
                             `<span class="font-bold" style="color: #FBBF24;">#존버모드ON #눈치싸움 #깨지면_반털어라 #아직은_숨참기</span>\n\n` +
-                            `<span class="font-bold" style="color: #38BDF8;">무너지면 도망쳐 ${market.bluePrice}</span>\n` +
+                            `<span class="font-bold" style="color: #38BDF8;">무너지면 도망쳐 ${syncData.bluePrice}</span>\n` +
                             `여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!\n` +
                             `<span class="font-bold" style="color: #38BDF8;">#생존 지지선 #빤스런 #뒤도보지마 #생존이_우선 #미련버려</span>`;
               } else {
@@ -597,7 +598,7 @@
                   formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
                 } 
                 else if (formatted.includes('#') && !formatted.includes('캘린더')) {
-                  const themeColor = market.sign === 'up' ? '#FF8DA1' : (market.sign === 'down' ? '#38BDF8' : '#FBBF24');
+                  const themeColor = syncData.sign === 'up' ? '#FF8DA1' : (syncData.sign === 'down' ? '#38BDF8' : '#FBBF24');
                   
                   let lines = formatted.split('\n\n');
                   if (lines.length > 0) {
