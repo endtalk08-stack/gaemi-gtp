@@ -415,10 +415,12 @@ def analyze():
 
             # 미국 옵션 수급: yfinance 우선 + Yahoo Finance 직접 조회 fallback
             # 화면/한국주식 로직은 건드리지 않고, CALL/PUT 수집 부분만 보강한다.
+            # 실패 시 화면에는 "NVDA 조회 실패 HTTP 429"처럼 원인만 간단히 표시한다.
             try:
                 call_vol = 0
                 put_vol = 0
                 source = ""
+                option_http_error = None
 
                 # 1차: 기존 yfinance 방식 유지
                 try:
@@ -437,6 +439,9 @@ def analyze():
                                 source = f"yfinance:{expiry}"
                                 break
                 except Exception as yf_err:
+                    # HTTPError라면 상태코드만 기억해 두고, 최종 화면에는 간단히 표시한다.
+                    if isinstance(yf_err, urllib.error.HTTPError):
+                        option_http_error = yf_err.code
                     print(f"[미국 옵션] yfinance 실패 {ticker_symbol}: {type(yf_err).__name__}: {yf_err}")
 
                 # 2차: Yahoo Finance v7 옵션 API 직접 조회
@@ -491,6 +496,8 @@ def analyze():
                                         source = 'yahoo_direct'
                                         break
                     except Exception as yahoo_err:
+                        if isinstance(yahoo_err, urllib.error.HTTPError):
+                            option_http_error = yahoo_err.code
                         print(f"[미국 옵션] Yahoo 직접 조회 실패 {ticker_symbol}: {type(yahoo_err).__name__}: {yahoo_err}")
 
                 if source and call_vol > 0:
@@ -508,7 +515,13 @@ def analyze():
                         supply_content = f"{tag_line}\n\n현재 옵션 시장이 팽팽하게 눈치싸움 중이야.\n콜과 풋 거래량이 크게 벌어지지 않아 방향성을 조금 더 확인할 필요가 있어."
                 elif source and call_vol == 0 and put_vol == 0:
                     print(f"[미국 옵션] {ticker_symbol} 조회 성공했지만 현재 거래량이 0입니다.")
+                elif option_http_error:
+                    # 사용자가 요청한 형식: "NVDA 조회 실패 HTTP 429"
+                    supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_http_error}"
             except Exception as option_err:
+                if isinstance(option_err, urllib.error.HTTPError):
+                    option_http_error = option_err.code
+                    supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_err.code}"
                 print(f"[미국 옵션] 전체 처리 실패 {ticker_symbol}: {type(option_err).__name__}: {option_err}")
 
         if not supply_content:
