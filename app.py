@@ -310,7 +310,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
         tonight_card = (
             "🌙 오늘 밤은? 없네!\n"
             "시장을 뒤흔들 빅이벤트가 없으니까 야간 미장 걱정 말고 꿀잠 자도 돼 ㅎㅎ\n"
-            "대신 이번 주 굵직한 지표와 메이저 실적들이 대기 중이니까 아래 일정 꼭 메모해 둬!"
+            "대신 이번 주 굵직한 지표와 실적들이 대기 중이니까 아래 일정 꼭 메모해 둬!"
         )
 
     check_lines = []
