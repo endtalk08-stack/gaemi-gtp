@@ -198,7 +198,7 @@ def get_active_gemini_model():
     if _cached_active_model: return _cached_active_model
     try:
         available_models = [m.name.replace('models/', '') for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        for pref in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-pro']:
+        for pref in ['gemini-3.6-flash', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-pro']:
             if pref in available_models:
                 _cached_active_model = pref
                 return _cached_active_model
