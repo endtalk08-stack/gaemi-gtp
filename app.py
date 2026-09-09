@@ -222,7 +222,7 @@ def filter_core_news_with_gemini(headlines, stock_name):
         )
         response = model.generate_content(prompt)
         filtered = [line.strip().lstrip('1234567890.-•* ') for line in response.text.strip().split('\n') if line.strip()]
-        return filtered[:5] if filtered else headlines[:3]
+        return filtered[:3] if filtered else headlines[:3]
     except Exception as e:
         print("Gemini 필터링 건너뛰기:", e)
         return headlines[:5]
