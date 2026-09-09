@@ -192,33 +192,6 @@ def fetch_yahoo_direct_v8(ticker_str):
         print("야후 데이터 조회 예외:", e)
     return None, None, None, None
 
-# 🔥 매크로 지표(미장, 대장주) 캐싱 가져오기 (API 한도 방어)
-def get_global_macro_status():
-    cache_key = "global_macro_status_v1"
-    if redis_client:
-        try:
-            cached = redis_client.get(cache_key)
-            if cached:
-                return cached.decode('utf-8') if isinstance(cached, bytes) else cached
-        except:
-            pass
-
-    try:
-        ndx = yf.Ticker("^IXIC").history(period="5d")
-        nvda = yf.Ticker("NVDA").history(period="5d")
-        
-        ndx_pct = ((ndx['Close'].iloc[-1] - ndx['Close'].iloc[-2]) / ndx['Close'].iloc[-2]) * 100 if len(ndx) >= 2 else 0.0
-        nvda_pct = ((nvda['Close'].iloc[-1] - nvda['Close'].iloc[-2]) / nvda['Close'].iloc[-2]) * 100 if len(nvda) >= 2 else 0.0
-        
-        status = f"나스닥 {ndx_pct:+.2f}%, 엔비디아(글로벌 대장주) {nvda_pct:+.2f}%"
-        
-        if redis_client:
-            redis_client.setex(cache_key, 3600, status) # 미장 데이터는 1시간에 한 번만 갱신
-        return status
-    except Exception as e:
-        print("매크로 지표 조회 실패:", e)
-        return "글로벌 매크로 지표 동기화 대기중"
-
 _cached_active_model = None
 def get_active_gemini_model():
     global _cached_active_model
@@ -233,12 +206,9 @@ def get_active_gemini_model():
     except: pass
     return 'gemini-2.5-flash'
 
-# 🔥 매크로, 경제일정, 개별 뉴스를 '탑다운(Top-Down)'으로 융합 분석하는 핵심 AI 엔진
-def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct, macro_status, calendar_text):
+def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
     def fallback(h_list):
-        reason = "주요 공시와 호가창 매물대 흐름을 체크하며 방향성을 탐색 중이야."
-        news = [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h).strip().strip('"\'“”') for h in h_list[:3]]
-        return reason, news, False
+        return "주요 공시와 호가창 매물대 흐름을 체크하며 방향성을 탐색 중이야.", [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h).strip().strip('"\'“”') for h in h_list[:3]], False
 
     if not headlines or not GEMINI_KEY:
         return fallback(headlines)
@@ -246,55 +216,55 @@ def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct, macro
     try:
         model = genai.GenerativeModel(get_active_gemini_model())
         
-        # 대표님 기획 반영: 미국장 흐름, 주도주, 경제일정, 뉴스를 모두 제공
+        # 대표님 기획 100% 반영: 호재/악재 판단 및 강력한 JSON 포맷 강제
         prompt = (
-            f"종목: {stock_name} (오늘 {change_pct:+.2f}%)\n"
-            f"[글로벌 시장 및 주도주 흐름]\n전일 미장: {macro_status}\n\n"
-            f"[대기중인 주요 일정]\n{calendar_text}\n\n"
-            f"[개별 재료(뉴스)]\n"
-            + "\n".join(headlines[:6]) +
-            f"\n\n위 데이터를 바탕으로 다음 4개 항목을 반말로 작성해. "
-            f"단순 뉴스 제목만 읊지 말고 '미국장 흐름 / 글로벌 주도주 파급력 / 실적 및 경제일정 / 개별 종목 뉴스'를 모두 엮어서(Top-down) 이 주식이 오늘 왜 오르거나 내리는지 진짜 이유를 도출해야 해.\n\n"
-            f"이유: 오늘 주가 등락의 진짜 종합 원인 1~2줄\n"
-            f"뉴스1: 핵심 뉴스 팩트 요약\n"
-            f"뉴스2: 핵심 뉴스 팩트 요약\n"
-            f"뉴스3: 핵심 뉴스 팩트 요약\n"
+            f"종목:{stock_name} / 등락률:{change_pct:+.2f}%\n"
+            f"아래 뉴스를 분석해 오늘 주가 등락의 핵심 원인을 찾고, 반드시 아래 JSON 형식으로만 출력해.\n"
+            f"다른 설명은 절대 하지 마.\n\n"
+            f"{{\n"
+            f'  "judgment": "호재" (또는 "악재", "불명확"),\n'
+            f'  "reason": "왜 올랐는지(또는 빠졌는지) 개미 말투로 화끈하게 1~2줄 설명",\n'
+            f'  "news": ["핵심 뉴스 1 요약", "핵심 뉴스 2 요약", "핵심 뉴스 3 요약"]\n'
+            f"}}\n\n"
+            f"[뉴스 원문]\n"
+            + "\n".join(headlines[:8])
         )
         response = model.generate_content(prompt)
         text = response.text.strip()
 
-        reason_text = ""
-        news_list = []
-
-        m_reason = re.search(r'(?:이유|원인)\s*[:：]\s*(.+)', text)
-        if m_reason: reason_text = m_reason.group(1).replace('**', '').strip()
-
-        m_news1 = re.search(r'뉴스\s*1\s*[:：]\s*(.+)', text)
-        m_news2 = re.search(r'뉴스\s*2\s*[:：]\s*(.+)', text)
-        m_news3 = re.search(r'뉴스\s*3\s*[:：]\s*(.+)', text)
-
-        if m_news1: news_list.append(m_news1.group(1).replace('**', '').strip())
-        if m_news2: news_list.append(m_news2.group(1).replace('**', '').strip())
-        if m_news3: news_list.append(m_news3.group(1).replace('**', '').strip())
-
-        if not reason_text or len(news_list) < 2:
-            lines = [re.sub(r'^[\s*#0-9.\-–—]+', '', l).replace('**', '').strip() for l in text.split('\n') if l.strip()]
-            if lines:
-                reason_text = reason_text or lines[0]
-                news_list = news_list or lines[1:4]
-
+        # 🚨 불사조 JSON 파서: AI가 무슨 짓을 하든 { } 안의 내용만 정확히 추출
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if not match:
+            print("JSON 정규식 매칭 실패:", text)
+            return fallback(headlines)
+            
+        json_str = match.group(0)
+        data = json.loads(json_str)
+        
+        judgment = data.get("judgment", "")
+        reason = data.get("reason", "이유 파악 중")
+        news_list = data.get("news", [])
+        
+        # 대표님 요청: 호재/악재 결과물 강제 출력 합성
+        if judgment in ["호재", "악재"]:
+            final_reason = f"[{judgment} 🚨] {reason}"
+        elif judgment:
+            final_reason = f"[{judgment}] {reason}"
+        else:
+            final_reason = reason
+            
         clean_news = [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', n).strip('"\'“”') for n in news_list]
-
-        if reason_text and clean_news:
-            return reason_text, clean_news[:3], True
+        
+        if reason and clean_news:
+            return final_reason, clean_news[:3], True
         else:
             return fallback(headlines)
             
     except Exception as e:
-        print("Gemini 분석 예외:", e)
+        print("Gemini 완벽 JSON 분석 예외:", e)
         return fallback(headlines)
 
-def fetch_realtime_news_and_reason(stock_name, change_pct, master_events):
+def fetch_realtime_news_and_reason(stock_name, change_pct):
     cache_key = f"news_v11_{stock_name}" # 캐시 키 v11 강제 갱신
     
     if redis_client:
@@ -329,20 +299,13 @@ def fetch_realtime_news_and_reason(stock_name, change_pct, master_events):
                     if len(headlines) >= 12:
                         break
             
-            # 매크로 지표 및 캘린더 요약 텍스트 추출
-            macro_status = get_global_macro_status()
-            calendar_text = "\n".join([f"{ev['dt'].strftime('%m/%d')} {ev['name']}" for ev in master_events[:3]])
-            
-            # AI에게 모든 데이터를 던지고 융합 분석 지시
-            reason, filtered_news, is_ai_success = analyze_news_and_reason_with_gemini(
-                headlines, stock_name, change_pct, macro_status, calendar_text
-            )
+            reason, filtered_news, is_ai_success = analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct)
             
             if redis_client and is_ai_success:
                 try:
                     data_to_store = {"reason": reason, "news": filtered_news}
                     redis_client.setex(cache_key, 86400, json.dumps(data_to_store, ensure_ascii=False))
-                    print(f"[{stock_name}] 매크로 융합 AI 분석 Redis 저장 완료!")
+                    print(f"[{stock_name}] AI 분석 호재/악재 JSON 저장 완료!")
                 except Exception as e:
                     print("Redis 쓰기 에러:", e)
                     
@@ -371,10 +334,11 @@ def round_krw_tick(price):
     except Exception:
         return 0
 
-def get_live_calendar_events():
+def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
-    
+    weekdays = ['월', '화', '수', '목', '금', '토', '일']
+
     master_events = [
         {"name": "미국 8월 생산자물가지수 #PPI", "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz), "est": "0.2%", "type": "ppi"},
         {"name": "#오라클 ORCL 실적 발표", "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz), "est": "예상 EPS $1.33", "type": "earnings", "target": "글로벌 AI·클라우드 대장주"},
@@ -383,17 +347,14 @@ def get_live_calendar_events():
         {"name": "미국 연준 #FOMC 기준금리 결정", "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz), "est": "기준금리 3.50%~3.75%", "type": "fomc"},
         {"name": "미국 개인소비지출 #PCE 물가지수", "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz), "est": "2.6%", "type": "pce"}
     ]
+
     master_events.sort(key=lambda x: x['dt'])
     upcoming = [ev for ev in master_events if ev['dt'] >= now_kst]
-    return upcoming if upcoming else master_events[:4]
+    if not upcoming:
+        upcoming = master_events[:4]
 
-def get_live_calendar_data_ui(upcoming_events):
-    kst_tz = datetime.timezone(datetime.timedelta(hours=9))
-    now_kst = datetime.datetime.now(kst_tz)
-    weekdays = ['월', '화', '수', '목', '금', '토', '일']
-    
     tomorrow_morning = (now_kst + datetime.timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-    tonight_event = next((ev for ev in upcoming_events if ev['dt'] <= tomorrow_morning), None)
+    tonight_event = next((ev for ev in upcoming if ev['dt'] <= tomorrow_morning), None)
 
     if tonight_event:
         t_dt = tonight_event['dt']
@@ -422,7 +383,7 @@ def get_live_calendar_data_ui(upcoming_events):
         )
 
     check_lines = []
-    for ev in upcoming_events[:4]:
+    for ev in upcoming[:4]:
         e_dt = ev['dt']
         e_wd = weekdays[e_dt.weekday()]
         e_time = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
@@ -433,6 +394,7 @@ def get_live_calendar_data_ui(upcoming_events):
         "\n".join(check_lines) +
         "\n\n\"지표나 실적 발표 전후로는 호가창 얇아지니까 뇌동매매 절대 금지야! 알았제?\""
     )
+
     return f"{tonight_card}\n\n{calendar_block}"
 
 @app.route('/')
@@ -444,9 +406,6 @@ def analyze():
     raw_name = request.args.get('stock', '삼성전자').strip()
     ticker_symbol = TICKERS.get(raw_name)
     clean_code = None
-    
-    # 달력 이벤트는 UI용과 매크로 융합용으로 공통 사용
-    upcoming_events = get_live_calendar_events()
 
     try:
         if ticker_symbol:
@@ -594,8 +553,7 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
-        # 🔥 달력 이벤트까지 넘겨서 AI가 종합 분석하도록 함
-        ai_reason, news_list = fetch_realtime_news_and_reason(raw_name, change_pct, upcoming_events)
+        ai_reason, news_list = fetch_realtime_news_and_reason(raw_name, change_pct)
         news_lines = "\n".join([f"📰 {title}" for title in news_list]) if news_list else f"📰 {raw_name} 관련 메이저 재료 분석 중"
 
         escape_content = (
@@ -621,7 +579,7 @@ def analyze():
             },
             {
                 "title": "오늘 밤, 이번주 무슨 일이 있나?",
-                "content": get_live_calendar_data_ui(upcoming_events)
+                "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ]
         return jsonify({"sections": sections})
