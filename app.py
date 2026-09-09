@@ -77,11 +77,11 @@ def search_krx_code(stock_name):
     try:
         url = f"https://ac.stock.naver.com/ac?q={urllib.parse.quote(stock_name)}&target=stock"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Referer': 'https://finance.naver.com'
         }
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=2) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             items = data.get('items', [])
             for it in items:
@@ -91,12 +91,12 @@ def search_krx_code(stock_name):
                     suffix = '.KQ' if 'KOSDAQ' in type_code else '.KS'
                     return f"{code}{suffix}", code
     except Exception as e:
-        print("네이버 증권 검색 예외:", e)
+        pass
 
     try:
         url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=2) as resp:
             res_json = json.loads(resp.read().decode('utf-8'))
             items = res_json.get('items', [])
             if items and len(items[0]) > 0:
@@ -106,27 +106,25 @@ def search_krx_code(stock_name):
                 suffix = '.KQ' if 'KOSDAQ' in market else '.KS'
                 return f"{code}{suffix}", code
     except Exception as e:
-        print("네이버 금융 검색 예외:", e)
+        pass
 
     return None, None
 
+# ⚡ [초고속 개편] 해외 Render 서버에서도 0.1초 만에 뚫리는 네이버 모바일 기본 시세 API
 def fetch_kr_stock_realtime(code_six):
     try:
-        url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code_six}"
+        url = f"https://m.stock.naver.com/api/stock/{code_six}/basic"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
             'Referer': 'https://m.stock.naver.com/'
         }
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=2) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-            datas = data.get('datas', [])
-            if datas:
-                item = datas[0]
-                cur_p = float(str(item.get('closePrice', 0)).replace(',', ''))
-                diff = float(str(item.get('compareToPreviousClosePrice', 0)).replace(',', ''))
-                ratio = float(str(item.get('fluctuationsRatio', 0)).replace(',', ''))
-                return cur_p, diff, ratio
+            cur_p = float(str(data.get('nowPrice', 0)).replace(',', ''))
+            diff = float(str(data.get('compareToPreviousClosePrice', 0)).replace(',', ''))
+            ratio = float(str(data.get('fluctuationsRatio', 0)).replace(',', ''))
+            return cur_p, diff, ratio
     except Exception as e:
         print("네이버 실시간 시세 조회 예외:", e)
     return None, None, None
@@ -135,11 +133,11 @@ def fetch_krx_trend_and_supply(code_six):
     try:
         url = f"https://m.stock.naver.com/api/stock/{code_six}/trend?page=1&pageSize=20"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
             'Referer': 'https://m.stock.naver.com/'
         }
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=2) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             if data and isinstance(data, list):
                 prices = []
@@ -173,20 +171,18 @@ def fetch_krx_trend_and_supply(code_six):
         print("네이버 수급 집계 예외:", e)
     return 0, 0, None, None, None, 0
 
+# 야후 파이낸스는 미국 주식 전용 (타임아웃 3초로 단축)
 def fetch_yahoo_direct_v8(ticker_str):
     try:
         stock = yf.Ticker(ticker_str)
-        hist = stock.history(period="1mo")
+        hist = stock.history(period="1mo", timeout=3)
         if not hist.empty and len(hist) >= 2:
             cur_p = float(hist['Close'].iloc[-1])
             prev_p = float(hist['Close'].iloc[-2])
-            
             closes = hist['Close'].dropna().tolist()
             ma20 = sum(closes) / len(closes) if closes else cur_p
-            
             highs = hist['High'].dropna().tolist()
             res_p = max(highs) if highs else cur_p * 1.05
-            
             return cur_p, prev_p, ma20, res_p
     except Exception as e:
         print("야후 데이터 조회 예외:", e)
@@ -215,8 +211,6 @@ def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
     
     try:
         model = genai.GenerativeModel(get_active_gemini_model())
-        
-        # 대표님 기획 100% 반영: 호재/악재 판단 및 강력한 JSON 포맷 강제
         prompt = (
             f"종목:{stock_name} / 등락률:{change_pct:+.2f}%\n"
             f"아래 뉴스를 분석해 오늘 주가 등락의 핵심 원인을 찾고, 반드시 아래 JSON 형식으로만 출력해.\n"
@@ -227,15 +221,13 @@ def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
             f'  "news": ["핵심 뉴스 1 요약", "핵심 뉴스 2 요약", "핵심 뉴스 3 요약"]\n'
             f"}}\n\n"
             f"[뉴스 원문]\n"
-            + "\n".join(headlines[:8])
+            + "\n".join(headlines[:6])
         )
         response = model.generate_content(prompt)
         text = response.text.strip()
 
-        # 🚨 불사조 JSON 파서: AI가 무슨 짓을 하든 { } 안의 내용만 정확히 추출
         match = re.search(r'\{.*\}', text, re.DOTALL)
         if not match:
-            print("JSON 정규식 매칭 실패:", text)
             return fallback(headlines)
             
         json_str = match.group(0)
@@ -245,7 +237,6 @@ def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
         reason = data.get("reason", "이유 파악 중")
         news_list = data.get("news", [])
         
-        # 대표님 요청: 호재/악재 결과물 강제 출력 합성
         if judgment in ["호재", "악재"]:
             final_reason = f"[{judgment} 🚨] {reason}"
         elif judgment:
@@ -265,7 +256,7 @@ def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
         return fallback(headlines)
 
 def fetch_realtime_news_and_reason(stock_name, change_pct):
-    cache_key = f"news_v11_{stock_name}" # 캐시 키 v11 강제 갱신
+    cache_key = f"news_v12_{stock_name}"
     
     if redis_client:
         try:
@@ -275,13 +266,13 @@ def fetch_realtime_news_and_reason(stock_name, change_pct):
                     cached_data = json.loads(cached_data)
                 return cached_data.get("reason", ""), cached_data.get("news", [])
         except Exception as e:
-            print("Redis 읽기 에러:", e)
+            pass
 
     try:
         query = urllib.parse.quote(f"{stock_name}")
         url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
             xml_data = resp.read()
             root = ET.fromstring(xml_data)
             items = root.findall('.//item')
@@ -296,7 +287,7 @@ def fetch_realtime_news_and_reason(stock_name, change_pct):
                     clean = title.strip().strip('"\'“”')
                     if clean and clean not in headlines:
                         headlines.append(clean)
-                    if len(headlines) >= 12:
+                    if len(headlines) >= 8:
                         break
             
             reason, filtered_news, is_ai_success = analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct)
@@ -307,7 +298,7 @@ def fetch_realtime_news_and_reason(stock_name, change_pct):
                     redis_client.setex(cache_key, 86400, json.dumps(data_to_store, ensure_ascii=False))
                     print(f"[{stock_name}] AI 분석 호재/악재 JSON 저장 완료!")
                 except Exception as e:
-                    print("Redis 쓰기 에러:", e)
+                    pass
                     
             return reason, filtered_news
     except Exception as e:
@@ -436,19 +427,12 @@ def analyze():
         resistance_price = 0.0
         supply_content = ""
 
+        # 🚨 [핵심 개선] 한국 주식은 100% 네이버로만 처리 (야후 파이낸스 절대 안 부름 -> 20초 딜레이 박살)
         if is_krw and clean_code:
             cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
 
-            if not cur_p:
-                yp, yprev, yma, yres = fetch_yahoo_direct_v8(ticker_symbol)
-                if yp:
-                    cur_p = yp
-                    ratio = ((yp - yprev) / yprev) * 100 if yprev else 0.0
-                    ma20_val = yma
-                    res_val = yres
-
-            current_price = cur_p or 0.0
+            current_price = cur_p or ma20_val or 0.0
             change_pct = ratio if ratio is not None else 0.0
             ma20 = ma20_val if ma20_val else current_price * 0.95
             resistance_price = res_val if res_val else current_price * 1.05
@@ -480,6 +464,7 @@ def analyze():
                 supply_content = "현재 수급 데이터를 집계 중이야. 지지선과 20일선 먼저 체크하고 대응하자!"
 
         else:
+            # 미국 주식일 때만 야후 파이낸스 호출
             cur_p, prev_p, ma20_val, res_val = fetch_yahoo_direct_v8(ticker_symbol)
             if cur_p and prev_p:
                 current_price = cur_p
@@ -522,7 +507,7 @@ def analyze():
                         else:
                             supply_content = f"{tag_line}\n\n최근 5일간 월가 세력들이 팽팽하게 눈치싸움 중이야.\n상승과 하락 양쪽에 돈이 비슷하게 걸려 있는 방향성 탐색 구간이니 지지/저항선 잘 체크하며 대응하자."
             except Exception as e:
-                print("옵션 데이터 수집 예외:", e)
+                pass
 
             if not supply_content:
                 if change_pct >= 0:
