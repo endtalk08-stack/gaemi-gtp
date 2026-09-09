@@ -192,85 +192,77 @@ def fetch_yahoo_direct_v8(ticker_str):
         print("야후 데이터 조회 예외:", e)
     return None, None, None, None
 
-# 404 방지: API 키에서 사용 가능한 최신 모델 자동 확인
 _cached_active_model = None
-
 def get_active_gemini_model():
     global _cached_active_model
-    if _cached_active_model:
-        return _cached_active_model
-    
-    preferred_models = [
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-flash-latest',
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-flash',
-        'gemini-pro'
-    ]
-    
+    if _cached_active_model: return _cached_active_model
     try:
-        available_models = [
-            m.name.replace('models/', '') 
-            for m in genai.list_models() 
-            if 'generateContent' in m.supported_generation_methods
-        ]
-        for pref in preferred_models:
+        available_models = [m.name.replace('models/', '') for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        for pref in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-pro']:
             if pref in available_models:
                 _cached_active_model = pref
-                print(f"✅ 사용 가능한 Gemini 최신 모델 자동 감지: {_cached_active_model}")
                 return _cached_active_model
-        
-        flash_candidates = [m for m in available_models if 'flash' in m]
-        if flash_candidates:
-            _cached_active_model = flash_candidates[0]
-            return _cached_active_model
-            
-        if available_models:
-            _cached_active_model = available_models[0]
-            return _cached_active_model
-    except Exception as e:
-        print("사용 가능 모델 탐색 실패, 기본 모델로 전환:", e)
+        if available_models: return available_models[0]
+    except: pass
+    return 'gemini-2.5-flash'
 
-    _cached_active_model = 'gemini-2.5-flash'
-    return _cached_active_model
-
-def filter_core_news_with_gemini(headlines, stock_name):
-    def clean_fallback(h_list):
-        return [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h).strip().strip('"\'“”') for h in h_list[:3]]
+# 🔥 핵심 변경: 주가가 왜 올랐/내렸는지 이유를 파악하는 로직으로 개편
+def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
+    def fallback(h_list):
+        reason = "아직 정확한 이유를 파악 중이야. 아래 속보들을 보면서 직접 흐름을 읽어보자!"
+        news = [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h).strip().strip('"\'“”') for h in h_list[:3]]
+        return reason, news, False
 
     if not headlines or not GEMINI_KEY:
-        return clean_fallback(headlines), False
+        return fallback(headlines)
     
     try:
-        model_name = get_active_gemini_model()
-        model = genai.GenerativeModel(model_name)
+        model = genai.GenerativeModel(get_active_gemini_model())
         
         prompt = (
-            f"{stock_name} 뉴스 중 주가 영향력이 큰 팩트 3개만 각각 1줄(30자 내외)로 요약해.\n"
-            f"조건: 원문 복사 금지, 언론사명/따옴표/기호 제외, 한 줄에 하나씩 출력.\n\n"
-            + "\n".join(headlines)
+            f"넌 주식판의 흐름을 꿰뚫는 냉철하고 직설적인 개미들의 형님이야.\n"
+            f"종목명: {stock_name}\n"
+            f"현재 등락률: {change_pct:+.2f}%\n"
+            f"아래 쏟아진 뉴스들을 보고, 오늘 주가가 왜 오르거나 내렸는지 분석해줘.\n\n"
+            f"[요청 사항]\n"
+            f"반드시 아래 형식을 지켜서 출력해!\n"
+            f"이유: (뉴스를 바탕으로 오늘 주가가 움직인 진짜 이유를 1~2줄로 화끈한 반말로 작성해. 예: '신약 허가 떴다고 외인들이 미친듯이 쓸어담고 있네!')\n"
+            f"뉴스1: (핵심 뉴스 팩트 요약 1줄)\n"
+            f"뉴스2: (핵심 뉴스 팩트 요약 1줄)\n"
+            f"뉴스3: (핵심 뉴스 팩트 요약 1줄)\n\n"
+            f"[뉴스 원문]\n"
+            + "\n".join(headlines[:12])
         )
         response = model.generate_content(prompt)
         
-        filtered = []
+        reason_text = ""
+        news_list = []
+        
         for line in response.text.strip().split('\n'):
             line = line.strip()
-            if line:
-                clean_line = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', line.lstrip('1234567890.-•* ')).strip('"\'“”')
-                filtered.append(clean_line)
+            if '이유:' in line:
+                reason_text = line.split('이유:')[1].strip()
+            elif '뉴스1:' in line:
+                news_list.append(line.split('뉴스1:')[1].strip())
+            elif '뉴스2:' in line:
+                news_list.append(line.split('뉴스2:')[1].strip())
+            elif '뉴스3:' in line:
+                news_list.append(line.split('뉴스3:')[1].strip())
         
-        if filtered:
-            return filtered[:3], True
+        # 클렌징 (불필요한 따옴표, 꼬리표 제거)
+        clean_news = [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', n).strip('"\'“”') for n in news_list]
+        
+        if reason_text and clean_news:
+            return reason_text, clean_news[:3], True
         else:
-            return clean_fallback(headlines), False
+            return fallback(headlines)
             
     except Exception as e:
-        print("Gemini 요약 예외 발생:", e)
-        return clean_fallback(headlines), False
+        print("Gemini 분석 예외 발생:", e)
+        return fallback(headlines)
 
-def fetch_realtime_news(stock_name):
-    cache_key = f"news_v8_{stock_name}"
+def fetch_realtime_news_and_reason(stock_name, change_pct):
+    cache_key = f"news_v9_{stock_name}" # v9 캐시 초기화
     
     if redis_client:
         try:
@@ -278,7 +270,7 @@ def fetch_realtime_news(stock_name):
             if cached_data:
                 if isinstance(cached_data, str):
                     cached_data = json.loads(cached_data)
-                return cached_data
+                return cached_data.get("reason", ""), cached_data.get("news", [])
         except Exception as e:
             print("Redis 읽기 에러:", e)
 
@@ -304,19 +296,21 @@ def fetch_realtime_news(stock_name):
                     if len(headlines) >= 12:
                         break
             
-            filtered_news, is_ai_success = filter_core_news_with_gemini(headlines, stock_name)
+            # AI 분석 가동
+            reason, filtered_news, is_ai_success = analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct)
             
             if redis_client and is_ai_success:
                 try:
-                    redis_client.setex(cache_key, 86400, json.dumps(filtered_news, ensure_ascii=False))
-                    print(f"[{stock_name}] AI 3줄 요약 Redis 저장 완료!")
+                    data_to_store = {"reason": reason, "news": filtered_news}
+                    redis_client.setex(cache_key, 86400, json.dumps(data_to_store, ensure_ascii=False))
+                    print(f"[{stock_name}] AI 분석 이유+뉴스 Redis 저장 완료!")
                 except Exception as e:
                     print("Redis 쓰기 에러:", e)
                     
-            return filtered_news
+            return reason, filtered_news
     except Exception as e:
         print("구글 뉴스 검색 예외:", e)
-        return []
+        return "뉴스 데이터를 불러오지 못했어.", []
 
 def format_shares(n):
     if n is None: return "0주"
@@ -557,9 +551,10 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
-        news_list = fetch_realtime_news(raw_name)
+        # 🔥 AI에게 이유 분석과 뉴스 요약을 동시에 맡김
+        ai_reason, news_list = fetch_realtime_news_and_reason(raw_name, change_pct)
+        
         news_lines = "\n".join([f"📰 {title}" for title in news_list]) if news_list else f"📰 {raw_name} 관련 메이저 재료 분석 중"
-        news_transition = "\"이런 핵심 재료들이 맞물리면서 지금 호가창이 반응하고 있는 거지\""
 
         escape_content = (
             f"#생존 지지선 {ma20_str} 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n"
@@ -571,7 +566,8 @@ def analyze():
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n{news_lines}\n\n{news_transition}\n\n{tags_str}",
+                # 🔥 AI가 분석한 진짜 이유가 현재가 바로 아래에 노출됨!
+                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n{tags_str}",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
             {
