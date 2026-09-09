@@ -204,7 +204,7 @@ def get_active_gemini_model():
                 return _cached_active_model
         if available_models: return available_models[0]
     except: pass
-    return 'gemini-2.5-flash'
+    return 'gemini-3.6-flash'
 
 def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
     def fallback(h_list):
