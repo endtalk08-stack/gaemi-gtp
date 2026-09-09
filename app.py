@@ -198,7 +198,7 @@ def get_active_gemini_model():
     if _cached_active_model: return _cached_active_model
     try:
         available_models = [m.name.replace('models/', '') for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        for pref in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-pro']:
+        for pref in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-pro']:
             if pref in available_models:
                 _cached_active_model = pref
                 return _cached_active_model
@@ -206,10 +206,10 @@ def get_active_gemini_model():
     except: pass
     return 'gemini-2.5-flash'
 
-# 🔥 핵심 변경: 주가가 왜 올랐/내렸는지 이유를 파악하는 로직으로 개편
+# 마크다운/기호 어떤 형태든 100% 인식하는 강력한 정규식 파서 탑재
 def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
     def fallback(h_list):
-        reason = "아직 정확한 이유를 파악 중이야. 아래 속보들을 보면서 직접 흐름을 읽어보자!"
+        reason = "주요 공시와 호가창 매물대 흐름을 체크하며 방향성을 탐색 중이야."
         news = [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', h).strip().strip('"\'“”') for h in h_list[:3]]
         return reason, news, False
 
@@ -220,49 +220,53 @@ def analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct):
         model = genai.GenerativeModel(get_active_gemini_model())
         
         prompt = (
-            f"넌 주식판의 흐름을 꿰뚫는 냉철하고 직설적인 개미들의 형님이야.\n"
-            f"종목명: {stock_name}\n"
-            f"현재 등락률: {change_pct:+.2f}%\n"
-            f"아래 쏟아진 뉴스들을 보고, 오늘 주가가 왜 오르거나 내렸는지 분석해줘.\n\n"
-            f"[요청 사항]\n"
-            f"반드시 아래 형식을 지켜서 출력해!\n"
-            f"이유: (뉴스를 바탕으로 오늘 주가가 움직인 진짜 이유를 1~2줄로 화끈한 반말로 작성해. 예: '신약 허가 떴다고 외인들이 미친듯이 쓸어담고 있네!')\n"
-            f"뉴스1: (핵심 뉴스 팩트 요약 1줄)\n"
-            f"뉴스2: (핵심 뉴스 팩트 요약 1줄)\n"
-            f"뉴스3: (핵심 뉴스 팩트 요약 1줄)\n\n"
-            f"[뉴스 원문]\n"
-            + "\n".join(headlines[:12])
+            f"종목: {stock_name} ({change_pct:+.2f}%)\n"
+            f"아래 뉴스들을 바탕으로 다음 4개 항목을 반말로 작성해.\n"
+            f"이유: 오늘 주가 등락 핵심 원인 1줄\n"
+            f"뉴스1: 핵심 팩트 요약\n"
+            f"뉴스2: 핵심 팩트 요약\n"
+            f"뉴스3: 핵심 팩트 요약\n\n"
+            + "\n".join(headlines[:6])
         )
         response = model.generate_content(prompt)
-        
+        text = response.text.strip()
+
         reason_text = ""
         news_list = []
-        
-        for line in response.text.strip().split('\n'):
-            line = line.strip()
-            if '이유:' in line:
-                reason_text = line.split('이유:')[1].strip()
-            elif '뉴스1:' in line:
-                news_list.append(line.split('뉴스1:')[1].strip())
-            elif '뉴스2:' in line:
-                news_list.append(line.split('뉴스2:')[1].strip())
-            elif '뉴스3:' in line:
-                news_list.append(line.split('뉴스3:')[1].strip())
-        
-        # 클렌징 (불필요한 따옴표, 꼬리표 제거)
+
+        # 별표(**), 띄어쓰기, 숫자 등 마크다운을 완벽히 흡수하는 정규식 추출
+        m_reason = re.search(r'(?:이유|원인)\s*[:：]\s*(.+)', text)
+        if m_reason:
+            reason_text = m_reason.group(1).replace('**', '').strip()
+
+        m_news1 = re.search(r'뉴스\s*1\s*[:：]\s*(.+)', text)
+        m_news2 = re.search(r'뉴스\s*2\s*[:：]\s*(.+)', text)
+        m_news3 = re.search(r'뉴스\s*3\s*[:：]\s*(.+)', text)
+
+        if m_news1: news_list.append(m_news1.group(1).replace('**', '').strip())
+        if m_news2: news_list.append(m_news2.group(1).replace('**', '').strip())
+        if m_news3: news_list.append(m_news3.group(1).replace('**', '').strip())
+
+        # 정규식으로도 안 잡히면 줄바꿈 순서대로 강제 추출
+        if not reason_text or len(news_list) < 2:
+            lines = [re.sub(r'^[\s*#0-9.\-–—]+', '', l).replace('**', '').strip() for l in text.split('\n') if l.strip()]
+            if lines:
+                reason_text = reason_text or lines[0]
+                news_list = news_list or lines[1:4]
+
         clean_news = [re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', n).strip('"\'“”') for n in news_list]
-        
+
         if reason_text and clean_news:
             return reason_text, clean_news[:3], True
         else:
             return fallback(headlines)
             
     except Exception as e:
-        print("Gemini 분석 예외 발생:", e)
+        print("Gemini 분석 예외:", e)
         return fallback(headlines)
 
 def fetch_realtime_news_and_reason(stock_name, change_pct):
-    cache_key = f"news_v9_{stock_name}" # v9 캐시 초기화
+    cache_key = f"news_v10_{stock_name}" # v10으로 올려서 실패 캐시 강제 삭제
     
     if redis_client:
         try:
@@ -296,7 +300,6 @@ def fetch_realtime_news_and_reason(stock_name, change_pct):
                     if len(headlines) >= 12:
                         break
             
-            # AI 분석 가동
             reason, filtered_news, is_ai_success = analyze_news_and_reason_with_gemini(headlines, stock_name, change_pct)
             
             if redis_client and is_ai_success:
@@ -551,9 +554,7 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
-        # 🔥 AI에게 이유 분석과 뉴스 요약을 동시에 맡김
         ai_reason, news_list = fetch_realtime_news_and_reason(raw_name, change_pct)
-        
         news_lines = "\n".join([f"📰 {title}" for title in news_list]) if news_list else f"📰 {raw_name} 관련 메이저 재료 분석 중"
 
         escape_content = (
@@ -566,7 +567,6 @@ def analyze():
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                # 🔥 AI가 분석한 진짜 이유가 현재가 바로 아래에 노출됨!
                 "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n💡 {ai_reason}\n\n{news_lines}\n\n{tags_str}",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             },
