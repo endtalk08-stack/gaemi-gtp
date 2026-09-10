@@ -449,42 +449,74 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                         detail_text = detail_resp.read().decode("utf-8", errors="ignore")
                     print(f"[미국 공시] {ticker_symbol} Form 4 XML 수신: {len(detail_text)} bytes")
 
-                    # SEC Form 4 XML은 네임스페이스가 붙는 경우가 있어
-                    # 정규식만으로 읽으면 보고자/거래코드가 비어버릴 수 있다.
-                    # ElementTree로 실제 XML 구조를 읽고 태그의 local-name을 기준으로 찾는다.
+                    # SEC Form 4 XML은 제출 방식에 따라 네임스페이스가 있거나
+                    # XML 본문이 조금씩 달라질 수 있다.
+                    # 1) ElementTree로 정상 XML을 우선 파싱하고,
+                    # 2) 필드가 비어 있으면 원문 정규식 파서로 한 번 더 보강한다.
+                    # 이렇게 하면 X05/X06 경로 차이와 무관하게 실제 거래 내용을 읽는다.
+                    def _local(tag):
+                        return tag.split("}", 1)[-1] if isinstance(tag, str) else ""
+
+                    def _clean_value(value):
+                        return re.sub(r"\s+", " ", str(value or "")).strip()
+
+                    def _tag_value(text, tag_name):
+                        # 네임스페이스 유무와 관계없이 태그 내용을 찾는다.
+                        pat = rf"<(?:[A-Za-z0-9_.-]+:)?{re.escape(tag_name)}\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?{re.escape(tag_name)}>"
+                        mm = re.search(pat, text, flags=re.I | re.S)
+                        return _clean_value(mm.group(1)) if mm else ""
+
+                    transactions = []
+                    parse_error = None
                     try:
                         root = ET.fromstring(detail_text)
-
-                        def _local(tag):
-                            return tag.split("}", 1)[-1]
 
                         def _first_text(parent, tag_name):
                             for node in parent.iter():
                                 if _local(node.tag) == tag_name:
-                                    value = "".join(node.itertext()).strip()
+                                    value = _clean_value("".join(node.itertext()))
                                     if value:
-                                        return re.sub(r"\s+", " ", value).strip()
+                                        return value
                             return ""
 
-                        # 보고자 이름
                         filing["person"] = _first_text(root, "rptOwnerName")
-
-                        # 직책
                         filing["officer_title"] = _first_text(root, "officerTitle")
 
-                        # 실제 거래 행을 순서대로 읽는다.
-                        transactions = []
                         for txn in root.iter():
                             if _local(txn.tag) != "nonDerivativeTransaction":
                                 continue
-
                             code = _first_text(txn, "transactionCode").upper()
                             shares = _first_text(txn, "transactionShares")
                             price = _first_text(txn, "transactionPricePerShare")
-                            acquired_disposed = _first_text(
-                                txn, "transactionAcquiredDisposedCode"
-                            ).upper()
+                            acquired_disposed = _first_text(txn, "transactionAcquiredDisposedCode").upper()
+                            if code or shares:
+                                transactions.append({
+                                    "code": code,
+                                    "shares": shares,
+                                    "price": price,
+                                    "acquired_disposed": acquired_disposed,
+                                })
+                    except ET.ParseError as e:
+                        parse_error = e
 
+                    # ElementTree가 성공했어도 거래행을 못 찾으면 원문에서 재탐색한다.
+                    # SEC의 Form 4 XML은 실제 거래행이 <nonDerivativeTransaction> 블록 안에 있다.
+                    if not filing.get("person"):
+                        filing["person"] = _tag_value(detail_text, "rptOwnerName")
+                    if not filing.get("officer_title"):
+                        filing["officer_title"] = _tag_value(detail_text, "officerTitle")
+
+                    if not transactions:
+                        txn_blocks = re.findall(
+                            r"<(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction>",
+                            detail_text,
+                            flags=re.I | re.S,
+                        )
+                        for block in txn_blocks:
+                            code = _tag_value(block, "transactionCode").upper()
+                            shares = _tag_value(block, "transactionShares")
+                            price = _tag_value(block, "transactionPricePerShare")
+                            acquired_disposed = _tag_value(block, "transactionAcquiredDisposedCode").upper()
                             if code or shares:
                                 transactions.append({
                                     "code": code,
@@ -493,63 +525,29 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                                     "acquired_disposed": acquired_disposed,
                                 })
 
-                        # 파생상품 거래도 없지는 않지만, 화면의 '주식 거래'는
-                        # 우선 Table I(Non-Derivative)를 기준으로 표시한다.
-                        if transactions:
-                            filing["transactions"] = transactions
-                            filing["transaction_code"] = transactions[0]["code"]
-                            filing["shares"] = transactions[0]["shares"]
-                            filing["price"] = transactions[0]["price"]
+                    if transactions:
+                        filing["transactions"] = transactions
+                        filing["transaction_code"] = transactions[0]["code"]
+                        filing["shares"] = transactions[0]["shares"]
+                        filing["price"] = transactions[0]["price"]
+                        print(
+                            f"[미국 공시] {ticker_symbol} Form 4 파싱 성공: "
+                            f"person={filing.get('person','')} "
+                            f"title={filing.get('officer_title','')} "
+                            f"transactions={len(transactions)} "
+                            f"parser={'ET' if parse_error is None else 'regex'}"
+                        )
+                    else:
+                        filing["transactions"] = []
+                        if parse_error:
                             print(
-                                f"[미국 공시] {ticker_symbol} Form 4 파싱 성공: "
-                                f"person={filing.get('person','')} "
-                                f"title={filing.get('officer_title','')} "
-                                f"transactions={len(transactions)}"
+                                f"[미국 공시] {ticker_symbol} Form 4 XML 파싱 실패: "
+                                f"{type(parse_error).__name__}: {parse_error}"
                             )
                         else:
-                            filing["transactions"] = []
                             print(
-                                f"[미국 공시] {ticker_symbol} Form 4 XML은 받았지만 거래행이 없습니다."
+                                f"[미국 공시] {ticker_symbol} Form 4 XML에서 거래행을 찾지 못했습니다."
                             )
-
-                    except ET.ParseError:
-                        # XML 파싱이 실패하는 경우에만 기존 문자열 방식으로 보조한다.
-                        def _sec_xml_value(patterns):
-                            for pat in patterns:
-                                mm = re.search(pat, detail_text, flags=re.I | re.S)
-                                if mm:
-                                    return re.sub(r"\s+", " ", mm.group(1)).strip()
-                            return ""
-
-                        filing["person"] = _sec_xml_value([
-                            r"<rptOwnerName[^>]*>(.*?)</rptOwnerName>",
-                        ])
-
-                        codes = re.findall(
-                            r"<transactionCode[^>]*>(.*?)</transactionCode>",
-                            detail_text,
-                            flags=re.I | re.S,
-                        )
-                        amounts = re.findall(
-                            r"<transactionShares[^>]*>.*?<value[^>]*>(.*?)</value>",
-                            detail_text,
-                            flags=re.I | re.S,
-                        )
-
-                        filing["transaction_code"] = (
-                            re.sub(r"\s+", "", codes[0]).upper()
-                            if codes else ""
-                        )
-                        filing["shares"] = (
-                            re.sub(r"\s+", "", amounts[0])
-                            if amounts else ""
-                        )
-                        filing["transactions"] = [{
-                            "code": filing["transaction_code"],
-                            "shares": filing["shares"],
-                            "price": "",
-                            "acquired_disposed": "",
-                        }]
 
                 except Exception as detail_err:
                     print(
