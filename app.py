@@ -83,6 +83,111 @@ TICKERS = {
     '비트코인': 'BTC-USD'
 }
 
+
+US_CIKS = {
+    "NVDA": "0001045810",
+    "TSLA": "0001318605",
+    "AAPL": "0000320193",
+    "MSFT": "0000789019",
+    "AMZN": "0001018724",
+    "GOOGL": "0001652044",
+    "ORCL": "0001341439",
+    "ADBE": "0000796343",
+    "META": "0001326801",
+    "LLY": "0000059478",
+    "NVO": "0000353278",
+}
+
+US_FILING_CACHE = {}
+
+US_MATERIAL_FORMS = {
+    "8-K", "10-Q", "10-K", "6-K", "20-F", "424B5",
+    "S-3", "S-1", "SC 13D", "SC 13G", "SC 13G/A", "4"
+}
+
+def fetch_us_official_filings(ticker_symbol, days=7):
+    """SEC 공식 제출자료 중 최근 주요 공시를 수집한다. AI/웹검색 없이 코드로만 수집."""
+    ticker_symbol = ticker_symbol.upper()
+    cik = US_CIKS.get(ticker_symbol)
+    cache_key = (ticker_symbol, days)
+    cached = US_FILING_CACHE.get(cache_key)
+    if cached and (datetime.datetime.now().timestamp() - cached[0] < 300):
+        return cached[1]
+    if not cik:
+        return []
+
+    try:
+        url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        recent = data.get("filings", {}).get("recent", {})
+        forms = recent.get("form", [])
+        dates = recent.get("filingDate", [])
+        accessions = recent.get("accessionNumber", [])
+        docs = recent.get("primaryDocument", [])
+        descriptions = recent.get("primaryDocDescription", [])
+
+        today = datetime.date.today()
+        results = []
+
+        for i, form in enumerate(forms):
+            if form not in US_MATERIAL_FORMS:
+                continue
+            try:
+                filing_date = datetime.datetime.strptime(dates[i], "%Y-%m-%d").date()
+            except Exception:
+                continue
+            if (today - filing_date).days > days:
+                continue
+
+            accession = accessions[i] if i < len(accessions) else ""
+            document = docs[i] if i < len(docs) else ""
+            description = descriptions[i] if i < len(descriptions) else ""
+            clean_accession = accession.replace("-", "")
+            filing_url = (
+                f"https://www.sec.gov/Archives/edgar/data/"
+                f"{int(cik)}/{clean_accession}/{document}"
+                if accession and document else ""
+            )
+
+            results.append({
+                "date": dates[i],
+                "form": form,
+                "description": description or "SEC 공식 공시",
+                "url": filing_url,
+            })
+
+            if len(results) >= 3:
+                break
+
+        US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), results)
+        return results
+    except urllib.error.HTTPError as e:
+        print(f"[미국 공시] {ticker_symbol} SEC 실패: HTTP {e.code}")
+    except Exception as e:
+        print(f"[미국 공시] {ticker_symbol} SEC 실패: {type(e).__name__}: {e}")
+    US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), [])
+    return []
+
+def format_us_official_filings(ticker_symbol):
+    filings = fetch_us_official_filings(ticker_symbol)
+    if not filings:
+        return "미국 기업 공식 공시가 없습니다.\n최근 주요 SEC 제출자료를 확인하지 못했습니다."
+
+    lines = ["미국 기업 공식 공시"]
+    for item in filings:
+        desc = re.sub(r"\s+", " ", item["description"]).strip()
+        lines.append(f"📌 {item['date']} · {item['form']} · {desc}")
+    return "\n".join(lines)
+
 def search_krx_code(stock_name):
     try:
         url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
@@ -581,7 +686,17 @@ def analyze():
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
                 "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n{news_lines}\n\n{news_transition}\n\n{tags_str}",
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
-            },
+            }
+        ]
+
+        # 미국 주식만 SEC 공식 공시 섹션을 추가한다. 국내 화면은 기존 구조를 그대로 유지한다.
+        if not is_krw:
+            sections.append({
+                "title": "📢 미국 기업 공시·재료",
+                "content": format_us_official_filings(ticker_symbol)
+            })
+
+        sections.extend([
             {
                 "title": "큰손들은 담고 있을까, 털고 있을까?",
                 "content": supply_content
@@ -594,7 +709,7 @@ def analyze():
                 "title": "오늘 밤, 이번주 무슨 일이 있나?",
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
-        ]
+        ])
         return jsonify({"sections": sections})
 
     except Exception as e:
