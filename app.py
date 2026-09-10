@@ -531,6 +531,33 @@ NEWS_SOURCE_PRIORITY = {
     "머니투데이": 80, "조선비즈": 75,
 }
 
+# 주가에 직접 영향을 줄 가능성이 높은 '실제 재료' 표현.
+NEWS_HARD_EVENT_WORDS = [
+    "실적발표", "잠정실적", "실적", "매출", "영업이익", "순이익", "가이던스",
+    "수주", "계약", "공급계약", "대형계약", "인수", "합병", "m&a",
+    "투자", "증설", "감산", "증산", "출하", "판매", "가격 인상", "가격 하락",
+    "공급 중단", "공급 차질", "규제", "관세", "제재", "수출 제한", "승인",
+    "허가", "소송", "특허", "자사주", "배당", "유상증자", "전환사채",
+    "earnings", "revenue", "profit", "guidance", "contract", "deal",
+    "acquisition", "merger", "investment", "regulation", "tariff",
+    "approval", "lawsuit", "buyback", "dividend", "offering",
+]
+
+# 단독 재료가 아니라 단순 전망/의견 중심인 기사는 우선순위를 낮춘다.
+NEWS_SOFT_OPINION_WORDS = [
+    "전망", "예상", "분석", "목표주가", "증권가", "전문가", "기대감",
+    "가능성", "주목", "관심", "수혜주", "관련주", "추천", "진단",
+    "전략", "시나리오", "전망치", "forecast", "estimate", "analyst",
+    "target price", "outlook", "expectation", "potential",
+]
+
+# 주가 원인 분석에 상대적으로 덜 직접적인 기사 표현.
+NEWS_NOISE_WORDS = [
+    "인터뷰", "화보", "현장", "이모저모", "사설", "칼럼", "오피니언",
+    "사용기", "리뷰", "가이드", "주식 초보", "투자전략", "투자 팁",
+    "주간전망", "오늘의 운세", "퀴즈",
+]
+
 def _news_source_score(source_name):
     source = (source_name or "").strip()
     for key, score in NEWS_SOURCE_PRIORITY.items():
@@ -551,22 +578,22 @@ def _news_freshness_score(pub_date):
         age_hours = max(0.0, (now - dt.astimezone(datetime.timezone.utc)).total_seconds() / 3600.0)
 
         if age_hours <= 6:
-            return 35
+            return 40
         if age_hours <= 24:
-            return 28
+            return 32
         if age_hours <= 48:
-            return 20
+            return 24
         if age_hours <= 72:
-            return 12
+            return 14
         if age_hours <= 168:
-            return 5
+            return 4
     except Exception:
         pass
 
     return 0
 
 def _news_relevance_score(title, stock_name, ticker):
-    """종목 직접 관련성이 높은 제목을 우선."""
+    """종목 직접 관련성과 실제 주가 영향 가능성을 함께 평가."""
     title_lower = (title or "").lower()
     score = 0
 
@@ -574,42 +601,41 @@ def _news_relevance_score(title, stock_name, ticker):
     tick = str(ticker or "").replace(".KS", "").replace(".KQ", "").lower()
 
     if stock and len(stock) >= 2 and stock in title_lower:
-        score += 30
+        score += 35
     if tick and len(tick) >= 2 and tick in title_lower:
-        score += 25
+        score += 30
 
-    # 주가에 직접 연결될 가능성이 높은 재료 키워드.
-    impact_words = [
-        "실적", "매출", "영업이익", "가이던스", "전망", "수주", "계약",
-        "인수", "합병", "m&a", "투자", "증설", "출하", "판매",
-        "규제", "관세", "제재", "수출", "공급", "수요", "가격",
-        "제품", "신제품", "공급망", "반도체", "ai", "데이터센터",
-        "earnings", "revenue", "profit", "guidance", "deal", "acquisition",
-        "investment", "regulation", "tariff", "demand", "supply"
-    ]
-
-    for word in impact_words:
+    for word in NEWS_HARD_EVENT_WORDS:
         if word.lower() in title_lower:
-            score += 5
+            score += 6
 
-    # 단순 인물/행사/홍보성 기사보다 시장 영향 가능성이 높은 표현을 우선.
-    high_impact_words = [
-        "실적", "가이던스", "전망", "수주", "대형 계약", "인수", "합병",
-        "규제", "관세", "제재", "수출 제한", "공급 중단", "가격 인상",
-        "가격 하락", "earnings", "guidance", "acquisition", "merger",
-        "regulation", "tariff"
-    ]
-    for word in high_impact_words:
+    # 소프트한 전망 기사도 실적/계약 같은 확정 재료와 같이 있으면 살려둔다.
+    hard_hit = any(word.lower() in title_lower for word in NEWS_HARD_EVENT_WORDS)
+    for word in NEWS_SOFT_OPINION_WORDS:
         if word.lower() in title_lower:
-            score += 8
+            score += 2 if hard_hit else -7
+
+    for word in NEWS_NOISE_WORDS:
+        if word.lower() in title_lower:
+            score -= 12
+
+    # 직접적인 시장 충격 표현은 추가 가중치.
+    very_high_impact = [
+        "실적발표", "가이던스", "수주", "대형계약", "인수", "합병", "규제",
+        "관세", "제재", "공급 중단", "공급 차질", "수출 제한", "승인",
+        "유상증자", "전환사채", "earnings", "guidance", "acquisition",
+        "merger", "regulation", "tariff", "approval", "offering",
+    ]
+    for word in very_high_impact:
+        if word.lower() in title_lower:
+            score += 10
 
     return score
 
 def _news_duplicate_key(title):
     """표현만 조금 다른 동일/유사 기사 중복을 줄이기 위한 키."""
     key = re.sub(r"[^0-9a-zA-Z가-힣]", "", (title or "").lower())
-    # 흔한 기사 제목 접두어/홍보성 표현은 중복 판단에서 약화.
-    for token in ("속보", "단독", "종합", "오늘"):
+    for token in ("속보", "단독", "종합", "오늘", "긴급"):
         key = key.replace(token, "")
     return key
 
@@ -623,6 +649,10 @@ def _clean_news_title(title):
     return title.strip().strip('"\'“”')
 
 def fetch_realtime_news(stock_name):
+    """
+    '오늘 주가가 왜 움직였는가'에 필요한 핵심 뉴스만 최대 2개 반환.
+    수집은 넓게 하고, 선택은 최신성/직접관련성/실제재료/출처품질로 강하게 필터링한다.
+    """
     candidates = []
     seen_titles = set()
     seen_duplicate_keys = set()
@@ -642,7 +672,9 @@ def fetch_realtime_news(stock_name):
 
     for search_term in queries[:2]:
         try:
-            query = urllib.parse.quote(search_term)
+            # '왜 오늘'에 맞춰 최근 7일 검색. 점수에서 72시간 이내 기사를 강하게 우선한다.
+            search_query = f"{search_term} when:7d"
+            query = urllib.parse.quote(search_query)
             url = (
                 f"https://news.google.com/rss/search?q={query}"
                 f"&hl=ko&gl=KR&ceid=KR:ko"
@@ -674,7 +706,6 @@ def fetch_realtime_news(stock_name):
 
                 title_key = re.sub(r"\s+", " ", title).lower()
                 duplicate_key = _news_duplicate_key(title)
-
                 if title_key in seen_titles or duplicate_key in seen_duplicate_keys:
                     continue
 
@@ -686,6 +717,13 @@ def fetch_realtime_news(stock_name):
                 relevance_score = _news_relevance_score(
                     title, stock_name, ticker_for_score
                 )
+                hard_event = any(
+                    word.lower() in title.lower() for word in NEWS_HARD_EVENT_WORDS
+                )
+
+                # 7일보다 오래된 기사는 RSS가 섞여 들어와도 핵심 후보에서 사실상 탈락시킨다.
+                if freshness_score == 0:
+                    continue
 
                 candidates.append({
                     "title": title,
@@ -694,62 +732,56 @@ def fetch_realtime_news(stock_name):
                     "source_score": source_score,
                     "freshness_score": freshness_score,
                     "relevance_score": relevance_score,
+                    "hard_event": hard_event,
                     "score": source_score + freshness_score + relevance_score,
                 })
 
         except Exception as e:
             print(f"[뉴스] {stock_name} RSS 조회 예외: {type(e).__name__}: {e}")
 
-    # '언론사 등급'만 보는 것이 아니라 최신성 + 직접 관련성 + 시장영향 키워드를 합산한다.
     candidates.sort(
         key=lambda x: (
             x["score"],
+            x["hard_event"],
             x["freshness_score"],
             x["relevance_score"],
         ),
         reverse=True,
     )
 
+    # 핵심 2개만 노출. 출처 다양성은 유지하되 점수 차이가 큰 경우에는
+    # 더 강한 기사를 우선한다(약한 기사를 억지로 끼워 넣지 않음).
     selected = []
-    used_sources = set()
-
-    # 1차: 서로 다른 출처를 유지하면서 종합 점수가 높은 기사 선택.
     for item in candidates:
-        source_key = item["source"].lower().strip() or "(unknown)"
-        if source_key in used_sources:
+        if not selected:
+            selected.append(item)
             continue
+
+        same_source = item["source"].lower().strip() == selected[0]["source"].lower().strip()
+        if same_source and item["score"] < selected[0]["score"] - 8:
+            continue
+
         selected.append(item)
-        used_sources.add(source_key)
-        if len(selected) >= 3:
+        if len(selected) >= 2:
             break
 
-    # 2차: 실제 출처가 3개 미만일 때만 추가 기사 허용.
-    if len(selected) < 3:
-        selected_titles = {x["title"] for x in selected}
-        for item in candidates:
-            if item["title"] in selected_titles:
-                continue
-            selected.append(item)
-            selected_titles.add(item["title"])
-            if len(selected) >= 3:
-                break
+    # 첫 후보가 지나치게 약하면(직접 관련성/재료가 거의 없음) 낮은 품질 기사를 억지로 표시하지 않는다.
+    selected = [x for x in selected if x["score"] >= 70]
 
     print(
-        f"[뉴스 품질] {stock_name} "
-        f"후보={len(candidates)} / 선택={len(selected)}"
+        f"[뉴스 품질] {stock_name} 후보={len(candidates)} / 선택={len(selected)}"
     )
-    for i, item in enumerate(selected[:3], 1):
+    for i, item in enumerate(selected[:2], 1):
         print(
             f"[뉴스 품질] {stock_name} #{i} "
-            f"score={item['score']} "
-            f"source={item['source']} "
-            f"fresh={item['freshness_score']} "
-            f"relevance={item['relevance_score']}"
+            f"score={item['score']} source={item['source']} "
+            f"fresh={item['freshness_score']} relevance={item['relevance_score']} "
+            f"hard={item['hard_event']}"
         )
 
     return [
         f"{item['title']} · {item['source']}" if item["source"] else item["title"]
-        for item in selected[:3]
+        for item in selected[:2]
     ]
 
 def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24):
