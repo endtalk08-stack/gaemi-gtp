@@ -2,6 +2,9 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import yfinance as yf
 import urllib.request
+import zipfile
+import io
+import xml.etree.ElementTree as ET
 import urllib.parse
 import xml.etree.ElementTree as ET
 import json
@@ -190,7 +193,7 @@ def format_us_official_filings(ticker_symbol):
         for item in filings[:3]
     )
 
-def search_krx_code(stock_name):
+# ==============================================================================\n# 국내 기업 공식 공시 (OpenDART)\n# ==============================================================================\nDART_API_KEY = os.environ.get("OPENDART_API_KEY") or os.environ.get("DART_API_KEY") or ""\nDART_CORP_CACHE = {"ts": 0, "map": {}}\nDART_DISCLOSURE_CACHE = {}\n\nDART_PRIORITY_TYPES = {"B": 40, "C": 35, "D": 30, "I": 25, "A": 10, "E": 10, "F": 5, "G": 5, "H": 5, "J": 5}\nDART_NOISE_WORDS = ("주주총회", "정기주주총회", "감사보고서", "사업보고서", "분기보고서", "반기보고서")\n\ndef _fetch_dart_corp_map():\n    if not DART_API_KEY:\n        print("[국내 공시] OPENDART_API_KEY/DART_API_KEY 미설정")\n        return {}\n    now = datetime.datetime.now().timestamp()\n    if DART_CORP_CACHE["map"] and now - DART_CORP_CACHE["ts"] < 86400:\n        return DART_CORP_CACHE["map"]\n    try:\n        url = f"https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key={urllib.parse.quote(DART_API_KEY)}"\n        req = urllib.request.Request(url, headers={"User-Agent": "gaemiGTP/1.0"})\n        with urllib.request.urlopen(req, timeout=8) as resp:\n            raw = resp.read()\n        with zipfile.ZipFile(io.BytesIO(raw)) as zf:\n            name = zf.namelist()[0]\n            xml_bytes = zf.read(name)\n        root = ET.fromstring(xml_bytes)\n        mapping = {}\n        for item in root.findall("list"):\n            stock_code = (item.findtext("stock_code") or "").strip()\n            corp_code = (item.findtext("corp_code") or "").strip()\n            if stock_code and corp_code:\n                mapping[stock_code] = corp_code\n        DART_CORP_CACHE.update({"ts": now, "map": mapping})\n        print(f"[국내 공시] DART 기업코드 로딩 완료: {len(mapping)}개")\n        return mapping\n    except Exception as e:\n        print(f"[국내 공시] 기업코드 조회 실패: {type(e).__name__}: {e}")\n        return {}\n\ndef fetch_kr_official_disclosures(stock_code, days=7):\n    if not stock_code or not DART_API_KEY:\n        return []\n    cache_key = (stock_code, days)\n    cached = DART_DISCLOSURE_CACHE.get(cache_key)\n    if cached and datetime.datetime.now().timestamp() - cached[0] < 300:\n        return cached[1]\n\n    corp_map = _fetch_dart_corp_map()\n    corp_code = corp_map.get(stock_code)\n    if not corp_code:\n        print(f"[국내 공시] {stock_code} DART 기업코드 없음")\n        return []\n\n    end_date = datetime.date.today()\n    start_date = end_date - datetime.timedelta(days=days)\n    params = urllib.parse.urlencode({\n        "crtfc_key": DART_API_KEY,\n        "corp_code": corp_code,\n        "bgn_de": start_date.strftime("%Y%m%d"),\n        "end_de": end_date.strftime("%Y%m%d"),\n        "sort": "date",\n        "sort_mth": "desc",\n        "page_no": "1",\n        "page_count": "30",\n    })\n    try:\n        url = f"https://opendart.fss.or.kr/api/list.json?{params}"\n        req = urllib.request.Request(url, headers={"User-Agent": "gaemiGTP/1.0", "Accept": "application/json"})\n        with urllib.request.urlopen(req, timeout=6) as resp:\n            data = json.loads(resp.read().decode("utf-8"))\n        if data.get("status") == "013":\n            results = []\n        elif data.get("status") != "000":\n            print(f"[국내 공시] {stock_code} DART 실패: {data.get('status')} {data.get('message')}")\n            results = []\n        else:\n            results = []\n            for item in data.get("list", []):\n                report = (item.get("report_nm") or "").strip()\n                ptype = (item.get("pblntf_ty") or "").strip()\n                score = DART_PRIORITY_TYPES.get(ptype, 0)\n                if any(word in report for word in DART_NOISE_WORDS):\n                    score -= 15\n                if any(word in report for word in ("계약", "수주", "증자", "자사주", "전환사채", "CB", "합병", "분할", "최대주주", "임원", "소송", "영업", "매출", "잠정")):\n                    score += 20\n                results.append({\n                    "date": item.get("rcept_dt", ""),\n                    "report": report,\n                    "receipt": item.get("rcept_no", ""),\n                    "score": score,\n                })\n            results.sort(key=lambda x: (x["score"], x["date"]), reverse=True)\n            results = results[:3]\n\n        DART_DISCLOSURE_CACHE[cache_key] = (datetime.datetime.now().timestamp(), results)\n        print(f"[국내 공시] {stock_code} 성공 / 선택={len(results)}")\n        return results\n    except urllib.error.HTTPError as e:\n        print(f"[국내 공시] {stock_code} DART 실패: HTTP {e.code}")\n    except Exception as e:\n        print(f"[국내 공시] {stock_code} DART 실패: {type(e).__name__}: {e}")\n    DART_DISCLOSURE_CACHE[cache_key] = (datetime.datetime.now().timestamp(), [])\n    return []\n\ndef format_kr_official_disclosures(stock_code):\n    items = fetch_kr_official_disclosures(stock_code)\n    if not items:\n        return ""\n    return "\\n".join(f"📌 {x['date']} · {x['report']}" for x in items)\n\ndef search_krx_code(stock_name):
     try:
         url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -1098,10 +1101,12 @@ def analyze():
         )
         news_transition = "이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야"
 
-        # 미국 공시는 별도 메뉴를 만들지 않고 '왜 올랐을까?' 뉴스 바로 아래에 통합한다.
+        # 공식 공시는 별도 메뉴를 만들지 않고 '왜 올랐을까?' 뉴스 바로 아래에 통합한다.
         official_filings_block = ""
         if not is_krw:
             official_filings_block = format_us_official_filings(ticker_symbol)
+        else:
+            official_filings_block = format_kr_official_disclosures(clean_code)
 
         # 불필요한 멘트 제거 및 줄바꿈 정리
         first_content_parts = [
