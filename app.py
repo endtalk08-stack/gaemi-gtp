@@ -561,7 +561,7 @@ def format_us_official_filings(ticker_symbol):
     code_labels = {
         "P": "내부자 매수",
         "S": "내부자 매도",
-        "A": "내부자 취득",
+        "A": "주식 취득",
         "D": "회사로 반환",
         "F": "세금·행사가격 지급",
         "M": "옵션·파생상품 행사",
@@ -571,6 +571,8 @@ def format_us_official_filings(ticker_symbol):
         "V": "자발적 신고",
     }
 
+    # 같은 Form 4 안의 여러 거래를 한 블록으로 요약한다.
+    # 화면에는 최대 3개의 공시 블록만 표시하고, 개별 거래내역은 내부 데이터로 유지한다.
     for item in filings[:3]:
         date = str(item.get("date", "")).strip()
         try:
@@ -587,30 +589,65 @@ def format_us_official_filings(ticker_symbol):
             person = str(item.get("person", "")).strip()
             officer_title = str(item.get("officer_title", "")).strip()
 
-            # 한 Form 4 안에 여러 거래가 있으면 실제 거래들을 묶어서 보여준다.
-            transaction_parts = []
-            for tx in transactions[:4]:
+            # 실제 거래가 여러 건이면 거래코드별 건수를 집계한다.
+            code_counts = {}
+            prices = []
+            for tx in transactions:
                 code = str(tx.get("code", "")).upper().strip()
-                kind = code_labels.get(code, "내부자 거래")
-                shares = str(tx.get("shares", "")).strip()
-                price = str(tx.get("price", "")).strip()
+                if not code:
+                    continue
+                code_counts[code] = code_counts.get(code, 0) + 1
 
-                part = kind
-                if shares:
-                    part += f" {shares}주"
-                if price and price not in ("0", "0.00"):
-                    part += f" @ ${price}"
-                transaction_parts.append(part)
+                price = str(tx.get("price", "")).strip().replace(",", "")
+                if price:
+                    try:
+                        price_value = float(price)
+                        if price_value > 0:
+                            prices.append(price_value)
+                    except Exception:
+                        pass
 
-            if not transaction_parts:
+            # 거래코드가 없는 구버전/예외 데이터도 기존 fallback으로 처리한다.
+            if not code_counts:
                 code = str(item.get("transaction_code", "")).upper().strip()
-                transaction_parts = [code_labels.get(code, "내부자 거래")]
+                if code:
+                    code_counts[code] = 1
 
-            role = f" ({officer_title})" if officer_title else ""
-            who = person + role if person else "회사 내부자"
+            # 가장 중요한 거래 유형을 앞에 표시한다.
+            priority = ["P", "S", "A", "G", "F", "M", "D", "C", "J", "V"]
+            ordered_codes = sorted(
+                code_counts.keys(),
+                key=lambda c: priority.index(c) if c in priority else len(priority)
+            )
+
+            if ordered_codes:
+                if len(ordered_codes) == 1:
+                    code = ordered_codes[0]
+                    summary = f"{code_labels.get(code, '내부자 거래')} · {code_counts[code]}건"
+                else:
+                    summary = " · ".join(
+                        f"{code_labels.get(code, '내부자 거래')} {code_counts[code]}건"
+                        for code in ordered_codes
+                    )
+            else:
+                summary = "내부자 거래"
+
+            role = f" · {officer_title}" if officer_title else ""
+            who = (person + role) if person else f"회사 내부자{role}"
 
             lines.append(f"📌 {display_date} · 내부자 거래")
-            lines.append(f"📰 {who}, " + " / ".join(transaction_parts))
+            lines.append(f"🔴 {summary}" if any(c in ("P", "S") for c in ordered_codes) else f"🟡 {summary}")
+            lines.append(f"📰 {who}")
+
+            # 실제 거래가격이 여러 건이면 최소~최대 가격만 간결하게 표시한다.
+            if prices:
+                min_price = min(prices)
+                max_price = max(prices)
+                if abs(min_price - max_price) < 0.000001:
+                    price_text = f"${min_price:,.2f}"
+                else:
+                    price_text = f"${min_price:,.2f} ~ ${max_price:,.2f}"
+                lines.append(f"💰 {price_text}")
         else:
             desc = str(item.get("description", "")).strip()
             lines.append(f"📌 {display_date} · {'기업 주요 공시' if form == '8-K' else form}")
