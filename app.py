@@ -650,7 +650,7 @@ def _clean_news_title(title):
 
 def fetch_realtime_news(stock_name):
     """
-    '오늘 주가가 왜 움직였는가'에 필요한 핵심 뉴스만 최대 2개 반환.
+    '오늘 주가가 왜 움직였는가'에 필요한 핵심 뉴스만 최대 3개 반환.
     수집은 넓게 하고, 선택은 최신성/직접관련성/실제재료/출처품질로 강하게 필터링한다.
     """
     candidates = []
@@ -749,7 +749,7 @@ def fetch_realtime_news(stock_name):
         reverse=True,
     )
 
-    # 핵심 2개만 노출. 출처 다양성은 유지하되 점수 차이가 큰 경우에는
+    # 핵심 3개만 노출. 출처 다양성은 유지하되 점수 차이가 큰 경우에는
     # 더 강한 기사를 우선한다(약한 기사를 억지로 끼워 넣지 않음).
     selected = []
     for item in candidates:
@@ -762,7 +762,7 @@ def fetch_realtime_news(stock_name):
             continue
 
         selected.append(item)
-        if len(selected) >= 2:
+        if len(selected) >= 3:
             break
 
     # 첫 후보가 지나치게 약하면(직접 관련성/재료가 거의 없음) 낮은 품질 기사를 억지로 표시하지 않는다.
@@ -771,7 +771,7 @@ def fetch_realtime_news(stock_name):
     print(
         f"[뉴스 품질] {stock_name} 후보={len(candidates)} / 선택={len(selected)}"
     )
-    for i, item in enumerate(selected[:2], 1):
+    for i, item in enumerate(selected[:3], 1):
         print(
             f"[뉴스 품질] {stock_name} #{i} "
             f"score={item['score']} source={item['source']} "
@@ -781,7 +781,7 @@ def fetch_realtime_news(stock_name):
 
     return [
         f"{item['title']} · {item['source']}" if item["source"] else item["title"]
-        for item in selected[:2]
+        for item in selected[:3]
     ]
 
 def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24):
