@@ -185,7 +185,7 @@ def format_us_official_filings(ticker_symbol):
     # 뉴스 바로 아래에 공시 3개만 간결하게 표시한다.
     # 별도 제목/설명은 넣지 않아 화면이 복잡해지지 않도록 한다.
     return "\n".join(
-        f"📌 {item['date']} · {item['form']}"
+        f"📌 {item['date']} · {'FORM 4' if item['form'] == '4' else item['form']}"
         for item in filings[:3]
     )
 
@@ -284,8 +284,8 @@ def fetch_yahoo_direct_v8(ticker_str):
                 if len(closes) >= 2:
                     cur_p = float(closes[-1])
                     prev_p = float(closes[-2])
-                    ma20 = sum(closes) / len(closes)
-                    res_p = max(highs) if highs else cur_p * 1.05
+                    ma20 = sum(closes[-20:]) / len(closes[-20:]) if closes else None
+                    res_p = max(highs[-20:]) if highs else None
                     return cur_p, prev_p, ma20, res_p
     except Exception as e:
         print("미국 야후 v8 예외:", e)
@@ -510,14 +510,15 @@ def analyze():
                 ma20 = ma20_val
                 resistance_price = res_val
             else:
-                current_price = 125.0
-                change_pct = 1.5
-                ma20 = 120.0
-                resistance_price = 130.0
+                current_price = 0.0
+                change_pct = 0.0
+                ma20 = 0.0
+                resistance_price = 0.0
+                print(f"[미국 주가] {ticker_symbol} Yahoo 조회 실패 - 가짜 가격 사용 안 함")
 
-            price_str = f"${current_price:,.2f}"
-            ma20_str = f"${ma20:,.2f}"
-            res_str = f"${resistance_price:,.2f}"
+            price_str = f"${current_price:,.2f}" if current_price > 0 else "시세 조회 실패"
+            ma20_str = f"${ma20:,.2f}" if ma20 > 0 else "계산 대기"
+            res_str = f"${resistance_price:,.2f}" if resistance_price > 0 else "계산 대기"
 
             # 미국 옵션 수급: CBOE 공개 지연 옵션체인 사용
             # Yahoo crumb 방식은 사용하지 않는다. CBOE 엔드포인트는 API 키가 필요 없고
@@ -678,7 +679,7 @@ def analyze():
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
         news_list = fetch_realtime_news(raw_name)
-        news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else f"📰 \"{raw_name} 관련 메이저 재료 포착\""
+        news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else "📰 현재 확인된 관련 뉴스가 없습니다."
         news_transition = "이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야"
 
         # 미국 공시는 별도 메뉴를 만들지 않고 '왜 올랐을까?' 뉴스 바로 아래에 통합한다.
