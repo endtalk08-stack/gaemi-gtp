@@ -390,19 +390,64 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                 "url": filing_url,
             }
 
-            # Form 4는 목록 JSON만으로는 매수/매도·수량을 알 수 없으므로
-            # SEC 원문에서 실제 거래코드와 보고자를 추가로 읽는다.
+            # Form 4는 primaryDocument(.html)와 별도로 실제 XML 파일이 제공된다.
+            # SEC 제출목록 JSON의 primaryDocument는 보통 HTML이므로,
+            # 해당 제출의 index 페이지에서 FORM 4 XML 링크를 찾아 실제 XML을 읽는다.
             if form == "4" and filing_url:
                 try:
+                    sec_headers = {
+                        "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
+                        "Accept": "text/html,application/xml,text/xml,*/*",
+                    }
+
+                    clean_accession = accession.replace("-", "")
+                    index_url = (
+                        f"https://www.sec.gov/Archives/edgar/data/"
+                        f"{int(cik)}/{clean_accession}/{accession}-index.htm"
+                    )
+
+                    index_req = urllib.request.Request(index_url, headers=sec_headers)
+                    with urllib.request.urlopen(index_req, timeout=5) as index_resp:
+                        index_text = index_resp.read().decode("utf-8", errors="ignore")
+
+                    # FORM 4의 XML 링크는 제출별 디렉터리 안의 xslF345X05/X06 등에
+                    # 있을 수 있으므로 고정 경로를 가정하지 않고 index에서 찾는다.
+                    xml_href = ""
+                    hrefs = re.findall(
+                        r'href=[\"\']([^\"\']+\.xml(?:\?[^\"\']*)?)[\"\']',
+                        index_text,
+                        flags=re.I,
+                    )
+                    for href in hrefs:
+                        if "form4" in href.lower() or "wk-form4" in href.lower():
+                            xml_href = href
+                            break
+                    if not xml_href and hrefs:
+                        xml_href = hrefs[0]
+
+                    if xml_href:
+                        from urllib.parse import urljoin
+                        detail_url = urljoin(index_url, xml_href)
+                    else:
+                        # 일부 SEC 응답은 index에서 XML 링크가 노출되지 않을 수 있어
+                        # 제출문서명 기준의 보조 경로를 한 번 시도한다.
+                        base_name = re.sub(r"\.html?$", ".xml", document, flags=re.I)
+                        detail_url = (
+                            f"https://www.sec.gov/Archives/edgar/data/"
+                            f"{int(cik)}/{clean_accession}/xslF345X06/{base_name}"
+                        )
+
+                    print(f"[미국 공시] {ticker_symbol} Form 4 XML 요청: {detail_url}")
                     detail_req = urllib.request.Request(
-                        filing_url,
+                        detail_url,
                         headers={
-                            "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
-                            "Accept": "application/xml,text/xml,text/html,*/*",
+                            **sec_headers,
+                            "Accept": "application/xml,text/xml,*/*",
                         },
                     )
                     with urllib.request.urlopen(detail_req, timeout=5) as detail_resp:
                         detail_text = detail_resp.read().decode("utf-8", errors="ignore")
+                    print(f"[미국 공시] {ticker_symbol} Form 4 XML 수신: {len(detail_text)} bytes")
 
                     # SEC Form 4 XML은 네임스페이스가 붙는 경우가 있어
                     # 정규식만으로 읽으면 보고자/거래코드가 비어버릴 수 있다.
@@ -418,7 +463,7 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                                 if _local(node.tag) == tag_name:
                                     value = "".join(node.itertext()).strip()
                                     if value:
-                                        return re.sub(r"\\s+", " ", value).strip()
+                                        return re.sub(r"\s+", " ", value).strip()
                             return ""
 
                         # 보고자 이름
@@ -455,8 +500,17 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                             filing["transaction_code"] = transactions[0]["code"]
                             filing["shares"] = transactions[0]["shares"]
                             filing["price"] = transactions[0]["price"]
+                            print(
+                                f"[미국 공시] {ticker_symbol} Form 4 파싱 성공: "
+                                f"person={filing.get('person','')} "
+                                f"title={filing.get('officer_title','')} "
+                                f"transactions={len(transactions)}"
+                            )
                         else:
                             filing["transactions"] = []
+                            print(
+                                f"[미국 공시] {ticker_symbol} Form 4 XML은 받았지만 거래행이 없습니다."
+                            )
 
                     except ET.ParseError:
                         # XML 파싱이 실패하는 경우에만 기존 문자열 방식으로 보조한다.
@@ -464,7 +518,7 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                             for pat in patterns:
                                 mm = re.search(pat, detail_text, flags=re.I | re.S)
                                 if mm:
-                                    return re.sub(r"\\s+", " ", mm.group(1)).strip()
+                                    return re.sub(r"\s+", " ", mm.group(1)).strip()
                             return ""
 
                         filing["person"] = _sec_xml_value([
@@ -483,11 +537,11 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                         )
 
                         filing["transaction_code"] = (
-                            re.sub(r"\\s+", "", codes[0]).upper()
+                            re.sub(r"\s+", "", codes[0]).upper()
                             if codes else ""
                         )
                         filing["shares"] = (
-                            re.sub(r"\\s+", "", amounts[0])
+                            re.sub(r"\s+", "", amounts[0])
                             if amounts else ""
                         )
                         filing["transactions"] = [{
