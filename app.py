@@ -383,12 +383,71 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                 if accession and document else ""
             )
 
-            results.append({
+            filing = {
                 "date": dates[i],
                 "form": form,
                 "description": description or "SEC 공식 공시",
                 "url": filing_url,
-            })
+            }
+
+            # Form 4는 목록 JSON만으로는 매수/매도·수량을 알 수 없으므로
+            # SEC 원문에서 실제 거래코드와 보고자를 추가로 읽는다.
+            if form == "4" and filing_url:
+                try:
+                    detail_req = urllib.request.Request(
+                        filing_url,
+                        headers={
+                            "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
+                            "Accept": "application/xml,text/xml,text/html,*/*",
+                        },
+                    )
+                    with urllib.request.urlopen(detail_req, timeout=5) as detail_resp:
+                        detail_text = detail_resp.read().decode("utf-8", errors="ignore")
+
+                    def _sec_xml_value(patterns):
+                        for pat in patterns:
+                            mm = re.search(pat, detail_text, flags=re.I | re.S)
+                            if mm:
+                                return re.sub(r"\\s+", " ", mm.group(1)).strip()
+                        return ""
+
+                    filing["person"] = _sec_xml_value([
+                        r"<rptOwnerName>(.*?)</rptOwnerName>",
+                        r"<reportingOwnerName>.*?<value>(.*?)</value>",
+                    ])
+
+                    codes = re.findall(
+                        r"<transactionCoding>.*?<transactionCode>(.*?)</transactionCode>.*?</transactionCoding>",
+                        detail_text,
+                        flags=re.I | re.S,
+                    )
+                    if not codes:
+                        codes = re.findall(
+                            r"<transactionCode>(.*?)</transactionCode>",
+                            detail_text,
+                            flags=re.I | re.S,
+                        )
+                    filing["transaction_code"] = (
+                        re.sub(r"\\s+", "", codes[0]).upper()
+                        if codes else ""
+                    )
+
+                    amounts = re.findall(
+                        r"<transactionShares>.*?<value>(.*?)</value>.*?</transactionShares>",
+                        detail_text,
+                        flags=re.I | re.S,
+                    )
+                    filing["shares"] = (
+                        re.sub(r"\\s+", "", amounts[0])
+                        if amounts else ""
+                    )
+                except Exception as detail_err:
+                    print(
+                        f"[미국 공시] {ticker_symbol} Form 4 원문 보강 실패: "
+                        f"{type(detail_err).__name__}: {detail_err}"
+                    )
+
+            results.append(filing)
 
             if len(results) >= 3:
                 break
@@ -407,12 +466,52 @@ def format_us_official_filings(ticker_symbol):
     if not filings:
         return ""
 
-    # 뉴스 바로 아래에 공시 3개만 간결하게 표시한다.
-    # 별도 제목/설명은 넣지 않아 화면이 복잡해지지 않도록 한다.
-    return "\n".join(
-        f"📌 {item['date']} · {'FORM 4' if item['form'] == '4' else item['form']}"
-        for item in filings[:3]
-    )
+    lines = []
+    for item in filings[:3]:
+        date = str(item.get("date", "")).strip()
+        try:
+            display_date = datetime.datetime.strptime(
+                date[:10], "%Y-%m-%d"
+            ).strftime("%m/%d").lstrip("0").replace("/0", "/")
+        except Exception:
+            display_date = date
+
+        form = str(item.get("form", "")).upper().strip()
+
+        if form == "4":
+            code = str(item.get("transaction_code", "")).upper().strip()
+            kind = {
+                "P": "내부자 매수",
+                "S": "내부자 매도",
+                "A": "내부자 취득",
+                "D": "회사로 반환",
+                "F": "세금·행사가격 지급",
+                "M": "옵션·파생상품 행사",
+                "G": "주식 증여",
+                "V": "자발적 신고",
+                "J": "기타 거래",
+            }.get(code, "내부자 거래")
+
+            person = str(item.get("person", "")).strip()
+            shares = str(item.get("shares", "")).strip()
+
+            detail = f"{person}" if person else "회사 내부자"
+            if shares:
+                detail += f", 주식 {shares}주"
+            else:
+                detail += ", 주식 거래"
+
+            lines.append(f"📌 {display_date} · {kind}")
+            lines.append(f"📰 {detail}")
+        else:
+            desc = str(item.get("description", "")).strip()
+            kind = "기업 주요 공시"
+            if form == "8-K":
+                kind = "기업 주요 공시"
+            lines.append(f"📌 {display_date} · {kind}")
+            lines.append(f"📰 {desc or '주요 내용 발표'}")
+
+    return "\n".join(lines)
 
 def search_krx_code(stock_name):
     try:
