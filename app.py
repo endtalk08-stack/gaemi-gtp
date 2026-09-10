@@ -243,9 +243,10 @@ def fetch_kr_official_disclosures(stock_code, days=7):
                 continue
 
             results.append({
+                # 국내 공시 날짜는 화면에서 간단하게 9/9 형태로 표시한다.
                 "date": (
-                    f"{receipt_date[:4]}-{receipt_date[4:6]}-{receipt_date[6:8]}"
-                    if len(receipt_date) == 8 else receipt_date
+                    f"{int(receipt_date[4:6])}/{int(receipt_date[6:8])}"
+                    if len(receipt_date) == 8 and receipt_date.isdigit() else receipt_date
                 ),
                 "report": report_name,
                 "receipt_no": receipt_no,
@@ -632,7 +633,14 @@ def format_us_official_filings(ticker_symbol):
             else:
                 summary = "내부자 거래"
 
-            role = f" · {officer_title}" if officer_title else ""
+            # 미국 SEC 직책은 화면에서 일반 사용자가 이해하기 쉬운 한글로 표시한다.
+            title_ko = {
+                "DIRECTOR": "이사",
+                "OFFICER": "임원",
+                "10% OWNER": "10% 이상 주주",
+                "10% OWNER OF CLASS": "10% 이상 주주",
+            }.get(officer_title.upper(), officer_title)
+            role = f" · {title_ko}" if title_ko else ""
             who = (person + role) if person else f"회사 내부자{role}"
 
             lines.append(f"📌 {display_date} · 내부자 거래")
