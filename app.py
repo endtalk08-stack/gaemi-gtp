@@ -180,13 +180,14 @@ def fetch_us_official_filings(ticker_symbol, days=7):
 def format_us_official_filings(ticker_symbol):
     filings = fetch_us_official_filings(ticker_symbol)
     if not filings:
-        return "미국 기업 공식 공시가 없습니다.\n최근 주요 SEC 제출자료를 확인하지 못했습니다."
+        return ""
 
-    lines = ["미국 기업 공식 공시"]
-    for item in filings:
-        desc = re.sub(r"\s+", " ", item["description"]).strip()
-        lines.append(f"📌 {item['date']} · {item['form']} · {desc}")
-    return "\n".join(lines)
+    # 뉴스 바로 아래에 공시 3개만 간결하게 표시한다.
+    # 별도 제목/설명은 넣지 않아 화면이 복잡해지지 않도록 한다.
+    return "\n".join(
+        f"📌 {item['date']} · {item['form']}"
+        for item in filings[:3]
+    )
 
 def search_krx_code(stock_name):
     try:
@@ -678,23 +679,30 @@ def analyze():
 
         news_list = fetch_realtime_news(raw_name)
         news_lines = "\n".join([f"📰 \"{title}\"" for title in news_list]) if news_list else f"📰 \"{raw_name} 관련 메이저 재료 포착\""
-        news_transition = "\"이런 뉴스 계속 나오면서 지금 시장이 반응하고 있는 거지\""
+        news_transition = "이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야"
+
+        # 미국 공시는 별도 메뉴를 만들지 않고 '왜 올랐을까?' 뉴스 바로 아래에 통합한다.
+        official_filings_block = ""
+        if not is_krw:
+            official_filings_block = format_us_official_filings(ticker_symbol)
 
         # 불필요한 멘트 제거 및 줄바꿈 정리
+        first_content_parts = [
+            intro_ment,
+            f"현재 주가는 {price_str} 기록 중!",
+            news_lines,
+        ]
+        if official_filings_block:
+            first_content_parts.append(official_filings_block)
+        first_content_parts.extend([news_transition, tags_str])
+
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": f"{intro_ment}\n\n현재 주가는 {price_str} 기록 중!\n\n{news_lines}\n\n{news_transition}\n\n{tags_str}",
+                "content": "\n\n".join(first_content_parts),
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             }
         ]
-
-        # 미국 주식만 SEC 공식 공시 섹션을 추가한다. 국내 화면은 기존 구조를 그대로 유지한다.
-        if not is_krw:
-            sections.append({
-                "title": "📢 미국 기업 공시·재료",
-                "content": format_us_official_filings(ticker_symbol)
-            })
 
         sections.extend([
             {
