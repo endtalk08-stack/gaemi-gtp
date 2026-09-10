@@ -1352,10 +1352,18 @@ def analyze():
         else:
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code)
 
-        # 첫 화면은 현재 주가를 가장 위에 배치하고,
+        # 첫 화면은 현재 주가를 가장 위에 배치한다.
+        # 그 아래에는 기존의 친근한 말투를 다시 살리고,
         # 그 다음 자리에 향후 AI 분석 영역이 들어간다.
         # 뉴스와 공시는 기존처럼 한 칸(빈 줄) 간격을 유지한다.
+        friendly_ment = (
+            intro_ment.split("\n", 1)[1]
+            if "\n" in intro_ment
+            else intro_ment
+        )
+
         first_content_parts = [
+            intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
             news_lines,
         ]
