@@ -283,6 +283,53 @@ def format_kr_official_disclosures(stock_code):
     )
 
 
+def format_us_sec_filing(filing):
+    """SEC 공시를 화면용으로 짧고 이해하기 쉽게 표시한다."""
+    form = str(filing.get("form") or filing.get("form_type") or "").upper().strip()
+    date = str(filing.get("filing_date") or filing.get("date") or "").strip()
+    title = str(filing.get("title") or filing.get("description") or "").strip()
+
+    display_date = date
+    try:
+        display_date = datetime.datetime.strptime(date[:10], "%Y-%m-%d").strftime("%m/%d").lstrip("0").replace("/0", "/")
+    except Exception:
+        pass
+
+    if form == "4":
+        code = str(filing.get("transaction_code") or filing.get("code") or "").upper().strip()
+        kind = {
+            "P": "내부자 매수",
+            "S": "내부자 매도",
+            "A": "내부자 취득",
+            "D": "회사로 반환",
+            "F": "세금·행사가격 지급",
+            "M": "옵션·파생상품 행사",
+            "G": "주식 증여",
+            "V": "자발적 신고",
+            "J": "기타 거래",
+        }.get(code, "내부자 거래")
+        summary = title or str(filing.get("person") or filing.get("reporting_person") or "").strip()
+        return f"📌 {display_date} · {kind}\n📰 {summary}".strip()
+
+    if form == "8-K":
+        item = str(filing.get("item") or filing.get("items") or "").strip()
+        kind = "기업 주요 공시"
+        if "1.01" in item:
+            kind = "중요 계약·협약"
+        elif "2.01" in item:
+            kind = "인수·매각"
+        elif "2.02" in item:
+            kind = "실적 발표"
+        elif "5.02" in item:
+            kind = "임원 인사"
+        elif "8.01" in item:
+            kind = "기타 주요 사항"
+        summary = title or item or "주요 내용 발표"
+        return f"📌 {display_date} · {kind}\n📰 {summary}".strip()
+
+    summary = title or "주요 공시 내용 확인"
+    return f"📌 {display_date} · {form or 'SEC 공시'}\n📰 {summary}".strip()
+
 def fetch_us_official_filings(ticker_symbol, days=7):
     """SEC 공식 제출자료 중 최근 주요 공시를 수집한다. AI/웹검색 없이 코드로만 수집."""
     ticker_symbol = ticker_symbol.upper()
