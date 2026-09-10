@@ -1336,16 +1336,25 @@ def analyze():
             f"현재 주가는 {price_str} 기록 중!",
             news_lines,
         ]
+        # 뉴스 다음 공시는 한 칸만 띄워 화면을 더 깔끔하게 표시한다.
+        # 나머지 섹션 간 간격은 기존처럼 두 칸을 유지한다.
         if official_filings_block:
             first_content_parts.append(official_filings_block)
         if kr_official_disclosures_block:
             first_content_parts.append(kr_official_disclosures_block)
         first_content_parts.extend([news_transition, tags_str])
 
+        content_parts = []
+        for idx, part in enumerate(first_content_parts):
+            if idx > 0 and first_content_parts[idx - 1] == news_lines and (official_filings_block or kr_official_disclosures_block):
+                content_parts.append("\n" + part)
+            else:
+                content_parts.append(("\n\n" if idx > 0 else "") + part)
+
         sections = [
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": "\n\n".join(first_content_parts),
+                "content": "".join(content_parts),
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             }
         ]
