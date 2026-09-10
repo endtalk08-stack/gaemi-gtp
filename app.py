@@ -789,8 +789,30 @@ def fetch_realtime_news(stock_name):
             f"hard={item['hard_event']}"
         )
 
-    # 화면에서는 신문사 이름을 제거하고 제목만 깔끔하게 표시한다.
-    return [item["title"] for item in selected[:3]]
+    # 화면에서는 현재 종목명을 제거해 제목을 최대한 깔끔하게 표시한다.
+    # 원본 제목(item["title"])은 내부 후보 데이터와 AI 분석용으로 그대로 보존한다.
+    display_titles = []
+    company_names = {
+        str(stock_name).strip(),
+        str(stock_name).strip().replace(" ", ""),
+    }
+
+    for item in selected[:3]:
+        original_title = item["title"]
+        display_title = original_title
+
+        for company_name in sorted(company_names, key=len, reverse=True):
+            if company_name:
+                display_title = display_title.replace(company_name, "")
+
+        display_title = re.sub(r"\s+", " ", display_title).strip()
+        display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
+        display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
+
+        # 종목명 제거 후 제목이 비어버리는 경우에는 원본 제목을 사용한다.
+        display_titles.append(display_title or original_title)
+
+    return display_titles
 
 
 def get_news_ai_candidates(stock_name, limit=10):
