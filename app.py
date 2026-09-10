@@ -694,9 +694,6 @@ def format_volume_profile(profile):
     if not profile:
         return ""
 
-    def zone_text(z):
-        return f"${z['lower']:,.2f}~${z['upper']:,.2f}"
-
     inside = profile.get("inside")
     above = profile.get("above")
     below = profile.get("below")
@@ -704,24 +701,32 @@ def format_volume_profile(profile):
 
     lines = []
 
-    # 현재가가 집중구간 내부라면 그 구간 자체를 핵심 매물대로 표시한다.
-    if inside:
-        lines.append(f"📊 현재가가 주요 거래량 집중구간 {zone_text(inside)} 안에 있어.")
-    else:
-        # 현재가 위의 다음 집중구간 = 저항 후보
-        if above:
-            lines.append(f"🔴 다음 저항 매물대 {zone_text(above)}")
-        # 현재가 아래의 가장 가까운 집중구간 = 이전 돌파 매물대/지지 후보
-        if below:
-            lines.append(f"🟢 이전 주요 매물대 {zone_text(below)} → 지지 후보")
+    # 매물대는 내부적으로 구간으로 분석하되,
+    # 화면에는 저항/지지 대표 가격 하나만 표시한다.
+    # 저항 = 선택된 저항 매물대의 상단 가격
+    # 지지 = 선택된 지지 매물대의 하단 가격
+    if above:
+        resistance_price = above.get("upper", above.get("center"))
+        if resistance_price:
+            lines.append(f"#악성 매물대 ${resistance_price:,.2f}")
+    elif inside:
+        resistance_price = inside.get("upper", inside.get("center"))
+        if resistance_price:
+            lines.append(f"#악성 매물대 ${resistance_price:,.2f}")
+
+    if below:
+        support_price = below.get("lower", below.get("center"))
+        if support_price:
+            lines.append(f"#생존 지지선 ${support_price:,.2f}")
+    elif inside:
+        support_price = inside.get("lower", inside.get("center"))
+        if support_price:
+            lines.append(f"#생존 지지선 ${support_price:,.2f}")
 
     if poc:
-        lines.append(
-            f"POC ${poc['center']:,.2f} · 최근 {profile['days']}거래일 거래량 기준"
-        )
+        lines.append(f"POC ${poc['center']:,.2f} · 최근 {profile['days']}거래일 거래량 기준")
 
     return "\n".join(lines)
-
 
 def format_shares(n):
     if n is None: return "0주"
