@@ -449,11 +449,11 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                         detail_text = detail_resp.read().decode("utf-8", errors="ignore")
                     print(f"[미국 공시] {ticker_symbol} Form 4 XML 수신: {len(detail_text)} bytes")
 
-                    # SEC Form 4 XML은 제출 방식에 따라 네임스페이스가 있거나
-                    # XML 본문이 조금씩 달라질 수 있다.
-                    # 1) ElementTree로 정상 XML을 우선 파싱하고,
-                    # 2) 필드가 비어 있으면 원문 정규식 파서로 한 번 더 보강한다.
-                    # 이렇게 하면 X05/X06 경로 차이와 무관하게 실제 거래 내용을 읽는다.
+                    # SEC Form 4 XML은 일부 제출본에서 XML 문법상 엄격하게는 잘못된
+                    # 문자(특히 비정상적인 & 또는 제어문자)가 섞여 ElementTree가
+                    # "invalid token"으로 실패할 수 있다.
+                    # 따라서 원문은 그대로 보존하고, 파싱용 복사본만 안전하게 정리한다.
+                    # 거래 내용은 최종적으로 원문 정규식도 함께 사용해 보강한다.
                     def _local(tag):
                         return tag.split("}", 1)[-1] if isinstance(tag, str) else ""
 
@@ -464,12 +464,24 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                         # 네임스페이스 유무와 관계없이 태그 내용을 찾는다.
                         pat = rf"<(?:[A-Za-z0-9_.-]+:)?{re.escape(tag_name)}\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?{re.escape(tag_name)}>"
                         mm = re.search(pat, text, flags=re.I | re.S)
-                        return _clean_value(mm.group(1)) if mm else ""
+                        if not mm:
+                            return ""
+                        # 중첩 태그가 있는 경우 화면용 값만 남긴다.
+                        value = re.sub(r"<[^>]+>", " ", mm.group(1))
+                        return _clean_value(value)
+
+                    def _sanitize_xml(text):
+                        # XML 1.0에서 허용되지 않는 제어문자 제거.
+                        text = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", "", text)
+                        # 이미 엔티티인 &는 보존하고, 생 HTML/XML 텍스트의 &만 보정.
+                        text = re.sub(r"&(?!#(?:[0-9]+|x[0-9A-Fa-f]+);|[A-Za-z][A-Za-z0-9_.-]*;)", "&amp;", text)
+                        return text
 
                     transactions = []
                     parse_error = None
+                    xml_parse_text = _sanitize_xml(detail_text)
                     try:
-                        root = ET.fromstring(detail_text)
+                        root = ET.fromstring(xml_parse_text)
 
                         def _first_text(parent, tag_name):
                             for node in parent.iter():
@@ -496,11 +508,13 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                                     "price": price,
                                     "acquired_disposed": acquired_disposed,
                                 })
+                        if transactions:
+                            print(f"[미국 공시] {ticker_symbol} Form 4 정리 후 XML 파싱 성공: 거래 {len(transactions)}건")
                     except ET.ParseError as e:
                         parse_error = e
 
                     # ElementTree가 성공했어도 거래행을 못 찾으면 원문에서 재탐색한다.
-                    # SEC의 Form 4 XML은 실제 거래행이 <nonDerivativeTransaction> 블록 안에 있다.
+                    # 원문에는 XML 파서가 싫어하는 문자가 있어도 정규식으로 거래행을 읽을 수 있다.
                     if not filing.get("person"):
                         filing["person"] = _tag_value(detail_text, "rptOwnerName")
                     if not filing.get("officer_title"):
@@ -524,6 +538,8 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                                     "price": price,
                                     "acquired_disposed": acquired_disposed,
                                 })
+                        if transactions:
+                            print(f"[미국 공시] {ticker_symbol} Form 4 원문 정규식 파싱 성공: 거래 {len(transactions)}건")
 
                     if transactions:
                         filing["transactions"] = transactions
