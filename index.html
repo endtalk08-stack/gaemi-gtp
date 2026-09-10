@@ -1,1578 +1,1039 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-import yfinance as yf
-import urllib.request
-import urllib.parse
-import xml.etree.ElementTree as ET
-import json
-import datetime
-import os
-import re
-import math
-import io
-import zipfile
-import urllib.error
-from email.utils import parsedate_to_datetime
-
-app = Flask(__name__)
-CORS(app)
-
-FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
-
-US_KOREAN_NAMES = {
-    'ORCL': '오라클 ORCL',
-    'ADBE': '어도비 ADBE',
-    'NVDA': '엔비디아 NVDA',
-    'MSFT': '마이크로소프트 MSFT',
-    'TSLA': '테슬라 TSLA',
-    'AAPL': '애플 AAPL',
-    'GOOGL': '구글 GOOGL',
-    'AMZN': '아마존 AMZN',
-    'META': '메타 META',
-    'LLY': '일라이릴리 LLY',
-    'NVO': '노보노디스크 NVO'
-}
-
-TICKERS = {
-    '삼성전자': '005930.KS',
-    'SK하이닉스': '000660.KS',
-    '현대차': '005380.KS',
-    '현대자동차': '005380.KS',
-    '기아': '000270.KS',
-    '셀트리온': '068270.KS',
-    '에코프로': '086520.KQ',
-    '에코프로비엠': '247540.KQ',
-    '알테오젠': '196170.KQ',
-    '카카오': '035720.KS',
-    '카카오페이': '377300.KS',
-    '카카오뱅크': '323410.KS',
-    'NAVER': '035420.KS',
-    '네이버': '035420.KS',
-    'LG에너지솔루션': '373220.KS',
-    '삼성바이오로직스': '207940.KS',
-    'POSCO홀딩스': '005490.KS',
-    '포스코홀딩스': '005490.KS',
-    '포스코퓨처엠': '003670.KS',
-    '삼성SDI': '006400.KS',
-    'LG화학': '051910.KS',
-    '한미반도체': '042700.KS',
-    '삼천당제약': '000250.KQ',
-    '레인보우로보틱스': '277810.KQ',
-    '리가켐바이오': '141080.KQ',
-    'HLB': '028300.KQ',
-    '에이치엘비': '028300.KQ',
-    '크래프톤': '259960.KS',
-    '신한지주': '055550.KS',
-    'KB금융': '105560.KS',
-    '두산에너빌리티': '034020.KS',
-    '두산로보틱스': '454910.KS',
-    '현대모비스': '012330.KS',
-    'HD현대중공업': '329180.KS',
-    '한화에어로스페이스': '012450.KS',
-    '하이브': '352820.KS',
-    '한국전력': '015760.KS',
-    '엔씨소프트': '036570.KS',
-    '유한양행': '000100.KS',
-    '루닛': '328130.KQ',
-    '엔비디아': 'NVDA',
-    '테슬라': 'TSLA',
-    '애플': 'AAPL',
-    '마이크로소프트': 'MSFT',
-    '아마존': 'AMZN',
-    '구글': 'GOOGL',
-    '오라클': 'ORCL',
-    'ORCL': 'ORCL',
-    '어도비': 'ADBE',
-    'ADBE': 'ADBE',
-    '비트코인': 'BTC-USD'
-}
-
-
-US_CIKS = {
-    "NVDA": "0001045810",
-    "TSLA": "0001318605",
-    "AAPL": "0000320193",
-    "MSFT": "0000789019",
-    "AMZN": "0001018724",
-    "GOOGL": "0001652044",
-    "ORCL": "0001341439",
-    "ADBE": "0000796343",
-    "META": "0001326801",
-    "LLY": "0000059478",
-    "NVO": "0000353278",
-}
-
-US_FILING_CACHE = {}
-
-# 국내 기업 공식 공시(OpenDART)
-# 인증키가 없으면 공시 기능만 건너뛰고 기존 화면/기능은 그대로 동작한다.
-OPENDART_API_KEY = (
-    os.environ.get("OPENDART_API_KEY", "").strip()
-    or os.environ.get("DART_API_KEY", "").strip()
-)
-DART_CORP_CACHE = {"ts": 0.0, "map": {}}
-DART_DISCLOSURE_CACHE = {}
-
-
-US_MATERIAL_FORMS = {
-    "8-K", "10-Q", "10-K", "6-K", "20-F", "424B5",
-    "S-3", "S-1", "SC 13D", "SC 13G", "SC 13G/A", "4"
-}
-
-def fetch_dart_corp_map():
-    """OpenDART corpCode.xml에서 stock_code -> corp_code 매핑을 만든다."""
-    if not OPENDART_API_KEY:
-        return {}
-
-    now = datetime.datetime.now().timestamp()
-    if DART_CORP_CACHE["map"] and now - DART_CORP_CACHE["ts"] < 86400:
-        return DART_CORP_CACHE["map"]
-
-    try:
-        url = (
-            "https://opendart.fss.or.kr/api/corpCode.xml"
-            f"?crtfc_key={urllib.parse.quote(OPENDART_API_KEY)}"
-        )
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*"},
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            payload = resp.read()
-
-        with zipfile.ZipFile(io.BytesIO(payload)) as zf:
-            xml_name = next(
-                (name for name in zf.namelist() if name.upper().endswith("CORPCODE.XML")),
-                None,
-            )
-            if not xml_name:
-                print("[국내 공시] CORPCODE.xml을 찾지 못했습니다.")
-                return {}
-
-            xml_bytes = zf.read(xml_name)
-
-        root = ET.fromstring(xml_bytes)
-        mapping = {}
-        for item in root.findall(".//list"):
-            stock_code = (item.findtext("stock_code") or "").strip()
-            corp_code = (item.findtext("corp_code") or "").strip()
-            if stock_code and corp_code:
-                mapping[stock_code] = corp_code
-
-        DART_CORP_CACHE["ts"] = now
-        DART_CORP_CACHE["map"] = mapping
-        print(f"[국내 공시] DART 기업코드 매핑 완료: {len(mapping)}개")
-        return mapping
-
-    except Exception as e:
-        print(f"[국내 공시] 기업코드 조회 실패: {type(e).__name__}: {e}")
-        return {}
-
-
-def _dart_report_score(report_name):
-    """주가 영향 가능성이 높은 공시를 우선한다."""
-    text = str(report_name or "").lower()
-    high = [
-        "단일판매ㆍ공급계약", "단일판매·공급계약", "공급계약",
-        "수주", "자기주식취득", "자기주식 취득", "자기주식처분",
-        "유상증자", "무상증자", "전환사채", "신주인수권부사채",
-        "교환사채", "합병", "분할", "영업양수", "영업양도",
-        "최대주주", "주요주주", "임상", "특허", "소송",
-        "잠정실적", "매출액", "영업이익", "배당",
-    ]
-    medium = ["주요사항보고서", "타법인주식및출자증권", "주식등의대량보유"]
-    score = sum(8 for k in high if k in text)
-    score += sum(3 for k in medium if k in text)
-    return score
-
-
-def fetch_kr_official_disclosures(stock_code, days=7):
-    """OpenDART에서 국내 기업의 최근 공시를 코드로 조회한다."""
-    if not OPENDART_API_KEY or not stock_code:
-        return []
-
-    stock_code = str(stock_code).strip()
-    cache_key = (stock_code, days)
-    cached = DART_DISCLOSURE_CACHE.get(cache_key)
-    now_ts = datetime.datetime.now().timestamp()
-    if cached and now_ts - cached[0] < 300:
-        return cached[1]
-
-    corp_map = fetch_dart_corp_map()
-    corp_code = corp_map.get(stock_code)
-    if not corp_code:
-        print(f"[국내 공시] {stock_code} DART 기업코드 없음")
-        DART_DISCLOSURE_CACHE[cache_key] = (now_ts, [])
-        return []
-
-    end_date = datetime.date.today()
-    begin_date = end_date - datetime.timedelta(days=days)
-
-    try:
-        params = urllib.parse.urlencode({
-            "crtfc_key": OPENDART_API_KEY,
-            "corp_code": corp_code,
-            "bgn_de": begin_date.strftime("%Y%m%d"),
-            "end_de": end_date.strftime("%Y%m%d"),
-            "page_no": 1,
-            "page_count": 30,
-        })
-        url = f"https://opendart.fss.or.kr/api/list.json?{params}"
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-
-        status = str(data.get("status", ""))
-        if status not in ("000", ""):
-            print(
-                f"[국내 공시] {stock_code} DART 응답 "
-                f"status={status} message={data.get('message', '')}"
-            )
-            DART_DISCLOSURE_CACHE[cache_key] = (now_ts, [])
-            return []
-
-        results = []
-        for item in data.get("list", []) or []:
-            report_name = str(item.get("report_nm", "")).strip()
-            receipt_date = str(item.get("rcept_dt", "")).strip()
-            receipt_no = str(item.get("rcept_no", "")).strip()
-            if not report_name or not receipt_date:
-                continue
-
-            results.append({
-                "date": (
-                    f"{receipt_date[:4]}-{receipt_date[4:6]}-{receipt_date[6:8]}"
-                    if len(receipt_date) == 8 else receipt_date
-                ),
-                "report": report_name,
-                "receipt_no": receipt_no,
-                "score": _dart_report_score(report_name),
-            })
-
-        # 영향도가 높은 공시를 우선하고, 같은 날에는 최신 접수번호를 우선한다.
-        results.sort(
-            key=lambda x: (x["score"], x["date"], x["receipt_no"]),
-            reverse=True,
-        )
-        results = results[:3]
-
-        print(f"[국내 공시] {stock_code} 성공 / 선택={len(results)}")
-        DART_DISCLOSURE_CACHE[cache_key] = (now_ts, results)
-        return results
-
-    except urllib.error.HTTPError as e:
-        print(f"[국내 공시] {stock_code} DART 실패: HTTP {e.code}")
-    except Exception as e:
-        print(f"[국내 공시] {stock_code} DART 실패: {type(e).__name__}: {e}")
-
-    DART_DISCLOSURE_CACHE[cache_key] = (now_ts, [])
-    return []
-
-
-def format_kr_official_disclosures(stock_code):
-    disclosures = fetch_kr_official_disclosures(stock_code)
-    if not disclosures:
-        return ""
-
-    return "\n".join(
-        f"📌 {item['date']} · {item['report']}"
-        for item in disclosures
-    )
-
-
-def format_us_sec_filing(filing):
-    """SEC 공시를 화면용으로 짧고 이해하기 쉽게 표시한다."""
-    form = str(filing.get("form") or filing.get("form_type") or "").upper().strip()
-    date = str(filing.get("filing_date") or filing.get("date") or "").strip()
-    title = str(filing.get("title") or filing.get("description") or "").strip()
-
-    display_date = date
-    try:
-        display_date = datetime.datetime.strptime(date[:10], "%Y-%m-%d").strftime("%m/%d").lstrip("0").replace("/0", "/")
-    except Exception:
-        pass
-
-    if form == "4":
-        code = str(filing.get("transaction_code") or filing.get("code") or "").upper().strip()
-        kind = {
-            "P": "내부자 매수",
-            "S": "내부자 매도",
-            "A": "내부자 취득",
-            "D": "회사로 반환",
-            "F": "세금·행사가격 지급",
-            "M": "옵션·파생상품 행사",
-            "G": "주식 증여",
-            "V": "자발적 신고",
-            "J": "기타 거래",
-        }.get(code, "내부자 거래")
-        summary = title or str(filing.get("person") or filing.get("reporting_person") or "").strip()
-        return f"📌 {display_date} · {kind}\n📰 {summary}".strip()
-
-    if form == "8-K":
-        item = str(filing.get("item") or filing.get("items") or "").strip()
-        kind = "기업 주요 공시"
-        if "1.01" in item:
-            kind = "중요 계약·협약"
-        elif "2.01" in item:
-            kind = "인수·매각"
-        elif "2.02" in item:
-            kind = "실적 발표"
-        elif "5.02" in item:
-            kind = "임원 인사"
-        elif "8.01" in item:
-            kind = "기타 주요 사항"
-        summary = title or item or "주요 내용 발표"
-        return f"📌 {display_date} · {kind}\n📰 {summary}".strip()
-
-    summary = title or "주요 공시 내용 확인"
-    return f"📌 {display_date} · {form or 'SEC 공시'}\n📰 {summary}".strip()
-
-def fetch_us_official_filings(ticker_symbol, days=7):
-    """SEC 공식 제출자료 중 최근 주요 공시를 수집한다. AI/웹검색 없이 코드로만 수집."""
-    ticker_symbol = ticker_symbol.upper()
-    cik = US_CIKS.get(ticker_symbol)
-    cache_key = (ticker_symbol, days)
-    cached = US_FILING_CACHE.get(cache_key)
-    if cached and (datetime.datetime.now().timestamp() - cached[0] < 300):
-        return cached[1]
-    if not cik:
-        return []
-
-    try:
-        url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
-                "Accept": "application/json",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-
-        recent = data.get("filings", {}).get("recent", {})
-        forms = recent.get("form", [])
-        dates = recent.get("filingDate", [])
-        accessions = recent.get("accessionNumber", [])
-        docs = recent.get("primaryDocument", [])
-        descriptions = recent.get("primaryDocDescription", [])
-
-        today = datetime.date.today()
-        results = []
-
-        for i, form in enumerate(forms):
-            if form not in US_MATERIAL_FORMS:
-                continue
-            try:
-                filing_date = datetime.datetime.strptime(dates[i], "%Y-%m-%d").date()
-            except Exception:
-                continue
-            if (today - filing_date).days > days:
-                continue
-
-            accession = accessions[i] if i < len(accessions) else ""
-            document = docs[i] if i < len(docs) else ""
-            description = descriptions[i] if i < len(descriptions) else ""
-            clean_accession = accession.replace("-", "")
-            filing_url = (
-                f"https://www.sec.gov/Archives/edgar/data/"
-                f"{int(cik)}/{clean_accession}/{document}"
-                if accession and document else ""
-            )
-
-            filing = {
-                "date": dates[i],
-                "form": form,
-                "description": description or "SEC 공식 공시",
-                "url": filing_url,
-            }
-
-            # Form 4는 목록 JSON만으로는 매수/매도·수량을 알 수 없으므로
-            # SEC 원문에서 실제 거래코드와 보고자를 추가로 읽는다.
-            if form == "4" and filing_url:
-                try:
-                    detail_req = urllib.request.Request(
-                        filing_url,
-                        headers={
-                            "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
-                            "Accept": "application/xml,text/xml,text/html,*/*",
-                        },
-                    )
-                    with urllib.request.urlopen(detail_req, timeout=5) as detail_resp:
-                        detail_text = detail_resp.read().decode("utf-8", errors="ignore")
-
-                    def _sec_xml_value(patterns):
-                        for pat in patterns:
-                            mm = re.search(pat, detail_text, flags=re.I | re.S)
-                            if mm:
-                                return re.sub(r"\\s+", " ", mm.group(1)).strip()
-                        return ""
-
-                    filing["person"] = _sec_xml_value([
-                        r"<rptOwnerName>(.*?)</rptOwnerName>",
-                        r"<reportingOwnerName>.*?<value>(.*?)</value>",
-                    ])
-
-                    codes = re.findall(
-                        r"<transactionCoding>.*?<transactionCode>(.*?)</transactionCode>.*?</transactionCoding>",
-                        detail_text,
-                        flags=re.I | re.S,
-                    )
-                    if not codes:
-                        codes = re.findall(
-                            r"<transactionCode>(.*?)</transactionCode>",
-                            detail_text,
-                            flags=re.I | re.S,
-                        )
-                    filing["transaction_code"] = (
-                        re.sub(r"\\s+", "", codes[0]).upper()
-                        if codes else ""
-                    )
-
-                    amounts = re.findall(
-                        r"<transactionShares>.*?<value>(.*?)</value>.*?</transactionShares>",
-                        detail_text,
-                        flags=re.I | re.S,
-                    )
-                    filing["shares"] = (
-                        re.sub(r"\\s+", "", amounts[0])
-                        if amounts else ""
-                    )
-                except Exception as detail_err:
-                    print(
-                        f"[미국 공시] {ticker_symbol} Form 4 원문 보강 실패: "
-                        f"{type(detail_err).__name__}: {detail_err}"
-                    )
-
-            results.append(filing)
-
-            if len(results) >= 3:
-                break
-
-        US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), results)
-        return results
-    except urllib.error.HTTPError as e:
-        print(f"[미국 공시] {ticker_symbol} SEC 실패: HTTP {e.code}")
-    except Exception as e:
-        print(f"[미국 공시] {ticker_symbol} SEC 실패: {type(e).__name__}: {e}")
-    US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), [])
-    return []
-
-def format_us_official_filings(ticker_symbol):
-    filings = fetch_us_official_filings(ticker_symbol)
-    if not filings:
-        return ""
-
-    lines = []
-    for item in filings[:3]:
-        date = str(item.get("date", "")).strip()
-        try:
-            display_date = datetime.datetime.strptime(
-                date[:10], "%Y-%m-%d"
-            ).strftime("%m/%d").lstrip("0").replace("/0", "/")
-        except Exception:
-            display_date = date
-
-        form = str(item.get("form", "")).upper().strip()
-
-        if form == "4":
-            code = str(item.get("transaction_code", "")).upper().strip()
-            kind = {
-                "P": "내부자 매수",
-                "S": "내부자 매도",
-                "A": "내부자 취득",
-                "D": "회사로 반환",
-                "F": "세금·행사가격 지급",
-                "M": "옵션·파생상품 행사",
-                "G": "주식 증여",
-                "V": "자발적 신고",
-                "J": "기타 거래",
-            }.get(code, "내부자 거래")
-
-            person = str(item.get("person", "")).strip()
-            shares = str(item.get("shares", "")).strip()
-
-            detail = f"{person}" if person else "회사 내부자"
-            if shares:
-                detail += f", 주식 {shares}주"
-            else:
-                detail += ", 주식 거래"
-
-            lines.append(f"📌 {display_date} · {kind}")
-            lines.append(f"📰 {detail}")
-        else:
-            desc = str(item.get("description", "")).strip()
-            kind = "기업 주요 공시"
-            if form == "8-K":
-                kind = "기업 주요 공시"
-            lines.append(f"📌 {display_date} · {kind}")
-            lines.append(f"📰 {desc or '주요 내용 발표'}")
-
-    return "\n".join(lines)
-
-def search_krx_code(stock_name):
-    try:
-        url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            res_json = json.loads(resp.read().decode('utf-8'))
-            items = res_json.get('items', [])
-            if items and len(items[0]) > 0:
-                first = items[0][0]
-                code = first[0]
-                market = first[3].upper()
-                suffix = '.KS' if 'KOSPI' in market else '.KQ'
-                return f"{code}{suffix}", code
-    except Exception:
-        pass
-    return None, None
-
-def fetch_kr_stock_realtime(code_six):
-    try:
-        url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code_six}"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-            'Referer': 'https://m.stock.naver.com/'
-        }
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            datas = data.get('datas', [])
-            if datas:
-                item = datas[0]
-                cur_p = float(str(item.get('closePrice', 0)).replace(',', ''))
-                diff = float(str(item.get('compareToPreviousClosePrice', 0)).replace(',', ''))
-                ratio = float(str(item.get('fluctuationsRatio', 0)).replace(',', ''))
-                return cur_p, diff, ratio
-    except Exception as e:
-        print("네이버 실시간 시세 조회 예외:", e)
-    return None, None, None
-
-def fetch_krx_trend_and_supply(code_six):
-    try:
-        url = f"https://m.stock.naver.com/api/stock/{code_six}/trend?page=1&pageSize=20"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-            'Referer': 'https://m.stock.naver.com/'
-        }
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            if data and isinstance(data, list):
-                prices = []
-                for row in data:
-                    cp = row.get('closePrice')
-                    if cp:
-                        prices.append(float(str(cp).replace(',', '')))
-                ma20 = sum(prices) / len(prices) if prices else 0
-                resistance = max(prices) if prices else 0
-
-                sum_foreign = 0
-                sum_inst = 0
-                sum_indiv = 0
-                valid_days = 0
-
-                for row in data[:5]:
-                    frgn = row.get('foreignerPureBuyQuant') or 0
-                    insti = row.get('organPureBuyQuant') or row.get('institutionPureBuyQuant') or 0
-                    indiv = row.get('individualPureBuyQuant') or 0
-
-                    sum_foreign += int(str(frgn).replace(',', ''))
-                    sum_inst += int(str(insti).replace(',', ''))
-                    sum_indiv += int(str(indiv).replace(',', ''))
-                    valid_days += 1
-
-                if sum_indiv == 0 and (sum_foreign != 0 or sum_inst != 0):
-                    sum_indiv = -(sum_foreign + sum_inst)
-
-                return ma20, resistance, sum_foreign, sum_inst, sum_indiv, valid_days
-    except Exception as e:
-        print("네이버 수급 집계 예외:", e)
-    return 0, 0, None, None, None, 0
-
-def fetch_yahoo_direct_v8(ticker_str):
-    try:
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker_str}?range=6mo&interval=1d"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                          'AppleWebKit/537.36 (KHTML, like Gecko) '
-                          'Chrome/152.0.0.0 Safari/537.36'
-        }
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-
-        res = data.get('chart', {}).get('result', [])
-        if not res:
-            return None, None, None, None, None
-
-        quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
-
-        raw_closes = quotes.get('close', [])
-        raw_highs = quotes.get('high', [])
-        raw_lows = quotes.get('low', [])
-        raw_volumes = quotes.get('volume', [])
-
-        rows = []
-        for c, h, l, v in zip(raw_closes, raw_highs, raw_lows, raw_volumes):
-            if c is None or h is None or l is None or v is None:
-                continue
-            try:
-                c, h, l, v = float(c), float(h), float(l), float(v)
-                if all(math.isfinite(x) for x in (c, h, l, v)) and c > 0 and v > 0:
-                    rows.append((c, h, l, v))
-            except Exception:
-                continue
-
-        if len(rows) < 2:
-            return None, None, None, None, None
-
-        closes = [r[0] for r in rows]
-        highs = [r[1] for r in rows]
-        lows = [r[2] for r in rows]
-        volumes = [r[3] for r in rows]
-
-        cur_p = closes[-1]
-        prev_p = closes[-2]
-
-        # 정확한 최근 20거래일 MA20
-        ma20 = sum(closes[-20:]) / min(20, len(closes))
-
-        volume_profile = calculate_volume_profile_levels(
-            highs, lows, closes, volumes, bins=24
-        )
-
-        # Volume Profile에서 현재가 위의 다음 주요 집중구간을 저항으로 사용.
-        res_p = (
-            volume_profile["above"]["center"]
-            if volume_profile and volume_profile.get("above")
-            else 0.0
-        )
-
-        return cur_p, prev_p, ma20, res_p, volume_profile
-
-    except Exception as e:
-        print("미국 야후 v8 예외:", e)
-        return None, None, None, None, None
-
-# 뉴스 품질 우선순위:
-# 1) 실제 Google News RSS에서 수집
-# 2) 같은 언론사 중복을 제거
-# 3) 주요/전문 매체를 우선
-# 4) 가능하면 서로 다른 출처 3개를 선택
-# 5) 실제 뉴스가 없으면 가짜 제목을 만들지 않음
-NEWS_SOURCE_PRIORITY = {
-    "Reuters": 100, "로이터": 100,
-    "AP": 98, "Associated Press": 98,
-    "Bloomberg": 96, "블룸버그": 96,
-    "Financial Times": 95, "파이낸셜타임스": 95,
-    "The Wall Street Journal": 94, "월스트리트저널": 94,
-    "CNBC": 92,
-    "NVIDIA": 91, "엔비디아": 91,
-    "연합뉴스": 90, "한국경제": 88, "매일경제": 87,
-    "서울경제": 86, "전자신문": 85, "이데일리": 82,
-    "머니투데이": 80, "조선비즈": 75,
-}
-
-# 주가에 직접 영향을 줄 가능성이 높은 '실제 재료' 표현.
-NEWS_HARD_EVENT_WORDS = [
-    "실적발표", "잠정실적", "실적", "매출", "영업이익", "순이익", "가이던스",
-    "수주", "계약", "공급계약", "대형계약", "인수", "합병", "m&a",
-    "투자", "증설", "감산", "증산", "출하", "판매", "가격 인상", "가격 하락",
-    "공급 중단", "공급 차질", "규제", "관세", "제재", "수출 제한", "승인",
-    "허가", "소송", "특허", "자사주", "배당", "유상증자", "전환사채",
-    "earnings", "revenue", "profit", "guidance", "contract", "deal",
-    "acquisition", "merger", "investment", "regulation", "tariff",
-    "approval", "lawsuit", "buyback", "dividend", "offering",
-]
-
-# 단독 재료가 아니라 단순 전망/의견 중심인 기사는 우선순위를 낮춘다.
-NEWS_SOFT_OPINION_WORDS = [
-    "전망", "예상", "분석", "목표주가", "증권가", "전문가", "기대감",
-    "가능성", "주목", "관심", "수혜주", "관련주", "추천", "진단",
-    "전략", "시나리오", "전망치", "forecast", "estimate", "analyst",
-    "target price", "outlook", "expectation", "potential",
-]
-
-# 주가 원인 분석에 상대적으로 덜 직접적인 기사 표현.
-NEWS_NOISE_WORDS = [
-    "인터뷰", "화보", "현장", "이모저모", "사설", "칼럼", "오피니언",
-    "사용기", "리뷰", "가이드", "주식 초보", "투자전략", "투자 팁",
-    "주간전망", "오늘의 운세", "퀴즈",
-]
-
-# 화면 표시용 뉴스와 AI 분석용 후보를 분리한다.
-# 화면에는 핵심 3개만 보여주고, 내부에는 상위 후보를 보관해 추후 AI가 더 넓은 근거를 사용할 수 있게 한다.
-NEWS_AI_CANDIDATES_CACHE = {}
-
-
-def _news_source_score(source_name):
-    source = (source_name or "").strip()
-    for key, score in NEWS_SOURCE_PRIORITY.items():
-        if key.lower() == source.lower():
-            return score
-    return 60
-
-def _news_freshness_score(pub_date):
-    """RSS 발행 시각 기준 최신 기사일수록 높은 점수."""
-    if not pub_date:
-        return 0
-
-    try:
-        dt = parsedate_to_datetime(pub_date)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=datetime.timezone.utc)
-        now = datetime.datetime.now(datetime.timezone.utc)
-        age_hours = max(0.0, (now - dt.astimezone(datetime.timezone.utc)).total_seconds() / 3600.0)
-
-        if age_hours <= 6:
-            return 40
-        if age_hours <= 24:
-            return 32
-        if age_hours <= 48:
-            return 24
-        if age_hours <= 72:
-            return 14
-        if age_hours <= 168:
-            return 4
-    except Exception:
-        pass
-
-    return 0
-
-def _news_relevance_score(title, stock_name, ticker):
-    """종목 직접 관련성과 실제 주가 영향 가능성을 함께 평가."""
-    title_lower = (title or "").lower()
-    score = 0
-
-    stock = str(stock_name or "").strip().lower()
-    tick = str(ticker or "").replace(".KS", "").replace(".KQ", "").lower()
-
-    if stock and len(stock) >= 2 and stock in title_lower:
-        score += 35
-    if tick and len(tick) >= 2 and tick in title_lower:
-        score += 30
-
-    for word in NEWS_HARD_EVENT_WORDS:
-        if word.lower() in title_lower:
-            score += 6
-
-    # 소프트한 전망 기사도 실적/계약 같은 확정 재료와 같이 있으면 살려둔다.
-    hard_hit = any(word.lower() in title_lower for word in NEWS_HARD_EVENT_WORDS)
-    for word in NEWS_SOFT_OPINION_WORDS:
-        if word.lower() in title_lower:
-            score += 2 if hard_hit else -7
-
-    for word in NEWS_NOISE_WORDS:
-        if word.lower() in title_lower:
-            score -= 12
-
-    # 직접적인 시장 충격 표현은 추가 가중치.
-    very_high_impact = [
-        "실적발표", "가이던스", "수주", "대형계약", "인수", "합병", "규제",
-        "관세", "제재", "공급 중단", "공급 차질", "수출 제한", "승인",
-        "유상증자", "전환사채", "earnings", "guidance", "acquisition",
-        "merger", "regulation", "tariff", "approval", "offering",
-    ]
-    for word in very_high_impact:
-        if word.lower() in title_lower:
-            score += 10
-
-    return score
-
-def _news_duplicate_key(title):
-    """표현만 조금 다른 동일/유사 기사 중복을 줄이기 위한 키."""
-    key = re.sub(r"[^0-9a-zA-Z가-힣]", "", (title or "").lower())
-    for token in ("속보", "단독", "종합", "오늘", "긴급"):
-        key = key.replace(token, "")
-    return key
-
-def _clean_news_title(title):
-    title = title or ""
-    title = re.sub(r'\[.*?\]', '', title)
-    title = re.sub(r'<[^>]+>', '', title)
-    title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
-    title = re.sub(r'[\.…]+\s*$', '', title)
-    title = re.sub(r'\.{2,}|…', ' · ', title)
-    return title.strip().strip('"\'“”')
-
-def fetch_realtime_news(stock_name):
-    """
-    뉴스는 넓게 수집한 뒤 강하게 필터링한다.
-    화면에는 핵심 뉴스 3개만 제목으로 표시하고, 내부에는 상위 후보를 별도로 보관한다.
-    """
-    candidates = []
-    seen_titles = set()
-    seen_duplicate_keys = set()
-
-    queries = [str(stock_name).strip()]
-    ticker_guess = TICKERS.get(str(stock_name).strip())
-    if ticker_guess:
-        ticker_guess = str(ticker_guess).replace(".KS", "").replace(".KQ", "")
-        if ticker_guess not in queries:
-            queries.append(ticker_guess)
-    elif re.match(r"^[A-Za-z\-]+$", str(stock_name).strip()):
-        ticker_guess = str(stock_name).upper()
-        if ticker_guess not in queries:
-            queries.append(ticker_guess)
-
-    ticker_for_score = ticker_guess if ticker_guess else ""
-
-    for search_term in queries[:2]:
-        try:
-            # '왜 오늘'에 맞춰 최근 7일 검색. 점수에서 72시간 이내 기사를 강하게 우선한다.
-            search_query = f"{search_term} when:7d"
-            query = urllib.parse.quote(search_query)
-            url = (
-                f"https://news.google.com/rss/search?q={query}"
-                f"&hl=ko&gl=KR&ceid=KR:ko"
-            )
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                xml_data = resp.read()
-
-            root = ET.fromstring(xml_data)
-            for item in root.findall('.//item'):
-                title_el = item.find('title')
-                source_el = item.find('source')
-                pub_el = item.find('pubDate')
-
-                title = _clean_news_title(
-                    title_el.text if title_el is not None else ""
-                )
-                source = (
-                    (source_el.text or "").strip()
-                    if source_el is not None else ""
-                )
-                pub_date = (
-                    (pub_el.text or "").strip()
-                    if pub_el is not None else ""
-                )
-
-                if not title:
-                    continue
-
-                title_key = re.sub(r"\s+", " ", title).lower()
-                duplicate_key = _news_duplicate_key(title)
-                if title_key in seen_titles or duplicate_key in seen_duplicate_keys:
-                    continue
-
-                seen_titles.add(title_key)
-                seen_duplicate_keys.add(duplicate_key)
-
-                source_score = _news_source_score(source)
-                freshness_score = _news_freshness_score(pub_date)
-                relevance_score = _news_relevance_score(
-                    title, stock_name, ticker_for_score
-                )
-                hard_event = any(
-                    word.lower() in title.lower() for word in NEWS_HARD_EVENT_WORDS
-                )
-
-                # 7일보다 오래된 기사는 RSS가 섞여 들어와도 핵심 후보에서 사실상 탈락시킨다.
-                if freshness_score == 0:
-                    continue
-
-                candidates.append({
-                    "title": title,
-                    "source": source,
-                    "pub_date": pub_date,
-                    "source_score": source_score,
-                    "freshness_score": freshness_score,
-                    "relevance_score": relevance_score,
-                    "hard_event": hard_event,
-                    "score": source_score + freshness_score + relevance_score,
-                })
-
-        except Exception as e:
-            print(f"[뉴스] {stock_name} RSS 조회 예외: {type(e).__name__}: {e}")
-
-    candidates.sort(
-        key=lambda x: (
-            x["score"],
-            x["hard_event"],
-            x["freshness_score"],
-            x["relevance_score"],
-        ),
-        reverse=True,
-    )
-
-    # 먼저 내부 AI용 후보를 보관한다.
-    # 화면에 3개만 보여주더라도 AI 단계에서는 더 많은 근거를 활용할 수 있게 한다.
-    internal_candidates = [dict(item) for item in candidates[:10]]
-    NEWS_AI_CANDIDATES_CACHE[str(stock_name).strip()] = internal_candidates
-
-    # 화면에는 핵심 3개만 노출한다. 출처 다양성은 유지하되 점수 차이가 큰 경우에는
-    # 더 강한 기사를 우선한다(약한 기사를 억지로 끼워 넣지 않음).
-    selected = []
-    for item in candidates:
-        if not selected:
-            selected.append(item)
-            continue
-
-        same_source = item["source"].lower().strip() == selected[0]["source"].lower().strip()
-        if same_source and item["score"] < selected[0]["score"] - 8:
-            continue
-
-        selected.append(item)
-        if len(selected) >= 3:
-            break
-
-    # 첫 후보가 지나치게 약하면 낮은 품질 기사를 억지로 표시하지 않는다.
-    selected = [x for x in selected if x["score"] >= 70]
-
-    print(
-        f"[뉴스 품질] {stock_name} 후보={len(candidates)} / 내부AI={len(internal_candidates)} / 화면={len(selected)}"
-    )
-    for i, item in enumerate(selected[:3], 1):
-        print(
-            f"[뉴스 품질] {stock_name} 화면#{i} "
-            f"score={item['score']} source={item['source']} "
-            f"fresh={item['freshness_score']} relevance={item['relevance_score']} "
-            f"hard={item['hard_event']}"
-        )
-
-    # 화면에서는 현재 종목명을 제거해 제목을 최대한 깔끔하게 표시한다.
-    # 원본 제목(item["title"])은 내부 후보 데이터와 AI 분석용으로 그대로 보존한다.
-    display_titles = []
-    company_names = {
-        str(stock_name).strip(),
-        str(stock_name).strip().replace(" ", ""),
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>gaemiGTP</title>
+  
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>
+    body {
+      font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      letter-spacing: -0.015em;
+      -webkit-font-smoothing: antialiased;
+      word-break: keep-all;
+    }
+    #chatArea p { line-height: 1.65; letter-spacing: -0.02em; }
+    ::-webkit-scrollbar { display: none; width: 0px; }
+    html, body, #chatArea, aside { scrollbar-width: none; -ms-overflow-style: none; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade { animation: fadeIn 0.25s ease-out forwards; }
+    
+    @keyframes popBounce {
+      0% { transform: scale(0.6); opacity: 0; }
+      50% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop { animation: popBounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+    .typing-cursor::after {
+      content: '▋';
+      display: inline-block;
+      vertical-align: baseline;
+      margin-left: 4px;
+      color: #71717a;
+      animation: blink 0.8s infinite;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+  </style>
+</head>
+<body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none">
+
+  <!-- 모바일 배경 오버레이 -->
+  <div id="sidebarBackdrop" onclick="closeAllSidebars()" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity duration-300"></div>
+
+  <!-- 분석 완료 알림 팝업 -->
+  <div id="surpriseAntPopup" class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none hidden">
+    <div class="bg-white/95 dark:bg-[#1e1f24]/95 backdrop-blur-md border border-[#cbd5e1] dark:border-[#3f3f46] rounded-3xl p-6 flex flex-col items-center gap-3 shadow-2xl animate-pop">
+      <div class="text-6xl animate-bounce">🐜✨</div>
+      <h3 class="text-xl font-black text-[#0f172a] dark:text-white">분석 완료! 다 찾았다!</h3>
+      <p class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">10초 핵심 리포트를 확인해봐!</p>
+    </div>
+  </div>
+
+  <!-- 메인 히어로 첫 화면 -->
+  <div id="mainHeroView" class="fixed inset-0 z-30 bg-[#f8fafc] dark:bg-[#0f1013] text-[#0f172a] dark:text-white flex flex-col justify-between overflow-hidden">
+    <header class="h-16 flex items-center justify-between px-6 shrink-0">
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="switchToAnalysisMode('삼성전자')" class="text-xl text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white p-1 cursor-pointer">☰</button>
+        <span class="font-black text-lg tracking-tight text-[#0f172a] dark:text-white cursor-pointer" onclick="resetToHome()">gaemiGTP</span>
+      </div>
+      <button type="button" onclick="toggleTheme()" class="text-lg text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white p-1 cursor-pointer">☀️</button>
+    </header>
+
+    <div class="flex-1 flex flex-col items-center justify-center px-4 -mt-12 w-full max-w-3xl mx-auto text-center space-y-6">
+      <div class="space-y-2">
+        <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-[#0f172a] dark:text-white">gaemiGTP</h1>
+        <p class="text-sm sm:base text-[#64748b] dark:text-[#a1a1aa] font-medium">종목명 하나면 10초 만에 끝납니다</p>
+      </div>
+
+      <div class="w-full relative">
+        <form class="relative flex items-center" onsubmit="event.preventDefault(); handleHeroSearch();">
+          <input 
+            id="heroStockInput" 
+            type="text" 
+            placeholder="종목명 입력 (예: 삼성전자, SK하이닉스, NVDA, TSLA)" 
+            class="w-full bg-white dark:bg-[#18191d] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-6 py-4 text-sm sm:text-base text-[#0f172a] dark:text-white placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-xl transition"
+          >
+          <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            <button type="button" onclick="toggleModeDropdown('hero')" id="heroModeBtn" class="flex items-center gap-1 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white px-2 py-1.5 rounded-lg hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition cursor-pointer">
+              <span id="heroModeLabel">gaemi</span> <span class="text-[10px]">▲</span>
+            </button>
+            <button type="submit" class="w-9 h-9 rounded-full bg-[#0f172a] dark:bg-[#2a2b30] hover:bg-[#334155] dark:hover:bg-white text-white dark:text-[#a1a1aa] dark:hover:text-black flex items-center justify-center transition cursor-pointer shadow">
+              <span class="text-base font-black">↑</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- 히어로 드롭다운 -->
+        <div id="heroModeMenu" class="absolute right-12 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
+          <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">gaemi</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">정보를 확인하세요</div>
+            </div>
+            <span id="chk-hero-gaemi" class="text-sky-500 font-bold ml-auto">✓</span>
+          </button>
+          <button type="button" onclick="selectAppMode('info')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">info</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">도움을 받으세요</div>
+            </div>
+            <span id="chk-hero-info" class="text-sky-500 font-bold ml-auto hidden">✓</span>
+          </button>
+          <button type="button" onclick="selectAppMode('pro')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">pro</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">실력을 키우세요</div>
+            </div>
+            <span id="chk-hero-pro" class="text-sky-500 font-bold ml-auto hidden">✓</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
+        <button type="button" onclick="switchToAnalysisMode('삼성전자')" class="text-xs bg-white dark:bg-[#18191d] hover:bg-[#f1f5f9] dark:hover:bg-[#262830] text-[#334155] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white border border-[#cbd5e1] dark:border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">삼성전자</button>
+        <button type="button" onclick="switchToAnalysisMode('SK하이닉스')" class="text-xs bg-white dark:bg-[#18191d] hover:bg-[#f1f5f9] dark:hover:bg-[#262830] text-[#334155] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white border border-[#cbd5e1] dark:border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">SK하이닉스</button>
+        <button type="button" onclick="switchToAnalysisMode('현대차')" class="text-xs bg-white dark:bg-[#18191d] hover:bg-[#f1f5f9] dark:hover:bg-[#262830] text-[#334155] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white border border-[#cbd5e1] dark:border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">현대차</button>
+        <button type="button" onclick="switchToAnalysisMode('엔비디아')" class="text-xs bg-white dark:bg-[#18191d] hover:bg-[#f1f5f9] dark:hover:bg-[#262830] text-[#334155] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white border border-[#cbd5e1] dark:border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">엔비디아</button>
+      </div>
+    </div>
+    <div class="h-6"></div>
+  </div>
+
+  <!-- 좌측 사이드바 -->
+  <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 shadow-2xl lg:shadow-none">
+    <div class="p-4 flex flex-col gap-5 overflow-y-auto">
+      <div class="flex items-center justify-between px-1">
+        <div class="flex items-center gap-2.5 cursor-pointer" onclick="resetToHome()">
+          <span class="text-2xl">🐜</span>
+          <span class="font-black text-xl text-[#0f172a] dark:text-white tracking-tight">gaemiGTP</span>
+        </div>
+        <button type="button" onclick="closeAllSidebars()" class="lg:hidden text-[#71717a] hover:text-white text-lg p-1 cursor-pointer">✕</button>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <span class="text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">실전 전략 3인방</span>
+        <button type="button" onclick="requestStock('서학개미'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between shadow-sm cursor-pointer">
+          <div class="flex items-center gap-2"><span>🇺🇸</span> <span class="font-bold">서학개미 (장기)</span></div>
+          <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa] font-bold">24.5억</span>
+        </button>
+        <button type="button" onclick="requestStock('국장개미'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between shadow-sm cursor-pointer">
+          <div class="flex items-center gap-2"><span>🇰🇷</span> <span class="font-bold">국장개미 (스윙)</span></div>
+          <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa] font-bold">24.5억</span>
+        </button>
+        <button type="button" onclick="requestStock('트레이더'); closeAllSidebars();" class="text-left text-xs bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-2.5 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between shadow-sm cursor-pointer">
+          <div class="flex items-center gap-2"><span>⚡</span> <span class="font-bold">트레이더 (단기)</span></div>
+          <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa] font-bold">32.4억</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 중앙 분석 영역 -->
+  <main class="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-[#121316] overflow-hidden min-w-0">
+    <header class="h-16 border-b border-[#e2e8f0] dark:border-[#27272a] flex items-center justify-between px-4 sm:px-6 bg-white/80 dark:bg-[#16171b]/80 backdrop-blur shrink-0 z-10">
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="toggleLeftSidebar()" class="lg:hidden p-1.5 rounded-lg border border-[#cbd5e1] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#1e1f24] text-base text-[#0f172a] dark:text-white cursor-pointer">☰</button>
+        <span class="font-bold text-[#0f172a] dark:text-white text-base cursor-pointer" onclick="resetToHome()">gaemiGTP</span>
+      </div>
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button type="button" onclick="resetToHome()" class="text-xs px-2.5 py-1.5 rounded-lg border border-[#cbd5e1] dark:border-[#27272a] text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white cursor-pointer">메인으로</button>
+        <button type="button" onclick="toggleTheme()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white border border-[#cbd5e1] dark:border-[#3f3f46] rounded-full shadow-sm cursor-pointer">
+          <span id="themeIcon">☀️</span><span id="themeText">라이트 모드</span>
+        </button>
+        <button type="button" onclick="toggleRightSidebar()" class="xl:hidden p-1.5 rounded-lg border border-[#cbd5e1] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#1e1f24] text-sm text-[#0f172a] dark:text-white font-bold flex items-center gap-1 cursor-pointer">
+          <span>📈</span>
+        </button>
+      </div>
+    </header>
+
+    <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
+
+    <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
+      <div class="max-w-3xl mx-auto relative">
+        <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
+          <input 
+            id="bottomStockInput" 
+            type="text" 
+            placeholder="종목명 입력 (예: 삼성전자, SK하이닉스, NVDA, TSLA)" 
+            class="w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-[#f4f4f5] placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-md transition"
+          >
+          <div class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            <button type="button" onclick="toggleModeDropdown('bottom')" id="bottomModeBtn" class="flex items-center gap-1 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white px-2 py-1.5 rounded-lg hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition cursor-pointer">
+              <span id="bottomModeLabel">gaemi</span> <span class="text-[10px]">▲</span>
+            </button>
+            <button type="submit" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0f172a] dark:bg-[#2a2b30] hover:bg-[#334155] dark:hover:bg-white text-white dark:text-[#a1a1aa] dark:hover:text-black flex items-center justify-center transition cursor-pointer shadow">
+              <span class="text-sm sm:text-base font-black">↑</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- 하단 드롭다운 -->
+        <div id="bottomModeMenu" class="absolute right-14 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
+          <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">gaemi</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">정보를 확인하세요</div>
+            </div>
+            <span id="chk-bottom-gaemi" class="text-sky-500 font-bold ml-auto">✓</span>
+          </button>
+          <button type="button" onclick="selectAppMode('info')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">info</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">도움을 받으세요</div>
+            </div>
+            <span id="chk-bottom-info" class="text-sky-500 font-bold ml-auto hidden">✓</span>
+          </button>
+          <button type="button" onclick="selectAppMode('pro')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
+            <div class="text-left flex-1">
+              <div class="font-bold text-sm text-[#0f172a] dark:text-white text-left">pro</div>
+              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">실력을 키우세요</div>
+            </div>
+            <span id="chk-bottom-pro" class="text-sky-500 font-bold ml-auto hidden">✓</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 우측 사이드바 -->
+  <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-64 bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform translate-x-full xl:translate-x-0 xl:static transition-transform duration-300 shadow-2xl xl:shadow-none">
+    <div class="p-5 flex flex-col gap-6 overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-base">📈</span>
+          <span class="font-bold text-sm text-[#0f172a] dark:text-white tracking-tight">실시간 시그널 포착</span>
+        </div>
+        <button type="button" onclick="closeAllSidebars()" class="xl:hidden text-[#71717a] hover:text-white text-lg p-1 cursor-pointer">✕</button>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <span class="text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] uppercase px-1">관심 종목 모니터링</span>
+        <button type="button" onclick="requestStock('SK하이닉스'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between shadow-sm cursor-pointer">
+          <div class="flex flex-col">
+            <span class="font-bold text-[#0f172a] dark:text-white">SK하이닉스</span>
+            <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">000660</span>
+          </div>
+          <span class="text-xs text-[#ff2d78] font-black">+2.39%</span>
+        </button>
+        <button type="button" onclick="requestStock('삼성전자'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between shadow-sm cursor-pointer">
+          <div class="flex flex-col">
+            <span class="font-bold text-[#0f172a] dark:text-white">삼성전자</span>
+            <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">005930</span>
+          </div>
+          <span class="text-xs text-[#38bdf8] font-black">-0.41%</span>
+        </button>
+        <button type="button" onclick="requestStock('현대차'); closeAllSidebars();" class="text-left text-sm bg-white dark:bg-[#1e1f24] hover:bg-[#f1f5f9] dark:hover:bg-[#27272a] text-[#334155] dark:text-[#e4e4e7] p-3 rounded-xl border border-[#cbd5e1] dark:border-[#27272a] flex items-center justify-between shadow-sm cursor-pointer">
+          <div class="flex flex-col">
+            <span class="font-bold text-[#0f172a] dark:text-white">현대차</span>
+            <span class="text-[11px] text-[#64748b] dark:text-[#a1a1aa]">005380</span>
+          </div>
+          <span class="text-xs text-[#ff2d78] font-black">+1.24%</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <script>
+    const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
+    let activeStock = '삼성전자';
+    let currentChartInstance = null;
+    let currentAppMode = 'gaemi';
+
+    function resetToHome() { document.getElementById('mainHeroView').classList.remove('hidden'); }
+    function switchToAnalysisMode(stockName) {
+      document.getElementById('mainHeroView').classList.add('hidden');
+      requestStock(stockName || '삼성전자');
+    }
+    function handleHeroSearch() {
+      const val = document.getElementById('heroStockInput').value;
+      switchToAnalysisMode(val || '삼성전자');
+    }
+    function handleBottomSearch() {
+      const val = document.getElementById('bottomStockInput').value;
+      if (val) {
+        requestStock(val);
+        document.getElementById('bottomStockInput').value = '';
+      }
     }
 
-    for item in selected[:3]:
-        original_title = item["title"]
-        display_title = original_title
-
-        for company_name in sorted(company_names, key=len, reverse=True):
-            if company_name:
-                display_title = display_title.replace(company_name, "")
-
-        display_title = re.sub(r"\s+", " ", display_title).strip()
-        display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
-        display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
-
-        # 종목명 제거 후 제목이 비어버리는 경우에는 원본 제목을 사용한다.
-        display_titles.append(display_title or original_title)
-
-    return display_titles
-
-
-def get_news_ai_candidates(stock_name, limit=10):
-    """추후 AI 원인 분석에서 사용할 내부 뉴스 후보를 반환한다."""
-    items = NEWS_AI_CANDIDATES_CACHE.get(str(stock_name).strip(), [])
-    return [dict(item) for item in items[:max(1, int(limit))]]
-
-def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24):
-    """
-    최근 60거래일 OHLCV를 가격 구간별로 묶어 거래량 집중 구간을 찾는다.
-    일봉 데이터만 있으므로 각 봉의 거래량을 고가~저가 구간에 균등 배분하는
-    '근사형 Volume Profile'이다. 실제 체결 틱 데이터라고 과장하지 않는다.
-    """
-    try:
-        rows = []
-        for h, l, c, v in zip(highs[-60:], lows[-60:], closes[-60:], volumes[-60:]):
-            h, l, c, v = float(h), float(l), float(c), float(v)
-            if h > 0 and l > 0 and h >= l and v > 0:
-                rows.append((h, l, c, v))
-
-        if len(rows) < 20:
-            return None
-
-        min_price = min(x[1] for x in rows)
-        max_price = max(x[0] for x in rows)
-        current_price = rows[-1][2]
-
-        if max_price <= min_price:
-            return None
-
-        bin_size = (max_price - min_price) / bins
-        profile = [0.0] * bins
-
-        for high, low, close, volume in rows:
-            start_bin = max(0, min(bins - 1, int((low - min_price) / bin_size)))
-            end_bin = max(0, min(bins - 1, int((high - min_price) / bin_size)))
-            count = max(1, end_bin - start_bin + 1)
-            allocated = volume / count
-            for idx in range(start_bin, end_bin + 1):
-                profile[idx] += allocated
-
-        peak = max(profile)
-        if peak <= 0:
-            return None
-
-        levels = []
-        for idx, volume in enumerate(profile):
-            lower = min_price + idx * bin_size
-            upper = lower + bin_size
-            levels.append({
-                "idx": idx,
-                "lower": lower,
-                "upper": upper,
-                "center": (lower + upper) / 2,
-                "volume": volume,
-                "relative": volume / peak,
-            })
-
-        # POC의 55% 이상 거래량이면서 서로 붙어 있는 가격대를 하나의 집중구간으로 묶는다.
-        strong = {x["idx"] for x in levels if x["relative"] >= 0.55}
-        clusters = []
-        for idx in sorted(strong):
-            if not clusters or idx > clusters[-1][-1] + 1:
-                clusters.append([idx])
-            else:
-                clusters[-1].append(idx)
-
-        zones = []
-        for cluster in clusters:
-            items = [levels[i] for i in cluster]
-            total_volume = sum(x["volume"] for x in items)
-            center = (
-                sum(x["center"] * x["volume"] for x in items) / total_volume
-                if total_volume else items[len(items) // 2]["center"]
-            )
-            zones.append({
-                "lower": items[0]["lower"],
-                "upper": items[-1]["upper"],
-                "center": center,
-                "volume": total_volume,
-                "strength": max(x["relative"] for x in items),
-            })
-
-        if not zones:
-            poc = levels[profile.index(peak)]
-            zones = [{
-                "lower": poc["lower"],
-                "upper": poc["upper"],
-                "center": poc["center"],
-                "volume": poc["volume"],
-                "strength": poc["relative"],
-            }]
-
-        above = sorted(
-            [z for z in zones if z["lower"] > current_price],
-            key=lambda z: z["lower"]
-        )
-        below = sorted(
-            [z for z in zones if z["upper"] < current_price],
-            key=lambda z: z["upper"],
-            reverse=True
-        )
-        inside = [
-            z for z in zones
-            if z["lower"] <= current_price <= z["upper"]
-        ]
-
-        # 현재가 위/아래의 '가장 가까운' 집중구간을 우선하되,
-        # 여러 구간 중 상대적으로 강한 구간 정보도 유지한다.
-        return {
-            "current_price": current_price,
-            "poc": levels[profile.index(peak)],
-            "zones": zones,
-            "above": above[0] if above else None,
-            "below": below[0] if below else None,
-            "inside": inside[0] if inside else None,
-            "days": len(rows),
-        }
-    except Exception as e:
-        print(f"[Volume Profile] 계산 예외: {type(e).__name__}: {e}")
-        return None
-
-def format_volume_profile(profile):
-    if not profile:
-        return ""
-
-    inside = profile.get("inside")
-    above = profile.get("above")
-    below = profile.get("below")
-    poc = profile.get("poc")
-
-    lines = []
-
-    # 매물대는 내부적으로 구간으로 분석하되,
-    # 화면에는 저항/지지 대표 가격 하나만 표시한다.
-    # 저항 = 선택된 저항 매물대의 상단 가격
-    # 지지 = 선택된 지지 매물대의 하단 가격
-    if above:
-        resistance_price = above.get("upper", above.get("center"))
-        if resistance_price:
-            lines.append(f"#악성 매물대 ${resistance_price:,.2f}")
-    elif inside:
-        resistance_price = inside.get("upper", inside.get("center"))
-        if resistance_price:
-            lines.append(f"#악성 매물대 ${resistance_price:,.2f}")
-
-    if below:
-        support_price = below.get("lower", below.get("center"))
-        if support_price:
-            lines.append(f"#생존 지지선 ${support_price:,.2f}")
-    elif inside:
-        support_price = inside.get("lower", inside.get("center"))
-        if support_price:
-            lines.append(f"#생존 지지선 ${support_price:,.2f}")
-
-    if poc:
-        lines.append(f"POC ${poc['center']:,.2f} · 최근 {profile['days']}거래일 거래량 기준")
-
-    return "\n".join(lines)
-
-def format_shares(n):
-    if n is None: return "0주"
-    sign = "+" if n > 0 else ""
-    if abs(n) >= 10000:
-        return f"{sign}{n / 10000:,.1f}만주"
-    return f"{sign}{n:,}주"
-
-def round_krw_tick(price):
-    if price is None: return 0
-    try:
-        p = float(price)
-        if math.isnan(p) or math.isinf(p) or p <= 0: return 0
-        if p >= 500_000: return int(p // 1000) * 1000
-        elif p >= 100_000: return int(p // 500) * 500
-        elif p >= 50_000: return int(p // 100) * 100
-        elif p >= 10_000: return int(p // 50) * 50
-        else: return int(p // 10) * 10
-    except Exception:
-        return 0
-
-def get_live_calendar_data(stock_name, ticker_symbol):
-    kst_tz = datetime.timezone(datetime.timedelta(hours=9))
-    now_kst = datetime.datetime.now(kst_tz)
-    weekdays = ['월', '화', '수', '목', '금', '토', '일']
-
-    master_events = [
-        {
-            "name": "미국 8월 생산자물가지수 #PPI",
-            "dt": datetime.datetime(2026, 9, 10, 21, 30, tzinfo=kst_tz),
-            "est": "0.2%",
-            "type": "ppi"
-        },
-        {
-            "name": "#오라클 ORCL 실적 발표",
-            "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz),
-            "est": "예상 EPS $1.33",
-            "type": "earnings",
-            "target": "글로벌 AI·클라우드 대장주"
-        },
-        {
-            "name": "#어도비 ADBE 실적 발표",
-            "dt": datetime.datetime(2026, 9, 11, 5, 0, tzinfo=kst_tz),
-            "est": "예상 EPS $6.08",
-            "type": "earnings",
-            "target": "글로벌 AI·소프트웨어 대장주"
-        },
-        {
-            "name": "미국 8월 소비자물가지수 #CPI",
-            "dt": datetime.datetime(2026, 9, 11, 21, 30, tzinfo=kst_tz),
-            "est": "0.2%",
-            "type": "cpi"
-        },
-        {
-            "name": "미국 연준 #FOMC 기준금리 결정",
-            "dt": datetime.datetime(2026, 9, 17, 3, 0, tzinfo=kst_tz),
-            "est": "기준금리 3.50%~3.75%",
-            "type": "fomc"
-        },
-        {
-            "name": "미국 개인소비지출 #PCE 물가지수",
-            "dt": datetime.datetime(2026, 9, 25, 21, 30, tzinfo=kst_tz),
-            "est": "2.6%",
-            "type": "pce"
-        }
-    ]
-
-    master_events.sort(key=lambda x: x['dt'])
-    upcoming = [ev for ev in master_events if ev['dt'] >= now_kst]
-    if not upcoming:
-        upcoming = master_events[:4]
-
-    tomorrow_morning = (now_kst + datetime.timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-    tonight_event = next((ev for ev in upcoming if ev['dt'] <= tomorrow_morning), None)
-
-    if tonight_event:
-        t_dt = tonight_event['dt']
-        t_wd = weekdays[t_dt.weekday()]
-        time_str = t_dt.strftime(f"%m/%d({t_wd}) %H:%M")
-
-        if tonight_event['type'] == 'earnings':
-            tonight_card = (
-                f"🚨 오늘 밤엔 큰 거 하나 온다! 긴장 바짝 해!\n\n"
-                f"⏰ {time_str} {tonight_event['name']}\n"
-                f"{tonight_event.get('target', '글로벌 빅테크')} 실적 발표거든? "
-                f"미국 대장주가 기침하면 국장도 영향을 받으니까 장 시작 전 방향성 잘 체크하자고!"
-            )
-        else:
-            tonight_card = (
-                f"🚨 오늘 밤엔 큰 거 하나 온다! 긴장 바짝 해!\n\n"
-                f"⏰ {time_str} {tonight_event['name']} 발표!\n"
-                f"시장 예상치는 {tonight_event['est']} 수준이야. "
-                f"예상치보다 튀면 오늘 밤 야간 선물부터 거칠게 출렁일 수 있으니 방심 금물이야!"
-            )
-    else:
-        tonight_card = (
-            "🌙 오늘 밤은? 없네!\n"
-            "오늘 밤은 시장을 뒤흔들 빅이벤트가 없으니까 야간 미장 걱정 말고 꿀잠 자도 돼 ㅎㅎ\n"
-            "대신 이번 주 뒤로 갈수록 굵직한 지표와 메이저 실적들이 대기 중이니까 아래 일정 꼭 메모해 둬!"
-        )
-
-    check_lines = []
-    for ev in upcoming[:4]:
-        e_dt = ev['dt']
-        e_wd = weekdays[e_dt.weekday()]
-        e_time = e_dt.strftime(f"%m/%d({e_wd}) %H:%M")
-        check_lines.append(f"• {e_time} {ev['name']}")
-
-    calendar_block = (
-        "🗓️ 이번 주 핵심 개미 캘린더 ★★★\n" +
-        "\n".join(check_lines) +
-        "\n\n\"지표나 실적 발표 전후로는 호가창 얇아지니까 뇌동매매 절대 금지야! 알았제?\""
-    )
-
-    return f"{tonight_card}\n\n{calendar_block}"
-
-@app.route('/')
-def home():
-    return "gaemiGTP 대화형 수급 & 리포트 엔진 가동 중!"
-
-@app.route('/analyze', methods=['GET'])
-def analyze():
-    raw_name = request.args.get('stock', 'SK하이닉스').strip()
-    ticker_symbol = TICKERS.get(raw_name)
-    clean_code = None
-
-    try:
-        if ticker_symbol:
-            clean_code = ''.join(filter(str.isdigit, ticker_symbol))
-        elif re.match(r'^\d{6}$', raw_name):
-            clean_code = raw_name
-            ticker_symbol = f"{clean_code}.KS"
-        elif re.match(r'^[A-Za-z\-]+$', raw_name):
-            ticker_symbol = raw_name.upper()
-        else:
-            ticker_symbol, clean_code = search_krx_code(raw_name)
-
-        if not ticker_symbol:
-            ticker_symbol = "000660.KS"
-            clean_code = "000660"
-
-        is_krw = ('-' not in ticker_symbol and ticker_symbol.endswith(('.KS', '.KQ'))) or (clean_code and len(clean_code) == 6)
-
-        current_price = 0.0
-        change_pct = 0.0
-        ma20 = 0.0
-        resistance_price = 0.0
-        volume_profile = None
-        supply_content = ""
-
-        # 1. 국내 주식
-        if is_krw and clean_code:
-            cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
-            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
-
-            current_price = cur_p if cur_p else 1783000.0
-            change_pct = ratio if ratio is not None else 8.26
-            ma20 = ma20_val if ma20_val else current_price * 0.95
-            resistance_price = res_val if res_val else current_price * 1.05
-
-            clean_price = round_krw_tick(current_price)
-            clean_ma20 = round_krw_tick(ma20)
-            clean_res = round_krw_tick(resistance_price)
-            price_str = f"{clean_price:,}원"
-            ma20_str = f"{clean_ma20:,}원"
-            res_str = f"{clean_res:,}원"
-
-            if f_5d is not None and i_5d is not None and v_days > 0:
-                f_abs = format_shares(f_5d)
-                i_abs = format_shares(i_5d)
-                ind_abs = format_shares(ind_5d)
-                tag_line = f"#외국인 {f_abs} #기관 {i_abs} #개인 {ind_abs}"
-
-                if f_5d > 0 and i_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
-                elif f_5d < 0 and i_5d < 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼며 물량을 털어내고 있어.\n개미들만 물량을 떠안는 위험한 자리니까 절대 물타지 말고 조심해야 돼."
-                elif f_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일간 세력이 개미를 압도하는 완벽한 판세야.\n기관이 관망하는 사이 외국인이 지친 개미들 물량을 싹 쓸어 담았어.\n돈의 힘이 상방으로 쏠렸으니 단기 슈팅 흐름 기대해 봐도 좋아."
-                elif i_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 국내 기관들이 뚝심 있게 순매수하며 주가를 끌고 있어!\n토종 세력의 바닥 지지력이 살아있으니 20일선 지지 여부 보면서 따라가 보자."
-                else:
-                    supply_content = f"{tag_line}\n\n최근 5일간 세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
-
-        # 2. 미국 주식
-        else:
-            cur_p, prev_p, ma20_val, res_val, volume_profile = fetch_yahoo_direct_v8(ticker_symbol)
-            if cur_p and prev_p:
-                current_price = cur_p
-                change_pct = ((cur_p - prev_p) / prev_p) * 100
-                ma20 = ma20_val or 0.0
-                resistance_price = res_val or 0.0
-            else:
-                # 실제 시세 조회 실패 시 임의의 가격을 만들지 않는다.
-                current_price = 0.0
-                change_pct = 0.0
-                ma20 = 0.0
-                resistance_price = 0.0
-                volume_profile = None
-                print(f"[미국 주가] {ticker_symbol} 조회 실패 - 가짜 가격 사용 안 함")
-
-            price_str = f"${current_price:,.2f}" if current_price > 0 else "시세 조회 실패"
-            ma20_str = f"${ma20:,.2f}" if ma20 > 0 else "계산 대기"
-            res_str = f"${resistance_price:,.2f}" if resistance_price > 0 else "계산 대기"
-
-            # 미국 옵션 수급: CBOE 공개 지연 옵션체인 사용
-            # Yahoo crumb 방식은 사용하지 않는다. CBOE 엔드포인트는 API 키가 필요 없고
-            # 옵션 계약별 volume을 제공한다. (약 15분 지연)
-            try:
-                call_vol = 0
-                put_vol = 0
-                option_error = None
-
-                try:
-                    cboe_url = (
-                        f"https://cdn.cboe.com/api/global/delayed_quotes/options/"
-                        f"{urllib.parse.quote(ticker_symbol)}.json"
-                    )
-                    req = urllib.request.Request(
-                        cboe_url,
-                        headers={
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                                          "Chrome/152.0.0.0 Safari/537.36",
-                            "Accept": "application/json,text/plain,*/*",
-                        }
-                    )
-
-                    with urllib.request.urlopen(req, timeout=8) as resp:
-                        data = json.loads(resp.read().decode("utf-8"))
-
-                    rows = data.get("data") or []
-                    if isinstance(rows, dict):
-                        rows = [rows]
-
-                    for row in rows:
-                        if not isinstance(row, dict):
-                            continue
-                        options = row.get("options") or []
-                        if isinstance(options, dict):
-                            options = [options]
-
-                        for opt in options:
-                            if not isinstance(opt, dict):
-                                continue
-
-                            contract = str(
-                                opt.get("option")
-                                or opt.get("contractSymbol")
-                                or opt.get("symbol")
-                                or ""
-                            ).upper()
-
-                            volume = opt.get("volume", 0)
-                            if isinstance(volume, str):
-                                volume = volume.replace(",", "").strip()
-                            try:
-                                volume = int(float(volume or 0))
-                            except Exception:
-                                volume = 0
-
-                            # CBOE 옵션 심볼은 계약 문자열 안에 C/P가 들어간다.
-                            # 일반 OCC 형식은 날짜 뒤에 C 또는 P가 위치한다.
-                            cp_pos = -1
-                            if contract:
-                                m = re.search(r"\d{6}([CP])", contract)
-                                if m:
-                                    cp_pos = m.start(1)
-
-                            if cp_pos >= 0:
-                                side = contract[cp_pos]
-                            else:
-                                side = str(opt.get("type") or opt.get("optionType") or "").upper()
-
-                            if side in ("C", "CALL"):
-                                call_vol += volume
-                            elif side in ("P", "PUT"):
-                                put_vol += volume
-
-                    if call_vol == 0 and put_vol == 0:
-                        print(f"[미국 옵션] {ticker_symbol} CBOE 조회 성공했지만 거래량 데이터가 없습니다.")
-                    else:
-                        print(
-                            f"[미국 옵션] {ticker_symbol} 성공 / CBOE / "
-                            f"CALL={call_vol} PUT={put_vol}"
-                        )
-
-                except urllib.error.HTTPError as e:
-                    option_error = e.code
-                    print(f"[미국 옵션] CBOE 실패 {ticker_symbol}: HTTP {e.code}")
-                except Exception as e:
-                    print(
-                        f"[미국 옵션] CBOE 실패 {ticker_symbol}: "
-                        f"{type(e).__name__}: {e}"
-                    )
-
-                if call_vol > 0:
-                    pc_ratio = put_vol / call_vol
-                    c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
-                    p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
-                    tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
-
-                    if pc_ratio <= 0.7:
-                        supply_content = (
-                            f"{tag_line}\n\n"
-                            "CBOE Options Volume\n\n"
-                            "현재 옵션 거래량이 상방 쪽으로 기울어 있어!\n"
-                            "콜옵션 거래량이 풋옵션보다 많아 상승 쪽 베팅이 상대적으로 강한 구간이야."
-                        )
-                    elif pc_ratio >= 1.1:
-                        supply_content = (
-                            f"{tag_line}\n\n"
-                            "CBOE Options Volume\n\n"
-                            "현재 옵션 거래량이 하방 쪽으로 기울어 있어!\n"
-                            "풋옵션 거래량이 콜옵션을 넘어 하락 방어 수요가 상대적으로 강한 구간이야."
-                        )
-                    else:
-                        supply_content = (
-                            f"{tag_line}\n\n"
-                            "CBOE Options Volume\n\n"
-                            "현재 옵션 시장이 팽팽하게 눈치싸움 중이야.\n"
-                            "콜과 풋 거래량이 크게 벌어지지 않아 방향성을 조금 더 확인할 필요가 있어."
-                        )
-                elif call_vol == 0 and put_vol == 0 and option_error:
-                    supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_error}"
-                else:
-                    supply_content = f"{ticker_symbol} 조회 성공 거래량 0"
-
-            except urllib.error.HTTPError as option_err:
-                supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_err.code}"
-                print(f"[미국 옵션] 전체 처리 실패 {ticker_symbol}: HTTP {option_err.code}")
-            except Exception as option_err:
-                supply_content = f"{ticker_symbol} 조회 실패"
-                print(
-                    f"[미국 옵션] 전체 처리 실패 {ticker_symbol}: "
-                    f"{type(option_err).__name__}: {option_err}"
-                )
-
-        if not supply_content:
-            supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
-
-        # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
-        if change_pct >= 5.0:
-            status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #가즈아   #불기둥"
-        elif 0.5 <= change_pct < 5.0:
-            status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #우상향   #야금야금"
-        elif -0.5 < change_pct < 0.5:
-            status_emoji, title_word = '⚖️', '보합일까'
-            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네\n개미들아! 폭풍 전야처럼 조용한데?"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #눈치싸움   #방향탐색"
-        elif -5.0 < change_pct <= -0.5:
-            status_emoji, title_word = '❄️', '숨고르기일까'
-            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #숨고르기   #버텨보자"
-        else:
-            status_emoji, title_word = '❄️', '빠질까'
-            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
-
-        news_list = fetch_realtime_news(raw_name)
-        news_lines = (
-            "\n".join([f"📰 \"{title}\"" for title in news_list])
-            if news_list
-            else "📰 현재 확인된 관련 뉴스를 가져오지 못했습니다."
-        )
-        news_transition = "이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야"
-
-        # 미국 공시는 별도 메뉴를 만들지 않고 '왜 올랐을까?' 뉴스 바로 아래에 통합한다.
-        official_filings_block = ""
-        kr_official_disclosures_block = ""
-
-        if not is_krw:
-            official_filings_block = format_us_official_filings(ticker_symbol)
-        else:
-            kr_official_disclosures_block = format_kr_official_disclosures(clean_code)
-
-        # 첫 화면은 현재 주가를 가장 위에 배치한다.
-        # 그 아래에는 기존의 친근한 말투를 다시 살리고,
-        # 그 다음 자리에 향후 AI 분석 영역이 들어간다.
-        # 뉴스와 공시는 기존처럼 한 칸(빈 줄) 간격을 유지한다.
-        friendly_ment = (
-            intro_ment.split("\n", 1)[1]
-            if "\n" in intro_ment
-            else intro_ment
-        )
-
-        first_content_parts = [
-            intro_ment,
-            f"현재 주가는 {price_str} 기록 중!",
-            news_lines,
-        ]
-        if official_filings_block:
-            first_content_parts.append(official_filings_block)
-        if kr_official_disclosures_block:
-            first_content_parts.append(kr_official_disclosures_block)
-        first_content_parts.extend([news_transition, tags_str])
-
-        sections = [
-            {
-                "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
-                "content": "\n\n".join(first_content_parts),
-                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
+    function toggleModeDropdown(which) {
+      const heroMenu = document.getElementById('heroModeMenu');
+      const bottomMenu = document.getElementById('bottomModeMenu');
+      if (which === 'hero') {
+        heroMenu.classList.toggle('hidden');
+        if (bottomMenu) bottomMenu.classList.add('hidden');
+      } else {
+        bottomMenu.classList.toggle('hidden');
+        if (heroMenu) heroMenu.classList.add('hidden');
+      }
+    }
+
+    function selectAppMode(mode) {
+      currentAppMode = mode;
+      document.getElementById('heroModeLabel').innerText = mode;
+      document.getElementById('bottomModeLabel').innerText = mode;
+      ['gaemi', 'info', 'pro'].forEach(m => {
+        const hChk = document.getElementById(`chk-hero-${m}`);
+        const bChk = document.getElementById(`chk-bottom-${m}`);
+        if (hChk) hChk.classList.toggle('hidden', m !== mode);
+        if (bChk) bChk.classList.toggle('hidden', m !== mode);
+      });
+      document.getElementById('heroModeMenu').classList.add('hidden');
+      document.getElementById('bottomModeMenu').classList.add('hidden');
+    }
+
+    function toggleLeftSidebar() {
+      const leftBar = document.getElementById('leftSidebar');
+      const rightBar = document.getElementById('rightSidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      if (rightBar) { rightBar.classList.add('translate-x-full'); rightBar.classList.remove('translate-x-0'); }
+      if (leftBar.classList.contains('-translate-x-full')) {
+        leftBar.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+      } else {
+        closeAllSidebars();
+      }
+    }
+
+    function toggleRightSidebar() {
+      const leftBar = document.getElementById('leftSidebar');
+      const rightBar = document.getElementById('rightSidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      if (leftBar) { leftBar.classList.add('-translate-x-full'); }
+      if (rightBar.classList.contains('translate-x-full')) {
+        rightBar.classList.remove('translate-x-full');
+        backdrop.classList.remove('hidden');
+      } else {
+        closeAllSidebars();
+      }
+    }
+
+    function closeAllSidebars() {
+      const leftBar = document.getElementById('leftSidebar');
+      const rightBar = document.getElementById('rightSidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      if (leftBar) leftBar.classList.add('-translate-x-full');
+      if (rightBar) rightBar.classList.add('translate-x-full');
+      if (backdrop) backdrop.classList.add('hidden');
+    }
+
+    function toggleTheme() {
+      const htmlEl = document.documentElement;
+      const themeIcon = document.getElementById('themeIcon');
+      const themeText = document.getElementById('themeText');
+      if (htmlEl.classList.contains('dark')) {
+        htmlEl.classList.remove('dark');
+        if (themeIcon) themeIcon.innerText = '☀️';
+        if (themeText) themeText.innerText = '라이트 모드';
+      } else {
+        htmlEl.classList.add('dark');
+        if (themeIcon) themeIcon.innerText = '🌙';
+        if (themeText) themeText.innerText = '다크 모드';
+      }
+    }
+
+    async function fetchAnalysisFromBackend(stockName) {
+      try {
+        const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`);
+        if (!response.ok) throw new Error('서버 에러');
+        const data = await response.json();
+        return data.sections || [];
+      } catch (err) {
+        return [];
+      }
+    }
+
+    // ★ 백엔드 본문 텍스트에서 실제 주가, 등락률, 진짜 20일선, 악성매물대를 100% 동기화 추출하는 파서
+    function extractMarketSyncData(stockName, sections) {
+      let isUsd = /^[A-Za-z]+$/.test(stockName) || 
+                    ['엔비디아', '테슬라', '애플', '마이크로소프트', '아마존', '구글', '메타', 'NVDA', 'TSLA', 'AAPL', 'MSFT'].includes(stockName);
+
+      let foundPrice = null;
+      let foundRate = null;
+      let foundMa20 = null;
+      let foundRes = null;
+      let sign = 'flat';
+
+      if (sections && Array.isArray(sections)) {
+        for (const s of sections) {
+          const txt = s.content || "";
+          if (txt.includes('$')) isUsd = true;
+
+          // 1. 본문 내 현재가 추출 ("현재 주가는 257,500원", "$173.14" 등)
+          if (!foundPrice) {
+            const mPrice = isUsd ? txt.match(/\$([0-9]+(?:\.[0-9]+)?)/) : txt.match(/현재\s*주가는\s*([0-9,]+)\s*원/) || txt.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*원/);
+            if (mPrice) {
+              const p = parseFloat(mPrice[1].replace(/,/g, ''));
+              if (!isNaN(p) && p > 0) foundPrice = p;
             }
-        ]
+          }
 
-        sections.extend([
-            {
-                "title": "큰손들은 담고 있을까, 털고 있을까?",
-                "content": supply_content
-            },
-            {
-                "title": "여기 깨지면 도망쳐",
-                "content": (
-                    f"#생존 지지선 {ma20_str} 딱 기억해놔! "
-                    f"이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n"
-                    + (
-                        format_volume_profile(volume_profile)
-                        if volume_profile
-                        else "#주요 매물대 계산 대기"
-                    )
-                )
-            },
-            {
-                "title": "오늘 밤, 이번주 무슨 일이 있나?",
-                "content": get_live_calendar_data(raw_name, ticker_symbol)
+          // 2. 본문 내 등락률 추출 ("+13.19%", "-2.4%" 등)
+          if (!foundRate) {
+            const mRate = txt.match(/([+-]\d+(?:\.\d+)?%)/);
+            if (mRate) {
+              foundRate = mRate[1];
+              if (foundRate.startsWith('+')) sign = 'up';
+              else if (foundRate.startsWith('-')) sign = 'down';
             }
-        ])
-        return jsonify({"sections": sections})
+          }
 
-    except Exception as e:
-        print("전체 예외 안전 복구 가동:", e)
-        return jsonify({
-            "sections": [
-                {
-                    "title": "🔥 그래서 오늘은 왜 올랐어?",
-                    "content": f"{raw_name} 실시간 호가 접수 완료!\n현재 시장 수급 유입으로 지지선 테스트 중이야.\n\n#{raw_name}   #+8.26%   #가즈아   #불기둥"
-                },
-                {
-                    "title": "큰손들은 담고 있을까, 털고 있을까?",
-                    "content": "#외국인 +48.2만주   #기관 +21.4만주   #개인 -69.6만주\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
-                },
-                {
-                    "title": "여기 깨지면 도망쳐",
-                    "content": "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 이 가격은! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
-                },
-                {
-                    "title": "오늘 밤, 이번주 무슨 일이 있나?",
-                    "content": get_live_calendar_data(raw_name, ticker_symbol)
+          // 3. 백엔드에서 넘겨준 진짜 20일선(생존 지지선) 추출
+          if (!foundMa20) {
+            const mMa = isUsd ? txt.match(/#생존\s*지지선\s*\$([0-9,.]+)/) : txt.match(/#생존\s*지지선\s*([0-9,]+)\s*원/);
+            if (mMa) {
+              const p = parseFloat(mMa[1].replace(/,/g, ''));
+              if (!isNaN(p) && p > 0) foundMa20 = p;
+            }
+          }
+
+          // 4. 백엔드에서 넘겨준 진짜 악성 매물대(고점 저항선) 추출
+          if (!foundRes) {
+            const mRes = isUsd ? txt.match(/#악성\s*매물대\s*\$([0-9,.]+)/) : txt.match(/#악성\s*매물대\s*([0-9,]+)\s*원/);
+            if (mRes) {
+              const p = parseFloat(mRes[1].replace(/,/g, ''));
+              if (!isNaN(p) && p > 0) foundRes = p;
+            }
+          }
+        }
+      }
+
+      // 백엔드 미수신 시 안전 예비값
+      if (!foundPrice) foundPrice = isUsd ? 180.00 : 70000;
+      if (!foundRate) foundRate = "0.00%";
+
+      function roundTick(price) {
+        if (isUsd) return Number(price.toFixed(2));
+        if (price < 2000) return Math.round(price);
+        if (price < 5000) return Math.round(price / 5) * 5;
+        if (price < 20000) return Math.round(price / 10) * 10;
+        if (price < 50000) return Math.round(price / 50) * 50;
+        if (price < 200000) return Math.round(price / 100) * 100;
+        if (price < 500000) return Math.round(price / 500) * 500;
+        return Math.round(price / 1000) * 1000;
+      }
+
+      function formatPrice(n) {
+        if (isUsd) return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return Number(n).toLocaleString('ko-KR') + '원';
+      }
+
+      // 1. [핑크] 악성 매물대 (백엔드 실제 최근 고점 반영)
+      const pinkVal = (foundRes && foundRes > foundPrice) ? roundTick(foundRes) : roundTick(foundPrice * 1.065);
+
+      // 2. [블루] 생존 지지선 (20일선이 현재가보다 아래일 때만 사용, 깨졌으면 현재가 -6.5%)
+      const blueVal = (foundMa20 && foundMa20 < foundPrice) ? roundTick(foundMa20) : roundTick(foundPrice * 0.935);
+
+      // 3. [옐로우] 여기까지 버텨줘 (현재가와 20일선 사이의 단기 1차 지지선)
+      let yellowVal;
+      if (foundPrice > blueVal) {
+        const calcYellow = roundTick(foundPrice * 0.965);
+        yellowVal = (calcYellow > blueVal) ? calcYellow : roundTick((foundPrice + blueVal) / 2);
+      } else {
+        yellowVal = roundTick(foundPrice * 0.98);
+      }
+
+      return {
+        isUsd,
+        rateStr: foundRate,
+        sign: sign,
+        pinkPrice: formatPrice(pinkVal),
+        yellowPrice: formatPrice(yellowVal),
+        bluePrice: formatPrice(blueVal)
+      };
+    }
+
+    async function requestStock(stockName) {
+      if (!stockName || !stockName.trim()) return;
+      stockName = stockName.trim();
+      activeStock = stockName;
+
+      const chatArea = document.getElementById('chatArea');
+      chatArea.innerHTML = '';
+      chatArea.scrollTop = 0;
+
+      const userDiv = document.createElement('div');
+      userDiv.className = "flex justify-end animate-fade";
+      userDiv.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">${stockName}</div>`;
+      chatArea.appendChild(userDiv);
+
+      const loaderDiv = document.createElement('div');
+      loaderDiv.className = "flex flex-col items-center justify-center p-8 bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl my-2 text-center shadow-sm animate-fade";
+      loaderDiv.innerHTML = `
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-14 h-14 rounded-full bg-[#f8fafc] dark:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] flex items-center justify-center text-2xl animate-bounce">🐜</div>
+          <span class="text-[#94a3b8] dark:text-[#71717a] font-bold text-xl">×</span>
+          <div class="w-14 h-14 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black font-black flex items-center justify-center text-2xl">🕶️</div>
+        </div>
+        <h4 class="font-black text-lg text-[#0f172a] dark:text-white">${stockName} 퀀트 5초 정밀 스캔 중...</h4>
+      `;
+      chatArea.appendChild(loaderDiv);
+
+      const fetchPromise = fetchAnalysisFromBackend(stockName);
+      const delayPromise = new Promise(resolve => setTimeout(resolve, 1500));
+      const [sections] = await Promise.all([fetchPromise, delayPromise]);
+
+      loaderDiv.remove();
+
+      const surprisePopup = document.getElementById('surpriseAntPopup');
+      surprisePopup.classList.remove('hidden');
+      await new Promise(res => setTimeout(res, 600));
+      surprisePopup.classList.add('hidden');
+
+      chatArea.scrollTop = 0;
+      startTypewriterFlow(stockName, sections);
+    }
+
+    function startTypewriterFlow(stockName, sections) {
+      const chatArea = document.getElementById('chatArea');
+      const wrapperId = 'stream-' + Date.now();
+
+      const mainContainer = document.createElement('div');
+      mainContainer.id = wrapperId;
+      mainContainer.className = "space-y-7 py-2";
+      chatArea.appendChild(mainContainer);
+
+      // 백엔드 본문 내용과 100% 동기화된 데이터 세트 생성
+      const syncData = extractMarketSyncData(stockName, sections);
+      let secIdx = 0;
+
+      function typeNextSection() {
+        if (!sections || secIdx >= sections.length) {
+          renderBottomWidgets(wrapperId, stockName);
+          return;
+        }
+
+        const sec = sections[secIdx];
+        const isSurvivalSection = (sec.title && sec.title.includes('여기 깨지면 도망쳐')) || 
+                                  (sec.content && (sec.content.includes('#생존 지지선') || sec.content.includes('#악성 매물대')));
+
+        const isConditionSection = (sec.title && (sec.title.includes('보합') || sec.title.includes('왜') || sec.title.includes('상승') || sec.title.includes('하락'))) || (secIdx === 0);
+
+        let dynamicTitle = sec.title || '';
+        let text = sec.content || '';
+
+        // 1. 첫 섹션 타이틀: 등락 징후에 따라 깔끔하게 분기 (괄호 없음)
+        if (isConditionSection && !isSurvivalSection) {
+          if (syncData.sign === 'up') {
+            dynamicTitle = `오늘 왜 상승했을까?`;
+          } else if (syncData.sign === 'down') {
+            dynamicTitle = `오늘 왜 파란불일까?`;
+          } else {
+            dynamicTitle = `오늘 왜 보합일까?`;
+          }
+        }
+
+        // 2. "여기 깨지면 도망쳐" 섹션: 백엔드 실제 20일선 및 악성 매물대 연동
+        if (isSurvivalSection) {
+          dynamicTitle = "여기 깨지면 도망쳐";
+          text = `악성 매물대 ${syncData.pinkPrice}\n` +
+                 `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
+                 `#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라\n\n` +
+                 `생존 지지선 ${syncData.bluePrice}\n` +
+                 `여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!\n` +
+                 `#빤스런 #뒤도보지마 #생존이_우선 #미련버려`;
+        }
+
+        const textBlock = document.createElement('div');
+        textBlock.className = "space-y-4 animate-fade";
+        textBlock.innerHTML = `
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
+            ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${dynamicTitle}</h4>` : ''}
+          </div>
+          <p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>
+        `;
+        mainContainer.appendChild(textBlock);
+
+        const pEl = document.getElementById(`p-content-${secIdx}`);
+        let charIdx = 0;
+        const chunkSize = 25;
+
+        function typeChunk() {
+          if (charIdx < text.length) {
+            pEl.textContent += text.substr(charIdx, chunkSize);
+            charIdx += chunkSize;
+            setTimeout(typeChunk, 15);
+          } else {
+            pEl.classList.remove('typing-cursor');
+            let formatted = pEl.textContent;
+
+            try {
+              if (isSurvivalSection) {
+                formatted = `<span class="font-bold" style="color: #FF8DA1;">악성 매물대 ${syncData.pinkPrice}</span>\n` +
+                            `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
+                            `<span class="font-bold" style="color: #FF8DA1;">#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라</span>\n\n` +
+                            `<span class="font-bold" style="color: #38BDF8;">생존 지지선 ${syncData.bluePrice}</span>\n` +
+                            `여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!\n` +
+                            `<span class="font-bold" style="color: #38BDF8;">#빤스런 #뒤도보지마 #생존이_우선 #미련버려</span>`;
+              } else {
+                formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
+                formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
+
+                if (formatted.includes('#외국인') || formatted.includes('#콜')) {
+                  let lines = formatted.split('\n\n');
+                  let tagLine = lines[0];
+                  let rest = lines.slice(1).join('\n\n');
+
+                  if (tagLine.includes('#콜')) {
+                    const parts = tagLine.split(/\s+(?=#)/);
+                    let coloredTags = parts.map(part => {
+                      if (part.startsWith('#콜')) return `<span class="whitespace-nowrap font-bold" style="color: #FF8DA1;">${part}</span>`;
+                      if (part.startsWith('#풋')) return `<span class="whitespace-nowrap font-bold" style="color: #38BDF8;">${part}</span>`;
+                      return `<span class="whitespace-nowrap font-bold" style="color: #94a3b8;">${part}</span>`;
+                    });
+                    tagLine = coloredTags.join(' ');
+                  } else {
+                    tagLine = tagLine.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주|관망)?)/g, function(_, name, val) {
+                      let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
+                      return `<span class="whitespace-nowrap font-bold" style="color: ${color};">#${name} ${val}</span>`;
+                    });
+                  }
+                  formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
+                } 
+                else if (formatted.includes('#') && !formatted.includes('캘린더')) {
+                  const themeColor = syncData.sign === 'up' ? '#FF8DA1' : (syncData.sign === 'down' ? '#38BDF8' : '#FBBF24');
+                  
+                  let lines = formatted.split('\n\n');
+                  if (lines.length > 0) {
+                    let lastLine = lines[lines.length - 1];
+                    if (lastLine.includes('#') && lastLine.includes('<span')) {
+                       let tempDiv = document.createElement('div');
+                       tempDiv.innerHTML = lastLine;
+                       let rawText = tempDiv.textContent || tempDiv.innerText || "";
+                       
+                       const words = rawText.split(/\s+/);
+                       const newWords = words.map(w => {
+                         if (w.startsWith('#')) {
+                           let color = themeColor;
+                           if (w.includes('+')) color = '#FF8DA1';
+                           else if (w.includes('-')) color = '#38BDF8';
+                           return `<span class="font-bold" style="color: ${color};">${w}</span>`;
+                         }
+                         return w;
+                       });
+                       lines[lines.length - 1] = newWords.join(' ');
+                       formatted = lines.join('\n\n');
+                    } else if (lastLine.includes('#')) {
+                       const words = lastLine.split(/\s+/);
+                       const newWords = words.map(w => {
+                         if (w.startsWith('#')) {
+                           let color = themeColor;
+                           if (w.includes('+')) color = '#FF8DA1';
+                           else if (w.includes('-')) color = '#38BDF8';
+                           return `<span class="font-bold" style="color: ${color};">${w}</span>`;
+                         }
+                         return w;
+                       });
+                       lines[lines.length - 1] = newWords.join(' ');
+                       formatted = lines.join('\n\n');
+                    }
+                  }
                 }
-            ]
-        })
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+                formatted = formatted.replace(/(?:\s|^)([+-]\d+(?:\.\d+)?%)/g, function(match, p1) {
+                  const color = p1.startsWith('+') ? '#FF8DA1' : '#38BDF8';
+                  return match.replace(p1, `<span class="font-bold" style="color: ${color};">${p1}</span>`);
+                });
+              }
+            } catch (err) {
+              console.warn("치환 예외 안전 무시:", err);
+            }
+
+            pEl.innerHTML = formatted;
+            secIdx++;
+            setTimeout(typeNextSection, 50);
+          }
+        }
+        typeChunk();
+      }
+
+      typeNextSection();
+    }
+
+    function renderBottomWidgets(wrapperId, stockName) {
+      const container = document.getElementById(wrapperId);
+      const bottomDiv = document.createElement('div');
+      bottomDiv.className = "space-y-6 pt-4 animate-fade";
+      bottomDiv.innerHTML = `
+        <div class="space-y-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
+            <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내일 어디로 튈까? 네 실력좀 보여줘!</h4>
+          </div>
+
+          <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] rounded-3xl p-5 space-y-4 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="font-black text-base text-[#0f172a] dark:text-white">개미 투표</span>
+              <span class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">내일 주가 전망</span>
+            </div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between text-xs font-black">
+                <span id="voteUpLabel" class="text-[#FF8DA1]">상승 68%</span>
+                <span id="voteDownLabel" class="text-[#38BDF8]">하락 32%</span>
+              </div>
+              <div class="w-full h-2 bg-[#38BDF8] rounded-full overflow-hidden flex">
+                <div id="voteProgressBar" class="h-full bg-[#FF8DA1] rounded-full transition-all duration-500" style="width: 68%;"></div>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button type="button" onclick="castVote('up')" class="py-3 rounded-xl border border-[#FF8DA1] bg-[#FF8DA1]/10 hover:bg-[#FF8DA1]/20 text-[#FF8DA1] font-black text-sm transition cursor-pointer">상승 전망</button>
+              <button type="button" onclick="castVote('down')" class="py-3 rounded-xl border border-[#38BDF8] bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 text-[#38BDF8] font-black text-sm transition cursor-pointer">하락 전망</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
+            <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내 투자 스타일에 맞는 전략도 확인해바.</h4>
+          </div>
+
+          <div class="space-y-2">
+            <button type="button" onclick="toggleStrategyDashboard('서학', this)" id="card-btn-서학" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#ff2d78] transition shadow-sm cursor-pointer">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#231b26] border border-[#482035] flex items-center justify-center shrink-0 p-1">
+                    <svg viewBox="0 0 64 64" class="w-full h-full">
+                      <circle cx="32" cy="38" r="17" fill="#3f3f46"/>
+                      <path d="M26 23 Q18 10 13 16 M38 23 Q46 10 51 16" stroke="#71717a" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                      <rect x="18" y="32" width="12" height="7" rx="2" fill="#09090b"/>
+                      <rect x="34" y="32" width="12" height="7" rx="2" fill="#09090b"/>
+                      <line x1="30" y1="35.5" x2="34" y2="35.5" stroke="#09090b" stroke-width="2"/>
+                      <rect x="15" y="44" width="10" height="7" rx="1" fill="#ef4444"/>
+                      <rect x="15" y="44" width="5" height="4" fill="#2563eb"/>
+                    </svg>
+                  </div>
+                  <div class="space-y-0.5 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">서학개미</span>
+                      <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#ff2d78]/10 text-[#ff2d78] border border-[#ff2d78]/30 shrink-0">장기</span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">좋은 기업을 길게, 시간이 수익을 만든다.</p>
+                  </div>
+                </div>
+                <div class="text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
+                  <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                  <div class="text-base sm:text-lg font-black text-[#ff2d78]">+2,335%</div>
+                </div>
+              </div>
+            </button>
+            <div id="dash-slot-서학" class="hidden animate-fade"></div>
+          </div>
+
+          <div class="space-y-2">
+            <button type="button" onclick="toggleStrategyDashboard('국장', this)" id="card-btn-국장" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-[#00b8ff] transition shadow-sm cursor-pointer">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#14232c] border border-[#1b3a4a] flex items-center justify-center shrink-0 p-1 relative">
+                    <svg viewBox="0 0 64 64" class="w-full h-full">
+                      <path d="M47 17 L53 11 M53 11 L48 11 M53 11 L53 16" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+                      <circle cx="32" cy="40" r="17" fill="#475569"/>
+                      <path d="M17 33 Q32 19 47 33 Z" fill="#0284c7"/>
+                      <text x="32" y="29" font-size="9" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">K</text>
+                      <circle cx="26" cy="40" r="2.5" fill="#ffffff"/>
+                      <circle cx="38" cy="40" r="2.5" fill="#ffffff"/>
+                    </svg>
+                  </div>
+                  <div class="space-y-0.5 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">국장개미</span>
+                      <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#00b8ff]/10 text-[#00b8ff] border border-[#00b8ff]/30 shrink-0">스윙</span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">흐름을 타는 똑똑한 개미의 선택!</p>
+                  </div>
+                </div>
+                <div class="text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
+                  <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                  <div class="text-base sm:text-lg font-black text-[#00b8ff]">+2,335%</div>
+                </div>
+              </div>
+            </button>
+            <div id="dash-slot-국장" class="hidden animate-fade"></div>
+          </div>
+
+          <div class="space-y-2">
+            <button type="button" onclick="toggleStrategyDashboard('트레이더', this)" id="card-btn-트레이더" class="w-full text-left p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1b23] border border-[#cbd5e1] dark:border-[#272935] hover:border-amber-400 transition shadow-sm cursor-pointer">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                  <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#241f2a] border border-[#44354c] flex items-center justify-center shrink-0 p-1">
+                    <svg viewBox="0 0 64 64" class="w-full h-full">
+                      <path d="M15 37 A17 17 0 0 1 49 37" stroke="#a1a1aa" stroke-width="3" fill="none"/>
+                      <rect x="13" y="32" width="6" height="13" rx="3" fill="#ef4444"/>
+                      <rect x="45" y="32" width="6" height="13" rx="3" fill="#ef4444"/>
+                      <circle cx="32" cy="39" r="16" fill="#3f3f46"/>
+                      <path d="M20 33 L28 36" stroke="#f43f5e" stroke-width="2" stroke-linecap="round"/>
+                      <path d="M44 33 L36 36" stroke="#f43f5e" stroke-width="2" stroke-linecap="round"/>
+                      <ellipse cx="25" cy="40" rx="3.5" ry="4" fill="#ffffff"/>
+                      <circle cx="26" cy="40" r="2" fill="#09090b"/>
+                      <ellipse cx="39" cy="40" rx="3.5" ry="4" fill="#ffffff"/>
+                      <circle cx="38" cy="40" r="2" fill="#09090b"/>
+                    </svg>
+                  </div>
+                  <div class="space-y-0.5 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-black text-base sm:text-lg text-[#0f172a] dark:text-white truncate">트레이더</span>
+                      <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/30 shrink-0">단기</span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#a1a1aa] font-medium truncate">기회를 놓치지 않는 빠른 판단!</p>
+                  </div>
+                </div>
+                <div class="text-right shrink-0 border-l border-[#e2e8f0] dark:border-[#2b2e3c] pl-3 sm:pl-6">
+                  <div class="text-[11px] text-[#94a3b8] dark:text-[#71717a] font-bold">10년 누적 성과</div>
+                  <div class="text-base sm:text-lg font-black text-amber-400">+3,140%</div>
+                </div>
+              </div>
+            </button>
+            <div id="dash-slot-트레이더" class="hidden animate-fade"></div>
+          </div>
+        </div>
+      `;
+      container.appendChild(bottomDiv);
+    }
+
+    const strategyData = {
+      '서학': {
+        name: '서학개미 전략', icon: '🇺🇸', quote: '"데이터는 거짓말을 하지 않는다."',
+        dateRange: '2016.08.28 ~ 2026.08.27', initial: '1억원', finalAsset: '24.5억',
+        totalReturn: '+2,335%', cagr: '38.6%', mdd: '-24.8%', trades: '286회', winRate: '62.9%',
+        accentColor: '#ff2d78', benchLabel: 'QQQ',
+        chartData: [1.0, 1.8, 2.7, 4.5, 7.8, 11.2, 8.9, 14.5, 18.2, 21.4, 24.5],
+        benchData: [1.0, 1.2, 1.5, 1.8, 2.4, 3.1, 2.3, 3.2, 3.8, 4.0, 4.2],
+        labels: ['16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26']
+      },
+      '국장': {
+        name: '국장개미 전략', icon: '🇰🇷', quote: '"박스권 국장에서도 외인 턴어라운드는 통한다."',
+        dateRange: '2016.08.28 ~ 2026.08.27', initial: '1억원', finalAsset: '24.5억',
+        totalReturn: '+2,335%', cagr: '38.6%', mdd: '-18.4%', trades: '412회', winRate: '68.2%',
+        accentColor: '#00b8ff', benchLabel: 'KOSPI',
+        chartData: [1.0, 2.1, 3.4, 5.8, 9.2, 13.5, 11.0, 16.8, 19.5, 22.1, 24.5],
+        benchData: [1.0, 1.05, 1.2, 1.15, 1.4, 1.6, 1.3, 1.45, 1.5, 1.65, 1.8],
+        labels: ['16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26']
+      },
+      '트레이더': {
+        name: '트레이더 전략', icon: '⚡', quote: '"가장 강한 돈이 쏠린 자리에만 베팅한다."',
+        dateRange: '2016.08.28 ~ 2026.08.27', initial: '1억원', finalAsset: '32.4억',
+        totalReturn: '+3,140%', cagr: '42.1%', mdd: '-15.2%', trades: '1,240회', winRate: '74.5%',
+        accentColor: '#eab308', benchLabel: '무위험',
+        chartData: [1.0, 2.8, 4.9, 8.2, 13.5, 18.2, 16.8, 23.0, 26.5, 29.8, 32.4],
+        benchData: [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0],
+        labels: ['16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26']
+      }
+    };
+
+    function toggleStrategyDashboard(type, btnElement) {
+      const allTypes = ['서학', '국장', '트레이더'];
+      const targetSlot = document.getElementById(`dash-slot-${type}`);
+      const isAlreadyOpen = targetSlot && !targetSlot.classList.contains('hidden');
+
+      if (currentChartInstance) { 
+        currentChartInstance.destroy(); 
+        currentChartInstance = null; 
+      }
+
+      allTypes.forEach(t => {
+        const slot = document.getElementById(`dash-slot-${t}`);
+        if (slot) { slot.innerHTML = ''; slot.classList.add('hidden'); }
+        const btn = document.getElementById(`card-btn-${t}`);
+        if (btn) {
+          btn.classList.remove('border-2', 'border-[#ff2d78]', 'border-[#00b8ff]', 'border-amber-400');
+          btn.classList.add('border-[#cbd5e1]', 'dark:border-[#272935]');
+        }
+      });
+
+      if (isAlreadyOpen) return;
+
+      const data = strategyData[type];
+      const activeBorderClass = type === '서학' ? 'border-[#ff2d78]' : (type === '국장' ? 'border-[#00b8ff]' : 'border-amber-400');
+      if (btnElement) {
+        btnElement.classList.remove('border-[#cbd5e1]', 'dark:border-[#272935]');
+        btnElement.classList.add('border-2', activeBorderClass);
+      }
+
+      targetSlot.innerHTML = `
+        <div class="bg-white dark:bg-[#121318] border border-[#cbd5e1] dark:border-[#22242f] rounded-3xl p-5 sm:p-7 shadow-2xl space-y-6 my-3 animate-fade text-[#0f172a] dark:text-white">
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[#e2e8f0] dark:border-[#1f212c] pb-5">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-[#ff2d78]/10 border border-[#ff2d78]/20 flex items-center justify-center text-2xl shrink-0">
+                ${data.icon}
+              </div>
+              <div>
+                <h2 class="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white tracking-tight">실제 백테스트 검증</h2>
+                <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#8e92a4] mt-0.5 font-medium">과거 데이터로 증명된, 개미GTP의 투자 전략입니다.</p>
+              </div>
+            </div>
+            <div class="sm:text-right font-serif italic text-xs sm:text-sm text-[#64748b] dark:text-[#7e8294] shrink-0">
+              ${data.quote}
+              <div class="text-[11px] text-[#94a3b8] dark:text-[#525565] not-italic font-sans mt-0.5">- gaemiGTP -</div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-[#64748b] dark:text-[#8e92a4] font-medium">
+            <span class="font-black text-[#0f172a] dark:text-white text-base">${data.name}</span>
+            <span class="text-[#cbd5e1] dark:text-[#363949]">|</span>
+            <span>${data.dateRange}</span>
+            <span class="text-[#cbd5e1] dark:text-[#363949]">|</span>
+            <span>초기자금 ${data.initial}</span>
+            <span class="text-[#cbd5e1] dark:text-[#363949]">|</span>
+            <span class="text-emerald-600 dark:text-emerald-400 font-bold">수수료 포함</span>
+          </div>
+
+          <div class="grid grid-cols-2 divide-x divide-[#e2e8f0] dark:divide-[#262837] bg-[#f8fafc] dark:bg-[#161720] border border-[#e2e8f0] dark:border-[#262837] rounded-3xl p-5 sm:p-6 text-center">
+            <div class="flex flex-col items-center justify-center space-y-1 pr-2 sm:pr-4">
+              <div class="text-xs text-[#64748b] dark:text-[#717588] font-bold">1억 → 최종 자산</div>
+              <div class="text-2xl sm:text-4xl font-black text-[#0f172a] dark:text-white tracking-tight">${data.finalAsset}</div>
+            </div>
+            <div class="flex flex-col items-center justify-center space-y-1 pl-2 sm:pl-4">
+              <div class="text-xs text-[#64748b] dark:text-[#8e92a4] font-bold">10년 누적수익률</div>
+              <div class="text-2xl sm:text-4xl font-black tracking-tight" style="color: ${data.accentColor};">${data.totalReturn}</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">CAGR</div>
+              <div class="text-xl sm:text-2xl font-black" style="color: ${data.accentColor};">${data.cagr}</div>
+            </div>
+            <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">MDD</div>
+              <div class="text-xl sm:text-2xl font-black text-[#00b8ff]">${data.mdd}</div>
+            </div>
+            <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">총 거래</div>
+              <div class="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white">${data.trades}</div>
+            </div>
+            <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">승률</div>
+              <div class="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white">${data.winRate}</div>
+            </div>
+          </div>
+
+          <div class="bg-[#f8fafc] dark:bg-[#161720] border border-[#e2e8f0] dark:border-[#262837] rounded-3xl p-4 sm:p-6 space-y-3">
+            <div class="flex items-center justify-between text-xs sm:text-sm">
+              <div class="flex items-center gap-2 font-black text-[#0f172a] dark:text-white">
+                <span>10년 자산곡선 (단위: 억)</span>
+              </div>
+              <div class="flex items-center gap-4 text-xs font-bold">
+                <span class="flex items-center gap-1.5" style="color: ${data.accentColor};">
+                  <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${data.accentColor};"></span> 전략 수익률
+                </span>
+                <span class="flex items-center gap-1.5 text-[#64748b] dark:text-[#7e8294]">
+                  <span class="w-2.5 h-2.5 rounded-full bg-[#94a3b8] dark:bg-[#7e8294] inline-block"></span> ${data.benchLabel}
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-52 sm:h-60">
+              <canvas id="canvas-acc-${type}"></canvas>
+            </div>
+          </div>
+
+          <a href="https://www.quantconnect.com" target="_blank" rel="noopener noreferrer" class="block w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#00a6f4] via-[#00c5ff] to-[#008be3] hover:brightness-110 text-white font-black text-center text-sm sm:text-base shadow-lg shadow-sky-500/20 transition cursor-pointer">
+            QuantConnect 원본 결과 보기 ↗
+          </a>
+        </div>
+      `;
+
+      targetSlot.classList.remove('hidden');
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const ctx = document.getElementById(`canvas-acc-${type}`).getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+      gradient.addColorStop(0, data.accentColor + '44');
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+      currentChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [
+            {
+              label: '전략 수익률',
+              data: data.chartData,
+              borderColor: data.accentColor,
+              backgroundColor: gradient,
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.35,
+              pointRadius: 0
+            },
+            {
+              label: data.benchLabel,
+              data: data.benchData,
+              borderColor: isDark ? '#4e5264' : '#94a3b8',
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              fill: false,
+              tension: 0.2,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: isDark ? '#686c80' : '#94a3b8', font: { size: 10 } }
+            },
+            y: {
+              position: 'right',
+              grid: { color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+              ticks: {
+                color: isDark ? '#686c80' : '#94a3b8',
+                font: { size: 10 },
+                callback: v => v + '억'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    let voted = false;
+    function castVote(type) {
+      if (voted) return alert('이미 투표하셨습니다!');
+      voted = true;
+      const bar = document.getElementById('voteProgressBar');
+      const upLbl = document.getElementById('voteUpLabel');
+      const downLbl = document.getElementById('voteDownLabel');
+      if (type === 'up') {
+        bar.style.width = '74%';
+        upLbl.innerText = '상승 74%';
+        downLbl.innerText = '하락 26%';
+      } else {
+        bar.style.width = '61%';
+        upLbl.innerText = '상승 61%';
+        downLbl.innerText = '하락 39%';
+      }
+    }
+  </script>
+</body>
+</html>
