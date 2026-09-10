@@ -558,6 +558,11 @@ NEWS_NOISE_WORDS = [
     "주간전망", "오늘의 운세", "퀴즈",
 ]
 
+# 화면 표시용 뉴스와 AI 분석용 후보를 분리한다.
+# 화면에는 핵심 3개만 보여주고, 내부에는 상위 후보를 보관해 추후 AI가 더 넓은 근거를 사용할 수 있게 한다.
+NEWS_AI_CANDIDATES_CACHE = {}
+
+
 def _news_source_score(source_name):
     source = (source_name or "").strip()
     for key, score in NEWS_SOURCE_PRIORITY.items():
@@ -650,8 +655,8 @@ def _clean_news_title(title):
 
 def fetch_realtime_news(stock_name):
     """
-    '오늘 주가가 왜 움직였는가'에 필요한 핵심 뉴스만 최대 3개 반환.
-    수집은 넓게 하고, 선택은 최신성/직접관련성/실제재료/출처품질로 강하게 필터링한다.
+    뉴스는 넓게 수집한 뒤 강하게 필터링한다.
+    화면에는 핵심 뉴스 3개만 제목으로 표시하고, 내부에는 상위 후보를 별도로 보관한다.
     """
     candidates = []
     seen_titles = set()
@@ -749,7 +754,12 @@ def fetch_realtime_news(stock_name):
         reverse=True,
     )
 
-    # 핵심 3개만 노출. 출처 다양성은 유지하되 점수 차이가 큰 경우에는
+    # 먼저 내부 AI용 후보를 보관한다.
+    # 화면에 3개만 보여주더라도 AI 단계에서는 더 많은 근거를 활용할 수 있게 한다.
+    internal_candidates = [dict(item) for item in candidates[:10]]
+    NEWS_AI_CANDIDATES_CACHE[str(stock_name).strip()] = internal_candidates
+
+    # 화면에는 핵심 3개만 노출한다. 출처 다양성은 유지하되 점수 차이가 큰 경우에는
     # 더 강한 기사를 우선한다(약한 기사를 억지로 끼워 넣지 않음).
     selected = []
     for item in candidates:
@@ -765,24 +775,28 @@ def fetch_realtime_news(stock_name):
         if len(selected) >= 3:
             break
 
-    # 첫 후보가 지나치게 약하면(직접 관련성/재료가 거의 없음) 낮은 품질 기사를 억지로 표시하지 않는다.
+    # 첫 후보가 지나치게 약하면 낮은 품질 기사를 억지로 표시하지 않는다.
     selected = [x for x in selected if x["score"] >= 70]
 
     print(
-        f"[뉴스 품질] {stock_name} 후보={len(candidates)} / 선택={len(selected)}"
+        f"[뉴스 품질] {stock_name} 후보={len(candidates)} / 내부AI={len(internal_candidates)} / 화면={len(selected)}"
     )
     for i, item in enumerate(selected[:3], 1):
         print(
-            f"[뉴스 품질] {stock_name} #{i} "
+            f"[뉴스 품질] {stock_name} 화면#{i} "
             f"score={item['score']} source={item['source']} "
             f"fresh={item['freshness_score']} relevance={item['relevance_score']} "
             f"hard={item['hard_event']}"
         )
 
-    return [
-        f"{item['title']} · {item['source']}" if item["source"] else item["title"]
-        for item in selected[:3]
-    ]
+    # 화면에서는 신문사 이름을 제거하고 제목만 깔끔하게 표시한다.
+    return [item["title"] for item in selected[:3]]
+
+
+def get_news_ai_candidates(stock_name, limit=10):
+    """추후 AI 원인 분석에서 사용할 내부 뉴스 후보를 반환한다."""
+    items = NEWS_AI_CANDIDATES_CACHE.get(str(stock_name).strip(), [])
+    return [dict(item) for item in items[:max(1, int(limit))]]
 
 def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24):
     """
