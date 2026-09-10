@@ -846,6 +846,54 @@ NEWS_NOISE_WORDS = [
     "주간전망", "오늘의 운세", "퀴즈",
 ]
 
+# 이미 화면 상단에서 직접 보여주는 '주가/수급 단순 요약' 기사는 뉴스 목록에서 제외한다.
+# 실제 재료(계약, 실적, 투자, 인수 등)가 함께 있는 기사는 제외하지 않는다.
+NEWS_MARKET_SUMMARY_WORDS = [
+    "보합 마감", "상승 마감", "하락 마감", "급등 마감", "급락 마감",
+    "장 마감", "마감 시황", "장 마감 시황", "오늘의 시황", "시황",
+    "주가", "수급", "외국인·기관", "외국인 기관", "기관·외국인",
+    "기관 외국인", "외국인 순매수", "외국인 순매도", "기관 순매수",
+    "기관 순매도", "거래량", "거래대금", "상승률", "하락률",
+    "등락", "장중", "증시 마감", "마감",
+]
+
+def _is_market_summary_news(title):
+    """현재 주가/수급을 단순 요약한 기사인지 판별한다.
+
+    단순 요약만 제외하고, 실제 사건/재료가 함께 언급된 기사는 보존한다.
+    """
+    title_lower = (title or "").lower()
+    if not title_lower:
+        return False
+
+    summary_hits = sum(
+        1 for word in NEWS_MARKET_SUMMARY_WORDS
+        if word.lower() in title_lower
+    )
+
+    # 퍼센트 등락 + 마감/수급 표현은 대표적인 단순 시황 요약 패턴이다.
+    pct_hit = bool(re.search(r"[+-]?\d+(?:\.\d+)?%", title_lower))
+    close_or_flow_hit = any(
+        word in title_lower
+        for word in [
+            "마감", "수급", "순매수", "순매도", "등락", "상승률", "하락률",
+            "거래량", "거래대금", "시황",
+        ]
+    )
+
+    # 확정된 실제 재료가 함께 있으면 '뉴스'로 유지한다.
+    hard_event_hit = any(
+        word.lower() in title_lower for word in NEWS_HARD_EVENT_WORDS
+    )
+
+    if hard_event_hit:
+        return False
+
+    if pct_hit and close_or_flow_hit:
+        return True
+
+    return summary_hits >= 2
+
 # 화면 표시용 뉴스와 AI 분석용 후보를 분리한다.
 # 화면에는 핵심 3개만 보여주고, 내부에는 상위 후보를 보관해 추후 AI가 더 넓은 근거를 사용할 수 있게 한다.
 NEWS_AI_CANDIDATES_CACHE = {}
@@ -995,6 +1043,12 @@ def fetch_realtime_news(stock_name):
                 )
 
                 if not title:
+                    continue
+
+                # 이미 상단의 주가/수급 정보와 중복되는 단순 시황 요약 기사는
+                # 뉴스 목록에서 제외한다. 실제 계약/실적/투자 등의 재료 기사는 유지한다.
+                if _is_market_summary_news(title):
+                    print(f"[뉴스 품질] {stock_name} 단순 주가·수급 요약 제외: {title}")
                     continue
 
                 title_key = re.sub(r"\s+", " ", title).lower()
