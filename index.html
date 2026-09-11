@@ -86,20 +86,14 @@
     /* 닫힌 상태의 세로 유틸리티 레일은 사용하지 않음 */
     #leftUtilityRail, #rightUtilityRail { display: none !important; }
 
-    /* 데스크톱: 사이드바가 열리면 콘텐츠가 함께 이동 */
+    /* 데스크톱: 사이드바는 본문을 밀지 않고 독립 오버레이로 표시 */
     @media (min-width: 1024px) {
       #mainHeroView {
         left: 0; right: 0;
-        transition: left .3s ease, right .3s ease;
+        transition: none;
       }
-      body.left-sidebar-open #mainHeroView { left: 320px; }
-      body.right-sidebar-open #mainHeroView { right: 320px; }
-      body.left-sidebar-open.right-sidebar-open #mainHeroView { left: 320px; right: 320px; }
-
-      body > main { margin-left: 0; margin-right: 0; transition: margin .3s ease; }
-      body.left-sidebar-open > main { margin-left: 320px; }
-      body.right-sidebar-open > main { margin-right: 320px; }
-      body.left-sidebar-open.right-sidebar-open > main { margin-left: 320px; margin-right: 320px; }
+      body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
+      #leftSidebar { position: fixed !important; }
     }
 
     /* 모바일/태블릿: 닫힌 상태는 본문 전체 폭, 열린 사이드바만 위에 표시 */
@@ -239,7 +233,7 @@
   </div>
 
   <!-- 좌측 사이드바 -->
-  <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-[320px] bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:-translate-x-full lg:w-0 lg:overflow-hidden lg:static transition-all duration-300 shadow-2xl lg:shadow-none">
+  <aside id="leftSidebar" class="fixed inset-y-0 left-0 z-50 w-[320px] bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col justify-between shrink-0 transform -translate-x-full lg:-translate-x-full lg:w-0 lg:overflow-hidden transition-all duration-300 shadow-2xl lg:shadow-none">
     <div class="p-4 flex flex-col gap-5 overflow-y-auto">
       <div class="flex items-center justify-between px-1">
         <div class="flex items-center gap-2.5 cursor-pointer" onclick="resetToHome()">
