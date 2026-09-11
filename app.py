@@ -12,7 +12,6 @@ import math
 import io
 import zipfile
 import urllib.error
-from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 
 app = Flask(__name__)
@@ -116,14 +115,6 @@ OPENDART_API_KEY = (
 )
 DART_CORP_CACHE = {"ts": 0.0, "map": {}}
 DART_DISCLOSURE_CACHE = {}
-
-# 외부 API는 서로 독립적인 요청을 동시에 처리해 전체 대기시간을 줄인다.
-# 너무 많은 동시 요청으로 외부 서비스에 부담을 주지 않도록 6개로 제한한다.
-API_EXECUTOR = ThreadPoolExecutor(max_workers=6)
-NEWS_RESULT_CACHE = {}
-OPTIONS_RESULT_CACHE = {}
-NEWS_CACHE_TTL = 120
-OPTIONS_CACHE_TTL = 60
 
 
 US_MATERIAL_FORMS = {
@@ -820,12 +811,12 @@ def fetch_yahoo_direct_v8(ticker_str):
         print("미국 야후 v8 예외:", e)
         return None, None, None, None, None
 
-# 뉴스 품질 우선순위
-# - 실제 Google News RSS에서 수집
-# - 종목 직접 관련 뉴스와 시장/업종 원인 뉴스를 구분
-# - 호재/악재 재료를 모두 살림
-# - 단순 시세/수급 기사와 명백한 잡음은 제거
-# - 화면에는 핵심 3개, AI용으로는 상위 10개를 보관
+# 뉴스 품질 우선순위:
+# 1) 실제 Google News RSS에서 수집
+# 2) 같은 언론사 중복을 제거
+# 3) 주요/전문 매체를 우선
+# 4) 가능하면 서로 다른 출처 3개를 선택
+# 5) 실제 뉴스가 없으면 가짜 제목을 만들지 않음
 NEWS_SOURCE_PRIORITY = {
     "Reuters": 100, "로이터": 100,
     "AP": 98, "Associated Press": 98,
@@ -833,36 +824,25 @@ NEWS_SOURCE_PRIORITY = {
     "Financial Times": 95, "파이낸셜타임스": 95,
     "The Wall Street Journal": 94, "월스트리트저널": 94,
     "CNBC": 92,
+    "NVIDIA": 91, "엔비디아": 91,
     "연합뉴스": 90, "한국경제": 88, "매일경제": 87,
     "서울경제": 86, "전자신문": 85, "이데일리": 82,
     "머니투데이": 80, "조선비즈": 75,
 }
 
-# 실제 주가에 영향을 줄 가능성이 높은 재료.
+# 주가에 직접 영향을 줄 가능성이 높은 '실제 재료' 표현.
 NEWS_HARD_EVENT_WORDS = [
     "실적발표", "잠정실적", "실적", "매출", "영업이익", "순이익", "가이던스",
     "수주", "계약", "공급계약", "대형계약", "인수", "합병", "m&a",
     "투자", "증설", "감산", "증산", "출하", "판매", "가격 인상", "가격 하락",
-    "공급 중단", "공급 차질", "공급망", "규제", "관세", "제재", "수출 제한",
-    "승인", "허가", "소송", "특허", "자사주", "배당", "유상증자", "전환사채",
+    "공급 중단", "공급 차질", "규제", "관세", "제재", "수출 제한", "승인",
+    "허가", "소송", "특허", "자사주", "배당", "유상증자", "전환사채",
     "earnings", "revenue", "profit", "guidance", "contract", "deal",
     "acquisition", "merger", "investment", "regulation", "tariff",
     "approval", "lawsuit", "buyback", "dividend", "offering",
 ]
 
-# 기업/산업의 실질적인 변화로 볼 수 있는 표현. 하드 이벤트와 함께 우선순위를 높인다.
-NEWS_MATERIAL_WORDS = [
-    "신제품", "제품 출시", "신규 고객", "고객사", "수요 증가", "수요 감소",
-    "수요 회복", "수요 둔화", "점유율", "시장 점유율", "공급 확대", "공급 축소",
-    "생산 확대", "생산 감소", "생산 중단", "공장", "라인 증설", "라인 가동",
-    "가동 중단", "납품", "공급", "출하량", "판매량", "가격 상승", "가격 하락",
-    "수익성", "마진", "실적 개선", "실적 악화", "전망 상향", "전망 하향",
-    "목표 상향", "목표 하향", "신규 수주", "수주 확대", "백지화", "철회",
-    "파기", "지연", "중단", "재개", "협력", "파트너십", "동맹",
-    "ai", "hbm", "반도체", "메모리", "파운드리", "gpu", "데이터센터",
-]
-
-# 단독 재료가 아니라 전망/의견 중심인 기사는 우선순위를 낮춘다.
+# 단독 재료가 아니라 단순 전망/의견 중심인 기사는 우선순위를 낮춘다.
 NEWS_SOFT_OPINION_WORDS = [
     "전망", "예상", "분석", "목표주가", "증권가", "전문가", "기대감",
     "가능성", "주목", "관심", "수혜주", "관련주", "추천", "진단",
@@ -870,15 +850,15 @@ NEWS_SOFT_OPINION_WORDS = [
     "target price", "outlook", "expectation", "potential",
 ]
 
-# 명백한 잡음/콘텐츠성 기사.
+# 주가 원인 분석에 상대적으로 덜 직접적인 기사 표현.
 NEWS_NOISE_WORDS = [
     "인터뷰", "화보", "현장", "이모저모", "사설", "칼럼", "오피니언",
     "사용기", "리뷰", "가이드", "주식 초보", "투자전략", "투자 팁",
-    "주간전망", "오늘의 운세", "퀴즈", "기부", "봉사", "캠페인",
-    "맛집", "여행", "공연", "연예", "채용", "인사", "부고",
+    "주간전망", "오늘의 운세", "퀴즈",
 ]
 
-# 화면 상단의 현재가/수급을 단순 반복하는 기사.
+# 이미 화면 상단에서 직접 보여주는 '주가/수급 단순 요약' 기사는 뉴스 목록에서 제외한다.
+# 실제 재료(계약, 실적, 투자, 인수 등)가 함께 있는 기사는 제외하지 않는다.
 NEWS_MARKET_SUMMARY_WORDS = [
     "보합 마감", "상승 마감", "하락 마감", "급등 마감", "급락 마감",
     "장 마감", "마감 시황", "장 마감 시황", "오늘의 시황", "시황",
@@ -888,93 +868,49 @@ NEWS_MARKET_SUMMARY_WORDS = [
     "등락", "장중", "증시 마감", "마감",
 ]
 
-# 시장/업종 전체 움직임의 원인을 설명하는 기사. 종목 단독 뉴스가 없어도 살린다.
-NEWS_MARKET_CAUSE_WORDS = [
-    "미국", "뉴욕", "나스닥", "s&p", "다우", "반도체", "기술주", "업황",
-    "금리", "환율", "유가", "관세", "전쟁", "지정학", "공급", "수요",
-    "중국", "대만", "일본", "연준", "fed", "fomc", "물가", "고용",
-    "인플레이션", "경기", "침체", "상승세", "하락세", "약세", "강세",
-    "호재", "악재", "우려", "기대", "영향", "여파", "때문",
-]
-
-# 종목별로 자주 쓰이는 별칭. 제목에 회사의 약칭만 나오는 경우를 보완한다.
-NEWS_NAME_ALIASES = {
-    "삼성전자": ["삼성전자", "삼성", "samsung electronics"],
-    "SK하이닉스": ["sk하이닉스", "하이닉스", "sk hynix"],
-    "현대차": ["현대차", "현대자동차", "hyundai motor"],
-    "현대자동차": ["현대차", "현대자동차", "hyundai motor"],
-    "기아": ["기아", "kia"],
-    "네이버": ["네이버", "naver"],
-    "NAVER": ["네이버", "naver"],
-    "카카오": ["카카오", "kakao"],
-    "셀트리온": ["셀트리온", "celltrion"],
-    "한미반도체": ["한미반도체", "hanmi semiconductor"],
-    "두산에너빌리티": ["두산에너빌리티", "두산중공업", "doosan enerbility"],
-    "두산로보틱스": ["두산로보틱스", "doosan robotics"],
-    "한화에어로스페이스": ["한화에어로스페이스", "한화에어로", "hanwha aerospace"],
-    "엔비디아": ["엔비디아", "nvidia", "nvda"],
-    "테슬라": ["테슬라", "tesla", "tsla"],
-    "애플": ["애플", "apple", "aapl"],
-    "마이크로소프트": ["마이크로소프트", "microsoft", "msft"],
-    "아마존": ["아마존", "amazon", "amzn"],
-    "구글": ["구글", "알파벳", "google", "alphabet", "googl"],
-    "오라클": ["오라클", "oracle", "orcl"],
-    "어도비": ["어도비", "adobe", "adbe"],
-}
-
-
-def _news_terms_for_stock(stock_name, ticker=""):
-    """검색/관련성 판단에 사용할 종목명·별칭·티커를 만든다."""
-    name = str(stock_name or "").strip()
-    terms = []
-    for term in [name, name.replace(" ", "")]:
-        if term and term.lower() not in {x.lower() for x in terms}:
-            terms.append(term)
-
-    for alias in NEWS_NAME_ALIASES.get(name, []):
-        if alias and alias.lower() not in {x.lower() for x in terms}:
-            terms.append(alias)
-
-    ticker_clean = str(ticker or "").replace(".KS", "").replace(".KQ", "").strip()
-    if ticker_clean and ticker_clean.lower() not in {x.lower() for x in terms}:
-        terms.append(ticker_clean)
-    return terms
-
-
-def _news_contains_any(text, words):
-    text_lower = (text or "").lower()
-    return any(str(word).lower() in text_lower for word in words)
-
-
 def _is_market_summary_news(title):
-    """단순 주가/수급 기사만 제외하고, 실제 원인이 있는 기사는 보존한다."""
+    """현재 주가/수급을 단순 요약한 기사인지 판별한다.
+
+    단순 요약만 제외하고, 실제 사건/재료가 함께 언급된 기사는 보존한다.
+    """
     title_lower = (title or "").lower()
     if not title_lower:
         return False
 
-    summary_hits = sum(1 for word in NEWS_MARKET_SUMMARY_WORDS if word.lower() in title_lower)
-    if summary_hits == 0:
-        return False
+    summary_hits = sum(
+        1 for word in NEWS_MARKET_SUMMARY_WORDS
+        if word.lower() in title_lower
+    )
 
-    # 실적/계약/투자/규제 등 재료가 있으면 유지한다.
-    if _news_contains_any(title_lower, NEWS_HARD_EVENT_WORDS + NEWS_MATERIAL_WORDS):
-        return False
-
-    # 미국/금리/반도체 등 시장 원인이 있으면 유지한다.
-    market_cause = [
-        "미국", "뉴욕", "나스닥", "s&p", "다우", "반도체", "기술주", "업황",
-        "금리", "환율", "유가", "관세", "전쟁", "지정학", "공급", "수요",
-        "중국", "대만", "연준", "fed", "fomc", "물가", "고용", "경기",
-        "침체", "인플레이션", "때문", "영향", "여파", "우려",
+    # 실제 원인/재료를 담은 기사까지 잘라내지 않도록 매우 보수적으로 제외한다.
+    # 예: "미 기술주 약세에 SK하이닉스 하락"은 시장 원인을 설명하므로 유지한다.
+    hard_event_hit = any(
+        word.lower() in title_lower for word in NEWS_HARD_EVENT_WORDS
+    )
+    cause_words = [
+        "때문", "영향", "여파", "악재", "호재", "우려", "기대", "부담",
+        "약세", "강세", "급등", "급락", "하락", "상승", "미국", "뉴욕",
+        "나스닥", "반도체", "기술주", "금리", "환율", "유가", "관세",
+        "전쟁", "지정학", "공급", "수요", "실적", "전망", "전망치",
     ]
-    if _news_contains_any(title_lower, market_cause):
+    cause_hit = any(word in title_lower for word in cause_words)
+
+    if hard_event_hit or cause_hit:
         return False
 
-    # 단순 상승/하락/마감/수급만 설명하는 기사는 제외한다.
-    return summary_hits >= 1
-
+    # 퍼센트/마감/수급만으로 구성된 전형적인 시세 요약만 제외한다.
+    pct_hit = bool(re.search(r"[+-]?\d+(?:\.\d+)?%", title_lower))
+    close_or_flow_hit = any(
+        word in title_lower
+        for word in [
+            "마감", "수급", "순매수", "순매도", "등락", "상승률", "하락률",
+            "거래량", "거래대금", "시황",
+        ]
+    )
+    return bool(pct_hit and close_or_flow_hit) or summary_hits >= 2
 
 # 화면 표시용 뉴스와 AI 분석용 후보를 분리한다.
+# 화면에는 핵심 3개만 보여주고, 내부에는 상위 후보를 보관해 추후 AI가 더 넓은 근거를 사용할 수 있게 한다.
 NEWS_AI_CANDIDATES_CACHE = {}
 
 
@@ -985,17 +921,18 @@ def _news_source_score(source_name):
             return score
     return 60
 
-
 def _news_freshness_score(pub_date):
     """RSS 발행 시각 기준 최신 기사일수록 높은 점수."""
     if not pub_date:
         return 0
+
     try:
         dt = parsedate_to_datetime(pub_date)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=datetime.timezone.utc)
         now = datetime.datetime.now(datetime.timezone.utc)
         age_hours = max(0.0, (now - dt.astimezone(datetime.timezone.utc)).total_seconds() / 3600.0)
+
         if age_hours <= 6:
             return 40
         if age_hours <= 24:
@@ -1008,71 +945,48 @@ def _news_freshness_score(pub_date):
             return 4
     except Exception:
         pass
+
     return 0
 
-
 def _news_relevance_score(title, stock_name, ticker):
-    """종목 직접 관련성 + 재료성 + 시장 영향 가능성을 평가한다."""
+    """종목 직접 관련성과 실제 주가 영향 가능성을 함께 평가."""
     title_lower = (title or "").lower()
     score = 0
-    terms = _news_terms_for_stock(stock_name, ticker)
 
-    direct_hits = sum(1 for term in terms if term and term.lower() in title_lower)
-    direct = direct_hits > 0
-    if direct:
-        score += 45
-        if direct_hits >= 2:
+    stock = str(stock_name or "").strip().lower()
+    tick = str(ticker or "").replace(".KS", "").replace(".KQ", "").lower()
+
+    if stock and len(stock) >= 2 and stock in title_lower:
+        score += 35
+    if tick and len(tick) >= 2 and tick in title_lower:
+        score += 30
+
+    for word in NEWS_HARD_EVENT_WORDS:
+        if word.lower() in title_lower:
+            score += 6
+
+    # 소프트한 전망 기사도 실적/계약 같은 확정 재료와 같이 있으면 살려둔다.
+    hard_hit = any(word.lower() in title_lower for word in NEWS_HARD_EVENT_WORDS)
+    for word in NEWS_SOFT_OPINION_WORDS:
+        if word.lower() in title_lower:
+            score += 2 if hard_hit else -7
+
+    for word in NEWS_NOISE_WORDS:
+        if word.lower() in title_lower:
+            score -= 12
+
+    # 직접적인 시장 충격 표현은 추가 가중치.
+    very_high_impact = [
+        "실적발표", "가이던스", "수주", "대형계약", "인수", "합병", "규제",
+        "관세", "제재", "공급 중단", "공급 차질", "수출 제한", "승인",
+        "유상증자", "전환사채", "earnings", "guidance", "acquisition",
+        "merger", "regulation", "tariff", "approval", "offering",
+    ]
+    for word in very_high_impact:
+        if word.lower() in title_lower:
             score += 10
 
-    hard_hits = sum(1 for word in NEWS_HARD_EVENT_WORDS if word.lower() in title_lower)
-    material_hits = sum(1 for word in NEWS_MATERIAL_WORDS if word.lower() in title_lower)
-    cause_hits = sum(1 for word in NEWS_MARKET_CAUSE_WORDS if word.lower() in title_lower)
-
-    score += min(hard_hits, 5) * 8
-    score += min(material_hits, 5) * 5
-    if cause_hits:
-        score += min(cause_hits, 4) * 4
-
-    # 의견/전망만 있는 기사는 낮추되, 확정 재료와 함께 있으면 너무 세게 감점하지 않는다.
-    hard_or_material = hard_hits > 0 or material_hits > 0
-    soft_hits = sum(1 for word in NEWS_SOFT_OPINION_WORDS if word.lower() in title_lower)
-    score += soft_hits * (2 if hard_or_material else -6)
-
-    noise_hits = sum(1 for word in NEWS_NOISE_WORDS if word.lower() in title_lower)
-    score -= noise_hits * 18
-
-    # 단순 시세/수급 기사는 별도 필터와 함께 추가 감점한다.
-    if _is_market_summary_news(title):
-        score -= 45
-
     return score
-
-
-def _news_impact_type(title, stock_name, ticker):
-    """뉴스가 호재/악재/시장요인/중립 중 어디에 가까운지 내부용으로 분류한다."""
-    t = (title or "").lower()
-    positive = [
-        "호재", "실적 개선", "실적 증가", "매출 증가", "영업이익 증가", "수주",
-        "계약", "공급 확대", "수요 회복", "수요 증가", "증설", "투자 확대",
-        "가격 인상", "점유율 상승", "목표 상향", "전망 상향", "승인", "허가",
-        "자사주", "배당 확대", "신규 고객", "신제품", "강세", "상승",
-    ]
-    negative = [
-        "악재", "실적 악화", "실적 감소", "매출 감소", "영업이익 감소", "수주 취소",
-        "계약 해지", "공급 차질", "공급 중단", "수요 감소", "수요 둔화", "감산",
-        "투자 축소", "가격 하락", "점유율 하락", "목표 하향", "전망 하향", "규제",
-        "관세", "제재", "소송", "리콜", "생산 중단", "약세", "하락",
-    ]
-    p = sum(1 for w in positive if w.lower() in t)
-    n = sum(1 for w in negative if w.lower() in t)
-    if p > n and p > 0:
-        return "positive"
-    if n > p and n > 0:
-        return "negative"
-    if _news_contains_any(t, NEWS_MARKET_CAUSE_WORDS):
-        return "market"
-    return "neutral"
-
 
 def _news_duplicate_key(title):
     """표현만 조금 다른 동일/유사 기사 중복을 줄이기 위한 키."""
@@ -1081,241 +995,189 @@ def _news_duplicate_key(title):
         key = key.replace(token, "")
     return key
 
-
 def _clean_news_title(title):
     title = title or ""
     title = re.sub(r'\[.*?\]', '', title)
     title = re.sub(r'<[^>]+>', '', title)
-    # Google News RSS 제목 뒤의 언론사 표기를 제거한다.
     title = re.sub(r'\s*[-–—―|]\s*[^-–—―|]+$', '', title)
     title = re.sub(r'[\.…]+\s*$', '', title)
     title = re.sub(r'\.{2,}|…', ' · ', title)
     return title.strip().strip('"\'“”')
 
+def fetch_realtime_news(stock_name):
+    """
+    뉴스는 넓게 수집한 뒤 강하게 필터링한다.
+    화면에는 핵심 뉴스 3개만 제목으로 표시하고, 내부에는 상위 후보를 별도로 보관한다.
+    """
+    candidates = []
+    seen_titles = set()
+    seen_duplicate_keys = set()
 
-def _fetch_one_news_rss(search_term):
-    """Google News RSS 한 검색어를 조회한다. 결과가 없으면 빈 목록을 반환."""
-    rows = []
-    try:
-        search_query = f'"{search_term}" when:7d' if search_term else ""
-        query = urllib.parse.quote(search_query)
-        url = (
-            f"https://news.google.com/rss/search?q={query}"
-            f"&hl=ko&gl=KR&ceid=KR:ko"
-        )
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            xml_data = resp.read()
-        root = ET.fromstring(xml_data)
-        for item in root.findall('.//item'):
-            title_el = item.find('title')
-            source_el = item.find('source')
-            pub_el = item.find('pubDate')
-            title = _clean_news_title(title_el.text if title_el is not None else "")
-            source = (source_el.text or "").strip() if source_el is not None else ""
-            pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
-            if title:
-                rows.append({"title": title, "source": source, "pub_date": pub_date})
-    except Exception as e:
-        print(f"[뉴스] RSS 조회 예외 search={search_term}: {type(e).__name__}: {e}")
-    return rows
+    # 종목코드 단독 검색은 뉴스가 아니라 종목표/시세성 문서를 끌어오는 경우가 많아 사용하지 않는다.
+    # Google News에서는 종목명 중심으로 검색하고, 원인/업종 맥락을 추가 검색한다.
+    clean_stock_name = str(stock_name).strip()
+    queries = [clean_stock_name]
+    if clean_stock_name:
+        for extra_query in [f"{clean_stock_name} 반도체", f"{clean_stock_name} 시장"]:
+            if extra_query not in queries:
+                queries.append(extra_query)
 
-
-def _fetch_realtime_news_uncached(stock_name):
-    """종목에 직접 영향을 줄 가능성이 높은 최신 호재/악재/시장원인 뉴스를 수집한다."""
-    clean_stock_name = str(stock_name or "").strip()
     ticker_guess = TICKERS.get(clean_stock_name)
     if ticker_guess:
         ticker_guess = str(ticker_guess).replace(".KS", "").replace(".KQ", "")
     elif re.match(r"^[A-Za-z\-]+$", clean_stock_name):
         ticker_guess = clean_stock_name.upper()
 
-    terms = _news_terms_for_stock(clean_stock_name, ticker_guess)
-    primary = terms[0] if terms else clean_stock_name
+    ticker_for_score = ticker_guess if ticker_guess else ""
 
-    # 4개 검색을 동시에 수행한다. 검색 범위를 넓히되, 각 검색어는 종목을 반드시 포함한다.
-    queries = [
-        primary,
-        f"{primary} 실적 계약 수주 투자 공급",
-        f"{primary} 악재 우려 규제 관세 소송",
-        f"{primary} 반도체 시장 미국 금리 수요",
-    ]
-    # 영문 종목은 티커/회사명을 활용한 검색도 한 번 포함한다.
-    if ticker_guess and re.match(r"^[A-Za-z\-]+$", str(ticker_guess)):
-        queries[0] = f"{primary} {ticker_guess}"
+    for search_term in queries[:2]:
+        try:
+            # '왜 오늘'에 맞춰 최근 7일 검색. 점수에서 72시간 이내 기사를 강하게 우선한다.
+            search_query = f"{search_term} when:7d"
+            query = urllib.parse.quote(search_query)
+            url = (
+                f"https://news.google.com/rss/search?q={query}"
+                f"&hl=ko&gl=KR&ceid=KR:ko"
+            )
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                xml_data = resp.read()
 
-    raw_rows = []
-    # API_EXECUTOR는 /analyze의 다른 작업을 처리하므로 뉴스 내부 병렬화에는 별도 executor를 사용한다.
-    # 요청 수를 4개로 고정해 과도한 동시 요청을 피한다.
-    news_executor = ThreadPoolExecutor(max_workers=4)
-    try:
-        futures = [news_executor.submit(_fetch_one_news_rss, q) for q in queries]
-        for future in futures:
-            raw_rows.extend(future.result())
-    finally:
-        news_executor.shutdown(wait=True)
+            root = ET.fromstring(xml_data)
+            for item in root.findall('.//item'):
+                title_el = item.find('title')
+                source_el = item.find('source')
+                pub_el = item.find('pubDate')
 
-    candidates = []
-    seen_titles = set()
-    seen_duplicate_keys = set()
-    all_terms_lower = [x.lower() for x in terms if x]
+                title = _clean_news_title(
+                    title_el.text if title_el is not None else ""
+                )
+                source = (
+                    (source_el.text or "").strip()
+                    if source_el is not None else ""
+                )
+                pub_date = (
+                    (pub_el.text or "").strip()
+                    if pub_el is not None else ""
+                )
 
-    for row in raw_rows:
-        title = row["title"]
-        title_lower = title.lower()
-        title_key = re.sub(r"\s+", " ", title_lower).strip()
-        duplicate_key = _news_duplicate_key(title)
-        if title_key in seen_titles or duplicate_key in seen_duplicate_keys:
-            continue
-        seen_titles.add(title_key)
-        seen_duplicate_keys.add(duplicate_key)
+                if not title:
+                    continue
 
-        freshness_score = _news_freshness_score(row["pub_date"])
-        if freshness_score == 0:
-            continue
+                # 뉴스는 Google News RSS 원문을 최대한 보존한다.
+                # 특히 "미 기술주 약세에 삼성전자·SK하이닉스 하락"처럼
+                # 시장/업종 움직임의 원인을 설명하는 기사는 절대 제거하지 않는다.
+                # 화면 상단 데이터와 일부 내용이 겹치더라도 실제 시장 원인일 수 있으므로
+                # 여기서는 제목 중복만 제거한다.
 
-        direct = any(term in title_lower for term in all_terms_lower)
-        material_hit = _news_contains_any(title_lower, NEWS_HARD_EVENT_WORDS + NEWS_MATERIAL_WORDS)
-        market_cause_hit = _news_contains_any(title_lower, NEWS_MARKET_CAUSE_WORDS)
-        noise_hit = _news_contains_any(title_lower, NEWS_NOISE_WORDS)
-        market_summary = _is_market_summary_news(title)
+                title_key = re.sub(r"\s+", " ", title).lower()
+                duplicate_key = _news_duplicate_key(title)
+                if title_key in seen_titles or duplicate_key in seen_duplicate_keys:
+                    continue
 
-        # 핵심 필터:
-        # 1) 종목과 직접 관계가 없고 시장/업종 원인도 없으면 제거
-        # 2) 종목명은 있지만 재료/원인 없이 잡음성 기사면 제거
-        # 3) 단순 주가/수급 요약은 제거
-        if not direct and not market_cause_hit:
-            continue
-        if market_summary:
-            continue
-        if direct and noise_hit and not material_hit and not market_cause_hit:
-            continue
+                seen_titles.add(title_key)
+                seen_duplicate_keys.add(duplicate_key)
 
-        source_score = _news_source_score(row["source"])
-        relevance_score = _news_relevance_score(title, clean_stock_name, ticker_guess or "")
-        impact_type = _news_impact_type(title, clean_stock_name, ticker_guess or "")
+                source_score = _news_source_score(source)
+                freshness_score = _news_freshness_score(pub_date)
+                relevance_score = _news_relevance_score(
+                    title, stock_name, ticker_for_score
+                )
+                hard_event = any(
+                    word.lower() in title.lower() for word in NEWS_HARD_EVENT_WORDS
+                )
 
-        # 직접 관련 뉴스가 시장원인 뉴스보다 우선. 호재/악재는 동일하게 취급한다.
-        direct_bonus = 28 if direct else 0
-        material_bonus = 24 if material_hit else 0
-        cause_bonus = 12 if market_cause_hit else 0
-        noise_penalty = 25 if noise_hit else 0
-        score = (
-            source_score
-            + freshness_score
-            + relevance_score
-            + direct_bonus
-            + material_bonus
-            + cause_bonus
-            - noise_penalty
-        )
+                # 7일보다 오래된 기사는 RSS가 섞여 들어와도 핵심 후보에서 사실상 탈락시킨다.
+                if freshness_score == 0:
+                    continue
 
-        candidates.append({
-            "title": title,
-            "source": row["source"],
-            "pub_date": row["pub_date"],
-            "source_score": source_score,
-            "freshness_score": freshness_score,
-            "relevance_score": relevance_score,
-            "direct": direct,
-            "material": material_hit,
-            "market_cause": market_cause_hit,
-            "impact_type": impact_type,
-            "score": score,
-        })
+                candidates.append({
+                    "title": title,
+                    "source": source,
+                    "pub_date": pub_date,
+                    "source_score": source_score,
+                    "freshness_score": freshness_score,
+                    "relevance_score": relevance_score,
+                    "hard_event": hard_event,
+                    "score": source_score + freshness_score + relevance_score,
+                })
+
+        except Exception as e:
+            print(f"[뉴스] {stock_name} RSS 조회 예외: {type(e).__name__}: {e}")
 
     candidates.sort(
         key=lambda x: (
             x["score"],
-            x["direct"],
-            x["material"],
+            x["hard_event"],
             x["freshness_score"],
+            x["relevance_score"],
         ),
         reverse=True,
     )
 
-    # AI 분석용 후보는 최대 10개를 보관한다.
+    # 먼저 내부 AI용 후보를 보관한다.
+    # 화면에 3개만 보여주더라도 AI 단계에서는 더 많은 근거를 활용할 수 있게 한다.
     internal_candidates = [dict(item) for item in candidates[:10]]
-    NEWS_AI_CANDIDATES_CACHE[clean_stock_name] = internal_candidates
+    NEWS_AI_CANDIDATES_CACHE[str(stock_name).strip()] = internal_candidates
 
-    # 화면은 3개. 같은 기사/언론사만 반복되는 것을 막되, 억지로 약한 기사를 넣지는 않는다.
+    # 화면에는 핵심 3개만 노출한다. 출처 다양성은 유지하되 점수 차이가 큰 경우에는
+    # 더 강한 기사를 우선한다(약한 기사를 억지로 끼워 넣지 않음).
     selected = []
-    selected_sources = set()
-
-    # 우선 직접 재료 뉴스 → 시장/업종 원인 뉴스 순서로 선택
-    preferred = [x for x in candidates if x["direct"] and x["material"]]
-    secondary = [x for x in candidates if x not in preferred and x["direct"]]
-    market_items = [x for x in candidates if x not in preferred and x not in secondary]
-
-    for pool in (preferred, secondary, market_items):
-        for item in pool:
-            source_key = item["source"].lower().strip()
-            # 같은 언론사 기사를 2개 이상 넣어야 할 경우에도 점수 차이가 너무 크지 않을 때만 허용
-            if source_key in selected_sources and len(selected) < 2:
-                continue
+    for item in candidates:
+        if not selected:
             selected.append(item)
-            selected_sources.add(source_key)
-            if len(selected) >= 3:
-                break
+            continue
+
+        same_source = item["source"].lower().strip() == selected[0]["source"].lower().strip()
+        if same_source and item["score"] < selected[0]["score"] - 8:
+            continue
+
+        selected.append(item)
         if len(selected) >= 3:
             break
 
-    # 출처 다양성 때문에 3개를 못 채우는 경우에는 남은 상위 후보로 채운다.
-    if len(selected) < 3:
-        selected_keys = {x["title"].lower() for x in selected}
-        for item in candidates:
-            if item["title"].lower() in selected_keys:
-                continue
-            selected.append(item)
-            selected_keys.add(item["title"].lower())
-            if len(selected) >= 3:
-                break
+    # Google News에서 실제로 수집된 기사라면 점수 임계값 때문에 화면에서 사라지지 않게 한다.
+    # 점수는 우선순위 정렬에만 사용한다.
 
     print(
-        f"[뉴스 품질] {clean_stock_name} 후보={len(candidates)} / "
-        f"내부AI={len(internal_candidates)} / 화면={len(selected)}"
+        f"[뉴스 품질] {stock_name} 후보={len(candidates)} / 내부AI={len(internal_candidates)} / 화면={len(selected)}"
     )
     for i, item in enumerate(selected[:3], 1):
         print(
-            f"[뉴스 품질] {clean_stock_name} 화면#{i} "
-            f"score={item['score']} type={item['impact_type']} "
-            f"direct={item['direct']} material={item['material']} "
-            f"source={item['source']}"
+            f"[뉴스 품질] {stock_name} 화면#{i} "
+            f"score={item['score']} source={item['source']} "
+            f"fresh={item['freshness_score']} relevance={item['relevance_score']} "
+            f"hard={item['hard_event']}"
         )
 
-    # 화면에서는 종목명을 제거해 제목을 깔끔하게 표시한다.
+    # 화면에서는 현재 종목명을 제거해 제목을 최대한 깔끔하게 표시한다.
+    # 원본 제목(item["title"])은 내부 후보 데이터와 AI 분석용으로 그대로 보존한다.
     display_titles = []
-    company_names = set(terms)
+    company_names = {
+        str(stock_name).strip(),
+        str(stock_name).strip().replace(" ", ""),
+    }
+
     for item in selected[:3]:
         original_title = item["title"]
         display_title = original_title
+
         for company_name in sorted(company_names, key=len, reverse=True):
             if company_name:
                 display_title = display_title.replace(company_name, "")
-                display_title = re.sub(re.escape(company_name), "", display_title, flags=re.IGNORECASE)
+
         display_title = re.sub(r"\s+", " ", display_title).strip()
         display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
         display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
+
+        # 종목명 제거 후 제목이 비어버리는 경우에는 원본 제목을 사용한다.
         display_titles.append(display_title or original_title)
 
     return display_titles
 
 
-def fetch_realtime_news(stock_name):
-    """뉴스 결과를 120초 캐시해 같은 종목의 반복 조회 대기시간을 줄인다."""
-    key = str(stock_name).strip()
-    now = datetime.datetime.now().timestamp()
-    cached = NEWS_RESULT_CACHE.get(key)
-    if cached and now - cached[0] < NEWS_CACHE_TTL:
-        return list(cached[1])
-
-    result = _fetch_realtime_news_uncached(stock_name)
-    NEWS_RESULT_CACHE[key] = (now, list(result))
-    return result
-
-
 def get_news_ai_candidates(stock_name, limit=10):
-    """AI 원인 분석에서 사용할 내부 뉴스 후보를 반환한다."""
+    """추후 AI 원인 분석에서 사용할 내부 뉴스 후보를 반환한다."""
     items = NEWS_AI_CANDIDATES_CACHE.get(str(stock_name).strip(), [])
     return [dict(item) for item in items[:max(1, int(limit))]]
 
@@ -1492,118 +1354,6 @@ def round_krw_tick(price):
     except Exception:
         return 0
 
-def fetch_us_options_volume(ticker_symbol):
-    """CBOE 지연 옵션 거래량을 조회한다. 결과는 짧게 캐시한다."""
-    key = str(ticker_symbol).upper().strip()
-    now = datetime.datetime.now().timestamp()
-    cached = OPTIONS_RESULT_CACHE.get(key)
-    if cached and now - cached[0] < OPTIONS_CACHE_TTL:
-        return cached[1], cached[2], cached[3]
-
-    call_vol = 0
-    put_vol = 0
-    option_error = None
-    try:
-        cboe_url = (
-            f"https://cdn.cboe.com/api/global/delayed_quotes/options/"
-            f"{urllib.parse.quote(key)}.json"
-        )
-        req = urllib.request.Request(
-            cboe_url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                              "AppleWebKit/537.36 (KHTML, like Gecko) "
-                              "Chrome/152.0.0.0 Safari/537.36",
-                "Accept": "application/json,text/plain,*/*",
-            }
-        )
-        # 기존 8초는 전체 화면을 붙잡는 시간이 너무 길어 4초로 제한한다.
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-
-        rows = data.get("data") or []
-        if isinstance(rows, dict):
-            rows = [rows]
-
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            options = row.get("options") or []
-            if isinstance(options, dict):
-                options = [options]
-
-            for opt in options:
-                if not isinstance(opt, dict):
-                    continue
-                contract = str(
-                    opt.get("option")
-                    or opt.get("contractSymbol")
-                    or opt.get("symbol")
-                    or ""
-                ).upper()
-                volume = opt.get("volume", 0)
-                if isinstance(volume, str):
-                    volume = volume.replace(",", "").strip()
-                try:
-                    volume = int(float(volume or 0))
-                except Exception:
-                    volume = 0
-
-                cp_pos = -1
-                if contract:
-                    m = re.search(r"\d{6}([CP])", contract)
-                    if m:
-                        cp_pos = m.start(1)
-                if cp_pos >= 0:
-                    side = contract[cp_pos]
-                else:
-                    side = str(opt.get("type") or opt.get("optionType") or "").upper()
-
-                if side in ("C", "CALL"):
-                    call_vol += volume
-                elif side in ("P", "PUT"):
-                    put_vol += volume
-
-        print(f"[미국 옵션] {key} 성공 / CBOE / CALL={call_vol} PUT={put_vol}")
-    except urllib.error.HTTPError as e:
-        option_error = e.code
-        print(f"[미국 옵션] CBOE 실패 {key}: HTTP {e.code}")
-    except Exception as e:
-        option_error = type(e).__name__
-        print(f"[미국 옵션] CBOE 실패 {key}: {type(e).__name__}: {e}")
-
-    OPTIONS_RESULT_CACHE[key] = (now, call_vol, put_vol, option_error)
-    return call_vol, put_vol, option_error
-
-
-def build_us_options_content(ticker_symbol, call_vol, put_vol, option_error):
-    if call_vol > 0:
-        pc_ratio = put_vol / call_vol
-        c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
-        p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
-        tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
-        if pc_ratio <= 0.7:
-            return (
-                f"{tag_line}\n\nCBOE Options Volume\n\n"
-                "현재 옵션 거래량이 상방 쪽으로 기울어 있어!\n"
-                "콜옵션 거래량이 풋옵션보다 많아 상승 쪽 베팅이 상대적으로 강한 구간이야."
-            )
-        if pc_ratio >= 1.1:
-            return (
-                f"{tag_line}\n\nCBOE Options Volume\n\n"
-                "현재 옵션 거래량이 하방 쪽으로 기울어 있어!\n"
-                "풋옵션 거래량이 콜옵션을 넘어 하락 방어 수요가 상대적으로 강한 구간이야."
-            )
-        return (
-            f"{tag_line}\n\nCBOE Options Volume\n\n"
-            "현재 옵션 시장이 팽팽하게 눈치싸움 중이야.\n"
-            "콜과 풋 거래량이 크게 벌어지지 않아 방향성을 조금 더 확인할 필요가 있어."
-        )
-    if option_error:
-        return f"{ticker_symbol} 조회 실패 HTTP {option_error}"
-    return f"{ticker_symbol} 조회 성공 거래량 0"
-
-
 def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
@@ -1733,19 +1483,10 @@ def analyze():
         volume_profile = None
         supply_content = ""
 
-        # 1~2. 외부 API는 서로 독립적인 요청을 동시에 실행한다.
-        # 기존 데이터/계산/화면 구조는 유지하고 "기다리는 순서"만 개선한다.
+        # 1. 국내 주식
         if is_krw and clean_code:
-            realtime_future = API_EXECUTOR.submit(fetch_kr_stock_realtime, clean_code)
-            trend_future = API_EXECUTOR.submit(fetch_krx_trend_and_supply, clean_code)
-            news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
-            disclosure_future = API_EXECUTOR.submit(format_kr_official_disclosures, clean_code)
-
-            cur_p, diff, ratio = realtime_future.result()
-            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = trend_future.result()
-            news_list = news_future.result()
-            kr_official_disclosures_block = disclosure_future.result()
-            official_filings_block = ""
+            cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
+            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
 
             current_price = cur_p if cur_p else 1783000.0
             change_pct = ratio if ratio is not None else 8.26
@@ -1778,23 +1519,14 @@ def analyze():
 
         # 2. 미국 주식
         else:
-            yahoo_future = API_EXECUTOR.submit(fetch_yahoo_direct_v8, ticker_symbol)
-            options_future = API_EXECUTOR.submit(fetch_us_options_volume, ticker_symbol)
-            news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
-            filing_future = API_EXECUTOR.submit(format_us_official_filings, ticker_symbol)
-
-            cur_p, prev_p, ma20_val, res_val, volume_profile = yahoo_future.result()
-            call_vol, put_vol, option_error = options_future.result()
-            news_list = news_future.result()
-            official_filings_block = filing_future.result()
-            kr_official_disclosures_block = ""
-
+            cur_p, prev_p, ma20_val, res_val, volume_profile = fetch_yahoo_direct_v8(ticker_symbol)
             if cur_p and prev_p:
                 current_price = cur_p
                 change_pct = ((cur_p - prev_p) / prev_p) * 100
                 ma20 = ma20_val or 0.0
                 resistance_price = res_val or 0.0
             else:
+                # 실제 시세 조회 실패 시 임의의 가격을 만들지 않는다.
                 current_price = 0.0
                 change_pct = 0.0
                 ma20 = 0.0
@@ -1805,9 +1537,139 @@ def analyze():
             price_str = f"${current_price:,.2f}" if current_price > 0 else "시세 조회 실패"
             ma20_str = f"${ma20:,.2f}" if ma20 > 0 else "계산 대기"
             res_str = f"${resistance_price:,.2f}" if resistance_price > 0 else "계산 대기"
-            supply_content = build_us_options_content(
-                ticker_symbol, call_vol, put_vol, option_error
-            )
+
+            # 미국 옵션 수급: CBOE 공개 지연 옵션체인 사용
+            # Yahoo crumb 방식은 사용하지 않는다. CBOE 엔드포인트는 API 키가 필요 없고
+            # 옵션 계약별 volume을 제공한다. (약 15분 지연)
+            try:
+                call_vol = 0
+                put_vol = 0
+                option_error = None
+
+                try:
+                    cboe_url = (
+                        f"https://cdn.cboe.com/api/global/delayed_quotes/options/"
+                        f"{urllib.parse.quote(ticker_symbol)}.json"
+                    )
+                    req = urllib.request.Request(
+                        cboe_url,
+                        headers={
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                          "Chrome/152.0.0.0 Safari/537.36",
+                            "Accept": "application/json,text/plain,*/*",
+                        }
+                    )
+
+                    with urllib.request.urlopen(req, timeout=8) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+
+                    rows = data.get("data") or []
+                    if isinstance(rows, dict):
+                        rows = [rows]
+
+                    for row in rows:
+                        if not isinstance(row, dict):
+                            continue
+                        options = row.get("options") or []
+                        if isinstance(options, dict):
+                            options = [options]
+
+                        for opt in options:
+                            if not isinstance(opt, dict):
+                                continue
+
+                            contract = str(
+                                opt.get("option")
+                                or opt.get("contractSymbol")
+                                or opt.get("symbol")
+                                or ""
+                            ).upper()
+
+                            volume = opt.get("volume", 0)
+                            if isinstance(volume, str):
+                                volume = volume.replace(",", "").strip()
+                            try:
+                                volume = int(float(volume or 0))
+                            except Exception:
+                                volume = 0
+
+                            # CBOE 옵션 심볼은 계약 문자열 안에 C/P가 들어간다.
+                            # 일반 OCC 형식은 날짜 뒤에 C 또는 P가 위치한다.
+                            cp_pos = -1
+                            if contract:
+                                m = re.search(r"\d{6}([CP])", contract)
+                                if m:
+                                    cp_pos = m.start(1)
+
+                            if cp_pos >= 0:
+                                side = contract[cp_pos]
+                            else:
+                                side = str(opt.get("type") or opt.get("optionType") or "").upper()
+
+                            if side in ("C", "CALL"):
+                                call_vol += volume
+                            elif side in ("P", "PUT"):
+                                put_vol += volume
+
+                    if call_vol == 0 and put_vol == 0:
+                        print(f"[미국 옵션] {ticker_symbol} CBOE 조회 성공했지만 거래량 데이터가 없습니다.")
+                    else:
+                        print(
+                            f"[미국 옵션] {ticker_symbol} 성공 / CBOE / "
+                            f"CALL={call_vol} PUT={put_vol}"
+                        )
+
+                except urllib.error.HTTPError as e:
+                    option_error = e.code
+                    print(f"[미국 옵션] CBOE 실패 {ticker_symbol}: HTTP {e.code}")
+                except Exception as e:
+                    print(
+                        f"[미국 옵션] CBOE 실패 {ticker_symbol}: "
+                        f"{type(e).__name__}: {e}"
+                    )
+
+                if call_vol > 0:
+                    pc_ratio = put_vol / call_vol
+                    c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
+                    p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
+                    tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
+
+                    if pc_ratio <= 0.7:
+                        supply_content = (
+                            f"{tag_line}\n\n"
+                            "CBOE Options Volume\n\n"
+                            "현재 옵션 거래량이 상방 쪽으로 기울어 있어!\n"
+                            "콜옵션 거래량이 풋옵션보다 많아 상승 쪽 베팅이 상대적으로 강한 구간이야."
+                        )
+                    elif pc_ratio >= 1.1:
+                        supply_content = (
+                            f"{tag_line}\n\n"
+                            "CBOE Options Volume\n\n"
+                            "현재 옵션 거래량이 하방 쪽으로 기울어 있어!\n"
+                            "풋옵션 거래량이 콜옵션을 넘어 하락 방어 수요가 상대적으로 강한 구간이야."
+                        )
+                    else:
+                        supply_content = (
+                            f"{tag_line}\n\n"
+                            "CBOE Options Volume\n\n"
+                            "현재 옵션 시장이 팽팽하게 눈치싸움 중이야.\n"
+                            "콜과 풋 거래량이 크게 벌어지지 않아 방향성을 조금 더 확인할 필요가 있어."
+                        )
+                elif call_vol == 0 and put_vol == 0 and option_error:
+                    supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_error}"
+                else:
+                    supply_content = f"{ticker_symbol} 조회 성공 거래량 0"
+
+            except urllib.error.HTTPError as option_err:
+                supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_err.code}"
+                print(f"[미국 옵션] 전체 처리 실패 {ticker_symbol}: HTTP {option_err.code}")
+            except Exception as option_err:
+                supply_content = f"{ticker_symbol} 조회 실패"
+                print(
+                    f"[미국 옵션] 전체 처리 실패 {ticker_symbol}: "
+                    f"{type(option_err).__name__}: {option_err}"
+                )
 
         if not supply_content:
             supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
@@ -1834,6 +1696,7 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
+        news_list = fetch_realtime_news(raw_name)
         news_lines = (
             "\n".join([f"📰 \"{title}\"" for title in news_list])
             if news_list
@@ -1841,6 +1704,14 @@ def analyze():
         )
         news_transition = "이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야"
 
+        # 미국 공시는 별도 메뉴를 만들지 않고 '왜 올랐을까?' 뉴스 바로 아래에 통합한다.
+        official_filings_block = ""
+        kr_official_disclosures_block = ""
+
+        if not is_krw:
+            official_filings_block = format_us_official_filings(ticker_symbol)
+        else:
+            kr_official_disclosures_block = format_kr_official_disclosures(clean_code)
 
         # 첫 화면은 현재 주가를 가장 위에 배치한다.
         # 그 아래에는 기존의 친근한 말투를 다시 살리고,
