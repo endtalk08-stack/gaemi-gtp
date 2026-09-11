@@ -17,6 +17,9 @@ from email.utils import parsedate_to_datetime
 app = Flask(__name__)
 CORS(app)
 
+# Gunicorn/WSGI compatibility: Render Start Command `gunicorn app:app` can import this object.
+application = app
+
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
 
 US_KOREAN_NAMES = {
@@ -879,7 +882,23 @@ def _is_market_summary_news(title):
         if word.lower() in title_lower
     )
 
-    # 퍼센트 등락 + 마감/수급 표현은 대표적인 단순 시황 요약 패턴이다.
+    # 실제 원인/재료를 담은 기사까지 잘라내지 않도록 매우 보수적으로 제외한다.
+    # 예: "미 기술주 약세에 SK하이닉스 하락"은 시장 원인을 설명하므로 유지한다.
+    hard_event_hit = any(
+        word.lower() in title_lower for word in NEWS_HARD_EVENT_WORDS
+    )
+    cause_words = [
+        "때문", "영향", "여파", "악재", "호재", "우려", "기대", "부담",
+        "약세", "강세", "급등", "급락", "하락", "상승", "미국", "뉴욕",
+        "나스닥", "반도체", "기술주", "금리", "환율", "유가", "관세",
+        "전쟁", "지정학", "공급", "수요", "실적", "전망", "전망치",
+    ]
+    cause_hit = any(word in title_lower for word in cause_words)
+
+    if hard_event_hit or cause_hit:
+        return False
+
+    # 퍼센트/마감/수급만으로 구성된 전형적인 시세 요약만 제외한다.
     pct_hit = bool(re.search(r"[+-]?\d+(?:\.\d+)?%", title_lower))
     close_or_flow_hit = any(
         word in title_lower
@@ -888,19 +907,7 @@ def _is_market_summary_news(title):
             "거래량", "거래대금", "시황",
         ]
     )
-
-    # 확정된 실제 재료가 함께 있으면 '뉴스'로 유지한다.
-    hard_event_hit = any(
-        word.lower() in title_lower for word in NEWS_HARD_EVENT_WORDS
-    )
-
-    if hard_event_hit:
-        return False
-
-    if pct_hit and close_or_flow_hit:
-        return True
-
-    return summary_hits >= 2
+    return bool(pct_hit and close_or_flow_hit) or summary_hits >= 2
 
 # 화면 표시용 뉴스와 AI 분석용 후보를 분리한다.
 # 화면에는 핵심 3개만 보여주고, 내부에는 상위 후보를 보관해 추후 AI가 더 넓은 근거를 사용할 수 있게 한다.
@@ -1006,16 +1013,20 @@ def fetch_realtime_news(stock_name):
     seen_titles = set()
     seen_duplicate_keys = set()
 
-    queries = [str(stock_name).strip()]
-    ticker_guess = TICKERS.get(str(stock_name).strip())
+    # 종목코드 단독 검색은 뉴스가 아니라 종목표/시세성 문서를 끌어오는 경우가 많아 사용하지 않는다.
+    # Google News에서는 종목명 중심으로 검색하고, 원인/업종 맥락을 추가 검색한다.
+    clean_stock_name = str(stock_name).strip()
+    queries = [clean_stock_name]
+    if clean_stock_name:
+        for extra_query in [f"{clean_stock_name} 반도체", f"{clean_stock_name} 시장"]:
+            if extra_query not in queries:
+                queries.append(extra_query)
+
+    ticker_guess = TICKERS.get(clean_stock_name)
     if ticker_guess:
         ticker_guess = str(ticker_guess).replace(".KS", "").replace(".KQ", "")
-        if ticker_guess not in queries:
-            queries.append(ticker_guess)
-    elif re.match(r"^[A-Za-z\-]+$", str(stock_name).strip()):
-        ticker_guess = str(stock_name).upper()
-        if ticker_guess not in queries:
-            queries.append(ticker_guess)
+    elif re.match(r"^[A-Za-z\-]+$", clean_stock_name):
+        ticker_guess = clean_stock_name.upper()
 
     ticker_for_score = ticker_guess if ticker_guess else ""
 
@@ -1053,11 +1064,11 @@ def fetch_realtime_news(stock_name):
                 if not title:
                     continue
 
-                # 이미 상단의 주가/수급 정보와 중복되는 단순 시황 요약 기사는
-                # 뉴스 목록에서 제외한다. 실제 계약/실적/투자 등의 재료 기사는 유지한다.
-                if _is_market_summary_news(title):
-                    print(f"[뉴스 품질] {stock_name} 단순 주가·수급 요약 제외: {title}")
-                    continue
+                # 뉴스는 Google News RSS 원문을 최대한 보존한다.
+                # 특히 "미 기술주 약세에 삼성전자·SK하이닉스 하락"처럼
+                # 시장/업종 움직임의 원인을 설명하는 기사는 절대 제거하지 않는다.
+                # 화면 상단 데이터와 일부 내용이 겹치더라도 실제 시장 원인일 수 있으므로
+                # 여기서는 제목 중복만 제거한다.
 
                 title_key = re.sub(r"\s+", " ", title).lower()
                 duplicate_key = _news_duplicate_key(title)
@@ -1125,8 +1136,8 @@ def fetch_realtime_news(stock_name):
         if len(selected) >= 3:
             break
 
-    # 첫 후보가 지나치게 약하면 낮은 품질 기사를 억지로 표시하지 않는다.
-    selected = [x for x in selected if x["score"] >= 70]
+    # Google News에서 실제로 수집된 기사라면 점수 임계값 때문에 화면에서 사라지지 않게 한다.
+    # 점수는 우선순위 정렬에만 사용한다.
 
     print(
         f"[뉴스 품질] {stock_name} 후보={len(candidates)} / 내부AI={len(internal_candidates)} / 화면={len(selected)}"
@@ -1779,4 +1790,6 @@ def analyze():
         })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    # Render가 제공하는 PORT를 사용하고, 로컬 실행에서는 10000을 기본값으로 사용한다.
+    port = int(os.environ.get('PORT', '10000'))
+    app.run(host='0.0.0.0', port=port)
