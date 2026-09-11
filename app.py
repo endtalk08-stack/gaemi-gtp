@@ -12,6 +12,7 @@ import math
 import io
 import zipfile
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 
 app = Flask(__name__)
@@ -115,6 +116,14 @@ OPENDART_API_KEY = (
 )
 DART_CORP_CACHE = {"ts": 0.0, "map": {}}
 DART_DISCLOSURE_CACHE = {}
+
+# 외부 API는 서로 독립적인 요청을 동시에 처리해 전체 대기시간을 줄인다.
+# 너무 많은 동시 요청으로 외부 서비스에 부담을 주지 않도록 6개로 제한한다.
+API_EXECUTOR = ThreadPoolExecutor(max_workers=6)
+NEWS_RESULT_CACHE = {}
+OPTIONS_RESULT_CACHE = {}
+NEWS_CACHE_TTL = 120
+OPTIONS_CACHE_TTL = 60
 
 
 US_MATERIAL_FORMS = {
@@ -1004,7 +1013,7 @@ def _clean_news_title(title):
     title = re.sub(r'\.{2,}|…', ' · ', title)
     return title.strip().strip('"\'“”')
 
-def fetch_realtime_news(stock_name):
+def _fetch_realtime_news_uncached(stock_name):
     """
     뉴스는 넓게 수집한 뒤 강하게 필터링한다.
     화면에는 핵심 뉴스 3개만 제목으로 표시하고, 내부에는 상위 후보를 별도로 보관한다.
@@ -1174,6 +1183,19 @@ def fetch_realtime_news(stock_name):
         display_titles.append(display_title or original_title)
 
     return display_titles
+
+
+def fetch_realtime_news(stock_name):
+    """뉴스 결과를 짧게 캐시해 같은 종목의 반복 조회 대기시간을 줄인다."""
+    key = str(stock_name).strip()
+    now = datetime.datetime.now().timestamp()
+    cached = NEWS_RESULT_CACHE.get(key)
+    if cached and now - cached[0] < NEWS_CACHE_TTL:
+        return list(cached[1])
+
+    result = _fetch_realtime_news_uncached(stock_name)
+    NEWS_RESULT_CACHE[key] = (now, list(result))
+    return result
 
 
 def get_news_ai_candidates(stock_name, limit=10):
@@ -1354,6 +1376,118 @@ def round_krw_tick(price):
     except Exception:
         return 0
 
+def fetch_us_options_volume(ticker_symbol):
+    """CBOE 지연 옵션 거래량을 조회한다. 결과는 짧게 캐시한다."""
+    key = str(ticker_symbol).upper().strip()
+    now = datetime.datetime.now().timestamp()
+    cached = OPTIONS_RESULT_CACHE.get(key)
+    if cached and now - cached[0] < OPTIONS_CACHE_TTL:
+        return cached[1], cached[2], cached[3]
+
+    call_vol = 0
+    put_vol = 0
+    option_error = None
+    try:
+        cboe_url = (
+            f"https://cdn.cboe.com/api/global/delayed_quotes/options/"
+            f"{urllib.parse.quote(key)}.json"
+        )
+        req = urllib.request.Request(
+            cboe_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/152.0.0.0 Safari/537.36",
+                "Accept": "application/json,text/plain,*/*",
+            }
+        )
+        # 기존 8초는 전체 화면을 붙잡는 시간이 너무 길어 4초로 제한한다.
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        rows = data.get("data") or []
+        if isinstance(rows, dict):
+            rows = [rows]
+
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            options = row.get("options") or []
+            if isinstance(options, dict):
+                options = [options]
+
+            for opt in options:
+                if not isinstance(opt, dict):
+                    continue
+                contract = str(
+                    opt.get("option")
+                    or opt.get("contractSymbol")
+                    or opt.get("symbol")
+                    or ""
+                ).upper()
+                volume = opt.get("volume", 0)
+                if isinstance(volume, str):
+                    volume = volume.replace(",", "").strip()
+                try:
+                    volume = int(float(volume or 0))
+                except Exception:
+                    volume = 0
+
+                cp_pos = -1
+                if contract:
+                    m = re.search(r"\d{6}([CP])", contract)
+                    if m:
+                        cp_pos = m.start(1)
+                if cp_pos >= 0:
+                    side = contract[cp_pos]
+                else:
+                    side = str(opt.get("type") or opt.get("optionType") or "").upper()
+
+                if side in ("C", "CALL"):
+                    call_vol += volume
+                elif side in ("P", "PUT"):
+                    put_vol += volume
+
+        print(f"[미국 옵션] {key} 성공 / CBOE / CALL={call_vol} PUT={put_vol}")
+    except urllib.error.HTTPError as e:
+        option_error = e.code
+        print(f"[미국 옵션] CBOE 실패 {key}: HTTP {e.code}")
+    except Exception as e:
+        option_error = type(e).__name__
+        print(f"[미국 옵션] CBOE 실패 {key}: {type(e).__name__}: {e}")
+
+    OPTIONS_RESULT_CACHE[key] = (now, call_vol, put_vol, option_error)
+    return call_vol, put_vol, option_error
+
+
+def build_us_options_content(ticker_symbol, call_vol, put_vol, option_error):
+    if call_vol > 0:
+        pc_ratio = put_vol / call_vol
+        c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
+        p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
+        tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
+        if pc_ratio <= 0.7:
+            return (
+                f"{tag_line}\n\nCBOE Options Volume\n\n"
+                "현재 옵션 거래량이 상방 쪽으로 기울어 있어!\n"
+                "콜옵션 거래량이 풋옵션보다 많아 상승 쪽 베팅이 상대적으로 강한 구간이야."
+            )
+        if pc_ratio >= 1.1:
+            return (
+                f"{tag_line}\n\nCBOE Options Volume\n\n"
+                "현재 옵션 거래량이 하방 쪽으로 기울어 있어!\n"
+                "풋옵션 거래량이 콜옵션을 넘어 하락 방어 수요가 상대적으로 강한 구간이야."
+            )
+        return (
+            f"{tag_line}\n\nCBOE Options Volume\n\n"
+            "현재 옵션 시장이 팽팽하게 눈치싸움 중이야.\n"
+            "콜과 풋 거래량이 크게 벌어지지 않아 방향성을 조금 더 확인할 필요가 있어."
+        )
+    if option_error:
+        return f"{ticker_symbol} 조회 실패 HTTP {option_error}"
+    return f"{ticker_symbol} 조회 성공 거래량 0"
+
+
 def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
@@ -1483,10 +1617,19 @@ def analyze():
         volume_profile = None
         supply_content = ""
 
-        # 1. 국내 주식
+        # 1~2. 외부 API는 서로 독립적인 요청을 동시에 실행한다.
+        # 기존 데이터/계산/화면 구조는 유지하고 "기다리는 순서"만 개선한다.
         if is_krw and clean_code:
-            cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
-            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
+            realtime_future = API_EXECUTOR.submit(fetch_kr_stock_realtime, clean_code)
+            trend_future = API_EXECUTOR.submit(fetch_krx_trend_and_supply, clean_code)
+            news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
+            disclosure_future = API_EXECUTOR.submit(format_kr_official_disclosures, clean_code)
+
+            cur_p, diff, ratio = realtime_future.result()
+            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = trend_future.result()
+            news_list = news_future.result()
+            kr_official_disclosures_block = disclosure_future.result()
+            official_filings_block = ""
 
             current_price = cur_p if cur_p else 1783000.0
             change_pct = ratio if ratio is not None else 8.26
@@ -1519,14 +1662,23 @@ def analyze():
 
         # 2. 미국 주식
         else:
-            cur_p, prev_p, ma20_val, res_val, volume_profile = fetch_yahoo_direct_v8(ticker_symbol)
+            yahoo_future = API_EXECUTOR.submit(fetch_yahoo_direct_v8, ticker_symbol)
+            options_future = API_EXECUTOR.submit(fetch_us_options_volume, ticker_symbol)
+            news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
+            filing_future = API_EXECUTOR.submit(format_us_official_filings, ticker_symbol)
+
+            cur_p, prev_p, ma20_val, res_val, volume_profile = yahoo_future.result()
+            call_vol, put_vol, option_error = options_future.result()
+            news_list = news_future.result()
+            official_filings_block = filing_future.result()
+            kr_official_disclosures_block = ""
+
             if cur_p and prev_p:
                 current_price = cur_p
                 change_pct = ((cur_p - prev_p) / prev_p) * 100
                 ma20 = ma20_val or 0.0
                 resistance_price = res_val or 0.0
             else:
-                # 실제 시세 조회 실패 시 임의의 가격을 만들지 않는다.
                 current_price = 0.0
                 change_pct = 0.0
                 ma20 = 0.0
@@ -1537,139 +1689,9 @@ def analyze():
             price_str = f"${current_price:,.2f}" if current_price > 0 else "시세 조회 실패"
             ma20_str = f"${ma20:,.2f}" if ma20 > 0 else "계산 대기"
             res_str = f"${resistance_price:,.2f}" if resistance_price > 0 else "계산 대기"
-
-            # 미국 옵션 수급: CBOE 공개 지연 옵션체인 사용
-            # Yahoo crumb 방식은 사용하지 않는다. CBOE 엔드포인트는 API 키가 필요 없고
-            # 옵션 계약별 volume을 제공한다. (약 15분 지연)
-            try:
-                call_vol = 0
-                put_vol = 0
-                option_error = None
-
-                try:
-                    cboe_url = (
-                        f"https://cdn.cboe.com/api/global/delayed_quotes/options/"
-                        f"{urllib.parse.quote(ticker_symbol)}.json"
-                    )
-                    req = urllib.request.Request(
-                        cboe_url,
-                        headers={
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                                          "Chrome/152.0.0.0 Safari/537.36",
-                            "Accept": "application/json,text/plain,*/*",
-                        }
-                    )
-
-                    with urllib.request.urlopen(req, timeout=8) as resp:
-                        data = json.loads(resp.read().decode("utf-8"))
-
-                    rows = data.get("data") or []
-                    if isinstance(rows, dict):
-                        rows = [rows]
-
-                    for row in rows:
-                        if not isinstance(row, dict):
-                            continue
-                        options = row.get("options") or []
-                        if isinstance(options, dict):
-                            options = [options]
-
-                        for opt in options:
-                            if not isinstance(opt, dict):
-                                continue
-
-                            contract = str(
-                                opt.get("option")
-                                or opt.get("contractSymbol")
-                                or opt.get("symbol")
-                                or ""
-                            ).upper()
-
-                            volume = opt.get("volume", 0)
-                            if isinstance(volume, str):
-                                volume = volume.replace(",", "").strip()
-                            try:
-                                volume = int(float(volume or 0))
-                            except Exception:
-                                volume = 0
-
-                            # CBOE 옵션 심볼은 계약 문자열 안에 C/P가 들어간다.
-                            # 일반 OCC 형식은 날짜 뒤에 C 또는 P가 위치한다.
-                            cp_pos = -1
-                            if contract:
-                                m = re.search(r"\d{6}([CP])", contract)
-                                if m:
-                                    cp_pos = m.start(1)
-
-                            if cp_pos >= 0:
-                                side = contract[cp_pos]
-                            else:
-                                side = str(opt.get("type") or opt.get("optionType") or "").upper()
-
-                            if side in ("C", "CALL"):
-                                call_vol += volume
-                            elif side in ("P", "PUT"):
-                                put_vol += volume
-
-                    if call_vol == 0 and put_vol == 0:
-                        print(f"[미국 옵션] {ticker_symbol} CBOE 조회 성공했지만 거래량 데이터가 없습니다.")
-                    else:
-                        print(
-                            f"[미국 옵션] {ticker_symbol} 성공 / CBOE / "
-                            f"CALL={call_vol} PUT={put_vol}"
-                        )
-
-                except urllib.error.HTTPError as e:
-                    option_error = e.code
-                    print(f"[미국 옵션] CBOE 실패 {ticker_symbol}: HTTP {e.code}")
-                except Exception as e:
-                    print(
-                        f"[미국 옵션] CBOE 실패 {ticker_symbol}: "
-                        f"{type(e).__name__}: {e}"
-                    )
-
-                if call_vol > 0:
-                    pc_ratio = put_vol / call_vol
-                    c_str = f"{call_vol/10000:.1f}만건" if call_vol >= 10000 else f"{call_vol:,}건"
-                    p_str = f"{put_vol/10000:.1f}만건" if put_vol >= 10000 else f"{put_vol:,}건"
-                    tag_line = f"#콜 {c_str}   #풋 {p_str}   #비율 {pc_ratio:.2f}"
-
-                    if pc_ratio <= 0.7:
-                        supply_content = (
-                            f"{tag_line}\n\n"
-                            "CBOE Options Volume\n\n"
-                            "현재 옵션 거래량이 상방 쪽으로 기울어 있어!\n"
-                            "콜옵션 거래량이 풋옵션보다 많아 상승 쪽 베팅이 상대적으로 강한 구간이야."
-                        )
-                    elif pc_ratio >= 1.1:
-                        supply_content = (
-                            f"{tag_line}\n\n"
-                            "CBOE Options Volume\n\n"
-                            "현재 옵션 거래량이 하방 쪽으로 기울어 있어!\n"
-                            "풋옵션 거래량이 콜옵션을 넘어 하락 방어 수요가 상대적으로 강한 구간이야."
-                        )
-                    else:
-                        supply_content = (
-                            f"{tag_line}\n\n"
-                            "CBOE Options Volume\n\n"
-                            "현재 옵션 시장이 팽팽하게 눈치싸움 중이야.\n"
-                            "콜과 풋 거래량이 크게 벌어지지 않아 방향성을 조금 더 확인할 필요가 있어."
-                        )
-                elif call_vol == 0 and put_vol == 0 and option_error:
-                    supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_error}"
-                else:
-                    supply_content = f"{ticker_symbol} 조회 성공 거래량 0"
-
-            except urllib.error.HTTPError as option_err:
-                supply_content = f"{ticker_symbol} 조회 실패 HTTP {option_err.code}"
-                print(f"[미국 옵션] 전체 처리 실패 {ticker_symbol}: HTTP {option_err.code}")
-            except Exception as option_err:
-                supply_content = f"{ticker_symbol} 조회 실패"
-                print(
-                    f"[미국 옵션] 전체 처리 실패 {ticker_symbol}: "
-                    f"{type(option_err).__name__}: {option_err}"
-                )
+            supply_content = build_us_options_content(
+                ticker_symbol, call_vol, put_vol, option_error
+            )
 
         if not supply_content:
             supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
@@ -1696,7 +1718,6 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
-        news_list = fetch_realtime_news(raw_name)
         news_lines = (
             "\n".join([f"📰 \"{title}\"" for title in news_list])
             if news_list
@@ -1704,14 +1725,6 @@ def analyze():
         )
         news_transition = "이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야"
 
-        # 미국 공시는 별도 메뉴를 만들지 않고 '왜 올랐을까?' 뉴스 바로 아래에 통합한다.
-        official_filings_block = ""
-        kr_official_disclosures_block = ""
-
-        if not is_krw:
-            official_filings_block = format_us_official_filings(ticker_symbol)
-        else:
-            kr_official_disclosures_block = format_kr_official_disclosures(clean_code)
 
         # 첫 화면은 현재 주가를 가장 위에 배치한다.
         # 그 아래에는 기존의 친근한 말투를 다시 살리고,
