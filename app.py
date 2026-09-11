@@ -1045,24 +1045,22 @@ def fetch_realtime_news(stock_name):
 
             root = ET.fromstring(xml_data)
             for item in root.findall('.//item'):
-                title_el = item.find('title')
-                source_el = item.find('source')
-                pub_el = item.find('pubDate')
-
-                title = _clean_news_title(
-                    title_el.text if title_el is not None else ""
-                )
-                source = (
-                    (source_el.text or "").strip()
-                    if source_el is not None else ""
-                )
-                pub_date = (
-                    (pub_el.text or "").strip()
-                    if pub_el is not None else ""
-                )
-
-                if not title:
-                    continue
+            title = item.findtext('title') or ""
+            link = item.findtext('link') or ""
+            pub_date = item.findtext('pubDate') or ""
+            source = ""
+            
+            source_elem = item.find('source')
+            if source_elem is not None:
+                source = source_elem.text or ""
+                
+            if not title:
+                continue
+                
+            # 🔥 [추가한 핵심 방어선] 제목에 종목명이 아예 안 들어가면 찌라시/엉뚱한 기사로 판단하고 제외!
+            # (단, 영문 티커나 한글 이름을 함께 체크)
+            if stock_name not in title and "하이닉스" not in title and "SK" not in title:
+                continue
 
                 # 뉴스는 Google News RSS 원문을 최대한 보존한다.
                 # 특히 "미 기술주 약세에 삼성전자·SK하이닉스 하락"처럼
