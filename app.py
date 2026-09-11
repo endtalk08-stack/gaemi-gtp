@@ -862,53 +862,55 @@ NEWS_NOISE_WORDS = [
 NEWS_MARKET_SUMMARY_WORDS = [
     "보합 마감", "상승 마감", "하락 마감", "급등 마감", "급락 마감",
     "장 마감", "마감 시황", "장 마감 시황", "오늘의 시황", "시황",
-    "주가", "수급", "외국인·기관", "외국인 기관", "기관·외국인",
-    "기관 외국인", "외국인 순매수", "외국인 순매도", "기관 순매수",
-    "기관 순매도", "거래량", "거래대금", "상승률", "하락률",
-    "등락", "장중", "증시 마감", "마감",
+]
+
+# 뉴스 화면에서 정말 제외해야 하는 것은 '주가 숫자/종목코드만 전달하는 제목'이다.
+# 시장·업종·금리·유가·수급 등 원인을 설명하는 기사는 절대 일괄 제외하지 않는다.
+NEWS_CAUSE_WORDS = [
+    "왜", "이유", "영향", "여파", "때문", "삭풍", "급등", "급락", "하락", "상승",
+    "금리", "국채", "유가", "원유", "나스닥", "뉴욕증시", "미국 기술주", "기술주",
+    "반도체", "메모리", "hbm", "수요", "공급", "실적", "매출", "영업이익",
+    "가이던스", "수주", "계약", "투자", "증설", "감산", "관세", "규제", "제재",
+    "승인", "특허", "소송", "adr", "외국인", "기관", "순매도", "순매수",
+    "차익실현", "위험선호", "위험회피", "fomc", "연준", "인플레이션", "pce", "ppi",
 ]
 
 def _is_market_summary_news(title):
-    """현재 주가/수급을 단순 요약한 기사인지 판별한다.
-
-    단순 요약만 제외하고, 실제 사건/재료가 함께 언급된 기사는 보존한다.
-    """
-    title_lower = (title or "").lower()
-    if not title_lower:
-        return False
-
-    summary_hits = sum(
-        1 for word in NEWS_MARKET_SUMMARY_WORDS
-        if word.lower() in title_lower
-    )
-
-    # 퍼센트 등락 + 마감/수급 표현은 대표적인 단순 시황 요약 패턴이다.
-    pct_hit = bool(re.search(r"[+-]?\d+(?:\.\d+)?%", title_lower))
-    close_or_flow_hit = any(
-        word in title_lower
-        for word in [
-            "마감", "수급", "순매수", "순매도", "등락", "상승률", "하락률",
-            "거래량", "거래대금", "시황",
-        ]
-    )
-
-    # 확정된 실제 재료가 함께 있으면 '뉴스'로 유지한다.
-    hard_event_hit = any(
-        word.lower() in title_lower for word in NEWS_HARD_EVENT_WORDS
-    )
-
-    if hard_event_hit:
-        return False
-
-    if pct_hit and close_or_flow_hit:
+    """주가 숫자만 전달하는 잡음은 제외하되, 시장/업종 원인을 설명하는 뉴스는 보존한다."""
+    t = re.sub(r"\s+", " ", (title or "")).strip().lower()
+    if not t:
         return True
 
-    return summary_hits >= 2
+    # 종목코드만 있거나 코드/가격 정보만 있는 제목은 제거.
+    compact = re.sub(r"[^0-9a-z가-힣%+-]", "", t)
+    if re.fullmatch(r"[0-9]{6}", compact or ""):
+        return True
+
+    # 실제 원인·재료가 들어간 제목은 시장 요약 표현이 있어도 무조건 보존.
+    if any(word.lower() in t for word in NEWS_CAUSE_WORDS):
+        return False
+    if any(word.lower() in t for word in NEWS_HARD_EVENT_WORDS):
+        return False
+
+    # 숫자/등락/수급만 나열한 전형적인 시황 제목만 제거.
+    pct_hit = bool(re.search(r"[+-]?\d+(?:\.\d+)?%", t))
+    summary_hit = any(word.lower() in t for word in [
+        "등락", "상승률", "하락률", "거래량", "거래대금", "순매수", "순매도",
+        "외국인·기관", "외국인 기관", "기관·외국인", "마감", "시황",
+    ])
+    if pct_hit and summary_hit:
+        return True
+
+    # 제목이 종목코드/숫자/가격 정보 위주이고 의미 있는 한글 문장이 없으면 제거.
+    alpha = re.sub(r"[0-9,%.()\[\]\-+/:·|]", " ", t)
+    words = [w for w in re.split(r"\s+", alpha) if w]
+    if len(words) <= 2 and summary_hit:
+        return True
+
+    return False
 
 # 화면 표시용 뉴스와 AI 분석용 후보를 분리한다.
-# 화면에는 핵심 3개만 보여주고, 내부에는 상위 후보를 보관해 추후 AI가 더 넓은 근거를 사용할 수 있게 한다.
 NEWS_AI_CANDIDATES_CACHE = {}
-
 
 def _news_source_score(source_name):
     source = (source_name or "").strip()
@@ -1002,23 +1004,25 @@ def _clean_news_title(title):
 
 def fetch_realtime_news(stock_name):
     """
-    뉴스는 넓게 수집한 뒤 강하게 필터링한다.
-    화면에는 핵심 뉴스 3개만 제목으로 표시하고, 내부에는 상위 후보를 별도로 보관한다.
+    Google News RSS에서 실제 기사를 수집한다.
+    종목코드/숫자성 잡음과 중복만 줄이고, 시장·업종·기업 원인을 설명하는 뉴스는 보존한다.
     """
     candidates = []
     seen_titles = set()
     seen_duplicate_keys = set()
 
-    queries = [str(stock_name).strip()]
-    ticker_guess = TICKERS.get(str(stock_name).strip())
+    stock_text = str(stock_name).strip()
+    ticker_guess = TICKERS.get(stock_text)
     if ticker_guess:
         ticker_guess = str(ticker_guess).replace(".KS", "").replace(".KQ", "")
-        if ticker_guess not in queries:
-            queries.append(ticker_guess)
-    elif re.match(r"^[A-Za-z\-]+$", str(stock_name).strip()):
-        ticker_guess = str(stock_name).upper()
-        if ticker_guess not in queries:
-            queries.append(ticker_guess)
+    elif re.match(r"^[A-Za-z\-]+$", stock_text):
+        ticker_guess = stock_text.upper()
+
+    # 국내 종목은 종목코드 단독 검색을 하지 않는다. 코드 검색은
+    # '(000660)' 같은 주가/기여율/시황 데이터성 결과를 대량으로 끌어오는 문제가 있다.
+    queries = [stock_text]
+    if re.match(r"^[A-Za-z\-]+$", stock_text) and ticker_guess and ticker_guess.lower() != stock_text.lower():
+        queries.append(ticker_guess)
 
     ticker_for_score = ticker_guess if ticker_guess else ""
 
@@ -1056,11 +1060,11 @@ def fetch_realtime_news(stock_name):
                 if not title:
                     continue
 
-                # 이미 상단의 주가/수급 정보와 중복되는 단순 시황 요약 기사는
-                # 뉴스 목록에서 제외한다. 실제 계약/실적/투자 등의 재료 기사는 유지한다.
-                if _is_market_summary_news(title):
-                    print(f"[뉴스 품질] {stock_name} 단순 주가·수급 요약 제외: {title}")
-                    continue
+                # 뉴스는 Google News RSS 원문을 최대한 보존한다.
+                # 특히 "미 기술주 약세에 삼성전자·SK하이닉스 하락"처럼
+                # 시장/업종 움직임의 원인을 설명하는 기사는 절대 제거하지 않는다.
+                # 화면 상단 데이터와 일부 내용이 겹치더라도 실제 시장 원인일 수 있으므로
+                # 여기서는 제목 중복만 제거한다.
 
                 title_key = re.sub(r"\s+", " ", title).lower()
                 duplicate_key = _news_duplicate_key(title)
@@ -1128,8 +1132,8 @@ def fetch_realtime_news(stock_name):
         if len(selected) >= 3:
             break
 
-    # 첫 후보가 지나치게 약하면 낮은 품질 기사를 억지로 표시하지 않는다.
-    selected = [x for x in selected if x["score"] >= 70]
+    # Google News에서 실제로 수집된 기사라면 점수 임계값 때문에 화면에서 사라지지 않게 한다.
+    # 점수는 우선순위 정렬에만 사용한다.
 
     print(
         f"[뉴스 품질] {stock_name} 후보={len(candidates)} / 내부AI={len(internal_candidates)} / 화면={len(selected)}"
