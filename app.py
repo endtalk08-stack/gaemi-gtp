@@ -1133,21 +1133,20 @@ def _fetch_realtime_news_uncached(stock_name):
     terms = _news_terms_for_stock(clean_stock_name, ticker_guess)
     primary = terms[0] if terms else clean_stock_name
 
-    # 4개 검색을 동시에 수행한다. 검색 범위를 넓히되, 각 검색어는 종목을 반드시 포함한다.
+    # 검색 범위를 넓혀 실제 후보가 부족해지는 것을 방지한다.
     queries = [
         primary,
         f"{primary} 실적 계약 수주 투자 공급",
         f"{primary} 악재 우려 규제 관세 소송",
         f"{primary} 반도체 시장 미국 금리 수요",
+        f"{primary} 전망 주가 증권",
+        f"{primary} 산업 업황 공급망",
     ]
-    # 영문 종목은 티커/회사명을 활용한 검색도 한 번 포함한다.
     if ticker_guess and re.match(r"^[A-Za-z\-]+$", str(ticker_guess)):
         queries[0] = f"{primary} {ticker_guess}"
 
     raw_rows = []
-    # API_EXECUTOR는 /analyze의 다른 작업을 처리하므로 뉴스 내부 병렬화에는 별도 executor를 사용한다.
-    # 요청 수를 4개로 고정해 과도한 동시 요청을 피한다.
-    news_executor = ThreadPoolExecutor(max_workers=4)
+    news_executor = ThreadPoolExecutor(max_workers=6)
     try:
         futures = [news_executor.submit(_fetch_one_news_rss, q) for q in queries]
         for future in futures:
@@ -1161,7 +1160,10 @@ def _fetch_realtime_news_uncached(stock_name):
     all_terms_lower = [x.lower() for x in terms if x]
 
     for row in raw_rows:
-        title = row["title"]
+        title = str(row.get("title") or "").strip()
+        if not title:
+            continue
+
         title_lower = title.lower()
         title_key = re.sub(r"\s+", " ", title_lower).strip()
         duplicate_key = _news_duplicate_key(title)
@@ -1170,36 +1172,40 @@ def _fetch_realtime_news_uncached(stock_name):
         seen_titles.add(title_key)
         seen_duplicate_keys.add(duplicate_key)
 
-        freshness_score = _news_freshness_score(row["pub_date"])
+        freshness_score = _news_freshness_score(row.get("pub_date"))
         if freshness_score == 0:
             continue
 
         direct = any(term in title_lower for term in all_terms_lower)
-        material_hit = _news_contains_any(title_lower, NEWS_HARD_EVENT_WORDS + NEWS_MATERIAL_WORDS)
+        material_hit = _news_contains_any(
+            title_lower, NEWS_HARD_EVENT_WORDS + NEWS_MATERIAL_WORDS
+        )
         market_cause_hit = _news_contains_any(title_lower, NEWS_MARKET_CAUSE_WORDS)
         noise_hit = _news_contains_any(title_lower, NEWS_NOISE_WORDS)
         market_summary = _is_market_summary_news(title)
 
-        # 핵심 필터:
-        # 1) 종목과 직접 관계가 없고 시장/업종 원인도 없으면 제거
-        # 2) 종목명은 있지만 재료/원인 없이 잡음성 기사면 제거
-        # 3) 단순 주가/수급 요약은 제거
+        # 강한 필터는 유지하되, '종목명 + 일반 관련 기사'까지 후보에 포함한다.
+        # 시장 전체와 무관하고 종목 직접성도 없는 기사만 제거한다.
         if not direct and not market_cause_hit:
             continue
-        if market_summary:
+        if market_summary and not material_hit and not market_cause_hit:
             continue
         if direct and noise_hit and not material_hit and not market_cause_hit:
             continue
 
-        source_score = _news_source_score(row["source"])
-        relevance_score = _news_relevance_score(title, clean_stock_name, ticker_guess or "")
-        impact_type = _news_impact_type(title, clean_stock_name, ticker_guess or "")
+        source_score = _news_source_score(row.get("source", ""))
+        relevance_score = _news_relevance_score(
+            title, clean_stock_name, ticker_guess or ""
+        )
+        impact_type = _news_impact_type(
+            title, clean_stock_name, ticker_guess or ""
+        )
 
-        # 직접 관련 뉴스가 시장원인 뉴스보다 우선. 호재/악재는 동일하게 취급한다.
         direct_bonus = 28 if direct else 0
         material_bonus = 24 if material_hit else 0
         cause_bonus = 12 if market_cause_hit else 0
         noise_penalty = 25 if noise_hit else 0
+
         score = (
             source_score
             + freshness_score
@@ -1212,8 +1218,8 @@ def _fetch_realtime_news_uncached(stock_name):
 
         candidates.append({
             "title": title,
-            "source": row["source"],
-            "pub_date": row["pub_date"],
+            "source": row.get("source", ""),
+            "pub_date": row.get("pub_date"),
             "source_score": source_score,
             "freshness_score": freshness_score,
             "relevance_score": relevance_score,
@@ -1229,38 +1235,41 @@ def _fetch_realtime_news_uncached(stock_name):
             x["score"],
             x["direct"],
             x["material"],
+            x["market_cause"],
             x["freshness_score"],
         ),
         reverse=True,
     )
 
-    # AI 분석용 후보는 최대 10개를 보관한다.
     internal_candidates = [dict(item) for item in candidates[:10]]
     NEWS_AI_CANDIDATES_CACHE[clean_stock_name] = internal_candidates
 
-    # 화면은 3개. 같은 기사/언론사만 반복되는 것을 막되, 억지로 약한 기사를 넣지는 않는다.
+    # 화면은 최대 3개.
+    # 1순위: 직접 재료 → 2순위: 일반 직접 관련 → 3순위: 시장/업종 원인.
+    # 출처가 같다는 이유만으로 3번째 뉴스를 막지 않는다.
     selected = []
-    selected_sources = set()
 
-    # 우선 직접 재료 뉴스 → 시장/업종 원인 뉴스 순서로 선택
     preferred = [x for x in candidates if x["direct"] and x["material"]]
-    secondary = [x for x in candidates if x not in preferred and x["direct"]]
-    market_items = [x for x in candidates if x not in preferred and x not in secondary]
+    secondary = [
+        x for x in candidates
+        if x not in preferred and x["direct"] and not x["material"]
+    ]
+    market_items = [
+        x for x in candidates
+        if x not in preferred and x not in secondary
+    ]
 
     for pool in (preferred, secondary, market_items):
         for item in pool:
-            source_key = item["source"].lower().strip()
-            # 같은 언론사 기사를 2개 이상 넣어야 할 경우에도 점수 차이가 너무 크지 않을 때만 허용
-            if source_key in selected_sources and len(selected) < 2:
+            if item in selected:
                 continue
             selected.append(item)
-            selected_sources.add(source_key)
             if len(selected) >= 3:
                 break
         if len(selected) >= 3:
             break
 
-    # 출처 다양성 때문에 3개를 못 채우는 경우에는 남은 상위 후보로 채운다.
+    # 그래도 3개가 안 되면 후보 전체에서 점수순으로 보충한다.
     if len(selected) < 3:
         selected_keys = {x["title"].lower() for x in selected}
         for item in candidates:
@@ -1283,7 +1292,6 @@ def _fetch_realtime_news_uncached(stock_name):
             f"source={item['source']}"
         )
 
-    # 화면에서는 종목명을 제거해 제목을 깔끔하게 표시한다.
     display_titles = []
     company_names = set(terms)
     for item in selected[:3]:
@@ -1292,14 +1300,15 @@ def _fetch_realtime_news_uncached(stock_name):
         for company_name in sorted(company_names, key=len, reverse=True):
             if company_name:
                 display_title = display_title.replace(company_name, "")
-                display_title = re.sub(re.escape(company_name), "", display_title, flags=re.IGNORECASE)
+                display_title = re.sub(
+                    re.escape(company_name), "", display_title, flags=re.IGNORECASE
+                )
         display_title = re.sub(r"\s+", " ", display_title).strip()
         display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
         display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
         display_titles.append(display_title or original_title)
 
     return display_titles
-
 
 def fetch_realtime_news(stock_name):
     """뉴스 결과를 120초 캐시해 같은 종목의 반복 조회 대기시간을 줄인다."""
