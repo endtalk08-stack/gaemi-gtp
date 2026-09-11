@@ -755,6 +755,30 @@ def fetch_krx_trend_and_supply(code_six):
         print("네이버 수급 집계 예외:", e)
     return 0, 0, None, None, None, 0
 
+def fetch_kr_historical_volume_profile(ticker_symbol):
+    """국내 종목의 과거 6개월 일봉 OHLCV로 거래량 매물대를 계산한다.
+    실시간 현재가/수급은 향후 증권사 API를 사용하고, 이 함수는 과거 분포 계산용이다.
+    """
+    try:
+        symbol = str(ticker_symbol or "").strip()
+        if not symbol:
+            return None
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}?range=6mo&interval=1d"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        result = (data.get("chart", {}).get("result") or [None])[0]
+        if not result:
+            return None
+        quote = (result.get("indicators", {}).get("quote") or [{}])[0]
+        return calculate_volume_profile_levels(
+            quote.get("high") or [], quote.get("low") or [],
+            quote.get("close") or [], quote.get("volume") or [], bins=24
+        )
+    except Exception as e:
+        print(f"[국내 매물대] {ticker_symbol} 계산 예외: {type(e).__name__}: {e}")
+        return None
+
 def fetch_yahoo_direct_v8(ticker_str):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker_str}?range=6mo&interval=1d"
@@ -1006,6 +1030,8 @@ def _news_freshness_score(pub_date):
             return 14
         if age_hours <= 168:
             return 4
+        if age_hours <= 336:
+            return 1
     except Exception:
         pass
     return 0
@@ -1093,11 +1119,12 @@ def _clean_news_title(title):
     return title.strip().strip('"\'“”')
 
 
-def _fetch_one_news_rss(search_term):
-    """Google News RSS 한 검색어를 조회한다. 결과가 없으면 빈 목록을 반환."""
+def _fetch_one_news_rss(search_term, days=7):
+    """Google News RSS 한 검색어를 조회한다. 기본 7일, 부족할 때만 보충 기간을 넓힌다."""
     rows = []
     try:
-        search_query = f'"{search_term}" when:7d' if search_term else ""
+        days = max(1, int(days))
+        search_query = f'"{search_term}" when:{days}d' if search_term else ""
         query = urllib.parse.quote(search_query)
         url = (
             f"https://news.google.com/rss/search?q={query}"
@@ -1122,7 +1149,7 @@ def _fetch_one_news_rss(search_term):
 
 
 def _fetch_realtime_news_uncached(stock_name):
-    """종목에 직접 영향을 줄 가능성이 높은 최신 호재/악재/시장원인 뉴스를 수집한다."""
+    """종목 관련 최신 호재/악재/시장원인 뉴스를 수집한다. 기본 7일, 부족할 때 14일 보충."""
     clean_stock_name = str(stock_name or "").strip()
     ticker_guess = TICKERS.get(clean_stock_name)
     if ticker_guess:
@@ -1133,157 +1160,141 @@ def _fetch_realtime_news_uncached(stock_name):
     terms = _news_terms_for_stock(clean_stock_name, ticker_guess)
     primary = terms[0] if terms else clean_stock_name
 
-    # 4개 검색을 동시에 수행한다. 검색 범위를 넓히되, 각 검색어는 종목을 반드시 포함한다.
     queries = [
         primary,
         f"{primary} 실적 계약 수주 투자 공급",
         f"{primary} 악재 우려 규제 관세 소송",
+        f"{primary} 호재 기대 전망 수요 고객",
         f"{primary} 반도체 시장 미국 금리 수요",
     ]
-    # 영문 종목은 티커/회사명을 활용한 검색도 한 번 포함한다.
     if ticker_guess and re.match(r"^[A-Za-z\-]+$", str(ticker_guess)):
         queries[0] = f"{primary} {ticker_guess}"
 
-    raw_rows = []
-    # API_EXECUTOR는 /analyze의 다른 작업을 처리하므로 뉴스 내부 병렬화에는 별도 executor를 사용한다.
-    # 요청 수를 4개로 고정해 과도한 동시 요청을 피한다.
-    news_executor = ThreadPoolExecutor(max_workers=4)
-    try:
-        futures = [news_executor.submit(_fetch_one_news_rss, q) for q in queries]
-        for future in futures:
-            raw_rows.extend(future.result())
-    finally:
-        news_executor.shutdown(wait=True)
+    def collect_queries(query_items, days):
+        rows = []
+        executor = ThreadPoolExecutor(max_workers=min(5, len(query_items)))
+        try:
+            futures = [executor.submit(_fetch_one_news_rss, q, days) for q in query_items]
+            for future in futures:
+                try:
+                    rows.extend(future.result())
+                except Exception as e:
+                    print(f"[뉴스] 검색 작업 예외: {type(e).__name__}: {e}")
+        finally:
+            executor.shutdown(wait=True)
+        return rows
 
-    candidates = []
-    seen_titles = set()
-    seen_duplicate_keys = set()
-    all_terms_lower = [x.lower() for x in terms if x]
+    raw_rows = collect_queries(queries, 7)
 
-    for row in raw_rows:
-        title = row["title"]
-        title_lower = title.lower()
-        title_key = re.sub(r"\s+", " ", title_lower).strip()
-        duplicate_key = _news_duplicate_key(title)
-        if title_key in seen_titles or duplicate_key in seen_duplicate_keys:
-            continue
-        seen_titles.add(title_key)
-        seen_duplicate_keys.add(duplicate_key)
+    def build_candidates(rows):
+        candidates = []
+        seen_titles = set()
+        seen_duplicate_keys = set()
+        all_terms_lower = [x.lower() for x in terms if x]
 
-        freshness_score = _news_freshness_score(row["pub_date"])
-        if freshness_score == 0:
-            continue
+        for row in rows:
+            title = row["title"]
+            title_lower = title.lower()
+            title_key = re.sub(r"\s+", " ", title_lower).strip()
+            duplicate_key = _news_duplicate_key(title)
+            if title_key in seen_titles or duplicate_key in seen_duplicate_keys:
+                continue
+            seen_titles.add(title_key)
+            seen_duplicate_keys.add(duplicate_key)
 
-        direct = any(term in title_lower for term in all_terms_lower)
-        material_hit = _news_contains_any(title_lower, NEWS_HARD_EVENT_WORDS + NEWS_MATERIAL_WORDS)
-        market_cause_hit = _news_contains_any(title_lower, NEWS_MARKET_CAUSE_WORDS)
-        noise_hit = _news_contains_any(title_lower, NEWS_NOISE_WORDS)
-        market_summary = _is_market_summary_news(title)
+            freshness_score = _news_freshness_score(row["pub_date"])
+            if freshness_score == 0:
+                continue
 
-        # 핵심 필터:
-        # 1) 종목과 직접 관계가 없고 시장/업종 원인도 없으면 제거
-        # 2) 종목명은 있지만 재료/원인 없이 잡음성 기사면 제거
-        # 3) 단순 주가/수급 요약은 제거
-        if not direct and not market_cause_hit:
-            continue
-        if market_summary:
-            continue
-        if direct and noise_hit and not material_hit and not market_cause_hit:
-            continue
+            direct = any(term in title_lower for term in all_terms_lower)
+            material_hit = _news_contains_any(title_lower, NEWS_HARD_EVENT_WORDS + NEWS_MATERIAL_WORDS)
+            market_cause_hit = _news_contains_any(title_lower, NEWS_MARKET_CAUSE_WORDS)
+            noise_hit = _news_contains_any(title_lower, NEWS_NOISE_WORDS)
+            market_summary = _is_market_summary_news(title)
 
-        source_score = _news_source_score(row["source"])
-        relevance_score = _news_relevance_score(title, clean_stock_name, ticker_guess or "")
-        impact_type = _news_impact_type(title, clean_stock_name, ticker_guess or "")
+            if not direct and not market_cause_hit:
+                continue
+            if market_summary:
+                continue
+            if direct and noise_hit and not material_hit and not market_cause_hit:
+                continue
 
-        # 직접 관련 뉴스가 시장원인 뉴스보다 우선. 호재/악재는 동일하게 취급한다.
-        direct_bonus = 28 if direct else 0
-        material_bonus = 24 if material_hit else 0
-        cause_bonus = 12 if market_cause_hit else 0
-        noise_penalty = 25 if noise_hit else 0
-        score = (
-            source_score
-            + freshness_score
-            + relevance_score
-            + direct_bonus
-            + material_bonus
-            + cause_bonus
-            - noise_penalty
-        )
+            source_score = _news_source_score(row["source"])
+            relevance_score = _news_relevance_score(title, clean_stock_name, ticker_guess or "")
+            impact_type = _news_impact_type(title, clean_stock_name, ticker_guess or "")
 
-        candidates.append({
-            "title": title,
-            "source": row["source"],
-            "pub_date": row["pub_date"],
-            "source_score": source_score,
-            "freshness_score": freshness_score,
-            "relevance_score": relevance_score,
-            "direct": direct,
-            "material": material_hit,
-            "market_cause": market_cause_hit,
-            "impact_type": impact_type,
-            "score": score,
-        })
+            score = (
+                source_score
+                + freshness_score
+                + relevance_score
+                + (28 if direct else 0)
+                + (24 if material_hit else 0)
+                + (12 if market_cause_hit else 0)
+                - (25 if noise_hit else 0)
+            )
+            candidates.append({
+                "title": title, "source": row["source"], "pub_date": row["pub_date"],
+                "source_score": source_score, "freshness_score": freshness_score,
+                "relevance_score": relevance_score, "direct": direct,
+                "material": material_hit, "market_cause": market_cause_hit,
+                "impact_type": impact_type, "score": score,
+            })
+        return candidates
+
+    candidates = build_candidates(raw_rows)
+
+    # 최근 7일 뉴스가 3개 미만일 때만 보충 검색.
+    if len(candidates) < 3:
+        fallback_queries = [
+            f"{primary} 호재", f"{primary} 악재",
+            f"{primary} 실적 계약 수주", f"{primary} 규제 관세 소송 공급차질",
+        ]
+        if ticker_guess and re.match(r"^[A-Za-z\-]+$", str(ticker_guess)):
+            fallback_queries.append(f"{ticker_guess} earnings news")
+        fallback_rows = collect_queries(fallback_queries, 14)
+        candidates = build_candidates(raw_rows + fallback_rows)
 
     candidates.sort(
-        key=lambda x: (
-            x["score"],
-            x["direct"],
-            x["material"],
-            x["freshness_score"],
-        ),
+        key=lambda x: (x["score"], x["direct"], x["material"], x["freshness_score"]),
         reverse=True,
     )
 
-    # AI 분석용 후보는 최대 10개를 보관한다.
     internal_candidates = [dict(item) for item in candidates[:10]]
     NEWS_AI_CANDIDATES_CACHE[clean_stock_name] = internal_candidates
 
-    # 화면은 3개. 같은 기사/언론사만 반복되는 것을 막되, 억지로 약한 기사를 넣지는 않는다.
     selected = []
-    selected_sources = set()
-
-    # 우선 직접 재료 뉴스 → 시장/업종 원인 뉴스 순서로 선택
-    preferred = [x for x in candidates if x["direct"] and x["material"]]
-    secondary = [x for x in candidates if x not in preferred and x["direct"]]
-    market_items = [x for x in candidates if x not in preferred and x not in secondary]
-
-    for pool in (preferred, secondary, market_items):
+    selected_keys = set()
+    pools = [
+        [x for x in candidates if x["direct"] and x["material"]],
+        [x for x in candidates if x["direct"] and not x["material"]],
+        [x for x in candidates if x["market_cause"] and not x["direct"]],
+    ]
+    for pool in pools:
         for item in pool:
-            source_key = item["source"].lower().strip()
-            # 같은 언론사 기사를 2개 이상 넣어야 할 경우에도 점수 차이가 너무 크지 않을 때만 허용
-            if source_key in selected_sources and len(selected) < 2:
+            key = item["title"].lower()
+            if key in selected_keys:
                 continue
             selected.append(item)
-            selected_sources.add(source_key)
+            selected_keys.add(key)
             if len(selected) >= 3:
                 break
         if len(selected) >= 3:
             break
 
-    # 출처 다양성 때문에 3개를 못 채우는 경우에는 남은 상위 후보로 채운다.
     if len(selected) < 3:
-        selected_keys = {x["title"].lower() for x in selected}
         for item in candidates:
-            if item["title"].lower() in selected_keys:
+            key = item["title"].lower()
+            if key in selected_keys:
                 continue
             selected.append(item)
-            selected_keys.add(item["title"].lower())
+            selected_keys.add(key)
             if len(selected) >= 3:
                 break
 
-    print(
-        f"[뉴스 품질] {clean_stock_name} 후보={len(candidates)} / "
-        f"내부AI={len(internal_candidates)} / 화면={len(selected)}"
-    )
+    print(f"[뉴스 품질] {clean_stock_name} 후보={len(candidates)} / 내부AI={len(internal_candidates)} / 화면={len(selected)}")
     for i, item in enumerate(selected[:3], 1):
-        print(
-            f"[뉴스 품질] {clean_stock_name} 화면#{i} "
-            f"score={item['score']} type={item['impact_type']} "
-            f"direct={item['direct']} material={item['material']} "
-            f"source={item['source']}"
-        )
+        print(f"[뉴스 품질] {clean_stock_name} 화면#{i} score={item['score']} type={item['impact_type']} direct={item['direct']} material={item['material']} source={item['source']}")
 
-    # 화면에서는 종목명을 제거해 제목을 깔끔하게 표시한다.
     display_titles = []
     company_names = set(terms)
     for item in selected[:3]:
@@ -1297,9 +1308,7 @@ def _fetch_realtime_news_uncached(stock_name):
         display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
         display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
         display_titles.append(display_title or original_title)
-
     return display_titles
-
 
 def fetch_realtime_news(stock_name):
     """뉴스 결과를 120초 캐시해 같은 종목의 반복 조회 대기시간을 줄인다."""
@@ -1740,11 +1749,15 @@ def analyze():
             trend_future = API_EXECUTOR.submit(fetch_krx_trend_and_supply, clean_code)
             news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
             disclosure_future = API_EXECUTOR.submit(format_kr_official_disclosures, clean_code)
+            volume_profile_future = API_EXECUTOR.submit(
+                fetch_kr_historical_volume_profile, ticker_symbol
+            )
 
             cur_p, diff, ratio = realtime_future.result()
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = trend_future.result()
             news_list = news_future.result()
             kr_official_disclosures_block = disclosure_future.result()
+            volume_profile = volume_profile_future.result()
             official_filings_block = ""
 
             current_price = cur_p if cur_p else 1783000.0
@@ -1884,7 +1897,11 @@ def analyze():
                     + (
                         format_volume_profile(volume_profile)
                         if volume_profile
-                        else "#주요 매물대 계산 대기"
+                        else (
+                            f"#악성 매물대 {res_str}"
+                            if clean_res > 0
+                            else "#주요 매물대 계산 대기"
+                        )
                     )
                 )
             },
