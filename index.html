@@ -483,6 +483,7 @@
   <script>
     const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let activeStock = '삼성전자';
+    let activeAnalysisRequestId = 0;
     let currentChartInstance = null;
     let currentAppMode = 'gaemi';
 
@@ -768,6 +769,7 @@
     async function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
+      const requestId = ++activeAnalysisRequestId;
       activeStock = stockName;
 
       const chatArea = document.getElementById('chatArea');
@@ -794,6 +796,7 @@
       const fetchPromise = fetchAnalysisFromBackend(stockName);
       const delayPromise = new Promise(resolve => setTimeout(resolve, 900));
       const [result] = await Promise.all([fetchPromise, delayPromise]);
+      if (requestId !== activeAnalysisRequestId) return;
       const sections = result.sections || [];
 
       loaderDiv.remove();
@@ -807,10 +810,11 @@
       const surprisePopup = document.getElementById('surpriseAntPopup');
       surprisePopup.classList.remove('hidden');
       await new Promise(res => setTimeout(res, 600));
+      if (requestId !== activeAnalysisRequestId) return;
       surprisePopup.classList.add('hidden');
 
       chatArea.scrollTop = 0;
-      startTypewriterFlow(stockName, sections, result);
+      startTypewriterFlow(stockName, sections, result, requestId);
     }
 
     // ★ 버그 완벽 수정된 텍스트 파싱 로직
@@ -952,7 +956,8 @@
       if (window.lucide) window.lucide.createIcons();
     }
 
-    function startTypewriterFlow(stockName, sections, result) {
+    function startTypewriterFlow(stockName, sections, result, requestId) {
+      if (requestId !== activeAnalysisRequestId) return;
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
 
@@ -967,6 +972,7 @@
       let secIdx = 0;
 
       function typeNextSection() {
+        if (requestId !== activeAnalysisRequestId) return;
         if (!sections || secIdx >= sections.length) {
           renderBottomWidgets(wrapperId, stockName);
           return;
@@ -1017,6 +1023,7 @@
         const chunkSize = 25;
 
         function typeChunk() {
+          if (requestId !== activeAnalysisRequestId) return;
           if (charIdx < text.length) {
             pEl.textContent += text.substr(charIdx, chunkSize);
             charIdx += chunkSize;
@@ -1126,67 +1133,13 @@
               console.warn("치환 예외 안전 무시:", err);
             }
 
-            // 뉴스/공시는 항목 단위로 정확히 분리한다.
-            // 핵심 버그:
-            // 기존 코드는 '\\n\\n'만 기준으로 split해서, 백엔드가 뉴스 3개를
-            // '\\n' 하나로 연결해 보내면 3개가 하나의 .news-item으로 합쳐졌다.
-            // 그 상태에서 -webkit-line-clamp: 2가 적용되어 화면에는 2개만 보였다.
-            //
-            // 따라서 📰 / 📌로 시작하는 줄은 줄바꿈 방식과 관계없이 각각 하나의
-            // 독립 항목으로 분리한다.
-            const normalizedLines = formatted.replace(/\\r\\n?/g, '\\n').split('\\n');
-            const displayBlocks = [];
-            let currentBlock = [];
-
-            normalizedLines.forEach(function(line) {
-              const trimmedLine = line.trim();
-
-              if (trimmedLine.startsWith('📰') || trimmedLine.startsWith('📌')) {
-                if (currentBlock.length) {
-                  displayBlocks.push(currentBlock.join('\\n').trim());
-                  currentBlock = [];
-                }
-                displayBlocks.push(trimmedLine);
-              } else if (trimmedLine === '') {
-                if (currentBlock.length) {
-                  displayBlocks.push(currentBlock.join('\\n').trim());
-                  currentBlock = [];
-                }
-              } else {
-                currentBlock.push(line);
-              }
-            });
-
-            if (currentBlock.length) {
-              displayBlocks.push(currentBlock.join('\\n').trim());
-            }
-
-            const displayOut = displayBlocks.map(function(block) {
-              const trimmed = block.trim();
-              if (trimmed.startsWith('📰')) {
-                return `<div class="news-item">${trimmed}</div>`;
-              } else if (trimmed.startsWith('📌')) {
-                return `<div class="disclosure-item">${trimmed}</div>`;
-              }
-              return block;
-            });
-
-            // 뉴스 항목끼리는 한 줄 간격, 그 외 섹션은 기존 간격을 유지한다.
-            const joinedBlocks = [];
-            displayOut.forEach(function(block, i) {
-              if (i === 0) {
-                joinedBlocks.push(block);
-                return;
-              }
-
-              const prev = displayBlocks[i - 1].trim();
-              const curr = displayBlocks[i].trim();
-              const bothNews = prev.startsWith('📰') && curr.startsWith('📰');
-
-              joinedBlocks.push((bothNews ? '\\n' : '\\n\\n') + block);
-            });
-
-            formatted = joinedBlocks.join('');
+            // 뉴스/공시는 본문에 다시 렌더링하지 않는다.
+            // 기존 백엔드가 남긴 레거시 📰/📌 줄만 안전하게 제거하고,
+            // 실제 뉴스/공시는 renderSourceLists()에서 한 번만 표시한다.
+            formatted = formatted
+              .replace(/(^|\n)\s*[📰📌][^\n]*(?=\n|$)/g, '$1')
+              .replace(/\n{3,}/g, '\n\n')
+              .trim();
 
             pEl.innerHTML = formatted;
 
@@ -1198,7 +1151,9 @@
             }
 
             secIdx++;
-            setTimeout(typeNextSection, 50);
+            if (requestId === activeAnalysisRequestId) {
+              setTimeout(typeNextSection, 50);
+            }
           }
         }
         typeChunk();
