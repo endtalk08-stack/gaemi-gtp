@@ -832,6 +832,21 @@
       };
 
       const escapeHtml = (value) => String(value ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));
+      // SEC 사용자 클릭 주소는 항상 사람이 읽는 filing index 페이지를 사용한다.
+      // 예전 backend 데이터가 XML/TXT 주소를 내려줘도 여기서 사용자 노출을 차단한다.
+      const buildSecFilingUrl = (item) => {
+        if (!item) return '';
+        const cik = String(item.cik || '').replace(/\D/g, '');
+        const accession = String(item.accession || '').trim();
+        if (cik && accession) {
+          const accessionNoDash = accession.replace(/-/g, '');
+          return `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${accessionNoDash}/${accession}-index.htm`;
+        }
+        const candidate = String(item.filing_page_url || item.link || '').trim();
+        if (/\.(xml|txt)(?:$|[?#])/i.test(candidate)) return '';
+        return candidate;
+      };
+
       let newsIndex = 0;
       let disclosureIndex = 0;
       let usIndex = 0;
@@ -854,11 +869,16 @@
             const date = formatDate(item.pub_date || item.date);
             el.innerHTML = `<div>${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="hover:underline cursor-pointer">📰 &quot;${escapeHtml(title)}&quot;</a>` : `📰 &quot;${escapeHtml(title)}&quot;`}</div><div class="text-xs text-[#94a3b8] dark:text-[#71717a] mt-1">${escapeHtml(source)} · ${escapeHtml(date)}</div>`;
           }
-        } else if (text.includes('내부자 거래')) {
+        } else if (
+          text.includes('내부자 거래') ||
+          text.includes('내부자 매수') ||
+          text.includes('내부자 매도') ||
+          text.includes('내부자 취득')
+        ) {
           const item = usFilings[usIndex++];
           currentUsFiling = item || null;
           if (item) {
-            const href = item.link || '';
+            const href = buildSecFilingUrl(item);
             const date = formatDate(item.date);
             el.innerHTML = href
               ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="hover:underline cursor-pointer">📌 SEC · ${escapeHtml(date)} · 내부자 거래</a>`
