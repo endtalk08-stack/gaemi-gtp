@@ -169,6 +169,82 @@
       animation: blink 0.8s infinite;
     }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* 외부 기사 링크 확인 팝업 */
+    .external-link-modal {
+      position: fixed; inset: 0; z-index: 9999;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+      background: rgba(0,0,0,.62);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+    }
+    .external-link-modal.is-open { display: flex; }
+    .external-link-dialog {
+      width: min(494px, calc(100vw - 40px));
+      max-height: min(720px, calc(100dvh - 40px));
+      overflow: auto;
+      border-radius: 18px;
+      background: #202124;
+      border: 1px solid #303134;
+      box-shadow: 0 24px 70px rgba(0,0,0,.42);
+      color: #f4f4f5;
+    }
+    .external-link-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding: 17px 18px 10px;
+    }
+    .external-link-label { font-size: 18px; font-weight: 500; }
+    .external-link-close {
+      width: 34px; height: 34px; display:flex; align-items:center; justify-content:center;
+      border:0; background:transparent; color:#d4d4d8; cursor:pointer; border-radius:50%;
+    }
+    .external-link-close:hover { background: rgba(255,255,255,.08); }
+    .external-link-article {
+      padding: 4px 18px 13px;
+    }
+    .external-link-article-title {
+      font-size: 16px; line-height: 1.45; font-weight: 750; color:#fafafa;
+    }
+    .external-link-article-meta {
+      margin-top: 6px; font-size: 12px; color:#9ca3af; font-weight:600;
+    }
+    .external-link-warning {
+      margin: 0 18px 14px;
+      padding: 13px 14px;
+      border-radius: 12px;
+      background: #292a2d;
+      color: #d4d4d8;
+      font-size: 13px; line-height: 1.55;
+    }
+    .external-link-warning a { color:#a1a1aa; text-decoration: underline; }
+    .external-link-url {
+      margin: 0 18px;
+      padding: 12px 0 2px;
+      color:#b4b4bb;
+      font-size: 12px;
+      line-height: 1.45;
+      word-break: break-all;
+    }
+    .external-link-actions {
+      display:flex; justify-content:flex-end; gap:10px;
+      padding: 12px 18px 18px;
+    }
+    .external-link-btn {
+      height: 40px; padding: 0 16px; border-radius: 20px;
+      font-size: 14px; font-weight: 700; cursor:pointer;
+      border:1px solid #44454a; background:transparent; color:#e4e4e7;
+    }
+    .external-link-btn.primary { background:#f4f4f5; color:#18181b; border-color:#f4f4f5; }
+    .external-link-btn:hover { filter: brightness(1.05); }
+    @media (max-width: 520px) {
+      .external-link-dialog { width: calc(100vw - 28px); border-radius: 16px; }
+      .external-link-header { padding-left:16px; padding-right:16px; }
+      .external-link-article { padding-left:16px; padding-right:16px; }
+      .external-link-warning { margin-left:16px; margin-right:16px; }
+      .external-link-url { margin-left:16px; margin-right:16px; }
+      .external-link-actions { padding-left:16px; padding-right:16px; }
+    }
   </style>
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none">
@@ -817,6 +893,74 @@
       startTypewriterFlow(stockName, sections, result, requestId);
     }
 
+
+    function openExternalLinkModal(item) {
+      const modal = document.getElementById('externalLinkModal');
+      if (!modal) return;
+      const href = item.original_link || item.link || item.url || item.article_url || '';
+      if (!href) return;
+
+      const title = item.title || item.description || '제목 확인 필요';
+      const source = item.source || (item.form ? 'SEC' : '출처 확인 필요');
+      const when = item.display_datetime || item.datetime || item.date || item.pub_date || '';
+      const time = item.time || item.acceptance_time || '';
+      const tz = item.time_zone || '';
+      const meta = `${source}${when ? ` · ${when}` : ''}${time ? ` · ${time}${tz ? ` ${tz}` : ''}` : ''}`;
+
+      document.getElementById('externalLinkArticleTitle').textContent = title;
+      document.getElementById('externalLinkArticleMeta').textContent = meta;
+      document.getElementById('externalLinkUrl').textContent = href;
+      modal.dataset.href = href;
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeExternalLinkModal() {
+      const modal = document.getElementById('externalLinkModal');
+      if (!modal) return;
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
+      modal.dataset.href = '';
+      document.body.style.overflow = '';
+    }
+
+    function initExternalLinkModal() {
+      const modal = document.getElementById('externalLinkModal');
+      const close = document.getElementById('externalLinkClose');
+      const copy = document.getElementById('externalLinkCopy');
+      const open = document.getElementById('externalLinkOpen');
+      if (!modal) return;
+      close?.addEventListener('click', closeExternalLinkModal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeExternalLinkModal();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('is-open')) closeExternalLinkModal();
+      });
+      copy?.addEventListener('click', async () => {
+        const href = modal.dataset.href || '';
+        if (!href) return;
+        try {
+          await navigator.clipboard.writeText(href);
+          copy.textContent = '복사됨';
+          setTimeout(() => copy.textContent = '링크 복사', 1200);
+        } catch (_) {
+          const ta = document.createElement('textarea');
+          ta.value = href; document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); ta.remove();
+          copy.textContent = '복사됨';
+          setTimeout(() => copy.textContent = '링크 복사', 1200);
+        }
+      });
+      open?.addEventListener('click', () => {
+        const href = modal.dataset.href || '';
+        if (!href) return;
+        window.open(href, '_blank', 'noopener,noreferrer');
+      });
+    }
+
     // ★ 버그 완벽 수정된 텍스트 파싱 로직
     function renderSourceLists(container, result) {
       if (!container || !result) return;
@@ -870,9 +1014,12 @@
           link.className = 'source-list-row';
           const href = item.original_link || item.link || item.url || item.article_url || '';
           if (href) {
-            link.href = href;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
+            link.href = '#';
+            link.setAttribute('role', 'button');
+            link.addEventListener('click', (event) => {
+              event.preventDefault();
+              openExternalLinkModal(item);
+            });
           } else {
             link.removeAttribute('href');
             link.setAttribute('aria-disabled', 'true');
@@ -1583,5 +1730,31 @@
       if (metric) metric.textContent = label;
     }
 </script>
+
+  <!-- 외부 기사 링크 확인 팝업 -->
+  <div id="externalLinkModal" class="external-link-modal" aria-hidden="true">
+    <div class="external-link-dialog" role="dialog" aria-modal="true" aria-labelledby="externalLinkTitle">
+      <div class="external-link-header">
+        <div id="externalLinkTitle" class="external-link-label">외부 사이트</div>
+        <button id="externalLinkClose" class="external-link-close" type="button" aria-label="닫기">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="external-link-article">
+        <div id="externalLinkArticleTitle" class="external-link-article-title">기사 제목</div>
+        <div id="externalLinkArticleMeta" class="external-link-article-meta">출처 · 날짜</div>
+      </div>
+      <div class="external-link-warning">
+        이 링크가 원하는 곳으로 연결되는지 확인하세요. <a href="https://support.google.com/chrome/answer/95346" target="_blank" rel="noopener noreferrer">자세히 알아보기</a>
+      </div>
+      <div id="externalLinkUrl" class="external-link-url"></div>
+      <div class="external-link-actions">
+        <button id="externalLinkCopy" class="external-link-btn" type="button">링크 복사</button>
+        <button id="externalLinkOpen" class="external-link-btn primary" type="button">링크 열기</button>
+      </div>
+    </div>
+  </div>
+
+<script>initExternalLinkModal();</script>
 </body>
 </html>
