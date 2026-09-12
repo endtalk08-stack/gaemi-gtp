@@ -12,6 +12,7 @@ import math
 import io
 import zipfile
 import urllib.error
+import html
 from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 
@@ -121,7 +122,6 @@ DART_DISCLOSURE_CACHE = {}
 # 너무 많은 동시 요청으로 외부 서비스에 부담을 주지 않도록 6개로 제한한다.
 API_EXECUTOR = ThreadPoolExecutor(max_workers=6)
 NEWS_RESULT_CACHE = {}
-NEWS_DISPLAY_CACHE = {}
 OPTIONS_RESULT_CACHE = {}
 NEWS_CACHE_TTL = 120
 OPTIONS_CACHE_TTL = 60
@@ -256,9 +256,9 @@ def fetch_kr_official_disclosures(stock_code, days=7):
                 continue
 
             results.append({
-                # 국내 공시 날짜는 뉴스와 동일하게 YYYY.MM.DD 형식으로 표시한다.
+                # 국내 공시 날짜는 화면에서 간단하게 9/9 형태로 표시한다.
                 "date": (
-                    f"{receipt_date[:4]}.{receipt_date[4:6]}.{receipt_date[6:8]}"
+                    f"{int(receipt_date[4:6])}/{int(receipt_date[6:8])}"
                     if len(receipt_date) == 8 and receipt_date.isdigit() else receipt_date
                 ),
                 "report": report_name,
@@ -292,7 +292,7 @@ def format_kr_official_disclosures(stock_code):
         return ""
 
     return "\n".join(
-        f"📌 {item['date']} · {item['report']}"
+        f"📌 <a href=\"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={item['receipt_no']}\" target=\"_blank\" rel=\"noopener noreferrer\">{html.escape(item['report'])}</a>\nDART · {item['date']}"
         for item in disclosures
     )
 
@@ -1142,10 +1142,10 @@ def _fetch_one_news_rss(search_term, days=7):
             title_el = item.find('title')
             source_el = item.find('source')
             pub_el = item.find('pubDate')
-            link_el = item.find('link')
             title = _clean_news_title(title_el.text if title_el is not None else "")
             source = (source_el.text or "").strip() if source_el is not None else ""
             pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
+            link_el = item.find('link')
             link = (link_el.text or "").strip() if link_el is not None else ""
             if title:
                 rows.append({"title": title, "source": source, "pub_date": pub_date, "link": link})
@@ -1239,8 +1239,7 @@ def _fetch_realtime_news_uncached(stock_name):
                 - (25 if noise_hit else 0)
             )
             candidates.append({
-                "title": title, "source": row["source"], "pub_date": row["pub_date"],
-                "link": row.get("link", ""),
+                "title": title, "source": row["source"], "pub_date": row["pub_date"], "link": row.get("link", ""),
                 "source_score": source_score, "freshness_score": freshness_score,
                 "relevance_score": relevance_score, "direct": direct,
                 "material": material_hit, "market_cause": market_cause_hit,
@@ -1331,94 +1330,13 @@ def _fetch_realtime_news_uncached(stock_name):
         display_title = re.sub(r"\s+", " ", display_title).strip()
         display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
         display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
-        display_titles.append(display_title or original_title)
-
-    display_items = []
-    for item, display_title in zip(selected[:3], display_titles):
-        display_items.append({
-            "title": display_title,
-            "source": str(item.get("source") or "출처 확인 필요"),
-            "date": _format_news_display_date(item.get("pub_date", "")),
-            "datetime": _format_news_display_date(item.get("pub_date", "")),
-            "display_datetime": _format_news_display_date(item.get("pub_date", "")),
-            "link": str(item.get("link") or "").strip(),
-            "original_link": _resolve_news_original_link(item.get("link", "")),
+        display_titles.append({
+            "title": display_title or original_title,
+            "source": item.get("source", ""),
+            "pub_date": item.get("pub_date", ""),
+            "link": item.get("link", ""),
         })
-    NEWS_DISPLAY_CACHE[clean_stock_name] = display_items
-
     return display_titles
-
-
-def _format_news_display_date(pub_date):
-    """뉴스 게시일을 화면에서 YYYY.MM.DD 형식으로 표시한다."""
-    try:
-        dt = parsedate_to_datetime(str(pub_date or "").strip())
-        return dt.strftime("%Y.%m.%d")
-    except Exception:
-        text = str(pub_date or "").strip()
-        m = re.search(r"(20\d{2})[-./]?(\d{1,2})[-./]?(\d{1,2})", text)
-        if m:
-            return f"{m.group(1)}.{int(m.group(2)):02d}.{int(m.group(3)):02d}"
-        return "날짜 확인 필요"
-
-
-NEWS_ORIGINAL_LINK_CACHE = {}
-
-def _resolve_news_original_link(url):
-    """Google News RSS 링크를 가능하면 실제 언론사 원문 URL로 따라간다."""
-    url = str(url or "").strip()
-    if not url:
-        return ""
-    cached = NEWS_ORIGINAL_LINK_CACHE.get(url)
-    if cached is not None:
-        return cached
-    resolved = url
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            resolved = resp.geturl() or url
-    except Exception:
-        pass
-    NEWS_ORIGINAL_LINK_CACHE[url] = resolved
-    return resolved
-
-
-def get_structured_news(stock_name, limit=3):
-    """화면에 표시할 뉴스 제목/출처/날짜/원문 링크를 반환한다."""
-    items = NEWS_DISPLAY_CACHE.get(str(stock_name).strip(), [])
-    return [dict(item) for item in items[:max(1, int(limit))]]
-
-
-def get_structured_disclosures(stock_name, stock_code, limit=3):
-    """국내 DART 공시를 화면용 제목/출처/날짜/원문 링크로 정리한다."""
-    if not stock_code:
-        return []
-
-    items = fetch_kr_official_disclosures(stock_code)
-    results = []
-    company = str(stock_name or "").strip()
-    for item in items[:max(1, int(limit))]:
-        report_title = str(item.get("report", "주요 공시")).strip() or "주요 공시"
-        display_title = report_title
-        if company and company not in display_title:
-            display_title = f"{company} {display_title}"
-
-        receipt_no = str(item.get("receipt_no", "")).strip()
-        link = (
-            f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt_no}"
-            if receipt_no else ""
-        )
-        display_date = str(item.get("date", "")).strip()
-        results.append({
-            "title": display_title,
-            "source": "DART",
-            "date": display_date,
-            "datetime": display_date,
-            "display_datetime": display_date,
-            "link": link,
-            "original_link": link,
-        })
-    return results
 
 
 def fetch_realtime_news(stock_name):
@@ -1910,10 +1828,8 @@ def analyze():
             cur_p, prev_p, ma20_val, res_val, volume_profile = yahoo_future.result()
             call_vol, put_vol, option_error = options_future.result()
             news_list = news_future.result()
-            news_items = get_structured_news(raw_name, limit=3)
             official_filings_block = filing_future.result()
             kr_official_disclosures_block = ""
-            disclosures = []
 
             if cur_p and prev_p:
                 current_price = cur_p
@@ -1960,8 +1876,20 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
+        def _display_news_date(pub_date):
+            try:
+                dt = parsedate_to_datetime(str(pub_date))
+                return dt.strftime("%Y.%m.%d")
+            except Exception:
+                return "날짜 확인 필요"
+
         news_lines = (
-            "\n".join([f"📰 \"{title}\"" for title in news_list])
+            "\n".join(
+                f"📰 <a href=\"{html.escape(item.get('link', ''), quote=True)}\" target=\"_blank\" rel=\"noopener noreferrer\">\"{html.escape(item.get('title', ''))}\"</a>\n{html.escape(item.get('source', '') or '출처 확인 필요')} · {_display_news_date(item.get('pub_date', ''))}"
+                if item.get("link") else
+                f"📰 \"{html.escape(item.get('title', ''))}\"\n{html.escape(item.get('source', '') or '출처 확인 필요')} · {_display_news_date(item.get('pub_date', ''))}"
+                for item in news_list
+            )
             if news_list
             else "📰 현재 확인된 관련 뉴스를 가져오지 못했습니다."
         )
@@ -2019,7 +1947,7 @@ def analyze():
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ])
-        return jsonify({"sections": sections, "news_items": news_items, "disclosures": disclosures})
+        return jsonify({"sections": sections})
 
     except Exception as e:
         print("전체 예외 안전 복구 가동:", e)
