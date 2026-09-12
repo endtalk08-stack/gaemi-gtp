@@ -12,6 +12,7 @@ import math
 import io
 import zipfile
 import urllib.error
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 
@@ -116,6 +117,22 @@ OPENDART_API_KEY = (
 )
 DART_CORP_CACHE = {"ts": 0.0, "map": {}}
 DART_DISCLOSURE_CACHE = {}
+# 같은 종목을 동시에 여러 사용자가 조회해도 DART/SEC 외부 요청이 중복되지 않도록
+# 종목별 단일 비행(single-flight) 락을 사용한다. 서로 다른 종목은 동시에 처리한다.
+_DART_SINGLEFLIGHT_LOCKS = {}
+_SEC_SINGLEFLIGHT_LOCKS = {}
+_SINGLEFLIGHT_LOCK_GUARD = threading.Lock()
+_DART_CORP_LOCK = threading.Lock()
+DART_RECEIPT_TIME_CACHE = {}
+
+def _get_singleflight_lock(lock_map, key):
+    with _SINGLEFLIGHT_LOCK_GUARD:
+        lock = lock_map.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            lock_map[key] = lock
+        return lock
+
 
 # 외부 API는 서로 독립적인 요청을 동시에 처리해 전체 대기시간을 줄인다.
 # 너무 많은 동시 요청으로 외부 서비스에 부담을 주지 않도록 6개로 제한한다.
@@ -131,7 +148,7 @@ US_MATERIAL_FORMS = {
     "S-3", "S-1", "SC 13D", "SC 13G", "SC 13G/A", "4"
 }
 
-def fetch_dart_corp_map():
+def _fetch_dart_corp_map_uncached():
     """OpenDART corpCode.xml에서 stock_code -> corp_code 매핑을 만든다."""
     if not OPENDART_API_KEY:
         return {}
@@ -181,6 +198,20 @@ def fetch_dart_corp_map():
         return {}
 
 
+def fetch_dart_corp_map():
+    """DART 기업코드 전체맵을 서버 프로세스당 한 번만 갱신한다."""
+    if not OPENDART_API_KEY:
+        return {}
+    now = datetime.datetime.now().timestamp()
+    if DART_CORP_CACHE["map"] and now - DART_CORP_CACHE["ts"] < 86400:
+        return DART_CORP_CACHE["map"]
+    with _DART_CORP_LOCK:
+        now = datetime.datetime.now().timestamp()
+        if DART_CORP_CACHE["map"] and now - DART_CORP_CACHE["ts"] < 86400:
+            return DART_CORP_CACHE["map"]
+        return _fetch_dart_corp_map_uncached()
+
+
 def _dart_report_score(report_name):
     """주가 영향 가능성이 높은 공시를 우선한다."""
     text = str(report_name or "").lower()
@@ -198,7 +229,7 @@ def _dart_report_score(report_name):
     return score
 
 
-def _fetch_dart_receipt_time(receipt_no):
+def _fetch_dart_receipt_time_uncached(receipt_no):
     """DART 원문 페이지에서 공시 접수시간을 가져온다. 실패하면 빈 문자열을 반환한다."""
     receipt_no = str(receipt_no or "").strip()
     if not receipt_no:
@@ -228,7 +259,27 @@ def _fetch_dart_receipt_time(receipt_no):
     return ""
 
 
-def fetch_kr_official_disclosures(stock_code, days=7):
+def _fetch_dart_receipt_time(receipt_no):
+    """DART 접수시간은 접수번호별로 캐시해 같은 공시를 반복 조회하지 않는다."""
+    receipt_no = str(receipt_no or "").strip()
+    if not receipt_no:
+        return ""
+    now_ts = datetime.datetime.now().timestamp()
+    cached = DART_RECEIPT_TIME_CACHE.get(receipt_no)
+    if cached and now_ts - cached[0] < 86400:
+        return cached[1]
+    lock = _get_singleflight_lock(_DART_SINGLEFLIGHT_LOCKS, ("receipt", receipt_no))
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = DART_RECEIPT_TIME_CACHE.get(receipt_no)
+        if cached and now_ts - cached[0] < 86400:
+            return cached[1]
+        value = _fetch_dart_receipt_time_uncached(receipt_no)
+        DART_RECEIPT_TIME_CACHE[receipt_no] = (now_ts, value)
+        return value
+
+
+def _fetch_kr_official_disclosures_uncached(stock_code, days=7):
     """OpenDART에서 국내 기업의 최근 공시를 코드로 조회한다."""
     if not OPENDART_API_KEY or not stock_code:
         return []
@@ -276,6 +327,9 @@ def fetch_kr_official_disclosures(stock_code, days=7):
             DART_DISCLOSURE_CACHE[cache_key] = (now_ts, [])
             return []
 
+        # 먼저 목록 API의 가벼운 데이터만으로 상위 3건을 고른다.
+        # 접수시간을 얻기 위해 모든 공시의 원문 페이지를 조회하면 최대 30회의
+        # 추가 HTTP 요청이 발생하므로, 실제 화면에 보여줄 3건에 대해서만 원문을 읽는다.
         results = []
         for item in data.get("list", []) or []:
             report_name = str(item.get("report_nm", "")).strip()
@@ -284,7 +338,6 @@ def fetch_kr_official_disclosures(stock_code, days=7):
             if not report_name or not receipt_date:
                 continue
 
-            receipt_time = _fetch_dart_receipt_time(receipt_no)
             results.append({
                 # 국내 공시 날짜는 기존 화면과 동일하게 9/9 형태로 유지한다.
                 "date": (
@@ -293,9 +346,9 @@ def fetch_kr_official_disclosures(stock_code, days=7):
                 ),
                 "report": report_name,
                 "receipt_no": receipt_no,
-                "time": receipt_time,
-                "time_zone": "KST" if receipt_time else "",
-                "receipt_datetime": f"{receipt_date} {receipt_time}".strip() if receipt_time else receipt_date,
+                "time": "",
+                "time_zone": "",
+                "receipt_datetime": receipt_date,
                 "score": _dart_report_score(report_name),
             })
 
@@ -305,6 +358,18 @@ def fetch_kr_official_disclosures(stock_code, days=7):
             reverse=True,
         )
         results = results[:3]
+
+        # 최종 3건만 DART 원문에서 접수시간을 보강한다.
+        for item in results:
+            receipt_time = _fetch_dart_receipt_time(item.get("receipt_no", ""))
+            item["time"] = receipt_time
+            item["time_zone"] = "KST" if receipt_time else ""
+            receipt_date_raw = str(item.get("receipt_datetime") or "")[:8]
+            item["receipt_datetime"] = (
+                f"{receipt_date_raw} {receipt_time}".strip()
+                if receipt_time and len(receipt_date_raw) == 8
+                else item.get("receipt_datetime", "")
+            )
 
         print(f"[국내 공시] {stock_code} 성공 / 선택={len(results)}")
         DART_DISCLOSURE_CACHE[cache_key] = (now_ts, results)
@@ -319,8 +384,28 @@ def fetch_kr_official_disclosures(stock_code, days=7):
     return []
 
 
-def format_kr_official_disclosures(stock_code):
-    disclosures = fetch_kr_official_disclosures(stock_code)
+def fetch_kr_official_disclosures(stock_code, days=7):
+    """DART 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
+    if not OPENDART_API_KEY or not stock_code:
+        return []
+    stock_code = str(stock_code).strip()
+    cache_key = (stock_code, days)
+    now_ts = datetime.datetime.now().timestamp()
+    cached = DART_DISCLOSURE_CACHE.get(cache_key)
+    if cached and now_ts - cached[0] < 300:
+        return cached[1]
+    lock = _get_singleflight_lock(_DART_SINGLEFLIGHT_LOCKS, cache_key)
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = DART_DISCLOSURE_CACHE.get(cache_key)
+        if cached and now_ts - cached[0] < 300:
+            return cached[1]
+        return _fetch_kr_official_disclosures_uncached(stock_code, days)
+
+
+def format_kr_official_disclosures(stock_code, disclosures=None):
+    if disclosures is None:
+        disclosures = fetch_kr_official_disclosures(stock_code)
     if not disclosures:
         return ""
 
@@ -377,7 +462,7 @@ def format_us_sec_filing(filing):
     summary = title or "주요 공시 내용 확인"
     return f"📌 {display_date} · {form or 'SEC 공시'}\n📰 {summary}".strip()
 
-def fetch_us_official_filings(ticker_symbol, days=7):
+def _fetch_us_official_filings_uncached(ticker_symbol, days=7):
     """SEC 공식 제출자료 중 최근 주요 공시를 수집한다. AI/웹검색 없이 코드로만 수집."""
     ticker_symbol = ticker_symbol.upper()
     cik = US_CIKS.get(ticker_symbol)
@@ -455,9 +540,8 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                 "cik": str(cik),
             }
 
-            # Form 4는 primaryDocument(.html)와 별도로 실제 XML 파일이 제공된다.
-            # SEC 제출목록 JSON의 primaryDocument는 보통 HTML이므로,
-            # 해당 제출의 index 페이지에서 FORM 4 XML 링크를 찾아 실제 XML을 읽는다.
+            # Form 4는 SEC 공식 제출 원문(.txt) 안에 신고자/역할/거래 XML 데이터가 포함되어 있다.
+            # 별도의 index/XML 요청은 화면에 필요한 정보가 중복되므로 생략한다.
             if form == "4" and filing_url:
                 try:
                     sec_headers = {
@@ -466,71 +550,6 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                     }
 
                     clean_accession = accession.replace("-", "")
-                    index_url = (
-                        f"https://www.sec.gov/Archives/edgar/data/"
-                        f"{int(cik)}/{clean_accession}/{accession}-index.htm"
-                    )
-
-                    index_req = urllib.request.Request(index_url, headers=sec_headers)
-                    with urllib.request.urlopen(index_req, timeout=5) as index_resp:
-                        index_text = index_resp.read().decode("utf-8", errors="ignore")
-
-                    # FORM 4의 XML 링크는 제출별 디렉터리 안의 xslF345X05/X06 등에
-                    # 있을 수 있으므로 고정 경로를 가정하지 않고 index에서 찾는다.
-                    xml_href = ""
-                    hrefs = re.findall(
-                        r'href=[\"\']([^\"\']+\.xml(?:\?[^\"\']*)?)[\"\']',
-                        index_text,
-                        flags=re.I,
-                    )
-                    for href in hrefs:
-                        if "form4" in href.lower() or "wk-form4" in href.lower():
-                            xml_href = href
-                            break
-                    if not xml_href and hrefs:
-                        xml_href = hrefs[0]
-
-                    if xml_href:
-                        from urllib.parse import urljoin
-                        detail_url = urljoin(index_url, xml_href)
-                    else:
-                        # 일부 SEC 응답은 index에서 XML 링크가 노출되지 않을 수 있어
-                        # 제출문서명 기준의 보조 경로를 한 번 시도한다.
-                        base_name = re.sub(r"\.html?$", ".xml", document, flags=re.I)
-                        detail_url = (
-                            f"https://www.sec.gov/Archives/edgar/data/"
-                            f"{int(cik)}/{clean_accession}/xslF345X06/{base_name}"
-                        )
-
-                    print(f"[미국 공시] {ticker_symbol} Form 4 XML 요청: {detail_url}")
-                    detail_req = urllib.request.Request(
-                        detail_url,
-                        headers={
-                            **sec_headers,
-                            "Accept": "application/xml,text/xml,*/*",
-                        },
-                    )
-                    with urllib.request.urlopen(detail_req, timeout=5) as detail_resp:
-                        detail_text = detail_resp.read().decode("utf-8", errors="ignore")
-                    print(f"[미국 공시] {ticker_symbol} Form 4 XML 수신: {len(detail_text)} bytes")
-
-                    # SEC Form 4 XML 원문이 일부 제출본에서 XML 문법 오류를 포함할 수 있어
-                    # ElementTree에 의존하지 않는다. SEC의 공식 제출 .txt 원문은 일반 텍스트이므로
-                    # 여기에서 Form 4 거래 블록을 직접 추출한다. XML은 다운로드 성공 여부 확인용으로만 사용한다.
-                    def _clean_value(value):
-                        return re.sub(r"\s+", " ", str(value or "")).strip()
-
-                    def _tag_value(text, tag_name):
-                        pat = rf"<(?:[A-Za-z0-9_.-]+:)?{re.escape(tag_name)}\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?{re.escape(tag_name)}>"
-                        mm = re.search(pat, text, flags=re.I | re.S)
-                        if not mm:
-                            return ""
-                        value = re.sub(r"<[^>]+>", " ", mm.group(1))
-                        return _clean_value(value)
-
-                    def _has_tag_value(text, tag_name, expected="1"):
-                        value = _tag_value(text, tag_name)
-                        return value.strip().lower() == str(expected).lower()
 
                     # SEC 공식 제출 원문(.txt)을 가져온다.
                     submission_txt_url = (
@@ -584,6 +603,53 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                         filing["transaction_code"] = transactions[0]["code"]
                         filing["shares"] = transactions[0]["shares"]
                         filing["price"] = transactions[0]["price"]
+                        # 화면용 내부자 거래 요약 데이터: 기존 SEC 원문에서만 계산
+                        code_labels = {
+                            "P": "내부자 매수", "S": "내부자 매도", "A": "내부자 취득",
+                            "D": "회사로 반환", "F": "세금·행사가격 지급", "M": "옵션·파생상품 행사",
+                            "G": "주식 증여", "V": "자발적 신고", "J": "기타 거래",
+                        }
+                        code_counts = {}
+                        for tx in transactions:
+                            tx_code = str(tx.get("code") or "").upper().strip()
+                            if tx_code:
+                                code_counts[tx_code] = code_counts.get(tx_code, 0) + 1
+                        priority = ["P", "S", "A", "G", "F", "M", "D", "C", "J", "V"]
+                        ordered_codes = sorted(
+                            code_counts.keys(),
+                            key=lambda c: priority.index(c) if c in priority else len(priority)
+                        )
+                        if len(ordered_codes) == 1:
+                            only_code = ordered_codes[0]
+                            filing["transaction_kind"] = code_labels.get(only_code, "내부자 거래")
+                            filing["transaction_summary"] = f"{filing['transaction_kind']} · {code_counts[only_code]}건"
+                        elif ordered_codes:
+                            filing["transaction_kind"] = code_labels.get(ordered_codes[0], "내부자 거래")
+                            filing["transaction_summary"] = " · ".join(
+                                f"{code_labels.get(c, '내부자 거래')} {code_counts[c]}건"
+                                for c in ordered_codes
+                            )
+                        else:
+                            filing["transaction_kind"] = "내부자 거래"
+                            filing["transaction_summary"] = "내부자 거래"
+                        filing["transaction_count"] = len(transactions)
+                        prices = []
+                        for tx in transactions:
+                            raw_price = str(tx.get("price") or "").replace(",", "").strip()
+                            try:
+                                val = float(raw_price)
+                                if val > 0:
+                                    prices.append(val)
+                            except Exception:
+                                pass
+                        if prices:
+                            lo, hi = min(prices), max(prices)
+                            filing["price_range"] = (
+                                f"${lo:,.2f}" if abs(lo-hi) < 1e-9
+                                else f"${lo:,.2f} ~ ${hi:,.2f}"
+                            )
+                        else:
+                            filing["price_range"] = ""
                         print(
                             f"[미국 공시] {ticker_symbol} Form 4 제출원문 파싱 성공: "
                             f"person={filing.get('person','')} "
@@ -617,8 +683,28 @@ def fetch_us_official_filings(ticker_symbol, days=7):
     US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), [])
     return []
 
-def format_us_official_filings(ticker_symbol):
-    filings = fetch_us_official_filings(ticker_symbol)
+def fetch_us_official_filings(ticker_symbol, days=7):
+    """SEC 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
+    ticker_symbol = str(ticker_symbol or "").upper().strip()
+    if not ticker_symbol or ticker_symbol not in US_CIKS:
+        return []
+    cache_key = (ticker_symbol, days)
+    now_ts = datetime.datetime.now().timestamp()
+    cached = US_FILING_CACHE.get(cache_key)
+    if cached and now_ts - cached[0] < 300:
+        return cached[1]
+    lock = _get_singleflight_lock(_SEC_SINGLEFLIGHT_LOCKS, cache_key)
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = US_FILING_CACHE.get(cache_key)
+        if cached and now_ts - cached[0] < 300:
+            return cached[1]
+        return _fetch_us_official_filings_uncached(ticker_symbol, days)
+
+
+def format_us_official_filings(ticker_symbol, filings=None):
+    if filings is None:
+        filings = fetch_us_official_filings(ticker_symbol)
     if not filings:
         return ""
 
@@ -1811,8 +1897,8 @@ def get_live_calendar_data(stock_name, ticker_symbol):
     else:
         tonight_card = (
             "🌙 오늘 밤은? 없네!\n"
-            "시장을 뒤흔들 빅 이벤트가 없으니까 야간 미장 걱정 말고 꿀잠 자도 돼 ㅎㅎ\n"
-            "대신 뒤로 갈수록 굵직한 지표와 메이저 실적들이 대기 중이니까 아래 일정 꼭 메모해 둬!"
+            "오늘 밤은 시장을 뒤흔들 빅이벤트가 없으니까 야간 미장 걱정 말고 꿀잠 자도 돼 ㅎㅎ\n"
+            "대신 이번 주 뒤로 갈수록 굵직한 지표와 메이저 실적들이 대기 중이니까 아래 일정 꼭 메모해 둬!"
         )
 
     check_lines = []
@@ -1870,7 +1956,7 @@ def analyze():
             realtime_future = API_EXECUTOR.submit(fetch_kr_stock_realtime, clean_code)
             trend_future = API_EXECUTOR.submit(fetch_krx_trend_and_supply, clean_code)
             news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
-            disclosure_future = API_EXECUTOR.submit(format_kr_official_disclosures, clean_code)
+            disclosure_future = API_EXECUTOR.submit(fetch_kr_official_disclosures, clean_code)
             volume_profile_future = API_EXECUTOR.submit(
                 fetch_kr_historical_volume_profile, ticker_symbol
             )
@@ -1878,7 +1964,8 @@ def analyze():
             cur_p, diff, ratio = realtime_future.result()
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = trend_future.result()
             news_list = news_future.result()
-            kr_official_disclosures_block = disclosure_future.result()
+            kr_official_disclosures = disclosure_future.result()
+            kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             volume_profile = volume_profile_future.result()
             official_filings_block = ""
 
@@ -1901,27 +1988,28 @@ def analyze():
                 tag_line = f"#외국인 {f_abs} #기관 {i_abs} #개인 {ind_abs}"
 
                 if f_5d > 0 and i_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 외놈이랑 기관 삼촌들이 쌍끌이로 물량을 쓸어 담고 있어!\n바닥 튼튼하게 깔아두고 쓸어 담는 중이니까 우리도 멘탈 꽉 붙들어 매자고!"
+                    supply_content = f"{tag_line}\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
                 elif f_5d < 0 and i_5d < 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼며 물량을 털어내고 있어.\n개미들만 물 타면서 지옥 구경하는 자리니까 미련 싹 버리고 절대 깝치지 말고 몸 사리자!"
+                    supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼며 물량을 털어내고 있어.\n개미들만 물량을 떠안는 위험한 자리니까 절대 물타지 말고 조심해야 돼."
                 elif f_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일간 세력이 개미를 압도하는 완벽한 판세야.\n기관 아찌들이 옆에서 팝콘 먹으면서 관망하는 사이에 외국인이 지친 개미들 물량을 싹 쓸어 담았어.\n돈의 힘이 상방으로 쏠렸으니 짜릿하게 즐겨보자고!"
+                    supply_content = f"{tag_line}\n\n최근 5일간 세력이 개미를 압도하는 완벽한 판세야.\n기관이 관망하는 사이 외국인이 지친 개미들 물량을 싹 쓸어 담았어.\n돈의 힘이 상방으로 쏠렸으니 단기 슈팅 흐름 기대해 봐도 좋아."
                 elif i_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 국내 기관들이 뚝심 있게 순매수하며 주가를 끌고 있어!\n토종 세력들이 든든하게 버텨주고 있으니까 우리도 멘탈 꽉 잡고 힘내자고!"
+                    supply_content = f"{tag_line}\n\n최근 5일 동안 국내 기관들이 뚝심 있게 순매수하며 주가를 끌고 있어!\n토종 세력의 바닥 지지력이 살아있으니 20일선 지지 여부 보면서 따라가 보자."
                 else:
-                    supply_content = f"{tag_line}\n\n최근 5일간 큰손들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n서로 간 보면서 방향 못 잡고 팽팽하게 줄다리기 중이니까 섣부르게 들이대지 말자"
+                    supply_content = f"{tag_line}\n\n최근 5일간 세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
 
         # 2. 미국 주식
         else:
             yahoo_future = API_EXECUTOR.submit(fetch_yahoo_direct_v8, ticker_symbol)
             options_future = API_EXECUTOR.submit(fetch_us_options_volume, ticker_symbol)
             news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
-            filing_future = API_EXECUTOR.submit(format_us_official_filings, ticker_symbol)
+            filing_future = API_EXECUTOR.submit(fetch_us_official_filings, ticker_symbol)
 
             cur_p, prev_p, ma20_val, res_val, volume_profile = yahoo_future.result()
             call_vol, put_vol, option_error = options_future.result()
             news_list = news_future.result()
-            official_filings_block = filing_future.result()
+            us_filings_raw = filing_future.result()
+            official_filings_block = format_us_official_filings(ticker_symbol, us_filings_raw)
             kr_official_disclosures_block = ""
 
             if cur_p and prev_p:
@@ -1945,7 +2033,7 @@ def analyze():
             )
 
         if not supply_content:
-            supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어!"
+            supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
 
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
         if change_pct >= 5.0:
@@ -2011,11 +2099,11 @@ def analyze():
                 "title": "여기 깨지면 도망쳐",
                 "content": (
                     f"#생존 지지선 {ma20_str} 딱 기억해놔! "
-                    f"이 가격 지켜줘야 마땅한데 분위기 좀 싸하다! 여기서 밀리면 실망 매물 나올 수 있으니 멘탈 단디 잡고 리스크 관리 먼저 하자고!\n\n"
+                    f"이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n"
                     + (
                         format_volume_profile(volume_profile, is_usd=False)
                         if volume_profile
-                        else f"#악성 매물대 {res_str} 와, 이 구간 완전 잠재적 매물 폭탄 존이야. 추격매수 절대 금지다, 알겠지?."
+                        else f"#악성 매물대 {res_str} 이 가격은 최근 고점 부근의 본전 매물이 몰려 있을 가능성이 있어. 돌파 전에는 무리하게 따라붙지 말자."
                     )
                 )
             },
@@ -2027,7 +2115,7 @@ def analyze():
         news_items = list(news_list) if isinstance(news_list, list) else []
         disclosures = []
         if is_krw and clean_code:
-            for item in fetch_kr_official_disclosures(clean_code):
+            for item in (kr_official_disclosures or []):
                 report_title = str(item.get("report", "")).strip()
                 if raw_name and raw_name not in report_title:
                     report_title = f"{raw_name} {report_title}"
@@ -2042,7 +2130,7 @@ def analyze():
                 })
         us_filings = []
         if not is_krw and ticker_symbol:
-            for item in fetch_us_official_filings(ticker_symbol):
+            for item in (us_filings_raw or []):
                 us_filings.append({
                     "title": "내부자 거래" if str(item.get("form", "")).upper() == "4" else (item.get("description") or "SEC 공시"),
                     "source": "SEC",
@@ -2053,6 +2141,11 @@ def analyze():
                     "link": item.get("url", ""),
                     "form": item.get("form", ""),
                     "person": item.get("person", ""),
+                    "officer_title": item.get("officer_title", ""),
+                    "transaction_kind": item.get("transaction_kind", ""),
+                    "transaction_summary": item.get("transaction_summary", ""),
+                    "transaction_count": item.get("transaction_count", 0),
+                    "price_range": item.get("price_range", ""),
                 })
         return jsonify({
             "sections": sections,
@@ -2071,11 +2164,11 @@ def analyze():
                 },
                 {
                     "title": "큰손들은 담고 있을까, 털고 있을까?",
-                    "content": "#외국인 +48.2만주   #기관 +21.4만주   #개인 -69.6만주\n\n최근 5일 동안 외국인 형들이랑 기관 삼촌들이 짜기라도 한 것처럼 물량을 아주 싹쓸이로 담고 있어!\n메이저 큰손들 덕분에 불타오르네 아주 그냥! 🔥."
+                    "content": "#외국인 +48.2만주   #기관 +21.4만주   #개인 -69.6만주\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
                 },
                 {
                     "title": "여기 깨지면 도망쳐",
-                    "content": "#생존 지지선 1,680,000원 이 가격 지켜줘야 마땅한데 분위기 좀 싸하다! 여기서 밀리면 실망 매물 나올 수 있으니 멘탈 단디 잡고 리스크 관리 먼저 하자고!\n\n#악성 매물대 1,792,000원 조심해, 여기 완전 잠재적 폭탄이야! 최근 고점 부근에 물린 채로 대기 중인 악성 매물벽이 두껍게 버티고 있어서 잘못 걸리면 대참사 난다ㅠㅠ"
+                    "content": "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 이 가격은! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
                 },
                 {
                     "title": "오늘 밤, 이번주 무슨 일이 있나?",
