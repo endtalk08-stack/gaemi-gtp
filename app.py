@@ -2177,6 +2177,63 @@ def analyze():
             ]
         })
 
+# -----------------------------------------------------------------------------
+# 서버 콜드스타트 완화
+# - 사용자 첫 검색을 막지 않고 서버 백그라운드에서 공시용 초기 캐시를 준비한다.
+# - 모든 종목을 무차별 조회하지 않고, 실제 사이트에서 자주 검색하는 대표 종목만 워밍한다.
+# - 실패해도 사용자 요청/기존 기능에는 영향을 주지 않는다.
+# -----------------------------------------------------------------------------
+_WARMUP_TICKERS_KR = [
+    "005930.KS",  # 삼성전자
+    "000660.KS",  # SK하이닉스
+]
+_WARMUP_TICKERS_US = [
+    "NVDA",
+    "TSLA",
+    "AAPL",
+]
+
+
+def _gaemigtp_warmup_cache():
+    """서버 시작 직후 공시 관련 콜드스타트 비용을 백그라운드에서 선지불한다."""
+    try:
+        time.sleep(1.0)
+        # 가장 큰 첫 요청 비용 중 하나인 DART 기업코드 전체맵을 미리 준비한다.
+        if OPENDART_API_KEY:
+            fetch_dart_corp_map()
+
+        # 대표 국내 종목은 DART 최근 공시를 미리 캐시한다.
+        for code in _WARMUP_TICKERS_KR:
+            try:
+                clean_code = ''.join(filter(str.isdigit, code))
+                if clean_code:
+                    fetch_kr_official_disclosures(clean_code)
+            except Exception as e:
+                print(f"[워밍업] DART {code} 건너뜀: {type(e).__name__}: {e}")
+
+        # 대표 미국 종목은 SEC Form 4/주요 제출자료를 미리 캐시한다.
+        for ticker in _WARMUP_TICKERS_US:
+            try:
+                fetch_us_official_filings(ticker)
+            except Exception as e:
+                print(f"[워밍업] SEC {ticker} 건너뜀: {type(e).__name__}: {e}")
+
+        print("[워밍업] DART/SEC 초기 캐시 준비 완료")
+    except Exception as e:
+        print(f"[워밍업] 전체 건너뜀: {type(e).__name__}: {e}")
+
+
+# Gunicorn/Render에서도 import 시 한 번만 비동기 시작한다. 요청을 막지 않는다.
+try:
+    threading.Thread(
+        target=_gaemigtp_warmup_cache,
+        name="gaemigtp-cache-warmup",
+        daemon=True,
+    ).start()
+except Exception as e:
+    print(f"[워밍업] 스레드 시작 실패: {type(e).__name__}: {e}")
+
+
 if __name__ == '__main__':
     # Render가 제공하는 PORT를 사용하고, 로컬 실행에서는 10000을 기본값으로 사용한다.
     port = int(os.environ.get('PORT', '10000'))
