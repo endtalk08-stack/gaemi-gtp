@@ -1974,7 +1974,6 @@ def analyze():
             if news_list
             else "📰 현재 확인된 관련 뉴스를 가져오지 못했습니다."
         )
-        news_transition = "이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야"
 
 
         # 첫 화면은 현재 주가를 가장 위에 배치한다.
@@ -1992,7 +1991,6 @@ def analyze():
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
-            news_transition,
             tags_str,
         ]
 
