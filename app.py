@@ -198,6 +198,36 @@ def _dart_report_score(report_name):
     return score
 
 
+def _fetch_dart_receipt_time(receipt_no):
+    """DART 원문 페이지에서 공시 접수시간을 가져온다. 실패하면 빈 문자열을 반환한다."""
+    receipt_no = str(receipt_no or "").strip()
+    if not receipt_no:
+        return ""
+    try:
+        url = f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt_no}"
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "text/html,*/*"},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+        patterns = [
+            r"접수시간\s*</[^>]+>\s*([^<]+)",
+            r"접수시간\s*[:：]\s*([0-9]{1,2}:[0-9]{2})",
+            r"접수일자[^0-9]*(?:[0-9]{4}[-./]?[0-9]{2}[-./]?[0-9]{2})[^0-9]*([0-9]{1,2}:[0-9]{2})",
+        ]
+        for pattern in patterns:
+            m = re.search(pattern, html, flags=re.I | re.S)
+            if m:
+                value = re.sub(r"\s+", " ", m.group(1)).strip()
+                tm = re.search(r"([0-9]{1,2}:[0-9]{2})", value)
+                if tm:
+                    return tm.group(1).zfill(5)
+    except Exception:
+        pass
+    return ""
+
+
 def fetch_kr_official_disclosures(stock_code, days=7):
     """OpenDART에서 국내 기업의 최근 공시를 코드로 조회한다."""
     if not OPENDART_API_KEY or not stock_code:
@@ -254,6 +284,7 @@ def fetch_kr_official_disclosures(stock_code, days=7):
             if not report_name or not receipt_date:
                 continue
 
+            receipt_time = _fetch_dart_receipt_time(receipt_no)
             results.append({
                 # 국내 공시 날짜는 화면에서 YYYY.MM.DD 형태로 표시한다.
                 "date": (
@@ -262,6 +293,7 @@ def fetch_kr_official_disclosures(stock_code, days=7):
                 ),
                 "report": report_name,
                 "receipt_no": receipt_no,
+                "time": receipt_time,
                 "score": _dart_report_score(report_name),
             })
 
@@ -1984,6 +2016,7 @@ def analyze():
                     "title": report_title,
                     "source": "DART",
                     "date": item.get("date", ""),
+                    "time": item.get("time", ""),
                     "link": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={item.get('receipt_no', '')}" if item.get("receipt_no") else "",
                 })
         us_filings = []
