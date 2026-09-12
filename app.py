@@ -1141,11 +1141,18 @@ def _fetch_one_news_rss(search_term, days=7):
             title_el = item.find('title')
             source_el = item.find('source')
             pub_el = item.find('pubDate')
+            link_el = item.find('link')
             title = _clean_news_title(title_el.text if title_el is not None else "")
             source = (source_el.text or "").strip() if source_el is not None else ""
             pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
+            article_link = (link_el.text or "").strip() if link_el is not None else ""
             if title:
-                rows.append({"title": title, "source": source, "pub_date": pub_date})
+                rows.append({
+                    "title": title,
+                    "source": source,
+                    "pub_date": pub_date,
+                    "link": article_link,
+                })
     except Exception as e:
         print(f"[뉴스] RSS 조회 예외 search={search_term}: {type(e).__name__}: {e}")
     return rows
@@ -1237,6 +1244,7 @@ def _fetch_realtime_news_uncached(stock_name):
             )
             candidates.append({
                 "title": title, "source": row["source"], "pub_date": row["pub_date"],
+                "link": row.get("link", ""),
                 "source_score": source_score, "freshness_score": freshness_score,
                 "relevance_score": relevance_score, "direct": direct,
                 "material": material_hit, "market_cause": market_cause_hit,
@@ -1315,20 +1323,53 @@ def _fetch_realtime_news_uncached(stock_name):
     for i, item in enumerate(selected[:3], 1):
         print(f"[뉴스 품질] {clean_stock_name} 화면#{i} score={item['score']} type={item['impact_type']} direct={item['direct']} material={item['material']} source={item['source']}")
 
+    def _news_display_age(pub_date):
+        """뉴스 발행시각을 화면용 상대시간으로 표시한다."""
+        if not pub_date:
+            return ""
+        try:
+            dt = parsedate_to_datetime(pub_date)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            seconds = max(0, int((now - dt.astimezone(datetime.timezone.utc)).total_seconds()))
+            if seconds < 60:
+                return "방금 전"
+            minutes = seconds // 60
+            if minutes < 60:
+                return f"{minutes}분 전"
+            hours = minutes // 60
+            if hours < 24:
+                return f"{hours}시간 전"
+            days = hours // 24
+            if days < 7:
+                return f"{days}일 전"
+            return dt.astimezone().strftime("%m/%d")
+        except Exception:
+            return ""
+
     display_titles = []
-    company_names = set(terms)
+    news_items = []
     for item in selected[:3]:
-        original_title = item["title"]
-        display_title = original_title
-        for company_name in sorted(company_names, key=len, reverse=True):
-            if company_name:
-                display_title = display_title.replace(company_name, "")
-                display_title = re.sub(re.escape(company_name), "", display_title, flags=re.IGNORECASE)
-        display_title = re.sub(r"\s+", " ", display_title).strip()
-        display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
-        display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
-        display_titles.append(display_title or original_title)
-    return display_titles
+        # 화면에서는 원문 제목의 종목명을 제거하지 않는다.
+        # AI 내부 후보 데이터도 기존 title/source/pub_date/link를 그대로 유지한다.
+        display_title = re.sub(r"\s+", " ", str(item.get("title", ""))).strip()
+        display_title = display_title or "관련 뉴스"
+
+        source = str(item.get("source", "")).strip() or "출처 확인 중"
+        age_text = _news_display_age(item.get("pub_date", ""))
+        meta = f"{source} · {age_text}" if age_text else source
+        display_titles.append(f"{display_title}\n{meta}")
+        news_items.append({
+            "title": display_title,
+            "source": source,
+            "pub_date": item.get("pub_date", ""),
+            "display_datetime": age_text,
+            "link": str(item.get("link", "")).strip(),
+            "original_link": str(item.get("link", "")).strip(),
+        })
+
+    return display_titles, news_items
 
 
 def fetch_realtime_news(stock_name):
@@ -1340,8 +1381,9 @@ def fetch_realtime_news(stock_name):
         return list(cached[1])
 
     result = _fetch_realtime_news_uncached(stock_name)
-    NEWS_RESULT_CACHE[key] = (now, list(result))
-    return result
+    # 뉴스 화면 표시용 문자열과 클릭 가능한 원문 링크를 함께 캐시한다.
+    NEWS_RESULT_CACHE[key] = (now, result)
+    return result[0] if isinstance(result, tuple) else result
 
 
 def get_news_ai_candidates(stock_name, limit=10):
@@ -1768,7 +1810,7 @@ def analyze():
         if is_krw and clean_code:
             realtime_future = API_EXECUTOR.submit(fetch_kr_stock_realtime, clean_code)
             trend_future = API_EXECUTOR.submit(fetch_krx_trend_and_supply, clean_code)
-            news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
+            news_future = API_EXECUTOR.submit(_fetch_realtime_news_uncached, raw_name)
             disclosure_future = API_EXECUTOR.submit(format_kr_official_disclosures, clean_code)
             volume_profile_future = API_EXECUTOR.submit(
                 fetch_kr_historical_volume_profile, ticker_symbol
@@ -1776,10 +1818,25 @@ def analyze():
 
             cur_p, diff, ratio = realtime_future.result()
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = trend_future.result()
-            news_list = news_future.result()
+            news_result = news_future.result()
+            if isinstance(news_result, tuple):
+                news_list, news_items = news_result
+            else:
+                news_list, news_items = news_result, []
             kr_official_disclosures_block = disclosure_future.result()
             volume_profile = volume_profile_future.result()
             official_filings_block = ""
+            disclosure_items = []
+            for item in fetch_kr_official_disclosures(clean_code):
+                receipt_no = str(item.get("receipt_no", "")).strip()
+                disclosure_items.append({
+                    "title": str(item.get("report", "")).strip() or "공시",
+                    "source": "DART",
+                    "date": str(item.get("date", "")).strip(),
+                    "display_datetime": str(item.get("date", "")).strip(),
+                    "link": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt_no}" if receipt_no else "",
+                    "original_link": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt_no}" if receipt_no else "",
+                })
 
             current_price = cur_p if cur_p else 1783000.0
             change_pct = ratio if ratio is not None else 8.26
@@ -1814,14 +1871,29 @@ def analyze():
         else:
             yahoo_future = API_EXECUTOR.submit(fetch_yahoo_direct_v8, ticker_symbol)
             options_future = API_EXECUTOR.submit(fetch_us_options_volume, ticker_symbol)
-            news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
+            news_future = API_EXECUTOR.submit(_fetch_realtime_news_uncached, raw_name)
             filing_future = API_EXECUTOR.submit(format_us_official_filings, ticker_symbol)
 
             cur_p, prev_p, ma20_val, res_val, volume_profile = yahoo_future.result()
             call_vol, put_vol, option_error = options_future.result()
-            news_list = news_future.result()
+            news_result = news_future.result()
+            if isinstance(news_result, tuple):
+                news_list, news_items = news_result
+            else:
+                news_list, news_items = news_result, []
             official_filings_block = filing_future.result()
             kr_official_disclosures_block = ""
+            disclosure_items = []
+            for filing in fetch_us_official_filings(ticker_symbol):
+                filing_url = str(filing.get("url", "")).strip()
+                disclosure_items.append({
+                    "title": str(filing.get("description", "") or filing.get("form", "SEC 공시")).strip(),
+                    "source": "SEC",
+                    "date": str(filing.get("date", "")).strip(),
+                    "display_datetime": str(filing.get("date", "")).strip(),
+                    "link": filing_url,
+                    "original_link": filing_url,
+                })
 
             if cur_p and prev_p:
                 current_price = cur_p
@@ -1927,7 +1999,11 @@ def analyze():
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ])
-        return jsonify({"sections": sections})
+        return jsonify({
+            "sections": sections,
+            "news_items": news_items[:3] if isinstance(news_items, list) else [],
+            "disclosures": disclosure_items[:3] if isinstance(disclosure_items, list) else [],
+        })
 
     except Exception as e:
         print("전체 예외 안전 복구 가동:", e)
