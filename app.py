@@ -359,17 +359,27 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7):
         )
         results = results[:3]
 
-        # 최종 3건만 DART 원문에서 접수시간을 보강한다.
-        for item in results:
-            receipt_time = _fetch_dart_receipt_time(item.get("receipt_no", ""))
-            item["time"] = receipt_time
-            item["time_zone"] = "KST" if receipt_time else ""
-            receipt_date_raw = str(item.get("receipt_datetime") or "")[:8]
-            item["receipt_datetime"] = (
-                f"{receipt_date_raw} {receipt_time}".strip()
-                if receipt_time and len(receipt_date_raw) == 8
-                else item.get("receipt_datetime", "")
-            )
+        # 최종 3건의 DART 접수시간 보강은 서로 독립적이므로 병렬 조회한다.
+        # 첫 검색에서 최대 3번의 순차 HTTP 대기를 제거한다.
+        receipt_items = list(results)
+        with ThreadPoolExecutor(max_workers=min(3, len(receipt_items) or 1)) as receipt_executor:
+            receipt_futures = {
+                receipt_executor.submit(_fetch_dart_receipt_time, item.get("receipt_no", "")): item
+                for item in receipt_items
+            }
+            for future, item in receipt_futures.items():
+                try:
+                    receipt_time = future.result()
+                except Exception:
+                    receipt_time = ""
+                item["time"] = receipt_time
+                item["time_zone"] = "KST" if receipt_time else ""
+                receipt_date_raw = str(item.get("receipt_datetime") or "")[:8]
+                item["receipt_datetime"] = (
+                    f"{receipt_date_raw} {receipt_time}".strip()
+                    if receipt_time and len(receipt_date_raw) == 8
+                    else item.get("receipt_datetime", "")
+                )
 
         print(f"[국내 공시] {stock_code} 성공 / 선택={len(results)}")
         DART_DISCLOSURE_CACHE[cache_key] = (now_ts, results)
@@ -462,6 +472,95 @@ def format_us_sec_filing(filing):
     summary = title or "주요 공시 내용 확인"
     return f"📌 {display_date} · {form or 'SEC 공시'}\n📰 {summary}".strip()
 
+
+
+def _enrich_us_form4_from_submission(filing, ticker_symbol):
+    """SEC Form 4 1건을 공식 제출 TXT에서 보강한다. 네트워크 I/O는 호출측에서 병렬화한다."""
+    filing_url = str(filing.get("original_document_url") or "").strip()
+    accession = str(filing.get("accession") or "").strip()
+    if not filing_url or not accession:
+        return filing
+
+    try:
+        sec_headers = {
+            "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
+            "Accept": "text/html,application/xml,text/xml,*/*",
+        }
+        clean_accession = accession.replace("-", "")
+        cik = str(filing.get("cik") or "").strip()
+        submission_txt_url = (
+            f"https://www.sec.gov/Archives/edgar/data/"
+            f"{int(cik)}/{clean_accession}/{accession}.txt"
+        )
+        txt_req = urllib.request.Request(submission_txt_url, headers=sec_headers)
+        with urllib.request.urlopen(txt_req, timeout=5) as txt_resp:
+            submission_text = txt_resp.read().decode("utf-8", errors="ignore")
+
+        filing["person"] = _tag_value(submission_text, "rptOwnerName")
+        filing["officer_title"] = _tag_value(submission_text, "officerTitle")
+        if not filing["officer_title"]:
+            if _has_tag_value(submission_text, "isDirector"):
+                filing["officer_title"] = "Director"
+            elif _has_tag_value(submission_text, "isOfficer"):
+                filing["officer_title"] = "Officer"
+            elif _has_tag_value(submission_text, "isTenPercentOwner"):
+                filing["officer_title"] = "10% Owner"
+            elif _has_tag_value(submission_text, "isOther"):
+                filing["officer_title"] = _tag_value(submission_text, "otherText")
+
+        transactions = []
+        txn_blocks = re.findall(
+            r"<(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction>",
+            submission_text, flags=re.I | re.S,
+        )
+        for block in txn_blocks:
+            code = _tag_value(block, "transactionCode").upper()
+            shares = _tag_value(block, "transactionShares")
+            price = _tag_value(block, "transactionPricePerShare")
+            acquired_disposed = _tag_value(block, "transactionAcquiredDisposedCode").upper()
+            if code or shares:
+                transactions.append({"code": code, "shares": shares, "price": price, "acquired_disposed": acquired_disposed})
+
+        filing["transactions"] = transactions
+        if transactions:
+            filing["transaction_code"] = transactions[0]["code"]
+            filing["shares"] = transactions[0]["shares"]
+            filing["price"] = transactions[0]["price"]
+            code_labels = {
+                "P": "내부자 매수", "S": "내부자 매도", "A": "내부자 취득",
+                "D": "회사로 반환", "F": "세금·행사가격 지급", "M": "옵션·파생상품 행사",
+                "G": "주식 증여", "V": "자발적 신고", "J": "기타 거래",
+            }
+            code_counts = {}
+            for tx in transactions:
+                tx_code = str(tx.get("code") or "").upper().strip()
+                if tx_code:
+                    code_counts[tx_code] = code_counts.get(tx_code, 0) + 1
+            priority = ["P", "S", "A", "G", "F", "M", "D", "C", "J", "V"]
+            ordered_codes = sorted(code_counts, key=lambda c: priority.index(c) if c in priority else len(priority))
+            if len(ordered_codes) == 1:
+                c = ordered_codes[0]
+                filing["transaction_kind"] = code_labels.get(c, "내부자 거래")
+                filing["transaction_summary"] = f"{filing['transaction_kind']} · {code_counts[c]}건"
+            elif ordered_codes:
+                filing["transaction_kind"] = code_labels.get(ordered_codes[0], "내부자 거래")
+                filing["transaction_summary"] = " · ".join(f"{code_labels.get(c, '내부자 거래')} {code_counts[c]}건" for c in ordered_codes)
+            else:
+                filing["transaction_kind"] = "내부자 거래"
+                filing["transaction_summary"] = "내부자 거래"
+            filing["transaction_count"] = len(transactions)
+            filing["price_range"] = ""
+        else:
+            filing["transaction_kind"] = "내부자 거래"
+            filing["transaction_summary"] = "내부자 거래"
+            filing["transaction_count"] = 0
+            filing["price_range"] = ""
+        return filing
+    except Exception as detail_err:
+        print(f"[미국 공시] {ticker_symbol} Form 4 원문 보강 실패: {type(detail_err).__name__}: {detail_err}")
+        return filing
+
+
 def _fetch_us_official_filings_uncached(ticker_symbol, days=7):
     """SEC 공식 제출자료 중 최근 주요 공시를 수집한다. AI/웹검색 없이 코드로만 수집."""
     ticker_symbol = ticker_symbol.upper()
@@ -540,139 +639,31 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7):
                 "cik": str(cik),
             }
 
-            # Form 4는 SEC 공식 제출 원문(.txt) 안에 신고자/역할/거래 XML 데이터가 포함되어 있다.
-            # 별도의 index/XML 요청은 화면에 필요한 정보가 중복되므로 생략한다.
+            # Form 4 원문 보강은 서로 독립적이므로 아래에서 최대 3건을 병렬 처리한다.
+            # 기존처럼 Form 4마다 순차 HTTP 요청을 기다리지 않는다.
             if form == "4" and filing_url:
-                try:
-                    sec_headers = {
-                        "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
-                        "Accept": "text/html,application/xml,text/xml,*/*",
-                    }
-
-                    clean_accession = accession.replace("-", "")
-
-                    # SEC 공식 제출 원문(.txt)을 가져온다.
-                    submission_txt_url = (
-                        f"https://www.sec.gov/Archives/edgar/data/"
-                        f"{int(cik)}/{clean_accession}/{accession}.txt"
-                    )
-                    print(f"[미국 공시] {ticker_symbol} Form 4 제출원문 요청: {submission_txt_url}")
-                    txt_req = urllib.request.Request(submission_txt_url, headers=sec_headers)
-                    with urllib.request.urlopen(txt_req, timeout=5) as txt_resp:
-                        submission_text = txt_resp.read().decode("utf-8", errors="ignore")
-                    print(f"[미국 공시] {ticker_symbol} Form 4 제출원문 수신: {len(submission_text)} bytes")
-
-                    # 제출원문 안의 XML 구간만 골라내도 되고, 전체 텍스트에서 직접 찾아도 된다.
-                    # 전체 텍스트를 대상으로 하면 SEC 포맷이 조금 달라져도 대응력이 높다.
-                    filing["person"] = _tag_value(submission_text, "rptOwnerName")
-                    filing["officer_title"] = _tag_value(submission_text, "officerTitle")
-
-                    # officerTitle이 비어 있는 Director 공시가 많으므로 관계 태그를 이용해 역할을 보강한다.
-                    if not filing["officer_title"]:
-                        if _has_tag_value(submission_text, "isDirector"):
-                            filing["officer_title"] = "Director"
-                        elif _has_tag_value(submission_text, "isOfficer"):
-                            filing["officer_title"] = "Officer"
-                        elif _has_tag_value(submission_text, "isTenPercentOwner"):
-                            filing["officer_title"] = "10% Owner"
-                        elif _has_tag_value(submission_text, "isOther"):
-                            filing["officer_title"] = _tag_value(submission_text, "otherText")
-
-                    transactions = []
-                    txn_blocks = re.findall(
-                        r"<(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction>",
-                        submission_text,
-                        flags=re.I | re.S,
-                    )
-
-                    for block in txn_blocks:
-                        code = _tag_value(block, "transactionCode").upper()
-                        shares = _tag_value(block, "transactionShares")
-                        price = _tag_value(block, "transactionPricePerShare")
-                        acquired_disposed = _tag_value(block, "transactionAcquiredDisposedCode").upper()
-                        if code or shares:
-                            transactions.append({
-                                "code": code,
-                                "shares": shares,
-                                "price": price,
-                                "acquired_disposed": acquired_disposed,
-                            })
-
-                    if transactions:
-                        filing["transactions"] = transactions
-                        filing["transaction_code"] = transactions[0]["code"]
-                        filing["shares"] = transactions[0]["shares"]
-                        filing["price"] = transactions[0]["price"]
-                        # 화면용 내부자 거래 요약 데이터: 기존 SEC 원문에서만 계산
-                        code_labels = {
-                            "P": "내부자 매수", "S": "내부자 매도", "A": "내부자 취득",
-                            "D": "회사로 반환", "F": "세금·행사가격 지급", "M": "옵션·파생상품 행사",
-                            "G": "주식 증여", "V": "자발적 신고", "J": "기타 거래",
-                        }
-                        code_counts = {}
-                        for tx in transactions:
-                            tx_code = str(tx.get("code") or "").upper().strip()
-                            if tx_code:
-                                code_counts[tx_code] = code_counts.get(tx_code, 0) + 1
-                        priority = ["P", "S", "A", "G", "F", "M", "D", "C", "J", "V"]
-                        ordered_codes = sorted(
-                            code_counts.keys(),
-                            key=lambda c: priority.index(c) if c in priority else len(priority)
-                        )
-                        if len(ordered_codes) == 1:
-                            only_code = ordered_codes[0]
-                            filing["transaction_kind"] = code_labels.get(only_code, "내부자 거래")
-                            filing["transaction_summary"] = f"{filing['transaction_kind']} · {code_counts[only_code]}건"
-                        elif ordered_codes:
-                            filing["transaction_kind"] = code_labels.get(ordered_codes[0], "내부자 거래")
-                            filing["transaction_summary"] = " · ".join(
-                                f"{code_labels.get(c, '내부자 거래')} {code_counts[c]}건"
-                                for c in ordered_codes
-                            )
-                        else:
-                            filing["transaction_kind"] = "내부자 거래"
-                            filing["transaction_summary"] = "내부자 거래"
-                        filing["transaction_count"] = len(transactions)
-                        prices = []
-                        for tx in transactions:
-                            raw_price = str(tx.get("price") or "").replace(",", "").strip()
-                            try:
-                                val = float(raw_price)
-                                if val > 0:
-                                    prices.append(val)
-                            except Exception:
-                                pass
-                        if prices:
-                            lo, hi = min(prices), max(prices)
-                            filing["price_range"] = (
-                                f"${lo:,.2f}" if abs(lo-hi) < 1e-9
-                                else f"${lo:,.2f} ~ ${hi:,.2f}"
-                            )
-                        else:
-                            filing["price_range"] = ""
-                        print(
-                            f"[미국 공시] {ticker_symbol} Form 4 제출원문 파싱 성공: "
-                            f"person={filing.get('person','')} "
-                            f"title={filing.get('officer_title','')} "
-                            f"transactions={len(transactions)}"
-                        )
-                    else:
-                        filing["transactions"] = []
-                        print(
-                            f"[미국 공시] {ticker_symbol} Form 4 제출원문에서 거래행을 찾지 못했습니다. "
-                            f"person={filing.get('person','')} title={filing.get('officer_title','')}"
-                        )
-
-                except Exception as detail_err:
-                    print(
-                        f"[미국 공시] {ticker_symbol} Form 4 원문 보강 실패: "
-                        f"{type(detail_err).__name__}: {detail_err}"
-                    )
+                filing["_needs_form4_enrichment"] = True
 
             results.append(filing)
 
             if len(results) >= 3:
                 break
+
+        # Form 4 세부 원문 요청은 최대 3건을 병렬로 실행한다.
+        enrich_targets = [f for f in results if f.get("_needs_form4_enrichment")]
+        if enrich_targets:
+            with ThreadPoolExecutor(max_workers=min(3, len(enrich_targets))) as enrich_executor:
+                future_map = {
+                    enrich_executor.submit(_enrich_us_form4_from_submission, filing, ticker_symbol): filing
+                    for filing in enrich_targets
+                }
+                for future, filing in future_map.items():
+                    try:
+                        enriched = future.result()
+                        filing.update(enriched)
+                    except Exception as enrich_err:
+                        print(f"[미국 공시] {ticker_symbol} Form 4 병렬 보강 실패: {type(enrich_err).__name__}: {enrich_err}")
+                    filing.pop("_needs_form4_enrichment", None)
 
         US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), results)
         return results
@@ -2202,7 +2193,9 @@ def _gaemigtp_warmup_cache():
         if OPENDART_API_KEY:
             fetch_dart_corp_map()
 
-        # 대표 국내 종목은 DART 최근 공시를 미리 캐시한다.
+        # 사용자 첫 검색과 DART/SEC 워밍업이 같은 종목에서 서로 기다리지 않도록
+        # 대표 종목의 무거운 조회는 20초 뒤에 시작한다. 기업코드 맵만 즉시 준비한다.
+        time.sleep(20.0)
         for code in _WARMUP_TICKERS_KR:
             try:
                 clean_code = ''.join(filter(str.isdigit, code))
@@ -2210,15 +2203,12 @@ def _gaemigtp_warmup_cache():
                     fetch_kr_official_disclosures(clean_code)
             except Exception as e:
                 print(f"[워밍업] DART {code} 건너뜀: {type(e).__name__}: {e}")
-
-        # 대표 미국 종목은 SEC Form 4/주요 제출자료를 미리 캐시한다.
         for ticker in _WARMUP_TICKERS_US:
             try:
                 fetch_us_official_filings(ticker)
             except Exception as e:
                 print(f"[워밍업] SEC {ticker} 건너뜀: {type(e).__name__}: {e}")
-
-        print("[워밍업] DART/SEC 초기 캐시 준비 완료")
+        print("[워밍업] DART/SEC 백그라운드 초기 캐시 준비 완료")
     except Exception as e:
         print(f"[워밍업] 전체 건너뜀: {type(e).__name__}: {e}")
 
