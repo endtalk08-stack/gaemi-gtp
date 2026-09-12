@@ -615,7 +615,12 @@
         const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`);
         if (!response.ok) throw new Error('서버 에러');
         const data = await response.json();
-        return { sections: data.sections || [], ok: true };
+        return {
+          sections: data.sections || [],
+          news_items: Array.isArray(data.news_items) ? data.news_items : [],
+          disclosures: Array.isArray(data.disclosures) ? data.disclosures : [],
+          ok: true
+        };
       } catch (err) {
         return { sections: [], ok: false };
       }
