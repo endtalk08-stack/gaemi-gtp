@@ -57,52 +57,41 @@
     }
     #chatArea p { line-height: 1.65; letter-spacing: -0.02em; }
 
-    /* 뉴스·공시: 제목 + 출처/시간 + 우측 화살표의 간결한 원문 링크 목록 */
-    .source-list-card {
-      background: rgba(255,255,255,.78);
-      border: 1px solid #e2e8f0;
-      border-radius: 22px;
-      padding: 6px 16px;
-      box-shadow: 0 6px 22px rgba(15,23,42,.04);
+    /* 뉴스·공시: 기존 본문 흐름 안에서 간결하게 표시 */
+    .source-inline {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid #27272a;
     }
-    .dark .source-list-card {
-      background: rgba(30,31,36,.82);
-      border-color: #27272a;
-      box-shadow: 0 6px 22px rgba(0,0,0,.12);
-    }
-    .source-list-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      width: 100%;
-      min-height: 64px;
-      padding: 10px 0;
-      text-decoration: none;
-      border-bottom: 1px solid #e2e8f0;
-    }
-    .dark .source-list-row { border-bottom-color: #27272a; }
-    .source-list-row:last-child { border-bottom: 0; }
-    .source-list-main { min-width: 0; flex: 1; }
-    .source-list-title {
-      color: #0f172a;
-      font-size: .94rem;
+    .source-inline-title {
+      color: #a1a1aa;
+      font-size: .78rem;
       font-weight: 800;
-      line-height: 1.4;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      overflow: hidden;
+      margin-bottom: 8px;
     }
-    .dark .source-list-title { color: #f4f4f5; }
-    .source-list-meta {
-      margin-top: 4px;
-      color: #94a3b8;
-      font-size: .72rem;
+    .source-inline-row {
+      display: block;
+      padding: 5px 0;
+      color: #e4e4e7;
+      font-size: .84rem;
+      line-height: 1.5;
+      text-decoration: none;
+    }
+    .source-inline-row:hover { text-decoration: underline; }
+    .source-inline-meta {
+      color: #71717a;
+      font-size: .7rem;
       font-weight: 600;
+      margin-left: 4px;
     }
-    .source-list-arrow {
-      flex: 0 0 auto;
-      color: #94a3b8;
+    .source-inline-disclosure {
+      margin-top: 10px;
+    }
+    .dark .source-inline { border-top-color: #27272a; }
+    @media (prefers-color-scheme: light) {
+      .source-inline { border-top-color: #e2e8f0; }
+      .source-inline-row { color: #334155; }
+      .source-inline-title { color: #64748b; }
     }
 
     /* 사이드바: 닫힘 상태에서는 화면을 차지하지 않고 상단 버튼만 사용 */
@@ -295,7 +284,7 @@
   </div>
 
   <!-- 중앙 분석 영역 -->
-  <main class="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f1013] overflow-hidden min-w-0">
+  <main class="flex-1 flex flex-col h-full min-h-0 bg-[#f8fafc] dark:bg-[#0f1013] overflow-hidden min-w-0">
     <header class="h-16 flex items-center justify-between px-2 sm:px-4 bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 z-10">
       <div class="flex items-center gap-3">
         <button type="button" onclick="toggleLeftSidebar()" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="왼쪽 사이드바 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
@@ -307,7 +296,7 @@
       </div>
     </header>
 
-    <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
+    <div id="chatArea" class="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
 
     <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-3xl mx-auto relative">
@@ -818,32 +807,23 @@
       const disclosureItems = Array.isArray(result.disclosures) ? result.disclosures : [];
       if (!newsItems.length && !disclosureItems.length) return;
 
+      // 별도 메뉴/카드로 만들지 않고 기존 분석 본문 흐름 안에 간결하게 붙인다.
       const wrap = document.createElement('div');
-      wrap.className = 'space-y-4 animate-fade';
+      wrap.className = 'source-inline animate-fade';
 
-      const makeGroup = (label, items) => {
-        if (!items.length) return null;
+      const addGroup = (label, icon, items, extraClass='') => {
+        if (!items.length) return;
         const group = document.createElement('div');
-        group.className = 'space-y-2';
+        group.className = extraClass;
 
         const heading = document.createElement('div');
-        heading.className = 'flex items-center gap-2.5';
-        const badge = document.createElement('div');
-        badge.className = 'w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0';
-        badge.textContent = label === '뉴스' ? 'N' : 'D';
-        const title = document.createElement('h4');
-        title.className = 'font-black text-lg sm:text-xl text-[#0f172a] dark:text-white';
-        title.textContent = label;
-        heading.appendChild(badge);
-        heading.appendChild(title);
+        heading.className = 'source-inline-title';
+        heading.textContent = `${icon} ${label}`;
         group.appendChild(heading);
-
-        const card = document.createElement('div');
-        card.className = 'source-list-card';
 
         items.slice(0, 3).forEach(item => {
           const link = document.createElement('a');
-          link.className = 'source-list-row';
+          link.className = 'source-inline-row';
           const href = item.original_link || item.link || '';
           if (href) {
             link.href = href;
@@ -851,40 +831,26 @@
             link.rel = 'noopener noreferrer';
           } else {
             link.removeAttribute('href');
-            link.setAttribute('aria-disabled', 'true');
           }
 
-          const main = document.createElement('div');
-          main.className = 'source-list-main';
-          const titleEl = document.createElement('div');
-          titleEl.className = 'source-list-title';
-          titleEl.textContent = item.title || '제목 확인 필요';
-          const meta = document.createElement('div');
-          meta.className = 'source-list-meta';
+          const title = item.title || '제목 확인 필요';
           const source = item.source || '출처 확인 필요';
-          const when = item.display_datetime || item.datetime || item.date || '시간 확인 필요';
-          meta.textContent = `${source} · ${when}`;
-          main.appendChild(titleEl);
-          main.appendChild(meta);
-
-          const arrow = document.createElement('i');
-          arrow.setAttribute('data-lucide', 'chevron-right');
-          arrow.className = 'source-list-arrow w-5 h-5';
-          link.appendChild(main);
-          link.appendChild(arrow);
-          card.appendChild(link);
+          const when = item.display_datetime || item.datetime || item.date || '';
+          link.textContent = `${title}`;
+          if (source || when) {
+            const meta = document.createElement('span');
+            meta.className = 'source-inline-meta';
+            meta.textContent = `· ${source}${when ? ' · ' + when : ''}`;
+            link.appendChild(meta);
+          }
+          group.appendChild(link);
         });
-
-        group.appendChild(card);
-        return group;
+        wrap.appendChild(group);
       };
 
-      const newsGroup = makeGroup('뉴스', newsItems);
-      const disclosureGroup = makeGroup('공시', disclosureItems);
-      if (newsGroup) wrap.appendChild(newsGroup);
-      if (disclosureGroup) wrap.appendChild(disclosureGroup);
+      addGroup('뉴스', '📰', newsItems);
+      addGroup('공시', '📌', disclosureItems, 'source-inline-disclosure');
       container.appendChild(wrap);
-      if (window.lucide) window.lucide.createIcons();
     }
 
     function startTypewriterFlow(stockName, sections, result) {
