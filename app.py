@@ -343,6 +343,17 @@ def format_us_sec_filing(filing):
     summary = title or "주요 공시 내용 확인"
     return f"📌 {display_date} · {form or 'SEC 공시'}\n📰 {summary}".strip()
 
+def build_sec_filing_index_url(cik, accession):
+    """사람이 클릭할 SEC 제출 페이지 URL을 만든다. 원문 XML/TXT가 아닌 filing index 페이지를 반환한다."""
+    if not cik or not accession:
+        return ""
+    clean_accession = str(accession).replace("-", "")
+    return (
+        f"https://www.sec.gov/Archives/edgar/data/"
+        f"{int(cik)}/{clean_accession}/{accession}-index.htm"
+    )
+
+
 def fetch_us_official_filings(ticker_symbol, days=7):
     """SEC 공식 제출자료 중 최근 주요 공시를 수집한다. AI/웹검색 없이 코드로만 수집."""
     ticker_symbol = ticker_symbol.upper()
@@ -396,11 +407,7 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                 if accession and document else ""
             )
 
-            filing_page_url = (
-                f"https://www.sec.gov/Archives/edgar/data/"
-                f"{int(cik)}/{accession.replace('-', '')}/{accession}-index.htm"
-                if accession else filing_url
-            )
+            filing_page_url = build_sec_filing_index_url(cik, accession) or filing_url
             filing = {
                 "date": dates[i],
                 "form": form,
