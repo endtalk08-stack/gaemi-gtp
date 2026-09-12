@@ -198,36 +198,6 @@ def _dart_report_score(report_name):
     return score
 
 
-def _fetch_dart_receipt_time(receipt_no):
-    """DART 원문 페이지에서 공시 접수시간을 가져온다. 실패하면 빈 문자열을 반환한다."""
-    receipt_no = str(receipt_no or "").strip()
-    if not receipt_no:
-        return ""
-    try:
-        url = f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt_no}"
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "text/html,*/*"},
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            html = resp.read().decode("utf-8", errors="ignore")
-        patterns = [
-            r"접수시간\s*</[^>]+>\s*([^<]+)",
-            r"접수시간\s*[:：]\s*([0-9]{1,2}:[0-9]{2})",
-            r"접수일자[^0-9]*(?:[0-9]{4}[-./]?[0-9]{2}[-./]?[0-9]{2})[^0-9]*([0-9]{1,2}:[0-9]{2})",
-        ]
-        for pattern in patterns:
-            m = re.search(pattern, html, flags=re.I | re.S)
-            if m:
-                value = re.sub(r"\s+", " ", m.group(1)).strip()
-                tm = re.search(r"([0-9]{1,2}:[0-9]{2})", value)
-                if tm:
-                    return tm.group(1).zfill(5)
-    except Exception:
-        pass
-    return ""
-
-
 def fetch_kr_official_disclosures(stock_code, days=7):
     """OpenDART에서 국내 기업의 최근 공시를 코드로 조회한다."""
     if not OPENDART_API_KEY or not stock_code:
@@ -284,16 +254,14 @@ def fetch_kr_official_disclosures(stock_code, days=7):
             if not report_name or not receipt_date:
                 continue
 
-            receipt_time = _fetch_dart_receipt_time(receipt_no)
             results.append({
-                # 국내 공시 날짜는 화면에서 YYYY.MM.DD 형태로 표시한다.
+                # 국내 공시 날짜는 화면에서 간단하게 9/9 형태로 표시한다.
                 "date": (
-                    f"{receipt_date[:4]}.{receipt_date[4:6]}.{receipt_date[6:8]}"
+                    f"{int(receipt_date[4:6])}/{int(receipt_date[6:8])}"
                     if len(receipt_date) == 8 and receipt_date.isdigit() else receipt_date
                 ),
                 "report": report_name,
                 "receipt_no": receipt_no,
-                "time": receipt_time,
                 "score": _dart_report_score(report_name),
             })
 
@@ -428,19 +396,11 @@ def fetch_us_official_filings(ticker_symbol, days=7):
                 if accession and document else ""
             )
 
-            filing_page_url = (
-                f"https://www.sec.gov/Archives/edgar/data/"
-                f"{int(cik)}/{accession.replace('-', '')}/{accession}-index.htm"
-                if accession else filing_url
-            )
             filing = {
                 "date": dates[i],
                 "form": form,
                 "description": description or "SEC 공식 공시",
-                "url": filing_page_url,
-                "original_document_url": filing_url,
-                "accession": accession,
-                "cik": str(cik),
+                "url": filing_url,
             }
 
             # Form 4는 primaryDocument(.html)와 별도로 실제 XML 파일이 제공된다.
@@ -631,7 +591,7 @@ def format_us_official_filings(ticker_symbol):
         try:
             display_date = datetime.datetime.strptime(
                 date[:10], "%Y-%m-%d"
-            ).strftime("%Y.%m.%d")
+            ).strftime("%m/%d").lstrip("0").replace("/0", "/")
         except Exception:
             display_date = date
 
@@ -1181,13 +1141,11 @@ def _fetch_one_news_rss(search_term, days=7):
             title_el = item.find('title')
             source_el = item.find('source')
             pub_el = item.find('pubDate')
-            link_el = item.find('link')
             title = _clean_news_title(title_el.text if title_el is not None else "")
             source = (source_el.text or "").strip() if source_el is not None else ""
             pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
-            link = (link_el.text or "").strip() if link_el is not None else ""
             if title:
-                rows.append({"title": title, "source": source, "pub_date": pub_date, "link": link})
+                rows.append({"title": title, "source": source, "pub_date": pub_date})
     except Exception as e:
         print(f"[뉴스] RSS 조회 예외 search={search_term}: {type(e).__name__}: {e}")
     return rows
@@ -1279,7 +1237,6 @@ def _fetch_realtime_news_uncached(stock_name):
             )
             candidates.append({
                 "title": title, "source": row["source"], "pub_date": row["pub_date"],
-                "link": row.get("link", ""),
                 "source_score": source_score, "freshness_score": freshness_score,
                 "relevance_score": relevance_score, "direct": direct,
                 "material": material_hit, "market_cause": market_cause_hit,
@@ -1359,7 +1316,7 @@ def _fetch_realtime_news_uncached(stock_name):
         print(f"[뉴스 품질] {clean_stock_name} 화면#{i} score={item['score']} type={item['impact_type']} direct={item['direct']} material={item['material']} source={item['source']}")
 
     def _news_display_age(pub_date):
-        """RSS 발행시각을 화면용 상대시간으로 표시한다."""
+        """뉴스 발행시각을 화면용 상대시간으로 표시한다."""
         if not pub_date:
             return ""
         try:
@@ -1383,30 +1340,18 @@ def _fetch_realtime_news_uncached(stock_name):
         except Exception:
             return ""
 
-    display_items = []
-    company_names = set(terms)
+    display_titles = []
     for item in selected[:3]:
-        original_title = item["title"]
-        display_title = original_title
-        for company_name in sorted(company_names, key=len, reverse=True):
-            if company_name:
-                display_title = display_title.replace(company_name, "")
-                display_title = re.sub(re.escape(company_name), "", display_title, flags=re.IGNORECASE)
-        display_title = re.sub(r"\s+", " ", display_title).strip()
-        display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
-        display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
-        source = str(item.get("source", "")).strip() or "출처 확인 필요"
-        pub_date = str(item.get("pub_date", "")).strip()
-        display_items.append({
-            "title": display_title or original_title,
-            "original_title": original_title,
-            "source": source,
-            "pub_date": pub_date,
-            "display_datetime": _news_display_age(pub_date),
-            "link": str(item.get("link", "")).strip(),
-            "original_link": str(item.get("link", "")).strip(),
-        })
-    return display_items
+        # 화면에서는 원문 제목의 종목명을 제거하지 않는다.
+        # AI 내부 후보 데이터도 기존 title/source/pub_date를 그대로 유지한다.
+        display_title = re.sub(r"\s+", " ", str(item.get("title", ""))).strip()
+        display_title = display_title or "관련 뉴스"
+
+        source = str(item.get("source", "")).strip() or "출처 확인 중"
+        age_text = _news_display_age(item.get("pub_date", ""))
+        meta = f"{source} · {age_text}" if age_text else source
+        display_titles.append(f"{display_title}\n{meta}")
+    return display_titles
 
 
 def fetch_realtime_news(stock_name):
@@ -1947,7 +1892,7 @@ def analyze():
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
         news_lines = (
-            "\n".join([f"📰 \"{item.get('title', '')}\"" for item in news_list])
+            "\n".join([f"📰 \"{title}\"" for title in news_list])
             if news_list
             else "📰 현재 확인된 관련 뉴스를 가져오지 못했습니다."
         )
@@ -2005,37 +1950,7 @@ def analyze():
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ])
-        news_items = list(news_list) if isinstance(news_list, list) else []
-        disclosures = []
-        if is_krw and clean_code:
-            for item in fetch_kr_official_disclosures(clean_code):
-                report_title = str(item.get("report", "")).strip()
-                if raw_name and raw_name not in report_title:
-                    report_title = f"{raw_name} {report_title}"
-                disclosures.append({
-                    "title": report_title,
-                    "source": "DART",
-                    "date": item.get("date", ""),
-                    "time": item.get("time", ""),
-                    "link": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={item.get('receipt_no', '')}" if item.get("receipt_no") else "",
-                })
-        us_filings = []
-        if not is_krw and ticker_symbol:
-            for item in fetch_us_official_filings(ticker_symbol):
-                us_filings.append({
-                    "title": "내부자 거래" if str(item.get("form", "")).upper() == "4" else (item.get("description") or "SEC 공시"),
-                    "source": "SEC",
-                    "date": item.get("date", ""),
-                    "link": item.get("url", ""),
-                    "form": item.get("form", ""),
-                    "person": item.get("person", ""),
-                })
-        return jsonify({
-            "sections": sections,
-            "news_items": news_items,
-            "disclosures": disclosures,
-            "us_filings": us_filings,
-        })
+        return jsonify({"sections": sections})
 
     except Exception as e:
         print("전체 예외 안전 복구 가동:", e)
