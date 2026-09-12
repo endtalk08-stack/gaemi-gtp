@@ -1366,6 +1366,22 @@ def _fetch_realtime_news_uncached(stock_name):
             if len(selected) >= 3:
                 break
 
+    # 화면에 표시할 3개는 실제 RSS 발행시각 기준 최신순으로 정렬한다.
+    # 점수 계산은 관련성/재료성 선별용으로만 사용하고, 화면 순서는 시간 우선이다.
+    def _news_datetime_for_sort(item):
+        try:
+            raw = str(item.get("pub_date", "")).strip()
+            if not raw:
+                return datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+            dt = parsedate_to_datetime(raw)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+            return dt.astimezone(datetime.timezone.utc)
+        except Exception:
+            return datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+
+    selected.sort(key=_news_datetime_for_sort, reverse=True)
+
     print(f"[뉴스 품질] {clean_stock_name} 후보={len(candidates)} / 내부AI={len(internal_candidates)} / 화면={len(selected)}")
     for i, item in enumerate(selected[:3], 1):
         print(f"[뉴스 품질] {clean_stock_name} 화면#{i} score={item['score']} type={item['impact_type']} direct={item['direct']} material={item['material']} source={item['source']}")
@@ -1971,16 +1987,14 @@ def analyze():
             else intro_ment
         )
 
+        # 뉴스/공시는 아래의 구조화된 클릭형 목록(news_items / disclosures / us_filings)에서
+        # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
-            news_lines,
+            news_transition,
+            tags_str,
         ]
-        if official_filings_block:
-            first_content_parts.append(official_filings_block)
-        if kr_official_disclosures_block:
-            first_content_parts.append(kr_official_disclosures_block)
-        first_content_parts.extend([news_transition, tags_str])
 
         sections = [
             {
