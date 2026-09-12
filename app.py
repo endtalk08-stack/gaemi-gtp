@@ -905,6 +905,7 @@ def _is_market_summary_news(title):
 # 화면 표시용 뉴스와 AI 분석용 후보를 분리한다.
 # 화면에는 핵심 3개만 보여주고, 내부에는 상위 후보를 보관해 추후 AI가 더 넓은 근거를 사용할 수 있게 한다.
 NEWS_AI_CANDIDATES_CACHE = {}
+NEWS_STRUCTURED_CACHE = {}
 
 
 def _news_source_score(source_name):
@@ -997,66 +998,152 @@ def _clean_news_title(title):
     title = re.sub(r'\.{2,}|…', ' · ', title)
     return title.strip().strip('"\'“”')
 
+def _resolve_news_url(url):
+    """Google News RSS의 redirect URL을 짧게 따라가 가능하면 최종 원문 URL을 보관한다."""
+    url = str(url or "").strip()
+    if not url:
+        return ""
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "text/html,*/*"},
+        )
+        # 상위 3개 뉴스만 해석하고, 실패하면 RSS 링크 자체를 보존한다.
+        # 뉴스 조회 전체가 느려지지 않도록 짧은 제한시간을 사용한다.
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return resp.geturl() or url
+    except Exception:
+        return url
+
+def _format_news_display_datetime(pub_date):
+    """RSS 발행시각을 한국시간 기준 MM/DD HH:MM으로 변환한다."""
+    if not pub_date:
+        return "시간 확인 필요"
+    try:
+        dt = parsedate_to_datetime(pub_date)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        kst = datetime.timezone(datetime.timedelta(hours=9))
+        return dt.astimezone(kst).strftime("%m/%d %H:%M").lstrip("0").replace("/0", "/")
+    except Exception:
+        return pub_date
+
+def get_structured_disclosures(stock_name, is_krw, stock_code, ticker_symbol, limit=3):
+    """국내 DART / 미국 SEC 공시를 화면용 구조로 통일한다."""
+    results = []
+    if is_krw:
+        for item in fetch_kr_official_disclosures(stock_code)[:max(1, int(limit))]:
+            receipt_no = str(item.get("receipt_no", "")).strip()
+            link = (
+                f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt_no}"
+                if receipt_no else ""
+            )
+            results.append({
+                "title": str(item.get("report", "주요 공시")).strip(),
+                "source": "DART",
+                "date": str(item.get("date", "")).strip(),
+                "datetime": str(item.get("date", "")).strip(),
+                "link": link,
+            })
+    else:
+        code_labels = {
+            "P": "내부자 매수", "S": "내부자 매도", "A": "주식 취득",
+            "D": "회사로 반환", "F": "세금·행사가격 지급", "M": "옵션·파생상품 행사",
+            "G": "주식 증여", "C": "전환 거래", "J": "기타 거래", "V": "자발적 신고",
+        }
+        for item in fetch_us_official_filings(ticker_symbol)[:max(1, int(limit))]:
+            form = str(item.get("form", "")).upper().strip()
+            date = str(item.get("date", "")).strip()
+            try:
+                display_date = datetime.datetime.strptime(date[:10], "%Y-%m-%d").strftime("%m/%d").lstrip("0").replace("/0", "/")
+            except Exception:
+                display_date = date
+            if form == "4":
+                transactions = item.get("transactions") or []
+                codes = [str(tx.get("code", "")).upper().strip() for tx in transactions if tx.get("code")]
+                if not codes and item.get("transaction_code"):
+                    codes = [str(item.get("transaction_code")).upper().strip()]
+                title = code_labels.get(codes[0], "내부자 거래") if codes else "내부자 거래"
+                if len(codes) > 1:
+                    title = "내부자 거래 · " + " / ".join(dict.fromkeys(code_labels.get(c, "기타 거래") for c in codes))
+                person = str(item.get("person", "")).strip()
+                if person:
+                    title += f" · {person}"
+            else:
+                title = str(item.get("description") or ("기업 주요 공시" if form == "8-K" else form or "SEC 공시")).strip()
+            results.append({
+                "title": title,
+                "source": "SEC",
+                "date": display_date,
+                "datetime": date,
+                "link": str(item.get("url", "")).strip(),
+            })
+    return results[:max(1, int(limit))]
+
 def fetch_realtime_news(stock_name):
     """
-    뉴스는 넓게 수집한 뒤 강하게 필터링한다.
-    화면에는 핵심 뉴스 3개만 제목으로 표시하고, 내부에는 상위 후보를 별도로 보관한다.
+    Google News RSS를 원본 데이터로 사용한다.
+    - 종목명/티커/원인 관련 검색어를 넓게 수집
+    - '단순 시황'이라는 이유만으로 원인 뉴스를 삭제하지 않음
+    - 중복만 제거하고 최신성/직접 관련성으로 순위를 정함
+    - 화면에는 상위 3개 제목을 반환
+    - 원문 URL/출처/발행시각은 NEWS_STRUCTURED_CACHE에 보관해 향후 DB 저장에 사용
     """
     candidates = []
     seen_titles = set()
     seen_duplicate_keys = set()
 
-    queries = [str(stock_name).strip()]
-    ticker_guess = TICKERS.get(str(stock_name).strip())
+    base_name = str(stock_name or "").strip()
+    ticker_guess = TICKERS.get(base_name)
     if ticker_guess:
         ticker_guess = str(ticker_guess).replace(".KS", "").replace(".KQ", "")
-        if ticker_guess not in queries:
-            queries.append(ticker_guess)
-    elif re.match(r"^[A-Za-z\-]+$", str(stock_name).strip()):
-        ticker_guess = str(stock_name).upper()
-        if ticker_guess not in queries:
-            queries.append(ticker_guess)
+    elif re.match(r"^[A-Za-z\-]+$", base_name):
+        ticker_guess = base_name.upper()
+    else:
+        ticker_guess = ""
 
-    ticker_for_score = ticker_guess if ticker_guess else ""
+    # 종목명 검색을 기본으로 하고, 티커는 보조 검색으로만 사용한다.
+    # 원인 뉴스 확보를 위해 시장/업종 맥락 검색도 추가한다.
+    queries = [
+        f"{base_name} when:7d",
+        f"{base_name} 상승 하락 이유 when:7d",
+        f"{base_name} 실적 계약 투자 반도체 when:7d",
+    ]
+    if ticker_guess and ticker_guess != base_name.upper():
+        queries.append(f"{ticker_guess} when:7d")
 
-    for search_term in queries[:2]:
+    # 기사 제목에서 '왜 움직였는지'를 설명하는 맥락은 중요하게 본다.
+    causal_words = [
+        "왜", "이유", "영향", "여파", "압박", "호재", "악재", "약세", "강세",
+        "미국 증시", "뉴욕증시", "나스닥", "금리", "환율", "유가", "반도체",
+        "기술주", "업종", "수요", "공급", "실적", "가이던스", "수주", "계약",
+        "투자", "증설", "관세", "규제", "제재", "수출", "hbm", "ai",
+    ]
+
+    for search_query in queries:
         try:
-            # '왜 오늘'에 맞춰 최근 7일 검색. 점수에서 72시간 이내 기사를 강하게 우선한다.
-            search_query = f"{search_term} when:7d"
             query = urllib.parse.quote(search_query)
             url = (
                 f"https://news.google.com/rss/search?q={query}"
                 f"&hl=ko&gl=KR&ceid=KR:ko"
             )
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=3) as resp:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
                 xml_data = resp.read()
 
             root = ET.fromstring(xml_data)
-            for item in root.findall('.//item'):
-                title_el = item.find('title')
-                source_el = item.find('source')
-                pub_el = item.find('pubDate')
+            for item in root.findall(".//item"):
+                title_el = item.find("title")
+                source_el = item.find("source")
+                pub_el = item.find("pubDate")
+                link_el = item.find("link")
 
-                title = _clean_news_title(
-                    title_el.text if title_el is not None else ""
-                )
-                source = (
-                    (source_el.text or "").strip()
-                    if source_el is not None else ""
-                )
-                pub_date = (
-                    (pub_el.text or "").strip()
-                    if pub_el is not None else ""
-                )
+                title = _clean_news_title(title_el.text if title_el is not None else "")
+                source = (source_el.text or "").strip() if source_el is not None else ""
+                pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
+                link = (link_el.text or "").strip() if link_el is not None else ""
 
                 if not title:
-                    continue
-
-                # 이미 상단의 주가/수급 정보와 중복되는 단순 시황 요약 기사는
-                # 뉴스 목록에서 제외한다. 실제 계약/실적/투자 등의 재료 기사는 유지한다.
-                if _is_market_summary_news(title):
-                    print(f"[뉴스 품질] {stock_name} 단순 주가·수급 요약 제외: {title}")
                     continue
 
                 title_key = re.sub(r"\s+", " ", title).lower()
@@ -1064,35 +1151,41 @@ def fetch_realtime_news(stock_name):
                 if title_key in seen_titles or duplicate_key in seen_duplicate_keys:
                     continue
 
+                # Google News 결과에서 종목코드/숫자만 덩그러니 있는 자료는 제거한다.
+                # 반대로 '미 기술주 약세에 하이닉스 하락'처럼 시장 원인을 담은 기사는 보존한다.
+                compact = re.sub(r"[^0-9a-zA-Z가-힣]", "", title.lower())
+                if ticker_guess and compact == ticker_guess.lower():
+                    continue
+
                 seen_titles.add(title_key)
                 seen_duplicate_keys.add(duplicate_key)
 
                 source_score = _news_source_score(source)
                 freshness_score = _news_freshness_score(pub_date)
-                relevance_score = _news_relevance_score(
-                    title, stock_name, ticker_for_score
-                )
+                relevance_score = _news_relevance_score(title, base_name, ticker_guess)
                 hard_event = any(
                     word.lower() in title.lower() for word in NEWS_HARD_EVENT_WORDS
                 )
+                causal_score = sum(4 for word in causal_words if word.lower() in title.lower())
 
-                # 7일보다 오래된 기사는 RSS가 섞여 들어와도 핵심 후보에서 사실상 탈락시킨다.
-                if freshness_score == 0:
-                    continue
+                # 최신성과 종목 직접 관련성을 기본으로 하고, 원인 설명 기사는 추가 가점한다.
+                score = source_score + freshness_score + relevance_score + causal_score
 
                 candidates.append({
                     "title": title,
                     "source": source,
                     "pub_date": pub_date,
+                    "link": link,
                     "source_score": source_score,
                     "freshness_score": freshness_score,
                     "relevance_score": relevance_score,
+                    "causal_score": causal_score,
                     "hard_event": hard_event,
-                    "score": source_score + freshness_score + relevance_score,
+                    "score": score,
                 })
 
         except Exception as e:
-            print(f"[뉴스] {stock_name} RSS 조회 예외: {type(e).__name__}: {e}")
+            print(f"[뉴스] {base_name} Google News RSS 조회 예외: {type(e).__name__}: {e}")
 
     candidates.sort(
         key=lambda x: (
@@ -1104,66 +1197,62 @@ def fetch_realtime_news(stock_name):
         reverse=True,
     )
 
-    # 먼저 내부 AI용 후보를 보관한다.
-    # 화면에 3개만 보여주더라도 AI 단계에서는 더 많은 근거를 활용할 수 있게 한다.
-    internal_candidates = [dict(item) for item in candidates[:10]]
-    NEWS_AI_CANDIDATES_CACHE[str(stock_name).strip()] = internal_candidates
+    # AI/DB에서 재사용할 수 있도록 구조화된 원본 후보를 보관한다.
+    internal_candidates = [dict(item) for item in candidates[:20]]
+    NEWS_AI_CANDIDATES_CACHE[base_name] = internal_candidates
 
-    # 화면에는 핵심 3개만 노출한다. 출처 다양성은 유지하되 점수 차이가 큰 경우에는
-    # 더 강한 기사를 우선한다(약한 기사를 억지로 끼워 넣지 않음).
+    # 같은 언론사만 연속으로 나오는 것을 약하게 방지하되,
+    # 좋은 기사를 억지로 낮은 품질 기사로 교체하지 않는다.
     selected = []
     for item in candidates:
         if not selected:
             selected.append(item)
             continue
-
-        same_source = item["source"].lower().strip() == selected[0]["source"].lower().strip()
-        if same_source and item["score"] < selected[0]["score"] - 8:
-            continue
-
-        selected.append(item)
+        if len(selected) < 3:
+            selected.append(item)
         if len(selected) >= 3:
             break
 
-    # 첫 후보가 지나치게 약하면 낮은 품질 기사를 억지로 표시하지 않는다.
-    selected = [x for x in selected if x["score"] >= 70]
+    for item in selected[:3]:
+        item["display_datetime"] = _format_news_display_datetime(item.get("pub_date", ""))
+        item["original_link"] = _resolve_news_url(item.get("link", ""))
+        if not item["original_link"]:
+            item["original_link"] = item.get("link", "")
+
+    NEWS_STRUCTURED_CACHE[base_name] = [dict(item) for item in selected[:3]]
 
     print(
-        f"[뉴스 품질] {stock_name} 후보={len(candidates)} / 내부AI={len(internal_candidates)} / 화면={len(selected)}"
+        f"[뉴스] {base_name} Google News 후보={len(candidates)} / "
+        f"내부={len(internal_candidates)} / 화면={len(selected)}"
     )
-    for i, item in enumerate(selected[:3], 1):
+
+    for i, item in enumerate(selected, 1):
         print(
-            f"[뉴스 품질] {stock_name} 화면#{i} "
-            f"score={item['score']} source={item['source']} "
-            f"fresh={item['freshness_score']} relevance={item['relevance_score']} "
-            f"hard={item['hard_event']}"
+            f"[뉴스] {base_name} 화면#{i} "
+            f"source={item['source']} fresh={item['freshness_score']} "
+            f"relevance={item['relevance_score']} causal={item['causal_score']}"
         )
 
-    # 화면에서는 현재 종목명을 제거해 제목을 최대한 깔끔하게 표시한다.
-    # 원본 제목(item["title"])은 내부 후보 데이터와 AI 분석용으로 그대로 보존한다.
+    # 기존 화면과의 호환성을 유지한다. 제목만 반환하되 원본 구조는 캐시에 남긴다.
     display_titles = []
-    company_names = {
-        str(stock_name).strip(),
-        str(stock_name).strip().replace(" ", ""),
-    }
-
+    company_names = {base_name, base_name.replace(" ", "")}
     for item in selected[:3]:
         original_title = item["title"]
         display_title = original_title
-
         for company_name in sorted(company_names, key=len, reverse=True):
             if company_name:
                 display_title = display_title.replace(company_name, "")
-
         display_title = re.sub(r"\s+", " ", display_title).strip()
         display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
         display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
-
-        # 종목명 제거 후 제목이 비어버리는 경우에는 원본 제목을 사용한다.
         display_titles.append(display_title or original_title)
 
     return display_titles
 
+def get_structured_news(stock_name, limit=10):
+    """향후 DB 저장/상세 뉴스 화면에서 사용할 구조화된 Google News 데이터."""
+    items = NEWS_STRUCTURED_CACHE.get(str(stock_name).strip(), [])
+    return [dict(item) for item in items[:max(1, int(limit))]]
 
 def get_news_ai_candidates(stock_name, limit=10):
     """추후 AI 원인 분석에서 사용할 내부 뉴스 후보를 반환한다."""
@@ -1685,22 +1774,13 @@ def analyze():
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
-        news_list = fetch_realtime_news(raw_name)
-        news_lines = (
-            "\n".join([f"📰 \"{title}\"" for title in news_list])
-            if news_list
-            else "📰 현재 확인된 관련 뉴스를 가져오지 못했습니다."
+        # 뉴스/공시는 본문 문장과 분리된 구조화 데이터로 화면에 전달한다.
+        # 제목·출처·발행시각·원문 URL을 그대로 유지해 프론트에서 클릭 가능한 목록으로 렌더링한다.
+        fetch_realtime_news(raw_name)
+        news_items = get_structured_news(raw_name, limit=3)
+        disclosures = get_structured_disclosures(
+            raw_name, is_krw, clean_code, ticker_symbol, limit=3
         )
-        news_transition = "이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야"
-
-        # 미국 공시는 별도 메뉴를 만들지 않고 '왜 올랐을까?' 뉴스 바로 아래에 통합한다.
-        official_filings_block = ""
-        kr_official_disclosures_block = ""
-
-        if not is_krw:
-            official_filings_block = format_us_official_filings(ticker_symbol)
-        else:
-            kr_official_disclosures_block = format_kr_official_disclosures(clean_code)
 
         # 첫 화면은 현재 주가를 가장 위에 배치한다.
         # 그 아래에는 기존의 친근한 말투를 다시 살리고,
@@ -1715,13 +1795,8 @@ def analyze():
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
-            news_lines,
+            tags_str,
         ]
-        if official_filings_block:
-            first_content_parts.append(official_filings_block)
-        if kr_official_disclosures_block:
-            first_content_parts.append(kr_official_disclosures_block)
-        first_content_parts.extend([news_transition, tags_str])
 
         sections = [
             {
@@ -1753,30 +1828,28 @@ def analyze():
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ])
-        return jsonify({"sections": sections})
+        return jsonify({
+            "sections": sections,
+            "news_items": news_items,
+            "disclosures": disclosures,
+        })
 
     except Exception as e:
-        print("전체 예외 안전 복구 가동:", e)
+        # 오류가 발생했을 때 임의의 주가/수급 숫자를 만들어 보여주지 않는다.
+        # 실제 데이터가 없는 상태는 명확하게 표시하고, 사용자가 다시 조회할 수 있게 한다.
+        print("전체 예외 안전 복구 가동:", type(e).__name__, e)
         return jsonify({
             "sections": [
                 {
-                    "title": "🔥 그래서 오늘은 왜 올랐어?",
-                    "content": f"{raw_name} 실시간 호가 접수 완료!\n현재 시장 수급 유입으로 지지선 테스트 중이야.\n\n#{raw_name}   #+8.26%   #가즈아   #불기둥"
-                },
-                {
-                    "title": "큰손들은 담고 있을까, 털고 있을까?",
-                    "content": "#외국인 +48.2만주   #기관 +21.4만주   #개인 -69.6만주\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
-                },
-                {
-                    "title": "여기 깨지면 도망쳐",
-                    "content": "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 이 가격은! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
-                },
-                {
-                    "title": "오늘 밤, 이번주 무슨 일이 있나?",
-                    "content": get_live_calendar_data(raw_name, ticker_symbol)
+                    "title": "데이터를 다시 확인해 주세요",
+                    "content": (
+                        f"{raw_name} 분석 중 일부 데이터 연결에 문제가 발생했습니다.\n\n"
+                        "확인되지 않은 주가·수급·뉴스 숫자는 표시하지 않습니다.\n"
+                        "잠시 후 다시 조회해 주세요."
+                    )
                 }
             ]
         })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', '10000')))
