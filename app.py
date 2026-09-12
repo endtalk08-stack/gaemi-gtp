@@ -243,7 +243,7 @@ def fetch_kr_official_disclosures(stock_code, days=7):
                 continue
 
             results.append({
-                # 국내 공시 날짜는 뉴스와 동일하게 YYYY.MM.DD 형식으로 표시한다.
+                # 국내 공시 날짜는 화면 표시용 YYYY.MM.DD 형식으로만 변환한다.
                 "date": (
                     f"{receipt_date[:4]}.{receipt_date[4:6]}.{receipt_date[6:8]}"
                     if len(receipt_date) == 8 and receipt_date.isdigit() else receipt_date
@@ -1038,18 +1038,12 @@ def get_structured_disclosures(stock_name, is_krw, stock_code, ticker_symbol, li
                 f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={receipt_no}"
                 if receipt_no else ""
             )
-            report_title = str(item.get("report", "주요 공시")).strip()
-            display_title = report_title
-            company = str(stock_name or "").strip()
-            if company and company not in display_title:
-                display_title = f"{company} {display_title}"
             results.append({
-                "title": display_title,
+                "title": str(item.get("report", "주요 공시")).strip(),
                 "source": "DART",
                 "date": str(item.get("date", "")).strip(),
                 "datetime": str(item.get("date", "")).strip(),
                 "link": link,
-                "original_link": link,
             })
     else:
         code_labels = {
@@ -1061,7 +1055,7 @@ def get_structured_disclosures(stock_name, is_krw, stock_code, ticker_symbol, li
             form = str(item.get("form", "")).upper().strip()
             date = str(item.get("date", "")).strip()
             try:
-                display_date = datetime.datetime.strptime(date[:10], "%Y-%m-%d").strftime("%Y.%m.%d")
+                display_date = datetime.datetime.strptime(date[:10], "%Y-%m-%d").strftime("%m/%d").lstrip("0").replace("/0", "/")
             except Exception:
                 display_date = date
             if form == "4":
@@ -1259,6 +1253,31 @@ def get_structured_news(stock_name, limit=10):
     """향후 DB 저장/상세 뉴스 화면에서 사용할 구조화된 Google News 데이터."""
     items = NEWS_STRUCTURED_CACHE.get(str(stock_name).strip(), [])
     return [dict(item) for item in items[:max(1, int(limit))]]
+
+def build_source_display_lines(stock_name, news_items, disclosures):
+    """기존 본문 디자인을 유지한 채 뉴스/공시 제목만 본문에 추가한다."""
+    lines = []
+    for item in (news_items or [])[:3]:
+        lines.append({
+            "kind": "news",
+            "title": str(item.get("title", "")).strip(),
+            "source": str(item.get("source", "")).strip(),
+            "date": str(item.get("display_datetime") or item.get("date") or "").strip(),
+            "link": str(item.get("original_link") or item.get("link") or "").strip(),
+        })
+    for item in (disclosures or [])[:3]:
+        title = str(item.get("title", "주요 공시")).strip()
+        company = str(stock_name or "").strip()
+        if company and company not in title:
+            title = f"{company} {title}"
+        lines.append({
+            "kind": "disclosure",
+            "title": title,
+            "source": str(item.get("source") or "DART").strip(),
+            "date": str(item.get("date") or item.get("datetime") or "").strip(),
+            "link": str(item.get("original_link") or item.get("link") or "").strip(),
+        })
+    return lines
 
 def get_news_ai_candidates(stock_name, limit=10):
     """추후 AI 원인 분석에서 사용할 내부 뉴스 후보를 반환한다."""
@@ -1801,8 +1820,16 @@ def analyze():
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
-            tags_str,
         ]
+
+        # 기존 본문 위치/형태를 유지하면서 뉴스·공시 원문 항목만 추가한다.
+        source_lines = build_source_display_lines(raw_name, news_items, disclosures)
+        for source_item in source_lines:
+            first_content_parts.append(
+                f"{"📰" if source_item["kind"] == "news" else "📌"} {source_item["title"]}"
+            )
+
+        first_content_parts.append(tags_str)
 
         sections = [
             {
