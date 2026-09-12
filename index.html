@@ -859,33 +859,77 @@
             link.setAttribute('aria-disabled', 'true');
           }
 
+          const isInsider = label === '공시' && (
+            String(item.form || '').toUpperCase() === '4' ||
+            !!item.person ||
+            !!item.transaction_kind ||
+            !!item.transaction_summary ||
+            Object.prototype.hasOwnProperty.call(item, 'transaction_count')
+          );
           const main = document.createElement('div');
           main.className = 'source-list-main';
           const titleEl = document.createElement('div');
           titleEl.className = 'source-list-title';
-          titleEl.textContent = item.title || item.description || '제목 확인 필요';
           const meta = document.createElement('div');
           meta.className = 'source-list-meta';
-          const source = item.source || (item.form ? 'SEC' : '출처 확인 필요');
+
+          // SEC Form 4 내부자 거래는 기존 공시 카드 안에서만 상세 표시한다.
+          // 카드 구조/크기/위치는 그대로 두고, 실제 SEC 원문에서 읽은 값만 보여준다.
+          if (isInsider) {
+            const kind = item.transaction_kind || '';
+            const summaryText = item.transaction_summary || '';
+            const count = Number(item.transaction_count || 0);
+            let summary = summaryText || kind || '내부자 거래';
+            if (count > 0 && !/\d+건/.test(summary) && !summary.includes(' · ')) {
+              summary = `${summary} · ${count}건`;
+            }
+            titleEl.textContent = summary;
+            titleEl.style.color = /매도/.test(summary) ? '#FF8DA1' : (/매수|취득/.test(summary) ? '#38BDF8' : '');
+
+            const person = item.person || '회사 내부자';
+            const roleMap = {
+              'DIRECTOR': '이사',
+              'OFFICER': '임원',
+              '10% OWNER': '10% 이상 주주',
+              '10% OWNER OF CLASS': '10% 이상 주주'
+            };
+            const rawRole = String(item.officer_title || '').trim();
+            const role = roleMap[rawRole.toUpperCase()] || rawRole;
+            const personEl = document.createElement('div');
+            personEl.className = 'source-list-meta';
+            personEl.style.marginTop = '2px';
+            // 이름은 SEC 원문 그대로, 직책은 이해하기 쉬운 한글로 표시한다.
+            personEl.textContent = `${person}${role ? ` · ${role}` : ''}`;
+            main.appendChild(titleEl);
+            main.appendChild(personEl);
+          } else {
+            titleEl.textContent = item.title || item.description || '제목 확인 필요';
+            main.appendChild(titleEl);
+          }
+          const source = isInsider ? 'SEC' : (item.source || (item.form ? 'SEC' : '출처 확인 필요'));
           const rawWhen = item.display_datetime || item.datetime || item.date || item.pub_date || '';
           let when = rawWhen;
           if (rawWhen) {
-            try {
-              const d = new Date(rawWhen);
-              if (!Number.isNaN(d.getTime())) {
-                when = `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}`;
-              } else {
-                const m = String(rawWhen).match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
-                when = m ? `${m[1]}.${String(m[2]).padStart(2, '0')}.${String(m[3]).padStart(2, '0')}` : String(rawWhen);
-              }
-            } catch (_) {
-              when = String(rawWhen);
+            const raw = String(rawWhen).trim();
+            // DART date values such as "9/9" or "20260909" must be
+            // formatted as strings. Do NOT pass them through new Date(),
+            // which can interpret "9/9" as a date in the year 2001.
+            const ymd = raw.match(/^(\d{4})[-/.]?(\d{2})[-/.]?(\d{2})$/);
+            const md = raw.match(/^(\d{1,2})[-/.](\d{1,2})$/);
+            if (ymd) {
+              when = `${ymd[1]}.${ymd[2]}.${ymd[3]}`;
+            } else if (md) {
+              when = `${Number(md[1])}/${Number(md[2])}`;
+            } else {
+              when = raw;
             }
           } else {
             when = '날짜 확인 필요';
           }
-          meta.textContent = `${source} · ${when}`;
-          main.appendChild(titleEl);
+          const rawTime = item.time || item.acceptance_time || '';
+          const timeZone = item.time_zone || '';
+          const timeText = rawTime ? ` · ${rawTime}${timeZone ? ` ${timeZone}` : ''}` : '';
+          meta.textContent = `${source} · ${when}${timeText}`;
           main.appendChild(meta);
 
           const arrow = document.createElement('i');
@@ -939,7 +983,7 @@
           (secIdx === 0);
 
         let dynamicTitle = sec.title || '';
-        let text = sec.content || '';
+        let text = (sec.content || '').replace(/이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야/g, '').replace(/\n{3,}/g, '\n\n').trim();
 
         if (isConditionSection && !isSurvivalSection) {
           if (syncData.sign === 'up') dynamicTitle = '오늘 왜 상승했을까?';
@@ -1149,6 +1193,7 @@
             // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
             // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
             if (secIdx === 0) {
+              // 태그는 본문에 있는 원래 위치를 유지하고, 뉴스/공시는 그 아래에 표시한다.
               renderSourceLists(mainContainer, result);
             }
 
