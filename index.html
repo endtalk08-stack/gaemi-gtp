@@ -57,53 +57,53 @@
     }
     #chatArea p { line-height: 1.65; letter-spacing: -0.02em; }
 
-    /* 뉴스·공시: 제목 + 출처/시간 + 우측 화살표의 간결한 원문 링크 목록 */
+    /* 출처: 토스처럼 작고 단순하게 표시하고, 열었을 때도 카드가 겹쳐 보이지 않게 한다. */
+    .source-toggle-wrap { margin-top: 14px; }
+    .source-toggle-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      height: 28px; min-width: 0; padding: 0;
+      border: 0; background: transparent;
+      color: #94a3b8; font-size: .78rem; font-weight: 700;
+      cursor: pointer;
+    }
+    .source-toggle-btn:hover { color: #e2e8f0; }
+    .dark .source-toggle-btn { color: #a1a1aa; }
+    .dark .source-toggle-btn:hover { color: #f4f4f5; }
+    .source-toggle-icon { width: 14px; height: 14px; flex: 0 0 auto; }
+    .source-list-panel {
+      display: none; margin-top: 8px;
+      padding: 2px 0 0;
+    }
+    .source-list-panel.is-open { display: block; }
+    .source-list-group { margin-top: 12px; }
+    .source-list-group:first-child { margin-top: 0; }
+    .source-list-group-title {
+      margin: 0 0 2px; color: #71717a;
+      font-size: .72rem; font-weight: 700;
+    }
+    .dark .source-list-group-title { color: #71717a; }
     .source-list-card {
-      background: rgba(255,255,255,.78);
-      border: 1px solid #e2e8f0;
-      border-radius: 22px;
-      padding: 6px 16px;
-      box-shadow: 0 6px 22px rgba(15,23,42,.04);
+      background: transparent; border: 0; border-radius: 0;
+      padding: 0; box-shadow: none;
     }
     .dark .source-list-card {
-      background: rgba(30,31,36,.82);
-      border-color: #27272a;
-      box-shadow: 0 6px 22px rgba(0,0,0,.12);
+      background: transparent; border-color: transparent; box-shadow: none;
     }
     .source-list-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      width: 100%;
-      min-height: 64px;
-      padding: 10px 0;
-      text-decoration: none;
-      border-bottom: 1px solid #e2e8f0;
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; min-height: 52px; padding: 9px 0;
+      text-decoration: none; border-bottom: 0;
     }
-    .dark .source-list-row { border-bottom-color: #27272a; }
     .source-list-row:last-child { border-bottom: 0; }
     .source-list-main { min-width: 0; flex: 1; }
     .source-list-title {
-      color: #0f172a;
-      font-size: .94rem;
-      font-weight: 800;
-      line-height: 1.4;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      overflow: hidden;
+      color: #e4e4e7; font-size: .82rem; font-weight: 700;
+      line-height: 1.4; display: -webkit-box;
+      -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
     }
-    .dark .source-list-title { color: #f4f4f5; }
-    .source-list-meta {
-      margin-top: 4px;
-      color: #94a3b8;
-      font-size: .72rem;
-      font-weight: 600;
-    }
-    .source-list-arrow {
-      flex: 0 0 auto;
-      color: #94a3b8;
-    }
+    .dark .source-list-title { color: #e4e4e7; }
+    .source-list-meta { margin-top: 3px; color: #71717a; font-size: .68rem; font-weight: 600; }
+    .source-list-arrow { flex: 0 0 auto; width: 16px; height: 16px; color: #71717a; }
 
     /* 사이드바: 닫힘 상태에서는 화면을 차지하지 않고 상단 버튼만 사용 */
     #mainHeroView { padding-left: 0; padding-right: 0; box-sizing: border-box; }
@@ -825,26 +825,41 @@
       const disclosureItems = Array.isArray(result.disclosures) ? result.disclosures : [];
       const usFilingItems = Array.isArray(result.us_filings) ? result.us_filings : [];
       const sourceDisclosureItems = disclosureItems.length ? disclosureItems : usFilingItems;
-      if (!newsItems.length && !sourceDisclosureItems.length) return;
+      const sourceCount = newsItems.length + sourceDisclosureItems.length;
+      if (!sourceCount) return;
 
       const wrap = document.createElement('div');
-      wrap.className = 'space-y-4 animate-fade';
+      wrap.className = 'source-toggle-wrap animate-fade';
+
+      // 메인 분석 화면에는 실제 뉴스+공시 개수만 보여준다.
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'source-toggle-btn';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', '출처 보기');
+
+      const toggleText = document.createElement('span');
+      toggleText.textContent = '출처';
+      const toggleIcon = document.createElement('i');
+      toggleIcon.setAttribute('data-lucide', 'chevron-down');
+      toggleIcon.className = 'source-toggle-icon';
+      toggle.appendChild(toggleText);
+      toggle.appendChild(toggleIcon);
+      wrap.appendChild(toggle);
+
+      const panel = document.createElement('div');
+      panel.className = 'source-list-panel';
+      panel.setAttribute('aria-hidden', 'true');
 
       const makeGroup = (label, items) => {
         if (!items.length) return null;
         const group = document.createElement('div');
         group.className = 'space-y-2';
 
+        group.className = 'source-list-group';
         const heading = document.createElement('div');
-        heading.className = 'flex items-center gap-2.5';
-        const badge = document.createElement('div');
-        badge.className = 'w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0';
-        badge.textContent = label === '뉴스' ? 'N' : 'D';
-        const title = document.createElement('h4');
-        title.className = 'font-black text-lg sm:text-xl text-[#0f172a] dark:text-white';
-        title.textContent = label;
-        heading.appendChild(badge);
-        heading.appendChild(title);
+        heading.className = 'source-list-group-title';
+        heading.textContent = label;
         group.appendChild(heading);
 
         const card = document.createElement('div');
@@ -877,8 +892,6 @@
           const meta = document.createElement('div');
           meta.className = 'source-list-meta';
 
-          // SEC Form 4 내부자 거래는 기존 공시 카드 안에서만 상세 표시한다.
-          // 카드 구조/크기/위치는 그대로 두고, 실제 SEC 원문에서 읽은 값만 보여준다.
           if (isInsider) {
             const kind = item.transaction_kind || '';
             const summaryText = item.transaction_summary || '';
@@ -902,7 +915,6 @@
             const personEl = document.createElement('div');
             personEl.className = 'source-list-meta';
             personEl.style.marginTop = '2px';
-            // 이름은 SEC 원문 그대로, 직책은 이해하기 쉬운 한글로 표시한다.
             personEl.textContent = `${person}${role ? ` · ${role}` : ''}`;
             main.appendChild(titleEl);
             main.appendChild(personEl);
@@ -915,9 +927,6 @@
           let when = rawWhen;
           if (rawWhen) {
             const raw = String(rawWhen).trim();
-            // DART date values such as "9/9" or "20260909" must be
-            // formatted as strings. Do NOT pass them through new Date(),
-            // which can interpret "9/9" as a date in the year 2001.
             const ymd = raw.match(/^(\d{4})[-/.]?(\d{2})[-/.]?(\d{2})$/);
             const md = raw.match(/^(\d{1,2})[-/.](\d{1,2})$/);
             if (ymd) {
@@ -950,8 +959,23 @@
 
       const newsGroup = makeGroup('뉴스', newsItems);
       const disclosureGroup = makeGroup('공시', sourceDisclosureItems);
-      if (newsGroup) wrap.appendChild(newsGroup);
-      if (disclosureGroup) wrap.appendChild(disclosureGroup);
+      if (newsGroup) panel.appendChild(newsGroup);
+      if (disclosureGroup) {
+        panel.appendChild(disclosureGroup);
+      }
+      wrap.appendChild(panel);
+
+      toggle.addEventListener('click', () => {
+        const isOpen = panel.classList.toggle('is-open');
+        toggle.setAttribute('aria-expanded', String(isOpen));
+        panel.setAttribute('aria-hidden', String(!isOpen));
+        // 버튼 크기와 문구는 열고 닫아도 동일하게 유지한다. 아이콘만 방향을 바꾼다.
+        toggleText.textContent = '출처';
+        toggle.setAttribute('aria-label', isOpen ? '출처 닫기' : '출처 보기');
+        toggleIcon.setAttribute('data-lucide', isOpen ? 'chevron-up' : 'chevron-down');
+        if (window.lucide) window.lucide.createIcons();
+      });
+
       container.appendChild(wrap);
       if (window.lucide) window.lucide.createIcons();
     }
