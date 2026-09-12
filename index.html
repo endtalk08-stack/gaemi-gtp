@@ -57,41 +57,26 @@
     }
     #chatArea p { line-height: 1.65; letter-spacing: -0.02em; }
 
-    /* 뉴스·공시: 기존 본문 흐름 안에서 간결하게 표시 */
-    .source-inline {
-      margin-top: 18px;
-      padding-top: 14px;
-      border-top: 1px solid #27272a;
-    }
-    .source-inline-title {
-      color: #a1a1aa;
-      font-size: .78rem;
-      font-weight: 800;
-      margin-bottom: 8px;
-    }
-    .source-inline-row {
-      display: block;
-      padding: 5px 0;
-      color: #e4e4e7;
-      font-size: .84rem;
+    /* 뉴스/공시는 원래 형식을 유지하고 모바일에서 내용만 조금 작게 표시 */
+    #chatArea .news-item,
+    #chatArea .disclosure-item {
       line-height: 1.5;
-      text-decoration: none;
+      margin: 0 0 0.28rem 0;
     }
-    .source-inline-row:hover { text-decoration: underline; }
-    .source-inline-meta {
-      color: #71717a;
-      font-size: .7rem;
-      font-weight: 600;
-      margin-left: 4px;
+
+    #chatArea .news-item {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
     }
-    .source-inline-disclosure {
-      margin-top: 10px;
-    }
-    .dark .source-inline { border-top-color: #27272a; }
-    @media (prefers-color-scheme: light) {
-      .source-inline { border-top-color: #e2e8f0; }
-      .source-inline-row { color: #334155; }
-      .source-inline-title { color: #64748b; }
+
+    @media (max-width: 640px) {
+      #chatArea .news-item,
+      #chatArea .disclosure-item {
+        font-size: 0.88rem;
+        line-height: 1.5;
+      }
     }
 
     /* 사이드바: 닫힘 상태에서는 화면을 차지하지 않고 상단 버튼만 사용 */
@@ -284,7 +269,7 @@
   </div>
 
   <!-- 중앙 분석 영역 -->
-  <main class="flex-1 flex flex-col h-full min-h-0 bg-[#f8fafc] dark:bg-[#0f1013] overflow-hidden min-w-0">
+  <main class="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f1013] overflow-hidden min-w-0">
     <header class="h-16 flex items-center justify-between px-2 sm:px-4 bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 z-10">
       <div class="flex items-center gap-3">
         <button type="button" onclick="toggleLeftSidebar()" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="왼쪽 사이드바 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
@@ -296,7 +281,7 @@
       </div>
     </header>
 
-    <div id="chatArea" class="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
+    <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
 
     <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-3xl mx-auto relative">
@@ -394,7 +379,7 @@
           <span id="rightListMetric">현재가</span>
         </div>
         <div class="">
-          <button type="button" onclick="switchToAnalysisMode('삼성전자');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer">
+          <button type="button" onclick="switchToAnalysisMode('삼성전자')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer">
             <div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start">
               <span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">01</span>
               <span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">삼성전자</span>
@@ -408,47 +393,47 @@
             </div>
           </button>
 
-          <button type="button" onclick="switchToAnalysisMode('SK하이닉스');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer">
+          <button type="button" onclick="switchToAnalysisMode('SK하이닉스')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer">
             <div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">02</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">SK하이닉스</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,784,000원</span></div>
             <div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-3.72%</span></div>
             <div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">반도체</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">외국인 매도 확대</span></div>
           </button>
 
-          <button type="button" onclick="switchToAnalysisMode('우리로');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">03</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">우리로</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">7,980원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+19.10%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">광통신</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">광통신 수요 기대</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('우리로')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">03</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">우리로</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">7,980원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+19.10%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">광통신</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">광통신 수요 기대</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('한국화장품제조');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">04</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">한국화장품제조</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">15,280원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+16.10%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">화장품</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">수출 회복 기대</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('한국화장품제조')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">04</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">한국화장품제조</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">15,280원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+16.10%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">화장품</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">수출 회복 기대</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('SOXL');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">05</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">SOXL</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">152,394원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-1.62%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">반도체 ETF</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">미 반도체 약세</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('SOXL')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">05</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">SOXL</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">152,394원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-1.62%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">반도체 ETF</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">미 반도체 약세</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('KODEX 레버리지');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">06</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 레버리지</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">107,760원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-6.29%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">지수</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">코스피 약세 영향</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('KODEX 레버리지')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">06</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 레버리지</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">107,760원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-6.29%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">지수</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">코스피 약세 영향</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('에이피알');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">07</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">에이피알</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">367,500원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.80%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">뷰티</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">해외 판매 성장</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('에이피알')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">07</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">에이피알</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">367,500원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.80%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">뷰티</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">해외 판매 성장</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('삼성전기');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">08</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">삼성전기</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,393,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-0.50%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">MLCC</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">IT 수요 관망</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('삼성전기')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">08</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">삼성전기</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,393,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-0.50%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">MLCC</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">IT 수요 관망</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('KODEX 반도체레버리지');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">09</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 반도체레버리지</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">80,155원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-10.28%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">반도체 ETF</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">업종 약세 반영</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('KODEX 반도체레버리지')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">09</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 반도체레버리지</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">80,155원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-10.28%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">반도체 ETF</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">업종 약세 반영</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('한전기술');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">10</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">한전기술</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">149,400원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+3.03%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">원전</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">원전 수주 기대</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('한전기술')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">10</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">한전기술</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">149,400원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+3.03%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">원전</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">원전 수주 기대</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('KODEX 인버스');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">11</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 인버스</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,012원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+3.26%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">지수</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">코스피 하락 영향</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('KODEX 인버스')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">11</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 인버스</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,012원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+3.26%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">지수</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">코스피 하락 영향</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('빛과전자');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">12</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">빛과전자</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">3,950원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+0.63%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">광통신</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">수급 개선 기대</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('빛과전자')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">12</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">빛과전자</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">3,950원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+0.63%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">광통신</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">수급 개선 기대</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('KODEX 200');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">13</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 200</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">108,370원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-3.12%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">지수</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">대형주 약세</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('KODEX 200')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">13</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 200</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">108,370원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-3.12%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">지수</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">대형주 약세</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('SK스퀘어');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">14</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">SK스퀘어</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,073,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-5.46%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">지주</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">기술주 조정 영향</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('SK스퀘어')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">14</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">SK스퀘어</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,073,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-5.46%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">지주</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">기술주 조정 영향</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('스카이랩스');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">15</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">스카이랩스</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">27,150원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+4.02%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">헬스케어</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">신규 성장 기대</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('스카이랩스')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">15</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">스카이랩스</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">27,150원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+4.02%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">헬스케어</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">신규 성장 기대</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('NAVER');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">16</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">NAVER</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">217,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+3.33%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">플랫폼</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">AI 검색 서비스 기대</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('NAVER')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">16</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">NAVER</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">217,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+3.33%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">플랫폼</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">AI 검색 서비스 기대</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('현대차');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">17</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">현대차</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">210,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.94%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">자동차</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">미국 판매 호조</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('현대차')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">17</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">현대차</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">210,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.94%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">자동차</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">미국 판매 호조</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('기아');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">18</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">기아</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">103,600원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.77%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">자동차</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">수출 성장 기대</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('기아')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">18</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">기아</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">103,600원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.77%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">자동차</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">수출 성장 기대</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('셀트리온');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">19</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">셀트리온</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">187,200원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-1.94%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">바이오</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">바이오 업종 조정</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('셀트리온')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">19</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">셀트리온</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">187,200원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-1.94%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">바이오</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">바이오 업종 조정</span></div></button>
 
-          <button type="button" onclick="switchToAnalysisMode('LG에너지솔루션');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">20</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">LG에너지솔루션</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">430,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.53%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">2차전지</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">ESS 수요 기대</span></div></button>
+          <button type="button" onclick="switchToAnalysisMode('LG에너지솔루션')" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">20</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">LG에너지솔루션</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">430,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.53%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">2차전지</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">ESS 수요 기대</span></div></button>
         </div>
       </div>
     </div>
@@ -604,12 +589,7 @@
         const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`);
         if (!response.ok) throw new Error('서버 에러');
         const data = await response.json();
-        return {
-          sections: data.sections || [],
-          news_items: Array.isArray(data.news_items) ? data.news_items : [],
-          disclosures: Array.isArray(data.disclosures) ? data.disclosures : [],
-          ok: true
-        };
+        return { sections: data.sections || [], ok: true };
       } catch (err) {
         return { sections: [], ok: false };
       }
@@ -634,121 +614,6 @@
       chatArea.appendChild(state);
       if (window.lucide) lucide.createIcons();
       return state;
-    }
-
-    // 백엔드 본문에서 현재가/등락률/생존 지지선/악성 매물대를 추출해
-    // "여기 깨지면 도망쳐" 섹션과 동기화한다.
-    // 중요: 통화는 본문에 '$'가 하나라도 있다는 이유로 USD로 바꾸지 않는다.
-    // 종목명 기준으로 KRW/USD를 결정해 한국 주식에 잘못된 달러 표기가 생기지 않게 한다.
-    function extractMarketSyncData(stockName, sections) {
-      const usNames = [
-        '엔비디아','테슬라','애플','마이크로소프트','아마존','구글','메타',
-        'NVDA','TSLA','AAPL','MSFT','AMZN','GOOGL','GOOG','META'
-      ];
-      const isUsd = /^[A-Za-z]+$/.test(stockName) || usNames.includes(stockName);
-
-      let foundPrice = null;
-      let foundRate = null;
-      let foundMa20 = null;
-      let foundRes = null;
-      let sign = 'flat';
-
-      if (Array.isArray(sections)) {
-        for (const s of sections) {
-          const txt = s.content || "";
-
-          if (!foundPrice) {
-            const mPrice = isUsd
-              ? txt.match(/\$([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)/)
-              : txt.match(/현재\s*주가는\s*([0-9,]+)\s*원/) ||
-                txt.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*원/);
-            if (mPrice) {
-              const p = parseFloat(mPrice[1].replace(/,/g, ''));
-              if (!isNaN(p) && p > 0) foundPrice = p;
-            }
-          }
-
-          if (!foundRate) {
-            const mRate = txt.match(/([+-]\d+(?:\.\d+)?%)/);
-            if (mRate) {
-              foundRate = mRate[1];
-              if (foundRate.startsWith('+')) sign = 'up';
-              else if (foundRate.startsWith('-')) sign = 'down';
-            }
-          }
-
-          if (!foundMa20) {
-            const mMa = isUsd
-              ? txt.match(/#생존\s*지지선\s*\$([0-9,.]+)/)
-              : txt.match(/#생존\s*지지선\s*\$?([0-9,]+(?:\.[0-9]+)?)\s*원?/);
-            if (mMa) {
-              const p = parseFloat(mMa[1].replace(/,/g, ''));
-              if (!isNaN(p) && p > 0) foundMa20 = p;
-            }
-          }
-
-          if (!foundRes) {
-            const mRes = isUsd
-              ? txt.match(/#악성\s*매물대\s*\$([0-9,.]+)/)
-              : txt.match(/#악성\s*매물대\s*\$?([0-9,]+(?:\.[0-9]+)?)\s*원?/);
-            if (mRes) {
-              const p = parseFloat(mRes[1].replace(/,/g, ''));
-              if (!isNaN(p) && p > 0) foundRes = p;
-            }
-          }
-        }
-      }
-
-      if (!foundPrice) foundPrice = isUsd ? 180.00 : 70000;
-      if (!foundRate) foundRate = "0.00%";
-
-      function roundTick(price) {
-        if (isUsd) return Number(price.toFixed(2));
-        if (price < 2000) return Math.round(price);
-        if (price < 5000) return Math.round(price / 5) * 5;
-        if (price < 20000) return Math.round(price / 10) * 10;
-        if (price < 50000) return Math.round(price / 50) * 50;
-        if (price < 200000) return Math.round(price / 100) * 100;
-        if (price < 500000) return Math.round(price / 500) * 500;
-        return Math.round(price / 1000) * 1000;
-      }
-
-      function formatPrice(n) {
-        if (isUsd) {
-          return '$' + Number(n).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          });
-        }
-        return Number(n).toLocaleString('ko-KR') + '원';
-      }
-
-      const pinkVal = (foundRes && foundRes > foundPrice)
-        ? roundTick(foundRes)
-        : roundTick(foundPrice * 1.065);
-
-      const blueVal = (foundMa20 && foundMa20 < foundPrice)
-        ? roundTick(foundMa20)
-        : roundTick(foundPrice * 0.935);
-
-      let yellowVal;
-      if (foundPrice > blueVal) {
-        const calcYellow = roundTick(foundPrice * 0.965);
-        yellowVal = (calcYellow > blueVal)
-          ? calcYellow
-          : roundTick((foundPrice + blueVal) / 2);
-      } else {
-        yellowVal = roundTick(foundPrice * 0.98);
-      }
-
-      return {
-        isUsd,
-        rateStr: foundRate,
-        sign,
-        pinkPrice: formatPrice(pinkVal),
-        yellowPrice: formatPrice(yellowVal),
-        bluePrice: formatPrice(blueVal)
-      };
     }
 
     async function requestStock(stockName) {
@@ -796,64 +661,110 @@
       surprisePopup.classList.add('hidden');
 
       chatArea.scrollTop = 0;
-      startTypewriterFlow(stockName, sections, result);
+      startTypewriterFlow(stockName, sections);
     }
 
-    // ★ 버그 완벽 수정된 텍스트 파싱 로직
-    function renderSourceLists(container, result) {
-      if (!container || !result) return;
+    function extractMarketSyncData(stockName, sections) {
+      let isUsd = /^[A-Za-z]+$/.test(stockName) || 
+                    ['엔비디아', '테슬라', '애플', '마이크로소프트', '아마존', '구글', '메타', 'NVDA', 'TSLA', 'AAPL', 'MSFT'].includes(stockName);
 
-      const newsItems = Array.isArray(result.news_items) ? result.news_items : [];
-      const disclosureItems = Array.isArray(result.disclosures) ? result.disclosures : [];
-      if (!newsItems.length && !disclosureItems.length) return;
+      let foundPrice = null;
+      let foundRate = null;
+      let foundMa20 = null;
+      let foundRes = null;
+      let sign = 'flat';
 
-      // 별도 메뉴/카드로 만들지 않고 기존 분석 본문 흐름 안에 간결하게 붙인다.
-      const wrap = document.createElement('div');
-      wrap.className = 'source-inline animate-fade';
+      if (sections && Array.isArray(sections)) {
+        for (const s of sections) {
+          const txt = s.content || "";
+          if (txt.includes('$')) isUsd = true;
 
-      const addGroup = (label, icon, items, extraClass='') => {
-        if (!items.length) return;
-        const group = document.createElement('div');
-        group.className = extraClass;
-
-        const heading = document.createElement('div');
-        heading.className = 'source-inline-title';
-        heading.textContent = `${icon} ${label}`;
-        group.appendChild(heading);
-
-        items.slice(0, 3).forEach(item => {
-          const link = document.createElement('a');
-          link.className = 'source-inline-row';
-          const href = item.original_link || item.link || '';
-          if (href) {
-            link.href = href;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-          } else {
-            link.removeAttribute('href');
+          // 1. 본문 내 현재가 추출 ("현재 주가는 257,500원", "$173.14" 등)
+          if (!foundPrice) {
+            const mPrice = isUsd ? txt.match(/\$([0-9]+(?:\.[0-9]+)?)/) : txt.match(/현재\s*주가는\s*([0-9,]+)\s*원/) || txt.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*원/);
+            if (mPrice) {
+              const p = parseFloat(mPrice[1].replace(/,/g, ''));
+              if (!isNaN(p) && p > 0) foundPrice = p;
+            }
           }
 
-          const title = item.title || '제목 확인 필요';
-          const source = item.source || '출처 확인 필요';
-          const when = item.display_datetime || item.datetime || item.date || '';
-          link.textContent = `${title}`;
-          if (source || when) {
-            const meta = document.createElement('span');
-            meta.className = 'source-inline-meta';
-            meta.textContent = `· ${source}${when ? ' · ' + when : ''}`;
-            link.appendChild(meta);
+          // 2. 본문 내 등락률 추출 ("+13.19%", "-2.4%" 등)
+          if (!foundRate) {
+            const mRate = txt.match(/([+-]\d+(?:\.\d+)?%)/);
+            if (mRate) {
+              foundRate = mRate[1];
+              if (foundRate.startsWith('+')) sign = 'up';
+              else if (foundRate.startsWith('-')) sign = 'down';
+            }
           }
-          group.appendChild(link);
-        });
-        wrap.appendChild(group);
+
+          // 3. 백엔드에서 넘겨준 진짜 20일선(생존 지지선) 추출
+          if (!foundMa20) {
+            const mMa = isUsd ? txt.match(/#생존\s*지지선\s*\$([0-9,.]+)/) : txt.match(/#생존\s*지지선\s*([0-9,]+)\s*원/);
+            if (mMa) {
+              const p = parseFloat(mMa[1].replace(/,/g, ''));
+              if (!isNaN(p) && p > 0) foundMa20 = p;
+            }
+          }
+
+          // 4. 백엔드에서 넘겨준 진짜 악성 매물대(고점 저항선) 추출
+          if (!foundRes) {
+            const mRes = isUsd ? txt.match(/#악성\s*매물대\s*\$([0-9,.]+)/) : txt.match(/#악성\s*매물대\s*([0-9,]+)\s*원/);
+            if (mRes) {
+              const p = parseFloat(mRes[1].replace(/,/g, ''));
+              if (!isNaN(p) && p > 0) foundRes = p;
+            }
+          }
+        }
+      }
+
+      // 백엔드 미수신 시 안전 예비값
+      if (!foundPrice) foundPrice = isUsd ? 180.00 : 70000;
+      if (!foundRate) foundRate = "0.00%";
+
+      function roundTick(price) {
+        if (isUsd) return Number(price.toFixed(2));
+        if (price < 2000) return Math.round(price);
+        if (price < 5000) return Math.round(price / 5) * 5;
+        if (price < 20000) return Math.round(price / 10) * 10;
+        if (price < 50000) return Math.round(price / 50) * 50;
+        if (price < 200000) return Math.round(price / 100) * 100;
+        if (price < 500000) return Math.round(price / 500) * 500;
+        return Math.round(price / 1000) * 1000;
+      }
+
+      function formatPrice(n) {
+        if (isUsd) return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return Number(n).toLocaleString('ko-KR') + '원';
+      }
+
+      // 1. [핑크] 악성 매물대 (백엔드 실제 최근 고점 반영)
+      const pinkVal = (foundRes && foundRes > foundPrice) ? roundTick(foundRes) : roundTick(foundPrice * 1.065);
+
+      // 2. [블루] 생존 지지선 (20일선이 현재가보다 아래일 때만 사용, 깨졌으면 현재가 -6.5%)
+      const blueVal = (foundMa20 && foundMa20 < foundPrice) ? roundTick(foundMa20) : roundTick(foundPrice * 0.935);
+
+      // 3. [옐로우] 여기까지 버텨줘 (현재가와 20일선 사이의 단기 1차 지지선)
+      let yellowVal;
+      if (foundPrice > blueVal) {
+        const calcYellow = roundTick(foundPrice * 0.965);
+        yellowVal = (calcYellow > blueVal) ? calcYellow : roundTick((foundPrice + blueVal) / 2);
+      } else {
+        yellowVal = roundTick(foundPrice * 0.98);
+      }
+
+      return {
+        isUsd,
+        rateStr: foundRate,
+        sign: sign,
+        pinkPrice: formatPrice(pinkVal),
+        yellowPrice: formatPrice(yellowVal),
+        bluePrice: formatPrice(blueVal)
       };
-
-      addGroup('뉴스', '📰', newsItems);
-      addGroup('공시', '📌', disclosureItems, 'source-inline-disclosure');
-      container.appendChild(wrap);
     }
 
-    function startTypewriterFlow(stockName, sections, result) {
+    // 백엔드 시장 데이터와 화면 멘트를 다시 동기화한 출력 로직
+    function startTypewriterFlow(stockName, sections) {
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
 
@@ -862,9 +773,8 @@
       mainContainer.className = "space-y-7 py-2";
       chatArea.appendChild(mainContainer);
 
-      // 본문과 생존 지지선/악성 매물대 숫자를 동일 데이터로 맞춘다.
+      // 백엔드 본문 내용과 100% 동기화된 데이터 세트 생성
       const syncData = extractMarketSyncData(stockName, sections);
-
       let secIdx = 0;
 
       function typeNextSection() {
@@ -874,26 +784,28 @@
         }
 
         const sec = sections[secIdx];
-        const isSurvivalSection =
-          (sec.title && sec.title.includes('여기 깨지면 도망쳐')) ||
-          (sec.content && (sec.content.includes('#생존 지지선') || sec.content.includes('#악성 매물대')));
+        const isSurvivalSection = (sec.title && sec.title.includes('여기 깨지면 도망쳐')) || 
+                                  (sec.content && (sec.content.includes('#생존 지지선') || sec.content.includes('#악성 매물대')));
 
-        const isConditionSection =
-          (sec.title && (sec.title.includes('보합') || sec.title.includes('왜') ||
-                         sec.title.includes('상승') || sec.title.includes('하락'))) ||
-          (secIdx === 0);
+        const isConditionSection = (sec.title && (sec.title.includes('보합') || sec.title.includes('왜') || sec.title.includes('상승') || sec.title.includes('하락'))) || (secIdx === 0);
 
         let dynamicTitle = sec.title || '';
         let text = sec.content || '';
 
+        // 1. 첫 섹션 타이틀: 등락 징후에 따라 깔끔하게 분기 (괄호 없음)
         if (isConditionSection && !isSurvivalSection) {
-          if (syncData.sign === 'up') dynamicTitle = '오늘 왜 상승했을까?';
-          else if (syncData.sign === 'down') dynamicTitle = '오늘 왜 파란불일까?';
-          else dynamicTitle = '오늘 왜 보합일까?';
+          if (syncData.sign === 'up') {
+            dynamicTitle = `오늘 왜 상승했을까?`;
+          } else if (syncData.sign === 'down') {
+            dynamicTitle = `오늘 왜 파란불일까?`;
+          } else {
+            dynamicTitle = `오늘 왜 보합일까?`;
+          }
         }
 
+        // 2. "여기 깨지면 도망쳐" 섹션: 백엔드 실제 20일선 및 악성 매물대 연동
         if (isSurvivalSection) {
-          dynamicTitle = '여기 깨지면 도망쳐';
+          dynamicTitle = "여기 깨지면 도망쳐";
           text = `악성 매물대 ${syncData.pinkPrice}\n` +
                  `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
                  `#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라\n\n` +
@@ -935,168 +847,101 @@
                             `여긴 마지노선이다. 뚫리는 순간 투매 터지니까 미련 갖지 말고 튀어!\n` +
                             `<span class="font-bold" style="color: #38BDF8;">#빤스런 #뒤도보지마 #생존이_우선 #미련버려</span>`;
               } else {
-              // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크
-              formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
+                formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
+                formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
 
-              // 2. 경제 지표(#PPI, #CPI, #FOMC, #PCE, #NFP) -> 블루
-              formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
+                if (formatted.includes('#외국인') || formatted.includes('#콜')) {
+                  let lines = formatted.split('\n\n');
+                  let tagLine = lines[0];
+                  let rest = lines.slice(1).join('\n\n');
 
-              // 3. 지지선 / 저항선 색상
-              if (formatted.includes('#생존 지지선')) {
-                formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
-                formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
-              } 
-              // 4. 수급 매매동향 및 콜/풋 옵션 색상 
-              else if (formatted.includes('#외국인') || formatted.includes('#콜')) {
-                let lines = formatted.split('\n\n');
-                let tagLine = lines[0];
-                let rest = lines.slice(1).join('\n\n');
-
-                if (tagLine.includes('#콜')) {
-                  // 미국 주식 콜/풋/비율 분할 처리 (#콜은 전체 핑크, #풋은 전체 블루)
-                  const parts = tagLine.split(/\s+(?=#)/);
-                  let coloredTags = parts.map(part => {
-                    if (part.startsWith('#콜')) return `<span class="whitespace-nowrap font-bold" style="color: #FF8DA1;">${part}</span>`;
-                    if (part.startsWith('#풋')) return `<span class="whitespace-nowrap font-bold" style="color: #38BDF8;">${part}</span>`;
-                    return `<span class="whitespace-nowrap font-bold" style="color: #94a3b8;">${part}</span>`;
-                  });
-                  tagLine = coloredTags.join(' ');
-                } else {
-                  // 국내 주식 외인/기관/개인 처리
-                  tagLine = tagLine.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주|관망)?)/g, function(_, name, val) {
-                    let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
-                    return `<span class="whitespace-nowrap font-bold" style="color: ${color};">#${name} ${val}</span>`;
-                  });
-                }
-                formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
-              } 
-              // 5. 첫 섹션 태그 라인 오류 완전 해결
-              else if (formatted.includes('#') && !formatted.includes('캘린더')) {
-                const isDown = formatted.includes('-') || formatted.includes('보합') || formatted.includes('눈치싸움') || formatted.includes('파란불') || formatted.includes('숨고르기') || formatted.includes('투매');
-                const themeColor = isDown ? '#38BDF8' : '#FF8DA1';
-                
-                let lines = formatted.split('\n\n');
-                if (lines.length > 0) {
-                  let lastLine = lines[lines.length - 1];
-                  // HTML 태그(<span ...>)가 이미 들어간 경우 순수 텍스트만 뽑아서 다시 색을 칠함
-                  if (lastLine.includes('#') && lastLine.includes('<span')) {
-                     // 1. 임시 div를 만들어 HTML 태그를 모두 벗겨냄
-                     let tempDiv = document.createElement('div');
-                     tempDiv.innerHTML = lastLine;
-                     let rawText = tempDiv.textContent || tempDiv.innerText || "";
-                     
-                     // 2. 벗겨낸 순수 텍스트(예: #엔비디아 #-2.01% #숨고르기 #버텨보자)를 단어별로 다시 칠함
-                     const words = rawText.split(/\s+/);
-                     const newWords = words.map(w => {
-                       if (w.startsWith('#')) {
-                         let color = themeColor;
-                         if (w.includes('+')) color = '#FF8DA1';
-                         else if (w.includes('-')) color = '#38BDF8';
-                         return `<span class="font-bold" style="color: ${color};">${w}</span>`;
-                       }
-                       return w;
-                     });
-                     lines[lines.length - 1] = newWords.join(' ');
-                     formatted = lines.join('\n\n');
-                  } else if (lastLine.includes('#')) {
-                     // HTML 태그가 없을 땐 기존 방식대로 처리
-                     const words = lastLine.split(/\s+/);
-                     const newWords = words.map(w => {
-                       if (w.startsWith('#')) {
-                         let color = themeColor;
-                         if (w.includes('+')) color = '#FF8DA1';
-                         else if (w.includes('-')) color = '#38BDF8';
-                         return `<span class="font-bold" style="color: ${color};">${w}</span>`;
-                       }
-                       return w;
-                     });
-                     lines[lines.length - 1] = newWords.join(' ');
-                     formatted = lines.join('\n\n');
+                  if (tagLine.includes('#콜')) {
+                    const parts = tagLine.split(/\s+(?=#)/);
+                    let coloredTags = parts.map(part => {
+                      if (part.startsWith('#콜')) return `<span class="whitespace-nowrap font-bold" style="color: #FF8DA1;">${part}</span>`;
+                      if (part.startsWith('#풋')) return `<span class="whitespace-nowrap font-bold" style="color: #38BDF8;">${part}</span>`;
+                      return `<span class="whitespace-nowrap font-bold" style="color: #94a3b8;">${part}</span>`;
+                    });
+                    tagLine = coloredTags.join(' ');
+                  } else {
+                    tagLine = tagLine.replace(/#(외국인|기관|개인)\s+([+-]?[\d,.]+(?:만주|주|관망)?)/g, function(_, name, val) {
+                      let color = val.includes('+') ? '#FF8DA1' : (val.includes('-') ? '#38BDF8' : '#94a3b8');
+                      return `<span class="whitespace-nowrap font-bold" style="color: ${color};">#${name} ${val}</span>`;
+                    });
+                  }
+                  formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
+                } 
+                else if (formatted.includes('#') && !formatted.includes('캘린더')) {
+                  const themeColor = syncData.sign === 'up' ? '#FF8DA1' : (syncData.sign === 'down' ? '#38BDF8' : '#FBBF24');
+                  
+                  let lines = formatted.split('\n\n');
+                  if (lines.length > 0) {
+                    let lastLine = lines[lines.length - 1];
+                    if (lastLine.includes('#') && lastLine.includes('<span')) {
+                       let tempDiv = document.createElement('div');
+                       tempDiv.innerHTML = lastLine;
+                       let rawText = tempDiv.textContent || tempDiv.innerText || "";
+                       
+                       const words = rawText.split(/\s+/);
+                       const newWords = words.map(w => {
+                         if (w.startsWith('#')) {
+                           let color = themeColor;
+                           if (w.includes('+')) color = '#FF8DA1';
+                           else if (w.includes('-')) color = '#38BDF8';
+                           return `<span class="font-bold" style="color: ${color};">${w}</span>`;
+                         }
+                         return w;
+                       });
+                       lines[lines.length - 1] = newWords.join(' ');
+                       formatted = lines.join('\n\n');
+                    } else if (lastLine.includes('#')) {
+                       const words = lastLine.split(/\s+/);
+                       const newWords = words.map(w => {
+                         if (w.startsWith('#')) {
+                           let color = themeColor;
+                           if (w.includes('+')) color = '#FF8DA1';
+                           else if (w.includes('-')) color = '#38BDF8';
+                           return `<span class="font-bold" style="color: ${color};">${w}</span>`;
+                         }
+                         return w;
+                       });
+                       lines[lines.length - 1] = newWords.join(' ');
+                       formatted = lines.join('\n\n');
+                    }
                   }
                 }
-              }
 
-              // 6. 본문 텍스트 내 등락률 (-0.19%, +8.26% 등)
-              formatted = formatted.replace(/(?:\s|^)([+-]\d+(?:\.\d+)?%)/g, function(match, p1) {
-                const color = p1.startsWith('+') ? '#FF8DA1' : '#38BDF8';
-                return match.replace(p1, `<span class="font-bold" style="color: ${color};">${p1}</span>`);
-              });
-
+                formatted = formatted.replace(/(?:\s|^)([+-]\d+(?:\.\d+)?%)/g, function(match, p1) {
+                  const color = p1.startsWith('+') ? '#FF8DA1' : '#38BDF8';
+                  return match.replace(p1, `<span class="font-bold" style="color: ${color};">${p1}</span>`);
+                });
               }
             } catch (err) {
               console.warn("치환 예외 안전 무시:", err);
             }
 
-            // 뉴스/공시는 항목 단위로 정확히 분리한다.
-            // 핵심 버그:
-            // 기존 코드는 '\\n\\n'만 기준으로 split해서, 백엔드가 뉴스 3개를
-            // '\\n' 하나로 연결해 보내면 3개가 하나의 .news-item으로 합쳐졌다.
-            // 그 상태에서 -webkit-line-clamp: 2가 적용되어 화면에는 2개만 보였다.
-            //
-            // 따라서 📰 / 📌로 시작하는 줄은 줄바꿈 방식과 관계없이 각각 하나의
-            // 독립 항목으로 분리한다.
-            const normalizedLines = formatted.replace(/\\r\\n?/g, '\\n').split('\\n');
-            const displayBlocks = [];
-            let currentBlock = [];
-
-            normalizedLines.forEach(function(line) {
-              const trimmedLine = line.trim();
-
-              if (trimmedLine.startsWith('📰') || trimmedLine.startsWith('📌')) {
-                if (currentBlock.length) {
-                  displayBlocks.push(currentBlock.join('\\n').trim());
-                  currentBlock = [];
-                }
-                displayBlocks.push(trimmedLine);
-              } else if (trimmedLine === '') {
-                if (currentBlock.length) {
-                  displayBlocks.push(currentBlock.join('\\n').trim());
-                  currentBlock = [];
-                }
-              } else {
-                currentBlock.push(line);
-              }
-            });
-
-            if (currentBlock.length) {
-              displayBlocks.push(currentBlock.join('\\n').trim());
-            }
-
-            const displayOut = displayBlocks.map(function(block) {
+            // 뉴스/공시는 기존 preview 디자인의 표시 방식을 유지한다.
+            const displayBlocks = formatted.split('\n\n');
+            const displayOut = [];
+            displayBlocks.forEach(function(block) {
               const trimmed = block.trim();
               if (trimmed.startsWith('📰')) {
-                return `<div class="news-item">${trimmed}</div>`;
+                displayOut.push(`<div class="news-item">${trimmed}</div>`);
               } else if (trimmed.startsWith('📌')) {
-                return `<div class="disclosure-item">${trimmed}</div>`;
+                displayOut.push(`<div class="disclosure-item">${trimmed}</div>`);
+              } else {
+                displayOut.push(block);
               }
-              return block;
             });
-
-            // 뉴스 항목끼리는 한 줄 간격, 그 외 섹션은 기존 간격을 유지한다.
             const joinedBlocks = [];
             displayOut.forEach(function(block, i) {
-              if (i === 0) {
-                joinedBlocks.push(block);
-                return;
-              }
-
-              const prev = displayBlocks[i - 1].trim();
-              const curr = displayBlocks[i].trim();
-              const bothNews = prev.startsWith('📰') && curr.startsWith('📰');
-
-              joinedBlocks.push((bothNews ? '\\n' : '\\n\\n') + block);
+              if (i === 0) { joinedBlocks.push(block); return; }
+              const prevBlock = displayBlocks[i - 1].trim();
+              const currBlock = displayBlocks[i].trim();
+              const bothNews = prevBlock.startsWith('📰') && currBlock.startsWith('📰');
+              joinedBlocks.push((bothNews ? '\n' : '\n\n') + block);
             });
-
-            formatted = joinedBlocks.join('');
-
-            pEl.innerHTML = formatted;
-
-            // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
-            // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
-            if (secIdx === 0) {
-              renderSourceLists(mainContainer, result);
-            }
-
+            pEl.innerHTML = joinedBlocks.join('');
             secIdx++;
             setTimeout(typeNextSection, 50);
           }
