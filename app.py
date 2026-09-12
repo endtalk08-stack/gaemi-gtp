@@ -290,8 +290,8 @@ def format_kr_official_disclosures(stock_code):
     if not disclosures:
         return ""
 
-    return "\n".join(
-        f"📌 {item['date']} · {item['report']}"
+    return "\n\n".join(
+        f"📌 {item['report']}\nDART · {item['date']}"
         for item in disclosures
     )
 
@@ -571,21 +571,6 @@ def format_us_official_filings(ticker_symbol):
         return ""
 
     lines = []
-    code_labels = {
-        "P": "내부자 매수",
-        "S": "내부자 매도",
-        "A": "주식 취득",
-        "D": "회사로 반환",
-        "F": "세금·행사가격 지급",
-        "M": "옵션·파생상품 행사",
-        "G": "주식 증여",
-        "C": "전환 거래",
-        "J": "기타 거래",
-        "V": "자발적 신고",
-    }
-
-    # 같은 Form 4 안의 여러 거래를 한 블록으로 요약한다.
-    # 화면에는 최대 3개의 공시 블록만 표시하고, 개별 거래내역은 내부 데이터로 유지한다.
     for item in filings[:3]:
         date = str(item.get("date", "")).strip()
         try:
@@ -596,84 +581,14 @@ def format_us_official_filings(ticker_symbol):
             display_date = date
 
         form = str(item.get("form", "")).upper().strip()
-
         if form == "4":
-            transactions = item.get("transactions") or []
-            person = str(item.get("person", "")).strip()
-            officer_title = str(item.get("officer_title", "")).strip()
-
-            # 실제 거래가 여러 건이면 거래코드별 건수를 집계한다.
-            code_counts = {}
-            prices = []
-            for tx in transactions:
-                code = str(tx.get("code", "")).upper().strip()
-                if not code:
-                    continue
-                code_counts[code] = code_counts.get(code, 0) + 1
-
-                price = str(tx.get("price", "")).strip().replace(",", "")
-                if price:
-                    try:
-                        price_value = float(price)
-                        if price_value > 0:
-                            prices.append(price_value)
-                    except Exception:
-                        pass
-
-            # 거래코드가 없는 구버전/예외 데이터도 기존 fallback으로 처리한다.
-            if not code_counts:
-                code = str(item.get("transaction_code", "")).upper().strip()
-                if code:
-                    code_counts[code] = 1
-
-            # 가장 중요한 거래 유형을 앞에 표시한다.
-            priority = ["P", "S", "A", "G", "F", "M", "D", "C", "J", "V"]
-            ordered_codes = sorted(
-                code_counts.keys(),
-                key=lambda c: priority.index(c) if c in priority else len(priority)
-            )
-
-            if ordered_codes:
-                if len(ordered_codes) == 1:
-                    code = ordered_codes[0]
-                    summary = f"{code_labels.get(code, '내부자 거래')} · {code_counts[code]}건"
-                else:
-                    summary = " · ".join(
-                        f"{code_labels.get(code, '내부자 거래')} {code_counts[code]}건"
-                        for code in ordered_codes
-                    )
-            else:
-                summary = "내부자 거래"
-
-            # 미국 SEC 직책은 화면에서 일반 사용자가 이해하기 쉬운 한글로 표시한다.
-            title_ko = {
-                "DIRECTOR": "이사",
-                "OFFICER": "임원",
-                "10% OWNER": "10% 이상 주주",
-                "10% OWNER OF CLASS": "10% 이상 주주",
-            }.get(officer_title.upper(), officer_title)
-            role = f" · {title_ko}" if title_ko else ""
-            who = (person + role) if person else f"회사 내부자{role}"
-
-            lines.append(f"📌 {display_date} · 내부자 거래")
-            lines.append(f"🔴 {summary}" if any(c in ("P", "S") for c in ordered_codes) else f"🟡 {summary}")
-            lines.append(f"📰 {who}")
-
-            # 실제 거래가격이 여러 건이면 최소~최대 가격만 간결하게 표시한다.
-            if prices:
-                min_price = min(prices)
-                max_price = max(prices)
-                if abs(min_price - max_price) < 0.000001:
-                    price_text = f"${min_price:,.2f}"
-                else:
-                    price_text = f"${min_price:,.2f} ~ ${max_price:,.2f}"
-                lines.append(f"💰 {price_text}")
+            lines.append(f"👤 내부자 거래\nSEC · {display_date}")
         else:
             desc = str(item.get("description", "")).strip()
-            lines.append(f"📌 {display_date} · {'기업 주요 공시' if form == '8-K' else form}")
-            lines.append(f"📰 {desc or '주요 내용 발표'}")
+            title = desc or ("기업 주요 공시" if form == "8-K" else form or "SEC 공시")
+            lines.append(f"📌 {title}\nSEC · {display_date}")
 
-    return "\n".join(lines)
+    return "\n\n".join(lines)
 
 def search_krx_code(stock_name):
     try:
@@ -1327,7 +1242,23 @@ def _fetch_realtime_news_uncached(stock_name):
         display_title = re.sub(r"\s+", " ", display_title).strip()
         display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
         display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
-        display_titles.append(display_title or original_title)
+        # 수집/필터링/선정 로직은 그대로 두고 화면 표시용 출처·시간만 함께 전달한다.
+        meta = ""
+        source = str(item.get("source", "") or "").strip()
+        pub_date = str(item.get("pub_date", "") or "").strip()
+        if source and pub_date:
+            try:
+                dt = parsedate_to_datetime(pub_date)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                kst = dt.astimezone(datetime.timezone(datetime.timedelta(hours=9)))
+                display_time = kst.strftime("%H:%M")
+                meta = f"{source} · {display_time}"
+            except Exception:
+                meta = source
+        elif source:
+            meta = source
+        display_titles.append((display_title or original_title, meta))
     return display_titles
 
 
@@ -1869,7 +1800,10 @@ def analyze():
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
 
         news_lines = (
-            "\n".join([f"📰 \"{title}\"" for title in news_list])
+            "\n\n".join(
+                f"📰 {title}\n{meta}" if meta else f"📰 {title}"
+                for title, meta in news_list
+            )
             if news_list
             else "📰 현재 확인된 관련 뉴스를 가져오지 못했습니다."
         )
