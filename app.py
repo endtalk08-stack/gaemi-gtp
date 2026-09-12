@@ -1148,12 +1148,7 @@ def _fetch_one_news_rss(search_term, days=7):
             pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
             link = (link_el.text or "").strip() if link_el is not None else ""
             if title:
-                rows.append({
-                    "title": title,
-                    "source": source,
-                    "pub_date": pub_date,
-                    "link": link,
-                })
+                rows.append({"title": title, "source": source, "pub_date": pub_date, "link": link})
     except Exception as e:
         print(f"[뉴스] RSS 조회 예외 search={search_term}: {type(e).__name__}: {e}")
     return rows
@@ -1325,7 +1320,6 @@ def _fetch_realtime_news_uncached(stock_name):
         print(f"[뉴스 품질] {clean_stock_name} 화면#{i} score={item['score']} type={item['impact_type']} direct={item['direct']} material={item['material']} source={item['source']}")
 
     display_titles = []
-    display_items = []
     company_names = set(terms)
     for item in selected[:3]:
         original_title = item["title"]
@@ -1337,56 +1331,56 @@ def _fetch_realtime_news_uncached(stock_name):
         display_title = re.sub(r"\s+", " ", display_title).strip()
         display_title = re.sub(r"^[,·:：\-–—]+\s*", "", display_title)
         display_title = re.sub(r"\s*[,·:：\-–—]+$", "", display_title).strip()
-        display_title = display_title or original_title
-        display_titles.append(display_title)
+        display_titles.append(display_title or original_title)
 
-        original_link = str(item.get("link", "")).strip()
-        if original_link:
-            try:
-                request = urllib.request.Request(
-                    original_link,
-                    headers={"User-Agent": "Mozilla/5.0"},
-                    method="HEAD",
-                )
-                with urllib.request.urlopen(request, timeout=4) as response:
-                    original_link = response.geturl() or original_link
-            except Exception:
-                # 리디렉션 확인에 실패하면 RSS가 제공한 링크를 그대로 사용한다.
-                pass
-
-        try:
-            dt = parsedate_to_datetime(str(item.get("pub_date", "")).strip())
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=datetime.timezone.utc)
-            kst = datetime.timezone(datetime.timedelta(hours=9))
-            display_datetime = dt.astimezone(kst).strftime("%Y.%m.%d")
-        except Exception:
-            display_datetime = str(item.get("pub_date", "")).strip() or "날짜 확인 필요"
-
+    display_items = []
+    for item, display_title in zip(selected[:3], display_titles):
         display_items.append({
             "title": display_title,
-            "source": str(item.get("source", "")).strip() or "출처 확인 필요",
-            "date": display_datetime,
-            "display_datetime": display_datetime,
-            "link": original_link,
-            "original_link": original_link,
+            "source": str(item.get("source") or "출처 확인 필요"),
+            "date": _format_news_display_date(item.get("pub_date", "")),
+            "datetime": _format_news_display_date(item.get("pub_date", "")),
+            "display_datetime": _format_news_display_date(item.get("pub_date", "")),
+            "link": str(item.get("link") or "").strip(),
+            "original_link": _resolve_news_original_link(item.get("link", "")),
         })
+    NEWS_DISPLAY_CACHE[clean_stock_name] = display_items
 
-    NEWS_DISPLAY_CACHE[clean_stock_name] = [dict(item) for item in display_items]
     return display_titles
 
 
-def fetch_realtime_news(stock_name):
-    """뉴스 결과를 120초 캐시해 같은 종목의 반복 조회 대기시간을 줄인다."""
-    key = str(stock_name).strip()
-    now = datetime.datetime.now().timestamp()
-    cached = NEWS_RESULT_CACHE.get(key)
-    if cached and now - cached[0] < NEWS_CACHE_TTL:
-        return list(cached[1])
+def _format_news_display_date(pub_date):
+    """뉴스 게시일을 화면에서 YYYY.MM.DD 형식으로 표시한다."""
+    try:
+        dt = parsedate_to_datetime(str(pub_date or "").strip())
+        return dt.strftime("%Y.%m.%d")
+    except Exception:
+        text = str(pub_date or "").strip()
+        m = re.search(r"(20\d{2})[-./]?(\d{1,2})[-./]?(\d{1,2})", text)
+        if m:
+            return f"{m.group(1)}.{int(m.group(2)):02d}.{int(m.group(3)):02d}"
+        return "날짜 확인 필요"
 
-    result = _fetch_realtime_news_uncached(stock_name)
-    NEWS_RESULT_CACHE[key] = (now, list(result))
-    return result
+
+NEWS_ORIGINAL_LINK_CACHE = {}
+
+def _resolve_news_original_link(url):
+    """Google News RSS 링크를 가능하면 실제 언론사 원문 URL로 따라간다."""
+    url = str(url or "").strip()
+    if not url:
+        return ""
+    cached = NEWS_ORIGINAL_LINK_CACHE.get(url)
+    if cached is not None:
+        return cached
+    resolved = url
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            resolved = resp.geturl() or url
+    except Exception:
+        pass
+    NEWS_ORIGINAL_LINK_CACHE[url] = resolved
+    return resolved
 
 
 def get_structured_news(stock_name, limit=3):
@@ -1425,6 +1419,19 @@ def get_structured_disclosures(stock_name, stock_code, limit=3):
             "original_link": link,
         })
     return results
+
+
+def fetch_realtime_news(stock_name):
+    """뉴스 결과를 120초 캐시해 같은 종목의 반복 조회 대기시간을 줄인다."""
+    key = str(stock_name).strip()
+    now = datetime.datetime.now().timestamp()
+    cached = NEWS_RESULT_CACHE.get(key)
+    if cached and now - cached[0] < NEWS_CACHE_TTL:
+        return list(cached[1])
+
+    result = _fetch_realtime_news_uncached(stock_name)
+    NEWS_RESULT_CACHE[key] = (now, list(result))
+    return result
 
 
 def get_news_ai_candidates(stock_name, limit=10):
@@ -1845,8 +1852,6 @@ def analyze():
         resistance_price = 0.0
         volume_profile = None
         supply_content = ""
-        news_items = []
-        disclosures = []
 
         # 1~2. 외부 API는 서로 독립적인 요청을 동시에 실행한다.
         # 기존 데이터/계산/화면 구조는 유지하고 "기다리는 순서"만 개선한다.
@@ -1862,9 +1867,7 @@ def analyze():
             cur_p, diff, ratio = realtime_future.result()
             ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = trend_future.result()
             news_list = news_future.result()
-            news_items = get_structured_news(raw_name, limit=3)
             kr_official_disclosures_block = disclosure_future.result()
-            disclosures = get_structured_disclosures(raw_name, clean_code, limit=3)
             volume_profile = volume_profile_future.result()
             official_filings_block = ""
 
@@ -2016,11 +2019,7 @@ def analyze():
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ])
-        return jsonify({
-            "sections": sections,
-            "news_items": news_items,
-            "disclosures": disclosures,
-        })
+        return jsonify({"sections": sections, "news_items": news_items, "disclosures": disclosures})
 
     except Exception as e:
         print("전체 예외 안전 복구 가동:", e)
