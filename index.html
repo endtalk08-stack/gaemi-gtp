@@ -82,8 +82,6 @@
     }
     .dark .source-list-row { border-bottom-color: #27272a; }
     .source-list-row:last-child { border-bottom: 0; }
-    .source-list-row[href] { cursor: pointer; }
-    .source-list-row[href]:hover .source-list-title { text-decoration: underline; text-underline-offset: 3px; }
     .source-list-main { min-width: 0; flex: 1; }
     .source-list-title {
       color: #0f172a;
@@ -617,7 +615,12 @@
         const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`);
         if (!response.ok) throw new Error('서버 에러');
         const data = await response.json();
-        return { sections: data.sections || [], ok: true };
+        return {
+          sections: data.sections || [],
+          news_items: data.news_items || [],
+          disclosures: data.disclosures || [],
+          ok: true
+        };
       } catch (err) {
         return { sections: [], ok: false };
       }
@@ -1093,12 +1096,35 @@
               displayBlocks.push(currentBlock.join('\\n').trim());
             }
 
+            let newsCursor = 0;
+            let disclosureCursor = 0;
+            const escapeHtml = function(value) {
+              return String(value || '').replace(/[&<>"']/g, function(ch) {
+                return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch];
+              });
+            };
             const displayOut = displayBlocks.map(function(block) {
               const trimmed = block.trim();
               if (trimmed.startsWith('📰')) {
-                return `<div class="news-item">${trimmed}</div>`;
+                const item = (result.news_items || [])[newsCursor++];
+                const titleText = trimmed.replace(/^📰\s*/, '');
+                const source = item ? (item.source || '') : '';
+                const date = item ? (item.display_datetime || item.date || '') : '';
+                const href = item ? (item.original_link || item.link || '') : '';
+                const meta = source || date ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:2px;">${escapeHtml(source)}${source && date ? ' · ' : ''}${escapeHtml(date)}</div>` : '';
+                const body = `${escapeHtml(titleText)}${meta}`;
+                return href ? `<div class="news-item"><a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;display:block;">${body}</a></div>` : `<div class="news-item">${body}</div>`;
               } else if (trimmed.startsWith('📌')) {
-                return `<div class="disclosure-item">${trimmed}</div>`;
+                const item = (result.disclosures || [])[disclosureCursor++];
+                let titleText = trimmed.replace(/^📌\s*/, '');
+                const company = stockName || '';
+                if (company && titleText.indexOf(company) === -1) titleText = company + ' ' + titleText;
+                const source = item ? (item.source || 'DART') : 'DART';
+                const date = item ? (item.date || item.datetime || '') : '';
+                const href = item ? (item.original_link || item.link || '') : '';
+                const meta = source || date ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:2px;">${escapeHtml(source)}${source && date ? ' · ' : ''}${escapeHtml(date)}</div>` : '';
+                const body = `${escapeHtml(titleText)}${meta}`;
+                return href ? `<div class="disclosure-item"><a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;display:block;">${body}</a></div>` : `<div class="disclosure-item">${body}</div>`;
               }
               return block;
             });
@@ -1121,12 +1147,6 @@
             formatted = joinedBlocks.join('');
 
             pEl.innerHTML = formatted;
-
-            // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
-            // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
-            if (secIdx === 0) {
-              renderSourceLists(mainContainer, result);
-            }
 
             secIdx++;
             setTimeout(typeNextSection, 50);
