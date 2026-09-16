@@ -22,6 +22,8 @@ CORS(
     }
 )
 
+application = app
+
 
 @app.get("/")
 def home():
