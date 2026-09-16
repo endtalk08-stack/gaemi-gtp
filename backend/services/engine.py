@@ -13,7 +13,6 @@ import zipfile
 import urllib.error
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
@@ -128,19 +127,6 @@ def _get_singleflight_lock(lock_map, key):
         return lock
 
 
-# 외부 API는 서로 독립적인 요청을 동시에 처리해 전체 대기시간을 줄인다.
-# 너무 많은 동시 요청으로 외부 서비스에 부담을 주지 않도록 6개로 제한한다.
-API_EXECUTOR = ThreadPoolExecutor(max_workers=6)
-
-
-def _safe_future_result(future, timeout, default, label):
-    """Timeout 이후 아직 실행되지 않은 작업이 executor에 누적되지 않게 회수한다."""
-    try:
-        return future.result(timeout=timeout)
-    except Exception as exc:
-        future.cancel()
-        print(f"[{label}] timeout/deferred: {type(exc).__name__}: {exc}")
-        return default
 NEWS_RESULT_CACHE = {}
 OPTIONS_RESULT_CACHE = {}
 NEWS_CACHE_TTL = 120
@@ -1962,32 +1948,42 @@ def analyze_stock(raw_name='SK하이닉스'):
         volume_profile = None
         supply_content = ""
 
-        # 1~2. 외부 API는 서로 독립적인 요청을 동시에 실행한다.
-        # 기존 데이터/계산/화면 구조는 유지하고 "기다리는 순서"만 개선한다.
+        # 1~2. 외부 API는 한 요청 안에서 순차 처리한다.
+        # 이전 구조는 여러 외부 API를 ThreadPoolExecutor에 동시에 넣은 뒤
+        # timeout이 나도 실행 중인 작업이 남아 다음 요청과 겹칠 수 있었다.
+        # Render/Gunicorn에서는 이 누적이 반복 검색 시 502로 이어질 수 있어
+        # 요청마다 외부 작업이 남지 않도록 직접 호출한다.
         if is_krw and clean_code:
-            realtime_future = API_EXECUTOR.submit(fetch_kr_stock_realtime, clean_code)
-            trend_future = API_EXECUTOR.submit(fetch_krx_trend_and_supply, clean_code)
-            news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
-            disclosure_future = API_EXECUTOR.submit(fetch_kr_official_disclosures, clean_code)
-            volume_profile_future = API_EXECUTOR.submit(
-                fetch_kr_historical_volume_profile, ticker_symbol
-            )
+            try:
+                cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
+            except Exception as e:
+                print(f"[국내 시세] fail: {type(e).__name__}: {e}")
+                cur_p, diff, ratio = 0.0, 0.0, 0.0
 
-            # 첫 화면을 막지 않도록 핵심 시세만 짧게 기다리고, 무거운 부가 데이터는
-            # 제한시간을 넘기면 빈 값으로 진행한다. 해당 작업은 백그라운드에서 계속될 수 있다.
-            cur_p, diff, ratio = _safe_future_result(
-                realtime_future, 5, (0.0, 0.0, 0.0), "국내 시세"
-            )
-            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = _safe_future_result(
-                trend_future, 4, (0, 0, 0, 0, 0, 0), "국내 수급"
-            )
-            news_list = _safe_future_result(news_future, 2, [], "뉴스")
-            kr_official_disclosures = _safe_future_result(
-                disclosure_future, 2, [], "국내 공시"
-            )
-            volume_profile = _safe_future_result(
-                volume_profile_future, 2, None, "매물대"
-            )
+            try:
+                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
+            except Exception as e:
+                print(f"[국내 수급] fail: {type(e).__name__}: {e}")
+                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
+
+            try:
+                news_list = fetch_realtime_news(raw_name)
+            except Exception as e:
+                print(f"[뉴스] fail: {type(e).__name__}: {e}")
+                news_list = []
+
+            try:
+                kr_official_disclosures = fetch_kr_official_disclosures(clean_code)
+            except Exception as e:
+                print(f"[국내 공시] fail: {type(e).__name__}: {e}")
+                kr_official_disclosures = []
+
+            try:
+                volume_profile = fetch_kr_historical_volume_profile(ticker_symbol)
+            except Exception as e:
+                print(f"[매물대] fail: {type(e).__name__}: {e}")
+                volume_profile = None
+
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             official_filings_block = ""
 
@@ -2022,21 +2018,30 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         # 2. 미국 주식
         else:
-            yahoo_future = API_EXECUTOR.submit(fetch_yahoo_direct_v8, ticker_symbol)
-            options_future = API_EXECUTOR.submit(fetch_us_options_volume, ticker_symbol)
-            news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
-            filing_future = API_EXECUTOR.submit(fetch_us_official_filings, ticker_symbol)
+            try:
+                cur_p, prev_p, ma20_val, res_val, volume_profile = fetch_yahoo_direct_v8(ticker_symbol)
+            except Exception as e:
+                print(f"[미국 시세] fail: {type(e).__name__}: {e}")
+                cur_p, prev_p, ma20_val, res_val, volume_profile = 0, 0, 0, 0, None
 
-            cur_p, prev_p, ma20_val, res_val, volume_profile = _safe_future_result(
-                yahoo_future, 6, (0, 0, 0, 0, None), "미국 시세"
-            )
-            call_vol, put_vol, option_error = _safe_future_result(
-                options_future, 2, (0, 0, ""), "미국 옵션"
-            )
-            news_list = _safe_future_result(news_future, 2, [], "뉴스")
-            us_filings_raw = _safe_future_result(
-                filing_future, 2, [], "미국 공시"
-            )
+            try:
+                call_vol, put_vol, option_error = fetch_us_options_volume(ticker_symbol)
+            except Exception as e:
+                print(f"[미국 옵션] fail: {type(e).__name__}: {e}")
+                call_vol, put_vol, option_error = 0, 0, str(e)
+
+            try:
+                news_list = fetch_realtime_news(raw_name)
+            except Exception as e:
+                print(f"[뉴스] fail: {type(e).__name__}: {e}")
+                news_list = []
+
+            try:
+                us_filings_raw = fetch_us_official_filings(ticker_symbol)
+            except Exception as e:
+                print(f"[미국 공시] fail: {type(e).__name__}: {e}")
+                us_filings_raw = []
+
             official_filings_block = format_us_official_filings(ticker_symbol, us_filings_raw)
             kr_official_disclosures_block = ""
 
@@ -2205,61 +2210,5 @@ def analyze_stock(raw_name='SK하이닉스'):
             ]
         }
 
-
-
-# -----------------------------------------------------------------------------
-# 서버 콜드스타트 완화
-# - 사용자 첫 검색을 막지 않고 서버 백그라운드에서 공시용 초기 캐시를 준비한다.
-# - 모든 종목을 무차별 조회하지 않고, 실제 사이트에서 자주 검색하는 대표 종목만 워밍한다.
-# - 실패해도 사용자 요청/기존 기능에는 영향을 주지 않는다.
-# -----------------------------------------------------------------------------
-_WARMUP_TICKERS_KR = [
-    "005930.KS",  # 삼성전자
-    "000660.KS",  # SK하이닉스
-]
-_WARMUP_TICKERS_US = [
-    "NVDA",
-    "TSLA",
-    "AAPL",
-]
-
-
-def _gaemigtp_warmup_cache():
-    """서버 시작 직후 공시 관련 콜드스타트 비용을 백그라운드에서 선지불한다."""
-    try:
-        time.sleep(1.0)
-        # 가장 큰 첫 요청 비용 중 하나인 DART 기업코드 전체맵을 미리 준비한다.
-        if OPENDART_API_KEY:
-            fetch_dart_corp_map()
-
-        # 사용자 첫 검색과 DART/SEC 워밍업이 같은 종목에서 서로 기다리지 않도록
-        # 대표 종목의 무거운 조회는 20초 뒤에 시작한다. 기업코드 맵만 즉시 준비한다.
-        time.sleep(20.0)
-        for code in _WARMUP_TICKERS_KR:
-            try:
-                clean_code = ''.join(filter(str.isdigit, code))
-                if clean_code:
-                    fetch_kr_official_disclosures(clean_code)
-            except Exception as e:
-                print(f"[워밍업] DART {code} 건너뜀: {type(e).__name__}: {e}")
-        for ticker in _WARMUP_TICKERS_US:
-            try:
-                fetch_us_official_filings(ticker)
-            except Exception as e:
-                print(f"[워밍업] SEC {ticker} 건너뜀: {type(e).__name__}: {e}")
-        print("[워밍업] DART/SEC 백그라운드 초기 캐시 준비 완료")
-    except Exception as e:
-        print(f"[워밍업] 전체 건너뜀: {type(e).__name__}: {e}")
-
-
-# Gunicorn/Render에서도 import 시 한 번만 비동기 시작한다. 요청을 막지 않는다.
-try:
-    threading.Thread(
-        target=_gaemigtp_warmup_cache,
-        name="gaemigtp-cache-warmup",
-        daemon=True,
-    ).start()
-except Exception as e:
-    print(f"[워밍업] 스레드 시작 실패: {type(e).__name__}: {e}")
 
 
