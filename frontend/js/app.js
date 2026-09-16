@@ -1,5 +1,3 @@
-tailwind.config = { darkMode: 'class' }
-
 const BACKEND_URL = window.location.origin;
     let activeStock = '삼성전자';
     let activeAnalysisRequestId = 0;
@@ -313,7 +311,7 @@ const BACKEND_URL = window.location.origin;
       chatArea.appendChild(loaderDiv);
 
       const fetchPromise = fetchAnalysisFromBackend(stockName);
-      const delayPromise = new Promise(resolve => setTimeout(resolve, 120));
+      const delayPromise = new Promise(resolve => setTimeout(resolve, 900));
       const [result] = await Promise.all([fetchPromise, delayPromise]);
       if (requestId !== activeAnalysisRequestId) return;
       const sections = result.sections || [];
@@ -1173,4 +1171,11 @@ document.addEventListener("DOMContentLoaded", () => { if (window.lucide) lucide.
       if (metric) metric.textContent = label;
     }
 
-initExternalLinkModal();
+
+// DOM is already parsed because this file is loaded at the end of <body>.
+try {
+  if (typeof initExternalLinkModal === 'function') initExternalLinkModal();
+  if (window.lucide) lucide.createIcons();
+} catch (e) {
+  console.warn('[gaemiGTP] UI initialization warning:', e);
+}

@@ -1,20 +1,10 @@
-# gaemiGTP
+# gaemi-gtp
 
-Refactored structure preserving the existing UI and API behavior.
-
-## Run locally
-
-```bash
-pip install -r requirements.txt
-python app.py
-```
-
-## Render
-
-Keep the existing Start Command:
-
-```bash
-gunicorn app:app
-```
-
-The frontend is served by the same Flask process, so the browser uses same-origin `/analyze` requests.
+## Refactored structure
+- Render start command: `gunicorn app:app`
+- Frontend: `frontend/`
+- Backend wrapper: `backend/app.py`
+- Analysis/data engine: `backend/services/engine.py`
+- Health check: `/health`
+- Analysis API: `/analyze?stock=삼성전자`
+- The frontend calls the API with same-origin `window.location.origin`.
