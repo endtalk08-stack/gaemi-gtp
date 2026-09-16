@@ -13,10 +13,7 @@ app = Flask(
     static_folder=str(FRONTEND_DIR),
     static_url_path="",
 )
-CORS(
-    app,
-    resources={r"/*": {"origins": "https://endtalk08-stack.github.io"}},
-)
+CORS(app)
 
 application = app
 

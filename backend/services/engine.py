@@ -131,6 +131,16 @@ def _get_singleflight_lock(lock_map, key):
 # 외부 API는 서로 독립적인 요청을 동시에 처리해 전체 대기시간을 줄인다.
 # 너무 많은 동시 요청으로 외부 서비스에 부담을 주지 않도록 6개로 제한한다.
 API_EXECUTOR = ThreadPoolExecutor(max_workers=6)
+
+
+def _safe_future_result(future, timeout, default, label):
+    """Timeout 이후 아직 실행되지 않은 작업이 executor에 누적되지 않게 회수한다."""
+    try:
+        return future.result(timeout=timeout)
+    except Exception as exc:
+        future.cancel()
+        print(f"[{label}] timeout/deferred: {type(exc).__name__}: {exc}")
+        return default
 NEWS_RESULT_CACHE = {}
 OPTIONS_RESULT_CACHE = {}
 NEWS_CACHE_TTL = 120
@@ -1965,31 +1975,19 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             # 첫 화면을 막지 않도록 핵심 시세만 짧게 기다리고, 무거운 부가 데이터는
             # 제한시간을 넘기면 빈 값으로 진행한다. 해당 작업은 백그라운드에서 계속될 수 있다.
-            try:
-                cur_p, diff, ratio = realtime_future.result(timeout=5)
-            except Exception as e:
-                print(f"[국내 시세] timeout/fail: {type(e).__name__}: {e}")
-                cur_p, diff, ratio = 0.0, 0.0, 0.0
-            try:
-                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = trend_future.result(timeout=4)
-            except Exception as e:
-                print(f"[국내 수급] timeout/fail: {type(e).__name__}: {e}")
-                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
-            try:
-                news_list = news_future.result(timeout=2)
-            except Exception as e:
-                print(f"[뉴스] timeout/deferred: {type(e).__name__}: {e}")
-                news_list = []
-            try:
-                kr_official_disclosures = disclosure_future.result(timeout=2)
-            except Exception as e:
-                print(f"[국내 공시] timeout/deferred: {type(e).__name__}: {e}")
-                kr_official_disclosures = []
-            try:
-                volume_profile = volume_profile_future.result(timeout=2)
-            except Exception as e:
-                print(f"[매물대] timeout/deferred: {type(e).__name__}: {e}")
-                volume_profile = None
+            cur_p, diff, ratio = _safe_future_result(
+                realtime_future, 5, (0.0, 0.0, 0.0), "국내 시세"
+            )
+            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = _safe_future_result(
+                trend_future, 4, (0, 0, 0, 0, 0, 0), "국내 수급"
+            )
+            news_list = _safe_future_result(news_future, 2, [], "뉴스")
+            kr_official_disclosures = _safe_future_result(
+                disclosure_future, 2, [], "국내 공시"
+            )
+            volume_profile = _safe_future_result(
+                volume_profile_future, 2, None, "매물대"
+            )
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             official_filings_block = ""
 
@@ -2029,26 +2027,16 @@ def analyze_stock(raw_name='SK하이닉스'):
             news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
             filing_future = API_EXECUTOR.submit(fetch_us_official_filings, ticker_symbol)
 
-            try:
-                cur_p, prev_p, ma20_val, res_val, volume_profile = yahoo_future.result(timeout=6)
-            except Exception as e:
-                print(f"[미국 시세] timeout/fail: {type(e).__name__}: {e}")
-                cur_p, prev_p, ma20_val, res_val, volume_profile = 0, 0, 0, 0, None
-            try:
-                call_vol, put_vol, option_error = options_future.result(timeout=2)
-            except Exception as e:
-                print(f"[미국 옵션] timeout/deferred: {type(e).__name__}: {e}")
-                call_vol, put_vol, option_error = 0, 0, str(e)
-            try:
-                news_list = news_future.result(timeout=2)
-            except Exception as e:
-                print(f"[뉴스] timeout/deferred: {type(e).__name__}: {e}")
-                news_list = []
-            try:
-                us_filings_raw = filing_future.result(timeout=2)
-            except Exception as e:
-                print(f"[미국 공시] timeout/deferred: {type(e).__name__}: {e}")
-                us_filings_raw = []
+            cur_p, prev_p, ma20_val, res_val, volume_profile = _safe_future_result(
+                yahoo_future, 6, (0, 0, 0, 0, None), "미국 시세"
+            )
+            call_vol, put_vol, option_error = _safe_future_result(
+                options_future, 2, (0, 0, ""), "미국 옵션"
+            )
+            news_list = _safe_future_result(news_future, 2, [], "뉴스")
+            us_filings_raw = _safe_future_result(
+                filing_future, 2, [], "미국 공시"
+            )
             official_filings_block = format_us_official_filings(ticker_symbol, us_filings_raw)
             kr_official_disclosures_block = ""
 
