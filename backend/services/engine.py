@@ -13,6 +13,7 @@ import zipfile
 import urllib.error
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
