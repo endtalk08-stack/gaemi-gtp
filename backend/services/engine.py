@@ -8,6 +8,7 @@ import os
 import re
 import math
 import io
+import html
 import zipfile
 import urllib.error
 import threading
@@ -465,6 +466,26 @@ def format_us_sec_filing(filing):
     summary = title or "주요 공시 내용 확인"
     return f"📌 {display_date} · {form or 'SEC 공시'}\n📰 {summary}".strip()
 
+
+
+
+def _tag_value(text, tag_name):
+    """SEC 제출 원문에서 XML/SGML 태그의 텍스트 값을 안전하게 추출한다."""
+    if not text or not tag_name:
+        return ""
+    pattern = rf"<(?:[A-Za-z0-9_.-]+:)?{re.escape(tag_name)}\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?{re.escape(tag_name)}>"
+    match = re.search(pattern, text, flags=re.I | re.S)
+    if not match:
+        return ""
+    value = re.sub(r"<[^>]+>", " ", match.group(1))
+    value = html.unescape(value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _has_tag_value(text, tag_name):
+    """SEC 원문에서 지정 태그가 true/1/Y 등 활성값을 갖는지 확인한다."""
+    value = _tag_value(text, tag_name).strip().lower()
+    return value in {"1", "true", "yes", "y"}
 
 
 def _enrich_us_form4_from_submission(filing, ticker_symbol):
@@ -1942,12 +1963,34 @@ def analyze_stock(raw_name='SK하이닉스'):
                 fetch_kr_historical_volume_profile, ticker_symbol
             )
 
-            cur_p, diff, ratio = realtime_future.result()
-            ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = trend_future.result()
-            news_list = news_future.result()
-            kr_official_disclosures = disclosure_future.result()
+            # 첫 화면을 막지 않도록 핵심 시세만 짧게 기다리고, 무거운 부가 데이터는
+            # 제한시간을 넘기면 빈 값으로 진행한다. 해당 작업은 백그라운드에서 계속될 수 있다.
+            try:
+                cur_p, diff, ratio = realtime_future.result(timeout=5)
+            except Exception as e:
+                print(f"[국내 시세] timeout/fail: {type(e).__name__}: {e}")
+                cur_p, diff, ratio = 0.0, 0.0, 0.0
+            try:
+                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = trend_future.result(timeout=4)
+            except Exception as e:
+                print(f"[국내 수급] timeout/fail: {type(e).__name__}: {e}")
+                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
+            try:
+                news_list = news_future.result(timeout=2)
+            except Exception as e:
+                print(f"[뉴스] timeout/deferred: {type(e).__name__}: {e}")
+                news_list = []
+            try:
+                kr_official_disclosures = disclosure_future.result(timeout=2)
+            except Exception as e:
+                print(f"[국내 공시] timeout/deferred: {type(e).__name__}: {e}")
+                kr_official_disclosures = []
+            try:
+                volume_profile = volume_profile_future.result(timeout=2)
+            except Exception as e:
+                print(f"[매물대] timeout/deferred: {type(e).__name__}: {e}")
+                volume_profile = None
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
-            volume_profile = volume_profile_future.result()
             official_filings_block = ""
 
             current_price = cur_p if cur_p else 1783000.0
@@ -1986,10 +2029,26 @@ def analyze_stock(raw_name='SK하이닉스'):
             news_future = API_EXECUTOR.submit(fetch_realtime_news, raw_name)
             filing_future = API_EXECUTOR.submit(fetch_us_official_filings, ticker_symbol)
 
-            cur_p, prev_p, ma20_val, res_val, volume_profile = yahoo_future.result()
-            call_vol, put_vol, option_error = options_future.result()
-            news_list = news_future.result()
-            us_filings_raw = filing_future.result()
+            try:
+                cur_p, prev_p, ma20_val, res_val, volume_profile = yahoo_future.result(timeout=6)
+            except Exception as e:
+                print(f"[미국 시세] timeout/fail: {type(e).__name__}: {e}")
+                cur_p, prev_p, ma20_val, res_val, volume_profile = 0, 0, 0, 0, None
+            try:
+                call_vol, put_vol, option_error = options_future.result(timeout=2)
+            except Exception as e:
+                print(f"[미국 옵션] timeout/deferred: {type(e).__name__}: {e}")
+                call_vol, put_vol, option_error = 0, 0, str(e)
+            try:
+                news_list = news_future.result(timeout=2)
+            except Exception as e:
+                print(f"[뉴스] timeout/deferred: {type(e).__name__}: {e}")
+                news_list = []
+            try:
+                us_filings_raw = filing_future.result(timeout=2)
+            except Exception as e:
+                print(f"[미국 공시] timeout/deferred: {type(e).__name__}: {e}")
+                us_filings_raw = []
             official_filings_block = format_us_official_filings(ticker_symbol, us_filings_raw)
             kr_official_disclosures_block = ""
 

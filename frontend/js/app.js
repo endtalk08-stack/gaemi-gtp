@@ -1,4 +1,5 @@
-const BACKEND_URL = window.location.origin;
+// Frontend is served by GitHub Pages; analysis API runs on Render.
+const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let activeStock = '삼성전자';
     let activeAnalysisRequestId = 0;
     let currentChartInstance = null;
@@ -311,7 +312,7 @@ const BACKEND_URL = window.location.origin;
       chatArea.appendChild(loaderDiv);
 
       const fetchPromise = fetchAnalysisFromBackend(stockName);
-      const delayPromise = new Promise(resolve => setTimeout(resolve, 900));
+      const delayPromise = new Promise(resolve => setTimeout(resolve, 120));
       const [result] = await Promise.all([fetchPromise, delayPromise]);
       if (requestId !== activeAnalysisRequestId) return;
       const sections = result.sections || [];
