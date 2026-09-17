@@ -1411,15 +1411,15 @@ def analyze_stock(raw_name='SK하이닉스'):
                 "content": supply_content
             },
             {
-                "title": "여기 깨지면 도망쳐",
+                "title": "여기 깨지면 큰일인데?",
                 "content": (
                     (
                         (lambda vp_text: (
                             (
                                 next((line for line in vp_text.splitlines() if line.startswith("#생존 지지선")), "#생존 지지선 계산 대기")
-                                + " 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n"
+                                + " 니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출할 수 있는 구간!!\n\n"
                                 + next((line for line in vp_text.splitlines() if line.startswith("#악성 매물대")), "#악성 매물대 계산 대기")
-                                + " 이 가격은 최근 거래량이 집중된 구간이라 돌파 전에는 무리하게 따라붙지 말자."
+                                + " 멘탈 단디 잡어ㅋ여기서 밀리면 실망 매물 나올 수 있는 구간이야!!"
                             )
                             if vp_text else
                             "#생존 지지선 계산 대기\n\n#악성 매물대 계산 대기"
