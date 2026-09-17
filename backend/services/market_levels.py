@@ -15,9 +15,8 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24):
     try:
         rows = []
         for h, l, c, v in zip(highs[-60:], lows[-60:], closes[-60:], volumes[-60:]):
-            # Yahoo Finance 응답에는 간혹 일부 날짜의 값이 None으로 들어온다.
-            # 그런 한 줄 때문에 전체 Volume Profile 계산이 실패하지 않도록
-            # 숫자이며 유한한 OHLCV 행만 사용한다.
+            # Yahoo OHLCV에는 간헐적으로 None이 섞일 수 있다.
+            # 하나의 잘못된 봉 때문에 전체 Volume Profile 계산을 실패시키지 않는다.
             if any(x is None for x in (h, l, c, v)):
                 continue
             try:
@@ -136,28 +135,22 @@ def format_volume_profile(profile, is_usd=True):
     inside = profile.get("inside")
     above = profile.get("above")
     below = profile.get("below")
-    poc = profile.get("poc")
 
     lines = []
 
-    # 매물대는 내부적으로 구간으로 분석하되,
-    # 화면에는 저항/지지 대표 가격 하나만 표시한다.
-    # 저항 = 선택된 저항 매물대의 상단 가격
-    # 지지 = 선택된 지지 매물대의 하단 가격
-    resistance_zone = above or inside
-    if resistance_zone:
-        resistance_price = resistance_zone.get("upper", resistance_zone.get("center"))
-        if resistance_price:
-            lines.append(f"#악성 매물대 ${resistance_price:,.2f}" if is_usd else f"#악성 매물대 {round_krw_tick(resistance_price):,}원")
-
+    # 사용자 화면에는 최근 60거래일 가격+거래량 Volume Profile에서
+    # 선택한 지지 1개와 저항 1개만 표시한다. POC는 내부 계산값으로만 유지한다.
     support_zone = below or inside
     if support_zone:
         support_price = support_zone.get("lower", support_zone.get("center"))
         if support_price:
             lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
 
-    if poc:
-        lines.append((f"POC ${poc['center']:,.2f} · 최근 {profile['days']}거래일 거래량 기준" if is_usd else f"POC {round_krw_tick(poc['center']):,}원 · 최근 {profile['days']}거래일 거래량 기준"))
+    resistance_zone = above or inside
+    if resistance_zone:
+        resistance_price = resistance_zone.get("upper", resistance_zone.get("center"))
+        if resistance_price:
+            lines.append(f"#악성 매물대 ${resistance_price:,.2f}" if is_usd else f"#악성 매물대 {round_krw_tick(resistance_price):,}원")
 
     return "\n".join(lines)
 

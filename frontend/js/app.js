@@ -474,14 +474,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         }
 
         const sec = sections[secIdx];
-        const isSurvivalSection =
-          (sec.title && sec.title.includes('여기 깨지면 도망쳐')) ||
-          (sec.content && (sec.content.includes('#생존 지지선') || sec.content.includes('#악성 매물대')));
-
-        // 제목과 본문은 백엔드가 만든 값을 그대로 사용한다.
-        // 프론트에서 상승/하락/생존 문구를 다시 생성하지 않아 수정본과 표시값이 어긋나지 않는다.
         const dynamicTitle = sec.title || '';
-        const text = (sec.content || '').replace(/\n{3,}/g, '\n\n').trim();
+        const text = (sec.content || '')
+          .replace(/이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야/g, '')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
 
         const textBlock = document.createElement('div');
         textBlock.className = "space-y-4 animate-fade";
@@ -588,6 +585,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                      formatted = lines.join('\n\n');
                   }
                 }
+              }
 
               // 6. 본문 텍스트 내 등락률 (-0.19%, +8.26% 등)
               formatted = formatted.replace(/(?:\s|^)([+-]\d+(?:\.\d+)?%)/g, function(match, p1) {
@@ -595,7 +593,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                 return match.replace(p1, `<span class="font-bold" style="color: ${color};">${p1}</span>`);
               });
 
-              }
             } catch (err) {
               console.warn("치환 예외 안전 무시:", err);
             }
