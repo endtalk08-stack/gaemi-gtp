@@ -1680,12 +1680,14 @@ def format_volume_profile(profile, is_usd=True):
     if below:
         support_price = below.get("lower", below.get("center"))
         if support_price:
-            lines.append(f"#생존 매물대 ${support_price:,.2f}" if is_usd else f"#생존 매물대 {round_krw_tick(support_price):,}원")
+            lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
     elif inside:
         support_price = inside.get("lower", inside.get("center"))
         if support_price:
-            lines.append(f"#생존 매물대 ${support_price:,.2f}" if is_usd else f"#생존 매물대 {round_krw_tick(support_price):,}원")
+            lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
 
+    if poc:
+        lines.append((f"POC ${poc['center']:,.2f} · 최근 {profile['days']}거래일 거래량 기준" if is_usd else f"POC {round_krw_tick(poc['center']):,}원 · 최근 {profile['days']}거래일 거래량 기준"))
 
     return "\n".join(lines)
 
@@ -2130,14 +2132,13 @@ def analyze_stock(raw_name='SK하이닉스'):
             {
                 "title": "여기 깨지면 도망쳐",
                 "content": (
-                    (
+                    f"#생존 지지선 {ma20_str} 딱 기억해놔! "
+                    f"이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n"
+                    + (
                         format_volume_profile(volume_profile, is_usd=False)
-                        + "\n\n"
-                        + "위쪽 악성 매물대는 과거 물린 형들 본전 탈출 구간일 수 있어. 돌파 전에는 무지성 추격매수 조심하자!\n"
-                        + "아래쪽 생존 매물대는 지켜줘야 할 거래 집중 가격대야. 여기서 밀리면 실망 매물이 나올 수 있으니 리스크 관리 먼저 하자고!"
+                        if volume_profile
+                        else f"#악성 매물대 {res_str} 이 가격은 최근 고점 부근의 본전 매물이 몰려 있을 가능성이 있어. 돌파 전에는 무리하게 따라붙지 말자."
                     )
-                    if volume_profile and volume_profile.get("above") and volume_profile.get("below")
-                    else "아직 최근 60거래일 거래 데이터가 충분하지 않아. 매물대가 계산되면 바로 보여줄게."
                 )
             },
             {

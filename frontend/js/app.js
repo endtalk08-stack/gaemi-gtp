@@ -594,7 +594,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         const sec = sections[secIdx];
         const isSurvivalSection =
           (sec.title && sec.title.includes('여기 깨지면 도망쳐')) ||
-          (sec.content && (sec.content.includes('#생존 매물대') || sec.content.includes('#악성 매물대')));
+          (sec.content && (sec.content.includes('#생존 지지선') || sec.content.includes('#악성 매물대')));
 
         const isConditionSection =
           (sec.title && (sec.title.includes('보합') || sec.title.includes('왜') ||
@@ -610,6 +610,15 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           else dynamicTitle = '오늘 왜 보합일까?';
         }
 
+        if (isSurvivalSection) {
+          dynamicTitle = '여기 깨지면 도망쳐';
+          text = `악성 매물대 ${syncData.pinkPrice}\n` +
+                 `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
+                 `#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라\n\n` +
+                 `생존 지지선 ${syncData.bluePrice}\n` +
+                 `이 가격 지켜줘야 마땅한데 분위기 좀 싸하다! 여기서 밀리면 실망 매물 나올 수 있으니 멘탈 단디 잡고 리스크 관리 먼저 하자고!\n` +
+                 `#빤스런 #뒤도보지마 #생존이_우선 #미련버려`;
+        }
 
         const textBlock = document.createElement('div');
         textBlock.className = "space-y-4 animate-fade";
@@ -637,6 +646,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             let formatted = pEl.textContent;
 
             try {
+              if (isSurvivalSection) {
+                formatted = `<span class="font-bold" style="color: #FF8DA1;">악성 매물대 ${syncData.pinkPrice}</span>\n` +
+                            `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
+                            `<span class="font-bold" style="color: #FF8DA1;">#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라</span>\n\n` +
+                            `<span class="font-bold" style="color: #38BDF8;">생존 지지선 ${syncData.bluePrice}</span>\n` +
+                            `이 가격 지켜줘야 마땅한데 분위기 좀 싸하다! 여기서 밀리면 실망 매물 나올 수 있으니 멘탈 단디 잡고 리스크 관리 먼저 하자고!\n` +
+                            `<span class="font-bold" style="color: #38BDF8;">#빤스런 #뒤도보지마 #생존이_우선 #미련버려</span>`;
+              } else {
               // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크
               formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
 
@@ -644,9 +661,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
               formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
 
               // 3. 지지선 / 저항선 색상
-              if (formatted.includes('#생존 매물대') || formatted.includes('#악성 매물대')) {
-                formatted = formatted.replace(/#생존\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#생존 매물대 $1</span>');
-                formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#악성 매물대 $1</span>');
+              if (formatted.includes('#생존 지지선')) {
+                formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
+                formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
               } 
               // 4. 수급 매매동향 및 콜/풋 옵션 색상 
               else if (formatted.includes('#외국인') || formatted.includes('#콜')) {
@@ -724,6 +741,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                 return match.replace(p1, `<span class="font-bold" style="color: ${color};">${p1}</span>`);
               });
 
+              }
             } catch (err) {
               console.warn("치환 예외 안전 무시:", err);
             }
