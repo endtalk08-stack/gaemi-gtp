@@ -2132,13 +2132,9 @@ def analyze_stock(raw_name='SK하이닉스'):
             {
                 "title": "여기 깨지면 도망쳐",
                 "content": (
-                    f"#생존 지지선 {ma20_str} 딱 기억해놔! "
-                    f"이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n"
-                    + (
-                        format_volume_profile(volume_profile, is_usd=False)
-                        if volume_profile
-                        else f"#악성 매물대 {res_str} 이 가격은 최근 고점 부근의 본전 매물이 몰려 있을 가능성이 있어. 돌파 전에는 무리하게 따라붙지 말자."
-                    )
+                    format_volume_profile(volume_profile, is_usd=is_usd)
+                    if volume_profile
+                    else "#악성 매물대 계산 대기\n#생존 지지선 계산 대기\nPOC 계산 대기"
                 )
             },
             {
@@ -2202,7 +2198,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 },
                 {
                     "title": "여기 깨지면 도망쳐",
-                    "content": "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 이 가격은! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
+                    "content": "#악성 매물대 계산 대기\n#생존 지지선 계산 대기\nPOC 계산 대기"
                 },
                 {
                     "title": "오늘 밤, 이번주 무슨 일이 있나?",
