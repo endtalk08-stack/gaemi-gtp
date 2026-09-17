@@ -509,13 +509,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
               // 2. 경제 지표(#PPI, #CPI, #FOMC, #PCE, #NFP) -> 블루
               formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
 
-              // 3. 지지선 / 저항선 색상
-              if (formatted.includes('#생존 지지선')) {
-                formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
-                formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
-              } 
+              // 3. 매물대 색상 (Volume Profile 명칭 통일)
+              formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
+              formatted = formatted.replace(/#생존\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 매물대 $1</span>');
+              // 구버전 명칭이 남아 있어도 화면에서는 새 명칭으로 통일한다.
+              formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 매물대 $1</span>');
               // 4. 수급 매매동향 및 콜/풋 옵션 색상 
-              else if (formatted.includes('#외국인') || formatted.includes('#콜')) {
+              if (formatted.includes('#외국인') || formatted.includes('#콜')) {
                 let lines = formatted.split('\n\n');
                 let tagLine = lines[0];
                 let rest = lines.slice(1).join('\n\n');
@@ -584,7 +584,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                 }
               }
 
-              // 6. 본문 텍스트 내 등락률 (-0.19%, +8.26% 등)
+              // 6. 본문 텍스트 내 실제 등락률
               formatted = formatted.replace(/(?:\s|^)([+-]\d+(?:\.\d+)?%)/g, function(match, p1) {
                 const color = p1.startsWith('+') ? '#FF8DA1' : '#38BDF8';
                 return match.replace(p1, `<span class="font-bold" style="color: ${color};">${p1}</span>`);

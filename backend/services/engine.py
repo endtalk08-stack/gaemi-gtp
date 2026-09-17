@@ -1657,7 +1657,6 @@ def format_volume_profile(profile, is_usd=True):
     if not profile:
         return ""
 
-    inside = profile.get("inside")
     above = profile.get("above")
     below = profile.get("below")
     poc = profile.get("poc")
@@ -1672,19 +1671,11 @@ def format_volume_profile(profile, is_usd=True):
         resistance_price = above.get("upper", above.get("center"))
         if resistance_price:
             lines.append(f"#악성 매물대 ${resistance_price:,.2f}" if is_usd else f"#악성 매물대 {round_krw_tick(resistance_price):,}원")
-    elif inside:
-        resistance_price = inside.get("upper", inside.get("center"))
-        if resistance_price:
-            lines.append(f"#악성 매물대 ${resistance_price:,.2f}" if is_usd else f"#악성 매물대 {round_krw_tick(resistance_price):,}원")
 
     if below:
         support_price = below.get("lower", below.get("center"))
         if support_price:
-            lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
-    elif inside:
-        support_price = inside.get("lower", inside.get("center"))
-        if support_price:
-            lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
+            lines.append(f"#생존 매물대 ${support_price:,.2f}" if is_usd else f"#생존 매물대 {round_krw_tick(support_price):,}원")
 
     if poc:
         lines.append((f"POC ${poc['center']:,.2f} · 최근 {profile['days']}거래일 거래량 기준" if is_usd else f"POC {round_krw_tick(poc['center']):,}원 · 최근 {profile['days']}거래일 거래량 기준"))
@@ -1943,9 +1934,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         is_krw = ('-' not in ticker_symbol and ticker_symbol.endswith(('.KS', '.KQ'))) or (clean_code and len(clean_code) == 6)
 
         current_price = 0.0
-        change_pct = 0.0
-        ma20 = 0.0
-        resistance_price = 0.0
+        change_pct = None
         volume_profile = None
         supply_content = ""
 
@@ -1988,17 +1977,11 @@ def analyze_stock(raw_name='SK하이닉스'):
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             official_filings_block = ""
 
-            current_price = cur_p if cur_p else 1783000.0
-            change_pct = ratio if ratio is not None else 8.26
-            ma20 = ma20_val if ma20_val else current_price * 0.95
-            resistance_price = res_val if res_val else current_price * 1.05
+            # 실제 시세가 없을 때 임의 숫자를 넣지 않는다.
+            current_price = cur_p if cur_p else 0.0
+            change_pct = ratio if ratio is not None else None
 
-            clean_price = round_krw_tick(current_price)
-            clean_ma20 = round_krw_tick(ma20)
-            clean_res = round_krw_tick(resistance_price)
-            price_str = f"{clean_price:,}원"
-            ma20_str = f"{clean_ma20:,}원"
-            res_str = f"{clean_res:,}원"
+            price_str = f"{round_krw_tick(current_price):,}원" if current_price > 0 else "시세 확인 중"
 
             if f_5d is not None and i_5d is not None and v_days > 0:
                 f_abs = format_shares(f_5d)
@@ -2049,19 +2032,14 @@ def analyze_stock(raw_name='SK하이닉스'):
             if cur_p and prev_p:
                 current_price = cur_p
                 change_pct = ((cur_p - prev_p) / prev_p) * 100
-                ma20 = ma20_val or 0.0
-                resistance_price = res_val or 0.0
+                # 20일선/기존 resistance는 매물대 위젯에 사용하지 않는다.
             else:
                 current_price = 0.0
-                change_pct = 0.0
-                ma20 = 0.0
-                resistance_price = 0.0
+                change_pct = None
                 volume_profile = None
                 print(f"[미국 주가] {ticker_symbol} 조회 실패 - 가짜 가격 사용 안 함")
 
             price_str = f"${current_price:,.2f}" if current_price > 0 else "시세 조회 실패"
-            ma20_str = f"${ma20:,.2f}" if ma20 > 0 else "계산 대기"
-            res_str = f"${resistance_price:,.2f}" if resistance_price > 0 else "계산 대기"
             supply_content = build_us_options_content(
                 ticker_symbol, call_vol, put_vol, option_error
             )
@@ -2069,8 +2047,12 @@ def analyze_stock(raw_name='SK하이닉스'):
         if not supply_content:
             supply_content = "거래소 수급 데이터가 아직 충분하지 않아.\n최근 수급 데이터가 쌓이면 큰손들의 움직임을 보여줄게."
 
-        # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
-        if change_pct >= 5.0:
+        # 3. 등락률 분기. 실제 등락률이 없으면 임의 수치를 만들지 않는다.
+        if change_pct is None:
+            status_emoji, title_word = '📡', '데이터를 확인하고 있어'
+            intro_ment = f"{raw_name}의 실시간 시세 데이터를 확인하고 있어.\n실제 시장 데이터가 확인되면 이 자리에 바로 보여줄게."
+            tags_str = f"#{raw_name}   #데이터확인중"
+        elif change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #가즈아   #불기둥"
@@ -2120,7 +2102,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             {
                 "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
-                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
+                "tags": ([f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"] if change_pct is not None else [f"#{raw_name}", "#데이터확인중"])
             }
         ]
 
@@ -2132,9 +2114,12 @@ def analyze_stock(raw_name='SK하이닉스'):
             {
                 "title": "여기 깨지면 도망쳐",
                 "content": (
-                    format_volume_profile(volume_profile, is_usd=(not is_krw))
-                    if volume_profile
-                    else "#악성 매물대 계산 대기\n#생존 지지선 계산 대기\nPOC 계산 대기"
+                    (
+                        format_volume_profile(volume_profile, is_usd=(not is_krw))
+                        + "\n\n악성 매물대는 현재가 위의 거래 집중 구간이야. 돌파 여부를 확인하고, 생존 매물대는 현재가 아래의 핵심 거래 집중 구간이야.\n무리하게 추격하기보다 두 가격대를 기준으로 흐름을 확인해봐."
+                    )
+                    if volume_profile and format_volume_profile(volume_profile, is_usd=(not is_krw))
+                    else "거래 데이터가 아직 충분하지 않아.\nVolume Profile이 계산되면 현재가 위의 악성 매물대와 아래의 생존 매물대를 보여줄게."
                 )
             },
             {
@@ -2190,7 +2175,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             "sections": [
                 {"title": "📡 데이터를 확인하고 있어", "content": f"{raw_name}의 분석 데이터가 아직 충분하지 않아.\n실제 시장 데이터가 확인되면 이 자리에 바로 보여줄게."},
                 {"title": "큰손들은 뭐하고 있어?", "content": "거래소 수급 데이터가 아직 충분하지 않아.\n데이터가 확인되면 외국인·기관·개인 수급을 보여줄게."},
-                {"title": "여기 깨지면 도망쳐", "content": "거래 데이터가 아직 충분하지 않아.\nVolume Profile이 계산되면 악성 매물대와 생존 지지선을 보여줄게."},
+                {"title": "여기 깨지면 도망쳐", "content": "거래 데이터가 아직 충분하지 않아.\nVolume Profile이 계산되면 현재가 위의 악성 매물대와 아래의 생존 매물대를 보여줄게."},
                 {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": get_live_calendar_data(raw_name, ticker_symbol)}
             ],
             "news_items": list(news_list) if isinstance(locals().get("news_list"), list) else [],
