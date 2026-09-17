@@ -1416,13 +1416,18 @@ def analyze_stock(raw_name='SK하이닉스'):
                     (
                         (lambda vp_text: (
                             (
-                                next((line for line in vp_text.splitlines() if line.startswith("#생존 지지선")), "#생존 지지선 계산 대기")
-                                + " 멘탈 단디 잡어ㅋ여기서 밀리면 실망 매물 나올 수 있는 구간이야!!!\n\n"
-                                + next((line for line in vp_text.splitlines() if line.startswith("#악성 매물대")), "#악성 매물대 계산 대기")
-                                + " 니가 사면 하락하제?ㅋ 요긴 과거 물린 형들 본전오면 탈출할 수 있는 구간!"
+                                next((line for line in vp_text.splitlines() if line.startswith("#악성 매물대")), "#악성 매물대 계산 대기").replace("#악성 매물대", "악성 매물대")
+                                + "\n\n니가 사면 하락하제?ㅋ\n과거 물린 형들 본전 탈출할 수 있는 구간이야!\n\n"
+                                + "#시체추가금지 #뇌동매수멈춰 #관망이답니다 #구경만해라\n\n"
+                                + next((line for line in vp_text.splitlines() if line.startswith("#생존 지지선")), "#생존 지지선 계산 대기").replace("#생존 지지선", "생존 매물대")
+                                + "\n\n멘탈 단디 잡어ㅋ\n여기서 밀리면 실망 매물 나올 수 있는 구간이야!!\n\n"
+                                + "#주식차트 #지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리"
                             )
                             if vp_text else
-                            "#생존 지지선 계산 대기\n\n#악성 매물대 계산 대기"
+                            "악성 매물대 계산 대기\n\n니가 사면 하락하제?ㅋ\n과거 물린 형들 본전 탈출할 수 있는 구간이야!\n\n"
+                            "#시체추가금지 #뇌동매수멈춰 #관망이답니다 #구경만해라\n\n"
+                            "생존 매물대 계산 대기\n\n멘탈 단디 잡어ㅋ\n여기서 밀리면 실망 매물 나올 수 있는 구간이야!!\n\n"
+                            "#주식차트 #지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리"
                         ))(format_volume_profile(volume_profile, is_usd=not is_krw))
                     )
                 )
