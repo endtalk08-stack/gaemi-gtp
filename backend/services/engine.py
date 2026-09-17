@@ -1268,17 +1268,48 @@ def analyze_stock(raw_name='SK하이닉스'):
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             official_filings_block = ""
 
-            current_price = cur_p if cur_p else 1783000.0
-            change_pct = ratio if ratio is not None else 8.26
-            ma20 = ma20_val if ma20_val else current_price * 0.95
-            resistance_price = res_val if res_val else current_price * 1.05
+            # 실시간 시세가 없을 때 임의의 가격/등락률을 만들어내지 않는다.
+            # 실제 데이터가 있는 값만 사용하고, 없는 값은 화면에 '조회 실패'로 표시한다.
+            try:
+                current_price = float(cur_p) if cur_p is not None else 0.0
+            except (TypeError, ValueError):
+                current_price = 0.0
+            if not math.isfinite(current_price) or current_price <= 0:
+                current_price = 0.0
 
-            clean_price = round_krw_tick(current_price)
-            clean_ma20 = round_krw_tick(ma20)
-            clean_res = round_krw_tick(resistance_price)
-            price_str = f"{clean_price:,}원"
-            ma20_str = f"{clean_ma20:,}원"
-            res_str = f"{clean_res:,}원"
+            try:
+                change_pct = float(ratio) if ratio is not None else None
+            except (TypeError, ValueError):
+                change_pct = None
+            if change_pct is not None and not math.isfinite(change_pct):
+                change_pct = None
+
+            try:
+                ma20 = float(ma20_val) if ma20_val else 0.0
+            except (TypeError, ValueError):
+                ma20 = 0.0
+            if not math.isfinite(ma20) or ma20 <= 0:
+                ma20 = 0.0
+
+            try:
+                resistance_price = float(res_val) if res_val else 0.0
+            except (TypeError, ValueError):
+                resistance_price = 0.0
+            if not math.isfinite(resistance_price) or resistance_price <= 0:
+                resistance_price = 0.0
+
+            if current_price <= 0:
+                print(f"[국내 주가] {clean_code} 실시간 시세 조회 실패 - 임의 가격 사용 안 함")
+                price_str = "시세 조회 실패"
+                ma20_str = "계산 대기"
+                res_str = "계산 대기"
+            else:
+                clean_price = round_krw_tick(current_price)
+                clean_ma20 = round_krw_tick(ma20)
+                clean_res = round_krw_tick(resistance_price)
+                price_str = f"{clean_price:,}원"
+                ma20_str = f"{clean_ma20:,}원" if clean_ma20 > 0 else "계산 대기"
+                res_str = f"{clean_res:,}원" if clean_res > 0 else "계산 대기"
 
             if f_5d is not None and i_5d is not None and v_days > 0:
                 f_abs = format_shares(f_5d)
@@ -1350,7 +1381,12 @@ def analyze_stock(raw_name='SK하이닉스'):
             supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
 
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
-        if change_pct >= 5.0:
+        # 실시간 등락률이 없으면 상승/하락을 추측하지 않는다.
+        if current_price <= 0 or change_pct is None:
+            status_emoji, title_word = '⚪', '시세를 확인할 수 있을까'
+            intro_ment = f"{raw_name} 실시간 시세를 가져오지 못했어\n현재 가격과 등락률을 확인한 뒤 다시 분석해줘."
+            tags_str = f"#{raw_name}   #시세조회실패   #다시시도"
+        elif change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #가즈아   #불기둥"
@@ -1473,22 +1509,13 @@ def analyze_stock(raw_name='SK하이닉스'):
         return {
             "sections": [
                 {
-                    "title": "🔥 그래서 오늘은 왜 올랐어?",
-                    "content": f"{raw_name} 실시간 호가 접수 완료!\n현재 시장 수급 유입으로 지지선 테스트 중이야.\n\n#{raw_name}   #+8.26%   #가즈아   #불기둥"
-                },
-                {
-                    "title": "큰손들은 담고 있을까, 털고 있을까?",
-                    "content": "#외국인 +48.2만주   #기관 +21.4만주   #개인 -69.6만주\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
-                },
-                {
-                    "title": "여기 깨지면 도망쳐",
-                    "content": "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 이 가격은! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
-                },
-                {
-                    "title": "오늘 밤, 이번주 무슨 일이 있나?",
-                    "content": get_live_calendar_data(raw_name, ticker_symbol)
+                    "title": "⚠️ 분석 데이터를 준비하지 못했어",
+                    "content": f"{raw_name} 분석 중 예상하지 못한 오류가 발생했어.\n실제 시세나 수급 데이터를 임의의 값으로 대신하지 않고 분석을 중단했어. 잠시 후 다시 시도해줘."
                 }
-            ]
+            ],
+            "news_items": [],
+            "disclosures": [],
+            "us_filings": [],
         }
 
 

@@ -15,8 +15,16 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24):
     try:
         rows = []
         for h, l, c, v in zip(highs[-60:], lows[-60:], closes[-60:], volumes[-60:]):
-            h, l, c, v = float(h), float(l), float(c), float(v)
-            if h > 0 and l > 0 and h >= l and v > 0:
+            # Yahoo Finance 응답에는 간혹 일부 날짜의 값이 None으로 들어온다.
+            # 그런 한 줄 때문에 전체 Volume Profile 계산이 실패하지 않도록
+            # 숫자이며 유한한 OHLCV 행만 사용한다.
+            if any(x is None for x in (h, l, c, v)):
+                continue
+            try:
+                h, l, c, v = float(h), float(l), float(c), float(v)
+            except (TypeError, ValueError):
+                continue
+            if all(math.isfinite(x) for x in (h, l, c, v)) and h > 0 and l > 0 and h >= l and c > 0 and v > 0:
                 rows.append((h, l, c, v))
 
         if len(rows) < 20:

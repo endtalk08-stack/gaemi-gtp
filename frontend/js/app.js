@@ -169,121 +169,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       return state;
     }
 
-    // 백엔드 본문에서 현재가/등락률/생존 지지선/악성 매물대를 추출해
-    // "여기 깨지면 도망쳐" 섹션과 동기화한다.
-    // 중요: 통화는 본문에 '$'가 하나라도 있다는 이유로 USD로 바꾸지 않는다.
-    // 종목명 기준으로 KRW/USD를 결정해 한국 주식에 잘못된 달러 표기가 생기지 않게 한다.
-    function extractMarketSyncData(stockName, sections) {
-      const usNames = [
-        '엔비디아','테슬라','애플','마이크로소프트','아마존','구글','메타',
-        'NVDA','TSLA','AAPL','MSFT','AMZN','GOOGL','GOOG','META'
-      ];
-      const isUsd = /^[A-Za-z]+$/.test(stockName) || usNames.includes(stockName);
-
-      let foundPrice = null;
-      let foundRate = null;
-      let foundMa20 = null;
-      let foundRes = null;
-      let sign = 'flat';
-
-      if (Array.isArray(sections)) {
-        for (const s of sections) {
-          const txt = s.content || "";
-
-          if (!foundPrice) {
-            const mPrice = isUsd
-              ? txt.match(/\$([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)/)
-              : txt.match(/현재\s*주가는\s*([0-9,]+)\s*원/) ||
-                txt.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*원/);
-            if (mPrice) {
-              const p = parseFloat(mPrice[1].replace(/,/g, ''));
-              if (!isNaN(p) && p > 0) foundPrice = p;
-            }
-          }
-
-          if (!foundRate) {
-            const mRate = txt.match(/([+-]\d+(?:\.\d+)?%)/);
-            if (mRate) {
-              foundRate = mRate[1];
-              if (foundRate.startsWith('+')) sign = 'up';
-              else if (foundRate.startsWith('-')) sign = 'down';
-            }
-          }
-
-          if (!foundMa20) {
-            const mMa = isUsd
-              ? txt.match(/#생존\s*지지선\s*\$([0-9,.]+)/)
-              : txt.match(/#생존\s*지지선\s*\$?([0-9,]+(?:\.[0-9]+)?)\s*원?/);
-            if (mMa) {
-              const p = parseFloat(mMa[1].replace(/,/g, ''));
-              if (!isNaN(p) && p > 0) foundMa20 = p;
-            }
-          }
-
-          if (!foundRes) {
-            const mRes = isUsd
-              ? txt.match(/#악성\s*매물대\s*\$([0-9,.]+)/)
-              : txt.match(/#악성\s*매물대\s*\$?([0-9,]+(?:\.[0-9]+)?)\s*원?/);
-            if (mRes) {
-              const p = parseFloat(mRes[1].replace(/,/g, ''));
-              if (!isNaN(p) && p > 0) foundRes = p;
-            }
-          }
-        }
-      }
-
-      if (!foundPrice) foundPrice = isUsd ? 180.00 : 70000;
-      if (!foundRate) foundRate = "0.00%";
-
-      function roundTick(price) {
-        if (isUsd) return Number(price.toFixed(2));
-        if (price < 2000) return Math.round(price);
-        if (price < 5000) return Math.round(price / 5) * 5;
-        if (price < 20000) return Math.round(price / 10) * 10;
-        if (price < 50000) return Math.round(price / 50) * 50;
-        if (price < 200000) return Math.round(price / 100) * 100;
-        if (price < 500000) return Math.round(price / 500) * 500;
-        return Math.round(price / 1000) * 1000;
-      }
-
-      function formatPrice(n) {
-        if (isUsd) {
-          return '$' + Number(n).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          });
-        }
-        return Number(n).toLocaleString('ko-KR') + '원';
-      }
-
-      const pinkVal = (foundRes && foundRes > foundPrice)
-        ? roundTick(foundRes)
-        : roundTick(foundPrice * 1.065);
-
-      const blueVal = (foundMa20 && foundMa20 < foundPrice)
-        ? roundTick(foundMa20)
-        : roundTick(foundPrice * 0.935);
-
-      let yellowVal;
-      if (foundPrice > blueVal) {
-        const calcYellow = roundTick(foundPrice * 0.965);
-        yellowVal = (calcYellow > blueVal)
-          ? calcYellow
-          : roundTick((foundPrice + blueVal) / 2);
-      } else {
-        yellowVal = roundTick(foundPrice * 0.98);
-      }
-
-      return {
-        isUsd,
-        rateStr: foundRate,
-        sign,
-        pinkPrice: formatPrice(pinkVal),
-        yellowPrice: formatPrice(yellowVal),
-        bluePrice: formatPrice(blueVal)
-      };
-    }
-
     async function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
@@ -579,9 +464,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       mainContainer.className = "space-y-7 py-2";
       chatArea.appendChild(mainContainer);
 
-      // 본문과 생존 지지선/악성 매물대 숫자를 동일 데이터로 맞춘다.
-      const syncData = extractMarketSyncData(stockName, sections);
-
       let secIdx = 0;
 
       function typeNextSection() {
@@ -596,29 +478,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           (sec.title && sec.title.includes('여기 깨지면 도망쳐')) ||
           (sec.content && (sec.content.includes('#생존 지지선') || sec.content.includes('#악성 매물대')));
 
-        const isConditionSection =
-          (sec.title && (sec.title.includes('보합') || sec.title.includes('왜') ||
-                         sec.title.includes('상승') || sec.title.includes('하락'))) ||
-          (secIdx === 0);
-
-        let dynamicTitle = sec.title || '';
-        let text = (sec.content || '').replace(/이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야/g, '').replace(/\n{3,}/g, '\n\n').trim();
-
-        if (isConditionSection && !isSurvivalSection) {
-          if (syncData.sign === 'up') dynamicTitle = '오늘 왜 상승했을까?';
-          else if (syncData.sign === 'down') dynamicTitle = '오늘 왜 파란불일까?';
-          else dynamicTitle = '오늘 왜 보합일까?';
-        }
-
-        if (isSurvivalSection) {
-          dynamicTitle = '여기 깨지면 도망쳐';
-          text = `악성 매물대 ${syncData.pinkPrice}\n` +
-                 `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
-                 `#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라\n\n` +
-                 `생존 지지선 ${syncData.bluePrice}\n` +
-                 `이 가격 지켜줘야 마땅한데 분위기 좀 싸하다! 여기서 밀리면 실망 매물 나올 수 있으니 멘탈 단디 잡고 리스크 관리 먼저 하자고!\n` +
-                 `#빤스런 #뒤도보지마 #생존이_우선 #미련버려`;
-        }
+        // 제목과 본문은 백엔드가 만든 값을 그대로 사용한다.
+        // 프론트에서 상승/하락/생존 문구를 다시 생성하지 않아 수정본과 표시값이 어긋나지 않는다.
+        const dynamicTitle = sec.title || '';
+        const text = (sec.content || '').replace(/\n{3,}/g, '\n\n').trim();
 
         const textBlock = document.createElement('div');
         textBlock.className = "space-y-4 animate-fade";
@@ -646,14 +509,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             let formatted = pEl.textContent;
 
             try {
-              if (isSurvivalSection) {
-                formatted = `<span class="font-bold" style="color: #FF8DA1;">악성 매물대 ${syncData.pinkPrice}</span>\n` +
-                            `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
-                            `<span class="font-bold" style="color: #FF8DA1;">#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라</span>\n\n` +
-                            `<span class="font-bold" style="color: #38BDF8;">생존 지지선 ${syncData.bluePrice}</span>\n` +
-                            `이 가격 지켜줘야 마땅한데 분위기 좀 싸하다! 여기서 밀리면 실망 매물 나올 수 있으니 멘탈 단디 잡고 리스크 관리 먼저 하자고!\n` +
-                            `<span class="font-bold" style="color: #38BDF8;">#빤스런 #뒤도보지마 #생존이_우선 #미련버려</span>`;
-              } else {
               // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크
               formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
 
@@ -733,7 +588,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                      formatted = lines.join('\n\n');
                   }
                 }
-              }
 
               // 6. 본문 텍스트 내 등락률 (-0.19%, +8.26% 등)
               formatted = formatted.replace(/(?:\s|^)([+-]\d+(?:\.\d+)?%)/g, function(match, p1) {
