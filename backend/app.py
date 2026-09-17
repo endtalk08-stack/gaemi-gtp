@@ -24,6 +24,11 @@ def home():
     return send_from_directory(FRONTEND_DIR, "index.html")
 
 
+
+@app.get("/admin")
+def admin():
+    return send_from_directory(FRONTEND_DIR / "admin", "index.html")
+
 @app.get("/health")
 def health():
     return jsonify({"ok": True, "service": "gaemiGTP"})
