@@ -1417,9 +1417,9 @@ def analyze_stock(raw_name='SK하이닉스'):
                         (lambda vp_text: (
                             (
                                 next((line for line in vp_text.splitlines() if line.startswith("#생존 지지선")), "#생존 지지선 계산 대기")
-                                + " 니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출할 수 있는 구간!!\n\n"
+                                + " 멘탈 단디 잡어ㅋ여기서 밀리면 실망 매물 나올 수 있는 구간이야!!!\n\n"
                                 + next((line for line in vp_text.splitlines() if line.startswith("#악성 매물대")), "#악성 매물대 계산 대기")
-                                + " 멘탈 단디 잡어ㅋ여기서 밀리면 실망 매물 나올 수 있는 구간이야!!"
+                                + " 니가 사면 하락하제?ㅋ 요긴 과거 물린 형들 본전오면 탈출할 수 있는 구간!"
                             )
                             if vp_text else
                             "#생존 지지선 계산 대기\n\n#악성 매물대 계산 대기"
