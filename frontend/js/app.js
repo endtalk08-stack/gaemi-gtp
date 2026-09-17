@@ -611,9 +611,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         }
 
         if (isSurvivalSection) {
-          // 멘트는 백엔드 sections.content가 유일한 원본이다.
-          // 프론트에서 같은 멘트를 다시 만들거나 덮어쓰지 않는다.
           dynamicTitle = '여기 깨지면 도망쳐';
+          text = `악성 매물대 ${syncData.pinkPrice}\n` +
+                 `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
+                 `#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라\n\n` +
+                 `생존 지지선 ${syncData.bluePrice}\n` +
+                 `이 가격 지켜줘야 마땅한데 분위기 좀 싸하다! 여기서 밀리면 실망 매물 나올 수 있으니 멘탈 단디 잡고 리스크 관리 먼저 하자고!\n` +
+                 `#빤스런 #뒤도보지마 #생존이_우선 #미련버려`;
         }
 
         const textBlock = document.createElement('div');
@@ -643,9 +647,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
             try {
               if (isSurvivalSection) {
-                // 백엔드 원본 멘트를 그대로 사용하고 색상만 입힌다.
-                formatted = formatted.replace(/(#생존\s+지지선\s+[^\n]+)/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
-                formatted = formatted.replace(/(#악성\s+매물대\s+[^\n]+)/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
+                formatted = `<span class="font-bold" style="color: #FF8DA1;">악성 매물대 ${syncData.pinkPrice}</span>\n` +
+                            `니가 사면 하락하제?ㅋ 과거 물린 형들 본전 탈출 구간이야! 돌파한다고 무지성 매수 타면 너도 갇힌다잉!\n` +
+                            `<span class="font-bold" style="color: #FF8DA1;">#시체추가금지 #뇌동매수_멈춰 #관망이_답이다 #구경만해라</span>\n\n` +
+                            `<span class="font-bold" style="color: #38BDF8;">생존 지지선 ${syncData.bluePrice}</span>\n` +
+                            `이 가격 지켜줘야 마땅한데 분위기 좀 싸하다! 여기서 밀리면 실망 매물 나올 수 있으니 멘탈 단디 잡고 리스크 관리 먼저 하자고!\n` +
+                            `<span class="font-bold" style="color: #38BDF8;">#빤스런 #뒤도보지마 #생존이_우선 #미련버려</span>`;
               } else {
               // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크
               formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
