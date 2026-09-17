@@ -70,20 +70,7 @@ function validation(){
 function runValidation(){
  document.getElementById("vout").innerHTML=`<div class="card"><h3>V1 검증 실행 준비 완료</h3><p class="muted">현재 화면은 조건을 정의하는 관리자 UI입니다. 실제 결과 계산은 PostgreSQL + 과거 분봉 데이터 연결 후 실행됩니다.</p></div>`;
 }
-function story(){
- const eventTimes={"거래대금 급증":"09:03","순위 상승":"09:05","전고점 돌파":"09:07","뉴스 확인":"09:09"};
- const messages=db.messages
-   .filter(m=>m.enabled && m.event && m.text)
-   .sort((a,b)=>(a.priority??999)-(b.priority??999));
- const uniqueEvents=new Set();
- const rows=messages.filter(m=>{
-   if(uniqueEvents.has(m.event)) return false;
-   uniqueEvents.add(m.event);
-   return true;
- }).map(m=>[eventTimes[m.event]||"--:--",m.text]);
- const body=rows.length?rows.map(x=>'<div class="story-line"><div class="time">'+esc(x[0])+'</div><div>'+esc(x[1])+'</div></div>').join(""):"<div class=\"empty\">활성화된 멘트가 없습니다.</div>";
- document.getElementById("content").innerHTML=`<div class="story"><h2>Market Story</h2>${body}</div>`;
-}
+function story(){document.getElementById("content").innerHTML=`<div class="story"><h2>Market Story</h2>${[["09:03","거래가 붙었어."],["09:05","순위 올라왔어."],["09:07","고점 넘었어."],["09:09","뉴스 확인됐어."]].map(x=>`<div class="story-line"><div class="time">${x[0]}</div><div>${x[1]}</div></div>`).join("")}</div>`}
 function preview(){document.getElementById("content").innerHTML=`<div class="form"><h2>실제 종목 미리보기</h2><label>종목</label><input id="stock" value="삼성전자"><br><br><button class="primary" onclick="alert('V1 미리보기: '+document.getElementById('stock').value)">미리보기</button></div>`}
 function publish(){document.getElementById("content").innerHTML=`<div class="card"><h2>서비스 적용</h2><p>검증 완료된 모듈만 사용자 사이트에 연결하는 단계입니다.</p><span class="badge">현재: 관리자 V1 / 실제 서비스 연결 전</span></div>`}
 function addItem(type){

@@ -18,6 +18,29 @@ from email.utils import parsedate_to_datetime
 
 FINNHUB_KEY = os.environ.get('FINNHUB_API_KEY', '').strip().strip('\'"')
 
+# Market Story 멘트의 단일 원본입니다.
+# 관리자 멘트와 연결하지 않고 실제 분석 결과는 이곳의 멘트만 사용합니다.
+STORY_MENTIONS = {
+    "supply_wait": "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해.",
+    "survival_resistance": "이 가격은 최근 고점 부근의 본전 매물이 몰려 있을 가능성이 있어. 돌파 전에는 무리하게 따라붙지 말자.",
+    "survival_support": "딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?",
+    "fallback_survival": "실시간 매물대 계산을 기다리고 있어. 계산이 끝나면 생존 지지선과 악성 매물대를 표시할게.",
+}
+
+def build_survival_content(ma20_str, res_str, volume_profile=None, is_usd=False):
+    """생존 지지선/악성 매물대 멘트는 이 함수 한 곳에서만 관리한다."""
+    profile_text = format_volume_profile(volume_profile, is_usd=is_usd) if volume_profile else ""
+    support = (
+        f"#생존 지지선 {ma20_str} {STORY_MENTIONS['survival_support']}"
+        if ma20_str and ma20_str not in ("계산 대기", "시세 조회 실패")
+        else f"#생존 지지선 {ma20_str or '계산 대기'} {STORY_MENTIONS['fallback_survival']}"
+    )
+    if profile_text:
+        return support + "\n\n" + profile_text
+    resistance = f"#악성 매물대 {res_str} {STORY_MENTIONS['survival_resistance']}"
+    return support + "\n\n" + resistance
+
+
 US_KOREAN_NAMES = {
     'ORCL': '오라클 ORCL',
     'ADBE': '어도비 ADBE',
@@ -1668,17 +1691,22 @@ def format_volume_profile(profile, is_usd=True):
     # 화면에는 저항/지지 대표 가격 하나만 표시한다.
     # 저항 = 선택된 저항 매물대의 상단 가격
     # 지지 = 선택된 지지 매물대의 하단 가격
-    resistance_zone = above or inside
-    if resistance_zone:
-        resistance_price = resistance_zone.get("upper", resistance_zone.get("center"))
-        if resistance_price:
-            lines.append(f"#악성 매물대 ${resistance_price:,.2f}" if is_usd else f"#악성 매물대 {round_krw_tick(resistance_price):,}원")
+    resistance_price = None
+    if above:
+        resistance_price = above.get("upper", above.get("center"))
+    elif inside:
+        resistance_price = inside.get("upper", inside.get("center"))
 
-    support_zone = below or inside
-    if support_zone:
-        support_price = support_zone.get("lower", support_zone.get("center"))
-        if support_price:
-            lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
+    support_price = None
+    if below:
+        support_price = below.get("lower", below.get("center"))
+    elif inside:
+        support_price = inside.get("lower", inside.get("center"))
+
+    if resistance_price:
+        lines.append(f"#악성 매물대 ${resistance_price:,.2f}" if is_usd else f"#악성 매물대 {round_krw_tick(resistance_price):,}원")
+    if support_price:
+        lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
 
     if poc:
         lines.append((f"POC ${poc['center']:,.2f} · 최근 {profile['days']}거래일 거래량 기준" if is_usd else f"POC {round_krw_tick(poc['center']):,}원 · 최근 {profile['days']}거래일 거래량 기준"))
@@ -2061,7 +2089,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             )
 
         if not supply_content:
-            supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
+            supply_content = STORY_MENTIONS["supply_wait"]
 
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
         if change_pct >= 5.0:
@@ -2125,14 +2153,11 @@ def analyze_stock(raw_name='SK하이닉스'):
             },
             {
                 "title": "여기 깨지면 도망쳐",
-                "content": (
-                    f"#생존 지지선 {ma20_str} 딱 기억해놔! "
-                    f"이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n"
-                    + (
-                        format_volume_profile(volume_profile, is_usd=False)
-                        if volume_profile
-                        else f"#악성 매물대 {res_str} 이 가격은 최근 고점 부근의 본전 매물이 몰려 있을 가능성이 있어. 돌파 전에는 무리하게 따라붙지 말자."
-                    )
+                "content": build_survival_content(
+                    ma20_str,
+                    res_str,
+                    volume_profile=volume_profile,
+                    is_usd=is_usd,
                 )
             },
             {
@@ -2196,7 +2221,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 },
                 {
                     "title": "여기 깨지면 도망쳐",
-                    "content": "#생존 지지선 1,680,000원 딱 기억해놔! 이 가격 깨지면 실망 매물 나올 수 있으니 절대 미련 갖지 말고 비중 줄여! 알았제?\n\n#악성 매물대 1,792,000원 이 가격은! 최근 고점 부근에 과거 물려있는 본전 대기 악성 매물이 숨어 있어ㅠㅠ 조심해!"
+                    "content": f"#생존 지지선 계산 대기 {STORY_MENTIONS['fallback_survival']}"
                 },
                 {
                     "title": "오늘 밤, 이번주 무슨 일이 있나?",
