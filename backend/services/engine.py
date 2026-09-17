@@ -2132,7 +2132,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             {
                 "title": "여기 깨지면 도망쳐",
                 "content": (
-                    format_volume_profile(volume_profile, is_usd=is_usd)
+                    format_volume_profile(volume_profile, is_usd=(not is_krw))
                     if volume_profile
                     else "#악성 매물대 계산 대기\n#생존 지지선 계산 대기\nPOC 계산 대기"
                 )
