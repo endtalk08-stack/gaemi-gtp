@@ -2067,7 +2067,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             )
 
         if not supply_content:
-            supply_content = "거래소 수급 집계 대기\n최근 5일간의 거래소 수급 데이터를 수집하고 있어! 이럴 땐 세력 평단 대신 20일 이동평균선을 생존 지지선으로 잡는 게 안전해."
+            supply_content = "거래소 수급 데이터가 아직 충분하지 않아.\n최근 수급 데이터가 쌓이면 큰손들의 움직임을 보여줄게."
 
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
         if change_pct >= 5.0:
@@ -2189,22 +2189,25 @@ def analyze_stock(raw_name='SK하이닉스'):
         return {
             "sections": [
                 {
-                    "title": "🔥 그래서 오늘은 왜 올랐어?",
-                    "content": f"{raw_name} 실시간 호가 접수 완료!\n현재 시장 수급 유입으로 지지선 테스트 중이야.\n\n#{raw_name}   #+8.26%   #가즈아   #불기둥"
+                    "title": "📡 데이터를 확인하고 있어",
+                    "content": f"{raw_name}의 분석 데이터가 아직 충분하지 않아.\n실제 시장 데이터가 확인되면 이 자리에 바로 보여줄게."
                 },
                 {
-                    "title": "큰손들은 담고 있을까, 털고 있을까?",
-                    "content": "#외국인 +48.2만주   #기관 +21.4만주   #개인 -69.6만주\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
+                    "title": "큰손들은 뭐하고 있어?",
+                    "content": "거래소 수급 데이터가 아직 충분하지 않아.\n데이터가 확인되면 외국인·기관·개인 수급을 보여줄게."
                 },
                 {
                     "title": "여기 깨지면 도망쳐",
-                    "content": "#악성 매물대 계산 대기\n#생존 지지선 계산 대기\nPOC 계산 대기"
+                    "content": "거래 데이터가 아직 충분하지 않아.\nVolume Profile이 계산되면 악성 매물대와 생존 지지선을 보여줄게."
                 },
                 {
                     "title": "오늘 밤, 이번주 무슨 일이 있나?",
                     "content": get_live_calendar_data(raw_name, ticker_symbol)
                 }
-            ]
+            ],
+            "news_items": [],
+            "disclosures": [],
+            "us_filings": []
         }
 
 
