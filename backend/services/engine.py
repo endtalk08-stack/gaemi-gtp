@@ -2188,27 +2188,12 @@ def analyze_stock(raw_name='SK하이닉스'):
         print("전체 예외 안전 복구 가동:", e)
         return {
             "sections": [
-                {
-                    "title": "📡 데이터를 확인하고 있어",
-                    "content": f"{raw_name}의 분석 데이터가 아직 충분하지 않아.\n실제 시장 데이터가 확인되면 이 자리에 바로 보여줄게."
-                },
-                {
-                    "title": "큰손들은 뭐하고 있어?",
-                    "content": "거래소 수급 데이터가 아직 충분하지 않아.\n데이터가 확인되면 외국인·기관·개인 수급을 보여줄게."
-                },
-                {
-                    "title": "여기 깨지면 도망쳐",
-                    "content": "거래 데이터가 아직 충분하지 않아.\nVolume Profile이 계산되면 악성 매물대와 생존 지지선을 보여줄게."
-                },
-                {
-                    "title": "오늘 밤, 이번주 무슨 일이 있나?",
-                    "content": get_live_calendar_data(raw_name, ticker_symbol)
-                }
+                {"title": "📡 데이터를 확인하고 있어", "content": f"{raw_name}의 분석 데이터가 아직 충분하지 않아.\n실제 시장 데이터가 확인되면 이 자리에 바로 보여줄게."},
+                {"title": "큰손들은 뭐하고 있어?", "content": "거래소 수급 데이터가 아직 충분하지 않아.\n데이터가 확인되면 외국인·기관·개인 수급을 보여줄게."},
+                {"title": "여기 깨지면 도망쳐", "content": "거래 데이터가 아직 충분하지 않아.\nVolume Profile이 계산되면 악성 매물대와 생존 지지선을 보여줄게."},
+                {"title": "오늘 밤, 이번주 무슨 일이 있나?", "content": get_live_calendar_data(raw_name, ticker_symbol)}
             ],
-            "news_items": [],
+            "news_items": list(news_list) if isinstance(locals().get("news_list"), list) else [],
             "disclosures": [],
-            "us_filings": []
+            "us_filings": list(us_filings_raw) if isinstance(locals().get("us_filings_raw"), list) else []
         }
-
-
-

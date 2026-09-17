@@ -169,6 +169,291 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       return state;
     }
 
+    async function requestStock(stockName) {
+      if (!stockName || !stockName.trim()) return;
+      stockName = stockName.trim();
+      const requestId = ++activeAnalysisRequestId;
+      activeStock = stockName;
+
+      const chatArea = document.getElementById('chatArea');
+      chatArea.innerHTML = '';
+      chatArea.scrollTop = 0;
+
+      const userDiv = document.createElement('div');
+      userDiv.className = "flex justify-end animate-fade";
+      userDiv.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">${stockName}</div>`;
+      chatArea.appendChild(userDiv);
+
+      const loaderDiv = document.createElement('div');
+      loaderDiv.className = "flex flex-col items-center justify-center p-8 bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl my-2 text-center shadow-sm animate-fade";
+      loaderDiv.innerHTML = `
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-14 h-14 rounded-full bg-[#f8fafc] dark:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] flex items-center justify-center text-2xl animate-bounce">🐜</div>
+          <span class="text-[#94a3b8] dark:text-[#71717a] font-bold text-xl">×</span>
+          <div class="w-14 h-14 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black font-black flex items-center justify-center text-2xl">🕶️</div>
+        </div>
+        <h4 class="font-black text-lg text-[#0f172a] dark:text-white">${stockName} 퀀트 5초 정밀 스캔 중...</h4>
+      `;
+      chatArea.appendChild(loaderDiv);
+
+      const fetchPromise = fetchAnalysisFromBackend(stockName);
+      const delayPromise = new Promise(resolve => setTimeout(resolve, 120));
+      const [result] = await Promise.all([fetchPromise, delayPromise]);
+      if (requestId !== activeAnalysisRequestId) return;
+      const sections = result.sections || [];
+
+      loaderDiv.remove();
+
+      if (!result.ok || sections.length === 0) {
+        renderAnalysisStatus(chatArea, stockName, result.ok);
+        chatArea.scrollTop = 0;
+        return;
+      }
+
+      const surprisePopup = document.getElementById('surpriseAntPopup');
+      surprisePopup.classList.remove('hidden');
+      await new Promise(res => setTimeout(res, 600));
+      if (requestId !== activeAnalysisRequestId) return;
+      surprisePopup.classList.add('hidden');
+
+      chatArea.scrollTop = 0;
+      startTypewriterFlow(stockName, sections, result, requestId);
+    }
+
+
+    function openExternalLinkModal(item) {
+      const modal = document.getElementById('externalLinkModal');
+      if (!modal) return;
+      const href = item.original_link || item.link || item.url || item.article_url || '';
+      if (!href) return;
+
+      const title = item.title || item.description || '제목 확인 필요';
+      const source = item.source || (item.form ? 'SEC' : '출처 확인 필요');
+      const when = item.display_datetime || item.datetime || item.date || item.pub_date || '';
+      const time = item.time || item.acceptance_time || '';
+      const tz = item.time_zone || '';
+      const meta = `${source}${when ? ` · ${when}` : ''}${time ? ` · ${time}${tz ? ` ${tz}` : ''}` : ''}`;
+
+      document.getElementById('externalLinkArticleTitle').textContent = title;
+      document.getElementById('externalLinkArticleMeta').textContent = meta;
+      document.getElementById('externalLinkUrl').textContent = href;
+      modal.dataset.href = href;
+      modal.classList.add('is-open');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeExternalLinkModal() {
+      const modal = document.getElementById('externalLinkModal');
+      if (!modal) return;
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
+      modal.dataset.href = '';
+      document.body.style.overflow = '';
+    }
+
+    function initExternalLinkModal() {
+      const modal = document.getElementById('externalLinkModal');
+      const close = document.getElementById('externalLinkClose');
+      const copy = document.getElementById('externalLinkCopy');
+      const open = document.getElementById('externalLinkOpen');
+      if (!modal) return;
+      close?.addEventListener('click', closeExternalLinkModal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeExternalLinkModal();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('is-open')) closeExternalLinkModal();
+      });
+      copy?.addEventListener('click', async () => {
+        const href = modal.dataset.href || '';
+        if (!href) return;
+        try {
+          await navigator.clipboard.writeText(href);
+          copy.textContent = '복사됨';
+          setTimeout(() => copy.textContent = '링크 복사', 1200);
+        } catch (_) {
+          const ta = document.createElement('textarea');
+          ta.value = href; document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); ta.remove();
+          copy.textContent = '복사됨';
+          setTimeout(() => copy.textContent = '링크 복사', 1200);
+        }
+      });
+      open?.addEventListener('click', () => {
+        const href = modal.dataset.href || '';
+        if (!href) return;
+        window.open(href, '_blank', 'noopener,noreferrer');
+      });
+    }
+
+    // ★ 버그 완벽 수정된 텍스트 파싱 로직
+    function renderSourceLists(container, result) {
+      if (!container || !result) return;
+
+      const newsItems = Array.isArray(result.news_items) ? result.news_items : [];
+      const disclosureItems = Array.isArray(result.disclosures) ? result.disclosures : [];
+      const usFilingItems = Array.isArray(result.us_filings) ? result.us_filings : [];
+      const sourceDisclosureItems = disclosureItems.length ? disclosureItems : usFilingItems;
+      const sourceCount = newsItems.length + sourceDisclosureItems.length;
+      if (!sourceCount) return;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'source-toggle-wrap animate-fade';
+
+      // 메인 분석 화면에는 실제 뉴스+공시 개수만 보여준다.
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'source-toggle-btn';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', '출처 보기');
+
+      const toggleText = document.createElement('span');
+      toggleText.textContent = '출처';
+      const toggleIcon = document.createElement('i');
+      toggleIcon.setAttribute('data-lucide', 'chevron-down');
+      toggleIcon.className = 'source-toggle-icon';
+      toggle.appendChild(toggleText);
+      toggle.appendChild(toggleIcon);
+      wrap.appendChild(toggle);
+
+      const panel = document.createElement('div');
+      panel.className = 'source-list-panel';
+      panel.setAttribute('aria-hidden', 'true');
+
+      const makeGroup = (label, items) => {
+        if (!items.length) return null;
+        const group = document.createElement('div');
+        group.className = 'space-y-2';
+
+        group.className = 'source-list-group';
+        const heading = document.createElement('div');
+        heading.className = 'source-list-group-title';
+        heading.textContent = label;
+        group.appendChild(heading);
+
+        const card = document.createElement('div');
+        card.className = 'source-list-card';
+
+        items.slice(0, 3).forEach(item => {
+          const link = document.createElement('a');
+          link.className = 'source-list-row';
+          const href = item.original_link || item.link || item.url || item.article_url || '';
+          if (href) {
+            link.href = '#';
+            link.setAttribute('role', 'button');
+            link.addEventListener('click', (event) => {
+              event.preventDefault();
+              openExternalLinkModal(item);
+            });
+          } else {
+            link.removeAttribute('href');
+            link.setAttribute('aria-disabled', 'true');
+          }
+
+          const isInsider = label === '공시' && (
+            String(item.form || '').toUpperCase() === '4' ||
+            !!item.person ||
+            !!item.transaction_kind ||
+            !!item.transaction_summary ||
+            Object.prototype.hasOwnProperty.call(item, 'transaction_count')
+          );
+          const main = document.createElement('div');
+          main.className = 'source-list-main';
+          const titleEl = document.createElement('div');
+          titleEl.className = 'source-list-title';
+          const meta = document.createElement('div');
+          meta.className = 'source-list-meta';
+
+          if (isInsider) {
+            const kind = item.transaction_kind || '';
+            const summaryText = item.transaction_summary || '';
+            const count = Number(item.transaction_count || 0);
+            let summary = summaryText || kind || '내부자 거래';
+            if (count > 0 && !/\d+건/.test(summary) && !summary.includes(' · ')) {
+              summary = `${summary} · ${count}건`;
+            }
+            titleEl.textContent = summary;
+            titleEl.style.color = /매도/.test(summary) ? '#FF8DA1' : (/매수|취득/.test(summary) ? '#38BDF8' : '');
+
+            const person = item.person || '회사 내부자';
+            const roleMap = {
+              'DIRECTOR': '이사',
+              'OFFICER': '임원',
+              '10% OWNER': '10% 이상 주주',
+              '10% OWNER OF CLASS': '10% 이상 주주'
+            };
+            const rawRole = String(item.officer_title || '').trim();
+            const role = roleMap[rawRole.toUpperCase()] || rawRole;
+            const personEl = document.createElement('div');
+            personEl.className = 'source-list-meta';
+            personEl.style.marginTop = '2px';
+            personEl.textContent = `${person}${role ? ` · ${role}` : ''}`;
+            main.appendChild(titleEl);
+            main.appendChild(personEl);
+          } else {
+            titleEl.textContent = item.title || item.description || '제목 확인 필요';
+            main.appendChild(titleEl);
+          }
+          const source = isInsider ? 'SEC' : (item.source || (item.form ? 'SEC' : '출처 확인 필요'));
+          const rawWhen = item.display_datetime || item.datetime || item.date || item.pub_date || '';
+          let when = rawWhen;
+          if (rawWhen) {
+            const raw = String(rawWhen).trim();
+            const ymd = raw.match(/^(\d{4})[-/.]?(\d{2})[-/.]?(\d{2})$/);
+            const md = raw.match(/^(\d{1,2})[-/.](\d{1,2})$/);
+            if (ymd) {
+              when = `${ymd[1]}.${ymd[2]}.${ymd[3]}`;
+            } else if (md) {
+              when = `${Number(md[1])}/${Number(md[2])}`;
+            } else {
+              when = raw;
+            }
+          } else {
+            when = '날짜 확인 필요';
+          }
+          const rawTime = item.time || item.acceptance_time || '';
+          const timeZone = item.time_zone || '';
+          const timeText = rawTime ? ` · ${rawTime}${timeZone ? ` ${timeZone}` : ''}` : '';
+          meta.textContent = `${source} · ${when}${timeText}`;
+          main.appendChild(meta);
+
+          const arrow = document.createElement('i');
+          arrow.setAttribute('data-lucide', 'chevron-right');
+          arrow.className = 'source-list-arrow w-5 h-5';
+          link.appendChild(main);
+          link.appendChild(arrow);
+          card.appendChild(link);
+        });
+
+        group.appendChild(card);
+        return group;
+      };
+
+      const newsGroup = makeGroup('뉴스', newsItems);
+      const disclosureGroup = makeGroup('공시', sourceDisclosureItems);
+      if (newsGroup) panel.appendChild(newsGroup);
+      if (disclosureGroup) {
+        panel.appendChild(disclosureGroup);
+      }
+      wrap.appendChild(panel);
+
+      toggle.addEventListener('click', () => {
+        const isOpen = panel.classList.toggle('is-open');
+        toggle.setAttribute('aria-expanded', String(isOpen));
+        panel.setAttribute('aria-hidden', String(!isOpen));
+        // 버튼 크기와 문구는 열고 닫아도 동일하게 유지한다. 아이콘만 방향을 바꾼다.
+        toggleText.textContent = '출처';
+        toggle.setAttribute('aria-label', isOpen ? '출처 닫기' : '출처 보기');
+        toggleIcon.setAttribute('data-lucide', isOpen ? 'chevron-up' : 'chevron-down');
+        if (window.lucide) window.lucide.createIcons();
+      });
+
+      container.appendChild(wrap);
+      if (window.lucide) window.lucide.createIcons();
+    }
+
     function startTypewriterFlow(stockName, sections, result, requestId) {
       if (requestId !== activeAnalysisRequestId) return;
       const chatArea = document.getElementById('chatArea');
@@ -178,9 +463,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       mainContainer.id = wrapperId;
       mainContainer.className = "space-y-7 py-2";
       chatArea.appendChild(mainContainer);
-
-      // 본문 멘트는 백엔드(engine.py)에서만 생성한다.
-      // 프론트엔드는 전달받은 title/content를 화면에 출력만 한다.
 
       let secIdx = 0;
 
@@ -192,8 +474,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         }
 
         const sec = sections[secIdx];
-        const dynamicTitle = sec.title || '';
-        const text = (sec.content || '').replace(/이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야/g, '').replace(/\n{3,}/g, '\n\n').trim();
+        let dynamicTitle = sec.title || '';
+        let text = (sec.content || '').replace(/이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야/g, '').replace(/\n{3,}/g, '\n\n').trim();
+
         const textBlock = document.createElement('div');
         textBlock.className = "space-y-4 animate-fade";
         textBlock.innerHTML = `
