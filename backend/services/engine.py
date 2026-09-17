@@ -1668,21 +1668,15 @@ def format_volume_profile(profile, is_usd=True):
     # 화면에는 저항/지지 대표 가격 하나만 표시한다.
     # 저항 = 선택된 저항 매물대의 상단 가격
     # 지지 = 선택된 지지 매물대의 하단 가격
-    if above:
-        resistance_price = above.get("upper", above.get("center"))
-        if resistance_price:
-            lines.append(f"#악성 매물대 ${resistance_price:,.2f}" if is_usd else f"#악성 매물대 {round_krw_tick(resistance_price):,}원")
-    elif inside:
-        resistance_price = inside.get("upper", inside.get("center"))
+    resistance_zone = above or inside
+    if resistance_zone:
+        resistance_price = resistance_zone.get("upper", resistance_zone.get("center"))
         if resistance_price:
             lines.append(f"#악성 매물대 ${resistance_price:,.2f}" if is_usd else f"#악성 매물대 {round_krw_tick(resistance_price):,}원")
 
-    if below:
-        support_price = below.get("lower", below.get("center"))
-        if support_price:
-            lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
-    elif inside:
-        support_price = inside.get("lower", inside.get("center"))
+    support_zone = below or inside
+    if support_zone:
+        support_price = support_zone.get("lower", support_zone.get("center"))
         if support_price:
             lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
 
