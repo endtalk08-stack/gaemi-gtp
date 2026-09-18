@@ -131,6 +131,21 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24, curre
             support_idx = below_candidates[-1] if below_candidates else None
             resistance_idx = above_candidates[0] if above_candidates else None
 
+            # 현재가가 60거래일 Volume Profile의 모든 매물대보다 위에 있는 경우에도
+            # 화면에서 악성 매물대를 "계산 대기"로 만들지 않는다.
+            # 이때는 가장 높은 핵심 매물대를 악성 매물대로 유지하고,
+            # 그 바로 아래 매물대를 생존 매물대로 사용한다.
+            # (현재가가 위에 있다는 이유로 매물대 자체를 현재가에 맞춰 이동시키지 않는다.)
+            if resistance_idx is None and zones_sorted:
+                highest_idx = len(zones_sorted) - 1
+                resistance_idx = highest_idx
+                # 현재가가 모든 구간보다 위에 있으면 below_candidates[-1]도
+                # 최상단 구간을 가리키므로, 그 아래 구간으로 한 칸 내려준다.
+                if highest_idx > 0 and support_idx == highest_idx:
+                    support_idx = highest_idx - 1
+                elif support_idx is None and highest_idx > 0:
+                    support_idx = highest_idx - 1
+
             # 시작 시 현재가가 매물대 내부에 있으면 그 구간의 양옆을 잡는다.
             if support_idx is None or resistance_idx is None:
                 inside_idx = next(
@@ -163,11 +178,14 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24, curre
             while resistance_idx is not None and resistance_idx < len(zones_sorted):
                 if effective_price <= zones_sorted[resistance_idx]["upper"]:
                     break
-                support_idx = resistance_idx
-                resistance_idx += 1
-
-            if resistance_idx is not None and resistance_idx >= len(zones_sorted):
-                resistance_idx = None
+                # 다음 매물대가 있으면 그쪽으로 이동한다.
+                # 최상단 매물대를 돌파했지만 더 위에 계산된 구간이 없다면
+                # 마지막 핵심 매물대를 악성 매물대로 유지한다.
+                if resistance_idx + 1 < len(zones_sorted):
+                    support_idx = resistance_idx
+                    resistance_idx += 1
+                else:
+                    break
 
             # 생존 매물대 하단을 실제로 깬 경우에만 다음 아래 매물대로 이동한다.
             while support_idx is not None and support_idx >= 0:
