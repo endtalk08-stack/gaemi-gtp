@@ -34,7 +34,15 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24, curre
 
         min_price = min(x[1] for x in rows)
         max_price = max(x[0] for x in rows)
-        current_price = rows[-1][2]
+        # 호출자가 실시간 현재가를 넘겨주면 그 값을 사용한다.
+        # 넘겨주지 않은 경우에만 마지막 완료 일봉 종가를 사용한다.
+        if current_price is None:
+            current_price = rows[-1][2]
+        else:
+            try:
+                current_price = float(current_price)
+            except (TypeError, ValueError):
+                current_price = rows[-1][2]
 
         if max_price <= min_price:
             return None
@@ -106,7 +114,7 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24, curre
         # 한 번 잡힌 생존/악성 매물대는 현재가가 그 사이에서 움직이는 동안 유지하고,
         # 실제로 상단/하단을 돌파(이탈)했을 때만 다음 구간으로 이동한다.
         zones_sorted = sorted(zones, key=lambda z: z["lower"])
-        effective_price = float(current_price) if current_price is not None else rows[-1][2]
+        effective_price = current_price
         state_key = str(state_key or "__default__")
 
         # 매물대 경계가 달라진 경우에만 상태를 초기화한다.
@@ -192,9 +200,11 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24, curre
             "current_price": effective_price,
             "poc": levels[profile.index(peak)],
             "zones": zones_sorted,
-            "above": above,
-            "below": below,
-            "inside": inside,
+            # 화면/기존 호출부와의 호환을 위해 above/below에
+            # 현재 활성 저항/생존 매물대를 그대로 전달한다.
+            "above": resistance,
+            "below": support,
+            "inside": None,
             "days": len(rows),
         }
     except Exception as e:
