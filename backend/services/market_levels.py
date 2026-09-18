@@ -6,7 +6,10 @@ the main analysis orchestrator to make future data sources easier to add.
 
 import math
 
-def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24):
+# 종목별 활성 매물대 상태. 현재가가 움직였다는 이유만으로 매물대가 순간 이동하지 않게 한다.
+_VP_STATE = {}
+
+def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24, current_price=None, state_key=None):
     """
     최근 60거래일 OHLCV를 가격 구간별로 묶어 거래량 집중 구간을 찾는다.
     일봉 데이터만 있으므로 각 봉의 거래량을 고가~저가 구간에 균등 배분하는
@@ -99,40 +102,94 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24):
                 "strength": poc["relative"],
             }]
 
-        # 현재가를 기준으로 매물대를 매번 새로 "이동"시키지 않는다.
-        # 60거래일 Volume Profile에서 만들어진 zones를 가격순으로 유지하고,
-        # 현재가가 속한 구간을 기준으로 바로 위/아래의 다음 매물대를 정한다.
-        #
-        # 핵심 원칙:
-        # - 현재가가 기존 매물대 안에서 움직이는 동안 해당 매물대는 그대로 유지
-        # - 매물대 상단을 돌파하면 다음 위 매물대를 사용
-        # - 매물대 하단을 이탈하면 다음 아래 매물대를 사용
-        # - 함수 호출 때마다 60거래일 데이터 자체는 다시 계산될 수 있지만,
-        #   현재가 변화만으로 동일한 구간이 다른 구간으로 재선정되지 않도록 한다.
+        # 현재가를 기준으로 매물대를 매번 새로 선택하지 않는다.
+        # 한 번 잡힌 생존/악성 매물대는 현재가가 그 사이에서 움직이는 동안 유지하고,
+        # 실제로 상단/하단을 돌파(이탈)했을 때만 다음 구간으로 이동한다.
         zones_sorted = sorted(zones, key=lambda z: z["lower"])
+        effective_price = float(current_price) if current_price is not None else rows[-1][2]
+        state_key = str(state_key or "__default__")
 
-        inside = next(
-            (z for z in zones_sorted
-             if z["lower"] <= current_price <= z["upper"]),
-            None
+        # 매물대 경계가 달라진 경우에만 상태를 초기화한다.
+        zone_signature = tuple(
+            (round(z["lower"], 8), round(z["upper"], 8))
+            for z in zones_sorted
         )
+        state = _VP_STATE.get(state_key)
 
-        if inside is not None:
-            inside_idx = zones_sorted.index(inside)
-            above = zones_sorted[inside_idx + 1] if inside_idx + 1 < len(zones_sorted) else None
-            below = zones_sorted[inside_idx - 1] if inside_idx > 0 else None
+        if not state or state.get("signature") != zone_signature:
+            below_candidates = [i for i, z in enumerate(zones_sorted) if z["upper"] < effective_price]
+            above_candidates = [i for i, z in enumerate(zones_sorted) if z["lower"] > effective_price]
+
+            support_idx = below_candidates[-1] if below_candidates else None
+            resistance_idx = above_candidates[0] if above_candidates else None
+
+            # 시작 시 현재가가 매물대 내부에 있으면 그 구간의 양옆을 잡는다.
+            if support_idx is None or resistance_idx is None:
+                inside_idx = next(
+                    (i for i, z in enumerate(zones_sorted)
+                     if z["lower"] <= effective_price <= z["upper"]),
+                    None
+                )
+                if inside_idx is not None:
+                    if support_idx is None and inside_idx > 0:
+                        support_idx = inside_idx - 1
+                    if resistance_idx is None and inside_idx + 1 < len(zones_sorted):
+                        resistance_idx = inside_idx + 1
+                    # 양옆 매물대가 하나도 없는 끝 구간이면 해당 구간을 사용한다.
+                    if support_idx is None:
+                        support_idx = inside_idx
+                    if resistance_idx is None:
+                        resistance_idx = inside_idx
+
+            state = {
+                "signature": zone_signature,
+                "support_idx": support_idx,
+                "resistance_idx": resistance_idx,
+            }
+            _VP_STATE[state_key] = state
         else:
-            # 현재가가 어떤 매물대에도 들어있지 않다면,
-            # 현재가 바로 위/아래의 매물대를 초기 기준으로 잡는다.
-            above_candidates = [z for z in zones_sorted if z["lower"] > current_price]
-            below_candidates = [z for z in zones_sorted if z["upper"] < current_price]
+            support_idx = state.get("support_idx")
+            resistance_idx = state.get("resistance_idx")
 
-            above = min(above_candidates, key=lambda z: z["lower"]) if above_candidates else None
-            below = max(below_candidates, key=lambda z: z["upper"]) if below_candidates else None
+            # 악성 매물대 상단을 실제로 넘은 경우에만 다음 위 매물대로 이동한다.
+            while resistance_idx is not None and resistance_idx < len(zones_sorted):
+                if effective_price <= zones_sorted[resistance_idx]["upper"]:
+                    break
+                support_idx = resistance_idx
+                resistance_idx += 1
+
+            if resistance_idx is not None and resistance_idx >= len(zones_sorted):
+                resistance_idx = None
+
+            # 생존 매물대 하단을 실제로 깬 경우에만 다음 아래 매물대로 이동한다.
+            while support_idx is not None and support_idx >= 0:
+                if effective_price >= zones_sorted[support_idx]["lower"]:
+                    break
+                resistance_idx = support_idx
+                support_idx -= 1
+
+            if support_idx is not None and support_idx < 0:
+                support_idx = None
+
+            state["support_idx"] = support_idx
+            state["resistance_idx"] = resistance_idx
+
+        support = (
+            zones_sorted[state.get("support_idx")]
+            if state.get("support_idx") is not None
+            and 0 <= state.get("support_idx") < len(zones_sorted)
+            else None
+        )
+        resistance = (
+            zones_sorted[state.get("resistance_idx")]
+            if state.get("resistance_idx") is not None
+            and 0 <= state.get("resistance_idx") < len(zones_sorted)
+            else None
+        )
 
         # 화면에는 POC를 노출하지 않는다. POC는 내부 계산값으로만 유지한다.
         return {
-            "current_price": current_price,
+            "current_price": effective_price,
             "poc": levels[profile.index(peak)],
             "zones": zones_sorted,
             "above": above,
@@ -160,13 +217,13 @@ def format_volume_profile(profile, is_usd=True):
     if support_zone:
         support_price = support_zone.get("lower", support_zone.get("center"))
         if support_price:
-            lines.append(f"#생존 지지선 ${support_price:,.2f}" if is_usd else f"#생존 지지선 {round_krw_tick(support_price):,}원")
+            lines.append(f"생존 매물대 ${support_price:,.2f}" if is_usd else f"생존 매물대 {round_krw_tick(support_price):,}원")
 
     resistance_zone = above or inside
     if resistance_zone:
         resistance_price = resistance_zone.get("upper", resistance_zone.get("center"))
         if resistance_price:
-            lines.append(f"#악성 매물대 ${resistance_price:,.2f}" if is_usd else f"#악성 매물대 {round_krw_tick(resistance_price):,}원")
+            lines.append(f"악성 매물대 ${resistance_price:,.2f}" if is_usd else f"악성 매물대 {round_krw_tick(resistance_price):,}원")
 
     return "\n".join(lines)
 

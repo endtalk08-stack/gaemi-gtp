@@ -512,11 +512,31 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
               // 2. 경제 지표(#PPI, #CPI, #FOMC, #PCE, #NFP) -> 블루
               formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
 
-              // 3. 지지선 / 저항선 색상
-              if (formatted.includes('#생존 지지선')) {
-                formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1;">#생존 지지선 $1</span>');
-                formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8;">#악성 매물대 $1</span>');
-              } 
+              // 3. 매물대 색상
+              // 매물대 라벨 + 가격 전체를 같은 색으로 표시한다.
+              // 이 분기는 일반 해시태그 색상보다 먼저 실행해 색상 충돌을 막는다.
+              if (formatted.includes('악성 매물대') || formatted.includes('생존 매물대') || formatted.includes('#생존 지지선')) {
+                // 레거시 형식
+                formatted = formatted.replace(/#생존\s+지지선\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1; font-weight: 700;">#생존 지지선 $1</span>');
+                formatted = formatted.replace(/#악성\s+매물대\s+([$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8; font-weight: 700;">#악성 매물대 $1</span>');
+
+                // 현재 형식: 가격까지 포함해 전체를 색칠
+                formatted = formatted.replace(/(악성 매물대\s+[$]?[\d,.]+[원]?)/g, '<span style="color: #38BDF8; font-weight: 700;">$1</span>');
+                formatted = formatted.replace(/(생존 매물대\s+[$]?[\d,.]+[원]?)/g, '<span style="color: #FF8DA1; font-weight: 700;">$1</span>');
+
+                // 각 매물대 바로 아래 태그는 해당 매물대와 같은 색으로 표시
+                const blocks = formatted.split('\n\n');
+                let zoneColor = null;
+                for (let i = 0; i < blocks.length; i++) {
+                  const plainBlock = blocks[i].replace(/<[^>]+>/g, '');
+                  if (plainBlock.includes('악성 매물대')) zoneColor = '#38BDF8';
+                  else if (plainBlock.includes('생존 매물대')) zoneColor = '#FF8DA1';
+                  if (zoneColor && /^\s*#/.test(plainBlock)) {
+                    blocks[i] = `<span class="font-bold" style="color: ${zoneColor};">${blocks[i]}</span>`;
+                  }
+                }
+                formatted = blocks.join('\n\n');
+              }
               // 4. 수급 매매동향 및 콜/풋 옵션 색상 
               else if (formatted.includes('#외국인') || formatted.includes('#콜')) {
                 let lines = formatted.split('\n\n');
