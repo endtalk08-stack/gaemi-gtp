@@ -6,8 +6,6 @@ the main analysis orchestrator to make future data sources easier to add.
 
 import math
 
-# 종목별 활성 매물대 상태. 현재가가 움직였다는 이유만으로 매물대가 순간 이동하지 않게 한다.
-_VP_STATE = {}
 
 def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24, current_price=None, state_key=None):
     """
@@ -110,119 +108,30 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24, curre
                 "strength": poc["relative"],
             }]
 
-        # 현재가를 기준으로 매물대를 매번 새로 선택하지 않는다.
-        # 한 번 잡힌 생존/악성 매물대는 현재가가 그 사이에서 움직이는 동안 유지하고,
-        # 실제로 상단/하단을 돌파(이탈)했을 때만 다음 구간으로 이동한다.
-        zones_sorted = sorted(zones, key=lambda z: z["lower"])
-        effective_price = current_price
-        state_key = str(state_key or "__default__")
-
-        # 매물대 경계가 달라진 경우에만 상태를 초기화한다.
-        zone_signature = tuple(
-            (round(z["lower"], 8), round(z["upper"], 8))
-            for z in zones_sorted
+        # 기존 계산 방식: 현재가를 기준으로 바로 위/아래의 매물대를 선택한다.
+        # 현재가가 움직이면 그 시점의 위/아래 매물대를 다시 계산한다.
+        above = sorted(
+            [z for z in zones if z["lower"] > current_price],
+            key=lambda z: z["lower"]
         )
-        state = _VP_STATE.get(state_key)
-
-        if not state or state.get("signature") != zone_signature:
-            below_candidates = [i for i, z in enumerate(zones_sorted) if z["upper"] < effective_price]
-            above_candidates = [i for i, z in enumerate(zones_sorted) if z["lower"] > effective_price]
-
-            support_idx = below_candidates[-1] if below_candidates else None
-            resistance_idx = above_candidates[0] if above_candidates else None
-
-            # 현재가가 60거래일 Volume Profile의 모든 매물대보다 위에 있는 경우에도
-            # 화면에서 악성 매물대를 "계산 대기"로 만들지 않는다.
-            # 이때는 가장 높은 핵심 매물대를 악성 매물대로 유지하고,
-            # 그 바로 아래 매물대를 생존 매물대로 사용한다.
-            # (현재가가 위에 있다는 이유로 매물대 자체를 현재가에 맞춰 이동시키지 않는다.)
-            if resistance_idx is None and zones_sorted:
-                highest_idx = len(zones_sorted) - 1
-                resistance_idx = highest_idx
-                # 현재가가 모든 구간보다 위에 있으면 below_candidates[-1]도
-                # 최상단 구간을 가리키므로, 그 아래 구간으로 한 칸 내려준다.
-                if highest_idx > 0 and support_idx == highest_idx:
-                    support_idx = highest_idx - 1
-                elif support_idx is None and highest_idx > 0:
-                    support_idx = highest_idx - 1
-
-            # 시작 시 현재가가 매물대 내부에 있으면 그 구간의 양옆을 잡는다.
-            if support_idx is None or resistance_idx is None:
-                inside_idx = next(
-                    (i for i, z in enumerate(zones_sorted)
-                     if z["lower"] <= effective_price <= z["upper"]),
-                    None
-                )
-                if inside_idx is not None:
-                    if support_idx is None and inside_idx > 0:
-                        support_idx = inside_idx - 1
-                    if resistance_idx is None and inside_idx + 1 < len(zones_sorted):
-                        resistance_idx = inside_idx + 1
-                    # 양옆 매물대가 하나도 없는 끝 구간이면 해당 구간을 사용한다.
-                    if support_idx is None:
-                        support_idx = inside_idx
-                    if resistance_idx is None:
-                        resistance_idx = inside_idx
-
-            state = {
-                "signature": zone_signature,
-                "support_idx": support_idx,
-                "resistance_idx": resistance_idx,
-            }
-            _VP_STATE[state_key] = state
-        else:
-            support_idx = state.get("support_idx")
-            resistance_idx = state.get("resistance_idx")
-
-            # 악성 매물대 상단을 실제로 넘은 경우에만 다음 위 매물대로 이동한다.
-            while resistance_idx is not None and resistance_idx < len(zones_sorted):
-                if effective_price <= zones_sorted[resistance_idx]["upper"]:
-                    break
-                # 다음 매물대가 있으면 그쪽으로 이동한다.
-                # 최상단 매물대를 돌파했지만 더 위에 계산된 구간이 없다면
-                # 마지막 핵심 매물대를 악성 매물대로 유지한다.
-                if resistance_idx + 1 < len(zones_sorted):
-                    support_idx = resistance_idx
-                    resistance_idx += 1
-                else:
-                    break
-
-            # 생존 매물대 하단을 실제로 깬 경우에만 다음 아래 매물대로 이동한다.
-            while support_idx is not None and support_idx >= 0:
-                if effective_price >= zones_sorted[support_idx]["lower"]:
-                    break
-                resistance_idx = support_idx
-                support_idx -= 1
-
-            if support_idx is not None and support_idx < 0:
-                support_idx = None
-
-            state["support_idx"] = support_idx
-            state["resistance_idx"] = resistance_idx
-
-        support = (
-            zones_sorted[state.get("support_idx")]
-            if state.get("support_idx") is not None
-            and 0 <= state.get("support_idx") < len(zones_sorted)
-            else None
+        below = sorted(
+            [z for z in zones if z["upper"] < current_price],
+            key=lambda z: z["upper"],
+            reverse=True
         )
-        resistance = (
-            zones_sorted[state.get("resistance_idx")]
-            if state.get("resistance_idx") is not None
-            and 0 <= state.get("resistance_idx") < len(zones_sorted)
-            else None
-        )
+        inside = [
+            z for z in zones
+            if z["lower"] <= current_price <= z["upper"]
+        ]
 
         # 화면에는 POC를 노출하지 않는다. POC는 내부 계산값으로만 유지한다.
         return {
-            "current_price": effective_price,
+            "current_price": current_price,
             "poc": levels[profile.index(peak)],
-            "zones": zones_sorted,
-            # 화면/기존 호출부와의 호환을 위해 above/below에
-            # 현재 활성 저항/생존 매물대를 그대로 전달한다.
-            "above": resistance,
-            "below": support,
-            "inside": None,
+            "zones": zones,
+            "above": above[0] if above else None,
+            "below": below[0] if below else None,
+            "inside": inside[0] if inside else None,
             "days": len(rows),
         }
     except Exception as e:
