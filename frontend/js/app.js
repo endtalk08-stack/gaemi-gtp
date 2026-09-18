@@ -7,11 +7,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function applySidebarState() {
       const leftBar = document.getElementById('leftSidebar');
-      const rightBar = document.getElementById('rightSidebar');
+      const rightBar = document.getElementById('rightPanel');
       const leftRail = document.getElementById('leftUtilityRail');
       const backdrop = document.getElementById('sidebarBackdrop');
       const leftOpen = document.body.classList.contains('left-sidebar-open');
-      const rightOpen = document.body.classList.contains('right-sidebar-open');
+      const rightOpen = document.body.classList.contains('right-panel-open');
       const mobile = window.innerWidth < 1024;
 
       if (leftBar) {
@@ -21,11 +21,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         leftBar.classList.toggle('lg:overflow-hidden', !leftOpen);
       }
       if (rightBar) {
-        rightBar.classList.toggle('translate-x-full', !rightOpen);
-        rightBar.classList.toggle('xl:translate-x-full', !rightOpen);
+        rightBar.setAttribute('aria-hidden', String(!rightOpen));
       }
 
-      // 오른쪽 상단 버튼 하나로 열기/닫기: 닫힘=패널 아이콘, 열림=X
+      // 오른쪽 패널 열기/닫기 상태는 body class 하나로 관리한다.
       document.querySelectorAll('[data-right-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', rightOpen));
       document.querySelectorAll('[data-right-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !rightOpen));
       document.querySelectorAll('[data-right-header-toggle]').forEach(el => el.classList.remove('hidden'));
@@ -39,14 +38,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
-      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
+      document.body.classList.remove('left-sidebar-open','right-panel-open','sidebar-left-expanded','sidebar-right-expanded');
       applySidebarState();
     }
 
     function switchToAnalysisMode(stockName) {
       document.getElementById('mainHeroView').classList.add('hidden');
       // 분석 진입 시 양쪽 패널은 닫힌 상태 + 양쪽 열기 레일만 표시
-      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
+      document.body.classList.remove('left-sidebar-open','right-panel-open','sidebar-left-expanded','sidebar-right-expanded');
       applySidebarState();
       requestStock(stockName || '삼성전자');
     }
@@ -96,20 +95,80 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function toggleRightSidebar() {
-      const isOpen = document.body.classList.contains('right-sidebar-open');
-      document.body.classList.toggle('right-sidebar-open', !isOpen);
+      const isOpen = document.body.classList.contains('right-panel-open');
+      document.body.classList.toggle('right-panel-open', !isOpen);
       applySidebarState();
     }
 
+    function closeRightPanel() {
+      document.body.classList.remove('right-panel-open');
+      applySidebarState();
+    }
+
+    // 오른쪽 패널 폭: 왼쪽 경계를 드래그하면 RIGHT가 넓어지고 CENTER가 자동으로 줄어든다.
+    (function initRightPanelResize() {
+      const panel = document.getElementById('rightPanel');
+      const handle = document.getElementById('rightPanelResizer');
+      if (!panel || !handle) return;
+
+      const root = document.documentElement;
+      const minWidth = 280;
+      const maxWidth = 720;
+      let resizing = false;
+
+      function setWidth(width) {
+        const viewport = window.innerWidth;
+        const max = Math.min(maxWidth, Math.max(minWidth, viewport - 320));
+        const next = Math.round(Math.min(max, Math.max(minWidth, width)));
+        root.style.setProperty('--right-panel-width', `${next}px`);
+      }
+
+      function move(clientX) {
+        if (!resizing) return;
+        const startX = Number(handle.dataset.startX);
+        const startWidth = Number(handle.dataset.startWidth);
+        // 패널의 왼쪽 경계를 왼쪽으로 이동할수록 폭이 증가한다.
+        setWidth(startWidth + (startX - clientX));
+      }
+
+      function stop() {
+        if (!resizing) return;
+        resizing = false;
+        document.body.classList.remove('right-panel-resizing');
+      }
+
+      handle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        resizing = true;
+        document.body.classList.add('right-panel-resizing');
+        handle.setPointerCapture?.(e.pointerId);
+        handle.dataset.startX = String(e.clientX);
+        handle.dataset.startWidth = String(parseFloat(getComputedStyle(panel).width));
+      });
+      handle.addEventListener('pointermove', (e) => move(e.clientX));
+      handle.addEventListener('pointerup', stop);
+      handle.addEventListener('pointercancel', stop);
+      handle.addEventListener('keydown', (e) => {
+        const current = parseFloat(getComputedStyle(panel).width);
+        if (e.key === 'ArrowLeft') { e.preventDefault(); setWidth(current + 24); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); setWidth(current - 24); }
+      });
+      window.addEventListener('resize', () => {
+        setWidth(parseFloat(getComputedStyle(panel).width));
+      });
+    })();
+
+    document.getElementById('rightPanelClose')?.addEventListener('click', closeRightPanel);
+
     function closeAllSidebars() {
       // 닫기는 두 패널만 닫고, 열기 레일은 반드시 남긴다.
-      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
+      document.body.classList.remove('left-sidebar-open','right-panel-open','sidebar-left-expanded','sidebar-right-expanded');
       applySidebarState();
     }
 
     // 초기 상태: 양쪽 패널은 닫고, 상단 열기 버튼만 표시
     function initializeSidebars() {
-      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
+      document.body.classList.remove('left-sidebar-open','right-panel-open','sidebar-left-expanded','sidebar-right-expanded');
       applySidebarState();
     }
 
