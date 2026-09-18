@@ -28,6 +28,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       document.querySelectorAll('[data-right-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', rightOpen));
       document.querySelectorAll('[data-right-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !rightOpen));
       document.querySelectorAll('[data-right-header-toggle]').forEach(el => el.classList.remove('hidden'));
+      document.querySelectorAll('.right-panel-toggle').forEach(btn => {
+        btn.setAttribute('aria-label', rightOpen ? '오른쪽 패널 닫기' : '오른쪽 패널 열기');
+        btn.setAttribute('title', rightOpen ? '오른쪽 패널 닫기' : '오른쪽 패널 열기');
+        const icon = btn.querySelector('[data-lucide]');
+        if (icon) icon.setAttribute('data-lucide', rightOpen ? 'panel-right-close' : 'panel-right');
+      });
+      if (window.lucide) lucide.createIcons();
 
       // 왼쪽 접힘 레일은 닫힌 상태에서만 사용하지 않고, 현재 레이아웃의 상단 버튼을 기준으로 유지
       if (leftRail) leftRail.style.display = 'none';
