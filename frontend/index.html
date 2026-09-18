@@ -35,8 +35,8 @@
         <span class="font-black text-lg tracking-tight text-[#0f172a] dark:text-white cursor-pointer" onclick="resetToHome()">gaemiGTP</span>
       </div>
       <div class="flex items-center gap-1">
-        <button type="button" onclick="toggleRightSidebar()" class="right-panel-toggle icon-hit relative z-[70] pointer-events-auto flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer" aria-label="오른쪽 패널 열기" title="오른쪽 패널 열기"><i data-lucide="panel-right" class="w-4 h-4"></i></button>
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] pointer-events-auto flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
+        <button type="button" onclick="toggleRightSidebar()" data-right-header-toggle class="icon-hit relative z-[70] text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer rounded-full" aria-label="오른쪽 사이드바 열기/닫기" title="오른쪽 사이드바 열기/닫기"><i data-right-toggle-icon="closed" data-lucide="panel-right" class="w-4 h-4"></i><i data-right-toggle-icon="open" data-lucide="x" class="w-4 h-4 hidden"></i></button>
       </div>
     </header>
 
@@ -144,10 +144,8 @@
         <button type="button" onclick="resetToHome()" class="font-black text-lg tracking-tight text-[#0f172a] dark:text-white cursor-pointer hover:opacity-80 transition" aria-label="메인으로 이동">gaemiGTP</button>
       </div>
       <div class="flex items-center gap-1">
-        <button type="button" onclick="toggleRightSidebar()" class="right-panel-toggle icon-hit relative z-[70] flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer" aria-label="오른쪽 패널 열기" title="오른쪽 패널 열기">
-          <i data-lucide="panel-right" class="w-4 h-4"></i>
-        </button>
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
+        <button type="button" onclick="toggleRightSidebar()" data-right-header-toggle class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="오른쪽 사이드바 열기/닫기" title="오른쪽 사이드바 열기/닫기"><i data-right-toggle-icon="closed" data-lucide="panel-right" class="w-4 h-4"></i><i data-right-toggle-icon="open" data-lucide="x" class="w-4 h-4 hidden"></i></button>
       </div>
     </header>
 
@@ -200,29 +198,130 @@
     </div>
   </main>
 
-  <!-- 새 RIGHT 분석 패널: 1단계는 UI/레이아웃만 구축. 데이터는 다음 단계에서 연결. -->
-  <aside id="rightPanel" class="right-panel" aria-label="오른쪽 패널" aria-hidden="false">
-    <div id="rightPanelResizer" class="right-panel-resizer" role="separator" aria-orientation="vertical"
-         aria-label="오른쪽 패널 너비 조절" tabindex="0"></div>
-    <div class="right-panel-inner">
-      <header class="right-panel-header">
-        <div class="min-w-0">
-          <div class="text-[17px] font-black tracking-tight text-[#0f172a] dark:text-white">패널</div>
-          <div class="text-[10px] text-[#64748b] dark:text-[#71717a]">오른쪽 패널</div>
+  <!-- 우측 사이드바 : 디자인 요청사항만 반영 -->
+  <aside id="rightSidebar" class="fixed inset-y-0 right-0 z-50 w-[320px] bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 transform translate-x-full xl:translate-x-full transition-transform duration-300 shadow-2xl xl:shadow-none">
+    <div class="flex-1 overflow-y-auto">
+      <!-- 헤더 -->
+      <div class="px-4 pt-4 pb-3 ">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 min-w-0 whitespace-nowrap">
+            <div class="text-[17px] font-black tracking-tight text-[#0f172a] dark:text-white">실시간</div>
+            <div class="text-[10px] text-[#64748b] dark:text-[#71717a]">/ 오늘 12:00 기준</div>
+          </div>
         </div>
-        <button type="button" id="rightPanelClose" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="오른쪽 패널 닫기" title="닫기">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </header>
-      <div id="rightPanelContent" class="right-panel-content">
-        <div class="right-panel-empty">
-          <div class="text-3xl mb-3">🐜</div>
-          <div class="font-bold text-sm text-[#0f172a] dark:text-white">오른쪽 패널</div>
-          <p class="mt-1 text-xs text-[#64748b] dark:text-[#a1a1aa]">패널 구조를 먼저 완성한 뒤 데이터를 연결합니다.</p>
+      </div>
+
+      <!-- 시장 범위 : 2단계 디자인 -->
+      <div class="px-4 py-3 ">
+        <div class="grid grid-cols-4 text-[12px] font-bold border border-[#cbd5e1] dark:border-[#3f3f46] rounded-lg overflow-hidden text-center">
+          <button type="button" class="py-2.5 text-[#0f172a] dark:text-white bg-[#eef2f7] dark:bg-[#272a31] border-r border-[#cbd5e1] dark:border-[#3f3f46]">전체</button>
+          <button type="button" class="py-2.5 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white border-r border-[#cbd5e1] dark:border-[#3f3f46]">국내</button>
+          <button type="button" class="py-2.5 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white border-r border-[#cbd5e1] dark:border-[#3f3f46]">해외</button>
+          <button type="button" class="py-2.5 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white">코인</button>
+        </div>
+      </div>
+
+      <!-- 정보 종류 -->
+      <div class="px-4 pt-2 pb-1">
+        <div id="rightInfoTabs" class="grid grid-cols-4 text-[11px] font-bold">
+          <button type="button" data-info-tab="popular" onclick="setRightInfoTab('popular')" class="right-info-tab py-2 text-[#0f172a] dark:text-white bg-[#eef2f7] dark:bg-[#272a31] rounded-md">인기 순위</button>
+          <button type="button" data-info-tab="value" onclick="setRightInfoTab('value')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">거래대금</button>
+          <button type="button" data-info-tab="industry" onclick="setRightInfoTab('industry')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">산업</button>
+          <button type="button" data-info-tab="theme" onclick="setRightInfoTab('theme')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">테마</button>
+        </div>
+      </div>
+
+      <!-- 거래대금 내부 기준 -->
+      <div id="valueCriteria" class="hidden px-4 pt-1 pb-2">
+        <div class="grid grid-cols-3 border border-[#dbe2ea] dark:border-[#3f3f46] rounded-md overflow-hidden text-[10px] font-bold text-center">
+          <button type="button" onclick="setValueCriteria(this, '거래대금')" class="value-criterion py-1.5 bg-[#eef2f7] dark:bg-[#272a31] text-[#0f172a] dark:text-white border-r border-[#dbe2ea] dark:border-[#3f3f46]">거래대금</button>
+          <button type="button" onclick="setValueCriteria(this, '거래량')" class="value-criterion py-1.5 text-[#64748b] dark:text-[#a1a1aa] border-r border-[#dbe2ea] dark:border-[#3f3f46]">거래량</button>
+          <button type="button" onclick="setValueCriteria(this, '상승률')" class="value-criterion py-1.5 text-[#64748b] dark:text-[#a1a1aa]">상승률</button>
+        </div>
+      </div>
+
+      <!-- 리스트 -->
+      <div class="px-4">
+        <div class="flex items-center justify-between py-3 text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]">
+          <span id="rightListTitle">인기 TOP 20</span>
+          <span id="rightListMetric">현재가</span>
+        </div>
+        <div class="">
+          <button type="button" onclick="switchToAnalysisMode('삼성전자');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer">
+            <div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start">
+              <span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">01</span>
+              <span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">삼성전자</span>
+              <span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">257,500원</span>
+            </div>
+            <div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5">
+              <span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-4.27%</span>
+            </div>
+            <div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center">
+              <span></span><span class="text-[10px] font-bold text-sky-500 truncate">반도체</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">AI 서버 수요 둔화</span>
+            </div>
+          </button>
+
+          <button type="button" onclick="switchToAnalysisMode('SK하이닉스');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer">
+            <div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">02</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">SK하이닉스</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,784,000원</span></div>
+            <div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-3.72%</span></div>
+            <div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">반도체</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">외국인 매도 확대</span></div>
+          </button>
+
+          <button type="button" onclick="switchToAnalysisMode('우리로');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">03</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">우리로</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">7,980원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+19.10%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">광통신</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">광통신 수요 기대</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('한국화장품제조');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">04</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">한국화장품제조</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">15,280원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+16.10%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">화장품</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">수출 회복 기대</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('SOXL');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">05</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">SOXL</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">152,394원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-1.62%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">반도체 ETF</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">미 반도체 약세</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('KODEX 레버리지');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">06</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 레버리지</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">107,760원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-6.29%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">지수</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">코스피 약세 영향</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('에이피알');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">07</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">에이피알</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">367,500원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.80%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">뷰티</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">해외 판매 성장</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('삼성전기');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">08</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">삼성전기</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,393,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-0.50%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">MLCC</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">IT 수요 관망</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('KODEX 반도체레버리지');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">09</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 반도체레버리지</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">80,155원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-10.28%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">반도체 ETF</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">업종 약세 반영</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('한전기술');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">10</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">한전기술</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">149,400원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+3.03%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">원전</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">원전 수주 기대</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('KODEX 인버스');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">11</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 인버스</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,012원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+3.26%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">지수</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">코스피 하락 영향</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('빛과전자');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">12</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">빛과전자</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">3,950원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+0.63%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">광통신</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">수급 개선 기대</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('KODEX 200');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">13</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">KODEX 200</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">108,370원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-3.12%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">지수</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">대형주 약세</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('SK스퀘어');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">14</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">SK스퀘어</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">1,073,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-5.46%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">지주</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">기술주 조정 영향</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('스카이랩스');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">15</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">스카이랩스</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">27,150원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+4.02%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">헬스케어</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">신규 성장 기대</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('NAVER');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">16</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">NAVER</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">217,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+3.33%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">플랫폼</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">AI 검색 서비스 기대</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('현대차');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">17</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">현대차</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">210,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.94%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">자동차</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">미국 판매 호조</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('기아');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">18</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">기아</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">103,600원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.77%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">자동차</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">수출 성장 기대</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('셀트리온');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">19</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">셀트리온</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">187,200원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-sky-500 text-right">-1.94%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-sky-500 truncate">바이오</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">바이오 업종 조정</span></div></button>
+
+          <button type="button" onclick="switchToAnalysisMode('LG에너지솔루션');" class="w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer"><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start"><span class="text-[12px] font-black text-[#64748b] dark:text-[#a1a1aa]">20</span><span class="font-bold text-[13px] text-[#0f172a] dark:text-white truncate">LG에너지솔루션</span><span class="font-black text-[13px] text-[#0f172a] dark:text-white text-right">430,000원</span></div><div class="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5"><span></span><span></span><span class="text-[11px] font-bold text-rose-500 text-right">+1.53%</span></div><div class="grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center"><span></span><span class="text-[10px] font-bold text-rose-500 truncate">2차전지</span><span class="text-[10px] text-[#64748b] dark:text-[#a1a1aa] text-right truncate">ESS 수요 기대</span></div></button>
         </div>
       </div>
     </div>
+    <div class="right-utility-rail" aria-label="오른쪽 빠른 메뉴">
+      <button type="button" onclick="toggleRightSidebar()" class="right-utility-toggle text-[#64748b] dark:text-[#a1a1aa] hover:text-white transition cursor-pointer" aria-label="오른쪽 사이드바 닫기" title="오른쪽 사이드바 닫기">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+      <div class="right-utility-divider"></div>
+      <button type="button" class="right-utility-item text-sky-500 cursor-pointer" aria-label="실시간">
+        <i data-lucide="activity" class="w-4 h-4"></i><span class="text-[9px] font-bold">실시간</span>
+      </button>
+      <button type="button" class="right-utility-item text-[#64748b] dark:text-[#a1a1aa] hover:text-white transition cursor-pointer" aria-label="관심">
+        <i data-lucide="heart" class="w-4 h-4"></i><span class="text-[9px] font-bold">관심</span>
+      </button>
+      <button type="button" class="right-utility-item text-[#64748b] dark:text-[#a1a1aa] hover:text-white transition cursor-pointer" aria-label="최근 본">
+        <i data-lucide="history" class="w-4 h-4"></i><span class="text-[9px] font-bold">최근 본</span>
+      </button>
+    </div>
   </aside>
+
 
 
 
