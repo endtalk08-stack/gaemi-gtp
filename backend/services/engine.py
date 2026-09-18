@@ -901,7 +901,7 @@ def fetch_krx_trend_and_supply(code_six):
         print("네이버 수급 집계 예외:", e)
     return 0, 0, None, None, None, 0
 
-def fetch_kr_historical_volume_profile(ticker_symbol):
+def fetch_kr_historical_volume_profile(ticker_symbol, current_price=None):
     """국내 종목의 과거 6개월 일봉 OHLCV로 거래량 매물대를 계산한다.
     실시간 현재가/수급은 향후 증권사 API를 사용하고, 이 함수는 과거 분포 계산용이다.
     """
@@ -917,9 +917,19 @@ def fetch_kr_historical_volume_profile(ticker_symbol):
         if not result:
             return None
         quote = (result.get("indicators", {}).get("quote") or [{}])[0]
+        highs = quote.get("high") or []
+        lows = quote.get("low") or []
+        closes = quote.get("close") or []
+        volumes = quote.get("volume") or []
+        # 마지막 일봉이 장중 갱신되는 경우에도 60거래일 매물대가 현재가를 따라 움직이지 않도록
+        # 프로파일은 마지막(당일) 봉을 제외한 완료 봉으로 계산한다.
+        profile_highs = highs[:-1] if len(highs) > 1 else highs
+        profile_lows = lows[:-1] if len(lows) > 1 else lows
+        profile_closes = closes[:-1] if len(closes) > 1 else closes
+        profile_volumes = volumes[:-1] if len(volumes) > 1 else volumes
         return calculate_volume_profile_levels(
-            quote.get("high") or [], quote.get("low") or [],
-            quote.get("close") or [], quote.get("volume") or [], bins=24
+            profile_highs, profile_lows, profile_closes, profile_volumes, bins=24,
+            current_price=current_price, state_key=symbol
         )
     except Exception as e:
         print(f"[국내 매물대] {ticker_symbol} 계산 예외: {type(e).__name__}: {e}")
@@ -974,8 +984,14 @@ def fetch_yahoo_direct_v8(ticker_str):
         # 정확한 최근 20거래일 MA20
         ma20 = sum(closes[-20:]) / min(20, len(closes))
 
+        # 당일 장중 일봉은 제외하고 완료된 최근 60거래일로 매물대를 계산한다.
+        profile_highs = highs[:-1] if len(highs) > 1 else highs
+        profile_lows = lows[:-1] if len(lows) > 1 else lows
+        profile_closes = closes[:-1] if len(closes) > 1 else closes
+        profile_volumes = volumes[:-1] if len(volumes) > 1 else volumes
         volume_profile = calculate_volume_profile_levels(
-            highs, lows, closes, volumes, bins=24
+            profile_highs, profile_lows, profile_closes, profile_volumes, bins=24,
+            current_price=cur_p, state_key=ticker_str
         )
 
         # Volume Profile에서 현재가 위의 다음 주요 집중구간을 저항으로 사용.
@@ -1260,7 +1276,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 kr_official_disclosures = []
 
             try:
-                volume_profile = fetch_kr_historical_volume_profile(ticker_symbol)
+                volume_profile = fetch_kr_historical_volume_profile(ticker_symbol, current_price=cur_p)
             except Exception as e:
                 print(f"[매물대] fail: {type(e).__name__}: {e}")
                 volume_profile = None
@@ -1413,24 +1429,19 @@ def analyze_stock(raw_name='SK하이닉스'):
             {
                 "title": "여기 깨지면 큰일인데?",
                 "content": (
-                    (
-                        (lambda vp_text: (
-                            (
-                                next((line for line in vp_text.splitlines() if line.startswith("#악성 매물대")), "#악성 매물대 계산 대기").replace("#악성 매물대", '<span style="color: #38BDF8; font-weight: 700;">악성 매물대</span>')
-                                + "\n\n니가 사면 하락하제?ㅋ\n과거 물린 형들 본전 탈출할 수 있는 구간이야!\n\n"
-                                + '<span style="color: #38BDF8; font-weight: 700;">#시체추가금지 #뇌동매수멈춰 #관망이답니다 #구경만해라</span>\n\n' 
-                                + next((line for line in vp_text.splitlines() if line.startswith("#생존 지지선")), "#생존 지지선 계산 대기").replace("#생존 지지선", '<span style="color: #FF8DA1; font-weight: 700;">생존 매물대</span>')
-                                + "\n\n멘탈 단디 잡어ㅋ\n여기서 밀리면 실망 매물 나올 수 있는 구간이야!!\n\n"
-                                + '<span style="color: #FF8DA1; font-weight: 700;">#주식차트 #지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리</span>'
-                            )
-                            if vp_text else
-                            '<span style="color: #38BDF8; font-weight: 700;">악성 매물대 계산 대기</span>\n\n니가 사면 하락하제?ㅋ\n과거 물린 형들 본전 탈출할 수 있는 구간이야!\n\n' 
-                            '<span style="color: #38BDF8; font-weight: 700;">#시체추가금지 #뇌동매수멈춰 #관망이답니다 #구경만해라</span>\n\n' 
-                            '<span style="color: #FF8DA1; font-weight: 700;">생존 매물대 계산 대기</span>\n\n멘탈 단디 잡어ㅋ\n여기서 밀리면 실망 매물 나올 수 있는 구간이야!!\n\n' 
-                            '<span style="color: #FF8DA1; font-weight: 700;">#주식차트 #지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리</span>'
-                        ))(format_volume_profile(volume_profile, is_usd=not is_krw))
-                    )
-                )
+                    (lambda vp_text: (
+                        (vp_text + "\n\n니가 사면 하락하제?ㅋ\n과거 물린 형들 본전 탈출할 수 있는 구간이야!\n\n"
+                         + "#시체추가금지 #뇌동매수멈춰 #관망이답니다 #구경만해라\n\n"
+                         + next((line for line in vp_text.splitlines() if line.startswith("생존 매물대")), "생존 매물대 계산 대기")
+                         + "\n\n멘탈 단디 잡어ㅋ\n여기서 밀리면 실망 매물 나올 수 있는 구간이야!!\n\n"
+                         + "#주식차트 #지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리")
+                        if vp_text else
+                        "악성 매물대 계산 대기\n\n니가 사면 하락하제?ㅋ\n과거 물린 형들 본전 탈출할 수 있는 구간이야!\n\n"
+                        "#시체추가금지 #뇌동매수멈춰 #관망이답니다 #구경만해라\n\n"
+                        "생존 매물대 계산 대기\n\n멘탈 단디 잡어ㅋ\n여기서 밀리면 실망 매물 나올 수 있는 구간이야!!\n\n"
+                        "#주식차트 #지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리"
+                    ))(format_volume_profile(volume_profile, is_usd=not is_krw))
+                ),
             },
             {
                 "title": "오늘 밤, 이번주 무슨 일이 있나?",
