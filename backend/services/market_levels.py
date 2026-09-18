@@ -99,29 +99,45 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24):
                 "strength": poc["relative"],
             }]
 
-        above = sorted(
-            [z for z in zones if z["lower"] > current_price],
-            key=lambda z: z["lower"]
-        )
-        below = sorted(
-            [z for z in zones if z["upper"] < current_price],
-            key=lambda z: z["upper"],
-            reverse=True
-        )
-        inside = [
-            z for z in zones
-            if z["lower"] <= current_price <= z["upper"]
-        ]
+        # 현재가를 기준으로 매물대를 매번 새로 "이동"시키지 않는다.
+        # 60거래일 Volume Profile에서 만들어진 zones를 가격순으로 유지하고,
+        # 현재가가 속한 구간을 기준으로 바로 위/아래의 다음 매물대를 정한다.
+        #
+        # 핵심 원칙:
+        # - 현재가가 기존 매물대 안에서 움직이는 동안 해당 매물대는 그대로 유지
+        # - 매물대 상단을 돌파하면 다음 위 매물대를 사용
+        # - 매물대 하단을 이탈하면 다음 아래 매물대를 사용
+        # - 함수 호출 때마다 60거래일 데이터 자체는 다시 계산될 수 있지만,
+        #   현재가 변화만으로 동일한 구간이 다른 구간으로 재선정되지 않도록 한다.
+        zones_sorted = sorted(zones, key=lambda z: z["lower"])
 
-        # 현재가 위/아래의 '가장 가까운' 집중구간을 우선하되,
-        # 여러 구간 중 상대적으로 강한 구간 정보도 유지한다.
+        inside = next(
+            (z for z in zones_sorted
+             if z["lower"] <= current_price <= z["upper"]),
+            None
+        )
+
+        if inside is not None:
+            inside_idx = zones_sorted.index(inside)
+            above = zones_sorted[inside_idx + 1] if inside_idx + 1 < len(zones_sorted) else None
+            below = zones_sorted[inside_idx - 1] if inside_idx > 0 else None
+        else:
+            # 현재가가 어떤 매물대에도 들어있지 않다면,
+            # 현재가 바로 위/아래의 매물대를 초기 기준으로 잡는다.
+            above_candidates = [z for z in zones_sorted if z["lower"] > current_price]
+            below_candidates = [z for z in zones_sorted if z["upper"] < current_price]
+
+            above = min(above_candidates, key=lambda z: z["lower"]) if above_candidates else None
+            below = max(below_candidates, key=lambda z: z["upper"]) if below_candidates else None
+
+        # 화면에는 POC를 노출하지 않는다. POC는 내부 계산값으로만 유지한다.
         return {
             "current_price": current_price,
             "poc": levels[profile.index(peak)],
-            "zones": zones,
-            "above": above[0] if above else None,
-            "below": below[0] if below else None,
-            "inside": inside[0] if inside else None,
+            "zones": zones_sorted,
+            "above": above,
+            "below": below,
+            "inside": inside,
             "days": len(rows),
         }
     except Exception as e:
