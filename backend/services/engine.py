@@ -1503,6 +1503,38 @@ def start_calendar_warmup():
     threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-warmup").start()
 
 
+def _format_calendar_display_name(event):
+    """화면용 일정명을 짧게 정리한다."""
+    if event.get("type") == "earnings":
+        symbol = event.get("symbol", "")
+        display = US_KOREAN_NAMES.get(symbol, symbol)
+        # '코스트코 COST' -> '코스트코'
+        if display and symbol and display.endswith(f" {symbol}"):
+            display = display[:-(len(symbol) + 1)]
+        return f"#{display} 실적발표"
+
+    raw = str(event.get("name") or "미국 경제지표 발표").strip()
+    normalized = raw.lower()
+    economic_map = [
+        (("fomc", "federal funds", "fed interest rate"), "#미국 FOMC 기준금리 결정"),
+        (("consumer price index", "cpi"), "#미국 CPI 소비자물가지수"),
+        (("producer price index", "ppi"), "#미국 PPI 생산자물가지수"),
+        (("employment situation", "nonfarm payroll", "non-farm payroll"), "#미국 고용보고서"),
+        (("unemployment rate",), "#미국 실업률"),
+        (("gross domestic product", "gdp"), "#미국 GDP"),
+        (("personal income and outlays", "pce", "core pce"), "#미국 PCE 물가지수"),
+        (("retail sales",), "#미국 소매판매"),
+        (("ism manufacturing",), "#미국 ISM 제조업"),
+        (("ism services", "ism non-manufacturing"), "#미국 ISM 서비스업"),
+        (("job openings and labor turnover", "jolts"), "#미국 JOLTS 고용"),
+        (("adp employment", "employment change"), "#미국 ADP 고용"),
+    ]
+    for keys, label in economic_map:
+        if any(key in normalized for key in keys):
+            return label
+    return f"#미국 {raw}"
+
+
 def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
@@ -1513,8 +1545,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
         expired = time.time() >= float(CALENDAR_CACHE.get("expires_at", 0))
         refreshing = bool(_CALENDAR_REFRESHING)
 
-    # 캐시가 비어 있는 첫 요청에서는 백그라운드 갱신과 경쟁하지 않도록
-    # 최대 3.5초까지만 기다려 결과를 받아온다. 이후 /analyze는 다시 막지 않는다.
+    # 첫 요청에서 캐시가 아직 없으면 백그라운드 갱신을 최대 3.5초만 기다린다.
     if not events and (expired or not loaded):
         if not refreshing:
             threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh").start()
@@ -1529,24 +1560,18 @@ def get_live_calendar_data(stock_name, ticker_symbol):
             time.sleep(0.05)
 
     if expired and events:
-        # 기존 데이터는 즉시 사용하고 갱신은 백그라운드에서 수행한다.
         threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh").start()
-
-    if not events and not loaded:
-        # 연결 자체가 실패한 경우에도 화면을 긴 에러문구로 오염시키지 않는다.
-        # 정확한 원인은 Render 로그의 [시장 일정] refresh failed에서 확인한다.
-        return "오늘밤 조용함"
 
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
 
     upcoming = [ev for ev in events if ev.get("dt") and ev["dt"] >= now_kst]
+    upcoming.sort(key=lambda ev: ev["dt"])
+
     def event_time(ev):
         dt = ev["dt"]
         return dt.strftime(f"%m/%d({weekdays[dt.weekday()]}) %H:%M")
 
-    # 사용자가 실제로 체감하는 '오늘밤' 구간만 짧게 표시한다.
-    # 미국 장 관련 일정은 KST 기준 보통 18:00~다음날 06:00 사이에 들어오므로
-    # 이 구간에서 가장 가까운 핵심 일정 1건만 한 줄로 보여준다.
+    # 오늘 밤은 KST 18:00~다음날 06:00 구간으로 판단한다.
     if now_kst.hour >= 18:
         tonight_start = now_kst
         tonight_end = now_kst.replace(hour=6, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
@@ -1557,36 +1582,46 @@ def get_live_calendar_data(stock_name, ticker_symbol):
         tonight_start = now_kst.replace(hour=18, minute=0, second=0, microsecond=0)
         tonight_end = tonight_start + datetime.timedelta(days=1, hours=-12)
 
-    tonight_events = [
-        ev for ev in upcoming
-        if tonight_start <= ev["dt"] < tonight_end
-    ]
-    tonight_event = tonight_events[0] if tonight_events else None
+    tonight_events = [ev for ev in upcoming if tonight_start <= ev["dt"] < tonight_end]
+    tonight_events.sort(key=lambda ev: ev["dt"])
 
-    if tonight_event:
-        name = _format_kst_event_name(tonight_event).replace(" 실적 발표", " 실적발표")
-        tonight_card = f"오늘밤 {event_time(tonight_event)} {name}"
+    if tonight_events:
+        tonight_parts = [f"{event_time(ev)} {_format_calendar_display_name(ev)}" for ev in tonight_events]
+        tonight_card = "오늘밤 " + " · ".join(tonight_parts)
     else:
         tonight_card = "오늘밤 조용함"
 
-    check_lines = []
-    for ev in upcoming[:5]:
-        name = _format_kst_event_name(ev)
-        line = f"• {event_time(ev)} {name}"
-        if ev.get("type") == "economic" and ev.get("impact") == "high":
-            line += "  ★★★"
-        check_lines.append(line)
+    # 날짜별로 묶어서 같은 날짜의 일정은 한 줄에 이어 붙인다.
+    grouped = {}
+    for ev in upcoming:
+        date_key = ev["dt"].date()
+        grouped.setdefault(date_key, []).append(ev)
 
-    if not check_lines:
-        check_lines.append("• 현재 등록된 주요 일정이 없어")
+    # 오늘밤에 이미 보여준 날짜는 아래 목록에서 중복하지 않는다.
+    tonight_dates = {ev["dt"].date() for ev in tonight_events}
+    grouped_rows = []
+    for date_key in sorted(grouped):
+        if date_key in tonight_dates:
+            continue
+        day_events = grouped[date_key]
+        day_events.sort(key=lambda ev: ev["dt"])
+        parts = [f"{ev['dt'].strftime('%H:%M')} {_format_calendar_display_name(ev)}" for ev in day_events]
+        first_dt = day_events[0]["dt"]
+        date_label = first_dt.strftime(f"%m/%d({weekdays[first_dt.weekday()]})")
+        grouped_rows.append(f"{date_label} " + " · ".join(parts))
+        if len(grouped_rows) >= 5:
+            break
 
-    calendar_block = (
-        "🗓️ 이번 주 미국 핵심 일정 · 주요 실적\n" +
-        "\n".join(check_lines) +
-        "\n\n※ 일정은 실시간 캘린더 제공값을 기준으로 하며 발표시간·예정일은 변경될 수 있어."
-    )
+    # 일정 자체가 아직 수신되지 않았거나 실패한 경우에도 오늘밤 한 줄은 보여주되,
+    # 실재하지 않는 다음 일정을 임의로 만들지 않는다.
+    if not events:
+        return tonight_card
 
-    return f"{tonight_card}\n\n{calendar_block}"
+    if grouped_rows:
+        schedule_block = "\n\n".join(grouped_rows)
+        return f"{tonight_card}\n\n{schedule_block}"
+
+    return tonight_card
 
 
 def analyze_stock(raw_name='SK하이닉스'):
