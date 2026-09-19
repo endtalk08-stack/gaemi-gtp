@@ -251,7 +251,7 @@ def _dart_report_score(report_name):
         "유상증자", "무상증자", "전환사채", "신주인수권부사채",
         "교환사채", "합병", "분할", "영업양수", "영업양도",
         "최대주주", "주요주주", "임상", "특허", "소송",
-        "잠정실적", "매출액", "영업이익", "배당",
+        "잠정실적", "매출액", "영업이익", "배당", "특징주",
     ]
     medium = ["주요사항보고서", "타법인주식및출자증권", "주식등의대량보유"]
     score = sum(8 for k in high if k in text)
@@ -2315,7 +2315,7 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         sections = [
             {
-                "title": f"{status_emoji} 그래서 오늘은 왜 {title_word}?",
+                "title": f"{status_emoji} 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             }
@@ -2323,7 +2323,7 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         sections.extend([
             {
-                "title": "큰손들은 담고 있을까, 털고 있을까?",
+                "title": "큰손들은 뭐하고 있어?",
                 "content": supply_content
             },
             {
@@ -2349,7 +2349,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 ),
             },
             {
-                "title": "오늘 밤, 이번주 무슨 일이 있나?",
+                "title": "오늘 밤, 이번주 무슨 일이 있어?",
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ])
