@@ -1264,10 +1264,10 @@ _CALENDAR_LOCK = threading.Lock()
 _CALENDAR_REFRESHING = False
 CALENDAR_CACHE_TTL = 1800  # 30분
 CALENDAR_PERSIST_TTL = 21600  # 6시간: 프로세스/워커 재시작 후에도 최근 일정 재사용
-CALENDAR_PERSIST_FILE = os.path.join(os.path.dirname(__file__), "..", "cache", "calendar_cache_v2.json")
+CALENDAR_PERSIST_FILE = os.path.join(os.path.dirname(__file__), "..", "cache", "calendar_cache_v3.json")
 CALENDAR_REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip().strip('\'"')
 CALENDAR_REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "").strip().strip('\'"')
-CALENDAR_REDIS_KEY = "gaemiGTP:calendar:v2"
+CALENDAR_REDIS_KEY = "gaemiGTP:calendar:v3"
 _CALENDAR_PERSIST_LOADED = False
 
 CALENDAR_WATCH_SYMBOLS = [
@@ -1762,7 +1762,6 @@ CORE_ECONOMIC_EVENT_RULES = (
     (("initial jobless claims", "initial claims", "jobless claims", "weekly unemployment claims"), "#실업수당청구건수"),
     (("personal income and outlays", "pce", "personal consumption expenditures"), "#PCE 물가지수"),
     (("gross domestic product", "gdp"), "#GDP"),
-    (("fomc", "federal funds", "fed interest rate", "rate decision"), "#FOMC 기준금리 결정"),
     (("ism manufacturing", "manufacturing pmi"), "#PMI 제조업"),
     (("ism services", "ism non-manufacturing", "services pmi"), "#PMI 서비스업"),
     (("retail sales", "advance retail sales"), "#소매판매"),
@@ -1816,22 +1815,11 @@ def _match_core_economic_event(row):
     raw = " ".join(str(row.get(k) or "") for k in ("name", "title", "event", "series", "category")).strip()
     normalized = raw.lower()
 
-    # FOMC는 일반 키워드 매칭을 사용하지 않는다.
-    # "federal funds" / "rate decision"가 다른 금리 관련 일정까지 잡는 것을 막고,
-    # Finance Calendar의 series/title이 실제 FOMC 결정인 경우만 통과시킨다.
-    series = str(row.get("series") or "").strip().lower()
-    title = str(row.get("title") or row.get("name") or row.get("event") or "").strip().lower()
-    is_fomc = (
-        series == "fomc"
-        or "fomc rate decision" in title
-        or title == "fomc decision"
-        or title.startswith("fomc decision ")
-    )
-    if is_fomc:
-        return "#미국 FOMC 기준금리 결정"
-
-    # FOMC 관련 문자열인데 공식 FOMC 결정이 아닌 경우는 버린다.
-    if "fomc" in normalized or "federal funds" in normalized or "fed interest rate" in normalized:
+    # FOMC는 Finance Calendar에서 절대 가져오지 않는다.
+    # FOMC는 아래 _append_official_fomc_events()에서 연준 공식 일정의
+    # 정책결정일만 별도로 넣는다. 이렇게 해야 유사한 금리 일정이나
+    # 과거/중복 FOMC 행이 다시 섞이지 않는다.
+    if any(term in normalized for term in ("fomc", "federal funds", "fed interest rate", "rate decision")):
         return None
 
     for keywords, label in CORE_ECONOMIC_EVENT_RULES:
@@ -1841,6 +1829,34 @@ def _match_core_economic_event(row):
         if any(keyword in normalized for keyword in keywords):
             return label
     return None
+
+
+def _append_official_fomc_events(events, start_date, end_date):
+    """연준 공식 FOMC 정책결정일만 별도로 추가한다.
+
+    Finance Calendar의 FOMC 항목은 사용하지 않고, 연준 공식 회의 일정에서
+    실제 정책결정이 발표되는 둘째 날 14:00 ET만 사용한다.
+    """
+    et_tz = ZoneInfo("America/New_York")
+    kst_tz = datetime.timezone(datetime.timedelta(hours=9))
+    added = 0
+    for year, decision_dates in OFFICIAL_FOMC_DECISION_DATES.items():
+        for decision_date in sorted(decision_dates):
+            if not (start_date <= decision_date <= end_date):
+                continue
+            dt = datetime.datetime.combine(
+                decision_date, datetime.time(14, 0), tzinfo=et_tz
+            ).astimezone(kst_tz)
+            events.append({
+                "dt": dt,
+                "name": "#FOMC 기준금리 결정",
+                "type": "economic",
+                "impact": "high",
+                "source": "Federal Reserve official schedule",
+            })
+            added += 1
+    if added:
+        print(f"[시장 일정] 공식 FOMC 정책결정 일정 추가: {added}건")
 
 
 def _fetch_dynamic_calendar_events():
@@ -1891,6 +1907,8 @@ def _fetch_dynamic_calendar_events():
                 "impact": str(row.get("impact") or "high").lower(),
                 "original_title": row.get("title") or row.get("name") or row.get("event") or "",
             })
+        # FOMC는 Finance Calendar 결과가 아니라 연준 공식 일정만 사용한다.
+        _append_official_fomc_events(economic_events, start_date, end_date)
         print(f"[시장 일정] FinanceCalendar 핵심 통과: {len(economic_events)}건")
     except Exception as exc:
         print(f"[시장 일정] FinanceCalendar 실패: {type(exc).__name__}: {exc}")
@@ -1935,8 +1953,8 @@ def _fetch_dynamic_calendar_events():
     events = economic_events + earnings_events
     dedup = {}
     for ev in events:
-        if ev.get("name") == "#미국 FOMC 기준금리 결정":
-            key = ("economic", "#미국 FOMC 기준금리 결정", _fomc_canonical_key(ev["dt"]))
+        if ev.get("name") in {"#미국 FOMC 기준금리 결정", "#FOMC 기준금리 결정"}:
+            key = ("economic", "#FOMC 기준금리 결정", _fomc_canonical_key(ev["dt"]))
         else:
             key = (
                 ev.get("type"),

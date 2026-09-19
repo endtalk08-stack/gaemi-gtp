@@ -1,8 +1,12 @@
-# gaemiGTP 경제일정 표시 수정
+# Economic Calendar Patch
 
-- Finance Calendar 단일 API 구조 유지
-- FOMC 비공식/중복 일정 필터 유지
-- 경제일정 출처/주소 표시 제거 유지
-- 해시태그 규칙 유지: 기업명/경제지표 영문 약칭 또는 한글 지표명에만 #
-- **수정:** 오래된 persistent Redis/file 캐시만 남아 모든 일정이 현재 시각보다 과거가 된 경우, 캐시를 정상 데이터로 간주하지 않고 최신 캘린더를 최대 3.5초 기다려 가져온 뒤 다음 일정까지 화면에 표시
-- 캐시의 datetime이 문자열이어도 KST datetime으로 정규화하여 표시 로직에서 누락되지 않게 함
+## 변경
+1. Finance Calendar에서 FOMC 관련 행을 수집하지 않도록 변경했습니다.
+2. FOMC는 연준 공식 일정의 정책결정 날짜를 기준으로 별도 추가합니다.
+3. Redis key와 파일 캐시를 v3로 올려 이전 FOMC 캐시가 자동으로 사용되지 않도록 했습니다.
+4. 기존 해시태그 표시 규칙과 출처 미표시 설정을 유지했습니다.
+
+## 확인
+- `python -m py_compile backend/services/engine.py` 통과
+- 핵심 FOMC 필터: Finance Calendar의 `FOMC Rate Decision` / `Federal Funds Rate Decision` -> 제외
+- 2026-10-28 FOMC 정책결정 -> KST 2026-10-29 03:00으로 생성되는 것 확인
