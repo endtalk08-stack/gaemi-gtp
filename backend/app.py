@@ -4,7 +4,6 @@ from backend.routes.api import api_bp
 
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
-# API 라우트 등록
 app.register_blueprint(api_bp, url_prefix="/api")
 
 
