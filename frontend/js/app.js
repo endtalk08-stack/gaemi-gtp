@@ -521,7 +521,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             let formatted = pEl.textContent;
 
             try {
-              const isCalendarSection = dynamicTitle.includes('오늘 밤, 이번주 무슨 일이 있나?');
+              const isCalendarSection = dynamicTitle.includes('오늘 밤, 이번주 무슨 일이 있어?');
 
               // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크
               formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
