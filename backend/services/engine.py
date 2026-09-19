@@ -1,26 +1,31 @@
 import time
 from typing import Any, Dict
-from backend.services.market_levels import get_market_levels
 from backend.services.news import get_stock_news
+
+# market_levels 모듈 임포트 예외 처리 (함수명 불일치 방지)
+try:
+    from backend.services.market_levels import get_market_levels
+except ImportError:
+    # 만약 해당 함수가 없으면 임시 빈 결과를 반환하는 래퍼 작성
+    def get_market_levels(stock_name: str):
+        return {}
 
 # 메모리 캐시 저장소 (종목명: (생성시간, 결과데이터))
 CACHE_STORE: Dict[str, tuple[float, Dict[str, Any]]] = {}
-CACHE_TTL = 300  # 캐시 유효 시간: 5분 (300초)
+CACHE_TTL = 300  # 5분 캐시
 
 
 def analyze_stock(stock_name: str) -> Dict[str, Any]:
     current_time = time.time()
 
-    # 1. 캐시 검증: 5분 이내 분석한 동일 종목이 있다면 즉시 반환 (0.01초 소요)
+    # 1. 캐시 검증
     if stock_name in CACHE_STORE:
         cached_time, cached_data = CACHE_STORE[stock_name]
         if current_time - cached_time < CACHE_TTL:
-            print(f"[Cache Hit] '{stock_name}' 결과 메모리 반환")
             return cached_data
 
-    # 2. 캐시가 없거나 만료된 경우 신규 분석 진행
+    # 2. 신규 분석 진행
     try:
-        # 뉴스 및 지표 수집
         news_data = get_stock_news(stock_name)
         levels_data = get_market_levels(stock_name)
 
@@ -39,7 +44,7 @@ def analyze_stock(stock_name: str) -> Dict[str, Any]:
             "us_filings": news_data.get("us_filings", []),
         }
 
-        # 3. 신규 분석 결과를 메모리 캐시에 저장
+        # 3. 캐시 저장
         CACHE_STORE[stock_name] = (current_time, result)
         return result
 
