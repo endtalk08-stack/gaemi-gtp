@@ -2337,7 +2337,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                                  + "#시체추가금지 #뇌동매수멈춰 #관망이답니다 #구경만해라\n\n"
                                  + next((line for line in lines if line.startswith("생존 매물대")), "생존 매물대 계산 대기")
                                  + "\n\n멘탈 단디 잡어ㅋ\n여기서 밀리면 실망 매물 나올 수 있는 구간이야!!\n\n"
-                                 + "#주식차트 #지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리")
+                                 + "#지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리")
                             )
                         ))(vp_text.splitlines())
                         if vp_text else
