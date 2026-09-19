@@ -251,7 +251,7 @@ def _dart_report_score(report_name):
         "유상증자", "무상증자", "전환사채", "신주인수권부사채",
         "교환사채", "합병", "분할", "영업양수", "영업양도",
         "최대주주", "주요주주", "임상", "특허", "소송",
-        "잠정실적", "매출액", "영업이익", "배당", "특징주",
+        "잠정실적", "매출액", "영업이익", "배당",
     ]
     medium = ["주요사항보고서", "타법인주식및출자증권", "주식등의대량보유"]
     score = sum(8 for k in high if k in text)
@@ -2204,15 +2204,15 @@ def analyze_stock(raw_name='SK하이닉스'):
                 tag_line = f"#외국인 {f_abs} #기관 {i_abs} #개인 {ind_abs}"
 
                 if f_5d > 0 and i_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 외놈과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n큰손들이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
+                    supply_content = f"{tag_line}\n\n최근 5일 동안 외인과 기관이 쌍끌이로 물량을 쓸어 담고 있어!\n메이저 세력이 바닥을 단단하게 다져놨으니 흔들려도 버티는 게 맞아."
                 elif f_5d < 0 and i_5d < 0:
-                    supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼며 물량을 털어내고 있어!\n개미들만 물량을 떠안는 위험한 자리니까 절대 물타지 말고 조심해야 돼."
+                    supply_content = f"{tag_line}\n\n최근 5일 동안 큰손들이 시장에서 발을 빼며 물량을 털어내고 있어.\n개미들만 물량을 떠안는 위험한 자리니까 절대 물타지 말고 조심해야 돼."
                 elif f_5d > 0:
-                    supply_content = f"{tag_line}\n\n최근 5일간 큰손들이 개미를 압도하는 완벽한 판세야!\n기관이 관망하는 사이 외놈들이 지친 개미들 물량을 싹 쓸어 담았어.\n돈의 힘이 상방으로 쏠렸으니 단기 슈팅 흐름 기대해 봐도 좋아."
+                    supply_content = f"{tag_line}\n\n최근 5일간 세력이 개미를 압도하는 완벽한 판세야.\n기관이 관망하는 사이 외국인이 지친 개미들 물량을 싹 쓸어 담았어.\n돈의 힘이 상방으로 쏠렸으니 단기 슈팅 흐름 기대해 봐도 좋아."
                 elif i_5d > 0:
                     supply_content = f"{tag_line}\n\n최근 5일 동안 국내 기관들이 뚝심 있게 순매수하며 주가를 끌고 있어!\n토종 세력의 바닥 지지력이 살아있으니 20일선 지지 여부 보면서 따라가 보자."
                 else:
-                    supply_content = f"{tag_line}\n\n최근 5일간 큰손들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야!\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
+                    supply_content = f"{tag_line}\n\n최근 5일간 세력들이 뚜렷한 방향 없이 팽팽하게 눈치싸움 중이야.\n무리하게 베팅하지 말고 기준선 지키는지 확인하면서 방향 잡힐 때까지 기다리자."
 
         # 2. 미국 주식
         else:
@@ -2269,7 +2269,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
+            intro_ment = f"앗! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #가즈아   #불기둥"
         elif 0.5 <= change_pct < 5.0:
             status_emoji, title_word = '🔥', '올랐어'
@@ -2315,7 +2315,7 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         sections = [
             {
-                "title": f"{status_emoji} 왜 {title_word}?",
+                "title": f"{status_emoji} 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             }
@@ -2344,7 +2344,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                         "악성 매물대 계산 대기\n\n니가 사면 하락하제?ㅋ\n과거 물린 형들 본전 탈출할 수 있는 구간이야!\n\n"
                         "#시체추가금지 #뇌동매수멈춰 #관망이답니다 #구경만해라\n\n"
                         "생존 매물대 계산 대기\n\n여기 깨지면 으악 소리 나겠지?ㅋ\n실망 매물 나올 수 있는 구간이야!!\n\n"
-                        "#주식차트 #지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리"
+                        "#지지라인 #뇌동매수금지 #주식경고 #리스크관리 #멘탈관리"
                     ))(format_volume_profile(volume_profile, is_usd=not is_krw))
                 ),
             },
