@@ -2,28 +2,24 @@ import time
 from typing import Any, Dict
 from backend.services.news import get_stock_news
 
-# market_levels 모듈 임포트 예외 처리 (함수명/모듈 불일치 방지)
 try:
     from backend.services.market_levels import get_market_levels
 except ImportError:
     def get_market_levels(stock_name: str):
         return {}
 
-# 메모리 캐시 저장소 (종목명: (생성시간, 결과데이터))
 CACHE_STORE: Dict[str, tuple[float, Dict[str, Any]]] = {}
-CACHE_TTL = 300  # 5분 캐시
+CACHE_TTL = 300
 
 
 def analyze_stock(stock_name: str) -> Dict[str, Any]:
     current_time = time.time()
 
-    # 1. 캐시 검증
     if stock_name in CACHE_STORE:
         cached_time, cached_data = CACHE_STORE[stock_name]
         if current_time - cached_time < CACHE_TTL:
             return cached_data
 
-    # 2. 신규 분석 진행
     try:
         news_data = get_stock_news(stock_name)
         levels_data = get_market_levels(stock_name)
@@ -43,7 +39,6 @@ def analyze_stock(stock_name: str) -> Dict[str, Any]:
             "us_filings": news_data.get("us_filings", []),
         }
 
-        # 3. 캐시 저장
         CACHE_STORE[stock_name] = (current_time, result)
         return result
 
