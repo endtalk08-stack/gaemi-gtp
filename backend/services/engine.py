@@ -6,7 +6,6 @@ from backend.services.news import get_stock_news
 try:
     from backend.services.market_levels import get_market_levels
 except ImportError:
-    # 만약 해당 함수가 없으면 임시 빈 결과를 반환하는 래퍼 작성
     def get_market_levels(stock_name: str):
         return {}
 
@@ -18,7 +17,7 @@ CACHE_TTL = 300  # 5분 캐시
 def analyze_stock(stock_name: str) -> Dict[str, Any]:
     current_time = time.time()
 
-    # 1. 캐시 검증
+    # 1. 캐시 검증: 5분 이내 검색된 종목은 캐시 데이터 반환
     if stock_name in CACHE_STORE:
         cached_time, cached_data = CACHE_STORE[stock_name]
         if current_time - cached_time < CACHE_TTL:
