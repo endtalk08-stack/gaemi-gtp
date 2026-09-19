@@ -6,6 +6,7 @@ keep the same behavior as the original engine implementation.
 
 import datetime
 import re
+import threading
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -15,6 +16,17 @@ from email.utils import parsedate_to_datetime
 NEWS_RESULT_CACHE = {}
 NEWS_CACHE_TTL = 120
 NEWS_AI_CANDIDATES_CACHE = {}
+_NEWS_SINGLEFLIGHT_LOCKS = {}
+_NEWS_LOCK_GUARD = threading.Lock()
+
+
+def _get_news_singleflight_lock(key):
+    with _NEWS_LOCK_GUARD:
+        lock = _NEWS_SINGLEFLIGHT_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _NEWS_SINGLEFLIGHT_LOCKS[key] = lock
+        return lock
 
 # 뉴스 품질 우선순위
 # - 실제 Google News RSS에서 수집
@@ -553,16 +565,27 @@ def _fetch_realtime_news_uncached(stock_name, ticker_map=None):
 
 
 def fetch_realtime_news(stock_name, ticker_map=None):
-    """뉴스 결과를 120초 캐시해 같은 종목의 반복 조회 대기시간을 줄인다."""
+    """뉴스 결과를 120초 캐시하고 동일 종목 동시 요청은 한 번만 외부 검색한다."""
     key = str(stock_name).strip()
     now = datetime.datetime.now().timestamp()
     cached = NEWS_RESULT_CACHE.get(key)
     if cached and now - cached[0] < NEWS_CACHE_TTL:
         return list(cached[1])
 
-    result = _fetch_realtime_news_uncached(stock_name, ticker_map)
-    NEWS_RESULT_CACHE[key] = (now, list(result))
-    return result
+    lock = _get_news_singleflight_lock(key)
+    with lock:
+        now = datetime.datetime.now().timestamp()
+        cached = NEWS_RESULT_CACHE.get(key)
+        if cached and now - cached[0] < NEWS_CACHE_TTL:
+            return list(cached[1])
+
+        try:
+            result = _fetch_realtime_news_uncached(stock_name, ticker_map)
+        except Exception as exc:
+            print(f"[뉴스] 수집 실패: {type(exc).__name__}: {exc}")
+            result = []
+        NEWS_RESULT_CACHE[key] = (now, list(result))
+        return result
 
 
 def get_news_ai_candidates(stock_name, limit=10):

@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -41,9 +42,12 @@ def health():
 @app.get("/analyze")
 def analyze():
     stock = request.args.get("stock", "SK하이닉스")
+    started = time.perf_counter()
     try:
         result = analyze_stock(stock)
-        return jsonify(result)
+        response = jsonify(result)
+        response.headers["X-Analysis-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.0f}"
+        return response
     except Exception as exc:
         print(f"[API /analyze] unexpected error: {type(exc).__name__}: {exc}")
         return jsonify({

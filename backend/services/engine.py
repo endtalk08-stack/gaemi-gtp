@@ -140,6 +140,21 @@ OPTIONS_RESULT_CACHE = {}
 OPTIONS_CACHE_TTL = 60
 
 
+# 실시간 데이터는 아주 짧게, 과거 계산 데이터는 길게 캐시한다.
+# 캐시는 정확도를 떨어뜨리는 것이 아니라 같은 순간의 중복 외부 호출을 줄이는 용도다.
+KR_QUOTE_CACHE = {}
+KR_QUOTE_CACHE_TTL = 5
+KR_TREND_CACHE = {}
+KR_TREND_CACHE_TTL = 20
+KR_VOLUME_PROFILE_CACHE = {}
+KR_VOLUME_PROFILE_CACHE_TTL = 600
+US_YAHOO_CACHE = {}
+US_YAHOO_CACHE_TTL = 15
+KR_SEARCH_CACHE = {}
+KR_SEARCH_CACHE_TTL = 3600
+_ANALYSIS_CACHE_LOCKS = {}
+
+
 US_MATERIAL_FORMS = {
     "8-K", "10-Q", "10-K", "6-K", "20-F", "424B5",
     "S-3", "S-1", "SC 13D", "SC 13G", "SC 13G/A", "4"
@@ -822,190 +837,285 @@ def format_us_official_filings(ticker_symbol, filings=None):
     return "\n".join(lines)
 
 def search_krx_code(stock_name):
-    try:
-        url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(stock_name)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            res_json = json.loads(resp.read().decode('utf-8'))
-            items = res_json.get('items', [])
-            if items and len(items[0]) > 0:
-                first = items[0][0]
-                code = first[0]
-                market = first[3].upper()
-                suffix = '.KS' if 'KOSPI' in market else '.KQ'
-                return f"{code}{suffix}", code
-    except Exception:
-        pass
+    key = str(stock_name or "").strip()
+    if not key:
+        return None, None
+
+    now = time.time()
+    cached = KR_SEARCH_CACHE.get(key)
+    if cached and now - cached[0] < KR_SEARCH_CACHE_TTL:
+        return cached[1], cached[2]
+
+    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("kr-search", key))
+    with lock:
+        now = time.time()
+        cached = KR_SEARCH_CACHE.get(key)
+        if cached and now - cached[0] < KR_SEARCH_CACHE_TTL:
+            return cached[1], cached[2]
+        try:
+            url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(key)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                res_json = json.loads(resp.read().decode('utf-8'))
+                items = res_json.get('items', [])
+                if items and len(items[0]) > 0:
+                    first = items[0][0]
+                    code = first[0]
+                    market = first[3].upper()
+                    suffix = '.KS' if 'KOSPI' in market else '.KQ'
+                    value = (f"{code}{suffix}", code)
+                    KR_SEARCH_CACHE[key] = (now, value[0], value[1])
+                    return value
+        except Exception:
+            pass
+
+    # 실패 결과는 장시간 캐시하지 않는다. 외부 자동검색이 잠깐 실패해도 다음 조회에서 재시도한다.
     return None, None
 
 def fetch_kr_stock_realtime(code_six):
-    try:
-        url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code_six}"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-            'Referer': 'https://m.stock.naver.com/'
-        }
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            datas = data.get('datas', [])
-            if datas:
-                item = datas[0]
-                cur_p = float(str(item.get('closePrice', 0)).replace(',', ''))
-                diff = float(str(item.get('compareToPreviousClosePrice', 0)).replace(',', ''))
-                ratio = float(str(item.get('fluctuationsRatio', 0)).replace(',', ''))
-                return cur_p, diff, ratio
-    except Exception as e:
-        print("네이버 실시간 시세 조회 예외:", e)
-    return None, None, None
+    code_six = str(code_six or "").strip()
+    now = time.time()
+    cached = KR_QUOTE_CACHE.get(code_six)
+    if cached and now - cached[0] < KR_QUOTE_CACHE_TTL:
+        return cached[1]
+
+    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("kr-quote", code_six))
+    with lock:
+        now = time.time()
+        cached = KR_QUOTE_CACHE.get(code_six)
+        if cached and now - cached[0] < KR_QUOTE_CACHE_TTL:
+            return cached[1]
+        try:
+            url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code_six}"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+                'Referer': 'https://m.stock.naver.com/'
+            }
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                datas = data.get('datas', [])
+                if datas:
+                    item = datas[0]
+                    cur_p = float(str(item.get('closePrice', 0)).replace(',', ''))
+                    diff = float(str(item.get('compareToPreviousClosePrice', 0)).replace(',', ''))
+                    ratio = float(str(item.get('fluctuationsRatio', 0)).replace(',', ''))
+                    result = (cur_p, diff, ratio)
+                    KR_QUOTE_CACHE[code_six] = (now, result)
+                    return result
+        except Exception as e:
+            print("네이버 실시간 시세 조회 예외:", e)
+
+    result = (None, None, None)
+    KR_QUOTE_CACHE[code_six] = (now, result)
+    return result
 
 def fetch_krx_trend_and_supply(code_six):
+    code_six = str(code_six or "").strip()
+    now = time.time()
+    cached = KR_TREND_CACHE.get(code_six)
+    if cached and now - cached[0] < KR_TREND_CACHE_TTL:
+        return cached[1]
+
+    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("kr-trend", code_six))
+    with lock:
+        now = time.time()
+        cached = KR_TREND_CACHE.get(code_six)
+        if cached and now - cached[0] < KR_TREND_CACHE_TTL:
+            return cached[1]
+        try:
+            url = f"https://m.stock.naver.com/api/stock/{code_six}/trend?page=1&pageSize=20"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+                'Referer': 'https://m.stock.naver.com/'
+            }
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                if data and isinstance(data, list):
+                    prices = []
+                    for row in data:
+                        cp = row.get('closePrice')
+                        if cp:
+                            prices.append(float(str(cp).replace(',', '')))
+                    ma20 = sum(prices) / len(prices) if prices else 0
+                    resistance = max(prices) if prices else 0
+
+                    sum_foreign = 0
+                    sum_inst = 0
+                    sum_indiv = 0
+                    valid_days = 0
+
+                    for row in data[:5]:
+                        frgn = row.get('foreignerPureBuyQuant') or 0
+                        insti = row.get('organPureBuyQuant') or row.get('institutionPureBuyQuant') or 0
+                        indiv = row.get('individualPureBuyQuant') or 0
+
+                        sum_foreign += int(str(frgn).replace(',', ''))
+                        sum_inst += int(str(insti).replace(',', ''))
+                        sum_indiv += int(str(indiv).replace(',', ''))
+                        valid_days += 1
+
+                    if sum_indiv == 0 and (sum_foreign != 0 or sum_inst != 0):
+                        sum_indiv = -(sum_foreign + sum_inst)
+
+                    result = (ma20, resistance, sum_foreign, sum_inst, sum_indiv, valid_days)
+                    KR_TREND_CACHE[code_six] = (now, result)
+                    return result
+        except Exception as e:
+            print("네이버 수급 집계 예외:", e)
+
+    result = (0, 0, None, None, None, 0)
+    KR_TREND_CACHE[code_six] = (now, result)
+    return result
+
+def _reanchor_volume_profile(profile, current_price):
+    """캐시된 과거 매물대 구간을 새 현재가 기준으로 위/아래만 다시 잡는다."""
+    if not profile:
+        return None
     try:
-        url = f"https://m.stock.naver.com/api/stock/{code_six}/trend?page=1&pageSize=20"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-            'Referer': 'https://m.stock.naver.com/'
-        }
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            if data and isinstance(data, list):
-                prices = []
-                for row in data:
-                    cp = row.get('closePrice')
-                    if cp:
-                        prices.append(float(str(cp).replace(',', '')))
-                ma20 = sum(prices) / len(prices) if prices else 0
-                resistance = max(prices) if prices else 0
+        price = float(current_price) if current_price and float(current_price) > 0 else float(profile.get("current_price") or 0)
+    except Exception:
+        price = float(profile.get("current_price") or 0)
+    if price <= 0:
+        return profile
 
-                sum_foreign = 0
-                sum_inst = 0
-                sum_indiv = 0
-                valid_days = 0
+    zones = list(profile.get("zones") or [])
+    above = sorted([z for z in zones if z.get("lower", 0) > price], key=lambda z: z.get("lower", 0))
+    below = sorted([z for z in zones if z.get("upper", 0) < price], key=lambda z: z.get("upper", 0), reverse=True)
+    inside = [z for z in zones if z.get("lower", 0) <= price <= z.get("upper", 0)]
+    updated = dict(profile)
+    updated["current_price"] = price
+    updated["above"] = above[0] if above else None
+    updated["below"] = below[0] if below else None
+    updated["inside"] = inside[0] if inside else None
+    return updated
 
-                for row in data[:5]:
-                    frgn = row.get('foreignerPureBuyQuant') or 0
-                    insti = row.get('organPureBuyQuant') or row.get('institutionPureBuyQuant') or 0
-                    indiv = row.get('individualPureBuyQuant') or 0
-
-                    sum_foreign += int(str(frgn).replace(',', ''))
-                    sum_inst += int(str(insti).replace(',', ''))
-                    sum_indiv += int(str(indiv).replace(',', ''))
-                    valid_days += 1
-
-                if sum_indiv == 0 and (sum_foreign != 0 or sum_inst != 0):
-                    sum_indiv = -(sum_foreign + sum_inst)
-
-                return ma20, resistance, sum_foreign, sum_inst, sum_indiv, valid_days
-    except Exception as e:
-        print("네이버 수급 집계 예외:", e)
-    return 0, 0, None, None, None, 0
 
 def fetch_kr_historical_volume_profile(ticker_symbol, current_price=None):
-    """국내 종목의 과거 6개월 일봉 OHLCV로 거래량 매물대를 계산한다.
-    실시간 현재가/수급은 향후 증권사 API를 사용하고, 이 함수는 과거 분포 계산용이다.
-    """
-    try:
-        symbol = str(ticker_symbol or "").strip()
-        if not symbol:
-            return None
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}?range=6mo&interval=1d"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        result = (data.get("chart", {}).get("result") or [None])[0]
-        if not result:
-            return None
-        quote = (result.get("indicators", {}).get("quote") or [{}])[0]
-        highs = quote.get("high") or []
-        lows = quote.get("low") or []
-        closes = quote.get("close") or []
-        volumes = quote.get("volume") or []
-        # 마지막 일봉이 장중 갱신되는 경우에도 60거래일 매물대가 현재가를 따라 움직이지 않도록
-        # 프로파일은 마지막(당일) 봉을 제외한 완료 봉으로 계산한다.
-        profile_highs = highs[:-1] if len(highs) > 1 else highs
-        profile_lows = lows[:-1] if len(lows) > 1 else lows
-        profile_closes = closes[:-1] if len(closes) > 1 else closes
-        profile_volumes = volumes[:-1] if len(volumes) > 1 else volumes
-        return calculate_volume_profile_levels(
-            profile_highs, profile_lows, profile_closes, profile_volumes, bins=24,
-            current_price=current_price, state_key=symbol
-        )
-    except Exception as e:
-        print(f"[국내 매물대] {ticker_symbol} 계산 예외: {type(e).__name__}: {e}")
+    """국내 종목의 과거 6개월 일봉 OHLCV 기반 매물대. 과거 데이터는 10분 캐시."""
+    symbol = str(ticker_symbol or "").strip()
+    if not symbol:
         return None
+    now = time.time()
+    cached = KR_VOLUME_PROFILE_CACHE.get(symbol)
+    if cached and now - cached[0] < KR_VOLUME_PROFILE_CACHE_TTL:
+        return _reanchor_volume_profile(cached[1], current_price)
 
+    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("kr-volume", symbol))
+    with lock:
+        now = time.time()
+        cached = KR_VOLUME_PROFILE_CACHE.get(symbol)
+        if cached and now - cached[0] < KR_VOLUME_PROFILE_CACHE_TTL:
+            return _reanchor_volume_profile(cached[1], current_price)
+        try:
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}?range=6mo&interval=1d"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            result = (data.get("chart", {}).get("result") or [None])[0]
+            if not result:
+                return None
+            quote = (result.get("indicators", {}).get("quote") or [{}])[0]
+            highs = quote.get("high") or []
+            lows = quote.get("low") or []
+            closes = quote.get("close") or []
+            volumes = quote.get("volume") or []
+            profile_highs = highs[:-1] if len(highs) > 1 else highs
+            profile_lows = lows[:-1] if len(lows) > 1 else lows
+            profile_closes = closes[:-1] if len(closes) > 1 else closes
+            profile_volumes = volumes[:-1] if len(volumes) > 1 else volumes
+            profile = calculate_volume_profile_levels(
+                profile_highs, profile_lows, profile_closes, profile_volumes, bins=24,
+                current_price=None, state_key=symbol
+            )
+            KR_VOLUME_PROFILE_CACHE[symbol] = (now, profile)
+            return _reanchor_volume_profile(profile, current_price)
+        except Exception as e:
+            print(f"[국내 매물대] {symbol} 계산 예외: {type(e).__name__}: {e}")
+            KR_VOLUME_PROFILE_CACHE[symbol] = (now, None)
+            return None
 
 def fetch_yahoo_direct_v8(ticker_str):
-    try:
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker_str}?range=6mo&interval=1d"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                          'AppleWebKit/537.36 (KHTML, like Gecko) '
-                          'Chrome/152.0.0.0 Safari/537.36'
-        }
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
+    key = str(ticker_str or "").strip().upper()
+    now = time.time()
+    cached = US_YAHOO_CACHE.get(key)
+    if cached and now - cached[0] < US_YAHOO_CACHE_TTL:
+        return cached[1]
 
-        res = data.get('chart', {}).get('result', [])
-        if not res:
-            return None, None, None, None, None
+    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("us-yahoo", key))
+    with lock:
+        now = time.time()
+        cached = US_YAHOO_CACHE.get(key)
+        if cached and now - cached[0] < US_YAHOO_CACHE_TTL:
+            return cached[1]
+        try:
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(key)}?range=6mo&interval=1d"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                              'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36'
+            }
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
 
-        quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
+            res = data.get('chart', {}).get('result', [])
+            if not res:
+                return None, None, None, None, None
 
-        raw_closes = quotes.get('close', [])
-        raw_highs = quotes.get('high', [])
-        raw_lows = quotes.get('low', [])
-        raw_volumes = quotes.get('volume', [])
+            quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
+            raw_closes = quotes.get('close', [])
+            raw_highs = quotes.get('high', [])
+            raw_lows = quotes.get('low', [])
+            raw_volumes = quotes.get('volume', [])
 
-        rows = []
-        for c, h, l, v in zip(raw_closes, raw_highs, raw_lows, raw_volumes):
-            if c is None or h is None or l is None or v is None:
-                continue
-            try:
-                c, h, l, v = float(c), float(h), float(l), float(v)
-                if all(math.isfinite(x) for x in (c, h, l, v)) and c > 0 and v > 0:
-                    rows.append((c, h, l, v))
-            except Exception:
-                continue
+            rows = []
+            for c, h, l, v in zip(raw_closes, raw_highs, raw_lows, raw_volumes):
+                if c is None or h is None or l is None or v is None:
+                    continue
+                try:
+                    c, h, l, v = float(c), float(h), float(l), float(v)
+                    if all(math.isfinite(x) for x in (c, h, l, v)) and c > 0 and v > 0:
+                        rows.append((c, h, l, v))
+                except Exception:
+                    continue
 
-        if len(rows) < 2:
-            return None, None, None, None, None
+            if len(rows) < 2:
+                return None, None, None, None, None
 
-        closes = [r[0] for r in rows]
-        highs = [r[1] for r in rows]
-        lows = [r[2] for r in rows]
-        volumes = [r[3] for r in rows]
+            closes = [r[0] for r in rows]
+            highs = [r[1] for r in rows]
+            lows = [r[2] for r in rows]
+            volumes = [r[3] for r in rows]
 
-        cur_p = closes[-1]
-        prev_p = closes[-2]
+            cur_p = closes[-1]
+            prev_p = closes[-2]
+            ma20 = sum(closes[-20:]) / min(20, len(closes))
 
-        # 정확한 최근 20거래일 MA20
-        ma20 = sum(closes[-20:]) / min(20, len(closes))
+            profile_highs = highs[:-1] if len(highs) > 1 else highs
+            profile_lows = lows[:-1] if len(lows) > 1 else lows
+            profile_closes = closes[:-1] if len(closes) > 1 else closes
+            profile_volumes = volumes[:-1] if len(volumes) > 1 else volumes
+            volume_profile = calculate_volume_profile_levels(
+                profile_highs, profile_lows, profile_closes, profile_volumes, bins=24,
+                current_price=cur_p, state_key=key
+            )
 
-        # 당일 장중 일봉은 제외하고 완료된 최근 60거래일로 매물대를 계산한다.
-        profile_highs = highs[:-1] if len(highs) > 1 else highs
-        profile_lows = lows[:-1] if len(lows) > 1 else lows
-        profile_closes = closes[:-1] if len(closes) > 1 else closes
-        profile_volumes = volumes[:-1] if len(volumes) > 1 else volumes
-        volume_profile = calculate_volume_profile_levels(
-            profile_highs, profile_lows, profile_closes, profile_volumes, bins=24,
-            current_price=cur_p, state_key=ticker_str
-        )
+            res_p = (
+                volume_profile["above"]["center"]
+                if volume_profile and volume_profile.get("above")
+                else 0.0
+            )
 
-        # Volume Profile에서 현재가 위의 다음 주요 집중구간을 저항으로 사용.
-        res_p = (
-            volume_profile["above"]["center"]
-            if volume_profile and volume_profile.get("above")
-            else 0.0
-        )
+            result = (cur_p, prev_p, ma20, res_p, volume_profile)
+            US_YAHOO_CACHE[key] = (now, result)
+            return result
 
-        return cur_p, prev_p, ma20, res_p, volume_profile
-
-    except Exception as e:
-        print("미국 야후 v8 예외:", e)
-        return None, None, None, None, None
+        except Exception as e:
+            print("미국 야후 v8 예외:", e)
+            result = (None, None, None, None, None)
+            US_YAHOO_CACHE[key] = (now, result)
+            return result
 
 def fetch_us_options_volume(ticker_symbol):
     """CBOE 지연 옵션 거래량을 조회한다. 결과는 짧게 캐시한다."""

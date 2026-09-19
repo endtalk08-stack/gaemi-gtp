@@ -1,5 +1,6 @@
 // Frontend is served by GitHub Pages; analysis API runs on Render.
 const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
+    let activeAnalysisController = null;
     let activeStock = '삼성전자';
     let activeAnalysisRequestId = 0;
     let currentChartInstance = null;
@@ -129,9 +130,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       updateThemeButtons();
     }
 
-    async function fetchAnalysisFromBackend(stockName) {
+    async function fetchAnalysisFromBackend(stockName, signal) {
       try {
-        const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`);
+        const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`, { signal });
         if (!response.ok) throw new Error('서버 에러');
         const data = await response.json();
         // 기존 뉴스/공시 수집 로직은 그대로 두고, 서버가 내려주는
@@ -144,6 +145,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           ok: true
         };
       } catch (err) {
+        if (err?.name === 'AbortError') return { sections: [], ok: false, aborted: true };
         return { sections: [], ok: false };
       }
     }
@@ -172,6 +174,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     async function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
+
+      // 새 종목을 누르면 이전 분석 HTTP 요청을 즉시 끊어 브라우저가 오래된 응답을 기다리지 않게 한다.
+      // 서버에서도 같은 종목의 중복 외부 호출은 백엔드 캐시/single-flight가 막는다.
+      if (activeAnalysisController) {
+        activeAnalysisController.abort();
+      }
+      activeAnalysisController = new AbortController();
+
       const requestId = ++activeAnalysisRequestId;
       activeStock = stockName;
 
@@ -196,13 +206,18 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       `;
       chatArea.appendChild(loaderDiv);
 
-      const fetchPromise = fetchAnalysisFromBackend(stockName);
+      const controller = activeAnalysisController;
+      const fetchPromise = fetchAnalysisFromBackend(stockName, controller.signal);
       const delayPromise = new Promise(resolve => setTimeout(resolve, 120));
       const [result] = await Promise.all([fetchPromise, delayPromise]);
-      if (requestId !== activeAnalysisRequestId) return;
+      if (requestId !== activeAnalysisRequestId || result.aborted) {
+        loaderDiv.remove();
+        return;
+      }
       const sections = result.sections || [];
 
       loaderDiv.remove();
+      if (activeAnalysisController === controller) activeAnalysisController = null;
 
       if (!result.ok || sections.length === 0) {
         renderAnalysisStatus(chatArea, stockName, result.ok);

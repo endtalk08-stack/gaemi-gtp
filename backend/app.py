@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -37,9 +38,12 @@ def health():
 @app.get("/analyze")
 def analyze():
     stock = request.args.get("stock", "SK하이닉스")
+    started = time.perf_counter()
     try:
         result = analyze_stock(stock)
-        return jsonify(result)
+        response = jsonify(result)
+        response.headers["X-Analysis-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.0f}"
+        return response
     except Exception as exc:
         # 엔진에서 이미 안전 복구를 하지만, 라우트 레벨에서도 JSON 오류로 감싼다.
         print(f"[API /analyze] unexpected error: {type(exc).__name__}: {exc}")
