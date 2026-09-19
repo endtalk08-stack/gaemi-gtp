@@ -521,11 +521,30 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             let formatted = pEl.textContent;
 
             try {
+              const isCalendarSection = dynamicTitle.includes('오늘 밤, 이번주 무슨 일이 있나?');
+
               // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크
               formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
 
               // 2. 경제 지표(#PPI, #CPI, #FOMC, #PCE, #NFP) -> 블루
               formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
+
+              // 일정 섹션 전용 색상: 기업명 해시태그는 핑크, 경제지표 해시태그는 블루
+              // 다른 분석 문장/태그 색상 규칙에는 영향을 주지 않는다.
+              if (isCalendarSection) {
+                formatted = formatted.replace(
+                  /#(?:FOMC|CPI|PPI|PCE|NFP|GDP|PMI|JOLTS|ADP|ISM)(?=\s|$)/gi,
+                  '<span class="font-bold" style="color: #38BDF8;">$&</span>'
+                );
+                formatted = formatted.replace(
+                  /#(?:실업수당청구건수|신규실업수당청구건수|실업률|고용보고서|소매판매|신규주택판매|주택착공|건축허가|원유재고)(?=\s|$)/g,
+                  '<span class="font-bold" style="color: #38BDF8;">$&</span>'
+                );
+                formatted = formatted.replace(
+                  /#([^\n·]+?)(?=\s+실적발표)/g,
+                  '<span class="font-bold" style="color: #FF8DA1;">#$1</span>'
+                );
+              }
 
               // 3. 매물대 색상
               // 매물대 라벨 + 가격 전체를 같은 색으로 표시한다.
@@ -577,7 +596,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                 formatted = `<div class="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap text-base sm:text-lg mb-3 tracking-tight">${tagLine}</div>${rest}`;
               } 
               // 5. 첫 섹션 태그 라인 오류 완전 해결
-              else if (formatted.includes('#') && !formatted.includes('캘린더')) {
+              else if (formatted.includes('#') && !formatted.includes('캘린더') && !isCalendarSection) {
                 const isDown = formatted.includes('-') || formatted.includes('보합') || formatted.includes('눈치싸움') || formatted.includes('파란불') || formatted.includes('숨고르기') || formatted.includes('투매');
                 const themeColor = isDown ? '#38BDF8' : '#FF8DA1';
                 
