@@ -314,35 +314,27 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const sourceCount = newsItems.length + sourceDisclosureItems.length;
       if (!sourceCount) return;
 
+      // 기존 '출처' 접기/펼치기 UI 대신 본문과 동일한 G 섹션으로 항상 노출한다.
       const wrap = document.createElement('div');
       wrap.className = 'source-toggle-wrap animate-fade';
 
-      // 메인 분석 화면에는 실제 뉴스+공시 개수만 보여준다.
-      const toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.className = 'source-toggle-btn';
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.setAttribute('aria-label', '출처 보기');
-
-      const toggleText = document.createElement('span');
-      toggleText.textContent = '출처';
-      const toggleIcon = document.createElement('i');
-      toggleIcon.setAttribute('data-lucide', 'chevron-down');
-      toggleIcon.className = 'source-toggle-icon';
-      toggle.appendChild(toggleText);
-      toggle.appendChild(toggleIcon);
-      wrap.appendChild(toggle);
+      const header = document.createElement('div');
+      header.className = 'flex items-center gap-2.5';
+      header.innerHTML = `
+        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
+        <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">재료는 있어?</h4>
+      `;
+      wrap.appendChild(header);
 
       const panel = document.createElement('div');
-      panel.className = 'source-list-panel';
-      panel.setAttribute('aria-hidden', 'true');
+      panel.className = 'source-list-panel is-open';
+      panel.setAttribute('aria-hidden', 'false');
 
       const makeGroup = (label, items) => {
         if (!items.length) return null;
         const group = document.createElement('div');
-        group.className = 'space-y-2';
-
         group.className = 'source-list-group';
+
         const heading = document.createElement('div');
         heading.className = 'source-list-group-title';
         heading.textContent = label;
@@ -449,21 +441,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const newsGroup = makeGroup('뉴스', newsItems);
       const disclosureGroup = makeGroup('공시', sourceDisclosureItems);
       if (newsGroup) panel.appendChild(newsGroup);
-      if (disclosureGroup) {
-        panel.appendChild(disclosureGroup);
-      }
+      if (disclosureGroup) panel.appendChild(disclosureGroup);
       wrap.appendChild(panel);
-
-      toggle.addEventListener('click', () => {
-        const isOpen = panel.classList.toggle('is-open');
-        toggle.setAttribute('aria-expanded', String(isOpen));
-        panel.setAttribute('aria-hidden', String(!isOpen));
-        // 버튼 크기와 문구는 열고 닫아도 동일하게 유지한다. 아이콘만 방향을 바꾼다.
-        toggleText.textContent = '출처';
-        toggle.setAttribute('aria-label', isOpen ? '출처 닫기' : '출처 보기');
-        toggleIcon.setAttribute('data-lucide', isOpen ? 'chevron-up' : 'chevron-down');
-        if (window.lucide) window.lucide.createIcons();
-      });
 
       container.appendChild(wrap);
       if (window.lucide) window.lucide.createIcons();
