@@ -37,6 +37,22 @@ US_KOREAN_NAMES = {
     'AMZN': '아마존 AMZN',
     'META': '메타 META',
     'LLY': '일라이릴리 LLY',
+    'MU': '마이크론 MU',
+    'AMD': 'AMD AMD',
+    'AVGO': '브로드컴 AVGO',
+    'NFLX': '넷플릭스 NFLX',
+    'CRM': '세일즈포스 CRM',
+    'COST': '코스트코 COST',
+    'NKE': '나이키 NKE',
+    'WMT': '월마트 WMT',
+    'JPM': 'JP모건 JPM',
+    'BAC': '뱅크오브아메리카 BAC',
+    'GS': '골드만삭스 GS',
+    'MS': '모건스탠리 MS',
+    'FDX': '페덱스 FDX',
+    'UPS': 'UPS UPS',
+    'CTAS': '신타스 CTAS',
+    'DRI': '다든 레스토랑 DRI',
     'NVO': '노보노디스크 NVO'
 }
 
@@ -1244,9 +1260,29 @@ _CALENDAR_REFRESHING = False
 CALENDAR_CACHE_TTL = 1800  # 30분
 
 CALENDAR_WATCH_SYMBOLS = [
+    # 주요 지수 영향주 + AI/반도체 + 소비/금융 대형주.
+    # 전체 실적 캘린더를 보여주지 않고, 이 목록의 실적만 '주요 실적'으로 표시한다.
     "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA",
-    "ORCL", "ADBE", "AVGO", "NFLX", "MU", "COST", "CRM", "PLTR"
+    "AVGO", "AMD", "INTC", "MU", "ORCL", "ADBE", "NFLX", "CRM",
+    "COST", "LLY", "NKE", "WMT", "HD", "LOW", "PEP", "KO", "MCD",
+    "JPM", "BAC", "GS", "MS", "FDX", "UPS", "CTAS", "DRI"
 ]
+
+# 경제지표는 '모든 일정'이 아니라 실제 시장 반응이 큰 핵심 발표만 표시한다.
+# Employee Tenure, Employee Benefits, 국제수지 등은 캘린더 API에 있어도 화면에서는 제외한다.
+CORE_ECONOMIC_KEYWORDS = (
+    "fomc", "fed interest rate", "federal funds",
+    "consumer price index", "cpi",
+    "producer price index", "ppi",
+    "employment situation", "nonfarm payroll", "non-farm payroll",
+    "unemployment rate",
+    "gross domestic product", "gdp",
+    "personal income and outlays", "pce", "core pce",
+    "retail sales",
+    "ism manufacturing", "ism services", "ism non-manufacturing",
+    "job openings and labor turnover", "jolts",
+    "adp employment", "employment change"
+)
 
 
 def _calendar_week_window(now_kst):
@@ -1353,22 +1389,31 @@ def _fetch_dynamic_calendar_events():
         except Exception:
             earn_payload = {}
 
-    # 경제지표: 미국 + high impact를 우선, 필요하면 medium도 채운다.
+    # 경제지표: 미국 + '핵심 이벤트'만 통과시킨다.
     economic_rows = econ_payload.get("economicCalendar", []) if isinstance(econ_payload, dict) else []
     for row in economic_rows:
         if str(row.get("country", "")).upper() != "US":
             continue
         impact = str(row.get("impact", "")).lower()
-        if impact not in {"high", "medium"}:
+        event_name = str(row.get("event") or "").strip()
+        normalized = event_name.lower()
+        if not event_name:
             continue
+        # Finnhub의 impact가 high여도 화면에서는 시장 핵심 지표 whitelist를 한 번 더 적용한다.
+        if not any(keyword in normalized for keyword in CORE_ECONOMIC_KEYWORDS):
+            continue
+        if impact not in {"high", "medium"}:
+            # 일부 데이터는 impact가 비어 있으므로 핵심 키워드만으로도 최소한 통과시킨다.
+            if impact not in {"", "low"}:
+                continue
         dt = _parse_finnhub_datetime(row.get("time"))
         if not dt:
             continue
         events.append({
             "dt": dt,
-            "name": str(row.get("event") or "미국 경제지표"),
+            "name": event_name,
             "type": "economic",
-            "impact": impact,
+            "impact": impact or "high",
             "source": "economic",
             "estimate": row.get("estimate"),
             "previous": row.get("prev") if row.get("prev") is not None else row.get("previous"),
@@ -1406,14 +1451,16 @@ def _fetch_dynamic_calendar_events():
         dedup[key] = ev
     events = sorted(dedup.values(), key=lambda x: x["dt"])
 
-    # 너무 많은 중간급 이벤트가 화면을 채우지 않도록 최대 8개.
-    high = [e for e in events if e.get("impact") == "high"]
-    medium = [e for e in events if e.get("impact") != "high"]
+    # 화면에는 '핵심 경제지표 + 주요 종목 실적'만 최대 6개까지 표시한다.
+    # 중간급 잡일정이 화면을 채우지 않도록 선택 단계에서도 한 번 더 제한한다.
+    core_economic = [e for e in events if e.get("type") == "economic" and e.get("impact") in {"high", "medium"}]
+    earnings = [e for e in events if e.get("type") == "earnings"]
     selected = []
-    for ev in high + medium:
+    # 가장 가까운 일정부터. 같은 주에 실적과 핵심 지표가 겹치면 시간순으로 함께 보여준다.
+    for ev in sorted(core_economic + earnings, key=lambda x: x["dt"]):
         if ev not in selected:
             selected.append(ev)
-        if len(selected) >= 8:
+        if len(selected) >= 6:
             break
     return selected
 
@@ -1513,7 +1560,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
         check_lines.append("• 현재 등록된 주요 일정이 없어")
 
     calendar_block = (
-        "🗓️ 이번 주 핵심 개미 캘린더 ★★★\n" +
+        "🗓️ 이번 주 미국 핵심 일정 · 주요 실적\n" +
         "\n".join(check_lines) +
         "\n\n※ 일정은 실시간 캘린더 제공값을 기준으로 하며 발표시간·예정일은 변경될 수 있어."
     )
