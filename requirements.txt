@@ -4,3 +4,4 @@ gunicorn
 yfinance
 google-generativeai
 upstash-redis
+aiohttp
