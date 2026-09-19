@@ -1,10 +1,16 @@
-# gaemiGTP 경제일정 최종 FOMC 수정
+# gaemi-gtp
 
-이번 수정은 경제일정 표시/데이터 범위에만 적용됩니다.
+## Refactored structure
+- Render start command: `gunicorn app:app`
+- Frontend: `frontend/`
+- Backend wrapper: `backend/app.py`
+- Analysis/data engine: `backend/services/engine.py`
+- Health check: `/health`
+- Analysis API: `/analyze?stock=삼성전자`
+- The frontend calls the API with same-origin `window.location.origin`.
 
-- Finance Calendar의 FOMC/금리결정 유사 항목을 전부 제외
-- FOMC는 연준 공식 정책결정 날짜만 별도 추가
-- 기존 Redis/파일 캐시 키를 v3로 변경하여 이전 잘못된 FOMC 캐시 자동 무효화
-- 기존 해시태그 규칙 유지: 영어 약칭은 `#CPI`, `#PPI`, `#NFP`, `#PCE`, `#GDP`, `#FOMC`, `#PMI`, `#JOLTS`, `#ADP`; 약칭이 없는 지표는 한글 지표명 앞에 `#`
-- 경제일정 출처/주소 화면 표시 없음
-- 그 외 기능/레이아웃은 변경하지 않음
+
+## Deployment
+- GitHub Pages serves the frontend from `frontend/index.html` via the root redirect.
+- Render runs `gunicorn app:app` and serves the same frontend plus `/analyze` and `/health`.
+- The browser calls the Render API at `https://gaemi-gtp.onrender.com`.

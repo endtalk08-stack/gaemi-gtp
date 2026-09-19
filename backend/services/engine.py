@@ -1264,10 +1264,10 @@ _CALENDAR_LOCK = threading.Lock()
 _CALENDAR_REFRESHING = False
 CALENDAR_CACHE_TTL = 1800  # 30분
 CALENDAR_PERSIST_TTL = 21600  # 6시간: 프로세스/워커 재시작 후에도 최근 일정 재사용
-CALENDAR_PERSIST_FILE = os.path.join(os.path.dirname(__file__), "..", "cache", "calendar_cache_v3.json")
+CALENDAR_PERSIST_FILE = os.path.join(os.path.dirname(__file__), "..", "cache", "calendar_cache.json")
 CALENDAR_REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip().strip('\'"')
 CALENDAR_REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "").strip().strip('\'"')
-CALENDAR_REDIS_KEY = "gaemiGTP:calendar:v3"
+CALENDAR_REDIS_KEY = "gaemiGTP:calendar:v1"
 _CALENDAR_PERSIST_LOADED = False
 
 CALENDAR_WATCH_SYMBOLS = [
@@ -1756,21 +1756,22 @@ def _fomc_canonical_key(dt):
 
 
 CORE_ECONOMIC_EVENT_RULES = (
-    (("consumer price index", "cpi"), "#CPI 소비자물가지수"),
-    (("producer price index", "ppi"), "#PPI 생산자물가지수"),
-    (("employment situation", "nonfarm payroll", "non-farm payroll", "jobs report"), "#NFP 고용보고서"),
-    (("initial jobless claims", "initial claims", "jobless claims", "weekly unemployment claims"), "#실업수당청구건수"),
-    (("personal income and outlays", "pce", "personal consumption expenditures"), "#PCE 물가지수"),
-    (("gross domestic product", "gdp"), "#GDP"),
-    (("ism manufacturing", "manufacturing pmi"), "#PMI 제조업"),
-    (("ism services", "ism non-manufacturing", "services pmi"), "#PMI 서비스업"),
-    (("retail sales", "advance retail sales"), "#소매판매"),
-    (("new home sales", "new residential sales"), "#신규주택판매"),
-    (("housing starts", "housing start"), "#주택착공"),
-    (("building permits", "building permit"), "#건축허가"),
-    (("jolts", "job openings and labor turnover"), "#JOLTS 고용"),
-    (("adp employment", "adp nonfarm employment", "employment change"), "#ADP 고용"),
-    (("crude oil", "crude oil inventories", "crude oil stocks", "weekly petroleum status", "eia petroleum"), "#원유재고"),
+    (("consumer price index", "cpi"), "#미국 CPI 소비자물가지수"),
+    (("producer price index", "ppi"), "#미국 PPI 생산자물가지수"),
+    (("employment situation", "nonfarm payroll", "non-farm payroll", "jobs report"), "#미국 고용보고서"),
+    (("initial jobless claims", "initial claims", "jobless claims", "weekly unemployment claims"), "#미국 신규실업수당청구건수"),
+    (("personal income and outlays", "pce", "personal consumption expenditures"), "#미국 PCE 물가지수"),
+    (("gross domestic product", "gdp"), "#미국 GDP"),
+    (("fomc", "federal funds", "fed interest rate", "rate decision"), "#미국 FOMC 기준금리 결정"),
+    (("ism manufacturing", "manufacturing pmi"), "#미국 ISM 제조업 PMI"),
+    (("ism services", "ism non-manufacturing", "services pmi"), "#미국 ISM 서비스업 PMI"),
+    (("retail sales", "advance retail sales"), "#미국 소매판매"),
+    (("new home sales", "new residential sales"), "#미국 신규주택판매"),
+    (("housing starts", "housing start"), "#미국 주택착공"),
+    (("building permits", "building permit"), "#미국 건축허가"),
+    (("jolts", "job openings and labor turnover"), "#미국 JOLTS 고용"),
+    (("adp employment", "adp nonfarm employment", "employment change"), "#미국 ADP 고용"),
+    (("crude oil", "crude oil inventories", "crude oil stocks", "weekly petroleum status", "eia petroleum"), "#미국 원유재고"),
 )
 
 
@@ -1815,11 +1816,22 @@ def _match_core_economic_event(row):
     raw = " ".join(str(row.get(k) or "") for k in ("name", "title", "event", "series", "category")).strip()
     normalized = raw.lower()
 
-    # FOMC는 Finance Calendar에서 절대 가져오지 않는다.
-    # FOMC는 아래 _append_official_fomc_events()에서 연준 공식 일정의
-    # 정책결정일만 별도로 넣는다. 이렇게 해야 유사한 금리 일정이나
-    # 과거/중복 FOMC 행이 다시 섞이지 않는다.
-    if any(term in normalized for term in ("fomc", "federal funds", "fed interest rate", "rate decision")):
+    # FOMC는 일반 키워드 매칭을 사용하지 않는다.
+    # "federal funds" / "rate decision"가 다른 금리 관련 일정까지 잡는 것을 막고,
+    # Finance Calendar의 series/title이 실제 FOMC 결정인 경우만 통과시킨다.
+    series = str(row.get("series") or "").strip().lower()
+    title = str(row.get("title") or row.get("name") or row.get("event") or "").strip().lower()
+    is_fomc = (
+        series == "fomc"
+        or "fomc rate decision" in title
+        or title == "fomc decision"
+        or title.startswith("fomc decision ")
+    )
+    if is_fomc:
+        return "#미국 FOMC 기준금리 결정"
+
+    # FOMC 관련 문자열인데 공식 FOMC 결정이 아닌 경우는 버린다.
+    if "fomc" in normalized or "federal funds" in normalized or "fed interest rate" in normalized:
         return None
 
     for keywords, label in CORE_ECONOMIC_EVENT_RULES:
@@ -1829,34 +1841,6 @@ def _match_core_economic_event(row):
         if any(keyword in normalized for keyword in keywords):
             return label
     return None
-
-
-def _append_official_fomc_events(events, start_date, end_date):
-    """연준 공식 FOMC 정책결정일만 별도로 추가한다.
-
-    Finance Calendar의 FOMC 항목은 사용하지 않고, 연준 공식 회의 일정에서
-    실제 정책결정이 발표되는 둘째 날 14:00 ET만 사용한다.
-    """
-    et_tz = ZoneInfo("America/New_York")
-    kst_tz = datetime.timezone(datetime.timedelta(hours=9))
-    added = 0
-    for year, decision_dates in OFFICIAL_FOMC_DECISION_DATES.items():
-        for decision_date in sorted(decision_dates):
-            if not (start_date <= decision_date <= end_date):
-                continue
-            dt = datetime.datetime.combine(
-                decision_date, datetime.time(14, 0), tzinfo=et_tz
-            ).astimezone(kst_tz)
-            events.append({
-                "dt": dt,
-                "name": "#FOMC 기준금리 결정",
-                "type": "economic",
-                "impact": "high",
-                "source": "Federal Reserve official schedule",
-            })
-            added += 1
-    if added:
-        print(f"[시장 일정] 공식 FOMC 정책결정 일정 추가: {added}건")
 
 
 def _fetch_dynamic_calendar_events():
@@ -1907,8 +1891,6 @@ def _fetch_dynamic_calendar_events():
                 "impact": str(row.get("impact") or "high").lower(),
                 "original_title": row.get("title") or row.get("name") or row.get("event") or "",
             })
-        # FOMC는 Finance Calendar 결과가 아니라 연준 공식 일정만 사용한다.
-        _append_official_fomc_events(economic_events, start_date, end_date)
         print(f"[시장 일정] FinanceCalendar 핵심 통과: {len(economic_events)}건")
     except Exception as exc:
         print(f"[시장 일정] FinanceCalendar 실패: {type(exc).__name__}: {exc}")
@@ -1953,8 +1935,8 @@ def _fetch_dynamic_calendar_events():
     events = economic_events + earnings_events
     dedup = {}
     for ev in events:
-        if ev.get("name") in {"#미국 FOMC 기준금리 결정", "#FOMC 기준금리 결정"}:
-            key = ("economic", "#FOMC 기준금리 결정", _fomc_canonical_key(ev["dt"]))
+        if ev.get("name") == "#미국 FOMC 기준금리 결정":
+            key = ("economic", "#미국 FOMC 기준금리 결정", _fomc_canonical_key(ev["dt"]))
         else:
             key = (
                 ev.get("type"),
@@ -2009,30 +1991,6 @@ def start_calendar_warmup():
     threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-warmup").start()
 
 
-def _normalize_legacy_economic_label(raw):
-    """이전 캐시에 남아 있을 수 있는 '#미국 ...' 일정명을 새 해시태그 규칙으로 정규화한다."""
-    text = str(raw or "").strip()
-    legacy = {
-        "#미국 CPI 소비자물가지수": "#CPI 소비자물가지수",
-        "#미국 PPI 생산자물가지수": "#PPI 생산자물가지수",
-        "#미국 고용보고서": "#NFP 고용보고서",
-        "#미국 신규실업수당청구건수": "#실업수당청구건수",
-        "#미국 PCE 물가지수": "#PCE 물가지수",
-        "#미국 GDP": "#GDP",
-        "#미국 FOMC 기준금리 결정": "#FOMC 기준금리 결정",
-        "#미국 ISM 제조업 PMI": "#PMI 제조업",
-        "#미국 ISM 서비스업 PMI": "#PMI 서비스업",
-        "#미국 소매판매": "#소매판매",
-        "#미국 신규주택판매": "#신규주택판매",
-        "#미국 주택착공": "#주택착공",
-        "#미국 건축허가": "#건축허가",
-        "#미국 JOLTS 고용": "#JOLTS 고용",
-        "#미국 ADP 고용": "#ADP 고용",
-        "#미국 원유재고": "#원유재고",
-    }
-    return legacy.get(text, text)
-
-
 def _format_calendar_display_name(event):
     """화면용 일정명을 짧게 정리한다."""
     if event.get("type") == "earnings":
@@ -2043,28 +2001,28 @@ def _format_calendar_display_name(event):
             display = display[:-(len(symbol) + 1)]
         return f"#{display} 실적발표"
 
-    raw = _normalize_legacy_economic_label(event.get("name") or event.get("original_title") or "미국 경제지표 발표")
+    raw = str(event.get("name") or "미국 경제지표 발표").strip()
+    # 기존 캐시에 남아 있을 수 있는 "#미국 " 접두사도 화면에서는 제거한다.
+    raw = re.sub(r"^#?\s*미국\s*", "", raw).strip()
     normalized = raw.lower()
     economic_map = [
         (("fomc", "federal funds", "fed interest rate"), "#FOMC 기준금리 결정"),
         (("consumer price index", "cpi"), "#CPI 소비자물가지수"),
         (("producer price index", "ppi"), "#PPI 생산자물가지수"),
-        (("employment situation", "nonfarm payroll", "non-farm payroll"), "#NFP 고용보고서"),
+        (("employment situation", "nonfarm payroll", "non-farm payroll"), "#고용보고서"),
         (("unemployment rate",), "#실업률"),
         (("gross domestic product", "gdp"), "#GDP"),
         (("personal income and outlays", "pce", "core pce"), "#PCE 물가지수"),
         (("retail sales",), "#소매판매"),
-        (("ism manufacturing",), "#PMI 제조업"),
-        (("ism services", "ism non-manufacturing"), "#PMI 서비스업"),
+        (("ism manufacturing",), "#ISM 제조업"),
+        (("ism services", "ism non-manufacturing"), "#ISM 서비스업"),
         (("job openings and labor turnover", "jolts"), "#JOLTS 고용"),
         (("adp employment", "employment change"), "#ADP 고용"),
     ]
     for keys, label in economic_map:
         if any(key in normalized for key in keys):
             return label
-    if raw.startswith("#미국 "):
-        raw = raw[4:].strip()
-    return raw if raw.startswith("#") else f"#{raw}"
+    return f"#{raw}"
 
 
 def get_live_calendar_data(stock_name, ticker_symbol):
@@ -2073,84 +2031,32 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
     _load_calendar_persistent_cache()
 
-    def _coerce_kst_dt(value):
-        """캐시/직렬화 과정에서 datetime이 문자열이 되어도 항상 KST datetime으로 맞춘다."""
-        if isinstance(value, datetime.datetime):
-            dt = value
-        elif isinstance(value, str):
-            try:
-                text_value = value.strip()
-                if text_value.endswith("Z"):
-                    dt = datetime.datetime.fromisoformat(text_value[:-1] + "+00:00")
-                else:
-                    dt = datetime.datetime.fromisoformat(text_value)
-            except Exception:
-                return None
-        else:
-            return None
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=datetime.timezone.utc)
-        return dt.astimezone(kst_tz)
+    with _CALENDAR_LOCK:
+        events = list(CALENDAR_CACHE.get("events") or [])
+        loaded = bool(CALENDAR_CACHE.get("loaded"))
+        expired = time.time() >= float(CALENDAR_CACHE.get("expires_at", 0))
+        refreshing = bool(_CALENDAR_REFRESHING)
 
-    def _snapshot_events():
-        with _CALENDAR_LOCK:
-            raw_events = list(CALENDAR_CACHE.get("events") or [])
-            loaded_flag = bool(CALENDAR_CACHE.get("loaded"))
-            expired_flag = time.time() >= float(CALENDAR_CACHE.get("expires_at", 0))
-            refreshing_flag = bool(_CALENDAR_REFRESHING)
-        normalized = []
-        for ev in raw_events:
-            if not isinstance(ev, dict):
-                continue
-            row = dict(ev)
-            dt = _coerce_kst_dt(row.get("dt"))
-            if not dt:
-                continue
-            row["dt"] = dt
-            normalized.append(row)
-        normalized.sort(key=lambda ev: ev["dt"])
-        return normalized, loaded_flag, expired_flag, refreshing_flag
-
-    events, loaded, expired, refreshing = _snapshot_events()
-
-    # 첫 요청에서 캐시가 없으면 백그라운드 갱신을 최대 3.5초만 기다린다.
+    # 첫 요청에서 캐시가 아직 없으면 백그라운드 갱신을 최대 3.5초만 기다린다.
     if not events and (expired or not loaded):
         if not refreshing:
             threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh").start()
         deadline = time.time() + 3.5
         while time.time() < deadline:
-            events, loaded, expired, refreshing = _snapshot_events()
+            with _CALENDAR_LOCK:
+                events = list(CALENDAR_CACHE.get("events") or [])
+                loaded = bool(CALENDAR_CACHE.get("loaded"))
+                refreshing = bool(_CALENDAR_REFRESHING)
             if events or (loaded and not refreshing):
                 break
             time.sleep(0.05)
 
-    weekdays = ['월', '화', '수', '목', '금', '토', '일']
-
-    def _upcoming(current_events):
-        return [ev for ev in current_events if ev.get("dt") and ev["dt"] >= now_kst]
-
-    upcoming = _upcoming(events)
-
-    # 중요 일정 캐시는 살아 있어도 모든 일정이 이미 지나간 경우가 있다.
-    # 이때는 30분짜리 캐시를 그대로 보여주지 말고 최신 일정을 한 번 갱신한다.
-    # 이 로직이 없으면 주말/장 시작 직전 등에서 '오늘밤 조용함'만 남고
-    # 다음 주 일정이 비어 보일 수 있다.
-    if events and not upcoming and not refreshing:
-        threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh-stale").start()
-        deadline = time.time() + 3.5
-        while time.time() < deadline:
-            time.sleep(0.05)
-            fresh_events, _, _, refreshing_now = _snapshot_events()
-            fresh_upcoming = _upcoming(fresh_events)
-            if fresh_upcoming or not refreshing_now:
-                events = fresh_events
-                upcoming = fresh_upcoming
-                break
-
-    # TTL이 만료된 캐시는 즉시 쓰되, 동시에 백그라운드에서 최신 데이터로 교체한다.
-    if expired and not refreshing:
+    if expired and events:
         threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh").start()
 
+    weekdays = ['월', '화', '수', '목', '금', '토', '일']
+
+    upcoming = [ev for ev in events if ev.get("dt") and ev["dt"] >= now_kst]
     upcoming.sort(key=lambda ev: ev["dt"])
 
     def event_time(ev):
