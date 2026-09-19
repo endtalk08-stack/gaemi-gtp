@@ -1261,6 +1261,12 @@ CALENDAR_LAST_REFRESH_AT = 0.0
 _CALENDAR_LOCK = threading.Lock()
 _CALENDAR_REFRESHING = False
 CALENDAR_CACHE_TTL = 1800  # 30분
+CALENDAR_PERSIST_TTL = 21600  # 6시간: 프로세스/워커 재시작 후에도 최근 일정 재사용
+CALENDAR_PERSIST_FILE = os.path.join(os.path.dirname(__file__), "..", "cache", "calendar_cache.json")
+CALENDAR_REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip().strip('\'"')
+CALENDAR_REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "").strip().strip('\'"')
+CALENDAR_REDIS_KEY = "gaemiGTP:calendar:v1"
+_CALENDAR_PERSIST_LOADED = False
 
 CALENDAR_WATCH_SYMBOLS = [
     # 주요 지수 영향주 + AI/반도체 + 소비/금융 대형주.
@@ -1286,6 +1292,126 @@ CORE_ECONOMIC_KEYWORDS = (
     "job openings and labor turnover", "jolts",
     "adp employment", "employment change"
 )
+
+
+def _calendar_events_to_json(events):
+    payload = []
+    for ev in events or []:
+        row = dict(ev)
+        dt = row.get("dt")
+        if isinstance(dt, datetime.datetime):
+            row["dt"] = dt.isoformat()
+        payload.append(row)
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def _calendar_events_from_json(raw):
+    try:
+        rows = json.loads(raw or "[]")
+        out = []
+        for row in rows if isinstance(rows, list) else []:
+            row = dict(row)
+            dt = row.get("dt")
+            if isinstance(dt, str):
+                parsed = datetime.datetime.fromisoformat(dt)
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+                row["dt"] = parsed.astimezone(datetime.timezone(datetime.timedelta(hours=9)))
+            if isinstance(row.get("dt"), datetime.datetime):
+                out.append(row)
+        return out
+    except Exception as exc:
+        print(f"[시장 일정] persistent cache decode fail: {type(exc).__name__}: {exc}")
+        return []
+
+
+def _load_calendar_persistent_cache():
+    """Redis가 있으면 Redis를 우선 사용하고, 없으면 로컬 파일을 사용한다."""
+    global _CALENDAR_PERSIST_LOADED
+    if _CALENDAR_PERSIST_LOADED:
+        return
+    _CALENDAR_PERSIST_LOADED = True
+
+    # 1) Upstash REST (Render 워커 재시작/재배포 후에도 유지)
+    if CALENDAR_REDIS_URL and CALENDAR_REDIS_TOKEN:
+        try:
+            key = urllib.parse.quote(CALENDAR_REDIS_KEY, safe="")
+            url = CALENDAR_REDIS_URL.rstrip("/") + "/get/" + key
+            req = urllib.request.Request(
+                url,
+                headers={"Authorization": f"Bearer {CALENDAR_REDIS_TOKEN}"},
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                body = json.loads(resp.read().decode("utf-8", errors="replace"))
+            raw = body.get("result") if isinstance(body, dict) else None
+            if raw:
+                cached = json.loads(raw)
+                saved_at = float(cached.get("saved_at", 0))
+                if time.time() - saved_at <= CALENDAR_PERSIST_TTL:
+                    events = _calendar_events_from_json(json.dumps(cached.get("events", []), ensure_ascii=False))
+                    if events:
+                        with _CALENDAR_LOCK:
+                            CALENDAR_CACHE["events"] = events
+                            CALENDAR_CACHE["loaded"] = True
+                            CALENDAR_CACHE["expires_at"] = time.time() + CALENDAR_CACHE_TTL
+                        print(f"[시장 일정] persistent Redis cache loaded: {len(events)} events")
+                        return
+        except Exception as exc:
+            print(f"[시장 일정] Redis cache load skipped: {type(exc).__name__}: {exc}")
+
+    # 2) 파일 fallback (같은 Render 인스턴스의 워커 간 공유)
+    try:
+        path = os.path.abspath(CALENDAR_PERSIST_FILE)
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                cached = json.load(f)
+            saved_at = float(cached.get("saved_at", 0))
+            if time.time() - saved_at <= CALENDAR_PERSIST_TTL:
+                events = _calendar_events_from_json(json.dumps(cached.get("events", []), ensure_ascii=False))
+                if events:
+                    with _CALENDAR_LOCK:
+                        CALENDAR_CACHE["events"] = events
+                        CALENDAR_CACHE["loaded"] = True
+                        CALENDAR_CACHE["expires_at"] = time.time() + CALENDAR_CACHE_TTL
+                    print(f"[시장 일정] persistent file cache loaded: {len(events)} events")
+    except Exception as exc:
+        print(f"[시장 일정] file cache load skipped: {type(exc).__name__}: {exc}")
+
+
+def _save_calendar_persistent_cache(events):
+    payload = {
+        "saved_at": time.time(),
+        "events": json.loads(_calendar_events_to_json(events)),
+    }
+
+    # Redis 우선 저장
+    if CALENDAR_REDIS_URL and CALENDAR_REDIS_TOKEN:
+        try:
+            key = urllib.parse.quote(CALENDAR_REDIS_KEY, safe="")
+            encoded = urllib.parse.quote(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), safe="")
+            url = CALENDAR_REDIS_URL.rstrip("/") + "/set/" + key + "/" + encoded + "/EX/21600"
+            req = urllib.request.Request(
+                url,
+                headers={"Authorization": f"Bearer {CALENDAR_REDIS_TOKEN}"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=1.5):
+                pass
+            return
+        except Exception as exc:
+            print(f"[시장 일정] Redis cache save skipped: {type(exc).__name__}: {exc}")
+
+    # 파일 fallback
+    try:
+        path = os.path.abspath(CALENDAR_PERSIST_FILE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+        os.replace(tmp, path)
+    except Exception as exc:
+        print(f"[시장 일정] file cache save skipped: {type(exc).__name__}: {exc}")
 
 
 def _calendar_week_window(now_kst):
@@ -1501,6 +1627,8 @@ def _refresh_calendar_cache():
             CALENDAR_LAST_REFRESH_AT = time.time()
             CALENDAR_CACHE["events"] = events
             CALENDAR_CACHE["expires_at"] = time.time() + CALENDAR_CACHE_TTL
+        if events:
+            _save_calendar_persistent_cache(events)
     except Exception as exc:
         # 실제 API 오류를 Render 로그에서 바로 볼 수 있게 남긴다.
         CALENDAR_LAST_ERROR = f"{type(exc).__name__}: {exc}"
@@ -1555,6 +1683,8 @@ def _format_calendar_display_name(event):
 def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
+
+    _load_calendar_persistent_cache()
 
     with _CALENDAR_LOCK:
         events = list(CALENDAR_CACHE.get("events") or [])
