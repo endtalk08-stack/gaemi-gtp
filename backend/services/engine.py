@@ -1711,10 +1711,32 @@ def _format_kst_event_name(event):
 
 
 FINANCE_CALENDAR_BASE_URL = "https://www.financecalendar.com/wp-json/fc/v1"
-FINANCE_CALENDAR_ATTRIBUTION_URL = "https://www.financecalendar.com"
 
 # Finance Calendar의 단일 경제일정 피드에서 가져올 핵심 일정만 통과시킨다.
 # 사용자가 요청한 시장 영향도가 높은 미국 일정만 표시한다.
+# 공식 연준 일정의 FOMC 정책결정일(각 회의 둘째 날).
+# Finance Calendar의 일반 /calendar 피드는 "federal funds" 같은 유사 문자열도
+# 포함할 수 있어, FOMC는 공식 날짜와 함께 한 번 더 검증한다.
+OFFICIAL_FOMC_DECISION_DATES = {
+    2026: {
+        datetime.date(2026, 1, 28), datetime.date(2026, 3, 18),
+        datetime.date(2026, 4, 29), datetime.date(2026, 6, 17),
+        datetime.date(2026, 7, 29), datetime.date(2026, 9, 16),
+        datetime.date(2026, 10, 28), datetime.date(2026, 12, 9),
+    },
+    2027: {
+        datetime.date(2027, 1, 27), datetime.date(2027, 3, 17),
+        datetime.date(2027, 4, 28), datetime.date(2027, 6, 9),
+        datetime.date(2027, 7, 28), datetime.date(2027, 9, 15),
+        datetime.date(2027, 10, 27), datetime.date(2027, 12, 8),
+    },
+}
+
+
+def _is_official_fomc_decision_date(dt):
+    return dt.date() in OFFICIAL_FOMC_DECISION_DATES.get(dt.year, set())
+
+
 CORE_ECONOMIC_EVENT_RULES = (
     (("consumer price index", "cpi"), "#미국 CPI 소비자물가지수"),
     (("producer price index", "ppi"), "#미국 PPI 생산자물가지수"),
@@ -1775,7 +1797,29 @@ def _parse_financecalendar_datetime(row):
 def _match_core_economic_event(row):
     raw = " ".join(str(row.get(k) or "") for k in ("name", "title", "event", "series", "category")).strip()
     normalized = raw.lower()
+
+    # FOMC는 일반 키워드 매칭을 사용하지 않는다.
+    # "federal funds" / "rate decision"가 다른 금리 관련 일정까지 잡는 것을 막고,
+    # Finance Calendar의 series/title이 실제 FOMC 결정인 경우만 통과시킨다.
+    series = str(row.get("series") or "").strip().lower()
+    title = str(row.get("title") or row.get("name") or row.get("event") or "").strip().lower()
+    is_fomc = (
+        series == "fomc"
+        or "fomc rate decision" in title
+        or title == "fomc decision"
+        or title.startswith("fomc decision ")
+    )
+    if is_fomc:
+        return "#미국 FOMC 기준금리 결정"
+
+    # FOMC 관련 문자열인데 공식 FOMC 결정이 아닌 경우는 버린다.
+    if "fomc" in normalized or "federal funds" in normalized or "fed interest rate" in normalized:
+        return None
+
     for keywords, label in CORE_ECONOMIC_EVENT_RULES:
+        # FOMC 규칙은 위에서 별도 처리했으므로 여기서는 건너뛴다.
+        if label == "#미국 FOMC 기준금리 결정":
+            continue
         if any(keyword in normalized for keyword in keywords):
             return label
     return None
@@ -1819,13 +1863,14 @@ def _fetch_dynamic_calendar_events():
                 continue
             if not (start_date <= dt.date() <= end_date):
                 continue
+            if label == "#미국 FOMC 기준금리 결정" and not _is_official_fomc_decision_date(dt):
+                print(f"[시장 일정] FOMC 비공식 일정 제외: {dt.isoformat()} / {row.get('title') or row.get('name') or ''}")
+                continue
             economic_events.append({
                 "dt": dt,
                 "name": label,
                 "type": "economic",
                 "impact": str(row.get("impact") or "high").lower(),
-                "source": "financecalendar.com",
-                "source_url": FINANCE_CALENDAR_ATTRIBUTION_URL,
                 "original_title": row.get("title") or row.get("name") or row.get("event") or "",
             })
         print(f"[시장 일정] FinanceCalendar 핵심 통과: {len(economic_events)}건")
@@ -2043,8 +2088,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
     if grouped_rows:
         schedule_block = "\n\n".join(grouped_rows)
-        attribution = f"<div class=\"calendar-attribution\">경제일정 출처: <a href=\"{FINANCE_CALENDAR_ATTRIBUTION_URL}\" target=\"_blank\" rel=\"noopener noreferrer\">financecalendar.com</a></div>"
-        return f"{tonight_card}\n\n{schedule_block}\n\n{attribution}"
+        return f"{tonight_card}\n\n{schedule_block}"
 
     return tonight_card
 
