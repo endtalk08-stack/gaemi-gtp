@@ -2055,32 +2055,84 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
     _load_calendar_persistent_cache()
 
-    with _CALENDAR_LOCK:
-        events = list(CALENDAR_CACHE.get("events") or [])
-        loaded = bool(CALENDAR_CACHE.get("loaded"))
-        expired = time.time() >= float(CALENDAR_CACHE.get("expires_at", 0))
-        refreshing = bool(_CALENDAR_REFRESHING)
+    def _coerce_kst_dt(value):
+        """캐시/직렬화 과정에서 datetime이 문자열이 되어도 항상 KST datetime으로 맞춘다."""
+        if isinstance(value, datetime.datetime):
+            dt = value
+        elif isinstance(value, str):
+            try:
+                text_value = value.strip()
+                if text_value.endswith("Z"):
+                    dt = datetime.datetime.fromisoformat(text_value[:-1] + "+00:00")
+                else:
+                    dt = datetime.datetime.fromisoformat(text_value)
+            except Exception:
+                return None
+        else:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        return dt.astimezone(kst_tz)
 
-    # 첫 요청에서 캐시가 아직 없으면 백그라운드 갱신을 최대 3.5초만 기다린다.
+    def _snapshot_events():
+        with _CALENDAR_LOCK:
+            raw_events = list(CALENDAR_CACHE.get("events") or [])
+            loaded_flag = bool(CALENDAR_CACHE.get("loaded"))
+            expired_flag = time.time() >= float(CALENDAR_CACHE.get("expires_at", 0))
+            refreshing_flag = bool(_CALENDAR_REFRESHING)
+        normalized = []
+        for ev in raw_events:
+            if not isinstance(ev, dict):
+                continue
+            row = dict(ev)
+            dt = _coerce_kst_dt(row.get("dt"))
+            if not dt:
+                continue
+            row["dt"] = dt
+            normalized.append(row)
+        normalized.sort(key=lambda ev: ev["dt"])
+        return normalized, loaded_flag, expired_flag, refreshing_flag
+
+    events, loaded, expired, refreshing = _snapshot_events()
+
+    # 첫 요청에서 캐시가 없으면 백그라운드 갱신을 최대 3.5초만 기다린다.
     if not events and (expired or not loaded):
         if not refreshing:
             threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh").start()
         deadline = time.time() + 3.5
         while time.time() < deadline:
-            with _CALENDAR_LOCK:
-                events = list(CALENDAR_CACHE.get("events") or [])
-                loaded = bool(CALENDAR_CACHE.get("loaded"))
-                refreshing = bool(_CALENDAR_REFRESHING)
+            events, loaded, expired, refreshing = _snapshot_events()
             if events or (loaded and not refreshing):
                 break
             time.sleep(0.05)
 
-    if expired and events:
-        threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh").start()
-
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
 
-    upcoming = [ev for ev in events if ev.get("dt") and ev["dt"] >= now_kst]
+    def _upcoming(current_events):
+        return [ev for ev in current_events if ev.get("dt") and ev["dt"] >= now_kst]
+
+    upcoming = _upcoming(events)
+
+    # 중요 일정 캐시는 살아 있어도 모든 일정이 이미 지나간 경우가 있다.
+    # 이때는 30분짜리 캐시를 그대로 보여주지 말고 최신 일정을 한 번 갱신한다.
+    # 이 로직이 없으면 주말/장 시작 직전 등에서 '오늘밤 조용함'만 남고
+    # 다음 주 일정이 비어 보일 수 있다.
+    if events and not upcoming and not refreshing:
+        threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh-stale").start()
+        deadline = time.time() + 3.5
+        while time.time() < deadline:
+            time.sleep(0.05)
+            fresh_events, _, _, refreshing_now = _snapshot_events()
+            fresh_upcoming = _upcoming(fresh_events)
+            if fresh_upcoming or not refreshing_now:
+                events = fresh_events
+                upcoming = fresh_upcoming
+                break
+
+    # TTL이 만료된 캐시는 즉시 쓰되, 동시에 백그라운드에서 최신 데이터로 교체한다.
+    if expired and not refreshing:
+        threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh").start()
+
     upcoming.sort(key=lambda ev: ev["dt"])
 
     def event_time(ev):
