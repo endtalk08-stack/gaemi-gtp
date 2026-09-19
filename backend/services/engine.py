@@ -1733,8 +1733,26 @@ OFFICIAL_FOMC_DECISION_DATES = {
 }
 
 
-def _is_official_fomc_decision_date(dt):
-    return dt.date() in OFFICIAL_FOMC_DECISION_DATES.get(dt.year, set())
+def _is_official_fomc_decision(dt):
+    """FOMC는 미국 동부시간(ET) 기준 공식 결정일의 14:00 전후 1건만 허용."""
+    try:
+        from zoneinfo import ZoneInfo
+        et = dt.astimezone(ZoneInfo("America/New_York"))
+        official_dates = OFFICIAL_FOMC_DECISION_DATES.get(et.year, set())
+        if et.date() not in official_dates:
+            return False
+        # 연준 정책성명은 통상 14:00 ET. 회의/기자회견 등 다른 FOMC 행은 제외한다.
+        return 13 * 60 + 30 <= et.hour * 60 + et.minute <= 14 * 60 + 30
+    except Exception:
+        return False
+
+def _fomc_canonical_key(dt):
+    """FOMC 중복 제거용: ET 공식 결정 날짜만 키로 사용."""
+    try:
+        from zoneinfo import ZoneInfo
+        return dt.astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    except Exception:
+        return dt.date().isoformat()
 
 
 CORE_ECONOMIC_EVENT_RULES = (
@@ -1863,8 +1881,8 @@ def _fetch_dynamic_calendar_events():
                 continue
             if not (start_date <= dt.date() <= end_date):
                 continue
-            if label == "#미국 FOMC 기준금리 결정" and not _is_official_fomc_decision_date(dt):
-                print(f"[시장 일정] FOMC 비공식 일정 제외: {dt.isoformat()} / {row.get('title') or row.get('name') or ''}")
+            if label == "#미국 FOMC 기준금리 결정" and not _is_official_fomc_decision(dt):
+                print(f"[시장 일정] FOMC 비공식/중복 일정 제외: {dt.isoformat()} / {row.get('title') or row.get('name') or ''}")
                 continue
             economic_events.append({
                 "dt": dt,
@@ -1917,11 +1935,14 @@ def _fetch_dynamic_calendar_events():
     events = economic_events + earnings_events
     dedup = {}
     for ev in events:
-        key = (
-            ev.get("type"),
-            ev.get("symbol") or ev.get("name"),
-            ev["dt"].strftime("%Y-%m-%dT%H:%M")
-        )
+        if ev.get("name") == "#미국 FOMC 기준금리 결정":
+            key = ("economic", "#미국 FOMC 기준금리 결정", _fomc_canonical_key(ev["dt"]))
+        else:
+            key = (
+                ev.get("type"),
+                ev.get("symbol") or ev.get("name"),
+                ev["dt"].strftime("%Y-%m-%dT%H:%M")
+            )
         dedup[key] = ev
     events = sorted(dedup.values(), key=lambda x: x["dt"])
 
