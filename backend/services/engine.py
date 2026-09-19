@@ -1710,32 +1710,129 @@ def _format_kst_event_name(event):
     return str(event.get("name") or "미국 경제지표 발표")
 
 
-def _fetch_dynamic_calendar_events():
-    """공식 미국 경제일정 + Finnhub 주요 실적만 수집한다.
+FINANCE_CALENDAR_BASE_URL = "https://www.financecalendar.com/wp-json/fc/v1"
+FINANCE_CALENDAR_ATTRIBUTION_URL = "https://www.financecalendar.com"
 
-    경제지표는 Finnhub 경제 캘린더를 사용하지 않는다. 경제지표는 BLS/BEA/Fed/Census
-    공식 일정에서 가져와 403 권한 문제와 특정 데이터 제공업체 의존을 제거한다.
+# Finance Calendar의 단일 경제일정 피드에서 가져올 핵심 일정만 통과시킨다.
+# 사용자가 요청한 시장 영향도가 높은 미국 일정만 표시한다.
+CORE_ECONOMIC_EVENT_RULES = (
+    (("consumer price index", "cpi"), "#미국 CPI 소비자물가지수"),
+    (("producer price index", "ppi"), "#미국 PPI 생산자물가지수"),
+    (("employment situation", "nonfarm payroll", "non-farm payroll", "jobs report"), "#미국 고용보고서"),
+    (("initial jobless claims", "initial claims", "jobless claims", "weekly unemployment claims"), "#미국 신규실업수당청구건수"),
+    (("personal income and outlays", "pce", "personal consumption expenditures"), "#미국 PCE 물가지수"),
+    (("gross domestic product", "gdp"), "#미국 GDP"),
+    (("fomc", "federal funds", "fed interest rate", "rate decision"), "#미국 FOMC 기준금리 결정"),
+    (("ism manufacturing", "manufacturing pmi"), "#미국 ISM 제조업 PMI"),
+    (("ism services", "ism non-manufacturing", "services pmi"), "#미국 ISM 서비스업 PMI"),
+    (("retail sales", "advance retail sales"), "#미국 소매판매"),
+    (("new home sales", "new residential sales"), "#미국 신규주택판매"),
+    (("housing starts", "housing start"), "#미국 주택착공"),
+    (("building permits", "building permit"), "#미국 건축허가"),
+    (("jolts", "job openings and labor turnover"), "#미국 JOLTS 고용"),
+    (("adp employment", "adp nonfarm employment", "employment change"), "#미국 ADP 고용"),
+    (("crude oil", "crude oil inventories", "crude oil stocks", "weekly petroleum status", "eia petroleum"), "#미국 원유재고"),
+)
+
+
+def _parse_financecalendar_datetime(row):
+    """Finance Calendar JSON의 UTC 시간을 KST datetime으로 변환한다."""
+    try:
+        value = row.get("time_utc") or row.get("datetime_utc") or row.get("datetime")
+        if value:
+            text_value = str(value).strip()
+            if text_value.endswith("Z"):
+                dt = datetime.datetime.fromisoformat(text_value[:-1] + "+00:00")
+            else:
+                dt = datetime.datetime.fromisoformat(text_value)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+            kst = datetime.timezone(datetime.timedelta(hours=9))
+            return dt.astimezone(kst)
+
+        date_text = str(row.get("date") or "").strip()
+        time_text = str(row.get("time_et") or row.get("time") or "").strip()
+        if date_text and time_text:
+            from zoneinfo import ZoneInfo
+            et = ZoneInfo("America/New_York")
+            kst = datetime.timezone(datetime.timedelta(hours=9))
+            base_date = datetime.date.fromisoformat(date_text[:10])
+            m = re.match(r"^(\d{1,2}):(\d{2})\s*(AM|PM)$", time_text, re.I)
+            if m:
+                hour = int(m.group(1)) % 12 + (12 if m.group(3).upper() == "PM" else 0)
+                minute = int(m.group(2))
+            else:
+                m24 = re.match(r"^(\d{1,2}):(\d{2})$", time_text)
+                if not m24:
+                    return None
+                hour, minute = int(m24.group(1)), int(m24.group(2))
+            return datetime.datetime.combine(base_date, datetime.time(hour, minute), tzinfo=et).astimezone(kst)
+    except Exception:
+        return None
+    return None
+
+
+def _match_core_economic_event(row):
+    raw = " ".join(str(row.get(k) or "") for k in ("name", "title", "event", "series", "category")).strip()
+    normalized = raw.lower()
+    for keywords, label in CORE_ECONOMIC_EVENT_RULES:
+        if any(keyword in normalized for keyword in keywords):
+            return label
+    return None
+
+
+def _fetch_dynamic_calendar_events():
+    """경제일정 1곳 + 실적 1곳만 조회한다.
+
+    경제일정은 Finance Calendar의 통합 피드를 한 번 호출하고,
+    실적은 기존 Finnhub earnings 캘린더만 유지한다.
+    /analyze가 호출될 때마다 API를 호출하지 않고 캐시에 저장한다.
     """
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
     start_date, end_date = _calendar_week_window(now_kst)
 
     economic_events = []
-    source_loaders = [
-        ("BLS", lambda: _parse_bls_ics_events(start_date, end_date)),
-        ("BEA", lambda: _parse_bea_schedule_events(start_date, end_date)),
-        ("Fed", lambda: _parse_fomc_events(start_date, end_date)),
-        ("Census", lambda: _parse_census_events(start_date, end_date)),
-    ]
-    for source_name, loader in source_loaders:
-        try:
-            rows = loader()
-            economic_events.extend(rows)
-            print(f"[시장 일정] {source_name} 공식 일정: {len(rows)}건")
-        except Exception as exc:
-            print(f"[시장 일정] {source_name} 일정 실패: {type(exc).__name__}: {exc}")
+    finance_url = (
+        f"{FINANCE_CALENDAR_BASE_URL}/calendar"
+        f"?from={urllib.parse.quote(start_date.isoformat())}"
+        f"&to={urllib.parse.quote(end_date.isoformat())}"
+        f"&limit=500"
+    )
+    try:
+        payload = _http_json(finance_url, 6.0)
+        rows = payload.get("events", payload) if isinstance(payload, dict) else payload
+        if not isinstance(rows, list):
+            rows = []
+        print(f"[시장 일정] FinanceCalendar 원본: {len(rows)}건")
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            country = str(row.get("country") or row.get("country_name") or "").lower()
+            if country and country not in {"united states", "us", "usa", "u.s.", "u.s.a."}:
+                continue
+            label = _match_core_economic_event(row)
+            if not label:
+                continue
+            dt = _parse_financecalendar_datetime(row)
+            if not dt:
+                continue
+            if not (start_date <= dt.date() <= end_date):
+                continue
+            economic_events.append({
+                "dt": dt,
+                "name": label,
+                "type": "economic",
+                "impact": str(row.get("impact") or "high").lower(),
+                "source": "financecalendar.com",
+                "source_url": FINANCE_CALENDAR_ATTRIBUTION_URL,
+                "original_title": row.get("title") or row.get("name") or row.get("event") or "",
+            })
+        print(f"[시장 일정] FinanceCalendar 핵심 통과: {len(economic_events)}건")
+    except Exception as exc:
+        print(f"[시장 일정] FinanceCalendar 실패: {type(exc).__name__}: {exc}")
 
-    # 실적은 기존처럼 Finnhub을 사용한다. FINNHUB 경제 API는 사용하지 않는다.
+    # 실적은 Finnhub earnings API 1곳만 유지한다.
     earnings_events = []
     if FINNHUB_KEY:
         earnings_url = (
@@ -1783,8 +1880,7 @@ def _fetch_dynamic_calendar_events():
         dedup[key] = ev
     events = sorted(dedup.values(), key=lambda x: x["dt"])
 
-    # 핵심 경제지표 + 주요 실적만 유지하고 너무 먼/낮은 우선순위 일정은 자르지 않는다.
-    # 화면에서 날짜별로 최대 5일을 보여주므로 최대 20개면 충분하다.
+    # 너무 먼 일정까지 늘리지 않고, 사용자가 보는 다음 5개 날짜 안에서 핵심 일정만 최대 20개 유지
     selected = [e for e in events if e.get("type") in {"economic", "earnings"}][:20]
     print(f"[시장 일정] 경제 {len(economic_events)} + 실적 {len(earnings_events)} -> 최종 {len(selected)}건")
     print("[시장 일정] 최종 선택:", [(e.get("type"), e.get("symbol"), e.get("name"), e.get("dt").isoformat()) for e in selected])
@@ -1947,7 +2043,8 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
     if grouped_rows:
         schedule_block = "\n\n".join(grouped_rows)
-        return f"{tonight_card}\n\n{schedule_block}"
+        attribution = f"<div class=\"calendar-attribution\">경제일정 출처: <a href=\"{FINANCE_CALENDAR_ATTRIBUTION_URL}\" target=\"_blank\" rel=\"noopener noreferrer\">financecalendar.com</a></div>"
+        return f"{tonight_card}\n\n{schedule_block}\n\n{attribution}"
 
     return tonight_card
 
