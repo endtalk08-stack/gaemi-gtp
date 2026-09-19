@@ -1254,7 +1254,10 @@ def build_us_options_content(ticker_symbol, call_vol, put_vol, option_error):
 CALENDAR_CACHE = {
     "expires_at": 0.0,
     "events": [],
+    "loaded": False,
 }
+CALENDAR_LAST_ERROR = ""
+CALENDAR_LAST_REFRESH_AT = 0.0
 _CALENDAR_LOCK = threading.Lock()
 _CALENDAR_REFRESHING = False
 CALENDAR_CACHE_TTL = 1800  # 30분
@@ -1466,7 +1469,7 @@ def _fetch_dynamic_calendar_events():
 
 
 def _refresh_calendar_cache():
-    global _CALENDAR_REFRESHING
+    global _CALENDAR_REFRESHING, CALENDAR_LAST_ERROR, CALENDAR_LAST_REFRESH_AT
     with _CALENDAR_LOCK:
         if _CALENDAR_REFRESHING:
             return
@@ -1475,12 +1478,21 @@ def _refresh_calendar_cache():
     try:
         events = _fetch_dynamic_calendar_events()
         with _CALENDAR_LOCK:
-            # API가 일시적으로 비었어도 직전 정상 데이터를 보존한다.
-            if events:
-                CALENDAR_CACHE["events"] = events
-                CALENDAR_CACHE["expires_at"] = time.time() + CALENDAR_CACHE_TTL
-            elif not CALENDAR_CACHE["events"]:
-                CALENDAR_CACHE["expires_at"] = time.time() + 300
+            # API 호출이 정상 완료됐으면 이벤트가 0건이어도 정상적인 '조용함'으로 간주한다.
+            CALENDAR_CACHE["loaded"] = True
+            CALENDAR_LAST_ERROR = ""
+            CALENDAR_LAST_REFRESH_AT = time.time()
+            CALENDAR_CACHE["events"] = events
+            CALENDAR_CACHE["expires_at"] = time.time() + CALENDAR_CACHE_TTL
+    except Exception as exc:
+        # 실제 API 오류를 Render 로그에서 바로 볼 수 있게 남긴다.
+        CALENDAR_LAST_ERROR = f"{type(exc).__name__}: {exc}"
+        print(f"[시장 일정] refresh failed: {CALENDAR_LAST_ERROR}")
+        with _CALENDAR_LOCK:
+            CALENDAR_LAST_REFRESH_AT = time.time()
+            # 실패했을 때는 기존 정상 캐시를 보존한다.
+            if not CALENDAR_CACHE["events"]:
+                CALENDAR_CACHE["expires_at"] = time.time() + 60
     finally:
         with _CALENDAR_LOCK:
             _CALENDAR_REFRESHING = False
@@ -1497,17 +1509,33 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
     with _CALENDAR_LOCK:
         events = list(CALENDAR_CACHE.get("events") or [])
+        loaded = bool(CALENDAR_CACHE.get("loaded"))
         expired = time.time() >= float(CALENDAR_CACHE.get("expires_at", 0))
+        refreshing = bool(_CALENDAR_REFRESHING)
 
-    if expired:
-        # 호출 스레드를 기다리게 하지 않고 다음 조회 때 갱신된 값을 사용한다.
+    # 캐시가 비어 있는 첫 요청에서는 백그라운드 갱신과 경쟁하지 않도록
+    # 최대 3.5초까지만 기다려 결과를 받아온다. 이후 /analyze는 다시 막지 않는다.
+    if not events and (expired or not loaded):
+        if not refreshing:
+            threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh").start()
+        deadline = time.time() + 3.5
+        while time.time() < deadline:
+            with _CALENDAR_LOCK:
+                events = list(CALENDAR_CACHE.get("events") or [])
+                loaded = bool(CALENDAR_CACHE.get("loaded"))
+                refreshing = bool(_CALENDAR_REFRESHING)
+            if events or (loaded and not refreshing):
+                break
+            time.sleep(0.05)
+
+    if expired and events:
+        # 기존 데이터는 즉시 사용하고 갱신은 백그라운드에서 수행한다.
         threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-refresh").start()
 
-    if not events:
-        return (
-            "🌙 오늘 밤/이번 주 일정 업데이트 중이야.\n"
-            "실시간 경제지표·실적 캘린더를 불러오는 중이야. 잠시 후 최신 일정으로 갱신돼!"
-        )
+    if not events and not loaded:
+        # 연결 자체가 실패한 경우에도 화면을 긴 에러문구로 오염시키지 않는다.
+        # 정확한 원인은 Render 로그의 [시장 일정] refresh failed에서 확인한다.
+        return "오늘밤 조용함"
 
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
 
