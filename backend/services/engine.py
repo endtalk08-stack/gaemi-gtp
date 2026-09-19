@@ -1264,10 +1264,10 @@ _CALENDAR_LOCK = threading.Lock()
 _CALENDAR_REFRESHING = False
 CALENDAR_CACHE_TTL = 1800  # 30분
 CALENDAR_PERSIST_TTL = 21600  # 6시간: 프로세스/워커 재시작 후에도 최근 일정 재사용
-CALENDAR_PERSIST_FILE = os.path.join(os.path.dirname(__file__), "..", "cache", "calendar_cache.json")
+CALENDAR_PERSIST_FILE = os.path.join(os.path.dirname(__file__), "..", "cache", "calendar_cache_v2.json")
 CALENDAR_REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip().strip('\'"')
 CALENDAR_REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "").strip().strip('\'"')
-CALENDAR_REDIS_KEY = "gaemiGTP:calendar:v1"
+CALENDAR_REDIS_KEY = "gaemiGTP:calendar:v2"
 _CALENDAR_PERSIST_LOADED = False
 
 CALENDAR_WATCH_SYMBOLS = [
@@ -1756,22 +1756,22 @@ def _fomc_canonical_key(dt):
 
 
 CORE_ECONOMIC_EVENT_RULES = (
-    (("consumer price index", "cpi"), "#미국 CPI 소비자물가지수"),
-    (("producer price index", "ppi"), "#미국 PPI 생산자물가지수"),
-    (("employment situation", "nonfarm payroll", "non-farm payroll", "jobs report"), "#미국 고용보고서"),
-    (("initial jobless claims", "initial claims", "jobless claims", "weekly unemployment claims"), "#미국 신규실업수당청구건수"),
-    (("personal income and outlays", "pce", "personal consumption expenditures"), "#미국 PCE 물가지수"),
-    (("gross domestic product", "gdp"), "#미국 GDP"),
-    (("fomc", "federal funds", "fed interest rate", "rate decision"), "#미국 FOMC 기준금리 결정"),
-    (("ism manufacturing", "manufacturing pmi"), "#미국 ISM 제조업 PMI"),
-    (("ism services", "ism non-manufacturing", "services pmi"), "#미국 ISM 서비스업 PMI"),
-    (("retail sales", "advance retail sales"), "#미국 소매판매"),
-    (("new home sales", "new residential sales"), "#미국 신규주택판매"),
-    (("housing starts", "housing start"), "#미국 주택착공"),
-    (("building permits", "building permit"), "#미국 건축허가"),
-    (("jolts", "job openings and labor turnover"), "#미국 JOLTS 고용"),
-    (("adp employment", "adp nonfarm employment", "employment change"), "#미국 ADP 고용"),
-    (("crude oil", "crude oil inventories", "crude oil stocks", "weekly petroleum status", "eia petroleum"), "#미국 원유재고"),
+    (("consumer price index", "cpi"), "#CPI 소비자물가지수"),
+    (("producer price index", "ppi"), "#PPI 생산자물가지수"),
+    (("employment situation", "nonfarm payroll", "non-farm payroll", "jobs report"), "#NFP 고용보고서"),
+    (("initial jobless claims", "initial claims", "jobless claims", "weekly unemployment claims"), "#실업수당청구건수"),
+    (("personal income and outlays", "pce", "personal consumption expenditures"), "#PCE 물가지수"),
+    (("gross domestic product", "gdp"), "#GDP"),
+    (("fomc", "federal funds", "fed interest rate", "rate decision"), "#FOMC 기준금리 결정"),
+    (("ism manufacturing", "manufacturing pmi"), "#PMI 제조업"),
+    (("ism services", "ism non-manufacturing", "services pmi"), "#PMI 서비스업"),
+    (("retail sales", "advance retail sales"), "#소매판매"),
+    (("new home sales", "new residential sales"), "#신규주택판매"),
+    (("housing starts", "housing start"), "#주택착공"),
+    (("building permits", "building permit"), "#건축허가"),
+    (("jolts", "job openings and labor turnover"), "#JOLTS 고용"),
+    (("adp employment", "adp nonfarm employment", "employment change"), "#ADP 고용"),
+    (("crude oil", "crude oil inventories", "crude oil stocks", "weekly petroleum status", "eia petroleum"), "#원유재고"),
 )
 
 
@@ -1991,6 +1991,30 @@ def start_calendar_warmup():
     threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-warmup").start()
 
 
+def _normalize_legacy_economic_label(raw):
+    """이전 캐시에 남아 있을 수 있는 '#미국 ...' 일정명을 새 해시태그 규칙으로 정규화한다."""
+    text = str(raw or "").strip()
+    legacy = {
+        "#미국 CPI 소비자물가지수": "#CPI 소비자물가지수",
+        "#미국 PPI 생산자물가지수": "#PPI 생산자물가지수",
+        "#미국 고용보고서": "#NFP 고용보고서",
+        "#미국 신규실업수당청구건수": "#실업수당청구건수",
+        "#미국 PCE 물가지수": "#PCE 물가지수",
+        "#미국 GDP": "#GDP",
+        "#미국 FOMC 기준금리 결정": "#FOMC 기준금리 결정",
+        "#미국 ISM 제조업 PMI": "#PMI 제조업",
+        "#미국 ISM 서비스업 PMI": "#PMI 서비스업",
+        "#미국 소매판매": "#소매판매",
+        "#미국 신규주택판매": "#신규주택판매",
+        "#미국 주택착공": "#주택착공",
+        "#미국 건축허가": "#건축허가",
+        "#미국 JOLTS 고용": "#JOLTS 고용",
+        "#미국 ADP 고용": "#ADP 고용",
+        "#미국 원유재고": "#원유재고",
+    }
+    return legacy.get(text, text)
+
+
 def _format_calendar_display_name(event):
     """화면용 일정명을 짧게 정리한다."""
     if event.get("type") == "earnings":
@@ -2001,26 +2025,28 @@ def _format_calendar_display_name(event):
             display = display[:-(len(symbol) + 1)]
         return f"#{display} 실적발표"
 
-    raw = str(event.get("name") or "미국 경제지표 발표").strip()
+    raw = _normalize_legacy_economic_label(event.get("name") or event.get("original_title") or "미국 경제지표 발표")
     normalized = raw.lower()
     economic_map = [
-        (("fomc", "federal funds", "fed interest rate"), "#미국 FOMC 기준금리 결정"),
-        (("consumer price index", "cpi"), "#미국 CPI 소비자물가지수"),
-        (("producer price index", "ppi"), "#미국 PPI 생산자물가지수"),
-        (("employment situation", "nonfarm payroll", "non-farm payroll"), "#미국 고용보고서"),
-        (("unemployment rate",), "#미국 실업률"),
-        (("gross domestic product", "gdp"), "#미국 GDP"),
-        (("personal income and outlays", "pce", "core pce"), "#미국 PCE 물가지수"),
-        (("retail sales",), "#미국 소매판매"),
-        (("ism manufacturing",), "#미국 ISM 제조업"),
-        (("ism services", "ism non-manufacturing"), "#미국 ISM 서비스업"),
-        (("job openings and labor turnover", "jolts"), "#미국 JOLTS 고용"),
-        (("adp employment", "employment change"), "#미국 ADP 고용"),
+        (("fomc", "federal funds", "fed interest rate"), "#FOMC 기준금리 결정"),
+        (("consumer price index", "cpi"), "#CPI 소비자물가지수"),
+        (("producer price index", "ppi"), "#PPI 생산자물가지수"),
+        (("employment situation", "nonfarm payroll", "non-farm payroll"), "#NFP 고용보고서"),
+        (("unemployment rate",), "#실업률"),
+        (("gross domestic product", "gdp"), "#GDP"),
+        (("personal income and outlays", "pce", "core pce"), "#PCE 물가지수"),
+        (("retail sales",), "#소매판매"),
+        (("ism manufacturing",), "#PMI 제조업"),
+        (("ism services", "ism non-manufacturing"), "#PMI 서비스업"),
+        (("job openings and labor turnover", "jolts"), "#JOLTS 고용"),
+        (("adp employment", "employment change"), "#ADP 고용"),
     ]
     for keys, label in economic_map:
         if any(key in normalized for key in keys):
             return label
-    return f"#미국 {raw}"
+    if raw.startswith("#미국 "):
+        raw = raw[4:].strip()
+    return raw if raw.startswith("#") else f"#{raw}"
 
 
 def get_live_calendar_data(stock_name, ticker_symbol):
