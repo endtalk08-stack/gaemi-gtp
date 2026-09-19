@@ -1368,6 +1368,8 @@ def _fetch_dynamic_calendar_events():
     to_s = end_date.isoformat()
 
     base = "https://finnhub.io/api/v1"
+    print(f"[시장 일정] 조회 범위 KST {from_s} ~ {to_s}")
+    print(f"[시장 일정] FINNHUB_KEY 존재: {bool(FINNHUB_KEY)}")
     economic_url = (
         f"{base}/calendar/economic?from={urllib.parse.quote(from_s)}"
         f"&to={urllib.parse.quote(to_s)}&token={urllib.parse.quote(FINNHUB_KEY)}"
@@ -1385,15 +1387,22 @@ def _fetch_dynamic_calendar_events():
 
         try:
             econ_payload = econ_future.result(timeout=3.0)
-        except Exception:
+            print(f"[시장 일정] 경제 API 응답 키: {list(econ_payload.keys()) if isinstance(econ_payload, dict) else type(econ_payload).__name__}")
+        except Exception as exc:
+            print(f"[시장 일정] 경제 API 실패: {type(exc).__name__}: {exc}")
             econ_payload = {}
         try:
             earn_payload = earn_future.result(timeout=3.0)
-        except Exception:
+            print(f"[시장 일정] 실적 API 응답 키: {list(earn_payload.keys()) if isinstance(earn_payload, dict) else type(earn_payload).__name__}")
+        except Exception as exc:
+            print(f"[시장 일정] 실적 API 실패: {type(exc).__name__}: {exc}")
             earn_payload = {}
 
     # 경제지표: 미국 + '핵심 이벤트'만 통과시킨다.
     economic_rows = econ_payload.get("economicCalendar", []) if isinstance(econ_payload, dict) else []
+    print(f"[시장 일정] 경제 원본 건수: {len(economic_rows)}")
+    economic_us = [r for r in economic_rows if str(r.get("country", "")).upper() == "US"]
+    print(f"[시장 일정] 경제 US 건수: {len(economic_us)}")
     for row in economic_rows:
         if str(row.get("country", "")).upper() != "US":
             continue
@@ -1424,6 +1433,11 @@ def _fetch_dynamic_calendar_events():
 
     # 실적: 시장에서 자주 보는 대형주 위주로 제한해 캘린더를 '핵심 일정' 수준으로 유지한다.
     earnings_rows = earn_payload.get("earningsCalendar", []) if isinstance(earn_payload, dict) else []
+    print(f"[시장 일정] 실적 원본 건수: {len(earnings_rows)}")
+    costco_rows = [r for r in earnings_rows if str(r.get("symbol") or "").upper() == "COST"]
+    print(f"[시장 일정] COST 원본 건수: {len(costco_rows)}")
+    if costco_rows:
+        print(f"[시장 일정] COST 원본: {costco_rows[:3]}")
     watch = set(CALENDAR_WATCH_SYMBOLS)
     for row in earnings_rows:
         symbol = str(row.get("symbol") or "").upper()
@@ -1459,12 +1473,15 @@ def _fetch_dynamic_calendar_events():
     core_economic = [e for e in events if e.get("type") == "economic" and e.get("impact") in {"high", "medium"}]
     earnings = [e for e in events if e.get("type") == "earnings"]
     selected = []
+    print(f"[시장 일정] 핵심 경제 통과: {len(core_economic)}, 주요 실적 통과: {len(earnings)}, 전체 선택 후보: {len(core_economic) + len(earnings)}")
+    print(f"[시장 일정] COST 필터 통과: {sum(1 for e in earnings if e.get('symbol') == 'COST')}")
     # 가장 가까운 일정부터. 같은 주에 실적과 핵심 지표가 겹치면 시간순으로 함께 보여준다.
     for ev in sorted(core_economic + earnings, key=lambda x: x["dt"]):
         if ev not in selected:
             selected.append(ev)
-        if len(selected) >= 6:
+        if len(selected) >= 12:
             break
+    print("[시장 일정] 최종 선택:", [(e.get("type"), e.get("symbol"), e.get("name"), e.get("dt").isoformat()) for e in selected])
     return selected
 
 
@@ -1609,7 +1626,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
         first_dt = day_events[0]["dt"]
         date_label = first_dt.strftime(f"%m/%d({weekdays[first_dt.weekday()]})")
         grouped_rows.append(f"{date_label} " + " · ".join(parts))
-        if len(grouped_rows) >= 5:
+        if len(grouped_rows) >= 7:
             break
 
     # 일정 자체가 아직 수신되지 않았거나 실패한 경우에도 오늘밤 한 줄은 보여주되,
