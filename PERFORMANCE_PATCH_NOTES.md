@@ -1,9 +1,9 @@
-# gaemiGTP performance patch — safe2
+# gaemiGTP 일정 표시 수정
 
-- Removed the top-level /analyze ThreadPool fan-out because news/disclosure collection already has internal concurrency; stacking thread pools can increase external API contention on Render.
-- Kept short TTL caches for quote/trend/Yahoo/volume profile/search.
-- Kept news single-flight so duplicate same-stock news fetches collapse to one external request.
-- Kept AbortController, with stale loader cleanup fixed.
-- Kept X-Analysis-Time-Ms header for real Render timing measurement.
-
-This version prioritizes stable latency over aggressive concurrency.
+- 고정 날짜 일정 대신 실시간 핵심 경제지표 + 주요 실적 필터 유지
+- `오늘밤` 영역은 한 줄만 표시
+  - 일정 있음: `오늘밤 MM/DD(요일) HH:MM #종목 실적발표`
+  - 일정 없음: `오늘밤 조용함`
+- 설명형 문구와 예상치/부연 문구를 오늘밤 한 줄 영역에서는 제거
+- `다가오는 일정` 목록은 기존 형식을 유지
+- `__pycache__`, `*.pyc` 제외

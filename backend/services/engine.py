@@ -1512,41 +1512,34 @@ def get_live_calendar_data(stock_name, ticker_symbol):
     weekdays = ['월', '화', '수', '목', '금', '토', '일']
 
     upcoming = [ev for ev in events if ev.get("dt") and ev["dt"] >= now_kst]
-    next_morning = now_kst + datetime.timedelta(hours=18)
-    tonight_event = next((ev for ev in upcoming if ev["dt"] <= next_morning), None)
-
     def event_time(ev):
         dt = ev["dt"]
         return dt.strftime(f"%m/%d({weekdays[dt.weekday()]}) %H:%M")
 
-    def estimate_text(ev):
-        if ev.get("type") == "earnings":
-            eps = ev.get("eps_estimate")
-            return f"예상 EPS ${eps:.2f}" if isinstance(eps, (int, float)) else "예상치 확인 필요"
-        est = ev.get("estimate")
-        if est is None or est == "":
-            return "예상치 확인 필요"
-        return f"예상 {est}"
+    # 사용자가 실제로 체감하는 '오늘밤' 구간만 짧게 표시한다.
+    # 미국 장 관련 일정은 KST 기준 보통 18:00~다음날 06:00 사이에 들어오므로
+    # 이 구간에서 가장 가까운 핵심 일정 1건만 한 줄로 보여준다.
+    if now_kst.hour >= 18:
+        tonight_start = now_kst
+        tonight_end = now_kst.replace(hour=6, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
+    elif now_kst.hour < 6:
+        tonight_start = now_kst
+        tonight_end = now_kst.replace(hour=6, minute=0, second=0, microsecond=0)
+    else:
+        tonight_start = now_kst.replace(hour=18, minute=0, second=0, microsecond=0)
+        tonight_end = tonight_start + datetime.timedelta(days=1, hours=-12)
+
+    tonight_events = [
+        ev for ev in upcoming
+        if tonight_start <= ev["dt"] < tonight_end
+    ]
+    tonight_event = tonight_events[0] if tonight_events else None
 
     if tonight_event:
-        name = _format_kst_event_name(tonight_event)
-        if tonight_event.get("type") == "earnings":
-            tonight_card = (
-                f"🚨 가까운 일정이 하나 있어!\n\n"
-                f"⏰ {event_time(tonight_event)} {name}\n"
-                f"{estimate_text(tonight_event)} · 실적 발표 시간은 제공 데이터 기준이야."
-            )
-        else:
-            tonight_card = (
-                f"🚨 가까운 핵심 일정이 있어!\n\n"
-                f"⏰ {event_time(tonight_event)} {name}\n"
-                f"{estimate_text(tonight_event)}"
-            )
+        name = _format_kst_event_name(tonight_event).replace(" 실적 발표", " 실적발표")
+        tonight_card = f"오늘밤 {event_time(tonight_event)} {name}"
     else:
-        tonight_card = (
-            "🌙 오늘 밤 예정된 주요 미국 시장 일정은 없어.\n"
-            "아래에 다음 거래일 기준 핵심 일정만 정리해둘게."
-        )
+        tonight_card = "오늘밤 조용함"
 
     check_lines = []
     for ev in upcoming[:5]:
