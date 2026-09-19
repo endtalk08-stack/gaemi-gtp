@@ -688,7 +688,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         <div class="space-y-3">
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
-            <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내일 상승일까? 하락일까?</h4>
+            <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">내일 어디로 튈까? 네 실력좀 보여줘!</h4>
           </div>
 
           <div class="bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] rounded-3xl p-5 space-y-4 shadow-sm">
