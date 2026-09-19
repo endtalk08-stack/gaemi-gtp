@@ -15,6 +15,8 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
+from zoneinfo import ZoneInfo
 
 from .news import fetch_realtime_news, get_news_ai_candidates
 from .market_levels import (
@@ -1248,7 +1250,7 @@ def build_us_options_content(ticker_symbol, call_vol, put_vol, option_error):
 # -----------------------------------------------------------------------------
 # 실시간 시장 일정 캘린더
 # - 고정 날짜 목록을 사용하지 않는다.
-# - Finnhub의 경제지표/실적 캘린더를 주기적으로 갱신한다.
+# - 공식 미국 경제일정(BLS/BEA/Fed/Census) + Finnhub 주요 실적 캘린더를 주기적으로 갱신한다.
 # - 캐시가 있으면 /analyze에서 즉시 반환하고, 갱신은 백그라운드에서 수행한다.
 # -----------------------------------------------------------------------------
 CALENDAR_CACHE = {
@@ -1276,23 +1278,6 @@ CALENDAR_WATCH_SYMBOLS = [
     "COST", "LLY", "NKE", "WMT", "HD", "LOW", "PEP", "KO", "MCD",
     "JPM", "BAC", "GS", "MS", "FDX", "UPS", "CTAS", "DRI"
 ]
-
-# 경제지표는 '모든 일정'이 아니라 실제 시장 반응이 큰 핵심 발표만 표시한다.
-# Employee Tenure, Employee Benefits, 국제수지 등은 캘린더 API에 있어도 화면에서는 제외한다.
-CORE_ECONOMIC_KEYWORDS = (
-    "fomc", "fed interest rate", "federal funds",
-    "consumer price index", "cpi",
-    "producer price index", "ppi",
-    "employment situation", "nonfarm payroll", "non-farm payroll",
-    "unemployment rate",
-    "gross domestic product", "gdp",
-    "personal income and outlays", "pce", "core pce",
-    "retail sales",
-    "ism manufacturing", "ism services", "ism non-manufacturing",
-    "job openings and labor turnover", "jolts",
-    "adp employment", "employment change"
-)
-
 
 def _calendar_events_to_json(events):
     payload = []
@@ -1438,22 +1423,264 @@ def _http_json(url, timeout=2.5):
     return json.loads(raw)
 
 
-def _parse_finnhub_datetime(value):
-    """Finnhub economic-calendar 시간을 UTC 기준으로 읽어 KST로 변환한다."""
-    if not value:
-        return None
-    text = str(value).strip()
+def _http_text(url, timeout=5.0):
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "gaemiGTP/1.0 calendar"},
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8", errors="replace")
+
+
+def _parse_ics_datetime(line):
+    """ICS DTSTART 파서. TZID가 있으면 해당 시간대, Z면 UTC로 해석한다."""
     try:
-        if text.endswith("Z"):
-            dt = datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if ":" not in line:
+            return None
+        key, value = line.split(":", 1)
+        value = value.strip()
+        params = {}
+        if ";" in key:
+            parts = key.split(";")
+            key = parts[0]
+            for item in parts[1:]:
+                if "=" in item:
+                    k, v = item.split("=", 1)
+                    params[k.upper()] = v
+        tz_name = params.get("TZID")
+        if value.endswith("Z"):
+            tzinfo = datetime.timezone.utc
+            value = value[:-1]
+        elif tz_name:
+            try:
+                tzinfo = ZoneInfo(tz_name)
+            except Exception:
+                tzinfo = datetime.timezone.utc
         else:
-            dt = datetime.datetime.fromisoformat(text)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=datetime.timezone.utc)
-        kst = datetime.timezone(datetime.timedelta(hours=9))
-        return dt.astimezone(kst)
+            tzinfo = datetime.timezone.utc
+        if len(value) == 8:
+            return datetime.datetime.strptime(value, "%Y%m%d").replace(tzinfo=tzinfo)
+        if len(value) >= 15:
+            return datetime.datetime.strptime(value[:15], "%Y%m%dT%H%M%S").replace(tzinfo=tzinfo)
+        return None
     except Exception:
         return None
+
+
+def _parse_bls_ics_events(start_date, end_date):
+    """BLS 공식 ICS에서 핵심 고용/CPI/PPI/JOLTS 일정을 읽는다."""
+    url = "https://www.bls.gov/schedule/news_release/bls.ics"
+    raw = _http_text(url, timeout=6.0)
+    lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    # RFC5545 line folding 해제
+    unfolded = []
+    for line in lines:
+        if line.startswith((" ", "\t")) and unfolded:
+            unfolded[-1] += line[1:]
+        else:
+            unfolded.append(line)
+
+    allowed = (
+        "consumer price index",
+        "producer price index",
+        "employment situation",
+        "job openings and labor turnover",
+    )
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    events = []
+    block = []
+    inside = False
+    for line in unfolded:
+        line = line.strip()
+        if line == "BEGIN:VEVENT":
+            inside = True
+            block = []
+            continue
+        if line == "END:VEVENT":
+            if inside:
+                fields = {"SUMMARY": "", "DTSTART": ""}
+                for item in block:
+                    if item.startswith("SUMMARY:"):
+                        fields["SUMMARY"] = item.split(":", 1)[1].strip()
+                    elif item.startswith("DTSTART"):
+                        fields["DTSTART"] = item
+                summary = fields["SUMMARY"]
+                if summary and any(k in summary.lower() for k in allowed):
+                    dt = _parse_ics_datetime(fields["DTSTART"])
+                    if dt:
+                        dt = dt.astimezone(kst)
+                        if start_date <= dt.date() <= end_date:
+                            if "consumer price index" in summary.lower():
+                                label = "#미국 CPI 소비자물가지수"
+                            elif "producer price index" in summary.lower():
+                                label = "#미국 PPI 생산자물가지수"
+                            elif "employment situation" in summary.lower():
+                                label = "#미국 고용보고서"
+                            else:
+                                label = "#미국 JOLTS 고용"
+                            events.append({
+                                "dt": dt,
+                                "name": label,
+                                "type": "economic",
+                                "impact": "high",
+                                "source": "BLS",
+                            })
+            inside = False
+            block = []
+            continue
+        if inside:
+            block.append(line)
+    return events
+
+
+class _TableParser(HTMLParser):
+    """작은 HTML 표 파싱용 표준 라이브러리 파서."""
+    def __init__(self):
+        super().__init__()
+        self.rows = []
+        self._row = None
+        self._cell = []
+        self._in_cell = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self._row = []
+        elif tag in {"td", "th"} and self._row is not None:
+            self._in_cell = True
+            self._cell = []
+
+    def handle_data(self, data):
+        if self._in_cell:
+            self._cell.append(data)
+
+    def handle_endtag(self, tag):
+        if tag in {"td", "th"} and self._in_cell and self._row is not None:
+            self._row.append(" ".join("".join(self._cell).split()))
+            self._cell = []
+            self._in_cell = False
+        elif tag == "tr" and self._row is not None:
+            if any(self._row):
+                self.rows.append(self._row)
+            self._row = None
+
+
+def _parse_bea_schedule_events(start_date, end_date):
+    """BEA 공식 Release Schedule에서 GDP/PCE만 선택한다."""
+    html_text = _http_text("https://www.bea.gov/news/schedule", timeout=6.0)
+    parser = _TableParser()
+    parser.feed(html_text)
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    et_tz = ZoneInfo("America/New_York")
+    events = []
+    now_year = start_date.year
+    for row in parser.rows:
+        if len(row) < 3:
+            continue
+        date_text, time_text = row[0].strip(), row[1].strip()
+        title = " ".join(row[2:]).strip()
+        lower = title.lower()
+        if not any(k in lower for k in ("gross domestic product", "personal income and outlays")):
+            continue
+        m = re.match(r"^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})$", date_text, re.I)
+        if not m:
+            continue
+        try:
+            d = datetime.date(now_year, datetime.datetime.strptime(m.group(1)[:3], "%b").month, int(m.group(2)))
+            tm = re.match(r"^(\d{1,2}):(\d{2})\s*(AM|PM)$", time_text, re.I)
+            if not tm:
+                continue
+            hour = int(tm.group(1)) % 12 + (12 if tm.group(3).lower() == "pm" else 0)
+            minute = int(tm.group(2))
+            dt = datetime.datetime.combine(d, datetime.time(hour, minute), tzinfo=et_tz).astimezone(kst)
+            if start_date <= dt.date() <= end_date:
+                label = "#미국 GDP" if "gross domestic product" in lower else "#미국 PCE 물가지수"
+                events.append({
+                    "dt": dt,
+                    "name": label,
+                    "type": "economic",
+                    "impact": "high",
+                    "source": "BEA",
+                })
+        except Exception:
+            continue
+    return events
+
+
+def _parse_fomc_events(start_date, end_date):
+    """Fed 공식 FOMC 일정에서 각 회의 둘째 날 14:00 ET 정책결정 시점을 잡는다."""
+    html_text = _http_text("https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm", timeout=6.0)
+    text = re.sub(r"<[^>]+>", " ", html_text)
+    text = re.sub(r"\s+", " ", text)
+    year = str(start_date.year)
+    marker = f"{year} FOMC Meetings"
+    idx = text.find(marker)
+    if idx < 0:
+        return []
+    chunk = text[idx:]
+    next_year = chunk.find(str(start_date.year + 1))
+    if next_year > 0:
+        chunk = chunk[:next_year]
+    month_map = {m: i for i, m in enumerate(("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), 1)}
+    et_tz = ZoneInfo("America/New_York")
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    events = []
+    for month, d1, d2 in re.findall(r"(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})-(\d{1,2})", chunk):
+        try:
+            d = datetime.date(int(year), month_map[month], int(d2))
+            dt = datetime.datetime.combine(d, datetime.time(14, 0), tzinfo=et_tz).astimezone(kst)
+            if start_date <= dt.date() <= end_date:
+                events.append({
+                    "dt": dt,
+                    "name": "#미국 FOMC 기준금리 결정",
+                    "type": "economic",
+                    "impact": "high",
+                    "source": "Federal Reserve",
+                })
+        except Exception:
+            continue
+    return events
+
+
+def _parse_census_events(start_date, end_date):
+    """미국 Census 경제지표 일정에서 소매판매만 선택한다."""
+    html_text = _http_text("https://www.census.gov/economic-indicators/calendar-listview.html", timeout=6.0)
+    parser = _TableParser()
+    parser.feed(html_text)
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    et_tz = ZoneInfo("America/New_York")
+    events = []
+    for row in parser.rows:
+        if len(row) < 3:
+            continue
+        title = row[0]
+        if "Advance Monthly Sales for Retail and Food Services" not in title:
+            continue
+        date_text = row[1]
+        time_text = row[2]
+        m = re.match(r"^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})$", date_text, re.I)
+        if not m:
+            continue
+        try:
+            month = datetime.datetime.strptime(m.group(1)[:3], "%b").month
+            d = datetime.date(int(m.group(3)), month, int(m.group(2)))
+            tm = re.match(r"^(\d{1,2}):(\d{2})\s*(AM|PM)$", time_text, re.I)
+            if not tm:
+                continue
+            hour = int(tm.group(1)) % 12 + (12 if tm.group(3).lower() == "pm" else 0)
+            minute = int(tm.group(2))
+            dt = datetime.datetime.combine(d, datetime.time(hour, minute), tzinfo=et_tz).astimezone(kst)
+            if start_date <= dt.date() <= end_date:
+                events.append({
+                    "dt": dt,
+                    "name": "#미국 소매판매",
+                    "type": "economic",
+                    "impact": "high",
+                    "source": "U.S. Census Bureau",
+                })
+        except Exception:
+            continue
+    return events
 
 
 def _earnings_datetime_kst(date_text, hour):
@@ -1484,106 +1711,68 @@ def _format_kst_event_name(event):
 
 
 def _fetch_dynamic_calendar_events():
-    if not FINNHUB_KEY:
-        return []
+    """공식 미국 경제일정 + Finnhub 주요 실적만 수집한다.
 
+    경제지표는 Finnhub 경제 캘린더를 사용하지 않는다. 경제지표는 BLS/BEA/Fed/Census
+    공식 일정에서 가져와 403 권한 문제와 특정 데이터 제공업체 의존을 제거한다.
+    """
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
     start_date, end_date = _calendar_week_window(now_kst)
-    from_s = start_date.isoformat()
-    to_s = end_date.isoformat()
 
-    base = "https://finnhub.io/api/v1"
-    print(f"[시장 일정] 조회 범위 KST {from_s} ~ {to_s}")
-    print(f"[시장 일정] FINNHUB_KEY 존재: {bool(FINNHUB_KEY)}")
-    economic_url = (
-        f"{base}/calendar/economic?from={urllib.parse.quote(from_s)}"
-        f"&to={urllib.parse.quote(to_s)}&token={urllib.parse.quote(FINNHUB_KEY)}"
-    )
-    earnings_url = (
-        f"{base}/calendar/earnings?from={urllib.parse.quote(from_s)}"
-        f"&to={urllib.parse.quote(to_s)}&international=false"
-        f"&token={urllib.parse.quote(FINNHUB_KEY)}"
-    )
-
-    events = []
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        econ_future = pool.submit(_http_json, economic_url, 2.5)
-        earn_future = pool.submit(_http_json, earnings_url, 2.5)
-
+    economic_events = []
+    source_loaders = [
+        ("BLS", lambda: _parse_bls_ics_events(start_date, end_date)),
+        ("BEA", lambda: _parse_bea_schedule_events(start_date, end_date)),
+        ("Fed", lambda: _parse_fomc_events(start_date, end_date)),
+        ("Census", lambda: _parse_census_events(start_date, end_date)),
+    ]
+    for source_name, loader in source_loaders:
         try:
-            econ_payload = econ_future.result(timeout=3.0)
-            print(f"[시장 일정] 경제 API 응답 키: {list(econ_payload.keys()) if isinstance(econ_payload, dict) else type(econ_payload).__name__}")
+            rows = loader()
+            economic_events.extend(rows)
+            print(f"[시장 일정] {source_name} 공식 일정: {len(rows)}건")
         except Exception as exc:
-            print(f"[시장 일정] 경제 API 실패: {type(exc).__name__}: {exc}")
-            econ_payload = {}
+            print(f"[시장 일정] {source_name} 일정 실패: {type(exc).__name__}: {exc}")
+
+    # 실적은 기존처럼 Finnhub을 사용한다. FINNHUB 경제 API는 사용하지 않는다.
+    earnings_events = []
+    if FINNHUB_KEY:
+        earnings_url = (
+            "https://finnhub.io/api/v1/calendar/earnings"
+            f"?from={urllib.parse.quote(start_date.isoformat())}"
+            f"&to={urllib.parse.quote(end_date.isoformat())}"
+            f"&international=false&token={urllib.parse.quote(FINNHUB_KEY)}"
+        )
         try:
-            earn_payload = earn_future.result(timeout=3.0)
-            print(f"[시장 일정] 실적 API 응답 키: {list(earn_payload.keys()) if isinstance(earn_payload, dict) else type(earn_payload).__name__}")
+            earn_payload = _http_json(earnings_url, 3.0)
+            earnings_rows = earn_payload.get("earningsCalendar", []) if isinstance(earn_payload, dict) else []
+            print(f"[시장 일정] 실적 원본 건수: {len(earnings_rows)}")
+            watch = set(CALENDAR_WATCH_SYMBOLS)
+            for row in earnings_rows:
+                symbol = str(row.get("symbol") or "").upper()
+                if symbol not in watch:
+                    continue
+                dt = _earnings_datetime_kst(row.get("date"), str(row.get("hour") or "").lower())
+                if not dt:
+                    continue
+                earnings_events.append({
+                    "dt": dt,
+                    "name": "",
+                    "type": "earnings",
+                    "source": "earnings",
+                    "symbol": symbol,
+                    "hour": str(row.get("hour") or "").lower(),
+                    "eps_estimate": row.get("epsEstimate"),
+                    "revenue_estimate": row.get("revenueEstimate"),
+                })
+            print(f"[시장 일정] 주요 실적 통과: {len(earnings_events)}건")
         except Exception as exc:
             print(f"[시장 일정] 실적 API 실패: {type(exc).__name__}: {exc}")
-            earn_payload = {}
+    else:
+        print("[시장 일정] FINNHUB_KEY 없음 - 실적 캘린더 생략")
 
-    # 경제지표: 미국 + '핵심 이벤트'만 통과시킨다.
-    economic_rows = econ_payload.get("economicCalendar", []) if isinstance(econ_payload, dict) else []
-    print(f"[시장 일정] 경제 원본 건수: {len(economic_rows)}")
-    economic_us = [r for r in economic_rows if str(r.get("country", "")).upper() == "US"]
-    print(f"[시장 일정] 경제 US 건수: {len(economic_us)}")
-    for row in economic_rows:
-        if str(row.get("country", "")).upper() != "US":
-            continue
-        impact = str(row.get("impact", "")).lower()
-        event_name = str(row.get("event") or "").strip()
-        normalized = event_name.lower()
-        if not event_name:
-            continue
-        # Finnhub의 impact가 high여도 화면에서는 시장 핵심 지표 whitelist를 한 번 더 적용한다.
-        if not any(keyword in normalized for keyword in CORE_ECONOMIC_KEYWORDS):
-            continue
-        if impact not in {"high", "medium"}:
-            # 일부 데이터는 impact가 비어 있으므로 핵심 키워드만으로도 최소한 통과시킨다.
-            if impact not in {"", "low"}:
-                continue
-        dt = _parse_finnhub_datetime(row.get("time"))
-        if not dt:
-            continue
-        events.append({
-            "dt": dt,
-            "name": event_name,
-            "type": "economic",
-            "impact": impact or "high",
-            "source": "economic",
-            "estimate": row.get("estimate"),
-            "previous": row.get("prev") if row.get("prev") is not None else row.get("previous"),
-        })
-
-    # 실적: 시장에서 자주 보는 대형주 위주로 제한해 캘린더를 '핵심 일정' 수준으로 유지한다.
-    earnings_rows = earn_payload.get("earningsCalendar", []) if isinstance(earn_payload, dict) else []
-    print(f"[시장 일정] 실적 원본 건수: {len(earnings_rows)}")
-    costco_rows = [r for r in earnings_rows if str(r.get("symbol") or "").upper() == "COST"]
-    print(f"[시장 일정] COST 원본 건수: {len(costco_rows)}")
-    if costco_rows:
-        print(f"[시장 일정] COST 원본: {costco_rows[:3]}")
-    watch = set(CALENDAR_WATCH_SYMBOLS)
-    for row in earnings_rows:
-        symbol = str(row.get("symbol") or "").upper()
-        if symbol not in watch:
-            continue
-        dt = _earnings_datetime_kst(row.get("date"), str(row.get("hour") or "").lower())
-        if not dt:
-            continue
-        events.append({
-            "dt": dt,
-            "name": "",
-            "type": "earnings",
-            "source": "earnings",
-            "symbol": symbol,
-            "hour": str(row.get("hour") or "").lower(),
-            "eps_estimate": row.get("epsEstimate"),
-            "revenue_estimate": row.get("revenueEstimate"),
-        })
-
-    # 중복 제거 및 시간순 정렬
+    events = economic_events + earnings_events
     dedup = {}
     for ev in events:
         key = (
@@ -1594,19 +1783,10 @@ def _fetch_dynamic_calendar_events():
         dedup[key] = ev
     events = sorted(dedup.values(), key=lambda x: x["dt"])
 
-    # 화면에는 '핵심 경제지표 + 주요 종목 실적'만 최대 6개까지 표시한다.
-    # 중간급 잡일정이 화면을 채우지 않도록 선택 단계에서도 한 번 더 제한한다.
-    core_economic = [e for e in events if e.get("type") == "economic" and e.get("impact") in {"high", "medium"}]
-    earnings = [e for e in events if e.get("type") == "earnings"]
-    selected = []
-    print(f"[시장 일정] 핵심 경제 통과: {len(core_economic)}, 주요 실적 통과: {len(earnings)}, 전체 선택 후보: {len(core_economic) + len(earnings)}")
-    print(f"[시장 일정] COST 필터 통과: {sum(1 for e in earnings if e.get('symbol') == 'COST')}")
-    # 가장 가까운 일정부터. 같은 주에 실적과 핵심 지표가 겹치면 시간순으로 함께 보여준다.
-    for ev in sorted(core_economic + earnings, key=lambda x: x["dt"]):
-        if ev not in selected:
-            selected.append(ev)
-        if len(selected) >= 12:
-            break
+    # 핵심 경제지표 + 주요 실적만 유지하고 너무 먼/낮은 우선순위 일정은 자르지 않는다.
+    # 화면에서 날짜별로 최대 5일을 보여주므로 최대 20개면 충분하다.
+    selected = [e for e in events if e.get("type") in {"economic", "earnings"}][:20]
+    print(f"[시장 일정] 경제 {len(economic_events)} + 실적 {len(earnings_events)} -> 최종 {len(selected)}건")
     print("[시장 일정] 최종 선택:", [(e.get("type"), e.get("symbol"), e.get("name"), e.get("dt").isoformat()) for e in selected])
     return selected
 
@@ -1644,7 +1824,8 @@ def _refresh_calendar_cache():
 
 
 def start_calendar_warmup():
-    """서버 시작 시 일정 데이터를 백그라운드로 미리 받아 /analyze를 막지 않는다."""
+    """서버 시작 시 영속 캐시를 먼저 읽고, 이후 공식 일정/실적을 백그라운드 갱신한다."""
+    _load_calendar_persistent_cache()
     threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-warmup").start()
 
 
