@@ -30,10 +30,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const marketWidth = 320;
       const panelWidth = 360;
 
+      // 데스크톱은 세 영역을 같은 flex 레이아웃에 넣는다.
+      // 패널이 좌/우로 이동하면 panel/main/market의 순서와 폭이 함께 바뀐다.
+      document.body.classList.toggle('panel-left-docked', side === 'left');
+      document.body.classList.toggle('panel-right-docked', side === 'right');
+
       if (marketBar) {
-        const marketLeft = panelOpen && side === 'left' ? panelWidth : 0;
-        marketBar.style.setProperty('--market-left-runtime', `${marketLeft}px`);
-        marketBar.style.left = mobile ? '0px' : `${marketLeft}px`;
         marketBar.classList.toggle('-translate-x-full', !marketOpen);
         marketBar.classList.toggle('xl:-translate-x-full', !marketOpen);
       }
@@ -42,16 +44,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         rightPanel.classList.toggle('panel-docked-left', side === 'left');
         rightPanel.classList.toggle('panel-docked-right', side === 'right');
         rightPanel.classList.toggle('panel-closed', !panelOpen);
-        if (panelOpen && !rightPanel.classList.contains('panel-dragging')) {
-          rightPanel.style.transform = '';
-        }
       }
 
-      const layoutLeft = mobile ? 0 : (marketOpen ? marketWidth : 0) + (panelOpen && side === 'left' ? panelWidth : 0);
-      const layoutRight = mobile ? 0 : (panelOpen && side === 'right' ? panelWidth : 0);
-      document.documentElement.style.setProperty('--layout-main-left', `${layoutLeft}px`);
-      document.documentElement.style.setProperty('--layout-main-right', `${layoutRight}px`);
-      document.documentElement.style.setProperty('--market-sidebar-left', `${(panelOpen && side === 'left') ? panelWidth : 0}px`);
+      // 홈 화면(fixed)은 실제 세 열 중 본문 영역과 정확히 같은 폭을 사용한다.
+      // 메인 분석 영역은 일반 flex 흐름에 있으므로 별도 margin을 주지 않는다.
+      const leftSpace = mobile ? 0 : (marketOpen ? marketWidth : 0) + (panelOpen && side === 'left' ? panelWidth : 0);
+      const rightSpace = mobile ? 0 : (panelOpen && side === 'right' ? panelWidth : 0);
+      document.documentElement.style.setProperty('--layout-main-left', `${leftSpace}px`);
+      document.documentElement.style.setProperty('--layout-main-right', `${rightSpace}px`);
 
       document.querySelectorAll('[data-panel-dock-icon]').forEach(el => {
         el.setAttribute('data-lucide', side === 'left' ? 'panel-left' : 'panel-right');
@@ -73,7 +73,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       panelDragState = {
         pointerId: event.pointerId,
         startX: event.clientX,
-        lastX: event.clientX,
         startSide: getPanelSide(),
       };
 
@@ -81,75 +80,34 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       panel.classList.add('panel-dragging');
       document.body.classList.add('panel-dragging');
       document.body.style.userSelect = 'none';
-      panel.style.transition = 'none';
       event.preventDefault();
-    }
-
-    function applyLivePanelDragLayout(panelLeft) {
-      const panel = document.getElementById('rightPanel');
-      const marketBar = document.getElementById('leftMarketSidebar');
-      if (!panel) return;
-
-      const mobile = window.innerWidth < 1024;
-      const panelWidth = mobile ? Math.min(360, window.innerWidth * 0.88) : 360;
-      const marketWidth = mobile ? Math.min(320, window.innerWidth * 0.86) : 320;
-      const maxLeft = Math.max(0, window.innerWidth - panelWidth);
-      const x = Math.max(0, Math.min(panelLeft, maxLeft));
-      const midpoint = Math.max(0, (window.innerWidth - panelWidth) / 2);
-      const side = x <= midpoint ? 'left' : 'right';
-
-      panel.style.setProperty('--panel-drag-left', `${x}px`);
-      panel.classList.toggle('panel-docked-left', side === 'left');
-      panel.classList.toggle('panel-docked-right', side === 'right');
-
-      if (mobile) {
-        if (marketBar) marketBar.style.left = '0px';
-        document.documentElement.style.setProperty('--layout-main-left', '0px');
-        document.documentElement.style.setProperty('--layout-main-right', '0px');
-        document.documentElement.style.setProperty('--market-sidebar-left', '0px');
-      } else if (side === 'left') {
-        const marketLeft = x + panelWidth;
-        const layoutLeft = marketLeft + marketWidth;
-        if (marketBar) marketBar.style.left = `${marketLeft}px`;
-        document.documentElement.style.setProperty('--layout-main-left', `${layoutLeft}px`);
-        document.documentElement.style.setProperty('--layout-main-right', '0px');
-        document.documentElement.style.setProperty('--market-sidebar-left', `${marketLeft}px`);
-      } else {
-        const layoutRight = Math.max(0, window.innerWidth - (x + panelWidth));
-        if (marketBar) marketBar.style.left = '0px';
-        document.documentElement.style.setProperty('--layout-main-left', `${marketWidth}px`);
-        document.documentElement.style.setProperty('--layout-main-right', `${layoutRight}px`);
-        document.documentElement.style.setProperty('--market-sidebar-left', '0px');
-      }
-
-      document.body.classList.toggle('panel-drag-preview-left', side === 'left');
-      document.body.classList.toggle('panel-drag-preview-right', side === 'right');
     }
 
     function movePanelDrag(event) {
       if (!panelDragState || event.pointerId !== panelDragState.pointerId) return;
       const panel = document.getElementById('rightPanel');
       if (!panel) return;
-      panelDragState.lastX = event.clientX;
-      const delta = event.clientX - panelDragState.startX;
-      const baseLeft = panelDragState.startSide === 'left' ? 0 : Math.max(0, window.innerWidth - 360);
-      applyLivePanelDragLayout(baseLeft + delta);
+
+      // 패널을 화면 위에서 자유롭게 떠다니게 하지 않는다.
+      // 중앙 경계를 넘는 순간 실제 flex 순서를 바꾸어 세 영역이 함께 재배치된다.
+      const nextSide = event.clientX < (window.innerWidth / 2) ? 'left' : 'right';
+      if (nextSide !== getPanelSide()) {
+        setPanelSide(nextSide, false);
+      }
+      document.body.classList.toggle('panel-drag-preview-left', nextSide === 'left');
+      document.body.classList.toggle('panel-drag-preview-right', nextSide === 'right');
       event.preventDefault();
     }
 
     function endPanelDrag(event) {
       if (!panelDragState || event.pointerId !== panelDragState.pointerId) return;
       const panel = document.getElementById('rightPanel');
-      const finalX = event.clientX;
-      const nextSide = finalX < (window.innerWidth / 2) ? 'left' : 'right';
+      const nextSide = event.clientX < (window.innerWidth / 2) ? 'left' : 'right';
       panelDragState = null;
       document.body.classList.remove('panel-dragging');
       document.body.style.userSelect = '';
       if (panel) {
         panel.classList.remove('panel-dragging');
-        panel.style.transition = '';
-        panel.style.transform = '';
-        panel.style.removeProperty('--panel-drag-left');
         try { panel.releasePointerCapture(event.pointerId); } catch (_) {}
       }
       document.body.classList.remove('panel-drag-preview-left', 'panel-drag-preview-right');

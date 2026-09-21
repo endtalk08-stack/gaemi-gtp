@@ -91,11 +91,10 @@
     .source-list-meta { margin-top: 3px; color: #71717a; font-size: .68rem; font-weight: 600; }
     .source-list-arrow { flex: 0 0 auto; width: 16px; height: 16px; color: #71717a; }
 
-    /* 패널 레이아웃: 왼쪽 시장정보 / 가운데 본문 / 좌우 이동 가능한 패널 */
+    /* 패널 레이아웃: 왼쪽 시장정보 / 가운데 본문 / 좌우로 도킹되는 패널 */
     :root {
       --layout-main-left: 0px;
       --layout-main-right: 0px;
-      --market-sidebar-left: 0px;
     }
 
     #mainHeroView {
@@ -104,29 +103,107 @@
       padding-left: 0;
       padding-right: 0;
       box-sizing: border-box;
-      transition: left .28s ease, right .28s ease;
+      transition: left .24s ease, right .24s ease;
     }
     #mainHeroView > header { padding-left: 14px; padding-right: 14px; }
 
     @media (min-width: 1024px) {
-      #mainHeroView { width: auto !important; }
+      /* body 자체가 3열 레이아웃이다. fixed/absolute로 떠다니는 패널이 아니다. */
       body > main {
-        margin-left: var(--layout-main-left) !important;
-        margin-right: var(--layout-main-right) !important;
+        order: 3;
+        flex: 1 1 auto !important;
         width: auto !important;
-        transition: margin-left .28s ease, margin-right .28s ease;
+        min-width: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        transition: flex-basis .24s ease, width .24s ease;
       }
-      #leftMarketSidebar {
-        left: var(--market-sidebar-left) !important;
-        transition: left .28s ease, transform .28s ease;
-      }
+
+      #leftMarketSidebar,
       #rightPanel {
-        position: fixed !important;
-        width: 360px !important;
-        max-width: 88vw;
-        overflow: hidden;
-        transition: left .28s ease, right .28s ease, transform .28s ease;
+        position: relative !important;
+        inset: auto !important;
+        top: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        transform: none !important;
+        overflow: hidden !important;
+        box-sizing: border-box;
+        transition: flex-basis .24s ease, width .24s ease, opacity .18s ease, border-color .18s ease;
       }
+
+      #leftMarketSidebar {
+        order: 1;
+        flex: 0 0 320px !important;
+        width: 320px !important;
+        min-width: 0 !important;
+        border-right: 1px solid #e2e8f0;
+        border-left: 0;
+      }
+      .dark #leftMarketSidebar { border-right-color: #27272a; }
+
+      #rightPanel {
+        order: 3;
+        flex: 0 0 360px !important;
+        width: 360px !important;
+        min-width: 0 !important;
+        max-width: 360px !important;
+        border-left: 1px solid #e2e8f0;
+        border-right: 0;
+        opacity: 1;
+      }
+      .dark #rightPanel { border-left-color: #27272a; }
+
+      body.panel-left-docked #rightPanel {
+        order: 1;
+        border-left: 0;
+        border-right: 1px solid #e2e8f0;
+      }
+      .dark body.panel-left-docked #rightPanel { border-right-color: #27272a; }
+      body.panel-left-docked #leftMarketSidebar { order: 2; }
+      body.panel-left-docked > main { order: 3; }
+
+      body.panel-right-docked #leftMarketSidebar { order: 1; }
+      body.panel-right-docked > main { order: 2; }
+      body.panel-right-docked #rightPanel { order: 3; }
+
+      /* 닫힌 패널은 공간도 차지하지 않는다. 다시 열면 flex 공간이 부드럽게 돌아온다. */
+      body:not(.left-sidebar-open) #leftMarketSidebar {
+        flex-basis: 0 !important;
+        width: 0 !important;
+        opacity: 0;
+        border-left-width: 0 !important;
+        border-right-width: 0 !important;
+        pointer-events: none;
+      }
+      body:not(.right-panel-open) #rightPanel {
+        flex-basis: 0 !important;
+        width: 0 !important;
+        max-width: 0 !important;
+        opacity: 0;
+        border-left-width: 0 !important;
+        border-right-width: 0 !important;
+        pointer-events: none;
+      }
+
+      #rightPanel.panel-docked-left {
+        border-left: 0;
+        border-right: 1px solid #e2e8f0;
+      }
+      .dark #rightPanel.panel-docked-left { border-right-color: #27272a; }
+      #rightPanel.panel-docked-right {
+        border-left: 1px solid #e2e8f0;
+        border-right: 0;
+      }
+      .dark #rightPanel.panel-docked-right { border-left-color: #27272a; }
+      #rightPanel.panel-dragging {
+        box-shadow: 0 18px 60px rgba(0,0,0,.18);
+        cursor: grabbing;
+      }
+      [data-panel-drag-handle] { touch-action: none; }
     }
 
     @media (max-width: 1023px) {
@@ -135,39 +212,8 @@
       body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
       #leftMarketSidebar { width: min(320px, 86vw); left: 0 !important; }
       #rightPanel { width: min(360px, 88vw); }
+      [data-panel-drag-handle] { touch-action: none; }
     }
-
-    #leftMarketSidebar {
-      position: fixed !important;
-      width: 320px !important;
-      overflow: hidden;
-    }
-
-    #rightPanel {
-      position: fixed !important;
-      width: 360px !important;
-      max-width: 88vw;
-      overflow: hidden;
-    }
-    #rightPanel.panel-docked-right { right: 0 !important; left: auto !important; }
-    #rightPanel.panel-docked-left { left: 0 !important; right: auto !important; }
-    #rightPanel.panel-closed.panel-docked-right { transform: translateX(110%); }
-    #rightPanel.panel-closed.panel-docked-left { transform: translateX(-110%); }
-    #rightPanel:not(.panel-closed) { transform: translateX(0); }
-    #rightPanel.panel-dragging {
-      left: var(--panel-drag-left, auto) !important;
-      right: auto !important;
-      transform: translateX(0) !important;
-      transition: none !important;
-      box-shadow: 0 18px 60px rgba(0,0,0,.34);
-      cursor: grabbing;
-    }
-    body.panel-dragging #mainHeroView,
-    body.panel-dragging > main,
-    body.panel-dragging #leftMarketSidebar {
-      transition: left .18s ease, right .18s ease, margin-left .18s ease, margin-right .18s ease;
-    }
-    [data-panel-drag-handle] { touch-action: none; }
 
     ::-webkit-scrollbar { display: none; width: 0px; }
     html, body, #chatArea, aside { scrollbar-width: none; -ms-overflow-style: none; }
