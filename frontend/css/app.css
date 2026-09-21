@@ -333,6 +333,24 @@ body.panel-resizing * { user-select: none !important; }
   }
 }
 
+
+/* 첫 화면 패널 열기: 고정 hero 레이어보다 workspace 패널만 한 단계 위로 표시.
+   시장정보 사이드바(z40)는 그대로 유지하여 패널이 그 영역을 침범하지 않는다. */
+body.hero-panel-open #gaemiWorkspace {
+  position: relative;
+  z-index: 31;
+}
+body.hero-panel-open #gaemiWorkspace #mainContent {
+  visibility: hidden;
+  pointer-events: none;
+}
+[data-panel-dock-icon] {
+  display: block;
+}
+[data-panel-dock-icon].hidden {
+  display: none !important;
+}
+
 /* 패널 상단 토글은 현재 화면에 해당하는 버튼 하나만 보인다. */
 [data-panel-header-toggle][aria-hidden="true"] {
   display: none !important;

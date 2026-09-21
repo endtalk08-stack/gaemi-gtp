@@ -39,9 +39,15 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const marketOpen = document.body.classList.contains('left-market-open');
       const panelOpen = document.body.classList.contains('right-panel-open');
       const mobile = window.innerWidth < 1024;
+      const heroView = document.getElementById('mainHeroView');
+      const onHero = !!heroView && !heroView.classList.contains('hidden');
+      const panelSide = getPanelSide();
 
       document.body.classList.toggle('left-market-closed', !marketOpen);
       document.body.classList.toggle('right-panel-closed', !panelOpen);
+      // 첫 화면에서는 hero가 fixed 레이어로 workspace를 덮기 때문에,
+      // 패널을 열었을 때만 workspace를 한 단계 위로 올려 패널이 보이게 한다.
+      document.body.classList.toggle('hero-panel-open', onHero && panelOpen);
 
       if (market) market.setAttribute('aria-hidden', marketOpen ? 'false' : 'true');
       if (panel) panel.setAttribute('aria-hidden', panelOpen ? 'false' : 'true');
@@ -57,8 +63,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       document.querySelectorAll('[data-panel-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', panelOpen));
       document.querySelectorAll('[data-panel-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !panelOpen));
-      const heroView = document.getElementById('mainHeroView');
-      const onHero = !!heroView && !heroView.classList.contains('hidden');
       document.querySelectorAll('[data-panel-header-toggle]').forEach(el => {
         el.setAttribute('aria-label', panelOpen ? '패널 닫기' : '패널 열기');
         el.setAttribute('title', panelOpen ? '패널 닫기' : '패널 열기');
@@ -71,17 +75,28 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       // 모바일에서만 시장정보가 오버레이가 되며, 패널은 workspace 안에서 동작한다.
       if (backdrop) backdrop.classList.toggle('hidden', !(mobile && marketOpen));
+      document.querySelectorAll('[data-panel-dock-icon]').forEach(el => {
+        const isLeft = panelSide === 'left';
+        el.classList.toggle('hidden', el.getAttribute('data-panel-dock-icon') === 'left' ? isLeft : !isLeft);
+      });
+      const dockButton = document.querySelector('.panel-dock-toggle');
+      if (dockButton) {
+        const moveTo = panelSide === 'left' ? '오른쪽' : '왼쪽';
+        dockButton.setAttribute('aria-label', `패널을 ${moveTo}(으)로 이동`);
+        dockButton.setAttribute('title', `패널을 ${moveTo}(으)로 이동`);
+      }
       if (window.lucide) lucide.createIcons();
     }
 
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
-      document.body.classList.remove('left-market-open','right-panel-open');
+      document.body.classList.remove('left-market-open','right-panel-open','hero-panel-open');
       applySidebarState();
     }
 
     function switchToAnalysisMode(stockName) {
       document.getElementById('mainHeroView').classList.add('hidden');
+      document.body.classList.remove('hero-panel-open');
       document.body.classList.add('left-market-open','right-panel-open');
       const savedSide = localStorage.getItem('gaemiGTP_panel_side');
       setPanelSide(savedSide === 'left' ? 'left' : 'right');

@@ -283,8 +283,9 @@
           <span class="text-[16px] font-black text-[#0f172a] dark:text-white">패널</span>
         </div>
         <div class="flex items-center gap-1 shrink-0">
-          <button type="button" onclick="togglePanelDock()" class="panel-dock-toggle icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="패널 좌우 이동" title="패널 좌우 이동">
-            <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+          <button type="button" onclick="togglePanelDock()" class="panel-dock-toggle icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="패널을 왼쪽으로 이동" title="패널을 왼쪽으로 이동">
+            <i data-panel-dock-icon="left" data-lucide="panel-left" class="w-4 h-4"></i>
+            <i data-panel-dock-icon="right" data-lucide="panel-right" class="w-4 h-4 hidden"></i>
           </button>
           <button type="button" onclick="toggleRightPanel()" class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="패널 닫기" title="패널 닫기">
             <i data-lucide="x" class="w-4 h-4"></i>
@@ -319,6 +320,6 @@
   </div>
 
 
-  <script src="js/app.js?v=20260921-panel-width-1200-v4"></script>
+  <script src="js/app.js?v=20260922-panel-open-dock-fix-v5"></script>
 </body>
 </html>
