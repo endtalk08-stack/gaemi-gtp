@@ -231,3 +231,104 @@
       .external-link-url { margin-left:16px; margin-right:16px; }
       .external-link-actions { padding-left:16px; padding-right:16px; }
     }
+
+
+/* ================================================================
+   Workspace v2: 외부 왼쪽 시장정보 + 내부 본문/패널
+   - 시장정보는 바깥 영역으로 고정
+   - 본문과 패널만 같은 Workspace에서 2열로 재배치
+   - 패널의 좌/우 dock은 Workspace 범위를 절대 벗어나지 않음
+   ================================================================ */
+.gaemi-workspace {
+  --right-panel-width: 360px;
+  min-width: 0;
+  isolation: isolate;
+}
+
+#leftMarketSidebar.market-sidebar {
+  width: 320px;
+  flex: 0 0 320px;
+  transition: width .25s ease, flex-basis .25s ease;
+  min-width: 0;
+  position: relative;
+  z-index: 40;
+}
+body.left-market-closed #leftMarketSidebar.market-sidebar {
+  width: 0;
+  flex-basis: 0;
+  border-right-width: 0;
+  overflow: hidden;
+}
+
+#gaemiWorkspace #mainContent {
+  order: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#gaemiWorkspace #rightPanel {
+  order: 3;
+  flex: 0 0 var(--right-panel-width);
+  width: var(--right-panel-width);
+  min-width: 280px;
+  max-width: 560px;
+  height: 100%;
+  transition: width .2s ease, flex-basis .2s ease;
+}
+
+#gaemiWorkspace #rightPanelResizer {
+  order: 2;
+  flex: 0 0 5px;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background .15s ease;
+  z-index: 20;
+}
+#gaemiWorkspace #rightPanelResizer:hover,
+body.panel-resizing #gaemiWorkspace #rightPanelResizer {
+  background: rgba(113,113,122,.28);
+}
+
+body.right-panel-closed #rightPanel,
+body.right-panel-closed #rightPanelResizer,
+body:not(.right-panel-open) #rightPanel,
+body:not(.right-panel-open) #rightPanelResizer {
+  display: none;
+}
+
+body.panel-left-docked #rightPanel {
+  order: 1;
+  border-left: 0 !important;
+  border-right: 1px solid #27272a;
+}
+body.panel-left-docked #rightPanelResizer { order: 2; }
+body.panel-left-docked #mainContent { order: 3; }
+body.panel-right-docked #mainContent { order: 1; }
+body.panel-right-docked #rightPanelResizer { order: 2; }
+body.panel-right-docked #rightPanel { order: 3; }
+
+.right-panel-header [data-panel-drag-handle] { touch-action: none; }
+body.panel-dragging { cursor: grabbing !important; }
+body.panel-resizing, body.panel-resizing * { cursor: col-resize !important; }
+body.panel-resizing * { user-select: none !important; }
+
+/* Legacy rails/sidebars are no longer rendered in the new layout. */
+#leftSidebar, #rightSidebar, #leftUtilityRail, #rightUtilityRail { display: none !important; }
+
+@media (max-width: 1023px) {
+  #leftMarketSidebar.market-sidebar {
+    width: min(300px, 82vw);
+    flex-basis: min(300px, 82vw);
+  }
+  body.left-market-closed #leftMarketSidebar.market-sidebar {
+    width: 0;
+    flex-basis: 0;
+  }
+  #gaemiWorkspace #rightPanel {
+    flex-basis: min(var(--right-panel-width), 78vw);
+    width: min(var(--right-panel-width), 78vw);
+    min-width: 240px;
+  }
+}

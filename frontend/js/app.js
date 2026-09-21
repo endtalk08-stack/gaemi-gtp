@@ -6,48 +6,70 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let currentChartInstance = null;
     let currentAppMode = 'gaemi';
 
+    function getWorkspace() {
+      return document.getElementById('gaemiWorkspace');
+    }
+
+    function getPanelSide() {
+      return document.body.classList.contains('panel-left-docked') ? 'left' : 'right';
+    }
+
+    function setPanelSide(side) {
+      const normalized = side === 'left' ? 'left' : 'right';
+      document.body.classList.toggle('panel-left-docked', normalized === 'left');
+      document.body.classList.toggle('panel-right-docked', normalized === 'right');
+      localStorage.setItem('gaemiGTP_panel_side', normalized);
+    }
+
+    function setPanelWidth(px) {
+      const workspace = getWorkspace();
+      if (!workspace) return;
+      const rect = workspace.getBoundingClientRect();
+      const maxWidth = Math.max(280, Math.min(560, rect.width - 220));
+      const width = Math.max(280, Math.min(Number(px) || 360, maxWidth));
+      workspace.style.setProperty('--right-panel-width', `${Math.round(width)}px`);
+      localStorage.setItem('gaemiGTP_panel_width', String(Math.round(width)));
+    }
+
     function applySidebarState() {
-      const leftBar = document.getElementById('leftSidebar');
-      const rightBar = document.getElementById('rightSidebar');
-      const leftRail = document.getElementById('leftUtilityRail');
+      const market = document.getElementById('leftMarketSidebar');
+      const panel = document.getElementById('rightPanel');
+      const resizer = document.getElementById('rightPanelResizer');
       const backdrop = document.getElementById('sidebarBackdrop');
-      const leftOpen = document.body.classList.contains('left-sidebar-open');
-      const rightOpen = document.body.classList.contains('right-sidebar-open');
+      const marketOpen = document.body.classList.contains('left-market-open');
+      const panelOpen = document.body.classList.contains('right-panel-open');
       const mobile = window.innerWidth < 1024;
 
-      if (leftBar) {
-        leftBar.classList.toggle('-translate-x-full', !leftOpen);
-        leftBar.classList.toggle('lg:-translate-x-full', !leftOpen);
-        leftBar.classList.toggle('lg:w-0', !leftOpen);
-        leftBar.classList.toggle('lg:overflow-hidden', !leftOpen);
-      }
-      if (rightBar) {
-        rightBar.classList.toggle('translate-x-full', !rightOpen);
-        rightBar.classList.toggle('xl:translate-x-full', !rightOpen);
-      }
+      document.body.classList.toggle('left-market-closed', !marketOpen);
+      document.body.classList.toggle('right-panel-closed', !panelOpen);
 
-      // 오른쪽 상단 버튼 하나로 열기/닫기: 닫힘=패널 아이콘, 열림=X
-      document.querySelectorAll('[data-right-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', rightOpen));
-      document.querySelectorAll('[data-right-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !rightOpen));
-      document.querySelectorAll('[data-right-header-toggle]').forEach(el => el.classList.remove('hidden'));
+      if (market) market.setAttribute('aria-hidden', marketOpen ? 'false' : 'true');
+      if (panel) panel.setAttribute('aria-hidden', panelOpen ? 'false' : 'true');
+      if (resizer) resizer.classList.toggle('is-open', panelOpen);
 
-      // 왼쪽 접힘 레일은 닫힌 상태에서만 사용하지 않고, 현재 레이아웃의 상단 버튼을 기준으로 유지
-      if (leftRail) leftRail.style.display = 'none';
+      document.querySelectorAll('[data-panel-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', panelOpen));
+      document.querySelectorAll('[data-panel-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !panelOpen));
+      document.querySelectorAll('[data-panel-header-toggle]').forEach(el => {
+        el.setAttribute('aria-label', panelOpen ? '패널 닫기' : '패널 열기');
+        el.setAttribute('title', panelOpen ? '패널 닫기' : '패널 열기');
+      });
 
-      // 모바일에서는 열린 패널을 오버레이로 보여주고 배경을 눌러 닫을 수 있게 함.
-      if (backdrop) backdrop.classList.toggle('hidden', !(mobile && (leftOpen || rightOpen)));
+      // 모바일에서만 시장정보가 오버레이가 되며, 패널은 workspace 안에서 동작한다.
+      if (backdrop) backdrop.classList.toggle('hidden', !(mobile && marketOpen));
+      if (window.lucide) lucide.createIcons();
     }
 
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
-      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
+      document.body.classList.remove('left-market-open','right-panel-open');
       applySidebarState();
     }
 
     function switchToAnalysisMode(stockName) {
       document.getElementById('mainHeroView').classList.add('hidden');
-      // 분석 진입 시 양쪽 패널은 닫힌 상태 + 양쪽 열기 레일만 표시
-      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
+      document.body.classList.add('left-market-open','right-panel-open');
+      const savedSide = localStorage.getItem('gaemiGTP_panel_side');
+      setPanelSide(savedSide === 'left' ? 'left' : 'right');
       applySidebarState();
       requestStock(stockName || '삼성전자');
     }
@@ -56,6 +78,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const val = document.getElementById('heroStockInput').value;
       switchToAnalysisMode(val || '삼성전자');
     }
+
     function handleBottomSearch() {
       const val = document.getElementById('bottomStockInput').value;
       if (val) {
@@ -91,30 +114,83 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function toggleLeftSidebar() {
-      const isOpen = document.body.classList.contains('left-sidebar-open');
-      document.body.classList.toggle('left-sidebar-open', !isOpen);
+      const isOpen = document.body.classList.contains('left-market-open');
+      document.body.classList.toggle('left-market-open', !isOpen);
       applySidebarState();
     }
 
-    function toggleRightSidebar() {
-      const isOpen = document.body.classList.contains('right-sidebar-open');
-      document.body.classList.toggle('right-sidebar-open', !isOpen);
+    function toggleRightPanel() {
+      const isOpen = document.body.classList.contains('right-panel-open');
+      document.body.classList.toggle('right-panel-open', !isOpen);
       applySidebarState();
     }
 
     function closeAllSidebars() {
-      // 닫기는 두 패널만 닫고, 열기 레일은 반드시 남긴다.
-      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
+      document.body.classList.remove('left-market-open','right-panel-open');
       applySidebarState();
     }
 
-    // 초기 상태: 양쪽 패널은 닫고, 상단 열기 버튼만 표시
     function initializeSidebars() {
-      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
+      document.body.classList.remove('left-market-open','right-panel-open');
+      const savedSide = localStorage.getItem('gaemiGTP_panel_side');
+      setPanelSide(savedSide === 'left' ? 'left' : 'right');
+      const savedWidth = parseInt(localStorage.getItem('gaemiGTP_panel_width') || '360', 10);
+      // Workspace가 렌더링된 다음 폭을 적용한다.
+      setTimeout(() => setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360), 0);
       applySidebarState();
     }
 
-    initializeSidebars();
+    function initializeWorkspaceInteractions() {
+      const workspace = getWorkspace();
+      const resizer = document.getElementById('rightPanelResizer');
+      const panel = document.getElementById('rightPanel');
+      const dragHandle = panel ? panel.querySelector('[data-panel-drag-handle]') : null;
+      if (!workspace || !resizer || !panel || !dragHandle) return;
+
+      resizer.addEventListener('pointerdown', (event) => {
+        if (!document.body.classList.contains('right-panel-open')) return;
+        event.preventDefault();
+        const rect = workspace.getBoundingClientRect();
+        const onMove = (moveEvent) => {
+          const side = getPanelSide();
+          const width = side === 'right' ? rect.right - moveEvent.clientX : moveEvent.clientX - rect.left;
+          setPanelWidth(width);
+        };
+        const onUp = () => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          document.body.classList.remove('panel-resizing');
+        };
+        document.body.classList.add('panel-resizing');
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp, { once: true });
+      });
+
+      dragHandle.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        document.body.classList.add('panel-dragging');
+        const onMove = (moveEvent) => {
+          const rect = workspace.getBoundingClientRect();
+          const midpoint = rect.left + rect.width / 2;
+          // Workspace 안에서만 좌/우 dock를 결정한다. 왼쪽 시장정보 영역에는 절대 접근하지 않는다.
+          setPanelSide(moveEvent.clientX < midpoint ? 'left' : 'right');
+        };
+        const onUp = () => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          document.body.classList.remove('panel-dragging');
+          applySidebarState();
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp, { once: true });
+      });
+    }
+
+    function togglePanelDock() {
+      setPanelSide(getPanelSide() === 'right' ? 'left' : 'right');
+      applySidebarState();
+    }
 
     function updateThemeButtons() {
       const isDark = document.documentElement.classList.contains('dark');
