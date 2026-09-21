@@ -28,6 +28,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const maxWidth = Math.max(280, Math.min(560, rect.width - 220));
       const width = Math.max(280, Math.min(Number(px) || 360, maxWidth));
       workspace.style.setProperty('--right-panel-width', `${Math.round(width)}px`);
+      document.body.style.setProperty('--gaemi-panel-width', `${Math.round(width)}px`);
       localStorage.setItem('gaemiGTP_panel_width', String(Math.round(width)));
     }
 
@@ -137,6 +138,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const savedWidth = parseInt(localStorage.getItem('gaemiGTP_panel_width') || '360', 10);
       // Workspace가 렌더링된 다음 폭을 적용한다.
       setTimeout(() => setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360), 0);
+      document.body.style.setProperty('--gaemi-panel-width', `${Number.isFinite(savedWidth) ? savedWidth : 360}px`);
       applySidebarState();
     }
 

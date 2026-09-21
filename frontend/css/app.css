@@ -245,6 +245,25 @@
   isolation: isolate;
 }
 
+/* 홈 화면에서도 오른쪽 패널이 본문 위에 묻히지 않고 같은 화면 영역 안에서 보이도록 한다. */
+:root { --gaemi-panel-width: 360px; }
+body.right-panel-open #mainHeroView {
+  right: var(--gaemi-panel-width);
+  transition: right .25s ease;
+}
+body:not(.right-panel-open) #mainHeroView {
+  right: 0;
+  transition: right .25s ease;
+}
+
+/* 패널은 홈 히어로(z-30)보다 위에서 렌더링되되, 왼쪽 시장정보 영역으로 넘어가지 않는다. */
+#gaemiWorkspace #rightPanel,
+#gaemiWorkspace #rightPanelResizer {
+  position: relative;
+}
+#gaemiWorkspace #rightPanelResizer { z-index: 41; }
+#gaemiWorkspace #rightPanel { z-index: 42; }
+
 #leftMarketSidebar.market-sidebar {
   width: 320px;
   flex: 0 0 320px;
