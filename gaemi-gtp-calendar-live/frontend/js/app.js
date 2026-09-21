@@ -6,36 +6,121 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let currentChartInstance = null;
     let currentAppMode = 'gaemi';
 
+    let panelSide = localStorage.getItem('gaemiGTPPanelSide') === 'left' ? 'left' : 'right';
+    let panelDragState = null;
+
+    function getPanelSide() {
+      return panelSide === 'left' ? 'left' : 'right';
+    }
+
+    function setPanelSide(side, persist = true) {
+      panelSide = side === 'left' ? 'left' : 'right';
+      if (persist) localStorage.setItem('gaemiGTPPanelSide', panelSide);
+      applySidebarState();
+    }
+
     function applySidebarState() {
-      const leftBar = document.getElementById('leftSidebar');
-      const rightBar = document.getElementById('rightSidebar');
-      const leftRail = document.getElementById('leftUtilityRail');
+      const marketBar = document.getElementById('leftMarketSidebar');
+      const rightPanel = document.getElementById('rightPanel');
       const backdrop = document.getElementById('sidebarBackdrop');
-      const leftOpen = document.body.classList.contains('left-sidebar-open');
-      const rightOpen = document.body.classList.contains('right-sidebar-open');
+      const marketOpen = document.body.classList.contains('left-sidebar-open');
+      const panelOpen = document.body.classList.contains('right-panel-open');
+      const side = getPanelSide();
       const mobile = window.innerWidth < 1024;
+      const marketWidth = 320;
+      const panelWidth = 360;
 
-      if (leftBar) {
-        leftBar.classList.toggle('-translate-x-full', !leftOpen);
-        leftBar.classList.toggle('lg:-translate-x-full', !leftOpen);
-        leftBar.classList.toggle('lg:w-0', !leftOpen);
-        leftBar.classList.toggle('lg:overflow-hidden', !leftOpen);
+      if (marketBar) {
+        const marketLeft = panelOpen && side === 'left' ? panelWidth : 0;
+        marketBar.style.setProperty('--market-left-runtime', `${marketLeft}px`);
+        marketBar.style.left = mobile ? '0px' : `${marketLeft}px`;
+        marketBar.classList.toggle('-translate-x-full', !marketOpen);
+        marketBar.classList.toggle('xl:-translate-x-full', !marketOpen);
       }
-      if (rightBar) {
-        rightBar.classList.toggle('translate-x-full', !rightOpen);
-        rightBar.classList.toggle('xl:translate-x-full', !rightOpen);
+
+      if (rightPanel) {
+        rightPanel.classList.toggle('panel-docked-left', side === 'left');
+        rightPanel.classList.toggle('panel-docked-right', side === 'right');
+        rightPanel.classList.toggle('panel-closed', !panelOpen);
+        if (panelOpen && !rightPanel.classList.contains('panel-dragging')) {
+          rightPanel.style.transform = '';
+        }
       }
 
-      // 오른쪽 상단 버튼 하나로 열기/닫기: 닫힘=패널 아이콘, 열림=X
-      document.querySelectorAll('[data-right-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', rightOpen));
-      document.querySelectorAll('[data-right-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !rightOpen));
-      document.querySelectorAll('[data-right-header-toggle]').forEach(el => el.classList.remove('hidden'));
+      const layoutLeft = mobile ? 0 : (marketOpen ? marketWidth : 0) + (panelOpen && side === 'left' ? panelWidth : 0);
+      const layoutRight = mobile ? 0 : (panelOpen && side === 'right' ? panelWidth : 0);
+      document.documentElement.style.setProperty('--layout-main-left', `${layoutLeft}px`);
+      document.documentElement.style.setProperty('--layout-main-right', `${layoutRight}px`);
+      document.documentElement.style.setProperty('--market-sidebar-left', `${(panelOpen && side === 'left') ? panelWidth : 0}px`);
 
-      // 왼쪽 접힘 레일은 닫힌 상태에서만 사용하지 않고, 현재 레이아웃의 상단 버튼을 기준으로 유지
-      if (leftRail) leftRail.style.display = 'none';
+      document.querySelectorAll('[data-panel-dock-icon]').forEach(el => {
+        el.setAttribute('data-lucide', side === 'left' ? 'panel-left' : 'panel-right');
+      });
+      document.querySelectorAll('[data-right-panel-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', panelOpen));
+      document.querySelectorAll('[data-right-panel-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !panelOpen));
+      document.querySelectorAll('[data-right-panel-toggle]').forEach(el => el.classList.remove('hidden'));
 
-      // 모바일에서는 열린 패널을 오버레이로 보여주고 배경을 눌러 닫을 수 있게 함.
-      if (backdrop) backdrop.classList.toggle('hidden', !(mobile && (leftOpen || rightOpen)));
+      if (window.lucide) lucide.createIcons();
+      if (backdrop) backdrop.classList.toggle('hidden', !(mobile && (marketOpen || panelOpen)));
+    }
+
+    function beginPanelDrag(event) {
+      const panel = document.getElementById('rightPanel');
+      if (!panel || !document.body.classList.contains('right-panel-open')) return;
+      if (event.target.closest('button')) return;
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+      panelDragState = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        lastX: event.clientX,
+        startSide: getPanelSide(),
+      };
+
+      try { panel.setPointerCapture(event.pointerId); } catch (_) {}
+      panel.classList.add('panel-dragging');
+      document.body.classList.add('panel-dragging');
+      document.body.style.userSelect = 'none';
+      panel.style.transition = 'none';
+      event.preventDefault();
+    }
+
+    function movePanelDrag(event) {
+      if (!panelDragState || event.pointerId !== panelDragState.pointerId) return;
+      const panel = document.getElementById('rightPanel');
+      if (!panel) return;
+      panelDragState.lastX = event.clientX;
+      const delta = event.clientX - panelDragState.startX;
+      panel.style.transform = `translateX(${delta}px)`;
+      event.preventDefault();
+    }
+
+    function endPanelDrag(event) {
+      if (!panelDragState || event.pointerId !== panelDragState.pointerId) return;
+      const panel = document.getElementById('rightPanel');
+      const finalX = event.clientX;
+      const nextSide = finalX < (window.innerWidth / 2) ? 'left' : 'right';
+      panelDragState = null;
+      document.body.classList.remove('panel-dragging');
+      document.body.style.userSelect = '';
+      if (panel) {
+        panel.classList.remove('panel-dragging');
+        panel.style.transition = '';
+        panel.style.transform = '';
+        try { panel.releasePointerCapture(event.pointerId); } catch (_) {}
+      }
+      setPanelSide(nextSide, true);
+      event.preventDefault();
+    }
+
+    function initializePanelDragging() {
+      const handle = document.querySelector('[data-panel-drag-handle]');
+      if (!handle || handle.dataset.dragBound === '1') return;
+      handle.dataset.dragBound = '1';
+      handle.addEventListener('pointerdown', beginPanelDrag, { passive: false });
+      handle.addEventListener('pointermove', movePanelDrag, { passive: false });
+      handle.addEventListener('pointerup', endPanelDrag, { passive: false });
+      handle.addEventListener('pointercancel', endPanelDrag, { passive: false });
     }
 
     function resetToHome() {
@@ -114,7 +199,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       applySidebarState();
     }
 
+    initializePanelDragging();
     initializeSidebars();
+    window.addEventListener('resize', applySidebarState);
 
     function updateThemeButtons() {
       const isDark = document.documentElement.classList.contains('dark');

@@ -91,48 +91,75 @@
     .source-list-meta { margin-top: 3px; color: #71717a; font-size: .68rem; font-weight: 600; }
     .source-list-arrow { flex: 0 0 auto; width: 16px; height: 16px; color: #71717a; }
 
-    /* 사이드바: 닫힘 상태에서는 화면을 차지하지 않고 상단 버튼만 사용 */
-    #mainHeroView { padding-left: 0; padding-right: 0; box-sizing: border-box; }
-    #mainHeroView > header { padding-left: 14px; padding-right: 14px; }
-
-    /* 닫힌 상태의 세로 유틸리티 레일은 사용하지 않음 */
-    #leftUtilityRail, #rightUtilityRail { display: none !important; }
-
-    /* 데스크톱: 사이드바는 본문을 밀지 않고 독립 오버레이로 표시 */
-    @media (min-width: 1024px) {
-      #mainHeroView {
-        left: 0; right: 0;
-        transition: none;
-      }
-      body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
-      #leftSidebar { position: fixed !important; }
+    /* 패널 레이아웃: 왼쪽 시장정보 / 가운데 본문 / 좌우 이동 가능한 패널 */
+    :root {
+      --layout-main-left: 0px;
+      --layout-main-right: 0px;
+      --market-sidebar-left: 0px;
     }
 
-    /* 모바일/태블릿: 닫힌 상태는 본문 전체 폭, 열린 사이드바만 위에 표시 */
+    #mainHeroView {
+      left: var(--layout-main-left);
+      right: var(--layout-main-right);
+      padding-left: 0;
+      padding-right: 0;
+      box-sizing: border-box;
+      transition: left .28s ease, right .28s ease;
+    }
+    #mainHeroView > header { padding-left: 14px; padding-right: 14px; }
+
+    @media (min-width: 1024px) {
+      #mainHeroView { width: auto !important; }
+      body > main {
+        margin-left: var(--layout-main-left) !important;
+        margin-right: var(--layout-main-right) !important;
+        width: auto !important;
+        transition: margin-left .28s ease, margin-right .28s ease;
+      }
+      #leftMarketSidebar {
+        left: var(--market-sidebar-left) !important;
+        transition: left .28s ease, transform .28s ease;
+      }
+      #rightPanel {
+        position: fixed !important;
+        width: 360px !important;
+        max-width: 88vw;
+        overflow: hidden;
+        transition: left .28s ease, right .28s ease, transform .28s ease;
+      }
+    }
+
     @media (max-width: 1023px) {
       #mainHeroView { left: 0; right: 0; }
       #mainHeroView > header { padding-left: 8px; padding-right: 8px; }
       body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
-      #leftSidebar, #rightSidebar { width: min(320px, 86vw); }
+      #leftMarketSidebar { width: min(320px, 86vw); left: 0 !important; }
+      #rightPanel { width: min(360px, 88vw); }
     }
 
-    /* 오른쪽 사이드바: 콘텐츠 + 우측 유틸리티 레일을 하나의 패널로 구성 */
-    #rightSidebar { position: fixed !important; width: 320px !important; overflow: hidden; }
-    #rightSidebar > .flex-1 { padding-right: 44px; box-sizing: border-box; }
-    #rightSidebar .right-utility-rail {
-      position: absolute; top: 0; right: 0; bottom: 0; width: 44px;
-      display: flex; flex-direction: column; align-items: center;
-      background: #f8fafc; border-left: 1px solid #e2e8f0; z-index: 10;
+    #leftMarketSidebar {
+      position: fixed !important;
+      width: 320px !important;
+      overflow: hidden;
     }
-    .dark #rightSidebar .right-utility-rail { background: #16171b; border-left-color: #27272a; }
-    #rightSidebar .right-utility-toggle { height: 56px; width: 44px; display: flex; align-items: center; justify-content: center; }
-    #rightSidebar .right-utility-divider { width: 28px; border-top: 1px solid #e2e8f0; margin: 0 auto 4px; }
-    .dark #rightSidebar .right-utility-divider { border-top-color: #27272a; }
-    #rightSidebar .right-utility-item { width: 44px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-    @media (max-width: 1023px) {
-      #rightSidebar { width: min(320px, 86vw) !important; }
-      #rightSidebar > .flex-1 { padding-right: 44px; }
+
+    #rightPanel {
+      position: fixed !important;
+      width: 360px !important;
+      max-width: 88vw;
+      overflow: hidden;
     }
+    #rightPanel.panel-docked-right { right: 0 !important; left: auto !important; }
+    #rightPanel.panel-docked-left { left: 0 !important; right: auto !important; }
+    #rightPanel.panel-closed.panel-docked-right { transform: translateX(110%); }
+    #rightPanel.panel-closed.panel-docked-left { transform: translateX(-110%); }
+    #rightPanel:not(.panel-closed) { transform: translateX(0); }
+    #rightPanel.panel-dragging {
+      transition: none !important;
+      box-shadow: 0 18px 60px rgba(0,0,0,.34);
+      cursor: grabbing;
+    }
+    [data-panel-drag-handle] { touch-action: none; }
 
     ::-webkit-scrollbar { display: none; width: 0px; }
     html, body, #chatArea, aside { scrollbar-width: none; -ms-overflow-style: none; }
