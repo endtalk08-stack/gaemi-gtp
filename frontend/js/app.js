@@ -1093,7 +1093,15 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       }
     }
 
-document.addEventListener("DOMContentLoaded", () => { if (window.lucide) lucide.createIcons(); });
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    initializeSidebars();
+    initializeWorkspaceInteractions();
+  } catch (e) {
+    console.warn('[gaemiGTP] workspace initialization warning:', e);
+  }
+  if (window.lucide) lucide.createIcons();
+});
     function setRightInfoTab(tab) {
       const titles = {
         popular: ['인기 TOP 20', '현재가'],
