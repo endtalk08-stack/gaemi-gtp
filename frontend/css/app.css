@@ -271,7 +271,7 @@ body.left-market-closed #leftMarketSidebar.market-sidebar {
   flex: 0 0 var(--right-panel-width);
   width: var(--right-panel-width);
   min-width: 280px;
-  max-width: 900px;
+  max-width: 1200px;
   height: 100%;
   transition: width .2s ease, flex-basis .2s ease;
 }

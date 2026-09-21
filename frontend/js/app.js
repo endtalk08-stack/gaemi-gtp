@@ -25,7 +25,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const workspace = getWorkspace();
       if (!workspace) return;
       const rect = workspace.getBoundingClientRect();
-      const maxWidth = Math.max(280, Math.min(900, rect.width - 320));
+      const maxWidth = Math.max(280, Math.min(1200, rect.width - 320));
       const width = Math.max(280, Math.min(Number(px) || 360, maxWidth));
       workspace.style.setProperty('--right-panel-width', `${Math.round(width)}px`);
       localStorage.setItem('gaemiGTP_panel_width', String(Math.round(width)));
