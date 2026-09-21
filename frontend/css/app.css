@@ -91,116 +91,47 @@
     .source-list-meta { margin-top: 3px; color: #71717a; font-size: .68rem; font-weight: 600; }
     .source-list-arrow { flex: 0 0 auto; width: 16px; height: 16px; color: #71717a; }
 
-    /* 패널 레이아웃: [시장정보][본문][패널] / 패널은 드래그로 좌우 도킹 */
-    :root {
-      --layout-main-left: 0px;
-      --layout-main-right: 0px;
-    }
+    /* 사이드바: 닫힘 상태에서는 화면을 차지하지 않고 상단 버튼만 사용 */
+    #mainHeroView { padding-left: 0; padding-right: 0; box-sizing: border-box; }
+    #mainHeroView > header { padding-left: 14px; padding-right: 14px; }
 
-    #mainHeroView {
-      left: var(--layout-main-left);
-      right: var(--layout-main-right);
-      padding-left: 0;
-      padding-right: 0;
-      box-sizing: border-box;
-      transition: left .24s ease, right .24s ease;
-    }
+    /* 닫힌 상태의 세로 유틸리티 레일은 사용하지 않음 */
+    #leftUtilityRail, #rightUtilityRail { display: none !important; }
 
+    /* 데스크톱: 사이드바는 본문을 밀지 않고 독립 오버레이로 표시 */
     @media (min-width: 1024px) {
-      body > main {
-        order: 2;
-        flex: 1 1 auto !important;
-        width: auto !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        transition: flex-basis .24s ease, width .24s ease, order .24s ease;
+      #mainHeroView {
+        left: 0; right: 0;
+        transition: none;
       }
-
-      #leftMarketSidebar, #rightPanel {
-        position: relative !important;
-        inset: auto !important;
-        top: auto !important;
-        right: auto !important;
-        bottom: auto !important;
-        left: auto !important;
-        height: 100dvh !important;
-        max-height: 100dvh !important;
-        transform: none !important;
-        box-sizing: border-box;
-        overflow: hidden !important;
-      }
-
-      #leftMarketSidebar {
-        order: 1;
-        flex: 0 0 320px !important;
-        width: 320px !important;
-        min-width: 0 !important;
-        border-right: 1px solid #e2e8f0;
-        border-left: 0;
-        transition: flex-basis .24s ease, width .24s ease, order .24s ease, opacity .18s ease;
-      }
-      .dark #leftMarketSidebar { border-right-color: #27272a; }
-
-      #rightPanel {
-        order: 3;
-        flex: 0 0 360px !important;
-        width: 360px !important;
-        max-width: 360px !important;
-        min-width: 0 !important;
-        border-left: 1px solid #e2e8f0;
-        border-right: 0;
-        opacity: 1;
-        transition: flex-basis .24s ease, width .24s ease, order .24s ease, opacity .18s ease, border-color .18s ease;
-      }
-      .dark #rightPanel { border-left-color: #27272a; }
-
-      /* 패널이 왼쪽으로 이동하면 실제 flex 순서를 바꾼다.
-         따라서 패널/시장정보/본문이 같은 흐름에서 함께 재배치된다. */
-      body.panel-left-docked #rightPanel {
-        order: 1;
-        border-left: 0;
-        border-right: 1px solid #e2e8f0;
-      }
-      .dark body.panel-left-docked #rightPanel { border-right-color: #27272a; }
-      body.panel-left-docked #leftMarketSidebar { order: 2; }
-      body.panel-left-docked > main { order: 3; }
-
-      body.panel-right-docked #leftMarketSidebar { order: 1; }
-      body.panel-right-docked > main { order: 2; }
-      body.panel-right-docked #rightPanel { order: 3; }
-
-      body:not(.left-sidebar-open) #leftMarketSidebar {
-        flex-basis: 0 !important;
-        width: 0 !important;
-        opacity: 0;
-        border-left-width: 0 !important;
-        border-right-width: 0 !important;
-        pointer-events: none;
-      }
-      body:not(.right-panel-open) #rightPanel {
-        flex-basis: 0 !important;
-        width: 0 !important;
-        max-width: 0 !important;
-        opacity: 0;
-        border-left-width: 0 !important;
-        border-right-width: 0 !important;
-        pointer-events: none;
-      }
-
-      #rightPanel.panel-docked-left { border-left: 0; border-right: 1px solid #e2e8f0; }
-      .dark #rightPanel.panel-docked-left { border-right-color: #27272a; }
-      #rightPanel.panel-docked-right { border-left: 1px solid #e2e8f0; border-right: 0; }
-      .dark #rightPanel.panel-docked-right { border-left-color: #27272a; }
-      #rightPanel.panel-dragging { box-shadow: 0 18px 60px rgba(0,0,0,.20); cursor: grabbing; }
-      [data-panel-drag-handle] { touch-action: none; }
+      body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
+      #leftSidebar { position: fixed !important; }
     }
 
+    /* 모바일/태블릿: 닫힌 상태는 본문 전체 폭, 열린 사이드바만 위에 표시 */
     @media (max-width: 1023px) {
       #mainHeroView { left: 0; right: 0; }
-      body > main { margin: 0 !important; width: 100%; }
-      #leftMarketSidebar { width: min(320px, 86vw); left: 0 !important; }
-      #rightPanel { width: min(360px, 88vw); }
-      [data-panel-drag-handle] { touch-action: none; }
+      #mainHeroView > header { padding-left: 8px; padding-right: 8px; }
+      body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
+      #leftSidebar, #rightSidebar { width: min(320px, 86vw); }
+    }
+
+    /* 오른쪽 사이드바: 콘텐츠 + 우측 유틸리티 레일을 하나의 패널로 구성 */
+    #rightSidebar { position: fixed !important; width: 320px !important; overflow: hidden; }
+    #rightSidebar > .flex-1 { padding-right: 44px; box-sizing: border-box; }
+    #rightSidebar .right-utility-rail {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 44px;
+      display: flex; flex-direction: column; align-items: center;
+      background: #f8fafc; border-left: 1px solid #e2e8f0; z-index: 10;
+    }
+    .dark #rightSidebar .right-utility-rail { background: #16171b; border-left-color: #27272a; }
+    #rightSidebar .right-utility-toggle { height: 56px; width: 44px; display: flex; align-items: center; justify-content: center; }
+    #rightSidebar .right-utility-divider { width: 28px; border-top: 1px solid #e2e8f0; margin: 0 auto 4px; }
+    .dark #rightSidebar .right-utility-divider { border-top-color: #27272a; }
+    #rightSidebar .right-utility-item { width: 44px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+    @media (max-width: 1023px) {
+      #rightSidebar { width: min(320px, 86vw) !important; }
+      #rightSidebar > .flex-1 { padding-right: 44px; }
     }
 
     ::-webkit-scrollbar { display: none; width: 0px; }

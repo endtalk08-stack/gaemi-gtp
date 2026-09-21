@@ -6,145 +6,48 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let currentChartInstance = null;
     let currentAppMode = 'gaemi';
 
-    let panelSide = localStorage.getItem('gaemiGTPPanelSideV2') === 'left' ? 'left' : 'right';
-    let panelDragState = null;
-
-    function getPanelSide() {
-      return panelSide === 'left' ? 'left' : 'right';
-    }
-
-    function setPanelSide(side, persist = true) {
-      panelSide = side === 'left' ? 'left' : 'right';
-      if (persist) localStorage.setItem('gaemiGTPPanelSideV2', panelSide);
-      applySidebarState();
-    }
-
     function applySidebarState() {
-      const marketBar = document.getElementById('leftMarketSidebar');
-      const rightPanel = document.getElementById('rightPanel');
+      const leftBar = document.getElementById('leftSidebar');
+      const rightBar = document.getElementById('rightSidebar');
+      const leftRail = document.getElementById('leftUtilityRail');
       const backdrop = document.getElementById('sidebarBackdrop');
-      const marketOpen = document.body.classList.contains('left-sidebar-open');
-      const panelOpen = document.body.classList.contains('right-panel-open');
-      const side = getPanelSide();
+      const leftOpen = document.body.classList.contains('left-sidebar-open');
+      const rightOpen = document.body.classList.contains('right-sidebar-open');
       const mobile = window.innerWidth < 1024;
-      const marketWidth = 320;
-      const panelWidth = 360;
 
-      // 데스크톱은 세 영역을 같은 flex 레이아웃에 넣는다.
-      // 패널이 좌/우로 이동하면 panel/main/market의 순서와 폭이 함께 바뀐다.
-      document.body.classList.toggle('panel-left-docked', side === 'left');
-      document.body.classList.toggle('panel-right-docked', side === 'right');
-
-      if (marketBar) {
-        marketBar.classList.toggle('-translate-x-full', !marketOpen);
-        marketBar.classList.toggle('xl:-translate-x-full', !marketOpen);
+      if (leftBar) {
+        leftBar.classList.toggle('-translate-x-full', !leftOpen);
+        leftBar.classList.toggle('lg:-translate-x-full', !leftOpen);
+        leftBar.classList.toggle('lg:w-0', !leftOpen);
+        leftBar.classList.toggle('lg:overflow-hidden', !leftOpen);
+      }
+      if (rightBar) {
+        rightBar.classList.toggle('translate-x-full', !rightOpen);
+        rightBar.classList.toggle('xl:translate-x-full', !rightOpen);
       }
 
-      if (rightPanel) {
-        rightPanel.classList.toggle('panel-docked-left', side === 'left');
-        rightPanel.classList.toggle('panel-docked-right', side === 'right');
-        rightPanel.classList.toggle('panel-closed', !panelOpen);
-      }
+      // 오른쪽 상단 버튼 하나로 열기/닫기: 닫힘=패널 아이콘, 열림=X
+      document.querySelectorAll('[data-right-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', rightOpen));
+      document.querySelectorAll('[data-right-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !rightOpen));
+      document.querySelectorAll('[data-right-header-toggle]').forEach(el => el.classList.remove('hidden'));
 
-      // 홈 화면(fixed)은 실제 세 열 중 본문 영역과 정확히 같은 폭을 사용한다.
-      // 메인 분석 영역은 일반 flex 흐름에 있으므로 별도 margin을 주지 않는다.
-      const leftSpace = mobile ? 0 : (marketOpen ? marketWidth : 0) + (panelOpen && side === 'left' ? panelWidth : 0);
-      const rightSpace = mobile ? 0 : (panelOpen && side === 'right' ? panelWidth : 0);
-      document.documentElement.style.setProperty('--layout-main-left', `${leftSpace}px`);
-      document.documentElement.style.setProperty('--layout-main-right', `${rightSpace}px`);
+      // 왼쪽 접힘 레일은 닫힌 상태에서만 사용하지 않고, 현재 레이아웃의 상단 버튼을 기준으로 유지
+      if (leftRail) leftRail.style.display = 'none';
 
-      document.querySelectorAll('[data-panel-dock-icon]').forEach(el => {
-        el.setAttribute('data-lucide', side === 'left' ? 'panel-left' : 'panel-right');
-      });
-      document.querySelectorAll('[data-right-panel-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', panelOpen));
-      document.querySelectorAll('[data-right-panel-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !panelOpen));
-      document.querySelectorAll('[data-right-panel-toggle]').forEach(el => el.classList.remove('hidden'));
-
-      if (window.lucide) lucide.createIcons();
-      if (backdrop) backdrop.classList.toggle('hidden', !(mobile && (marketOpen || panelOpen)));
-    }
-
-    function beginPanelDrag(event) {
-      const panel = document.getElementById('rightPanel');
-      if (!panel || !document.body.classList.contains('right-panel-open')) return;
-      if (event.target.closest('button')) return;
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-
-      panelDragState = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startSide: getPanelSide(),
-      };
-
-      try { panel.setPointerCapture(event.pointerId); } catch (_) {}
-      panel.classList.add('panel-dragging');
-      document.body.classList.add('panel-dragging');
-      document.body.style.userSelect = 'none';
-      event.preventDefault();
-    }
-
-    function movePanelDrag(event) {
-      if (!panelDragState || event.pointerId !== panelDragState.pointerId) return;
-      const panel = document.getElementById('rightPanel');
-      if (!panel) return;
-
-      // 패널을 화면 위에서 자유롭게 떠다니게 하지 않는다.
-      // 중앙 경계를 넘는 순간 실제 flex 순서를 바꾸어 세 영역이 함께 재배치된다.
-      const nextSide = event.clientX < (window.innerWidth / 2) ? 'left' : 'right';
-      if (nextSide !== getPanelSide()) {
-        setPanelSide(nextSide, false);
-      }
-      document.body.classList.toggle('panel-drag-preview-left', nextSide === 'left');
-      document.body.classList.toggle('panel-drag-preview-right', nextSide === 'right');
-      event.preventDefault();
-    }
-
-    function endPanelDrag(event) {
-      if (!panelDragState || event.pointerId !== panelDragState.pointerId) return;
-      const panel = document.getElementById('rightPanel');
-      const nextSide = event.clientX < (window.innerWidth / 2) ? 'left' : 'right';
-      panelDragState = null;
-      document.body.classList.remove('panel-dragging');
-      document.body.style.userSelect = '';
-      if (panel) {
-        panel.classList.remove('panel-dragging');
-        try { panel.releasePointerCapture(event.pointerId); } catch (_) {}
-      }
-      document.body.classList.remove('panel-drag-preview-left', 'panel-drag-preview-right');
-      setPanelSide(nextSide, true);
-      event.preventDefault();
-    }
-
-    function initializePanelDragging() {
-      const handle = document.querySelector('[data-panel-drag-handle]');
-      if (!handle || handle.dataset.dragBound === '1') return;
-      handle.dataset.dragBound = '1';
-      handle.addEventListener('pointerdown', beginPanelDrag, { passive: false });
-      handle.addEventListener('pointermove', movePanelDrag, { passive: false });
-      handle.addEventListener('pointerup', endPanelDrag, { passive: false });
-      handle.addEventListener('pointercancel', endPanelDrag, { passive: false });
+      // 모바일에서는 열린 패널을 오버레이로 보여주고 배경을 눌러 닫을 수 있게 함.
+      if (backdrop) backdrop.classList.toggle('hidden', !(mobile && (leftOpen || rightOpen)));
     }
 
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
-      document.body.classList.remove('right-panel-open');
-      if (window.innerWidth >= 1024) {
-        document.body.classList.add('left-sidebar-open');
-      } else {
-        document.body.classList.remove('left-sidebar-open');
-      }
+      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
       applySidebarState();
     }
 
     function switchToAnalysisMode(stockName) {
       document.getElementById('mainHeroView').classList.add('hidden');
-      document.body.classList.remove('right-panel-open');
-      // 데스크톱 시장정보는 계속 왼쪽에 유지하고, 분석 패널만 별도로 열고 닫는다.
-      if (window.innerWidth >= 1024) {
-        document.body.classList.add('left-sidebar-open');
-      } else {
-        document.body.classList.remove('left-sidebar-open');
-      }
+      // 분석 진입 시 양쪽 패널은 닫힌 상태 + 양쪽 열기 레일만 표시
+      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
       applySidebarState();
       requestStock(stockName || '삼성전자');
     }
@@ -193,35 +96,25 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       applySidebarState();
     }
 
-    function toggleRightPanel() {
-      const isOpen = document.body.classList.contains('right-panel-open');
-      document.body.classList.toggle('right-panel-open', !isOpen);
-      applySidebarState();
-    }
-
-    // 기존 호출 호환용: 오른쪽 사이드바 대신 새 오른쪽 패널을 열고 닫는다.
     function toggleRightSidebar() {
-      toggleRightPanel();
+      const isOpen = document.body.classList.contains('right-sidebar-open');
+      document.body.classList.toggle('right-sidebar-open', !isOpen);
+      applySidebarState();
     }
 
     function closeAllSidebars() {
-      document.body.classList.remove('left-sidebar-open','right-panel-open');
+      // 닫기는 두 패널만 닫고, 열기 레일은 반드시 남긴다.
+      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
       applySidebarState();
     }
 
+    // 초기 상태: 양쪽 패널은 닫고, 상단 열기 버튼만 표시
     function initializeSidebars() {
-      document.body.classList.remove('left-sidebar-open','right-panel-open');
-      // 데스크톱에서는 시장정보를 기본으로 열어 두어
-      // [시장정보][본문][패널] 3열 구조가 바로 보이게 한다.
-      if (window.innerWidth >= 1024) {
-        document.body.classList.add('left-sidebar-open');
-      }
+      document.body.classList.remove('left-sidebar-open','right-sidebar-open','sidebar-left-expanded','sidebar-right-expanded');
       applySidebarState();
     }
 
-    initializePanelDragging();
     initializeSidebars();
-    window.addEventListener('resize', applySidebarState);
 
     function updateThemeButtons() {
       const isDark = document.documentElement.classList.contains('dark');
