@@ -6,7 +6,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let currentChartInstance = null;
     let currentAppMode = 'gaemi';
 
-    let panelSide = localStorage.getItem('gaemiGTPPanelSide') === 'left' ? 'left' : 'right';
+    let panelSide = localStorage.getItem('gaemiGTPPanelSideV2') === 'left' ? 'left' : 'right';
     let panelDragState = null;
 
     function getPanelSide() {
@@ -15,7 +15,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function setPanelSide(side, persist = true) {
       panelSide = side === 'left' ? 'left' : 'right';
-      if (persist) localStorage.setItem('gaemiGTPPanelSide', panelSide);
+      if (persist) localStorage.setItem('gaemiGTPPanelSideV2', panelSide);
       applySidebarState();
     }
 
@@ -127,13 +127,24 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
-      document.body.classList.remove('left-sidebar-open','right-panel-open');
+      document.body.classList.remove('right-panel-open');
+      if (window.innerWidth >= 1024) {
+        document.body.classList.add('left-sidebar-open');
+      } else {
+        document.body.classList.remove('left-sidebar-open');
+      }
       applySidebarState();
     }
 
     function switchToAnalysisMode(stockName) {
       document.getElementById('mainHeroView').classList.add('hidden');
-      document.body.classList.remove('left-sidebar-open','right-panel-open');
+      document.body.classList.remove('right-panel-open');
+      // 데스크톱 시장정보는 계속 왼쪽에 유지하고, 분석 패널만 별도로 열고 닫는다.
+      if (window.innerWidth >= 1024) {
+        document.body.classList.add('left-sidebar-open');
+      } else {
+        document.body.classList.remove('left-sidebar-open');
+      }
       applySidebarState();
       requestStock(stockName || '삼성전자');
     }
@@ -200,6 +211,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function initializeSidebars() {
       document.body.classList.remove('left-sidebar-open','right-panel-open');
+      // 데스크톱에서는 시장정보를 기본으로 열어 두어
+      // [시장정보][본문][패널] 3열 구조가 바로 보이게 한다.
+      if (window.innerWidth >= 1024) {
+        document.body.classList.add('left-sidebar-open');
+      }
       applySidebarState();
     }
 

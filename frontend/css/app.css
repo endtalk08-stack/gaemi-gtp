@@ -91,7 +91,7 @@
     .source-list-meta { margin-top: 3px; color: #71717a; font-size: .68rem; font-weight: 600; }
     .source-list-arrow { flex: 0 0 auto; width: 16px; height: 16px; color: #71717a; }
 
-    /* 패널 레이아웃: 왼쪽 시장정보 / 가운데 본문 / 좌우로 도킹되는 패널 */
+    /* 패널 레이아웃: [시장정보][본문][패널] / 패널은 드래그로 좌우 도킹 */
     :root {
       --layout-main-left: 0px;
       --layout-main-right: 0px;
@@ -105,22 +105,18 @@
       box-sizing: border-box;
       transition: left .24s ease, right .24s ease;
     }
-    #mainHeroView > header { padding-left: 14px; padding-right: 14px; }
 
     @media (min-width: 1024px) {
-      /* body 자체가 3열 레이아웃이다. fixed/absolute로 떠다니는 패널이 아니다. */
       body > main {
-        order: 3;
+        order: 2;
         flex: 1 1 auto !important;
         width: auto !important;
         min-width: 0 !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        transition: flex-basis .24s ease, width .24s ease;
+        margin: 0 !important;
+        transition: flex-basis .24s ease, width .24s ease, order .24s ease;
       }
 
-      #leftMarketSidebar,
-      #rightPanel {
+      #leftMarketSidebar, #rightPanel {
         position: relative !important;
         inset: auto !important;
         top: auto !important;
@@ -130,9 +126,8 @@
         height: 100dvh !important;
         max-height: 100dvh !important;
         transform: none !important;
-        overflow: hidden !important;
         box-sizing: border-box;
-        transition: flex-basis .24s ease, width .24s ease, opacity .18s ease, border-color .18s ease;
+        overflow: hidden !important;
       }
 
       #leftMarketSidebar {
@@ -142,6 +137,7 @@
         min-width: 0 !important;
         border-right: 1px solid #e2e8f0;
         border-left: 0;
+        transition: flex-basis .24s ease, width .24s ease, order .24s ease, opacity .18s ease;
       }
       .dark #leftMarketSidebar { border-right-color: #27272a; }
 
@@ -149,14 +145,17 @@
         order: 3;
         flex: 0 0 360px !important;
         width: 360px !important;
-        min-width: 0 !important;
         max-width: 360px !important;
+        min-width: 0 !important;
         border-left: 1px solid #e2e8f0;
         border-right: 0;
         opacity: 1;
+        transition: flex-basis .24s ease, width .24s ease, order .24s ease, opacity .18s ease, border-color .18s ease;
       }
       .dark #rightPanel { border-left-color: #27272a; }
 
+      /* 패널이 왼쪽으로 이동하면 실제 flex 순서를 바꾼다.
+         따라서 패널/시장정보/본문이 같은 흐름에서 함께 재배치된다. */
       body.panel-left-docked #rightPanel {
         order: 1;
         border-left: 0;
@@ -170,7 +169,6 @@
       body.panel-right-docked > main { order: 2; }
       body.panel-right-docked #rightPanel { order: 3; }
 
-      /* 닫힌 패널은 공간도 차지하지 않는다. 다시 열면 flex 공간이 부드럽게 돌아온다. */
       body:not(.left-sidebar-open) #leftMarketSidebar {
         flex-basis: 0 !important;
         width: 0 !important;
@@ -189,27 +187,17 @@
         pointer-events: none;
       }
 
-      #rightPanel.panel-docked-left {
-        border-left: 0;
-        border-right: 1px solid #e2e8f0;
-      }
+      #rightPanel.panel-docked-left { border-left: 0; border-right: 1px solid #e2e8f0; }
       .dark #rightPanel.panel-docked-left { border-right-color: #27272a; }
-      #rightPanel.panel-docked-right {
-        border-left: 1px solid #e2e8f0;
-        border-right: 0;
-      }
+      #rightPanel.panel-docked-right { border-left: 1px solid #e2e8f0; border-right: 0; }
       .dark #rightPanel.panel-docked-right { border-left-color: #27272a; }
-      #rightPanel.panel-dragging {
-        box-shadow: 0 18px 60px rgba(0,0,0,.18);
-        cursor: grabbing;
-      }
+      #rightPanel.panel-dragging { box-shadow: 0 18px 60px rgba(0,0,0,.20); cursor: grabbing; }
       [data-panel-drag-handle] { touch-action: none; }
     }
 
     @media (max-width: 1023px) {
       #mainHeroView { left: 0; right: 0; }
-      #mainHeroView > header { padding-left: 8px; padding-right: 8px; }
-      body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
+      body > main { margin: 0 !important; width: 100%; }
       #leftMarketSidebar { width: min(320px, 86vw); left: 0 !important; }
       #rightPanel { width: min(360px, 88vw); }
       [data-panel-drag-handle] { touch-action: none; }
