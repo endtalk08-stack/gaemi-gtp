@@ -339,6 +339,7 @@ body.panel-resizing * { user-select: none !important; }
 body.hero-panel-open #gaemiWorkspace {
   position: relative;
   z-index: 31;
+  pointer-events: auto;
 }
 body.hero-panel-open #gaemiWorkspace #mainContent {
   visibility: hidden;

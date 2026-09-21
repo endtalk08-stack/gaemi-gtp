@@ -1,5 +1,7 @@
 // Frontend is served by GitHub Pages; analysis API runs on Render.
 const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
+    const PANEL_SIDE_KEY = 'gaemiGTP_panel_side_v2';
+    const PANEL_WIDTH_KEY = 'gaemiGTP_panel_width_v2';
     let activeAnalysisController = null;
     let activeStock = '삼성전자';
     let activeAnalysisRequestId = 0;
@@ -11,14 +13,15 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function getPanelSide() {
-      return document.body.classList.contains('panel-left-docked') ? 'left' : 'right';
+      if (document.body.classList.contains('panel-left-docked')) return 'left';
+      return 'right';
     }
 
     function setPanelSide(side) {
       const normalized = side === 'left' ? 'left' : 'right';
       document.body.classList.toggle('panel-left-docked', normalized === 'left');
       document.body.classList.toggle('panel-right-docked', normalized === 'right');
-      localStorage.setItem('gaemiGTP_panel_side', normalized);
+      localStorage.setItem(PANEL_SIDE_KEY, normalized);
     }
 
     function setPanelWidth(px) {
@@ -28,7 +31,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const maxWidth = Math.max(280, Math.min(1200, rect.width - 320));
       const width = Math.max(280, Math.min(Number(px) || 360, maxWidth));
       workspace.style.setProperty('--right-panel-width', `${Math.round(width)}px`);
-      localStorage.setItem('gaemiGTP_panel_width', String(Math.round(width)));
+      localStorage.setItem(PANEL_WIDTH_KEY, String(Math.round(width)));
     }
 
     function applySidebarState() {
@@ -82,6 +85,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const dockButton = document.querySelector('.panel-dock-toggle');
       if (dockButton) {
         const moveTo = panelSide === 'left' ? '오른쪽' : '왼쪽';
+        dockButton.dataset.targetSide = panelSide === 'left' ? 'right' : 'left';
         dockButton.setAttribute('aria-label', `패널을 ${moveTo}(으)로 이동`);
         dockButton.setAttribute('title', `패널을 ${moveTo}(으)로 이동`);
       }
@@ -97,8 +101,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     function switchToAnalysisMode(stockName) {
       document.getElementById('mainHeroView').classList.add('hidden');
       document.body.classList.remove('hero-panel-open');
-      document.body.classList.add('left-market-open','right-panel-open');
-      const savedSide = localStorage.getItem('gaemiGTP_panel_side');
+      // 종목 분석 진입 시에는 패널을 자동으로 열지 않고 닫힌 상태를 유지한다.
+      // 사용자가 상단 패널 버튼으로 직접 열 수 있다.
+      document.body.classList.add('left-market-open');
+      document.body.classList.remove('right-panel-open');
+      const savedSide = localStorage.getItem(PANEL_SIDE_KEY);
       setPanelSide(savedSide === 'left' ? 'left' : 'right');
       applySidebarState();
       requestStock(stockName || '삼성전자');
@@ -162,9 +169,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function initializeSidebars() {
       document.body.classList.remove('left-market-open','right-panel-open');
-      const savedSide = localStorage.getItem('gaemiGTP_panel_side');
+      const savedSide = localStorage.getItem(PANEL_SIDE_KEY);
       setPanelSide(savedSide === 'left' ? 'left' : 'right');
-      const savedWidth = parseInt(localStorage.getItem('gaemiGTP_panel_width') || '360', 10);
+      const savedWidth = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
       // Workspace가 렌더링된 다음 폭을 적용한다.
       setTimeout(() => setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360), 0);
       applySidebarState();
@@ -218,7 +225,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function togglePanelDock() {
-      setPanelSide(getPanelSide() === 'right' ? 'left' : 'right');
+      const button = document.querySelector('.panel-dock-toggle');
+      const targetSide = button && button.dataset.targetSide
+        ? button.dataset.targetSide
+        : (getPanelSide() === 'right' ? 'left' : 'right');
+      setPanelSide(targetSide);
       applySidebarState();
     }
 
