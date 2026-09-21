@@ -245,25 +245,6 @@
   isolation: isolate;
 }
 
-/* 홈 화면에서도 오른쪽 패널이 본문 위에 묻히지 않고 같은 화면 영역 안에서 보이도록 한다. */
-:root { --gaemi-panel-width: 360px; }
-body.right-panel-open #mainHeroView {
-  right: var(--gaemi-panel-width);
-  transition: right .25s ease;
-}
-body:not(.right-panel-open) #mainHeroView {
-  right: 0;
-  transition: right .25s ease;
-}
-
-/* 패널은 홈 히어로(z-30)보다 위에서 렌더링되되, 왼쪽 시장정보 영역으로 넘어가지 않는다. */
-#gaemiWorkspace #rightPanel,
-#gaemiWorkspace #rightPanelResizer {
-  position: relative;
-}
-#gaemiWorkspace #rightPanelResizer { z-index: 41; }
-#gaemiWorkspace #rightPanel { z-index: 42; }
-
 #leftMarketSidebar.market-sidebar {
   width: 320px;
   flex: 0 0 320px;
@@ -290,7 +271,7 @@ body.left-market-closed #leftMarketSidebar.market-sidebar {
   flex: 0 0 var(--right-panel-width);
   width: var(--right-panel-width);
   min-width: 280px;
-  max-width: 560px;
+  max-width: 900px;
   height: 100%;
   transition: width .2s ease, flex-basis .2s ease;
 }
@@ -314,7 +295,7 @@ body.right-panel-closed #rightPanel,
 body.right-panel-closed #rightPanelResizer,
 body:not(.right-panel-open) #rightPanel,
 body:not(.right-panel-open) #rightPanelResizer {
-  display: none;
+  display: none !important;
 }
 
 body.panel-left-docked #rightPanel {
@@ -352,21 +333,7 @@ body.panel-resizing * { user-select: none !important; }
   }
 }
 
-/* Panel shell: header와 내부 콘텐츠를 하나의 이동 단위로 유지 */
-#gaemiWorkspace #rightPanel[data-panel-shell] {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  contain: layout paint;
-}
-#gaemiWorkspace #rightPanel[data-panel-shell] #rightPanelContent {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  overflow: auto;
-}
-#gaemiWorkspace .right-panel-header [data-panel-drag-handle] {
-  user-select: none;
-  -webkit-user-select: none;
+/* 패널 상단 토글은 현재 화면에 해당하는 버튼 하나만 보인다. */
+[data-panel-header-toggle][aria-hidden="true"] {
+  display: none !important;
 }

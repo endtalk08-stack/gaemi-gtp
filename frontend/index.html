@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
-  <link rel="stylesheet" href="css/app.css?v=20260921-layout-v3">
+  <link rel="stylesheet" href="css/app.css?v=20260921-layout-v1">
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none">
 
@@ -36,7 +36,7 @@
       </div>
       <div class="flex items-center gap-1">
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] pointer-events-auto flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
-        <button type="button" onclick="toggleRightPanel()" data-panel-header-toggle class="icon-hit relative z-[70] text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer rounded-full" aria-label="패널 열기/닫기" title="패널 열기/닫기"><i data-panel-toggle-icon="closed" data-lucide="panel-right" class="w-4 h-4"></i><i data-panel-toggle-icon="open" data-lucide="x" class="w-4 h-4 hidden"></i></button>
+        <button type="button" onclick="toggleRightPanel()" data-panel-header-toggle data-panel-top="hero" class="icon-hit relative z-[70] text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer rounded-full" aria-label="패널 열기/닫기" title="패널 열기/닫기"><i data-panel-toggle-icon="closed" data-lucide="panel-right" class="w-4 h-4"></i><i data-panel-toggle-icon="open" data-lucide="x" class="w-4 h-4 hidden"></i></button>
       </div>
     </header>
 
@@ -221,7 +221,7 @@
       </div>
       <div class="flex items-center gap-1">
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
-        <button type="button" onclick="toggleRightPanel()" data-panel-header-toggle class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="패널 열기/닫기" title="패널 열기/닫기"><i data-panel-toggle-icon="closed" data-lucide="panel-right" class="w-4 h-4"></i><i data-panel-toggle-icon="open" data-lucide="x" class="w-4 h-4 hidden"></i></button>
+        <button type="button" onclick="toggleRightPanel()" data-panel-header-toggle data-panel-top="workspace" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="패널 열기/닫기" title="패널 열기/닫기"><i data-panel-toggle-icon="closed" data-lucide="panel-right" class="w-4 h-4"></i><i data-panel-toggle-icon="open" data-lucide="x" class="w-4 h-4 hidden"></i></button>
       </div>
     </header>
 
@@ -276,7 +276,7 @@
 
     <div id="rightPanelResizer" class="panel-resizer" role="separator" aria-label="패널 너비 조절" title="드래그하여 패널 크기 조절"></div>
 
-    <aside id="rightPanel" data-panel-shell class="right-panel bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 overflow-hidden" aria-label="패널">
+    <aside id="rightPanel" class="right-panel bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 overflow-hidden" aria-label="패널">
       <div class="right-panel-header h-16 px-3 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 select-none">
         <div data-panel-drag-handle class="flex-1 min-w-0 h-full flex items-center gap-2 cursor-grab active:cursor-grabbing" title="드래그하여 본문 왼쪽/오른쪽으로 이동">
           <i data-lucide="panel-right" class="w-4 h-4 text-[#64748b] dark:text-[#a1a1aa] shrink-0"></i>
@@ -319,6 +319,6 @@
   </div>
 
 
-  <script src="js/app.js?v=20260921-layout-v3"></script>
+  <script src="js/app.js?v=20260921-panel-close-width-v3"></script>
 </body>
 </html>

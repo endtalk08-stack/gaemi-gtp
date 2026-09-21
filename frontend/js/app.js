@@ -25,10 +25,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const workspace = getWorkspace();
       if (!workspace) return;
       const rect = workspace.getBoundingClientRect();
-      const maxWidth = Math.max(280, Math.min(560, rect.width - 220));
+      const maxWidth = Math.max(280, Math.min(900, rect.width - 320));
       const width = Math.max(280, Math.min(Number(px) || 360, maxWidth));
       workspace.style.setProperty('--right-panel-width', `${Math.round(width)}px`);
-      document.body.style.setProperty('--gaemi-panel-width', `${Math.round(width)}px`);
       localStorage.setItem('gaemiGTP_panel_width', String(Math.round(width)));
     }
 
@@ -46,13 +45,28 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       if (market) market.setAttribute('aria-hidden', marketOpen ? 'false' : 'true');
       if (panel) panel.setAttribute('aria-hidden', panelOpen ? 'false' : 'true');
-      if (resizer) resizer.classList.toggle('is-open', panelOpen);
+      if (resizer) {
+        resizer.classList.toggle('is-open', panelOpen);
+        resizer.classList.toggle('hidden', !panelOpen);
+        resizer.style.display = panelOpen ? '' : 'none';
+      }
+      if (panel) {
+        panel.classList.toggle('hidden', !panelOpen);
+        panel.style.display = panelOpen ? '' : 'none';
+      }
 
       document.querySelectorAll('[data-panel-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', panelOpen));
       document.querySelectorAll('[data-panel-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !panelOpen));
+      const heroView = document.getElementById('mainHeroView');
+      const onHero = !!heroView && !heroView.classList.contains('hidden');
       document.querySelectorAll('[data-panel-header-toggle]').forEach(el => {
         el.setAttribute('aria-label', panelOpen ? '패널 닫기' : '패널 열기');
         el.setAttribute('title', panelOpen ? '패널 닫기' : '패널 열기');
+        const top = el.getAttribute('data-panel-top');
+        const shouldShow = top === 'hero' ? onHero : !onHero;
+        el.classList.toggle('hidden', !shouldShow);
+        el.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+        el.tabIndex = shouldShow ? 0 : -1;
       });
 
       // 모바일에서만 시장정보가 오버레이가 되며, 패널은 workspace 안에서 동작한다.
@@ -138,7 +152,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const savedWidth = parseInt(localStorage.getItem('gaemiGTP_panel_width') || '360', 10);
       // Workspace가 렌더링된 다음 폭을 적용한다.
       setTimeout(() => setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360), 0);
-      document.body.style.setProperty('--gaemi-panel-width', `${Number.isFinite(savedWidth) ? savedWidth : 360}px`);
       applySidebarState();
     }
 
@@ -171,29 +184,21 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       dragHandle.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
-        try { dragHandle.setPointerCapture(event.pointerId); } catch (_) {}
         document.body.classList.add('panel-dragging');
-
         const onMove = (moveEvent) => {
           const rect = workspace.getBoundingClientRect();
           const midpoint = rect.left + rect.width / 2;
-          // 왼쪽 시장정보 영역은 절대 움직이지 않는다.
-          // 패널 전체(헤더 + 내부 콘텐츠)가 workspace 안에서 하나의 flex item으로 이동한다.
+          // Workspace 안에서만 좌/우 dock를 결정한다. 왼쪽 시장정보 영역에는 절대 접근하지 않는다.
           setPanelSide(moveEvent.clientX < midpoint ? 'left' : 'right');
         };
-
-        const finish = () => {
+        const onUp = () => {
           window.removeEventListener('pointermove', onMove);
-          window.removeEventListener('pointerup', finish);
-          window.removeEventListener('pointercancel', finish);
-          try { dragHandle.releasePointerCapture(event.pointerId); } catch (_) {}
+          window.removeEventListener('pointerup', onUp);
           document.body.classList.remove('panel-dragging');
           applySidebarState();
         };
-
         window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', finish, { once: true });
-        window.addEventListener('pointercancel', finish, { once: true });
+        window.addEventListener('pointerup', onUp, { once: true });
       });
     }
 
