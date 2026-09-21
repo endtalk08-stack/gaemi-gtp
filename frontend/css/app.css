@@ -332,3 +332,22 @@ body.panel-resizing * { user-select: none !important; }
     min-width: 240px;
   }
 }
+
+/* Panel shell: header와 내부 콘텐츠를 하나의 이동 단위로 유지 */
+#gaemiWorkspace #rightPanel[data-panel-shell] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  contain: layout paint;
+}
+#gaemiWorkspace #rightPanel[data-panel-shell] #rightPanelContent {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+#gaemiWorkspace .right-panel-header [data-panel-drag-handle] {
+  user-select: none;
+  -webkit-user-select: none;
+}

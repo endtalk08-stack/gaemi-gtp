@@ -169,21 +169,29 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       dragHandle.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
+        try { dragHandle.setPointerCapture(event.pointerId); } catch (_) {}
         document.body.classList.add('panel-dragging');
+
         const onMove = (moveEvent) => {
           const rect = workspace.getBoundingClientRect();
           const midpoint = rect.left + rect.width / 2;
-          // Workspace 안에서만 좌/우 dock를 결정한다. 왼쪽 시장정보 영역에는 절대 접근하지 않는다.
+          // 왼쪽 시장정보 영역은 절대 움직이지 않는다.
+          // 패널 전체(헤더 + 내부 콘텐츠)가 workspace 안에서 하나의 flex item으로 이동한다.
           setPanelSide(moveEvent.clientX < midpoint ? 'left' : 'right');
         };
-        const onUp = () => {
+
+        const finish = () => {
           window.removeEventListener('pointermove', onMove);
-          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointerup', finish);
+          window.removeEventListener('pointercancel', finish);
+          try { dragHandle.releasePointerCapture(event.pointerId); } catch (_) {}
           document.body.classList.remove('panel-dragging');
           applySidebarState();
         };
+
         window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp, { once: true });
+        window.addEventListener('pointerup', finish, { once: true });
+        window.addEventListener('pointercancel', finish, { once: true });
       });
     }
 
