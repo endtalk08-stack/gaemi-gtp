@@ -85,13 +85,55 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       event.preventDefault();
     }
 
+    function applyLivePanelDragLayout(panelLeft) {
+      const panel = document.getElementById('rightPanel');
+      const marketBar = document.getElementById('leftMarketSidebar');
+      if (!panel) return;
+
+      const mobile = window.innerWidth < 1024;
+      const panelWidth = mobile ? Math.min(360, window.innerWidth * 0.88) : 360;
+      const marketWidth = mobile ? Math.min(320, window.innerWidth * 0.86) : 320;
+      const maxLeft = Math.max(0, window.innerWidth - panelWidth);
+      const x = Math.max(0, Math.min(panelLeft, maxLeft));
+      const midpoint = Math.max(0, (window.innerWidth - panelWidth) / 2);
+      const side = x <= midpoint ? 'left' : 'right';
+
+      panel.style.setProperty('--panel-drag-left', `${x}px`);
+      panel.classList.toggle('panel-docked-left', side === 'left');
+      panel.classList.toggle('panel-docked-right', side === 'right');
+
+      if (mobile) {
+        if (marketBar) marketBar.style.left = '0px';
+        document.documentElement.style.setProperty('--layout-main-left', '0px');
+        document.documentElement.style.setProperty('--layout-main-right', '0px');
+        document.documentElement.style.setProperty('--market-sidebar-left', '0px');
+      } else if (side === 'left') {
+        const marketLeft = x + panelWidth;
+        const layoutLeft = marketLeft + marketWidth;
+        if (marketBar) marketBar.style.left = `${marketLeft}px`;
+        document.documentElement.style.setProperty('--layout-main-left', `${layoutLeft}px`);
+        document.documentElement.style.setProperty('--layout-main-right', '0px');
+        document.documentElement.style.setProperty('--market-sidebar-left', `${marketLeft}px`);
+      } else {
+        const layoutRight = Math.max(0, window.innerWidth - (x + panelWidth));
+        if (marketBar) marketBar.style.left = '0px';
+        document.documentElement.style.setProperty('--layout-main-left', `${marketWidth}px`);
+        document.documentElement.style.setProperty('--layout-main-right', `${layoutRight}px`);
+        document.documentElement.style.setProperty('--market-sidebar-left', '0px');
+      }
+
+      document.body.classList.toggle('panel-drag-preview-left', side === 'left');
+      document.body.classList.toggle('panel-drag-preview-right', side === 'right');
+    }
+
     function movePanelDrag(event) {
       if (!panelDragState || event.pointerId !== panelDragState.pointerId) return;
       const panel = document.getElementById('rightPanel');
       if (!panel) return;
       panelDragState.lastX = event.clientX;
       const delta = event.clientX - panelDragState.startX;
-      panel.style.transform = `translateX(${delta}px)`;
+      const baseLeft = panelDragState.startSide === 'left' ? 0 : Math.max(0, window.innerWidth - 360);
+      applyLivePanelDragLayout(baseLeft + delta);
       event.preventDefault();
     }
 
@@ -107,8 +149,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         panel.classList.remove('panel-dragging');
         panel.style.transition = '';
         panel.style.transform = '';
+        panel.style.removeProperty('--panel-drag-left');
         try { panel.releasePointerCapture(event.pointerId); } catch (_) {}
       }
+      document.body.classList.remove('panel-drag-preview-left', 'panel-drag-preview-right');
       setPanelSide(nextSide, true);
       event.preventDefault();
     }

@@ -155,9 +155,17 @@
     #rightPanel.panel-closed.panel-docked-left { transform: translateX(-110%); }
     #rightPanel:not(.panel-closed) { transform: translateX(0); }
     #rightPanel.panel-dragging {
+      left: var(--panel-drag-left, auto) !important;
+      right: auto !important;
+      transform: translateX(0) !important;
       transition: none !important;
       box-shadow: 0 18px 60px rgba(0,0,0,.34);
       cursor: grabbing;
+    }
+    body.panel-dragging #mainHeroView,
+    body.panel-dragging > main,
+    body.panel-dragging #leftMarketSidebar {
+      transition: left .18s ease, right .18s ease, margin-left .18s ease, margin-right .18s ease;
     }
     [data-panel-drag-handle] { touch-action: none; }
 
