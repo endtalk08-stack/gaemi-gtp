@@ -98,11 +98,18 @@
     /* 닫힌 상태의 세로 유틸리티 레일은 사용하지 않음 */
     #leftUtilityRail, #rightUtilityRail { display: none !important; }
 
-    /* 데스크톱: 사이드바는 본문을 밀지 않고 독립 오버레이로 표시 */
+    /* 데스크톱: 왼쪽 시장정보 사이드바와 메인 히어로가 겹치지 않도록 나란히 배치 */
     @media (min-width: 1024px) {
       #mainHeroView {
         left: 0; right: 0;
-        transition: none;
+        transition: left .2s ease, right .2s ease;
+      }
+      body.left-market-open #mainHeroView {
+        left: 320px;
+      }
+      body.left-market-open.hero-panel-open #mainHeroView {
+        left: 320px;
+        right: var(--hero-panel-width);
       }
       body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
       #leftSidebar { position: fixed !important; }
@@ -332,15 +339,13 @@ body.hero-panel-open #gaemiWorkspace {
   pointer-events: auto;
 }
 
-/* 패널이 열린 메인에서도 히어로 상단 버튼은 항상 클릭 가능해야 한다.
-   workspace 전체를 위로 올리는 구조와 충돌하지 않도록 히어로 자체를
-   workspace보다 위에 두고, 오른쪽 패널 영역은 right inset으로 비워 둔다. */
+/* 패널이 열린 메인에서도 히어로 입력/추천 종목/상단 버튼이 정상 클릭되어야 한다.
+   히어로의 right 영역을 패널 폭만큼 비워 패널과 클릭 영역이 겹치지 않게 한다. */
 body.hero-panel-open #mainHeroView {
   z-index: 60;
-  pointer-events: none;
+  pointer-events: auto;
 }
 body.hero-panel-open #mainHeroView > header {
-  pointer-events: auto;
   z-index: 70;
 }
 body.hero-panel-open #leftMarketSidebar.market-sidebar {

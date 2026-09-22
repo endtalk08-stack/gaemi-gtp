@@ -1,10 +1,7 @@
-# 패널 레이아웃 안정화 점검 (2026-09-22)
+gaemiGTP panel/sidebar click fix
 
-- 패널 헤더의 불필요한 좌/우 이동(도킹) 버튼 제거
-- 패널은 `gaemiWorkspace` 안에서 항상 본문 오른쪽에 고정
-- 본문과 패널은 동일한 Workspace의 형제 열 구조 유지
-- 패널과 본문 사이의 resizer만으로 패널 폭 조절
-- 패널 최대 폭 1200px 유지(화면과 본문 최소폭이 허용하는 범위까지)
-- 첫 화면에서도 패널이 본문 오른쪽 공간을 실제로 차지하도록 hero 폭을 패널 폭만큼 줄임
-- 왼쪽 시장정보 사이드바는 Workspace와 분리되어 패널 이동/폭 조절 대상에서 제외
-- 종목 분석 진입 시 패널은 자동으로 열리지 않음
+1. Desktop main hero shifts right by 320px when the left market sidebar is open, so the sidebar no longer covers the hero content.
+2. When the right panel is open on the main hero, the hero remains pointer-interactive; stock search input and quick stock buttons are clickable.
+3. The hero reserves the right-panel width, so the hero and right panel do not overlap in the click layer.
+4. Existing analysis-mode behavior remains: entering a stock does not auto-open the market sidebar or right panel.
+5. Right panel remains fixed to the workspace right side, with width up to 1200px.
