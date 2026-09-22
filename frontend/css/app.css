@@ -388,7 +388,9 @@ body.hero-panel-open #leftMarketSidebar.market-sidebar {
   z-index: 80;
 }
 body.hero-panel-open #mainHeroView {
-  right: var(--hero-panel-width);
+  /* 메인 히어로가 패널 리사이저(5px)까지 덮지 않도록 확보한다.
+     이 5px 구간을 드래그하면 메인에서도 패널 폭을 조절할 수 있다. */
+  right: calc(var(--hero-panel-width) + 5px);
 }
 body.hero-panel-open #gaemiWorkspace #mainContent {
   visibility: hidden;
