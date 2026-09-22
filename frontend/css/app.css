@@ -91,56 +91,6 @@
     .source-list-meta { margin-top: 3px; color: #71717a; font-size: .68rem; font-weight: 600; }
     .source-list-arrow { flex: 0 0 auto; width: 16px; height: 16px; color: #71717a; }
 
-    /* 사이드바: 닫힘 상태에서는 화면을 차지하지 않고 상단 버튼만 사용 */
-    #mainHeroView { padding-left: 0; padding-right: 0; box-sizing: border-box; }
-    #mainHeroView > header { padding-left: 14px; padding-right: 14px; }
-
-    /* 닫힌 상태의 세로 유틸리티 레일은 사용하지 않음 */
-    #leftUtilityRail, #rightUtilityRail { display: none !important; }
-
-    /* 데스크톱: 왼쪽 시장정보 사이드바와 메인 히어로가 겹치지 않도록 나란히 배치 */
-    @media (min-width: 1024px) {
-      #mainHeroView {
-        left: 0; right: 0;
-        transition: left .2s ease, right .2s ease;
-      }
-      body.left-market-open #mainHeroView {
-        left: 320px;
-      }
-      body.left-market-open.hero-panel-open #mainHeroView {
-        left: 320px;
-        right: var(--hero-panel-width);
-      }
-      body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
-      #leftSidebar { position: fixed !important; }
-    }
-
-    /* 모바일/태블릿: 닫힌 상태는 본문 전체 폭, 열린 사이드바만 위에 표시 */
-    @media (max-width: 1023px) {
-      #mainHeroView { left: 0; right: 0; }
-      #mainHeroView > header { padding-left: 8px; padding-right: 8px; }
-      body > main { margin-left: 0 !important; margin-right: 0 !important; width: 100%; }
-      #leftSidebar, #rightSidebar { width: min(320px, 86vw); }
-    }
-
-    /* 오른쪽 사이드바: 콘텐츠 + 우측 유틸리티 레일을 하나의 패널로 구성 */
-    #rightSidebar { position: fixed !important; width: 320px !important; overflow: hidden; }
-    #rightSidebar > .flex-1 { padding-right: 44px; box-sizing: border-box; }
-    #rightSidebar .right-utility-rail {
-      position: absolute; top: 0; right: 0; bottom: 0; width: 44px;
-      display: flex; flex-direction: column; align-items: center;
-      background: #f8fafc; border-left: 1px solid #e2e8f0; z-index: 10;
-    }
-    .dark #rightSidebar .right-utility-rail { background: #16171b; border-left-color: #27272a; }
-    #rightSidebar .right-utility-toggle { height: 56px; width: 44px; display: flex; align-items: center; justify-content: center; }
-    #rightSidebar .right-utility-divider { width: 28px; border-top: 1px solid #e2e8f0; margin: 0 auto 4px; }
-    .dark #rightSidebar .right-utility-divider { border-top-color: #27272a; }
-    #rightSidebar .right-utility-item { width: 44px; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-    @media (max-width: 1023px) {
-      #rightSidebar { width: min(320px, 86vw) !important; }
-      #rightSidebar > .flex-1 { padding-right: 44px; }
-    }
-
     ::-webkit-scrollbar { display: none; width: 0px; }
     html, body, #chatArea, aside { scrollbar-width: none; -ms-overflow-style: none; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
@@ -297,9 +247,6 @@ body.left-market-closed #leftMarketSidebar.market-sidebar {
     max-width: none !important;
     min-width: 0 !important;
   }
-  body.right-panel-maximized #mainHeroView {
-    right: 0 !important;
-  }
 }
 
 #gaemiWorkspace #rightPanelResizer {
@@ -324,12 +271,26 @@ body:not(.right-panel-open) #rightPanelResizer {
   display: none !important;
 }
 
+
+/* 홈 화면은 별도 고정 레이어가 아니라 Workspace 안의 본문 뷰로 동작한다.
+   따라서 시장정보 사이드바가 열리거나 패널 폭이 바뀌어도 본문과 함께 자연스럽게 줄어든다. */
+#gaemiWorkspace #mainContent #mainHeroView {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  right: auto !important;
+  z-index: 30;
+}
+
+[data-panel-header-toggle][aria-hidden="true"] {
+  display: none !important;
+}
+
 /* 패널은 항상 본문 오른쪽에 고정한다. */
 body.panel-resizing, body.panel-resizing * { cursor: col-resize !important; }
 body.panel-resizing * { user-select: none !important; }
 
-/* Legacy rails/sidebars are no longer rendered in the new layout. */
-#leftSidebar, #rightSidebar, #leftUtilityRail, #rightUtilityRail { display: none !important; }
 
 @media (max-width: 1023px) {
   #leftMarketSidebar.market-sidebar {
@@ -365,38 +326,3 @@ body.panel-resizing * { user-select: none !important; }
 }
 
 
-/* 첫 화면도 본문 + 오른쪽 패널을 하나의 작업공간처럼 보인다.
-   hero는 패널 폭만큼 오른쪽을 비우고, 패널은 그 자리를 그대로 사용한다.
-   왼쪽 시장정보 영역은 별도 레이어로 유지되어 패널이 침범하지 않는다. */
-:root { --hero-panel-width: 360px; }
-body.hero-panel-open #gaemiWorkspace {
-  position: relative;
-  z-index: 31;
-  pointer-events: auto;
-}
-
-/* 패널이 열린 메인에서도 히어로 입력/추천 종목/상단 버튼이 정상 클릭되어야 한다.
-   히어로의 right 영역을 패널 폭만큼 비워 패널과 클릭 영역이 겹치지 않게 한다. */
-body.hero-panel-open #mainHeroView {
-  z-index: 60;
-  pointer-events: auto;
-}
-body.hero-panel-open #mainHeroView > header {
-  z-index: 70;
-}
-body.hero-panel-open #leftMarketSidebar.market-sidebar {
-  z-index: 80;
-}
-body.hero-panel-open #mainHeroView {
-  /* 메인 히어로가 패널 리사이저(5px)까지 덮지 않도록 확보한다.
-     이 5px 구간을 드래그하면 메인에서도 패널 폭을 조절할 수 있다. */
-  right: calc(var(--hero-panel-width) + 5px);
-}
-body.hero-panel-open #gaemiWorkspace #mainContent {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-[data-panel-header-toggle][aria-hidden="true"] {
-  display: none !important;
-}
