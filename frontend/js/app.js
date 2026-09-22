@@ -6,6 +6,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let activeAnalysisRequestId = 0;
     let currentChartInstance = null;
     let currentAppMode = 'gaemi';
+    let workspaceUIReady = false;
 
     function getWorkspace() {
       return document.getElementById('gaemiWorkspace');
@@ -15,11 +16,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const workspace = getWorkspace();
       if (!workspace) return;
       const rect = workspace.getBoundingClientRect();
-      const maxWidth = Math.max(280, Math.min(1200, rect.width - 320));
+      const minMainWidth = window.innerWidth < 1024 ? 0 : 360;
+      const maxWidth = Math.max(280, Math.min(1200, rect.width - minMainWidth - 5));
       const width = Math.max(280, Math.min(Number(px) || 360, maxWidth));
       const rounded = Math.round(width);
       workspace.style.setProperty('--right-panel-width', `${rounded}px`);
-      document.documentElement.style.setProperty('--hero-panel-width', `${rounded}px`);
       localStorage.setItem(PANEL_WIDTH_KEY, String(rounded));
     }
 
@@ -35,8 +36,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const onHero = !!heroView && !heroView.classList.contains('hidden');
       document.body.classList.toggle('left-market-closed', !marketOpen);
       document.body.classList.toggle('right-panel-closed', !panelOpen);
-      // 첫 화면에서도 본문과 패널이 같은 화면 공간을 나눠 갖도록 한다.
-      document.body.classList.toggle('hero-panel-open', onHero && panelOpen);
 
       if (market) market.setAttribute('aria-hidden', marketOpen ? 'false' : 'true');
       if (panel) panel.setAttribute('aria-hidden', panelOpen ? 'false' : 'true');
@@ -55,6 +54,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       document.querySelectorAll('[data-panel-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', panelOpen));
       document.querySelectorAll('[data-panel-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !panelOpen));
+      document.querySelectorAll('[data-left-sidebar-toggle]').forEach(el => {
+        const top = el.getAttribute('data-left-sidebar-top');
+        const shouldShow = top === 'hero' ? onHero : !onHero;
+        el.classList.toggle('hidden', !shouldShow);
+        el.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+        el.tabIndex = shouldShow ? 0 : -1;
+      });
+
       document.querySelectorAll('[data-panel-header-toggle]').forEach(el => {
         el.setAttribute('aria-label', panelOpen ? '패널 닫기' : '패널 열기');
         el.setAttribute('title', panelOpen ? '패널 닫기' : '패널 열기');
@@ -72,13 +79,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
-      document.body.classList.remove('left-market-open','right-panel-open','right-panel-maximized','hero-panel-open');
+      document.body.classList.remove('analysis-mode');
+      document.body.classList.remove('left-market-open','right-panel-open','right-panel-maximized');
       applySidebarState();
     }
 
     function switchToAnalysisMode(stockName) {
       document.getElementById('mainHeroView').classList.add('hidden');
-      document.body.classList.remove('hero-panel-open');
+      document.body.classList.add('analysis-mode');
       // 종목 분석 진입 시에는 패널을 자동으로 열지 않고 닫힌 상태를 유지한다.
       // 사용자가 상단 패널 버튼으로 직접 열 수 있다.
       // 종목 분석 진입 시 왼쪽 시장정보 사이드바도 자동으로 열지 않는다.
@@ -129,6 +137,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function toggleLeftSidebar() {
+      if (!workspaceUIReady) return;
       const isOpen = document.body.classList.contains('left-market-open');
       if (!isOpen && window.innerWidth < 1024) {
         document.body.classList.remove('right-panel-open', 'right-panel-maximized');
@@ -176,7 +185,20 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function initializeSidebars() {
-      document.body.classList.remove('left-market-open','right-panel-open','right-panel-maximized');
+      // 새로고침 직후에는 홈 화면을 기준으로 하여 분석용 토글이 클릭 영역을 차지하지 않게 한다.
+      document.body.classList.remove('left-market-open','right-panel-open','right-panel-maximized','analysis-mode');
+      // 상단 왼쪽 토글은 DOM 초기 렌더 단계가 끝난 뒤에만 클릭 이벤트를 연결한다.
+      // 새로고침 직후 버튼이 클릭된 것처럼 처리되는 현상을 막는다.
+      document.querySelectorAll('[data-left-sidebar-toggle]').forEach((el) => {
+        if (el.dataset.sidebarListenerBound === 'true') return;
+        el.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          toggleLeftSidebar();
+        });
+        el.dataset.sidebarListenerBound = 'true';
+      });
+      workspaceUIReady = true;
       const savedWidth = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
       // Workspace가 렌더링된 다음 폭을 적용한다.
       setTimeout(() => setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360), 0);
@@ -188,6 +210,17 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const resizer = document.getElementById('rightPanelResizer');
       const panel = document.getElementById('rightPanel');
       if (!workspace || !resizer || !panel) return;
+
+      // 왼쪽 시장정보 열림/닫힘이나 창 크기 변경으로 Workspace 폭이 바뀌어도
+      // 저장된 패널 폭이 본문을 과도하게 침범하지 않도록 자동으로 다시 맞춘다.
+      if (window.ResizeObserver) {
+        const observer = new ResizeObserver(() => {
+          if (document.body.classList.contains('right-panel-maximized')) return;
+          const current = parseInt(getComputedStyle(workspace).getPropertyValue('--right-panel-width') || '360', 10);
+          setPanelWidth(Number.isFinite(current) ? current : 360);
+        });
+        observer.observe(workspace);
+      }
 
       resizer.addEventListener('pointerdown', (event) => {
         if (!document.body.classList.contains('right-panel-open') || document.body.classList.contains('right-panel-maximized')) return;
