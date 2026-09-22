@@ -1,7 +1,9 @@
-gaemiGTP panel/sidebar click fix
+# gaemiGTP 패널 최대화 수정
 
-1. Desktop main hero shifts right by 320px when the left market sidebar is open, so the sidebar no longer covers the hero content.
-2. When the right panel is open on the main hero, the hero remains pointer-interactive; stock search input and quick stock buttons are clickable.
-3. The hero reserves the right-panel width, so the hero and right panel do not overlap in the click layer.
-4. Existing analysis-mode behavior remains: entering a stock does not auto-open the market sidebar or right panel.
-5. Right panel remains fixed to the workspace right side, with width up to 1200px.
+- PC 패널 일반 폭: 기존 1,200px 최대값 유지.
+- PC 패널 최대화: 왼쪽 시장정보 사이드바는 유지하고, 본문 + 리사이저를 숨긴 뒤 Workspace 전체를 패널이 사용.
+- PC 최대화 해제: 저장된 패널 폭을 다시 적용.
+- 모바일 패널 열기: 본문과 왼쪽 시장정보 사이드바를 숨기고 100dvw 사용.
+- 모바일에서는 최대화 버튼을 숨김.
+- 모바일에서 왼쪽 사이드바와 오른쪽 패널은 동시에 열리지 않도록 상호 배제.
+- 패널 닫기/홈 이동/종목 진입 시 최대화 상태를 초기화.

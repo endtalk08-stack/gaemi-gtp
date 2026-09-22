@@ -40,6 +40,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       if (market) market.setAttribute('aria-hidden', marketOpen ? 'false' : 'true');
       if (panel) panel.setAttribute('aria-hidden', panelOpen ? 'false' : 'true');
+      const panelMaximized = document.body.classList.contains('right-panel-maximized');
+      document.querySelectorAll('[data-panel-maximize-icon="maximize"]').forEach(el => el.classList.toggle('hidden', panelMaximized));
+      document.querySelectorAll('[data-panel-maximize-icon="restore"]').forEach(el => el.classList.toggle('hidden', !panelMaximized));
       if (resizer) {
         resizer.classList.toggle('is-open', panelOpen);
         resizer.classList.toggle('hidden', !panelOpen);
@@ -69,7 +72,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
-      document.body.classList.remove('left-market-open','right-panel-open','hero-panel-open');
+      document.body.classList.remove('left-market-open','right-panel-open','right-panel-maximized','hero-panel-open');
       applySidebarState();
     }
 
@@ -81,7 +84,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       // 종목 분석 진입 시 왼쪽 시장정보 사이드바도 자동으로 열지 않는다.
       // 사용자가 상단 왼쪽 버튼으로 직접 열 수 있다.
       document.body.classList.remove('left-market-open');
-      document.body.classList.remove('right-panel-open');
+      document.body.classList.remove('right-panel-open','right-panel-maximized');
       applySidebarState();
       requestStock(stockName || '삼성전자');
     }
@@ -127,23 +130,53 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function toggleLeftSidebar() {
       const isOpen = document.body.classList.contains('left-market-open');
+      if (!isOpen && window.innerWidth < 1024) {
+        document.body.classList.remove('right-panel-open', 'right-panel-maximized');
+      }
       document.body.classList.toggle('left-market-open', !isOpen);
       applySidebarState();
     }
 
     function toggleRightPanel() {
       const isOpen = document.body.classList.contains('right-panel-open');
-      document.body.classList.toggle('right-panel-open', !isOpen);
+      if (isOpen) {
+        document.body.classList.remove('right-panel-open', 'right-panel-maximized');
+      } else {
+        if (window.innerWidth < 1024) {
+          document.body.classList.remove('left-market-open');
+        }
+        document.body.classList.add('right-panel-open');
+      }
+      applySidebarState();
+    }
+
+    function toggleRightPanelMaximize() {
+      if (!document.body.classList.contains('right-panel-open')) {
+        if (window.innerWidth < 1024) {
+          document.body.classList.remove('left-market-open');
+        }
+        document.body.classList.add('right-panel-open');
+      }
+      const maximized = document.body.classList.toggle('right-panel-maximized');
+      const button = document.querySelector('[data-panel-maximize]');
+      if (button) {
+        button.setAttribute('aria-label', maximized ? '패널 원래 크기로' : '패널 최대화');
+        button.setAttribute('title', maximized ? '패널 원래 크기로' : '패널 최대화');
+      }
+      if (!maximized) {
+        const savedWidth = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
+        requestAnimationFrame(() => setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360));
+      }
       applySidebarState();
     }
 
     function closeAllSidebars() {
-      document.body.classList.remove('left-market-open','right-panel-open');
+      document.body.classList.remove('left-market-open','right-panel-open','right-panel-maximized');
       applySidebarState();
     }
 
     function initializeSidebars() {
-      document.body.classList.remove('left-market-open','right-panel-open');
+      document.body.classList.remove('left-market-open','right-panel-open','right-panel-maximized');
       const savedWidth = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
       // Workspace가 렌더링된 다음 폭을 적용한다.
       setTimeout(() => setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360), 0);
@@ -157,7 +190,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (!workspace || !resizer || !panel) return;
 
       resizer.addEventListener('pointerdown', (event) => {
-        if (!document.body.classList.contains('right-panel-open')) return;
+        if (!document.body.classList.contains('right-panel-open') || document.body.classList.contains('right-panel-maximized')) return;
         event.preventDefault();
         const rect = workspace.getBoundingClientRect();
         const onMove = (moveEvent) => {
@@ -1076,6 +1109,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         downLbl.innerText = '하락 39%';
       }
     }
+
+window.addEventListener('resize', () => {
+  if (!document.body.classList.contains('right-panel-maximized')) {
+    const savedWidth = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
+    setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360);
+  }
+  applySidebarState();
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   try {

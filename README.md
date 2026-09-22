@@ -1,19 +1,5 @@
-# gaemi-gtp
+# gaemiGTP 패널 레이아웃 수정본
 
-## Refactored structure
-- Render start command: `gunicorn app:app`
-- Frontend: `frontend/`
-- Backend wrapper: `backend/app.py`
-- Analysis/data engine: `backend/services/engine.py`
-- Health check: `/health`
-- Analysis API: `/analyze?stock=삼성전자`
-- The frontend calls the API with same-origin `window.location.origin`.
+PC: 패널은 드래그로 최대 1,200px까지 조절하고, 패널 헤더의 최대화 버튼을 누르면 왼쪽 시장정보 영역을 제외한 Workspace 전체를 사용합니다.
 
-
-## Deployment
-- GitHub Pages serves the frontend from `frontend/index.html` via the root redirect.
-- Render runs `gunicorn app:app` and serves the same frontend plus `/analyze` and `/health`.
-- The browser calls the Render API at `https://gaemi-gtp.onrender.com`.
-
-## 2026-09-22 panel layout stabilization
-The right panel is fixed as the right sibling column inside `gaemiWorkspace`. The extra panel left/right dock button was removed. Only the divider resizer changes panel width, up to 1200px where the viewport allows. The home hero now gives the panel its own right-side space instead of hiding/overlaying the main workspace.
+모바일: 패널을 열면 본문과 왼쪽 시장정보 영역을 숨기고 화면 전체(100dvw)를 사용합니다.
