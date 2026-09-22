@@ -15,7 +15,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const workspace = getWorkspace();
       if (!workspace) return;
       const rect = workspace.getBoundingClientRect();
-      const minMainWidth = window.innerWidth < 1024 ? 0 : 560;
+      const minMainWidth = window.innerWidth < 1024 ? 0 : 360;
       const maxWidth = Math.max(280, Math.min(1200, rect.width - minMainWidth - 5));
       const width = Math.max(280, Math.min(Number(px) || 360, maxWidth));
       const rounded = Math.round(width);
@@ -53,6 +53,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       document.querySelectorAll('[data-panel-toggle-icon="closed"]').forEach(el => el.classList.toggle('hidden', panelOpen));
       document.querySelectorAll('[data-panel-toggle-icon="open"]').forEach(el => el.classList.toggle('hidden', !panelOpen));
+      document.querySelectorAll('[data-left-sidebar-toggle]').forEach(el => {
+        const top = el.getAttribute('data-left-sidebar-top');
+        const shouldShow = top === 'hero' ? onHero : !onHero;
+        el.classList.toggle('hidden', !shouldShow);
+        el.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+        el.tabIndex = shouldShow ? 0 : -1;
+      });
+
       document.querySelectorAll('[data-panel-header-toggle]').forEach(el => {
         el.setAttribute('aria-label', panelOpen ? '패널 닫기' : '패널 열기');
         el.setAttribute('title', panelOpen ? '패널 닫기' : '패널 열기');

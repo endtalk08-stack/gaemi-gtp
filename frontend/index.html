@@ -146,7 +146,7 @@
   <div id="mainHeroView" class="absolute inset-0 z-30 bg-[#f8fafc] dark:bg-[#0f1013] text-[#0f172a] dark:text-white flex flex-col justify-between overflow-hidden">
     <header class="relative z-50 h-16 flex items-center justify-between px-2 sm:px-4 shrink-0">
       <div class="flex items-center gap-3">
-        <button type="button" onclick="toggleLeftSidebar()" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="왼쪽 메뉴 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
+        <button type="button" onclick="toggleLeftSidebar()" data-left-sidebar-toggle data-left-sidebar-top="hero" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="왼쪽 메뉴 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
         <span class="font-black text-lg tracking-tight text-[#0f172a] dark:text-white cursor-pointer" onclick="resetToHome()">gaemiGTP</span>
       </div>
       <div class="flex items-center gap-1">
@@ -217,7 +217,7 @@
 
     <header class="h-16 flex items-center justify-between px-2 sm:px-4 bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 z-10">
       <div class="flex items-center gap-3">
-        <button type="button" onclick="toggleLeftSidebar()" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="왼쪽 사이드바 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
+        <button type="button" onclick="toggleLeftSidebar()" data-left-sidebar-toggle data-left-sidebar-top="workspace" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="왼쪽 사이드바 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
         <button type="button" onclick="resetToHome()" class="font-black text-lg tracking-tight text-[#0f172a] dark:text-white cursor-pointer hover:opacity-80 transition" aria-label="메인으로 이동">gaemiGTP</button>
       </div>
       <div class="flex items-center gap-1">
