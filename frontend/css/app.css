@@ -331,6 +331,21 @@ body.hero-panel-open #gaemiWorkspace {
   z-index: 31;
   pointer-events: auto;
 }
+
+/* 패널이 열린 메인에서도 히어로 상단 버튼은 항상 클릭 가능해야 한다.
+   workspace 전체를 위로 올리는 구조와 충돌하지 않도록 히어로 자체를
+   workspace보다 위에 두고, 오른쪽 패널 영역은 right inset으로 비워 둔다. */
+body.hero-panel-open #mainHeroView {
+  z-index: 60;
+  pointer-events: none;
+}
+body.hero-panel-open #mainHeroView > header {
+  pointer-events: auto;
+  z-index: 70;
+}
+body.hero-panel-open #leftMarketSidebar.market-sidebar {
+  z-index: 80;
+}
 body.hero-panel-open #mainHeroView {
   right: var(--hero-panel-width);
 }

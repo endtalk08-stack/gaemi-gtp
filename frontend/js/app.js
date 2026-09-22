@@ -78,7 +78,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       document.body.classList.remove('hero-panel-open');
       // 종목 분석 진입 시에는 패널을 자동으로 열지 않고 닫힌 상태를 유지한다.
       // 사용자가 상단 패널 버튼으로 직접 열 수 있다.
-      document.body.classList.add('left-market-open');
+      // 종목 분석 진입 시 왼쪽 시장정보 사이드바도 자동으로 열지 않는다.
+      // 사용자가 상단 왼쪽 버튼으로 직접 열 수 있다.
+      document.body.classList.remove('left-market-open');
       document.body.classList.remove('right-panel-open');
       applySidebarState();
       requestStock(stockName || '삼성전자');
