@@ -298,19 +298,7 @@ body:not(.right-panel-open) #rightPanelResizer {
   display: none !important;
 }
 
-body.panel-left-docked #rightPanel {
-  order: 1;
-  border-left: 0 !important;
-  border-right: 1px solid #27272a;
-}
-body.panel-left-docked #rightPanelResizer { order: 2; }
-body.panel-left-docked #mainContent { order: 3; }
-body.panel-right-docked #mainContent { order: 1; }
-body.panel-right-docked #rightPanelResizer { order: 2; }
-body.panel-right-docked #rightPanel { order: 3; }
-
-.right-panel-header [data-panel-drag-handle] { touch-action: none; }
-body.panel-dragging { cursor: grabbing !important; }
+/* 패널은 항상 본문 오른쪽에 고정한다. */
 body.panel-resizing, body.panel-resizing * { cursor: col-resize !important; }
 body.panel-resizing * { user-select: none !important; }
 
@@ -334,25 +322,23 @@ body.panel-resizing * { user-select: none !important; }
 }
 
 
-/* 첫 화면 패널 열기: 고정 hero 레이어보다 workspace 패널만 한 단계 위로 표시.
-   시장정보 사이드바(z40)는 그대로 유지하여 패널이 그 영역을 침범하지 않는다. */
+/* 첫 화면도 본문 + 오른쪽 패널을 하나의 작업공간처럼 보인다.
+   hero는 패널 폭만큼 오른쪽을 비우고, 패널은 그 자리를 그대로 사용한다.
+   왼쪽 시장정보 영역은 별도 레이어로 유지되어 패널이 침범하지 않는다. */
+:root { --hero-panel-width: 360px; }
 body.hero-panel-open #gaemiWorkspace {
   position: relative;
   z-index: 31;
   pointer-events: auto;
 }
+body.hero-panel-open #mainHeroView {
+  right: var(--hero-panel-width);
+}
 body.hero-panel-open #gaemiWorkspace #mainContent {
   visibility: hidden;
   pointer-events: none;
 }
-[data-panel-dock-icon] {
-  display: block;
-}
-[data-panel-dock-icon].hidden {
-  display: none !important;
-}
 
-/* 패널 상단 토글은 현재 화면에 해당하는 버튼 하나만 보인다. */
 [data-panel-header-toggle][aria-hidden="true"] {
   display: none !important;
 }
