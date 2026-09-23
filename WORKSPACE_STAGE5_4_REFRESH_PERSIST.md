@@ -14,3 +14,6 @@ On browser refresh, the app now restores:
 Default when no saved state exists remains closed sidebars/panel on the home screen.
 
 Existing API, DB, widget calculations/rendering, and data flow were not changed.
+
+
+Stage 5.4.1 audit fix: restore the visible gaemi/info/pro app-mode UI to match persisted state after refresh.

@@ -242,7 +242,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         document.body.classList.add('right-panel-maximized');
       }
       if (typeof saved?.stock === 'string' && saved.stock.trim()) activeStock = saved.stock.trim();
-      if (typeof saved?.appMode === 'string' && saved.appMode) currentAppMode = saved.appMode;
+      if (typeof saved?.appMode === 'string' && ['gaemi', 'info', 'pro'].includes(saved.appMode)) currentAppMode = saved.appMode;
+      // 새로고침 후에도 gaemi/info/pro 선택 표시가 실제 상태와 일치하도록 복원한다.
+      selectAppMode(currentAppMode);
 
       // 상단 토글은 DOM 초기 렌더가 끝난 뒤에만 연결한다.
       document.querySelectorAll('[data-left-sidebar-toggle]').forEach((el) => {
