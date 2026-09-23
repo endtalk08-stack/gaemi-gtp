@@ -87,12 +87,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     function switchToAnalysisMode(stockName) {
       document.getElementById('mainHeroView').classList.add('hidden');
       document.body.classList.add('analysis-mode');
-      // 종목 분석 진입 시에는 패널을 자동으로 열지 않고 닫힌 상태를 유지한다.
-      // 사용자가 상단 패널 버튼으로 직접 열 수 있다.
-      // 종목 분석 진입 시 왼쪽 시장정보 사이드바도 자동으로 열지 않는다.
-      // 사용자가 상단 왼쪽 버튼으로 직접 열 수 있다.
-      document.body.classList.remove('left-market-open');
-      document.body.classList.remove('right-panel-open','right-panel-maximized');
+
+      // 홈 → 종목분석으로 이동할 때 현재 Workspace 상태를 그대로 보존한다.
+      // 사용자가 열어둔 왼쪽 시장정보/오른쪽 패널을 임의로 닫지 않는다.
+      // 화면 이동은 '분석 화면으로 전환'만 담당하고, 사이드바 상태는 사용자의 선택을 따른다.
       applySidebarState();
       requestStock(stockName || '삼성전자');
     }
