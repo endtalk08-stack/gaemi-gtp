@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="shell/right-panel/right-panel-tabs.css?v=20260924-v76">
   <link rel="stylesheet" href="pages/auto-trade/auto-trade.css?v=20260924-v76">
   <link rel="stylesheet" href="pages/dashboard/dashboard.css?v=20260924-v75">
+  <link rel="stylesheet" href="shell/main/widget-dock/widget-dock.css?v=20260924-v710" />
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-market-closed left-context-closed right-panel-closed">
 
@@ -294,6 +295,21 @@
       </div>
     </header>
 
+    <section id="centralWidgetDock" class="central-widget-dock" aria-label="중앙 분석 위젯">
+      <div class="central-widget-dock__bar">
+        <span class="central-widget-dock__title">분석 위젯</span>
+        <span class="central-widget-dock__hint">필요한 분석을 + 로 추가하세요</span>
+        <span class="central-widget-dock__spacer"></span>
+        <div class="central-widget-dock__menu-wrap">
+          <button type="button" class="central-widget-dock__add" data-central-widget-add-toggle aria-expanded="false" aria-label="분석 위젯 추가" title="분석 위젯 추가">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+          </button>
+          <div id="centralWidgetDockMenu" class="central-widget-dock__menu" hidden></div>
+        </div>
+      </div>
+      <div id="centralWidgetDockBody" class="central-widget-dock__body"></div>
+    </section>
+
     <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
 
     <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
@@ -396,6 +412,8 @@
   <script src="shell/right-panel/right-panel.js?v=20260924-v76"></script>
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260924-v79"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20260924-v76"></script>
+  <script src="widgets/catalog/catalog.js?v=20260924-v710"></script>
+  <script src="shell/main/widget-dock/widget-dock.js?v=20260924-v710"></script>
   <script src="widgets/market-state/market-state.js?v=20260924-v76"></script>
   <script src="pages/auto-trade/auto-trade.js?v=20260924-v76"></script>
   <script src="pages/dashboard/dashboard.js?v=20260924-v76"></script>

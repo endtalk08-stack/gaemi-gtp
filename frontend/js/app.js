@@ -1259,3 +1259,11 @@ try {
 } catch (e) {
   console.warn('[gaemiGTP] UI initialization warning:', e);
 }
+    try {
+      if (window.GaemiGTPWidgetDock && typeof window.GaemiGTPWidgetDock.initialize === 'function') {
+        window.GaemiGTPWidgetDock.initialize();
+      }
+    } catch (e) {
+      console.warn('[gaemiGTP] central widget dock initialization warning:', e);
+    }
+
