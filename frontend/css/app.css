@@ -401,3 +401,93 @@ body.right-panel-floating #gaemiWorkspace #rightPanel {
 .metric-value { color:#f4f4f5; font-size:14px; font-weight:800; }
 .placeholder-widget { height:100%; padding:18px; display:flex; flex-direction:column; justify-content:center; color:#71717a; }
 @media (max-width:700px){ .widget-card.span-2{grid-column:span 1;} .widget-grid-scroll{padding:9px;} }
+
+/* ================================================================
+   LEFT NAV RAIL v1
+   - Always-visible slim vertical rail, like the reference UI
+   - Market information sidebar remains a separate expandable column
+   ================================================================ */
+#leftNavRail {
+  width: 58px;
+  flex: 0 0 58px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 6px 10px;
+  background: #0f1013;
+  border-right: 1px solid #27272a;
+  z-index: 60;
+  position: relative;
+}
+.left-nav-rail-top,
+.left-nav-rail-bottom {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.left-nav-rail-divider {
+  width: 24px;
+  height: 1px;
+  background: #27272a;
+  margin: 2px 0 4px;
+}
+.left-nav-rail-btn {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.left-nav-rail-btn:hover {
+  background: #202228;
+  color: #f4f4f5;
+}
+.left-nav-rail-btn:focus-visible {
+  outline: 2px solid rgba(161,161,170,.45);
+  outline-offset: 1px;
+}
+.left-nav-rail-brand {
+  color: #f4f4f5;
+}
+.left-nav-rail-logo {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: #18191d;
+  border: 1px solid #2b2d33;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+@media (max-width: 1023px) {
+  #leftNavRail {
+    width: 52px;
+    flex-basis: 52px;
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+  .left-nav-rail-btn {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+}

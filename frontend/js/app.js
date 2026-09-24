@@ -116,6 +116,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       saveWorkspaceState();
     }
 
+    function focusStockInput() {
+      const input = document.querySelector('input[placeholder*=\"종목명 입력\"]');
+      if (input) { input.focus(); input.scrollIntoView({block:'nearest'}); }
+    }
+
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
       document.body.classList.remove('analysis-mode');
