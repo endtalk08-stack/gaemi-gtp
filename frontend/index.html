@@ -302,6 +302,7 @@
           <span class="text-[16px] font-black text-[#0f172a] dark:text-white">패널</span>
         </div>
         <div class="flex items-center gap-1 shrink-0">
+          <button type="button" onclick="toggleWidgetMenu()" class="widget-add-btn inline-flex items-center justify-center w-8 h-8 rounded-lg border border-[#3a3c43] bg-transparent text-[#f4f4f5] hover:bg-[#282a30] hover:text-white transition cursor-pointer" style="display:inline-flex!important;visibility:visible!important;opacity:1!important;position:relative;z-index:200;flex:0 0 32px" aria-label="위젯 추가" title="위젯 추가"><span aria-hidden="true" style="font-size:22px;line-height:1;font-weight:400;display:block;color:inherit">＋</span></button>
           <button type="button" onclick="toggleRightPanelMaximize()" data-panel-maximize class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-[#0f172a] dark:hover:text-white transition" aria-label="패널 최대화" title="패널 최대화">
             <i data-panel-maximize-icon="maximize" data-lucide="maximize-2" class="w-4 h-4"></i>
             <i data-panel-maximize-icon="restore" data-lucide="minimize-2" class="w-4 h-4 hidden"></i>
@@ -311,7 +312,13 @@
           </button>
         </div>
       </div>
-      <div id="rightPanelContent" class="flex-1 min-h-0 overflow-auto bg-[#f8fafc] dark:bg-[#0f1013]"></div>
+      <div id="widgetAddMenu" class="widget-add-menu hidden" role="menu" aria-label="위젯 추가 메뉴">
+        <button type="button" onclick="addRightWidget('news')"><span>📰</span><span>뉴스</span></button>
+        <button type="button" disabled style="opacity:.45;cursor:not-allowed"><span>🌎</span><span>글로벌 산업·테마</span></button>
+        <button type="button" disabled style="opacity:.45;cursor:not-allowed"><span>📊</span><span>시장지표</span></button>
+        <button type="button" disabled style="opacity:.45;cursor:not-allowed"><span>📅</span><span>일정</span></button>
+      </div>
+      <div id="rightPanelContent" class="widget-host flex-1 min-h-0 overflow-auto bg-[#f8fafc] dark:bg-[#0f1013]"></div>
     </aside>
   </div>
 <!-- 외부 기사 링크 확인 팝업 -->
@@ -339,6 +346,7 @@
   </div>
 
 
-  <script src="js/app.js?v=20260924-left-rail-v1"></script>
+  <script src="widgets/news-widget.js?v=20260924-widget-v1"></script>
+  <script src="js/app.js?v=20260924-widget-panel-v1"></script>
 </body>
 </html>

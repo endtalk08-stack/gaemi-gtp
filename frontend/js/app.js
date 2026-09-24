@@ -1272,3 +1272,88 @@ try {
 } catch (e) {
   console.warn('[gaemiGTP] UI initialization warning:', e);
 }
+
+/* ================================================================
+   Right Panel Widget Manager v1
+   ================================================================ */
+const RIGHT_WIDGETS_KEY = 'gaemiGTP_right_widgets_v1';
+let rightWidgets = [];
+
+function readRightWidgets() {
+  try {
+    const raw = localStorage.getItem(RIGHT_WIDGETS_KEY);
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveRightWidgets() {
+  localStorage.setItem(RIGHT_WIDGETS_KEY, JSON.stringify(rightWidgets));
+}
+
+function widgetLabel(type) {
+  return ({news:'뉴스', theme:'글로벌 산업·테마', market:'시장지표', schedule:'일정'})[type] || type;
+}
+
+function toggleWidgetMenu() {
+  const menu = document.getElementById('widgetAddMenu');
+  if (!menu) return;
+  menu.classList.toggle('hidden');
+}
+
+function closeWidgetMenu() {
+  const menu = document.getElementById('widgetAddMenu');
+  if (menu) menu.classList.add('hidden');
+}
+
+function addRightWidget(type) {
+  if (type !== 'news') return;
+  if (!rightWidgets.includes(type)) rightWidgets.push(type);
+  saveRightWidgets();
+  closeWidgetMenu();
+  renderRightWidgets();
+}
+
+function removeRightWidget(type) {
+  rightWidgets = rightWidgets.filter(x => x !== type);
+  saveRightWidgets();
+  renderRightWidgets();
+}
+
+function renderRightWidgets() {
+  const host = document.getElementById('rightPanelContent');
+  if (!host) return;
+  if (!rightWidgets.length) {
+    host.innerHTML = '<div class="widget-empty"><div><strong>위젯이 없습니다</strong><span>상단 ＋ 버튼에서 필요한 위젯을 추가하세요.</span></div></div>';
+    return;
+  }
+  host.innerHTML = '';
+  rightWidgets.forEach(type => {
+    const card = document.createElement('section');
+    card.className = 'widget-card';
+    card.dataset.widgetType = type;
+    card.innerHTML = `<div class="widget-card-head"><div class="widget-card-title">${widgetLabel(type)}</div><div class="widget-card-actions"><button type="button" data-widget-remove aria-label="${widgetLabel(type)} 위젯 삭제" title="위젯 삭제">✕</button></div></div><div class="widget-card-body"></div>`;
+    card.querySelector('[data-widget-remove]').addEventListener('click', () => removeRightWidget(type));
+    host.appendChild(card);
+    if (type === 'news' && window.NewsWidget) window.NewsWidget.render(card.querySelector('.widget-card-body'));
+  });
+  if (window.lucide) lucide.createIcons();
+}
+
+function initializeRightWidgetSystem() {
+  rightWidgets = readRightWidgets().filter(x => x === 'news');
+  renderRightWidgets();
+  const menu = document.getElementById('widgetAddMenu');
+  const header = document.querySelector('.right-panel-header');
+  document.addEventListener('click', (event) => {
+    if (!menu || menu.classList.contains('hidden')) return;
+    if (menu.contains(event.target) || header?.contains(event.target)) return;
+    closeWidgetMenu();
+  });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  try { initializeRightWidgetSystem(); } catch (e) { console.warn('[gaemiGTP] widget initialization warning:', e); }
+});
