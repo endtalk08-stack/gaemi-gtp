@@ -437,6 +437,11 @@ body.panel-resizing * { user-select: none !important; }
   body.right-panel-open #leftMarketSidebar.market-sidebar {
     display: none !important;
   }
+  /* 모바일: 오른쪽 패널을 열면 세로 내비게이션 레일도 잠시 숨겨 패널을 화면 전체로 사용한다.
+     패널을 닫으면 레일은 자동으로 다시 표시된다. */
+  body.right-panel-open #leftNavRail {
+    display: none !important;
+  }
   #rightPanel [data-panel-maximize] { display: none !important; }
 }
 
