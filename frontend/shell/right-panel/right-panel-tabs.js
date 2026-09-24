@@ -134,7 +134,7 @@
       <button type="button" class="right-panel-tab-menu__item" data-add-tab-type="auto-trade">
         <i data-lucide="bot"></i><span>자동매매</span>
       </button>
-      <div class="right-panel-tab-menu__section">탭 삭제</div>
+      <div class="right-panel-tab-menu__section">내 탭</div>
       <div class="right-panel-tab-menu__delete-list" data-tab-delete-list></div>
     `;
     addWrap.appendChild(menu);
@@ -163,7 +163,8 @@
       button.type = 'button';
       button.className = 'right-panel-tab-menu__item right-panel-tab-menu__item--delete';
       button.dataset.deleteTabId = tab.id;
-      button.innerHTML = `<span>${escapeHtml(tab.label)}</span><i data-lucide="trash-2"></i>`;
+      const icon = tab.id === 'auto-trade' ? 'bot' : 'square-chart-gantt';
+      button.innerHTML = `<i data-lucide="${icon}"></i><span>${escapeHtml(tab.label)}</span><i class="right-panel-tab-menu__close" data-lucide="x"></i>`;
       deleteList.appendChild(button);
     });
   }
