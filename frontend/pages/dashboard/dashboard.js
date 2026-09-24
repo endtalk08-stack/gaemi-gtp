@@ -1,5 +1,5 @@
 /* Dashboard Page Container — v7.5
-   책임: Dashboard라는 화면 컨테이너와 독립 위젯 슬롯만 구성한다.
+   책임: 오른쪽 패널의 위젯 영역만 구성한다.
    데이터/API/DB/분석/자동매매 로직은 담당하지 않는다.
 */
 (function () {
@@ -48,14 +48,7 @@
     if (!root || root.dataset.dashboardMounted === 'true') return;
 
     root.innerHTML = `
-      <div class="right-panel-dashboard__head">
-        <div>
-          <h2 class="right-panel-dashboard__title">대시보드</h2>
-          <p class="right-panel-dashboard__subtitle">독립 위젯을 배치하는 화면 영역</p>
-        </div>
-        <span class="right-panel-dashboard__status">구조 준비</span>
-      </div>
-      <section class="right-panel-dashboard__grid" aria-label="대시보드 위젯 영역"></section>
+      <section class="right-panel-dashboard__grid" aria-label="위젯 영역"></section>
     `;
 
     const grid = root.querySelector('.right-panel-dashboard__grid');
