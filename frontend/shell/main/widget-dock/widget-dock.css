@@ -7,8 +7,8 @@
 .central-widget-dock__body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: var(--ui-widget-gap);
-  padding: var(--ui-panel-pad);
+  gap: 8px;
+  padding: 10px 12px;
 }
 .central-widget-dock__body:empty { display: none; }
 
