@@ -1,4 +1,4 @@
-/* Dashboard Page Container — v7.3
+/* Dashboard Page Container — v7.5
    책임: Dashboard라는 화면 컨테이너와 독립 위젯 슬롯만 구성한다.
    데이터/API/DB/분석/자동매매 로직은 담당하지 않는다.
 */

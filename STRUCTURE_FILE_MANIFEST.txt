@@ -104,3 +104,7 @@ requirements.txt
 - frontend/widgets/market-state/README.md
 - frontend/widgets/market-state/market-state.css
 - frontend/widgets/market-state/market-state.js
+
+frontend/shell/right-panel/right-panel-tabs.js
+frontend/shell/right-panel/right-panel-tabs.css
+docs/architecture/PHASE5_RIGHT_PANEL_TABS_DONE.md

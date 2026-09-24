@@ -12,8 +12,9 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
   <link rel="stylesheet" href="css/app.css?v=20260924-architecture-v74">
-  <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20260924-v74">
-  <link rel="stylesheet" href="pages/dashboard/dashboard.css?v=20260924-v74">
+  <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20260924-v75">
+  <link rel="stylesheet" href="shell/right-panel/right-panel-tabs.css?v=20260924-v75">
+  <link rel="stylesheet" href="pages/dashboard/dashboard.css?v=20260924-v75">
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-market-closed right-panel-closed">
 
@@ -298,12 +299,9 @@
     <div id="rightPanelResizer" class="panel-resizer" role="separator" aria-label="패널 너비 조절" title="드래그하여 패널 크기 조절"></div>
 
     <aside id="rightPanel" class="right-panel bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 overflow-hidden" aria-label="패널">
-      <div class="right-panel-header h-16 px-3 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 select-none">
-        <div class="flex-1 min-w-0 h-full flex items-center gap-2">
-          <i data-lucide="panel-right" class="w-4 h-4 text-[#64748b] dark:text-[#a1a1aa] shrink-0"></i>
-          <span class="text-[16px] font-black text-[#0f172a] dark:text-white">패널</span>
-        </div>
-        <div class="flex items-center gap-1 shrink-0">
+      <div class="right-panel-header h-16 px-2 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 select-none">
+        <div id="rightPanelTabs" class="right-panel-tabs flex-1 min-w-0" role="tablist" aria-label="패널 탭"></div>
+        <div class="flex items-center gap-1 shrink-0 ml-2">
           <button type="button" onclick="toggleRightPanelMaximize()" data-panel-maximize class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-[#0f172a] dark:hover:text-white transition" aria-label="패널 최대화" title="패널 최대화">
             <i data-panel-maximize-icon="maximize" data-lucide="maximize-2" class="w-4 h-4"></i>
             <i data-panel-maximize-icon="restore" data-lucide="minimize-2" class="w-4 h-4 hidden"></i>
@@ -314,7 +312,16 @@
         </div>
       </div>
       <div id="rightPanelContent" class="flex-1 min-h-0 overflow-auto bg-[#f8fafc] dark:bg-[#0f1013]">
-        <section id="rightPanelDashboard" aria-label="대시보드"></section>
+        <section id="rightPanelTabView-dashboard" class="right-panel-tab-view" data-tab-view="dashboard" role="tabpanel" aria-label="대시보드">
+          <section id="rightPanelDashboard" aria-label="대시보드"></section>
+        </section>
+        <section id="rightPanelTabView-auto-trade" class="right-panel-tab-view" data-tab-view="auto-trade" role="tabpanel" aria-label="자동매매" hidden>
+          <div class="right-panel-tab-placeholder">
+            <div class="right-panel-tab-placeholder__icon"><i data-lucide="bot"></i></div>
+            <div class="right-panel-tab-placeholder__title">자동매매</div>
+            <div class="right-panel-tab-placeholder__text">자동매매 화면은 대시보드와 분리된 독립 영역으로 구성합니다.</div>
+          </div>
+        </section>
       </div>
     </aside>
   </div>
@@ -343,9 +350,10 @@
   </div>
 
 
-  <script src="shell/right-panel/right-panel.js?v=20260924-v74"></script>
-  <script src="widgets/market-state/market-state.js?v=20260924-v74"></script>
-  <script src="pages/dashboard/dashboard.js?v=20260924-v74"></script>
-  <script src="js/app.js?v=20260924-architecture-v74"></script>
+  <script src="shell/right-panel/right-panel.js?v=20260924-v75"></script>
+  <script src="shell/right-panel/right-panel-tabs.js?v=20260924-v75"></script>
+  <script src="widgets/market-state/market-state.js?v=20260924-v75"></script>
+  <script src="pages/dashboard/dashboard.js?v=20260924-v75"></script>
+  <script src="js/app.js?v=20260924-architecture-v75"></script>
 </body>
 </html>
