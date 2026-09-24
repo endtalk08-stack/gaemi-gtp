@@ -1310,8 +1310,36 @@
 </html>`;
 
   function renderNewsWidget(root){
-    root.innerHTML = `<div class="news-widget-shell"><iframe class="news-widget-frame" title="뉴스" loading="eager"></iframe></div>`;
+    root.innerHTML = `<div class="news-widget-shell"><iframe class="news-widget-frame" title="뉴스" loading="eager" scrolling="no"></iframe></div>`;
     const frame = root.querySelector('.news-widget-frame');
+
+    const fitFrame = () => {
+      try {
+        const doc = frame.contentDocument;
+        if (!doc || !doc.documentElement) return;
+        const body = doc.body;
+        const h = Math.max(
+          doc.documentElement.scrollHeight || 0,
+          body ? body.scrollHeight : 0,
+          body ? body.offsetHeight : 0,
+          720
+        );
+        frame.style.height = h + 'px';
+      } catch (e) {
+        frame.style.height = '900px';
+      }
+    };
+
+    frame.addEventListener('load', () => {
+      fitFrame();
+      try {
+        const doc = frame.contentDocument;
+        const observer = new MutationObserver(() => requestAnimationFrame(fitFrame));
+        observer.observe(doc.documentElement, {childList:true, subtree:true, attributes:true});
+        frame.__heightObserver = observer;
+        window.addEventListener('resize', fitFrame);
+      } catch (e) {}
+    });
     frame.srcdoc = NEWS_HTML;
   }
 

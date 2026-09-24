@@ -1334,8 +1334,9 @@ function renderRightWidgets() {
     const card = document.createElement('section');
     card.className = 'widget-card';
     card.dataset.widgetType = type;
-    card.innerHTML = `<div class="widget-card-head"><div class="widget-card-title">${widgetLabel(type)}</div><div class="widget-card-actions"><button type="button" data-widget-remove aria-label="${widgetLabel(type)} 위젯 삭제" title="위젯 삭제">✕</button></div></div><div class="widget-card-body"></div>`;
-    card.querySelector('[data-widget-remove]').addEventListener('click', () => removeRightWidget(type));
+    // 뉴스 위젯은 대시보드가 이미 제공하는 컨테이너 안에 바로 렌더링한다.
+    // 별도 위젯 헤더/테두리/삭제 버튼은 제거해 독립 뉴스 화면처럼 보이게 한다.
+    card.innerHTML = `<div class="widget-card-body"></div>`;
     host.appendChild(card);
     if (type === 'news' && window.NewsWidget) window.NewsWidget.render(card.querySelector('.widget-card-body'));
   });
