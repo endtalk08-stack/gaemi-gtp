@@ -13,8 +13,8 @@
   flex-direction: column;
   position: relative;
   z-index: 41;
-  background: #16171b;
-  border-right: 1px solid #27272a;
+  background: var(--gtp-panel-bg);
+  border-right: 1px solid var(--gtp-border);
   transition: width .25s ease, flex-basis .25s ease;
 }
 body.left-context-closed #leftContextSidebar.context-sidebar {
@@ -40,17 +40,17 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #27272a;
-  background: #0f1013;
+  border-bottom: 1px solid var(--gtp-border);
+  background: var(--gtp-bg);
 }
 .context-sidebar-title {
-  color: #f4f4f5;
+  color: var(--gtp-text);
   font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 .context-sidebar-subtitle {
-  color: #71717a;
+  color: var(--gtp-faint);
   font-size: 10px;
   margin-top: 2px;
 }
@@ -60,15 +60,15 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
   border: 0;
   border-radius: 9px;
   background: transparent;
-  color: #a1a1aa;
+  color: var(--gtp-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
 }
 .context-sidebar-close:hover {
-  background: #202228;
-  color: #fff;
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
 }
 .context-sidebar-body {
   min-height: 0;
@@ -90,23 +90,23 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
   margin-bottom: 8px;
 }
 .context-sidebar-section-title {
-  color: #d4d4d8;
+  color: var(--gtp-text-2);
   font-size: 11px;
   font-weight: 800;
 }
 .context-sidebar-section-action {
   border: 0;
   background: transparent;
-  color: #71717a;
+  color: var(--gtp-faint);
   font-size: 10px;
   cursor: pointer;
 }
 .context-sidebar-section-action:hover { color: #e4e4e7; }
 .context-sidebar-empty {
   min-height: 120px;
-  border: 1px dashed #2f3138;
+  border: 1px dashed var(--gtp-border-strong);
   border-radius: 14px;
-  background: #131419;
+  background: var(--gtp-surface-2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -115,27 +115,27 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
   padding: 18px;
 }
 .context-sidebar-empty-icon {
-  color: #52525b;
+  color: var(--gtp-faint);
   margin-bottom: 8px;
 }
 .context-sidebar-empty-title {
-  color: #a1a1aa;
+  color: var(--gtp-muted);
   font-size: 11px;
   font-weight: 700;
 }
 .context-sidebar-empty-copy {
-  color: #52525b;
+  color: var(--gtp-faint);
   font-size: 10px;
   line-height: 1.5;
   margin-top: 4px;
 }
 .context-sidebar-divider {
   height: 1px;
-  background: #27272a;
+  background: var(--gtp-border);
   margin: 4px 0 18px;
 }
 .context-sidebar-note {
-  color: #52525b;
+  color: var(--gtp-faint);
   font-size: 9px;
   line-height: 1.5;
 }

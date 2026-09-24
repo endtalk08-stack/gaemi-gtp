@@ -311,6 +311,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function updateThemeButtons() {
+      if (window.GaemiGTPTheme && typeof window.GaemiGTPTheme.applyTheme === 'function') {
+        window.GaemiGTPTheme.applyTheme(window.GaemiGTPTheme.get(), false);
+        return;
+      }
       const isDark = document.documentElement.classList.contains('dark');
       document.querySelectorAll('[data-theme-icon]').forEach(icon => {
         icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
@@ -319,8 +323,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function toggleTheme() {
-      const htmlEl = document.documentElement;
-      htmlEl.classList.toggle('dark');
+      if (window.GaemiGTPTheme && typeof window.GaemiGTPTheme.toggle === 'function') {
+        window.GaemiGTPTheme.toggle();
+        return;
+      }
+      document.documentElement.classList.toggle('dark');
       updateThemeButtons();
     }
 

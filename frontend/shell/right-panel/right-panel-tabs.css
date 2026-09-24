@@ -33,32 +33,32 @@
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
-  color: #71717a;
+  color: var(--gtp-faint);
   cursor: pointer;
   transition: background .15s ease, color .15s ease, border-color .15s ease;
   font: inherit;
 }
 
 .right-panel-tab:hover {
-  color: #e4e4e7;
-  background: #1d1f24;
+  color: var(--gtp-text-2);
+  background: var(--gtp-hover);
 }
 
 .right-panel-tab.is-active {
-  color: #f4f4f5;
-  background: #202228;
-  border-color: #2d3037;
+  color: var(--gtp-text);
+  background: var(--gtp-active);
+  border-color: var(--gtp-border-strong);
 }
 
 .right-panel-tab__icon {
   width: 13px;
   height: 13px;
   flex: 0 0 auto;
-  color: #a1a1aa;
+  color: var(--gtp-muted);
 }
 
 .right-panel-tab.is-active .right-panel-tab__icon {
-  color: #d4d4d8;
+  color: var(--gtp-text-2);
 }
 
 .right-panel-tab__label {
@@ -78,13 +78,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 5px;
-  color: #52525b;
+  color: var(--gtp-faint);
   flex: 0 0 auto;
 }
 
 .right-panel-tab__close:hover {
-  color: #e4e4e7;
-  background: #2a2d33;
+  color: var(--gtp-text-2);
+  background: var(--gtp-hover);
 }
 
 .right-panel-tab__close svg {
@@ -104,14 +104,14 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #71717a;
+  color: var(--gtp-faint);
   cursor: pointer;
   transition: background .15s ease, color .15s ease;
 }
 
 .right-panel-tab-add:hover {
-  color: #f4f4f5;
-  background: #202228;
+  color: var(--gtp-text);
+  background: var(--gtp-active);
 }
 
 .right-panel-tab-add svg {
@@ -147,10 +147,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #2a2d33;
+  border: 1px solid var(--gtp-border);
   border-radius: 14px;
-  background: #1a1c20;
-  color: #71717a;
+  background: var(--gtp-surface-2);
+  color: var(--gtp-faint);
 }
 
 .right-panel-tab-placeholder__icon svg {
@@ -160,14 +160,14 @@
 
 .right-panel-tab-placeholder__title {
   margin-bottom: 6px;
-  color: #e4e4e7;
+  color: var(--gtp-text-2);
   font-size: 13px;
   font-weight: 800;
 }
 
 .right-panel-tab-placeholder__text {
   max-width: 300px;
-  color: #71717a;
+  color: var(--gtp-faint);
   font-size: 11px;
   line-height: 1.6;
   font-weight: 600;

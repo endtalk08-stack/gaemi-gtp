@@ -19,7 +19,7 @@
 
 .right-panel-dashboard__title {
   margin: 0;
-  color: #0f172a;
+  color: var(--gtp-text);
   font-size: 16px;
   line-height: 1.35;
   font-weight: 900;
@@ -28,7 +28,7 @@
 
 .right-panel-dashboard__subtitle {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--gtp-muted);
   font-size: 11px;
   line-height: 1.5;
   font-weight: 600;
@@ -38,9 +38,9 @@
   flex: 0 0 auto;
   padding: 5px 8px;
   border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  color: #64748b;
-  background: #ffffff;
+  border: 1px solid var(--gtp-border);
+  color: var(--gtp-muted);
+  background: var(--gtp-surface);
   font-size: 10px;
   font-weight: 800;
   white-space: nowrap;
@@ -54,9 +54,9 @@
 
 .dashboard-widget-slot {
   min-height: 108px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--gtp-border);
   border-radius: 16px;
-  background: rgba(255,255,255,.72);
+  background: color-mix(in srgb, var(--gtp-surface) 88%, transparent);
   padding: 14px;
   box-sizing: border-box;
 }
@@ -75,46 +75,25 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--gtp-surface-2);
+  color: var(--gtp-muted);
   flex: 0 0 auto;
 }
 
 .dashboard-widget-slot__title {
-  color: #0f172a;
+  color: var(--gtp-text);
   font-size: 12px;
   line-height: 1.35;
   font-weight: 800;
 }
 
 .dashboard-widget-slot__body {
-  color: #94a3b8;
+  color: var(--gtp-faint);
   font-size: 10px;
   line-height: 1.5;
   font-weight: 600;
 }
 
-.dark .right-panel-dashboard__title,
-.dark .dashboard-widget-slot__title { color: #ffffff; }
-
-.dark .right-panel-dashboard__subtitle,
-.dark .right-panel-dashboard__status,
-.dark .dashboard-widget-slot__body { color: #a1a1aa; }
-
-.dark .right-panel-dashboard__status {
-  border-color: #27272a;
-  background: #18191d;
-}
-
-.dark .dashboard-widget-slot {
-  border-color: #27272a;
-  background: rgba(24,25,29,.78);
-}
-
-.dark .dashboard-widget-slot__icon {
-  background: #202228;
-  color: #a1a1aa;
-}
 
 @media (min-width: 700px) {
   .right-panel-dashboard { padding: 18px; }

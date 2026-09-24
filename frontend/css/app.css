@@ -53,8 +53,8 @@
       cursor: pointer;
     }
     .source-toggle-btn:hover { color: #0f172a; }
-    .dark .source-toggle-btn { color: #a1a1aa; }
-    .dark .source-toggle-btn:hover { color: #f4f4f5; }
+    .dark .source-toggle-btn { color: var(--gtp-muted); }
+    .dark .source-toggle-btn:hover { color: var(--gtp-text); }
     .source-toggle-icon { width: 14px; height: 14px; flex: 0 0 auto; }
     .source-list-panel {
       display: none; margin-top: 8px;
@@ -131,7 +131,7 @@
       background: #202124;
       border: 1px solid #303134;
       box-shadow: 0 24px 70px rgba(0,0,0,.42);
-      color: #f4f4f5;
+      color: var(--gtp-text);
     }
     .external-link-header {
       display:flex; align-items:center; justify-content:space-between;
@@ -205,8 +205,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 6px 10px;
-  background: #0f1013;
-  border-right: 1px solid #27272a;
+  background: var(--gtp-rail-bg);
+  border-right: 1px solid var(--gtp-border);
   z-index: 60;
   position: relative;
 }
@@ -221,7 +221,7 @@
 .left-nav-rail-divider {
   width: 24px;
   height: 1px;
-  background: #27272a;
+  background: var(--gtp-border);
   margin: 2px 0 4px;
 }
 .left-nav-rail-btn {
@@ -235,22 +235,22 @@
   border: 0;
   border-radius: 10px;
   background: transparent;
-  color: #a1a1aa;
+  color: var(--gtp-muted);
   cursor: pointer;
   transition: background .15s ease, color .15s ease;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 .left-nav-rail-btn:hover {
-  background: #202228;
-  color: #f4f4f5;
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
 }
 .left-nav-rail-btn:focus-visible {
   outline: 2px solid rgba(161,161,170,.45);
   outline-offset: 1px;
 }
 .left-nav-rail-brand {
-  color: #f4f4f5;
+  color: var(--gtp-text);
 }
 .left-nav-rail-logo {
   width: 30px;
@@ -259,8 +259,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 9px;
-  background: #18191d;
-  border: 1px solid #2b2d33;
+  background: var(--gtp-surface);
+  border: 1px solid var(--gtp-border-strong);
   font-size: 16px;
   font-weight: 900;
   letter-spacing: -0.04em;

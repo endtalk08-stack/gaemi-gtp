@@ -40,7 +40,7 @@
 }
 #gaemiWorkspace #rightPanelResizer:hover,
 body.panel-resizing #gaemiWorkspace #rightPanelResizer {
-  background: rgba(113,113,122,.28);
+  background: color-mix(in srgb, var(--gtp-muted) 28%, transparent);
 }
 
 body.right-panel-closed #rightPanel,
