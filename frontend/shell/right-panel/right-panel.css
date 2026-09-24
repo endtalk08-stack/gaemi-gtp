@@ -30,8 +30,8 @@
 
 #gaemiWorkspace #rightPanelResizer {
   order: 2;
-  flex: 0 0 var(--ui-right-panel-resizer-width);
-  width: var(--ui-right-panel-resizer-width);
+  flex: 0 0 5px;
+  width: 5px;
   height: 100%;
   cursor: col-resize;
   background: transparent;
@@ -74,26 +74,4 @@ body:not(.right-panel-open) #rightPanelResizer {
   #rightPanel [data-panel-maximize] {
     display: none !important;
   }
-}
-
-
-
-/* UI CONTRACT v1: 패널 외곽/헤더 기준선 */
-#gaemiWorkspace #rightPanel {
-  box-sizing: border-box;
-}
-
-#gaemiWorkspace #rightPanel .right-panel-header {
-  height: var(--ui-shell-header-h) !important;
-  min-height: var(--ui-shell-header-h) !important;
-  flex: 0 0 var(--ui-shell-header-h) !important;
-  padding-left: 8px;
-  padding-right: 8px;
-  box-sizing: border-box;
-  border-bottom: var(--ui-panel-border) !important;
-}
-
-#gaemiWorkspace #rightPanelContent {
-  min-height: 0;
-  box-sizing: border-box;
 }

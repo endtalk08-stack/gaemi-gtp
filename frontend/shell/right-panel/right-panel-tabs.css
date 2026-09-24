@@ -187,18 +187,3 @@
     padding: 32px 18px;
   }
 }
-
-
-/* UI CONTRACT v1 */
-.right-panel-tabs {
-  padding: 0 4px;
-  gap: 4px;
-}
-.right-panel-tab {
-  height: 32px;
-  border-radius: 9px;
-}
-.right-panel-tab__label {
-  font-size: 11px;
-  font-weight: 700;
-}
