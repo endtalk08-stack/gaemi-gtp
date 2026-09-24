@@ -134,16 +134,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       requestStock(stockName || '삼성전자');
     }
 
-    function focusStockInput() {
-      const hero = document.getElementById('heroStockInput');
-      const bottom = document.getElementById('bottomStockInput');
-      const heroVisible = !!hero && !hero.closest('.hidden') && getComputedStyle(hero).display !== 'none';
-      const target = heroVisible ? hero : bottom;
-      if (!target) return;
-      target.focus();
-      target.select?.();
-    }
-
     function handleHeroSearch() {
       const val = document.getElementById('heroStockInput').value;
       switchToAnalysisMode(val || '삼성전자');
@@ -304,24 +294,112 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       }
 
       resizer.addEventListener('pointerdown', (event) => {
-        if (!document.body.classList.contains('right-panel-open') || document.body.classList.contains('right-panel-maximized')) return;
-        event.preventDefault();
-        const rect = workspace.getBoundingClientRect();
+        if (!document.body.classList.contains('right-panel-open') || document.body.classList.contains('right-panel-maximized') || panelFloating) return;
+        event.preventDefault(); event.stopPropagation();
+        resizer.setPointerCapture?.(event.pointerId);
+        document.body.classList.add('panel-resizing');
         const onMove = (moveEvent) => {
-          // 패널은 항상 workspace 오른쪽에 고정한다.
-          const width = rect.right - moveEvent.clientX;
-          setPanelWidth(width);
+          const rect = workspace.getBoundingClientRect();
+          setPanelWidth(rect.right - moveEvent.clientX);
         };
         const onUp = () => {
-          window.removeEventListener('pointermove', onMove);
-          window.removeEventListener('pointerup', onUp);
+          try { resizer.releasePointerCapture?.(event.pointerId); } catch(_) {}
           document.body.classList.remove('panel-resizing');
+          resizer.removeEventListener('pointermove', onMove);
+          resizer.removeEventListener('pointerup', onUp);
+          resizer.removeEventListener('pointercancel', onUp);
+          saveWorkspaceState();
         };
-        document.body.classList.add('panel-resizing');
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp, { once: true });
+        resizer.addEventListener('pointermove', onMove);
+        resizer.addEventListener('pointerup', onUp, { once: true });
+        resizer.addEventListener('pointercancel', onUp, { once: true });
       });
     }
+
+// ==================== 4사이트 패널 엔진 이식 ====================
+const PANEL_TABS_KEY = 'gaemiGTP_panel_tabs_v1';
+const PANEL_ACTIVE_TAB_KEY = 'gaemiGTP_panel_active_tab_v1';
+const PANEL_FLOAT_KEY = 'gaemiGTP_panel_floating_v1';
+const DEFAULT_WIDGETS = [
+  {id:'chart',type:'chart',title:'차트',icon:'chart-line',span:2},
+  {id:'metrics',type:'metrics',title:'주요지표',icon:'chart-simple',span:1},
+  {id:'financial',type:'financial',title:'재무지표',icon:'file-text',span:1},
+  {id:'economic',type:'economic',title:'경제일정',icon:'calendar-days',span:1},
+  {id:'earnings',type:'earnings',title:'실적일정',icon:'calendar-check',span:1}
+];
+const WIDGET_META={
+ chart:{title:'차트',icon:'chart-line',span:2},metrics:{title:'주요지표',icon:'chart-simple',span:1},
+ financial:{title:'재무지표',icon:'file-text',span:1},news:{title:'뉴스',icon:'newspaper',span:1},
+ economic:{title:'경제일정',icon:'calendar-days',span:1},earnings:{title:'실적일정',icon:'calendar-check',span:1}
+};
+let panelTabs=[
+ {id:'dashboard',label:'대시보드',icon:'layout-dashboard',widgets:DEFAULT_WIDGETS.map(x=>({...x}))},
+ {id:'autotrade',label:'자동매매',icon:'bot',widgets:[]}
+];
+let activePanelTab='dashboard';
+let panelFloating=false;
+
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function loadPanelEngineState(){
+ try{
+  const t=JSON.parse(localStorage.getItem(PANEL_TABS_KEY)||'null'); if(Array.isArray(t)&&t.length)panelTabs=t;
+  const a=localStorage.getItem(PANEL_ACTIVE_TAB_KEY); if(a&&panelTabs.some(x=>x.id===a))activePanelTab=a;
+  panelFloating=localStorage.getItem(PANEL_FLOAT_KEY)==='1';
+ }catch(e){console.warn('[gaemiGTP] panel state:',e);}
+}
+function savePanelEngineState(){try{localStorage.setItem(PANEL_TABS_KEY,JSON.stringify(panelTabs));localStorage.setItem(PANEL_ACTIVE_TAB_KEY,activePanelTab);localStorage.setItem(PANEL_FLOAT_KEY,panelFloating?'1':'0');}catch(e){}}
+function renderPanelTabs(){
+ const el=document.getElementById('workspaceTabs');if(!el)return;el.className='right-panel-tabs';el.innerHTML='';
+ panelTabs.forEach(tab=>{
+  const b=document.createElement('button');b.type='button';b.className='right-panel-tab'+(tab.id===activePanelTab?' active':'');
+  b.innerHTML=`<i data-lucide="${tab.icon}" class="w-3 h-3"></i><span>${escapeHtml(tab.label)}</span>${panelTabs.length>1?'<span class="tab-close" title="탭 닫기">×</span>':''}`;
+  b.addEventListener('click',e=>{if(e.target.classList.contains('tab-close')){removeWorkspaceTab(tab.id,e);return;}activePanelTab=tab.id;savePanelEngineState();renderPanelEngine();});
+  el.appendChild(b);
+ });
+ if(window.lucide)lucide.createIcons();
+}
+function addWorkspaceTab(){const id='workspace_'+Date.now();panelTabs.push({id,label:`분석 #${panelTabs.length+1}`,icon:'chart-no-axes-combined',widgets:[]});activePanelTab=id;savePanelEngineState();renderPanelEngine();}
+function removeWorkspaceTab(id,e){e?.stopPropagation();if(panelTabs.length<=1)return;panelTabs=panelTabs.filter(x=>x.id!==id);if(activePanelTab===id)activePanelTab=panelTabs[0].id;savePanelEngineState();renderPanelEngine();}
+function toggleRightPanelFloating(){
+ panelFloating=!panelFloating;document.body.classList.toggle('right-panel-floating',panelFloating);savePanelEngineState();
+ const b=document.querySelector('[data-panel-floating]');if(b)b.innerHTML=`<i data-lucide="${panelFloating?'minimize-2':'maximize-2'}" class="w-4 h-4"></i>`;if(window.lucide)lucide.createIcons();
+}
+function getActivePanelTab(){return panelTabs.find(x=>x.id===activePanelTab)||panelTabs[0];}
+function widgetBody(type){
+ if(type==='chart')return `<div class="simple-chart"><div style="display:flex;justify-content:space-between;color:#71717a;font-size:9px;margin-bottom:5px"><span>1D　1W　<strong style="color:#f4f4f5">1M</strong>　3M　1Y</span><span>15분 지연</span></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><path d="M0 145 L35 115 L65 125 L95 90 L125 100 L160 75 L195 120 L225 135 L255 110 L285 60 L315 72 L350 42 L385 55 L420 35 L455 70 L490 62 L525 100 L560 78 L600 92 L600 180 L0 180 Z" fill="rgba(52,211,153,.12)"/><path d="M0 145 L35 115 L65 125 L95 90 L125 100 L160 75 L195 120 L225 135 L255 110 L285 60 L315 72 L350 42 L385 55 L420 35 L455 70 L490 62 L525 100 L560 78 L600 92" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+ if(type==='metrics')return `<div class="metric-grid"><div class="metric-box"><div class="metric-label">시가총액</div><div class="metric-value">5.4B</div></div><div class="metric-box"><div class="metric-label">PER</div><div class="metric-value">—</div></div><div class="metric-box"><div class="metric-label">ROE</div><div class="metric-value">18.2%</div></div><div class="metric-box"><div class="metric-label">배당률</div><div class="metric-value">1.4%</div></div></div>`;
+ if(type==='financial')return `<div class="metric-grid"><div class="metric-box"><div class="metric-label">매출</div><div class="metric-value">12.8B</div></div><div class="metric-box"><div class="metric-label">영업이익</div><div class="metric-value">2.1B</div></div><div class="metric-box"><div class="metric-label">부채비율</div><div class="metric-value">42%</div></div><div class="metric-box"><div class="metric-label">현금</div><div class="metric-value">3.8B</div></div></div>`;
+ if(type==='economic')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">경제 일정</div><div style="font-size:10px;line-height:1.9">CPI 발표 · FOMC · 고용지표 · GDP</div></div>`;
+ if(type==='earnings')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">실적 일정</div><div style="font-size:10px;line-height:1.9">삼성전자 · NVIDIA · Apple · Tesla</div></div>`;
+ if(type==='news')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">뉴스</div><div style="font-size:10px;line-height:1.8">DeepSeek 뉴스 레이아웃은 다음 단계에서 연결합니다.</div></div>`;
+ return '<div class="placeholder-widget">준비 중</div>';
+}
+function addWidget(tabId,type){const tab=panelTabs.find(x=>x.id===tabId);if(!tab||tab.widgets.some(w=>w.type===type))return;const m=WIDGET_META[type];tab.widgets.push({id:`${type}_${Date.now()}`,type,title:m.title,icon:m.icon,span:m.span});savePanelEngineState();renderPanelEngine();}
+function removeWidget(tabId,id){const tab=panelTabs.find(x=>x.id===tabId);if(!tab)return;tab.widgets=tab.widgets.filter(w=>w.id!==id);savePanelEngineState();renderPanelEngine();}
+function moveWidget(tabId,fromId,toId){const tab=panelTabs.find(x=>x.id===tabId);if(!tab||fromId===toId)return;const a=tab.widgets.findIndex(w=>w.id===fromId),b=tab.widgets.findIndex(w=>w.id===toId);if(a<0||b<0)return;const[m]=tab.widgets.splice(a,1);tab.widgets.splice(b,0,m);savePanelEngineState();renderPanelEngine();}
+function renderWidgetGrid(tab){
+ if(tab.id==='autotrade')return `<div class="widget-grid-scroll"><div class="widget-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="widget-card"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="bot" class="w-3 h-3"></i>자동매매 상태</div></div><div class="widget-card-body"><div class="metric-grid"><div class="metric-box"><div class="metric-label">SYSTEM</div><div class="metric-value">ONLINE</div></div><div class="metric-box"><div class="metric-label">P&L</div><div class="metric-value">+4.58%</div></div></div></div></div><div class="widget-card"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="list" class="w-3 h-3"></i>Watchlist</div></div><div class="widget-card-body"><div class="placeholder-widget">NVDA　TSLA　AAPL　SMCI<br><span style="margin-top:8px">자동매매 파이프라인은 별도 모듈로 연결합니다.</span></div></div></div></div></div>`;
+ const w=tab.widgets||[];let out=`<div class="widget-engine"><div class="widget-toolbar"><div class="widget-toolbar-title">대시보드</div><div class="widget-add-wrap"><button id="dashboardWidgetAdd" class="widget-action" title="위젯 추가"><i data-lucide="plus" class="w-4 h-4"></i></button><div id="dashboardWidgetMenu" class="widget-add-menu" style="display:none"></div></div></div><div class="widget-grid-scroll"><div id="panelWidgetGrid" class="widget-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">`;
+ w.forEach(widget=>{out+=`<div class="widget-card ${widget.span===2?'span-2':''}" data-widget-id="${widget.id}"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="${widget.icon}" class="w-3 h-3"></i><span>${escapeHtml(widget.title)}</span></div><div class="widget-card-actions"><button class="widget-action widget-drag-handle" title="드래그해서 이동" draggable="true" data-drag-id="${widget.id}"><i data-lucide="grip-vertical" class="w-3 h-3"></i></button><button class="widget-action widget-remove" data-remove-id="${widget.id}" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button></div></div><div class="widget-card-body">${widgetBody(widget.type)}</div></div>`;});
+ out+='</div></div></div>';return out;
+}
+function renderPanelEngine(){
+ const content=document.getElementById('rightPanelContent');if(!content)return;renderPanelTabs();const tab=getActivePanelTab();content.innerHTML=renderWidgetGrid(tab);
+ const menu=document.getElementById('dashboardWidgetMenu'),add=document.getElementById('dashboardWidgetAdd');
+ if(add&&menu){add.addEventListener('click',()=>{menu.style.display=menu.style.display==='none'?'block':'none';if(menu.innerHTML===''){Object.entries(WIDGET_META).forEach(([type,m])=>{const b=document.createElement('button');b.disabled=tab.widgets.some(w=>w.type===type);b.innerHTML=`<i data-lucide="${m.icon}" class="w-3 h-3"></i><span>${m.title}</span>`;b.addEventListener('click',()=>addWidget(tab.id,type));menu.appendChild(b);});if(window.lucide)lucide.createIcons();}});}
+ content.querySelectorAll('.widget-remove').forEach(b=>b.addEventListener('click',()=>removeWidget(tab.id,b.dataset.removeId)));
+ let dragId=null;content.querySelectorAll('[data-drag-id]').forEach(h=>{h.addEventListener('dragstart',e=>{dragId=e.currentTarget.dataset.dragId;e.dataTransfer.effectAllowed='move';});h.addEventListener('dragend',()=>dragId=null);});
+ content.querySelectorAll('[data-widget-id]').forEach(card=>{card.addEventListener('dragover',e=>{e.preventDefault();card.classList.add('widget-drop-target');});card.addEventListener('dragleave',()=>card.classList.remove('widget-drop-target'));card.addEventListener('drop',e=>{e.preventDefault();card.classList.remove('widget-drop-target');if(dragId)moveWidget(tab.id,dragId,card.dataset.widgetId);});});
+ if(window.lucide)lucide.createIcons();
+ const scroll=document.getElementById('rightPanelContent');
+ const grid=document.getElementById('panelWidgetGrid');
+ if(scroll&&grid){
+   const applyCols=()=>{const w=scroll.clientWidth;grid.style.gridTemplateColumns=w<620?'repeat(1,minmax(0,1fr))':w<1200?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))';};
+   applyCols();
+   if(window.ResizeObserver){const ro=new ResizeObserver(applyCols);ro.observe(scroll);grid._panelRO=ro;}
+ }
+}
+function initializePanelEngine(){loadPanelEngineState();renderPanelEngine();document.body.classList.toggle('right-panel-floating',panelFloating);}
 
     function updateThemeButtons() {
       const isDark = document.documentElement.classList.contains('dark');
@@ -1236,6 +1314,7 @@ window.addEventListener('resize', () => {
 document.addEventListener("DOMContentLoaded", () => {
   try {
     initializeSidebars();
+    initializePanelEngine();
     initializeWorkspaceInteractions();
   } catch (e) {
     console.warn('[gaemiGTP] workspace initialization warning:', e);
@@ -1262,6 +1341,22 @@ document.addEventListener("DOMContentLoaded", () => {
       const metric = document.getElementById('rightListMetric');
       if (title) title.textContent = titles[tab][0];
       if (metric) metric.textContent = titles[tab][1];
+      const criteria = document.getElementById('valueCriteria');
+      if (criteria) criteria.classList.toggle('hidden', tab !== 'value');
+    }
+
+    function setValueCriteria(button, label) {
+      document.querySelectorAll('.value-criterion').forEach(btn => {
+        const active = btn === button;
+        btn.classList.toggle('bg-[#eef2f7]', active);
+        btn.classList.toggle('dark:bg-[#272a31]', active);
+        btn.classList.toggle('text-[#0f172a]', active);
+        btn.classList.toggle('dark:text-white', active);
+        btn.classList.toggle('text-[#64748b]', !active);
+        btn.classList.toggle('dark:text-[#a1a1aa]', !active);
+      });
+      const metric = document.getElementById('rightListMetric');
+      if (metric) metric.textContent = label;
     }
 
 
@@ -1273,88 +1368,15 @@ try {
   console.warn('[gaemiGTP] UI initialization warning:', e);
 }
 
-/* ================================================================
-   Right Panel Widget Manager v1
-   ================================================================ */
-const RIGHT_WIDGETS_KEY = 'gaemiGTP_right_widgets_v1';
-let rightWidgets = [];
-
-function readRightWidgets() {
-  try {
-    const raw = localStorage.getItem(RIGHT_WIDGETS_KEY);
-    const parsed = JSON.parse(raw || '[]');
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveRightWidgets() {
-  localStorage.setItem(RIGHT_WIDGETS_KEY, JSON.stringify(rightWidgets));
-}
-
-function widgetLabel(type) {
-  return ({news:'뉴스', theme:'글로벌 산업·테마', market:'시장지표', schedule:'일정'})[type] || type;
-}
-
-function toggleWidgetMenu() {
-  const menu = document.getElementById('widgetAddMenu');
-  if (!menu) return;
-  menu.classList.toggle('hidden');
-}
-
-function closeWidgetMenu() {
-  const menu = document.getElementById('widgetAddMenu');
-  if (menu) menu.classList.add('hidden');
-}
-
-function addRightWidget(type) {
-  if (type !== 'news') return;
-  if (!rightWidgets.includes(type)) rightWidgets.push(type);
-  saveRightWidgets();
-  closeWidgetMenu();
-  renderRightWidgets();
-}
-
-function removeRightWidget(type) {
-  rightWidgets = rightWidgets.filter(x => x !== type);
-  saveRightWidgets();
-  renderRightWidgets();
-}
-
-function renderRightWidgets() {
-  const host = document.getElementById('rightPanelContent');
-  if (!host) return;
-  if (!rightWidgets.length) {
-    host.innerHTML = '<div class="widget-empty"><div><strong>위젯이 없습니다</strong><span>상단 ＋ 버튼에서 필요한 위젯을 추가하세요.</span></div></div>';
-    return;
-  }
-  host.innerHTML = '';
-  rightWidgets.forEach(type => {
-    const card = document.createElement('section');
-    card.className = 'widget-card';
-    card.dataset.widgetType = type;
-    // 뉴스 위젯은 대시보드가 이미 제공하는 컨테이너 안에 바로 렌더링한다.
-    // 별도 위젯 헤더/테두리/삭제 버튼은 제거해 독립 뉴스 화면처럼 보이게 한다.
-    card.innerHTML = `<div class="widget-card-body"></div>`;
-    host.appendChild(card);
-    if (type === 'news' && window.NewsWidget) window.NewsWidget.render(card.querySelector('.widget-card-body'));
+// 플로팅 패널 드래그
+(function initFloatingPanelDrag(){
+  const header=document.getElementById('rightPanelHeader'),panel=document.getElementById('rightPanel');
+  if(!header||!panel)return;
+  let dragging=false,startX=0,startY=0,startRight=0,startTop=0;
+  header.addEventListener('pointerdown',e=>{
+    if(!document.body.classList.contains('right-panel-floating')||e.target.closest('button'))return;
+    dragging=true;startX=e.clientX;startY=e.clientY;const r=panel.getBoundingClientRect();startRight=innerWidth-r.right;startTop=r.top;e.preventDefault();
   });
-  if (window.lucide) lucide.createIcons();
-}
-
-function initializeRightWidgetSystem() {
-  rightWidgets = readRightWidgets().filter(x => x === 'news');
-  renderRightWidgets();
-  const menu = document.getElementById('widgetAddMenu');
-  const header = document.querySelector('.right-panel-header');
-  document.addEventListener('click', (event) => {
-    if (!menu || menu.classList.contains('hidden')) return;
-    if (menu.contains(event.target) || header?.contains(event.target)) return;
-    closeWidgetMenu();
-  });
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-  try { initializeRightWidgetSystem(); } catch (e) { console.warn('[gaemiGTP] widget initialization warning:', e); }
-});
+  header.addEventListener('pointermove',e=>{if(!dragging)return;const r=panel.getBoundingClientRect();const right=Math.max(8,Math.min(innerWidth-r.width-8,startRight-(e.clientX-startX)));const top=Math.max(8,Math.min(innerHeight-r.height-8,startTop+(e.clientY-startY)));panel.style.right=right+'px';panel.style.top=top+'px';});
+  const end=()=>dragging=false;header.addEventListener('pointerup',end);header.addEventListener('pointercancel',end);
+})();

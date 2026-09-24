@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
-  <link rel="stylesheet" href="css/app.css?v=20260924-left-rail-v3">
+  <link rel="stylesheet" href="css/app.css?v=20260923-sidebar-refresh-fix-v2">
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-market-closed right-panel-closed">
 
@@ -26,33 +26,6 @@
       <p class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">10초 핵심 리포트를 확인해봐!</p>
     </div>
   </div>
-
-  <!-- 왼쪽 세로 내비게이션 레일: 화면 구조용 UI. 기능 연결은 이후 단계에서 확정한다. -->
-  <nav id="leftNavRail" aria-label="gaemiGTP 기본 메뉴">
-    <div class="left-nav-rail-top">
-      <button type="button" class="left-nav-rail-btn left-nav-rail-brand" onclick="resetToHome()" aria-label="gaemiGTP 홈" title="gaemiGTP 홈">
-        <span class="left-nav-rail-logo">g</span>
-      </button>
-      <div class="left-nav-rail-divider"></div>
-      <button type="button" class="left-nav-rail-btn" onclick="focusStockInput()" aria-label="새 분석" title="새 분석">
-        <i data-lucide="square-pen" class="w-5 h-5"></i>
-      </button>
-      <button type="button" class="left-nav-rail-btn" onclick="focusStockInput()" aria-label="종목 검색" title="종목 검색">
-        <i data-lucide="search" class="w-5 h-5"></i>
-      </button>
-      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftSidebar()" aria-label="시장정보 열기/닫기" title="시장정보 열기/닫기">
-        <i data-lucide="panel-left" class="w-5 h-5"></i>
-      </button>
-      <button type="button" class="left-nav-rail-btn" onclick="toggleRightPanel()" aria-label="패널 열기/닫기" title="패널 열기/닫기">
-        <i data-lucide="message-circle" class="w-5 h-5"></i>
-      </button>
-    </div>
-    <div class="left-nav-rail-bottom">
-      <button type="button" class="left-nav-rail-btn" aria-label="로그인 / 계정" title="로그인 / 계정">
-        <i data-lucide="circle-user-round" class="w-5 h-5"></i>
-      </button>
-    </div>
-  </nav>
 
   <!-- 왼쪽 시장정보 패널 -->
 <aside id="leftMarketSidebar" class="market-sidebar bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 h-full overflow-hidden">
@@ -87,6 +60,15 @@
           <button type="button" data-info-tab="value" onclick="setRightInfoTab('value')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">거래대금</button>
           <button type="button" data-info-tab="industry" onclick="setRightInfoTab('industry')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">산업</button>
           <button type="button" data-info-tab="theme" onclick="setRightInfoTab('theme')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">테마</button>
+        </div>
+      </div>
+
+      <!-- 거래대금 내부 기준 -->
+      <div id="valueCriteria" class="hidden px-4 pt-1 pb-2">
+        <div class="grid grid-cols-3 border border-[#dbe2ea] dark:border-[#3f3f46] rounded-md overflow-hidden text-[10px] font-bold text-center">
+          <button type="button" onclick="setValueCriteria(this, '거래대금')" class="value-criterion py-1.5 bg-[#eef2f7] dark:bg-[#272a31] text-[#0f172a] dark:text-white border-r border-[#dbe2ea] dark:border-[#3f3f46]">거래대금</button>
+          <button type="button" onclick="setValueCriteria(this, '거래량')" class="value-criterion py-1.5 text-[#64748b] dark:text-[#a1a1aa] border-r border-[#dbe2ea] dark:border-[#3f3f46]">거래량</button>
+          <button type="button" onclick="setValueCriteria(this, '상승률')" class="value-criterion py-1.5 text-[#64748b] dark:text-[#a1a1aa]">상승률</button>
         </div>
       </div>
 
@@ -292,33 +274,19 @@
       </div>
     </div>
   </main>
-
     <div id="rightPanelResizer" class="panel-resizer" role="separator" aria-label="패널 너비 조절" title="드래그하여 패널 크기 조절"></div>
 
-    <aside id="rightPanel" class="right-panel bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 overflow-hidden" aria-label="대시보드">
-      <div class="right-panel-header h-16 px-3 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 select-none">
-        <div class="flex-1 min-w-0 h-full flex items-center gap-2">
-          <i data-lucide="panel-right" class="w-4 h-4 text-[#64748b] dark:text-[#a1a1aa] shrink-0"></i>
-          <span class="text-[16px] font-black text-[#0f172a] dark:text-white">대시보드</span>
-        </div>
-        <div class="flex items-center gap-1 shrink-0">
-          <button type="button" onclick="toggleWidgetMenu()" class="widget-add-btn" aria-label="위젯 추가" title="위젯 추가"><i data-lucide="plus" class="w-4 h-4"></i></button>
-          <button type="button" onclick="toggleRightPanelMaximize()" data-panel-maximize class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-[#0f172a] dark:hover:text-white transition" aria-label="대시보드 최대화" title="대시보드 최대화">
-            <i data-panel-maximize-icon="maximize" data-lucide="maximize-2" class="w-4 h-4"></i>
-            <i data-panel-maximize-icon="restore" data-lucide="minimize-2" class="w-4 h-4 hidden"></i>
-          </button>
-          <button type="button" onclick="toggleRightPanel()" class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="대시보드 닫기" title="대시보드 닫기">
-            <i data-lucide="x" class="w-4 h-4"></i>
-          </button>
+    <aside id="rightPanel" class="right-panel bg-[#f8fafc] dark:bg-[#0f1013] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 overflow-hidden" aria-label="작업영역 패널">
+      <div id="rightPanelHeader" class="right-panel-header h-12 px-2 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 select-none">
+        <div id="workspaceTabs" class="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar"></div>
+        <div class="flex items-center gap-1 shrink-0 ml-2">
+          <button type="button" onclick="addWorkspaceTab()" class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" title="새 작업영역 추가" aria-label="새 작업영역 추가"><i data-lucide="plus" class="w-4 h-4"></i></button>
+          <button type="button" onclick="toggleRightPanelFloating()" data-panel-floating class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" title="플로팅"><i data-lucide="maximize-2" class="w-4 h-4"></i></button>
+          <button type="button" onclick="toggleRightPanelMaximize()" data-panel-maximize class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="패널 최대화" title="패널 최대화"><i data-panel-maximize-icon="maximize" data-lucide="panel-right-open" class="w-4 h-4"></i><i data-panel-maximize-icon="restore" data-lucide="panel-right-close" class="w-4 h-4 hidden"></i></button>
+          <button type="button" onclick="toggleRightPanel()" class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="패널 닫기" title="패널 닫기"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
       </div>
-      <div id="widgetAddMenu" class="widget-add-menu hidden" role="menu" aria-label="위젯 추가 메뉴">
-        <button type="button" onclick="addRightWidget('news')"><span>📰</span><span>뉴스</span></button>
-        <button type="button" disabled style="opacity:.45;cursor:not-allowed"><span>🌎</span><span>글로벌 산업·테마</span></button>
-        <button type="button" disabled style="opacity:.45;cursor:not-allowed"><span>📊</span><span>시장지표</span></button>
-        <button type="button" disabled style="opacity:.45;cursor:not-allowed"><span>📅</span><span>일정</span></button>
-      </div>
-      <div id="rightPanelContent" class="widget-host flex-1 min-h-0 overflow-auto bg-[#f8fafc] dark:bg-[#0f1013]"></div>
+      <div id="rightPanelContent" class="flex-1 min-h-0 overflow-hidden bg-[#f8fafc] dark:bg-[#0f1013]"></div>
     </aside>
   </div>
 <!-- 외부 기사 링크 확인 팝업 -->
@@ -346,7 +314,6 @@
   </div>
 
 
-  <script src="widgets/news-widget.js?v=20260924-deepseek-layout-v1"></script>
-  <script src="js/app.js?v=20260924-widget-panel-v1"></script>
+  <script src="js/app.js?v=20260923-sidebar-refresh-fix-v2"></script>
 </body>
 </html>

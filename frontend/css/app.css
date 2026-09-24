@@ -190,97 +190,6 @@
     }
 
 
-
-/* ================================================================
-   LEFT NAV RAIL v1
-   - Always-visible slim vertical rail, like the reference UI
-   - Market information sidebar remains a separate expandable column
-   ================================================================ */
-#leftNavRail {
-  width: 58px;
-  flex: 0 0 58px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 6px 10px;
-  background: #0f1013;
-  border-right: 1px solid #27272a;
-  z-index: 60;
-  position: relative;
-}
-.left-nav-rail-top,
-.left-nav-rail-bottom {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-.left-nav-rail-divider {
-  width: 24px;
-  height: 1px;
-  background: #27272a;
-  margin: 2px 0 4px;
-}
-.left-nav-rail-btn {
-  width: 42px;
-  height: 42px;
-  min-width: 42px;
-  min-height: 42px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: #a1a1aa;
-  cursor: pointer;
-  transition: background .15s ease, color .15s ease;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-.left-nav-rail-btn:hover {
-  background: #202228;
-  color: #f4f4f5;
-}
-.left-nav-rail-btn:focus-visible {
-  outline: 2px solid rgba(161,161,170,.45);
-  outline-offset: 1px;
-}
-.left-nav-rail-brand {
-  color: #f4f4f5;
-}
-.left-nav-rail-logo {
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9px;
-  background: #18191d;
-  border: 1px solid #2b2d33;
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-}
-
-@media (max-width: 1023px) {
-  #leftNavRail {
-    width: 52px;
-    flex-basis: 52px;
-    padding-left: 5px;
-    padding-right: 5px;
-  }
-  .left-nav-rail-btn {
-    width: 40px;
-    min-width: 40px;
-    height: 40px;
-    min-height: 40px;
-  }
-}
-
 /* ================================================================
    Workspace v2: 외부 왼쪽 시장정보 + 내부 본문/패널
    - 시장정보는 바깥 영역으로 고정
@@ -346,6 +255,7 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
   max-width: 1200px;
   height: 100%;
   transition: width .2s ease, flex-basis .2s ease;
+  will-change: width, flex-basis;
 }
 
 /* PC: 최대화 시 왼쪽 시장정보 영역은 그대로 두고, Workspace 전체를 패널이 사용한다. */
@@ -366,8 +276,8 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 
 #gaemiWorkspace #rightPanelResizer {
   order: 2;
-  flex: 0 0 5px;
-  width: 5px;
+  flex: 0 0 8px;
+  width: 8px;
   height: 100%;
   cursor: col-resize;
   background: transparent;
@@ -437,36 +347,57 @@ body.panel-resizing * { user-select: none !important; }
   body.right-panel-open #leftMarketSidebar.market-sidebar {
     display: none !important;
   }
-  /* 모바일: 오른쪽 패널을 열면 세로 내비게이션 레일도 잠시 숨겨 패널을 화면 전체로 사용한다.
-     패널을 닫으면 레일은 자동으로 다시 표시된다. */
-  body.right-panel-open #leftNavRail {
-    display: none !important;
-  }
   #rightPanel [data-panel-maximize] { display: none !important; }
 }
 
 
 
-/* ================================================================
-   Right Panel Widget System v1
-   ================================================================ */
-.right-panel-header .widget-add-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid transparent;background:transparent;color:#64748b;cursor:pointer;transition:.15s}
-.right-panel-header .widget-add-btn:hover{background:#eef2f7;color:#0f172a}
-.dark .right-panel-header .widget-add-btn{color:#a1a1aa}
-.dark .right-panel-header .widget-add-btn:hover{background:#202228;color:#fff}
-#rightPanelContent.widget-host{padding:0;overflow:auto}
-.widget-add-menu{position:absolute;right:10px;top:58px;width:210px;z-index:120;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:6px;box-shadow:0 18px 45px rgba(0,0,0,.18)}
-.dark .widget-add-menu{background:#1b1d22;border-color:#2e3038;box-shadow:0 18px 45px rgba(0,0,0,.45)}
-.widget-add-menu button{display:flex;width:100%;align-items:center;gap:9px;padding:10px;border:0;border-radius:8px;background:transparent;color:#0f172a;text-align:left;font-size:13px;font-weight:700;cursor:pointer}
-.widget-add-menu button:hover{background:#f1f5f9}
-.dark .widget-add-menu button{color:#f4f4f5}
-.dark .widget-add-menu button:hover{background:#282a30}
-.widget-empty{height:100%;min-height:240px;display:flex;align-items:center;justify-content:center;text-align:center;color:#71717a;font-size:13px}
-.widget-empty strong{display:block;color:#a1a1aa;margin-bottom:6px}
-.widget-card{background:transparent;border:0;border-radius:0;overflow:visible;margin:0;width:100%;min-height:100%}
-.widget-card-head{display:none}
-.widget-card-title{font-size:13px;font-weight:900;color:#f4f4f5}
-.widget-card-actions{display:flex;gap:2px}
-.widget-card-actions button{width:28px;height:28px;border:0;background:transparent;color:#71717a;border-radius:7px;cursor:pointer}
-.widget-card-actions button:hover{background:#282a30;color:#fff}
-.news-widget-shell{width:100%;min-height:100%;background:#131314;overflow:visible}.news-widget-frame{display:block;width:100%;height:900px;min-height:0;border:0;background:#131314;overflow:hidden}
+/* 4사이트 패널 엔진 이식: 작업영역 탭 / 플로팅 / 위젯 그리드 */
+body.panel-resizing #gaemiWorkspace #rightPanel { transition: none !important; }
+body.right-panel-floating #gaemiWorkspace #rightPanelResizer { display:none !important; }
+body.right-panel-floating #gaemiWorkspace #rightPanel {
+  position: fixed !important; right: 12px !important; top: 12px !important;
+  width: min(900px, calc(100vw - 24px)) !important;
+  height: min(760px, calc(100vh - 24px)) !important;
+  max-width: none !important; min-width: 320px !important;
+  z-index: 100 !important; border: 1px solid #27272a !important;
+  border-radius: 14px !important; box-shadow: 0 24px 70px rgba(0,0,0,.45) !important;
+}
+.right-panel-tabs { display:flex; align-items:center; gap:2px; min-width:0; }
+.right-panel-tab { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 9px; border-radius:7px; color:#71717a; font-size:11px; font-weight:600; white-space:nowrap; cursor:pointer; }
+.right-panel-tab:hover { background:#202228; color:#e4e4e7; }
+.right-panel-tab.active { background:#202228; color:#f4f4f5; }
+.right-panel-tab .tab-close { margin-left:2px; opacity:.45; }
+.right-panel-tab .tab-close:hover { opacity:1; }
+.widget-engine { height:100%; display:flex; flex-direction:column; min-width:0; background:#0f1013; }
+.widget-toolbar { flex:0 0 auto; min-height:42px; display:flex; align-items:center; justify-content:space-between; padding:7px 12px; border-bottom:1px solid #27272a; }
+.widget-toolbar-title { font-size:11px; font-weight:700; color:#a1a1aa; }
+.widget-add-wrap { position:relative; }
+.widget-grid-scroll { flex:1; min-height:0; overflow:auto; padding:12px; }
+.widget-grid { display:grid; gap:12px; align-content:start; min-height:100%; }
+.widget-card { min-width:0; min-height:190px; background:#16171b; border:1px solid #27272a; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+.widget-card.span-2 { grid-column:span 2; }
+.widget-card-header { height:38px; padding:0 11px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(39,39,42,.75); flex:0 0 auto; }
+.widget-card-title { font-size:11px; font-weight:700; color:#e4e4e7; display:flex; align-items:center; gap:7px; min-width:0; }
+.widget-card-title i { color:#71717a; }
+.widget-card-actions { display:flex; align-items:center; gap:1px; opacity:0; transition:opacity .15s; }
+.widget-card:hover .widget-card-actions { opacity:1; }
+.widget-action { width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#71717a; cursor:pointer; }
+.widget-action:hover { background:#202228; color:#f4f4f5; }
+.widget-drag-handle { cursor:grab; }
+.widget-drag-handle:active { cursor:grabbing; }
+.widget-card-body { flex:1; min-height:0; overflow:hidden; }
+.widget-drop-target { outline:1px dashed #60a5fa; outline-offset:2px; }
+.widget-dragging { opacity:.55; }
+.widget-add-menu { position:absolute; right:0; top:31px; width:190px; padding:6px; background:#1b1c21; border:1px solid #2e3038; border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,.4); z-index:120; }
+.widget-add-menu button { width:100%; display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:7px; color:#a1a1aa; font-size:10px; text-align:left; }
+.widget-add-menu button:hover:not(:disabled) { background:#282a30; color:#fff; }
+.widget-add-menu button:disabled { opacity:.35; cursor:not-allowed; }
+.simple-chart { height:100%; padding:12px; display:flex; flex-direction:column; }
+.simple-chart svg { width:100%; flex:1; min-height:120px; }
+.metric-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:12px; }
+.metric-box { background:#1e1f24; border:1px solid #282a30; border-radius:9px; padding:10px; }
+.metric-label { color:#71717a; font-size:9px; margin-bottom:5px; }
+.metric-value { color:#f4f4f5; font-size:14px; font-weight:800; }
+.placeholder-widget { height:100%; padding:18px; display:flex; flex-direction:column; justify-content:center; color:#71717a; }
+@media (max-width:700px){ .widget-card.span-2{grid-column:span 1;} .widget-toolbar{padding:7px 9px;} .widget-grid-scroll{padding:9px;} }
