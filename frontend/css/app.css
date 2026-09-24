@@ -405,3 +405,57 @@ body.left-context-open #gaemiWorkspace {
     display: block;
   }
 }
+
+
+/* ================================================================
+   GAEMIGTP UI CONTRACT v1 — global shell alignment
+   목적: 모든 주요 패널의 기준선/여백/글자 계층을 한 규칙으로 통일한다.
+   데이터/API/위젯 로직과 무관한 전역 UI 규칙이다.
+   ================================================================ */
+:root {
+  --ui-shell-header-h: 64px;
+  --ui-panel-border: 1px solid var(--gtp-border);
+  --ui-panel-pad: 16px;
+  --ui-widget-gap: 16px;
+  --ui-widget-radius: 14px;
+  --ui-title-size: 13px;
+  --ui-title-weight: 700;
+  --ui-meta-size: 11px;
+  --ui-meta-weight: 500;
+}
+
+.shell-header {
+  height: var(--ui-shell-header-h) !important;
+  min-height: var(--ui-shell-header-h) !important;
+  box-sizing: border-box;
+  border-bottom: var(--ui-panel-border);
+}
+
+/* 인접 패널 사이의 선은 한 줄만 보이게 한다. */
+#leftMarketSidebar.market-sidebar {
+  border-right: var(--ui-panel-border) !important;
+}
+
+#gaemiWorkspace #rightPanel {
+  border-left: 0 !important;
+}
+
+/* 메인/패널 콘텐츠 자체에는 임의의 외곽 여백을 넣지 않는다.
+   실제 내부 여백은 각 화면 컨테이너가 책임진다. */
+#gaemiWorkspace #rightPanelContent {
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+/* 공통 타이포그래피 계층 */
+.dashboard-widget-slot__title,
+.right-panel-tab__label {
+  font-family: inherit;
+}
+
+@media (max-width: 700px) {
+  :root {
+    --ui-panel-pad: 14px;
+    --ui-widget-gap: 12px;
+  }
+}

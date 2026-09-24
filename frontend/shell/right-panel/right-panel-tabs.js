@@ -8,7 +8,7 @@
   const TABS_KEY = 'gaemiGTP_right_panel_tabs_v1';
   const DEFAULT_TABS = [
     { id: 'dashboard', label: '대시보드', icon: 'layout-dashboard', closable: false },
-    { id: 'auto-trade', label: '자동매매', icon: 'bot', closable: true },
+    { id: 'auto-trade', label: '자동매매', icon: 'bot', closable: false },
   ];
 
   let tabs = [];
@@ -26,7 +26,7 @@
           id: t.id,
           label: t.label,
           icon: typeof t.icon === 'string' ? t.icon : 'square-chart-gantt',
-          closable: t.id !== 'dashboard',
+          closable: t.id !== 'dashboard' && t.id !== 'auto-trade',
         }));
       return {
         tabs: cleanTabs.length ? cleanTabs : null,

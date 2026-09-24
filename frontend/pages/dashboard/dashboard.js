@@ -43,23 +43,41 @@
     return article;
   }
 
+  function getColumnCount(width) {
+    if (width < 620) return 1;
+    if (width < 1200) return 2;
+    return 3;
+  }
+
+  function bindResponsiveGrid(root, grid) {
+    if (!grid || typeof ResizeObserver === 'undefined') return null;
+
+    const apply = (width) => {
+      const cols = getColumnCount(width);
+      grid.style.setProperty('--dashboard-grid-cols', String(cols));
+      grid.dataset.columns = String(cols);
+    };
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) apply(entry.contentRect.width);
+    });
+    observer.observe(grid);
+    apply(grid.getBoundingClientRect().width || root.getBoundingClientRect().width || 0);
+    return observer;
+  }
+
   function mount() {
     const root = document.getElementById('rightPanelDashboard');
     if (!root || root.dataset.dashboardMounted === 'true') return;
 
+    root.classList.add('right-panel-dashboard');
     root.innerHTML = `
-      <div class="right-panel-dashboard__head">
-        <div>
-          <h2 class="right-panel-dashboard__title">대시보드</h2>
-          <p class="right-panel-dashboard__subtitle">독립 위젯을 배치하는 화면 영역</p>
-        </div>
-        <span class="right-panel-dashboard__status">구조 준비</span>
-      </div>
       <section class="right-panel-dashboard__grid" aria-label="대시보드 위젯 영역"></section>
     `;
 
     const grid = root.querySelector('.right-panel-dashboard__grid');
     WIDGET_SLOTS.forEach((slot) => grid.appendChild(createSlot(slot)));
+    bindResponsiveGrid(root, grid);
 
     root.dataset.dashboardMounted = 'true';
     if (window.lucide) window.lucide.createIcons();

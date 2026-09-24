@@ -1,77 +1,46 @@
-/* Dashboard Container — v7.5
-   책임: 오른쪽 패널 안의 Dashboard 화면 틀과 위젯 슬롯 배치만 담당한다.
+/* Dashboard Container — v7.6
+   오른쪽 패널 안의 Dashboard 틀과 위젯 슬롯 배치만 담당한다.
    데이터/API/DB/분석 로직은 넣지 않는다.
 */
 
 .right-panel-dashboard {
   min-height: 100%;
-  padding: 16px;
+  width: 100%;
+  padding: var(--ui-panel-pad);
   box-sizing: border-box;
 }
 
-.right-panel-dashboard__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.right-panel-dashboard__title {
-  margin: 0;
-  color: var(--gtp-text);
-  font-size: 16px;
-  line-height: 1.35;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-}
-
-.right-panel-dashboard__subtitle {
-  margin: 4px 0 0;
-  color: var(--gtp-muted);
-  font-size: 11px;
-  line-height: 1.5;
-  font-weight: 600;
-}
-
-.right-panel-dashboard__status {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--gtp-border);
-  color: var(--gtp-muted);
-  background: var(--gtp-surface);
-  font-size: 10px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
 .right-panel-dashboard__grid {
+  --dashboard-grid-cols: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(var(--dashboard-grid-cols), minmax(0, 1fr));
+  gap: var(--ui-widget-gap);
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .dashboard-widget-slot {
+  min-width: 0;
   min-height: 108px;
-  border: 1px solid var(--gtp-border);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--gtp-surface) 88%, transparent);
-  padding: 14px;
+  border: var(--ui-panel-border);
+  border-radius: var(--ui-widget-radius);
+  background: var(--gtp-surface);
+  padding: var(--ui-panel-pad);
   box-sizing: border-box;
 }
 
 .dashboard-widget-slot__head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 9px;
+  margin: 0 0 12px;
 }
 
 .dashboard-widget-slot__icon {
   width: 28px;
   height: 28px;
-  border-radius: 10px;
+  border-radius: 9px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -82,34 +51,25 @@
 
 .dashboard-widget-slot__title {
   color: var(--gtp-text);
-  font-size: 12px;
+  font-size: var(--ui-title-size);
   line-height: 1.35;
-  font-weight: 800;
+  font-weight: var(--ui-title-weight);
+  letter-spacing: -0.01em;
 }
 
 .dashboard-widget-slot__body {
   color: var(--gtp-faint);
-  font-size: 10px;
+  font-size: var(--ui-meta-size);
   line-height: 1.5;
-  font-weight: 600;
-}
-
-
-@media (min-width: 700px) {
-  .right-panel-dashboard { padding: 18px; }
-  .right-panel-dashboard__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (min-width: 1100px) {
-  .right-panel-dashboard__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-@media (max-width: 480px) {
-  .right-panel-dashboard { padding: 14px; }
-  .right-panel-dashboard__head { margin-bottom: 12px; }
-  .right-panel-dashboard__status { display: none; }
+  font-weight: var(--ui-meta-weight);
 }
 
 .dashboard-widget-slot__mount {
   display: none;
+}
+
+@media (max-width: 700px) {
+  .right-panel-dashboard {
+    padding: var(--ui-panel-pad);
+  }
 }
