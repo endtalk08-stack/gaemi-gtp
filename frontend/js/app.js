@@ -1262,22 +1262,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const metric = document.getElementById('rightListMetric');
       if (title) title.textContent = titles[tab][0];
       if (metric) metric.textContent = titles[tab][1];
-      const criteria = document.getElementById('valueCriteria');
-      if (criteria) criteria.classList.toggle('hidden', tab !== 'value');
-    }
-
-    function setValueCriteria(button, label) {
-      document.querySelectorAll('.value-criterion').forEach(btn => {
-        const active = btn === button;
-        btn.classList.toggle('bg-[#eef2f7]', active);
-        btn.classList.toggle('dark:bg-[#272a31]', active);
-        btn.classList.toggle('text-[#0f172a]', active);
-        btn.classList.toggle('dark:text-white', active);
-        btn.classList.toggle('text-[#64748b]', !active);
-        btn.classList.toggle('dark:text-[#a1a1aa]', !active);
-      });
-      const metric = document.getElementById('rightListMetric');
-      if (metric) metric.textContent = label;
     }
 
 

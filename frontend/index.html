@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
-  <link rel="stylesheet" href="css/app.css?v=20260924-left-rail-v2">
+  <link rel="stylesheet" href="css/app.css?v=20260924-left-rail-v3">
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-market-closed right-panel-closed">
 
@@ -87,15 +87,6 @@
           <button type="button" data-info-tab="value" onclick="setRightInfoTab('value')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">거래대금</button>
           <button type="button" data-info-tab="industry" onclick="setRightInfoTab('industry')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">산업</button>
           <button type="button" data-info-tab="theme" onclick="setRightInfoTab('theme')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">테마</button>
-        </div>
-      </div>
-
-      <!-- 거래대금 내부 기준 -->
-      <div id="valueCriteria" class="hidden px-4 pt-1 pb-2">
-        <div class="grid grid-cols-3 border border-[#dbe2ea] dark:border-[#3f3f46] rounded-md overflow-hidden text-[10px] font-bold text-center">
-          <button type="button" onclick="setValueCriteria(this, '거래대금')" class="value-criterion py-1.5 bg-[#eef2f7] dark:bg-[#272a31] text-[#0f172a] dark:text-white border-r border-[#dbe2ea] dark:border-[#3f3f46]">거래대금</button>
-          <button type="button" onclick="setValueCriteria(this, '거래량')" class="value-criterion py-1.5 text-[#64748b] dark:text-[#a1a1aa] border-r border-[#dbe2ea] dark:border-[#3f3f46]">거래량</button>
-          <button type="button" onclick="setValueCriteria(this, '상승률')" class="value-criterion py-1.5 text-[#64748b] dark:text-[#a1a1aa]">상승률</button>
         </div>
       </div>
 
