@@ -197,8 +197,8 @@
    - Market information sidebar remains a separate expandable column
    ================================================================ */
 #leftNavRail {
-  width: 58px;
-  flex: 0 0 58px;
+  width: var(--ui-rail-width);
+  flex: 0 0 var(--ui-rail-width);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -294,9 +294,6 @@
 }
 
 #leftMarketSidebar.market-sidebar {
-  width: 320px;
-  flex: 0 0 320px;
-  transition: width .25s ease, flex-basis .25s ease;
   min-width: 0;
   position: relative;
   z-index: 40;
@@ -414,6 +411,9 @@ body.left-context-open #gaemiWorkspace {
    ================================================================ */
 :root {
   --ui-shell-header-h: 64px;
+  --ui-rail-width: 58px;
+  --ui-market-sidebar-width: 320px;
+  --ui-right-panel-resizer-width: 5px;
   --ui-panel-border: 1px solid var(--gtp-border);
   --ui-panel-pad: 16px;
   --ui-widget-gap: 16px;

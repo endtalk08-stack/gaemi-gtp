@@ -1,4 +1,10 @@
-/* v7.13 shell boundary only. Existing visual rules remain in frontend/css/app.css. */
+/* v7.13 shell boundary.
+   Width belongs to the market-sidebar shell; visual/content rules remain in app.css for now. */
+[data-shell="left-market-sidebar"] {
+  width: var(--ui-market-sidebar-width);
+  flex: 0 0 var(--ui-market-sidebar-width);
+  transition: width .25s ease, flex-basis .25s ease;
+}
 [data-shell="left-market-sidebar"] {
   min-width: 0;
   min-height: 0;
