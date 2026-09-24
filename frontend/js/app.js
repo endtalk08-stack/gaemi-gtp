@@ -1334,7 +1334,7 @@ function renderRightWidgets() {
     const card = document.createElement('section');
     card.className = 'widget-card';
     card.dataset.widgetType = type;
-    card.innerHTML = `<div class="widget-card-head"><div class="widget-card-title">${widgetLabel(type)}</div><div class="widget-card-actions"><button type="button" data-widget-remove aria-label="${widgetLabel(type)} 위젯 삭제" title="위젯 삭제">✕</button></div></div><div class="widget-card-body"></div>`;
+    card.innerHTML = `<div class="widget-card-actions"><button type="button" data-widget-remove aria-label="${widgetLabel(type)} 위젯 삭제" title="위젯 삭제">✕</button></div><div class="widget-card-body"></div>`;
     card.querySelector('[data-widget-remove]').addEventListener('click', () => removeRightWidget(type));
     host.appendChild(card);
     if (type === 'news' && window.NewsWidget) window.NewsWidget.render(card.querySelector('.widget-card-body'));
