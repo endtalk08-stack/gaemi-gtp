@@ -347,12 +347,6 @@ body.panel-resizing * { user-select: none !important; }
   body.right-panel-open #leftMarketSidebar.market-sidebar {
     display: none !important;
   }
-  /* 모바일: 오른쪽 패널을 열면 왼쪽 세로 내비게이션 레일도 숨긴다.
-     패널이 100dvw를 사용하므로 레일까지 남아 있으면 가로로 잘린다.
-     패널을 닫으면 자동으로 다시 표시된다. */
-  body.right-panel-open #leftNavRail {
-    display: none !important;
-  }
   #rightPanel [data-panel-maximize] { display: none !important; }
 }
 
@@ -360,15 +354,6 @@ body.panel-resizing * { user-select: none !important; }
 
 /* 4사이트 패널 엔진 이식: 작업영역 탭 / 플로팅 / 위젯 그리드 */
 body.panel-resizing #gaemiWorkspace #rightPanel { transition: none !important; }
-body.right-panel-floating #gaemiWorkspace #rightPanelResizer { display:none !important; }
-body.right-panel-floating #gaemiWorkspace #rightPanel {
-  position: fixed !important; right: 12px !important; top: 12px !important;
-  width: min(900px, calc(100vw - 24px)) !important;
-  height: min(760px, calc(100vh - 24px)) !important;
-  max-width: none !important; min-width: 320px !important;
-  z-index: 100 !important; border: 1px solid #27272a !important;
-  border-radius: 14px !important; box-shadow: 0 24px 70px rgba(0,0,0,.45) !important;
-}
 .right-panel-tabs { display:flex; align-items:center; gap:2px; min-width:0; }
 .right-panel-tab { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 9px; border-radius:7px; color:#71717a; font-size:11px; font-weight:600; white-space:nowrap; cursor:pointer; }
 .right-panel-tab:hover { background:#202228; color:#e4e4e7; }
@@ -395,7 +380,7 @@ body.right-panel-floating #gaemiWorkspace #rightPanel {
 .widget-card-body { flex:1; min-height:0; overflow:hidden; }
 .widget-drop-target { outline:1px dashed #60a5fa; outline-offset:2px; }
 .widget-dragging { opacity:.55; }
-.widget-add-menu { position:absolute; right:0; top:31px; width:190px; padding:6px; background:#1b1c21; border:1px solid #2e3038; border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,.4); z-index:120; }
+.widget-add-menu { position:absolute; left:0; top:31px; width:190px; padding:6px; background:#1b1c21; border:1px solid #2e3038; border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,.4); z-index:120; }
 .widget-add-menu button { width:100%; display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:7px; color:#a1a1aa; font-size:10px; text-align:left; }
 .widget-add-menu button:hover:not(:disabled) { background:#282a30; color:#fff; }
 .widget-add-menu button:disabled { opacity:.35; cursor:not-allowed; }

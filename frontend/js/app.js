@@ -299,7 +299,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       }
 
       resizer.addEventListener('pointerdown', (event) => {
-        if (!document.body.classList.contains('right-panel-open') || document.body.classList.contains('right-panel-maximized') || panelFloating) return;
+        if (!document.body.classList.contains('right-panel-open') || document.body.classList.contains('right-panel-maximized')) return;
         event.preventDefault(); event.stopPropagation();
         resizer.setPointerCapture?.(event.pointerId);
         document.body.classList.add('panel-resizing');
@@ -324,7 +324,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 // ==================== 4사이트 패널 엔진 이식 ====================
 const PANEL_TABS_KEY = 'gaemiGTP_panel_tabs_v1';
 const PANEL_ACTIVE_TAB_KEY = 'gaemiGTP_panel_active_tab_v1';
-const PANEL_FLOAT_KEY = 'gaemiGTP_panel_floating_v1';
 const DEFAULT_WIDGETS = [
   {id:'chart',type:'chart',title:'차트',icon:'chart-line',span:2},
   {id:'metrics',type:'metrics',title:'주요지표',icon:'chart-simple',span:1},
@@ -342,7 +341,6 @@ let panelTabs=[
  {id:'autotrade',label:'자동매매',icon:'bot',widgets:[]}
 ];
 let activePanelTab='dashboard';
-let panelFloating=false;
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function loadPanelEngineState(){
@@ -354,10 +352,9 @@ function loadPanelEngineState(){
   const autotrade=panelTabs.find(x=>x.id==='autotrade');
   if(!autotrade) panelTabs.splice(1,0,{id:'autotrade',label:'자동매매',icon:'bot',widgets:[]});
   const a=localStorage.getItem(PANEL_ACTIVE_TAB_KEY); if(a&&panelTabs.some(x=>x.id===a))activePanelTab=a;
-  panelFloating=localStorage.getItem(PANEL_FLOAT_KEY)==='1';
  }catch(e){console.warn('[gaemiGTP] panel state:',e);}
 }
-function savePanelEngineState(){try{localStorage.setItem(PANEL_TABS_KEY,JSON.stringify(panelTabs));localStorage.setItem(PANEL_ACTIVE_TAB_KEY,activePanelTab);localStorage.setItem(PANEL_FLOAT_KEY,panelFloating?'1':'0');}catch(e){}}
+function savePanelEngineState(){try{localStorage.setItem(PANEL_TABS_KEY,JSON.stringify(panelTabs));localStorage.setItem(PANEL_ACTIVE_TAB_KEY,activePanelTab);}catch(e){}}
 function renderPanelTabs(){
  const el=document.getElementById('workspaceTabs');if(!el)return;el.className='right-panel-tabs';el.innerHTML='';
  panelTabs.forEach(tab=>{
@@ -388,10 +385,6 @@ function removeWorkspaceTab(id,e){
  panelTabs=panelTabs.filter(x=>x.id!==id);
  if(!panelTabs.some(x=>x.id===activePanelTab))activePanelTab='dashboard';
  savePanelEngineState();renderPanelEngine();
-}
-function toggleRightPanelFloating(){
- panelFloating=!panelFloating;document.body.classList.toggle('right-panel-floating',panelFloating);savePanelEngineState();
- const b=document.querySelector('[data-panel-floating]');if(b)b.innerHTML=`<i data-lucide="${panelFloating?'minimize-2':'maximize-2'}" class="w-4 h-4"></i>`;if(window.lucide)lucide.createIcons();
 }
 function getActivePanelTab(){return panelTabs.find(x=>x.id===activePanelTab)||panelTabs[0];}
 function widgetBody(type){
@@ -428,7 +421,7 @@ function renderPanelEngine(){
    if(window.ResizeObserver){const ro=new ResizeObserver(applyCols);ro.observe(scroll);grid._panelRO=ro;}
  }
 }
-function initializePanelEngine(){loadPanelEngineState();renderPanelEngine();document.body.classList.toggle('right-panel-floating',panelFloating);}
+function initializePanelEngine(){loadPanelEngineState();renderPanelEngine();}
 
     function updateThemeButtons() {
       const isDark = document.documentElement.classList.contains('dark');
@@ -1397,15 +1390,4 @@ try {
   console.warn('[gaemiGTP] UI initialization warning:', e);
 }
 
-// 플로팅 패널 드래그
-(function initFloatingPanelDrag(){
-  const header=document.getElementById('rightPanelHeader'),panel=document.getElementById('rightPanel');
-  if(!header||!panel)return;
-  let dragging=false,startX=0,startY=0,startRight=0,startTop=0;
-  header.addEventListener('pointerdown',e=>{
-    if(!document.body.classList.contains('right-panel-floating')||e.target.closest('button'))return;
-    dragging=true;startX=e.clientX;startY=e.clientY;const r=panel.getBoundingClientRect();startRight=innerWidth-r.right;startTop=r.top;e.preventDefault();
-  });
-  header.addEventListener('pointermove',e=>{if(!dragging)return;const r=panel.getBoundingClientRect();const right=Math.max(8,Math.min(innerWidth-r.width-8,startRight-(e.clientX-startX)));const top=Math.max(8,Math.min(innerHeight-r.height-8,startTop+(e.clientY-startY)));panel.style.right=right+'px';panel.style.top=top+'px';});
-  const end=()=>dragging=false;header.addEventListener('pointerup',end);header.addEventListener('pointercancel',end);
-})();
+
