@@ -190,208 +190,6 @@
     }
 
 
-/* ================================================================
-   Workspace v2: 외부 왼쪽 시장정보 + 내부 본문/패널
-   - 시장정보는 바깥 영역으로 고정
-   - 본문과 패널만 같은 Workspace에서 2열로 재배치
-   - 패널의 좌/우 dock은 Workspace 범위를 절대 벗어나지 않음
-   ================================================================ */
-.gaemi-workspace {
-  --right-panel-width: 360px;
-  min-width: 0;
-  isolation: isolate;
-}
-
-#leftMarketSidebar.market-sidebar {
-  width: 320px;
-  flex: 0 0 320px;
-  transition: width .25s ease, flex-basis .25s ease;
-  min-width: 0;
-  position: relative;
-  z-index: 40;
-}
-body.left-market-closed #leftMarketSidebar.market-sidebar {
-  width: 0;
-  flex-basis: 0;
-  border-right-width: 0;
-  overflow: hidden;
-}
-
-/* 새로고침 직후에는 사이드바/패널을 닫힌 상태로 먼저 그린다.
-   JS 초기화 전의 레이아웃 플래시나 클릭 영역 겹침을 방지한다. */
-body.left-market-closed #leftMarketSidebar.market-sidebar {
-  pointer-events: none;
-}
-body.right-panel-closed #rightPanel,
-body.right-panel-closed #rightPanelResizer {
-  pointer-events: none;
-}
-
-/* 새로고침 직후 홈 화면에서는 분석용 왼쪽 토글을 아예 렌더링 영역에서 제거한다.
-   JS 초기화 전에도 두 버튼의 클릭 영역이 겹치지 않도록 하는 안전장치. */
-#gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-top="workspace"] {
-  display: none !important;
-  pointer-events: none !important;
-}
-body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-top="workspace"] {
-  display: inline-flex !important;
-  pointer-events: auto !important;
-}
-#mainHeroView [data-left-sidebar-toggle][data-left-sidebar-top="hero"] {
-  pointer-events: auto;
-}
-
-#gaemiWorkspace #mainContent {
-  order: 1;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-#gaemiWorkspace #rightPanel {
-  order: 3;
-  flex: 0 0 var(--right-panel-width);
-  width: var(--right-panel-width);
-  min-width: 280px;
-  max-width: 1200px;
-  height: 100%;
-  transition: width .2s ease, flex-basis .2s ease;
-  will-change: width, flex-basis;
-}
-
-/* PC: 최대화 시 왼쪽 시장정보 영역은 그대로 두고, Workspace 전체를 패널이 사용한다. */
-@media (min-width: 1024px) {
-  body.right-panel-maximized #gaemiWorkspace #mainContent {
-    display: none !important;
-  }
-  body.right-panel-maximized #gaemiWorkspace #rightPanelResizer {
-    display: none !important;
-  }
-  body.right-panel-maximized #gaemiWorkspace #rightPanel {
-    flex: 1 1 auto !important;
-    width: auto !important;
-    max-width: none !important;
-    min-width: 0 !important;
-  }
-}
-
-#gaemiWorkspace #rightPanelResizer {
-  order: 2;
-  flex: 0 0 8px;
-  width: 8px;
-  height: 100%;
-  cursor: col-resize;
-  background: transparent;
-  transition: background .15s ease;
-  z-index: 20;
-}
-#gaemiWorkspace #rightPanelResizer:hover,
-body.panel-resizing #gaemiWorkspace #rightPanelResizer {
-  background: rgba(113,113,122,.28);
-}
-
-body.right-panel-closed #rightPanel,
-body.right-panel-closed #rightPanelResizer,
-body:not(.right-panel-open) #rightPanel,
-body:not(.right-panel-open) #rightPanelResizer {
-  display: none !important;
-}
-
-
-/* 홈 화면은 별도 고정 레이어가 아니라 Workspace 안의 본문 뷰로 동작한다.
-   따라서 시장정보 사이드바가 열리거나 패널 폭이 바뀌어도 본문과 함께 자연스럽게 줄어든다. */
-#gaemiWorkspace #mainContent #mainHeroView {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  right: auto !important;
-  z-index: 30;
-}
-
-[data-panel-header-toggle][aria-hidden="true"] {
-  display: none !important;
-}
-
-/* 패널은 항상 본문 오른쪽에 고정한다. */
-body.panel-resizing, body.panel-resizing * { cursor: col-resize !important; }
-body.panel-resizing * { user-select: none !important; }
-
-
-@media (max-width: 1023px) {
-  #leftMarketSidebar.market-sidebar {
-    width: min(300px, 82vw);
-    flex-basis: min(300px, 82vw);
-  }
-  body.left-market-closed #leftMarketSidebar.market-sidebar {
-    width: 0;
-    flex-basis: 0;
-  }
-  #gaemiWorkspace #rightPanel {
-    flex-basis: min(var(--right-panel-width), 100vw);
-    width: min(var(--right-panel-width), 100vw);
-    min-width: 240px;
-  }
-  /* 모바일: 패널을 열면 본문을 숨기고 패널이 화면 전체를 사용한다. */
-  body.right-panel-open #gaemiWorkspace #mainContent {
-    display: none !important;
-  }
-  body.right-panel-open #gaemiWorkspace #rightPanelResizer {
-    display: none !important;
-  }
-  body.right-panel-open #gaemiWorkspace #rightPanel {
-    flex: 0 0 100dvw !important;
-    width: 100dvw !important;
-    max-width: 100dvw !important;
-    min-width: 0 !important;
-  }
-  body.right-panel-open #leftMarketSidebar.market-sidebar {
-    display: none !important;
-  }
-  #rightPanel [data-panel-maximize] { display: none !important; }
-}
-
-
-
-/* 4사이트 패널 엔진 이식: 작업영역 탭 / 플로팅 / 위젯 그리드 */
-body.panel-resizing #gaemiWorkspace #rightPanel { transition: none !important; }
-.right-panel-tabs { display:flex; align-items:center; gap:2px; min-width:0; }
-.right-panel-tab { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 9px; border-radius:7px; color:#71717a; font-size:11px; font-weight:600; white-space:nowrap; cursor:pointer; }
-.right-panel-tab:hover { background:#202228; color:#e4e4e7; }
-.right-panel-tab.active { background:#202228; color:#f4f4f5; }
-.right-panel-tab .tab-close { margin-left:2px; opacity:.45; }
-.right-panel-tab .tab-close:hover { opacity:1; }
-.widget-engine { height:100%; display:flex; flex-direction:column; min-width:0; background:transparent; }
-.widget-add-wrap { position:relative; }
-.panel-tab-widget-add { flex:0 0 auto; margin-left:0; }
-.panel-tab-widget-add .widget-action { width:28px; height:28px; border-radius:7px; }
-.widget-grid-scroll { flex:1; min-height:0; overflow:auto; padding:12px; }
-.widget-grid { display:grid; gap:12px; align-content:start; min-height:100%; }
-.widget-card { min-width:0; min-height:190px; background:#16171b; border:1px solid #27272a; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
-.widget-card.span-2 { grid-column:span 2; }
-.widget-card-header { height:38px; padding:0 11px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(39,39,42,.75); flex:0 0 auto; }
-.widget-card-title { font-size:11px; font-weight:700; color:#e4e4e7; display:flex; align-items:center; gap:7px; min-width:0; }
-.widget-card-title i { color:#71717a; }
-.widget-card-actions { display:flex; align-items:center; gap:1px; opacity:0; transition:opacity .15s; }
-.widget-card:hover .widget-card-actions { opacity:1; }
-.widget-action { width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#71717a; cursor:pointer; }
-.widget-action:hover { background:#202228; color:#f4f4f5; }
-.widget-drag-handle { cursor:grab; }
-.widget-drag-handle:active { cursor:grabbing; }
-.widget-card-body { flex:1; min-height:0; overflow:hidden; }
-.widget-drop-target { outline:1px dashed #60a5fa; outline-offset:2px; }
-.widget-dragging { opacity:.55; }
-.widget-add-menu { position:absolute; left:0; top:31px; width:190px; padding:6px; background:#1b1c21; border:1px solid #2e3038; border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,.4); z-index:120; }
-.widget-add-menu button { width:100%; display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:7px; color:#a1a1aa; font-size:10px; text-align:left; }
-.widget-add-menu button:hover:not(:disabled) { background:#282a30; color:#fff; }
-.widget-add-menu button:disabled { opacity:.35; cursor:not-allowed; }
-.simple-chart { height:100%; padding:12px; display:flex; flex-direction:column; }
-.simple-chart svg { width:100%; flex:1; min-height:120px; }
-.metric-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:12px; }
-.metric-box { background:#1e1f24; border:1px solid #282a30; border-radius:9px; padding:10px; }
-.metric-label { color:#71717a; font-size:9px; margin-bottom:5px; }
-.metric-value { color:#f4f4f5; font-size:14px; font-weight:800; }
-.placeholder-widget { height:100%; padding:18px; display:flex; flex-direction:column; justify-content:center; color:#71717a; }
-@media (max-width:700px){ .widget-card.span-2{grid-column:span 1;} .widget-grid-scroll{padding:9px;} }
 
 /* ================================================================
    LEFT NAV RAIL v1
@@ -482,3 +280,169 @@ body.panel-resizing #gaemiWorkspace #rightPanel { transition: none !important; }
     min-height: 40px;
   }
 }
+
+/* ================================================================
+   Workspace v2: 외부 왼쪽 시장정보 + 내부 본문/패널
+   - 시장정보는 바깥 영역으로 고정
+   - 본문과 패널만 같은 Workspace에서 2열로 재배치
+   - 패널의 좌/우 dock은 Workspace 범위를 절대 벗어나지 않음
+   ================================================================ */
+.gaemi-workspace {
+  --right-panel-width: 360px;
+  min-width: 0;
+  isolation: isolate;
+}
+
+#leftMarketSidebar.market-sidebar {
+  width: 320px;
+  flex: 0 0 320px;
+  transition: width .25s ease, flex-basis .25s ease;
+  min-width: 0;
+  position: relative;
+  z-index: 40;
+}
+body.left-market-closed #leftMarketSidebar.market-sidebar {
+  width: 0;
+  flex-basis: 0;
+  border-right-width: 0;
+  overflow: hidden;
+}
+
+/* 새로고침 직후에는 사이드바/패널을 닫힌 상태로 먼저 그린다.
+   JS 초기화 전의 레이아웃 플래시나 클릭 영역 겹침을 방지한다. */
+body.left-market-closed #leftMarketSidebar.market-sidebar {
+  pointer-events: none;
+}
+body.right-panel-closed #rightPanel,
+body.right-panel-closed #rightPanelResizer {
+  pointer-events: none;
+}
+
+/* 새로고침 직후 홈 화면에서는 분석용 왼쪽 토글을 아예 렌더링 영역에서 제거한다.
+   JS 초기화 전에도 두 버튼의 클릭 영역이 겹치지 않도록 하는 안전장치. */
+#gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-top="workspace"] {
+  display: none !important;
+  pointer-events: none !important;
+}
+body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-top="workspace"] {
+  display: inline-flex !important;
+  pointer-events: auto !important;
+}
+#mainHeroView [data-left-sidebar-toggle][data-left-sidebar-top="hero"] {
+  pointer-events: auto;
+}
+
+#gaemiWorkspace #mainContent {
+  order: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#gaemiWorkspace #rightPanel {
+  order: 3;
+  flex: 0 0 var(--right-panel-width);
+  width: var(--right-panel-width);
+  min-width: 280px;
+  max-width: 1200px;
+  height: 100%;
+  transition: width .2s ease, flex-basis .2s ease;
+}
+
+/* PC: 최대화 시 왼쪽 시장정보 영역은 그대로 두고, Workspace 전체를 패널이 사용한다. */
+@media (min-width: 1024px) {
+  body.right-panel-maximized #gaemiWorkspace #mainContent {
+    display: none !important;
+  }
+  body.right-panel-maximized #gaemiWorkspace #rightPanelResizer {
+    display: none !important;
+  }
+  body.right-panel-maximized #gaemiWorkspace #rightPanel {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+}
+
+#gaemiWorkspace #rightPanelResizer {
+  order: 2;
+  flex: 0 0 5px;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background .15s ease;
+  z-index: 20;
+}
+#gaemiWorkspace #rightPanelResizer:hover,
+body.panel-resizing #gaemiWorkspace #rightPanelResizer {
+  background: rgba(113,113,122,.28);
+}
+
+body.right-panel-closed #rightPanel,
+body.right-panel-closed #rightPanelResizer,
+body:not(.right-panel-open) #rightPanel,
+body:not(.right-panel-open) #rightPanelResizer {
+  display: none !important;
+}
+
+
+/* 홈 화면은 별도 고정 레이어가 아니라 Workspace 안의 본문 뷰로 동작한다.
+   따라서 시장정보 사이드바가 열리거나 패널 폭이 바뀌어도 본문과 함께 자연스럽게 줄어든다. */
+#gaemiWorkspace #mainContent #mainHeroView {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  right: auto !important;
+  z-index: 30;
+}
+
+[data-panel-header-toggle][aria-hidden="true"] {
+  display: none !important;
+}
+
+/* 패널은 항상 본문 오른쪽에 고정한다. */
+body.panel-resizing, body.panel-resizing * { cursor: col-resize !important; }
+body.panel-resizing * { user-select: none !important; }
+
+
+@media (max-width: 1023px) {
+  #leftMarketSidebar.market-sidebar {
+    width: min(300px, 82vw);
+    flex-basis: min(300px, 82vw);
+  }
+  body.left-market-closed #leftMarketSidebar.market-sidebar {
+    width: 0;
+    flex-basis: 0;
+  }
+  #gaemiWorkspace #rightPanel {
+    flex-basis: min(var(--right-panel-width), 100vw);
+    width: min(var(--right-panel-width), 100vw);
+    min-width: 240px;
+  }
+  /* 모바일: 패널을 열면 본문을 숨기고 패널이 화면 전체를 사용한다. */
+  body.right-panel-open #gaemiWorkspace #mainContent {
+    display: none !important;
+  }
+  body.right-panel-open #gaemiWorkspace #rightPanelResizer {
+    display: none !important;
+  }
+  body.right-panel-open #gaemiWorkspace #rightPanel {
+    flex: 0 0 100dvw !important;
+    width: 100dvw !important;
+    max-width: 100dvw !important;
+    min-width: 0 !important;
+  }
+  body.right-panel-open #leftMarketSidebar.market-sidebar {
+    display: none !important;
+  }
+  /* 모바일: 오른쪽 패널을 열면 세로 내비게이션 레일도 잠시 숨겨 패널을 화면 전체로 사용한다.
+     패널을 닫으면 레일은 자동으로 다시 표시된다. */
+  body.right-panel-open #leftNavRail {
+    display: none !important;
+  }
+  #rightPanel [data-panel-maximize] { display: none !important; }
+}
+
+

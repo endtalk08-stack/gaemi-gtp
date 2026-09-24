@@ -116,11 +116,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       saveWorkspaceState();
     }
 
-    function focusStockInput() {
-      const input = document.querySelector('input[placeholder*=\"종목명 입력\"]');
-      if (input) { input.focus(); input.scrollIntoView({block:'nearest'}); }
-    }
-
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
       document.body.classList.remove('analysis-mode');
@@ -137,6 +132,16 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       // 화면 이동은 '분석 화면으로 전환'만 담당하고, 사이드바 상태는 사용자의 선택을 따른다.
       applySidebarState();
       requestStock(stockName || '삼성전자');
+    }
+
+    function focusStockInput() {
+      const hero = document.getElementById('heroStockInput');
+      const bottom = document.getElementById('bottomStockInput');
+      const heroVisible = !!hero && !hero.closest('.hidden') && getComputedStyle(hero).display !== 'none';
+      const target = heroVisible ? hero : bottom;
+      if (!target) return;
+      target.focus();
+      target.select?.();
     }
 
     function handleHeroSearch() {
@@ -300,128 +305,23 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       resizer.addEventListener('pointerdown', (event) => {
         if (!document.body.classList.contains('right-panel-open') || document.body.classList.contains('right-panel-maximized')) return;
-        event.preventDefault(); event.stopPropagation();
-        resizer.setPointerCapture?.(event.pointerId);
-        document.body.classList.add('panel-resizing');
+        event.preventDefault();
+        const rect = workspace.getBoundingClientRect();
         const onMove = (moveEvent) => {
-          const rect = workspace.getBoundingClientRect();
-          setPanelWidth(rect.right - moveEvent.clientX);
+          // 패널은 항상 workspace 오른쪽에 고정한다.
+          const width = rect.right - moveEvent.clientX;
+          setPanelWidth(width);
         };
         const onUp = () => {
-          try { resizer.releasePointerCapture?.(event.pointerId); } catch(_) {}
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
           document.body.classList.remove('panel-resizing');
-          resizer.removeEventListener('pointermove', onMove);
-          resizer.removeEventListener('pointerup', onUp);
-          resizer.removeEventListener('pointercancel', onUp);
-          saveWorkspaceState();
         };
-        resizer.addEventListener('pointermove', onMove);
-        resizer.addEventListener('pointerup', onUp, { once: true });
-        resizer.addEventListener('pointercancel', onUp, { once: true });
+        document.body.classList.add('panel-resizing');
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp, { once: true });
       });
     }
-
-// ==================== 4사이트 패널 엔진 이식 ====================
-const PANEL_TABS_KEY = 'gaemiGTP_panel_tabs_v1';
-const PANEL_ACTIVE_TAB_KEY = 'gaemiGTP_panel_active_tab_v1';
-const DEFAULT_WIDGETS = [
-  {id:'chart',type:'chart',title:'차트',icon:'chart-line',span:2},
-  {id:'metrics',type:'metrics',title:'주요지표',icon:'chart-simple',span:1},
-  {id:'financial',type:'financial',title:'재무지표',icon:'file-text',span:1},
-  {id:'economic',type:'economic',title:'경제일정',icon:'calendar-days',span:1},
-  {id:'earnings',type:'earnings',title:'실적일정',icon:'calendar-check',span:1}
-];
-const WIDGET_META={
- chart:{title:'차트',icon:'chart-line',span:2},metrics:{title:'주요지표',icon:'chart-simple',span:1},
- financial:{title:'재무지표',icon:'file-text',span:1},news:{title:'뉴스',icon:'newspaper',span:1},
- economic:{title:'경제일정',icon:'calendar-days',span:1},earnings:{title:'실적일정',icon:'calendar-check',span:1}
-};
-let panelTabs=[
- {id:'dashboard',label:'대시보드',icon:'layout-dashboard',widgets:DEFAULT_WIDGETS.map(x=>({...x}))},
- {id:'autotrade',label:'자동매매',icon:'bot',widgets:[]}
-];
-let activePanelTab='dashboard';
-
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function loadPanelEngineState(){
- try{
-  const t=JSON.parse(localStorage.getItem(PANEL_TABS_KEY)||'null'); if(Array.isArray(t)&&t.length)panelTabs=t;
-  // 대시보드/자동매매는 기본 작업영역으로 항상 존재하도록 보정한다.
-  const dashboard=panelTabs.find(x=>x.id==='dashboard');
-  if(!dashboard) panelTabs.unshift({id:'dashboard',label:'대시보드',icon:'layout-dashboard',widgets:DEFAULT_WIDGETS.map(x=>({...x}))});
-  const autotrade=panelTabs.find(x=>x.id==='autotrade');
-  if(!autotrade) panelTabs.splice(1,0,{id:'autotrade',label:'자동매매',icon:'bot',widgets:[]});
-  const a=localStorage.getItem(PANEL_ACTIVE_TAB_KEY); if(a&&panelTabs.some(x=>x.id===a))activePanelTab=a;
- }catch(e){console.warn('[gaemiGTP] panel state:',e);}
-}
-function savePanelEngineState(){try{localStorage.setItem(PANEL_TABS_KEY,JSON.stringify(panelTabs));localStorage.setItem(PANEL_ACTIVE_TAB_KEY,activePanelTab);}catch(e){}}
-function renderPanelTabs(){
- const el=document.getElementById('workspaceTabs');if(!el)return;el.className='right-panel-tabs';el.innerHTML='';
- panelTabs.forEach(tab=>{
-  const b=document.createElement('button');b.type='button';b.className='right-panel-tab'+(tab.id===activePanelTab?' active':'');
-  const isFixedTab = tab.id==='dashboard' || tab.id==='autotrade';
-  b.innerHTML=`<i data-lucide="${tab.icon}" class="w-3 h-3"></i><span>${escapeHtml(tab.label)}</span>${isFixedTab?'': '<span class="tab-close" title="탭 닫기">×</span>'}`;
-  b.addEventListener('click',e=>{if(e.target.classList.contains('tab-close')){removeWorkspaceTab(tab.id,e);return;}activePanelTab=tab.id;savePanelEngineState();renderPanelEngine();});
-  el.appendChild(b);
-  // 대시보드 탭 바로 옆의 +는 '위젯 추가', 헤더 우측의 +는 '작업영역 추가'로 역할을 분리한다.
-  if(tab.id==='dashboard'){
-   const wrap=document.createElement('div');wrap.className='widget-add-wrap panel-tab-widget-add';
-   wrap.innerHTML=`<button id="dashboardWidgetAdd" class="widget-action" title="대시보드 위젯 추가" aria-label="대시보드 위젯 추가"><i data-lucide="plus" class="w-4 h-4"></i></button><div id="dashboardWidgetMenu" class="widget-add-menu" style="display:none"></div>`;
-   el.appendChild(wrap);
-  }
- });
- if(window.lucide)lucide.createIcons();
-}
-function addWorkspaceTab(){
- const id='workspace_'+Date.now();
- let n=2; while(panelTabs.some(x=>x.label===`분석 ${n}`))n++;
- panelTabs.push({id,label:`분석 ${n}`,icon:'chart-no-axes-combined',widgets:[]});
- activePanelTab=id;savePanelEngineState();renderPanelEngine();
-}
-function removeWorkspaceTab(id,e){
- e?.stopPropagation();
- // 기본 작업영역(대시보드/자동매매)은 닫지 않는다.
- if(id==='dashboard'||id==='autotrade')return;
- panelTabs=panelTabs.filter(x=>x.id!==id);
- if(!panelTabs.some(x=>x.id===activePanelTab))activePanelTab='dashboard';
- savePanelEngineState();renderPanelEngine();
-}
-function getActivePanelTab(){return panelTabs.find(x=>x.id===activePanelTab)||panelTabs[0];}
-function widgetBody(type){
- if(type==='chart')return `<div class="simple-chart"><div style="display:flex;justify-content:space-between;color:#71717a;font-size:9px;margin-bottom:5px"><span>1D　1W　<strong style="color:#f4f4f5">1M</strong>　3M　1Y</span><span>15분 지연</span></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><path d="M0 145 L35 115 L65 125 L95 90 L125 100 L160 75 L195 120 L225 135 L255 110 L285 60 L315 72 L350 42 L385 55 L420 35 L455 70 L490 62 L525 100 L560 78 L600 92 L600 180 L0 180 Z" fill="rgba(52,211,153,.12)"/><path d="M0 145 L35 115 L65 125 L95 90 L125 100 L160 75 L195 120 L225 135 L255 110 L285 60 L315 72 L350 42 L385 55 L420 35 L455 70 L490 62 L525 100 L560 78 L600 92" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
- if(type==='metrics')return `<div class="metric-grid"><div class="metric-box"><div class="metric-label">시가총액</div><div class="metric-value">5.4B</div></div><div class="metric-box"><div class="metric-label">PER</div><div class="metric-value">—</div></div><div class="metric-box"><div class="metric-label">ROE</div><div class="metric-value">18.2%</div></div><div class="metric-box"><div class="metric-label">배당률</div><div class="metric-value">1.4%</div></div></div>`;
- if(type==='financial')return `<div class="metric-grid"><div class="metric-box"><div class="metric-label">매출</div><div class="metric-value">12.8B</div></div><div class="metric-box"><div class="metric-label">영업이익</div><div class="metric-value">2.1B</div></div><div class="metric-box"><div class="metric-label">부채비율</div><div class="metric-value">42%</div></div><div class="metric-box"><div class="metric-label">현금</div><div class="metric-value">3.8B</div></div></div>`;
- if(type==='economic')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">경제 일정</div><div style="font-size:10px;line-height:1.9">CPI 발표 · FOMC · 고용지표 · GDP</div></div>`;
- if(type==='earnings')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">실적 일정</div><div style="font-size:10px;line-height:1.9">삼성전자 · NVIDIA · Apple · Tesla</div></div>`;
- if(type==='news')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">뉴스</div><div style="font-size:10px;line-height:1.8">DeepSeek 뉴스 레이아웃은 다음 단계에서 연결합니다.</div></div>`;
- return '<div class="placeholder-widget">준비 중</div>';
-}
-function addWidget(tabId,type){const tab=panelTabs.find(x=>x.id===tabId);if(!tab||tab.widgets.some(w=>w.type===type))return;const m=WIDGET_META[type];tab.widgets.push({id:`${type}_${Date.now()}`,type,title:m.title,icon:m.icon,span:m.span});savePanelEngineState();renderPanelEngine();}
-function removeWidget(tabId,id){const tab=panelTabs.find(x=>x.id===tabId);if(!tab)return;tab.widgets=tab.widgets.filter(w=>w.id!==id);savePanelEngineState();renderPanelEngine();}
-function moveWidget(tabId,fromId,toId){const tab=panelTabs.find(x=>x.id===tabId);if(!tab||fromId===toId)return;const a=tab.widgets.findIndex(w=>w.id===fromId),b=tab.widgets.findIndex(w=>w.id===toId);if(a<0||b<0)return;const[m]=tab.widgets.splice(a,1);tab.widgets.splice(b,0,m);savePanelEngineState();renderPanelEngine();}
-function renderWidgetGrid(tab){
- if(tab.id==='autotrade')return `<div class="widget-grid-scroll"><div class="widget-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="widget-card"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="bot" class="w-3 h-3"></i>자동매매 상태</div></div><div class="widget-card-body"><div class="metric-grid"><div class="metric-box"><div class="metric-label">SYSTEM</div><div class="metric-value">ONLINE</div></div><div class="metric-box"><div class="metric-label">P&L</div><div class="metric-value">+4.58%</div></div></div></div></div><div class="widget-card"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="list" class="w-3 h-3"></i>Watchlist</div></div><div class="widget-card-body"><div class="placeholder-widget">NVDA　TSLA　AAPL　SMCI<br><span style="margin-top:8px">자동매매 파이프라인은 별도 모듈로 연결합니다.</span></div></div></div></div></div>`;
- const w=tab.widgets||[];let out=`<div class="widget-engine"><div class="widget-grid-scroll"><div id="panelWidgetGrid" class="widget-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">`;
- w.forEach(widget=>{out+=`<div class="widget-card ${widget.span===2?'span-2':''}" data-widget-id="${widget.id}"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="${widget.icon}" class="w-3 h-3"></i><span>${escapeHtml(widget.title)}</span></div><div class="widget-card-actions"><button class="widget-action widget-drag-handle" title="드래그해서 이동" draggable="true" data-drag-id="${widget.id}"><i data-lucide="grip-vertical" class="w-3 h-3"></i></button><button class="widget-action widget-remove" data-remove-id="${widget.id}" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button></div></div><div class="widget-card-body">${widgetBody(widget.type)}</div></div>`;});
- out+='</div></div></div>';return out;
-}
-function renderPanelEngine(){
- const content=document.getElementById('rightPanelContent');if(!content)return;renderPanelTabs();const tab=getActivePanelTab();content.innerHTML=renderWidgetGrid(tab);
- const menu=document.getElementById('dashboardWidgetMenu'),add=document.getElementById('dashboardWidgetAdd');
- if(add&&menu){add.addEventListener('click',()=>{menu.style.display=menu.style.display==='none'?'block':'none';if(menu.innerHTML===''){Object.entries(WIDGET_META).forEach(([type,m])=>{const b=document.createElement('button');b.disabled=tab.widgets.some(w=>w.type===type);b.innerHTML=`<i data-lucide="${m.icon}" class="w-3 h-3"></i><span>${m.title}</span>`;b.addEventListener('click',()=>addWidget(tab.id,type));menu.appendChild(b);});if(window.lucide)lucide.createIcons();}});}
- content.querySelectorAll('.widget-remove').forEach(b=>b.addEventListener('click',()=>removeWidget(tab.id,b.dataset.removeId)));
- let dragId=null;content.querySelectorAll('[data-drag-id]').forEach(h=>{h.addEventListener('dragstart',e=>{dragId=e.currentTarget.dataset.dragId;e.dataTransfer.effectAllowed='move';});h.addEventListener('dragend',()=>dragId=null);});
- content.querySelectorAll('[data-widget-id]').forEach(card=>{card.addEventListener('dragover',e=>{e.preventDefault();card.classList.add('widget-drop-target');});card.addEventListener('dragleave',()=>card.classList.remove('widget-drop-target'));card.addEventListener('drop',e=>{e.preventDefault();card.classList.remove('widget-drop-target');if(dragId)moveWidget(tab.id,dragId,card.dataset.widgetId);});});
- if(window.lucide)lucide.createIcons();
- const scroll=document.getElementById('rightPanelContent');
- const grid=document.getElementById('panelWidgetGrid');
- if(scroll&&grid){
-   const applyCols=()=>{const w=scroll.clientWidth;grid.style.gridTemplateColumns=w<620?'repeat(1,minmax(0,1fr))':w<1200?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))';};
-   applyCols();
-   if(window.ResizeObserver){const ro=new ResizeObserver(applyCols);ro.observe(scroll);grid._panelRO=ro;}
- }
-}
-function initializePanelEngine(){loadPanelEngineState();renderPanelEngine();}
 
     function updateThemeButtons() {
       const isDark = document.documentElement.classList.contains('dark');
@@ -1336,7 +1236,6 @@ window.addEventListener('resize', () => {
 document.addEventListener("DOMContentLoaded", () => {
   try {
     initializeSidebars();
-    initializePanelEngine();
     initializeWorkspaceInteractions();
   } catch (e) {
     console.warn('[gaemiGTP] workspace initialization warning:', e);
@@ -1363,22 +1262,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const metric = document.getElementById('rightListMetric');
       if (title) title.textContent = titles[tab][0];
       if (metric) metric.textContent = titles[tab][1];
-      const criteria = document.getElementById('valueCriteria');
-      if (criteria) criteria.classList.toggle('hidden', tab !== 'value');
-    }
-
-    function setValueCriteria(button, label) {
-      document.querySelectorAll('.value-criterion').forEach(btn => {
-        const active = btn === button;
-        btn.classList.toggle('bg-[#eef2f7]', active);
-        btn.classList.toggle('dark:bg-[#272a31]', active);
-        btn.classList.toggle('text-[#0f172a]', active);
-        btn.classList.toggle('dark:text-white', active);
-        btn.classList.toggle('text-[#64748b]', !active);
-        btn.classList.toggle('dark:text-[#a1a1aa]', !active);
-      });
-      const metric = document.getElementById('rightListMetric');
-      if (metric) metric.textContent = label;
     }
 
 
@@ -1389,5 +1272,3 @@ try {
 } catch (e) {
   console.warn('[gaemiGTP] UI initialization warning:', e);
 }
-
-

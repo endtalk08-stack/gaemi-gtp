@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
-  <link rel="stylesheet" href="css/app.css?v=20260923-sidebar-refresh-fix-v2">
+  <link rel="stylesheet" href="css/app.css?v=20260924-left-rail-v3">
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-market-closed right-panel-closed">
 
@@ -87,15 +87,6 @@
           <button type="button" data-info-tab="value" onclick="setRightInfoTab('value')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">거래대금</button>
           <button type="button" data-info-tab="industry" onclick="setRightInfoTab('industry')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">산업</button>
           <button type="button" data-info-tab="theme" onclick="setRightInfoTab('theme')" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-md">테마</button>
-        </div>
-      </div>
-
-      <!-- 거래대금 내부 기준 -->
-      <div id="valueCriteria" class="hidden px-4 pt-1 pb-2">
-        <div class="grid grid-cols-3 border border-[#dbe2ea] dark:border-[#3f3f46] rounded-md overflow-hidden text-[10px] font-bold text-center">
-          <button type="button" onclick="setValueCriteria(this, '거래대금')" class="value-criterion py-1.5 bg-[#eef2f7] dark:bg-[#272a31] text-[#0f172a] dark:text-white border-r border-[#dbe2ea] dark:border-[#3f3f46]">거래대금</button>
-          <button type="button" onclick="setValueCriteria(this, '거래량')" class="value-criterion py-1.5 text-[#64748b] dark:text-[#a1a1aa] border-r border-[#dbe2ea] dark:border-[#3f3f46]">거래량</button>
-          <button type="button" onclick="setValueCriteria(this, '상승률')" class="value-criterion py-1.5 text-[#64748b] dark:text-[#a1a1aa]">상승률</button>
         </div>
       </div>
 
@@ -301,18 +292,26 @@
       </div>
     </div>
   </main>
+
     <div id="rightPanelResizer" class="panel-resizer" role="separator" aria-label="패널 너비 조절" title="드래그하여 패널 크기 조절"></div>
 
-    <aside id="rightPanel" class="right-panel bg-[#f8fafc] dark:bg-[#0f1013] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 overflow-hidden" aria-label="작업영역 패널">
-      <div id="rightPanelHeader" class="right-panel-header h-12 px-2 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 select-none">
-        <div id="workspaceTabs" class="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar"></div>
-        <div class="flex items-center gap-1 shrink-0 ml-2">
-          <button type="button" onclick="addWorkspaceTab()" class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" title="새 작업영역 추가" aria-label="새 작업영역 추가"><i data-lucide="plus" class="w-4 h-4"></i></button>
-          <button type="button" onclick="toggleRightPanelMaximize()" data-panel-maximize class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="패널 최대화" title="패널 최대화"><i data-panel-maximize-icon="maximize" data-lucide="panel-right-open" class="w-4 h-4"></i><i data-panel-maximize-icon="restore" data-lucide="panel-right-close" class="w-4 h-4 hidden"></i></button>
-          <button type="button" onclick="toggleRightPanel()" class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="패널 닫기" title="패널 닫기"><i data-lucide="x" class="w-4 h-4"></i></button>
+    <aside id="rightPanel" class="right-panel bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 overflow-hidden" aria-label="패널">
+      <div class="right-panel-header h-16 px-3 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 select-none">
+        <div class="flex-1 min-w-0 h-full flex items-center gap-2">
+          <i data-lucide="panel-right" class="w-4 h-4 text-[#64748b] dark:text-[#a1a1aa] shrink-0"></i>
+          <span class="text-[16px] font-black text-[#0f172a] dark:text-white">패널</span>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          <button type="button" onclick="toggleRightPanelMaximize()" data-panel-maximize class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-[#0f172a] dark:hover:text-white transition" aria-label="패널 최대화" title="패널 최대화">
+            <i data-panel-maximize-icon="maximize" data-lucide="maximize-2" class="w-4 h-4"></i>
+            <i data-panel-maximize-icon="restore" data-lucide="minimize-2" class="w-4 h-4 hidden"></i>
+          </button>
+          <button type="button" onclick="toggleRightPanel()" class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="패널 닫기" title="패널 닫기">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
         </div>
       </div>
-      <div id="rightPanelContent" class="flex-1 min-h-0 overflow-hidden bg-[#f8fafc] dark:bg-[#0f1013]"></div>
+      <div id="rightPanelContent" class="flex-1 min-h-0 overflow-auto bg-[#f8fafc] dark:bg-[#0f1013]"></div>
     </aside>
   </div>
 <!-- 외부 기사 링크 확인 팝업 -->
@@ -340,6 +339,6 @@
   </div>
 
 
-  <script src="js/app.js?v=20260923-sidebar-refresh-fix-v2"></script>
+  <script src="js/app.js?v=20260924-left-rail-v1"></script>
 </body>
 </html>
