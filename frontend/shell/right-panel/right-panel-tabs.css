@@ -28,7 +28,7 @@
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
   padding: 0 9px;
   border: 1px solid transparent;
   border-radius: 9px;
@@ -66,9 +66,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .right-panel-tab__close {
@@ -93,6 +94,12 @@
   pointer-events: none;
 }
 
+.right-panel-tab-add-wrap {
+  position: relative;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
 .right-panel-tab-add {
   width: 30px;
   height: 30px;
@@ -112,6 +119,70 @@
 .right-panel-tab-add:hover {
   color: var(--gtp-text);
   background: var(--gtp-active);
+}
+
+
+.right-panel-tab-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  width: 180px;
+  padding: 6px;
+  border: 1px solid var(--gtp-border-strong);
+  border-radius: 10px;
+  background: var(--gtp-surface-2);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, .16);
+}
+
+.right-panel-tab-menu[hidden] {
+  display: none !important;
+}
+
+.right-panel-tab-menu__section {
+  padding: 6px 8px 4px;
+  color: var(--gtp-faint);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.right-panel-tab-menu__item {
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--gtp-text-2);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.right-panel-tab-menu__item:hover {
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
+}
+
+.right-panel-tab-menu__item svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.right-panel-tab-menu__item--delete {
+  justify-content: space-between;
+}
+
+.right-panel-tab-menu__empty {
+  padding: 7px 8px;
+  color: var(--gtp-faint);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .right-panel-tab-add svg {
@@ -180,7 +251,7 @@
   }
 
   .right-panel-tab__label {
-    max-width: 64px;
+    max-width: 90px;
   }
 
   .right-panel-tab-placeholder {

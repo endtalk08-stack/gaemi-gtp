@@ -102,40 +102,103 @@
       button.setAttribute('aria-selected', activeTabId === tab.id ? 'true' : 'false');
       button.title = tab.label;
 
-      const icon = document.createElement('i');
-      icon.setAttribute('data-lucide', tab.icon || 'square-chart-gantt');
-      icon.className = 'right-panel-tab__icon';
-      button.appendChild(icon);
-
       const label = document.createElement('span');
       label.className = 'right-panel-tab__label';
       label.textContent = tab.label;
       button.appendChild(label);
 
-      if (tab.closable) {
-        const close = document.createElement('span');
-        close.className = 'right-panel-tab__close';
-        close.dataset.rightPanelTabClose = tab.id;
-        close.setAttribute('role', 'button');
-        close.setAttribute('aria-label', `${tab.label} 탭 닫기`);
-        close.title = '탭 닫기';
-        close.innerHTML = '<i data-lucide="x"></i>';
-        button.appendChild(close);
-      }
-
       list.appendChild(button);
     });
+
+    const addWrap = document.createElement('div');
+    addWrap.className = 'right-panel-tab-add-wrap';
 
     const add = document.createElement('button');
     add.type = 'button';
     add.className = 'right-panel-tab-add';
     add.dataset.rightPanelTabAdd = 'true';
-    add.setAttribute('aria-label', '새 탭 추가');
-    add.title = '새 탭 추가';
+    add.setAttribute('aria-label', '대시보드 또는 자동매매 탭 관리');
+    add.title = '탭 추가/삭제';
     add.innerHTML = '<i data-lucide="plus"></i>';
-    list.appendChild(add);
+    addWrap.appendChild(add);
+
+    const menu = document.createElement('div');
+    menu.className = 'right-panel-tab-menu';
+    menu.dataset.rightPanelTabMenu = 'true';
+    menu.hidden = true;
+    menu.innerHTML = `
+      <div class="right-panel-tab-menu__section">탭 추가</div>
+      <button type="button" class="right-panel-tab-menu__item" data-add-tab-type="dashboard">
+        <i data-lucide="layout-dashboard"></i><span>대시보드</span>
+      </button>
+      <button type="button" class="right-panel-tab-menu__item" data-add-tab-type="auto-trade">
+        <i data-lucide="bot"></i><span>자동매매</span>
+      </button>
+      <div class="right-panel-tab-menu__section">탭 삭제</div>
+      <div class="right-panel-tab-menu__delete-list" data-tab-delete-list></div>
+    `;
+    addWrap.appendChild(menu);
+    list.appendChild(addWrap);
+
+    renderTabMenu(menu);
 
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  function renderTabMenu(menu) {
+    if (!menu) return;
+    const deleteList = menu.querySelector('[data-tab-delete-list]');
+    if (!deleteList) return;
+    deleteList.innerHTML = '';
+    const closableTabs = tabs.filter(tab => tab.closable !== false);
+    if (!closableTabs.length) {
+      const empty = document.createElement('div');
+      empty.className = 'right-panel-tab-menu__empty';
+      empty.textContent = '삭제할 탭이 없습니다.';
+      deleteList.appendChild(empty);
+      return;
+    }
+    closableTabs.forEach(tab => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'right-panel-tab-menu__item right-panel-tab-menu__item--delete';
+      button.dataset.deleteTabId = tab.id;
+      button.innerHTML = `<span>${escapeHtml(tab.label)}</span><i data-lucide="trash-2"></i>`;
+      deleteList.appendChild(button);
+    });
+  }
+
+  function toggleTabMenu(force) {
+    const menu = document.querySelector('[data-right-panel-tab-menu]');
+    if (!menu) return;
+    const next = typeof force === 'boolean' ? force : menu.hidden;
+    menu.hidden = !next;
+    if (next) {
+      renderTabMenu(menu);
+      if (window.lucide) window.lucide.createIcons();
+    }
+  }
+
+  function addNamedTab(type) {
+    if (type === 'dashboard' || type === 'auto-trade') {
+      const existing = tabs.find(t => t.id === type);
+      if (existing) {
+        setActiveTab(existing.id);
+        toggleTabMenu(false);
+        return;
+      }
+      const label = type === 'dashboard' ? '대시보드' : '자동매매';
+      const tab = {
+        id: type,
+        label,
+        icon: type === 'dashboard' ? 'layout-dashboard' : 'bot',
+        closable: type !== 'dashboard',
+      };
+      tabs.push(tab);
+      if (type !== 'dashboard') makePlaceholderView(tab);
+      setActiveTab(type);
+      toggleTabMenu(false);
+    }
   }
 
   function mountTabPage(tab) {
@@ -221,21 +284,37 @@
     });
 
     getTabList().addEventListener('click', (event) => {
-      const close = event.target.closest('[data-right-panel-tab-close]');
-      if (close) {
+      const add = event.target.closest('[data-right-panel-tab-add]');
+      if (add) {
         event.stopPropagation();
-        removeTab(close.dataset.rightPanelTabClose);
+        toggleTabMenu();
         return;
       }
 
-      const add = event.target.closest('[data-right-panel-tab-add]');
-      if (add) {
-        addTab();
+      const addType = event.target.closest('[data-add-tab-type]');
+      if (addType) {
+        event.stopPropagation();
+        addNamedTab(addType.dataset.addTabType);
+        return;
+      }
+
+      const deleteTab = event.target.closest('[data-delete-tab-id]');
+      if (deleteTab) {
+        event.stopPropagation();
+        removeTab(deleteTab.dataset.deleteTabId);
+        toggleTabMenu(false);
         return;
       }
 
       const tab = event.target.closest('[data-right-panel-tab]');
-      if (tab) setActiveTab(tab.dataset.rightPanelTab);
+      if (tab) {
+        toggleTabMenu(false);
+        setActiveTab(tab.dataset.rightPanelTab);
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('#rightPanelTabs')) toggleTabMenu(false);
     });
 
     getTabList().dataset.bound = 'true';
