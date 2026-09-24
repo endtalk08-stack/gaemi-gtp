@@ -1,5 +1,0 @@
-/* v7.13 shell boundary only. Existing visual rules remain in frontend/css/app.css. */
-[data-shell="left-market-sidebar"] {
-  min-width: 0;
-  min-height: 0;
-}
