@@ -1,0 +1,204 @@
+/* Right Panel Tabs — v7.5
+   상단 탭만 담당한다. 위젯/데이터 스타일은 각 페이지/위젯에서 담당한다.
+*/
+
+.right-panel-header {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.right-panel-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 2px;
+}
+
+.right-panel-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.right-panel-tab {
+  height: 32px;
+  max-width: 150px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--gtp-faint);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+  font: inherit;
+}
+
+.right-panel-tab:hover {
+  color: var(--gtp-text-2);
+  background: var(--gtp-hover);
+}
+
+.right-panel-tab.is-active {
+  color: var(--gtp-text);
+  background: var(--gtp-active);
+  border-color: var(--gtp-border-strong);
+}
+
+.right-panel-tab__icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  color: var(--gtp-muted);
+}
+
+.right-panel-tab.is-active .right-panel-tab__icon {
+  color: var(--gtp-text-2);
+}
+
+.right-panel-tab__label {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.right-panel-tab__close {
+  width: 17px;
+  height: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: var(--gtp-faint);
+  flex: 0 0 auto;
+}
+
+.right-panel-tab__close:hover {
+  color: var(--gtp-text-2);
+  background: var(--gtp-hover);
+}
+
+.right-panel-tab__close svg {
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+
+.right-panel-tab-add {
+  width: 30px;
+  height: 30px;
+  margin-left: 1px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gtp-faint);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.right-panel-tab-add:hover {
+  color: var(--gtp-text);
+  background: var(--gtp-active);
+}
+
+.right-panel-tab-add svg {
+  width: 14px;
+  height: 14px;
+}
+
+.right-panel-tab-view {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.right-panel-tab-view[hidden] {
+  display: none !important;
+}
+
+.right-panel-tab-placeholder {
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.right-panel-tab-placeholder__icon {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--gtp-border);
+  border-radius: 14px;
+  background: var(--gtp-surface-2);
+  color: var(--gtp-faint);
+}
+
+.right-panel-tab-placeholder__icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.right-panel-tab-placeholder__title {
+  margin-bottom: 6px;
+  color: var(--gtp-text-2);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.right-panel-tab-placeholder__text {
+  max-width: 300px;
+  color: var(--gtp-faint);
+  font-size: 11px;
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .right-panel-tab {
+    max-width: 120px;
+    padding: 0 8px;
+  }
+
+  .right-panel-tab__label {
+    max-width: 64px;
+  }
+
+  .right-panel-tab-placeholder {
+    padding: 32px 18px;
+  }
+}
+
+
+/* UI CONTRACT v1 */
+.right-panel-tabs {
+  padding: 0 4px;
+  gap: 4px;
+}
+.right-panel-tab {
+  height: 32px;
+  border-radius: 9px;
+}
+.right-panel-tab__label {
+  font-size: 11px;
+  font-weight: 700;
+}
