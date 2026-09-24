@@ -356,6 +356,12 @@ body.panel-resizing * { user-select: none !important; }
 
 
 @media (max-width: 1023px) {
+  /* 모바일에서는 세로 레일을 항상 숨긴다.
+     왼쪽 컨텍스트/플러그인 사이드바를 열어도 레일이 다시 나타나지 않는다. */
+  #leftNavRail {
+    display: none !important;
+  }
+
   #leftMarketSidebar.market-sidebar {
     width: min(300px, 82vw);
     flex-basis: min(300px, 82vw);

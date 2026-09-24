@@ -149,9 +149,6 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
     width: 0;
     flex-basis: 0;
   }
-  body.left-context-open #leftNavRail {
-    display: flex !important;
-  }
   body.left-context-open #rightPanel,
   body.left-context-open #rightPanelResizer {
     display: none !important;
