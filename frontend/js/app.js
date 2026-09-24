@@ -355,6 +355,12 @@ function renderPanelTabs(){
   b.innerHTML=`<i data-lucide="${tab.icon}" class="w-3 h-3"></i><span>${escapeHtml(tab.label)}</span>${panelTabs.length>1?'<span class="tab-close" title="탭 닫기">×</span>':''}`;
   b.addEventListener('click',e=>{if(e.target.classList.contains('tab-close')){removeWorkspaceTab(tab.id,e);return;}activePanelTab=tab.id;savePanelEngineState();renderPanelEngine();});
   el.appendChild(b);
+  // 대시보드 탭 바로 옆의 +는 '위젯 추가', 헤더 우측의 +는 '작업영역 추가'로 역할을 분리한다.
+  if(tab.id==='dashboard'){
+   const wrap=document.createElement('div');wrap.className='widget-add-wrap panel-tab-widget-add';
+   wrap.innerHTML=`<button id="dashboardWidgetAdd" class="widget-action" title="대시보드 위젯 추가" aria-label="대시보드 위젯 추가"><i data-lucide="plus" class="w-4 h-4"></i></button><div id="dashboardWidgetMenu" class="widget-add-menu" style="display:none"></div>`;
+   el.appendChild(wrap);
+  }
  });
  if(window.lucide)lucide.createIcons();
 }
@@ -379,7 +385,7 @@ function removeWidget(tabId,id){const tab=panelTabs.find(x=>x.id===tabId);if(!ta
 function moveWidget(tabId,fromId,toId){const tab=panelTabs.find(x=>x.id===tabId);if(!tab||fromId===toId)return;const a=tab.widgets.findIndex(w=>w.id===fromId),b=tab.widgets.findIndex(w=>w.id===toId);if(a<0||b<0)return;const[m]=tab.widgets.splice(a,1);tab.widgets.splice(b,0,m);savePanelEngineState();renderPanelEngine();}
 function renderWidgetGrid(tab){
  if(tab.id==='autotrade')return `<div class="widget-grid-scroll"><div class="widget-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="widget-card"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="bot" class="w-3 h-3"></i>자동매매 상태</div></div><div class="widget-card-body"><div class="metric-grid"><div class="metric-box"><div class="metric-label">SYSTEM</div><div class="metric-value">ONLINE</div></div><div class="metric-box"><div class="metric-label">P&L</div><div class="metric-value">+4.58%</div></div></div></div></div><div class="widget-card"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="list" class="w-3 h-3"></i>Watchlist</div></div><div class="widget-card-body"><div class="placeholder-widget">NVDA　TSLA　AAPL　SMCI<br><span style="margin-top:8px">자동매매 파이프라인은 별도 모듈로 연결합니다.</span></div></div></div></div></div>`;
- const w=tab.widgets||[];let out=`<div class="widget-engine"><div class="widget-toolbar"><div class="widget-toolbar-title">대시보드</div><div class="widget-add-wrap"><button id="dashboardWidgetAdd" class="widget-action" title="위젯 추가"><i data-lucide="plus" class="w-4 h-4"></i></button><div id="dashboardWidgetMenu" class="widget-add-menu" style="display:none"></div></div></div><div class="widget-grid-scroll"><div id="panelWidgetGrid" class="widget-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">`;
+ const w=tab.widgets||[];let out=`<div class="widget-engine"><div class="widget-grid-scroll"><div id="panelWidgetGrid" class="widget-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">`;
  w.forEach(widget=>{out+=`<div class="widget-card ${widget.span===2?'span-2':''}" data-widget-id="${widget.id}"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="${widget.icon}" class="w-3 h-3"></i><span>${escapeHtml(widget.title)}</span></div><div class="widget-card-actions"><button class="widget-action widget-drag-handle" title="드래그해서 이동" draggable="true" data-drag-id="${widget.id}"><i data-lucide="grip-vertical" class="w-3 h-3"></i></button><button class="widget-action widget-remove" data-remove-id="${widget.id}" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button></div></div><div class="widget-card-body">${widgetBody(widget.type)}</div></div>`;});
  out+='</div></div></div>';return out;
 }

@@ -369,10 +369,10 @@ body.right-panel-floating #gaemiWorkspace #rightPanel {
 .right-panel-tab.active { background:#202228; color:#f4f4f5; }
 .right-panel-tab .tab-close { margin-left:2px; opacity:.45; }
 .right-panel-tab .tab-close:hover { opacity:1; }
-.widget-engine { height:100%; display:flex; flex-direction:column; min-width:0; background:#0f1013; }
-.widget-toolbar { flex:0 0 auto; min-height:42px; display:flex; align-items:center; justify-content:space-between; padding:7px 12px; border-bottom:1px solid #27272a; }
-.widget-toolbar-title { font-size:11px; font-weight:700; color:#a1a1aa; }
+.widget-engine { height:100%; display:flex; flex-direction:column; min-width:0; background:transparent; }
 .widget-add-wrap { position:relative; }
+.panel-tab-widget-add { flex:0 0 auto; margin-left:0; }
+.panel-tab-widget-add .widget-action { width:28px; height:28px; border-radius:7px; }
 .widget-grid-scroll { flex:1; min-height:0; overflow:auto; padding:12px; }
 .widget-grid { display:grid; gap:12px; align-content:start; min-height:100%; }
 .widget-card { min-width:0; min-height:190px; background:#16171b; border:1px solid #27272a; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
@@ -400,4 +400,4 @@ body.right-panel-floating #gaemiWorkspace #rightPanel {
 .metric-label { color:#71717a; font-size:9px; margin-bottom:5px; }
 .metric-value { color:#f4f4f5; font-size:14px; font-weight:800; }
 .placeholder-widget { height:100%; padding:18px; display:flex; flex-direction:column; justify-content:center; color:#71717a; }
-@media (max-width:700px){ .widget-card.span-2{grid-column:span 1;} .widget-toolbar{padding:7px 9px;} .widget-grid-scroll{padding:9px;} }
+@media (max-width:700px){ .widget-card.span-2{grid-column:span 1;} .widget-grid-scroll{padding:9px;} }
