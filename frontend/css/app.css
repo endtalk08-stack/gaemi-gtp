@@ -352,7 +352,7 @@ body.panel-resizing * { user-select: none !important; }
 
 
 
-/* 4사이트 패널 엔진 이식: 작업영역 탭 / 플로팅 / 위젯 그리드 */
+/* Workspace widget engine: 작업영역 탭 / 공통 위젯 그리드 / 반응형 1↔2열 */
 body.panel-resizing #gaemiWorkspace #rightPanel { transition: none !important; }
 .right-panel-tabs { display:flex; align-items:center; gap:2px; min-width:0; }
 .right-panel-tab { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 9px; border-radius:7px; color:#71717a; font-size:11px; font-weight:600; white-space:nowrap; cursor:pointer; }
@@ -365,7 +365,7 @@ body.panel-resizing #gaemiWorkspace #rightPanel { transition: none !important; }
 .panel-tab-widget-add { flex:0 0 auto; margin-left:0; }
 .panel-tab-widget-add .widget-action { width:28px; height:28px; border-radius:7px; }
 .widget-grid-scroll { flex:1; min-height:0; overflow:auto; padding:12px; }
-.widget-grid { display:grid; gap:12px; align-content:start; min-height:100%; }
+.widget-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-content:start; min-height:100%; }
 .widget-card { min-width:0; min-height:190px; background:#16171b; border:1px solid #27272a; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
 .widget-card.span-2 { grid-column:span 2; }
 .widget-card-header { height:38px; padding:0 11px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(39,39,42,.75); flex:0 0 auto; }
@@ -392,6 +392,22 @@ body.panel-resizing #gaemiWorkspace #rightPanel { transition: none !important; }
 .metric-value { color:#f4f4f5; font-size:14px; font-weight:800; }
 .placeholder-widget { height:100%; padding:18px; display:flex; flex-direction:column; justify-content:center; color:#71717a; }
 @media (max-width:700px){ .widget-card.span-2{grid-column:span 1;} .widget-grid-scroll{padding:9px;} }
+.workspace-empty {
+  min-height:220px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  color:#71717a;
+  text-align:center;
+  padding:32px;
+}
+.workspace-empty strong { color:#e4e4e7; font-size:12px; }
+.workspace-empty span { max-width:360px; font-size:10px; line-height:1.7; }
+@media (max-width:719px){ .widget-card.span-2{grid-column:span 1;} .widget-grid{grid-template-columns:repeat(1,minmax(0,1fr)) !important;} }
+@media (min-width:720px){ .widget-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;} }
+
 
 /* ================================================================
    LEFT NAV RAIL v1
@@ -469,6 +485,12 @@ body.panel-resizing #gaemiWorkspace #rightPanel { transition: none !important; }
 }
 
 @media (max-width: 1023px) {
+  /* 모바일: 오른쪽 패널을 열면 전역 좌측 세로 내비게이션도 숨겨
+     패널이 진짜 화면 전체 폭을 사용하도록 한다. */
+  body.right-panel-open #leftNavRail {
+    display: none !important;
+  }
+
   #leftNavRail {
     width: 52px;
     flex-basis: 52px;

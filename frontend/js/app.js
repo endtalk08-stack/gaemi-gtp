@@ -322,35 +322,61 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
 // ==================== 4사이트 패널 엔진 이식 ====================
-const PANEL_TABS_KEY = 'gaemiGTP_panel_tabs_v1';
+const PANEL_TABS_KEY = 'gaemiGTP_panel_tabs_v2';
 const PANEL_ACTIVE_TAB_KEY = 'gaemiGTP_panel_active_tab_v1';
 const DEFAULT_WIDGETS = [
-  {id:'chart',type:'chart',title:'차트',icon:'chart-line',span:2},
-  {id:'metrics',type:'metrics',title:'주요지표',icon:'chart-simple',span:1},
-  {id:'financial',type:'financial',title:'재무지표',icon:'file-text',span:1},
-  {id:'economic',type:'economic',title:'경제일정',icon:'calendar-days',span:1},
-  {id:'earnings',type:'earnings',title:'실적일정',icon:'calendar-check',span:1}
+ {id:'chart',type:'chart',title:'차트',icon:'chart-line',span:2},
+ {id:'metrics',type:'metrics',title:'주요지표',icon:'chart-simple',span:1},
+ {id:'financial',type:'financial',title:'재무지표',icon:'file-text',span:1},
+ {id:'economic',type:'economic',title:'경제일정',icon:'calendar-days',span:1},
+ {id:'earnings',type:'earnings',title:'실적일정',icon:'calendar-check',span:1}
 ];
 const WIDGET_META={
- chart:{title:'차트',icon:'chart-line',span:2},metrics:{title:'주요지표',icon:'chart-simple',span:1},
- financial:{title:'재무지표',icon:'file-text',span:1},news:{title:'뉴스',icon:'newspaper',span:1},
- economic:{title:'경제일정',icon:'calendar-days',span:1},earnings:{title:'실적일정',icon:'calendar-check',span:1}
+ chart:{title:'차트',icon:'chart-line',span:2},
+ metrics:{title:'주요지표',icon:'chart-simple',span:1},
+ financial:{title:'재무지표',icon:'file-text',span:1},
+ news:{title:'뉴스',icon:'newspaper',span:1},
+ economic:{title:'경제일정',icon:'calendar-days',span:1},
+ earnings:{title:'실적일정',icon:'calendar-check',span:1}
+};
+const AUTOTRADE_WIDGETS = [
+ {id:'autotrade_status',type:'autotrade_status',title:'자동매매 상태',icon:'bot',span:1,fixed:true},
+ {id:'watchlist',type:'watchlist',title:'Watchlist',icon:'list',span:1,fixed:true}
+];
+const WORKSPACE_DEFAULTS = {
+ dashboard: DEFAULT_WIDGETS.map(x=>({...x})),
+ autotrade: AUTOTRADE_WIDGETS.map(x=>({...x}))
 };
 let panelTabs=[
- {id:'dashboard',label:'대시보드',icon:'layout-dashboard',widgets:DEFAULT_WIDGETS.map(x=>({...x}))},
- {id:'autotrade',label:'자동매매',icon:'bot',widgets:[]}
+ {id:'dashboard',label:'대시보드',icon:'layout-dashboard',widgets:WORKSPACE_DEFAULTS.dashboard.map(x=>({...x}))},
+ {id:'autotrade',label:'자동매매',icon:'bot',widgets:WORKSPACE_DEFAULTS.autotrade.map(x=>({...x}))}
 ];
 let activePanelTab='dashboard';
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function normalizeWorkspaceTab(tab){
+ if(!tab || typeof tab!=='object') return null;
+ if(!Array.isArray(tab.widgets)) tab.widgets=[];
+ tab.widgets=tab.widgets.map((w,i)=>{
+  const meta=WIDGET_META[w.type]||{};
+  return {...w,id:w.id||`${w.type||'widget'}_${i}`,title:w.title||meta.title||'위젯',icon:w.icon||meta.icon||'layout-grid',span:Number(w.span)===2?2:(meta.span||1)};
+ });
+ return tab;
+}
+
 function loadPanelEngineState(){
  try{
-  const t=JSON.parse(localStorage.getItem(PANEL_TABS_KEY)||'null'); if(Array.isArray(t)&&t.length)panelTabs=t;
-  // 대시보드/자동매매는 기본 작업영역으로 항상 존재하도록 보정한다.
-  const dashboard=panelTabs.find(x=>x.id==='dashboard');
-  if(!dashboard) panelTabs.unshift({id:'dashboard',label:'대시보드',icon:'layout-dashboard',widgets:DEFAULT_WIDGETS.map(x=>({...x}))});
-  const autotrade=panelTabs.find(x=>x.id==='autotrade');
-  if(!autotrade) panelTabs.splice(1,0,{id:'autotrade',label:'자동매매',icon:'bot',widgets:[]});
+  const t=JSON.parse(localStorage.getItem(PANEL_TABS_KEY)||'null');
+  if(Array.isArray(t)&&t.length){
+   const normalized=t.map(normalizeWorkspaceTab).filter(Boolean);
+   if(normalized.length)panelTabs=normalized;
+  }
+  let dashboard=panelTabs.find(x=>x.id==='dashboard');
+  if(!dashboard){dashboard={id:'dashboard',label:'대시보드',icon:'layout-dashboard',widgets:WORKSPACE_DEFAULTS.dashboard.map(x=>({...x}))};panelTabs.unshift(dashboard);}
+  let autotrade=panelTabs.find(x=>x.id==='autotrade');
+  if(!autotrade){autotrade={id:'autotrade',label:'자동매매',icon:'bot',widgets:WORKSPACE_DEFAULTS.autotrade.map(x=>({...x}))};panelTabs.splice(1,0,autotrade);}
+  // 기존 저장값이 비어 있던 자동매매 작업영역은 새 공통 위젯 구조로 한 번 보정한다.
+  if(autotrade.widgets.length===0) autotrade.widgets=WORKSPACE_DEFAULTS.autotrade.map(x=>({...x}));
   const a=localStorage.getItem(PANEL_ACTIVE_TAB_KEY); if(a&&panelTabs.some(x=>x.id===a))activePanelTab=a;
  }catch(e){console.warn('[gaemiGTP] panel state:',e);}
 }
@@ -394,15 +420,20 @@ function widgetBody(type){
  if(type==='economic')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">경제 일정</div><div style="font-size:10px;line-height:1.9">CPI 발표 · FOMC · 고용지표 · GDP</div></div>`;
  if(type==='earnings')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">실적 일정</div><div style="font-size:10px;line-height:1.9">삼성전자 · NVIDIA · Apple · Tesla</div></div>`;
  if(type==='news')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">뉴스</div><div style="font-size:10px;line-height:1.8">DeepSeek 뉴스 레이아웃은 다음 단계에서 연결합니다.</div></div>`;
+ if(type==='autotrade_status')return `<div class="metric-grid"><div class="metric-box"><div class="metric-label">SYSTEM</div><div class="metric-value">ONLINE</div></div><div class="metric-box"><div class="metric-label">P&L</div><div class="metric-value">+4.58%</div></div></div>`;
+ if(type==='watchlist')return `<div class="placeholder-widget"><div style="color:#e4e4e7;font-weight:700;font-size:11px;margin-bottom:8px">Watchlist</div><div style="font-size:10px;line-height:1.9">NVDA　TSLA　AAPL　SMCI</div><div style="font-size:10px;line-height:1.8;margin-top:8px">자동매매 파이프라인은 별도 모듈로 연결합니다.</div></div>`;
  return '<div class="placeholder-widget">준비 중</div>';
 }
 function addWidget(tabId,type){const tab=panelTabs.find(x=>x.id===tabId);if(!tab||tab.widgets.some(w=>w.type===type))return;const m=WIDGET_META[type];tab.widgets.push({id:`${type}_${Date.now()}`,type,title:m.title,icon:m.icon,span:m.span});savePanelEngineState();renderPanelEngine();}
 function removeWidget(tabId,id){const tab=panelTabs.find(x=>x.id===tabId);if(!tab)return;tab.widgets=tab.widgets.filter(w=>w.id!==id);savePanelEngineState();renderPanelEngine();}
 function moveWidget(tabId,fromId,toId){const tab=panelTabs.find(x=>x.id===tabId);if(!tab||fromId===toId)return;const a=tab.widgets.findIndex(w=>w.id===fromId),b=tab.widgets.findIndex(w=>w.id===toId);if(a<0||b<0)return;const[m]=tab.widgets.splice(a,1);tab.widgets.splice(b,0,m);savePanelEngineState();renderPanelEngine();}
 function renderWidgetGrid(tab){
- if(tab.id==='autotrade')return `<div class="widget-grid-scroll"><div class="widget-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="widget-card"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="bot" class="w-3 h-3"></i>자동매매 상태</div></div><div class="widget-card-body"><div class="metric-grid"><div class="metric-box"><div class="metric-label">SYSTEM</div><div class="metric-value">ONLINE</div></div><div class="metric-box"><div class="metric-label">P&L</div><div class="metric-value">+4.58%</div></div></div></div></div><div class="widget-card"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="list" class="w-3 h-3"></i>Watchlist</div></div><div class="widget-card-body"><div class="placeholder-widget">NVDA　TSLA　AAPL　SMCI<br><span style="margin-top:8px">자동매매 파이프라인은 별도 모듈로 연결합니다.</span></div></div></div></div></div>`;
- const w=tab.widgets||[];let out=`<div class="widget-engine"><div class="widget-grid-scroll"><div id="panelWidgetGrid" class="widget-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">`;
- w.forEach(widget=>{out+=`<div class="widget-card ${widget.span===2?'span-2':''}" data-widget-id="${widget.id}"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="${widget.icon}" class="w-3 h-3"></i><span>${escapeHtml(widget.title)}</span></div><div class="widget-card-actions"><button class="widget-action widget-drag-handle" title="드래그해서 이동" draggable="true" data-drag-id="${widget.id}"><i data-lucide="grip-vertical" class="w-3 h-3"></i></button><button class="widget-action widget-remove" data-remove-id="${widget.id}" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button></div></div><div class="widget-card-body">${widgetBody(widget.type)}</div></div>`;});
+ const w=tab.widgets||[];
+ if(!w.length){
+  return `<div class="widget-engine"><div class="widget-grid-scroll"><div class="workspace-empty"><i data-lucide="layout-grid" class="w-5 h-5"></i><strong>이 작업영역은 비어 있습니다</strong><span>대시보드에서 위젯을 추가하거나 필요한 작업영역을 만들어 사용할 수 있습니다.</span></div></div></div>`;
+ }
+ let out=`<div class="widget-engine"><div class="widget-grid-scroll"><div id="panelWidgetGrid" class="widget-grid">`;
+ w.forEach(widget=>{out+=`<div class="widget-card ${widget.span===2?'span-2':''} ${widget.fixed?'widget-fixed':''}" data-widget-id="${widget.id}"><div class="widget-card-header"><div class="widget-card-title"><i data-lucide="${widget.icon}" class="w-3 h-3"></i><span>${escapeHtml(widget.title)}</span></div>${widget.fixed?'':`<div class="widget-card-actions"><button class="widget-action widget-drag-handle" title="드래그해서 이동" draggable="true" data-drag-id="${widget.id}"><i data-lucide="grip-vertical" class="w-3 h-3"></i></button><button class="widget-action widget-remove" data-remove-id="${widget.id}" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button></div>`}</div><div class="widget-card-body">${widgetBody(widget.type)}</div></div>`;});
  out+='</div></div></div>';return out;
 }
 function renderPanelEngine(){
@@ -416,7 +447,7 @@ function renderPanelEngine(){
  const scroll=document.getElementById('rightPanelContent');
  const grid=document.getElementById('panelWidgetGrid');
  if(scroll&&grid){
-   const applyCols=()=>{const w=scroll.clientWidth;grid.style.gridTemplateColumns=w<620?'repeat(1,minmax(0,1fr))':w<1200?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))';};
+   const applyCols=()=>{const w=scroll.clientWidth;grid.style.gridTemplateColumns=w<720?'repeat(1,minmax(0,1fr))':'repeat(2,minmax(0,1fr))';};
    applyCols();
    if(window.ResizeObserver){const ro=new ResizeObserver(applyCols);ro.observe(scroll);grid._panelRO=ro;}
  }
