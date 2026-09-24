@@ -13,3 +13,7 @@
 - 최근 본 종목 DB 저장
 - 로그인/계정 연결
 - API/DB 연결
+
+## v7.11
+
+The sidebar shell owns open/close state. The `내 종목` content is mounted by `pages/watchlist/watchlist.js`, keeping the shell and page content separate.

@@ -17,6 +17,8 @@ gaemiGTP/
 │   │   ├── stock-analysis/
 │   │   ├── market/
 │   │   ├── watchlist/
+│   │   │   ├── watchlist.js
+│   │   │   └── README.md
 │   │   ├── dashboard/
 │   │   ├── auto-trade/
 │   │   └── custom-analysis/

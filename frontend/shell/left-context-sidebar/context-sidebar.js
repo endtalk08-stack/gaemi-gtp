@@ -1,4 +1,4 @@
-/* Left Context Sidebar — structural shell only. */
+/* Left Context Sidebar — shell toggle only. Content is mounted by pages/watchlist. */
 (function () {
   'use strict';
 

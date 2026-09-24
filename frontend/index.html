@@ -177,35 +177,7 @@
         <i data-lucide="x" class="w-4 h-4"></i>
       </button>
     </div>
-    <div class="context-sidebar-body">
-      <section class="context-sidebar-section" aria-label="관심종목">
-        <div class="context-sidebar-section-head">
-          <div class="context-sidebar-section-title">관심종목</div>
-          <button type="button" class="context-sidebar-section-action" onclick="focusStockInput()" title="종목 검색으로 추가">+ 추가</button>
-        </div>
-        <div class="context-sidebar-empty">
-          <div class="context-sidebar-empty-icon"><i data-lucide="star" class="w-5 h-5"></i></div>
-          <div class="context-sidebar-empty-title">관심종목을 추가하세요</div>
-          <div class="context-sidebar-empty-copy">나중에 종목을 등록하면 이곳에 모아볼 수 있습니다.</div>
-        </div>
-      </section>
-
-      <div class="context-sidebar-divider"></div>
-
-      <section class="context-sidebar-section" aria-label="최근 본 종목">
-        <div class="context-sidebar-section-head">
-          <div class="context-sidebar-section-title">최근 본 종목</div>
-          <button type="button" class="context-sidebar-section-action" disabled>전체삭제</button>
-        </div>
-        <div class="context-sidebar-empty">
-          <div class="context-sidebar-empty-icon"><i data-lucide="history" class="w-5 h-5"></i></div>
-          <div class="context-sidebar-empty-title">최근 본 종목이 없습니다</div>
-          <div class="context-sidebar-empty-copy">종목을 확인하면 최근 기록이 이곳에 표시됩니다.</div>
-        </div>
-      </section>
-
-      <div class="context-sidebar-note">현재는 화면 구조만 준비되어 있습니다. 저장/DB 연결은 구조가 확정된 뒤 별도 단계에서 진행합니다.</div>
-    </div>
+    <div id="leftContextContent" class="context-sidebar-body" aria-label="내 종목 콘텐츠"></div>
   </aside>
 
   <div id="gaemiWorkspace" class="gaemi-workspace min-w-0 flex-1 flex h-full overflow-hidden relative">
@@ -410,7 +382,8 @@
 
 
   <script src="shell/right-panel/right-panel.js?v=20260924-v76"></script>
-  <script src="shell/left-context-sidebar/context-sidebar.js?v=20260924-v79"></script>
+  <script src="shell/left-context-sidebar/context-sidebar.js?v=20260924-v711"></script>
+  <script src="pages/watchlist/watchlist.js?v=20260924-v711"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20260924-v76"></script>
   <script src="widgets/catalog/catalog.js?v=20260924-v710"></script>
   <script src="shell/main/widget-dock/widget-dock.js?v=20260924-v710"></script>

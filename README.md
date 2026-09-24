@@ -20,3 +20,9 @@ Runtime files are intentionally kept in place until each migration step is verif
 
 중앙 Workspace, 왼쪽 레일/컨텍스트 사이드바, 오른쪽 탭 패널의 큰 구조를 확장할 자리를 마련했다.
 중앙의 `+` 위젯 추가와 왼쪽 레일 기반 관심/최근본 사이드바는 구조만 예약하며 실제 데이터/세부 동작은 다음 단계에서 진행한다.
+
+
+## v7.11 — Left Context Page Boundary
+
+왼쪽 `내 종목` 컨텍스트 사이드바의 외곽 셸과 관심종목/최근 본 종목 콘텐츠를 분리했다.
+현재는 화면 구조만 분리하며 저장/DB/API 연결은 추가하지 않는다.
