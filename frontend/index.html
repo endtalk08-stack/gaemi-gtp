@@ -240,6 +240,7 @@
       </div>
       <div class="flex items-center gap-1">
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
+        <button type="button" onclick="toggleRightPanel()" data-panel-header-toggle data-panel-top="workspace" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="패널 열기/닫기" title="패널 열기/닫기"><i data-panel-toggle-icon="closed" data-lucide="panel-right" class="w-4 h-4"></i><i data-panel-toggle-icon="open" data-lucide="x" class="w-4 h-4 hidden"></i></button>
       </div>
     </header>
 
@@ -294,15 +295,19 @@
 
     <div id="rightPanelResizer" class="panel-resizer" role="separator" aria-label="패널 너비 조절" title="드래그하여 패널 크기 조절"></div>
 
-    <aside id="rightPanel" class="right-panel bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 overflow-hidden" aria-label="패널">
-      <div class="right-panel-header h-16 px-3 flex items-center justify-end border-b border-[#e2e8f0] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 select-none">
+    <aside id="rightPanel" class="right-panel bg-[#f8fafc] dark:bg-[#16171b] border-l border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 overflow-hidden" aria-label="대시보드">
+      <div class="right-panel-header h-16 px-3 flex items-center justify-between border-b border-[#e2e8f0] dark:border-[#27272a] bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 select-none">
+        <div class="flex-1 min-w-0 h-full flex items-center gap-2">
+          <i data-lucide="panel-right" class="w-4 h-4 text-[#64748b] dark:text-[#a1a1aa] shrink-0"></i>
+          <span class="text-[16px] font-black text-[#0f172a] dark:text-white">대시보드</span>
+        </div>
         <div class="flex items-center gap-1 shrink-0">
-          <button type="button" onclick="toggleWidgetMenu()" class="widget-add-btn inline-flex items-center justify-center w-8 h-8 rounded-lg border border-[#3a3c43] bg-transparent text-[#f4f4f5] hover:bg-[#282a30] hover:text-white transition cursor-pointer" style="display:inline-flex!important;visibility:visible!important;opacity:1!important;position:relative;z-index:200;flex:0 0 32px" aria-label="위젯 추가" title="위젯 추가"><span aria-hidden="true" style="font-size:22px;line-height:1;font-weight:400;display:block;color:inherit">＋</span></button>
-          <button type="button" onclick="toggleRightPanelMaximize()" data-panel-maximize class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-[#0f172a] dark:hover:text-white transition" aria-label="패널 최대화" title="패널 최대화">
+          <button type="button" onclick="toggleWidgetMenu()" class="widget-add-btn" aria-label="위젯 추가" title="위젯 추가"><i data-lucide="plus" class="w-4 h-4"></i></button>
+          <button type="button" onclick="toggleRightPanelMaximize()" data-panel-maximize class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-[#0f172a] dark:hover:text-white transition" aria-label="대시보드 최대화" title="대시보드 최대화">
             <i data-panel-maximize-icon="maximize" data-lucide="maximize-2" class="w-4 h-4"></i>
             <i data-panel-maximize-icon="restore" data-lucide="minimize-2" class="w-4 h-4 hidden"></i>
           </button>
-          <button type="button" onclick="toggleRightPanel()" class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="패널 닫기" title="패널 닫기">
+          <button type="button" onclick="toggleRightPanel()" class="icon-hit rounded-lg text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="대시보드 닫기" title="대시보드 닫기">
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>
         </div>
@@ -341,7 +346,7 @@
   </div>
 
 
-  <script src="widgets/news-widget.js?v=20260924-widget-v1"></script>
+  <script src="widgets/news-widget.js?v=20260924-deepseek-layout-v1"></script>
   <script src="js/app.js?v=20260924-widget-panel-v1"></script>
 </body>
 </html>
