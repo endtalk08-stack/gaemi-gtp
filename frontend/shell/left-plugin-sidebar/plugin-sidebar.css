@@ -47,11 +47,6 @@ body.left-plugin-open #leftContextSidebar.context-sidebar {
   font-weight: 800;
   letter-spacing: -0.02em;
 }
-.plugin-sidebar-subtitle {
-  color: var(--gtp-faint);
-  font-size: 10px;
-  margin-top: 2px;
-}
 .plugin-sidebar-close {
   width: 32px; height: 32px; border: 0; border-radius: 9px;
   background: transparent; color: var(--gtp-muted); display: inline-flex;
@@ -60,9 +55,6 @@ body.left-plugin-open #leftContextSidebar.context-sidebar {
 .plugin-sidebar-close:hover { background: var(--gtp-hover); color: var(--gtp-text); }
 .plugin-sidebar-body {
   min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 14px;
-}
-.plugin-sidebar-note {
-  color: var(--gtp-faint); font-size: 9px; line-height: 1.5; margin-bottom: 12px;
 }
 .plugin-widget-list { display: flex; flex-direction: column; gap: 7px; }
 .plugin-widget-item {

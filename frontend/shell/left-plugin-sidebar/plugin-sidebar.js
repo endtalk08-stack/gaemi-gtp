@@ -13,7 +13,6 @@
     const entries = Object.entries(catalog());
     const active = window.GaemiGTPWidgetDock?.getActiveIds ? window.GaemiGTPWidgetDock.getActiveIds() : [];
     el.innerHTML = `
-      <div class="plugin-sidebar-note">필요한 분석 위젯을 골라 중앙 Workspace에 추가하세요.</div>
       <div class="plugin-widget-list">
         ${entries.map(([id, meta]) => {
           const used = active.includes(id);

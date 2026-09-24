@@ -1,41 +1,14 @@
 /* Central Widget Dock — display/remove shell only. Additions come from Plugin sidebar. */
 .central-widget-dock {
-  border-bottom: 1px solid var(--gtp-border);
-  background: var(--gtp-panel-bg);
   flex-shrink: 0;
+  background: transparent;
 }
-
-.central-widget-dock__bar {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.central-widget-dock__bar::-webkit-scrollbar { display: none; }
-
-.central-widget-dock__title {
-  color: var(--gtp-text-2);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.central-widget-dock__hint {
-  color: var(--gtp-faint);
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.central-widget-dock__spacer { flex: 1; }
 
 .central-widget-dock__body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 8px;
-  padding: 0 12px 10px;
+  padding: 10px 12px;
 }
 .central-widget-dock__body:empty { display: none; }
 
@@ -80,6 +53,5 @@
 }
 
 @media (max-width: 640px) {
-  .central-widget-dock__hint { display: none; }
   .central-widget-dock__body { grid-template-columns: 1fr 1fr; }
 }

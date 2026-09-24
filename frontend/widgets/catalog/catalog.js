@@ -6,7 +6,7 @@
   'use strict';
 
   window.GaemiGTPWidgetCatalog = Object.freeze({
-    'why-up':    { title: '왜 올랐을까?', icon: 'sparkles', description: '가격 변동 요인 분석' },
+    'why-up':    { title: '왜 올랐을까?', icon: 'sparkles', description: '가격 변동 요인' },
     'materials': { title: '재료는 있어?', icon: 'newspaper', description: '관련 뉴스·공시·재료' },
     'chart':     { title: '차트', icon: 'chart-candlestick', description: '가격 흐름' },
     'volume':    { title: '거래량', icon: 'chart-column', description: '거래량 흐름' },
