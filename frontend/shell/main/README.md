@@ -1,15 +1,13 @@
-# Main Workspace — 구조 설계 자리
+# Main Shell
 
-중앙 Workspace의 큰 화면 영역을 담당한다.
+중앙 Workspace 전체의 큰 경계를 정의한다.
 
 ```text
-Main Workspace
-└── 상단/화면 상태
-    └── Widget Dock
-        ├── + 위젯 추가
-        ├── 배치된 분석 위젯
-        └── 사용자 화면 상태
+main
+└── workspace
+    ├── header
+    ├── widget-dock
+    └── chat/input area
 ```
 
-현재 단계에서는 실제 위젯 기능과 데이터 연결을 넣지 않는다.
-중앙은 대화/분석 화면을 유지하면서 필요한 위젯을 추가할 수 있는 구조를 예약한다.
+실제 기능은 현재 파일에서 유지하고, 이후 파일별로 하나씩 분리한다.

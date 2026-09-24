@@ -6,9 +6,9 @@ gaemiGTP/
 ├── frontend/
 │   ├── shell/
 │   │   ├── left-nav-rail/
-│   │   │   └── rail-panels/
 │   │   ├── left-market-sidebar/
 │   │   ├── left-context-sidebar/
+│   │   ├── left-plugin-sidebar/
 │   │   ├── main/
 │   │   │   └── widget-dock/
 │   │   └── right-panel/

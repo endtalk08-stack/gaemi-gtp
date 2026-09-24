@@ -15,13 +15,14 @@
   <link rel="stylesheet" href="theme/theme.css?v=20260924-v712">
   <link rel="stylesheet" href="css/app.css?v=20260924-architecture-v712">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20260924-v79">
+  <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20260924-v714">
   <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20260924-v75">
   <link rel="stylesheet" href="shell/right-panel/right-panel-tabs.css?v=20260924-v76">
   <link rel="stylesheet" href="pages/auto-trade/auto-trade.css?v=20260924-v76">
   <link rel="stylesheet" href="pages/dashboard/dashboard.css?v=20260924-v75">
   <link rel="stylesheet" href="shell/main/widget-dock/widget-dock.css?v=20260924-v710" />
 </head>
-<body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-market-closed left-context-closed right-panel-closed">
+<body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-market-closed left-context-closed left-plugin-closed right-panel-closed">
 
   <!-- 모바일 배경 오버레이 -->
   <div id="sidebarBackdrop" onclick="closeAllSidebars()" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity duration-300"></div>
@@ -42,20 +43,14 @@
         <span class="left-nav-rail-logo">g</span>
       </button>
       <div class="left-nav-rail-divider"></div>
-      <button type="button" class="left-nav-rail-btn" onclick="focusStockInput()" aria-label="새 분석" title="새 분석">
-        <i data-lucide="square-pen" class="w-5 h-5"></i>
-      </button>
-      <button type="button" class="left-nav-rail-btn" onclick="focusStockInput()" aria-label="종목 검색" title="종목 검색">
-        <i data-lucide="search" class="w-5 h-5"></i>
-      </button>
-      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftSidebar()" aria-label="시장정보 열기/닫기" title="시장정보 열기/닫기">
+      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftSidebar()" aria-label="시장정보 열기/닫기" title="시장정보">
         <i data-lucide="panel-left" class="w-5 h-5"></i>
       </button>
-      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftContextSidebar()" aria-label="관심종목/최근 본 종목" title="관심종목/최근 본 종목">
+      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftContextSidebar()" aria-label="관심종목/최근 본 종목" title="관심종목">
         <i data-lucide="star" class="w-5 h-5"></i>
       </button>
-      <button type="button" class="left-nav-rail-btn" onclick="toggleRightPanel()" aria-label="패널 열기/닫기" title="패널 열기/닫기">
-        <i data-lucide="message-circle" class="w-5 h-5"></i>
+      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftPluginSidebar()" aria-label="플러그인 위젯 추가" title="플러그인 · 위젯 추가">
+        <i data-lucide="plug" class="w-5 h-5"></i>
       </button>
     </div>
     <div class="left-nav-rail-bottom">
@@ -66,7 +61,7 @@
   </nav>
 
   <!-- 왼쪽 시장정보 패널 -->
-<aside id="leftMarketSidebar" class="market-sidebar bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 h-full overflow-hidden">
+<aside id="leftMarketSidebar" data-shell="left-market-sidebar" class="market-sidebar bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 h-full overflow-hidden">
     <div class="flex-1 overflow-y-auto">
       <!-- 헤더 -->
       <div class="px-4 pt-4 pb-3">
@@ -182,6 +177,20 @@
     <div id="leftContextContent" class="context-sidebar-body" aria-label="내 종목 콘텐츠"></div>
   </aside>
 
+  <!-- 왼쪽 플러그인 사이드바: 위젯 추가 전용 구조 -->
+  <aside id="leftPluginSidebar" class="plugin-sidebar" aria-label="플러그인 위젯 추가" aria-hidden="true">
+    <div class="plugin-sidebar-header">
+      <div>
+        <div class="plugin-sidebar-title">플러그인</div>
+        <div class="plugin-sidebar-subtitle">분석 위젯 추가</div>
+      </div>
+      <button type="button" class="plugin-sidebar-close" onclick="closeLeftPluginSidebar()" aria-label="플러그인 닫기" title="플러그인 닫기">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div id="leftPluginContent" class="plugin-sidebar-body" aria-label="위젯 목록"></div>
+  </aside>
+
   <div id="gaemiWorkspace" class="gaemi-workspace min-w-0 flex-1 flex h-full overflow-hidden relative">
   <main id="mainContent" class="gaemi-main-content relative flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f1013] overflow-hidden min-w-0">
 
@@ -272,14 +281,8 @@
     <section id="centralWidgetDock" class="central-widget-dock" aria-label="중앙 분석 위젯">
       <div class="central-widget-dock__bar">
         <span class="central-widget-dock__title">분석 위젯</span>
-        <span class="central-widget-dock__hint">필요한 분석을 + 로 추가하세요</span>
+        <span class="central-widget-dock__hint">필요한 위젯은 왼쪽 플러그인에서 추가하세요</span>
         <span class="central-widget-dock__spacer"></span>
-        <div class="central-widget-dock__menu-wrap">
-          <button type="button" class="central-widget-dock__add" data-central-widget-add-toggle aria-expanded="false" aria-label="분석 위젯 추가" title="분석 위젯 추가">
-            <i data-lucide="plus" class="w-4 h-4"></i>
-          </button>
-          <div id="centralWidgetDockMenu" class="central-widget-dock__menu" hidden></div>
-        </div>
       </div>
       <div id="centralWidgetDockBody" class="central-widget-dock__body"></div>
     </section>
@@ -388,7 +391,8 @@
   <script src="pages/watchlist/watchlist.js?v=20260924-v711"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20260924-v76"></script>
   <script src="widgets/catalog/catalog.js?v=20260924-v710"></script>
-  <script src="shell/main/widget-dock/widget-dock.js?v=20260924-v710"></script>
+  <script src="shell/left-plugin-sidebar/plugin-sidebar.js?v=20260924-v714"></script>
+  <script src="shell/main/widget-dock/widget-dock.js?v=20260924-v714"></script>
   <script src="theme/theme.js?v=20260924-v712"></script>
   <script src="widgets/market-state/market-state.js?v=20260924-v76"></script>
   <script src="pages/auto-trade/auto-trade.js?v=20260924-v76"></script>

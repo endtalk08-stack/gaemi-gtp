@@ -1,4 +1,4 @@
-/* Central Widget Dock — structural UI only. */
+/* Central Widget Dock — display/remove shell only. Additions come from Plugin sidebar. */
 .central-widget-dock {
   border-bottom: 1px solid var(--gtp-border);
   background: var(--gtp-panel-bg);
@@ -30,64 +30,6 @@
 }
 
 .central-widget-dock__spacer { flex: 1; }
-
-.central-widget-dock__add {
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--gtp-border-strong);
-  border-radius: 8px;
-  background: var(--gtp-surface);
-  color: var(--gtp-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.central-widget-dock__add:hover {
-  background: var(--gtp-hover);
-  color: var(--gtp-text);
-}
-
-.central-widget-dock__menu-wrap { position: relative; }
-.central-widget-dock__menu {
-  position: absolute;
-  top: 34px;
-  right: 0;
-  z-index: 80;
-  width: 220px;
-  padding: 6px;
-  border: 1px solid var(--gtp-border-strong);
-  border-radius: 12px;
-  background: var(--gtp-surface);
-  box-shadow: 0 18px 40px rgba(0,0,0,.36);
-}
-.central-widget-dock__menu[hidden] { display: none; }
-.central-widget-dock__menu-title {
-  padding: 7px 8px;
-  color: var(--gtp-faint);
-  font-size: 9px;
-  font-weight: 700;
-}
-.central-widget-dock__menu-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 9px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #d4d4d8;
-  text-align: left;
-  cursor: pointer;
-}
-.central-widget-dock__menu-item:hover { background: var(--gtp-hover); color: var(--gtp-text); }
-.central-widget-dock__menu-item.is-active { opacity: .45; cursor: default; }
-.central-widget-dock__menu-item i { width: 14px; color: var(--gtp-muted); }
-.central-widget-dock__menu-meta { min-width: 0; }
-.central-widget-dock__menu-label { font-size: 11px; font-weight: 600; }
-.central-widget-dock__menu-desc { margin-top: 2px; font-size: 9px; color: var(--gtp-faint); }
 
 .central-widget-dock__body {
   display: grid;

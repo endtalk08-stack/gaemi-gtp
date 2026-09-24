@@ -9,7 +9,7 @@
     if (typeof window.workspaceUIReady !== 'undefined' && !window.workspaceUIReady) return;
 
     if (!isOpen) {
-      body.classList.remove('left-market-open');
+      body.classList.remove('left-market-open', 'left-plugin-open');
       if (window.innerWidth < 1024) {
         body.classList.remove('right-panel-open', 'right-panel-maximized');
       }
