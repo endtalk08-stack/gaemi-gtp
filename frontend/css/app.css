@@ -356,10 +356,16 @@ body.panel-resizing * { user-select: none !important; }
 
 
 @media (max-width: 1023px) {
-  /* 모바일에서는 세로 레일을 항상 숨긴다.
-     왼쪽 컨텍스트/플러그인 사이드바를 열어도 레일이 다시 나타나지 않는다. */
+  /* 모바일에서는 기본적으로 세로 레일을 숨긴다.
+     단, 왼쪽 사이드바(시장정보/내 종목/플러그인)를 열면 레일을 함께 표시한다.
+     오른쪽 패널을 열었을 때는 아래 right-panel-open 규칙이 우선해 전체 화면을 사용한다. */
   #leftNavRail {
     display: none !important;
+  }
+  body.left-market-open #leftNavRail,
+  body.left-context-open #leftNavRail,
+  body.left-plugin-open #leftNavRail {
+    display: flex !important;
   }
 
   #leftMarketSidebar.market-sidebar {
