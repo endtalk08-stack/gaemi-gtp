@@ -343,6 +343,11 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 function loadPanelEngineState(){
  try{
   const t=JSON.parse(localStorage.getItem(PANEL_TABS_KEY)||'null'); if(Array.isArray(t)&&t.length)panelTabs=t;
+  // 대시보드/자동매매는 기본 작업영역으로 항상 존재하도록 보정한다.
+  const dashboard=panelTabs.find(x=>x.id==='dashboard');
+  if(!dashboard) panelTabs.unshift({id:'dashboard',label:'대시보드',icon:'layout-dashboard',widgets:DEFAULT_WIDGETS.map(x=>({...x}))});
+  const autotrade=panelTabs.find(x=>x.id==='autotrade');
+  if(!autotrade) panelTabs.splice(1,0,{id:'autotrade',label:'자동매매',icon:'bot',widgets:[]});
   const a=localStorage.getItem(PANEL_ACTIVE_TAB_KEY); if(a&&panelTabs.some(x=>x.id===a))activePanelTab=a;
   panelFloating=localStorage.getItem(PANEL_FLOAT_KEY)==='1';
  }catch(e){console.warn('[gaemiGTP] panel state:',e);}
@@ -352,7 +357,8 @@ function renderPanelTabs(){
  const el=document.getElementById('workspaceTabs');if(!el)return;el.className='right-panel-tabs';el.innerHTML='';
  panelTabs.forEach(tab=>{
   const b=document.createElement('button');b.type='button';b.className='right-panel-tab'+(tab.id===activePanelTab?' active':'');
-  b.innerHTML=`<i data-lucide="${tab.icon}" class="w-3 h-3"></i><span>${escapeHtml(tab.label)}</span>${panelTabs.length>1?'<span class="tab-close" title="탭 닫기">×</span>':''}`;
+  const isFixedTab = tab.id==='dashboard' || tab.id==='autotrade';
+  b.innerHTML=`<i data-lucide="${tab.icon}" class="w-3 h-3"></i><span>${escapeHtml(tab.label)}</span>${isFixedTab?'': '<span class="tab-close" title="탭 닫기">×</span>'}`;
   b.addEventListener('click',e=>{if(e.target.classList.contains('tab-close')){removeWorkspaceTab(tab.id,e);return;}activePanelTab=tab.id;savePanelEngineState();renderPanelEngine();});
   el.appendChild(b);
   // 대시보드 탭 바로 옆의 +는 '위젯 추가', 헤더 우측의 +는 '작업영역 추가'로 역할을 분리한다.
@@ -364,8 +370,20 @@ function renderPanelTabs(){
  });
  if(window.lucide)lucide.createIcons();
 }
-function addWorkspaceTab(){const id='workspace_'+Date.now();panelTabs.push({id,label:`분석 #${panelTabs.length+1}`,icon:'chart-no-axes-combined',widgets:[]});activePanelTab=id;savePanelEngineState();renderPanelEngine();}
-function removeWorkspaceTab(id,e){e?.stopPropagation();if(panelTabs.length<=1)return;panelTabs=panelTabs.filter(x=>x.id!==id);if(activePanelTab===id)activePanelTab=panelTabs[0].id;savePanelEngineState();renderPanelEngine();}
+function addWorkspaceTab(){
+ const id='workspace_'+Date.now();
+ let n=2; while(panelTabs.some(x=>x.label===`분석 ${n}`))n++;
+ panelTabs.push({id,label:`분석 ${n}`,icon:'chart-no-axes-combined',widgets:[]});
+ activePanelTab=id;savePanelEngineState();renderPanelEngine();
+}
+function removeWorkspaceTab(id,e){
+ e?.stopPropagation();
+ // 기본 작업영역(대시보드/자동매매)은 닫지 않는다.
+ if(id==='dashboard'||id==='autotrade')return;
+ panelTabs=panelTabs.filter(x=>x.id!==id);
+ if(!panelTabs.some(x=>x.id===activePanelTab))activePanelTab='dashboard';
+ savePanelEngineState();renderPanelEngine();
+}
 function toggleRightPanelFloating(){
  panelFloating=!panelFloating;document.body.classList.toggle('right-panel-floating',panelFloating);savePanelEngineState();
  const b=document.querySelector('[data-panel-floating]');if(b)b.innerHTML=`<i data-lucide="${panelFloating?'minimize-2':'maximize-2'}" class="w-4 h-4"></i>`;if(window.lucide)lucide.createIcons();
