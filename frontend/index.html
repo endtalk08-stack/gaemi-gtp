@@ -64,13 +64,13 @@
 <aside id="leftMarketSidebar" data-shell="left-market-sidebar" class="market-sidebar bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 h-full overflow-hidden">
     <div class="flex-1 overflow-y-auto">
       <!-- 헤더 -->
-      <div class="px-4 pt-4 pb-3">
-        <div class="flex items-center justify-between gap-3">
+      <div class="market-sidebar-header">
+        <div class="flex items-center justify-between gap-3 w-full">
           <div class="flex items-center gap-2 min-w-0 whitespace-nowrap">
-            <div class="text-[17px] font-black tracking-tight text-[#0f172a] dark:text-white">실시간</div>
-            <div class="text-[10px] text-[#64748b] dark:text-[#71717a]">/ 오늘 12:00 기준</div>
+            <div class="market-sidebar-title">실시간</div>
+            <div class="market-sidebar-subtitle">/ 오늘 12:00 기준</div>
           </div>
-          <button type="button" onclick="toggleLeftSidebar()" class="icon-hit shrink-0 rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#eef2f7] dark:hover:bg-[#202228] hover:text-white transition" aria-label="시장정보 닫기" title="시장정보 닫기">
+          <button type="button" onclick="toggleLeftSidebar()" class="market-sidebar-close" aria-label="시장정보 닫기" title="시장정보 닫기">
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>
         </div>

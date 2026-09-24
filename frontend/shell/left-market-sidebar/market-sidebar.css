@@ -3,3 +3,42 @@
   min-width: 0;
   min-height: 0;
 }
+
+/* Market sidebar header — match the left plugin/context sidebar header geometry */
+.market-sidebar-header {
+  height: 64px;
+  flex: 0 0 64px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--gtp-border);
+  background: var(--gtp-bg);
+}
+.market-sidebar-title {
+  color: var(--gtp-text);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.market-sidebar-subtitle {
+  color: var(--gtp-faint);
+  font-size: 10px;
+  margin-top: 0;
+}
+.market-sidebar-close {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--gtp-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.market-sidebar-close:hover {
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
+}
