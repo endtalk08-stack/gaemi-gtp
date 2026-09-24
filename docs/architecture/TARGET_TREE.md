@@ -6,14 +6,20 @@ gaemiGTP/
 ├── frontend/
 │   ├── shell/
 │   │   ├── left-nav-rail/
+│   │   │   └── rail-panels/
 │   │   ├── left-market-sidebar/
+│   │   ├── left-context-sidebar/
 │   │   ├── main/
+│   │   │   └── widget-dock/
 │   │   └── right-panel/
 │   ├── pages/
 │   │   ├── home/
 │   │   ├── stock-analysis/
 │   │   ├── market/
-│   │   └── dashboard/
+│   │   ├── watchlist/
+│   │   ├── dashboard/
+│   │   ├── auto-trade/
+│   │   └── custom-analysis/
 │   ├── widgets/
 │   │   ├── why-up/
 │   │   ├── materials/
@@ -25,7 +31,8 @@ gaemiGTP/
 │   │   ├── chart/
 │   │   ├── ranking/
 │   │   ├── economic/
-│   │   └── earnings/
+│   │   ├── earnings/
+│   │   └── market-state/
 │   ├── user/
 │   └── admin/
 │
@@ -42,4 +49,5 @@ gaemiGTP/
     └── utils/
 ```
 
-이 구조는 목표 구조다. 폴더를 미리 만들었지만 아직 모든 코드를 이동하거나 연결하지 않는다.
+이 구조는 큰 영역의 자리만 먼저 확정하는 목표 구조다.
+실제 코드는 기능별로 검증하면서 하나씩 이동/연결한다.

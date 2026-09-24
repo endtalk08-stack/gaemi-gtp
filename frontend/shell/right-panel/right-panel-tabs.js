@@ -138,12 +138,27 @@
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function mountTabPage(tab) {
+    if (!tab) return;
+    if (tab.id === 'auto-trade') {
+      const root = document.getElementById('rightPanelAutoTrade');
+      if (root && window.GaemiGTPAutoTrade && typeof window.GaemiGTPAutoTrade.mount === 'function') {
+        window.GaemiGTPAutoTrade.mount(root);
+      }
+      return;
+    }
+  }
+
   function setActiveTab(id, persist = true) {
     if (!tabs.some(t => t.id === id)) return;
     activeTabId = id;
 
     tabs.forEach(tab => {
-      if (tab.id !== 'dashboard' && !getView(tab.id)) makePlaceholderView(tab);
+      if (tab.id === 'auto-trade') {
+        mountTabPage(tab);
+      } else if (tab.id !== 'dashboard' && !getView(tab.id)) {
+        makePlaceholderView(tab);
+      }
     });
 
     document.querySelectorAll('[data-tab-view]').forEach(view => {
