@@ -294,20 +294,47 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       window.workspaceUIReady = true;
       const savedWidth = parseInt(saved?.panelWidth || localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
 
-      // Workspace가 렌더링된 다음 저장된 패널 폭을 적용한다.
-      setTimeout(() => {
-        setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360);
-        applySidebarState();
-        restoringWorkspaceState = false;
-        saveWorkspaceState();
-
-        // 마지막으로 종목분석 화면을 보고 있었다면 같은 종목으로 다시 분석 화면을 구성한다.
-        const currentHero = document.getElementById('mainHeroView');
-        const shouldRestoreAnalysis = saved?.mode === 'analysis' && currentHero && currentHero.classList.contains('hidden');
-        if (shouldRestoreAnalysis) {
-          requestStock(activeStock || '삼성전자');
+      // Workspace가 렌더링된 다음 저장된 상태를 적용한다.
+      // 레이아웃/쉘 모듈의 초기화 타이밍 때문에 첫 프레임에서 상태가 덮어써지는 것을 막기 위해
+      // 두 프레임 뒤에 한 번 더 복원한다. 사용자가 마지막으로 만들어 둔 상태가 새로고침 후에도 그대로 유지된다.
+      const restoreWorkspace = () => {
+        if (saved?.rightPanelOpen) document.body.classList.add('right-panel-open');
+        else document.body.classList.remove('right-panel-open');
+        if (saved?.rightPanelMaximized && saved?.rightPanelOpen) {
+          document.body.classList.add('right-panel-maximized');
+        } else {
+          document.body.classList.remove('right-panel-maximized');
         }
-      }, 0);
+        if (saved?.leftMarketOpen) document.body.classList.add('left-market-open');
+        else document.body.classList.remove('left-market-open');
+        if (saved?.leftContextOpen) document.body.classList.add('left-context-open');
+        else document.body.classList.remove('left-context-open');
+        if (saved?.leftPluginOpen) document.body.classList.add('left-plugin-open');
+        else document.body.classList.remove('left-plugin-open');
+        if (saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-market-open');
+        if (saved?.leftContextOpen) document.body.classList.remove('left-plugin-open');
+        if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
+
+        if (!document.body.classList.contains('right-panel-maximized')) {
+          setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360);
+        }
+        applySidebarState();
+      };
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          restoreWorkspace();
+          restoringWorkspaceState = false;
+          saveWorkspaceState();
+
+          // 마지막으로 종목분석 화면을 보고 있었다면 같은 종목으로 다시 분석 화면을 구성한다.
+          const currentHero = document.getElementById('mainHeroView');
+          const shouldRestoreAnalysis = saved?.mode === 'analysis' && currentHero && currentHero.classList.contains('hidden');
+          if (shouldRestoreAnalysis) {
+            requestStock(activeStock || '삼성전자');
+          }
+        });
+      });
     }
 
     function initializeWorkspaceInteractions() {
@@ -1226,6 +1253,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         downLbl.innerText = '하락 39%';
       }
     }
+
+window.addEventListener('pagehide', () => {
+  // 페이지를 떠나거나 새로고침할 때 마지막 실제 UI 상태를 즉시 저장한다.
+  // 다음 로드에서 오른쪽 패널의 열림/최대화/폭 상태가 바뀌지 않도록 한다.
+  try { saveWorkspaceState(); } catch (e) { /* noop */ }
+});
 
 window.addEventListener('resize', () => {
   if (!document.body.classList.contains('right-panel-maximized')) {
