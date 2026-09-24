@@ -446,3 +446,38 @@ body.panel-resizing * { user-select: none !important; }
 }
 
 
+
+/* ================================================================
+   Mobile Panel Mode v1
+   - When the right panel opens on mobile, the vertical rail disappears.
+   - The market sidebar is already hidden; the workspace expands to the full viewport.
+   ================================================================ */
+@media (max-width: 1023px) {
+  body.mobile-panel-mode #leftNavRail,
+  body.mobile-panel-mode #leftMarketSidebar.market-sidebar {
+    display: none !important;
+    width: 0 !important;
+    flex: 0 0 0 !important;
+  }
+
+  body.mobile-panel-mode #gaemiWorkspace {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  body.mobile-panel-mode #gaemiWorkspace #mainContent,
+  body.mobile-panel-mode #gaemiWorkspace #rightPanelResizer {
+    display: none !important;
+  }
+
+  body.mobile-panel-mode #gaemiWorkspace #rightPanel {
+    display: flex !important;
+    flex: 0 0 100dvw !important;
+    width: 100dvw !important;
+    max-width: 100dvw !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+}

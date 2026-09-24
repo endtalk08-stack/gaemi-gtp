@@ -74,6 +74,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const onHero = !!heroView && !heroView.classList.contains('hidden');
       document.body.classList.toggle('left-market-closed', !marketOpen);
       document.body.classList.toggle('right-panel-closed', !panelOpen);
+      // 모바일에서 오른쪽 패널이 열리면 세로 레일/시장 사이드바를 완전히 제외하고
+      // 패널이 화면 전체 폭을 사용할 수 있도록 명시적인 상태 클래스를 둔다.
+      document.body.classList.toggle('mobile-panel-mode', mobile && panelOpen);
 
       if (market) market.setAttribute('aria-hidden', marketOpen ? 'false' : 'true');
       if (panel) panel.setAttribute('aria-hidden', panelOpen ? 'false' : 'true');
