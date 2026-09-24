@@ -15,6 +15,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function setPanelWidth(px) {
+      const shell = window.GaemiGTPRightPanelShell;
+      if (shell?.setPanelWidth) return shell.setPanelWidth(px);
       const workspace = getWorkspace();
       if (!workspace) return;
       const rect = workspace.getBoundingClientRect();
@@ -287,40 +289,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function initializeWorkspaceInteractions() {
-      const workspace = getWorkspace();
-      const resizer = document.getElementById('rightPanelResizer');
-      const panel = document.getElementById('rightPanel');
-      if (!workspace || !resizer || !panel) return;
-
-      // 왼쪽 시장정보 열림/닫힘이나 창 크기 변경으로 Workspace 폭이 바뀌어도
-      // 저장된 패널 폭이 본문을 과도하게 침범하지 않도록 자동으로 다시 맞춘다.
-      if (window.ResizeObserver) {
-        const observer = new ResizeObserver(() => {
-          if (document.body.classList.contains('right-panel-maximized')) return;
-          const current = parseInt(getComputedStyle(workspace).getPropertyValue('--right-panel-width') || '360', 10);
-          setPanelWidth(Number.isFinite(current) ? current : 360);
-        });
-        observer.observe(workspace);
+      const shell = window.GaemiGTPRightPanelShell;
+      if (shell?.initializeWorkspaceInteractions) {
+        shell.initializeWorkspaceInteractions();
+        return;
       }
-
-      resizer.addEventListener('pointerdown', (event) => {
-        if (!document.body.classList.contains('right-panel-open') || document.body.classList.contains('right-panel-maximized')) return;
-        event.preventDefault();
-        const rect = workspace.getBoundingClientRect();
-        const onMove = (moveEvent) => {
-          // 패널은 항상 workspace 오른쪽에 고정한다.
-          const width = rect.right - moveEvent.clientX;
-          setPanelWidth(width);
-        };
-        const onUp = () => {
-          window.removeEventListener('pointermove', onMove);
-          window.removeEventListener('pointerup', onUp);
-          document.body.classList.remove('panel-resizing');
-        };
-        document.body.classList.add('panel-resizing');
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp, { once: true });
-      });
     }
 
     function updateThemeButtons() {

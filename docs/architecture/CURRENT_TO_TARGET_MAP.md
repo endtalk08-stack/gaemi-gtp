@@ -15,3 +15,9 @@
 | `backend/cache/` | `backend/cache/` | 유지 |
 | `frontend/admin/` | `frontend/admin/` | 사용자 화면과 분리 유지 |
 | `/admin` API/기능 | `backend/admin/` | 사용자 API와 분리 대상 |
+
+
+## Phase 2.1 완료
+- 오른쪽 패널 폭/리사이즈 컨트롤 → `frontend/shell/right-panel/right-panel.js`
+- 오른쪽 패널 shell 스타일 → `frontend/shell/right-panel/right-panel.css`
+- 패널의 열기/닫기/최대화 상태 전환은 현재 `frontend/js/app.js`에서 유지 (다음 분리 단계에서 검토)

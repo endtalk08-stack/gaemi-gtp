@@ -1,0 +1,77 @@
+/* Right Panel Shell — v7.2
+   이 파일은 오른쪽 패널의 배치/크기/리사이즈만 담당한다.
+   데이터, 분석, 위젯 내용은 이 파일에 넣지 않는다.
+*/
+
+#gaemiWorkspace #rightPanel {
+  order: 3;
+  flex: 0 0 var(--right-panel-width);
+  width: var(--right-panel-width);
+  min-width: 280px;
+  max-width: 1200px;
+  height: 100%;
+  transition: width .2s ease, flex-basis .2s ease;
+}
+
+@media (min-width: 1024px) {
+  body.right-panel-maximized #gaemiWorkspace #mainContent {
+    display: none !important;
+  }
+  body.right-panel-maximized #gaemiWorkspace #rightPanelResizer {
+    display: none !important;
+  }
+  body.right-panel-maximized #gaemiWorkspace #rightPanel {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+}
+
+#gaemiWorkspace #rightPanelResizer {
+  order: 2;
+  flex: 0 0 5px;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background .15s ease;
+  z-index: 20;
+}
+#gaemiWorkspace #rightPanelResizer:hover,
+body.panel-resizing #gaemiWorkspace #rightPanelResizer {
+  background: rgba(113,113,122,.28);
+}
+
+body.right-panel-closed #rightPanel,
+body.right-panel-closed #rightPanelResizer,
+body:not(.right-panel-open) #rightPanel,
+body:not(.right-panel-open) #rightPanelResizer {
+  display: none !important;
+}
+
+@media (max-width: 1023px) {
+  #gaemiWorkspace #rightPanel {
+    flex-basis: min(var(--right-panel-width), 100vw);
+    width: min(var(--right-panel-width), 100vw);
+    min-width: 240px;
+  }
+
+  /* 모바일에서 패널은 화면 전체를 사용한다. */
+  body.right-panel-open #gaemiWorkspace #mainContent {
+    display: none !important;
+  }
+  body.right-panel-open #gaemiWorkspace #rightPanelResizer {
+    display: none !important;
+  }
+  body.right-panel-open #gaemiWorkspace #rightPanel {
+    flex: 0 0 100dvw !important;
+    width: 100dvw !important;
+    max-width: 100dvw !important;
+    min-width: 0 !important;
+  }
+
+  #rightPanel [data-panel-maximize] {
+    display: none !important;
+  }
+}
