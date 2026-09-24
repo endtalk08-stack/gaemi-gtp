@@ -130,3 +130,7 @@
   .right-panel-dashboard__head { margin-bottom: 12px; }
   .right-panel-dashboard__status { display: none; }
 }
+
+.dashboard-widget-slot__mount {
+  display: none;
+}

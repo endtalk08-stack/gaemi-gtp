@@ -99,3 +99,8 @@ frontend/widgets/trading-value/.gitkeep
 frontend/widgets/volume/.gitkeep
 frontend/widgets/why-up/.gitkeep
 requirements.txt
+
+[v7.4] Added independent first Dashboard widget:
+- frontend/widgets/market-state/README.md
+- frontend/widgets/market-state/market-state.css
+- frontend/widgets/market-state/market-state.js

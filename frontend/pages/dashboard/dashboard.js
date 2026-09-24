@@ -6,7 +6,7 @@
   'use strict';
 
   const WIDGET_SLOTS = [
-    { id: 'market-state', title: '시장 상태', icon: 'activity', description: '시장 상태 위젯 영역' },
+    { id: 'market-state', title: '시장 상태', icon: 'activity', description: '시장 상태 위젯 영역', widgetKey: 'market-state' },
     { id: 'chart', title: '차트', icon: 'chart-candlestick', description: '차트 위젯 영역' },
     { id: 'volume', title: '거래량', icon: 'bar-chart-3', description: '거래량 위젯 영역' },
     { id: 'trading-value', title: '거래대금', icon: 'wallet', description: '거래대금 위젯 영역' },
@@ -29,7 +29,17 @@
         <span class="dashboard-widget-slot__title">${slot.title}</span>
       </div>
       <div class="dashboard-widget-slot__body">${slot.description}</div>
+      <div class="dashboard-widget-slot__mount"></div>
     `;
+
+    const widget = slot.widgetKey && window.GaemiGTPWidgets
+      ? window.GaemiGTPWidgets[slot.widgetKey]
+      : null;
+    if (widget && typeof widget.mount === 'function') {
+      widget.mount(article.querySelector('.dashboard-widget-slot__mount'));
+      article.classList.add('dashboard-widget-slot--mounted');
+    }
+
     return article;
   }
 
