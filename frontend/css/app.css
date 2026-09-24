@@ -481,3 +481,77 @@ body.panel-resizing * { user-select: none !important; }
     margin: 0 !important;
   }
 }
+
+
+/* ================================================================
+   MOBILE NAV MODE v2
+   - 모바일에서는 왼쪽 세로 레일을 항상 숨긴다.
+   - 메인 상단의 좌/우 열기 버튼을 사용한다.
+   - 왼쪽 시장정보는 본문을 밀지 않고 오버레이로 연다.
+   - 오른쪽 패널은 기존처럼 화면 전체를 사용한다.
+   ================================================================ */
+@media (max-width: 1023px) {
+  /* 모바일에서 세로 아이콘 레일은 공간을 차지하지 않는다. */
+  #leftNavRail {
+    display: none !important;
+    width: 0 !important;
+    flex: 0 0 0 !important;
+  }
+
+  /* Workspace는 모바일 전체 너비를 기준으로 잡는다. */
+  #gaemiWorkspace {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 100% !important;
+  }
+
+  /* 왼쪽 시장정보는 모바일에서 슬라이드 오버레이로 표시한다. */
+  #leftMarketSidebar.market-sidebar {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    height: 100dvh !important;
+    width: min(300px, 86vw) !important;
+    max-width: 86vw !important;
+    flex: 0 0 auto !important;
+    z-index: 80 !important;
+    transform: translateX(-105%) !important;
+    transition: transform .22s ease !important;
+    overflow: hidden !important;
+    box-shadow: 16px 0 40px rgba(0,0,0,.28) !important;
+    pointer-events: none !important;
+  }
+
+  body.left-market-open #leftMarketSidebar.market-sidebar {
+    transform: translateX(0) !important;
+    pointer-events: auto !important;
+  }
+
+  /* 닫힌 상태의 기존 width:0 규칙보다 모바일 오버레이 규칙을 우선한다. */
+  body.left-market-closed #leftMarketSidebar.market-sidebar {
+    width: min(300px, 86vw) !important;
+    flex-basis: auto !important;
+    border-right-width: 1px !important;
+  }
+
+  /* 패널이 열리면 좌측 오버레이도 완전히 제외한다. */
+  body.right-panel-open #leftMarketSidebar.market-sidebar,
+  body.mobile-panel-mode #leftMarketSidebar.market-sidebar {
+    transform: translateX(-105%) !important;
+    pointer-events: none !important;
+  }
+
+  /* 모바일에서는 패널이 항상 뷰포트 전체를 사용한다. */
+  body.right-panel-open #gaemiWorkspace #rightPanel {
+    flex: 0 0 100dvw !important;
+    width: 100dvw !important;
+    max-width: 100dvw !important;
+    min-width: 0 !important;
+  }
+
+  /* 패널/시장정보 오버레이보다 배경만 받치게 한다. */
+  #sidebarBackdrop {
+    z-index: 70 !important;
+  }
+}
