@@ -3,7 +3,7 @@
    데이터/API/DB/분석 로직은 넣지 않는다.
 */
 
-.right-panel-dashboard {
+#rightPanelDashboard {
   min-height: 100%;
   padding: 10px 12px;
   box-sizing: border-box;
