@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
-  <link rel="stylesheet" href="css/app.css?v=20260923-sidebar-refresh-fix-v2">
+  <link rel="stylesheet" href="css/app.css?v=20260924-left-rail-v1">
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-market-closed right-panel-closed">
 
@@ -26,6 +26,33 @@
       <p class="text-xs text-[#64748b] dark:text-[#a1a1aa] font-bold">10초 핵심 리포트를 확인해봐!</p>
     </div>
   </div>
+
+  <!-- 왼쪽 세로 내비게이션 레일: 화면 구조용 UI. 기능 연결은 이후 단계에서 확정한다. -->
+  <nav id="leftNavRail" aria-label="gaemiGTP 기본 메뉴">
+    <div class="left-nav-rail-top">
+      <button type="button" class="left-nav-rail-btn left-nav-rail-brand" onclick="resetToHome()" aria-label="gaemiGTP 홈" title="gaemiGTP 홈">
+        <span class="left-nav-rail-logo">g</span>
+      </button>
+      <div class="left-nav-rail-divider"></div>
+      <button type="button" class="left-nav-rail-btn" onclick="focusStockInput()" aria-label="새 분석" title="새 분석">
+        <i data-lucide="square-pen" class="w-5 h-5"></i>
+      </button>
+      <button type="button" class="left-nav-rail-btn" onclick="focusStockInput()" aria-label="종목 검색" title="종목 검색">
+        <i data-lucide="search" class="w-5 h-5"></i>
+      </button>
+      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftSidebar()" aria-label="시장정보 열기/닫기" title="시장정보 열기/닫기">
+        <i data-lucide="panel-left" class="w-5 h-5"></i>
+      </button>
+      <button type="button" class="left-nav-rail-btn" onclick="toggleRightPanel()" aria-label="패널 열기/닫기" title="패널 열기/닫기">
+        <i data-lucide="message-circle" class="w-5 h-5"></i>
+      </button>
+    </div>
+    <div class="left-nav-rail-bottom">
+      <button type="button" class="left-nav-rail-btn" aria-label="로그인 / 계정" title="로그인 / 계정">
+        <i data-lucide="circle-user-round" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </nav>
 
   <!-- 왼쪽 시장정보 패널 -->
 <aside id="leftMarketSidebar" class="market-sidebar bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 h-full overflow-hidden">
@@ -321,6 +348,6 @@
   </div>
 
 
-  <script src="js/app.js?v=20260923-sidebar-refresh-fix-v2"></script>
+  <script src="js/app.js?v=20260924-left-rail-v1"></script>
 </body>
 </html>

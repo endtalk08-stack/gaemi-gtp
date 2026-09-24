@@ -134,6 +134,16 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       requestStock(stockName || '삼성전자');
     }
 
+    function focusStockInput() {
+      const hero = document.getElementById('heroStockInput');
+      const bottom = document.getElementById('bottomStockInput');
+      const heroVisible = !!hero && !hero.closest('.hidden') && getComputedStyle(hero).display !== 'none';
+      const target = heroVisible ? hero : bottom;
+      if (!target) return;
+      target.focus();
+      target.select?.();
+    }
+
     function handleHeroSearch() {
       const val = document.getElementById('heroStockInput').value;
       switchToAnalysisMode(val || '삼성전자');
