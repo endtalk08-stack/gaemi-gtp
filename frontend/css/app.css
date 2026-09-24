@@ -375,3 +375,21 @@ body.panel-resizing * { user-select: none !important; }
 }
 
 
+
+/* ================================================================
+   LEFT CONTEXT SIDEBAR — layout bridge
+   ================================================================ */
+body.left-context-open #sidebarBackdrop {
+  display: none;
+}
+body.left-context-open #gaemiWorkspace {
+  min-width: 0;
+}
+@media (max-width: 1023px) {
+  body.left-context-open #leftMarketSidebar.market-sidebar {
+    display: none !important;
+  }
+  body.left-context-open #sidebarBackdrop {
+    display: block;
+  }
+}
