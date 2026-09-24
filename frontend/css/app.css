@@ -294,8 +294,8 @@
 }
 
 #leftMarketSidebar.market-sidebar {
-  width: 320px;
-  flex: 0 0 320px;
+  width: 350px;
+  flex: 0 0 350px;
   transition: width .25s ease, flex-basis .25s ease;
   min-width: 0;
   position: relative;
@@ -330,7 +330,7 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 #gaemiWorkspace #mainContent {
   order: 1;
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: 340px;
 }
 
 

@@ -3,8 +3,8 @@
    - 시장정보/내 종목 사이드바와 한 번에 하나만 표시
 */
 #leftPluginSidebar.plugin-sidebar {
-  width: 320px;
-  flex: 0 0 320px;
+  width: 350px;
+  flex: 0 0 350px;
   min-width: 0;
   height: 100%;
   overflow: hidden;

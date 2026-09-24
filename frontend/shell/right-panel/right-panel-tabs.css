@@ -4,7 +4,9 @@
 
 .right-panel-header {
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 100;
 }
 
 .right-panel-tabs {
@@ -13,7 +15,7 @@
   gap: 3px;
   min-width: 0;
   height: 100%;
-  overflow-x: auto;
+  overflow-x: visible;
   scrollbar-width: none;
   padding: 0 2px;
 }
@@ -30,7 +32,7 @@
   align-items: center;
   gap: 0;
   padding: 0 9px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 9px;
   background: transparent;
   color: var(--gtp-faint);
@@ -46,8 +48,8 @@
 
 .right-panel-tab.is-active {
   color: var(--gtp-text);
-  background: var(--gtp-active);
-  border-color: var(--gtp-border-strong);
+  background: var(--gtp-surface-3);
+  border-color: transparent;
 }
 
 .right-panel-tab__icon {
@@ -66,8 +68,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
 }
