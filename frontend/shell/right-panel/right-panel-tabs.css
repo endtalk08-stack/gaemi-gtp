@@ -41,6 +41,17 @@
   font: inherit;
 }
 
+.right-panel-tab--dashboard {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+
+.right-panel-tab--dashboard svg {
+  width: 15px;
+  height: 15px;
+}
+
 .right-panel-tab:hover {
   color: var(--gtp-text-2);
   background: var(--gtp-hover);
@@ -83,6 +94,10 @@
   border-radius: 5px;
   color: var(--gtp-faint);
   flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .right-panel-tab__close:hover {
@@ -99,6 +114,11 @@
 .right-panel-tab-add-wrap {
   position: relative;
   margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.right-panel-dashboard-menu-wrap {
+  position: relative;
   flex: 0 0 auto;
 }
 
@@ -131,10 +151,16 @@
   z-index: 50;
   width: 180px;
   padding: 6px;
-  border: 1px solid var(--gtp-border-strong);
+  border: 0;
   border-radius: 10px;
   background: var(--gtp-surface-2);
   box-shadow: 0 14px 30px rgba(15, 23, 42, .16);
+}
+
+.right-panel-dashboard-menu {
+  left: 0;
+  right: auto;
+  width: 150px;
 }
 
 .right-panel-tab-menu[hidden] {

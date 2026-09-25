@@ -1,6 +1,5 @@
-/* Right Panel Tabs — v8.7
+/* Right Panel Tabs — workspace menu
    책임: 오른쪽 패널의 상단 탭/추가/삭제/선택 상태만 담당한다.
-   뉴스는 독립 탭이 아니라 대시보드 위젯이다.
    패널 너비/채팅/사이드바는 건드리지 않는다.
 */
 (function () {
@@ -22,9 +21,8 @@
       const state = JSON.parse(raw);
       if (!state || !Array.isArray(state.tabs)) return null;
 
-      // 이전 통합본이 저장한 독립 뉴스 탭은 여기서 제거한다.
       const cleanTabs = state.tabs
-        .filter(t => t && typeof t.id === 'string' && typeof t.label === 'string' && t.id !== 'news')
+        .filter(t => t && typeof t.id === 'string' && typeof t.label === 'string')
         .map(t => ({
           id: t.id,
           label: t.label,
@@ -32,11 +30,9 @@
           closable: t.id !== 'dashboard',
         }));
 
-      const storedActive = state.activeTabId === 'news' ? 'dashboard' : state.activeTabId;
-
       return {
         tabs: cleanTabs.length ? cleanTabs : null,
-        activeTabId: typeof storedActive === 'string' ? storedActive : 'dashboard',
+        activeTabId: typeof state.activeTabId === 'string' ? state.activeTabId : 'dashboard',
       };
     } catch (e) {
       console.warn('[gaemiGTP] right panel tabs read warning:', e);
@@ -83,13 +79,19 @@
     section.dataset.tabView = tab.id;
     section.setAttribute('role', 'tabpanel');
     section.setAttribute('aria-label', tab.label);
-    section.innerHTML = `
+    if (tab.id === 'news') {
+      section.style.height = '100%';
+      section.style.minHeight = '0';
+      section.innerHTML = '<section id="rightPanelNews" style="height:100%;min-height:0;" aria-label="뉴스"></section>';
+    } else {
+      section.innerHTML = `
       <div class="right-panel-tab-placeholder">
         <div class="right-panel-tab-placeholder__icon"><i data-lucide="square-chart-gantt"></i></div>
         <div class="right-panel-tab-placeholder__title">${escapeHtml(tab.label)}</div>
         <div class="right-panel-tab-placeholder__text">이 탭에 원하는 분석 화면을 구성할 수 있습니다.</div>
       </div>
     `;
+    }
     root.appendChild(section);
   }
 
@@ -100,6 +102,35 @@
     list.innerHTML = '';
 
     tabs.forEach(tab => {
+      if (tab.id === 'dashboard') {
+        const dashboardWrap = document.createElement('div');
+        dashboardWrap.className = 'right-panel-dashboard-menu-wrap';
+
+        const dashboard = document.createElement('button');
+        dashboard.type = 'button';
+        dashboard.className = `right-panel-tab right-panel-tab--dashboard${activeTabId === tab.id ? ' is-active' : ''}`;
+        dashboard.dataset.dashboardMenuToggle = 'true';
+        dashboard.setAttribute('aria-label', '대시보드 작업공간');
+        dashboard.setAttribute('aria-expanded', 'false');
+        dashboard.title = '대시보드 작업공간';
+        dashboard.innerHTML = '<i data-lucide="layout-dashboard"></i>';
+        dashboardWrap.appendChild(dashboard);
+
+        const dashboardMenu = document.createElement('div');
+        dashboardMenu.className = 'right-panel-tab-menu right-panel-dashboard-menu';
+        dashboardMenu.dataset.dashboardMenu = 'true';
+        dashboardMenu.hidden = true;
+        dashboardMenu.innerHTML = `
+          <div class="right-panel-tab-menu__section">새 창</div>
+          <button type="button" class="right-panel-tab-menu__item" data-dashboard-open="chart"><i data-lucide="chart-no-axes-combined"></i><span>차트</span></button>
+          <button type="button" class="right-panel-tab-menu__item" data-dashboard-open="news"><i data-lucide="newspaper"></i><span>뉴스</span></button>
+          <button type="button" class="right-panel-tab-menu__item" data-dashboard-open="industry"><i data-lucide="building-2"></i><span>업종</span></button>
+        `;
+        dashboardWrap.appendChild(dashboardMenu);
+        list.appendChild(dashboardWrap);
+        return;
+      }
+
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `right-panel-tab${activeTabId === tab.id ? ' is-active' : ''}`;
@@ -112,6 +143,18 @@
       label.className = 'right-panel-tab__label';
       label.textContent = tab.label;
       button.appendChild(label);
+
+      if (tab.closable !== false) {
+        const close = document.createElement('span');
+        close.className = 'right-panel-tab__close';
+        close.dataset.closeTabId = tab.id;
+        close.setAttribute('role', 'button');
+        close.tabIndex = 0;
+        close.setAttribute('aria-label', `${tab.label} 탭 닫기`);
+        close.title = `${tab.label} 탭 닫기`;
+        close.innerHTML = '<i data-lucide="x"></i>';
+        button.appendChild(close);
+      }
       list.appendChild(button);
     });
 
@@ -185,24 +228,42 @@
     }
   }
 
+  function toggleDashboardMenu(force) {
+    const menu = document.querySelector('[data-dashboard-menu]');
+    const toggle = document.querySelector('[data-dashboard-menu-toggle]');
+    if (!menu || !toggle) return;
+    const next = typeof force === 'boolean' ? force : menu.hidden;
+    menu.hidden = !next;
+    toggle.setAttribute('aria-expanded', String(next));
+    if (next) toggleTabMenu(false);
+    if (next && window.lucide) window.lucide.createIcons();
+  }
+
   function addNamedTab(type) {
-    if (!['dashboard', 'auto-trade'].includes(type)) return;
+    if (!['dashboard', 'auto-trade', 'chart', 'news', 'industry'].includes(type)) return;
 
     const existing = tabs.find(t => t.id === type);
     if (existing) {
       setActiveTab(existing.id);
       toggleTabMenu(false);
+      toggleDashboardMenu(false);
       return;
     }
 
     const labels = {
       dashboard: '대시보드',
       'auto-trade': '자동매매',
+      chart: '차트',
+      news: '뉴스',
+      industry: '업종',
     };
 
     const icons = {
       dashboard: 'layout-dashboard',
       'auto-trade': 'bot',
+      chart: 'chart-no-axes-combined',
+      news: 'newspaper',
+      industry: 'building-2',
     };
 
     const tab = {
@@ -216,6 +277,7 @@
     if (type !== 'dashboard') makePlaceholderView(tab);
     setActiveTab(type);
     toggleTabMenu(false);
+    toggleDashboardMenu(false);
   }
 
   function mountTabPage(tab) {
@@ -225,6 +287,20 @@
       if (root && window.GaemiGTPAutoTrade && typeof window.GaemiGTPAutoTrade.mount === 'function') {
         window.GaemiGTPAutoTrade.mount(root);
       }
+      return;
+    }
+
+    if (tab.id === 'news') {
+      const root = document.getElementById('rightPanelNews');
+      if (root && window.GaemiGTPNews && typeof window.GaemiGTPNews.mount === 'function') {
+        window.GaemiGTPNews.mount(root);
+      } else if (root) {
+        window.addEventListener('load', () => {
+          if (activeTabId === 'news' && window.GaemiGTPNews && typeof window.GaemiGTPNews.mount === 'function') {
+            window.GaemiGTPNews.mount(root);
+          }
+        }, { once: true });
+      }
     }
   }
 
@@ -233,7 +309,7 @@
     activeTabId = id;
 
     tabs.forEach(tab => {
-      if (tab.id === 'auto-trade') {
+      if (tab.id === 'auto-trade' || tab.id === 'news') {
         mountTabPage(tab);
       } else if (tab.id !== 'dashboard' && !getView(tab.id)) {
         makePlaceholderView(tab);
@@ -299,14 +375,32 @@
       if (tab.id !== 'dashboard' && tab.id !== 'auto-trade') makePlaceholderView(tab);
     });
 
-    // 이전 버전에서 만들어진 독립 뉴스 view가 DOM에 남아 있어도 제거한다.
-    getView('news')?.remove();
-
     getTabList().addEventListener('click', (event) => {
       const add = event.target.closest('[data-right-panel-tab-add]');
       if (add) {
         event.stopPropagation();
         toggleTabMenu();
+        return;
+      }
+
+      const dashboardToggle = event.target.closest('[data-dashboard-menu-toggle]');
+      if (dashboardToggle) {
+        event.stopPropagation();
+        toggleDashboardMenu();
+        return;
+      }
+
+      const dashboardOpen = event.target.closest('[data-dashboard-open]');
+      if (dashboardOpen) {
+        event.stopPropagation();
+        addNamedTab(dashboardOpen.dataset.dashboardOpen);
+        return;
+      }
+
+      const close = event.target.closest('[data-close-tab-id]');
+      if (close) {
+        event.stopPropagation();
+        removeTab(close.dataset.closeTabId);
         return;
       }
 
@@ -328,12 +422,16 @@
       const tab = event.target.closest('[data-right-panel-tab]');
       if (tab) {
         toggleTabMenu(false);
+        toggleDashboardMenu(false);
         setActiveTab(tab.dataset.rightPanelTab);
       }
     });
 
     document.addEventListener('click', (event) => {
-      if (!event.target.closest('#rightPanelTabs')) toggleTabMenu(false);
+      if (!event.target.closest('#rightPanelTabs')) {
+        toggleTabMenu(false);
+        toggleDashboardMenu(false);
+      }
     });
 
     getTabList().dataset.bound = 'true';
