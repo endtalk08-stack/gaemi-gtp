@@ -1,17 +1,17 @@
-/* Dashboard v8.2 — Toss-like one-screen workspace.
-   - 실제 Render 서비스 경로(frontend/)용
-   - 기본 2+4 배치
-   - 자동 저장
-   - 드래그 이동 / 리사이즈 / 크게 보기
-   - 개발용 툴바 제거
-   - 외부 hashtag/widget 호출용 openWidget API 제공
+/* Dashboard v8.3 — Toss-style binary split layout engine.
+   핵심:
+   - 좌표 그리드 대신 Split Tree 사용
+   - 빈 공간 없이 항상 직사각형으로 채움
+   - 경계선을 움직이면 인접 패널 비율이 같이 변함
+   - 패널 이동 시 위/아래/왼쪽/오른쪽 분할로 트리를 재구성
+   - 레이아웃 자동 저장
 */
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'gaemi.dashboard.layout.v8.2';
-  const COLS = 12;
-  const ROWS = 8;
+  const STORAGE_KEY = 'gaemi.dashboard.split-tree.v8.3';
+  const MIN_RATIO = 0.18;
+  const MAX_RATIO = 0.82;
 
   const WIDGETS = [
     { id: 'chart', title: '차트', widgetKey: 'chart' },
@@ -20,151 +20,181 @@
     { id: 'economic', title: '경제일정', widgetKey: 'economic' },
     { id: 'ranking', title: '실시간 순위', widgetKey: 'ranking' },
     { id: 'earnings', title: '실적', widgetKey: 'earnings' },
-    { id: 'volume', title: '거래량', widgetKey: 'volume' },
-    { id: 'trading-value', title: '거래대금', widgetKey: 'trading-value' },
-    { id: 'event', title: '이벤트', widgetKey: 'event' },
+    { id: 'order', title: '주문', widgetKey: 'order' },
+    { id: 'orderbook', title: '호가', widgetKey: 'orderbook' },
+    { id: 'community', title: '커뮤니티', widgetKey: 'community' },
   ];
 
-  const DEFAULT_LAYOUT = {
-    chart:          { x: 1,  y: 1, w: 8, h: 4 },
-    'market-state': { x: 9,  y: 1, w: 4, h: 4 },
-    news:           { x: 1,  y: 5, w: 3, h: 4 },
-    economic:       { x: 4,  y: 5, w: 3, h: 4 },
-    ranking:        { x: 7,  y: 5, w: 3, h: 4 },
-    earnings:       { x: 10, y: 5, w: 3, h: 4 },
-  };
-
-  const DEFAULT_IDS = Object.keys(DEFAULT_LAYOUT);
-
+  let splitSeq = 0;
   let root = null;
-  let grid = null;
-  let layout = {};
-  let transientIds = new Set();
+  let stage = null;
+  let tree = null;
   let focusedId = null;
+  let draggingId = null;
+  let dropState = null;
 
-  const clone = (value) => JSON.parse(JSON.stringify(value));
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const panel = (id) => ({ type: 'panel', id });
+  const split = (direction, ratio, a, b) => ({
+    type: 'split',
+    id: `split-${++splitSeq}`,
+    direction,
+    ratio,
+    a,
+    b,
+  });
+
+  function defaultTree() {
+    /* top 52% / bottom 48%
+       top: chart 66% | market 34%
+       bottom: news | economic | ranking | earnings
+    */
+    return split(
+      'column',
+      0.52,
+      split('row', 0.66, panel('chart'), panel('market-state')),
+      split(
+        'row',
+        0.5,
+        split('row', 0.5, panel('news'), panel('economic')),
+        split('row', 0.5, panel('ranking'), panel('earnings'))
+      )
+    );
+  }
 
   function widgetById(id) {
     return WIDGETS.find((widget) => widget.id === id);
   }
 
-  function normalizeRect(rect) {
-    const w = clamp(Math.round(Number(rect?.w) || 3), 2, COLS);
-    const h = clamp(Math.round(Number(rect?.h) || 4), 2, ROWS);
-    const x = clamp(Math.round(Number(rect?.x) || 1), 1, COLS - w + 1);
-    const y = clamp(Math.round(Number(rect?.y) || 1), 1, ROWS - h + 1);
-    return { x, y, w, h };
+  function clampRatio(value) {
+    return Math.max(MIN_RATIO, Math.min(MAX_RATIO, value));
   }
 
-  function loadLayout() {
+  function sanitizeNode(node, seen = new Set()) {
+    if (!node || typeof node !== 'object') return null;
+
+    if (node.type === 'panel') {
+      if (!widgetById(node.id) || seen.has(node.id)) return null;
+      seen.add(node.id);
+      return panel(node.id);
+    }
+
+    if (node.type === 'split') {
+      const a = sanitizeNode(node.a, seen);
+      const b = sanitizeNode(node.b, seen);
+
+      if (!a && !b) return null;
+      if (!a) return b;
+      if (!b) return a;
+
+      return split(
+        node.direction === 'column' ? 'column' : 'row',
+        clampRatio(Number(node.ratio) || 0.5),
+        a,
+        b
+      );
+    }
+
+    return null;
+  }
+
+  function loadTree() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      if (!saved || saved.version !== 2 || !saved.layout) return clone(DEFAULT_LAYOUT);
-
-      const next = {};
-      DEFAULT_IDS.forEach((id) => {
-        next[id] = normalizeRect(saved.layout[id] || DEFAULT_LAYOUT[id]);
-      });
-
-      // 저장값이 충돌하면 안전하게 기본 배치로 복귀
-      if (hasAnyOverlap(next)) return clone(DEFAULT_LAYOUT);
-      return next;
+      const restored = saved?.version === 1 ? sanitizeNode(saved.tree) : null;
+      return restored || defaultTree();
     } catch (_) {
-      return clone(DEFAULT_LAYOUT);
+      return defaultTree();
     }
   }
 
-  function saveLayout() {
+  function stripRuntimeIds(node) {
+    if (!node) return null;
+    if (node.type === 'panel') return { type: 'panel', id: node.id };
+    return {
+      type: 'split',
+      direction: node.direction,
+      ratio: node.ratio,
+      a: stripRuntimeIds(node.a),
+      b: stripRuntimeIds(node.b),
+    };
+  }
+
+  function saveTree() {
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ version: 2, layout })
+        JSON.stringify({ version: 1, tree: stripRuntimeIds(tree) })
       );
     } catch (_) {}
   }
 
-  function rectsOverlap(a, b) {
-    return !(
-      a.x + a.w - 1 < b.x ||
-      b.x + b.w - 1 < a.x ||
-      a.y + a.h - 1 < b.y ||
-      b.y + b.h - 1 < a.y
-    );
+  function containsPanel(node, id) {
+    if (!node) return false;
+    if (node.type === 'panel') return node.id === id;
+    return containsPanel(node.a, id) || containsPanel(node.b, id);
   }
 
-  function hasAnyOverlap(candidateLayout) {
-    const ids = Object.keys(candidateLayout);
-    for (let i = 0; i < ids.length; i += 1) {
-      for (let j = i + 1; j < ids.length; j += 1) {
-        if (rectsOverlap(candidateLayout[ids[i]], candidateLayout[ids[j]])) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+  function removePanel(node, id) {
+    if (!node) return { node: null, removed: null };
 
-  function canPlace(id, rect) {
-    if (
-      rect.x < 1 ||
-      rect.y < 1 ||
-      rect.w < 2 ||
-      rect.h < 2 ||
-      rect.x + rect.w - 1 > COLS ||
-      rect.y + rect.h - 1 > ROWS
-    ) {
-      return false;
+    if (node.type === 'panel') {
+      if (node.id === id) return { node: null, removed: node };
+      return { node, removed: null };
     }
 
-    return Object.entries(layout).every(([otherId, otherRect]) => {
-      if (otherId === id) return true;
-      return !rectsOverlap(rect, otherRect);
-    });
-  }
-
-  function applyRect(article, rect) {
-    article.style.gridColumn = `${rect.x} / span ${rect.w}`;
-    article.style.gridRow = `${rect.y} / span ${rect.h}`;
-  }
-
-  function refreshAllRects() {
-    if (!grid) return;
-    Object.entries(layout).forEach(([id, rect]) => {
-      const article = grid.querySelector(`[data-widget-slot="${id}"]`);
-      if (article) applyRect(article, rect);
-    });
-  }
-
-  function firstAvailableRect(w = 3, h = 4) {
-    for (let y = 1; y <= ROWS - h + 1; y += 1) {
-      for (let x = 1; x <= COLS - w + 1; x += 1) {
-        const rect = { x, y, w, h };
-        const collision = Object.values(layout).some((other) =>
-          rectsOverlap(rect, other)
-        );
-        if (!collision) return rect;
-      }
+    const left = removePanel(node.a, id);
+    if (left.removed) {
+      if (!left.node) return { node: node.b, removed: left.removed };
+      return {
+        node: { ...node, a: left.node },
+        removed: left.removed,
+      };
     }
-    return null;
+
+    const right = removePanel(node.b, id);
+    if (right.removed) {
+      if (!right.node) return { node: node.a, removed: right.removed };
+      return {
+        node: { ...node, b: right.node },
+        removed: right.removed,
+      };
+    }
+
+    return { node, removed: null };
   }
 
-  function gridMetrics() {
-    const bounds = grid.getBoundingClientRect();
-    const styles = getComputedStyle(grid);
-    const colGap = parseFloat(styles.columnGap) || 10;
-    const rowGap = parseFloat(styles.rowGap) || 10;
+  function insertAroundTarget(node, targetId, sourceNode, zone) {
+    if (!node) return node;
+
+    if (node.type === 'panel') {
+      if (node.id !== targetId) return node;
+
+      const horizontal = zone === 'left' || zone === 'right';
+      const direction = horizontal ? 'row' : 'column';
+      const sourceFirst = zone === 'left' || zone === 'top';
+
+      return sourceFirst
+        ? split(direction, 0.5, sourceNode, node)
+        : split(direction, 0.5, node, sourceNode);
+    }
 
     return {
-      bounds,
-      colGap,
-      rowGap,
-      cellW: (bounds.width - colGap * (COLS - 1)) / COLS,
-      cellH: (bounds.height - rowGap * (ROWS - 1)) / ROWS,
+      ...node,
+      a: insertAroundTarget(node.a, targetId, sourceNode, zone),
+      b: insertAroundTarget(node.b, targetId, sourceNode, zone),
     };
   }
 
-  function mountWidgetContent(article, widget) {
+  function addPanel(id) {
+    if (!widgetById(id) || containsPanel(tree, id)) return false;
+    tree = split('row', 0.74, tree, panel(id));
+    saveTree();
+    render();
+    return true;
+  }
+
+  function mountWidget(article, id) {
+    const widget = widgetById(id);
     const mountPoint = article.querySelector('.dashboard-widget-slot__mount');
     const registered =
       window.GaemiGTPWidgets &&
@@ -176,207 +206,216 @@
     }
   }
 
-  function createArticle(id) {
+  function createPanelNode(id) {
     const widget = widgetById(id);
-    if (!widget) return null;
-
     const article = document.createElement('article');
     article.className = 'dashboard-widget-slot';
     article.dataset.widgetSlot = id;
-    article.setAttribute('aria-label', widget.title);
 
     article.innerHTML = `
-      <div class="dashboard-widget-slot__head" data-widget-drag-handle>
+      <div class="dashboard-widget-slot__head" draggable="true">
         <span class="dashboard-widget-slot__title">${widget.title}</span>
-        <div class="dashboard-widget-slot__actions">
-          <button type="button"
-                  class="dashboard-widget-slot__expand"
-                  data-widget-expand="${id}"
-                  aria-label="${widget.title} 크게 보기"
-                  title="크게 보기">
-            <i data-lucide="maximize-2"></i>
-          </button>
-        </div>
+        <button type="button"
+                class="dashboard-widget-slot__expand"
+                data-expand="${id}"
+                aria-label="${widget.title} 크게 보기"
+                title="크게 보기">
+          <i data-lucide="maximize-2"></i>
+        </button>
       </div>
-
       <div class="dashboard-widget-slot__content">
         <div class="dashboard-widget-slot__mount"></div>
       </div>
-
-      <button type="button"
-              class="dashboard-widget-slot__resize"
-              data-widget-resize
-              aria-label="${widget.title} 크기 조절"
-              title="크기 조절"></button>
+      <div class="dashboard-drop-overlay" aria-hidden="true">
+        <span data-zone="top"></span>
+        <span data-zone="right"></span>
+        <span data-zone="bottom"></span>
+        <span data-zone="left"></span>
+      </div>
     `;
 
-    if (layout[id]) applyRect(article, layout[id]);
-    mountWidgetContent(article, widget);
-    bindArticleInteractions(article, id);
-
+    mountWidget(article, id);
+    bindPanelDnD(article, id);
     return article;
   }
 
-  function bindArticleInteractions(article, id) {
-    const dragHandle = article.querySelector('[data-widget-drag-handle]');
-    const resizeHandle = article.querySelector('[data-widget-resize]');
+  function createSplitNode(node) {
+    const el = document.createElement('div');
+    el.className = `dashboard-split dashboard-split--${node.direction}`;
+    el.dataset.splitId = node.id;
 
-    dragHandle.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0 || focusedId) return;
-      if (event.target.closest('button')) return;
-      if (root.clientWidth <= 644) return;
+    const aWrap = document.createElement('div');
+    aWrap.className = 'dashboard-split__pane dashboard-split__pane--a';
 
-      const origin = { ...layout[id] };
-      const metrics = gridMetrics();
-      let latest = { ...origin };
+    const bWrap = document.createElement('div');
+    bWrap.className = 'dashboard-split__pane dashboard-split__pane--b';
+
+    const divider = document.createElement('div');
+    divider.className = 'dashboard-split__divider';
+    divider.setAttribute('role', 'separator');
+    divider.setAttribute('aria-label', '패널 크기 조절');
+
+    if (node.direction === 'row') {
+      aWrap.style.flexBasis = `${node.ratio * 100}%`;
+      bWrap.style.flexBasis = `${(1 - node.ratio) * 100}%`;
+    } else {
+      aWrap.style.flexBasis = `${node.ratio * 100}%`;
+      bWrap.style.flexBasis = `${(1 - node.ratio) * 100}%`;
+    }
+
+    aWrap.appendChild(renderNode(node.a));
+    bWrap.appendChild(renderNode(node.b));
+
+    el.append(aWrap, divider, bWrap);
+    bindDivider(divider, el, node);
+    return el;
+  }
+
+  function renderNode(node) {
+    return node.type === 'panel' ? createPanelNode(node.id) : createSplitNode(node);
+  }
+
+  function bindDivider(divider, splitEl, node) {
+    divider.addEventListener('pointerdown', (event) => {
+      if (focusedId) return;
 
       event.preventDefault();
-      dragHandle.setPointerCapture?.(event.pointerId);
+      divider.setPointerCapture?.(event.pointerId);
+      splitEl.classList.add('is-resizing');
+
+      const rect = splitEl.getBoundingClientRect();
+
+      function move(e) {
+        let ratio;
+        if (node.direction === 'row') {
+          ratio = (e.clientX - rect.left) / rect.width;
+        } else {
+          ratio = (e.clientY - rect.top) / rect.height;
+        }
+
+        node.ratio = clampRatio(ratio);
+
+        const a = splitEl.querySelector(':scope > .dashboard-split__pane--a');
+        const b = splitEl.querySelector(':scope > .dashboard-split__pane--b');
+        a.style.flexBasis = `${node.ratio * 100}%`;
+        b.style.flexBasis = `${(1 - node.ratio) * 100}%`;
+      }
+
+      function finish() {
+        divider.removeEventListener('pointermove', move);
+        divider.removeEventListener('pointerup', finish);
+        divider.removeEventListener('pointercancel', finish);
+        divider.removeEventListener('lostpointercapture', finish);
+        splitEl.classList.remove('is-resizing');
+        saveTree();
+      }
+
+      divider.addEventListener('pointermove', move);
+      divider.addEventListener('pointerup', finish);
+      divider.addEventListener('pointercancel', finish);
+      divider.addEventListener('lostpointercapture', finish);
+    });
+  }
+
+  function getDropZone(article, event) {
+    const rect = article.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+
+    const dx = x - 0.5;
+    const dy = y - 0.5;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      return dx < 0 ? 'left' : 'right';
+    }
+    return dy < 0 ? 'top' : 'bottom';
+  }
+
+  function setDropZone(article, zone) {
+    article.dataset.dropZone = zone || '';
+  }
+
+  function bindPanelDnD(article, id) {
+    const head = article.querySelector('.dashboard-widget-slot__head');
+
+    head.addEventListener('dragstart', (event) => {
+      if (focusedId) {
+        event.preventDefault();
+        return;
+      }
+
+      draggingId = id;
       article.classList.add('is-dragging');
 
-      function move(e) {
-        const dx = Math.round(
-          (e.clientX - event.clientX) / (metrics.cellW + metrics.colGap)
-        );
-        const dy = Math.round(
-          (e.clientY - event.clientY) / (metrics.cellH + metrics.rowGap)
-        );
-
-        const next = {
-          ...origin,
-          x: clamp(origin.x + dx, 1, COLS - origin.w + 1),
-          y: clamp(origin.y + dy, 1, ROWS - origin.h + 1),
-        };
-
-        article.classList.toggle('is-invalid', !canPlace(id, next));
-        latest = next;
-        applyRect(article, next);
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', id);
       }
-
-      function finish(e) {
-        dragHandle.removeEventListener('pointermove', move);
-        dragHandle.removeEventListener('pointerup', finish);
-        dragHandle.removeEventListener('pointercancel', finish);
-        dragHandle.removeEventListener('lostpointercapture', finish);
-
-        article.classList.remove('is-dragging', 'is-invalid');
-
-        if (e.type === 'pointerup' && canPlace(id, latest)) {
-          layout[id] = latest;
-          saveLayout();
-        } else {
-          applyRect(article, origin);
-        }
-      }
-
-      dragHandle.addEventListener('pointermove', move);
-      dragHandle.addEventListener('pointerup', finish);
-      dragHandle.addEventListener('pointercancel', finish);
-      dragHandle.addEventListener('lostpointercapture', finish);
     });
 
-    resizeHandle.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0 || focusedId) return;
+    head.addEventListener('dragend', () => {
+      draggingId = null;
+      dropState = null;
+      root.querySelectorAll('.dashboard-widget-slot').forEach((el) => {
+        el.classList.remove('is-dragging');
+        setDropZone(el, '');
+      });
+    });
 
-      const origin = { ...layout[id] };
-      const metrics = gridMetrics();
-      let latest = { ...origin };
-
+    article.addEventListener('dragover', (event) => {
+      if (!draggingId || draggingId === id) return;
       event.preventDefault();
-      resizeHandle.setPointerCapture?.(event.pointerId);
-      article.classList.add('is-resizing');
 
-      function move(e) {
-        const dw = Math.round(
-          (e.clientX - event.clientX) / (metrics.cellW + metrics.colGap)
-        );
-        const dh = Math.round(
-          (e.clientY - event.clientY) / (metrics.cellH + metrics.rowGap)
-        );
+      const zone = getDropZone(article, event);
+      dropState = { targetId: id, zone };
+      setDropZone(article, zone);
 
-        const next = {
-          ...origin,
-          w: clamp(origin.w + dw, 2, COLS - origin.x + 1),
-          h: clamp(origin.h + dh, 2, ROWS - origin.y + 1),
-        };
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    });
 
-        const valid = canPlace(id, next);
-        article.classList.toggle('is-invalid', !valid);
-
-        if (valid) {
-          latest = next;
-          applyRect(article, next);
-        }
+    article.addEventListener('dragleave', (event) => {
+      if (!article.contains(event.relatedTarget)) {
+        setDropZone(article, '');
       }
+    });
 
-      function finish(e) {
-        resizeHandle.removeEventListener('pointermove', move);
-        resizeHandle.removeEventListener('pointerup', finish);
-        resizeHandle.removeEventListener('pointercancel', finish);
-        resizeHandle.removeEventListener('lostpointercapture', finish);
+    article.addEventListener('drop', (event) => {
+      if (!draggingId || draggingId === id) return;
+      event.preventDefault();
 
-        article.classList.remove('is-resizing', 'is-invalid');
+      const sourceId = draggingId;
+      const zone = getDropZone(article, event);
 
-        if (e.type === 'pointerup' && canPlace(id, latest)) {
-          layout[id] = latest;
-          saveLayout();
-        } else {
-          applyRect(article, origin);
-        }
-      }
+      const removed = removePanel(tree, sourceId);
+      if (!removed.removed || !removed.node) return;
 
-      resizeHandle.addEventListener('pointermove', move);
-      resizeHandle.addEventListener('pointerup', finish);
-      resizeHandle.addEventListener('pointercancel', finish);
-      resizeHandle.addEventListener('lostpointercapture', finish);
+      tree = insertAroundTarget(removed.node, id, removed.removed, zone);
+      saveTree();
+      draggingId = null;
+      dropState = null;
+      render();
     });
   }
 
   function setFocus(id) {
-    if (focusedId && focusedId !== id && transientIds.has(focusedId)) {
-      const previous = focusedId;
-      transientIds.delete(previous);
-      delete layout[previous];
-      grid.querySelector(`[data-widget-slot="${previous}"]`)?.remove();
-    }
     focusedId = id || null;
     root.classList.toggle('is-widget-focused', !!focusedId);
 
-    grid.querySelectorAll('.dashboard-widget-slot').forEach((article) => {
-      const active = article.dataset.widgetSlot === focusedId;
-      article.hidden = !!focusedId && !active;
-      article.classList.toggle('is-focused', active);
-
-      if (active) {
-        article.style.gridColumn = '1 / -1';
-        article.style.gridRow = '1 / -1';
-      } else if (!focusedId && layout[article.dataset.widgetSlot]) {
-        applyRect(article, layout[article.dataset.widgetSlot]);
-      }
+    root.querySelectorAll('.dashboard-widget-slot').forEach((article) => {
+      article.classList.toggle(
+        'is-focused',
+        article.dataset.widgetSlot === focusedId
+      );
     });
 
-    root.querySelector('.dashboard-focus-back').hidden = !focusedId;
-  }
-
-  function ensureTransientWidget(id) {
-    if (layout[id]) return true;
-    if (!widgetById(id)) return false;
-
-    const rect = firstAvailableRect(3, 4) || { x: 1, y: 1, w: 12, h: 8 };
-    layout[id] = rect;
-    transientIds.add(id);
-
-    const article = createArticle(id);
-    if (article) grid.appendChild(article);
-
-    if (window.lucide) window.lucide.createIcons();
-    return true;
+    const back = root.querySelector('.dashboard-focus-back');
+    if (back) back.hidden = !focusedId;
   }
 
   function openWidget(id, options = {}) {
-    if (!ensureTransientWidget(id)) return false;
+    if (!widgetById(id)) return false;
+    if (!containsPanel(tree, id)) addPanel(id);
 
-    // 외부 hashtag 시스템이 호출하면 패널을 열고 해당 위젯 집중보기
     if (
       document.body.classList.contains('right-panel-closed') &&
       typeof window.toggleRightPanel === 'function'
@@ -384,56 +423,36 @@
       window.toggleRightPanel();
     }
 
-    if (options.focus !== false) setFocus(id);
-
-    const article = grid.querySelector(`[data-widget-slot="${id}"]`);
-    if (article) {
-      article.classList.add('is-highlighted');
-      window.setTimeout(() => article.classList.remove('is-highlighted'), 650);
+    if (options.focus !== false) {
+      requestAnimationFrame(() => setFocus(id));
     }
 
     return true;
   }
 
-  function closeFocus() {
-    const previous = focusedId;
-    setFocus(null);
-
-    // 임시 위젯은 집중보기 종료 시 기본 배치에서 제거
-    if (previous && transientIds.has(previous)) {
-      transientIds.delete(previous);
-      delete layout[previous];
-      const article = grid.querySelector(`[data-widget-slot="${previous}"]`);
-      article?.remove();
-      refreshAllRects();
-    }
-  }
-
   function resetLayout() {
     setFocus(null);
-    layout = clone(DEFAULT_LAYOUT);
-    transientIds.clear();
-    saveLayout();
+    splitSeq = 0;
+    tree = defaultTree();
+    saveTree();
     render();
   }
 
   function render() {
-    if (!grid) return;
-    grid.replaceChildren();
+    if (!stage) return;
 
-    Object.keys(layout).forEach((id) => {
-      const article = createArticle(id);
-      if (article) grid.appendChild(article);
-    });
+    const wasFocused = focusedId;
+    stage.replaceChildren(renderNode(tree));
 
     if (window.lucide) window.lucide.createIcons();
+    if (wasFocused) setFocus(wasFocused);
   }
 
   function mount() {
     root = document.getElementById('rightPanelDashboard');
     if (!root || root.dataset.dashboardMounted === 'true') return;
 
-    layout = loadLayout();
+    tree = loadTree();
 
     root.innerHTML = `
       <button type="button"
@@ -443,25 +462,24 @@
               hidden>
         <i data-lucide="arrow-left"></i>
       </button>
-
-      <section class="right-panel-dashboard__grid"
-               aria-label="대시보드 위젯"></section>
+      <section class="dashboard-tree-stage"
+               aria-label="대시보드 패널 레이아웃"></section>
     `;
 
-    grid = root.querySelector('.right-panel-dashboard__grid');
+    stage = root.querySelector('.dashboard-tree-stage');
 
-    root.querySelector('.dashboard-focus-back').addEventListener('click', closeFocus);
+    root.querySelector('.dashboard-focus-back').addEventListener('click', () => {
+      setFocus(null);
+    });
 
     root.addEventListener('click', (event) => {
-      const expand = event.target.closest('[data-widget-expand]');
-      if (expand) {
-        event.stopPropagation();
-        setFocus(expand.dataset.widgetExpand);
-      }
+      const expand = event.target.closest('[data-expand]');
+      if (!expand) return;
+      event.stopPropagation();
+      setFocus(expand.dataset.expand);
     });
 
     render();
-
     root.dataset.dashboardMounted = 'true';
 
     if (window.lucide) window.lucide.createIcons();
@@ -470,9 +488,8 @@
   window.GaemiGTPDashboard = {
     mount,
     openWidget,
-    closeFocus,
     resetLayout,
-    saveLayout,
+    saveLayout: saveTree,
     widgetSlots: WIDGETS.map((widget) => ({ ...widget })),
   };
 

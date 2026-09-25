@@ -1,10 +1,5 @@
-/* Dashboard v8.2 — Toss-like one-screen workspace.
-   원칙:
-   - 외곽 박스 테두리선 없음
-   - 개발용 툴바/설명문구 없음
-   - 2+4 기본 배치가 한 화면에 전부 보임
-   - 자동 저장
-   - 리사이즈 UI는 hover/focus 때만 노출
+/* Dashboard v8.3 — Toss-style split tree.
+   테두리선 없는 패널 + 빈 공간 없는 binary split layout.
 */
 
 #rightPanelContent:has(#rightPanelTabView-dashboard:not([hidden])) {
@@ -23,29 +18,109 @@
   padding: 10px 12px 12px;
   box-sizing: border-box;
   overflow: hidden;
-  container-type: inline-size;
 }
 
-/* 기존 v8.1 개발용 UI가 캐시에 남아도 보이지 않게 방어 */
-#rightPanelDashboard .dashboard-toolbar,
-#rightPanelDashboard .dashboard-hint,
-#rightPanelDashboard .dashboard-status {
-  display: none !important;
-}
-
-.right-panel-dashboard__grid {
+.dashboard-tree-stage {
   width: 100%;
   height: 100%;
+  min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: repeat(8, minmax(0, 1fr));
-  gap: 10px;
   overflow: hidden;
+}
+
+.dashboard-split {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.dashboard-split--row {
+  flex-direction: row;
+}
+
+.dashboard-split--column {
+  flex-direction: column;
+}
+
+.dashboard-split__pane {
+  box-sizing: border-box;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex-grow: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.dashboard-split--row > .dashboard-split__pane--a {
+  padding-right: 5px;
+}
+
+.dashboard-split--row > .dashboard-split__pane--b {
+  padding-left: 5px;
+}
+
+.dashboard-split--column > .dashboard-split__pane--a {
+  padding-bottom: 5px;
+}
+
+.dashboard-split--column > .dashboard-split__pane--b {
+  padding-top: 5px;
+}
+
+.dashboard-split__divider {
+  touch-action: none;
+  position: relative;
+  z-index: 25;
+  flex: 0 0 0;
+  background: transparent;
+}
+
+.dashboard-split--row > .dashboard-split__divider {
+  width: 0;
+  cursor: col-resize;
+}
+
+.dashboard-split--column > .dashboard-split__divider {
+  height: 0;
+  cursor: row-resize;
+}
+
+.dashboard-split--row > .dashboard-split__divider::after,
+.dashboard-split--column > .dashboard-split__divider::after {
+  content: '';
+  position: absolute;
+  opacity: 0;
+  background: color-mix(in srgb, var(--gtp-muted) 34%, transparent);
+  transition: opacity .12s ease;
+}
+
+.dashboard-split--row > .dashboard-split__divider::after {
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+}
+
+.dashboard-split--column > .dashboard-split__divider::after {
+  left: 0;
+  right: 0;
+  top: -3px;
+  height: 6px;
+}
+
+.dashboard-split__divider:hover::after,
+.dashboard-split.is-resizing > .dashboard-split__divider::after {
+  opacity: 1;
 }
 
 .dashboard-widget-slot {
   position: relative;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -55,67 +130,30 @@
 
   border: 0 !important;
   outline: 0 !important;
-  border-radius: 18px;
+  border-radius: 16px;
 
   background:
     linear-gradient(
       180deg,
       color-mix(in srgb, var(--gtp-surface-2) 96%, transparent),
-      color-mix(in srgb, var(--gtp-surface-2) 88%, transparent)
+      color-mix(in srgb, var(--gtp-surface-2) 90%, transparent)
     );
 
   box-shadow:
-    0 1px 0 rgba(255,255,255,.018),
-    0 12px 30px rgba(0,0,0,.06);
-
-  transition:
-    transform .16s ease,
-    box-shadow .16s ease,
-    background .16s ease,
-    opacity .16s ease;
-}
-
-.dashboard-widget-slot:hover {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--gtp-surface-2) 100%, transparent),
-      color-mix(in srgb, var(--gtp-surface-3) 76%, transparent)
-    );
-}
-
-.dashboard-widget-slot[hidden] {
-  display: none !important;
-}
-
-.dashboard-widget-slot.is-dragging,
-.dashboard-widget-slot.is-resizing {
-  z-index: 30;
-  transform: translateY(-1px);
-  box-shadow: 0 18px 44px rgba(0,0,0,.18);
-  transition: none;
-}
-
-.dashboard-widget-slot.is-invalid {
-  opacity: .42;
-}
-
-.dashboard-widget-slot.is-highlighted {
-  background: var(--gtp-surface-3);
-  box-shadow: 0 16px 38px rgba(0,0,0,.14);
+    0 1px 0 rgba(255,255,255,.015),
+    0 10px 28px rgba(0,0,0,.055);
 }
 
 .dashboard-widget-slot__head {
-  height: 40px;
-  flex: 0 0 40px;
+  height: 38px;
+  flex: 0 0 38px;
   min-width: 0;
+  padding: 0 10px 0 13px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px 0 14px;
+  gap: 7px;
   cursor: grab;
   user-select: none;
-  touch-action: none;
 }
 
 .dashboard-widget-slot__head:active {
@@ -127,34 +165,28 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-
   color: var(--gtp-text);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: -.01em;
 }
 
-.dashboard-widget-slot__actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-}
-
 #rightPanelDashboard .dashboard-widget-slot__expand {
-  width: 26px;
-  height: 26px;
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 0 !important;
   outline: 0 !important;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--gtp-faint);
-  opacity: .35;
+  opacity: .25;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: opacity .15s ease, background .15s ease, color .15s ease;
+  transition: opacity .12s ease, background .12s ease, color .12s ease;
 }
 
 .dashboard-widget-slot:hover .dashboard-widget-slot__expand,
@@ -167,86 +199,128 @@
   color: var(--gtp-text);
 }
 
-#rightPanelDashboard .dashboard-widget-slot__expand:focus-visible,
-#rightPanelDashboard .dashboard-focus-back:focus-visible,
-#rightPanelDashboard .dashboard-widget-slot__resize:focus-visible {
-  outline: 0 !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--gtp-muted) 35%, transparent);
-}
-
 .dashboard-widget-slot__expand svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
 }
 
 .dashboard-widget-slot__content {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 2px 14px 14px;
+  padding: 4px 12px 12px;
 }
 
 .dashboard-widget-slot__mount {
   min-height: 100%;
 }
 
-/* 개발용 placeholder 문구는 v8.2부터 사용하지 않는다 */
-.dashboard-widget-slot__body {
-  display: none !important;
+.dashboard-widget-slot.is-dragging {
+  opacity: .4;
 }
 
-#rightPanelDashboard .dashboard-widget-slot__resize {
+/* 드롭 방향 표시: 평상시에는 완전히 숨김 */
+.dashboard-drop-overlay {
+  pointer-events: none;
   position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0 !important;
-  outline: 0 !important;
-  background: transparent;
+  inset: 0;
+  z-index: 15;
   opacity: 0;
-  cursor: nwse-resize;
-  touch-action: none;
-  transition: opacity .15s ease;
 }
 
-.dashboard-widget-slot:hover .dashboard-widget-slot__resize,
-.dashboard-widget-slot__resize:focus-visible,
-.dashboard-widget-slot.is-resizing .dashboard-widget-slot__resize {
-  opacity: .48;
-}
-
-.dashboard-widget-slot__resize::after {
-  content: '';
+.dashboard-drop-overlay span {
   position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 9px;
-  height: 9px;
-  background:
-    linear-gradient(
-      135deg,
-      transparent 0 43%,
-      var(--gtp-faint) 44% 51%,
-      transparent 52% 100%
-    );
+  background: color-mix(in srgb, var(--gtp-text) 6%, transparent);
+}
+
+.dashboard-drop-overlay [data-zone="top"] {
+  left: 20%;
+  right: 20%;
+  top: 0;
+  height: 34%;
+}
+
+.dashboard-drop-overlay [data-zone="bottom"] {
+  left: 20%;
+  right: 20%;
+  bottom: 0;
+  height: 34%;
+}
+
+.dashboard-drop-overlay [data-zone="left"] {
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 34%;
+}
+
+.dashboard-drop-overlay [data-zone="right"] {
+  right: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 34%;
+}
+
+.dashboard-widget-slot[data-drop-zone="top"] .dashboard-drop-overlay,
+.dashboard-widget-slot[data-drop-zone="right"] .dashboard-drop-overlay,
+.dashboard-widget-slot[data-drop-zone="bottom"] .dashboard-drop-overlay,
+.dashboard-widget-slot[data-drop-zone="left"] .dashboard-drop-overlay {
+  opacity: 1;
+}
+
+.dashboard-widget-slot[data-drop-zone="top"] .dashboard-drop-overlay [data-zone="top"],
+.dashboard-widget-slot[data-drop-zone="right"] .dashboard-drop-overlay [data-zone="right"],
+.dashboard-widget-slot[data-drop-zone="bottom"] .dashboard-drop-overlay [data-zone="bottom"],
+.dashboard-widget-slot[data-drop-zone="left"] .dashboard-drop-overlay [data-zone="left"] {
+  background: color-mix(in srgb, var(--gtp-accent, #6d7cff) 24%, transparent);
+}
+
+/* 집중보기: 기존 트리는 그대로 두고 선택 패널만 전체 overlay */
+#rightPanelDashboard.is-widget-focused .dashboard-split,
+#rightPanelDashboard.is-widget-focused .dashboard-split__pane,
+#rightPanelDashboard.is-widget-focused .dashboard-tree-stage {
+  position: static;
+  overflow: visible;
+}
+
+#rightPanelDashboard.is-widget-focused .dashboard-widget-slot:not(.is-focused),
+#rightPanelDashboard.is-widget-focused .dashboard-split__divider {
+  visibility: hidden;
+}
+
+#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused {
+  position: absolute;
+  inset: 10px 12px 12px;
+  width: auto;
+  height: auto;
+  z-index: 50;
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(0,0,0,.20);
+}
+
+#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused .dashboard-widget-slot__head {
+  padding-left: 48px;
+  cursor: default;
+}
+
+#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused .dashboard-widget-slot__expand {
+  display: none;
 }
 
 #rightPanelDashboard .dashboard-focus-back {
   position: absolute;
-  z-index: 60;
-  top: 16px;
+  z-index: 70;
+  top: 15px;
   left: 18px;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0 !important;
   outline: 0 !important;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--gtp-surface) 88%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--gtp-surface) 90%, transparent);
   color: var(--gtp-text);
-  box-shadow: 0 10px 28px rgba(0,0,0,.12);
+  box-shadow: 0 8px 22px rgba(0,0,0,.12);
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -257,83 +331,39 @@
 }
 
 .dashboard-focus-back svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
 }
 
-#rightPanelDashboard.is-widget-focused {
-  padding: 10px 12px 12px;
-}
-
-#rightPanelDashboard.is-widget-focused .right-panel-dashboard__grid {
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: repeat(8, minmax(0, 1fr));
-}
-
-#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused {
-  border-radius: 18px;
-}
-
-#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused .dashboard-widget-slot__head {
-  padding-left: 52px;
-  cursor: default;
-}
-
-#rightPanelDashboard.is-widget-focused .dashboard-widget-slot__resize,
-#rightPanelDashboard.is-widget-focused .dashboard-widget-slot__expand {
-  display: none;
-}
-
-/* 패널이 좁아질 때는 억지로 4개를 찌그러뜨리지 않고 2열로 전환 */
-@container (max-width: 620px) {
-  .right-panel-dashboard__grid {
-    height: auto;
-    min-height: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: none;
-    grid-auto-rows: minmax(190px, 32vh);
-    overflow: visible;
+/* 화면이 좁아지면 분할 엔진은 유지하되 radius/gap만 압축 */
+@container (max-width: 720px) {
+  #rightPanelDashboard {
+    padding: 8px;
   }
 
   .dashboard-widget-slot {
-    grid-column: span 1 !important;
-    grid-row: auto !important;
-    min-height: 190px;
+    border-radius: 12px;
   }
 
-  .dashboard-widget-slot[data-widget-slot="chart"],
-  .dashboard-widget-slot[data-widget-slot="market-state"] {
-    grid-column: span 2 !important;
+  .dashboard-split--row > .dashboard-split__pane--a {
+    padding-right: 3px;
   }
 
-  .dashboard-widget-slot__resize {
-    display: none !important;
-  }
-}
-
-/* A container query cannot change the query container itself. */
-#rightPanelDashboard {
-  overflow-y: auto;
-}
-
-#rightPanelDashboard.is-widget-focused .right-panel-dashboard__grid {
-  height: 100%;
-  min-height: 0;
-}
-
-#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused {
-  grid-column: 1 / -1 !important;
-  grid-row: 1 / -1 !important;
-}
-
-@container (max-width: 400px) {
-  .right-panel-dashboard__grid {
-    grid-template-columns: minmax(0, 1fr);
+  .dashboard-split--row > .dashboard-split__pane--b {
+    padding-left: 3px;
   }
 
-  .dashboard-widget-slot,
-  .dashboard-widget-slot[data-widget-slot="chart"],
-  .dashboard-widget-slot[data-widget-slot="market-state"] {
-    grid-column: 1 !important;
+  .dashboard-split--column > .dashboard-split__pane--a {
+    padding-bottom: 3px;
+  }
+
+  .dashboard-split--column > .dashboard-split__pane--b {
+    padding-top: 3px;
+  }
+
+  .dashboard-widget-slot__head {
+    height: 34px;
+    flex-basis: 34px;
+    padding-left: 10px;
   }
 }
