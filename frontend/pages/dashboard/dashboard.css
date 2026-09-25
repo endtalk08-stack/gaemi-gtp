@@ -1,5 +1,6 @@
-/* Dashboard v8.3 — Toss-style split tree.
-   테두리선 없는 패널 + 빈 공간 없는 binary split layout.
+/* Dashboard v8.4 — individual widget movement / split resize
+   이 파일은 대시보드 내부만 담당한다.
+   채팅, 왼쪽 사이드바, 오른쪽 패널 전체 폭은 변경하지 않는다.
 */
 
 #rightPanelContent:has(#rightPanelTabView-dashboard:not([hidden])) {
@@ -20,7 +21,8 @@
   overflow: hidden;
 }
 
-.dashboard-tree-stage {
+.dashboard-tree-stage,
+.dashboard-split {
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -29,12 +31,7 @@
 }
 
 .dashboard-split {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
   display: flex;
-  overflow: hidden;
 }
 
 .dashboard-split--row {
@@ -46,8 +43,8 @@
 }
 
 .dashboard-split__pane {
-  box-sizing: border-box;
   position: relative;
+  box-sizing: border-box;
   min-width: 0;
   min-height: 0;
   flex-grow: 0;
@@ -55,6 +52,7 @@
   overflow: hidden;
 }
 
+/* 실제 선을 그리지 않고 10px 간격만 사용 */
 .dashboard-split--row > .dashboard-split__pane--a {
   padding-right: 5px;
 }
@@ -71,6 +69,8 @@
   padding-top: 5px;
 }
 
+/* divider는 보이지 않는 hit area.
+   hover/drag 때만 아주 약한 가이드가 보인다. */
 .dashboard-split__divider {
   touch-action: none;
   position: relative;
@@ -89,27 +89,26 @@
   cursor: row-resize;
 }
 
-.dashboard-split--row > .dashboard-split__divider::after,
-.dashboard-split--column > .dashboard-split__divider::after {
+.dashboard-split__divider::after {
   content: '';
   position: absolute;
   opacity: 0;
-  background: color-mix(in srgb, var(--gtp-muted) 34%, transparent);
+  background: color-mix(in srgb, var(--gtp-muted) 28%, transparent);
   transition: opacity .12s ease;
 }
 
 .dashboard-split--row > .dashboard-split__divider::after {
   top: 0;
   bottom: 0;
-  left: -3px;
-  width: 6px;
+  left: -4px;
+  width: 8px;
 }
 
 .dashboard-split--column > .dashboard-split__divider::after {
   left: 0;
   right: 0;
-  top: -3px;
-  height: 6px;
+  top: -4px;
+  height: 8px;
 }
 
 .dashboard-split__divider:hover::after,
@@ -148,7 +147,7 @@
   height: 38px;
   flex: 0 0 38px;
   min-width: 0;
-  padding: 0 10px 0 13px;
+  padding: 0 13px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -171,39 +170,6 @@
   letter-spacing: -.01em;
 }
 
-#rightPanelDashboard .dashboard-widget-slot__expand {
-  margin-left: auto;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0 !important;
-  outline: 0 !important;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--gtp-faint);
-  opacity: .25;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: opacity .12s ease, background .12s ease, color .12s ease;
-}
-
-.dashboard-widget-slot:hover .dashboard-widget-slot__expand,
-.dashboard-widget-slot__expand:focus-visible {
-  opacity: 1;
-}
-
-#rightPanelDashboard .dashboard-widget-slot__expand:hover {
-  background: var(--gtp-hover);
-  color: var(--gtp-text);
-}
-
-.dashboard-widget-slot__expand svg {
-  width: 12px;
-  height: 12px;
-}
-
 .dashboard-widget-slot__content {
   flex: 1;
   min-height: 0;
@@ -216,10 +182,10 @@
 }
 
 .dashboard-widget-slot.is-dragging {
-  opacity: .4;
+  opacity: .38;
 }
 
-/* 드롭 방향 표시: 평상시에는 완전히 숨김 */
+/* 개별 위젯 이동 시 target의 어느 방향에 놓이는지만 표시 */
 .dashboard-drop-overlay {
   pointer-events: none;
   position: absolute;
@@ -230,34 +196,34 @@
 
 .dashboard-drop-overlay span {
   position: absolute;
-  background: color-mix(in srgb, var(--gtp-text) 6%, transparent);
+  background: transparent;
 }
 
 .dashboard-drop-overlay [data-zone="top"] {
-  left: 20%;
-  right: 20%;
+  left: 18%;
+  right: 18%;
   top: 0;
   height: 34%;
 }
 
 .dashboard-drop-overlay [data-zone="bottom"] {
-  left: 20%;
-  right: 20%;
+  left: 18%;
+  right: 18%;
   bottom: 0;
   height: 34%;
 }
 
 .dashboard-drop-overlay [data-zone="left"] {
   left: 0;
-  top: 20%;
-  bottom: 20%;
+  top: 18%;
+  bottom: 18%;
   width: 34%;
 }
 
 .dashboard-drop-overlay [data-zone="right"] {
   right: 0;
-  top: 20%;
-  bottom: 20%;
+  top: 18%;
+  bottom: 18%;
   width: 34%;
 }
 
@@ -272,70 +238,15 @@
 .dashboard-widget-slot[data-drop-zone="right"] .dashboard-drop-overlay [data-zone="right"],
 .dashboard-widget-slot[data-drop-zone="bottom"] .dashboard-drop-overlay [data-zone="bottom"],
 .dashboard-widget-slot[data-drop-zone="left"] .dashboard-drop-overlay [data-zone="left"] {
-  background: color-mix(in srgb, var(--gtp-accent, #6d7cff) 24%, transparent);
+  background: color-mix(in srgb, var(--gtp-text) 8%, transparent);
 }
 
-/* 집중보기: 기존 트리는 그대로 두고 선택 패널만 전체 overlay */
-#rightPanelDashboard.is-widget-focused .dashboard-split,
-#rightPanelDashboard.is-widget-focused .dashboard-split__pane,
-#rightPanelDashboard.is-widget-focused .dashboard-tree-stage {
-  position: static;
-  overflow: visible;
+/* v8.3 집중보기/전체크게 기능은 삭제 */
+.dashboard-widget-slot__expand,
+.dashboard-focus-back {
+  display: none !important;
 }
 
-#rightPanelDashboard.is-widget-focused .dashboard-widget-slot:not(.is-focused),
-#rightPanelDashboard.is-widget-focused .dashboard-split__divider {
-  visibility: hidden;
-}
-
-#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused {
-  position: absolute;
-  inset: 10px 12px 12px;
-  width: auto;
-  height: auto;
-  z-index: 50;
-  border-radius: 16px;
-  box-shadow: 0 18px 48px rgba(0,0,0,.20);
-}
-
-#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused .dashboard-widget-slot__head {
-  padding-left: 48px;
-  cursor: default;
-}
-
-#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused .dashboard-widget-slot__expand {
-  display: none;
-}
-
-#rightPanelDashboard .dashboard-focus-back {
-  position: absolute;
-  z-index: 70;
-  top: 15px;
-  left: 18px;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0 !important;
-  outline: 0 !important;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--gtp-surface) 90%, transparent);
-  color: var(--gtp-text);
-  box-shadow: 0 8px 22px rgba(0,0,0,.12);
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-#rightPanelDashboard .dashboard-focus-back:not([hidden]) {
-  display: inline-flex;
-}
-
-.dashboard-focus-back svg {
-  width: 14px;
-  height: 14px;
-}
-
-/* 화면이 좁아지면 분할 엔진은 유지하되 radius/gap만 압축 */
 @container (max-width: 720px) {
   #rightPanelDashboard {
     padding: 8px;
@@ -364,6 +275,6 @@
   .dashboard-widget-slot__head {
     height: 34px;
     flex-basis: 34px;
-    padding-left: 10px;
+    padding: 0 10px;
   }
 }
