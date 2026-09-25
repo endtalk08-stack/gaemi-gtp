@@ -1,0 +1,74 @@
+/* Dashboard Container — v7.5
+   책임: 오른쪽 패널 안의 Dashboard 화면 틀과 위젯 슬롯 배치만 담당한다.
+   데이터/API/DB/분석 로직은 넣지 않는다.
+*/
+
+#rightPanelDashboard {
+  min-height: 100%;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+
+.right-panel-dashboard__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.dashboard-widget-slot {
+  min-height: 108px;
+  border: 1px solid var(--gtp-border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--gtp-surface) 88%, transparent);
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+.dashboard-widget-slot__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.dashboard-widget-slot__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gtp-surface-2);
+  color: var(--gtp-muted);
+  flex: 0 0 auto;
+}
+
+.dashboard-widget-slot__title {
+  color: var(--gtp-text);
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.dashboard-widget-slot__body {
+  color: var(--gtp-faint);
+  font-size: 10px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+
+@media (min-width: 700px) {
+  .right-panel-dashboard__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1100px) {
+  .right-panel-dashboard__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+
+
+.dashboard-widget-slot__mount {
+  display: none;
+}
