@@ -1,7 +1,7 @@
 """Google News RSS provider.
 
 Responsibility:
-- Call Google News RSS.
+- Call Google News RSS only.
 - Return source-shaped raw records.
 - Do NOT classify, rank, deduplicate, format time, or decide UI behavior.
 """
@@ -9,6 +9,9 @@ Responsibility:
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+
+
+REQUEST_TIMEOUT = 2.2
 
 
 def fetch_news(query, days=2):
@@ -25,7 +28,7 @@ def fetch_news(query, days=2):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
 
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
             root = ET.fromstring(resp.read())
     except Exception as exc:
         print(f"[provider:google-news] failed query={query}: {type(exc).__name__}: {exc}")

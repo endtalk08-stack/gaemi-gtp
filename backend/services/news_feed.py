@@ -1,12 +1,10 @@
-"""General news feed processing for the gaemiGTP right-side news workspace.
+"""General news feed processing.
 
-Architecture contract:
+Boundary:
 providers/*  -> external source retrieval only
-news_feed.py -> normalize / dedupe / classify / sort / cache / presentation fields
+news_feed.py -> normalize / dedupe / classify / sort / cache
 app.py       -> HTTP transport only
 frontend     -> rendering only
-
-This service deliberately knows nothing about DOM/layout.
 """
 
 import datetime
@@ -15,7 +13,7 @@ import re
 import threading
 import time
 import urllib.parse
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.utils import parsedate_to_datetime
 
 from backend.providers import google_news, naver_news
@@ -25,16 +23,17 @@ _CACHE = {}
 _CACHE_TTL = 120
 _CACHE_LOCK = threading.Lock()
 
+# Keep requests small. "전체" uses only two broad searches instead of five separate searches.
 CATEGORY_QUERIES = {
-    "전체": ["증시", "주식", "경제", "반도체", "연준"],
-    "증시": ["증시", "코스피", "코스닥", "나스닥"],
-    "종목": ["기업 주식", "상장사", "반도체 기업"],
-    "경제지표": ["CPI", "GDP", "고용 물가"],
-    "에너지": ["유가", "원유", "에너지"],
-    "연준": ["연준", "FOMC"],
-    "일정": ["경제 일정", "FOMC 일정", "실적 발표 일정"],
-    "투자의견": ["목표주가", "투자의견"],
-    "실적발표": ["실적 발표", "매출 영업이익"],
+    "전체": ["증시", "경제"],
+    "증시": ["코스피 코스닥 나스닥"],
+    "종목": ["상장사 주식"],
+    "경제지표": ["CPI GDP 고용 물가"],
+    "에너지": ["유가 원유 에너지"],
+    "연준": ["연준 FOMC 금리"],
+    "일정": ["경제 일정 FOMC 일정"],
+    "투자의견": ["목표주가 투자의견"],
+    "실적발표": ["실적 발표 매출 영업이익"],
 }
 
 SOURCE_DOMAINS = {
@@ -136,7 +135,7 @@ def _normalize_provider_row(row, requested_category):
     original_link = str(row.get("raw_original_link") or "").strip()
 
     if provider == "google":
-        # Google RSS title commonly ends in " - publisher".
+        # Google RSS title commonly ends with the publisher name.
         title = re.sub(r"\s*[-–—―|]\s*[^-–—―|]+$", "", title).strip()
         source = raw_source or "Google News"
         final_link = raw_link
@@ -160,11 +159,9 @@ def _normalize_provider_row(row, requested_category):
     }
 
 
-def _fetch_from_provider(query):
-    # Source failover happens here; source modules themselves do not know about each other.
-    rows = naver_news.fetch_news(query, display=20)
-    if rows:
-        return rows
+def _fetch_provider(provider_name, query):
+    if provider_name == "naver":
+        return naver_news.fetch_news(query, display=20)
     return google_news.fetch_news(query, days=2)
 
 
@@ -173,17 +170,17 @@ def _collect_raw_rows(queries):
     if not queries:
         return []
 
+    jobs = [(provider, query) for query in queries for provider in ("naver", "google")]
     rows = []
-    executor = ThreadPoolExecutor(max_workers=min(5, len(queries)))
-    try:
-        futures = [executor.submit(_fetch_from_provider, q) for q in queries]
-        for future in futures:
+
+    # Naver and Google run in parallel. One slow provider no longer blocks the other first.
+    with ThreadPoolExecutor(max_workers=min(4, len(jobs))) as executor:
+        futures = [executor.submit(_fetch_provider, provider, query) for provider, query in jobs]
+        for future in as_completed(futures):
             try:
                 rows.extend(future.result())
             except Exception:
                 pass
-    finally:
-        executor.shutdown(wait=True)
     return rows
 
 

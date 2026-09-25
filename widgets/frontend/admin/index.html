@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>gaemiGTP ADMIN</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">gaemiGTP <span>ADMIN</span></div>
+      <nav id="nav">
+        <button class="nav-item active" data-section="dashboard">대시보드</button>
+        <button class="nav-item" data-section="data">📡 데이터 수집</button>
+        <button class="nav-item" data-section="validation">🧪 데이터 검증</button>
+        <button class="nav-item" data-section="conditions">⚙ 조건 관리</button>
+        <button class="nav-item" data-section="results">📊 검증 결과 / 조건 실현</button>
+        <button class="nav-item" data-section="messages">💬 멘트 관리</button>
+        <button class="nav-item" data-section="events">🧩 이벤트 관리</button>
+        <button class="nav-item" data-section="story">🕐 Market Story</button>
+        <button class="nav-item" data-section="preview">👀 미리보기</button>
+        <button class="nav-item" data-section="publish">🚀 서비스 적용</button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">대시보드</h1>
+          <p>gaemiGTP 시장행동 데이터 관리자</p>
+        </div>
+        <button id="resetBtn" class="ghost">데모 데이터 초기화</button>
+      </header>
+      <section id="content"></section>
+    </main>
+  </div>
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

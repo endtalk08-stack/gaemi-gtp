@@ -4,9 +4,6 @@ Responsibility:
 - Call NAVER API HUB only.
 - Return source-shaped raw records.
 - Do NOT classify, rank, deduplicate, format time, or decide UI behavior.
-
-Deployment compatibility:
-- Reuses existing NAVER_CLIENT_ID / NAVER_CLIENT_SECRET environment variable names.
 """
 
 import json
@@ -17,8 +14,8 @@ import urllib.request
 
 NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().strip("'\"")
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().strip("'\"")
-
 NAVER_NEWS_URL = "https://naverapihub.apigw.ntruss.com/search/v1/news"
+REQUEST_TIMEOUT = 2.2
 
 
 def is_configured():
@@ -47,10 +44,10 @@ def fetch_news(query, display=20):
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
-        print(f"[provider:naver-api-hub-news] failed query={query}: {type(exc).__name__}: {exc}")
+        print(f"[provider:naver-news] failed query={query}: {type(exc).__name__}: {exc}")
         return []
 
     rows = []

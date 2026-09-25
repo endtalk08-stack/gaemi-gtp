@@ -1,0 +1,25 @@
+gaemiGTP FULL INTEGRATED 2026-09-25
+
+저장소 루트에 이 폴더 내용을 그대로 덮어쓰기하는 통합본입니다.
+
+포함:
+- Dashboard v8.5 responsive
+- 왼쪽 3개 사이드바 PC 폭 320px
+- News provider/source 분리
+- NAVER API HUB provider + Google News fallback
+- /news API route
+- News workspace (주요뉴스 3 / 일반 5→10)
+- 오른쪽 패널 뉴스 탭 기본 노출 + 기존 localStorage 자동 보강
+- 왼쪽 레일 뉴스 버튼 → 오른쪽 뉴스 탭
+- Dashboard 뉴스 위젯 실제 /news 데이터 연결
+- 변경된 root/frontend 중복 정적 파일 동기화
+
+환경변수:
+NAVER_CLIENT_ID
+NAVER_CLIENT_SECRET
+
+원칙:
+provider = 원천 수집
+service = 가공
+app.py = API 전달
+frontend = 표시

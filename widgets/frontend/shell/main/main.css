@@ -1,0 +1,5 @@
+/* v7.13 shell boundary only. */
+[data-shell="main-workspace"] {
+  min-width: 0;
+  min-height: 0;
+}
