@@ -1,21 +1,16 @@
-/* Right Panel Shell Controller — v8.3
-   desktop:
-   - AI dock width controls the boundary.
-   - default AI dock = 296px.
-   - right panel automatically consumes all remaining workspace.
-   mobile:
-   - keeps legacy panel-width compatibility.
+/* Right Panel Shell Controller — v8.3.1 hotfix
+   - 왼쪽 사이드바는 건드리지 않는다.
+   - desktop 기본 상태: 중앙 채팅 약 296px만 남기고 오른쪽 패널이 나머지를 사용.
+   - 사용자가 경계선을 끌면 그 폭을 저장하고 그대로 복원.
 */
 (function () {
   'use strict';
 
   const PANEL_WIDTH_KEY = 'gaemiGTP_panel_width_v3';
-  const AI_DOCK_WIDTH_KEY = 'gaemiGTP_ai_dock_width_v1';
-
-  const DEFAULT_AI_DOCK = 296;
-  const MIN_AI_DOCK = 240;
-  const MAX_AI_DOCK = 520;
-  const MIN_HTS = 560;
+  const USER_PANEL_WIDTH_KEY = 'gaemiGTP_panel_width_v4';
+  const DEFAULT_CHAT_WIDTH = 296;
+  const MIN_CHAT_WIDTH = 240;
+  const MIN_PANEL_WIDTH = 280;
   const RESIZER_WIDTH = 5;
 
   function getWorkspace() {
@@ -26,60 +21,67 @@
     return window.innerWidth >= 1024;
   }
 
-  function getAIDockBounds() {
+  function getMaxPanelWidth() {
     const workspace = getWorkspace();
-    const width = workspace ? workspace.getBoundingClientRect().width : window.innerWidth;
-    const dynamicMax = Math.max(
-      MIN_AI_DOCK,
-      Math.min(MAX_AI_DOCK, width - MIN_HTS - RESIZER_WIDTH)
-    );
-    return { min: MIN_AI_DOCK, max: dynamicMax };
+    if (!workspace) return 1200;
+    const width = workspace.getBoundingClientRect().width;
+    return Math.max(MIN_PANEL_WIDTH, width - MIN_CHAT_WIDTH - RESIZER_WIDTH);
   }
 
-  function setAIDockWidth(px, persist = true) {
+  function getDefaultPanelWidth() {
+    const workspace = getWorkspace();
+    if (!workspace) return 900;
+    const width = workspace.getBoundingClientRect().width;
+    return Math.max(
+      MIN_PANEL_WIDTH,
+      width - DEFAULT_CHAT_WIDTH - RESIZER_WIDTH
+    );
+  }
+
+  function applyPanelWidth(px, persistUser = false) {
     const workspace = getWorkspace();
     if (!workspace) return;
 
-    const bounds = getAIDockBounds();
-    const requested = Number(px);
+    const maxWidth = getMaxPanelWidth();
+    const value = Number(px);
     const width = Math.max(
-      bounds.min,
-      Math.min(Number.isFinite(requested) ? requested : DEFAULT_AI_DOCK, bounds.max)
+      MIN_PANEL_WIDTH,
+      Math.min(Number.isFinite(value) ? value : getDefaultPanelWidth(), maxWidth)
     );
-    const rounded = Math.round(width);
-
-    workspace.style.setProperty('--ai-dock-width', `${rounded}px`);
-    if (persist) localStorage.setItem(AI_DOCK_WIDTH_KEY, String(rounded));
-  }
-
-  function getSavedAIDockWidth(fallback = DEFAULT_AI_DOCK) {
-    const value = parseInt(localStorage.getItem(AI_DOCK_WIDTH_KEY) || String(fallback), 10);
-    return Number.isFinite(value) ? value : fallback;
-  }
-
-  /* 기존 app.js 호환 API.
-     desktop에서는 실제 배치를 AI dock이 결정하므로 이 값은 레거시 상태 저장용이다. */
-  function setPanelWidth(px) {
-    const workspace = getWorkspace();
-    if (!workspace) return;
-
-    const rect = workspace.getBoundingClientRect();
-    const minMainWidth = isDesktop() ? MIN_AI_DOCK : 0;
-    const maxWidth = Math.max(280, rect.width - minMainWidth - RESIZER_WIDTH);
-    const width = Math.max(280, Math.min(Number(px) || 360, maxWidth));
     const rounded = Math.round(width);
 
     workspace.style.setProperty('--right-panel-width', `${rounded}px`);
     localStorage.setItem(PANEL_WIDTH_KEY, String(rounded));
 
-    /* 새 레이아웃에서 desktop panel width는 시각적 폭을 직접 제어하지 않는다. */
-    if (!isDesktop()) return rounded;
+    if (persistUser) {
+      localStorage.setItem(USER_PANEL_WIDTH_KEY, String(rounded));
+    }
+
     return rounded;
   }
 
-  function getSavedPanelWidth(fallback = 360) {
-    const value = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || String(fallback), 10);
-    return Number.isFinite(value) ? value : fallback;
+  function getSavedUserPanelWidth() {
+    const value = parseInt(localStorage.getItem(USER_PANEL_WIDTH_KEY) || '', 10);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  /* app.js의 기존 호출과 호환.
+     예전 360px 저장값 때문에 채팅이 다시 커지지 않도록
+     실제 사용자 저장값(v4)이 있으면 그것을 우선하고,
+     없으면 '채팅 296px' 기준으로 계산한다. */
+  function setPanelWidth() {
+    if (!isDesktop()) {
+      const legacy = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
+      return applyPanelWidth(Number.isFinite(legacy) ? legacy : 360, false);
+    }
+
+    const saved = getSavedUserPanelWidth();
+    return applyPanelWidth(saved ?? getDefaultPanelWidth(), false);
+  }
+
+  function getSavedPanelWidth() {
+    const saved = getSavedUserPanelWidth();
+    return saved ?? getDefaultPanelWidth();
   }
 
   function initializeWorkspaceInteractions() {
@@ -91,15 +93,12 @@
       return;
     }
 
-    if (isDesktop()) {
-      setAIDockWidth(getSavedAIDockWidth(DEFAULT_AI_DOCK), false);
-    }
+    setPanelWidth();
 
     if (window.ResizeObserver) {
       const observer = new ResizeObserver(() => {
-        if (!isDesktop()) return;
         if (document.body.classList.contains('right-panel-maximized')) return;
-        setAIDockWidth(getSavedAIDockWidth(DEFAULT_AI_DOCK), false);
+        setPanelWidth();
       });
       observer.observe(workspace);
       workspace.__rightPanelResizeObserver = observer;
@@ -114,8 +113,8 @@
       const rect = workspace.getBoundingClientRect();
 
       const onMove = (moveEvent) => {
-        /* resizer 왼쪽 = AI dock 폭 */
-        setAIDockWidth(moveEvent.clientX - rect.left, false);
+        const panelWidth = rect.right - moveEvent.clientX;
+        applyPanelWidth(panelWidth, false);
       };
 
       const onUp = () => {
@@ -124,11 +123,12 @@
         document.body.classList.remove('panel-resizing');
 
         const current = parseInt(
-          getComputedStyle(workspace).getPropertyValue('--ai-dock-width') || String(DEFAULT_AI_DOCK),
+          getComputedStyle(workspace).getPropertyValue('--right-panel-width') || '',
           10
         );
         if (Number.isFinite(current)) {
-          localStorage.setItem(AI_DOCK_WIDTH_KEY, String(current));
+          localStorage.setItem(USER_PANEL_WIDTH_KEY, String(current));
+          localStorage.setItem(PANEL_WIDTH_KEY, String(current));
         }
       };
 
@@ -142,12 +142,9 @@
 
   window.GaemiGTPRightPanelShell = {
     PANEL_WIDTH_KEY,
-    AI_DOCK_WIDTH_KEY,
     getWorkspace,
     setPanelWidth,
     getSavedPanelWidth,
-    setAIDockWidth,
-    getSavedAIDockWidth,
     initializeWorkspaceInteractions,
   };
 })();

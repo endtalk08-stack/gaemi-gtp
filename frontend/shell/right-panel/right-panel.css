@@ -1,19 +1,22 @@
-/* Right Panel Shell — v8.3
-   AI 채팅은 좁은 도크, 오른쪽은 HTS 메인 작업공간.
-   패널 닫힘 시에만 채팅이 다시 넓어진다.
+/* Right Panel Shell — v8.3.1 hotfix
+   딱 한 가지 원칙:
+   - 왼쪽/보조 사이드바 크기는 건드리지 않는다.
+   - 오른쪽 패널이 열리면 중앙 채팅 영역만 줄어든다.
+   - 경계선을 끌면 채팅/오른쪽 패널 폭이 자유롭게 다시 조절된다.
 */
 
 #gaemiWorkspace {
-  --ai-dock-width: 296px;
-  --right-panel-width: 360px; /* 기존 app.js 호환용 */
+  --right-panel-width: 360px;
 }
 
 #gaemiWorkspace #rightPanel {
   order: 3;
-  height: 100%;
-  min-width: 0;
+  flex: 0 0 var(--right-panel-width);
+  width: var(--right-panel-width);
+  min-width: 280px;
   max-width: none;
-  overflow: hidden;
+  height: 100%;
+  transition: width .12s ease, flex-basis .12s ease;
 }
 
 #gaemiWorkspace #rightPanelResizer {
@@ -23,13 +26,7 @@
   height: 100%;
   cursor: col-resize;
   background: transparent;
-  transition: background .15s ease;
   z-index: 20;
-}
-
-#gaemiWorkspace #rightPanelResizer:hover,
-body.panel-resizing #gaemiWorkspace #rightPanelResizer {
-  background: color-mix(in srgb, var(--gtp-muted) 22%, transparent);
 }
 
 body.right-panel-closed #rightPanel,
@@ -39,46 +36,16 @@ body:not(.right-panel-open) #rightPanelResizer {
   display: none !important;
 }
 
-/* ================================================================
-   DESKTOP: 58px rail | 296px AI dock | 나머지 전부 HTS
-   - 왼쪽 시장/관심/플러그인 패널이 열려도 AI dock 폭은 유지
-   - 리사이저를 움직이면 AI dock 폭만 240~520px 범위에서 조절
-   ================================================================ */
 @media (min-width: 1024px) {
+  /* 패널이 열릴 때 중앙 채팅만 자연스럽게 줄어든다. */
   body.right-panel-open:not(.right-panel-maximized) #gaemiWorkspace #mainContent {
-    flex: 0 0 var(--ai-dock-width) !important;
-    width: var(--ai-dock-width) !important;
-    min-width: 240px !important;
-    max-width: 520px !important;
-  }
-
-  body.right-panel-open:not(.right-panel-maximized) #gaemiWorkspace #rightPanel {
-    flex: 1 1 0 !important;
+    flex: 1 1 auto !important;
     width: auto !important;
-    min-width: 0 !important;
+    min-width: 240px !important;
     max-width: none !important;
   }
 
-  /* 좁은 AI 도크에서는 중앙 카드 묶음을 숨기고 채팅 자체에 집중 */
-  body.right-panel-open #centralWidgetDock {
-    display: none !important;
-  }
-
-  body.right-panel-open #chatArea {
-    max-width: none !important;
-    padding: 16px 14px !important;
-  }
-
-  body.right-panel-open #bottomStockInput {
-    padding-left: 16px !important;
-    padding-right: 94px !important;
-    font-size: 12px !important;
-  }
-
-  body.right-panel-open #bottomModeBtn {
-    padding-left: 4px !important;
-    padding-right: 4px !important;
-  }
+  /* 왼쪽 시장/관심/플러그인 사이드바 규칙은 전혀 건드리지 않는다. */
 
   body.right-panel-maximized #gaemiWorkspace #mainContent {
     display: none !important;
@@ -96,7 +63,6 @@ body:not(.right-panel-open) #rightPanelResizer {
   }
 }
 
-/* 모바일: 기존처럼 오른쪽 패널이 화면 전체를 사용 */
 @media (max-width: 1023px) {
   #gaemiWorkspace #rightPanel {
     flex-basis: min(var(--right-panel-width), 100vw);
