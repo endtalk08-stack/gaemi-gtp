@@ -6,6 +6,7 @@
   'use strict';
 
   const TABS_KEY = 'gaemiGTP_right_panel_tabs_v1';
+  const DASHBOARD_VIEW_KEY = 'gaemiGTP_right_panel_dashboard_view_v1';
   const DEFAULT_TABS = [
     { id: 'dashboard', label: '대시보드', icon: 'layout-dashboard', closable: false },
     { id: 'auto-trade', label: '자동매매', icon: 'bot', closable: true },
@@ -13,6 +14,14 @@
 
   let tabs = [];
   let activeTabId = 'dashboard';
+  let dashboardView = 'dashboard';
+
+  const DASHBOARD_VIEWS = {
+    dashboard: { label: '대시보드', icon: 'layout-dashboard' },
+    chart: { label: '차트', icon: 'chart-no-axes-combined' },
+    news: { label: '뉴스', icon: 'newspaper' },
+    industry: { label: '업종', icon: 'building-2' },
+  };
 
   function readState() {
     try {
@@ -22,7 +31,7 @@
       if (!state || !Array.isArray(state.tabs)) return null;
 
       const cleanTabs = state.tabs
-        .filter(t => t && typeof t.id === 'string' && typeof t.label === 'string')
+        .filter(t => t && typeof t.id === 'string' && typeof t.label === 'string' && !['chart', 'news', 'industry'].includes(t.id))
         .map(t => ({
           id: t.id,
           label: t.label,
@@ -46,6 +55,19 @@
     } catch (e) {
       console.warn('[gaemiGTP] right panel tabs save warning:', e);
     }
+  }
+
+  function readDashboardView() {
+    try {
+      const value = localStorage.getItem(DASHBOARD_VIEW_KEY);
+      return DASHBOARD_VIEWS[value] ? value : 'dashboard';
+    } catch (_) {
+      return 'dashboard';
+    }
+  }
+
+  function saveDashboardView() {
+    try { localStorage.setItem(DASHBOARD_VIEW_KEY, dashboardView); } catch (_) {}
   }
 
   function getTabList() {
@@ -95,6 +117,31 @@
     root.appendChild(section);
   }
 
+  function renderDashboardView() {
+    const root = document.getElementById('rightPanelDashboard');
+    if (!root) return;
+
+    if (dashboardView === 'dashboard') {
+      root.innerHTML = '';
+      return;
+    }
+
+    if (dashboardView === 'news') {
+      root.innerHTML = '<section id="rightPanelNews" style="height:100%;min-height:0;" aria-label="뉴스"></section>';
+      mountNewsPage();
+      return;
+    }
+
+    const view = DASHBOARD_VIEWS[dashboardView];
+    root.innerHTML = `
+      <div class="right-panel-tab-placeholder" data-dashboard-page="${dashboardView}">
+        <div class="right-panel-tab-placeholder__icon"><i data-lucide="${view.icon}"></i></div>
+        <div class="right-panel-tab-placeholder__title">${view.label}</div>
+        <div class="right-panel-tab-placeholder__text">이 패널 안에서 ${view.label} 화면을 구성할 수 있습니다.</div>
+      </div>`;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
   function renderTabs() {
     const list = getTabList();
     if (!list) return;
@@ -121,10 +168,10 @@
         dashboardMenu.dataset.dashboardMenu = 'true';
         dashboardMenu.hidden = true;
         dashboardMenu.innerHTML = `
-          <div class="right-panel-tab-menu__section">새 창</div>
-          <button type="button" class="right-panel-tab-menu__item" data-dashboard-open="chart"><i data-lucide="chart-no-axes-combined"></i><span>차트</span></button>
-          <button type="button" class="right-panel-tab-menu__item" data-dashboard-open="news"><i data-lucide="newspaper"></i><span>뉴스</span></button>
-          <button type="button" class="right-panel-tab-menu__item" data-dashboard-open="industry"><i data-lucide="building-2"></i><span>업종</span></button>
+          <div class="right-panel-tab-menu__section">패널 보기</div>
+          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="chart"><i data-lucide="chart-no-axes-combined"></i><span>차트</span></button>
+          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="news"><i data-lucide="newspaper"></i><span>뉴스</span></button>
+          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="industry"><i data-lucide="building-2"></i><span>업종</span></button>
         `;
         dashboardWrap.appendChild(dashboardMenu);
         list.appendChild(dashboardWrap);
@@ -178,9 +225,6 @@
       <div class="right-panel-tab-menu__section">탭 추가</div>
       <button type="button" class="right-panel-tab-menu__item" data-add-tab-type="dashboard">
         <i data-lucide="layout-dashboard"></i><span>대시보드</span>
-      </button>
-      <button type="button" class="right-panel-tab-menu__item" data-add-tab-type="auto-trade">
-        <i data-lucide="bot"></i><span>자동매매</span>
       </button>
       <div class="right-panel-tab-menu__section">탭 삭제</div>
       <div class="right-panel-tab-menu__delete-list" data-tab-delete-list></div>
@@ -240,7 +284,7 @@
   }
 
   function addNamedTab(type) {
-    if (!['dashboard', 'auto-trade', 'chart', 'news', 'industry'].includes(type)) return;
+    if (!['dashboard', 'auto-trade'].includes(type)) return;
 
     const existing = tabs.find(t => t.id === type);
     if (existing) {
@@ -253,17 +297,11 @@
     const labels = {
       dashboard: '대시보드',
       'auto-trade': '자동매매',
-      chart: '차트',
-      news: '뉴스',
-      industry: '업종',
     };
 
     const icons = {
       dashboard: 'layout-dashboard',
       'auto-trade': 'bot',
-      chart: 'chart-no-axes-combined',
-      news: 'newspaper',
-      industry: 'building-2',
     };
 
     const tab = {
@@ -280,6 +318,27 @@
     toggleDashboardMenu(false);
   }
 
+  function selectDashboardView(type) {
+    if (!DASHBOARD_VIEWS[type]) return;
+    dashboardView = type;
+    setActiveTab('dashboard');
+    saveDashboardView();
+    toggleDashboardMenu(false);
+  }
+
+  function mountNewsPage() {
+    const root = document.getElementById('rightPanelNews');
+    if (root && window.GaemiGTPNews && typeof window.GaemiGTPNews.mount === 'function') {
+      window.GaemiGTPNews.mount(root);
+    } else if (root) {
+      window.addEventListener('load', () => {
+        if (activeTabId === 'dashboard' && dashboardView === 'news' && window.GaemiGTPNews && typeof window.GaemiGTPNews.mount === 'function') {
+          window.GaemiGTPNews.mount(root);
+        }
+      }, { once: true });
+    }
+  }
+
   function mountTabPage(tab) {
     if (!tab) return;
     if (tab.id === 'auto-trade') {
@@ -290,18 +349,6 @@
       return;
     }
 
-    if (tab.id === 'news') {
-      const root = document.getElementById('rightPanelNews');
-      if (root && window.GaemiGTPNews && typeof window.GaemiGTPNews.mount === 'function') {
-        window.GaemiGTPNews.mount(root);
-      } else if (root) {
-        window.addEventListener('load', () => {
-          if (activeTabId === 'news' && window.GaemiGTPNews && typeof window.GaemiGTPNews.mount === 'function') {
-            window.GaemiGTPNews.mount(root);
-          }
-        }, { once: true });
-      }
-    }
   }
 
   function setActiveTab(id, persist = true) {
@@ -309,7 +356,7 @@
     activeTabId = id;
 
     tabs.forEach(tab => {
-      if (tab.id === 'auto-trade' || tab.id === 'news') {
+      if (tab.id === 'auto-trade') {
         mountTabPage(tab);
       } else if (tab.id !== 'dashboard' && !getView(tab.id)) {
         makePlaceholderView(tab);
@@ -323,6 +370,7 @@
     });
 
     renderTabs();
+    if (activeTabId === 'dashboard') renderDashboardView();
     if (persist) saveState();
   }
 
@@ -370,6 +418,7 @@
     const stored = readState();
     tabs = stored?.tabs?.length ? stored.tabs : DEFAULT_TABS.map(t => ({ ...t }));
     activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'dashboard';
+    dashboardView = readDashboardView();
 
     tabs.forEach(tab => {
       if (tab.id !== 'dashboard' && tab.id !== 'auto-trade') makePlaceholderView(tab);
@@ -390,10 +439,10 @@
         return;
       }
 
-      const dashboardOpen = event.target.closest('[data-dashboard-open]');
-      if (dashboardOpen) {
+      const dashboardViewButton = event.target.closest('[data-dashboard-view]');
+      if (dashboardViewButton) {
         event.stopPropagation();
-        addNamedTab(dashboardOpen.dataset.dashboardOpen);
+        selectDashboardView(dashboardViewButton.dataset.dashboardView);
         return;
       }
 
@@ -443,6 +492,7 @@
     initialize,
     addTab,
     addNamedTab,
+    selectDashboardView,
     removeTab,
     setActiveTab,
     getTabs: () => tabs.map(tab => ({ ...tab })),
