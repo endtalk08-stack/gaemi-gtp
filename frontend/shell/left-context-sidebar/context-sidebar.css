@@ -4,8 +4,8 @@
    - 관심종목 / 최근 본 종목을 담는 큰 구조만 먼저 제공
    ================================================================ */
 #leftContextSidebar.context-sidebar {
-  width: 350px;
-  flex: 0 0 350px;
+  width: 320px;
+  flex: 0 0 320px;
   min-width: 0;
   height: 100%;
   overflow: hidden;

@@ -210,7 +210,7 @@ button,input{font:inherit}
 </body>
 </html>`;
 
-  function mount(root) {
+  function mountWorkspace(root) {
     if (!root || root.dataset.newsWorkspaceMounted === 'true') return;
 
     root.innerHTML = `
@@ -229,5 +229,89 @@ button,input{font:inherit}
     root.dataset.newsWorkspaceMounted = 'true';
   }
 
-  window.GaemiGTPNews = { mount };
+  function escapeText(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;',
+    }[m]));
+  }
+
+  function openDashboardArticle(item) {
+    const payload = {
+      title: item.title,
+      source: item.source,
+      display_datetime: item.display_datetime,
+      link: item.link,
+      original_link: item.original_link || item.link,
+    };
+    if (typeof window.openExternalLinkModal === 'function') {
+      window.openExternalLinkModal(payload);
+      return;
+    }
+    if (payload.original_link) {
+      window.open(payload.original_link, '_blank', 'noopener');
+    }
+  }
+
+  function mountDashboard(root) {
+    if (!root || root.dataset.newsDashboardMounted === 'true') return;
+    root.dataset.newsDashboardMounted = 'true';
+    root.style.height = '100%';
+    root.innerHTML = `
+      <div class="gaemi-dashboard-news" style="height:100%;min-height:0;display:flex;flex-direction:column;padding:2px 0;">
+        <div data-news-dashboard-list style="min-height:0;flex:1;overflow:hidden;color:#8e918f;font-size:11px;">
+          <div style="padding:10px 0;color:#71717a;">뉴스를 불러오는 중...</div>
+        </div>
+      </div>
+    `;
+
+    const list = root.querySelector('[data-news-dashboard-list]');
+
+    fetch('/news?category=%EC%A0%84%EC%B2%B4&limit=5', {
+      headers: { 'Accept': 'application/json' },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        const items = Array.isArray(data.items) ? data.items.slice(0, 5) : [];
+        if (!items.length) {
+          list.innerHTML = '<div style="padding:10px 0;color:#71717a;">표시할 뉴스가 없습니다.</div>';
+          return;
+        }
+
+        list.innerHTML = items.map((item, index) => `
+          <button type="button"
+                  data-dashboard-news-index="${index}"
+                  style="width:100%;height:42px;border:0;border-bottom:1px solid rgba(255,255,255,.045);background:transparent;color:inherit;padding:5px 0;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:8px;text-align:left;cursor:pointer;">
+            <span style="grid-column:1;grid-row:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:700;color:#b6b8b7;">${escapeText(item.title)}</span>
+            <span style="grid-column:2;grid-row:1;font-size:9px;color:#71717a;white-space:nowrap;">${escapeText(item.display_datetime || '')}</span>
+            <span style="grid-column:1/3;grid-row:2;font-size:9px;color:#71717a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeText(item.source || '출처 확인')}</span>
+          </button>
+        `).join('');
+
+        list.querySelectorAll('[data-dashboard-news-index]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const item = items[Number(button.dataset.dashboardNewsIndex)];
+            if (item) openDashboardArticle(item);
+          });
+        });
+      })
+      .catch(() => {
+        list.innerHTML = '<div style="padding:10px 0;color:#71717a;">뉴스를 불러오지 못했습니다.</div>';
+      });
+  }
+
+  window.GaemiGTPNews = {
+    mount: mountWorkspace,
+    mountWorkspace,
+    mountDashboard,
+  };
+
+  window.GaemiGTPWidgets = window.GaemiGTPWidgets || {};
+  window.GaemiGTPWidgets.news = {
+    mount: mountDashboard,
+    render: mountDashboard,
+  };
 })();

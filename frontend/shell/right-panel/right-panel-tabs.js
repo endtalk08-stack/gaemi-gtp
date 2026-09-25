@@ -9,6 +9,7 @@
   const TABS_KEY = 'gaemiGTP_right_panel_tabs_v1';
   const DEFAULT_TABS = [
     { id: 'dashboard', label: '대시보드', icon: 'layout-dashboard', closable: false },
+    { id: 'news', label: '뉴스', icon: 'newspaper', closable: true },
     { id: 'auto-trade', label: '자동매매', icon: 'bot', closable: true },
   ];
 
@@ -207,7 +208,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = 'widgets/news-widget.js?v=20260925-live-v1';
+      script.src = 'widgets/news-widget.js?v=20260925-live-v2-full';
       script.async = true;
       script.dataset.gaemiNewsWorkspace = 'true';
       script.addEventListener('load', resolve, { once: true });
@@ -354,6 +355,14 @@
 
     const stored = readState();
     tabs = stored?.tabs?.length ? stored.tabs : DEFAULT_TABS.map(t => ({ ...t }));
+
+    // 기존 브라우저 localStorage에 뉴스 탭이 없더라도 이번 통합본부터 자동 보강한다.
+    if (!tabs.some(tab => tab.id === 'news')) {
+      const dashboardIndex = tabs.findIndex(tab => tab.id === 'dashboard');
+      const newsTab = { id: 'news', label: '뉴스', icon: 'newspaper', closable: true };
+      tabs.splice(dashboardIndex >= 0 ? dashboardIndex + 1 : 0, 0, newsTab);
+    }
+
     activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'dashboard';
 
     tabs.forEach(tab => {
@@ -396,6 +405,7 @@
 
     getTabList().dataset.bound = 'true';
     setActiveTab(activeTabId, false);
+    saveState();
   }
 
   window.GaemiGTPRightPanelTabs = {

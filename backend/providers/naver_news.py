@@ -1,9 +1,12 @@
-"""Naver News Search API provider.
+"""NAVER API HUB News Search provider.
 
 Responsibility:
-- Call Naver's API.
+- Call NAVER API HUB only.
 - Return source-shaped raw records.
 - Do NOT classify, rank, deduplicate, format time, or decide UI behavior.
+
+Deployment compatibility:
+- Reuses existing NAVER_CLIENT_ID / NAVER_CLIENT_SECRET environment variable names.
 """
 
 import json
@@ -14,6 +17,8 @@ import urllib.request
 
 NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip().strip("'\"")
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip().strip("'\"")
+
+NAVER_NEWS_URL = "https://naverapihub.apigw.ntruss.com/search/v1/news"
 
 
 def is_configured():
@@ -29,13 +34,14 @@ def fetch_news(query, display=20):
         "display": max(1, min(int(display), 100)),
         "start": 1,
         "sort": "date",
+        "format": "json",
     })
-    url = f"https://openapi.naver.com/v1/search/news.json?{params}"
+
     req = urllib.request.Request(
-        url,
+        f"{NAVER_NEWS_URL}?{params}",
         headers={
-            "X-Naver-Client-Id": NAVER_CLIENT_ID,
-            "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
+            "X-NCP-APIGW-API-KEY-ID": NAVER_CLIENT_ID,
+            "X-NCP-APIGW-API-KEY": NAVER_CLIENT_SECRET,
             "User-Agent": "gaemiGTP/1.0",
         },
     )
@@ -44,7 +50,7 @@ def fetch_news(query, display=20):
         with urllib.request.urlopen(req, timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
-        print(f"[provider:naver-news] failed query={query}: {type(exc).__name__}: {exc}")
+        print(f"[provider:naver-api-hub-news] failed query={query}: {type(exc).__name__}: {exc}")
         return []
 
     rows = []

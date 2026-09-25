@@ -95,7 +95,7 @@
     html, body, #chatArea, aside { scrollbar-width: none; -ms-overflow-style: none; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
     .animate-fade { animation: fadeIn 0.25s ease-out forwards; }
-    
+
     @keyframes popBounce {
       0% { transform: scale(0.6); opacity: 0; }
       50% { transform: scale(1.15); opacity: 1; }
@@ -294,8 +294,8 @@
 }
 
 #leftMarketSidebar.market-sidebar {
-  width: 350px;
-  flex: 0 0 350px;
+  width: 320px;
+  flex: 0 0 320px;
   transition: width .25s ease, flex-basis .25s ease;
   min-width: 0;
   position: relative;
