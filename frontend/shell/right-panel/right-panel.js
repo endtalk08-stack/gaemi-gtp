@@ -1,6 +1,6 @@
-/* Right Panel Shell Controller — v8.3.1 hotfix
+/* Right Panel Shell Controller — v8.3.2 panel-500
    - 왼쪽 사이드바는 건드리지 않는다.
-   - desktop 기본 상태: 중앙 채팅 약 296px만 남기고 오른쪽 패널이 나머지를 사용.
+   - desktop 기본 폭 500px, 최소 폭 500px.
    - 사용자가 경계선을 끌면 그 폭을 저장하고 그대로 복원.
 */
 (function () {
@@ -8,9 +8,10 @@
 
   const PANEL_WIDTH_KEY = 'gaemiGTP_panel_width_v3';
   const USER_PANEL_WIDTH_KEY = 'gaemiGTP_panel_width_v4';
-  const DEFAULT_CHAT_WIDTH = 296;
+  const DEFAULT_PANEL_WIDTH = 500;
   const MIN_CHAT_WIDTH = 240;
-  const MIN_PANEL_WIDTH = 280;
+  const DESKTOP_MIN_PANEL_WIDTH = 500;
+  const MOBILE_MIN_PANEL_WIDTH = 240;
   const RESIZER_WIDTH = 5;
 
   function getWorkspace() {
@@ -21,21 +22,20 @@
     return window.innerWidth >= 1024;
   }
 
+  function getMinPanelWidth() {
+    return isDesktop() ? DESKTOP_MIN_PANEL_WIDTH : MOBILE_MIN_PANEL_WIDTH;
+  }
+
   function getMaxPanelWidth() {
     const workspace = getWorkspace();
     if (!workspace) return 1200;
     const width = workspace.getBoundingClientRect().width;
-    return Math.max(MIN_PANEL_WIDTH, width - MIN_CHAT_WIDTH - RESIZER_WIDTH);
+    return Math.max(getMinPanelWidth(), width - MIN_CHAT_WIDTH - RESIZER_WIDTH);
   }
 
   function getDefaultPanelWidth() {
-    const workspace = getWorkspace();
-    if (!workspace) return 900;
-    const width = workspace.getBoundingClientRect().width;
-    return Math.max(
-      MIN_PANEL_WIDTH,
-      width - DEFAULT_CHAT_WIDTH - RESIZER_WIDTH
-    );
+    if (!isDesktop()) return 360;
+    return DEFAULT_PANEL_WIDTH;
   }
 
   function applyPanelWidth(px, persistUser = false) {
@@ -45,7 +45,7 @@
     const maxWidth = getMaxPanelWidth();
     const value = Number(px);
     const width = Math.max(
-      MIN_PANEL_WIDTH,
+      getMinPanelWidth(),
       Math.min(Number.isFinite(value) ? value : getDefaultPanelWidth(), maxWidth)
     );
     const rounded = Math.round(width);
@@ -68,7 +68,7 @@
   /* app.js의 기존 호출과 호환.
      예전 360px 저장값 때문에 채팅이 다시 커지지 않도록
      실제 사용자 저장값(v4)이 있으면 그것을 우선하고,
-     없으면 '채팅 296px' 기준으로 계산한다. */
+     없으면 desktop 500px 기준으로 연다. */
   function setPanelWidth() {
     if (!isDesktop()) {
       const legacy = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
