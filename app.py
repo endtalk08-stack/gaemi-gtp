@@ -6,6 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from backend.services.engine import analyze_stock, get_live_calendar_data, start_calendar_warmup
+from backend.services.news_feed import fetch_general_news
 
 # 최상위 app.py 위치를 기준으로 frontend 폴더의 절대 경로를 설정합니다.
 BASE_DIR = Path(__file__).resolve().parent
@@ -46,6 +47,14 @@ def health():
 def calendar():
     """실시간 시장 일정 확인용 엔드포인트."""
     return jsonify({"ok": True, "content": get_live_calendar_data("", "")})
+
+
+@app.get("/news")
+def news():
+    category = request.args.get("category", "전체")
+    query = request.args.get("q", "")
+    limit = request.args.get("limit", default=10, type=int)
+    return jsonify({"items": fetch_general_news(category=category, query=query, limit=limit)})
 
 
 @app.get("/analyze")
