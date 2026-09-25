@@ -2315,6 +2315,7 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         sections = [
             {
+                "id": "why-up",
                 "title": f"{status_emoji} 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
@@ -2323,10 +2324,12 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         sections.extend([
             {
+                "id": "supply",
                 "title": "큰손들은 뭐하고 있어?",
                 "content": supply_content
             },
             {
+                "id": "levels",
                 "title": "여기 깨지면 큰일인데?",
                 "content": (
                     (lambda vp_text: (
@@ -2349,6 +2352,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 ),
             },
             {
+                "id": "calendar",
                 "title": "오늘 밤, 이번주 무슨 일이 있어?",
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
@@ -2400,6 +2404,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         return {
             "sections": [
                 {
+                    "id": "analysis-error",
                     "title": "⚠️ 분석 데이터를 확인하지 못했어",
                     "content": f"{raw_name} 분석에 필요한 데이터를 가져오지 못했어. 잠시 후 다시 시도해줘."
                 }
@@ -2409,6 +2414,5 @@ def analyze_stock(raw_name='SK하이닉스'):
             "us_filings": [],
             "ok": False
         }
-
 
 

@@ -462,6 +462,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         return;
       }
 
+      // 채팅과 플러그인 위젯이 같은 분석 응답을 공유한다.
+      // 위젯은 제목 문자열이 아니라 백엔드의 고정 section id를 사용한다.
+      window.GaemiGTPAnalysisData?.set?.(stockName, result);
+
       const surprisePopup = document.getElementById('surpriseAntPopup');
       surprisePopup.classList.remove('hidden');
       await new Promise(res => setTimeout(res, 600));
@@ -1317,4 +1321,3 @@ try {
     } catch (e) {
       console.warn('[gaemiGTP] central widget dock initialization warning:', e);
     }
-

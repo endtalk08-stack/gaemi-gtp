@@ -44,11 +44,17 @@
               <i data-lucide="x" class="w-3 h-3"></i>
             </button>
           </div>
-          <div class="central-widget-card__desc">${escapeHtml(meta.description)} · 실제 데이터 위젯 영역</div>
+          <div class="central-widget-card__desc" data-central-widget-mount="${escapeHtml(id)}">${escapeHtml(meta.description)} · 분석 전에는 안내가 표시됩니다.</div>
         </article>`;
     }).join('');
 
     dock.dataset.count = String(activeIds.length);
+    if (window.GaemiGTPAnalysisWidgets?.mount) {
+      activeIds.forEach(id => {
+        const mount = bodyEl.querySelector(`[data-central-widget-mount="${id}"]`);
+        window.GaemiGTPAnalysisWidgets.mount(id, mount);
+      });
+    }
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -91,6 +97,7 @@
       const removeBtn = event.target.closest('[data-central-widget-remove]');
       if (removeBtn) remove(removeBtn.dataset.centralWidgetRemove);
     });
+    window.addEventListener('gaemi-analysis-data-change', render);
   }
 
   window.GaemiGTPWidgetDock = {
