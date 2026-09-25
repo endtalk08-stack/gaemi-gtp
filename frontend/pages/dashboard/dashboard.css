@@ -1,74 +1,100 @@
-/* Dashboard Container — v7.5
-   책임: 오른쪽 패널 안의 Dashboard 화면 틀과 위젯 슬롯 배치만 담당한다.
-   데이터/API/DB/분석 로직은 넣지 않는다.
-*/
-
+/* Dashboard v8.1 — borderless surfaces, responsive 2 + 4 layout. */
 #rightPanelDashboard {
   min-height: 100%;
-  padding: 10px 12px;
+  padding: 16px;
   box-sizing: border-box;
+  container-type: inline-size;
 }
-
-
+#rightPanelDashboard button,
+#rightPanelDashboard select {
+  border: 0;
+  border-radius: 8px;
+  background: var(--gtp-surface-2);
+  color: var(--gtp-text);
+  font: inherit;
+  font-size: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+#rightPanelDashboard button:hover { background: var(--gtp-hover); }
+#rightPanelDashboard :focus-visible { outline: 2px solid var(--gtp-muted); outline-offset: 3px; }
+.dashboard-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dashboard-toolbar strong { margin-right: auto; font-size: 15px; }
+.dashboard-status { font-size: 11px; color: var(--gtp-muted); }
+.dashboard-hint { margin: 10px 0 16px; color: var(--gtp-muted); font-size: 11px; }
 .right-panel-dashboard__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
 }
-
 .dashboard-widget-slot {
-  min-height: 108px;
-  border: 1px solid var(--gtp-border);
+  grid-column: span var(--widget-span, 1);
+  height: var(--widget-height, 220px);
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 0;
   border-radius: 16px;
-  background: color-mix(in srgb, var(--gtp-surface) 88%, transparent);
-  padding: 14px;
+  background: var(--gtp-surface-2);
+  padding: 14px 14px 32px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.dashboard-widget-slot__head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-shrink: 0; }
+#rightPanelDashboard .dashboard-widget-slot__drag {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-weight: 700;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  background: transparent;
+}
+.dashboard-widget-slot__body,
+.dashboard-widget-slot__mount { overflow: auto; flex: 1; min-height: 0; color: var(--gtp-muted); font-size: 12px; }
+.dashboard-widget-slot__mount { display: none; }
+.dashboard-widget-slot--mounted .dashboard-widget-slot__body { display: none; }
+.dashboard-widget-slot--mounted .dashboard-widget-slot__mount { display: block; }
+#rightPanelDashboard .dashboard-widget-slot__resize {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: transparent;
+  color: var(--gtp-muted);
+  cursor: nwse-resize;
+  touch-action: none;
+  user-select: none;
+}
+.dashboard-widget-slot.is-dragging { opacity: .5; }
+.dashboard-widget-slot.is-drop-target { background: var(--gtp-surface-3); box-shadow: var(--gtp-shadow); }
+.dashboard-expanded {
+  width: min(1200px, 94vw);
+  height: 88dvh;
+  max-width: 94vw;
+  max-height: 92dvh;
+  padding: 16px;
+  border: 0;
+  border-radius: 18px;
+  color: var(--gtp-text);
+  background: var(--gtp-surface);
   box-sizing: border-box;
 }
-
-.dashboard-widget-slot__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.dashboard-widget-slot__icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gtp-surface-2);
-  color: var(--gtp-muted);
-  flex: 0 0 auto;
-}
-
-.dashboard-widget-slot__title {
-  color: var(--gtp-text);
-  font-size: 12px;
-  line-height: 1.35;
-  font-weight: 800;
-}
-
-.dashboard-widget-slot__body {
-  color: var(--gtp-faint);
-  font-size: 10px;
-  line-height: 1.5;
-  font-weight: 600;
-}
-
-
-@media (min-width: 700px) {
+.dashboard-expanded[open] { display: flex; flex-direction: column; gap: 12px; }
+.dashboard-expanded::backdrop { background: var(--gtp-overlay); }
+.dashboard-expanded__close { align-self: flex-end; }
+.dashboard-expanded__content { flex: 1; min-height: 0; }
+.dashboard-expanded__content .dashboard-widget-slot { height: 100%; }
+.dashboard-expanded .dashboard-widget-slot__resize,
+.dashboard-expanded .dashboard-widget-slot__expand { display: none; }
+#rightPanelDashboard .dashboard-expanded .dashboard-widget-slot__drag { cursor: default; }
+@container (max-width: 720px) {
   .right-panel-dashboard__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-widget-slot { grid-column: span min(var(--widget-span, 1), 2); }
 }
-
-@media (min-width: 1100px) {
-  .right-panel-dashboard__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-
-
-.dashboard-widget-slot__mount {
-  display: none;
+@container (max-width: 420px) {
+  .right-panel-dashboard__grid { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-widget-slot { grid-column: 1; }
 }
