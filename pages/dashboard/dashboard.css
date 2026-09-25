@@ -1,74 +1,63 @@
-/* Dashboard Container — v7.5
-   책임: 오른쪽 패널 안의 Dashboard 화면 틀과 위젯 슬롯 배치만 담당한다.
-   데이터/API/DB/분석 로직은 넣지 않는다.
-*/
-
+/* Dashboard Workspace — v8.0 */
+#rightPanelContent { overflow: hidden !important; }
+#rightPanelTabView-dashboard { height: 100%; min-height: 0; }
 #rightPanelDashboard {
-  min-height: 100%;
-  padding: 10px 12px;
-  box-sizing: border-box;
+  height: 100%; min-height: 0; padding: 8px 10px 10px; box-sizing: border-box;
+  display: flex; flex-direction: column; overflow: hidden;
 }
-
-
+.right-panel-dashboard__toolbar {
+  height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 6px; margin-bottom: 7px;
+}
+.right-panel-dashboard__toolbar button {
+  height: 28px; min-width: 28px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--gtp-faint); display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-size: 11px; font-weight: 700;
+}
+.right-panel-dashboard__toolbar button:hover { background: var(--gtp-hover); color: var(--gtp-text); }
+.right-panel-dashboard__toolbar svg { width: 13px; height: 13px; }
+.right-panel-dashboard__hint { margin-left: auto; color: var(--gtp-faint); font-size: 10px; font-weight: 600; }
 .right-panel-dashboard__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
+  flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr)); gap: 8px; position: relative; overflow: hidden;
 }
-
 .dashboard-widget-slot {
-  min-height: 108px;
-  border: 1px solid var(--gtp-border);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--gtp-surface) 88%, transparent);
-  padding: 14px;
-  box-sizing: border-box;
+  min-width: 0; min-height: 0; position: relative; overflow: hidden; border: 1px solid var(--gtp-border);
+  border-radius: 14px; background: color-mix(in srgb, var(--gtp-surface) 90%, transparent); box-sizing: border-box;
+  display: flex; flex-direction: column; transition: border-color .15s ease, box-shadow .15s ease;
 }
-
+.dashboard-widget-slot.is-dragging, .dashboard-widget-slot.is-resizing { z-index: 20; border-color: var(--gtp-muted); box-shadow: 0 12px 30px rgba(0,0,0,.18); transition: none; }
+.dashboard-widget-slot.is-pulsed { box-shadow: 0 0 0 2px color-mix(in srgb, var(--gtp-accent, #6366f1) 55%, transparent); }
 .dashboard-widget-slot__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  height: 38px; flex: 0 0 38px; display: flex; align-items: center; gap: 6px; padding: 0 9px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gtp-border) 72%, transparent); cursor: grab; user-select: none; touch-action: none;
 }
-
-.dashboard-widget-slot__icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gtp-surface-2);
-  color: var(--gtp-muted);
-  flex: 0 0 auto;
+.dashboard-widget-slot__head:active { cursor: grabbing; }
+.dashboard-widget-slot__drag { width: 12px; color: var(--gtp-faint); opacity: .65; display: inline-flex; }
+.dashboard-widget-slot__drag svg { width: 12px; height: 12px; }
+.dashboard-widget-slot__icon { width: 22px; height: 22px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; background: var(--gtp-surface-2); color: var(--gtp-muted); }
+.dashboard-widget-slot__icon svg { width: 13px; height: 13px; }
+.dashboard-widget-slot__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gtp-text); font-size: 11px; font-weight: 800; }
+.dashboard-widget-slot__actions { margin-left: auto; display: flex; }
+.dashboard-widget-slot__actions button { width: 25px; height: 25px; border: 0; border-radius: 7px; background: transparent; color: var(--gtp-faint); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.dashboard-widget-slot__actions button:hover { background: var(--gtp-hover); color: var(--gtp-text); }
+.dashboard-widget-slot__actions svg { width: 12px; height: 12px; }
+.dashboard-widget-slot__content { flex: 1; min-height: 0; overflow: auto; padding: 10px; }
+.dashboard-widget-slot__body { color: var(--gtp-faint); font-size: 10px; line-height: 1.45; font-weight: 600; }
+.dashboard-widget-slot__mount { min-height: 0; }
+.dashboard-widget-slot--mounted .dashboard-widget-slot__body { display: none; }
+.dashboard-widget-slot__resize {
+  position: absolute; right: 1px; bottom: 1px; width: 16px; height: 16px; border: 0; background: transparent; cursor: nwse-resize; touch-action: none;
 }
+.dashboard-widget-slot__resize::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 7px; height: 7px; border-right: 1px solid var(--gtp-faint); border-bottom: 1px solid var(--gtp-faint); opacity: .6; }
+#rightPanelDashboard.is-widget-focused .right-panel-dashboard__hint { display: none; }
+#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused { border-radius: 14px; }
+#rightPanelDashboard.is-widget-focused .dashboard-widget-slot.is-focused .dashboard-widget-slot__resize { display: none; }
 
-.dashboard-widget-slot__title {
-  color: var(--gtp-text);
-  font-size: 12px;
-  line-height: 1.35;
-  font-weight: 800;
+/* 좁은 패널에서는 읽기 쉬운 단일열. 최대화/넓은 패널에서 토스식 2+4 배치가 살아난다. */
+@container (max-width: 699px) {
+  .right-panel-dashboard__hint { display: none; }
 }
-
-.dashboard-widget-slot__body {
-  color: var(--gtp-faint);
-  font-size: 10px;
-  line-height: 1.5;
-  font-weight: 600;
-}
-
-
-@media (min-width: 700px) {
-  .right-panel-dashboard__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (min-width: 1100px) {
-  .right-panel-dashboard__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-
-
-.dashboard-widget-slot__mount {
-  display: none;
+@media (max-width: 1023px) {
+  .right-panel-dashboard__grid { overflow-y: auto; grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: minmax(180px, 1fr); }
+  .dashboard-widget-slot { grid-column: 1 !important; grid-row: auto !important; min-height: 180px; }
+  .dashboard-widget-slot__resize, .dashboard-widget-slot__drag { display: none; }
 }
