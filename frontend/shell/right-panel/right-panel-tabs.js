@@ -58,12 +58,7 @@
   }
 
   function readDashboardView() {
-    try {
-      const value = localStorage.getItem(DASHBOARD_VIEW_KEY);
-      return DASHBOARD_VIEWS[value] ? value : 'dashboard';
-    } catch (_) {
-      return 'dashboard';
-    }
+    return 'dashboard';
   }
 
   function saveDashboardView() {
@@ -149,7 +144,9 @@
     list.innerHTML = '';
 
     tabs.forEach(tab => {
-      if (tab.id === 'dashboard') {
+      // The dashboard menu was retired. A regular dashboard tab keeps the
+      // panel header in its pre-menu form without changing the panel shell.
+      if (tab.id === 'dashboard' && tab.menu === true) {
         const dashboardWrap = document.createElement('div');
         dashboardWrap.className = 'right-panel-dashboard-menu-wrap';
 
