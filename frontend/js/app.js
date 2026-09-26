@@ -723,10 +723,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${dynamicTitle}</h4>` : ''}
           </div>`;
         const contentMarkup = `<p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>`;
-        // 종목별 자동 분석은 기존의 제목 → 본문 순서를 유지한다.
-        textBlock.innerHTML = `${headingMarkup}${contentMarkup}`;
+        // "왜 올랐을까"는 종목 현재가 설명을 먼저 보여 준 뒤,
+        // 제목과 시간순 기술 스토리보드를 이어서 표시한다.
+        // 다른 분석 섹션은 기존 제목 → 본문 순서를 유지한다.
+        textBlock.innerHTML = sec.id === 'why-up'
+          ? `${contentMarkup}${headingMarkup}`
+          : `${headingMarkup}${contentMarkup}`;
 
-        // 고정 시간표는 자동 분석 아래에 바로 붙인다.
+        // 고정 시간표는 "오늘은 왜 올랐어?" 제목 아래에 바로 붙인다.
         // 별도 제목·강조·빈 줄 없이 기본 글꼴로 표시한다.
         if (sec.id === 'why-up') {
           const fixedBlock = document.createElement('section');
