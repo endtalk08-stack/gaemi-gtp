@@ -49,7 +49,7 @@
     if (!root) return;
     // 본문과 같은 고정 콘텐츠를 표시하며 분석 API 데이터는 사용하지 않는다.
     if (widgetId === 'why-up') {
-      const content = window.GaemiGTPWhyUpContent?.get?.() || '';
+      const content = window.GaemiGTPWhyUpContent?.getCompact?.() || '';
       root.innerHTML = `<p class="analysis-section-widget__content">${escapeHtml(content)}</p>`;
       return;
     }

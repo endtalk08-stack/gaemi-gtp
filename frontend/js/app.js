@@ -726,21 +726,17 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         // 종목별 자동 분석은 기존의 제목 → 본문 순서를 유지한다.
         textBlock.innerHTML = `${headingMarkup}${contentMarkup}`;
 
-        // 고정 시간표는 자동 분석 아래에 별도 블록으로 붙인다.
-        // textContent를 사용해 강조·서식 없이 기본 글꼴로 표시한다.
+        // 고정 시간표는 자동 분석 아래에 바로 붙인다.
+        // 별도 제목·강조·빈 줄 없이 기본 글꼴로 표시한다.
         if (sec.id === 'why-up') {
           const fixedBlock = document.createElement('section');
-          fixedBlock.className = 'pt-2 space-y-2';
-
-          const fixedTitle = document.createElement('div');
-          fixedTitle.className = 'text-sm sm:text-sm font-normal text-[#334155] dark:text-[#e4e4e7]';
-          fixedTitle.textContent = '왜 올랐을까?';
+          fixedBlock.className = 'pt-1';
 
           const fixedContent = document.createElement('p');
-          fixedContent.className = 'm-0 text-sm sm:text-sm font-normal leading-relaxed whitespace-pre-line text-[#334155] dark:text-[#e4e4e7]';
-          fixedContent.textContent = window.GaemiGTPWhyUpContent?.get?.() || '';
+          fixedContent.className = 'm-0 text-sm sm:text-sm font-normal leading-7 whitespace-pre-line text-[#334155] dark:text-[#e4e4e7]';
+          fixedContent.textContent = window.GaemiGTPWhyUpContent?.getCompact?.() || '';
 
-          fixedBlock.append(fixedTitle, fixedContent);
+          fixedBlock.appendChild(fixedContent);
           textBlock.appendChild(fixedBlock);
         }
         mainContainer.appendChild(textBlock);

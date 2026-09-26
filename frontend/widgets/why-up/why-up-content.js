@@ -22,5 +22,14 @@
 
 #삼성전자 #국장살려 #거래대금폭발 #상한가 #주식스타그램 #주식일기 #재테크기록`;
 
-  window.GaemiGTPWhyUpContent = Object.freeze({ get: () => CONTENT });
+  const COMPACT_CONTENT = CONTENT
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .join('\n');
+
+  window.GaemiGTPWhyUpContent = Object.freeze({
+    get: () => CONTENT,
+    getCompact: () => COMPACT_CONTENT,
+  });
 }());
