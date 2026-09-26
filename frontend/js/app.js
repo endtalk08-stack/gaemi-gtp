@@ -710,10 +710,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
         const sec = sections[secIdx];
         const dynamicTitle = sec.title || '';
-        const sectionContent = sec.id === 'why-up'
-          ? (window.GaemiGTPWhyUpContent?.get?.() || '')
-          : (sec.content || '');
-        const text = sectionContent
+        const text = (sec.content || '')
           .replace(/이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야/g, '')
           .replace(/\n{3,}/g, '\n\n')
           .trim();
@@ -726,11 +723,26 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${dynamicTitle}</h4>` : ''}
           </div>`;
         const contentMarkup = `<p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>`;
-        // '왜 올랐을까?'의 종목별 분석 멘트는 제목보다 먼저 표시한다.
-        // 다른 섹션의 제목·본문 순서는 기존 흐름을 유지한다.
-        textBlock.innerHTML = sec.id === 'why-up'
-          ? `${contentMarkup}${headingMarkup}`
-          : `${headingMarkup}${contentMarkup}`;
+        // 종목별 자동 분석은 기존의 제목 → 본문 순서를 유지한다.
+        textBlock.innerHTML = `${headingMarkup}${contentMarkup}`;
+
+        // 고정 시간표는 자동 분석 아래에 별도 블록으로 붙인다.
+        // textContent를 사용해 강조·서식 없이 기본 글꼴로 표시한다.
+        if (sec.id === 'why-up') {
+          const fixedBlock = document.createElement('section');
+          fixedBlock.className = 'pt-2 space-y-2';
+
+          const fixedTitle = document.createElement('div');
+          fixedTitle.className = 'text-sm sm:text-sm font-normal text-[#334155] dark:text-[#e4e4e7]';
+          fixedTitle.textContent = '왜 올랐을까?';
+
+          const fixedContent = document.createElement('p');
+          fixedContent.className = 'm-0 text-sm sm:text-sm font-normal leading-relaxed whitespace-pre-line text-[#334155] dark:text-[#e4e4e7]';
+          fixedContent.textContent = window.GaemiGTPWhyUpContent?.get?.() || '';
+
+          fixedBlock.append(fixedTitle, fixedContent);
+          textBlock.appendChild(fixedBlock);
+        }
         mainContainer.appendChild(textBlock);
 
         const pEl = document.getElementById(`p-content-${secIdx}`);
