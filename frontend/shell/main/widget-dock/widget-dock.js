@@ -82,6 +82,7 @@
     if (changed) {
       saveState();
       render();
+      window.GaemiGTPPluginSidebar?.render?.();
     }
     return changed;
   }
