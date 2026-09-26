@@ -17,3 +17,43 @@
 .analysis-section-widget__row { display: grid; gap: 2px; min-width: 0; }
 .analysis-section-widget__row strong { overflow: hidden; color: var(--gtp-text-2); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .analysis-section-widget__row span { color: var(--gtp-faint); font-size: 9px; }
+
+/* Shared "why up" technical storyboard: color and spacing only, no dividers or boxes. */
+.why-up-story {
+  --why-up-signal: #ff8da1;
+  margin: 0;
+}
+.why-up-story__intro,
+.why-up-story__tags {
+  margin: 0;
+}
+.why-up-story__intro { color: var(--gtp-text-2); }
+.why-up-story__timeline { display: grid; gap: 7px; margin-top: 8px; }
+.why-up-story__row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  column-gap: 9px;
+  align-items: baseline;
+}
+.why-up-story__time {
+  color: var(--gtp-faint);
+  font-variant-numeric: tabular-nums;
+}
+.why-up-story__detail { color: var(--gtp-text-2); }
+.why-up-story__signal,
+.why-up-story__tags { color: var(--why-up-signal); }
+.why-up-story__tags { margin-top: 10px; }
+.why-up-story--main {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.analysis-section-widget__why-up { margin-top: 10px; }
+.why-up-story--widget {
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.55;
+}
+.why-up-story--widget .why-up-story__timeline { gap: 5px; margin-top: 6px; }
+.why-up-story--widget .why-up-story__row { grid-template-columns: 31px minmax(0, 1fr); column-gap: 5px; }
+.why-up-story--widget .why-up-story__tags { margin-top: 7px; }

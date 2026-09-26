@@ -736,11 +736,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           const fixedBlock = document.createElement('section');
           fixedBlock.className = 'pt-1';
 
-          const fixedContent = document.createElement('p');
-          fixedContent.className = 'm-0 text-sm sm:text-sm font-normal leading-7 whitespace-pre-line text-[#334155] dark:text-[#e4e4e7]';
-          fixedContent.textContent = window.GaemiGTPWhyUpContent?.getCompact?.() || '';
-
-          fixedBlock.appendChild(fixedContent);
+          fixedBlock.innerHTML = window.GaemiGTPWhyUpContent?.render?.('main') || '';
           textBlock.appendChild(fixedBlock);
         }
         mainContainer.appendChild(textBlock);
