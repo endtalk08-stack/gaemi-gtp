@@ -47,10 +47,10 @@
 
   function mount(widgetId, root) {
     if (!root) return;
-    // 종목별 '왜 올랐을까?' 멘트는 중앙 본문 전용이다.
-    // 이 위젯은 이후 별도의 내용을 넣을 수 있도록 데이터 연결을 비워 둔다.
+    // 본문과 같은 고정 콘텐츠를 표시하며 분석 API 데이터는 사용하지 않는다.
     if (widgetId === 'why-up') {
-      empty(root, '이 영역에 별도 내용을 추가할 수 있습니다.');
+      const content = window.GaemiGTPWhyUpContent?.get?.() || '';
+      root.innerHTML = `<p class="analysis-section-widget__content">${escapeHtml(content)}</p>`;
       return;
     }
     const data = window.GaemiGTPAnalysisData?.get?.();

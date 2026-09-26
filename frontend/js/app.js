@@ -710,7 +710,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
         const sec = sections[secIdx];
         const dynamicTitle = sec.title || '';
-        const text = (sec.content || '')
+        const sectionContent = sec.id === 'why-up'
+          ? (window.GaemiGTPWhyUpContent?.get?.() || '')
+          : (sec.content || '');
+        const text = sectionContent
           .replace(/이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야/g, '')
           .replace(/\n{3,}/g, '\n\n')
           .trim();
