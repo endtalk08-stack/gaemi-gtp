@@ -717,13 +717,17 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
         const textBlock = document.createElement('div');
         textBlock.className = "space-y-4 animate-fade";
-        textBlock.innerHTML = `
+        const headingMarkup = `
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
             ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${dynamicTitle}</h4>` : ''}
-          </div>
-          <p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>
-        `;
+          </div>`;
+        const contentMarkup = `<p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>`;
+        // '왜 올랐을까?'의 종목별 분석 멘트는 제목보다 먼저 표시한다.
+        // 다른 섹션의 제목·본문 순서는 기존 흐름을 유지한다.
+        textBlock.innerHTML = sec.id === 'why-up'
+          ? `${contentMarkup}${headingMarkup}`
+          : `${headingMarkup}${contentMarkup}`;
         mainContainer.appendChild(textBlock);
 
         const pEl = document.getElementById(`p-content-${secIdx}`);

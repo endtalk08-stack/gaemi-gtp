@@ -4,7 +4,6 @@
   'use strict';
 
   const SECTION_BY_WIDGET = {
-    'why-up': 'why-up',
     supply: 'supply',
     levels: 'levels',
     economic: 'calendar',
@@ -48,6 +47,12 @@
 
   function mount(widgetId, root) {
     if (!root) return;
+    // 종목별 '왜 올랐을까?' 멘트는 중앙 본문 전용이다.
+    // 이 위젯은 이후 별도의 내용을 넣을 수 있도록 데이터 연결을 비워 둔다.
+    if (widgetId === 'why-up') {
+      empty(root, '이 영역에 별도 내용을 추가할 수 있습니다.');
+      return;
+    }
     const data = window.GaemiGTPAnalysisData?.get?.();
     if (!data) {
       empty(root, '분석 데이터를 준비하고 있습니다.');
