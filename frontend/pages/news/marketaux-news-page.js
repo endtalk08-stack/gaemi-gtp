@@ -4,6 +4,9 @@
   'use strict';
 
   const CATEGORIES = ['전체', '증시', '종목', '경제지표', '에너지', '연준', '일정', '투자의견', '실적발표'];
+  const BACKEND_URL = window.location.hostname.endsWith('github.io')
+    ? 'https://gaemi-gtp.onrender.com'
+    : '';
   let selectedCategory = '전체';
   let requestId = 0;
   let feeds = null;
@@ -70,7 +73,7 @@
     renderMessage(root, '뉴스를 불러오는 중입니다.');
 
     try {
-      const response = await fetch('/marketaux/news-feed', {
+      const response = await fetch(`${BACKEND_URL}/marketaux/news-feed`, {
         headers: { Accept: 'application/json' },
       });
       const payload = await response.json();
