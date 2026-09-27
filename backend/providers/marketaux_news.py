@@ -32,6 +32,7 @@ def fetch_news(*, search="", countries="", industries="", limit=3):
         "language": "en",
         "filter_entities": "true",
         "group_similar": "true",
+        "sort": "published_at",
         "limit": max(1, min(int(limit or 3), 3)),
     }
     if str(search or "").strip():
