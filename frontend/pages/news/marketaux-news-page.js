@@ -53,9 +53,10 @@
     if(!items.length) list.appendChild(el('div','marketaux-news__status','표시할 뉴스가 없습니다.'));
     items.forEach(item=>{
       const article=el('article','marketaux-news__item'); const button=el('button','marketaux-news__article'); button.type='button'; button.addEventListener('click',()=>openArticleModal(item));
-      const meta=el('div','marketaux-news__meta'); meta.append(el('span','marketaux-news__source',item.source||item.provider||'뉴스'),el('span','marketaux-news__time',item.display_datetime||''));
-      button.append(meta,el('div','marketaux-news__title',item.title||'제목 없는 기사'));
+      button.appendChild(el('div','marketaux-news__title',item.title||'제목 없는 기사'));
       if(item.description) button.appendChild(el('div','marketaux-news__description',item.description));
+      const meta=el('div','marketaux-news__meta'); meta.append(el('span','marketaux-news__source',item.source||item.provider||'뉴스'),el('span','marketaux-news__time',item.display_datetime||''));
+      button.appendChild(meta);
       article.appendChild(button); list.appendChild(article);
     });
     root.replaceChildren(list);
