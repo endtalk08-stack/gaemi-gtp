@@ -1,13 +1,5 @@
-/* Right Panel Shell — fixed work-area-3-12
-   딱 한 가지 원칙:
-   - 왼쪽/보조 사이드바 크기는 건드리지 않는다.
-   - 오른쪽 패널이 열리면 중앙 채팅 영역만 줄어든다.
-   - 오른쪽 패널은 전체 작업영역의 3/12 폭을 유지한다.
-*/
-
-#gaemiWorkspace {
-  --right-panel-width: calc((100vw - 58px) / 4);
-}
+/* Right Panel Shell — draggable desktop panel. */
+#gaemiWorkspace { --right-panel-width: calc((100vw - 58px) / 4); }
 
 #gaemiWorkspace #rightPanel {
   order: 3;
@@ -16,63 +8,58 @@
   min-width: 240px;
   max-width: none;
   height: 100%;
-  transition: width .12s ease, flex-basis .12s ease;
 }
 
+/* 굵직한 세로 리사이즈 바: 잡기 쉽고 위치가 확실하게 보인다. */
 #gaemiWorkspace #rightPanelResizer {
   order: 2;
-  flex: 0 0 5px;
-  width: 5px;
+  position: relative;
+  flex: 0 0 10px;
+  width: 10px;
   height: 100%;
   cursor: col-resize;
   background: transparent;
   z-index: 20;
+  touch-action: none;
 }
-
-/* RIGHT PANEL uses a fixed four-column width, so its old drag handle no
-   longer participates in the layout. */
-body.right-panel-open #gaemiWorkspace #rightPanelResizer {
-  display: none !important;
+#gaemiWorkspace #rightPanelResizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 4px;
+  border-radius: 4px;
+  background: #d7dce4;
+  opacity: .72;
+  transition: opacity .12s ease, width .12s ease, left .12s ease;
 }
+html.dark #gaemiWorkspace #rightPanelResizer::after { background: #4a4c53; }
+#gaemiWorkspace #rightPanelResizer:hover::after,
+body.right-panel-resizing #gaemiWorkspace #rightPanelResizer::after {
+  left: 2px;
+  width: 6px;
+  opacity: 1;
+}
+body.right-panel-resizing { cursor: col-resize !important; user-select: none !important; }
+body.right-panel-resizing * { cursor: col-resize !important; }
 
 body.right-panel-closed #rightPanel,
 body.right-panel-closed #rightPanelResizer,
 body:not(.right-panel-open) #rightPanel,
-body:not(.right-panel-open) #rightPanelResizer {
-  display: none !important;
-}
+body:not(.right-panel-open) #rightPanelResizer { display: none !important; }
 
 @media (min-width: 1024px) {
-  #gaemiWorkspace #rightPanel {
-    min-width: 240px;
-  }
-
-  body.right-panel-open:not(.right-panel-maximized) #gaemiWorkspace #rightPanel {
-    border-left: 2px solid #d7dce4;
-  }
-
-  html.dark body.right-panel-open:not(.right-panel-maximized) #gaemiWorkspace #rightPanel {
-    border-left-color: #303136;
-  }
-
-  /* 패널이 열릴 때 중앙 채팅만 자연스럽게 줄어든다. */
+  #gaemiWorkspace #rightPanel { min-width: 240px; }
+  body.right-panel-open:not(.right-panel-maximized) #gaemiWorkspace #rightPanel { border-left: 0; }
   body.right-panel-open:not(.right-panel-maximized) #gaemiWorkspace #mainContent {
     flex: 1 1 auto !important;
     width: auto !important;
-    min-width: 240px !important;
+    min-width: 300px !important;
     max-width: none !important;
   }
-
-  /* 왼쪽 시장/관심/플러그인 사이드바 규칙은 전혀 건드리지 않는다. */
-
-  body.right-panel-maximized #gaemiWorkspace #mainContent {
-    display: none !important;
-  }
-
-  body.right-panel-maximized #gaemiWorkspace #rightPanelResizer {
-    display: none !important;
-  }
-
+  body.right-panel-maximized #gaemiWorkspace #mainContent { display: none !important; }
+  body.right-panel-maximized #gaemiWorkspace #rightPanelResizer { display: none !important; }
   body.right-panel-maximized #gaemiWorkspace #rightPanel {
     flex: 1 1 auto !important;
     width: auto !important;
@@ -87,23 +74,13 @@ body:not(.right-panel-open) #rightPanelResizer {
     width: min(var(--right-panel-width), 100vw);
     min-width: 240px;
   }
-
-  body.right-panel-open #gaemiWorkspace #mainContent {
-    display: none !important;
-  }
-
-  body.right-panel-open #gaemiWorkspace #rightPanelResizer {
-    display: none !important;
-  }
-
+  body.right-panel-open #gaemiWorkspace #mainContent { display: none !important; }
+  body.right-panel-open #gaemiWorkspace #rightPanelResizer { display: none !important; }
   body.right-panel-open #gaemiWorkspace #rightPanel {
     flex: 0 0 100dvw !important;
     width: 100dvw !important;
     max-width: 100dvw !important;
     min-width: 0 !important;
   }
-
-  #rightPanel [data-panel-maximize] {
-    display: none !important;
-  }
+  #rightPanel [data-panel-maximize] { display: none !important; }
 }
