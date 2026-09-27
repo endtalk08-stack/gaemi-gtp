@@ -5,7 +5,7 @@
 }
 
 /* The Marketaux news page can be taller than the dashboard viewport. */
-#rightPanelContent:has(#rightPanelNews) {
+#rightPanelContent:has(#rightPanelTabView-dashboard:not([hidden])):has(#rightPanelNews) {
   overflow: auto !important;
 }
 
