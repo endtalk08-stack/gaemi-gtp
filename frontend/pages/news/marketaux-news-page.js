@@ -1,11 +1,8 @@
-/* gaemiGTP right-panel news — search + article intelligence surface. */
+/* gaemiGTP right-panel news — simple news stream + article detail. */
 (function () {
   'use strict';
 
-  const CATEGORIES = ['전체','증시','종목','경제지표','에너지','연준','일정','투자의견','실적발표'];
   const BACKEND_URL = window.location.hostname.endsWith('github.io') ? 'https://gaemi-gtp.onrender.com' : '';
-  let selectedCategory = '전체';
-  let searchQuery = '';
   let requestId = 0;
 
   function el(tag, cls, text) { const n=document.createElement(tag); if(cls)n.className=cls; if(text!==undefined)n.textContent=text; return n; }
@@ -52,21 +49,35 @@
   }
 
   function renderItems(root,items){
-    const list=el('div','marketaux-news__list'); if(!items.length)list.appendChild(el('div','marketaux-news__status','표시할 뉴스가 없습니다.'));
-    items.forEach(item=>{ const article=el('article','marketaux-news__item'); const button=el('button','marketaux-news__article'); button.type='button'; button.addEventListener('click',()=>openArticleModal(item)); const meta=el('div','marketaux-news__meta'); meta.append(el('span','marketaux-news__category',item.category||selectedCategory),el('span','marketaux-news__source',item.source||item.provider||'뉴스'),el('span','marketaux-news__time',item.display_datetime||'')); button.append(meta,el('div','marketaux-news__title',item.title||'제목 없는 기사')); if(item.description)button.appendChild(el('div','marketaux-news__description',item.description)); article.appendChild(button); list.appendChild(article); }); root.replaceChildren(list);
+    const list=el('div','marketaux-news__list');
+    if(!items.length) list.appendChild(el('div','marketaux-news__status','표시할 뉴스가 없습니다.'));
+    items.forEach(item=>{
+      const article=el('article','marketaux-news__item'); const button=el('button','marketaux-news__article'); button.type='button'; button.addEventListener('click',()=>openArticleModal(item));
+      const meta=el('div','marketaux-news__meta'); meta.append(el('span','marketaux-news__source',item.source||item.provider||'뉴스'),el('span','marketaux-news__time',item.display_datetime||''));
+      button.append(meta,el('div','marketaux-news__title',item.title||'제목 없는 기사'));
+      if(item.description) button.appendChild(el('div','marketaux-news__description',item.description));
+      article.appendChild(button); list.appendChild(article);
+    });
+    root.replaceChildren(list);
   }
 
   async function load(root){
     const current=++requestId; renderMessage(root,'뉴스를 불러오는 중입니다.');
-    try{ const params=new URLSearchParams({category:selectedCategory,limit:'20'}); if(searchQuery)params.set('query',searchQuery); const response=await fetch(`${BACKEND_URL}/news?${params}`,{headers:{Accept:'application/json'}}); const payload=await response.json(); if(current!==requestId)return; if(!response.ok||!Array.isArray(payload.items)){renderMessage(root,'뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');return;} renderItems(root,payload.items); }
-    catch(_){if(current===requestId)renderMessage(root,'뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');}
+    try{
+      const response=await fetch(`${BACKEND_URL}/news?category=전체&limit=20`,{headers:{Accept:'application/json'}});
+      const payload=await response.json();
+      if(current!==requestId)return;
+      if(!response.ok||!Array.isArray(payload.items)){renderMessage(root,'뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');return;}
+      renderItems(root,payload.items);
+    } catch(_){ if(current===requestId) renderMessage(root,'뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'); }
   }
 
   function mount(root){
-    if(!root)return; root.replaceChildren(); const page=el('section','marketaux-news'); const results=el('div','marketaux-news__results');
-    const search=el('form','marketaux-news__search'); const icon=el('span','marketaux-news__search-icon','⌕'); const input=el('input','marketaux-news__search-input'); input.type='search'; input.placeholder='뉴스, 종목, 이슈 검색'; input.value=searchQuery; input.setAttribute('aria-label','뉴스 검색'); const clear=el('button','marketaux-news__search-clear','×'); clear.type='button'; clear.setAttribute('aria-label','검색어 지우기'); clear.hidden=!searchQuery; input.addEventListener('input',()=>{clear.hidden=!input.value;}); clear.addEventListener('click',()=>{input.value=''; searchQuery=''; clear.hidden=true; input.focus(); load(results);}); search.addEventListener('submit',e=>{e.preventDefault();searchQuery=input.value.trim();clear.hidden=!searchQuery;load(results);}); search.append(icon,input,clear);
-    const categories=el('div','marketaux-news__categories'); CATEGORIES.forEach(category=>{ const button=el('button',`marketaux-news__filter${category===selectedCategory?' is-active':''}`,category); button.type='button'; button.addEventListener('click',()=>{if(selectedCategory===category)return;selectedCategory=category;categories.querySelectorAll('.marketaux-news__filter').forEach(f=>f.classList.toggle('is-active',f.textContent===selectedCategory));load(results);}); categories.appendChild(button); });
-    page.append(search,categories,results); root.appendChild(page); load(results);
+    if(!root)return;
+    root.replaceChildren();
+    const page=el('section','marketaux-news'); const results=el('div','marketaux-news__results');
+    page.appendChild(results); root.appendChild(page); load(results);
   }
+
   window.GaemiGTPMarketauxNews={mount};
 })();
