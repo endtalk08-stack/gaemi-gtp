@@ -18,7 +18,8 @@
 
   function isLeftPanelOpen() {
     const body = document.body;
-    return body.classList.contains('left-market-open') ||
+    return body.classList.contains('left-home-open') ||
+      body.classList.contains('left-market-open') ||
       body.classList.contains('left-context-open') ||
       body.classList.contains('left-plugin-open');
   }

@@ -35,7 +35,7 @@
     if (!open) {
       body.classList.remove('left-plugin-open');
     } else {
-      body.classList.remove('left-market-open', 'left-context-open');
+      body.classList.remove('left-home-open', 'left-market-open', 'left-context-open');
       if (window.innerWidth < 1024) body.classList.remove('right-panel-open', 'right-panel-maximized');
       body.classList.add('left-plugin-open');
     }

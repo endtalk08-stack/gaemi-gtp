@@ -249,6 +249,11 @@
   outline: 2px solid rgba(161,161,170,.45);
   outline-offset: 1px;
 }
+.left-nav-rail-position-btn svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2;
+}
 .left-nav-rail-brand {
   color: var(--gtp-text);
 }
@@ -330,38 +335,49 @@
     order: 0;
   }
 
+  /* 오른쪽으로 옮긴 사이드바의 자리도 화면 폭 안에서 먼저 확보한다.
+     RIGHT PANEL은 Workspace 안에 고정되어 있으므로 중앙 CHAT만 남은 폭을 사용한다. */
+  body.left-sidebar-right:is(.left-home-open, .left-market-open, .left-context-open, .left-plugin-open) #gaemiWorkspace {
+    max-width: calc(100vw - 58px - var(--left-sidebar-width) - 5px);
+  }
+
   body.left-sidebar-right #leftPanelResizer {
     order: 1;
   }
 
   body.left-sidebar-right #leftMarketSidebar.market-sidebar,
   body.left-sidebar-right #leftContextSidebar.context-sidebar,
-  body.left-sidebar-right #leftPluginSidebar.plugin-sidebar {
+  body.left-sidebar-right #leftPluginSidebar.plugin-sidebar,
+  body.left-sidebar-right #leftSidebarHome.left-sidebar-home {
     order: 2;
   }
 
   body.left-sidebar-right.left-market-open #leftMarketSidebar.market-sidebar,
   body.left-sidebar-right.left-context-open #leftContextSidebar.context-sidebar,
-  body.left-sidebar-right.left-plugin-open #leftPluginSidebar.plugin-sidebar {
+  body.left-sidebar-right.left-plugin-open #leftPluginSidebar.plugin-sidebar,
+  body.left-sidebar-right.left-home-open #leftSidebarHome.left-sidebar-home {
     border-right-width: 0;
     border-left-width: 2px;
   }
 
   body:not(.left-sidebar-right):not(.right-panel-maximized).left-market-open #leftMarketSidebar.market-sidebar,
   body:not(.left-sidebar-right):not(.right-panel-maximized).left-context-open #leftContextSidebar.context-sidebar,
-  body:not(.left-sidebar-right):not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar {
+  body:not(.left-sidebar-right):not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar,
+  body:not(.left-sidebar-right):not(.right-panel-maximized).left-home-open #leftSidebarHome.left-sidebar-home {
     border-right: 2px solid #d7dce4;
   }
 
   html.dark body.left-sidebar-right.left-market-open #leftMarketSidebar.market-sidebar,
   html.dark body.left-sidebar-right.left-context-open #leftContextSidebar.context-sidebar,
-  html.dark body.left-sidebar-right.left-plugin-open #leftPluginSidebar.plugin-sidebar {
+  html.dark body.left-sidebar-right.left-plugin-open #leftPluginSidebar.plugin-sidebar,
+  html.dark body.left-sidebar-right.left-home-open #leftSidebarHome.left-sidebar-home {
     border-left-color: #303136;
   }
 
   html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-market-open #leftMarketSidebar.market-sidebar,
   html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-context-open #leftContextSidebar.context-sidebar,
-  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar {
+  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar,
+  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-home-open #leftSidebarHome.left-sidebar-home {
     border-right-color: #303136;
   }
 }
@@ -369,7 +385,8 @@
 @media (min-width: 1024px) {
   body.left-market-open #leftPanelResizer,
   body.left-context-open #leftPanelResizer,
-  body.left-plugin-open #leftPanelResizer {
+  body.left-plugin-open #leftPanelResizer,
+  body.left-home-open #leftPanelResizer {
     display: block;
   }
 
@@ -488,7 +505,8 @@ body.left-panel-resizing * { user-select: none !important; }
   }
   body.left-market-open #leftNavRail,
   body.left-context-open #leftNavRail,
-  body.left-plugin-open #leftNavRail {
+  body.left-plugin-open #leftNavRail,
+  body.left-home-open #leftNavRail {
     display: flex !important;
   }
 

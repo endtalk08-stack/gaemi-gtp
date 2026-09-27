@@ -13,7 +13,8 @@
   <script>tailwind.config = { darkMode: 'class' }</script>
   <script>try { const t = localStorage.getItem('gaemiGTP_theme_v1'); if (t !== 'light') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); document.documentElement.dataset.theme = (t === 'light' ? 'light' : 'dark'); } catch (_) { document.documentElement.classList.add('dark'); }</script>
   <link rel="stylesheet" href="theme/theme.css?v=20260924-v712">
-  <link rel="stylesheet" href="css/app.css?v=20260927-step5-position">
+  <link rel="stylesheet" href="css/app.css?v=20260927-sidebar-position-icon">
+  <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20260927-v1">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20260925-v8-layout-320-full">
   <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20260925-v1">
   <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20260925-v8-layout-320-full">
@@ -24,7 +25,7 @@
   <link rel="stylesheet" href="shell/main/widget-dock/widget-dock.css?v=20260924-v710" />
   <link rel="stylesheet" href="widgets/analysis-section/analysis-section.css?v=20260926-v2" />
 </head>
-<body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-market-closed left-context-closed left-plugin-closed right-panel-closed">
+<body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] dark:text-[#e4e4e7] flex h-[100dvh] w-screen overflow-hidden select-none left-home-closed left-market-closed left-context-closed left-plugin-closed right-panel-closed">
 
   <!-- 모바일 배경 오버레이 -->
   <div id="sidebarBackdrop" onclick="closeAllSidebars()" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm transition-opacity duration-300"></div>
@@ -41,7 +42,7 @@
   <!-- 왼쪽 세로 내비게이션 레일: 화면 구조용 UI. 기능 연결은 이후 단계에서 확정한다. -->
   <nav id="leftNavRail" aria-label="gaemiGTP 기본 메뉴">
     <div class="left-nav-rail-top">
-      <button type="button" class="left-nav-rail-btn left-nav-rail-brand" onclick="resetToHome()" aria-label="gaemiGTP 홈" title="gaemiGTP 홈">
+      <button type="button" class="left-nav-rail-btn left-nav-rail-brand" onclick="toggleLeftSidebarHome()" aria-label="사이드바 홈 열기" title="사이드바 홈">
         <span class="left-nav-rail-logo">g</span>
       </button>
       <div class="left-nav-rail-divider"></div>
@@ -54,8 +55,8 @@
       <button type="button" class="left-nav-rail-btn" onclick="toggleLeftPluginSidebar()" aria-label="플러그인 위젯 추가" title="플러그인 · 위젯 추가">
         <i data-lucide="plug" class="w-5 h-5"></i>
       </button>
-      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftSidebarPosition()" data-left-sidebar-position-toggle aria-label="사이드바를 오른쪽으로 이동" title="사이드바를 오른쪽으로 이동">
-        <i data-lucide="panel-left-right" class="w-5 h-5"></i>
+      <button type="button" class="left-nav-rail-btn left-nav-rail-position-btn" onclick="toggleLeftSidebarPosition()" data-left-sidebar-position-toggle aria-label="사이드바를 오른쪽으로 이동" title="사이드바를 오른쪽으로 이동">
+        <i data-lucide="arrow-left-right" aria-hidden="true"></i>
       </button>
     </div>
     <div class="left-nav-rail-bottom">
@@ -64,6 +65,46 @@
       </button>
     </div>
   </nav>
+
+  <!-- 왼쪽 사이드바 첫 메뉴: 저장된 프로젝트/선택 항목을 한곳에서 확인하는 홈 -->
+  <aside id="leftSidebarHome" class="left-sidebar-home" aria-label="gaemiGTP 사이드바 홈" aria-hidden="true">
+    <header class="left-sidebar-home__header">
+      <button type="button" class="left-sidebar-home__brand" onclick="toggleLeftSidebarHomeMenu()" aria-expanded="false" aria-controls="leftSidebarHomeMenu" data-left-sidebar-home-menu-toggle>
+        <span>gaemiGTP</span>
+        <i data-lucide="chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="left-sidebar-home__actions">
+        <button type="button" class="left-sidebar-home__icon-button" onclick="focusSidebarStockSearch()" aria-label="종목 검색" title="종목 검색">
+          <i data-lucide="search" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="left-sidebar-home__icon-button" onclick="closeLeftSidebarHome()" aria-label="사이드바 닫기" title="사이드바 닫기">
+          <i data-lucide="x" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+
+    <div id="leftSidebarHomeMenu" class="left-sidebar-home__dropdown hidden" role="menu" aria-label="사이드바 메뉴">
+      <button type="button" role="menuitem" onclick="openLeftSidebarSection('market')"><i data-lucide="activity" aria-hidden="true"></i><span>실시간</span></button>
+      <button type="button" role="menuitem" onclick="openLeftSidebarSection('context')"><i data-lucide="star" aria-hidden="true"></i><span>내 종목</span></button>
+      <button type="button" role="menuitem" onclick="openLeftSidebarSection('plugin')"><i data-lucide="plug" aria-hidden="true"></i><span>플러그인</span></button>
+    </div>
+
+    <div class="left-sidebar-home__body">
+      <section class="left-sidebar-home__section" aria-labelledby="leftSidebarProjectsTitle">
+        <h2 id="leftSidebarProjectsTitle" class="left-sidebar-home__section-title"><i data-lucide="folder" aria-hidden="true"></i><span>프로젝트</span></h2>
+      </section>
+      <section class="left-sidebar-home__section" aria-labelledby="leftSidebarPluginsTitle">
+        <h2 id="leftSidebarPluginsTitle" class="left-sidebar-home__section-title"><i data-lucide="plug" aria-hidden="true"></i><span>플러그인</span></h2>
+        <ul id="leftSidebarHomePluginList" class="left-sidebar-home__items" aria-label="추가한 플러그인"></ul>
+      </section>
+      <section class="left-sidebar-home__section" aria-labelledby="leftSidebarReservationsTitle">
+        <h2 id="leftSidebarReservationsTitle" class="left-sidebar-home__section-title"><i data-lucide="calendar-clock" aria-hidden="true"></i><span>예약</span></h2>
+      </section>
+      <section class="left-sidebar-home__section" aria-labelledby="leftSidebarStocksTitle">
+        <h2 id="leftSidebarStocksTitle" class="left-sidebar-home__section-title"><i data-lucide="star" aria-hidden="true"></i><span>내 종목</span></h2>
+      </section>
+    </div>
+  </aside>
 
   <!-- 왼쪽 시장정보 패널 -->
 <aside id="leftMarketSidebar" data-shell="left-market-sidebar" class="market-sidebar bg-[#f8fafc] dark:bg-[#16171b] border-r border-[#e2e8f0] dark:border-[#27272a] flex flex-col shrink-0 h-full overflow-hidden">
@@ -385,21 +426,22 @@
 
 
   <script src="shell/right-panel/right-panel.js?v=20260927-step7-workarea3"></script>
-  <script src="shell/left-panel/left-panel-resizer.js?v=20260927-step5-position"></script>
-  <script src="shell/left-context-sidebar/context-sidebar.js?v=20260924-v716"></script>
+  <script src="shell/left-panel/left-panel-resizer.js?v=20260927-sidebar-home"></script>
+  <script src="shell/left-context-sidebar/context-sidebar.js?v=20260927-sidebar-home"></script>
   <script src="pages/watchlist/watchlist.js?v=20260924-v716"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20260925-v87-full"></script>
   <script src="widgets/catalog/catalog.js?v=20260926-analysis-v1"></script>
   <script src="widgets/why-up/why-up-content.js?v=20260926-v3"></script>
   <script src="widgets/analysis-data/analysis-data.js?v=20260926-v1"></script>
   <script src="widgets/analysis-section/analysis-section.js?v=20260926-v4"></script>
-  <script src="shell/left-plugin-sidebar/plugin-sidebar.js?v=20260924-v716"></script>
+  <script src="shell/left-plugin-sidebar/plugin-sidebar.js?v=20260927-sidebar-home"></script>
   <script src="shell/main/widget-dock/widget-dock.js?v=20260926-analysis-v1"></script>
+  <script src="shell/left-sidebar-home/left-sidebar-home.js?v=20260927-v1"></script>
   <script src="theme/theme.js?v=20260924-v712"></script>
   <script src="widgets/market-state/market-state.js?v=20260924-v76"></script>
   <script src="pages/auto-trade/auto-trade.js?v=20260924-v76"></script>
   <script src="widgets/news-widget.js?v=20260925-layout-final-panel500"></script>
   <script src="pages/dashboard/dashboard.js?v=20260925-v85-full"></script>
-  <script src="js/app.js?v=20260927-step7-workarea3"></script>
+  <script src="js/app.js?v=20260927-sidebar-home"></script>
 </body>
 </html>

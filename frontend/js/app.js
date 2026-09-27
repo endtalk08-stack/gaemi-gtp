@@ -47,6 +47,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         const state = {
           mode: document.body.classList.contains('analysis-mode') && heroView && heroView.classList.contains('hidden') ? 'analysis' : 'home',
           stock: activeStock || '삼성전자',
+          leftHomeOpen: document.body.classList.contains('left-home-open'),
           leftMarketOpen: document.body.classList.contains('left-market-open'),
           leftContextOpen: document.body.classList.contains('left-context-open'),
           leftPluginOpen: document.body.classList.contains('left-plugin-open'),
@@ -62,16 +63,19 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function applySidebarState() {
       const market = document.getElementById('leftMarketSidebar');
+      const home = document.getElementById('leftSidebarHome');
       const panel = document.getElementById('rightPanel');
       const resizer = document.getElementById('rightPanelResizer');
       const backdrop = document.getElementById('sidebarBackdrop');
       const marketOpen = document.body.classList.contains('left-market-open');
+      const homeOpen = document.body.classList.contains('left-home-open');
       const contextOpen = document.body.classList.contains('left-context-open');
       const pluginOpen = document.body.classList.contains('left-plugin-open');
       const panelOpen = document.body.classList.contains('right-panel-open');
       const mobile = window.innerWidth < 1024;
       const heroView = document.getElementById('mainHeroView');
       const onHero = !!heroView && !heroView.classList.contains('hidden');
+      document.body.classList.toggle('left-home-closed', !homeOpen);
       document.body.classList.toggle('left-market-closed', !marketOpen);
       document.body.classList.toggle('left-context-closed', !contextOpen);
       document.body.classList.toggle('left-plugin-closed', !pluginOpen);
@@ -79,6 +83,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       const context = document.getElementById('leftContextSidebar');
       const plugin = document.getElementById('leftPluginSidebar');
+      if (home) home.setAttribute('aria-hidden', homeOpen ? 'false' : 'true');
       if (market) market.setAttribute('aria-hidden', marketOpen ? 'false' : 'true');
       if (context) context.setAttribute('aria-hidden', contextOpen ? 'false' : 'true');
       if (plugin) plugin.setAttribute('aria-hidden', pluginOpen ? 'false' : 'true');
@@ -117,7 +122,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       });
 
       // 모바일에서만 시장정보가 오버레이가 되며, 패널은 항상 workspace 오른쪽에 붙는다.
-      if (backdrop) backdrop.classList.toggle('hidden', !(mobile && (marketOpen || contextOpen || pluginOpen)));
+      if (backdrop) backdrop.classList.toggle('hidden', !(mobile && (homeOpen || marketOpen || contextOpen || pluginOpen)));
+      if (homeOpen) window.GaemiGTPSidebarHome?.render?.();
       if (window.lucide) lucide.createIcons();
       saveWorkspaceState();
     }
@@ -128,7 +134,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
       document.body.classList.remove('analysis-mode');
-      document.body.classList.remove('left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
+      document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
       applySidebarState();
     }
 
@@ -196,7 +202,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (!workspaceUIReady) return;
       const isOpen = document.body.classList.contains('left-market-open');
       if (!isOpen) {
-        document.body.classList.remove('left-context-open','left-plugin-open');
+        document.body.classList.remove('left-home-open','left-context-open','left-plugin-open');
         if (window.innerWidth < 1024) {
           document.body.classList.remove('right-panel-open', 'right-panel-maximized');
         }
@@ -211,7 +217,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         document.body.classList.remove('right-panel-open', 'right-panel-maximized');
       } else {
         if (window.innerWidth < 1024) {
-          document.body.classList.remove('left-market-open', 'left-context-open', 'left-plugin-open');
+          document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
         }
         document.body.classList.add('right-panel-open');
       }
@@ -221,7 +227,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     function toggleRightPanelMaximize() {
       if (!document.body.classList.contains('right-panel-open')) {
         if (window.innerWidth < 1024) {
-          document.body.classList.remove('left-market-open', 'left-context-open', 'left-plugin-open');
+          document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
         }
         document.body.classList.add('right-panel-open');
       }
@@ -238,8 +244,60 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function closeAllSidebars() {
-      document.body.classList.remove('left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
+      document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
       applySidebarState();
+    }
+
+    function toggleLeftSidebarHome() {
+      if (!workspaceUIReady) return;
+      const isOpen = document.body.classList.contains('left-home-open');
+      if (isOpen) {
+        document.body.classList.remove('left-home-open');
+      } else {
+        document.body.classList.remove('left-market-open', 'left-context-open', 'left-plugin-open');
+        if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
+        document.body.classList.add('left-home-open');
+      }
+      document.getElementById('leftSidebarHomeMenu')?.classList.add('hidden');
+      document.querySelector('[data-left-sidebar-home-menu-toggle]')?.setAttribute('aria-expanded', 'false');
+      applySidebarState();
+    }
+
+    function closeLeftSidebarHome() {
+      document.body.classList.remove('left-home-open');
+      document.getElementById('leftSidebarHomeMenu')?.classList.add('hidden');
+      document.querySelector('[data-left-sidebar-home-menu-toggle]')?.setAttribute('aria-expanded', 'false');
+      applySidebarState();
+    }
+
+    function toggleLeftSidebarHomeMenu() {
+      const menu = document.getElementById('leftSidebarHomeMenu');
+      const button = document.querySelector('[data-left-sidebar-home-menu-toggle]');
+      if (!menu || !button) return;
+      const open = menu.classList.toggle('hidden') === false;
+      button.setAttribute('aria-expanded', String(open));
+    }
+
+    function openLeftSidebarSection(section) {
+      const classBySection = {
+        market: 'left-market-open',
+        context: 'left-context-open',
+        plugin: 'left-plugin-open'
+      };
+      const target = classBySection[section];
+      if (!target || !workspaceUIReady) return;
+      document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
+      if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
+      document.body.classList.add(target);
+      document.getElementById('leftSidebarHomeMenu')?.classList.add('hidden');
+      document.querySelector('[data-left-sidebar-home-menu-toggle]')?.setAttribute('aria-expanded', 'false');
+      applySidebarState();
+      if (section === 'plugin') window.GaemiGTPPluginSidebar?.render?.();
+    }
+
+    function focusSidebarStockSearch() {
+      closeLeftSidebarHome();
+      focusStockInput();
     }
 
     function initializeSidebars() {
@@ -247,7 +305,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const saved = readWorkspaceState();
       restoringWorkspaceState = true;
 
-      document.body.classList.remove('left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized','analysis-mode');
+      document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized','analysis-mode');
 
       const heroView = document.getElementById('mainHeroView');
       if (saved?.mode === 'analysis' && heroView) {
@@ -257,10 +315,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         heroView.classList.remove('hidden');
       }
 
+      if (saved?.leftHomeOpen) document.body.classList.add('left-home-open');
       if (saved?.leftMarketOpen) document.body.classList.add('left-market-open');
       if (saved?.leftContextOpen) document.body.classList.add('left-context-open');
       if (saved?.leftPluginOpen) document.body.classList.add('left-plugin-open');
       if (saved?.rightPanelOpen) document.body.classList.add('right-panel-open');
+      if (saved?.leftMarketOpen || saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-home-open');
       if (saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-market-open');
       if (saved?.leftContextOpen) document.body.classList.remove('left-plugin-open');
       if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
@@ -278,7 +338,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         el.addEventListener('click', (event) => {
           event.preventDefault();
           event.stopPropagation();
-          toggleLeftSidebar();
+          toggleLeftSidebarHome();
         });
         el.dataset.sidebarListenerBound = 'true';
       });
@@ -296,12 +356,15 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         } else {
           document.body.classList.remove('right-panel-maximized');
         }
+        if (saved?.leftHomeOpen) document.body.classList.add('left-home-open');
+        else document.body.classList.remove('left-home-open');
         if (saved?.leftMarketOpen) document.body.classList.add('left-market-open');
         else document.body.classList.remove('left-market-open');
         if (saved?.leftContextOpen) document.body.classList.add('left-context-open');
         else document.body.classList.remove('left-context-open');
         if (saved?.leftPluginOpen) document.body.classList.add('left-plugin-open');
         else document.body.classList.remove('left-plugin-open');
+        if (saved?.leftMarketOpen || saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-home-open');
         if (saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-market-open');
         if (saved?.leftContextOpen) document.body.classList.remove('left-plugin-open');
         if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
