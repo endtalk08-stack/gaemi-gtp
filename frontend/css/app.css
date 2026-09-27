@@ -369,6 +369,49 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
   min-height: 0;
 }
 
+/* Analysis chat: top, scrollable body, and bottom input share one quiet
+   vertical rhythm. The message and input content stay on the same 768px axis. */
+#mainContent > .gaemi-chat-top {
+  height: 56px;
+  min-height: 56px;
+  padding-inline: 16px;
+  background: transparent;
+}
+
+#mainContent > #chatArea.gaemi-chat-body {
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+  padding: 20px 16px 28px;
+}
+
+#mainContent > .gaemi-chat-bottom {
+  padding: 12px 16px 16px;
+  background: transparent;
+  border-top-color: transparent;
+  backdrop-filter: none;
+}
+
+#mainContent > .gaemi-chat-bottom > div {
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+@media (min-width: 640px) {
+  #mainContent > .gaemi-chat-top {
+    padding-inline: 24px;
+  }
+
+  #mainContent > #chatArea.gaemi-chat-body {
+    padding: 24px 24px 32px;
+  }
+
+  #mainContent > .gaemi-chat-bottom {
+    padding: 12px 24px 16px;
+  }
+}
+
 
 
 /* 홈 화면은 별도 고정 레이어가 아니라 Workspace 안의 본문 뷰로 동작한다.

@@ -267,7 +267,7 @@
     <div class="h-6"></div>
   </div>
 
-    <header class="h-16 flex items-center justify-between px-2 sm:px-4 bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 z-10">
+    <header class="gaemi-chat-top h-16 flex items-center justify-between px-2 sm:px-4 bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 z-10">
       <div class="flex items-center gap-3">
         <button type="button" data-left-sidebar-toggle data-left-sidebar-top="workspace" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="왼쪽 사이드바 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
         <button type="button" onclick="resetToHome()" class="font-black text-lg tracking-tight text-[#0f172a] dark:text-white cursor-pointer hover:opacity-80 transition" aria-label="메인으로 이동">gaemiGTP</button>
@@ -282,9 +282,9 @@
       <div id="centralWidgetDockBody" class="central-widget-dock__body"></div>
     </section>
 
-    <div id="chatArea" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
+    <div id="chatArea" class="gaemi-chat-body flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 max-w-3xl mx-auto w-full"></div>
 
-    <div class="shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
+    <div class="gaemi-chat-bottom shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-3xl mx-auto relative">
         <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
           <input 
