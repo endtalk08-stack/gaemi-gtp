@@ -58,7 +58,12 @@
   }
 
   function readDashboardView() {
-    return 'dashboard';
+    try {
+      const stored = localStorage.getItem(DASHBOARD_VIEW_KEY);
+      return stored === 'news' ? 'news' : 'dashboard';
+    } catch (_) {
+      return 'dashboard';
+    }
   }
 
   function saveDashboardView() {
@@ -219,6 +224,13 @@
     menu.dataset.rightPanelTabMenu = 'true';
     menu.hidden = true;
     menu.innerHTML = `
+      <div class="right-panel-tab-menu__section">패널 보기</div>
+      <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="dashboard">
+        <i data-lucide="layout-dashboard"></i><span>대시보드</span>
+      </button>
+      <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="news">
+        <i data-lucide="newspaper"></i><span>뉴스</span>
+      </button>
       <div class="right-panel-tab-menu__section">탭 추가</div>
       <button type="button" class="right-panel-tab-menu__item" data-add-tab-type="dashboard">
         <i data-lucide="layout-dashboard"></i><span>대시보드</span>
@@ -325,12 +337,12 @@
 
   function mountNewsPage() {
     const root = document.getElementById('rightPanelNews');
-    if (root && window.GaemiGTPNews && typeof window.GaemiGTPNews.mount === 'function') {
-      window.GaemiGTPNews.mount(root);
+    if (root && window.GaemiGTPMarketauxNews && typeof window.GaemiGTPMarketauxNews.mount === 'function') {
+      window.GaemiGTPMarketauxNews.mount(root);
     } else if (root) {
       window.addEventListener('load', () => {
-        if (activeTabId === 'dashboard' && dashboardView === 'news' && window.GaemiGTPNews && typeof window.GaemiGTPNews.mount === 'function') {
-          window.GaemiGTPNews.mount(root);
+        if (activeTabId === 'dashboard' && dashboardView === 'news' && window.GaemiGTPMarketauxNews && typeof window.GaemiGTPMarketauxNews.mount === 'function') {
+          window.GaemiGTPMarketauxNews.mount(root);
         }
       }, { once: true });
     }

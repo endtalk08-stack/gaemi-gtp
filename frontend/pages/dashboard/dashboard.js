@@ -14,7 +14,11 @@
       localStorage.removeItem(STORAGE_KEY);
     } catch (_) {}
 
-    root.replaceChildren();
+    // A saved Marketaux news view is mounted by the panel-tab controller
+    // before this legacy empty dashboard shell finishes initializing.
+    if (!root.querySelector('#rightPanelNews')) {
+      root.replaceChildren();
+    }
     root.dataset.dashboardMounted = 'true';
   }
 

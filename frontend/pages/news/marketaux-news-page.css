@@ -1,0 +1,137 @@
+/* Marketaux test news view — neutral dark panel, no cards or dividers. */
+.marketaux-news {
+  min-height: 100%;
+  padding: 16px 18px 28px;
+  color: var(--gtp-text-2);
+}
+
+.marketaux-news__categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.marketaux-news__filter {
+  min-height: 27px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gtp-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.marketaux-news__filter:hover {
+  background: var(--gtp-hover);
+  color: var(--gtp-text-2);
+}
+
+.marketaux-news__filter.is-active {
+  background: var(--gtp-surface-3);
+  color: var(--gtp-text);
+}
+
+.marketaux-news__list {
+  display: grid;
+  gap: 18px;
+}
+
+.marketaux-news__article {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.marketaux-news__article:hover .marketaux-news__title {
+  color: var(--gtp-text);
+}
+
+.marketaux-news__meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin-bottom: 5px;
+  color: var(--gtp-faint);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.marketaux-news__category {
+  color: var(--gtp-muted);
+}
+
+.marketaux-news__source,
+.marketaux-news__time {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marketaux-news__time::before {
+  content: '·';
+  margin-right: 7px;
+  color: var(--gtp-faint);
+}
+
+.marketaux-news__title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--gtp-text-2);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.48;
+  transition: color .15s ease;
+}
+
+.marketaux-news__description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 5px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  color: var(--gtp-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.marketaux-news__status {
+  padding: 26px 0;
+  color: var(--gtp-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 340px) {
+  .marketaux-news {
+    padding: 14px 14px 24px;
+  }
+
+  .marketaux-news__categories {
+    gap: 4px;
+  }
+
+  .marketaux-news__filter {
+    padding: 0 7px;
+  }
+
+  .marketaux-news__description {
+    display: none;
+  }
+}

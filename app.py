@@ -6,6 +6,13 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from backend.services.engine import analyze_stock, get_live_calendar_data, start_calendar_warmup
+from backend.services.marketaux_news import (
+    CATEGORIES as MARKETAUX_CATEGORIES,
+    MarketauxConfigurationError,
+    MarketauxRequestError,
+    fetch_marketaux_news,
+    fetch_marketaux_test_feed,
+)
 from backend.services.news_feed import fetch_general_news
 
 # 최상위 app.py 위치를 기준으로 frontend 폴더의 절대 경로를 설정합니다.
@@ -55,6 +62,37 @@ def news():
     query = request.args.get("q", "")
     limit = request.args.get("limit", default=10, type=int)
     return jsonify({"items": fetch_general_news(category=category, query=query, limit=limit)})
+
+
+@app.get("/marketaux/news")
+def marketaux_news():
+    """Temporary Marketaux news endpoint; intentionally separate from /news."""
+    category = request.args.get("category", "전체")
+    if category not in MARKETAUX_CATEGORIES:
+        return jsonify({"ok": False, "items": [], "error": "invalid_category"}), 400
+
+    limit = request.args.get("limit", default=3, type=int)
+    try:
+        items = fetch_marketaux_news(category=category, limit=limit)
+    except MarketauxConfigurationError:
+        return jsonify({"ok": False, "items": [], "error": "marketaux_not_configured"}), 503
+    except MarketauxRequestError:
+        return jsonify({"ok": False, "items": [], "error": "marketaux_unavailable"}), 502
+
+    return jsonify({"ok": True, "category": category, "items": items})
+
+
+@app.get("/marketaux/news-feed")
+def marketaux_news_feed():
+    """Six broad Marketaux test feeds, cached server-side for the right panel."""
+    try:
+        feeds = fetch_marketaux_test_feed()
+    except MarketauxConfigurationError:
+        return jsonify({"ok": False, "feeds": {}, "error": "marketaux_not_configured"}), 503
+    except MarketauxRequestError:
+        return jsonify({"ok": False, "feeds": {}, "error": "marketaux_unavailable"}), 502
+
+    return jsonify({"ok": True, "feeds": feeds})
 
 
 @app.get("/analyze")
