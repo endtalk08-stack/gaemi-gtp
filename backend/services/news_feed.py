@@ -2,7 +2,7 @@
 
 Boundary:
 providers/*  -> external source retrieval only
-news_feed.py -> normalize / dedupe / classify / sort / cache
+news_feed.py -> normalize / dedupe / classify / investment filter / sort / cache
 app.py       -> HTTP transport only
 frontend     -> rendering only
 """
@@ -43,6 +43,34 @@ SOURCE_DOMAINS = {
     "khan.co.kr": "경향신문", "zdnet.co.kr": "ZDNet Korea", "reuters.com": "Reuters",
     "bloomberg.com": "Bloomberg", "cnbc.com": "CNBC",
 }
+
+# 투자 뉴스만 패널에 남기기 위한 1차 필터.
+# 제목은 강하게, API description은 보조 신호로 사용한다.
+MARKET_CORE_WORDS = [
+    "증시", "주식", "주가", "코스피", "코스닥", "나스닥", "다우", "s&p", "상장", "ipo",
+    "시가총액", "외국인", "기관", "개인투자자", "매수", "매도", "거래량", "거래대금", "상한가", "하한가",
+    "실적", "매출", "영업이익", "순이익", "earnings", "배당", "자사주", "유상증자", "무상증자", "공시",
+    "목표주가", "투자의견", "증권사", "리포트", "상향", "하향",
+    "금리", "기준금리", "연준", "fomc", "fed", "파월", "한국은행", "채권", "국채", "수익률",
+    "환율", "원달러", "달러", "엔화", "위안", "cpi", "pce", "gdp", "고용", "실업률", "물가",
+    "유가", "원유", "wti", "브렌트", "천연가스", "금값", "원자재",
+    "반도체", "배터리", "2차전지", "자동차", "조선", "방산", "바이오", "제약", "ai", "인공지능",
+    "수출", "수입", "관세", "무역", "공급망", "투자", "인수", "합병", "m&a",
+]
+
+MARKET_CONTEXT_WORDS = [
+    "기업", "상장사", "산업", "업종", "시장", "경제", "금융", "은행", "보험", "증권", "펀드", "etf",
+    "생산", "판매", "수주", "계약", "공급", "공장", "설비", "투자자", "성장률", "경기", "침체",
+    "정부", "규제", "정책", "세제", "예산", "수출기업", "수입기업",
+]
+
+# 아래 주제는 투자 신호가 제목에 같이 없는 한 패널에서 제거한다.
+NOISE_WORDS = [
+    "연예", "배우", "가수", "아이돌", "드라마", "예능", "영화", "방송", "유튜버", "유튜브",
+    "스포츠", "축구", "야구", "농구", "배구", "골프", "올림픽", "월드컵", "선수", "감독",
+    "날씨", "태풍", "미세먼지", "맛집", "여행", "축제", "공연", "전시", "육아", "교육",
+    "결혼", "이혼", "열애", "사망", "장례", "범죄", "살인", "폭행", "성폭력", "교통사고",
+]
 
 
 def _strip_html(value):
@@ -91,6 +119,32 @@ def _display_age(value):
     if days < 7:
         return f"{days}일 전"
     return dt.astimezone().strftime("%m/%d")
+
+
+def _contains_any(text, words):
+    text = str(text or "").lower()
+    return any(word in text for word in words)
+
+
+def _investment_relevance(item, explicit_query=False):
+    """Return a small explainable relevance score; negative means reject."""
+    title = str(item.get("title") or "").lower()
+    description = str(item.get("description") or "").lower()
+
+    title_core = sum(1 for word in MARKET_CORE_WORDS if word in title)
+    desc_core = sum(1 for word in MARKET_CORE_WORDS if word in description)
+    title_context = sum(1 for word in MARKET_CONTEXT_WORDS if word in title)
+    desc_context = sum(1 for word in MARKET_CONTEXT_WORDS if word in description)
+    noise = _contains_any(title, NOISE_WORDS)
+
+    # 사용자가 직접 검색한 경우 검색 의도를 존중하되 완전 무관한 일반뉴스는 막는다.
+    threshold = 1 if explicit_query else 2
+    score = title_core * 3 + min(desc_core, 3) + title_context + min(desc_context, 2)
+
+    # 연예/스포츠/사건 등은 제목에 명확한 투자 핵심어가 없으면 제거.
+    if noise and title_core == 0:
+        return -1
+    return score if score >= threshold else -1
 
 
 def _classify(title):
@@ -167,7 +221,7 @@ def fetch_general_news(category="전체", query="", limit=10):
         category = "전체"
     query = str(query or "").strip()
     limit = max(1, min(int(limit or 10), 20))
-    cache_key = (category, query.lower(), limit)
+    cache_key = (category, query.lower(), limit, "investment-filter-v1")
     now = time.time()
     with _CACHE_LOCK:
         cached = _CACHE.get(cache_key)
@@ -181,14 +235,21 @@ def fetch_general_news(category="전체", query="", limit=10):
         item = _normalize_provider_row(raw, category)
         if not item:
             continue
+
+        relevance = _investment_relevance(item, explicit_query=bool(query))
+        if relevance < 0:
+            continue
+
         duplicate_key = re.sub(r"[^0-9a-zA-Z가-힣]", "", item["title"].lower())
         if not duplicate_key or duplicate_key in seen:
             continue
         seen.add(duplicate_key)
         item["id"] = duplicate_key[:40]
+        item["relevance_score"] = relevance
         items.append(item)
 
-    items.sort(key=lambda x: _parse_date(x.get("pub_date")), reverse=True)
+    # 최신순을 기본으로 유지하면서 동시간대에서는 투자 관련성이 높은 기사를 먼저 둔다.
+    items.sort(key=lambda x: (_parse_date(x.get("pub_date")), x.get("relevance_score", 0)), reverse=True)
     result = items[:limit]
     with _CACHE_LOCK:
         _CACHE[cache_key] = (time.time(), [dict(item) for item in result])
