@@ -1,6 +1,5 @@
 // Frontend is served by GitHub Pages; analysis API runs on Render.
 const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
-    const PANEL_WIDTH_KEY = 'gaemiGTP_panel_width_v3';
     let activeAnalysisController = null;
     let activeStock = '삼성전자';
     let activeAnalysisRequestId = 0;
@@ -14,18 +13,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       return document.getElementById('gaemiWorkspace');
     }
 
-    function setPanelWidth(px) {
+    function setPanelWidth() {
       const shell = window.GaemiGTPRightPanelShell;
-      if (shell?.setPanelWidth) return shell.setPanelWidth(px);
+      if (shell?.setPanelWidth) return shell.setPanelWidth();
       const workspace = getWorkspace();
       if (!workspace) return;
       const rect = workspace.getBoundingClientRect();
-      const minMainWidth = window.innerWidth < 1024 ? 0 : 360;
-      const maxWidth = Math.max(280, Math.min(1200, rect.width - minMainWidth - 5));
-      const width = Math.max(280, Math.min(Number(px) || 360, maxWidth));
-      const rounded = Math.round(width);
+      const rounded = window.innerWidth < 1024 ? 360 : Math.round(rect.width * (3 / 12));
       workspace.style.setProperty('--right-panel-width', `${rounded}px`);
-      localStorage.setItem(PANEL_WIDTH_KEY, String(rounded));
     }
 
     function readWorkspaceState() {
@@ -56,10 +51,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           leftPluginOpen: document.body.classList.contains('left-plugin-open'),
           rightPanelOpen: panelOpen,
           rightPanelMaximized: panelOpen && panelMaximized,
-          panelWidth: workspace ? parseInt(getComputedStyle(workspace).getPropertyValue('--right-panel-width') || '360', 10) : 360,
           appMode: currentAppMode || 'gaemi'
         };
-        if (!Number.isFinite(state.panelWidth)) state.panelWidth = 360;
         localStorage.setItem(WORKSPACE_STATE_KEY, JSON.stringify(state));
       } catch (e) {
         console.warn('[gaemiGTP] workspace state save warning:', e);
@@ -238,8 +231,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         button.setAttribute('title', maximized ? '패널 원래 크기로' : '패널 최대화');
       }
       if (!maximized) {
-        const savedWidth = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
-        requestAnimationFrame(() => setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360));
+        requestAnimationFrame(() => setPanelWidth());
       }
       applySidebarState();
     }
@@ -292,8 +284,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       workspaceUIReady = true;
       window.workspaceUIReady = true;
-      const savedWidth = parseInt(saved?.panelWidth || localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
-
       // Workspace가 렌더링된 다음 저장된 상태를 적용한다.
       // 레이아웃/쉘 모듈의 초기화 타이밍 때문에 첫 프레임에서 상태가 덮어써지는 것을 막기 위해
       // 두 프레임 뒤에 한 번 더 복원한다. 사용자가 마지막으로 만들어 둔 상태가 새로고침 후에도 그대로 유지된다.
@@ -316,7 +306,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
 
         if (!document.body.classList.contains('right-panel-maximized')) {
-          setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360);
+          setPanelWidth();
         }
         applySidebarState();
       };
@@ -1281,8 +1271,7 @@ window.addEventListener('pagehide', () => {
 
 window.addEventListener('resize', () => {
   if (!document.body.classList.contains('right-panel-maximized')) {
-    const savedWidth = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '360', 10);
-    setPanelWidth(Number.isFinite(savedWidth) ? savedWidth : 360);
+    setPanelWidth();
   }
   applySidebarState();
 });

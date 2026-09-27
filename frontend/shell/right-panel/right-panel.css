@@ -1,12 +1,12 @@
-/* Right Panel Shell — v8.3.2 panel-500
+/* Right Panel Shell — fixed workspace-4-12
    딱 한 가지 원칙:
    - 왼쪽/보조 사이드바 크기는 건드리지 않는다.
    - 오른쪽 패널이 열리면 중앙 채팅 영역만 줄어든다.
-   - 경계선을 끌면 채팅/오른쪽 패널 폭이 자유롭게 다시 조절된다.
+   - 오른쪽 패널은 Workspace의 4/12 폭을 유지한다.
 */
 
 #gaemiWorkspace {
-  --right-panel-width: 500px;
+  --right-panel-width: 25%;
 }
 
 #gaemiWorkspace #rightPanel {
@@ -29,6 +29,12 @@
   z-index: 20;
 }
 
+/* RIGHT PANEL uses a fixed four-column width, so its old drag handle no
+   longer participates in the layout. */
+body.right-panel-open #gaemiWorkspace #rightPanelResizer {
+  display: none !important;
+}
+
 body.right-panel-closed #rightPanel,
 body.right-panel-closed #rightPanelResizer,
 body:not(.right-panel-open) #rightPanel,
@@ -38,7 +44,7 @@ body:not(.right-panel-open) #rightPanelResizer {
 
 @media (min-width: 1024px) {
   #gaemiWorkspace #rightPanel {
-    min-width: 500px;
+    min-width: 240px;
   }
 
   /* 패널이 열릴 때 중앙 채팅만 자연스럽게 줄어든다. */
