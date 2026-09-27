@@ -5,6 +5,7 @@
   'use strict';
 
   const LEFT_WIDTH_KEY = 'gaemiGTP_left_sidebar_width_v1';
+  const LEFT_POSITION_KEY = 'gaemiGTP_left_sidebar_position_v1';
   const DEFAULT_LEFT_WIDTH = 320;
   const MIN_LEFT_WIDTH = 240;
   const MAX_LEFT_WIDTH = 520;
@@ -20,6 +21,32 @@
     return body.classList.contains('left-market-open') ||
       body.classList.contains('left-context-open') ||
       body.classList.contains('left-plugin-open');
+  }
+
+  function isSidebarOnRight() {
+    return document.body.classList.contains('left-sidebar-right');
+  }
+
+  function updatePositionToggle() {
+    const onRight = isSidebarOnRight();
+    document.querySelectorAll('[data-left-sidebar-position-toggle]').forEach((button) => {
+      const label = onRight ? '사이드바를 왼쪽으로 이동' : '사이드바를 오른쪽으로 이동';
+      button.setAttribute('aria-label', label);
+      button.setAttribute('title', label);
+    });
+  }
+
+  function setLeftSidebarPosition(position, persist = false) {
+    const onRight = position === 'right';
+    document.body.classList.toggle('left-sidebar-right', onRight);
+    if (persist) localStorage.setItem(LEFT_POSITION_KEY, onRight ? 'right' : 'left');
+    updatePositionToggle();
+    restoreLeftWidth();
+  }
+
+  function restoreLeftSidebarPosition() {
+    const saved = localStorage.getItem(LEFT_POSITION_KEY);
+    setLeftSidebarPosition(saved === 'right' ? 'right' : 'left', false);
   }
 
   function getRightReservedWidth() {
@@ -73,7 +100,7 @@
     const resizer = document.getElementById('leftPanelResizer');
     if (!resizer || resizer.dataset.leftPanelBound === 'true') return;
 
-    restoreLeftWidth();
+    restoreLeftSidebarPosition();
 
     resizer.addEventListener('pointerdown', (event) => {
       if (!isDesktop() || !isLeftPanelOpen()) return;
@@ -82,10 +109,13 @@
       event.preventDefault();
       const navRail = document.getElementById('leftNavRail');
       const leftEdge = navRail ? navRail.getBoundingClientRect().right : 0;
-      let lastRequestedWidth = getRequestedLeftWidth(event.clientX - leftEdge);
+      const getPointerWidth = (clientX) => isSidebarOnRight()
+        ? window.innerWidth - clientX
+        : clientX - leftEdge;
+      let lastRequestedWidth = getRequestedLeftWidth(getPointerWidth(event.clientX));
 
       const onMove = (moveEvent) => {
-        lastRequestedWidth = getRequestedLeftWidth(moveEvent.clientX - leftEdge);
+        lastRequestedWidth = getRequestedLeftWidth(getPointerWidth(moveEvent.clientX));
         applyLeftWidth(lastRequestedWidth, false);
       };
 
@@ -113,9 +143,15 @@
 
   window.GaemiGTPLeftPanelShell = {
     LEFT_WIDTH_KEY,
+    LEFT_POSITION_KEY,
     applyLeftWidth,
     restoreLeftWidth,
+    setLeftSidebarPosition,
     initializeLeftPanelResizer,
+  };
+
+  window.toggleLeftSidebarPosition = function toggleLeftSidebarPosition() {
+    setLeftSidebarPosition(isSidebarOnRight() ? 'left' : 'right', true);
   };
 
   document.addEventListener('DOMContentLoaded', initializeLeftPanelResizer);

@@ -13,11 +13,11 @@
   <script>tailwind.config = { darkMode: 'class' }</script>
   <script>try { const t = localStorage.getItem('gaemiGTP_theme_v1'); if (t !== 'light') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); document.documentElement.dataset.theme = (t === 'light' ? 'light' : 'dark'); } catch (_) { document.documentElement.classList.add('dark'); }</script>
   <link rel="stylesheet" href="theme/theme.css?v=20260924-v712">
-  <link rel="stylesheet" href="css/app.css?v=20260925-v8-layout-320-full">
+  <link rel="stylesheet" href="css/app.css?v=20260927-step5-position">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20260925-v8-layout-320-full">
   <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20260925-v1">
   <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20260925-v8-layout-320-full">
-  <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20260925-v832-panel500">
+  <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20260927-step6-panel4">
   <link rel="stylesheet" href="shell/right-panel/right-panel-tabs.css?v=20260925-v8-layout">
   <link rel="stylesheet" href="pages/auto-trade/auto-trade.css?v=20260924-v76">
   <link rel="stylesheet" href="pages/dashboard/dashboard.css?v=20260925-v85-full">
@@ -53,6 +53,9 @@
       </button>
       <button type="button" class="left-nav-rail-btn" onclick="toggleLeftPluginSidebar()" aria-label="플러그인 위젯 추가" title="플러그인 · 위젯 추가">
         <i data-lucide="plug" class="w-5 h-5"></i>
+      </button>
+      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftSidebarPosition()" data-left-sidebar-position-toggle aria-label="사이드바를 오른쪽으로 이동" title="사이드바를 오른쪽으로 이동">
+        <i data-lucide="panel-left-right" class="w-5 h-5"></i>
       </button>
     </div>
     <div class="left-nav-rail-bottom">
@@ -381,8 +384,8 @@
   </div>
 
 
-  <script src="shell/right-panel/right-panel.js?v=20260925-v832-panel500"></script>
-  <script src="shell/left-panel/left-panel-resizer.js?v=20260927-step2"></script>
+  <script src="shell/right-panel/right-panel.js?v=20260927-step6-panel4"></script>
+  <script src="shell/left-panel/left-panel-resizer.js?v=20260927-step5-position"></script>
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260924-v716"></script>
   <script src="pages/watchlist/watchlist.js?v=20260924-v716"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20260925-v87-full"></script>
@@ -397,6 +400,6 @@
   <script src="pages/auto-trade/auto-trade.js?v=20260924-v76"></script>
   <script src="widgets/news-widget.js?v=20260925-layout-final-panel500"></script>
   <script src="pages/dashboard/dashboard.js?v=20260925-v85-full"></script>
-  <script src="js/app.js?v=20260926-analysis-v6"></script>
+  <script src="js/app.js?v=20260927-step6-panel4"></script>
 </body>
 </html>

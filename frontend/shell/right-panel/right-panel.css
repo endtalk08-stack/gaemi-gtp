@@ -6,7 +6,7 @@
 */
 
 #gaemiWorkspace {
-  --right-panel-width: 25%;
+  --right-panel-width: calc(100% / 3);
 }
 
 #gaemiWorkspace #rightPanel {
@@ -45,6 +45,14 @@ body:not(.right-panel-open) #rightPanelResizer {
 @media (min-width: 1024px) {
   #gaemiWorkspace #rightPanel {
     min-width: 240px;
+  }
+
+  body.right-panel-open:not(.right-panel-maximized) #gaemiWorkspace #rightPanel {
+    border-left: 2px solid #d7dce4;
+  }
+
+  html.dark body.right-panel-open:not(.right-panel-maximized) #gaemiWorkspace #rightPanel {
+    border-left-color: #303136;
   }
 
   /* 패널이 열릴 때 중앙 채팅만 자연스럽게 줄어든다. */

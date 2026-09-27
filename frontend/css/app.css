@@ -323,6 +323,49 @@
   z-index: 42;
 }
 
+/* The navigation rail remains on the left. On desktop only, the active
+   sidebar can move as one unit to the far right of the Workspace. */
+@media (min-width: 1024px) {
+  body.left-sidebar-right #gaemiWorkspace {
+    order: 0;
+  }
+
+  body.left-sidebar-right #leftPanelResizer {
+    order: 1;
+  }
+
+  body.left-sidebar-right #leftMarketSidebar.market-sidebar,
+  body.left-sidebar-right #leftContextSidebar.context-sidebar,
+  body.left-sidebar-right #leftPluginSidebar.plugin-sidebar {
+    order: 2;
+  }
+
+  body.left-sidebar-right.left-market-open #leftMarketSidebar.market-sidebar,
+  body.left-sidebar-right.left-context-open #leftContextSidebar.context-sidebar,
+  body.left-sidebar-right.left-plugin-open #leftPluginSidebar.plugin-sidebar {
+    border-right-width: 0;
+    border-left-width: 2px;
+  }
+
+  body:not(.left-sidebar-right):not(.right-panel-maximized).left-market-open #leftMarketSidebar.market-sidebar,
+  body:not(.left-sidebar-right):not(.right-panel-maximized).left-context-open #leftContextSidebar.context-sidebar,
+  body:not(.left-sidebar-right):not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar {
+    border-right: 2px solid #d7dce4;
+  }
+
+  html.dark body.left-sidebar-right.left-market-open #leftMarketSidebar.market-sidebar,
+  html.dark body.left-sidebar-right.left-context-open #leftContextSidebar.context-sidebar,
+  html.dark body.left-sidebar-right.left-plugin-open #leftPluginSidebar.plugin-sidebar {
+    border-left-color: #303136;
+  }
+
+  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-market-open #leftMarketSidebar.market-sidebar,
+  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-context-open #leftContextSidebar.context-sidebar,
+  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar {
+    border-right-color: #303136;
+  }
+}
+
 @media (min-width: 1024px) {
   body.left-market-open #leftPanelResizer,
   body.left-context-open #leftPanelResizer,

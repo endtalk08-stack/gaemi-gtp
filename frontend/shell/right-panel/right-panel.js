@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const DEFAULT_PANEL_WIDTH_RATIO = 3 / 12;
+  const DEFAULT_PANEL_WIDTH_RATIO = 4 / 12;
   const MIN_CHAT_WIDTH = 240;
 
   function getWorkspace() {
