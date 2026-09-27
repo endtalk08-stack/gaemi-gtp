@@ -1,12 +1,12 @@
-/* Right Panel Shell — fixed workspace-4-12
+/* Right Panel Shell — fixed work-area-3-12
    딱 한 가지 원칙:
    - 왼쪽/보조 사이드바 크기는 건드리지 않는다.
    - 오른쪽 패널이 열리면 중앙 채팅 영역만 줄어든다.
-   - 오른쪽 패널은 Workspace의 4/12 폭을 유지한다.
+   - 오른쪽 패널은 전체 작업영역의 3/12 폭을 유지한다.
 */
 
 #gaemiWorkspace {
-  --right-panel-width: calc(100% / 3);
+  --right-panel-width: calc((100vw - 58px) / 4);
 }
 
 #gaemiWorkspace #rightPanel {

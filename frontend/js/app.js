@@ -18,8 +18,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (shell?.setPanelWidth) return shell.setPanelWidth();
       const workspace = getWorkspace();
       if (!workspace) return;
-      const rect = workspace.getBoundingClientRect();
-      const rounded = window.innerWidth < 1024 ? 360 : Math.round(rect.width * (4 / 12));
+      const navRail = document.getElementById('leftNavRail');
+      const navWidth = navRail ? navRail.getBoundingClientRect().width : 0;
+      const rounded = window.innerWidth < 1024 ? 360 : Math.round((window.innerWidth - navWidth) * (3 / 12));
       workspace.style.setProperty('--right-panel-width', `${rounded}px`);
     }
 

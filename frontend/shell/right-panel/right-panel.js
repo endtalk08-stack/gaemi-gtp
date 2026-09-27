@@ -1,12 +1,12 @@
-/* Right Panel Shell Controller — fixed workspace-4-12
+/* Right Panel Shell Controller — fixed work-area-3-12
    - 왼쪽 사이드바는 건드리지 않는다.
-   - desktop 폭은 항상 Workspace의 4/12.
+   - desktop 폭은 항상 전체 작업영역의 3/12.
    - 폭 저장과 경계선 드래그는 사용하지 않는다.
 */
 (function () {
   'use strict';
 
-  const DEFAULT_PANEL_WIDTH_RATIO = 4 / 12;
+  const DEFAULT_PANEL_WIDTH_RATIO = 3 / 12;
   const MIN_CHAT_WIDTH = 240;
 
   function getWorkspace() {
@@ -17,14 +17,17 @@
     return window.innerWidth >= 1024;
   }
 
+  function getWorkAreaWidth() {
+    const navRail = document.getElementById('leftNavRail');
+    const navWidth = navRail ? navRail.getBoundingClientRect().width : 0;
+    return Math.max(0, window.innerWidth - navWidth);
+  }
+
   function getDefaultPanelWidth() {
     if (!isDesktop()) return 360;
-    const workspace = getWorkspace();
-    const workspaceWidth = workspace
-      ? workspace.getBoundingClientRect().width
-      : window.innerWidth;
-    const maxWidth = Math.max(0, workspaceWidth - MIN_CHAT_WIDTH);
-    return Math.round(Math.min(workspaceWidth * DEFAULT_PANEL_WIDTH_RATIO, maxWidth));
+    const workAreaWidth = getWorkAreaWidth();
+    const maxWidth = Math.max(0, workAreaWidth - MIN_CHAT_WIDTH);
+    return Math.round(Math.min(workAreaWidth * DEFAULT_PANEL_WIDTH_RATIO, maxWidth));
   }
 
   function applyPanelWidth() {
@@ -65,6 +68,7 @@
 
   window.GaemiGTPRightPanelShell = {
     getWorkspace,
+    getWorkAreaWidth,
     setPanelWidth,
     initializeWorkspaceInteractions,
   };
