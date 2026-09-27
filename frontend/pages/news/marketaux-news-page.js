@@ -23,9 +23,62 @@
     root.replaceChildren(status);
   }
 
-  function openSourceArticle(url) {
-    if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
+  function closeArticleModal() {
+    const modal = document.querySelector('.news-article-modal');
+    if (modal) modal.remove();
+    document.body.classList.remove('news-modal-open');
+  }
+
+  function openArticleModal(item) {
+    closeArticleModal();
+
+    const overlay = makeElement('div', 'news-article-modal');
+    const dialog = makeElement('section', 'news-article-modal__dialog');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', item.title || '뉴스 기사');
+
+    const close = makeElement('button', 'news-article-modal__close', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', '닫기');
+    close.addEventListener('click', closeArticleModal);
+
+    const title = makeElement('h2', 'news-article-modal__title', item.title || '제목 없는 기사');
+    const meta = makeElement('div', 'news-article-modal__meta');
+    meta.append(
+      makeElement('span', '', item.source || 'Marketaux'),
+      makeElement('span', '', item.display_datetime || '')
+    );
+
+    const body = makeElement('div', 'news-article-modal__body');
+    if (item.description) {
+      body.appendChild(makeElement('p', '', item.description));
+    } else {
+      body.appendChild(makeElement('p', 'news-article-modal__empty', '기사 요약 정보가 없습니다. 원문에서 전체 내용을 확인할 수 있습니다.'));
+    }
+
+    const actions = makeElement('div', 'news-article-modal__actions');
+    const original = makeElement('a', 'news-article-modal__original', '원문 기사 보기');
+    original.href = item.url || '#';
+    original.target = '_blank';
+    original.rel = 'noopener noreferrer';
+    actions.appendChild(original);
+
+    dialog.append(close, title, meta, body, actions);
+    overlay.appendChild(dialog);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) closeArticleModal();
+    });
+    document.addEventListener('keydown', function onKeydown(event) {
+      if (event.key === 'Escape') {
+        closeArticleModal();
+        document.removeEventListener('keydown', onKeydown);
+      }
+    });
+
+    document.body.appendChild(overlay);
+    document.body.classList.add('news-modal-open');
+    close.focus();
   }
 
   function renderItems(root, items) {
@@ -38,7 +91,7 @@
       const article = makeElement('article', 'marketaux-news__item');
       const link = makeElement('button', 'marketaux-news__article');
       link.type = 'button';
-      link.addEventListener('click', () => openSourceArticle(item.url));
+      link.addEventListener('click', () => openArticleModal(item));
 
       const meta = makeElement('div', 'marketaux-news__meta');
       meta.append(
