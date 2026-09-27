@@ -258,41 +258,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
         document.body.classList.add('left-home-open');
       }
-      document.getElementById('leftSidebarHomeMenu')?.classList.add('hidden');
-      document.querySelector('[data-left-sidebar-home-menu-toggle]')?.setAttribute('aria-expanded', 'false');
       applySidebarState();
     }
 
     function closeLeftSidebarHome() {
       document.body.classList.remove('left-home-open');
-      document.getElementById('leftSidebarHomeMenu')?.classList.add('hidden');
-      document.querySelector('[data-left-sidebar-home-menu-toggle]')?.setAttribute('aria-expanded', 'false');
       applySidebarState();
-    }
-
-    function toggleLeftSidebarHomeMenu() {
-      const menu = document.getElementById('leftSidebarHomeMenu');
-      const button = document.querySelector('[data-left-sidebar-home-menu-toggle]');
-      if (!menu || !button) return;
-      const open = menu.classList.toggle('hidden') === false;
-      button.setAttribute('aria-expanded', String(open));
-    }
-
-    function openLeftSidebarSection(section) {
-      const classBySection = {
-        market: 'left-market-open',
-        context: 'left-context-open',
-        plugin: 'left-plugin-open'
-      };
-      const target = classBySection[section];
-      if (!target || !workspaceUIReady) return;
-      document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
-      if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
-      document.body.classList.add(target);
-      document.getElementById('leftSidebarHomeMenu')?.classList.add('hidden');
-      document.querySelector('[data-left-sidebar-home-menu-toggle]')?.setAttribute('aria-expanded', 'false');
-      applySidebarState();
-      if (section === 'plugin') window.GaemiGTPPluginSidebar?.render?.();
     }
 
     function focusSidebarStockSearch() {

@@ -197,14 +197,14 @@
    - Market information sidebar remains a separate expandable column
    ================================================================ */
 #leftNavRail {
-  width: 58px;
-  flex: 0 0 58px;
+  width: 48px;
+  flex: 0 0 48px;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 6px 10px;
+  padding: 8px 4px 10px;
   background: var(--gtp-rail-bg);
   border-right: 1px solid var(--gtp-border);
   z-index: 60;
@@ -225,10 +225,10 @@
   margin: 2px 0 4px;
 }
 .left-nav-rail-btn {
-  width: 42px;
-  height: 42px;
-  min-width: 42px;
-  min-height: 42px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -241,6 +241,11 @@
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
+.left-nav-rail-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.75;
+}
 .left-nav-rail-btn:hover {
   background: var(--gtp-hover);
   color: var(--gtp-text);
@@ -249,34 +254,28 @@
   outline: 2px solid rgba(161,161,170,.45);
   outline-offset: 1px;
 }
-.left-nav-rail-position-btn svg {
-  width: 24px;
-  height: 24px;
-  stroke-width: 2;
-}
 .left-nav-rail-brand {
   color: var(--gtp-text);
 }
 .left-nav-rail-logo {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9px;
-  background: var(--gtp-surface);
-  border: 1px solid var(--gtp-border-strong);
-  font-size: 16px;
+  border-radius: 10px;
+  background: var(--gtp-active);
+  font-size: 15px;
   font-weight: 900;
   letter-spacing: -0.04em;
 }
 
 @media (max-width: 1023px) {
   #leftNavRail {
-    width: 52px;
-    flex-basis: 52px;
-    padding-left: 5px;
-    padding-right: 5px;
+    width: 48px;
+    flex-basis: 48px;
+    padding-left: 4px;
+    padding-right: 4px;
   }
   .left-nav-rail-btn {
     width: 40px;
@@ -328,56 +327,19 @@
   z-index: 42;
 }
 
-/* The navigation rail remains on the left. On desktop only, the active
-   sidebar can move as one unit to the far right of the Workspace. */
+/* Desktop: the left sidebar remains fixed to the left of the Workspace. */
 @media (min-width: 1024px) {
-  body.left-sidebar-right #gaemiWorkspace {
-    order: 0;
-  }
-
-  /* 오른쪽으로 옮긴 사이드바의 자리도 화면 폭 안에서 먼저 확보한다.
-     RIGHT PANEL은 Workspace 안에 고정되어 있으므로 중앙 CHAT만 남은 폭을 사용한다. */
-  body.left-sidebar-right:is(.left-home-open, .left-market-open, .left-context-open, .left-plugin-open) #gaemiWorkspace {
-    max-width: calc(100vw - 58px - var(--left-sidebar-width) - 5px);
-  }
-
-  body.left-sidebar-right #leftPanelResizer {
-    order: 1;
-  }
-
-  body.left-sidebar-right #leftMarketSidebar.market-sidebar,
-  body.left-sidebar-right #leftContextSidebar.context-sidebar,
-  body.left-sidebar-right #leftPluginSidebar.plugin-sidebar,
-  body.left-sidebar-right #leftSidebarHome.left-sidebar-home {
-    order: 2;
-  }
-
-  body.left-sidebar-right.left-market-open #leftMarketSidebar.market-sidebar,
-  body.left-sidebar-right.left-context-open #leftContextSidebar.context-sidebar,
-  body.left-sidebar-right.left-plugin-open #leftPluginSidebar.plugin-sidebar,
-  body.left-sidebar-right.left-home-open #leftSidebarHome.left-sidebar-home {
-    border-right-width: 0;
-    border-left-width: 2px;
-  }
-
-  body:not(.left-sidebar-right):not(.right-panel-maximized).left-market-open #leftMarketSidebar.market-sidebar,
-  body:not(.left-sidebar-right):not(.right-panel-maximized).left-context-open #leftContextSidebar.context-sidebar,
-  body:not(.left-sidebar-right):not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar,
-  body:not(.left-sidebar-right):not(.right-panel-maximized).left-home-open #leftSidebarHome.left-sidebar-home {
+  body:not(.right-panel-maximized).left-market-open #leftMarketSidebar.market-sidebar,
+  body:not(.right-panel-maximized).left-context-open #leftContextSidebar.context-sidebar,
+  body:not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar,
+  body:not(.right-panel-maximized).left-home-open #leftSidebarHome.left-sidebar-home {
     border-right: 2px solid #d7dce4;
   }
 
-  html.dark body.left-sidebar-right.left-market-open #leftMarketSidebar.market-sidebar,
-  html.dark body.left-sidebar-right.left-context-open #leftContextSidebar.context-sidebar,
-  html.dark body.left-sidebar-right.left-plugin-open #leftPluginSidebar.plugin-sidebar,
-  html.dark body.left-sidebar-right.left-home-open #leftSidebarHome.left-sidebar-home {
-    border-left-color: #303136;
-  }
-
-  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-market-open #leftMarketSidebar.market-sidebar,
-  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-context-open #leftContextSidebar.context-sidebar,
-  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar,
-  html.dark body:not(.left-sidebar-right):not(.right-panel-maximized).left-home-open #leftSidebarHome.left-sidebar-home {
+  html.dark body:not(.right-panel-maximized).left-market-open #leftMarketSidebar.market-sidebar,
+  html.dark body:not(.right-panel-maximized).left-context-open #leftContextSidebar.context-sidebar,
+  html.dark body:not(.right-panel-maximized).left-plugin-open #leftPluginSidebar.plugin-sidebar,
+  html.dark body:not(.right-panel-maximized).left-home-open #leftSidebarHome.left-sidebar-home {
     border-right-color: #303136;
   }
 }
@@ -429,14 +391,28 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
   min-height: 0;
 }
 
-/* Analysis chat: top, scrollable body, and bottom input share one quiet
-   vertical rhythm. The message and input content stay on the same 768px axis. */
-#mainContent > .gaemi-chat-top {
-  height: 56px;
-  min-height: 56px;
-  padding-inline: 16px;
+/* 홈과 분석 화면은 같은 상단 기준선을 사용한다. 화면 상태가 바뀌어도
+   브랜드와 양쪽 패널 제어 버튼의 위치가 달라지지 않도록 공통값을 둔다. */
+.gaemi-app-header {
+  height: 64px;
+  min-height: 64px;
+  padding-inline: 8px;
   background: transparent;
 }
+
+.gaemi-app-header__brand {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.dark .gaemi-app-header__brand {
+  color: #ffffff;
+}
+
+/* Analysis chat: top, scrollable body, and bottom input share one quiet
+   vertical rhythm. The message and input content stay on the same 768px axis. */
 
 #mainContent > #chatArea.gaemi-chat-body {
   width: 100%;
@@ -459,8 +435,8 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 }
 
 @media (min-width: 640px) {
-  #mainContent > .gaemi-chat-top {
-    padding-inline: 24px;
+  .gaemi-app-header {
+    padding-inline: 16px;
   }
 
   #mainContent > #chatArea.gaemi-chat-body {

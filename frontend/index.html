@@ -13,8 +13,8 @@
   <script>tailwind.config = { darkMode: 'class' }</script>
   <script>try { const t = localStorage.getItem('gaemiGTP_theme_v1'); if (t !== 'light') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); document.documentElement.dataset.theme = (t === 'light' ? 'light' : 'dark'); } catch (_) { document.documentElement.classList.add('dark'); }</script>
   <link rel="stylesheet" href="theme/theme.css?v=20260924-v712">
-  <link rel="stylesheet" href="css/app.css?v=20260927-sidebar-position-icon">
-  <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20260927-v1">
+  <link rel="stylesheet" href="css/app.css?v=20260927-sidebar-left-fixed">
+  <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20260927-v2">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20260925-v8-layout-320-full">
   <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20260925-v1">
   <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20260925-v8-layout-320-full">
@@ -55,9 +55,6 @@
       <button type="button" class="left-nav-rail-btn" onclick="toggleLeftPluginSidebar()" aria-label="플러그인 위젯 추가" title="플러그인 · 위젯 추가">
         <i data-lucide="plug" class="w-5 h-5"></i>
       </button>
-      <button type="button" class="left-nav-rail-btn left-nav-rail-position-btn" onclick="toggleLeftSidebarPosition()" data-left-sidebar-position-toggle aria-label="사이드바를 오른쪽으로 이동" title="사이드바를 오른쪽으로 이동">
-        <i data-lucide="arrow-left-right" aria-hidden="true"></i>
-      </button>
     </div>
     <div class="left-nav-rail-bottom">
       <button type="button" class="left-nav-rail-btn" aria-label="로그인 / 계정" title="로그인 / 계정">
@@ -69,10 +66,7 @@
   <!-- 왼쪽 사이드바 첫 메뉴: 저장된 프로젝트/선택 항목을 한곳에서 확인하는 홈 -->
   <aside id="leftSidebarHome" class="left-sidebar-home" aria-label="gaemiGTP 사이드바 홈" aria-hidden="true">
     <header class="left-sidebar-home__header">
-      <button type="button" class="left-sidebar-home__brand" onclick="toggleLeftSidebarHomeMenu()" aria-expanded="false" aria-controls="leftSidebarHomeMenu" data-left-sidebar-home-menu-toggle>
-        <span>gaemiGTP</span>
-        <i data-lucide="chevron-down" aria-hidden="true"></i>
-      </button>
+      <div class="left-sidebar-home__title">gaemiGTP</div>
       <div class="left-sidebar-home__actions">
         <button type="button" class="left-sidebar-home__icon-button" onclick="focusSidebarStockSearch()" aria-label="종목 검색" title="종목 검색">
           <i data-lucide="search" aria-hidden="true"></i>
@@ -82,13 +76,6 @@
         </button>
       </div>
     </header>
-
-    <div id="leftSidebarHomeMenu" class="left-sidebar-home__dropdown hidden" role="menu" aria-label="사이드바 메뉴">
-      <button type="button" role="menuitem" onclick="openLeftSidebarSection('market')"><i data-lucide="activity" aria-hidden="true"></i><span>실시간</span></button>
-      <button type="button" role="menuitem" onclick="openLeftSidebarSection('context')"><i data-lucide="star" aria-hidden="true"></i><span>내 종목</span></button>
-      <button type="button" role="menuitem" onclick="openLeftSidebarSection('plugin')"><i data-lucide="plug" aria-hidden="true"></i><span>플러그인</span></button>
-    </div>
-
     <div class="left-sidebar-home__body">
       <section class="left-sidebar-home__section" aria-labelledby="leftSidebarProjectsTitle">
         <h2 id="leftSidebarProjectsTitle" class="left-sidebar-home__section-title"><i data-lucide="folder" aria-hidden="true"></i><span>프로젝트</span></h2>
@@ -240,10 +227,10 @@
 
   <!-- 메인 히어로 첫 화면 -->
   <div id="mainHeroView" class="absolute inset-0 z-30 bg-[#f8fafc] dark:bg-[#0f1013] text-[#0f172a] dark:text-white flex flex-col justify-between overflow-hidden">
-    <header class="relative z-50 h-16 flex items-center justify-between px-2 sm:px-4 shrink-0">
+    <header class="gaemi-app-header relative z-50 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-3">
         <button type="button" data-left-sidebar-toggle data-left-sidebar-top="hero" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="왼쪽 메뉴 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
-        <span class="font-extrabold text-[15px] tracking-[-0.02em] text-[#0f172a] dark:text-white cursor-pointer" onclick="resetToHome()">gaemiGTP</span>
+        <span class="gaemi-app-header__brand cursor-pointer" onclick="resetToHome()">gaemiGTP</span>
       </div>
       <div class="flex items-center gap-1">
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] pointer-events-auto flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
@@ -311,10 +298,10 @@
     <div class="h-6"></div>
   </div>
 
-    <header class="gaemi-chat-top h-16 flex items-center justify-between px-2 sm:px-4 bg-[#f8fafc] dark:bg-[#0f1013] shrink-0 z-10">
+    <header class="gaemi-app-header gaemi-chat-top flex items-center justify-between shrink-0 z-10">
       <div class="flex items-center gap-3">
         <button type="button" data-left-sidebar-toggle data-left-sidebar-top="workspace" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white rounded-full cursor-pointer" aria-label="왼쪽 사이드바 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
-        <button type="button" onclick="resetToHome()" class="font-black text-lg tracking-tight text-[#0f172a] dark:text-white cursor-pointer hover:opacity-80 transition" aria-label="메인으로 이동">gaemiGTP</button>
+        <button type="button" onclick="resetToHome()" class="gaemi-app-header__brand cursor-pointer hover:opacity-80 transition" aria-label="메인으로 이동">gaemiGTP</button>
       </div>
       <div class="flex items-center gap-1">
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] dark:hover:text-white transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
@@ -426,7 +413,7 @@
 
 
   <script src="shell/right-panel/right-panel.js?v=20260927-step7-workarea3"></script>
-  <script src="shell/left-panel/left-panel-resizer.js?v=20260927-sidebar-home"></script>
+  <script src="shell/left-panel/left-panel-resizer.js?v=20260927-left-fixed"></script>
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260927-sidebar-home"></script>
   <script src="pages/watchlist/watchlist.js?v=20260924-v716"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20260925-v87-full"></script>
@@ -442,6 +429,6 @@
   <script src="pages/auto-trade/auto-trade.js?v=20260924-v76"></script>
   <script src="widgets/news-widget.js?v=20260925-layout-final-panel500"></script>
   <script src="pages/dashboard/dashboard.js?v=20260925-v85-full"></script>
-  <script src="js/app.js?v=20260927-sidebar-home"></script>
+  <script src="js/app.js?v=20260927-sidebar-home-no-dropdown"></script>
 </body>
 </html>
