@@ -1,0 +1,18 @@
+diff --git a/index.html b/index.html
+deleted file mode 100644
+--- a/index.html
++++ /dev/null
+@@ -1,14 +0,0 @@
+-<!doctype html>
+-<html lang="ko">
+-<head>
+-  <meta charset="utf-8">
+-  <meta name="viewport" content="width=device-width, initial-scale=1">
+-  <meta http-equiv="refresh" content="0; url=https://gaemi-gtp.onrender.com/">
+-  <title>gaemiGTP</title>
+-</head>
+-<body>
+-  <p><a href="https://gaemi-gtp.onrender.com/">gaemiGTP 열기</a></p>
+-  <script>location.replace('https://gaemi-gtp.onrender.com/');</script>
+-</body>
+-</html>
