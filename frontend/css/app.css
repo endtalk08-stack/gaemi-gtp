@@ -287,15 +287,24 @@
    - 본문과 패널만 같은 Workspace에서 2열로 재배치
    - 패널의 좌/우 dock은 Workspace 범위를 절대 벗어나지 않음
    ================================================================ */
+/* Desktop shell: one active left sidebar, the center chat, and the right panel
+   are sibling flex areas.  The panel controller owns --right-panel-width. */
+:root {
+  --left-sidebar-width: 320px;
+}
+
 .gaemi-workspace {
   --right-panel-width: 360px;
+  display: flex;
+  flex: 1 1 0;
   min-width: 0;
+  min-height: 0;
   isolation: isolate;
 }
 
 #leftMarketSidebar.market-sidebar {
-  width: 320px;
-  flex: 0 0 320px;
+  width: var(--left-sidebar-width);
+  flex: 0 0 var(--left-sidebar-width);
   transition: width .25s ease, flex-basis .25s ease;
   min-width: 0;
   position: relative;
@@ -329,8 +338,10 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 
 #gaemiWorkspace #mainContent {
   order: 1;
-  flex: 1 1 auto;
-  min-width: 340px;
+  /* The chat is the flexible middle column in all left/right open states. */
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
 }
 
 
