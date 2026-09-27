@@ -18,12 +18,10 @@ from email.utils import parsedate_to_datetime
 
 from backend.providers import google_news, naver_news
 
-
 _CACHE = {}
 _CACHE_TTL = 120
 _CACHE_LOCK = threading.Lock()
 
-# Keep requests small. "전체" uses only two broad searches instead of five separate searches.
 CATEGORY_QUERIES = {
     "전체": ["증시", "경제"],
     "증시": ["코스피 코스닥 나스닥"],
@@ -37,26 +35,13 @@ CATEGORY_QUERIES = {
 }
 
 SOURCE_DOMAINS = {
-    "hankyung.com": "한국경제",
-    "yna.co.kr": "연합뉴스",
-    "mk.co.kr": "매일경제",
-    "sedaily.com": "서울경제",
-    "edaily.co.kr": "이데일리",
-    "mt.co.kr": "머니투데이",
-    "biz.chosun.com": "조선비즈",
-    "chosun.com": "조선일보",
-    "fnnews.com": "파이낸셜뉴스",
-    "hankookilbo.com": "한국일보",
-    "heraldcorp.com": "헤럴드경제",
-    "etnews.com": "전자신문",
-    "newsis.com": "뉴시스",
-    "donga.com": "동아일보",
-    "joongang.co.kr": "중앙일보",
-    "khan.co.kr": "경향신문",
-    "zdnet.co.kr": "ZDNet Korea",
-    "reuters.com": "Reuters",
-    "bloomberg.com": "Bloomberg",
-    "cnbc.com": "CNBC",
+    "hankyung.com": "한국경제", "yna.co.kr": "연합뉴스", "mk.co.kr": "매일경제",
+    "sedaily.com": "서울경제", "edaily.co.kr": "이데일리", "mt.co.kr": "머니투데이",
+    "biz.chosun.com": "조선비즈", "chosun.com": "조선일보", "fnnews.com": "파이낸셜뉴스",
+    "hankookilbo.com": "한국일보", "heraldcorp.com": "헤럴드경제", "etnews.com": "전자신문",
+    "newsis.com": "뉴시스", "donga.com": "동아일보", "joongang.co.kr": "중앙일보",
+    "khan.co.kr": "경향신문", "zdnet.co.kr": "ZDNet Korea", "reuters.com": "Reuters",
+    "bloomberg.com": "Bloomberg", "cnbc.com": "CNBC",
 }
 
 
@@ -93,8 +78,7 @@ def _display_age(value):
     dt = _parse_date(value)
     if dt.year <= 1:
         return ""
-    now = datetime.datetime.now(datetime.timezone.utc)
-    seconds = max(0, int((now - dt).total_seconds()))
+    seconds = max(0, int((datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds()))
     if seconds < 60:
         return "방금 전"
     minutes = seconds // 60
@@ -129,13 +113,13 @@ def _classify(title):
 def _normalize_provider_row(row, requested_category):
     provider = str(row.get("provider") or "").strip()
     title = _strip_html(row.get("raw_title"))
+    description = _strip_html(row.get("raw_description"))
     raw_source = _strip_html(row.get("raw_source"))
     pub_date = _strip_html(row.get("raw_pub_date"))
     raw_link = str(row.get("raw_link") or "").strip()
     original_link = str(row.get("raw_original_link") or "").strip()
 
     if provider == "google":
-        # Google RSS title commonly ends with the publisher name.
         title = re.sub(r"\s*[-–—―|]\s*[^-–—―|]+$", "", title).strip()
         source = raw_source or "Google News"
         final_link = raw_link
@@ -148,13 +132,9 @@ def _normalize_provider_row(row, requested_category):
 
     category = requested_category if requested_category != "전체" else _classify(title)
     return {
-        "provider": provider,
-        "category": category,
-        "title": title,
-        "source": source,
-        "pub_date": pub_date,
-        "display_datetime": _display_age(pub_date),
-        "link": final_link,
+        "provider": provider, "category": category, "title": title,
+        "description": description, "source": source, "pub_date": pub_date,
+        "display_datetime": _display_age(pub_date), "link": final_link,
         "original_link": final_link,
     }
 
@@ -169,11 +149,8 @@ def _collect_raw_rows(queries):
     queries = [q for q in queries if str(q or "").strip()]
     if not queries:
         return []
-
     jobs = [(provider, query) for query in queries for provider in ("naver", "google")]
     rows = []
-
-    # Naver and Google run in parallel. One slow provider no longer blocks the other first.
     with ThreadPoolExecutor(max_workers=min(4, len(jobs))) as executor:
         futures = [executor.submit(_fetch_provider, provider, query) for provider, query in jobs]
         for future in as_completed(futures):
@@ -188,10 +165,8 @@ def fetch_general_news(category="전체", query="", limit=10):
     category = str(category or "전체").strip()
     if category not in CATEGORY_QUERIES:
         category = "전체"
-
     query = str(query or "").strip()
     limit = max(1, min(int(limit or 10), 20))
-
     cache_key = (category, query.lower(), limit)
     now = time.time()
     with _CACHE_LOCK:
@@ -201,27 +176,20 @@ def fetch_general_news(category="전체", query="", limit=10):
 
     queries = [query] if query else CATEGORY_QUERIES[category]
     raw_rows = _collect_raw_rows(queries)
-
-    items = []
-    seen = set()
-
+    items, seen = [], set()
     for raw in raw_rows:
         item = _normalize_provider_row(raw, category)
         if not item:
             continue
-
         duplicate_key = re.sub(r"[^0-9a-zA-Z가-힣]", "", item["title"].lower())
         if not duplicate_key or duplicate_key in seen:
             continue
         seen.add(duplicate_key)
-
         item["id"] = duplicate_key[:40]
         items.append(item)
 
     items.sort(key=lambda x: _parse_date(x.get("pub_date")), reverse=True)
     result = items[:limit]
-
     with _CACHE_LOCK:
         _CACHE[cache_key] = (time.time(), [dict(item) for item in result])
-
     return result
