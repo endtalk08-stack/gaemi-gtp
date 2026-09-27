@@ -310,6 +310,31 @@
   position: relative;
   z-index: 40;
 }
+
+/* 왼쪽 활성 사이드바와 중앙 채팅 사이의 투명한 드래그 영역.
+   사이드바가 닫혀 있거나 모바일일 때는 레이아웃 공간을 차지하지 않는다. */
+#leftPanelResizer {
+  display: none;
+  flex: 0 0 5px;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 42;
+}
+
+@media (min-width: 1024px) {
+  body.left-market-open #leftPanelResizer,
+  body.left-context-open #leftPanelResizer,
+  body.left-plugin-open #leftPanelResizer {
+    display: block;
+  }
+
+  body.right-panel-maximized #leftPanelResizer {
+    display: none;
+  }
+}
+
 body.left-market-closed #leftMarketSidebar.market-sidebar {
   width: 0;
   flex-basis: 0;
@@ -364,6 +389,8 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 /* 패널은 항상 본문 오른쪽에 고정한다. */
 body.panel-resizing, body.panel-resizing * { cursor: col-resize !important; }
 body.panel-resizing * { user-select: none !important; }
+body.left-panel-resizing, body.left-panel-resizing * { cursor: col-resize !important; }
+body.left-panel-resizing * { user-select: none !important; }
 
 
 @media (max-width: 1023px) {
