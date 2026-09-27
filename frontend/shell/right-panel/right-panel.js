@@ -1,6 +1,6 @@
-/* Right Panel Shell Controller — v8.3.2 panel-500
+/* Right Panel Shell Controller — v8.3.2 workspace-4-12
    - 왼쪽 사이드바는 건드리지 않는다.
-   - desktop 기본 폭 500px, 최소 폭 500px.
+   - desktop 기본 폭은 Workspace의 4/12.
    - 사용자가 경계선을 끌면 그 폭을 저장하고 그대로 복원.
 */
 (function () {
@@ -8,7 +8,7 @@
 
   const PANEL_WIDTH_KEY = 'gaemiGTP_panel_width_v3';
   const USER_PANEL_WIDTH_KEY = 'gaemiGTP_panel_width_v4';
-  const DEFAULT_PANEL_WIDTH = 500;
+  const DEFAULT_PANEL_WIDTH_RATIO = 4 / 12;
   const MIN_CHAT_WIDTH = 240;
   const DESKTOP_MIN_PANEL_WIDTH = 500;
   const MOBILE_MIN_PANEL_WIDTH = 240;
@@ -35,7 +35,11 @@
 
   function getDefaultPanelWidth() {
     if (!isDesktop()) return 360;
-    return DEFAULT_PANEL_WIDTH;
+    const workspace = getWorkspace();
+    const workspaceWidth = workspace
+      ? workspace.getBoundingClientRect().width
+      : window.innerWidth;
+    return Math.round(workspaceWidth * DEFAULT_PANEL_WIDTH_RATIO);
   }
 
   function applyPanelWidth(px, persistUser = false) {
