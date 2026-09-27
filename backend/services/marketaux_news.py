@@ -18,7 +18,7 @@ _CACHE_TTL_SECONDS = 300
 _cache = {}
 _cache_lock = threading.Lock()
 _feed_cache = None
-_FEED_CACHE_TTL_SECONDS = 1800
+_FEED_CACHE_TTL_SECONDS = 21600
 
 _CATEGORY_SEARCH = {
     "전체": "stock market",
@@ -42,13 +42,16 @@ _CATEGORY_TERMS = (
 )
 
 # Test feed: each group is one Marketaux request and returns up to three items.
-# Country filters refer to the exchange country identified for an article entity.
+# "전체" is assembled in the UI from the eight feeds below, so it does not
+# consume an additional request. The six-hour cache keeps the free API use low.
 TEST_FEEDS = (
-    ("한국시장", {"countries": "kr", "search": "stock market"}),
-    ("미국시장", {"countries": "us", "search": "stock market"}),
-    ("글로벌 증시", {"search": "global stock market"}),
-    ("주요 산업", {"search": "(semiconductor | \"artificial intelligence\")", "industries": "Technology"}),
-    ("거시경제", {"search": "(inflation | \"interest rate\" | employment)"}),
+    ("증시", {"search": "stock market"}),
+    ("종목", {"search": "(company shares | stock performance)", "countries": "us,kr"}),
+    ("경제지표", {"search": "(inflation | GDP | employment | CPI)"}),
+    ("에너지", {"search": "(energy | oil | crude | gas | OPEC)"}),
+    ("연준", {"search": "(Federal Reserve | FOMC | Powell | \"interest rate\")"}),
+    ("일정", {"search": "(economic calendar | scheduled | upcoming meeting)"}),
+    ("투자의견", {"search": "(analyst rating | \"price target\" | upgrade | downgrade)"}),
     ("실적발표", {"search": "(earnings | revenue | guidance)"}),
 )
 

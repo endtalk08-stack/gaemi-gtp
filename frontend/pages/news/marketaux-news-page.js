@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const CATEGORIES = ['전체', '한국시장', '미국시장', '글로벌 증시', '주요 산업', '거시경제', '실적발표'];
+  const CATEGORIES = ['전체', '증시', '종목', '경제지표', '에너지', '연준', '일정', '투자의견', '실적발표'];
   let selectedCategory = '전체';
   let requestId = 0;
   let feeds = null;
