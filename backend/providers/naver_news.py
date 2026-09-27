@@ -55,6 +55,7 @@ def fetch_news(query, display=20):
         rows.append({
             "provider": "naver",
             "raw_title": item.get("title", ""),
+            "raw_description": item.get("description", ""),
             "raw_source": "",
             "raw_pub_date": item.get("pubDate", ""),
             "raw_link": item.get("link", ""),
