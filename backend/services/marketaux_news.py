@@ -1,4 +1,4 @@
-"""Test-only Marketaux news normalization and broad category classification."""
+"""Test-only Marketaux news normalization and verified category classification."""
 
 import datetime
 import re
@@ -32,13 +32,35 @@ _CATEGORY_SEARCH = {
     "실적발표": "earnings revenue guidance",
 }
 
-_CATEGORY_TERMS = (
-    ("실적발표", ("earnings", "revenue", "guidance", "quarterly results", "profit")),
-    ("경제지표", ("cpi", "gdp", "inflation", "employment", "jobs report", "pce")),
-    ("연준", ("federal reserve", "fomc", "fed ", "powell", "interest rate")),
-    ("에너지", ("energy", "oil", "crude", "gas", "opec")),
-    ("투자의견", ("analyst", "rating", "price target", "upgrade", "downgrade")),
-    ("일정", ("calendar", "scheduled", "upcoming", "meeting", "conference")),
+_EARNINGS_PATTERN = re.compile(
+    r"\b(earnings|eps|revenue|profit|guidance|quarterly results|financial results|net income)\b",
+    re.IGNORECASE,
+)
+_FED_PATTERN = re.compile(r"\b(federal reserve|fomc|jerome powell|powell|fed)\b", re.IGNORECASE)
+_ENERGY_PATTERN = re.compile(
+    r"\b(oil|crude|opec|lng|natural gas|liquefied natural gas|brent|wti|refinery|gasoline|diesel)\b",
+    re.IGNORECASE,
+)
+_OPINION_PATTERN = re.compile(
+    r"\b(analyst|rating|price target|upgrade|downgrade|overweight|underweight|buy rating|sell rating|initiated coverage)\b",
+    re.IGNORECASE,
+)
+_ECONOMIC_INDICATOR_PATTERN = re.compile(
+    r"\b(cpi|pce|gdp|inflation|employment|unemployment|nonfarm payroll|jobs report|jobless claims|"
+    r"consumer price index|producer price index|retail sales|pmi)\b",
+    re.IGNORECASE,
+)
+_SCHEDULE_PATTERN = re.compile(
+    r"\b(economic calendar|fomc meeting|earnings (?:release|report|announcement|calendar|date|season|call)|"
+    r"investor day|results call|conference call|(?:cpi|pce|gdp|employment|payroll|pmi|inflation) "
+    r"(?:release|report|data|due|scheduled))\b",
+    re.IGNORECASE,
+)
+_MARKET_PATTERN = re.compile(
+    r"\b(stock market|equity market|share market|market close|market open|trading session|"
+    r"nasdaq|nyse|s&p|dow jones|sensex|nifty|stock(?:s)? (?:rise|rises|rose|fall|falls|fell|rally|rallies|"
+    r"rallied|slide|slides|slid|gain|gains|gained|drop|drops|dropped))\b",
+    re.IGNORECASE,
 )
 
 # Test feed: each group is one Marketaux request and returns up to three items.
@@ -74,19 +96,41 @@ def _display_age(value):
     return f"{seconds // 86400}일 전"
 
 
-def _classify(item):
-    text = " ".join(
+def _article_text(item):
+    return " ".join(
         str(item.get(field) or "")
         for field in ("title", "description", "snippet")
-    ).lower()
-    for category, terms in _CATEGORY_TERMS:
-        if any(term in text for term in terms):
-            return category
+    )
 
+
+def _classify(item):
+    """Return one verified category, or None when the article is not relevant."""
+    text = _article_text(item)
     entities = item.get("entities") or []
-    if any(isinstance(entity, dict) and entity.get("symbol") for entity in entities):
+    has_ticker = any(
+        isinstance(entity, dict) and str(entity.get("symbol") or "").strip()
+        for entity in entities
+    )
+
+    # Schedule precedes its underlying topic only when the article explicitly
+    # describes a market event date, release, or call.
+    if _SCHEDULE_PATTERN.search(text):
+        return "일정"
+    if _EARNINGS_PATTERN.search(text):
+        return "실적발표"
+    if _FED_PATTERN.search(text):
+        return "연준"
+    if _ECONOMIC_INDICATOR_PATTERN.search(text):
+        return "경제지표"
+    if _ENERGY_PATTERN.search(text):
+        return "에너지"
+    if _OPINION_PATTERN.search(text):
+        return "투자의견"
+    if has_ticker:
         return "종목"
-    return "증시"
+    if _MARKET_PATTERN.search(text):
+        return "증시"
+    return None
 
 
 def _normalize(item, category=None):
@@ -106,7 +150,7 @@ def _normalize(item, category=None):
     ]
     return {
         "id": str(item.get("uuid") or url),
-        "category": category or _classify(item),
+        "category": category,
         "title": title,
         "description": re.sub(r"\s+", " ", str(item.get("description") or item.get("snippet") or "")).strip(),
         "source": str(source.get("name") or source.get("domain") or "Marketaux"),
@@ -132,10 +176,21 @@ def fetch_marketaux_news(category="전체", limit=3):
             return [dict(item) for item in cached[1]]
 
     payload = fetch_news(search=_CATEGORY_SEARCH[category], limit=limit)
-    items = [normalized for raw in payload["data"] if (normalized := _normalize(raw))]
-    if category != "전체":
-        matching = [item for item in items if item["category"] == category]
-        items = matching or items
+    items = []
+    seen = set()
+    for raw in payload["data"]:
+        normalized = _normalize(raw)
+        if not normalized:
+            continue
+        assigned_category = _classify(raw)
+        if not assigned_category or (category != "전체" and assigned_category != category):
+            continue
+        identity = normalized["id"]
+        if identity in seen:
+            continue
+        seen.add(identity)
+        normalized["category"] = assigned_category
+        items.append(normalized)
     result = items[:limit]
 
     with _cache_lock:
@@ -152,18 +207,32 @@ def fetch_marketaux_test_feed():
 
     def fetch_one(category, params):
         payload = fetch_news(**params, limit=3)
-        return category, [
-            normalized
-            for raw in payload["data"]
-            if (normalized := _normalize(raw, category=category))
-        ][:3]
+        return category, payload["data"]
 
-    feeds = {}
+    raw_items = []
     with ThreadPoolExecutor(max_workers=len(TEST_FEEDS)) as executor:
         futures = [executor.submit(fetch_one, category, params) for category, params in TEST_FEEDS]
         for future in as_completed(futures):
-            category, items = future.result()
-            feeds[category] = items
+            _, items = future.result()
+            raw_items.extend(items)
+
+    feeds = {category: [] for category, _ in TEST_FEEDS}
+    seen = set()
+    for raw in raw_items:
+        normalized = _normalize(raw)
+        if not normalized:
+            continue
+        identity = normalized["id"]
+        if identity in seen:
+            continue
+        seen.add(identity)
+
+        category = _classify(raw)
+        if category not in feeds:
+            continue
+        normalized["category"] = category
+        if len(feeds[category]) < 3:
+            feeds[category].append(normalized)
 
     ordered_feeds = {category: feeds.get(category, []) for category, _ in TEST_FEEDS}
     with _cache_lock:
