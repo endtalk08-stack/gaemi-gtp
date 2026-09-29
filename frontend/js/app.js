@@ -981,7 +981,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
               const row = document.createElement('button');
               row.type = 'button';
               row.className = 'block w-full translate-y-1 text-left text-sm opacity-0 text-[#475569] transition duration-300 hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white';
-              row.textContent = `${index + 1}. ${item.title || '제목 확인 필요'}`;
+              row.textContent = item.title || '제목 확인 필요';
               row.addEventListener('click', () => openExternalLinkModal(item));
               articleSection.appendChild(row);
               setTimeout(() => {
