@@ -224,6 +224,12 @@
     };
   }
 
-  // app.js is loaded after this file; install immediately after the current script stack finishes.
-  setTimeout(installLoadingPresentation, 0);
+  // app.js is loaded after this file. DOMContentLoaded runs only after the
+  // following classic scripts have finished, so the functions to wrap exist
+  // on both cached and uncached loads.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installLoadingPresentation, { once: true });
+  } else {
+    installLoadingPresentation();
+  }
 }());
