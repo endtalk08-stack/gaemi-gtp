@@ -1038,7 +1038,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           }
 
           prompt.insertAdjacentElement('afterend', block);
-          const followups = appendFollowupChoices(block);
+          const actions = appendFirstReplyActions(block, `${prompt.innerText}\n${block.innerText}`, 'why');
+          const followups = appendFollowupChoices(actions || block);
           followups.addEventListener('click', async (event) => {
             const button = event.target.closest('[data-why-followup]');
             if (!button) return;
