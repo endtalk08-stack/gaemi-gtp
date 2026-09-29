@@ -39,9 +39,9 @@ function toggleStrategyDashboard(type, btnElement) {
   const targetSlot = document.getElementById(`dash-slot-${type}`);
   const isAlreadyOpen = targetSlot && !targetSlot.classList.contains('hidden');
 
-  if (currentChartInstance) {
-    currentChartInstance.destroy();
-    currentChartInstance = null;
+  if (currentChartInstance) { 
+    currentChartInstance.destroy(); 
+    currentChartInstance = null; 
   }
 
   allTypes.forEach(t => {
@@ -64,60 +64,87 @@ function toggleStrategyDashboard(type, btnElement) {
   }
 
   targetSlot.innerHTML = `
-    <div class="bg-white dark:bg-[#121318] border border-[#cbd5e1] dark:border-[#22242f] rounded-3xl p-5 sm:p-7 shadow-2xl space-y-6 my-3 animate-fade text-[#0f172a] dark:text-white">
-      <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4  border-[#e2e8f0] dark:border-[#1f212c] pb-5">
-        <div class="flex items-center gap-3">
-          <div class="w-12 h-12 rounded-2xl bg-[#ff2d78]/10 border border-[#ff2d78]/20 flex items-center justify-center text-2xl shrink-0">${data.icon}</div>
-          <div>
-            <h2 class="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white tracking-tight">실제 백테스트 검증</h2>
-            <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#8e92a4] mt-0.5 font-medium">과거 데이터로 증명된, 개미GTP의 투자 전략입니다.</p>
+        <div class="bg-white dark:bg-[#121318] border border-[#cbd5e1] dark:border-[#22242f] rounded-3xl p-5 sm:p-7 shadow-2xl space-y-6 my-3 animate-fade text-[#0f172a] dark:text-white">
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4  border-[#e2e8f0] dark:border-[#1f212c] pb-5">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-[#ff2d78]/10 border border-[#ff2d78]/20 flex items-center justify-center text-2xl shrink-0">
+                ${data.icon}
+              </div>
+              <div>
+                <h2 class="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white tracking-tight">실제 백테스트 검증</h2>
+                <p class="text-xs sm:text-sm text-[#64748b] dark:text-[#8e92a4] mt-0.5 font-medium">과거 데이터로 증명된, 개미GTP의 투자 전략입니다.</p>
+              </div>
+            </div>
+            <div class="sm:text-right font-serif italic text-xs sm:text-sm text-[#64748b] dark:text-[#7e8294] shrink-0">
+              ${data.quote}
+              <div class="text-[11px] text-[#94a3b8] dark:text-[#525565] not-italic font-sans mt-0.5">- gaemiGTP -</div>
+            </div>
           </div>
-        </div>
-        <div class="sm:text-right font-serif italic text-xs sm:text-sm text-[#64748b] dark:text-[#7e8294] shrink-0">
-          ${data.quote}
-          <div class="text-[11px] text-[#94a3b8] dark:text-[#525565] not-italic font-sans mt-0.5">- gaemiGTP -</div>
-        </div>
-      </div>
 
-      <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-[#64748b] dark:text-[#8e92a4] font-medium">
-        <span class="font-black text-[#0f172a] dark:text-white text-base">${data.name}</span>
-        <span class="text-[#cbd5e1] dark:text-[#363949]">|</span><span>${data.dateRange}</span>
-        <span class="text-[#cbd5e1] dark:text-[#363949]">|</span><span>초기자금 ${data.initial}</span>
-        <span class="text-[#cbd5e1] dark:text-[#363949]">|</span><span class="text-emerald-600 dark:text-emerald-400 font-bold">수수료 포함</span>
-      </div>
-
-      <div class="grid grid-cols-2 divide-x divide-[#e2e8f0] dark:divide-[#262837] bg-[#f8fafc] dark:bg-[#161720] border border-[#e2e8f0] dark:border-[#262837] rounded-3xl p-5 sm:p-6 text-center">
-        <div class="flex flex-col items-center justify-center space-y-1 pr-2 sm:pr-4">
-          <div class="text-xs text-[#64748b] dark:text-[#717588] font-bold">1억 → 최종 자산</div>
-          <div class="text-2xl sm:text-4xl font-black text-[#0f172a] dark:text-white tracking-tight">${data.finalAsset}</div>
-        </div>
-        <div class="flex flex-col items-center justify-center space-y-1 pl-2 sm:pl-4">
-          <div class="text-xs text-[#64748b] dark:text-[#8e92a4] font-bold">10년 누적수익률</div>
-          <div class="text-2xl sm:text-4xl font-black tracking-tight" style="color: ${data.accentColor};">${data.totalReturn}</div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1"><div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">CAGR</div><div class="text-xl sm:text-2xl font-black" style="color: ${data.accentColor};">${data.cagr}</div></div>
-        <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1"><div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">MDD</div><div class="text-xl sm:text-2xl font-black text-[#00b8ff]">${data.mdd}</div></div>
-        <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1"><div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">총 거래</div><div class="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white">${data.trades}</div></div>
-        <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1"><div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">승률</div><div class="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white">${data.winRate}</div></div>
-      </div>
-
-      <div class="bg-[#f8fafc] dark:bg-[#161720] border border-[#e2e8f0] dark:border-[#262837] rounded-3xl p-4 sm:p-6 space-y-3">
-        <div class="flex items-center justify-between text-xs sm:text-sm">
-          <div class="flex items-center gap-2 font-black text-[#0f172a] dark:text-white"><span>10년 자산곡선 (단위: 억)</span></div>
-          <div class="flex items-center gap-4 text-xs font-bold">
-            <span class="flex items-center gap-1.5" style="color: ${data.accentColor};"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${data.accentColor};"></span> 전략 수익률</span>
-            <span class="flex items-center gap-1.5 text-[#64748b] dark:text-[#7e8294]"><span class="w-2.5 h-2.5 rounded-full bg-[#94a3b8] dark:bg-[#7e8294] inline-block"></span> ${data.benchLabel}</span>
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-[#64748b] dark:text-[#8e92a4] font-medium">
+            <span class="font-black text-[#0f172a] dark:text-white text-base">${data.name}</span>
+            <span class="text-[#cbd5e1] dark:text-[#363949]">|</span>
+            <span>${data.dateRange}</span>
+            <span class="text-[#cbd5e1] dark:text-[#363949]">|</span>
+            <span>초기자금 ${data.initial}</span>
+            <span class="text-[#cbd5e1] dark:text-[#363949]">|</span>
+            <span class="text-emerald-600 dark:text-emerald-400 font-bold">수수료 포함</span>
           </div>
-        </div>
-        <div class="relative w-full h-52 sm:h-60"><canvas id="canvas-acc-${type}"></canvas></div>
-      </div>
 
-      <a href="https://www.quantconnect.com" target="_blank" rel="noopener noreferrer" class="block w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#00a6f4] via-[#00c5ff] to-[#008be3] hover:brightness-110 text-white font-black text-center text-sm sm:text-base shadow-lg shadow-sky-500/20 transition cursor-pointer">QuantConnect 원본 결과 보기 ↗</a>
-    </div>
-  `;
+          <div class="grid grid-cols-2 divide-x divide-[#e2e8f0] dark:divide-[#262837] bg-[#f8fafc] dark:bg-[#161720] border border-[#e2e8f0] dark:border-[#262837] rounded-3xl p-5 sm:p-6 text-center">
+            <div class="flex flex-col items-center justify-center space-y-1 pr-2 sm:pr-4">
+              <div class="text-xs text-[#64748b] dark:text-[#717588] font-bold">1억 → 최종 자산</div>
+              <div class="text-2xl sm:text-4xl font-black text-[#0f172a] dark:text-white tracking-tight">${data.finalAsset}</div>
+            </div>
+            <div class="flex flex-col items-center justify-center space-y-1 pl-2 sm:pl-4">
+              <div class="text-xs text-[#64748b] dark:text-[#8e92a4] font-bold">10년 누적수익률</div>
+              <div class="text-2xl sm:text-4xl font-black tracking-tight" style="color: ${data.accentColor};">${data.totalReturn}</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">CAGR</div>
+              <div class="text-xl sm:text-2xl font-black" style="color: ${data.accentColor};">${data.cagr}</div>
+            </div>
+            <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">MDD</div>
+              <div class="text-xl sm:text-2xl font-black text-[#00b8ff]">${data.mdd}</div>
+            </div>
+            <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">총 거래</div>
+              <div class="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white">${data.trades}</div>
+            </div>
+            <div class="bg-[#f8fafc] dark:bg-[#171821] border border-[#e2e8f0] dark:border-[#262837] rounded-2xl p-3.5 text-center space-y-1">
+              <div class="text-xs text-[#64748b] dark:text-[#7e8294] font-bold">승률</div>
+              <div class="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white">${data.winRate}</div>
+            </div>
+          </div>
+
+          <div class="bg-[#f8fafc] dark:bg-[#161720] border border-[#e2e8f0] dark:border-[#262837] rounded-3xl p-4 sm:p-6 space-y-3">
+            <div class="flex items-center justify-between text-xs sm:text-sm">
+              <div class="flex items-center gap-2 font-black text-[#0f172a] dark:text-white">
+                <span>10년 자산곡선 (단위: 억)</span>
+              </div>
+              <div class="flex items-center gap-4 text-xs font-bold">
+                <span class="flex items-center gap-1.5" style="color: ${data.accentColor};">
+                  <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${data.accentColor};"></span> 전략 수익률
+                </span>
+                <span class="flex items-center gap-1.5 text-[#64748b] dark:text-[#7e8294]">
+                  <span class="w-2.5 h-2.5 rounded-full bg-[#94a3b8] dark:bg-[#7e8294] inline-block"></span> ${data.benchLabel}
+                </span>
+              </div>
+            </div>
+            <div class="relative w-full h-52 sm:h-60">
+              <canvas id="canvas-acc-${type}"></canvas>
+            </div>
+          </div>
+
+          <a href="https://www.quantconnect.com" target="_blank" rel="noopener noreferrer" class="block w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#00a6f4] via-[#00c5ff] to-[#008be3] hover:brightness-110 text-white font-black text-center text-sm sm:text-base shadow-lg shadow-sky-500/20 transition cursor-pointer">
+            QuantConnect 원본 결과 보기 ↗
+          </a>
+        </div>
+      `;
 
   targetSlot.classList.remove('hidden');
 
@@ -132,8 +159,26 @@ function toggleStrategyDashboard(type, btnElement) {
     data: {
       labels: data.labels,
       datasets: [
-        { label: '전략 수익률', data: data.chartData, borderColor: data.accentColor, backgroundColor: gradient, borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 0 },
-        { label: data.benchLabel, data: data.benchData, borderColor: isDark ? '#4e5264' : '#94a3b8', borderWidth: 1.5, borderDash: [4, 4], fill: false, tension: 0.2, pointRadius: 0 }
+        {
+          label: '전략 수익률',
+          data: data.chartData,
+          borderColor: data.accentColor,
+          backgroundColor: gradient,
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0
+        },
+        {
+          label: data.benchLabel,
+          data: data.benchData,
+          borderColor: isDark ? '#4e5264' : '#94a3b8',
+          borderWidth: 1.5,
+          borderDash: [4, 4],
+          fill: false,
+          tension: 0.2,
+          pointRadius: 0
+        }
       ]
     },
     options: {
@@ -141,8 +186,19 @@ function toggleStrategyDashboard(type, btnElement) {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { display: false }, ticks: { color: isDark ? '#686c80' : '#94a3b8', font: { size: 10 } } },
-        y: { position: 'right', grid: { color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }, ticks: { color: isDark ? '#686c80' : '#94a3b8', font: { size: 10 }, callback: v => v + '억' } }
+        x: {
+          grid: { display: false },
+          ticks: { color: isDark ? '#686c80' : '#94a3b8', font: { size: 10 } }
+        },
+        y: {
+          position: 'right',
+          grid: { color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+          ticks: {
+            color: isDark ? '#686c80' : '#94a3b8',
+            font: { size: 10 },
+            callback: v => v + '억'
+          }
+        }
       }
     }
   });
