@@ -18,7 +18,7 @@ from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
-from .news import fetch_realtime_news, get_news_ai_candidates
+from .news_feed import fetch_stock_news
 from .market_levels import (
     calculate_volume_profile_levels,
     format_volume_profile,
@@ -2164,7 +2164,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
 
             try:
-                news_list = fetch_realtime_news(raw_name, TICKERS)
+                news_list = fetch_stock_news(raw_name, market="국내", limit=3)
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
                 news_list = []
@@ -2229,7 +2229,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 call_vol, put_vol, option_error = 0, 0, str(e)
 
             try:
-                news_list = fetch_realtime_news(raw_name, TICKERS)
+                news_list = fetch_stock_news(raw_name, market="미국", limit=3)
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
                 news_list = []
@@ -2414,5 +2414,4 @@ def analyze_stock(raw_name='SK하이닉스'):
             "us_filings": [],
             "ok": False
         }
-
 

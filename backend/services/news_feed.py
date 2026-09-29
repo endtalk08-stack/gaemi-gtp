@@ -91,6 +91,12 @@ MARKET_SIGNALS = {
     "국내": ["국내 증시", "한국 증시", "코스피", "코스닥", "국내 주식", "한국 경제", "원화", "한국은행"],
     "미국": ["미국 증시", "미국 주식", "미국 경제", "미국 시장", "뉴욕증시", "나스닥", "s&p", "다우", "월가", "미 연준"],
 }
+STOCK_MATERIAL_SIGNALS = [
+    "실적", "매출", "영업이익", "순이익", "eps", "earnings", "revenue", "guidance",
+    "공시", "계약", "수주", "공급", "납품", "출하", "투자", "증설", "감산",
+    "배당", "자사주", "목표주가", "투자의견", "판매", "가격", "규제", "관세",
+    "hbm", "반도체", "메모리", "ai", "인공지능", "데이터센터", "신제품",
+]
 
 
 def _strip_html(value):
@@ -263,6 +269,48 @@ def fetch_general_news(category="전체", query="", limit=10, market="전체"):
     with _CACHE_LOCK:
         _CACHE[cache_key] = (time.time(), [dict(item) for item in result])
     return result
+
+
+def _stock_aliases(stock_name, market):
+    stock_name = str(stock_name or "").strip()
+    aliases = STOCK_UNIVERSE.get(market, {}).get(stock_name, [stock_name])
+    return [alias.lower() for alias in aliases if alias]
+
+
+def _is_direct_stock_material(item, stock_name, market):
+    """Keep central materials conservative: the company must be in the headline.
+
+    A company name buried in a broad policy or lifestyle article is not enough
+    evidence to explain that company's daily move.  The panel can still show
+    broad market context; this helper is only for the central stock material
+    list.
+    """
+    title = str(item.get("title") or "").lower()
+    article_text = f"{title} {item.get('description') or ''}".lower()
+    return (
+        any(alias in title for alias in _stock_aliases(stock_name, market))
+        and _matches(article_text, STOCK_MATERIAL_SIGNALS)
+    )
+
+
+def fetch_stock_news(stock_name, market="국내", limit=3):
+    """Return the same normalized NAVER news records used by the panel.
+
+    The central material view intentionally uses this helper rather than a
+    second provider, so a stock article has one source, link, and label set
+    everywhere it appears in gaemiGTP.
+    """
+    candidates = fetch_general_news(
+        category="종목",
+        query=str(stock_name or "").strip(),
+        market=market,
+        # Fetch a wider pool, then apply the stricter central-material rule.
+        limit=20,
+    )
+    return [
+        item for item in candidates
+        if _is_direct_stock_material(item, stock_name, market)
+    ][:max(1, min(int(limit or 3), 10))]
 
 
 def get_news_coverage():
