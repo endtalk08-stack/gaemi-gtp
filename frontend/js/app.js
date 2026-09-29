@@ -949,11 +949,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           loading.remove();
 
           const evidence = getWhyEvidence();
+          const disclosures = (Array.isArray(result.disclosures) && result.disclosures.length
+            ? result.disclosures
+            : (Array.isArray(result.us_filings) ? result.us_filings : [])).slice(0, 3);
           const block = document.createElement('section');
           block.className = 'mt-5 space-y-5 animate-fade';
           const signalTitle = document.createElement('p');
           signalTitle.className = 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]';
-          signalTitle.textContent = evidence.signals.length ? '눈에 띄는 흐름 있어 👀' : '오늘은 흐름 없음 ☁️';
+          signalTitle.textContent = evidence.signals.length || disclosures.length ? '눈에 띄는 흐름 있어 👀' : '오늘은 흐름 없음 ☁️';
           const signalList = document.createElement('div');
           signalList.className = 'flex flex-wrap gap-x-3 gap-y-2 text-sm font-semibold';
           evidence.signals.forEach((signal) => {
@@ -982,7 +985,27 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                 row.classList.remove('translate-y-1', 'opacity-0');
               }, 180 * (index + 1));
             });
-          } else {
+          }
+
+          if (disclosures.length) {
+            const disclosureSection = document.createElement('section');
+            disclosureSection.className = 'space-y-2';
+            disclosureSection.appendChild(Object.assign(document.createElement('p'), { className: 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]', textContent: '관련 공시도 확인했어 📄' }));
+            block.appendChild(disclosureSection);
+            disclosures.forEach((item, index) => {
+              const row = document.createElement('button');
+              row.type = 'button';
+              row.className = 'block w-full translate-y-1 text-left text-sm opacity-0 text-[#475569] transition duration-300 hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white';
+              row.textContent = `${index + 1}. ${item.title || '공시 제목 확인 필요'}`;
+              row.addEventListener('click', () => openExternalLinkModal(item));
+              disclosureSection.appendChild(row);
+              setTimeout(() => {
+                row.classList.remove('translate-y-1', 'opacity-0');
+              }, 180 * (articles.length + index + 1));
+            });
+          }
+
+          if (!articles.length && !disclosures.length) {
             const empty = document.createElement('p');
             empty.className = 'text-sm leading-7 text-[#64748b] dark:text-[#a1a1aa] whitespace-pre-line';
             empty.textContent = '기사에서 딱히 잡히는 재료도 없고,\n오늘은 시장 흐름을 조금 더 지켜보자 ☕';
