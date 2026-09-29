@@ -272,19 +272,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function initializeSidebars() {
-      // 새로고침해도 마지막 화면/종목/사이드바/패널 상태를 그대로 복원한다.
+      // 새로 열 때는 항상 검색 홈에서 시작하고, 레이아웃 설정만 복원한다.
       const saved = readWorkspaceState();
       restoringWorkspaceState = true;
 
       document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized','analysis-mode');
 
       const heroView = document.getElementById('mainHeroView');
-      if (saved?.mode === 'analysis' && heroView) {
-        heroView.classList.add('hidden');
-        document.body.classList.add('analysis-mode');
-      } else if (heroView) {
-        heroView.classList.remove('hidden');
-      }
+      if (heroView) heroView.classList.remove('hidden');
 
       if (saved?.leftHomeOpen) document.body.classList.add('left-home-open');
       if (saved?.leftMarketOpen) document.body.classList.add('left-market-open');
@@ -352,12 +347,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           restoringWorkspaceState = false;
           saveWorkspaceState();
 
-          // 마지막으로 종목분석 화면을 보고 있었다면 같은 종목으로 다시 분석 화면을 구성한다.
-          const currentHero = document.getElementById('mainHeroView');
-          const shouldRestoreAnalysis = saved?.mode === 'analysis' && currentHero && currentHero.classList.contains('hidden');
-          if (shouldRestoreAnalysis) {
-            requestStock(activeStock || '삼성전자');
-          }
+          // 마지막 종목 분석은 복원하지 않는다. 새 접속은 항상 검색 홈에서 시작한다.
         });
       });
     }
