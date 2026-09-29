@@ -153,6 +153,10 @@ def _investment_relevance(item, explicit_query=False):
     desc_context = sum(word in description for word in MARKET_CONTEXT_WORDS)
     if _matches(title, NOISE_WORDS) and not title_core:
         return -1
+    # General terms such as "산업" or "경제" alone are not investment news.
+    # A category feed must include at least one finance/market signal.
+    if not explicit_query and title_core + desc_core == 0:
+        return -1
     score = title_core * 3 + min(desc_core, 3) + title_context + min(desc_context, 2)
     return score if score >= (1 if explicit_query else 2) else -1
 
