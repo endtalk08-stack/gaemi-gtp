@@ -810,12 +810,22 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
           (Array.isArray(result.news_items) ? result.news_items : []).forEach((item) => {
             const text = `${item.title || ''} ${item.description || ''}`.toLowerCase();
-            positiveRules.forEach(([label, words]) => {
-              if (words.some((word) => text.includes(word))) add(label, 'positive');
+            // The server has already checked these tags against the normalized
+            // article. Prefer that evidence over a browser-only keyword guess.
+            const serverSignals = Array.isArray(item.movement_signals) ? item.movement_signals : null;
+            serverSignals?.forEach((signal) => {
+              if (signal && signal.label) add(signal.label, signal.tone || 'neutral');
             });
-            negativeRules.forEach(([label, words]) => {
-              if (words.some((word) => text.includes(word))) add(label, 'negative');
-            });
+            // Older cached responses did not carry movement_signals. Keep a
+            // narrow fallback only for those responses during deployment.
+            if (!serverSignals) {
+              positiveRules.forEach(([label, words]) => {
+                if (words.some((word) => text.includes(word))) add(label, 'positive');
+              });
+              negativeRules.forEach(([label, words]) => {
+                if (words.some((word) => text.includes(word))) add(label, 'negative');
+              });
+            }
             [...(item.issues || []), ...(item.themes || [])].forEach((label) => {
               add(label, changePercent >= 0.5 ? 'positive' : changePercent <= -0.5 ? 'negative' : 'neutral');
             });
