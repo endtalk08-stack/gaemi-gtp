@@ -14,6 +14,7 @@ from backend.providers import naver_news
 _CACHE = {}
 _CACHE_TTL = 120
 _CACHE_LOCK = threading.Lock()
+MAX_NEWS_AGE_DAYS = 7
 
 CATEGORY_QUERIES = {
     "전체": ["증시", "경제"], "증시": ["코스피 코스닥 나스닥"], "종목": ["상장사 주식"],
@@ -141,6 +142,14 @@ def _display_age(value):
     return date.astimezone().strftime("%m/%d")
 
 
+def _is_recent_news(value):
+    """Only accept provider items published during the current seven-day window."""
+    date = _parse_date(value)
+    if date.year <= 1:
+        return False
+    return date >= datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=MAX_NEWS_AGE_DAYS)
+
+
 def _matches(text, words):
     text = str(text or "").lower()
     return any(word.lower() in text for word in words)
@@ -251,6 +260,8 @@ def fetch_general_news(category="전체", query="", limit=10, market="전체"):
     for raw in _collect_raw_rows(_queries_for(category, market, query)):
         item = _normalize_provider_row(raw, category, market)
         if not item:
+            continue
+        if not _is_recent_news(item["pub_date"]):
             continue
         relevance = _investment_relevance(item, explicit_query=bool(query))
         text = f"{item['title']} {item['description']}"
