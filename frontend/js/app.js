@@ -769,10 +769,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         const changeMatch = String(whySection?.content || '').match(/([+-]\d+(?:\.\d+)?)%/);
         const changePercent = changeMatch ? Number(changeMatch[1]) : 0;
         const whyState = changePercent >= 0.5
-          ? { label: '왜 빨간불일까?', tag: '#왜_빨간불일까?', color: '#FF8DA1', fallback: '#상승흐름' }
+          ? { label: '왜 빨간불일까?', tag: '#왜_빨간불일까?', color: '#FF8DA1' }
           : changePercent <= -0.5
-            ? { label: '왜 파란불일까?', tag: '#왜_파란불일까?', color: '#38BDF8', fallback: '#하락압력' }
-            : { label: '왜 보합일까?', tag: '#왜_보합일까?', color: '#94A3B8', fallback: '#보합권' };
+            ? { label: '왜 파란불일까?', tag: '#왜_파란불일까?', color: '#38BDF8' }
+            : { label: '왜 보합일까?', tag: '#왜_보합일까?', color: '#94A3B8' };
 
         const makeUserPrompt = (text, dataName) => {
           const prompt = document.createElement('div');
@@ -785,54 +785,23 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           return prompt;
         };
 
-        const getWhySignals = () => {
-          const positiveRules = [
-            ['실적상회', ['실적 상회', '호실적', '실적 개선', '전망 상향']],
-            ['메모리가격', ['메모리 가격', 'd램 가격', '낸드 가격']],
-            ['AI메모리', ['ai 메모리', 'hbm', 'ai']],
-            ['수주·계약', ['수주', '계약', '공급계약']],
-          ];
-          const negativeRules = [
-            ['코스피약세', ['코스피 약세', '국내 증시 약세']],
-            ['코스닥약세', ['코스닥 약세']],
-            ['실적악화', ['실적 악화', '실적 부진']],
-            ['지정학적리스크', ['지정학', '전쟁', '분쟁']],
-            ['외국인매도', ['외국인 매도', '외국인 순매도']],
-            ['금리부담', ['금리 부담', '금리 상승']],
-          ];
+        const getWhyEvidence = () => {
           const output = [];
           const seen = new Set();
           const add = (label, tone) => {
-            if (!label || seen.has(label) || output.length >= 6) return;
+            if (!label || seen.has(label) || output.length >= 2) return;
             seen.add(label);
             output.push({ label: `#${label.replace(/^#/, '').replace(/\s+/g, '')}`, tone });
           };
 
-          (Array.isArray(result.news_items) ? result.news_items : []).forEach((item) => {
-            const text = `${item.title || ''} ${item.description || ''}`.toLowerCase();
-            // The server has already checked these tags against the normalized
-            // article. Prefer that evidence over a browser-only keyword guess.
-            const serverSignals = Array.isArray(item.movement_signals) ? item.movement_signals : null;
-            serverSignals?.forEach((signal) => {
+          const articles = (Array.isArray(result.news_items) ? result.news_items : []).filter((item) => {
+            const serverSignals = Array.isArray(item.movement_signals) ? item.movement_signals : [];
+            serverSignals.forEach((signal) => {
               if (signal && signal.label) add(signal.label, signal.tone || 'neutral');
             });
-            // Older cached responses did not carry movement_signals. Keep a
-            // narrow fallback only for those responses during deployment.
-            if (!serverSignals) {
-              positiveRules.forEach(([label, words]) => {
-                if (words.some((word) => text.includes(word))) add(label, 'positive');
-              });
-              negativeRules.forEach(([label, words]) => {
-                if (words.some((word) => text.includes(word))) add(label, 'negative');
-              });
-            }
-            [...(item.issues || []), ...(item.themes || [])].forEach((label) => {
-              add(label, changePercent >= 0.5 ? 'positive' : changePercent <= -0.5 ? 'negative' : 'neutral');
-            });
+            return serverSignals.length > 0;
           });
-
-          if (!output.length) add(whyState.fallback, changePercent >= 0.5 ? 'positive' : changePercent <= -0.5 ? 'negative' : 'neutral');
-          return output;
+          return { signals: output, articles };
         };
 
         const appendFollowupChoices = (after) => {
@@ -842,8 +811,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           followups.innerHTML = `
             <p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">더 살펴볼래?</p>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:text-[#be185d] dark:text-[#e889aa] dark:hover:text-[#f0a4bd]" data-why-followup="materials">#재료</button>
               <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-why-followup="supply">#수급</button>
+              <button type="button" class="text-sm font-semibold text-[#64748b] transition hover:text-[#0f172a] dark:text-[#a1a1aa] dark:hover:text-white" data-why-followup="technical">#차트</button>
             </div>`;
           after.insertAdjacentElement('afterend', followups);
           return followups;
@@ -939,6 +908,25 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
+        const appendTechnical = (choiceAnchor = choices) => {
+          if (mainContainer.querySelector('[data-technical-flow]')) return;
+          const levels = Array.isArray(sections) ? sections.find((section) => section?.id === 'levels') : null;
+          const prompt = makeUserPrompt('차트는 어때?', 'technicalFlow');
+          choiceAnchor.insertAdjacentElement('afterend', prompt);
+          choiceAnchor.remove();
+
+          const block = document.createElement('section');
+          block.className = 'mt-5 space-y-2 animate-fade';
+          block.innerHTML = '<p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">기술적 분석</p>';
+          const content = document.createElement('p');
+          content.className = 'text-sm sm:text-base text-[#475569] dark:text-[#d4d4d8] leading-7 whitespace-pre-line';
+          content.textContent = levels?.content || '현재 차트 데이터를 확인하지 못했어요.';
+          block.appendChild(content);
+          prompt.insertAdjacentElement('afterend', block);
+          appendFirstReplyActions(block, `${prompt.innerText}\n${content.innerText}`, 'technical');
+          block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        };
+
         const appendWhy = async () => {
           if (mainContainer.querySelector('[data-why-flow]')) return;
           const prompt = makeUserPrompt(whyState.label, 'whyFlow');
@@ -960,39 +948,44 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
           loading.remove();
 
+          const evidence = getWhyEvidence();
           const block = document.createElement('section');
           block.className = 'mt-5 space-y-5 animate-fade';
           const signalTitle = document.createElement('p');
           signalTitle.className = 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]';
-          signalTitle.textContent = '현재 확인된 신호';
+          signalTitle.textContent = evidence.signals.length ? '눈에 띄는 흐름 있어 👀' : '오늘은 흐름 없음 ☁️';
           const signalList = document.createElement('div');
           signalList.className = 'flex flex-wrap gap-x-3 gap-y-2 text-sm font-semibold';
-          getWhySignals().forEach((signal) => {
+          evidence.signals.forEach((signal) => {
             const tag = document.createElement('span');
             tag.textContent = signal.label;
             tag.style.color = signal.tone === 'positive' ? '#FF8DA1' : signal.tone === 'negative' ? '#38BDF8' : '#94A3B8';
             signalList.appendChild(tag);
           });
-          block.append(signalTitle, signalList);
+          block.appendChild(signalTitle);
+          if (evidence.signals.length) block.appendChild(signalList);
 
-          const articles = Array.isArray(result.news_items) ? result.news_items.slice(0, 3) : [];
+          const articles = evidence.articles.slice(0, 3);
           if (articles.length) {
             const articleSection = document.createElement('section');
             articleSection.className = 'space-y-2';
-            articleSection.appendChild(Object.assign(document.createElement('p'), { className: 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]', textContent: '확인된 기사' }));
+            articleSection.appendChild(Object.assign(document.createElement('p'), { className: 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]', textContent: '관련 기사도 찾아봤어 👇' }));
+            block.appendChild(articleSection);
             articles.forEach((item, index) => {
               const row = document.createElement('button');
               row.type = 'button';
-              row.className = 'block w-full text-left text-sm text-[#475569] dark:text-[#d4d4d8] hover:text-[#0f172a] dark:hover:text-white transition';
+              row.className = 'block w-full translate-y-1 text-left text-sm opacity-0 text-[#475569] transition duration-300 hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white';
               row.textContent = `${index + 1}. ${item.title || '제목 확인 필요'}`;
               row.addEventListener('click', () => openExternalLinkModal(item));
               articleSection.appendChild(row);
+              setTimeout(() => {
+                row.classList.remove('translate-y-1', 'opacity-0');
+              }, 180 * (index + 1));
             });
-            block.appendChild(articleSection);
           } else {
             const empty = document.createElement('p');
             empty.className = 'text-sm leading-7 text-[#64748b] dark:text-[#a1a1aa] whitespace-pre-line';
-            empty.textContent = '현재 확인된 직접 재료가 없어요 ㅠㅠ\n장중 뉴스·공시가 들어오면 다시 정리해드릴게요.';
+            empty.textContent = '기사에서 딱히 잡히는 재료도 없고,\n오늘은 시장 흐름을 조금 더 지켜보자 ☕';
             block.appendChild(empty);
           }
 
@@ -1012,22 +1005,31 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
               const relation = document.createElement('span');
               relation.className = 'text-xs text-[#94a3b8] dark:text-[#71717a]';
               relation.textContent = '뉴스 공동 언급';
+              const watchlistKey = 'gaemiGTP_watchlist_v1';
+              let watchlist = [];
+              try {
+                const stored = JSON.parse(localStorage.getItem(watchlistKey) || '[]');
+                watchlist = Array.isArray(stored) ? stored : [];
+              } catch (_) {}
+              const alreadyWatched = watchlist.includes(name);
               const watch = document.createElement('button');
               watch.type = 'button';
-              watch.className = 'text-xs font-semibold text-[#64748b] hover:text-[#0f172a] dark:text-[#a1a1aa] dark:hover:text-white transition';
-              watch.textContent = '관심등록';
-              watch.title = `${name} 관심종목 등록`;
+              watch.className = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:text-[#a1a1aa] dark:hover:bg-[#27272a] dark:hover:text-white';
+              watch.title = alreadyWatched ? `${name} 관심종목 등록됨` : `${name} 관심종목 등록`;
+              watch.setAttribute('aria-label', watch.title);
+              watch.setAttribute('aria-pressed', String(alreadyWatched));
+              watch.innerHTML = `<i data-lucide="star" class="h-4 w-4${alreadyWatched ? ' fill-current' : ''}"></i>`;
+              if (alreadyWatched) watch.classList.add('text-[#db2777]', 'dark:text-[#e889aa]');
               watch.addEventListener('click', () => {
-                const key = 'gaemiGTP_watchlist_v1';
-                let watchlist = [];
-                try {
-                  const stored = JSON.parse(localStorage.getItem(key) || '[]');
-                  watchlist = Array.isArray(stored) ? stored : [];
-                } catch (_) {}
                 if (!watchlist.includes(name)) watchlist.push(name);
-                localStorage.setItem(key, JSON.stringify(watchlist));
-                watch.textContent = '관심종목';
+                localStorage.setItem(watchlistKey, JSON.stringify(watchlist));
+                watch.title = `${name} 관심종목 등록됨`;
+                watch.setAttribute('aria-label', watch.title);
                 watch.setAttribute('aria-pressed', 'true');
+                watch.classList.add('text-[#db2777]', 'dark:text-[#e889aa]');
+                watch.innerHTML = '<i data-lucide="star" class="h-4 w-4 fill-current"></i>';
+                if (window.GaemiGTPWatchlist?.refresh) window.GaemiGTPWatchlist.refresh();
+                if (window.lucide) window.lucide.createIcons();
               });
               row.append(stock, relation, watch);
               relatedSection.appendChild(row);
@@ -1040,8 +1042,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           followups.addEventListener('click', async (event) => {
             const button = event.target.closest('[data-why-followup]');
             if (!button) return;
-            if (button.dataset.whyFollowup === 'materials') await appendMaterials(followups);
             if (button.dataset.whyFollowup === 'supply') appendSupply(followups);
+            if (button.dataset.whyFollowup === 'technical') appendTechnical(followups);
           });
           if (window.lucide) window.lucide.createIcons();
           block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
