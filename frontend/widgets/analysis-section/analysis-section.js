@@ -75,6 +75,68 @@
   'use strict';
 
   const STAGE_MS = 4000;
+  const NEWS_FLOW_URL = 'https://gaemi-gtp.onrender.com/news/stock-flow';
+
+  function prepareCentralNewsFlow(items) {
+    const rows = Array.isArray(items) ? items.map(item => ({ ...item })) : [];
+    const counts = new Map();
+
+    rows.forEach((item) => {
+      const signals = Array.isArray(item.movement_signals) ? item.movement_signals : [];
+      signals.forEach((signal) => {
+        const label = String(signal?.label || '').trim();
+        if (!label) return;
+        const current = counts.get(label) || { count: 0, tone: signal.tone || 'neutral' };
+        current.count += 1;
+        if (current.tone === 'neutral' && signal.tone) current.tone = signal.tone;
+        counts.set(label, current);
+      });
+    });
+
+    const rank = [...counts.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([label]) => label);
+    const rankIndex = new Map(rank.map((label, index) => [label, index]));
+
+    // 기존 중앙 UI는 신호를 먼저 발견한 순서대로 최대 2개만 보여 준다.
+    // 그래서 기사별 대표 신호를 전체 기사 빈도 순으로 정렬해, 표시되는 2개가
+    // 우연히 먼저 들어온 2개가 아니라 전체 흐름에서 반복된 신호가 되게 한다.
+    rows.forEach((item) => {
+      const signals = Array.isArray(item.movement_signals) ? item.movement_signals : [];
+      const sorted = [...signals].sort((a, b) =>
+        (rankIndex.get(a?.label) ?? 999) - (rankIndex.get(b?.label) ?? 999)
+      );
+      item.movement_signals = sorted.length ? [sorted[0]] : [];
+      item._flowRank = sorted.length ? (rankIndex.get(sorted[0]?.label) ?? 999) : 999;
+    });
+
+    rows.sort((a, b) => a._flowRank - b._flowRank);
+    rows.forEach(item => { delete item._flowRank; });
+    return rows;
+  }
+
+  async function loadCentralNewsFlow(stockName, result) {
+    if (!result || !stockName) return;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6500);
+      const response = await fetch(`${NEWS_FLOW_URL}?stock=${encodeURIComponent(stockName)}`, {
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      clearTimeout(timeout);
+      if (!response.ok) return;
+      const payload = await response.json();
+      const flowItems = prepareCentralNewsFlow(payload?.items);
+      if (flowItems.length) {
+        // 패널 데이터는 건드리지 않고 중앙 채팅에 전달되는 분석 결과만 넓힌다.
+        // 기사 표시 UI는 기존처럼 상위 3개만 보여 주지만 '왜?' 판단은 최대 10개를 본다.
+        result.news_items = flowItems;
+      }
+    } catch (_) {
+      // 흐름 API가 늦거나 실패하면 기존 /analyze의 3개 기사로 그대로 진행한다.
+    }
+  }
 
   function installLoadingPresentation() {
     const originalRequestStock = window.requestStock;
@@ -224,6 +286,10 @@
         flow.el?.remove();
         activeFlow = null;
       }
+
+      // 첫 결과가 시작되기 전에 중앙 채팅용 뉴스 흐름을 한 번 넓혀 둔다.
+      // 기존 패널/분석 API 결과는 유지하고, 실패하면 원래 결과로 그대로 진행한다.
+      await loadCentralNewsFlow(String(stockName || '').trim(), result);
       return originalStartTypewriterFlow.call(this, stockName, sections, result, requestId);
     };
   }
