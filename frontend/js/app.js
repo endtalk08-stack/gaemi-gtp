@@ -765,6 +765,80 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       function appendNextAnalysisChoices(anchor) {
         if (!anchor || anchor.parentElement?.querySelector('[data-next-analysis-choices]')) return;
 
+        const whySection = Array.isArray(sections) ? sections.find((section) => section?.id === 'why-up') : null;
+        const changeMatch = String(whySection?.content || '').match(/([+-]\d+(?:\.\d+)?)%/);
+        const changePercent = changeMatch ? Number(changeMatch[1]) : 0;
+        const whyState = changePercent >= 0.5
+          ? { label: '왜 빨간불일까?', tag: '#왜_빨간불일까?', color: '#FF8DA1', fallback: '#상승흐름' }
+          : changePercent <= -0.5
+            ? { label: '왜 파란불일까?', tag: '#왜_파란불일까?', color: '#38BDF8', fallback: '#하락압력' }
+            : { label: '왜 보합일까?', tag: '#왜_보합일까?', color: '#94A3B8', fallback: '#보합권' };
+
+        const makeUserPrompt = (text, dataName) => {
+          const prompt = document.createElement('div');
+          if (dataName) prompt.dataset[dataName] = 'true';
+          prompt.className = 'flex justify-end animate-fade';
+          const bubble = document.createElement('div');
+          bubble.className = 'bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]';
+          bubble.textContent = text;
+          prompt.appendChild(bubble);
+          return prompt;
+        };
+
+        const getWhySignals = () => {
+          const positiveRules = [
+            ['실적상회', ['실적 상회', '호실적', '실적 개선', '전망 상향']],
+            ['메모리가격', ['메모리 가격', 'd램 가격', '낸드 가격']],
+            ['AI메모리', ['ai 메모리', 'hbm', 'ai']],
+            ['수주·계약', ['수주', '계약', '공급계약']],
+          ];
+          const negativeRules = [
+            ['코스피약세', ['코스피 약세', '국내 증시 약세']],
+            ['코스닥약세', ['코스닥 약세']],
+            ['실적악화', ['실적 악화', '실적 부진']],
+            ['지정학적리스크', ['지정학', '전쟁', '분쟁']],
+            ['외국인매도', ['외국인 매도', '외국인 순매도']],
+            ['금리부담', ['금리 부담', '금리 상승']],
+          ];
+          const output = [];
+          const seen = new Set();
+          const add = (label, tone) => {
+            if (!label || seen.has(label) || output.length >= 6) return;
+            seen.add(label);
+            output.push({ label: `#${label.replace(/^#/, '').replace(/\s+/g, '')}`, tone });
+          };
+
+          (Array.isArray(result.news_items) ? result.news_items : []).forEach((item) => {
+            const text = `${item.title || ''} ${item.description || ''}`.toLowerCase();
+            positiveRules.forEach(([label, words]) => {
+              if (words.some((word) => text.includes(word))) add(label, 'positive');
+            });
+            negativeRules.forEach(([label, words]) => {
+              if (words.some((word) => text.includes(word))) add(label, 'negative');
+            });
+            [...(item.issues || []), ...(item.themes || [])].forEach((label) => {
+              add(label, changePercent >= 0.5 ? 'positive' : changePercent <= -0.5 ? 'negative' : 'neutral');
+            });
+          });
+
+          if (!output.length) add(whyState.fallback, changePercent >= 0.5 ? 'positive' : changePercent <= -0.5 ? 'negative' : 'neutral');
+          return output;
+        };
+
+        const appendFollowupChoices = (after) => {
+          const followups = document.createElement('section');
+          followups.dataset.whyFollowupChoices = 'true';
+          followups.className = 'mt-6 space-y-2 animate-fade';
+          followups.innerHTML = `
+            <p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">더 살펴볼래?</p>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:text-[#be185d] dark:text-[#e889aa] dark:hover:text-[#f0a4bd]" data-why-followup="materials">#재료</button>
+              <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-why-followup="supply">#수급</button>
+            </div>`;
+          after.insertAdjacentElement('afterend', followups);
+          return followups;
+        };
+
         const choices = document.createElement('section');
         choices.dataset.nextAnalysisChoices = 'true';
         choices.className = 'mt-6 space-y-2 animate-fade';
@@ -772,29 +846,23 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           <p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">뭐가 궁금해?</p>
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-next-analysis="us-market">#미국장</button>
-            <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:text-[#be185d] dark:text-[#e889aa] dark:hover:text-[#f0a4bd]" data-next-analysis="materials">#재료</button>
+            <button type="button" class="text-sm font-semibold transition hover:opacity-80" style="color:${whyState.color}" data-next-analysis="why">${whyState.tag}</button>
           </div>
           <p class="text-xs text-[#94a3b8] dark:text-[#71717a]">궁금한 해시태그 눌러바</p>`;
 
         const appendUsMarketPrompt = () => {
           if (mainContainer.querySelector('[data-us-market-prompt]')) return;
-          const prompt = document.createElement('div');
-          prompt.dataset.usMarketPrompt = 'true';
-          prompt.className = 'flex justify-end animate-fade';
-          prompt.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">미국장 어땠어?</div>`;
+          const prompt = makeUserPrompt('미국장 어땠어?', 'usMarketPrompt');
           choices.insertAdjacentElement('afterend', prompt);
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
-        const appendMaterials = async () => {
+        const appendMaterials = async (choiceAnchor = choices) => {
           if (mainContainer.querySelector('[data-materials-flow]')) return;
 
-          const prompt = document.createElement('div');
-          prompt.dataset.materialsFlow = 'true';
-          prompt.className = 'flex justify-end animate-fade';
-          prompt.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">재료는 있어?</div>`;
-          choices.insertAdjacentElement('afterend', prompt);
-          choices.remove();
+          const prompt = makeUserPrompt('재료는 있어?', 'materialsFlow');
+          choiceAnchor.insertAdjacentElement('afterend', prompt);
+          choiceAnchor.remove();
 
           const loading = document.createElement('div');
           loading.className = 'mt-5 space-y-2';
@@ -842,15 +910,133 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           materials.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
-        choices.addEventListener('click', async (event) => {
-          const button = event.target.closest('[data-next-analysis]');
-          if (!button) return;
+        const appendSupply = (choiceAnchor = choices) => {
+          if (mainContainer.querySelector('[data-supply-flow]')) return;
+          const supply = Array.isArray(sections) ? sections.find((section) => section?.id === 'supply') : null;
+          const prompt = makeUserPrompt('수급은 어때?', 'supplyFlow');
+          choiceAnchor.insertAdjacentElement('afterend', prompt);
+          choiceAnchor.remove();
+
+          const block = document.createElement('section');
+          block.className = 'mt-5 space-y-2 animate-fade';
+          block.innerHTML = '<p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">수급 신호</p>';
+          const content = document.createElement('p');
+          content.className = 'text-sm sm:text-base text-[#475569] dark:text-[#d4d4d8] leading-7 whitespace-pre-line';
+          content.textContent = supply?.content || '현재 수급 데이터를 확인하지 못했어요.';
+          block.appendChild(content);
+          prompt.insertAdjacentElement('afterend', block);
+          appendFirstReplyActions(block, `${prompt.innerText}\n${content.innerText}`, 'supply');
+          block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        };
+
+        const appendWhy = () => {
+          if (mainContainer.querySelector('[data-why-flow]')) return;
+          const prompt = makeUserPrompt(whyState.label, 'whyFlow');
+          choices.insertAdjacentElement('afterend', prompt);
+          choices.remove();
+
+          const block = document.createElement('section');
+          block.className = 'mt-5 space-y-5 animate-fade';
+          const signalTitle = document.createElement('p');
+          signalTitle.className = 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]';
+          signalTitle.textContent = '현재 확인된 신호';
+          const signalList = document.createElement('div');
+          signalList.className = 'flex flex-wrap gap-x-3 gap-y-2 text-sm font-semibold';
+          getWhySignals().forEach((signal) => {
+            const tag = document.createElement('span');
+            tag.textContent = signal.label;
+            tag.style.color = signal.tone === 'positive' ? '#FF8DA1' : signal.tone === 'negative' ? '#38BDF8' : '#94A3B8';
+            signalList.appendChild(tag);
+          });
+          block.append(signalTitle, signalList);
+
+          const articles = Array.isArray(result.news_items) ? result.news_items.slice(0, 3) : [];
+          if (articles.length) {
+            const articleSection = document.createElement('section');
+            articleSection.className = 'space-y-2';
+            articleSection.appendChild(Object.assign(document.createElement('p'), { className: 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]', textContent: '확인된 기사' }));
+            articles.forEach((item, index) => {
+              const row = document.createElement('button');
+              row.type = 'button';
+              row.className = 'block w-full text-left text-sm text-[#475569] dark:text-[#d4d4d8] hover:text-[#0f172a] dark:hover:text-white transition';
+              row.textContent = `${index + 1}. ${item.title || '제목 확인 필요'}`;
+              row.addEventListener('click', () => openExternalLinkModal(item));
+              articleSection.appendChild(row);
+            });
+            block.appendChild(articleSection);
+          } else {
+            const empty = document.createElement('p');
+            empty.className = 'text-sm leading-7 text-[#64748b] dark:text-[#a1a1aa] whitespace-pre-line';
+            empty.textContent = '현재 확인된 직접 재료가 없어요 ㅠㅠ\n장중 뉴스·공시가 들어오면 다시 정리해드릴게요.';
+            block.appendChild(empty);
+          }
+
+          const relatedStocks = [...new Set(articles.flatMap((item) => Array.isArray(item.related_stocks) ? item.related_stocks : []))]
+            .filter((name) => name && name !== stockName)
+            .slice(0, 3);
+          if (relatedStocks.length) {
+            const relatedSection = document.createElement('section');
+            relatedSection.className = 'space-y-2';
+            relatedSection.appendChild(Object.assign(document.createElement('p'), { className: 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]', textContent: '관련 종목' }));
+            relatedStocks.forEach((name) => {
+              const row = document.createElement('div');
+              row.className = 'flex items-center gap-2 text-sm';
+              const stock = document.createElement('span');
+              stock.className = 'min-w-0 flex-1 font-semibold text-[#475569] dark:text-[#d4d4d8]';
+              stock.textContent = name;
+              const relation = document.createElement('span');
+              relation.className = 'text-xs text-[#94a3b8] dark:text-[#71717a]';
+              relation.textContent = '뉴스 공동 언급';
+              const watch = document.createElement('button');
+              watch.type = 'button';
+              watch.className = 'text-xs font-semibold text-[#64748b] hover:text-[#0f172a] dark:text-[#a1a1aa] dark:hover:text-white transition';
+              watch.textContent = '관심등록';
+              watch.title = `${name} 관심종목 등록`;
+              watch.addEventListener('click', () => {
+                const key = 'gaemiGTP_watchlist_v1';
+                let watchlist = [];
+                try {
+                  const stored = JSON.parse(localStorage.getItem(key) || '[]');
+                  watchlist = Array.isArray(stored) ? stored : [];
+                } catch (_) {}
+                if (!watchlist.includes(name)) watchlist.push(name);
+                localStorage.setItem(key, JSON.stringify(watchlist));
+                watch.textContent = '관심종목';
+                watch.setAttribute('aria-pressed', 'true');
+              });
+              row.append(stock, relation, watch);
+              relatedSection.appendChild(row);
+            });
+            block.appendChild(relatedSection);
+          }
+
+          prompt.insertAdjacentElement('afterend', block);
+          const followups = appendFollowupChoices(block);
+          followups.addEventListener('click', async (event) => {
+            const button = event.target.closest('[data-why-followup]');
+            if (!button) return;
+            if (button.dataset.whyFollowup === 'materials') await appendMaterials(followups);
+            if (button.dataset.whyFollowup === 'supply') appendSupply(followups);
+          });
+          if (window.lucide) window.lucide.createIcons();
+          block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        };
+
+        const handleNextAnalysisChoice = async (event) => {
+          const button = event.currentTarget;
           if (button.dataset.nextAnalysis === 'us-market') {
             appendUsMarketPrompt();
             choices.remove();
             return;
           }
+          if (button.dataset.nextAnalysis === 'why') {
+            appendWhy();
+            return;
+          }
           if (button.dataset.nextAnalysis === 'materials') await appendMaterials();
+        };
+        choices.querySelectorAll('[data-next-analysis]').forEach((button) => {
+          button.addEventListener('click', handleNextAnalysisChoice);
         });
 
         anchor.insertAdjacentElement('afterend', choices);
