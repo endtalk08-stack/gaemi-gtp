@@ -98,9 +98,6 @@
       .map(([label]) => label);
     const rankIndex = new Map(rank.map((label, index) => [label, index]));
 
-    // 기존 중앙 UI는 신호를 먼저 발견한 순서대로 최대 2개만 보여 준다.
-    // 그래서 기사별 대표 신호를 전체 기사 빈도 순으로 정렬해, 표시되는 2개가
-    // 우연히 먼저 들어온 2개가 아니라 전체 흐름에서 반복된 신호가 되게 한다.
     rows.forEach((item) => {
       const signals = Array.isArray(item.movement_signals) ? item.movement_signals : [];
       const sorted = [...signals].sort((a, b) =>
@@ -130,11 +127,15 @@
       const flowItems = prepareCentralNewsFlow(payload?.items);
       if (flowItems.length) {
         // 패널 데이터는 건드리지 않고 중앙 채팅에 전달되는 분석 결과만 넓힌다.
-        // 기사 표시 UI는 기존처럼 상위 3개만 보여 주지만 '왜?' 판단은 최대 10개를 본다.
         result.news_items = flowItems;
       }
+      // 점수화된 전체 뉴스 흐름도 중앙 '왜?' 분석에서 사용할 수 있게 함께 전달한다.
+      // 기존 응답 필드는 유지하고 새 필드만 추가한다.
+      if (payload?.flow && typeof payload.flow === 'object') {
+        result.news_flow = payload.flow;
+      }
     } catch (_) {
-      // 흐름 API가 늦거나 실패하면 기존 /analyze의 3개 기사로 그대로 진행한다.
+      // 흐름 API가 늦거나 실패하면 기존 /analyze 결과로 그대로 진행한다.
     }
   }
 
@@ -195,8 +196,6 @@
     function createFlow(stockName, token) {
       const chatArea = document.getElementById('chatArea');
       if (!chatArea) return null;
-
-      // 기존 로딩 카드만 숨기고 사용자 입력 말풍선과 결과 영역은 그대로 둔다.
       const oldLoader = Array.from(chatArea.children).find(el =>
         el.classList.contains('flex-col') &&
         el.classList.contains('items-center') &&
@@ -216,15 +215,11 @@
       chatArea.appendChild(stage);
 
       return {
-        token,
-        stockName,
-        el: stage,
+        token, stockName, el: stage,
         dots: stage.querySelector('.analysis-loading-dots'),
         primaryMessage: stage.querySelector('.analysis-loading-message'),
         secondaryMessage: stage.querySelector('.analysis-loading-message--secondary'),
-        ready: false,
-        release: null,
-        promise: null,
+        ready: false, release: null, promise: null,
       };
     }
 
@@ -239,11 +234,9 @@
       if (flow.token !== flowToken) return;
       flow.dots.hidden = true;
       showMessage(flow, flow.primaryMessage, '시세를 조회중입니다');
-
       await sleep(STAGE_MS);
       if (flow.token !== flowToken) return;
       showMessage(flow, flow.secondaryMessage, `${flow.stockName} 흐름을 체크중입니다`);
-
       await sleep(STAGE_MS);
       if (flow.token !== flowToken) return;
       flow.ready = true;
@@ -253,8 +246,6 @@
     window.requestStock = function (stockName) {
       const token = ++flowToken;
       const normalized = String(stockName || '').trim() || '삼성전자';
-
-      // 원래 분석/데이터 흐름을 먼저 시작하고, 그 위의 출력 연출만 교체한다.
       const originalResult = originalRequestStock.call(this, stockName);
       activeFlow?.el?.remove();
       activeFlow = createFlow(normalized, token);
@@ -262,8 +253,6 @@
       if (activeFlow) {
         activeFlow.promise = new Promise(resolve => { activeFlow.release = resolve; });
         play(activeFlow);
-
-        // 기존 오류 화면은 그대로 즉시 사용할 수 있게 로딩 연출만 정리한다.
         const chatArea = document.getElementById('chatArea');
         const observer = new MutationObserver(() => {
           if (chatArea?.querySelector('.analysis-state')) {
@@ -275,7 +264,6 @@
         if (chatArea) observer.observe(chatArea, { childList: true, subtree: true });
         setTimeout(() => observer.disconnect(), 30000);
       }
-
       return originalResult;
     };
 
@@ -286,17 +274,11 @@
         flow.el?.remove();
         activeFlow = null;
       }
-
-      // 첫 결과가 시작되기 전에 중앙 채팅용 뉴스 흐름을 한 번 넓혀 둔다.
-      // 기존 패널/분석 API 결과는 유지하고, 실패하면 원래 결과로 그대로 진행한다.
       await loadCentralNewsFlow(String(stockName || '').trim(), result);
       return originalStartTypewriterFlow.call(this, stockName, sections, result, requestId);
     };
   }
 
-  // app.js is loaded after this file. DOMContentLoaded runs only after the
-  // following classic scripts have finished, so the functions to wrap exist
-  // on both cached and uncached loads.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', installLoadingPresentation, { once: true });
   } else {
