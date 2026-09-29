@@ -87,6 +87,10 @@ MARKET_CORE_WORDS = [
 ]
 MARKET_CONTEXT_WORDS = ["기업", "상장사", "산업", "업종", "시장", "경제", "금융", "증권", "펀드", "etf", "생산", "판매", "수주", "계약", "공급", "투자자", "성장률", "경기", "정부", "규제", "정책"]
 NOISE_WORDS = ["연예", "배우", "가수", "아이돌", "드라마", "예능", "영화", "스포츠", "축구", "야구", "날씨", "맛집", "여행", "축제", "공연", "육아", "결혼", "범죄", "교통사고"]
+MARKET_SIGNALS = {
+    "국내": ["국내 증시", "한국 증시", "코스피", "코스닥", "국내 주식", "한국 경제", "원화", "한국은행"],
+    "미국": ["미국 증시", "미국 주식", "미국 경제", "미국 시장", "뉴욕증시", "나스닥", "s&p", "다우", "월가", "미 연준"],
+}
 
 
 def _strip_html(value):
@@ -170,6 +174,15 @@ def _infer_market(text, requested_market):
     return "국내"
 
 
+def _matches_requested_market(text, requested_market):
+    if requested_market == "전체":
+        return True
+    matching_stocks = set(_related_stocks(text))
+    if matching_stocks.intersection(STOCK_UNIVERSE[requested_market]):
+        return True
+    return _matches(text, MARKET_SIGNALS[requested_market])
+
+
 def _normalize_provider_row(row, category, market):
     title = _strip_html(row.get("raw_title"))
     description = _strip_html(row.get("raw_description"))
@@ -234,7 +247,8 @@ def fetch_general_news(category="전체", query="", limit=10, market="전체"):
         if not item:
             continue
         relevance = _investment_relevance(item, explicit_query=bool(query))
-        if relevance < 0:
+        text = f"{item['title']} {item['description']}"
+        if relevance < 0 or not _matches_requested_market(text, market):
             continue
         duplicate_key = re.sub(r"[^0-9a-zA-Z가-힣]", "", item["title"].lower())
         if not duplicate_key or duplicate_key in seen:
