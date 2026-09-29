@@ -14,7 +14,7 @@ from backend.services.marketaux_news import (
     fetch_marketaux_news,
     fetch_marketaux_test_feed,
 )
-from backend.services.news_feed import fetch_general_news
+from backend.services.news_feed import fetch_general_news, get_news_coverage
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -44,8 +44,13 @@ def calendar():
 def news():
     category = request.args.get("category", "전체")
     query = request.args.get("q", "")
+    market = request.args.get("market", "전체")
     limit = request.args.get("limit", default=10, type=int)
-    return jsonify({"items": fetch_general_news(category=category, query=query, limit=limit)})
+    return jsonify({"items": fetch_general_news(category=category, query=query, market=market, limit=limit)})
+
+@app.get("/news/coverage")
+def news_coverage():
+    return jsonify(get_news_coverage())
 
 @app.get("/marketaux/news")
 def marketaux_news():

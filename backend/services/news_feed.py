@@ -1,11 +1,4 @@
-"""General news feed processing.
-
-Boundary:
-providers/*  -> external source retrieval only
-news_feed.py -> normalize / dedupe / classify / investment filter / sort / cache
-app.py       -> HTTP transport only
-frontend     -> rendering only
-"""
+"""Shared NAVER news feed normalization for the panel and central chat."""
 
 import datetime
 import html
@@ -25,79 +18,239 @@ _CACHE_LOCK = threading.Lock()
 CATEGORY_QUERIES = {
     "전체": ["증시", "경제"], "증시": ["코스피 코스닥 나스닥"], "종목": ["상장사 주식"],
     "경제지표": ["CPI GDP 고용 물가"], "에너지": ["유가 원유 에너지"], "연준": ["연준 FOMC 금리"],
-    "일정": ["경제 일정 FOMC 일정"], "투자의견": ["목표주가 투자의견"], "실적발표": ["실적 발표 매출 영업이익"],
+    "일정": ["경제 일정 FOMC 일정"], "투자의견": ["목표주가 투자의견"],
+    "실적발표": ["실적 발표 매출 영업이익"],
 }
-SOURCE_DOMAINS = {"hankyung.com":"한국경제","yna.co.kr":"연합뉴스","mk.co.kr":"매일경제","sedaily.com":"서울경제","edaily.co.kr":"이데일리","mt.co.kr":"머니투데이","biz.chosun.com":"조선비즈","chosun.com":"조선일보","fnnews.com":"파이낸셜뉴스","hankookilbo.com":"한국일보","heraldcorp.com":"헤럴드경제","etnews.com":"전자신문","newsis.com":"뉴시스","donga.com":"동아일보","joongang.co.kr":"중앙일보","khan.co.kr":"경향신문","zdnet.co.kr":"ZDNet Korea"}
-MARKET_CORE_WORDS=["증시","주식","주가","코스피","코스닥","나스닥","다우","s&p","상장","ipo","시가총액","외국인","기관","개인투자자","매수","매도","거래량","거래대금","상한가","하한가","실적","매출","영업이익","순이익","earnings","배당","자사주","유상증자","무상증자","공시","목표주가","투자의견","증권사","리포트","상향","하향","금리","기준금리","연준","fomc","fed","파월","한국은행","채권","국채","수익률","환율","원달러","달러","엔화","위안","cpi","pce","gdp","고용","실업률","물가","유가","원유","wti","브렌트","천연가스","금값","원자재","반도체","배터리","2차전지","자동차","조선","방산","바이오","제약","ai","인공지능","수출","수입","관세","무역","공급망","투자","인수","합병","m&a"]
-MARKET_CONTEXT_WORDS=["기업","상장사","산업","업종","시장","경제","금융","은행","보험","증권","펀드","etf","생산","판매","수주","계약","공급","공장","설비","투자자","성장률","경기","침체","정부","규제","정책","세제","예산","수출기업","수입기업"]
-NOISE_WORDS=["연예","배우","가수","아이돌","드라마","예능","영화","방송","유튜버","유튜브","스포츠","축구","야구","농구","배구","골프","올림픽","월드컵","선수","감독","날씨","태풍","미세먼지","맛집","여행","축제","공연","전시","육아","교육","결혼","이혼","열애","사망","장례","범죄","살인","폭행","성폭력","교통사고"]
+
+# First-release coverage is intentionally limited to 10 Korean and 10 US names.
+# It is configurable coverage, not a live market-cap ranking claim.
+STOCK_UNIVERSE = {
+    "국내": {
+        "삼성전자": ["삼성전자", "samsung electronics"],
+        "SK하이닉스": ["sk하이닉스", "하이닉스", "sk hynix"],
+        "LG에너지솔루션": ["lg에너지솔루션", "lg energy solution"],
+        "삼성바이오로직스": ["삼성바이오로직스", "samsung biologics"],
+        "현대차": ["현대차", "현대자동차", "hyundai motor"],
+        "기아": ["기아", "kia"],
+        "한화에어로스페이스": ["한화에어로스페이스", "hanwha aerospace"],
+        "KB금융": ["kb금융", "kb financial"],
+        "NAVER": ["naver", "네이버"],
+        "두산에너빌리티": ["두산에너빌리티", "doosan enerbility"],
+    },
+    "미국": {
+        "엔비디아": ["엔비디아", "nvidia"], "애플": ["애플", "apple"],
+        "마이크로소프트": ["마이크로소프트", "microsoft"], "아마존": ["아마존", "amazon"],
+        "알파벳": ["알파벳", "google", "alphabet"], "메타": ["메타", "meta platforms"],
+        "브로드컴": ["브로드컴", "broadcom"], "테슬라": ["테슬라", "tesla"],
+        "버크셔 해서웨이": ["버크셔", "berkshire"], "일라이 릴리": ["일라이 릴리", "eli lilly"],
+    },
+}
+
+THEME_RULES = {
+    "반도체": ["반도체", "hbm", "dram", "낸드", "파운드리", "메모리", "칩"],
+    "AI·소프트웨어": ["ai", "인공지능", "소프트웨어", "클라우드", "데이터센터"],
+    "2차전지": ["2차전지", "배터리", "양극재", "음극재"],
+    "자동차·모빌리티": ["자동차", "전기차", "자율주행", "모빌리티"],
+    "바이오·헬스케어": ["바이오", "제약", "헬스케어", "신약", "의료"],
+    "에너지": ["유가", "원유", "천연가스", "에너지", "정유", "전력"],
+    "조선": ["조선", "선박", "lng선", "수주"], "방산": ["방산", "국방", "무기", "미사일"],
+    "금융": ["은행", "금융", "증권", "보험", "채권"],
+    "인터넷·플랫폼": ["플랫폼", "인터넷", "이커머스", "광고"],
+    "로봇·자동화": ["로봇", "자동화", "휴머노이드"],
+}
+
+ISSUE_RULES = {
+    "금리·통화정책": ["금리", "연준", "fomc", "fed", "파월", "한국은행"],
+    "물가·경제지표": ["cpi", "pce", "gdp", "고용", "실업률", "물가", "소비자물가"],
+    "실적발표": ["실적", "매출", "영업이익", "순이익", "eps", "earnings"],
+    "반도체 업황": ["반도체", "hbm", "dram", "메모리", "파운드리"],
+    "AI 투자": ["ai", "인공지능", "데이터센터"],
+    "유가·에너지": ["유가", "원유", "천연가스", "opec", "정유"],
+    "환율": ["환율", "원달러", "달러", "엔화", "위안"],
+    "정책·규제": ["정부", "정책", "규제", "법안", "관세"],
+    "공급망": ["공급망", "수급", "공급", "재고", "운임"],
+}
+
+SOURCE_DOMAINS = {
+    "hankyung.com": "한국경제", "yna.co.kr": "연합뉴스", "mk.co.kr": "매일경제", "sedaily.com": "서울경제",
+    "edaily.co.kr": "이데일리", "mt.co.kr": "머니투데이", "biz.chosun.com": "조선비즈", "chosun.com": "조선일보",
+    "fnnews.com": "파이낸셜뉴스", "hankookilbo.com": "한국일보", "heraldcorp.com": "헤럴드경제",
+    "etnews.com": "전자신문", "newsis.com": "뉴시스", "donga.com": "동아일보", "joongang.co.kr": "중앙일보",
+    "khan.co.kr": "경향신문", "zdnet.co.kr": "ZDNet Korea",
+}
+MARKET_CORE_WORDS = [
+    "증시", "주식", "주가", "코스피", "코스닥", "나스닥", "다우", "s&p", "상장", "ipo", "시가총액",
+    "외국인", "기관", "매수", "매도", "거래량", "거래대금", "실적", "매출", "영업이익", "순이익",
+    "배당", "공시", "목표주가", "투자의견", "금리", "연준", "fomc", "환율", "cpi", "pce", "gdp",
+    "고용", "물가", "유가", "원유", "반도체", "배터리", "2차전지", "자동차", "조선", "방산", "바이오",
+    "ai", "인공지능", "수출", "관세", "무역", "공급망", "투자", "인수", "합병",
+]
+MARKET_CONTEXT_WORDS = ["기업", "상장사", "산업", "업종", "시장", "경제", "금융", "증권", "펀드", "etf", "생산", "판매", "수주", "계약", "공급", "투자자", "성장률", "경기", "정부", "규제", "정책"]
+NOISE_WORDS = ["연예", "배우", "가수", "아이돌", "드라마", "예능", "영화", "스포츠", "축구", "야구", "날씨", "맛집", "여행", "축제", "공연", "육아", "결혼", "범죄", "교통사고"]
+
 
 def _strip_html(value):
-    value=html.unescape(str(value or "")); value=re.sub(r"<[^>]+>","",value); return re.sub(r"\s+"," ",value).strip()
+    value = html.unescape(str(value or ""))
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", value)).strip()
+
+
 def _source_from_url(url):
     try:
-        host=urllib.parse.urlparse(url or "").netloc.lower().removeprefix("www.")
-        for domain,label in SOURCE_DOMAINS.items():
-            if host==domain or host.endswith("."+domain): return label
-        if host:return host
-    except Exception:pass
-    return "출처 확인"
+        host = urllib.parse.urlparse(url or "").netloc.lower().removeprefix("www.")
+        for domain, label in SOURCE_DOMAINS.items():
+            if host == domain or host.endswith("." + domain):
+                return label
+        return host or "출처 확인"
+    except Exception:
+        return "출처 확인"
+
+
 def _parse_date(value):
     try:
-        dt=parsedate_to_datetime(str(value or "").strip());
-        if dt.tzinfo is None:dt=dt.replace(tzinfo=datetime.timezone.utc)
-        return dt.astimezone(datetime.timezone.utc)
-    except Exception:return datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+        date = parsedate_to_datetime(str(value or "").strip())
+        if date.tzinfo is None:
+            date = date.replace(tzinfo=datetime.timezone.utc)
+        return date.astimezone(datetime.timezone.utc)
+    except Exception:
+        return datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+
+
 def _display_age(value):
-    dt=_parse_date(value)
-    if dt.year<=1:return ""
-    seconds=max(0,int((datetime.datetime.now(datetime.timezone.utc)-dt).total_seconds()))
-    if seconds<60:return "방금 전"
-    minutes=seconds//60
-    if minutes<60:return f"{minutes}분 전"
-    hours=minutes//60
-    if hours<24:return f"{hours}시간 전"
-    days=hours//24
-    if days<7:return f"{days}일 전"
-    return dt.astimezone().strftime("%m/%d")
-def _contains_any(text,words):return any(word in str(text or "").lower() for word in words)
-def _investment_relevance(item,explicit_query=False):
-    title=str(item.get("title") or "").lower();description=str(item.get("description") or "").lower()
-    title_core=sum(1 for w in MARKET_CORE_WORDS if w in title);desc_core=sum(1 for w in MARKET_CORE_WORDS if w in description);title_context=sum(1 for w in MARKET_CONTEXT_WORDS if w in title);desc_context=sum(1 for w in MARKET_CONTEXT_WORDS if w in description)
-    if _contains_any(title,NOISE_WORDS) and title_core==0:return -1
-    score=title_core*3+min(desc_core,3)+title_context+min(desc_context,2);threshold=1 if explicit_query else 2
-    return score if score>=threshold else -1
-def _classify(title):
-    t=str(title or "").lower();rules=[("실적발표",["실적","매출","영업이익","순이익","earnings"]),("경제지표",["cpi","gdp","pce","고용","실업률","물가","소비자물가"]),("연준",["연준","fomc","fed","파월","금리"]),("에너지",["유가","원유","석유","정유","천연가스","에너지"]),("투자의견",["목표주가","투자의견","상향","하향","증권사"]),("일정",["예정","일정","회의","컨퍼런스","개최"]),("종목",["삼성전자","sk하이닉스","엔비디아","테슬라","애플","현대차","naver"])]
-    for category,words in rules:
-        if any(w in t for w in words):return category
-    return "증시"
-def _normalize_provider_row(row,requested_category):
-    title=_strip_html(row.get("raw_title"));description=_strip_html(row.get("raw_description"));pub_date=_strip_html(row.get("raw_pub_date"));raw_link=str(row.get("raw_link") or "").strip();original_link=str(row.get("raw_original_link") or "").strip();final_link=original_link or raw_link
-    if not title or not final_link:return None
-    return {"provider":"naver","category":requested_category if requested_category!="전체" else _classify(title),"title":title,"description":description,"source":_source_from_url(final_link),"pub_date":pub_date,"display_datetime":_display_age(pub_date),"link":final_link,"original_link":final_link}
+    date = _parse_date(value)
+    if date.year <= 1:
+        return ""
+    seconds = max(0, int((datetime.datetime.now(datetime.timezone.utc) - date).total_seconds()))
+    if seconds < 60:
+        return "방금 전"
+    if seconds < 3600:
+        return f"{seconds // 60}분 전"
+    if seconds < 86400:
+        return f"{seconds // 3600}시간 전"
+    if seconds < 604800:
+        return f"{seconds // 86400}일 전"
+    return date.astimezone().strftime("%m/%d")
+
+
+def _matches(text, words):
+    text = str(text or "").lower()
+    return any(word.lower() in text for word in words)
+
+
+def _labels(text, rules):
+    return [label for label, words in rules.items() if _matches(text, words)]
+
+
+def _related_stocks(text):
+    return [name for stocks in STOCK_UNIVERSE.values() for name, aliases in stocks.items() if _matches(text, aliases)]
+
+
+def _investment_relevance(item, explicit_query=False):
+    title = str(item.get("title") or "").lower()
+    description = str(item.get("description") or "").lower()
+    title_core = sum(word in title for word in MARKET_CORE_WORDS)
+    desc_core = sum(word in description for word in MARKET_CORE_WORDS)
+    title_context = sum(word in title for word in MARKET_CONTEXT_WORDS)
+    desc_context = sum(word in description for word in MARKET_CONTEXT_WORDS)
+    if _matches(title, NOISE_WORDS) and not title_core:
+        return -1
+    score = title_core * 3 + min(desc_core, 3) + title_context + min(desc_context, 2)
+    return score if score >= (1 if explicit_query else 2) else -1
+
+
+def _infer_market(text, requested_market):
+    if requested_market in STOCK_UNIVERSE:
+        return requested_market
+    us_stocks = set(STOCK_UNIVERSE["미국"])
+    if us_stocks.intersection(_related_stocks(text)) or _matches(text, ["미국 증시", "뉴욕증시", "나스닥", "s&p", "다우", "월가", "연준"]):
+        return "미국"
+    return "국내"
+
+
+def _normalize_provider_row(row, category, market):
+    title = _strip_html(row.get("raw_title"))
+    description = _strip_html(row.get("raw_description"))
+    pub_date = _strip_html(row.get("raw_pub_date"))
+    link = str(row.get("raw_original_link") or row.get("raw_link") or "").strip()
+    if not title or not link:
+        return None
+    text = f"{title} {description}"
+    issues = _labels(text, ISSUE_RULES)
+    stocks = _related_stocks(text)
+    return {
+        "provider": "naver", "content_type": "뉴스", "market": _infer_market(text, market),
+        "category": category if category != "전체" else ("이슈" if issues else "종목" if stocks else "증시"),
+        "title": title, "description": description, "source": _source_from_url(link), "pub_date": pub_date,
+        "display_datetime": _display_age(pub_date), "link": link, "original_link": link,
+        "related_stocks": stocks, "issues": issues, "themes": _labels(text, THEME_RULES),
+    }
+
+
+def _queries_for(category, market, query):
+    if query:
+        return [query]
+    base = CATEGORY_QUERIES[category]
+    if market == "국내":
+        return [f"국내 {item}" for item in base]
+    if market == "미국":
+        return [f"미국 {item}" for item in base]
+    return base
+
+
 def _collect_raw_rows(queries):
-    rows=[]
-    with ThreadPoolExecutor(max_workers=min(4,len(queries))) as executor:
-        futures=[executor.submit(naver_news.fetch_news,q,20) for q in queries if str(q or "").strip()]
+    queries = [query for query in queries if str(query or "").strip()]
+    if not queries:
+        return []
+    rows = []
+    with ThreadPoolExecutor(max_workers=min(4, len(queries))) as executor:
+        futures = [executor.submit(naver_news.fetch_news, query, 20) for query in queries]
         for future in as_completed(futures):
-            try:rows.extend(future.result())
-            except Exception:pass
+            try:
+                rows.extend(future.result())
+            except Exception:
+                pass
     return rows
-def fetch_general_news(category="전체",query="",limit=10):
-    category=str(category or "전체").strip();category=category if category in CATEGORY_QUERIES else "전체";query=str(query or "").strip();limit=max(1,min(int(limit or 10),20));cache_key=(category,query.lower(),limit,"naver-only-description-test-v1");now=time.time()
+
+
+def fetch_general_news(category="전체", query="", limit=10, market="전체"):
+    category = str(category or "전체").strip()
+    category = category if category in CATEGORY_QUERIES else "전체"
+    market = str(market or "전체").strip()
+    market = market if market in ("전체", "국내", "미국") else "전체"
+    query = str(query or "").strip()
+    limit = max(1, min(int(limit or 10), 20))
+    cache_key = (category, market, query.lower(), limit, "naver-shared-feed-v1")
     with _CACHE_LOCK:
-        cached=_CACHE.get(cache_key)
-        if cached and now-cached[0]<_CACHE_TTL:return [dict(item) for item in cached[1]]
-    raw_rows=_collect_raw_rows([query] if query else CATEGORY_QUERIES[category]);items=[];seen=set()
-    for raw in raw_rows:
-        item=_normalize_provider_row(raw,category)
-        if not item:continue
-        relevance=_investment_relevance(item,explicit_query=bool(query))
-        if relevance<0:continue
-        duplicate_key=re.sub(r"[^0-9a-zA-Z가-힣]","",item["title"].lower())
-        if not duplicate_key or duplicate_key in seen:continue
-        seen.add(duplicate_key);item["id"]=duplicate_key[:40];item["relevance_score"]=relevance;items.append(item)
-    items.sort(key=lambda x:(_parse_date(x.get("pub_date")),x.get("relevance_score",0)),reverse=True);result=items[:limit]
-    with _CACHE_LOCK:_CACHE[cache_key]=(time.time(),[dict(item) for item in result])
+        cached = _CACHE.get(cache_key)
+        if cached and time.time() - cached[0] < _CACHE_TTL:
+            return [dict(item) for item in cached[1]]
+
+    items, seen = [], set()
+    for raw in _collect_raw_rows(_queries_for(category, market, query)):
+        item = _normalize_provider_row(raw, category, market)
+        if not item:
+            continue
+        relevance = _investment_relevance(item, explicit_query=bool(query))
+        if relevance < 0:
+            continue
+        duplicate_key = re.sub(r"[^0-9a-zA-Z가-힣]", "", item["title"].lower())
+        if not duplicate_key or duplicate_key in seen:
+            continue
+        seen.add(duplicate_key)
+        item["id"] = duplicate_key[:40]
+        item["relevance_score"] = relevance
+        items.append(item)
+
+    items.sort(key=lambda item: (_parse_date(item.get("pub_date")), item["relevance_score"]), reverse=True)
+    result = items[:limit]
+    with _CACHE_LOCK:
+        _CACHE[cache_key] = (time.time(), [dict(item) for item in result])
     return result
+
+
+def get_news_coverage():
+    return {
+        "markets": list(STOCK_UNIVERSE),
+        "stocks": {market: list(stocks) for market, stocks in STOCK_UNIVERSE.items()},
+        "themes": list(THEME_RULES),
+        "content_types": ["뉴스", "공시"],
+    }
