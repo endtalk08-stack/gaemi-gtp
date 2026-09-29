@@ -570,7 +570,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     // ★ 버그 완벽 수정된 텍스트 파싱 로직
-    function renderSourceLists(result) {
+    function renderSourceLists(result, { includeHeader = true } = {}) {
       if (!result) return null;
 
       const newsItems = Array.isArray(result.news_items) ? result.news_items : [];
@@ -590,7 +590,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
         <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">재료는 있어?</h4>
       `;
-      wrap.appendChild(header);
+      if (includeHeader) wrap.appendChild(header);
 
       const panel = document.createElement('div');
       panel.className = 'source-list-panel is-open';
@@ -726,13 +726,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       let secIdx = 0;
 
-      function appendFirstReplyActions(anchor, replyText) {
+      function appendFirstReplyActions(anchor, replyText, actionGroup = 'first') {
         if (!anchor) return null;
-        const existing = anchor.parentElement?.querySelector('[data-first-reply-actions]');
+        const existing = anchor.parentElement?.querySelector(`[data-reply-actions="${actionGroup}"]`);
         if (existing) return existing;
 
         const actions = document.createElement('div');
-        actions.dataset.firstReplyActions = 'true';
+        actions.dataset.replyActions = actionGroup;
         actions.className = 'mt-3 flex items-center gap-1 text-[#64748b] dark:text-[#a1a1aa]';
         actions.innerHTML = `
           <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] dark:hover:text-white" data-first-reply-action="copy" aria-label="답변 복사" title="복사"><i data-lucide="copy" class="h-4 w-4"></i></button>
@@ -834,16 +834,63 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
-        const appendMaterials = () => {
-          if (mainContainer.querySelector('[data-materials-section]')) return;
-          const materials = renderSourceLists(result);
+        const appendMaterials = async () => {
+          if (mainContainer.querySelector('[data-materials-flow]')) return;
+
+          const prompt = document.createElement('div');
+          prompt.dataset.materialsFlow = 'true';
+          prompt.className = 'flex justify-end animate-fade';
+          prompt.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">재료는 있어?</div>`;
+          choices.insertAdjacentElement('afterend', prompt);
+          choices.remove();
+
+          const loading = document.createElement('div');
+          loading.className = 'mt-5 space-y-2';
+          prompt.insertAdjacentElement('afterend', loading);
+
+          const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          for (const message of ['뉴스와 공시를 확인합니다', '생각중', '내용을 정리중입니다']) {
+            if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
+            const line = document.createElement('p');
+            line.className = 'text-sm font-semibold text-[#64748b] animate-pulse dark:text-[#a1a1aa]';
+            line.textContent = message;
+            loading.appendChild(line);
+            await wait(4000);
+          }
+
+          if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
+          loading.remove();
+
+          const materials = renderSourceLists(result, { includeHeader: false });
           if (!materials) return;
           materials.dataset.materialsSection = 'true';
-          choices.insertAdjacentElement('afterend', materials);
+          prompt.insertAdjacentElement('afterend', materials);
+
+          const materialLines = Array.from(materials.querySelectorAll('.source-list-group-title, .source-list-row'));
+          materialLines.forEach((line) => {
+            line.style.opacity = '0';
+            line.style.transform = 'translateY(6px)';
+            line.style.transition = 'opacity 360ms ease, transform 360ms ease';
+          });
+
+          for (const line of materialLines) {
+            if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
+            line.style.opacity = '1';
+            line.style.transform = 'translateY(0)';
+            await wait(550);
+          }
+
+          const hashtags = document.createElement('p');
+          hashtags.className = 'mt-5 text-sm font-semibold leading-7 text-[#db2777] dark:text-[#e889aa] animate-fade';
+          hashtags.textContent = '#HBM #반도체슈퍼사이클 #증권사컨센서스 #주식호재 #경제뉴스 #스마트투자';
+          materials.insertAdjacentElement('afterend', hashtags);
+
+          const materialText = `${materials.innerText}\n${hashtags.innerText}`;
+          appendFirstReplyActions(hashtags, materialText, 'materials');
           materials.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
-        choices.addEventListener('click', (event) => {
+        choices.addEventListener('click', async (event) => {
           const button = event.target.closest('[data-next-analysis]');
           if (!button) return;
           if (button.dataset.nextAnalysis === 'us-market') {
@@ -851,7 +898,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             choices.remove();
             return;
           }
-          if (button.dataset.nextAnalysis === 'materials') appendMaterials();
+          if (button.dataset.nextAnalysis === 'materials') await appendMaterials();
         });
 
         anchor.insertAdjacentElement('afterend', choices);
