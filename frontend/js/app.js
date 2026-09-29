@@ -818,9 +818,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         choices.className = 'mt-6 space-y-2 animate-fade';
         choices.innerHTML = `
           <p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">뭐가 궁금해?</p>
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <button type="button" class="text-sm font-semibold text-[#64748b] underline-offset-4 transition hover:text-[#0f172a] hover:underline dark:text-[#a1a1aa] dark:hover:text-white" data-next-analysis="us-market">#미국장_어땠어?</button>
-            <button type="button" class="text-sm font-semibold text-[#64748b] underline-offset-4 transition hover:text-[#0f172a] hover:underline dark:text-[#a1a1aa] dark:hover:text-white" data-next-analysis="materials">#재료는_있어?</button>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" class="rounded-lg border border-[#d9dce1] bg-[#f8fafc] px-3 py-1.5 text-sm font-semibold text-[#475569] transition hover:border-[#b8bec8] hover:bg-[#eef0f3] hover:text-[#0f172a] dark:border-[#303037] dark:bg-[#18181b] dark:text-[#b4b4bd] dark:hover:border-[#4a4a55] dark:hover:bg-[#232329] dark:hover:text-[#f4f4f5]" data-next-analysis="us-market" aria-pressed="false">#미국장_어땠어?</button>
+            <button type="button" class="rounded-lg border border-[#d9dce1] bg-[#f8fafc] px-3 py-1.5 text-sm font-semibold text-[#475569] transition hover:border-[#b8bec8] hover:bg-[#eef0f3] hover:text-[#0f172a] dark:border-[#303037] dark:bg-[#18181b] dark:text-[#b4b4bd] dark:hover:border-[#4a4a55] dark:hover:bg-[#232329] dark:hover:text-[#f4f4f5]" data-next-analysis="materials" aria-pressed="false">#재료는_있어?</button>
           </div>
           <p class="text-xs text-[#94a3b8] dark:text-[#71717a]">궁금한 해시태그 눌러봐</p>`;
 
@@ -846,8 +846,22 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         choices.addEventListener('click', (event) => {
           const button = event.target.closest('[data-next-analysis]');
           if (!button) return;
+          if (button.dataset.nextAnalysis === 'us-market') {
+            appendUsMarketPrompt();
+            choices.remove();
+            return;
+          }
+          choices.querySelectorAll('[data-next-analysis]').forEach((choice) => {
+            const selected = choice === button;
+            choice.setAttribute('aria-pressed', String(selected));
+            choice.classList.toggle('bg-[#2b2b31]', selected);
+            choice.classList.toggle('border-[#565661]', selected);
+            choice.classList.toggle('text-white', selected);
+            choice.classList.toggle('dark:bg-[#2b2b31]', selected);
+            choice.classList.toggle('dark:border-[#565661]', selected);
+            choice.classList.toggle('dark:text-white', selected);
+          });
           if (button.dataset.nextAnalysis === 'materials') appendMaterials();
-          if (button.dataset.nextAnalysis === 'us-market') appendUsMarketPrompt();
         });
 
         anchor.insertAdjacentElement('afterend', choices);
