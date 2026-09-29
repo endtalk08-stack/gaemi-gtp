@@ -213,8 +213,8 @@
 
 /* 분석 본문 안의 신호 태그는 선택/근거 태그와 같은 크기로 보인다. */
 .analysis-hashtag {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 .left-nav-rail-top,
 .left-nav-rail-bottom {
