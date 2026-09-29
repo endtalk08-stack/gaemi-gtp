@@ -1,8 +1,9 @@
 """Explainable scoring for stock-news flow analysis.
 
-This module does not collect or reclassify news. It scores the normalized
-records produced by news_feed so the central "왜?" flow can rank evidence
-without changing the existing news panel.
+This module does not collect news. It scores the normalized records produced by
+news_feed so the central "왜?" flow can rank evidence without changing the
+existing news panel. For the central keyword view, broad movement labels are
+refined back to concrete phrases that are actually present in title+description.
 """
 
 import datetime
@@ -14,6 +15,56 @@ STRONG_EVIDENCE_WORDS = (
     "공시", "실적", "매출", "영업이익", "순이익", "eps", "가이던스",
     "계약", "수주", "공급계약", "납품", "배당", "자사주", "목표주가",
 )
+
+# Central chat should show concrete evidence keywords, not replace them with a
+# broader interpretation. The panel/news classifier itself remains untouched.
+CONCRETE_SIGNAL_RULES = {
+    "실적상회": [
+        ("어닝서프라이즈", ["어닝 서프라이즈"]),
+        ("가이던스상향", ["가이던스 상향"]),
+        ("전망상향", ["전망 상향"]),
+        ("실적개선", ["실적 개선"]),
+        ("호실적", ["호실적"]),
+        ("실적상회", ["실적 상회"]),
+    ],
+    "메모리가격": [
+        ("D램가격", ["d램 가격", "dram 가격"]),
+        ("낸드가격", ["낸드 가격"]),
+        ("메모리가격", ["메모리 가격"]),
+    ],
+    "AI메모리": [
+        ("HBM", ["hbm", "고대역폭 메모리"]),
+        ("AI메모리", ["ai 메모리"]),
+    ],
+    "수주·계약": [
+        ("공급계약", ["공급계약", "공급 계약"]),
+        ("납품계약", ["납품 계약"]),
+        ("단일판매", ["단일판매"]),
+        ("수주", ["수주"]),
+    ],
+    "주주환원": [
+        ("자사주매입", ["자사주 매입"]),
+        ("자사주취득", ["자사주 취득"]),
+        ("배당확대", ["배당 확대"]),
+        ("배당증가", ["배당 증가"]),
+    ],
+    "차익실현": [("차익실현", ["차익실현", "차익 실현"]), ("매물출회", ["매물 출회"])],
+    "외국인매도": [("외국인순매도", ["외국인 순매도"]), ("외국인매도", ["외국인 매도", "외인 매도"])],
+    "기관매도": [("기관순매도", ["기관 순매도"]), ("기관매도", ["기관 매도"])],
+    "실적악화": [
+        ("어닝쇼크", ["어닝 쇼크"]),
+        ("가이던스하향", ["가이던스 하향"]),
+        ("전망하향", ["전망 하향"]),
+        ("실적부진", ["실적 부진"]),
+        ("실적악화", ["실적 악화"]),
+    ],
+    "금리부담": [("고금리", ["고금리"]), ("금리상승", ["금리 상승"]), ("금리부담", ["금리 부담"])],
+    "유가부담": [("원유가격상승", ["원유 가격 상승"]), ("유가상승", ["유가 상승"]), ("유가부담", ["유가 부담"])],
+    "환율부담": [("달러강세", ["달러 강세"]), ("원달러상승", ["원달러 상승"]), ("환율부담", ["환율 부담"])],
+    "시장약세": [("코스피약세", ["코스피 약세"]), ("코스닥약세", ["코스닥 약세"]), ("증시약세", ["증시 약세"]), ("시장약세", ["시장 약세"])],
+    "지정학적리스크": [("중동긴장", ["중동 긴장"]), ("전쟁", ["전쟁"]), ("분쟁", ["분쟁"]), ("지정학", ["지정학"])],
+    "규제·소송": [("규제강화", ["규제 강화"]), ("제재", ["제재"]), ("소송", ["소송"]), ("리콜", ["리콜"])],
+}
 
 
 def _parse_date(value):
@@ -54,6 +105,28 @@ def _material_score(item):
     return min(20, matches * 5)
 
 
+def _concrete_signal_label(item, label):
+    text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
+    for concrete_label, phrases in CONCRETE_SIGNAL_RULES.get(str(label or ""), []):
+        if any(phrase.lower() in text for phrase in phrases):
+            return concrete_label
+    return str(label or "").strip()
+
+
+def _refine_movement_signals(item):
+    refined = []
+    seen = set()
+    for raw in item.get("movement_signals") or []:
+        signal = dict(raw)
+        label = _concrete_signal_label(item, signal.get("label"))
+        if not label or label in seen:
+            continue
+        signal["label"] = label
+        refined.append(signal)
+        seen.add(label)
+    return refined
+
+
 def _signal_score(item):
     signals = item.get("movement_signals") or []
     return min(20, len(signals) * 5)
@@ -72,6 +145,7 @@ def score_stock_news(items, stock_name):
     scored = []
     for raw in items or []:
         item = dict(raw)
+        item["movement_signals"] = _refine_movement_signals(item)
         breakdown = {
             "direct_stock": _direct_score(item, stock_name),
             "material_strength": _material_score(item),
@@ -132,8 +206,6 @@ def summarize_stock_flow(items):
 
     directional_total = positive_score + negative_score
     balance = (positive_score - negative_score) / directional_total if directional_total else 0.0
-    # A narrow gap is deliberately treated as mixed. This is the news-side
-    # basis for a later "왜 보합일까?" explanation instead of forcing a side.
     if directional_total == 0:
         direction = "neutral"
     elif balance >= 0.18:
