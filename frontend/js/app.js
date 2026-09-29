@@ -819,10 +819,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         choices.innerHTML = `
           <p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">뭐가 궁금해?</p>
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <button type="button" class="text-sm font-semibold text-[#64748b] transition hover:text-[#0f172a] dark:text-[#a1a1aa] dark:hover:text-[#f4f4f5]" data-next-analysis="us-market">#미국장_어땠어?</button>
-            <button type="button" class="text-sm font-semibold text-[#64748b] transition hover:text-[#0f172a] dark:text-[#a1a1aa] dark:hover:text-[#f4f4f5]" data-next-analysis="materials">#재료는_있어?</button>
+            <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-next-analysis="us-market">#미국장</button>
+            <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:text-[#be185d] dark:text-[#e889aa] dark:hover:text-[#f0a4bd]" data-next-analysis="materials">#재료</button>
           </div>
-          <p class="text-xs text-[#94a3b8] dark:text-[#71717a]">궁금한 해시태그 눌러봐</p>`;
+          <p class="text-xs text-[#94a3b8] dark:text-[#71717a]">궁금한 해시태그 눌러바</p>`;
 
         const appendUsMarketPrompt = () => {
           if (mainContainer.querySelector('[data-us-market-prompt]')) return;
