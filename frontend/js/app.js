@@ -570,15 +570,15 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     // ★ 버그 완벽 수정된 텍스트 파싱 로직
-    function renderSourceLists(container, result) {
-      if (!container || !result) return;
+    function renderSourceLists(result) {
+      if (!result) return null;
 
       const newsItems = Array.isArray(result.news_items) ? result.news_items : [];
       const disclosureItems = Array.isArray(result.disclosures) ? result.disclosures : [];
       const usFilingItems = Array.isArray(result.us_filings) ? result.us_filings : [];
       const sourceDisclosureItems = disclosureItems.length ? disclosureItems : usFilingItems;
       const sourceCount = newsItems.length + sourceDisclosureItems.length;
-      if (!sourceCount) return;
+      if (!sourceCount) return null;
 
       // 기존 '출처' 접기/펼치기 UI 대신 본문과 동일한 G 섹션으로 항상 노출한다.
       const wrap = document.createElement('div');
@@ -710,8 +710,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (disclosureGroup) panel.appendChild(disclosureGroup);
       wrap.appendChild(panel);
 
-      container.appendChild(wrap);
       if (window.lucide) window.lucide.createIcons();
+      return wrap;
     }
 
     function startTypewriterFlow(stockName, sections, result, requestId) {
@@ -727,7 +727,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       let secIdx = 0;
 
       function appendFirstReplyActions(anchor, replyText) {
-        if (!anchor || anchor.parentElement?.querySelector('[data-first-reply-actions]')) return;
+        if (!anchor) return null;
+        const existing = anchor.parentElement?.querySelector('[data-first-reply-actions]');
+        if (existing) return existing;
 
         const actions = document.createElement('div');
         actions.dataset.firstReplyActions = 'true';
@@ -805,6 +807,50 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
         anchor.insertAdjacentElement('afterend', actions);
         if (window.lucide) window.lucide.createIcons();
+        return actions;
+      }
+
+      function appendNextAnalysisChoices(anchor) {
+        if (!anchor || anchor.parentElement?.querySelector('[data-next-analysis-choices]')) return;
+
+        const choices = document.createElement('section');
+        choices.dataset.nextAnalysisChoices = 'true';
+        choices.className = 'mt-6 space-y-2 animate-fade';
+        choices.innerHTML = `
+          <p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">뭐가 궁금해?</p>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <button type="button" class="text-sm font-semibold text-[#64748b] underline-offset-4 transition hover:text-[#0f172a] hover:underline dark:text-[#a1a1aa] dark:hover:text-white" data-next-analysis="us-market">#미국장_어땠어?</button>
+            <button type="button" class="text-sm font-semibold text-[#64748b] underline-offset-4 transition hover:text-[#0f172a] hover:underline dark:text-[#a1a1aa] dark:hover:text-white" data-next-analysis="materials">#재료는_있어?</button>
+          </div>
+          <p class="text-xs text-[#94a3b8] dark:text-[#71717a]">궁금한 해시태그 눌러봐</p>`;
+
+        const appendUsMarketPrompt = () => {
+          if (mainContainer.querySelector('[data-us-market-prompt]')) return;
+          const prompt = document.createElement('div');
+          prompt.dataset.usMarketPrompt = 'true';
+          prompt.className = 'flex justify-end animate-fade';
+          prompt.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">미국장 어땠어?</div>`;
+          choices.insertAdjacentElement('afterend', prompt);
+          prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        };
+
+        const appendMaterials = () => {
+          if (mainContainer.querySelector('[data-materials-section]')) return;
+          const materials = renderSourceLists(result);
+          if (!materials) return;
+          materials.dataset.materialsSection = 'true';
+          choices.insertAdjacentElement('afterend', materials);
+          materials.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        };
+
+        choices.addEventListener('click', (event) => {
+          const button = event.target.closest('[data-next-analysis]');
+          if (!button) return;
+          if (button.dataset.nextAnalysis === 'materials') appendMaterials();
+          if (button.dataset.nextAnalysis === 'us-market') appendUsMarketPrompt();
+        });
+
+        anchor.insertAdjacentElement('afterend', choices);
       }
 
       function typeNextSection() {
@@ -830,22 +876,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           </div>`;
         const shouldTypeSection = secIdx === 0;
         const contentMarkup = `<p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line${shouldTypeSection ? ' typing-cursor' : ''}"></p>`;
-        // "왜 올랐을까"는 종목 현재가 설명을 먼저 보여 준 뒤,
-        // 제목과 시간순 기술 스토리보드를 이어서 표시한다.
-        // 다른 분석 섹션은 기존 제목 → 본문 순서를 유지한다.
+        // 첫 답변은 현재 가격 설명만 보여 준다. 고정 "오늘은 왜 올랐어?"
+        // 제목과 시간표는 중앙 본문 흐름에서 제외한다.
         textBlock.innerHTML = sec.id === 'why-up'
-          ? `${contentMarkup}${headingMarkup}`
+          ? contentMarkup
           : `${headingMarkup}${contentMarkup}`;
 
-        // 고정 시간표는 "오늘은 왜 올랐어?" 제목 아래에 바로 붙인다.
-        // 별도 제목·강조·빈 줄 없이 기본 글꼴로 표시한다.
-        if (sec.id === 'why-up') {
-          const fixedBlock = document.createElement('section');
-          fixedBlock.className = 'pt-1';
-
-          fixedBlock.innerHTML = window.GaemiGTPWhyUpContent?.render?.('main') || '';
-          textBlock.appendChild(fixedBlock);
-        }
         mainContainer.appendChild(textBlock);
 
         const pEl = document.getElementById(`p-content-${secIdx}`);
@@ -1015,9 +1051,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
             // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
             if (secIdx === 0) {
-              appendFirstReplyActions(pEl, pEl.innerText);
-              // 태그는 본문에 있는 원래 위치를 유지하고, 뉴스/공시는 그 아래에 표시한다.
-              renderSourceLists(mainContainer, result);
+              const actions = appendFirstReplyActions(pEl, pEl.innerText);
+              appendNextAnalysisChoices(actions);
+              return;
             }
 
             secIdx++;
