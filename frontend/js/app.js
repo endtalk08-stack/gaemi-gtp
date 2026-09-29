@@ -939,11 +939,26 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
-        const appendWhy = () => {
+        const appendWhy = async () => {
           if (mainContainer.querySelector('[data-why-flow]')) return;
           const prompt = makeUserPrompt(whyState.label, 'whyFlow');
           choices.insertAdjacentElement('afterend', prompt);
           choices.remove();
+
+          const loading = document.createElement('div');
+          loading.className = 'mt-5 space-y-2';
+          prompt.insertAdjacentElement('afterend', loading);
+          const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          for (const message of ['뉴스와 공시를 확인합니다', '생각중', '내용을 정리중입니다']) {
+            if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
+            const line = document.createElement('p');
+            line.className = 'text-sm font-semibold text-[#64748b] animate-pulse dark:text-[#a1a1aa]';
+            line.textContent = message;
+            loading.appendChild(line);
+            await wait(4000);
+          }
+          if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
+          loading.remove();
 
           const block = document.createElement('section');
           block.className = 'mt-5 space-y-5 animate-fade';
@@ -1040,7 +1055,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             return;
           }
           if (button.dataset.nextAnalysis === 'why') {
-            appendWhy();
+            await appendWhy();
             return;
           }
           if (button.dataset.nextAnalysis === 'materials') await appendMaterials();
