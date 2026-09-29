@@ -15,6 +15,7 @@ from backend.services.marketaux_news import (
     fetch_marketaux_test_feed,
 )
 from backend.services.news_feed import fetch_general_news, fetch_stock_news, get_news_coverage
+from backend.services.news_scoring import score_stock_news, summarize_stock_flow
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -52,7 +53,7 @@ def news():
 def stock_news_flow():
     stock = str(request.args.get("stock", "") or "").strip()
     if not stock:
-        return jsonify({"ok": True, "items": []})
+        return jsonify({"ok": True, "items": [], "flow": summarize_stock_flow([])})
 
     # 중앙의 '왜?' 분석은 화면에 보여 줄 3개 기사보다 넓은 뉴스 흐름을 본다.
     # 패널/기존 분석 응답은 그대로 두고, 같은 공통 뉴스 가공 결과만 최대 10개까지 재사용한다.
@@ -71,8 +72,11 @@ def stock_news_flow():
             seen.add(key)
             items.append(item)
 
-    items.sort(key=lambda item: (item.get("pub_date", ""), item.get("relevance_score", 0)), reverse=True)
-    return jsonify({"ok": True, "items": items[:10]})
+    # 수집/분류 결과를 다시 만들지 않고, 중앙 분석용으로만 설명 가능한 점수를 붙인다.
+    # 화면에 대표 기사를 고르기 전에 전체 기사에서 신호/이슈/테마 흐름을 먼저 집계한다.
+    scored_items = score_stock_news(items, stock)
+    flow = summarize_stock_flow(scored_items)
+    return jsonify({"ok": True, "items": scored_items[:10], "flow": flow})
 
 @app.get("/news/coverage")
 def news_coverage():
