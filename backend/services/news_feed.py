@@ -97,6 +97,33 @@ STOCK_MATERIAL_SIGNALS = [
     "공시", "계약", "수주", "공급", "납품", "출하", "투자", "증설", "감산",
     "배당", "자사주", "목표주가", "투자의견", "판매", "가격", "규제", "관세",
     "hbm", "반도체", "메모리", "ai", "인공지능", "데이터센터", "신제품",
+    # A daily move can be explained by negative news as well as positive news.
+    # Keep these concrete so a bare "주가 하락" headline is not treated as a cause.
+    "차익실현", "매물 출회", "매도세", "순매도", "외국인 매도", "기관 매도",
+    "실적 악화", "실적 부진", "전망 하향", "가이던스 하향", "목표주가 하향",
+    "금리 부담", "유가 부담", "환율 부담", "시장 약세", "증시 약세",
+    "지정학", "전쟁", "분쟁", "리콜", "소송", "규제 강화",
+]
+
+# Labels returned with each article are evidence tags, not a claim that the
+# article alone caused the move.  The central "왜?" view can later show them
+# as the confirmed signals behind its explanation.
+MOVEMENT_SIGNAL_RULES = [
+    ("실적상회", "positive", ["실적 상회", "호실적", "어닝 서프라이즈", "실적 개선", "전망 상향", "가이던스 상향"]),
+    ("메모리가격", "positive", ["메모리 가격", "d램 가격", "낸드 가격"]),
+    ("AI메모리", "positive", ["ai 메모리", "hbm", "고대역폭 메모리"]),
+    ("수주·계약", "positive", ["수주", "공급계약", "단일판매", "납품 계약"]),
+    ("주주환원", "positive", ["자사주 취득", "자사주 매입", "배당 확대", "배당 증가"]),
+    ("차익실현", "negative", ["차익실현", "차익 실현", "매물 출회"]),
+    ("외국인매도", "negative", ["외국인 매도", "외국인 순매도", "외인 매도"]),
+    ("기관매도", "negative", ["기관 매도", "기관 순매도"]),
+    ("실적악화", "negative", ["실적 악화", "실적 부진", "어닝 쇼크", "전망 하향", "가이던스 하향"]),
+    ("금리부담", "negative", ["금리 부담", "금리 상승", "고금리"]),
+    ("유가부담", "negative", ["유가 부담", "유가 상승", "원유 가격 상승"]),
+    ("환율부담", "negative", ["환율 부담", "원달러 상승", "달러 강세"]),
+    ("시장약세", "negative", ["코스피 약세", "코스닥 약세", "증시 약세", "시장 약세"]),
+    ("지정학적리스크", "negative", ["지정학", "전쟁", "분쟁", "중동 긴장"]),
+    ("규제·소송", "negative", ["규제 강화", "제재", "소송", "리콜"]),
 ]
 
 
@@ -157,6 +184,14 @@ def _matches(text, words):
 
 def _labels(text, rules):
     return [label for label, words in rules.items() if _matches(text, words)]
+
+
+def _movement_signals(text):
+    return [
+        {"label": label, "tone": tone}
+        for label, tone, words in MOVEMENT_SIGNAL_RULES
+        if _matches(text, words)
+    ]
 
 
 def _related_stocks(text):
@@ -220,6 +255,7 @@ def _normalize_provider_row(row, category, market):
         "title": title, "description": description, "source": _source_from_url(link), "pub_date": pub_date,
         "display_datetime": _display_age(pub_date), "link": link, "original_link": link,
         "related_stocks": stocks, "issues": issues, "themes": _labels(text, THEME_RULES),
+        "movement_signals": _movement_signals(text),
     }
 
 
@@ -317,17 +353,29 @@ def fetch_stock_news(stock_name, market="국내", limit=3):
     second provider, so a stock article has one source, link, and label set
     everywhere it appears in gaemiGTP.
     """
-    candidates = fetch_general_news(
-        category="종목",
-        query=str(stock_name or "").strip(),
-        market=market,
-        # Fetch a wider pool, then apply the stricter central-material rule.
-        limit=20,
+    stock_name = str(stock_name or "").strip()
+    if not stock_name:
+        return []
+
+    # A name-only query tends to favor company profiles.  The additional
+    # price-move searches make upside and downside explanations equally
+    # discoverable, then the direct-material filter keeps only evidence.
+    queries = [stock_name, f"{stock_name} 상승", f"{stock_name} 하락"]
+    candidates, seen = [], set()
+    for query in queries:
+        for item in fetch_general_news(category="종목", query=query, market=market, limit=20):
+            duplicate_key = item.get("id") or item.get("title")
+            if duplicate_key in seen:
+                continue
+            seen.add(duplicate_key)
+            if _is_direct_stock_material(item, stock_name, market):
+                candidates.append(item)
+
+    candidates.sort(
+        key=lambda item: (_parse_date(item.get("pub_date")), item.get("relevance_score", 0)),
+        reverse=True,
     )
-    return [
-        item for item in candidates
-        if _is_direct_stock_material(item, stock_name, market)
-    ][:max(1, min(int(limit or 3), 10))]
+    return candidates[:max(1, min(int(limit or 3), 10))]
 
 
 def get_news_coverage():
