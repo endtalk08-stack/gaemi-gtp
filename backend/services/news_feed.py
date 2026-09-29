@@ -176,6 +176,12 @@ def _investment_relevance(item, explicit_query=False):
     # A category feed must include at least one finance/market signal.
     if not explicit_query and title_core + desc_core == 0:
         return -1
+    # The broad panel feed should not accept a general business article merely
+    # because its description happens to mention the stock market.  A headline
+    # must carry a market signal of its own; stock searches are handled by the
+    # dedicated, stricter stock-material path below.
+    if not explicit_query and title_core == 0:
+        return -1
     score = title_core * 3 + min(desc_core, 3) + title_context + min(desc_context, 2)
     return score if score >= (1 if explicit_query else 2) else -1
 
