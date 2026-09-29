@@ -747,7 +747,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
             ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${dynamicTitle}</h4>` : ''}
           </div>`;
-        const contentMarkup = `<p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line typing-cursor"></p>`;
+        const shouldTypeSection = secIdx === 0;
+        const contentMarkup = `<p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line${shouldTypeSection ? ' typing-cursor' : ''}"></p>`;
         // "왜 올랐을까"는 종목 현재가 설명을 먼저 보여 준 뒤,
         // 제목과 시간순 기술 스토리보드를 이어서 표시한다.
         // 다른 분석 섹션은 기존 제목 → 본문 순서를 유지한다.
@@ -768,14 +769,23 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
         const pEl = document.getElementById(`p-content-${secIdx}`);
         let charIdx = 0;
-        const chunkSize = 25;
+        const chunkSize = 3;
+
+        // 첫 답변(현재 가격 설명과 해시태그)만 타이핑한다.
+        // 뒤 분석 영역은 기존 내용과 배치를 유지한 채 바로 표시한다.
+        if (!shouldTypeSection) {
+          pEl.textContent = text;
+          charIdx = text.length;
+        }
 
         function typeChunk() {
           if (requestId !== activeAnalysisRequestId) return;
           if (charIdx < text.length) {
-            pEl.textContent += text.substr(charIdx, chunkSize);
-            charIdx += chunkSize;
-            setTimeout(typeChunk, 15);
+            const chunk = text.substr(charIdx, chunkSize);
+            pEl.textContent += chunk;
+            charIdx += chunk.length;
+            const pause = /[.!?…]$/.test(chunk) ? 180 : (/\n$/.test(chunk) ? 120 : 40);
+            setTimeout(typeChunk, pause);
           } else {
             pEl.classList.remove('typing-cursor');
             let formatted = pEl.textContent;

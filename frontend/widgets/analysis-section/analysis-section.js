@@ -87,10 +87,10 @@
     style.textContent = `
       #surpriseAntPopup { display: none !important; }
       .analysis-loading-sequence {
-        width: 100%; min-height: 92px; display: flex; align-items: center; justify-content: center;
-        padding: 18px 8px; text-align: center;
+        width: 100%; min-height: 92px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+        padding: 18px 8px; text-align: left;
       }
-      .analysis-loading-dots { display: flex; align-items: center; justify-content: center; gap: 10px; }
+      .analysis-loading-dots { display: flex; align-items: center; justify-content: flex-start; gap: 10px; }
       .analysis-loading-dots span {
         width: 10px; height: 10px; border-radius: 999px; background: #94a3b8;
         animation: gaemiLoadingDot 1.15s ease-in-out infinite;
@@ -104,6 +104,7 @@
         display: none; font-size: 1rem; font-weight: 800; letter-spacing: -.02em;
       }
       .analysis-loading-message.is-visible { display: inline-block; }
+      .analysis-loading-message--secondary { margin-top: 8px; }
       .analysis-loading-message.is-shimmer {
         color: transparent;
         background: linear-gradient(90deg, #64748b 0%, #64748b 34%, #e2e8f0 50%, #64748b 66%, #64748b 100%);
@@ -147,7 +148,8 @@
         <div class="analysis-loading-dots" aria-label="분석 준비 중">
           <span></span><span></span><span></span><span></span><span></span><span></span>
         </div>
-        <div class="analysis-loading-message" aria-live="polite"></div>`;
+        <div class="analysis-loading-message" aria-live="polite"></div>
+        <div class="analysis-loading-message analysis-loading-message--secondary" aria-live="polite"></div>`;
       chatArea.appendChild(stage);
 
       return {
@@ -155,28 +157,29 @@
         stockName,
         el: stage,
         dots: stage.querySelector('.analysis-loading-dots'),
-        message: stage.querySelector('.analysis-loading-message'),
+        primaryMessage: stage.querySelector('.analysis-loading-message'),
+        secondaryMessage: stage.querySelector('.analysis-loading-message--secondary'),
         ready: false,
         release: null,
         promise: null,
       };
     }
 
-    function showMessage(flow, text) {
-      if (!flow?.el?.isConnected) return;
-      flow.dots.hidden = true;
-      flow.message.textContent = text;
-      flow.message.classList.add('is-visible', 'is-shimmer');
+    function showMessage(flow, message, text) {
+      if (!flow?.el?.isConnected || !message) return;
+      message.textContent = text;
+      message.classList.add('is-visible', 'is-shimmer');
     }
 
     async function play(flow) {
       await sleep(STAGE_MS);
       if (flow.token !== flowToken) return;
-      showMessage(flow, '시세를 조회중입니다...');
+      flow.dots.hidden = true;
+      showMessage(flow, flow.primaryMessage, '시세를 조회중입니다');
 
       await sleep(STAGE_MS);
       if (flow.token !== flowToken) return;
-      showMessage(flow, `${flow.stockName} 오늘의 흐름을 정리하고 있습니다...`);
+      showMessage(flow, flow.secondaryMessage, `${flow.stockName} 흐름을 체크중입니다`);
 
       await sleep(STAGE_MS);
       if (flow.token !== flowToken) return;
