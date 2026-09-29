@@ -676,6 +676,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       mainContainer.className = "space-y-7 py-2";
       chatArea.appendChild(mainContainer);
 
+      // 첫 답변의 본문 크기·색상·반응형 규칙을 안내/연출 멘트의 공통 기준으로 쓴다.
+      const responseMessageClass = 'text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed';
+
       let secIdx = 0;
 
       function appendFirstReplyActions(anchor, replyText, actionGroup = 'first') {
@@ -809,7 +812,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           followups.dataset.whyFollowupChoices = 'true';
           followups.className = 'mt-6 space-y-2 animate-fade';
           followups.innerHTML = `
-            <p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">더 살펴볼래?</p>
+            <p class="${responseMessageClass}">더 살펴볼래?</p>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-why-followup="supply">#수급</button>
               <button type="button" class="text-sm font-semibold text-[#64748b] transition hover:text-[#0f172a] dark:text-[#a1a1aa] dark:hover:text-white" data-why-followup="technical">#차트</button>
@@ -822,7 +825,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         choices.dataset.nextAnalysisChoices = 'true';
         choices.className = 'mt-6 space-y-2 animate-fade';
         choices.innerHTML = `
-          <p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">뭐가 궁금해?</p>
+          <p class="${responseMessageClass}">뭐가 궁금해?</p>
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-next-analysis="us-market">#미국장</button>
             <button type="button" class="text-sm font-semibold transition hover:opacity-80" style="color:${whyState.color}" data-next-analysis="why">${whyState.tag}</button>
@@ -851,7 +854,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           for (const message of ['뉴스와 공시를 확인합니다', '생각중', '내용을 정리중입니다']) {
             if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
             const line = document.createElement('p');
-            line.className = 'text-sm font-semibold text-[#64748b] animate-pulse dark:text-[#a1a1aa]';
+            line.className = `${responseMessageClass} animate-pulse`;
             line.textContent = message;
             loading.appendChild(line);
             await wait(4000);
@@ -898,7 +901,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
           const block = document.createElement('section');
           block.className = 'mt-5 space-y-2 animate-fade';
-          block.innerHTML = '<p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">수급 신호</p>';
+          block.innerHTML = `<p class="${responseMessageClass}">수급 신호</p>`;
           const content = document.createElement('p');
           content.className = 'text-sm sm:text-base text-[#475569] dark:text-[#d4d4d8] leading-7 whitespace-pre-line';
           content.textContent = supply?.content || '현재 수급 데이터를 확인하지 못했어요.';
@@ -917,7 +920,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
           const block = document.createElement('section');
           block.className = 'mt-5 space-y-2 animate-fade';
-          block.innerHTML = '<p class="text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]">기술적 분석</p>';
+          block.innerHTML = `<p class="${responseMessageClass}">기술적 분석</p>`;
           const content = document.createElement('p');
           content.className = 'text-sm sm:text-base text-[#475569] dark:text-[#d4d4d8] leading-7 whitespace-pre-line';
           content.textContent = levels?.content || '현재 차트 데이터를 확인하지 못했어요.';
@@ -940,7 +943,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           for (const message of ['뉴스와 공시를 확인합니다', '생각중', '내용을 정리중입니다']) {
             if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
             const line = document.createElement('p');
-            line.className = 'text-sm font-semibold text-[#64748b] animate-pulse dark:text-[#a1a1aa]';
+            line.className = `${responseMessageClass} animate-pulse`;
             line.textContent = message;
             loading.appendChild(line);
             await wait(4000);
@@ -955,7 +958,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           const block = document.createElement('section');
           block.className = 'mt-5 space-y-5 animate-fade';
           const signalTitle = document.createElement('p');
-          signalTitle.className = 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]';
+          signalTitle.className = responseMessageClass;
           signalTitle.textContent = evidence.signals.length || disclosures.length ? '눈에 띄는 흐름 있어 👀' : '오늘은 흐름 없음 ☁️';
           const signalList = document.createElement('div');
           signalList.className = 'flex flex-wrap gap-x-3 gap-y-2 text-sm font-semibold';
@@ -972,7 +975,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           if (articles.length) {
             const articleSection = document.createElement('section');
             articleSection.className = 'space-y-2';
-            articleSection.appendChild(Object.assign(document.createElement('p'), { className: 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]', textContent: '관련 기사도 찾아봤어 👇' }));
+            articleSection.appendChild(Object.assign(document.createElement('p'), { className: responseMessageClass, textContent: '관련 기사도 찾아봤어 👇' }));
             block.appendChild(articleSection);
             articles.forEach((item, index) => {
               const row = document.createElement('button');
@@ -990,7 +993,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           if (disclosures.length) {
             const disclosureSection = document.createElement('section');
             disclosureSection.className = 'space-y-2';
-            disclosureSection.appendChild(Object.assign(document.createElement('p'), { className: 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]', textContent: '관련 공시도 확인했어 📄' }));
+            disclosureSection.appendChild(Object.assign(document.createElement('p'), { className: responseMessageClass, textContent: '관련 공시도 확인했어 📄' }));
             block.appendChild(disclosureSection);
             disclosures.forEach((item, index) => {
               const row = document.createElement('button');
@@ -1007,7 +1010,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
           if (!articles.length && !disclosures.length) {
             const empty = document.createElement('p');
-            empty.className = 'text-sm leading-7 text-[#64748b] dark:text-[#a1a1aa] whitespace-pre-line';
+            empty.className = `${responseMessageClass} whitespace-pre-line`;
             empty.textContent = '기사에서 딱히 잡히는 재료도 없고,\n오늘은 시장 흐름을 조금 더 지켜보자 ☕';
             block.appendChild(empty);
           }
@@ -1018,7 +1021,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           if (relatedStocks.length) {
             const relatedSection = document.createElement('section');
             relatedSection.className = 'space-y-2';
-            relatedSection.appendChild(Object.assign(document.createElement('p'), { className: 'text-sm font-semibold text-[#475569] dark:text-[#d4d4d8]', textContent: '관련 종목' }));
+            relatedSection.appendChild(Object.assign(document.createElement('p'), { className: responseMessageClass, textContent: '관련 종목' }));
             relatedStocks.forEach((name) => {
               const row = document.createElement('div');
               row.className = 'flex items-center gap-2 text-sm';
@@ -1115,7 +1118,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${dynamicTitle}</h4>` : ''}
           </div>`;
         const shouldTypeSection = secIdx === 0;
-        const contentMarkup = `<p id="p-content-${secIdx}" class="text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed whitespace-pre-line${shouldTypeSection ? ' typing-cursor' : ''}"></p>`;
+        const contentMarkup = `<p id="p-content-${secIdx}" class="${responseMessageClass} whitespace-pre-line${shouldTypeSection ? ' typing-cursor' : ''}"></p>`;
         // 첫 답변은 현재 가격 설명만 보여 준다. 고정 "오늘은 왜 올랐어?"
         // 제목과 시간표는 중앙 본문 흐름에서 제외한다.
         textBlock.innerHTML = sec.id === 'why-up'
@@ -1281,10 +1284,18 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             // 뉴스/공시는 본문에 다시 렌더링하지 않는다.
             // 기존 백엔드가 남긴 레거시 📰/📌 줄만 안전하게 제거하고,
             // 실제 뉴스/공시는 renderSourceLists()에서 한 번만 표시한다.
-            formatted = formatted
-              .replace(/(^|\n)\s*[📰📌][^\n]*(?=\n|$)/g, '$1')
-              .replace(/\n{3,}/g, '\n\n')
-              .trim();
+              formatted = formatted
+                .replace(/(^|\n)\s*[📰📌][^\n]*(?=\n|$)/g, '$1')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+
+            // 첫 답변 안의 해시태그도 2단계와 같은 14px 기준으로 고정한다.
+            formatted = formatted.replace(/<span([^>]*)>(#[^<]+)<\/span>/g, (match, attributes, tagText) => {
+              const nextAttributes = /\bclass="/.test(attributes)
+                ? attributes.replace(/class="([^"]*)"/, 'class="$1 analysis-hashtag"')
+                : `${attributes} class="analysis-hashtag"`;
+              return `<span${nextAttributes}>${tagText}</span>`;
+            });
 
             pEl.innerHTML = formatted;
 
