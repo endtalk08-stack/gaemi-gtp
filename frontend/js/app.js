@@ -636,8 +636,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           main.className = 'source-list-main';
           const titleEl = document.createElement('div');
           titleEl.className = 'source-list-title';
-          const meta = document.createElement('div');
-          meta.className = 'source-list-meta';
 
           if (isInsider) {
             const kind = item.transaction_kind || '';
@@ -650,47 +648,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             titleEl.textContent = summary;
             titleEl.style.color = /매도/.test(summary) ? '#FF8DA1' : (/매수|취득/.test(summary) ? '#38BDF8' : '');
 
-            const person = item.person || '회사 내부자';
-            const roleMap = {
-              'DIRECTOR': '이사',
-              'OFFICER': '임원',
-              '10% OWNER': '10% 이상 주주',
-              '10% OWNER OF CLASS': '10% 이상 주주'
-            };
-            const rawRole = String(item.officer_title || '').trim();
-            const role = roleMap[rawRole.toUpperCase()] || rawRole;
-            const personEl = document.createElement('div');
-            personEl.className = 'source-list-meta';
-            personEl.style.marginTop = '2px';
-            personEl.textContent = `${person}${role ? ` · ${role}` : ''}`;
             main.appendChild(titleEl);
-            main.appendChild(personEl);
           } else {
             titleEl.textContent = item.title || item.description || '제목 확인 필요';
             main.appendChild(titleEl);
           }
-          const source = isInsider ? 'SEC' : (item.source || (item.form ? 'SEC' : '출처 확인 필요'));
-          const rawWhen = item.display_datetime || item.datetime || item.date || item.pub_date || '';
-          let when = rawWhen;
-          if (rawWhen) {
-            const raw = String(rawWhen).trim();
-            const ymd = raw.match(/^(\d{4})[-/.]?(\d{2})[-/.]?(\d{2})$/);
-            const md = raw.match(/^(\d{1,2})[-/.](\d{1,2})$/);
-            if (ymd) {
-              when = `${ymd[1]}.${ymd[2]}.${ymd[3]}`;
-            } else if (md) {
-              when = `${Number(md[1])}/${Number(md[2])}`;
-            } else {
-              when = raw;
-            }
-          } else {
-            when = '날짜 확인 필요';
-          }
-          const rawTime = item.time || item.acceptance_time || '';
-          const timeZone = item.time_zone || '';
-          const timeText = rawTime ? ` · ${rawTime}${timeZone ? ` ${timeZone}` : ''}` : '';
-          meta.textContent = `${source} · ${when}${timeText}`;
-          main.appendChild(meta);
 
           const arrow = document.createElement('i');
           arrow.setAttribute('data-lucide', 'chevron-right');
