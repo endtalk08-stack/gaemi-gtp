@@ -759,3 +759,26 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       typeNextSection();
     }
+
+window.addEventListener('pagehide', () => {
+  // 페이지를 떠나거나 새로고침할 때 마지막 실제 UI 상태를 즉시 저장한다.
+  // 다음 로드에서 오른쪽 패널의 열림/최대화/폭 상태가 바뀌지 않도록 한다.
+  try { saveWorkspaceState(); } catch (e) { /* noop */ }
+});
+
+window.addEventListener('resize', () => {
+  if (!document.body.classList.contains('right-panel-maximized')) {
+    setPanelWidth();
+  }
+  applySidebarState();
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    initializeSidebars();
+    initializeWorkspaceInteractions();
+  } catch (e) {
+    console.warn('[gaemiGTP] workspace initialization warning:', e);
+  }
+  if (window.lucide) lucide.createIcons();
+});
