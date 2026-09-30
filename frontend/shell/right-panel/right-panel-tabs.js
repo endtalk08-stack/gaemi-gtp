@@ -12,6 +12,20 @@
   let panelWorkspaceView = '';
   const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '패널', icon: 'layout-dashboard' }, news: { label: '뉴스', icon: 'newspaper' }, disclosures: { label: '공시', icon: 'file-text' } };
 
+  function normalizeLegacyPanelWorkspaceDom() {
+    const legacyView = document.getElementById('rightPanelTabView-dashboard');
+    if (legacyView && !document.getElementById('rightPanelTabView-panel-workspace')) {
+      legacyView.id = 'rightPanelTabView-panel-workspace';
+      legacyView.dataset.tabView = 'panel-workspace';
+      legacyView.setAttribute('aria-label', '패널');
+    }
+    const legacyRoot = document.getElementById('rightPanelDashboard');
+    if (legacyRoot && !document.getElementById('rightPanelWorkspace')) {
+      legacyRoot.id = 'rightPanelWorkspace';
+      legacyRoot.setAttribute('aria-label', '패널');
+    }
+  }
+
   function readState() {
     try {
       const raw = localStorage.getItem(TABS_KEY);
@@ -66,6 +80,7 @@
   function addTab() { const id = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; const tab = { id, label: nextCustomLabel(), icon: 'square-chart-gantt', closable: true }; tabs.push(tab); makePlaceholderView(tab); setActiveTab(id); }
   function removeTab(id) { const index = tabs.findIndex(t => t.id === id); if (index === -1 || tabs[index].closable === false || tabs.length <= 1) return; const wasActive = activeTabId === id; tabs.splice(index, 1); const view = getView(id); if (view) view.remove(); if (wasActive) activeTabId = (tabs[Math.max(0, index - 1)] || tabs[0]).id; setActiveTab(activeTabId); }
   function initialize() {
+    normalizeLegacyPanelWorkspaceDom();
     if (!getTabList() || !getContentRoot() || getTabList().dataset.bound === 'true') return;
     const stored = readState(); tabs = stored?.tabs?.length ? stored.tabs : DEFAULT_TABS.map(t => ({ ...t })); activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'panel-workspace'; panelWorkspaceView = ''; savePanelWorkspaceView();
     tabs.forEach(tab => { if (tab.id !== 'panel-workspace' && tab.id !== 'auto-trade') makePlaceholderView(tab); });
