@@ -1,4 +1,4 @@
-/* Dashboard page shell. Widget styling and layout were intentionally removed. */
+/* Dashboard page shell + STEP 2 test grid. */
 
 #rightPanelContent:has(#rightPanelTabView-dashboard:not([hidden])) {
   overflow: hidden !important;
@@ -25,4 +25,163 @@
   height: auto;
   min-height: 100%;
   overflow: visible;
+}
+
+.dashboard-test-shell {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #131314;
+}
+
+.dashboard-test-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px 0;
+}
+
+.dashboard-test-toolbar__button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  color: #6ee7b7;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dashboard-test-toolbar__button--sub {
+  border-color: #3f3f46;
+  background: #1e1f20;
+  color: #a1a1aa;
+}
+
+.dashboard-test-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+  align-items: stretch;
+  gap: 16px;
+  padding: 16px;
+}
+
+.dashboard-test-widget {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #2b2c31;
+  border-radius: 16px;
+  background: #18191a;
+}
+
+.dashboard-test-widget__header {
+  height: 44px;
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  color: #e4e4e7;
+  font-size: 12px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.dashboard-layout-editing .dashboard-test-widget__header {
+  cursor: grab;
+}
+
+.dashboard-test-widget__drag {
+  opacity: 0;
+  color: #71717a;
+  letter-spacing: -3px;
+}
+
+.dashboard-layout-editing .dashboard-test-widget:hover .dashboard-test-widget__drag {
+  opacity: 1;
+}
+
+.dashboard-test-widget__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #71717a;
+  font-size: 12px;
+}
+
+.dashboard-test-widget__body small {
+  color: #52525b;
+  font-size: 10px;
+}
+
+.dashboard-test-widget__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  opacity: 0;
+}
+
+.dashboard-test-widget__resize::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid #71717a;
+  border-bottom: 2px solid #71717a;
+}
+
+.dashboard-layout-editing .dashboard-test-widget__resize {
+  opacity: 1;
+}
+
+.dashboard-test-widget.is-dragging {
+  opacity: 0.5;
+}
+
+.dashboard-test-widget.is-drop-target {
+  outline: 1px solid rgba(59, 130, 246, 0.8);
+  outline-offset: 2px;
+}
+
+body.dashboard-grid-resizing {
+  cursor: nwse-resize !important;
+  user-select: none !important;
+}
+
+@media (max-width: 619px) {
+  .dashboard-test-toolbar {
+    display: none;
+  }
+
+  .dashboard-test-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-test-widget {
+    grid-column: span 1 !important;
+    height: auto !important;
+    min-height: 220px;
+  }
 }
