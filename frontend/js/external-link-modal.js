@@ -39,12 +39,12 @@ window.GaemiGTPExternalLinkModal.openExternalLinkModal = function(item) {
       const copy = document.getElementById('externalLinkCopy');
       const open = document.getElementById('externalLinkOpen');
       if (!modal) return;
-      close?.addEventListener('click', closeExternalLinkModal);
+      close?.addEventListener('click', window.GaemiGTPExternalLinkModal.closeExternalLinkModal);
       modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeExternalLinkModal();
+        if (e.target === modal) window.GaemiGTPExternalLinkModal.closeExternalLinkModal();
       });
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('is-open')) closeExternalLinkModal();
+        if (e.key === 'Escape' && modal.classList.contains('is-open')) window.GaemiGTPExternalLinkModal.closeExternalLinkModal();
       });
       copy?.addEventListener('click', async () => {
         const href = modal.dataset.href || '';
