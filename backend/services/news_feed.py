@@ -23,8 +23,8 @@ CATEGORY_QUERIES = {
     "실적발표": ["실적 발표 매출 영업이익"],
 }
 
-# First-release coverage: 10 Korean and 20 US names.
-# Each US entry includes its ticker and common Korean/English news aliases.
+# First-release coverage: 20 Korean and 20 US names.
+# Each entry includes common Korean/English news aliases where useful.
 STOCK_UNIVERSE = {
     "국내": {
         "삼성전자": ["삼성전자", "samsung electronics"],
@@ -37,6 +37,16 @@ STOCK_UNIVERSE = {
         "KB금융": ["kb금융", "kb financial"],
         "NAVER": ["naver", "네이버"],
         "두산에너빌리티": ["두산에너빌리티", "doosan enerbility"],
+        "셀트리온": ["셀트리온", "celltrion"],
+        "삼성SDI": ["삼성sdi", "samsung sdi"],
+        "현대모비스": ["현대모비스", "hyundai mobis"],
+        "신한지주": ["신한지주", "신한금융", "shinhan financial"],
+        "POSCO홀딩스": ["posco홀딩스", "포스코홀딩스", "posco holdings"],
+        "LG화학": ["lg화학", "lg chem"],
+        "HD현대중공업": ["hd현대중공업", "현대중공업", "hd hyundai heavy industries"],
+        "삼성물산": ["삼성물산", "samsung c&t"],
+        "카카오": ["카카오", "kakao"],
+        "한국전력": ["한국전력", "한전", "korea electric power", "kepco"],
     },
     "미국": {
         "엔비디아": ["NVDA", "엔비디아", "nvidia"],
@@ -127,247 +137,219 @@ MOVEMENT_SIGNAL_RULES = [
     ("차익실현", "negative", ["차익실현", "차익 실현", "매물 출회"]),
     ("외국인매도", "negative", ["외국인 매도", "외국인 순매도", "외인 매도"]),
     ("기관매도", "negative", ["기관 매도", "기관 순매도"]),
-    ("실적악화", "negative", ["실적 악화", "실적 부진", "어닝 쇼크", "전망 하향", "가이던스 하향"]),
-    ("금리부담", "negative", ["금리 부담", "금리 상승", "고금리"]),
-    ("유가부담", "negative", ["유가 부담", "유가 상승", "원유 가격 상승"]),
-    ("환율부담", "negative", ["환율 부담", "원달러 상승", "달러 강세"]),
-    ("시장약세", "negative", ["코스피 약세", "코스닥 약세", "증시 약세", "시장 약세"]),
-    ("지정학적리스크", "negative", ["지정학", "전쟁", "분쟁", "중동 긴장"]),
-    ("규제·소송", "negative", ["규제 강화", "제재", "소송", "리콜"]),
+    ("실적부진", "negative", ["실적 부진", "실적 악화", "어닝 쇼크"]),
+    ("전망하향", "negative", ["전망 하향", "가이던스 하향", "목표주가 하향"]),
+    ("금리부담", "negative", ["금리 부담", "금리 상승", "국채금리 상승"]),
+    ("지정학리스크", "negative", ["지정학", "전쟁", "분쟁", "충돌"]),
+    ("리콜·소송", "negative", ["리콜", "소송", "규제 강화"]),
 ]
 
 
-def _strip_html(value):
-    value = html.unescape(str(value or ""))
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", value)).strip()
+def _clean_text(value):
+    text = html.unescape(re.sub(r"<[^>]+>", "", str(value or "")))
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+    try:
+        dt = parsedate_to_datetime(str(value))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        return dt.astimezone(datetime.timezone.utc)
+    except Exception:
+        return None
 
 
 def _source_from_url(url):
     try:
-        host = urllib.parse.urlparse(url or "").netloc.lower().removeprefix("www.")
-        for domain, label in SOURCE_DOMAINS.items():
-            if host == domain or host.endswith("." + domain):
-                return label
-        return host or "출처 확인"
+        host = urllib.parse.urlparse(url).netloc.lower().replace("www.", "")
     except Exception:
-        return "출처 확인"
-
-
-def _parse_date(value):
-    try:
-        date = parsedate_to_datetime(str(value or "").strip())
-        if date.tzinfo is None:
-            date = date.replace(tzinfo=datetime.timezone.utc)
-        return date.astimezone(datetime.timezone.utc)
-    except Exception:
-        return datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
-
-
-def _display_age(value):
-    date = _parse_date(value)
-    if date.year <= 1:
         return ""
-    seconds = max(0, int((datetime.datetime.now(datetime.timezone.utc) - date).total_seconds()))
-    if seconds < 60:
-        return "방금 전"
-    if seconds < 3600:
-        return f"{seconds // 60}분 전"
-    if seconds < 86400:
-        return f"{seconds // 3600}시간 전"
-    if seconds < 604800:
-        return f"{seconds // 86400}일 전"
-    return date.astimezone().strftime("%m/%d")
+    for domain, name in SOURCE_DOMAINS.items():
+        if host.endswith(domain):
+            return name
+    return host or "뉴스"
 
 
-def _is_recent_news(value):
-    date = _parse_date(value)
-    if date.year <= 1:
-        return False
-    return date >= datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=MAX_NEWS_AGE_DAYS)
-
-
-def _matches(text, words):
-    text = str(text or "").lower()
-    return any(word.lower() in text for word in words)
-
-
-def _labels(text, rules):
-    return [label for label, words in rules.items() if _matches(text, words)]
-
-
-def _movement_signals(text):
-    return [
-        {"label": label, "tone": tone}
-        for label, tone, words in MOVEMENT_SIGNAL_RULES
-        if _matches(text, words)
-    ]
-
-
-def _related_stocks(text):
-    return [name for stocks in STOCK_UNIVERSE.values() for name, aliases in stocks.items() if _matches(text, aliases)]
-
-
-def _investment_relevance(item, explicit_query=False):
-    title = str(item.get("title") or "").lower()
-    description = str(item.get("description") or "").lower()
-    title_core = sum(word in title for word in MARKET_CORE_WORDS)
-    desc_core = sum(word in description for word in MARKET_CORE_WORDS)
-    title_context = sum(word in title for word in MARKET_CONTEXT_WORDS)
-    desc_context = sum(word in description for word in MARKET_CONTEXT_WORDS)
-    if _matches(title, NOISE_WORDS) and not title_core:
-        return -1
-    if not explicit_query and title_core + desc_core == 0:
-        return -1
-    if not explicit_query and title_core == 0:
-        return -1
-    score = title_core * 3 + min(desc_core, 3) + title_context + min(desc_context, 2)
-    return score if score >= (1 if explicit_query else 2) else -1
-
-
-def _infer_market(text, requested_market):
-    if requested_market in STOCK_UNIVERSE:
-        return requested_market
-    us_stocks = set(STOCK_UNIVERSE["미국"])
-    if us_stocks.intersection(_related_stocks(text)) or _matches(text, ["미국 증시", "뉴욕증시", "나스닥", "s&p", "다우", "월가", "연준"]):
-        return "미국"
-    return "국내"
-
-
-def _matches_requested_market(text, requested_market):
-    if requested_market == "전체":
-        return True
-    matching_stocks = set(_related_stocks(text))
-    if matching_stocks.intersection(STOCK_UNIVERSE[requested_market]):
-        return True
-    return _matches(text, MARKET_SIGNALS[requested_market])
-
-
-def _normalize_provider_row(row, category, market):
-    title = _strip_html(row.get("raw_title"))
-    description = _strip_html(row.get("raw_description"))
-    pub_date = _strip_html(row.get("raw_pub_date"))
-    link = str(row.get("raw_original_link") or row.get("raw_link") or "").strip()
-    if not title or not link:
-        return None
-    text = f"{title} {description}"
-    issues = _labels(text, ISSUE_RULES)
-    stocks = _related_stocks(text)
+def _build_item(row, query="", category="전체"):
+    title = _clean_text(row.get("title"))
+    description = _clean_text(row.get("description"))
+    link = row.get("originallink") or row.get("link") or ""
+    published = _parse_datetime(row.get("pubDate"))
     return {
-        "provider": "naver", "content_type": "뉴스", "market": _infer_market(text, market),
-        "category": category if category != "전체" else ("이슈" if issues else "종목" if stocks else "증시"),
-        "title": title, "description": description, "source": _source_from_url(link), "pub_date": pub_date,
-        "display_datetime": _display_age(pub_date), "link": link, "original_link": link,
-        "related_stocks": stocks, "issues": issues, "themes": _labels(text, THEME_RULES),
-        "movement_signals": _movement_signals(text),
+        "title": title,
+        "description": description,
+        "summary": description,
+        "link": link,
+        "url": link,
+        "source": _source_from_url(link),
+        "published_at": published.isoformat() if published else "",
+        "query": query,
+        "category": category,
     }
 
 
-def _queries_for(category, market, query):
-    if query:
-        return [query]
-    base = CATEGORY_QUERIES[category]
-    if market == "국내":
-        return [f"국내 {item}" for item in base]
-    if market == "미국":
-        return [f"미국 {item}" for item in base]
-    return base
+def _item_age_ok(item):
+    dt = _parse_datetime(item.get("published_at"))
+    if not dt:
+        try:
+            dt = datetime.datetime.fromisoformat(str(item.get("published_at", "")).replace("Z", "+00:00"))
+        except Exception:
+            return True
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return now - dt <= datetime.timedelta(days=MAX_NEWS_AGE_DAYS)
 
 
-def _collect_raw_rows(queries):
-    queries = [query for query in queries if str(query or "").strip()]
-    if not queries:
-        return []
-    rows = []
-    with ThreadPoolExecutor(max_workers=min(4, len(queries))) as executor:
-        futures = [executor.submit(naver_news.fetch_news, query, 20) for query in queries]
-        for future in as_completed(futures):
-            try:
-                rows.extend(future.result())
-            except Exception:
-                pass
+def _fetch_query(query, display=20, start=1):
+    cache_key = (query, int(display), int(start))
+    now = time.time()
+    with _CACHE_LOCK:
+        cached = _CACHE.get(cache_key)
+        if cached and now - cached[0] <= _CACHE_TTL:
+            return list(cached[1])
+    rows = naver_news.search_news(query, display=display, start=start)
+    if not isinstance(rows, list):
+        rows = []
+    with _CACHE_LOCK:
+        _CACHE[cache_key] = (now, list(rows))
     return rows
 
 
-def fetch_general_news(category="전체", query="", limit=10, market="전체"):
-    category = str(category or "전체").strip()
-    category = category if category in CATEGORY_QUERIES else "전체"
-    market = str(market or "전체").strip()
-    market = market if market in ("전체", "국내", "미국") else "전체"
-    query = str(query or "").strip()
-    limit = max(1, min(int(limit or 10), 20))
-    cache_key = (category, market, query.lower(), limit, "naver-shared-feed-v1")
-    with _CACHE_LOCK:
-        cached = _CACHE.get(cache_key)
-        if cached and time.time() - cached[0] < _CACHE_TTL:
-            return [dict(item) for item in cached[1]]
-
-    items, seen = [], set()
-    for raw in _collect_raw_rows(_queries_for(category, market, query)):
-        item = _normalize_provider_row(raw, category, market)
-        if not item:
+def _dedupe(items):
+    seen = set()
+    result = []
+    for item in items:
+        key = item.get("url") or item.get("link") or item.get("title")
+        if not key or key in seen:
             continue
-        if not _is_recent_news(item["pub_date"]):
-            continue
-        relevance = _investment_relevance(item, explicit_query=bool(query))
-        text = f"{item['title']} {item['description']}"
-        if relevance < 0 or not _matches_requested_market(text, market):
-            continue
-        duplicate_key = re.sub(r"[^0-9a-zA-Z가-힣]", "", item["title"].lower())
-        if not duplicate_key or duplicate_key in seen:
-            continue
-        seen.add(duplicate_key)
-        item["id"] = duplicate_key[:40]
-        item["relevance_score"] = relevance
-        items.append(item)
-
-    items.sort(key=lambda item: (_parse_date(item.get("pub_date")), item["relevance_score"]), reverse=True)
-    result = items[:limit]
-    with _CACHE_LOCK:
-        _CACHE[cache_key] = (time.time(), [dict(item) for item in result])
+        seen.add(key)
+        result.append(item)
     return result
 
 
-def _stock_aliases(stock_name, market):
-    stock_name = str(stock_name or "").strip()
-    aliases = STOCK_UNIVERSE.get(market, {}).get(stock_name, [stock_name])
-    return [alias.lower() for alias in aliases if alias]
+def _fetch_queries(queries, category="전체", per_query=20):
+    queries = [q for q in queries if q]
+    if not queries:
+        return []
+    items = []
+    max_workers = min(6, len(queries))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_fetch_query, q, per_query, 1): q for q in queries}
+        for future in as_completed(futures):
+            query = futures[future]
+            try:
+                rows = future.result()
+            except Exception:
+                rows = []
+            for row in rows:
+                item = _build_item(row, query=query, category=category)
+                if item["title"] and _item_age_ok(item):
+                    items.append(item)
+    items = _dedupe(items)
+    items.sort(key=lambda x: x.get("published_at") or "", reverse=True)
+    return items
 
 
-def _is_direct_stock_material(item, stock_name, market):
-    title = str(item.get("title") or "").lower()
-    article_text = f"{title} {item.get('description') or ''}".lower()
-    return (
-        any(alias in title for alias in _stock_aliases(stock_name, market))
-        and _matches(article_text, STOCK_MATERIAL_SIGNALS)
-    )
+def _search_text(item):
+    return f"{item.get('title', '')} {item.get('description', '')}".lower()
 
 
-def fetch_stock_news(stock_name, market="국내", limit=3):
-    stock_name = str(stock_name or "").strip()
+def _contains_any(text, words):
+    return any(str(word).lower() in text for word in words)
+
+
+def _is_market_relevant(item):
+    text = _search_text(item)
+    if _contains_any(text, MARKET_CORE_WORDS):
+        return True
+    if _contains_any(text, MARKET_CONTEXT_WORDS) and not _contains_any(text, NOISE_WORDS):
+        return True
+    return False
+
+
+def _region_for_item(item):
+    text = _search_text(item)
+    kr = sum(1 for word in MARKET_SIGNALS["국내"] if word.lower() in text)
+    us = sum(1 for word in MARKET_SIGNALS["미국"] if word.lower() in text)
+    if kr > us and kr > 0:
+        return "국내"
+    if us > kr and us > 0:
+        return "미국"
+    return "전체"
+
+
+def _match_stocks(item):
+    text = _search_text(item)
+    matches = []
+    for region, stocks in STOCK_UNIVERSE.items():
+        for name, aliases in stocks.items():
+            if any(str(alias).lower() in text for alias in aliases):
+                matches.append({"name": name, "region": region})
+    return matches
+
+
+def _match_rules(item, rules):
+    text = _search_text(item)
+    return [name for name, words in rules.items() if _contains_any(text, words)]
+
+
+def _match_movement_signals(item):
+    text = _search_text(item)
+    matches = []
+    for name, direction, words in MOVEMENT_SIGNAL_RULES:
+        if _contains_any(text, words):
+            matches.append({"name": name, "direction": direction})
+    return matches
+
+
+def _enrich_item(item):
+    enriched = dict(item)
+    enriched["region"] = _region_for_item(item)
+    enriched["stocks"] = _match_stocks(item)
+    enriched["themes"] = _match_rules(item, THEME_RULES)
+    enriched["issues"] = _match_rules(item, ISSUE_RULES)
+    enriched["movement_signals"] = _match_movement_signals(item)
+    return enriched
+
+
+def fetch_general_news(category="전체", limit=30, region="전체"):
+    category = category if category in CATEGORY_QUERIES else "전체"
+    queries = CATEGORY_QUERIES[category]
+    items = [_enrich_item(x) for x in _fetch_queries(queries, category=category, per_query=max(20, limit))]
+    items = [x for x in items if _is_market_relevant(x)]
+    if region in ("국내", "미국"):
+        items = [x for x in items if x.get("region") in (region, "전체")]
+    return items[: max(1, int(limit))]
+
+
+def fetch_stock_news(stock_name, limit=20):
+    stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
-    queries = [stock_name, f"{stock_name} 상승", f"{stock_name} 하락"]
-    candidates, seen = [], set()
-    for query in queries:
-        for item in fetch_general_news(category="종목", query=query, market=market, limit=20):
-            duplicate_key = item.get("id") or item.get("title")
-            if duplicate_key in seen:
-                continue
-            seen.add(duplicate_key)
-            if _is_direct_stock_material(item, stock_name, market):
-                candidates.append(item)
-
-    candidates.sort(
-        key=lambda item: (_parse_date(item.get("pub_date")), item.get("relevance_score", 0)),
-        reverse=True,
-    )
-    return candidates[:max(1, min(int(limit or 3), 10))]
+    queries = [stock_name]
+    for stocks in STOCK_UNIVERSE.values():
+        aliases = stocks.get(stock_name)
+        if aliases:
+            queries = list(dict.fromkeys([stock_name] + aliases[:3]))
+            break
+    items = [_enrich_item(x) for x in _fetch_queries(queries, category="종목", per_query=max(20, limit))]
+    relevant = []
+    for item in items:
+        text = _search_text(item)
+        if stock_name.lower() not in text and not any(s.get("name") == stock_name for s in item.get("stocks", [])):
+            continue
+        if not _contains_any(text, STOCK_MATERIAL_SIGNALS):
+            continue
+        relevant.append(item)
+    return relevant[: max(1, int(limit))]
 
 
 def get_news_coverage():
     return {
-        "markets": list(STOCK_UNIVERSE),
-        "stocks": {market: list(stocks) for market, stocks in STOCK_UNIVERSE.items()},
-        "themes": list(THEME_RULES),
-        "content_types": ["뉴스", "공시"],
+        "stocks": STOCK_UNIVERSE,
+        "themes": sorted(THEME_RULES.keys()),
+        "issues": sorted(ISSUE_RULES.keys()),
+        "categories": list(CATEGORY_QUERIES.keys()),
     }
