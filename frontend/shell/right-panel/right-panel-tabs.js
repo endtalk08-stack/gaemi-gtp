@@ -17,7 +17,7 @@
   let dashboardView = 'dashboard';
 
   const DASHBOARD_VIEWS = {
-    dashboard: { label: '', icon: 'ellipsis' },
+    dashboard: { label: '대시보드', icon: 'layout-dashboard' },
     news: { label: '뉴스', icon: 'newspaper' },
     disclosures: { label: '공시', icon: 'file-text' },
   };
@@ -106,7 +106,7 @@
     if (!root) return;
 
     if (dashboardView === 'dashboard') {
-      root.innerHTML = '';
+      root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>';
       return;
     }
 
@@ -148,6 +148,7 @@
         dashboardMenu.dataset.dashboardMenu = 'true';
         dashboardMenu.hidden = true;
         dashboardMenu.innerHTML = `
+          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="dashboard"><i data-lucide="layout-dashboard"></i><span>대시보드</span></button>
           <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="news"><i data-lucide="newspaper"></i><span>뉴스</span></button>
           <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="disclosures"><i data-lucide="file-text"></i><span>공시</span></button>
         `;
@@ -232,7 +233,7 @@
   }
 
   function selectDashboardView(type) {
-    if (!DASHBOARD_VIEWS[type] || type === 'dashboard') return;
+    if (!DASHBOARD_VIEWS[type]) return;
     dashboardView = type;
     setActiveTab('dashboard');
     saveDashboardView();
