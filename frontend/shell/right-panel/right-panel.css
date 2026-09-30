@@ -1,3 +1,5 @@
+@import url('./right-panel-grid.css');
+
 /* Right Panel Shell — fixed three-column panel. */
 #gaemiWorkspace { --right-panel-width: calc((100vw - 58px) / 4); }
 
