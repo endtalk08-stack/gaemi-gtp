@@ -44,10 +44,9 @@ def calendar():
 @app.get("/news")
 def news():
     category = request.args.get("category", "전체")
-    query = request.args.get("q", "")
     market = request.args.get("market", "전체")
     limit = request.args.get("limit", default=10, type=int)
-    return jsonify({"items": fetch_general_news(category=category, query=query, market=market, limit=limit)})
+    return jsonify({"items": fetch_general_news(category=category, region=market, limit=limit)})
 
 @app.get("/news/stock-flow")
 def stock_news_flow():
@@ -57,20 +56,11 @@ def stock_news_flow():
 
     # 중앙의 '왜?' 분석은 화면에 보여 줄 3개 기사보다 넓은 뉴스 흐름을 본다.
     # 패널/기존 분석 응답은 그대로 두고, 같은 공통 뉴스 가공 결과만 최대 10개까지 재사용한다.
-    items = []
-    seen = set()
-    for market in ("국내", "미국"):
-        try:
-            market_items = fetch_stock_news(stock, market=market, limit=10)
-        except Exception as exc:
-            print(f"[뉴스 흐름] {market} 조회 실패: {type(exc).__name__}: {exc}")
-            market_items = []
-        for item in market_items:
-            key = item.get("id") or item.get("original_link") or item.get("link") or item.get("title")
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            items.append(item)
+    try:
+        items = fetch_stock_news(stock, limit=10)
+    except Exception as exc:
+        print(f"[뉴스 흐름] 조회 실패: {type(exc).__name__}: {exc}")
+        items = []
 
     # 수집/분류 결과를 다시 만들지 않고, 중앙 분석용으로만 설명 가능한 점수를 붙인다.
     # 화면에 대표 기사를 고르기 전에 전체 기사에서 신호/이슈/테마 흐름을 먼저 집계한다.
