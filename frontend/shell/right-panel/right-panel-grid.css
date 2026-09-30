@@ -1,8 +1,9 @@
 /* Right Panel Dashboard Grid — layout skeleton only.
-   Scope: #rightPanelDashboard only.
+   Scope: #rightPanelGrid only.
+   News/disclosures remain outside this grid.
    No widget/data/chat/API behavior belongs in this file. */
 
-#rightPanelDashboard {
+#rightPanelGrid {
   --right-panel-grid-columns: 12;
   --right-panel-grid-gap: 10px;
 
@@ -25,21 +26,21 @@
 }
 
 /* Width rules for future dashboard widgets. */
-#rightPanelDashboard > [data-grid-span="3"] { grid-column: span 3; }
-#rightPanelDashboard > [data-grid-span="4"] { grid-column: span 4; }
-#rightPanelDashboard > [data-grid-span="6"] { grid-column: span 6; }
-#rightPanelDashboard > [data-grid-span="8"] { grid-column: span 8; }
-#rightPanelDashboard > [data-grid-span="12"] { grid-column: 1 / -1; }
+#rightPanelGrid > [data-grid-span="3"] { grid-column: span 3; }
+#rightPanelGrid > [data-grid-span="4"] { grid-column: span 4; }
+#rightPanelGrid > [data-grid-span="6"] { grid-column: span 6; }
+#rightPanelGrid > [data-grid-span="8"] { grid-column: span 8; }
+#rightPanelGrid > [data-grid-span="12"] { grid-column: 1 / -1; }
 
 /* Standard height rules. Nothing uses these until a dashboard widget opts in. */
-#rightPanelDashboard > [data-grid-height="s"] { height: var(--right-panel-height-s); }
-#rightPanelDashboard > [data-grid-height="m"] { height: var(--right-panel-height-m); }
-#rightPanelDashboard > [data-grid-height="l"] { height: var(--right-panel-height-l); }
-#rightPanelDashboard > [data-grid-height="xl"] { height: var(--right-panel-height-xl); }
-#rightPanelDashboard > [data-grid-height="xxl"] { height: var(--right-panel-height-xxl); }
+#rightPanelGrid > [data-grid-height="s"] { height: var(--right-panel-height-s); }
+#rightPanelGrid > [data-grid-height="m"] { height: var(--right-panel-height-m); }
+#rightPanelGrid > [data-grid-height="l"] { height: var(--right-panel-height-l); }
+#rightPanelGrid > [data-grid-height="xl"] { height: var(--right-panel-height-xl); }
+#rightPanelGrid > [data-grid-height="xxl"] { height: var(--right-panel-height-xxl); }
 
-#rightPanelDashboard > [data-grid-span],
-#rightPanelDashboard > [data-grid-height] {
+#rightPanelGrid > [data-grid-span],
+#rightPanelGrid > [data-grid-height] {
   min-width: 0;
   box-sizing: border-box;
 }
