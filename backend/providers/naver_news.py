@@ -62,3 +62,22 @@ def fetch_news(query, display=20):
             "raw_original_link": item.get("originallink", ""),
         })
     return rows
+
+
+def search_news(query, display=20, start=1):
+    """Compatibility adapter for the shared news feed.
+
+    Keep the NAVER API call in fetch_news() unchanged while exposing the
+    field names expected by the current news_feed service.
+    """
+    rows = fetch_news(query, display=display)
+    return [
+        {
+            "title": row.get("raw_title", ""),
+            "description": row.get("raw_description", ""),
+            "pubDate": row.get("raw_pub_date", ""),
+            "link": row.get("raw_link", ""),
+            "originallink": row.get("raw_original_link", ""),
+        }
+        for row in rows
+    ]
