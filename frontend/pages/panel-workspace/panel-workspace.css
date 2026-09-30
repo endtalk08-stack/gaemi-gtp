@@ -1,0 +1,28 @@
+/* Panel Workspace page shell.
+   The 12-column grid rules remain isolated from news and disclosures. */
+
+#rightPanelContent:has(#rightPanelTabView-dashboard:not([hidden])) {
+  overflow: hidden !important;
+}
+
+#rightPanelContent:has(#rightPanelTabView-dashboard:not([hidden])):has(#rightPanelNews) {
+  overflow: auto !important;
+}
+
+#rightPanelTabView-dashboard,
+#rightPanelDashboard {
+  height: 100%;
+  min-height: 0;
+}
+
+#rightPanelDashboard {
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#rightPanelTabView-dashboard:has(#rightPanelNews),
+#rightPanelDashboard:has(#rightPanelNews) {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
