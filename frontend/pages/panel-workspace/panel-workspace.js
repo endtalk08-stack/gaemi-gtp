@@ -7,7 +7,7 @@
   const LEGACY_STORAGE_KEY = 'gaemi.dashboard.responsive-grid.v8.5';
 
   function mount(root) {
-    const workspaceRoot = root || document.getElementById('rightPanelWorkspace');
+    const workspaceRoot = root || document.getElementById('rightPanelWorkspace') || document.getElementById('rightPanelDashboard');
     if (!workspaceRoot || workspaceRoot.dataset.panelWorkspaceMounted === 'true') return;
 
     try {
