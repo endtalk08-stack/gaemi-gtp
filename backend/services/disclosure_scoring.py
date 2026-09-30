@@ -44,6 +44,9 @@ def extract_disclosure_keywords(item):
     text = " ".join(str(value or "") for value in parts).lower()
 
     keywords = []
+    # SEC Form 4 자체가 내부자 거래 공시이므로 거래 문구가 없어도 분류한다.
+    if str(item.get("form", "")).strip().upper() == "4":
+        keywords.append("내부자거래")
     for label, patterns in DISCLOSURE_KEYWORD_RULES:
         if any(str(pattern).lower() in text for pattern in patterns):
             keywords.append(label)
