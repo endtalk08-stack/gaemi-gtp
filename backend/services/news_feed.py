@@ -300,7 +300,15 @@ def _match_movement_signals(item):
     matches = []
     for name, direction, words in MOVEMENT_SIGNAL_RULES:
         if _contains_any(text, words):
-            matches.append({"name": name, "direction": direction})
+            # 패널은 기존 name/direction을 사용하고,
+            # 중앙 채팅/뉴스 근거 연결은 label/tone을 사용한다.
+            # 같은 분류 결과를 양쪽에서 공유하도록 두 이름을 함께 보존한다.
+            matches.append({
+                "name": name,
+                "direction": direction,
+                "label": name,
+                "tone": direction,
+            })
     return matches
 
 
@@ -324,7 +332,7 @@ def fetch_general_news(category="전체", limit=30, region="전체"):
     return items[: max(1, int(limit))]
 
 
-def fetch_stock_news(stock_name, limit=20):
+def fetch_stock_news(stock_name, limit=20, market=None):
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
