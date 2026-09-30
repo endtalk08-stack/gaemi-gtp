@@ -1,22 +1,12 @@
-# DASHBOARD
+# LEGACY DASHBOARD COMPATIBILITY
 
-오른쪽 패널 안에서 표시되는 **독립 화면 컨테이너**입니다.
+이 폴더는 기존 `index.html` 로딩 경로와 이전 전역 객체 호환을 위한 **호환 레이어**입니다.
 
-현재 단계의 책임은 화면 틀과 위젯 슬롯 배치까지입니다. 실제 데이터/API/DB/분석 로직은 연결하지 않습니다.
+오른쪽 패널 안의 12그리드 작업공간의 새 기준 이름과 실제 소스는 아래로 이동했습니다.
 
-## 현재 슬롯
-- 시장 상태
-- 차트
-- 거래량
-- 거래대금
-- 뉴스
-- 경제일정
-- 실적
-- 이벤트
-- 순위
+- `frontend/pages/panel-workspace/panel-workspace.js`
+- `frontend/pages/panel-workspace/panel-workspace.css`
 
-각 슬롯은 이후 실제 위젯 파일과 독립적으로 연결할 수 있도록 `data-widget-slot`으로 구분합니다.
+새 기능은 이 폴더에 추가하지 않습니다.
 
-## v7.4 진행
-`시장 상태` 슬롯은 `frontend/widgets/market-state/`의 독립 위젯 모듈을 연결할 수 있는 상태로 분리했다.
-다른 위젯은 기존 슬롯 구조를 유지하며 순차적으로 분리한다.
+오른쪽 전체 패널 껍데기는 별도 영역인 `frontend/shell/right-panel/`이 담당합니다.
