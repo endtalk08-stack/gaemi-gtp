@@ -8,7 +8,19 @@ window.GaemiGTPNews.renderArticles = function ({
   responseMessageClass,
   openExternalLinkModal
 }) {
-            const articles = evidence.articles.slice(0, 3);
+            const selectedSignalLabels = new Set(
+              (Array.isArray(evidence.signals) ? evidence.signals : [])
+                .map((signal) => String(signal?.label || '').replace(/^#/, '').replace(/\s+/g, ''))
+                .filter(Boolean)
+            );
+            const matchedArticles = (Array.isArray(evidence.articles) ? evidence.articles : []).filter((item) => {
+              const serverSignals = Array.isArray(item.movement_signals) ? item.movement_signals : [];
+              return serverSignals.some((signal) => {
+                const label = String(signal?.label || '').replace(/^#/, '').replace(/\s+/g, '');
+                return label && selectedSignalLabels.has(label);
+              });
+            });
+            const articles = matchedArticles.slice(0, 3);
             if (articles.length) {
               const articleSection = document.createElement('section');
               articleSection.className = 'space-y-2';
