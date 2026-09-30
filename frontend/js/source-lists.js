@@ -83,6 +83,21 @@ window.GaemiGTPSourceLists.renderSourceLists = function(result, { includeHeader 
           } else {
             titleEl.textContent = item.title || item.description || '제목 확인 필요';
             main.appendChild(titleEl);
+
+            if (label === '공시') {
+              const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
+              if (keywords.length) {
+                const keywordEl = document.createElement('div');
+                keywordEl.className = 'mt-2 text-sm font-semibold leading-6 text-[#db2777] dark:text-[#e889aa]';
+                keywordEl.textContent = keywords.map(keyword => `#${String(keyword).replace(/^#/, '')}`).join(' ');
+                main.appendChild(keywordEl);
+              }
+
+              const linkEl = document.createElement('div');
+              linkEl.className = 'mt-2 text-xs font-medium text-[#64748b] dark:text-[#a1a1aa]';
+              linkEl.textContent = '공시 원문 보기';
+              main.appendChild(linkEl);
+            }
           }
 
           const arrow = document.createElement('i');
