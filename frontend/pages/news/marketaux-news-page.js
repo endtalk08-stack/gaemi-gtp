@@ -5,8 +5,6 @@
   const BACKEND_URL = window.location.hostname.endsWith('github.io')
     ? 'https://gaemi-gtp.onrender.com'
     : '';
-  const MARKET_FILTERS = ['전체', '국내', '미국'];
-  const CATEGORY_FILTERS = ['전체', '증시', '종목', '경제지표', '실적발표', '연준', '에너지', '투자의견', '일정'];
   let requestId = 0;
 
   function el(tag, className, text) {
@@ -158,43 +156,11 @@
   function mount(root) {
     if (!root) return;
     root.replaceChildren();
-    let selectedCategory = '전체';
-    let selectedMarket = '전체';
     const page = el('section', 'marketaux-news');
-    const filters = el('div', 'marketaux-news__filters');
     const results = el('div', 'marketaux-news__results');
-    const categoryRow = el('div', 'marketaux-news__categories');
-    const marketRow = el('div', 'marketaux-news__markets');
-    const categoryButtons = CATEGORY_FILTERS.map((category) => {
-      const button = el('button', 'marketaux-news__filter', category);
-      button.type = 'button';
-      button.classList.toggle('is-active', category === selectedCategory);
-      button.addEventListener('click', () => {
-        if (selectedCategory === category) return;
-        selectedCategory = category;
-        categoryButtons.forEach((candidate) => candidate.classList.toggle('is-active', candidate.textContent === category));
-        load(results, selectedCategory, selectedMarket);
-      });
-      categoryRow.appendChild(button);
-      return button;
-    });
-    const marketButtons = MARKET_FILTERS.map((market) => {
-      const button = el('button', 'marketaux-news__filter', market);
-      button.type = 'button';
-      button.classList.toggle('is-active', market === selectedMarket);
-      button.addEventListener('click', () => {
-        if (selectedMarket === market) return;
-        selectedMarket = market;
-        marketButtons.forEach((candidate) => candidate.classList.toggle('is-active', candidate.textContent === market));
-        load(results, selectedCategory, selectedMarket);
-      });
-      marketRow.appendChild(button);
-      return button;
-    });
-    filters.append(categoryRow, marketRow);
-    page.append(filters, results);
+    page.appendChild(results);
     root.appendChild(page);
-    load(results, selectedCategory, selectedMarket);
+    load(results, '전체', '전체');
   }
 
   window.GaemiGTPMarketauxNews = { mount };
