@@ -101,6 +101,9 @@
     window.addEventListener('gaemi-analysis-data-change', render);
   }
 
+  // 분리된 위젯 도크도 페이지 로드 시 기존처럼 자동 초기화한다.
+  document.addEventListener('DOMContentLoaded', initialize);
+
   window.GaemiGTPWidgetDock = {
     initialize,
     add,
