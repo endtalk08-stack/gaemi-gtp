@@ -68,4 +68,14 @@ window.GaemiGTPExternalLinkModal.openExternalLinkModal = function(item) {
       });
     };
 
-    // ★ 버그 완벽 수정된 텍스트 파싱 로직
+    // 분리된 모듈도 기존처럼 페이지 로드 시 버튼 이벤트를 연결한다.
+(function initExternalLinkModalOnLoad() {
+  const init = () => window.GaemiGTPExternalLinkModal.initExternalLinkModal();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+})();
+
+// ★ 버그 완벽 수정된 텍스트 파싱 로직
