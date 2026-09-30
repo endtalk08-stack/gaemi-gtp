@@ -14,7 +14,7 @@
 
   let tabs = [];
   let activeTabId = 'dashboard';
-  let dashboardView = 'dashboard';
+  let dashboardView = 'news';
 
   const DASHBOARD_VIEWS = {
     dashboard: { label: '대시보드', icon: 'layout-dashboard' },
@@ -339,7 +339,7 @@
     const stored = readState();
     tabs = stored?.tabs?.length ? stored.tabs : DEFAULT_TABS.map(t => ({ ...t }));
     activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'dashboard';
-    dashboardView = 'dashboard';
+    dashboardView = 'news';
     saveDashboardView();
 
     tabs.forEach(tab => {
