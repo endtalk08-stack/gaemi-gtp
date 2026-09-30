@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 from .news_feed import fetch_stock_news
 from .news_scoring import score_stock_news
+from .disclosure_scoring import score_disclosures
 from .market_levels import (
     calculate_volume_profile_levels,
     format_volume_profile,
@@ -2361,7 +2362,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         news_items = list(news_list) if isinstance(news_list, list) else []
         disclosures = []
         if is_krw and clean_code:
-            for item in (kr_official_disclosures or []):
+            for item in score_disclosures(kr_official_disclosures or []):
                 report_title = str(item.get("report", "")).strip()
                 if raw_name and raw_name not in report_title:
                     report_title = f"{raw_name} {report_title}"
@@ -2373,10 +2374,11 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "time_zone": item.get("time_zone", ""),
                     "receipt_datetime": item.get("receipt_datetime", ""),
                     "link": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={item.get('receipt_no', '')}" if item.get("receipt_no") else "",
+                    "keywords": item.get("keywords", []),
                 })
         us_filings = []
         if not is_krw and ticker_symbol:
-            for item in (us_filings_raw or []):
+            for item in score_disclosures(us_filings_raw or []):
                 us_filings.append({
                     "title": "내부자 거래" if str(item.get("form", "")).upper() == "4" else (item.get("description") or "SEC 공시"),
                     "source": "SEC",
@@ -2385,6 +2387,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "time_zone": "ET" if item.get("time") else "",
                     "acceptance_datetime": item.get("acceptance_datetime", ""),
                     "link": item.get("url", ""),
+                    "keywords": item.get("keywords", []),
                     "form": item.get("form", ""),
                     "person": item.get("person", ""),
                     "officer_title": item.get("officer_title", ""),
