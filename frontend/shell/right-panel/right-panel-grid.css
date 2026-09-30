@@ -1,10 +1,18 @@
-/* Right Panel Dashboard Grid — 12-column skeleton only.
+/* Right Panel Dashboard Grid — layout skeleton only.
    Scope: #rightPanelDashboard only.
    No widget/data/chat/API behavior belongs in this file. */
 
 #rightPanelDashboard {
   --right-panel-grid-columns: 12;
   --right-panel-grid-gap: 10px;
+
+  /* Standard vertical sizes from the dashboard grid plan. */
+  --right-panel-height-s: 240px;
+  --right-panel-height-m: 320px;
+  --right-panel-height-l: 400px;
+  --right-panel-height-xl: 480px;
+  --right-panel-height-xxl: 560px;
+
   width: 100%;
   min-height: 100%;
   box-sizing: border-box;
@@ -23,7 +31,15 @@
 #rightPanelDashboard > [data-grid-span="8"] { grid-column: span 8; }
 #rightPanelDashboard > [data-grid-span="12"] { grid-column: 1 / -1; }
 
-#rightPanelDashboard > [data-grid-span] {
+/* Standard height rules. Nothing uses these until a dashboard widget opts in. */
+#rightPanelDashboard > [data-grid-height="s"] { height: var(--right-panel-height-s); }
+#rightPanelDashboard > [data-grid-height="m"] { height: var(--right-panel-height-m); }
+#rightPanelDashboard > [data-grid-height="l"] { height: var(--right-panel-height-l); }
+#rightPanelDashboard > [data-grid-height="xl"] { height: var(--right-panel-height-xl); }
+#rightPanelDashboard > [data-grid-height="xxl"] { height: var(--right-panel-height-xxl); }
+
+#rightPanelDashboard > [data-grid-span],
+#rightPanelDashboard > [data-grid-height] {
   min-width: 0;
   box-sizing: border-box;
 }
