@@ -23,8 +23,8 @@ CATEGORY_QUERIES = {
     "실적발표": ["실적 발표 매출 영업이익"],
 }
 
-# First-release coverage is intentionally limited to 10 Korean and 10 US names.
-# It is configurable coverage, not a live market-cap ranking claim.
+# First-release coverage: 10 Korean and 20 US names.
+# Each US entry includes its ticker and common Korean/English news aliases.
 STOCK_UNIVERSE = {
     "국내": {
         "삼성전자": ["삼성전자", "samsung electronics"],
@@ -39,11 +39,26 @@ STOCK_UNIVERSE = {
         "두산에너빌리티": ["두산에너빌리티", "doosan enerbility"],
     },
     "미국": {
-        "엔비디아": ["엔비디아", "nvidia"], "애플": ["애플", "apple"],
-        "마이크로소프트": ["마이크로소프트", "microsoft"], "아마존": ["아마존", "amazon"],
-        "알파벳": ["알파벳", "google", "alphabet"], "메타": ["메타", "meta platforms"],
-        "브로드컴": ["브로드컴", "broadcom"], "테슬라": ["테슬라", "tesla"],
-        "버크셔 해서웨이": ["버크셔", "berkshire"], "일라이 릴리": ["일라이 릴리", "eli lilly"],
+        "엔비디아": ["NVDA", "엔비디아", "nvidia"],
+        "애플": ["AAPL", "애플", "apple"],
+        "마이크로소프트": ["MSFT", "마이크로소프트", "microsoft"],
+        "아마존": ["AMZN", "아마존", "amazon"],
+        "알파벳": ["GOOGL", "GOOG", "알파벳", "구글", "google", "alphabet"],
+        "메타": ["META", "메타", "메타 플랫폼스", "meta platforms"],
+        "브로드컴": ["AVGO", "브로드컴", "broadcom"],
+        "테슬라": ["TSLA", "테슬라", "tesla"],
+        "버크셔 해서웨이": ["BRK.B", "BRK.A", "버크셔 해서웨이", "버크셔", "berkshire hathaway", "berkshire"],
+        "일라이 릴리": ["LLY", "일라이 릴리", "릴리", "eli lilly"],
+        "AMD": ["AMD", "에이엠디", "어드밴스드 마이크로 디바이시스", "advanced micro devices"],
+        "마이크론 테크놀로지": ["MU", "마이크론", "마이크론 테크놀로지", "micron", "micron technology"],
+        "퀄컴": ["QCOM", "퀄컴", "qualcomm"],
+        "TSMC": ["TSM", "TSMC", "대만 TSMC", "타이완 반도체", "taiwan semiconductor"],
+        "ASML": ["ASML", "에이에스엠엘", "asml holding"],
+        "팔란티어": ["PLTR", "팔란티어", "palantir", "palantir technologies"],
+        "로빈후드": ["HOOD", "로빈후드", "robinhood", "robinhood markets"],
+        "오라클": ["ORCL", "오라클", "oracle"],
+        "록히드마틴": ["LMT", "록히드마틴", "록히드 마틴", "lockheed martin"],
+        "엑슨모빌": ["XOM", "엑슨모빌", "엑슨 모빌", "exxonmobil", "exxon mobil"],
     },
 }
 
@@ -181,7 +196,11 @@ def _labels(text, rules):
 
 
 def _movement_signals(text):
-    return [{"label": label, "tone": tone} for label, tone, words in MOVEMENT_SIGNAL_RULES if _matches(text, words)]
+    return [
+        {"label": label, "tone": tone}
+        for label, tone, words in MOVEMENT_SIGNAL_RULES
+        if _matches(text, words)
+    ]
 
 
 def _related_stocks(text):
@@ -317,7 +336,10 @@ def _stock_aliases(stock_name, market):
 def _is_direct_stock_material(item, stock_name, market):
     title = str(item.get("title") or "").lower()
     article_text = f"{title} {item.get('description') or ''}".lower()
-    return any(alias in title for alias in _stock_aliases(stock_name, market)) and _matches(article_text, STOCK_MATERIAL_SIGNALS)
+    return (
+        any(alias in title for alias in _stock_aliases(stock_name, market))
+        and _matches(article_text, STOCK_MATERIAL_SIGNALS)
+    )
 
 
 def fetch_stock_news(stock_name, market="국내", limit=3):
@@ -334,7 +356,11 @@ def fetch_stock_news(stock_name, market="국내", limit=3):
             seen.add(duplicate_key)
             if _is_direct_stock_material(item, stock_name, market):
                 candidates.append(item)
-    candidates.sort(key=lambda item: (_parse_date(item.get("pub_date")), item.get("relevance_score", 0)), reverse=True)
+
+    candidates.sort(
+        key=lambda item: (_parse_date(item.get("pub_date")), item.get("relevance_score", 0)),
+        reverse=True,
+    )
     return candidates[:max(1, min(int(limit or 3), 10))]
 
 
