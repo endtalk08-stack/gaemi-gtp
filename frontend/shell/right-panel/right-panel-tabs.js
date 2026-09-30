@@ -14,7 +14,7 @@
 
   let tabs = [];
   let activeTabId = 'dashboard';
-  let dashboardView = 'news';
+  let dashboardView = '';
 
   const DASHBOARD_VIEWS = {
     dashboard: { label: '대시보드', icon: 'layout-dashboard' },
@@ -104,6 +104,11 @@
   function renderDashboardView() {
     const root = document.getElementById('rightPanelDashboard');
     if (!root) return;
+
+    if (!dashboardView) {
+      root.innerHTML = '';
+      return;
+    }
 
     if (dashboardView === 'dashboard') {
       root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>';
@@ -339,7 +344,7 @@
     const stored = readState();
     tabs = stored?.tabs?.length ? stored.tabs : DEFAULT_TABS.map(t => ({ ...t }));
     activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'dashboard';
-    dashboardView = 'news';
+    dashboardView = '';
     saveDashboardView();
 
     tabs.forEach(tab => {
