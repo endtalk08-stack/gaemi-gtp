@@ -12,7 +12,7 @@ window.GaemiGTPNews.renderArticles = function ({
             if (articles.length) {
               const articleSection = document.createElement('section');
               articleSection.className = 'space-y-2';
-              articleSection.appendChild(Object.assign(document.createElement('p'), { className: responseMessageClass, textContent: '관련 기사도 찾아봤어 👇' }));
+              articleSection.appendChild(Object.assign(document.createElement('p'), { className: responseMessageClass, textContent: '관련 기사를 찾아봤어 👇' }));
               block.appendChild(articleSection);
               articles.forEach((item, index) => {
                 const row = document.createElement('button');
