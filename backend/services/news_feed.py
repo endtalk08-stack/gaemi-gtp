@@ -112,17 +112,12 @@ STOCK_MATERIAL_SIGNALS = [
     "공시", "계약", "수주", "공급", "납품", "출하", "투자", "증설", "감산",
     "배당", "자사주", "목표주가", "투자의견", "판매", "가격", "규제", "관세",
     "hbm", "반도체", "메모리", "ai", "인공지능", "데이터센터", "신제품",
-    # A daily move can be explained by negative news as well as positive news.
-    # Keep these concrete so a bare "주가 하락" headline is not treated as a cause.
     "차익실현", "매물 출회", "매도세", "순매도", "외국인 매도", "기관 매도",
     "실적 악화", "실적 부진", "전망 하향", "가이던스 하향", "목표주가 하향",
     "금리 부담", "유가 부담", "환율 부담", "시장 약세", "증시 약세",
     "지정학", "전쟁", "분쟁", "리콜", "소송", "규제 강화",
 ]
 
-# Labels returned with each article are evidence tags, not a claim that the
-# article alone caused the move.  The central "왜?" view can later show them
-# as the confirmed signals behind its explanation.
 MOVEMENT_SIGNAL_RULES = [
     ("실적상회", "positive", ["실적 상회", "호실적", "어닝 서프라이즈", "실적 개선", "전망 상향", "가이던스 상향"]),
     ("메모리가격", "positive", ["메모리 가격", "d램 가격", "낸드 가격"]),
@@ -185,201 +180,194 @@ def _display_age(value):
 
 
 def _is_recent_news(value):
-    """Only accept provider items published during the current seven-day window."""
     date = _parse_date(value)
     if date.year <= 1:
         return False
-    age = datetime.datetime.now(datetime.timezone.utc) - date
-    return datetime.timedelta(0) <= age <= datetime.timedelta(days=MAX_NEWS_AGE_DAYS)
+    return date >= datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=MAX_NEWS_AGE_DAYS)
 
 
-def _dedupe(items):
-    seen = set()
-    output = []
-    for item in items:
-        key = item.get("originallink") or item.get("link") or item.get("title")
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        output.append(item)
-    return output
+def _matches(text, words):
+    text = str(text or "").lower()
+    return any(word.lower() in text for word in words)
 
 
-def _text(item):
-    return f"{item.get('title', '')} {item.get('description', '')}".lower()
-
-
-def _matched_labels(text, rules):
-    labels = []
-    for label, keywords in rules.items():
-        if any(keyword.lower() in text for keyword in keywords):
-            labels.append(label)
-    return labels
-
-
-def _related_stocks(text):
-    related = []
-    for market, stocks in STOCK_UNIVERSE.items():
-        for name, aliases in stocks.items():
-            if any(alias.lower() in text for alias in aliases):
-                related.append({"market": market, "name": name})
-    return related
+def _labels(text, rules):
+    return [label for label, words in rules.items() if _matches(text, words)]
 
 
 def _movement_signals(text):
-    signals = []
-    for label, tone, keywords in MOVEMENT_SIGNAL_RULES:
-        if any(keyword.lower() in text for keyword in keywords):
-            signals.append({"label": label, "tone": tone})
-    return signals
+    return [
+        {"label": label, "tone": tone}
+        for label, tone, words in MOVEMENT_SIGNAL_RULES
+        if _matches(text, words)
+    ]
 
 
-def _is_market_relevant(text):
-    if any(word in text for word in NOISE_WORDS):
-        return False
-    core_hits = sum(word in text for word in MARKET_CORE_WORDS)
-    context_hits = sum(word in text for word in MARKET_CONTEXT_WORDS)
-    return core_hits >= 1 and (core_hits >= 2 or context_hits >= 1)
+def _related_stocks(text):
+    return [name for stocks in STOCK_UNIVERSE.values() for name, aliases in stocks.items() if _matches(text, aliases)]
 
 
-def _normalize(raw, market_hint=None, relevance_score=0):
-    title = _strip_html(raw.get("title"))
-    description = _strip_html(raw.get("description"))
-    text = f"{title} {description}".lower()
-    originallink = raw.get("originallink") or raw.get("link") or ""
-    related_stocks = _related_stocks(text)
-    markets = []
-    for market, words in MARKET_SIGNALS.items():
-        if any(word in text for word in words):
-            markets.append(market)
-    for stock in related_stocks:
-        if stock["market"] not in markets:
-            markets.append(stock["market"])
-    if market_hint and market_hint not in markets:
-        markets.append(market_hint)
+def _investment_relevance(item, explicit_query=False):
+    title = str(item.get("title") or "").lower()
+    description = str(item.get("description") or "").lower()
+    title_core = sum(word in title for word in MARKET_CORE_WORDS)
+    desc_core = sum(word in description for word in MARKET_CORE_WORDS)
+    title_context = sum(word in title for word in MARKET_CONTEXT_WORDS)
+    desc_context = sum(word in description for word in MARKET_CONTEXT_WORDS)
+    if _matches(title, NOISE_WORDS) and not title_core:
+        return -1
+    if not explicit_query and title_core + desc_core == 0:
+        return -1
+    if not explicit_query and title_core == 0:
+        return -1
+    score = title_core * 3 + min(desc_core, 3) + title_context + min(desc_context, 2)
+    return score if score >= (1 if explicit_query else 2) else -1
+
+
+def _infer_market(text, requested_market):
+    if requested_market in STOCK_UNIVERSE:
+        return requested_market
+    us_stocks = set(STOCK_UNIVERSE["미국"])
+    if us_stocks.intersection(_related_stocks(text)) or _matches(text, ["미국 증시", "뉴욕증시", "나스닥", "s&p", "다우", "월가", "연준"]):
+        return "미국"
+    return "국내"
+
+
+def _matches_requested_market(text, requested_market):
+    if requested_market == "전체":
+        return True
+    matching_stocks = set(_related_stocks(text))
+    if matching_stocks.intersection(STOCK_UNIVERSE[requested_market]):
+        return True
+    return _matches(text, MARKET_SIGNALS[requested_market])
+
+
+def _normalize_provider_row(row, category, market):
+    title = _strip_html(row.get("raw_title"))
+    description = _strip_html(row.get("raw_description"))
+    pub_date = _strip_html(row.get("raw_pub_date"))
+    link = str(row.get("raw_original_link") or row.get("raw_link") or "").strip()
+    if not title or not link:
+        return None
+    text = f"{title} {description}"
+    issues = _labels(text, ISSUE_RULES)
+    stocks = _related_stocks(text)
     return {
-        "title": title,
-        "description": description,
-        "link": raw.get("link") or originallink,
-        "originallink": originallink,
-        "source": _source_from_url(originallink),
-        "pub_date": raw.get("pubDate") or "",
-        "age": _display_age(raw.get("pubDate")),
-        "markets": markets,
-        "themes": _matched_labels(text, THEME_RULES),
-        "issues": _matched_labels(text, ISSUE_RULES),
-        "related_stocks": related_stocks,
+        "provider": "naver", "content_type": "뉴스", "market": _infer_market(text, market),
+        "category": category if category != "전체" else ("이슈" if issues else "종목" if stocks else "증시"),
+        "title": title, "description": description, "source": _source_from_url(link), "pub_date": pub_date,
+        "display_datetime": _display_age(pub_date), "link": link, "original_link": link,
+        "related_stocks": stocks, "issues": issues, "themes": _labels(text, THEME_RULES),
         "movement_signals": _movement_signals(text),
-        "relevance_score": relevance_score,
     }
 
 
-def _query_news(query, display=100, sort="date"):
-    try:
-        result = naver_news.search_news(query=query, display=display, sort=sort)
-        return result.get("items", []) if isinstance(result, dict) else []
-    except Exception:
-        return []
+def _queries_for(category, market, query):
+    if query:
+        return [query]
+    base = CATEGORY_QUERIES[category]
+    if market == "국내":
+        return [f"국내 {item}" for item in base]
+    if market == "미국":
+        return [f"미국 {item}" for item in base]
+    return base
 
 
-def _query_many(queries, display=100, sort="date"):
-    unique_queries = list(dict.fromkeys(query.strip() for query in queries if query and query.strip()))
-    if not unique_queries:
+def _collect_raw_rows(queries):
+    queries = [query for query in queries if str(query or "").strip()]
+    if not queries:
         return []
-    workers = min(8, len(unique_queries))
-    items = []
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {executor.submit(_query_news, query, display, sort): query for query in unique_queries}
+    rows = []
+    with ThreadPoolExecutor(max_workers=min(4, len(queries))) as executor:
+        futures = [executor.submit(naver_news.fetch_news, query, 20) for query in queries]
         for future in as_completed(futures):
             try:
-                items.extend(future.result())
+                rows.extend(future.result())
             except Exception:
                 pass
-    return _dedupe(items)
+    return rows
 
 
-def _cache_get(key):
-    now = time.time()
+def fetch_general_news(category="전체", query="", limit=10, market="전체"):
+    category = str(category or "전체").strip()
+    category = category if category in CATEGORY_QUERIES else "전체"
+    market = str(market or "전체").strip()
+    market = market if market in ("전체", "국내", "미국") else "전체"
+    query = str(query or "").strip()
+    limit = max(1, min(int(limit or 10), 20))
+    cache_key = (category, market, query.lower(), limit, "naver-shared-feed-v1")
     with _CACHE_LOCK:
-        cached = _CACHE.get(key)
-        if cached and now - cached[0] < _CACHE_TTL:
-            return cached[1]
-    return None
+        cached = _CACHE.get(cache_key)
+        if cached and time.time() - cached[0] < _CACHE_TTL:
+            return [dict(item) for item in cached[1]]
 
+    items, seen = [], set()
+    for raw in _collect_raw_rows(_queries_for(category, market, query)):
+        item = _normalize_provider_row(raw, category, market)
+        if not item:
+            continue
+        if not _is_recent_news(item["pub_date"]):
+            continue
+        relevance = _investment_relevance(item, explicit_query=bool(query))
+        text = f"{item['title']} {item['description']}"
+        if relevance < 0 or not _matches_requested_market(text, market):
+            continue
+        duplicate_key = re.sub(r"[^0-9a-zA-Z가-힣]", "", item["title"].lower())
+        if not duplicate_key or duplicate_key in seen:
+            continue
+        seen.add(duplicate_key)
+        item["id"] = duplicate_key[:40]
+        item["relevance_score"] = relevance
+        items.append(item)
 
-def _cache_set(key, value):
+    items.sort(key=lambda item: (_parse_date(item.get("pub_date")), item["relevance_score"]), reverse=True)
+    result = items[:limit]
     with _CACHE_LOCK:
-        _CACHE[key] = (time.time(), value)
-    return value
+        _CACHE[cache_key] = (time.time(), [dict(item) for item in result])
+    return result
 
 
-def get_market_news(category="전체", market="전체", limit=30):
-    key = ("market", category, market, limit)
-    cached = _cache_get(key)
-    if cached is not None:
-        return cached
-
-    queries = CATEGORY_QUERIES.get(category, CATEGORY_QUERIES["전체"])
-    if market == "국내":
-        queries = [f"{query} 한국" for query in queries]
-    elif market == "미국":
-        queries = [f"{query} 미국" for query in queries]
-
-    items = _query_many(queries, display=100, sort="date")
-    normalized = []
-    for raw in items:
-        if not _is_recent_news(raw.get("pubDate")):
-            continue
-        item = _normalize(raw, market_hint=market if market in ("국내", "미국") else None)
-        text = _text(item)
-        if not _is_market_relevant(text):
-            continue
-        if market in ("국내", "미국") and market not in item["markets"]:
-            continue
-        normalized.append(item)
-        if len(normalized) >= limit:
-            break
-    return _cache_set(key, normalized)
+def _stock_aliases(stock_name, market):
+    stock_name = str(stock_name or "").strip()
+    aliases = STOCK_UNIVERSE.get(market, {}).get(stock_name, [stock_name])
+    return [alias.lower() for alias in aliases if alias]
 
 
-def get_stock_news(stock_name, limit=20):
+def _is_direct_stock_material(item, stock_name, market):
+    title = str(item.get("title") or "").lower()
+    article_text = f"{title} {item.get('description') or ''}".lower()
+    return (
+        any(alias in title for alias in _stock_aliases(stock_name, market))
+        and _matches(article_text, STOCK_MATERIAL_SIGNALS)
+    )
+
+
+def fetch_stock_news(stock_name, market="국내", limit=3):
     stock_name = str(stock_name or "").strip()
     if not stock_name:
         return []
-    market = None
-    aliases = [stock_name]
-    for market_name, stocks in STOCK_UNIVERSE.items():
-        if stock_name in stocks:
-            market = market_name
-            aliases = stocks[stock_name]
-            break
-        for name, stock_aliases in stocks.items():
-            if stock_name.lower() in [alias.lower() for alias in stock_aliases]:
-                stock_name = name
-                market = market_name
-                aliases = stock_aliases
-                break
-        if market:
-            break
+    queries = [stock_name, f"{stock_name} 상승", f"{stock_name} 하락"]
+    candidates, seen = [], set()
+    for query in queries:
+        for item in fetch_general_news(category="종목", query=query, market=market, limit=20):
+            duplicate_key = item.get("id") or item.get("title")
+            if duplicate_key in seen:
+                continue
+            seen.add(duplicate_key)
+            if _is_direct_stock_material(item, stock_name, market):
+                candidates.append(item)
 
-    # Search every known alias because Korean providers frequently mix Korean,
-    # English company names and tickers in otherwise identical stock coverage.
-    raw_items = _query_many(aliases, display=100, sort="date")
-    scored = []
-    for raw in raw_items:
-        if not _is_recent_news(raw.get("pubDate")):
-            continue
-        item = _normalize(raw, market_hint=market)
-        text = _text(item)
-        if not any(alias.lower() in text for alias in aliases):
-            continue
-        material_hits = sum(keyword in text for keyword in STOCK_MATERIAL_SIGNALS)
-        direct_title = any(alias.lower() in item["title"].lower() for alias in aliases)
-        score = (5 if direct_title else 0) + min(material_hits, 5)
-        if score <= 0:
-            continue
-        item["relevance_score"] = score
-        scored.append(item)
+    candidates.sort(
+        key=lambda item: (_parse_date(item.get("pub_date")), item.get("relevance_score", 0)),
+        reverse=True,
+    )
+    return candidates[:max(1, min(int(limit or 3), 10))]
 
-    scored = _dedupe(sorted(scored, key=lambda item: (item["relevance_score"], _parse_date(item["pub_date"])), reverse=True))
-    return _cache_set(("stock", stock_name, limit), scored[:limit])
+
+def get_news_coverage():
+    return {
+        "markets": list(STOCK_UNIVERSE),
+        "stocks": {market: list(stocks) for market, stocks in STOCK_UNIVERSE.items()},
+        "themes": list(THEME_RULES),
+        "content_types": ["뉴스", "공시"],
+    }
