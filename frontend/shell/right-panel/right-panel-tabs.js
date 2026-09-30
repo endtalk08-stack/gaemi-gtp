@@ -17,10 +17,9 @@
   let dashboardView = 'dashboard';
 
   const DASHBOARD_VIEWS = {
-    dashboard: { label: '대시보드', icon: 'layout-dashboard' },
-    chart: { label: '차트', icon: 'chart-no-axes-combined' },
+    dashboard: { label: '', icon: 'ellipsis' },
     news: { label: '뉴스', icon: 'newspaper' },
-    industry: { label: '업종', icon: 'building-2' },
+    disclosures: { label: '공시', icon: 'file-text' },
   };
 
   function readState() {
@@ -31,7 +30,7 @@
       if (!state || !Array.isArray(state.tabs)) return null;
 
       const cleanTabs = state.tabs
-        .filter(t => t && typeof t.id === 'string' && typeof t.label === 'string' && !['chart', 'news', 'industry'].includes(t.id))
+        .filter(t => t && typeof t.id === 'string' && typeof t.label === 'string' && !['chart', 'news', 'industry', 'disclosures'].includes(t.id))
         .map(t => ({
           id: t.id,
           label: t.label,
@@ -54,15 +53,6 @@
       localStorage.setItem(TABS_KEY, JSON.stringify({ tabs, activeTabId }));
     } catch (e) {
       console.warn('[gaemiGTP] right panel tabs save warning:', e);
-    }
-  }
-
-  function readDashboardView() {
-    try {
-      const stored = localStorage.getItem(DASHBOARD_VIEW_KEY);
-      return stored === 'news' ? 'news' : 'dashboard';
-    } catch (_) {
-      return 'dashboard';
     }
   }
 
@@ -101,19 +91,13 @@
     section.dataset.tabView = tab.id;
     section.setAttribute('role', 'tabpanel');
     section.setAttribute('aria-label', tab.label);
-    if (tab.id === 'news') {
-      section.style.height = '100%';
-      section.style.minHeight = '0';
-      section.innerHTML = '<section id="rightPanelNews" style="height:100%;min-height:0;" aria-label="뉴스"></section>';
-    } else {
-      section.innerHTML = `
+    section.innerHTML = `
       <div class="right-panel-tab-placeholder">
         <div class="right-panel-tab-placeholder__icon"><i data-lucide="square-chart-gantt"></i></div>
         <div class="right-panel-tab-placeholder__title">${escapeHtml(tab.label)}</div>
         <div class="right-panel-tab-placeholder__text">이 탭에 원하는 분석 화면을 구성할 수 있습니다.</div>
       </div>
     `;
-    }
     root.appendChild(section);
   }
 
@@ -132,14 +116,10 @@
       return;
     }
 
-    const view = DASHBOARD_VIEWS[dashboardView];
-    root.innerHTML = `
-      <div class="right-panel-tab-placeholder" data-dashboard-page="${dashboardView}">
-        <div class="right-panel-tab-placeholder__icon"><i data-lucide="${view.icon}"></i></div>
-        <div class="right-panel-tab-placeholder__title">${view.label}</div>
-        <div class="right-panel-tab-placeholder__text">이 패널 안에서 ${view.label} 화면을 구성할 수 있습니다.</div>
-      </div>`;
-    if (window.lucide) window.lucide.createIcons();
+    if (dashboardView === 'disclosures') {
+      root.innerHTML = '<section id="rightPanelDisclosures" style="height:100%;min-height:0;" aria-label="공시"></section>';
+      mountDisclosuresPage();
+    }
   }
 
   function renderTabs() {
@@ -149,20 +129,18 @@
     list.innerHTML = '';
 
     tabs.forEach(tab => {
-      // The dashboard menu was retired. A regular dashboard tab keeps the
-      // panel header in its pre-menu form without changing the panel shell.
-      if (tab.id === 'dashboard' && tab.menu === true) {
+      if (tab.id === 'dashboard') {
         const dashboardWrap = document.createElement('div');
         dashboardWrap.className = 'right-panel-dashboard-menu-wrap';
 
         const dashboard = document.createElement('button');
         dashboard.type = 'button';
-        dashboard.className = `right-panel-tab right-panel-tab--dashboard${activeTabId === tab.id ? ' is-active' : ''}`;
+        dashboard.className = 'right-panel-tab-add';
         dashboard.dataset.dashboardMenuToggle = 'true';
-        dashboard.setAttribute('aria-label', '대시보드 작업공간');
+        dashboard.setAttribute('aria-label', '패널 메뉴');
         dashboard.setAttribute('aria-expanded', 'false');
-        dashboard.title = '대시보드 작업공간';
-        dashboard.innerHTML = '<i data-lucide="layout-dashboard"></i>';
+        dashboard.title = '패널 메뉴';
+        dashboard.innerHTML = '<i data-lucide="ellipsis"></i>';
         dashboardWrap.appendChild(dashboard);
 
         const dashboardMenu = document.createElement('div');
@@ -170,10 +148,8 @@
         dashboardMenu.dataset.dashboardMenu = 'true';
         dashboardMenu.hidden = true;
         dashboardMenu.innerHTML = `
-          <div class="right-panel-tab-menu__section">패널 보기</div>
-          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="chart"><i data-lucide="chart-no-axes-combined"></i><span>차트</span></button>
           <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="news"><i data-lucide="newspaper"></i><span>뉴스</span></button>
-          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="industry"><i data-lucide="building-2"></i><span>업종</span></button>
+          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="disclosures"><i data-lucide="file-text"></i><span>공시</span></button>
         `;
         dashboardWrap.appendChild(dashboardMenu);
         list.appendChild(dashboardWrap);
@@ -207,79 +183,10 @@
       list.appendChild(button);
     });
 
-    const addWrap = document.createElement('div');
-    addWrap.className = 'right-panel-tab-add-wrap';
-
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'right-panel-tab-add';
-    add.dataset.rightPanelTabAdd = 'true';
-    add.setAttribute('aria-label', '탭 관리');
-    add.title = '탭 추가/삭제';
-    add.innerHTML = '<i data-lucide="plus"></i>';
-    addWrap.appendChild(add);
-
-    const menu = document.createElement('div');
-    menu.className = 'right-panel-tab-menu';
-    menu.dataset.rightPanelTabMenu = 'true';
-    menu.hidden = true;
-    menu.innerHTML = `
-      <div class="right-panel-tab-menu__section">패널 보기</div>
-      <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="dashboard">
-        <i data-lucide="layout-dashboard"></i><span>대시보드</span>
-      </button>
-      <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="news">
-        <i data-lucide="newspaper"></i><span>뉴스</span>
-      </button>
-      <div class="right-panel-tab-menu__section">탭 추가</div>
-      <button type="button" class="right-panel-tab-menu__item" data-add-tab-type="dashboard">
-        <i data-lucide="layout-dashboard"></i><span>대시보드</span>
-      </button>
-      <div class="right-panel-tab-menu__section">탭 삭제</div>
-      <div class="right-panel-tab-menu__delete-list" data-tab-delete-list></div>
-    `;
-    addWrap.appendChild(menu);
-    list.appendChild(addWrap);
-
-    renderTabMenu(menu);
     if (window.lucide) window.lucide.createIcons();
   }
 
-  function renderTabMenu(menu) {
-    if (!menu) return;
-    const deleteList = menu.querySelector('[data-tab-delete-list]');
-    if (!deleteList) return;
-    deleteList.innerHTML = '';
-
-    const closableTabs = tabs.filter(tab => tab.closable !== false);
-    if (!closableTabs.length) {
-      const empty = document.createElement('div');
-      empty.className = 'right-panel-tab-menu__empty';
-      empty.textContent = '삭제할 탭이 없습니다.';
-      deleteList.appendChild(empty);
-      return;
-    }
-
-    closableTabs.forEach(tab => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'right-panel-tab-menu__item right-panel-tab-menu__item--delete';
-      button.dataset.deleteTabId = tab.id;
-      button.innerHTML = `<span>${escapeHtml(tab.label)}</span><i data-lucide="trash-2"></i>`;
-      deleteList.appendChild(button);
-    });
-  }
-
-  function toggleTabMenu(force) {
-    const menu = document.querySelector('[data-right-panel-tab-menu]');
-    if (!menu) return;
-    const next = typeof force === 'boolean' ? force : menu.hidden;
-    menu.hidden = !next;
-    if (next) {
-      renderTabMenu(menu);
-      if (window.lucide) window.lucide.createIcons();
-    }
-  }
+  function toggleTabMenu() {}
 
   function toggleDashboardMenu(force) {
     const menu = document.querySelector('[data-dashboard-menu]');
@@ -288,7 +195,6 @@
     const next = typeof force === 'boolean' ? force : menu.hidden;
     menu.hidden = !next;
     toggle.setAttribute('aria-expanded', String(next));
-    if (next) toggleTabMenu(false);
     if (next && window.lucide) window.lucide.createIcons();
   }
 
@@ -298,7 +204,6 @@
     const existing = tabs.find(t => t.id === type);
     if (existing) {
       setActiveTab(existing.id);
-      toggleTabMenu(false);
       toggleDashboardMenu(false);
       return;
     }
@@ -323,12 +228,11 @@
     tabs.push(tab);
     if (type !== 'dashboard') makePlaceholderView(tab);
     setActiveTab(type);
-    toggleTabMenu(false);
     toggleDashboardMenu(false);
   }
 
   function selectDashboardView(type) {
-    if (!DASHBOARD_VIEWS[type]) return;
+    if (!DASHBOARD_VIEWS[type] || type === 'dashboard') return;
     dashboardView = type;
     setActiveTab('dashboard');
     saveDashboardView();
@@ -348,6 +252,14 @@
     }
   }
 
+  function mountDisclosuresPage() {
+    const root = document.getElementById('rightPanelDisclosures');
+    if (!root) return;
+    if (window.GaemiGTPDisclosuresPage && typeof window.GaemiGTPDisclosuresPage.mount === 'function') {
+      window.GaemiGTPDisclosuresPage.mount(root);
+    }
+  }
+
   function mountTabPage(tab) {
     if (!tab) return;
     if (tab.id === 'auto-trade') {
@@ -357,7 +269,6 @@
       }
       return;
     }
-
   }
 
   function setActiveTab(id, persist = true) {
@@ -427,20 +338,14 @@
     const stored = readState();
     tabs = stored?.tabs?.length ? stored.tabs : DEFAULT_TABS.map(t => ({ ...t }));
     activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'dashboard';
-    dashboardView = readDashboardView();
+    dashboardView = 'dashboard';
+    saveDashboardView();
 
     tabs.forEach(tab => {
       if (tab.id !== 'dashboard' && tab.id !== 'auto-trade') makePlaceholderView(tab);
     });
 
     getTabList().addEventListener('click', (event) => {
-      const add = event.target.closest('[data-right-panel-tab-add]');
-      if (add) {
-        event.stopPropagation();
-        toggleTabMenu();
-        return;
-      }
-
       const dashboardToggle = event.target.closest('[data-dashboard-menu-toggle]');
       if (dashboardToggle) {
         event.stopPropagation();
@@ -462,24 +367,8 @@
         return;
       }
 
-      const addType = event.target.closest('[data-add-tab-type]');
-      if (addType) {
-        event.stopPropagation();
-        addNamedTab(addType.dataset.addTabType);
-        return;
-      }
-
-      const deleteTab = event.target.closest('[data-delete-tab-id]');
-      if (deleteTab) {
-        event.stopPropagation();
-        removeTab(deleteTab.dataset.deleteTabId);
-        toggleTabMenu(false);
-        return;
-      }
-
       const tab = event.target.closest('[data-right-panel-tab]');
       if (tab) {
-        toggleTabMenu(false);
         toggleDashboardMenu(false);
         setActiveTab(tab.dataset.rightPanelTab);
       }
@@ -487,7 +376,6 @@
 
     document.addEventListener('click', (event) => {
       if (!event.target.closest('#rightPanelTabs')) {
-        toggleTabMenu(false);
         toggleDashboardMenu(false);
       }
     });
