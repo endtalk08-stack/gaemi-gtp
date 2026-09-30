@@ -6,18 +6,18 @@
   'use strict';
 
   const TABS_KEY = 'gaemiGTP_right_panel_tabs_v1';
-  const DASHBOARD_VIEW_KEY = 'gaemiGTP_right_panel_dashboard_view_v1';
+  const PANEL_WORKSPACE_VIEW_KEY = 'gaemiGTP_right_panel_workspace_view_v1';
   const DEFAULT_TABS = [
-    { id: 'dashboard', label: '대시보드', icon: 'layout-dashboard', closable: false },
+    { id: 'panel-workspace', label: '패널', icon: 'layout-dashboard', closable: false },
     { id: 'auto-trade', label: '자동매매', icon: 'bot', closable: true },
   ];
 
   let tabs = [];
-  let activeTabId = 'dashboard';
-  let dashboardView = '';
+  let activeTabId = 'panel-workspace';
+  let panelWorkspaceView = '';
 
-  const DASHBOARD_VIEWS = {
-    dashboard: { label: '대시보드', icon: 'layout-dashboard' },
+  const PANEL_WORKSPACE_VIEWS = {
+    'panel-workspace': { label: '패널', icon: 'layout-dashboard' },
     news: { label: '뉴스', icon: 'newspaper' },
     disclosures: { label: '공시', icon: 'file-text' },
   };
@@ -32,15 +32,16 @@
       const cleanTabs = state.tabs
         .filter(t => t && typeof t.id === 'string' && typeof t.label === 'string' && !['chart', 'news', 'industry', 'disclosures'].includes(t.id))
         .map(t => ({
-          id: t.id,
-          label: t.label,
+          id: t.id === 'dashboard' ? 'panel-workspace' : t.id,
+          label: t.id === 'dashboard' ? '패널' : t.label,
           icon: typeof t.icon === 'string' ? t.icon : 'square-chart-gantt',
-          closable: t.id !== 'dashboard',
+          closable: !['dashboard', 'panel-workspace'].includes(t.id),
         }));
 
+      const storedActiveTabId = state.activeTabId === 'dashboard' ? 'panel-workspace' : state.activeTabId;
       return {
         tabs: cleanTabs.length ? cleanTabs : null,
-        activeTabId: typeof state.activeTabId === 'string' ? state.activeTabId : 'dashboard',
+        activeTabId: typeof storedActiveTabId === 'string' ? storedActiveTabId : 'panel-workspace',
       };
     } catch (e) {
       console.warn('[gaemiGTP] right panel tabs read warning:', e);
@@ -56,8 +57,8 @@
     }
   }
 
-  function saveDashboardView() {
-    try { localStorage.setItem(DASHBOARD_VIEW_KEY, dashboardView); } catch (_) {}
+  function savePanelWorkspaceView() {
+    try { localStorage.setItem(PANEL_WORKSPACE_VIEW_KEY, panelWorkspaceView); } catch (_) {}
   }
 
   function getTabList() {
@@ -69,6 +70,7 @@
   }
 
   function getView(id) {
+    if (id === 'panel-workspace') return document.getElementById('rightPanelTabView-dashboard');
     return document.getElementById(`rightPanelTabView-${id}`);
   }
 
@@ -101,27 +103,27 @@
     root.appendChild(section);
   }
 
-  function renderDashboardView() {
+  function renderPanelWorkspaceView() {
     const root = document.getElementById('rightPanelDashboard');
     if (!root) return;
 
-    if (!dashboardView) {
+    if (!panelWorkspaceView) {
       root.innerHTML = '';
       return;
     }
 
-    if (dashboardView === 'dashboard') {
-      root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>';
+    if (panelWorkspaceView === 'panel-workspace') {
+      root.innerHTML = '<section id="rightPanelGrid" aria-label="패널"></section>';
       return;
     }
 
-    if (dashboardView === 'news') {
+    if (panelWorkspaceView === 'news') {
       root.innerHTML = '<section id="rightPanelNews" style="height:100%;min-height:0;" aria-label="뉴스"></section>';
       mountNewsPage();
       return;
     }
 
-    if (dashboardView === 'disclosures') {
+    if (panelWorkspaceView === 'disclosures') {
       root.innerHTML = '<section id="rightPanelDisclosures" style="height:100%;min-height:0;" aria-label="공시"></section>';
       mountDisclosuresPage();
     }
@@ -134,31 +136,31 @@
     list.innerHTML = '';
 
     tabs.forEach(tab => {
-      if (tab.id === 'dashboard') {
-        const dashboardWrap = document.createElement('div');
-        dashboardWrap.className = 'right-panel-dashboard-menu-wrap';
+      if (tab.id === 'panel-workspace') {
+        const workspaceWrap = document.createElement('div');
+        workspaceWrap.className = 'right-panel-dashboard-menu-wrap';
 
-        const dashboard = document.createElement('button');
-        dashboard.type = 'button';
-        dashboard.className = 'right-panel-tab-add';
-        dashboard.dataset.dashboardMenuToggle = 'true';
-        dashboard.setAttribute('aria-label', '패널 메뉴');
-        dashboard.setAttribute('aria-expanded', 'false');
-        dashboard.title = '패널 메뉴';
-        dashboard.innerHTML = '<i data-lucide="ellipsis"></i>';
-        dashboardWrap.appendChild(dashboard);
+        const workspace = document.createElement('button');
+        workspace.type = 'button';
+        workspace.className = 'right-panel-tab-add';
+        workspace.dataset.panelWorkspaceMenuToggle = 'true';
+        workspace.setAttribute('aria-label', '패널 메뉴');
+        workspace.setAttribute('aria-expanded', 'false');
+        workspace.title = '패널 메뉴';
+        workspace.innerHTML = '<i data-lucide="ellipsis"></i>';
+        workspaceWrap.appendChild(workspace);
 
-        const dashboardMenu = document.createElement('div');
-        dashboardMenu.className = 'right-panel-tab-menu right-panel-dashboard-menu';
-        dashboardMenu.dataset.dashboardMenu = 'true';
-        dashboardMenu.hidden = true;
-        dashboardMenu.innerHTML = `
-          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="dashboard"><i data-lucide="layout-dashboard"></i><span>대시보드</span></button>
-          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="news"><i data-lucide="newspaper"></i><span>뉴스</span></button>
-          <button type="button" class="right-panel-tab-menu__item" data-dashboard-view="disclosures"><i data-lucide="file-text"></i><span>공시</span></button>
+        const workspaceMenu = document.createElement('div');
+        workspaceMenu.className = 'right-panel-tab-menu right-panel-dashboard-menu';
+        workspaceMenu.dataset.panelWorkspaceMenu = 'true';
+        workspaceMenu.hidden = true;
+        workspaceMenu.innerHTML = `
+          <button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="panel-workspace"><i data-lucide="layout-dashboard"></i><span>패널</span></button>
+          <button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="news"><i data-lucide="newspaper"></i><span>뉴스</span></button>
+          <button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="disclosures"><i data-lucide="file-text"></i><span>공시</span></button>
         `;
-        dashboardWrap.appendChild(dashboardMenu);
-        list.appendChild(dashboardWrap);
+        workspaceWrap.appendChild(workspaceMenu);
+        list.appendChild(workspaceWrap);
         return;
       }
 
@@ -194,9 +196,9 @@
 
   function toggleTabMenu() {}
 
-  function toggleDashboardMenu(force) {
-    const menu = document.querySelector('[data-dashboard-menu]');
-    const toggle = document.querySelector('[data-dashboard-menu-toggle]');
+  function togglePanelWorkspaceMenu(force) {
+    const menu = document.querySelector('[data-panel-workspace-menu]');
+    const toggle = document.querySelector('[data-panel-workspace-menu-toggle]');
     if (!menu || !toggle) return;
     const next = typeof force === 'boolean' ? force : menu.hidden;
     menu.hidden = !next;
@@ -205,22 +207,22 @@
   }
 
   function addNamedTab(type) {
-    if (!['dashboard', 'auto-trade'].includes(type)) return;
+    if (!['panel-workspace', 'auto-trade'].includes(type)) return;
 
     const existing = tabs.find(t => t.id === type);
     if (existing) {
       setActiveTab(existing.id);
-      toggleDashboardMenu(false);
+      togglePanelWorkspaceMenu(false);
       return;
     }
 
     const labels = {
-      dashboard: '대시보드',
+      'panel-workspace': '패널',
       'auto-trade': '자동매매',
     };
 
     const icons = {
-      dashboard: 'layout-dashboard',
+      'panel-workspace': 'layout-dashboard',
       'auto-trade': 'bot',
     };
 
@@ -228,21 +230,21 @@
       id: type,
       label: labels[type],
       icon: icons[type],
-      closable: type !== 'dashboard',
+      closable: type !== 'panel-workspace',
     };
 
     tabs.push(tab);
-    if (type !== 'dashboard') makePlaceholderView(tab);
+    if (type !== 'panel-workspace') makePlaceholderView(tab);
     setActiveTab(type);
-    toggleDashboardMenu(false);
+    togglePanelWorkspaceMenu(false);
   }
 
-  function selectDashboardView(type) {
-    if (!DASHBOARD_VIEWS[type]) return;
-    dashboardView = type;
-    setActiveTab('dashboard');
-    saveDashboardView();
-    toggleDashboardMenu(false);
+  function selectPanelWorkspaceView(type) {
+    if (!PANEL_WORKSPACE_VIEWS[type]) return;
+    panelWorkspaceView = type;
+    setActiveTab('panel-workspace');
+    savePanelWorkspaceView();
+    togglePanelWorkspaceMenu(false);
   }
 
   function mountNewsPage() {
@@ -251,7 +253,7 @@
       window.GaemiGTPMarketauxNews.mount(root);
     } else if (root) {
       window.addEventListener('load', () => {
-        if (activeTabId === 'dashboard' && dashboardView === 'news' && window.GaemiGTPMarketauxNews && typeof window.GaemiGTPMarketauxNews.mount === 'function') {
+        if (activeTabId === 'panel-workspace' && panelWorkspaceView === 'news' && window.GaemiGTPMarketauxNews && typeof window.GaemiGTPMarketauxNews.mount === 'function') {
           window.GaemiGTPMarketauxNews.mount(root);
         }
       }, { once: true });
@@ -284,19 +286,20 @@
     tabs.forEach(tab => {
       if (tab.id === 'auto-trade') {
         mountTabPage(tab);
-      } else if (tab.id !== 'dashboard' && !getView(tab.id)) {
+      } else if (tab.id !== 'panel-workspace' && !getView(tab.id)) {
         makePlaceholderView(tab);
       }
     });
 
     document.querySelectorAll('[data-tab-view]').forEach(view => {
-      const active = view.dataset.tabView === activeTabId;
+      const viewId = view.dataset.tabView === 'dashboard' ? 'panel-workspace' : view.dataset.tabView;
+      const active = viewId === activeTabId;
       view.hidden = !active;
       view.setAttribute('aria-hidden', active ? 'false' : 'true');
     });
 
     renderTabs();
-    if (activeTabId === 'dashboard') renderDashboardView();
+    if (activeTabId === 'panel-workspace') renderPanelWorkspaceView();
     if (persist) saveState();
   }
 
@@ -343,26 +346,26 @@
 
     const stored = readState();
     tabs = stored?.tabs?.length ? stored.tabs : DEFAULT_TABS.map(t => ({ ...t }));
-    activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'dashboard';
-    dashboardView = '';
-    saveDashboardView();
+    activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'panel-workspace';
+    panelWorkspaceView = '';
+    savePanelWorkspaceView();
 
     tabs.forEach(tab => {
-      if (tab.id !== 'dashboard' && tab.id !== 'auto-trade') makePlaceholderView(tab);
+      if (tab.id !== 'panel-workspace' && tab.id !== 'auto-trade') makePlaceholderView(tab);
     });
 
     getTabList().addEventListener('click', (event) => {
-      const dashboardToggle = event.target.closest('[data-dashboard-menu-toggle]');
-      if (dashboardToggle) {
+      const workspaceToggle = event.target.closest('[data-panel-workspace-menu-toggle]');
+      if (workspaceToggle) {
         event.stopPropagation();
-        toggleDashboardMenu();
+        togglePanelWorkspaceMenu();
         return;
       }
 
-      const dashboardViewButton = event.target.closest('[data-dashboard-view]');
-      if (dashboardViewButton) {
+      const workspaceViewButton = event.target.closest('[data-panel-workspace-view]');
+      if (workspaceViewButton) {
         event.stopPropagation();
-        selectDashboardView(dashboardViewButton.dataset.dashboardView);
+        selectPanelWorkspaceView(workspaceViewButton.dataset.panelWorkspaceView);
         return;
       }
 
@@ -375,14 +378,14 @@
 
       const tab = event.target.closest('[data-right-panel-tab]');
       if (tab) {
-        toggleDashboardMenu(false);
+        togglePanelWorkspaceMenu(false);
         setActiveTab(tab.dataset.rightPanelTab);
       }
     });
 
     document.addEventListener('click', (event) => {
       if (!event.target.closest('#rightPanelTabs')) {
-        toggleDashboardMenu(false);
+        togglePanelWorkspaceMenu(false);
       }
     });
 
@@ -395,7 +398,7 @@
     initialize,
     addTab,
     addNamedTab,
-    selectDashboardView,
+    selectPanelWorkspaceView,
     removeTab,
     setActiveTab,
     getTabs: () => tabs.map(tab => ({ ...tab })),
