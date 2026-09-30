@@ -17,7 +17,23 @@ window.GaemiGTPDisclosures.renderDisclosures = function ({
                 const row = document.createElement('button');
                 row.type = 'button';
                 row.className = 'block w-full translate-y-1 text-left text-sm opacity-0 text-[#475569] transition duration-300 hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white';
-                row.textContent = item.title || '공시 제목 확인 필요';
+                const titleEl = document.createElement('div');
+                titleEl.textContent = item.title || '공시 제목 확인 필요';
+                row.appendChild(titleEl);
+
+                const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
+                if (keywords.length) {
+                  const keywordEl = document.createElement('div');
+                  keywordEl.className = 'mt-2 text-sm font-semibold leading-6 text-[#db2777] dark:text-[#e889aa]';
+                  keywordEl.textContent = keywords.map(keyword => `#${String(keyword).replace(/^#/, '')}`).join(' ');
+                  row.appendChild(keywordEl);
+                }
+
+                const linkEl = document.createElement('div');
+                linkEl.className = 'mt-2 text-xs font-medium text-[#64748b] dark:text-[#a1a1aa]';
+                linkEl.textContent = '공시 원문 보기';
+                row.appendChild(linkEl);
+
                 row.addEventListener('click', () => openExternalLinkModal(item));
                 disclosureSection.appendChild(row);
                 setTimeout(() => {
