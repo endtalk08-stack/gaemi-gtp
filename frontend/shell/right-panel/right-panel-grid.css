@@ -1,5 +1,6 @@
-/* Right Panel Dashboard Grid — 12-column layout foundation.
-   Scope: #rightPanelDashboard only. Existing panel shell/tabs/pages are untouched. */
+/* Right Panel Dashboard Grid — 12-column skeleton only.
+   Scope: #rightPanelDashboard only.
+   No widget/data/chat/API behavior belongs in this file. */
 
 #rightPanelDashboard {
   --right-panel-grid-columns: 12;
@@ -15,7 +16,7 @@
   align-content: start;
 }
 
-/* Widget span helpers. Existing widgets are not changed by this file. */
+/* Width rules for future dashboard widgets. */
 #rightPanelDashboard > [data-grid-span="3"] { grid-column: span 3; }
 #rightPanelDashboard > [data-grid-span="4"] { grid-column: span 4; }
 #rightPanelDashboard > [data-grid-span="6"] { grid-column: span 6; }
@@ -25,14 +26,4 @@
 #rightPanelDashboard > [data-grid-span] {
   min-width: 0;
   box-sizing: border-box;
-}
-
-/* Narrow panel/mobile: keep widgets readable without changing the panel shell. */
-@media (max-width: 1023px) {
-  #rightPanelDashboard > [data-grid-span="3"],
-  #rightPanelDashboard > [data-grid-span="4"] { grid-column: span 6; }
-}
-
-@media (max-width: 640px) {
-  #rightPanelDashboard > [data-grid-span] { grid-column: 1 / -1; }
 }
