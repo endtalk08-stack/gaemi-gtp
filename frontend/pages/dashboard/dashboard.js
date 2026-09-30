@@ -5,7 +5,12 @@
 
   function mountWorkspace() {
     const root = document.getElementById('rightPanelDashboard');
-    if (window.GaemiGTPPanelWorkspace && typeof window.GaemiGTPPanelWorkspace.mount === 'function') {
+    if (!window.GaemiGTPPanelWorkspace) return;
+
+    // Preserve the old global name temporarily so existing callers do not break.
+    window.GaemiGTPDashboard = window.GaemiGTPPanelWorkspace;
+
+    if (typeof window.GaemiGTPPanelWorkspace.mount === 'function') {
       window.GaemiGTPPanelWorkspace.mount(root);
     }
   }
