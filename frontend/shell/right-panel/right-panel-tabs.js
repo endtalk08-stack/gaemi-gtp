@@ -75,6 +75,7 @@
   function mountNewsPage() { const root = document.getElementById('rightPanelNews'); if (root && window.GaemiGTPMarketauxNews && typeof window.GaemiGTPMarketauxNews.mount === 'function') window.GaemiGTPMarketauxNews.mount(root); else if (root) window.addEventListener('load', () => { if (activeTabId === 'panel-workspace' && panelWorkspaceView === 'news' && window.GaemiGTPMarketauxNews && typeof window.GaemiGTPMarketauxNews.mount === 'function') window.GaemiGTPMarketauxNews.mount(root); }, { once: true }); }
   function mountDisclosuresPage() { const root = document.getElementById('rightPanelDisclosures'); if (root && window.GaemiGTPDisclosuresPage && typeof window.GaemiGTPDisclosuresPage.mount === 'function') window.GaemiGTPDisclosuresPage.mount(root); }
   function showRelatedNews(items) {
+    setActiveTab('panel-workspace', false);
     const root = document.getElementById('rightPanelWorkspace');
     if (!root) return;
     const articles = Array.isArray(items) ? items : [];
