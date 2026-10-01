@@ -281,7 +281,20 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
         else:
             merged.append(event)
 
-    return merged
+    compact = []
+    seen_keywords = set()
+    for event in reversed(merged):
+        fresh = [k for k in event["keywords"] if k not in seen_keywords]
+        if not fresh:
+            continue
+        event["keywords"] = fresh
+        event["keyword_tones"] = {k: event.get("keyword_tones", {}).get(k, "neutral") for k in fresh}
+        compact.append(event)
+        seen_keywords.update(fresh)
+        if len(compact) >= 3:
+            break
+    compact.reverse()
+    return compact
 
 
 def score_stock_news(items, stock_name):
