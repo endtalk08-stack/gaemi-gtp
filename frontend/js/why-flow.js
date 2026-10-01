@@ -11,6 +11,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
   makeUserPrompt,
   getWhyEvidence,
   appendFollowupChoices,
+  typeText,
   responseMessageClass,
   stockName
 }) {
@@ -27,10 +28,10 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             for (const message of ['뉴스를 확인합니다', '생각중', '내용을 정리중입니다']) {
               if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
               const line = document.createElement('p');
-              line.className = `${responseMessageClass} font-semibold animate-pulse`;
-              line.textContent = message;
+              line.className = `${responseMessageClass} font-semibold`;
               loading.appendChild(line);
-              await wait(4000);
+              await typeText(line, message);
+              await wait(900);
             }
             if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
             loading.remove();
@@ -45,7 +46,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             block.className = 'mt-5 space-y-5 animate-fade';
             const signalTitle = document.createElement('p');
             signalTitle.className = responseMessageClass;
-            signalTitle.textContent = evidence.signals.length || storyboard.length || disclosures.length ? '오늘 눈에 띄는 흐름 👀' : '오늘은 흐름 없음 ☁️';
+            const signalTitleText = evidence.signals.length || storyboard.length || disclosures.length ? '오늘 눈에 띄는 흐름 👀' : '오늘은 흐름 없음 ☁️';
             block.appendChild(signalTitle);
 
             if (storyboard.length) {
@@ -92,14 +93,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal
             });
   
-            window.GaemiGTPDisclosures.renderDisclosures({
-              disclosures,
-              articles,
-              block,
-              responseMessageClass,
-              openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal
-            });
-  
             if (!articles.length && !disclosures.length) {
               const empty = document.createElement('p');
               empty.className = `${responseMessageClass} whitespace-pre-line`;
@@ -115,11 +108,58 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             });
   
             prompt.insertAdjacentElement('afterend', block);
+            await typeText(signalTitle, signalTitleText);
             const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(block, `${prompt.innerText}\n${block.innerText}`, 'why', stockName);
-            const followups = appendFollowupChoices(actions || block);
+
+            const followups = document.createElement('section');
+            followups.dataset.whyFollowupChoices = 'true';
+            followups.className = 'mt-6 space-y-2 animate-fade text-right';
+            followups.innerHTML = `
+              <p class="${responseMessageClass}">하나만 찍어 👇</p>
+              <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
+                <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-why-followup="big-money">#큰손은_뭐해?</button>
+                <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:opacity-80 dark:text-[#e889aa]" data-why-followup="disclosure">#공시는_있어?</button>
+              </div>`;
+            (actions || block).insertAdjacentElement('afterend', followups);
+
             followups.addEventListener('click', async (event) => {
               const button = event.target.closest('[data-why-followup]');
               if (!button) return;
+              if (button.dataset.whyFollowup === 'disclosure') {
+                const disclosurePrompt = makeUserPrompt('공시는 있어?', 'disclosureFlow');
+                followups.insertAdjacentElement('afterend', disclosurePrompt);
+                followups.remove();
+
+                const disclosureLoading = document.createElement('div');
+                disclosureLoading.className = 'mt-5 space-y-2';
+                disclosurePrompt.insertAdjacentElement('afterend', disclosureLoading);
+                for (const message of ['뉴스를 확인합니다', '생각중', '내용을 정리중입니다']) {
+                  if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
+                  const line = document.createElement('p');
+                  line.className = `${responseMessageClass} font-semibold`;
+                  disclosureLoading.appendChild(line);
+                  await typeText(line, message);
+                  await wait(900);
+                }
+                disclosureLoading.remove();
+
+                const disclosureBlock = document.createElement('section');
+                disclosureBlock.className = 'mt-5 space-y-5 animate-fade';
+                window.GaemiGTPDisclosures.renderDisclosures({
+                  disclosures,
+                  articles: [],
+                  block: disclosureBlock,
+                  responseMessageClass,
+                  openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal
+                });
+                if (!disclosures.length) {
+                  const emptyDisclosure = document.createElement('p');
+                  emptyDisclosure.className = responseMessageClass;
+                  disclosureBlock.appendChild(emptyDisclosure);
+                  await typeText(emptyDisclosure, '오늘 확인된 공시는 없어 ㅠㅠ');
+                }
+                disclosurePrompt.insertAdjacentElement('afterend', disclosureBlock);
+              }
             });
             if (window.lucide) window.lucide.createIcons();
             block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
