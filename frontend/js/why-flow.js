@@ -115,12 +115,13 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             followups.dataset.whyFollowupChoices = 'true';
             followups.className = 'mt-6 space-y-2 animate-fade text-right';
             followups.innerHTML = `
-              <p class="${responseMessageClass}">하나만 찍어</p>
+              <p class="${responseMessageClass}"></p>
               <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
                 <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-why-followup="big-money">#큰손은_뭐해?</button>
                 <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:opacity-80 dark:text-[#e889aa]" data-why-followup="disclosure">#공시는_있어?</button>
               </div>`;
             (actions || block).insertAdjacentElement('afterend', followups);
+            await typeText(followups.querySelector('p'), '하나만 찍어');
 
             followups.addEventListener('click', async (event) => {
               const button = event.target.closest('[data-why-followup]');
@@ -160,12 +161,25 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 }
                 disclosurePrompt.insertAdjacentElement('afterend', disclosureBlock);
                 const disclosureReplyText = `${disclosurePrompt.innerText}\n${disclosureBlock.innerText}`;
-                window.GaemiGTPFirstReplyActions.appendFirstReplyActions(
+                const disclosureActions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(
                   disclosureBlock,
                   disclosureReplyText,
                   'disclosure',
                   stockName
                 );
+
+                const disclosureFollowups = document.createElement('section');
+                disclosureFollowups.dataset.disclosureFollowupChoices = 'true';
+                disclosureFollowups.className = 'mt-6 space-y-2 animate-fade text-right';
+                disclosureFollowups.innerHTML = `
+                  <p class="${responseMessageClass}"></p>
+                  <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
+                    <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]">#큰손은_뭐해</button>
+                    <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:opacity-80 dark:text-[#e889aa]">#오늘밤_무슨일_있어?</button>
+                  </div>`;
+                (disclosureActions || disclosureBlock).insertAdjacentElement('afterend', disclosureFollowups);
+                await typeText(disclosureFollowups.querySelector('p'), '해시태그 하나만 클릭해');
+                disclosureFollowups.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
               }
             });
             if (window.lucide) window.lucide.createIcons();
