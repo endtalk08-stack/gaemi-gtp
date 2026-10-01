@@ -21,18 +21,25 @@ window.GaemiGTPDisclosures.renderDisclosures = function ({
                 const dateText = String(item.date || '').trim();
                 const timeText = String(item.time || '').trim();
                 const disclosureDateTime = [dateText, timeText].filter(Boolean).join(' ');
-                if (disclosureDateTime) {
-                  const dateTimeEl = document.createElement('div');
-                  dateTimeEl.className = 'text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] mb-1';
-                  dateTimeEl.textContent = disclosureDateTime;
-                  row.appendChild(dateTimeEl);
-                }
+                if (disclosureDateTime || keywords.length) {
+                  const metaEl = document.createElement('div');
+                  metaEl.className = 'flex items-baseline gap-3 mb-1 flex-wrap';
 
-                if (keywords.length) {
-                  const keywordEl = document.createElement('div');
-                  keywordEl.className = 'analysis-hashtag font-semibold text-[#db2777] dark:text-[#e889aa]';
-                  keywordEl.textContent = keywords.map(keyword => `#${String(keyword).replace(/^#/, '')}`).join(' ');
-                  row.appendChild(keywordEl);
+                  if (disclosureDateTime) {
+                    const dateTimeEl = document.createElement('span');
+                    dateTimeEl.className = 'text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                    dateTimeEl.textContent = disclosureDateTime;
+                    metaEl.appendChild(dateTimeEl);
+                  }
+
+                  if (keywords.length) {
+                    const keywordEl = document.createElement('span');
+                    keywordEl.className = 'analysis-hashtag font-semibold text-[#db2777] dark:text-[#e889aa]';
+                    keywordEl.textContent = keywords.map(keyword => `#${String(keyword).replace(/^#/, '')}`).join(' ');
+                    metaEl.appendChild(keywordEl);
+                  }
+
+                  row.appendChild(metaEl);
                 }
 
                 const titleEl = document.createElement('div');
