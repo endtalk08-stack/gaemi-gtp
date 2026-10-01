@@ -19,7 +19,7 @@ from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
 from .news_feed import fetch_stock_news
-from .news_scoring import score_stock_news
+from .news_scoring import score_stock_news, build_keyword_storyboard
 from .disclosure_scoring import score_disclosures
 from .market_levels import (
     calculate_volume_profile_levels,
@@ -2403,6 +2403,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         return {
             "sections": sections,
             "news_items": news_items,
+            "keyword_storyboard": build_keyword_storyboard(news_items),
             "disclosures": disclosures,
             "us_filings": us_filings,
         }
@@ -2418,6 +2419,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 }
             ],
             "news_items": [],
+            "keyword_storyboard": [],
             "disclosures": [],
             "us_filings": [],
             "ok": False
