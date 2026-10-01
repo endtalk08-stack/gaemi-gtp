@@ -733,7 +733,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             // 첫 답변 안의 해시태그도 2단계와 같은 14px 기준으로 고정한다.
             formatted = formatted.replace(/<span([^>]*)>(#[^<]+)<\/span>/g, (match, attributes, tagText) => {
               const nextAttributes = /\bclass="/.test(attributes)
-                ? attributes.replace(/class="([^"]*)"/, 'class="$1 analysis-hashtag"')
+                ? attributes.replace(/class="([^"]*)"/, 'class="$1 first-answer-hashtag"')
                 : `${attributes} class="analysis-hashtag"`;
               return `<span${nextAttributes}>${tagText}</span>`;
             });
