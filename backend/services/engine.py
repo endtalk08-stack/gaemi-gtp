@@ -2363,7 +2363,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ])
-        news_items = (list(news_list)[:3] if isinstance(news_list, list) else [])
+        news_items = (list(storyboard_news_list)[:10] if isinstance(storyboard_news_list, list) else [])
         disclosures = []
         if is_krw and clean_code:
             for item in score_disclosures(kr_official_disclosures or []):
