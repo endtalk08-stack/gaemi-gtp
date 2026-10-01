@@ -84,7 +84,7 @@ window.GaemiGTPSourceLists.renderSourceLists = function(result, { includeHeader 
             const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
             if (keywords.length) {
               const keywordEl = document.createElement('div');
-              keywordEl.className = 'mt-2 text-sm font-semibold leading-6 text-[#db2777] dark:text-[#e889aa]';
+              keywordEl.className = 'analysis-hashtag mt-5 font-semibold text-[#db2777] dark:text-[#e889aa]';
               keywordEl.textContent = keywords.map(keyword => `#${String(keyword).replace(/^#/, '')}`).join(' ');
               main.appendChild(keywordEl);
             }
@@ -101,7 +101,7 @@ window.GaemiGTPSourceLists.renderSourceLists = function(result, { includeHeader 
               const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
               if (keywords.length) {
                 const keywordEl = document.createElement('div');
-                keywordEl.className = 'mt-2 text-sm font-semibold leading-6 text-[#db2777] dark:text-[#e889aa]';
+                keywordEl.className = 'analysis-hashtag mt-5 font-semibold text-[#db2777] dark:text-[#e889aa]';
                 keywordEl.textContent = keywords.map(keyword => `#${String(keyword).replace(/^#/, '')}`).join(' ');
                 main.appendChild(keywordEl);
               }
