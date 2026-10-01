@@ -86,6 +86,7 @@
     const root = document.getElementById('rightPanelWorkspace');
     if (!root) return;
     root.innerHTML = '';
+    if (!relatedNewsItems.length) return;
     const section = document.createElement('section');
     section.className = 'right-panel-related-news';
     section.setAttribute('aria-label', '관련 기사');
