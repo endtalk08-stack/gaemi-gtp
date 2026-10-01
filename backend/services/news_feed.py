@@ -346,22 +346,9 @@ def fetch_stock_news(stock_name, limit=20, market=None):
 
     items = [_enrich_item(x) for x in _fetch_queries(queries, category="종목", per_query=max(20, limit))]
     relevant = []
-    # 종목 뉴스는 "본문/description에 종목명이 한 번 언급됐다"는 이유만으로
-    # 관련 기사로 넣지 않는다. 제목에서 해당 종목이 직접 확인되는 기사만
-    # 기본 관련 기사로 인정해, 다른 종목/정책 기사에 회사명이 설명문으로
-    # 등장하는 경우가 섞이지 않도록 한다.
-    stock_aliases = [stock_name]
-    for stocks in STOCK_UNIVERSE.values():
-        aliases = stocks.get(stock_name)
-        if aliases:
-            stock_aliases.extend(aliases)
-            break
-
     for item in items:
-        title = str(item.get("title") or "").lower()
         text = _search_text(item)
-        title_has_stock = any(str(alias).lower() in title for alias in stock_aliases if alias)
-        if not title_has_stock:
+        if stock_name.lower() not in text and not any(s.get("name") == stock_name for s in item.get("stocks", [])):
             continue
         if not _contains_any(text, STOCK_MATERIAL_SIGNALS):
             continue
