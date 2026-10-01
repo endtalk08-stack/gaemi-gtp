@@ -152,6 +152,15 @@
     .external-link-article-meta {
       margin-top: 6px; font-size: 12px; color:#9ca3af; font-weight:600;
     }
+    .external-link-article-description {
+      margin-top: 8px;
+      color: #d4d4d8;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    html:not(.dark) .external-link-article-description {
+      color: #d4d4d8;
+    }
     .external-link-warning {
       margin: 0 18px 14px;
       padding: 13px 14px;
