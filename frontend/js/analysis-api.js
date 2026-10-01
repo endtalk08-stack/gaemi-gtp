@@ -11,6 +11,7 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
         return {
           sections: data.sections || [],
           news_items: Array.isArray(data.news_items) ? data.news_items : [],
+          keyword_storyboard: Array.isArray(data.keyword_storyboard) ? data.keyword_storyboard : [],
           disclosures: Array.isArray(data.disclosures) ? data.disclosures : [],
           us_filings: Array.isArray(data.us_filings) ? data.us_filings : [],
           ok: true
