@@ -517,12 +517,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             output.push({ label: `#${label.replace(/^#/, '').replace(/\s+/g, '')}`, tone });
           };
 
-          const articles = (Array.isArray(result.news_items) ? result.news_items : []).filter((item) => {
+          const articles = Array.isArray(result.news_items) ? result.news_items : [];
+          articles.forEach((item) => {
             const serverSignals = Array.isArray(item.movement_signals) ? item.movement_signals : [];
             serverSignals.forEach((signal) => {
               if (signal && signal.label) add(signal.label, signal.tone || 'neutral');
             });
-            return serverSignals.length > 0;
           });
           return { signals: output, articles };
         };
