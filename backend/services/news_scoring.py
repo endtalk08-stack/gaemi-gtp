@@ -8,6 +8,7 @@ refined back to concrete phrases that are actually present in title+description.
 
 import datetime
 from collections import Counter
+from zoneinfo import ZoneInfo
 from email.utils import parsedate_to_datetime
 
 
@@ -133,13 +134,20 @@ DETAIL_KEYWORD_RULES = [
 
 
 def _parse_date(value):
-    try:
-        date = parsedate_to_datetime(str(value or "").strip())
-        if date.tzinfo is None:
-            date = date.replace(tzinfo=datetime.timezone.utc)
-        return date.astimezone(datetime.timezone.utc)
-    except Exception:
+    """Parse RSS/ISO timestamps consistently for scoring and storyboard output."""
+    raw = str(value or "").strip()
+    if not raw:
         return None
+    try:
+        date = parsedate_to_datetime(raw)
+    except Exception:
+        try:
+            date = datetime.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except Exception:
+            return None
+    if date.tzinfo is None:
+        date = date.replace(tzinfo=datetime.timezone.utc)
+    return date.astimezone(datetime.timezone.utc)
 
 
 def _freshness_score(item):
@@ -202,8 +210,17 @@ def _classification_score(item):
     return min(10, issue_count * 2 + theme_count * 2 + min(stock_count, 2))
 
 
-def build_keyword_storyboard(items, merge_minutes=30):
-    """Build a compact time-ordered keyword flow without changing article display."""
+def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seoul"):
+    """Build a compact time-ordered keyword flow without changing article display.
+
+    News timestamps are stored in UTC. Convert them only for presentation so the
+    storyboard uses the market's local clock instead of silently showing UTC.
+    """
+    try:
+        tz = ZoneInfo(str(display_timezone or "Asia/Seoul"))
+    except Exception:
+        tz = datetime.timezone.utc
+
     events = []
     for item in items or []:
         dt = _parse_date(item.get("pub_date") or item.get("published_at"))
@@ -215,9 +232,10 @@ def build_keyword_storyboard(items, merge_minutes=30):
                 keywords.append(label)
         if not dt or not keywords:
             continue
+        local_dt = dt.astimezone(tz)
         events.append({
-            "time": dt.strftime("%H:%M"),
-            "timestamp": dt.isoformat(),
+            "time": local_dt.strftime("%H:%M"),
+            "timestamp": local_dt.isoformat(),
             "keywords": keywords,
         })
 
