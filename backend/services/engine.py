@@ -2166,7 +2166,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
 
             try:
-                news_list = score_stock_news(fetch_stock_news(raw_name, market="국내", limit=3), raw_name)
+                news_list = score_stock_news(fetch_stock_news(raw_name, market="국내", limit=50), raw_name)
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
                 news_list = []
@@ -2231,7 +2231,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 call_vol, put_vol, option_error = 0, 0, str(e)
 
             try:
-                news_list = score_stock_news(fetch_stock_news(raw_name, market="미국", limit=3), raw_name)
+                news_list = score_stock_news(fetch_stock_news(raw_name, market="미국", limit=50), raw_name)
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
                 news_list = []
