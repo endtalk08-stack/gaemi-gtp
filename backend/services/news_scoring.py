@@ -238,10 +238,13 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
         dt = _parse_date(item.get("pub_date") or item.get("published_at"))
         signals = item.get("movement_signals") or []
         keywords = []
+        keyword_tones = {}
         for signal in signals:
             label = str(signal.get("label") or "").strip()
+            tone = str(signal.get("tone") or "neutral").strip()
             if label and label not in keywords:
                 keywords.append(label)
+                keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
         if not dt or not keywords:
             continue
         local_dt = dt.astimezone(tz)
@@ -249,6 +252,7 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
             "time": local_dt.strftime("%H:%M"),
             "timestamp": local_dt.isoformat(),
             "keywords": keywords,
+            "keyword_tones": keyword_tones,
         })
 
     events.sort(key=lambda event: event["timestamp"])
@@ -268,6 +272,7 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
             for keyword in event["keywords"]:
                 if keyword not in previous["keywords"]:
                     previous["keywords"].append(keyword)
+                    previous.setdefault("keyword_tones", {})[keyword] = event.get("keyword_tones", {}).get(keyword, "neutral")
             previous["timestamp"] = event["timestamp"]
             previous["time"] = event["time"]
         else:
