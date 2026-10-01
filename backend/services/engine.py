@@ -2380,7 +2380,11 @@ def analyze_stock(raw_name='SK하이닉스'):
         if not is_krw and ticker_symbol:
             for item in score_disclosures(us_filings_raw or []):
                 us_filings.append({
-                    "title": "내부자 거래" if str(item.get("form", "")).upper() == "4" else (item.get("description") or "SEC 공시"),
+                    "title": (
+                        item.get("transaction_summary")
+                        or item.get("transaction_kind")
+                        or "내부자 거래"
+                    ) if str(item.get("form", "")).upper() == "4" else (item.get("description") or "SEC 공시"),
                     "source": "SEC",
                     "date": item.get("date", ""),
                     "time": item.get("time", ""),
