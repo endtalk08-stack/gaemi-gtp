@@ -216,6 +216,18 @@
   font-size: 1rem;
   line-height: 1.5rem;
 }
+
+/* 첫 답변의 현재 주가 문장과 해시태그를 같은 글자 크기로 맞춘다. */
+.first-answer-hashtag {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+@media (min-width: 640px) {
+  .first-answer-hashtag {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+  }
+}
 .left-nav-rail-top,
 .left-nav-rail-bottom {
   width: 100%;
