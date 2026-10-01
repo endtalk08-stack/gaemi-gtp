@@ -59,15 +59,17 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 const keywordEl = document.createElement('span');
                 keywordEl.className = 'analysis-hashtag font-semibold';
                 const keywordTones = event.keyword_tones && typeof event.keyword_tones === 'object' ? event.keyword_tones : {};
+                const eventToneValues = Object.values(keywordTones);
+                // 방향성이 명시되지 않은 키워드도 흐름 안에서는 같은 색 체계를 사용한다.
+                // 같은 이벤트에 악재가 하나라도 있으면 파랑, 그 외에는 핑크를 기본으로 한다.
+                const fallbackTone = eventToneValues.includes('negative') ? 'negative' : 'positive';
                 const keywordParts = (Array.isArray(event.keywords) ? event.keywords : []).map((keyword) => {
                   const label = String(keyword).replace(/^#/, '');
-                  const tone = keywordTones[keyword] || keywordTones[label] || 'neutral';
+                  const tone = keywordTones[keyword] || keywordTones[label] || fallbackTone;
                   const span = document.createElement('span');
-                  span.className = tone === 'positive'
-                    ? 'text-pink-500 dark:text-pink-400'
-                    : tone === 'negative'
-                      ? 'text-blue-500 dark:text-blue-400'
-                      : '';
+                  span.className = tone === 'negative'
+                    ? 'text-blue-500 dark:text-blue-400'
+                    : 'text-pink-500 dark:text-pink-400';
                   span.textContent = `#${label}`;
                   return span;
                 });
