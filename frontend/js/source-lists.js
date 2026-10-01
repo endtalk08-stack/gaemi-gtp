@@ -125,6 +125,47 @@ window.GaemiGTPSourceLists.renderSourceLists = function(result, { includeHeader 
         return group;
       };
 
+      const keywordStoryboard = Array.isArray(result.keyword_storyboard) ? result.keyword_storyboard : [];
+      if (keywordStoryboard.length) {
+        const storyboard = document.createElement('div');
+        storyboard.className = 'source-list-group';
+        const storyboardTitle = document.createElement('div');
+        storyboardTitle.className = 'source-list-group-title';
+        storyboardTitle.textContent = '키워드 흐름';
+        storyboard.appendChild(storyboardTitle);
+
+        const storyboardCard = document.createElement('div');
+        storyboardCard.className = 'source-list-card';
+
+        keywordStoryboard.forEach(event => {
+          const row = document.createElement('div');
+          row.className = 'source-list-row';
+          row.setAttribute('aria-label', '시간순 키워드 흐름');
+          row.style.cursor = 'default';
+
+          const main = document.createElement('div');
+          main.className = 'source-list-main';
+
+          const timeEl = document.createElement('div');
+          timeEl.className = 'text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] mb-1';
+          timeEl.textContent = event.time || '';
+          main.appendChild(timeEl);
+
+          const keywordEl = document.createElement('div');
+          keywordEl.className = 'analysis-hashtag font-semibold text-[#db2777] dark:text-[#e889aa]';
+          keywordEl.textContent = (Array.isArray(event.keywords) ? event.keywords : [])
+            .map(keyword => `#${String(keyword).replace(/^#/, '')}`)
+            .join(' ');
+          main.appendChild(keywordEl);
+
+          row.appendChild(main);
+          storyboardCard.appendChild(row);
+        });
+
+        storyboard.appendChild(storyboardCard);
+        panel.appendChild(storyboard);
+      }
+
       const newsGroup = makeGroup('뉴스', newsItems);
       const disclosureGroup = makeGroup('공시', sourceDisclosureItems);
       if (newsGroup) panel.appendChild(newsGroup);
