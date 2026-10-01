@@ -47,7 +47,7 @@ window.GaemiGTPNews.renderArticles = function ({
               const sourceChip = document.createElement('button');
               sourceChip.type = 'button';
               sourceChip.className = 'news-source-chip';
-              sourceChip.style.marginTop = '8px';
+              sourceChip.style.marginTop = '12px';
               sourceChip.setAttribute('aria-label', '더보기');
               const badges = document.createElement('span');
               badges.className = 'news-source-chip__badges';
