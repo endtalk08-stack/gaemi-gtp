@@ -39,21 +39,34 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             const disclosures = (Array.isArray(result.disclosures) && result.disclosures.length
               ? result.disclosures
               : (Array.isArray(result.us_filings) ? result.us_filings : [])).slice(0, 3);
+            const storyboard = Array.isArray(result.keyword_storyboard) ? result.keyword_storyboard : [];
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5 animate-fade';
             const signalTitle = document.createElement('p');
             signalTitle.className = responseMessageClass;
-            signalTitle.textContent = evidence.signals.length || disclosures.length ? '오늘 눈에 띄는 흐름 👀' : '오늘은 흐름 없음 ☁️';
-            const signalList = document.createElement('div');
-            signalList.className = 'flex flex-wrap gap-x-3 gap-y-2 font-semibold';
-            evidence.signals.forEach((signal) => {
-              const tag = document.createElement('span');
-              tag.textContent = signal.label;
-              tag.style.color = signal.tone === 'positive' ? '#FF8DA1' : signal.tone === 'negative' ? '#38BDF8' : '#94A3B8';
-              signalList.appendChild(tag);
-            });
+            signalTitle.textContent = evidence.signals.length || storyboard.length || disclosures.length ? '오늘 눈에 띄는 흐름 👀' : '오늘은 흐름 없음 ☁️';
             block.appendChild(signalTitle);
-            if (evidence.signals.length) block.appendChild(signalList);
+
+            if (storyboard.length) {
+              const storyboardList = document.createElement('div');
+              storyboardList.className = 'space-y-2';
+              storyboard.forEach((event) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-baseline gap-3';
+                const timeEl = document.createElement('span');
+                timeEl.className = 'shrink-0 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                timeEl.textContent = event.time || '';
+                const keywordEl = document.createElement('span');
+                keywordEl.className = 'analysis-hashtag font-semibold';
+                keywordEl.textContent = (Array.isArray(event.keywords) ? event.keywords : [])
+                  .map((keyword) => `#${String(keyword).replace(/^#/, '')}`)
+                  .join(' ');
+                row.appendChild(timeEl);
+                row.appendChild(keywordEl);
+                storyboardList.appendChild(row);
+              });
+              block.appendChild(storyboardList);
+            }
   
             const articles = window.GaemiGTPNews.renderArticles({
               evidence,
