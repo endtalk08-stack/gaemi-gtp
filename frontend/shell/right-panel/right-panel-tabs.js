@@ -52,7 +52,7 @@
     const root = document.getElementById('rightPanelWorkspace'); if (!root) return;
     if (!panelWorkspaceView) { root.innerHTML = ''; return; }
     if (panelWorkspaceView === 'panel-workspace') { root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>'; if (window.GaemiGTPPanelWorkspace && typeof window.GaemiGTPPanelWorkspace.mount === 'function') window.GaemiGTPPanelWorkspace.mount(root); return; }
-    if (panelWorkspaceView === 'news') { root.innerHTML = '<section id="rightPanelNews" style="height:100%;min-height:0;" aria-label="뉴스"></section>'; mountNewsPage(); return; }
+    if (panelWorkspaceView === 'news') { root.innerHTML = '<section id="rightPanelNews" style="height:100%;min-height:0;" aria-label="뉴스"></section>'; return; }
     if (panelWorkspaceView === 'disclosures') { root.innerHTML = '<section id="rightPanelDisclosures" style="height:100%;min-height:0;" aria-label="공시"></section>'; mountDisclosuresPage(); }
   }
   function renderTabs() {
