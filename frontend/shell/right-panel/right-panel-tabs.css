@@ -91,3 +91,17 @@
 @media (max-width: 480px) {
   .right-panel-related-news { padding: 14px 14px 24px; }
 }
+
+.right-panel-related-news__item {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.right-panel-related-news__item:hover .right-panel-related-news__title {
+  text-decoration: underline;
+}
