@@ -16,6 +16,9 @@ window.GaemiGTPExternalLinkModal.openExternalLinkModal = function(item) {
 
       document.getElementById('externalLinkArticleTitle').textContent = title;
       document.getElementById('externalLinkArticleMeta').textContent = meta;
+      const description = item.description || item.summary || '';
+      const descriptionEl = document.getElementById('externalLinkArticleDescription');
+      if (descriptionEl) descriptionEl.textContent = description;
       document.getElementById('externalLinkUrl').textContent = href;
       modal.dataset.href = href;
       modal.classList.add('is-open');
