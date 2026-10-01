@@ -73,6 +73,7 @@ DETAIL_KEYWORD_RULES = [
     ("유럽판매감소", "negative", ["유럽 판매 감소"]),
     ("반발매수세", "positive", ["반발 매수세", "반발매수"]),
     ("코스닥강세", "positive", ["코스닥 강세"]),
+    ("반도체주약세", "negative", ["반도체주 약세", "반도체주 약세세", "반도체 약세"]),
     ("반도체강세", "positive", ["반도체 강세"]),
     ("AI주반등", "positive", ["ai주 반등", "ai 주 반등"]),
     ("수요증가", "positive", ["수요 증가", "수요 확대"]),
@@ -192,6 +193,17 @@ def _refine_movement_signals(item):
             signal["label"] = label
             refined.append(signal)
             seen.add(label)
+
+    # Title + description are the article's evidence boundary. If a concrete
+    # signal is explicitly present there, keep it even when feed-level
+    # movement_signals did not carry that label through.
+    for group_rules in CONCRETE_SIGNAL_RULES.values():
+        for label, phrases in group_rules:
+            if label not in seen and any(phrase.lower() in text for phrase in phrases):
+                tone = "negative" if label in {"금리부담", "유가부담", "환율부담", "시장약세", "반도체주약세", "외국인매도", "기관매도", "실적악화", "전망하향"} else "positive"
+                refined.append({"label": label, "tone": tone})
+                seen.add(label)
+
     for label, tone, phrases in DETAIL_KEYWORD_RULES:
         if label not in seen and any(phrase.lower() in text for phrase in phrases):
             refined.append({"label": label, "tone": tone})
