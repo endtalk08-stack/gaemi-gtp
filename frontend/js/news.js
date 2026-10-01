@@ -69,7 +69,7 @@ window.GaemiGTPNews.renderArticles = function ({
               const sourceChip = document.createElement('button');
               sourceChip.type = 'button';
               sourceChip.className = 'news-source-chip';
-              sourceChip.setAttribute('aria-label', '관련 기사 더보기');
+              sourceChip.setAttribute('aria-label', '더보기');
               const badges = document.createElement('span');
               badges.className = 'news-source-chip__badges';
               sourceItems.slice(0, 3).forEach((item) => {
@@ -83,7 +83,7 @@ window.GaemiGTPNews.renderArticles = function ({
               sourceChip.appendChild(badges);
               const label = document.createElement('span');
               label.className = 'news-source-chip__label';
-              label.textContent = '관련 기사 더보기';
+              label.textContent = '더보기';
               sourceChip.appendChild(label);
               sourceChip.addEventListener('click', () => {
                 if (window.GaemiGTPRightPanelTabs?.showRelatedNews) {
