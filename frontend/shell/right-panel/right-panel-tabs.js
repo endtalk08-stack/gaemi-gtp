@@ -90,10 +90,6 @@
     const section = document.createElement('section');
     section.className = 'right-panel-related-news';
     section.setAttribute('aria-label', '관련 기사');
-    const heading = document.createElement('div');
-    heading.className = 'right-panel-related-news__heading';
-    heading.textContent = `관련 기사 ${relatedNewsItems.length}개`;
-    section.appendChild(heading);
     if (!relatedNewsItems.length) {
       const empty = document.createElement('div');
       empty.className = 'right-panel-related-news__empty';
