@@ -86,11 +86,12 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               block.appendChild(storyboardList);
             }
   
-            const articles = window.GaemiGTPNews.renderArticles({
+            const articles = await window.GaemiGTPNews.renderArticles({
               evidence: { ...evidence, articles: allNewsItems, matchedArticles: evidence.articles },
               block,
               responseMessageClass,
-              openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal
+              openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal,
+              typeText
             });
   
             if (!articles.length && !disclosures.length) {
