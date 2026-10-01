@@ -33,9 +33,9 @@ window.GaemiGTPNews.renderArticles = function ({
             });
 
             // 자리가 남으면 선택된 키워드 중 하나라도 실제로 들어 있는 기사만 추가한다.
-            if (articles.length < 3) {
+            if (articles.length < 10) {
               sourceArticles.forEach((item) => {
-                if (articles.length >= 3 || usedArticles.has(item)) return;
+                if (articles.length >= 10 || usedArticles.has(item)) return;
                 const signals = articleSignals(item);
                 if (selectedSignals.some((signal) => signals.includes(signal.normalizedLabel))) {
                   articles.push(item);
