@@ -143,7 +143,7 @@ def _parse_date(value):
 
 
 def _freshness_score(item):
-    date = _parse_date(item.get("pub_date"))
+    date = _parse_date(item.get("pub_date") or item.get("published_at"))
     if not date:
         return 0
     hours = max(0.0, (datetime.datetime.now(datetime.timezone.utc) - date).total_seconds() / 3600)
@@ -206,7 +206,7 @@ def build_keyword_storyboard(items, merge_minutes=30):
     """Build a compact time-ordered keyword flow without changing article display."""
     events = []
     for item in items or []:
-        dt = _parse_date(item.get("pub_date"))
+        dt = _parse_date(item.get("pub_date") or item.get("published_at"))
         signals = item.get("movement_signals") or []
         keywords = []
         for signal in signals:
