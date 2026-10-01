@@ -541,3 +541,43 @@ body.left-context-open #gaemiWorkspace {
     display: block;
   }
 }
+
+
+/* 관련 기사 출처 칩 — 다른 출처 버튼과 같은 작고 둥근 형태 */
+.news-source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  margin-top: 4px;
+  padding: 0 10px 0 6px;
+  border: 1px solid #303136;
+  border-radius: 999px;
+  background: #202124;
+  color: #d4d4d8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.news-source-chip:hover {
+  border-color: #52525b;
+  background: #27272a;
+  color: #fafafa;
+}
+.news-source-chip__badges { display: inline-flex; align-items: center; }
+.news-source-chip__badge {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: -3px;
+  border: 2px solid #202124;
+  border-radius: 50%;
+  background: #3f3f46;
+  color: #f4f4f5;
+  font-size: 8px;
+  font-weight: 800;
+}
+.news-source-chip__badge:first-child { margin-left: 0; }
+.news-source-chip__label { white-space: nowrap; }
+
