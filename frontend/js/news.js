@@ -32,7 +32,7 @@ window.GaemiGTPNews.renderArticles = function ({
               articles.forEach((item, index) => {
                 const row = document.createElement('button');
                 row.type = 'button';
-                row.className = 'block w-full translate-y-1 text-left text-[13px] leading-5 sm:text-base sm:leading-7 opacity-0 text-[#475569] transition duration-300 hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white line-clamp-1';
+                row.className = 'block w-full translate-y-1 text-left text-xs leading-5 sm:text-base sm:leading-7 opacity-0 text-[#475569] transition duration-300 hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white line-clamp-1';
                 row.classList.add(...String(responseMessageClass || '').split(/\s+/).filter(Boolean));
                 row.textContent = item.title || '제목 확인 필요';
                 row.addEventListener('click', () => openExternalLinkModal(item));
