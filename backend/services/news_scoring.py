@@ -9,6 +9,8 @@ refined back to concrete phrases that are actually present in title+description.
 import datetime
 from collections import Counter
 from zoneinfo import ZoneInfo
+
+from .news_feed import STOCK_UNIVERSE
 from email.utils import parsedate_to_datetime
 
 
@@ -163,21 +165,31 @@ def _freshness_score(item):
     return 2
 
 
+def _stock_aliases(stock_name):
+    stock = str(stock_name or "").strip().lower()
+    aliases = [stock]
+    for stocks in STOCK_UNIVERSE.values():
+        for name, values in stocks.items():
+            if str(name).strip().lower() == stock:
+                aliases.extend(str(value).strip().lower() for value in values)
+                break
+    return list(dict.fromkeys(alias for alias in aliases if alias))
+
+
 def _direct_score(item, stock_name):
     title = str(item.get("title") or "").lower()
-    stock = str(stock_name or "").strip().lower()
-    return 35 if stock and stock in title else 0
+    return 35 if any(alias in title for alias in _stock_aliases(stock_name)) else 0
 
 
 def _context_relevance_score(item, stock_name):
     title = str(item.get("title") or "").lower()
     description = str(item.get("description") or "").lower()
-    stock = str(stock_name or "").strip().lower()
-    if not stock:
+    aliases = _stock_aliases(stock_name)
+    if not aliases:
         return 0
 
-    title_hits = title.count(stock)
-    body_hits = description.count(stock)
+    title_hits = sum(title.count(alias) for alias in aliases)
+    body_hits = sum(description.count(alias) for alias in aliases)
 
     # 제목 직접 언급은 중앙 핵심기사의 강한 신호로 사용한다.
     # 본문에만 등장한 기사는 점수를 낮게 주되 더보기에서는 보존한다.
