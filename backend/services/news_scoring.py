@@ -166,7 +166,26 @@ def _freshness_score(item):
 def _direct_score(item, stock_name):
     title = str(item.get("title") or "").lower()
     stock = str(stock_name or "").strip().lower()
-    return 25 if stock and stock in title else 0
+    return 35 if stock and stock in title else 0
+
+
+def _context_relevance_score(item, stock_name):
+    title = str(item.get("title") or "").lower()
+    description = str(item.get("description") or "").lower()
+    stock = str(stock_name or "").strip().lower()
+    if not stock:
+        return 0
+
+    title_hits = title.count(stock)
+    body_hits = description.count(stock)
+
+    # 제목 직접 언급은 중앙 핵심기사의 강한 신호로 사용한다.
+    # 본문에만 등장한 기사는 점수를 낮게 주되 더보기에서는 보존한다.
+    if title_hits:
+        return 25 + min(10, max(0, title_hits - 1) * 5)
+    if body_hits:
+        return min(12, body_hits * 4)
+    return 0
 
 
 def _material_score(item):
@@ -319,7 +338,8 @@ def score_stock_news(items, stock_name):
         item = dict(raw)
         item["movement_signals"] = _refine_movement_signals(item)
         breakdown = {
-            "direct_stock": _direct_score(item, stock_name), "material_strength": _material_score(item),
+            "direct_stock": _direct_score(item, stock_name), "context_relevance": _context_relevance_score(item, stock_name),
+            "material_strength": _material_score(item),
             "movement_signal": _signal_score(item), "freshness": _freshness_score(item),
             "classification_context": _classification_score(item),
         }
