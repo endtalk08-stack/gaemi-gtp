@@ -551,10 +551,10 @@ body.left-context-open #gaemiWorkspace {
   min-height: 32px;
   margin-top: 4px;
   padding: 0 10px 0 6px;
-  border: 1px solid #303136;
+  border: 1px solid #d4d4d8;
   border-radius: 999px;
-  background: #202124;
-  color: #d4d4d8;
+  background: #f4f4f5;
+  color: #52525b;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -562,6 +562,16 @@ body.left-context-open #gaemiWorkspace {
   transition: border-color .15s ease, background .15s ease, color .15s ease;
 }
 .news-source-chip:hover {
+  border-color: #a1a1aa;
+  background: #e4e4e7;
+  color: #18181b;
+}
+.dark .news-source-chip {
+  border-color: #303136;
+  background: #202124;
+  color: #d4d4d8;
+}
+.dark .news-source-chip:hover {
   border-color: #52525b;
   background: #27272a;
   color: #fafafa;
@@ -571,13 +581,18 @@ body.left-context-open #gaemiWorkspace {
   width: 22px; height: 22px;
   display: inline-flex; align-items: center; justify-content: center;
   margin-left: -3px;
-  border: 2px solid #202124;
+  border: 2px solid #f4f4f5;
   border-radius: 50%;
-  background: #3f3f46;
-  color: #f4f4f5;
+  background: #d4d4d8;
+  color: #3f3f46;
   font-size: 8px;
   font-weight: 800;
 }
 .news-source-chip__badge:first-child { margin-left: 0; }
+.dark .news-source-chip__badge {
+  border-color: #202124;
+  background: #3f3f46;
+  color: #f4f4f5;
+}
 .news-source-chip__label { white-space: nowrap; }
 
