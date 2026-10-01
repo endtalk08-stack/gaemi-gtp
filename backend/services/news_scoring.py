@@ -202,6 +202,50 @@ def _classification_score(item):
     return min(10, issue_count * 2 + theme_count * 2 + min(stock_count, 2))
 
 
+def build_keyword_storyboard(items, merge_minutes=30):
+    """Build a compact time-ordered keyword flow without changing article display."""
+    events = []
+    for item in items or []:
+        dt = _parse_date(item.get("pub_date"))
+        signals = item.get("movement_signals") or []
+        keywords = []
+        for signal in signals:
+            label = str(signal.get("label") or "").strip()
+            if label and label not in keywords:
+                keywords.append(label)
+        if not dt or not keywords:
+            continue
+        events.append({
+            "time": dt.strftime("%H:%M"),
+            "timestamp": dt.isoformat(),
+            "keywords": keywords,
+        })
+
+    events.sort(key=lambda event: event["timestamp"])
+    merged = []
+    for event in events:
+        if not merged:
+            merged.append(event)
+            continue
+
+        previous = merged[-1]
+        prev_dt = _parse_date(previous["timestamp"])
+        cur_dt = _parse_date(event["timestamp"])
+        shared = set(previous["keywords"]) & set(event["keywords"])
+        within_window = prev_dt and cur_dt and (cur_dt - prev_dt).total_seconds() <= merge_minutes * 60
+
+        if within_window and shared:
+            for keyword in event["keywords"]:
+                if keyword not in previous["keywords"]:
+                    previous["keywords"].append(keyword)
+            previous["timestamp"] = event["timestamp"]
+            previous["time"] = event["time"]
+        else:
+            merged.append(event)
+
+    return merged
+
+
 def score_stock_news(items, stock_name):
     scored = []
     for raw in items or []:
