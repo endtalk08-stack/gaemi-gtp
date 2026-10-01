@@ -33,9 +33,9 @@ window.GaemiGTPNews.renderArticles = function ({
             });
 
             // 자리가 남으면 선택된 키워드 중 하나라도 실제로 들어 있는 기사만 추가한다.
-            if (articles.length < 10) {
+            if (articles.length < 3) {
               sourceArticles.forEach((item) => {
-                if (articles.length >= 10 || usedArticles.has(item)) return;
+                if (articles.length >= 3 || usedArticles.has(item)) return;
                 const signals = articleSignals(item);
                 if (selectedSignals.some((signal) => signals.includes(signal.normalizedLabel))) {
                   articles.push(item);
@@ -47,18 +47,7 @@ window.GaemiGTPNews.renderArticles = function ({
             if (articles.length) {
               const articleSection = document.createElement('section');
               articleSection.className = 'space-y-2';
-              const articleTrigger = document.createElement('button');
-              articleTrigger.type = 'button';
-              articleTrigger.className = 'inline-flex items-center rounded-lg border border-transparent px-2 py-1 text-left transition-colors hover:border-[#475569] hover:bg-[#f8fafc] dark:hover:border-[#71717a] dark:hover:bg-white/5 cursor-pointer';
-              articleTrigger.appendChild(Object.assign(document.createElement('span'), { className: responseMessageClass, textContent: '관련 기사를 찾아봤어 👉' }));
-              articleTrigger.addEventListener('click', () => {
-                if (window.GaemiGTPRightPanelTabs?.showRelatedNews) {
-                  document.body.classList.add('right-panel-open');
-                  window.applySidebarState?.();
-                  window.GaemiGTPRightPanelTabs.showRelatedNews(articles);
-                }
-              });
-              articleSection.appendChild(articleTrigger);
+              articleSection.appendChild(Object.assign(document.createElement('p'), { className: responseMessageClass, textContent: '관련 기사를 찾아봤어 👇' }));
               block.appendChild(articleSection);
               articles.forEach((item, index) => {
                 const row = document.createElement('button');
