@@ -2172,7 +2172,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 news_list = []
 
             try:
-                kr_official_disclosures = fetch_kr_official_disclosures(clean_code)
+                kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=30)
             except Exception as e:
                 print(f"[국내 공시] fail: {type(e).__name__}: {e}")
                 kr_official_disclosures = []
@@ -2237,7 +2237,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 news_list = []
 
             try:
-                us_filings_raw = fetch_us_official_filings(ticker_symbol)
+                us_filings_raw = fetch_us_official_filings(ticker_symbol, days=30)
             except Exception as e:
                 print(f"[미국 공시] fail: {type(e).__name__}: {e}")
                 us_filings_raw = []
