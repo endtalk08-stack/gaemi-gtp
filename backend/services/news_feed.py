@@ -13,6 +13,10 @@ from backend.providers import naver_news
 
 _CACHE = {}
 _CACHE_TTL = 120
+# Keep the completed per-stock news result stable for one day during observation.
+# The existing collection/filtering logic remains unchanged; this only caches its final result.
+_STOCK_RESULT_CACHE = {}
+_STOCK_RESULT_TTL = 24 * 60 * 60
 _CACHE_LOCK = threading.Lock()
 MAX_NEWS_AGE_DAYS = 7
 
@@ -336,12 +340,23 @@ def fetch_stock_news(stock_name, limit=20, market=None):
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
+
+    cache_key = (stock_name.lower(), market or "")
+    now = time.time()
+    with _CACHE_LOCK:
+        cached = _STOCK_RESULT_CACHE.get(cache_key)
+        if cached and now - cached[0] <= _STOCK_RESULT_TTL:
+            return list(cached[1])[: max(1, int(limit))]
+
     queries = [stock_name]
     for stocks in STOCK_UNIVERSE.values():
         aliases = stocks.get(stock_name)
         if aliases:
             queries = list(dict.fromkeys([stock_name] + aliases[:3]))
             break
+
+    # Existing collection/filtering logic is unchanged. The 24-hour cache is
+    # applied only after the final per-stock result has been produced.
     items = [_enrich_item(x) for x in _fetch_queries(queries, category="종목", per_query=max(20, limit))]
     relevant = []
     for item in items:
@@ -351,7 +366,11 @@ def fetch_stock_news(stock_name, limit=20, market=None):
         if not _contains_any(text, STOCK_MATERIAL_SIGNALS):
             continue
         relevant.append(item)
-    return relevant[: max(1, int(limit))]
+
+    result = relevant[: max(1, int(limit))]
+    with _CACHE_LOCK:
+        _STOCK_RESULT_CACHE[cache_key] = (now, list(result))
+    return list(result)
 
 
 def get_news_coverage():
