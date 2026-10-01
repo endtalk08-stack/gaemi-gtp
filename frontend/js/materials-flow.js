@@ -23,24 +23,14 @@ window.GaemiGTPMaterialsFlow.appendMaterials = async function ({
             prompt.insertAdjacentElement('afterend', loading);
   
             const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            // 첫 답변과 같은 글자 크기/타이핑 연출을 사용한다.
-            // 점 6개 로더는 사용하지 않고, 문장 자체가 순서대로 나타난다.
             for (const message of ['뉴스와 공시를 확인합니다', '생각중', '내용을 정리중입니다']) {
               if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
               const line = document.createElement('p');
-              line.className = `${responseMessageClass} typing-cursor animate-fade`;
+              line.className = `${responseMessageClass} animate-pulse`;
+              line.textContent = message;
               loading.appendChild(line);
-
-              let charIdx = 0;
-              while (charIdx < message.length) {
-                if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
-                line.textContent += message.charAt(charIdx++);
-                await wait(35);
-              }
-              line.classList.remove('typing-cursor');
-              await wait(500);
+              await wait(4000);
             }
-  
             if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
             loading.remove();
   
