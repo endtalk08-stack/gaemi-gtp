@@ -569,6 +569,22 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           });
         };
 
+        const typeText = async (element, text, { chunkSize = 3 } = {}) => {
+          if (!element) return;
+          element.textContent = '';
+          element.classList.add('typing-cursor');
+          let charIndex = 0;
+          while (charIndex < text.length) {
+            if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
+            const chunk = text.substr(charIndex, chunkSize);
+            element.textContent += chunk;
+            charIndex += chunk.length;
+            const pause = /[.!?…]$/.test(chunk) ? 180 : (/\n$/.test(chunk) ? 120 : 40);
+            await new Promise((resolve) => setTimeout(resolve, pause));
+          }
+          element.classList.remove('typing-cursor');
+        };
+
         const appendWhy = async () => {
           return window.GaemiGTPWhyFlow.appendWhy({
             mainContainer,
@@ -580,6 +596,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             makeUserPrompt,
             getWhyEvidence,
             appendFollowupChoices,
+            typeText,
             responseMessageClass,
             stockName
           });
@@ -625,8 +642,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
             ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${dynamicTitle}</h4>` : ''}
           </div>`;
-        const shouldTypeSection = secIdx === 0;
-        const contentMarkup = `<p id="p-content-${secIdx}" class="${responseMessageClass} whitespace-pre-line${shouldTypeSection ? ' typing-cursor' : ''}"></p>`;
+        const shouldTypeSection = true;
+        const contentMarkup = `<p id="p-content-${secIdx}" class="${responseMessageClass} whitespace-pre-line typing-cursor"></p>`;
         // 첫 답변은 현재 가격 설명만 보여 준다. 고정 "오늘은 왜 올랐어?"
         // 제목과 시간표는 중앙 본문 흐름에서 제외한다.
         textBlock.innerHTML = sec.id === 'why-up'
@@ -639,13 +656,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         let charIdx = 0;
         const chunkSize = 3;
 
-        // 첫 답변(현재 가격 설명과 해시태그)만 타이핑한다.
-        // 뒤 분석 영역은 기존 내용과 배치를 유지한 채 바로 표시한다.
-        if (!shouldTypeSection) {
-          pEl.textContent = text;
-          charIdx = text.length;
-        }
-
+        // 분석 본문은 모두 같은 타이핑 연출을 사용한다.
         function typeChunk() {
           if (requestId !== activeAnalysisRequestId) return;
           if (charIdx < text.length) {
