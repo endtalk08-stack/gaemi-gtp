@@ -234,8 +234,11 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
         tz = datetime.timezone.utc
 
     events = []
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=24)
     for item in items or []:
         dt = _parse_date(item.get("pub_date") or item.get("published_at"))
+        if not dt or dt < cutoff:
+            continue
         signals = item.get("movement_signals") or []
         keywords = []
         keyword_tones = {}
