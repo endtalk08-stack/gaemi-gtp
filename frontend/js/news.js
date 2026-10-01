@@ -47,7 +47,18 @@ window.GaemiGTPNews.renderArticles = function ({
             if (articles.length) {
               const articleSection = document.createElement('section');
               articleSection.className = 'space-y-2';
-              articleSection.appendChild(Object.assign(document.createElement('p'), { className: responseMessageClass, textContent: '관련 기사를 찾아봤어 👇' }));
+              const articleTrigger = document.createElement('button');
+              articleTrigger.type = 'button';
+              articleTrigger.className = 'inline-flex items-center rounded-lg border border-transparent px-2 py-1 text-left transition-colors hover:border-[#475569] hover:bg-[#f8fafc] dark:hover:border-[#71717a] dark:hover:bg-white/5 cursor-pointer';
+              articleTrigger.appendChild(Object.assign(document.createElement('span'), { className: responseMessageClass, textContent: '관련 기사를 찾아봤어 👉' }));
+              articleTrigger.addEventListener('click', () => {
+                if (window.GaemiGTPRightPanelTabs?.showRelatedNews) {
+                  document.body.classList.add('right-panel-open');
+                  window.applySidebarState?.();
+                  window.GaemiGTPRightPanelTabs.showRelatedNews(articles);
+                }
+              });
+              articleSection.appendChild(articleTrigger);
               block.appendChild(articleSection);
               articles.forEach((item, index) => {
                 const row = document.createElement('button');
