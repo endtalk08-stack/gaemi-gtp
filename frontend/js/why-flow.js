@@ -53,15 +53,11 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               storyboard.forEach((event) => {
                 const row = document.createElement('div');
                 row.className = 'flex items-baseline gap-3';
-                const timeEl = document.createElement('span');
-                timeEl.className = 'shrink-0 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
-                timeEl.textContent = event.time || '';
                 const keywordEl = document.createElement('span');
                 keywordEl.className = 'analysis-hashtag font-semibold';
                 keywordEl.textContent = (Array.isArray(event.keywords) ? event.keywords : [])
                   .map((keyword) => `#${String(keyword).replace(/^#/, '')}`)
                   .join(' ');
-                row.appendChild(timeEl);
                 row.appendChild(keywordEl);
                 storyboardList.appendChild(row);
               });
