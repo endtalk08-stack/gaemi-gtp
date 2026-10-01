@@ -58,9 +58,23 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 timeEl.textContent = event.time || '';
                 const keywordEl = document.createElement('span');
                 keywordEl.className = 'analysis-hashtag font-semibold';
-                keywordEl.textContent = (Array.isArray(event.keywords) ? event.keywords : [])
-                  .map((keyword) => `#${String(keyword).replace(/^#/, '')}`)
-                  .join(' ');
+                const keywordTones = event.keyword_tones && typeof event.keyword_tones === 'object' ? event.keyword_tones : {};
+                const keywordParts = (Array.isArray(event.keywords) ? event.keywords : []).map((keyword) => {
+                  const label = String(keyword).replace(/^#/, '');
+                  const tone = keywordTones[keyword] || keywordTones[label] || 'neutral';
+                  const span = document.createElement('span');
+                  span.className = tone === 'positive'
+                    ? 'text-pink-500 dark:text-pink-400'
+                    : tone === 'negative'
+                      ? 'text-blue-500 dark:text-blue-400'
+                      : '';
+                  span.textContent = `#${label}`;
+                  return span;
+                });
+                keywordParts.forEach((part, index) => {
+                  if (index) keywordEl.appendChild(document.createTextNode(' '));
+                  keywordEl.appendChild(part);
+                });
                 row.appendChild(timeEl);
                 row.appendChild(keywordEl);
                 storyboardList.appendChild(row);
