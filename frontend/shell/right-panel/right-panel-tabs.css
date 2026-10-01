@@ -59,7 +59,6 @@
 .right-panel-related-news__list { display: flex; flex-direction: column; }
 .right-panel-related-news__item {
   padding: 14px 2px;
-  border-bottom: 1px solid var(--gtp-border);
 }
 .right-panel-related-news__item:first-child { padding-top: 2px; }
 .right-panel-related-news__title {
