@@ -32,8 +32,9 @@ window.GaemiGTPNews.renderArticles = function ({
               articles.forEach((item, index) => {
                 const row = document.createElement('button');
                 row.type = 'button';
-                row.className = 'block w-full translate-y-1 text-left text-xs leading-5 sm:text-base sm:leading-7 opacity-0 text-[#475569] transition duration-300 hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white line-clamp-1';
+                row.className = 'block w-full translate-y-1 text-left leading-5 sm:leading-6 opacity-0 text-[#475569] transition duration-300 hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white line-clamp-1';
                 row.classList.add(...String(responseMessageClass || '').split(/\s+/).filter(Boolean));
+                row.style.fontSize = window.matchMedia('(min-width: 640px)').matches ? '1rem' : '13px';
                 row.textContent = item.title || '제목 확인 필요';
                 row.addEventListener('click', () => openExternalLinkModal(item));
                 articleSection.appendChild(row);
@@ -46,6 +47,7 @@ window.GaemiGTPNews.renderArticles = function ({
               const sourceChip = document.createElement('button');
               sourceChip.type = 'button';
               sourceChip.className = 'news-source-chip';
+              sourceChip.style.marginTop = '8px';
               sourceChip.setAttribute('aria-label', '더보기');
               const badges = document.createElement('span');
               badges.className = 'news-source-chip__badges';
