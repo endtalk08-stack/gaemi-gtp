@@ -13,6 +13,7 @@ window.GaemiGTPNews.renderArticles = function ({
               .map((signal) => ({ ...signal, normalizedLabel: normalizeSignalLabel(signal?.label) }))
               .filter((signal) => signal.normalizedLabel);
             const sourceArticles = Array.isArray(evidence.articles) ? evidence.articles : [];
+            const matchedArticles = Array.isArray(evidence.matchedArticles) ? evidence.matchedArticles : sourceArticles;
             const articleSignals = (item) => (Array.isArray(item.movement_signals) ? item.movement_signals : [])
               .map((signal) => normalizeSignalLabel(signal?.label))
               .filter(Boolean);
@@ -22,7 +23,7 @@ window.GaemiGTPNews.renderArticles = function ({
             const articles = [];
             const usedArticles = new Set();
             selectedSignals.forEach((signal) => {
-              const matched = sourceArticles.find((item) => {
+              const matched = matchedArticles.find((item) => {
                 if (usedArticles.has(item)) return false;
                 return articleSignals(item).includes(signal.normalizedLabel);
               });
@@ -34,7 +35,7 @@ window.GaemiGTPNews.renderArticles = function ({
 
             // 자리가 남으면 선택된 키워드 중 하나라도 실제로 들어 있는 기사만 추가한다.
             if (articles.length < 3) {
-              sourceArticles.forEach((item) => {
+              matchedArticles.forEach((item) => {
                 if (articles.length >= 3 || usedArticles.has(item)) return;
                 const signals = articleSignals(item);
                 if (selectedSignals.some((signal) => signals.includes(signal.normalizedLabel))) {
@@ -68,7 +69,7 @@ window.GaemiGTPNews.renderArticles = function ({
               const sourceChip = document.createElement('button');
               sourceChip.type = 'button';
               sourceChip.className = 'news-source-chip';
-              sourceChip.setAttribute('aria-label', `출처 ${sourceItems.length}개 보기`);
+              sourceChip.setAttribute('aria-label', '관련 기사 더보기');
               const badges = document.createElement('span');
               badges.className = 'news-source-chip__badges';
               sourceItems.slice(0, 3).forEach((item) => {
@@ -82,7 +83,7 @@ window.GaemiGTPNews.renderArticles = function ({
               sourceChip.appendChild(badges);
               const label = document.createElement('span');
               label.className = 'news-source-chip__label';
-              label.textContent = `출처 ${sourceItems.length}개`;
+              label.textContent = '관련 기사 더보기';
               sourceChip.appendChild(label);
               sourceChip.addEventListener('click', () => {
                 if (window.GaemiGTPRightPanelTabs?.showRelatedNews) {
