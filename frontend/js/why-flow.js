@@ -68,8 +68,8 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   const tone = keywordTones[keyword] || keywordTones[label] || fallbackTone;
                   const span = document.createElement('span');
                   span.className = tone === 'negative'
-                    ? 'text-blue-500 dark:text-blue-400'
-                    : 'text-pink-500 dark:text-pink-400';
+                    ? 'text-[#38BDF8]'
+                    : 'text-[#FF8DA1]';
                   span.textContent = `#${label}`;
                   return span;
                 });
