@@ -99,8 +99,10 @@
       const list = document.createElement('div');
       list.className = 'right-panel-related-news__list';
       relatedNewsItems.forEach((item) => {
-        const article = document.createElement('article');
+        const article = document.createElement('button');
+        article.type = 'button';
         article.className = 'right-panel-related-news__item';
+        article.addEventListener('click', () => window.GaemiGTPExternalLinkModal?.openExternalLinkModal?.(item));
         const title = document.createElement('div');
         title.className = 'right-panel-related-news__title';
         title.textContent = item.title || '제목 확인 필요';
