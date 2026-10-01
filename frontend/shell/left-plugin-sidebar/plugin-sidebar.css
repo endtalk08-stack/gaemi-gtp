@@ -75,8 +75,18 @@ body.left-plugin-open #leftContextSidebar.context-sidebar {
 .plugin-widget-desc { margin-top: 3px; font-size: 9px; color: var(--gtp-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plugin-widget-status { font-size: 9px; color: var(--gtp-faint); white-space: nowrap; }
 @media (max-width: 1023px) {
-  #leftPluginSidebar.plugin-sidebar { width: min(300px, 82vw); flex-basis: min(300px, 82vw); }
-  body.left-plugin-closed #leftPluginSidebar.plugin-sidebar { width: 0; flex-basis: 0; }
+  #leftMarketSidebar.market-sidebar,
+  #leftContextSidebar.context-sidebar,
+  #leftPluginSidebar.plugin-sidebar {
+    width: calc(100vw - 48px);
+    flex-basis: calc(100vw - 48px);
+  }
+  body.left-market-closed #leftMarketSidebar.market-sidebar,
+  body.left-context-closed #leftContextSidebar.context-sidebar,
+  body.left-plugin-closed #leftPluginSidebar.plugin-sidebar {
+    width: 0;
+    flex-basis: 0;
+  }
   body.left-plugin-open #leftNavRail { display: flex !important; }
   body.left-plugin-open #rightPanel, body.left-plugin-open #rightPanelResizer { display: none !important; }
 }
