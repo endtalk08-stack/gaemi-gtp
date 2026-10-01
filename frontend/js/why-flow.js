@@ -48,6 +48,9 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             signalTitle.className = responseMessageClass;
             const signalTitleText = evidence.signals.length || storyboard.length || disclosures.length ? '오늘 눈에 띄는 흐름 👀' : '오늘은 흐름 없음 ☁️';
             block.appendChild(signalTitle);
+            // 타이핑이 실제 화면에서 보이도록 결과 블록을 먼저 붙인다.
+            prompt.insertAdjacentElement('afterend', block);
+            await typeText(signalTitle, signalTitleText);
 
             if (storyboard.length) {
               const storyboardList = document.createElement('div');
@@ -108,8 +111,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               responseMessageClass
             });
   
-            prompt.insertAdjacentElement('afterend', block);
-            await typeText(signalTitle, signalTitleText);
             const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(block, `${prompt.innerText}\n${block.innerText}`, 'why', stockName);
 
             const followups = document.createElement('section');
