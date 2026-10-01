@@ -57,20 +57,10 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 timeEl.className = 'shrink-0 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
                 timeEl.textContent = event.time || '';
                 const keywordEl = document.createElement('span');
-                keywordEl.className = 'font-semibold';
-                const keywordTones = event.keyword_tones || {};
-                const toneColors = {
-                  positive: 'text-[#e889aa] dark:text-[#e889aa]',
-                  negative: 'text-[#38bdf8] dark:text-[#38bdf8]',
-                  neutral: 'text-[#38bdf8] dark:text-[#38bdf8]'
-                };
-                (Array.isArray(event.keywords) ? event.keywords : []).forEach((keyword, index) => {
-                  if (index > 0) keywordEl.appendChild(document.createTextNode(' '));
-                  const tag = document.createElement('span');
-                  tag.className = toneColors[keywordTones[String(keyword)]] || 'analysis-hashtag';
-                  tag.textContent = `#${String(keyword).replace(/^#/, '')}`;
-                  keywordEl.appendChild(tag);
-                });
+                keywordEl.className = 'analysis-hashtag font-semibold';
+                keywordEl.textContent = (Array.isArray(event.keywords) ? event.keywords : [])
+                  .map((keyword) => `#${String(keyword).replace(/^#/, '')}`)
+                  .join(' ');
                 row.appendChild(timeEl);
                 row.appendChild(keywordEl);
                 storyboardList.appendChild(row);
