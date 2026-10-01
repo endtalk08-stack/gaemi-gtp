@@ -668,7 +668,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
               // 5. 첫 섹션 태그 라인 오류 완전 해결
               if (formatted.includes('#') && !formatted.includes('캘린더')) {
-                const isDown = formatted.includes('-') || formatted.includes('보합') || formatted.includes('눈치싸움') || formatted.includes('파란불') || formatted.includes('숨고르기') || formatted.includes('투매');
+                // HTML 변환 뒤의 문자열에는 class/style의 '-'도 들어가므로,
+                // HTML 문자열이 아니라 실제 답변 텍스트를 기준으로 방향을 판단한다.
+                const directionText = pEl.textContent || formatted;
+                const isDown = /(?:^|\\n).*-(?:\\d+(?:\\.\\d+)?%)|보합|눈치싸움|파란불|숨고르기|투매/.test(directionText);
                 const themeColor = isDown ? '#38BDF8' : '#FF8DA1';
                 
                 let lines = formatted.split('\n\n');
