@@ -268,10 +268,26 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
         previous = merged[-1]
         prev_dt = _parse_date(previous["timestamp"])
         cur_dt = _parse_date(event["timestamp"])
-        shared = set(previous["keywords"]) & set(event["keywords"])
+        def related(a, b):
+            a = str(a or "").replace("#", "").replace(" ", "")
+            b = str(b or "").replace("#", "").replace(" ", "")
+            if not a or not b:
+                return False
+            if a == b:
+                return True
+            # 같은 핵심어를 포함한 세부 표현도 같은 흐름으로 묶는다.
+            if len(a) >= 2 and len(b) >= 2 and (a in b or b in a):
+                return True
+            return False
+
+        related_topic = any(
+            related(left, right)
+            for left in previous["keywords"]
+            for right in event["keywords"]
+        )
         within_window = prev_dt and cur_dt and (cur_dt - prev_dt).total_seconds() <= merge_minutes * 60
 
-        if within_window and shared:
+        if within_window and related_topic:
             for keyword in event["keywords"]:
                 if keyword not in previous["keywords"]:
                     previous["keywords"].append(keyword)
