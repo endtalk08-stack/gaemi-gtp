@@ -18,33 +18,10 @@ window.GaemiGTPNews.renderArticles = function ({
               .map((signal) => normalizeSignalLabel(signal?.label))
               .filter(Boolean);
 
-            // 위에 보여 준 키워드마다 그 키워드를 실제로 만든 기사를 먼저 한 개씩 고른다.
-            // 같은 기사가 여러 키워드의 근거면 중복해서 보여 주지 않는다.
-            const articles = [];
-            const usedArticles = new Set();
-            selectedSignals.forEach((signal) => {
-              const matched = matchedArticles.find((item) => {
-                if (usedArticles.has(item)) return false;
-                return articleSignals(item).includes(signal.normalizedLabel);
-              });
-              if (matched) {
-                articles.push(matched);
-                usedArticles.add(matched);
-              }
-            });
-
-            // 자리가 남으면 선택된 키워드 중 하나라도 실제로 들어 있는 기사만 추가한다.
-            if (articles.length < 3) {
-              matchedArticles.forEach((item) => {
-                if (articles.length >= 3 || usedArticles.has(item)) return;
-                const signals = articleSignals(item);
-                if (selectedSignals.some((signal) => signals.includes(signal.normalizedLabel))) {
-                  articles.push(item);
-                  usedArticles.add(item);
-                }
-              });
-            }
-
+            // 백엔드는 관련도 점수순으로 news_items를 정렬한다.
+            // 중앙에는 상위 1~3개만 보여주고, 전체 목록은 아래 더보기에서 유지한다.
+            const articles = matchedArticles.slice(0, 3);
+            
             if (articles.length) {
               const articleSection = document.createElement('section');
               articleSection.className = 'space-y-2 [&>p]:m-0 [&>button]:m-0';
