@@ -1075,6 +1075,66 @@ def _extract_8k_key_points(section_text, max_points=3):
     return [point[1] for point in selected]
 
 
+def _format_sec_amount_ko(raw_amount):
+    """SEC 영문 금액 표기를 화면용 한글 금액으로 바꾼다."""
+    value = str(raw_amount or "").strip().replace(",", "")
+    match = re.match(r"\$?([0-9]+(?:\.[0-9]+)?)\s*(billion|million)?", value, re.I)
+    if not match:
+        return value
+    number = float(match.group(1))
+    unit = (match.group(2) or "").lower()
+    if unit == "billion":
+        eok = number * 10
+        return f"{eok:g}억 달러"
+    if unit == "million":
+        eok = number / 10
+        return f"{eok:g}억 달러"
+    return f"$" + f"{number:g}"
+
+
+def _summarize_8k_key_points_ko(key_points):
+    """8-K 핵심문장에서 확인 가능한 사실만 짧은 한국어 문장으로 가공한다."""
+    summaries = []
+    for point in key_points or []:
+        text = re.sub(r"\s+", " ", str(point or "")).strip()
+        lowered = text.lower()
+        summary = ""
+
+        if "press release" in lowered and ("exhibit 99.1" in lowered or "exhibit99.1" in lowered):
+            summary = "실적 관련 보도자료 공개 · Exhibit 99.1 첨부"
+        elif "revolving credit" in lowered and ("increase" in lowered or "additional" in lowered):
+            amounts = re.findall(r"\$[0-9]+(?:\.[0-9]+)?\s*(?:billion|million)", text, re.I)
+            if len(amounts) >= 2:
+                summary = "회전신용 한도 최대 " + _format_sec_amount_ko(amounts[0]) + " 추가 확대 가능 · 총 한도 최대 " + _format_sec_amount_ko(amounts[-1])
+            elif amounts:
+                summary = "회전신용 한도 " + _format_sec_amount_ko(amounts[0]) + " 규모 변경"
+        elif "liquidity" in lowered and ("maintain" in lowered or "minimum" in lowered or "at least" in lowered):
+            amounts = re.findall(r"\$[0-9]+(?:\.[0-9]+)?\s*(?:billion|million)", text, re.I)
+            if amounts:
+                summary = "최소 " + _format_sec_amount_ko(amounts[0]) + " 유동성 유지 조건"
+        elif "revolving credit agreement" in lowered and ("mature" in lowered or "maturity" in lowered):
+            amounts = re.findall(r"\$[0-9]+(?:\.[0-9]+)?\s*(?:billion|million)", text, re.I)
+            date_match = re.search(r"(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})", text, re.I)
+            date_text = ""
+            if date_match:
+                month_map = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12}
+                month = month_map.get(date_match.group(1).lower())
+                if month:
+                    date_text = f"{date_match.group(3)}-{month:02d}-{int(date_match.group(2)):02d} 만기"
+            parts = []
+            if amounts:
+                parts.append("기존 회전신용 계약 한도 " + _format_sec_amount_ko(amounts[0]))
+            if date_text:
+                parts.append(date_text)
+            summary = " · ".join(parts)
+
+        if summary and summary not in summaries:
+            summaries.append(summary)
+        if len(summaries) >= 3:
+            break
+    return summaries
+
+
 def _enrich_us_8k_from_submission(filing, ticker_symbol):
     """SEC 8-K 원문에서 표시할 사건만 골라 Item/제목/해시태그 재료를 붙인다."""
     filing_url = str(filing.get("original_document_url") or "").strip()
@@ -1128,6 +1188,7 @@ def _enrich_us_8k_from_submission(filing, ticker_symbol):
                     selected_sections.append(section_map[item_no])
 
             key_points = _extract_8k_key_points(" ".join(selected_sections), max_points=3)
+            key_points_ko = _summarize_8k_key_points_ko(key_points)
             detail = {
                 "display_8k": True,
                 "item": item_numbers[0],
@@ -1135,6 +1196,7 @@ def _enrich_us_8k_from_submission(filing, ticker_symbol):
                 "event_title": labels[0] if len(labels) == 1 else " · ".join(labels[:2]),
                 "keywords": keywords[:3],
                 "key_points": key_points,
+                "key_points_ko": key_points_ko,
             }
     except Exception as detail_err:
         print(f"[미국 공시] {ticker_symbol} 8-K 원문 보강 실패: {type(detail_err).__name__}: {detail_err}")
@@ -1408,7 +1470,7 @@ def format_us_official_filings(ticker_symbol, filings=None):
             lines.append(f"📌 {display_date} · {'기업 주요 공시' if form == '8-K' else form}")
             lines.append(f"📰 {event_title or desc or '주요 내용 발표'}")
             if form == "8-K":
-                for point in (item.get("key_points") or [])[:3]:
+                for point in (item.get("key_points_ko") or [])[:3]:
                     lines.append(f"• {point}")
 
     return "\n".join(lines)
