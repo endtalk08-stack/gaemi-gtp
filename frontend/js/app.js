@@ -280,21 +280,53 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       button.setAttribute('aria-expanded', String(open));
     }
 
-    function openLeftSidebarSection(section) {
-      const classBySection = {
-        market: 'left-market-open',
-        context: 'left-context-open',
-        plugin: 'left-plugin-open'
-      };
-      const target = classBySection[section];
-      if (!target || !workspaceUIReady) return;
-      document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
-      if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
-      document.body.classList.add(target);
+    const leftSidebarSectionOrigins = new Map();
+
+    function showLeftSidebarHomeSection(section = 'home') {
+      if (!workspaceUIReady) return;
+      const homeDefault = document.getElementById('leftSidebarHomeDefault');
+      const host = document.getElementById('leftSidebarHomeSectionContent');
+      if (!homeDefault || !host) return;
+
+      leftSidebarSectionOrigins.forEach((origin, node) => {
+        if (node.parentNode === host) origin.parent.insertBefore(node, origin.nextSibling);
+      });
+      leftSidebarSectionOrigins.clear();
+      host.replaceChildren();
+      host.classList.add('hidden');
+      homeDefault.classList.remove('hidden');
+
+      if (section !== 'home') {
+        const idBySection = {
+          market: 'leftMarketSidebar',
+          context: 'leftContextSidebar',
+          plugin: 'leftPluginSidebar'
+        };
+        const node = document.getElementById(idBySection[section]);
+        if (!node || !node.parentNode) return;
+        leftSidebarSectionOrigins.set(node, { parent: node.parentNode, nextSibling: node.nextSibling });
+        host.appendChild(node);
+        homeDefault.classList.add('hidden');
+        host.classList.remove('hidden');
+      }
+
+      document.body.classList.add('left-home-open');
+      document.body.classList.remove('left-market-open', 'left-context-open', 'left-plugin-open');
       document.getElementById('leftSidebarHomeMenu')?.classList.add('hidden');
       document.querySelector('[data-left-sidebar-home-menu-toggle]')?.setAttribute('aria-expanded', 'false');
-      applySidebarState();
+
+      const embedded = host.firstElementChild;
+      if (embedded) {
+        embedded.removeAttribute('aria-hidden');
+        embedded.style.width = '100%';
+        embedded.style.flexBasis = '100%';
+      }
       if (section === 'plugin') window.GaemiGTPPluginSidebar?.render?.();
+      applySidebarState();
+    }
+
+    function openLeftSidebarSection(section) {
+      showLeftSidebarHomeSection(section);
     }
 
     function focusSidebarStockSearch() {
