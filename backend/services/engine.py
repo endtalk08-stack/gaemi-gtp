@@ -311,6 +311,45 @@ def _fetch_dart_receipt_time(receipt_no):
         return value
 
 
+def fetch_dart_executive_shareholdings(stock_code):
+    """OpenDART 임원·주요주주 소유보고(elestock) 원천 데이터를 조회한다."""
+    if not OPENDART_API_KEY or not stock_code:
+        return []
+
+    stock_code = str(stock_code).strip()
+    corp_code = fetch_dart_corp_map().get(stock_code)
+    if not corp_code:
+        return []
+
+    try:
+        params = urllib.parse.urlencode({
+            "crtfc_key": OPENDART_API_KEY,
+            "corp_code": corp_code,
+        })
+        url = f"https://opendart.fss.or.kr/api/elestock.json?{params}"
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        status = str(data.get("status", ""))
+        if status not in ("000", ""):
+            print(
+                f"[국내 공시 상세] {stock_code} DART 응답 "
+                f"status={status} message={data.get('message', '')}"
+            )
+            return []
+
+        return data.get("list", []) or []
+    except urllib.error.HTTPError as e:
+        print(f"[국내 공시 상세] {stock_code} DART 실패: HTTP {e.code}")
+    except Exception as e:
+        print(f"[국내 공시 상세] {stock_code} DART 실패: {type(e).__name__}: {e}")
+    return []
+
+
 def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
     """OpenDART에서 국내 기업의 최근 공시를 코드로 조회한다."""
     if not OPENDART_API_KEY or not stock_code:
