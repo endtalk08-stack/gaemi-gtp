@@ -195,6 +195,26 @@
         if (personLine.textContent) row.appendChild(personLine);
         if (holdingLine.textContent) row.appendChild(holdingLine);
       });
+      if (String(item.form || '').toUpperCase() === '4') {
+        const person = String(item.person || '').trim();
+        const position = String(item.officer_title || '').trim();
+        const personLine = document.createElement('div');
+        personLine.className = 'right-panel-related-news__meta';
+        personLine.textContent = [person, position].filter(Boolean).join(' · ');
+        if (personLine.textContent) row.appendChild(personLine);
+        const transactions = Array.isArray(item.transactions) ? item.transactions : [];
+        transactions.forEach((transaction) => {
+          const shares = String(transaction.shares || '').trim();
+          const price = String(transaction.price || '').trim();
+          const transactionLine = document.createElement('div');
+          transactionLine.className = 'right-panel-related-news__meta';
+          transactionLine.textContent = [
+            shares ? `${shares}주` : '',
+            price ? `${price}` : ''
+          ].filter(Boolean).join(' · ');
+          if (transactionLine.textContent) row.appendChild(transactionLine);
+        });
+      }
       if (keywords.length) row.appendChild(keywordLine);
       list.appendChild(row);
     });
