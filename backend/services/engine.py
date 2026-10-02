@@ -132,6 +132,8 @@ US_CIKS = {
 US_FILING_CACHE = {}
 US_FORM4_DETAIL_CACHE = {}
 US_FORM4_DETAIL_CACHE_TTL = 3600
+US_8K_DETAIL_CACHE = {}
+US_8K_DETAIL_CACHE_TTL = 3600
 
 # 국내 기업 공식 공시(OpenDART)
 # 인증키가 없으면 공시 기능만 건너뛰고 기존 화면/기능은 그대로 동작한다.
@@ -962,6 +964,126 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
         return filing
 
 
+8K_DISPLAY_ITEMS = {
+    "1.01": ("중요 계약·협약", ["주요계약", "계약체결"]),
+    "1.02": ("중요 계약 종료", ["계약종료", "주요계약"]),
+    "1.03": ("파산·법정관리", ["파산", "법정관리"]),
+    "2.01": ("인수·매각", ["인수합병", "자산양수도"]),
+    "2.02": ("실적 발표", ["실적발표", "경영성과"]),
+    "2.03": ("중요 차입·채무", ["자금조달", "차입"]),
+    "2.04": ("채무 관련 중요 변화", ["채무", "재무위험"]),
+    "2.05": ("구조조정", ["구조조정", "사업재편"]),
+    "2.06": ("대규모 손상차손", ["손상차손", "자산가치"]),
+    "3.01": ("상장 유지 관련 사항", ["상장규정", "상장유지"]),
+    "3.02": ("미등록 주식 발행", ["주식발행", "자금조달"]),
+    "4.01": ("회계법인 변경", ["회계법인변경", "감사"]),
+    "4.02": ("재무제표 신뢰 철회", ["재무제표", "회계이슈"]),
+    "5.01": ("회사 지배권 변경", ["지배권변경", "경영권"]),
+    "5.02": ("주요 경영진 변경", ["임원변경", "경영진"]),
+}
+
+8K_CONDITIONAL_ITEMS = {
+    "5.03": ("정관·회계연도 변경", ["정관변경"]),
+    "5.07": ("주주총회 투표 결과", ["주주총회"]),
+    "7.01": ("중요 정보 공개", ["중요정보"]),
+    "8.01": ("기타 주요 사항", ["기타주요사항"]),
+}
+
+8K_CONDITIONAL_MATERIAL_WORDS = [
+    "agreement", "contract", "acquisition", "merger", "sale", "financing",
+    "credit", "loan", "debt", "earnings", "revenue", "guidance", "dividend",
+    "repurchase", "restructuring", "impairment", "bankruptcy", "litigation",
+    "investigation", "regulatory", "chief executive", "chief financial",
+    "director", "officer", "resign", "appoint", "shareholder", "vote",
+]
+
+
+def _plain_text_from_html(value):
+    text = re.sub(r"(?is)<script\b.*?</script>|<style\b.*?</style>", " ", str(value or ""))
+    text = re.sub(r"(?i)<br\s*/?>|</p\s*>|</div\s*>|</tr\s*>|</li\s*>", "\n", text)
+    text = re.sub(r"(?s)<[^>]+>", " ", text)
+    text = html.unescape(text).replace("\xa0", " ")
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    return re.sub(r"\n\s*\n+", "\n", text).strip()
+
+
+def _extract_8k_item_sections(text):
+    """8-K 본문에서 Item 번호와 각 Item 구간을 분리한다."""
+    matches = list(re.finditer(r"(?im)\bItem\s+([1-9]\.\d{2})\b", text or ""))
+    sections = []
+    seen = set()
+    for index, match in enumerate(matches):
+        item_no = match.group(1)
+        if item_no in seen:
+            continue
+        seen.add(item_no)
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        sections.append((item_no, (text[match.end():end] or "").strip()))
+    return sections
+
+
+def _enrich_us_8k_from_submission(filing, ticker_symbol):
+    """SEC 8-K 원문에서 표시할 사건만 골라 Item/제목/해시태그 재료를 붙인다."""
+    filing_url = str(filing.get("original_document_url") or "").strip()
+    accession = str(filing.get("accession") or "").strip()
+    if not filing_url or not accession:
+        filing["display_8k"] = False
+        return filing
+
+    now_ts = datetime.datetime.now().timestamp()
+    cached = US_8K_DETAIL_CACHE.get(accession)
+    if cached and now_ts - cached[0] < US_8K_DETAIL_CACHE_TTL:
+        filing.update(cached[1])
+        return filing
+
+    detail = {"display_8k": False}
+    try:
+        req = urllib.request.Request(
+            filing_url,
+            headers={
+                "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
+                "Accept": "text/html,application/xhtml+xml,*/*",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            document_text = _plain_text_from_html(resp.read().decode("utf-8", errors="ignore"))
+
+        item_sections = _extract_8k_item_sections(document_text)
+        selected = []
+        for item_no, section_text in item_sections:
+            if item_no in 8K_DISPLAY_ITEMS:
+                selected.append((item_no, 8K_DISPLAY_ITEMS[item_no]))
+                continue
+            if item_no in 8K_CONDITIONAL_ITEMS:
+                material_text = section_text.lower()
+                if any(word in material_text for word in 8K_CONDITIONAL_MATERIAL_WORDS):
+                    selected.append((item_no, 8K_CONDITIONAL_ITEMS[item_no]))
+
+        if selected:
+            item_numbers = [item_no for item_no, _ in selected]
+            labels = []
+            keywords = []
+            for _, (label, item_keywords) in selected:
+                if label not in labels:
+                    labels.append(label)
+                for keyword in item_keywords:
+                    if keyword not in keywords:
+                        keywords.append(keyword)
+            detail = {
+                "display_8k": True,
+                "item": item_numbers[0],
+                "items": item_numbers,
+                "event_title": labels[0] if len(labels) == 1 else " · ".join(labels[:2]),
+                "keywords": keywords[:3],
+            }
+    except Exception as detail_err:
+        print(f"[미국 공시] {ticker_symbol} 8-K 원문 보강 실패: {type(detail_err).__name__}: {detail_err}")
+
+    US_8K_DETAIL_CACHE[accession] = (datetime.datetime.now().timestamp(), detail)
+    filing.update(detail)
+    return filing
+
+
 def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
     """SEC 공식 제출자료 중 최근 주요 공시를 수집한다. AI/웹검색 없이 코드로만 수집."""
     ticker_symbol = ticker_symbol.upper()
@@ -1040,18 +1162,18 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
                 "cik": str(cik),
             }
 
-            # Form 4 원문 보강은 서로 독립적이므로 아래에서 최대 3건을 병렬 처리한다.
-            # 기존처럼 Form 4마다 순차 HTTP 요청을 기다리지 않는다.
+            # Form 4와 8-K 원문 보강은 서로 독립적으로 처리한다.
             if form == "4" and filing_url:
                 filing["_needs_form4_enrichment"] = True
+            elif form == "8-K" and filing_url:
+                filing["_needs_8k_enrichment"] = True
 
             results.append(filing)
 
             if len(results) >= max_results:
                 break
 
-        # 조회한 기간 안의 Form 4는 모두 상세 원문을 보강한다.
-        # 동시에 너무 많은 SEC 요청이 나가지 않도록 기존 3개 병렬 제한은 유지한다.
+        # 조회한 기간 안의 Form 4는 기존 방식 그대로 상세 보강한다.
         enrich_targets = [f for f in results if f.get("_needs_form4_enrichment")]
         if enrich_targets:
             with ThreadPoolExecutor(max_workers=min(3, len(enrich_targets))) as enrich_executor:
@@ -1066,6 +1188,27 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
                     except Exception as enrich_err:
                         print(f"[미국 공시] {ticker_symbol} Form 4 병렬 보강 실패: {type(enrich_err).__name__}: {enrich_err}")
                     filing.pop("_needs_form4_enrichment", None)
+
+        # 8-K는 원문 Item을 확인한 뒤 의미 있는 사건이 있는 공시만 남긴다.
+        eight_k_targets = [f for f in results if f.get("_needs_8k_enrichment")]
+        if eight_k_targets:
+            with ThreadPoolExecutor(max_workers=min(3, len(eight_k_targets))) as enrich_executor:
+                future_map = {
+                    enrich_executor.submit(_enrich_us_8k_from_submission, filing, ticker_symbol): filing
+                    for filing in eight_k_targets
+                }
+                for future, filing in future_map.items():
+                    try:
+                        enriched = future.result()
+                        filing.update(enriched)
+                    except Exception as enrich_err:
+                        print(f"[미국 공시] {ticker_symbol} 8-K 병렬 보강 실패: {type(enrich_err).__name__}: {enrich_err}")
+                    filing.pop("_needs_8k_enrichment", None)
+
+        results = [
+            filing for filing in results
+            if str(filing.get("form", "")).upper() != "8-K" or filing.get("display_8k")
+        ]
 
         US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), results)
         return results
@@ -1201,8 +1344,9 @@ def format_us_official_filings(ticker_symbol, filings=None):
                 lines.append(f"💰 {price_text}")
         else:
             desc = str(item.get("description", "")).strip()
+            event_title = str(item.get("event_title", "")).strip()
             lines.append(f"📌 {display_date} · {'기업 주요 공시' if form == '8-K' else form}")
-            lines.append(f"📰 {desc or '주요 내용 발표'}")
+            lines.append(f"📰 {event_title or desc or '주요 내용 발표'}")
 
     return "\n".join(lines)
 
@@ -2759,7 +2903,11 @@ def analyze_stock(raw_name='SK하이닉스'):
                         item.get("transaction_summary")
                         or item.get("transaction_kind")
                         or "내부자 거래"
-                    ) if str(item.get("form", "")).upper() == "4" else (item.get("description") or "SEC 공시"),
+                    ) if str(item.get("form", "")).upper() == "4" else (
+                        item.get("event_title")
+                        or item.get("description")
+                        or "SEC 공시"
+                    ),
                     "source": "SEC",
                     "date": item.get("date", ""),
                     "time": item.get("time", ""),
@@ -2768,6 +2916,9 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "link": item.get("url", ""),
                     "keywords": item.get("keywords", []),
                     "form": item.get("form", ""),
+                    "item": item.get("item", ""),
+                    "items": item.get("items", []),
+                    "event_title": item.get("event_title", ""),
                     "person": item.get("person", ""),
                     "officer_title": item.get("officer_title", ""),
                     "transaction_kind": item.get("transaction_kind", ""),
