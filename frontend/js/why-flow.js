@@ -186,9 +186,9 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 if (!disclosures.length) {
                   const emptyDisclosure = document.createElement('p');
                   emptyDisclosure.className = responseMessageClass;
-                  const moreButton = disclosureBlock.querySelector('[aria-label="훔쳐보기"]')?.closest('section');
-                  if (moreButton) {
-                    disclosureBlock.insertBefore(emptyDisclosure, moreButton);
+                  const monthSection = disclosureBlock.querySelector('[aria-label="훔쳐보기"]')?.closest('section');
+                  if (monthSection) {
+                    disclosureBlock.insertBefore(emptyDisclosure, monthSection);
                   } else {
                     disclosureBlock.appendChild(emptyDisclosure);
                   }
