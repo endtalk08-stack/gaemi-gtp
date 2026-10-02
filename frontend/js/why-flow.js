@@ -161,7 +161,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 const disclosureLoading = document.createElement('div');
                 disclosureLoading.className = 'mt-5 space-y-2';
                 disclosurePrompt.insertAdjacentElement('afterend', disclosureLoading);
-                for (const message of ['뉴스를 확인합니다', '생각중', '내용을 정리중입니다']) {
+                for (const message of ['전자 공시 뒤지고 있습니다', '돋보기 가동중 🔍', '세부 내용 파악중입니다', '호재? 악재? 팩트 확인 완료 임박']) {
                   if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
                   const line = document.createElement('p');
                   line.className = `${responseMessageClass} font-semibold animate-pulse`;
