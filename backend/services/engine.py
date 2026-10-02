@@ -130,6 +130,8 @@ US_CIKS = {
 }
 
 US_FILING_CACHE = {}
+US_FORM4_DETAIL_CACHE = {}
+US_FORM4_DETAIL_CACHE_TTL = 3600
 
 # 국내 기업 공식 공시(OpenDART)
 # 인증키가 없으면 공시 기능만 건너뛰고 기존 화면/기능은 그대로 동작한다.
@@ -637,6 +639,12 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
     if not filing_url or not accession:
         return filing
 
+    now_ts = datetime.datetime.now().timestamp()
+    cached = US_FORM4_DETAIL_CACHE.get(accession)
+    if cached and now_ts - cached[0] < US_FORM4_DETAIL_CACHE_TTL:
+        filing.update(cached[1])
+        return filing
+
     try:
         sec_headers = {
             "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
@@ -711,6 +719,16 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
             filing["transaction_summary"] = "내부자 거래"
             filing["transaction_count"] = 0
             filing["price_range"] = ""
+        detail_fields = {
+            key: filing.get(key)
+            for key in (
+                "person", "officer_title", "transactions", "transaction_code",
+                "shares", "price", "transaction_kind", "transaction_summary",
+                "transaction_count", "price_range",
+            )
+            if key in filing
+        }
+        US_FORM4_DETAIL_CACHE[accession] = (datetime.datetime.now().timestamp(), detail_fields)
         return filing
     except Exception as detail_err:
         print(f"[미국 공시] {ticker_symbol} Form 4 원문 보강 실패: {type(detail_err).__name__}: {detail_err}")
@@ -805,8 +823,9 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
             if len(results) >= max_results:
                 break
 
-        # Form 4 세부 원문 요청은 최대 3건을 병렬로 실행한다.
-        enrich_targets = [f for f in results[:3] if f.get("_needs_form4_enrichment")]
+        # 조회한 기간 안의 Form 4는 모두 상세 원문을 보강한다.
+        # 동시에 너무 많은 SEC 요청이 나가지 않도록 기존 3개 병렬 제한은 유지한다.
+        enrich_targets = [f for f in results if f.get("_needs_form4_enrichment")]
         if enrich_targets:
             with ThreadPoolExecutor(max_workers=min(3, len(enrich_targets))) as enrich_executor:
                 future_map = {
