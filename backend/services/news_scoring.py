@@ -270,15 +270,29 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
         dt = _parse_date(item.get("pub_date") or item.get("published_at"))
         if not dt or dt < cutoff:
             continue
-        signals = item.get("movement_signals") or []
+        article_keywords = item.get("article_keywords") or []
+        article_keyword_details = item.get("article_keyword_details") or []
         keywords = []
         keyword_tones = {}
-        for signal in signals:
-            label = str(signal.get("label") or "").strip()
-            tone = str(signal.get("tone") or "neutral").strip()
-            if label and label not in keywords:
-                keywords.append(label)
-                keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
+        if len(article_keywords) == 3:
+            detail_tones = {
+                str(detail.get("label") or "").strip(): str(detail.get("tone") or "neutral").strip()
+                for detail in article_keyword_details
+            }
+            for label in article_keywords:
+                label = str(label or "").strip()
+                if label and label not in keywords:
+                    keywords.append(label)
+                    tone = detail_tones.get(label, "neutral")
+                    keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
+        else:
+            signals = item.get("movement_signals") or []
+            for signal in signals:
+                label = str(signal.get("label") or "").strip()
+                tone = str(signal.get("tone") or "neutral").strip()
+                if label and label not in keywords:
+                    keywords.append(label)
+                    keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
         if not dt or not keywords:
             continue
         local_dt = dt.astimezone(tz)
