@@ -62,7 +62,11 @@
       if (!btn || btn.disabled) return;
       const id = btn.dataset.pluginWidgetId;
       if (window.GaemiGTPWidgetDock?.add) {
-        window.GaemiGTPWidgetDock.add(id);
+        const added = window.GaemiGTPWidgetDock.add(id);
+        if (added) {
+          document.getElementById('mainHeroView')?.classList.add('hidden');
+          document.body.classList.add('analysis-mode');
+        }
         render();
       }
     });
