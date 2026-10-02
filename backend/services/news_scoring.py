@@ -362,15 +362,13 @@ def score_stock_news(items, stock_name):
         scored.append(item)
     scored.sort(key=lambda item: (item.get("flow_score", 0), item.get("pub_date", "")), reverse=True)
 
-    # Keep English articles as fallback evidence, but do not let them push
-    # Korean-language articles out of the visible/top-ranked stock-news slots.
+    # Stock-news analysis/display uses Korean-language articles only.
+    # Collection and the existing relevance/material scoring stay unchanged.
     def has_korean_text(item):
         text = f"{item.get('title') or ''} {item.get('description') or ''}"
         return any("\uac00" <= char <= "\ud7a3" for char in text)
 
-    korean = [item for item in scored if has_korean_text(item)]
-    non_korean = [item for item in scored if not has_korean_text(item)]
-    return korean + non_korean
+    return [item for item in scored if has_korean_text(item)]
 
 
 def summarize_stock_flow(items):
