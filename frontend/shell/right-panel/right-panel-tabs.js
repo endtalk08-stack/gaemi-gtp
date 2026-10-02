@@ -179,6 +179,16 @@
 
       row.append(title, meta);
 
+      if (String(item.form || '').toUpperCase() === '8-K') {
+        const keyPoints = Array.isArray(item.key_points) ? item.key_points.filter(Boolean).slice(0, 3) : [];
+        keyPoints.forEach((point) => {
+          const pointLine = document.createElement('div');
+          pointLine.className = 'right-panel-disclosures__line';
+          pointLine.textContent = `• ${point}`;
+          row.appendChild(pointLine);
+        });
+      }
+
       const majorChange = item.major_shareholder_change && typeof item.major_shareholder_change === 'object'
         ? item.major_shareholder_change : null;
       if (majorChange) {
