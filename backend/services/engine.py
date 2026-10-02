@@ -139,6 +139,8 @@ OPENDART_API_KEY = (
 )
 DART_CORP_CACHE = {"ts": 0.0, "map": {}}
 DART_DISCLOSURE_CACHE = {}
+DART_EXECUTIVE_SHAREHOLDING_CACHE = {}
+DART_EXECUTIVE_SHAREHOLDING_CACHE_TTL = 3600
 # 같은 종목을 동시에 여러 사용자가 조회해도 DART/SEC 외부 요청이 중복되지 않도록
 # 종목별 단일 비행(single-flight) 락을 사용한다. 서로 다른 종목은 동시에 처리한다.
 _DART_SINGLEFLIGHT_LOCKS = {}
@@ -317,37 +319,51 @@ def fetch_dart_executive_shareholdings(stock_code):
         return []
 
     stock_code = str(stock_code).strip()
-    corp_code = fetch_dart_corp_map().get(stock_code)
-    if not corp_code:
-        return []
+    now_ts = datetime.datetime.now().timestamp()
+    cached = DART_EXECUTIVE_SHAREHOLDING_CACHE.get(stock_code)
+    if cached and now_ts - cached[0] < DART_EXECUTIVE_SHAREHOLDING_CACHE_TTL:
+        return cached[1]
 
-    try:
-        params = urllib.parse.urlencode({
-            "crtfc_key": OPENDART_API_KEY,
-            "corp_code": corp_code,
-        })
-        url = f"https://opendart.fss.or.kr/api/elestock.json?{params}"
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+    lock = _get_singleflight_lock(_DART_SINGLEFLIGHT_LOCKS, ("elestock", stock_code))
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = DART_EXECUTIVE_SHAREHOLDING_CACHE.get(stock_code)
+        if cached and now_ts - cached[0] < DART_EXECUTIVE_SHAREHOLDING_CACHE_TTL:
+            return cached[1]
 
-        status = str(data.get("status", ""))
-        if status not in ("000", ""):
-            print(
-                f"[국내 공시 상세] {stock_code} DART 응답 "
-                f"status={status} message={data.get('message', '')}"
-            )
+        corp_code = fetch_dart_corp_map().get(stock_code)
+        if not corp_code:
             return []
 
-        return data.get("list", []) or []
-    except urllib.error.HTTPError as e:
-        print(f"[국내 공시 상세] {stock_code} DART 실패: HTTP {e.code}")
-    except Exception as e:
-        print(f"[국내 공시 상세] {stock_code} DART 실패: {type(e).__name__}: {e}")
-    return []
+        try:
+            params = urllib.parse.urlencode({
+                "crtfc_key": OPENDART_API_KEY,
+                "corp_code": corp_code,
+            })
+            url = f"https://opendart.fss.or.kr/api/elestock.json?{params}"
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            status = str(data.get("status", ""))
+            if status not in ("000", ""):
+                print(
+                    f"[국내 공시 상세] {stock_code} DART 응답 "
+                    f"status={status} message={data.get('message', '')}"
+                )
+                return []
+
+            items = data.get("list", []) or []
+            DART_EXECUTIVE_SHAREHOLDING_CACHE[stock_code] = (now_ts, items)
+            return items
+        except urllib.error.HTTPError as e:
+            print(f"[국내 공시 상세] {stock_code} DART 실패: HTTP {e.code}")
+        except Exception as e:
+            print(f"[국내 공시 상세] {stock_code} DART 실패: {type(e).__name__}: {e}")
+        return []
 
 
 def _attach_dart_executive_shareholding_details(stock_code, disclosures):
