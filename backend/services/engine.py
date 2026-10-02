@@ -964,7 +964,7 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
         return filing
 
 
-8K_DISPLAY_ITEMS = {
+SEC_8K_DISPLAY_ITEMS = {
     "1.01": ("중요 계약·협약", ["주요계약", "계약체결"]),
     "1.02": ("중요 계약 종료", ["계약종료", "주요계약"]),
     "1.03": ("파산·법정관리", ["파산", "법정관리"]),
@@ -982,14 +982,14 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
     "5.02": ("주요 경영진 변경", ["임원변경", "경영진"]),
 }
 
-8K_CONDITIONAL_ITEMS = {
+SEC_8K_CONDITIONAL_ITEMS = {
     "5.03": ("정관·회계연도 변경", ["정관변경"]),
     "5.07": ("주주총회 투표 결과", ["주주총회"]),
     "7.01": ("중요 정보 공개", ["중요정보"]),
     "8.01": ("기타 주요 사항", ["기타주요사항"]),
 }
 
-8K_CONDITIONAL_MATERIAL_WORDS = [
+SEC_8K_CONDITIONAL_MATERIAL_WORDS = [
     "agreement", "contract", "acquisition", "merger", "sale", "financing",
     "credit", "loan", "debt", "earnings", "revenue", "guidance", "dividend",
     "repurchase", "restructuring", "impairment", "bankruptcy", "litigation",
@@ -1051,13 +1051,13 @@ def _enrich_us_8k_from_submission(filing, ticker_symbol):
         item_sections = _extract_8k_item_sections(document_text)
         selected = []
         for item_no, section_text in item_sections:
-            if item_no in 8K_DISPLAY_ITEMS:
-                selected.append((item_no, 8K_DISPLAY_ITEMS[item_no]))
+            if item_no in SEC_8K_DISPLAY_ITEMS:
+                selected.append((item_no, SEC_8K_DISPLAY_ITEMS[item_no]))
                 continue
-            if item_no in 8K_CONDITIONAL_ITEMS:
+            if item_no in SEC_8K_CONDITIONAL_ITEMS:
                 material_text = section_text.lower()
-                if any(word in material_text for word in 8K_CONDITIONAL_MATERIAL_WORDS):
-                    selected.append((item_no, 8K_CONDITIONAL_ITEMS[item_no]))
+                if any(word in material_text for word in SEC_8K_CONDITIONAL_MATERIAL_WORDS):
+                    selected.append((item_no, SEC_8K_CONDITIONAL_ITEMS[item_no]))
 
         if selected:
             item_numbers = [item_no for item_no, _ in selected]
