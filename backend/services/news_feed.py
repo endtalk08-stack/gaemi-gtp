@@ -332,6 +332,52 @@ def fetch_general_news(category="전체", limit=30, region="전체"):
     return items[: max(1, int(limit))]
 
 
+STOCK_DIRECT_EVENT_WORDS = [
+    "실적", "매출", "영업이익", "순이익", "가이던스", "계약", "수주", "공급", "납품",
+    "출하", "투자", "증설", "감산", "배당", "자사주", "목표주가", "투자의견",
+    "판매", "가격", "출시", "공개", "개발", "양산", "생산", "인수", "매각", "분사",
+    "협력", "제휴", "착공", "준공", "리콜", "소송", "규제",
+]
+
+
+def _stock_aliases_for_name(stock_name):
+    aliases = [str(stock_name or "").strip()]
+    for stocks in STOCK_UNIVERSE.values():
+        values = stocks.get(stock_name)
+        if values:
+            aliases.extend(values)
+            break
+    return list(dict.fromkeys(str(alias).strip().lower() for alias in aliases if str(alias).strip()))
+
+
+def _stock_analysis_relevance(item, stock_name):
+    """Return analysis relevance tier without changing the raw collected item."""
+    aliases = _stock_aliases_for_name(stock_name)
+    title = str(item.get("title") or "").lower()
+    description = str(item.get("description") or "").lower()
+
+    if any(alias in title for alias in aliases):
+        return 3
+
+    # Description-only mentions are accepted only when a concrete company event
+    # appears close to the stock alias. This rejects broad columns/theme stories
+    # that merely name the stock somewhere in the body.
+    for alias in aliases:
+        start = 0
+        while True:
+            index = description.find(alias, start)
+            if index < 0:
+                break
+            left = max(0, index - 90)
+            right = min(len(description), index + len(alias) + 90)
+            nearby = description[left:right]
+            if _contains_any(nearby, STOCK_DIRECT_EVENT_WORDS):
+                return 2
+            start = index + len(alias)
+
+    return 0
+
+
 def fetch_stock_news(stock_name, limit=20, market=None):
     stock_name = _clean_text(stock_name)
     if not stock_name:
@@ -348,12 +394,22 @@ def fetch_stock_news(stock_name, limit=20, market=None):
     relevant = []
     for item in items:
         text = _search_text(item)
-        if stock_name.lower() not in text and not any(s.get("name") == stock_name for s in item.get("stocks", [])):
+        relevance_tier = _stock_analysis_relevance(item, stock_name)
+        if relevance_tier <= 0:
             continue
         if not _contains_any(text, STOCK_MATERIAL_SIGNALS):
             continue
-        relevant.append(item)
+        selected = dict(item)
+        selected["analysis_relevance_tier"] = relevance_tier
+        relevant.append(selected)
 
+    relevant.sort(
+        key=lambda item: (
+            int(item.get("analysis_relevance_tier") or 0),
+            item.get("published_at") or "",
+        ),
+        reverse=True,
+    )
     return relevant[: max(1, int(limit))]
 
 
