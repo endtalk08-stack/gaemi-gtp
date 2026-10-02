@@ -171,9 +171,6 @@
       meta.className = 'right-panel-disclosures__line';
       const metaLeft = document.createElement('span');
       metaLeft.textContent = [item.date || '', item.time || '', item.source || '공시'].filter(Boolean).join(' · ');
-      if (String(item.form || '').toUpperCase() === '8-K') {
-        meta.appendChild(document.createElement('span'));
-      }
       meta.appendChild(metaLeft);
 
       const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
