@@ -503,6 +503,12 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         for phase in re.findall(r"(?<!\d)([123])상(?:\s*임상(?:시험)?)?", title):
             add(f"{phase}상데이터", "title-entity", f"{phase}상", 80)
 
+        # Keep headline scale only when it belongs to a concrete corporate event.
+        event_scale_words = ("매입", "인수", "계약", "수주", "투자", "매각", "증자")
+        if any(word in title for word in event_scale_words):
+            for amount in re.findall(r"(?<![\d.])(?:\d+(?:[.,]\d+)*)\s*(?:조원|억원|만원|달러)", title):
+                add(amount, "title-scale", amount, 76)
+
         # A final keyword should explain article content, not merely repeat the
         # searched stock or its own price move.
         candidates = [
