@@ -487,6 +487,9 @@ def fetch_dart_major_shareholder_change(receipt_no):
             return cached[1]
         try:
             rows = _dart_document_rows(receipt_no)
+            print(f"[DART 최대주주 추적] receipt_no={receipt_no} rows={len(rows)}")
+            for row_index, row_cells in enumerate(rows):
+                print(f"[DART 최대주주 추적] row={row_index} cells={row_cells}")
             if not rows:
                 return {}
 
@@ -574,7 +577,9 @@ def _attach_dart_major_shareholder_change_details(disclosures):
         receipt_no = str(item.get("receipt_no") or "").strip()
         if "최대주주등소유주식변동신고" not in report or not receipt_no:
             continue
+        print(f"[DART 최대주주 추적] report={report} receipt_no={receipt_no}")
         detail = fetch_dart_major_shareholder_change(receipt_no)
+        print(f"[DART 최대주주 추적] parsed receipt_no={receipt_no} detail={detail}")
         if not detail:
             continue
         item["major_shareholder_change"] = detail
