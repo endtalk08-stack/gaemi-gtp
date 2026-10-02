@@ -10,14 +10,14 @@
   position: relative;
   z-index: 41;
   background: var(--gtp-panel-bg);
-  border-right: 1px solid var(--gtp-border);
+  border: 1px solid var(--gtp-border);
   transition: width .25s ease, flex-basis .25s ease;
 }
 
 body.left-home-closed #leftSidebarHome.left-sidebar-home {
   width: 0;
   flex-basis: 0;
-  border-right-width: 0;
+  border-width: 0;
   overflow: hidden;
   pointer-events: none;
 }
@@ -44,8 +44,8 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
 .left-sidebar-home__title {
   min-width: 0;
   color: var(--gtp-text);
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   letter-spacing: -0.025em;
 }
 
