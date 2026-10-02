@@ -88,18 +88,25 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
 
             const monthItems = Array.isArray(allDisclosures) ? allDisclosures : disclosures;
             if (monthItems.length) {
+              const monthSection = document.createElement('section');
+              monthSection.className = 'space-y-2';
+              const monthTitle = document.createElement('p');
+              monthTitle.className = responseMessageClass;
               const more = document.createElement('button');
               more.type = 'button';
-              more.className = 'news-source-chip';
-              more.style.marginTop = '12px';
-              more.setAttribute('aria-label', '더보기');
-              const label = document.createElement('span');
-              label.className = 'news-source-chip__label';
-              label.textContent = '더보기';
-              more.appendChild(label);
+              more.className = 'text-sm font-semibold text-[#db2777] transition hover:opacity-80 dark:text-[#e889aa]';
+              more.setAttribute('aria-label', '훔쳐보기');
               more.addEventListener('click', () => {
                 window.GaemiGTPRightPanelTabs?.showRelatedDisclosures?.(monthItems);
               });
-              block.appendChild(more);
+              monthSection.append(monthTitle, more);
+              block.appendChild(monthSection);
+              if (typeof typeText === 'function') {
+                await typeText(monthTitle, '한달 공시도 가져왔어');
+                await typeText(more, '#훔쳐보기');
+              } else {
+                monthTitle.textContent = '한달 공시도 가져왔어';
+                more.textContent = '#훔쳐보기';
+              }
             }
 };
