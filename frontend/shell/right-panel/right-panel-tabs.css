@@ -102,12 +102,18 @@
   cursor: pointer;
   font: inherit;
 }
-.right-panel-related-news__item:hover .right-panel-related-news__title {
-  text-decoration: underline;
+.right-panel-related-news__item {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.right-panel-related-news__item:hover {
+  background: var(--gtp-surface-2);
+  border-color: var(--gtp-border);
 }
 
 
-/* 공시 패널 전용: 뉴스 카드 스타일은 변경하지 않는다. */
+/* 공시 패널 전용: 클릭 기능 없이 공시 한 건의 영역만 hover로 구분한다. */
 .right-panel-disclosures__item {
   cursor: default;
 }
