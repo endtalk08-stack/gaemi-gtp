@@ -25,7 +25,8 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
               const disclosureRows = [];
               disclosures.forEach((item) => {
                 const row = document.createElement('div');
-                row.className = 'space-y-1 text-sm text-[#475569] dark:text-[#d4d4d8]';
+                row.className = 'space-y-1 text-[#475569] dark:text-[#d4d4d8]';
+                row.style.fontSize = window.matchMedia('(min-width: 640px)').matches ? '1rem' : '13px';
 
                 const titleEl = document.createElement('div');
                 titleEl.dataset.typingText = item.title || '공시 제목 확인 필요';
@@ -82,7 +83,8 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   keyPoints.forEach((point) => {
                     const parts = String(point).split(' · ').map((part) => part.trim()).filter(Boolean);
                     const pointLine = document.createElement('div');
-                    pointLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                    pointLine.className = 'flex items-baseline justify-between gap-3 font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                    pointLine.style.fontSize = window.matchMedia('(min-width: 640px)').matches ? '1rem' : '13px';
 
                     const pointLeft = document.createElement('span');
                     pointLeft.dataset.typingText = parts[0] || '';
