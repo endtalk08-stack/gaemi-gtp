@@ -203,17 +203,26 @@
         personLine.textContent = [person, position].filter(Boolean).join(' · ');
         if (personLine.textContent) row.appendChild(personLine);
         const transactions = Array.isArray(item.transactions) ? item.transactions : [];
+        let totalShares = 0;
+        let totalValue = 0;
         transactions.forEach((transaction) => {
-          const shares = String(transaction.shares || '').trim();
-          const price = String(transaction.price || '').trim();
+          const shares = Number(String(transaction.shares || '').replaceAll(',', ''));
+          const price = Number(String(transaction.price || '').replaceAll(',', ''));
+          if (Number.isFinite(shares)) totalShares += shares;
+          if (Number.isFinite(shares) && Number.isFinite(price)) totalValue += shares * price;
+        });
+        if (transactions.length) {
           const transactionLine = document.createElement('div');
           transactionLine.className = 'right-panel-related-news__meta';
+          const totalValueText = totalValue >= 1000000
+            ? `약 ${(totalValue / 1000000).toLocaleString('en-US', { maximumFractionDigits: 2 })}M`
+            : (totalValue > 0 ? `약 ${Math.round(totalValue).toLocaleString('en-US')}` : '');
           transactionLine.textContent = [
-            shares ? `${shares}주` : '',
-            price ? `${price}` : ''
+            totalShares > 0 ? `총 ${Math.round(totalShares).toLocaleString('en-US')}주` : '',
+            totalValueText
           ].filter(Boolean).join(' · ');
           if (transactionLine.textContent) row.appendChild(transactionLine);
-        });
+        }
       }
       if (keywords.length) row.appendChild(keywordLine);
       list.appendChild(row);
