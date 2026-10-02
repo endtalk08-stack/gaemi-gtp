@@ -67,10 +67,12 @@ def extract_disclosure_keywords(item):
         item.get("items", ""),
         item.get("transaction_kind", ""),
         item.get("transaction_summary", ""),
+        item.get("event_title", ""),
     ]
     text = " ".join(str(value or "") for value in parts).lower()
 
-    keywords = []
+    existing_keywords = item.get("keywords", [])
+    keywords = list(existing_keywords) if isinstance(existing_keywords, list) else []
 
     # 사건 분류를 먼저 넣어 화면에서 문서 종류보다 실제 변화를 우선한다.
     event_keywords = []
@@ -113,10 +115,23 @@ def extract_disclosure_keywords(item):
     if str(item.get("form", "")).strip().upper() == "8-K":
         sec_item_text = " ".join(str(item.get(key, "") or "") for key in ("item", "items")).lower()
         sec_item_rules = [
-            ("주요계약", ["1.01"]),
+            ("주요계약", ["1.01", "1.02"]),
+            ("파산", ["1.03"]),
             ("인수합병", ["2.01"]),
             ("실적발표", ["2.02"]),
+            ("자금조달", ["2.03"]),
+            ("채무", ["2.04"]),
+            ("구조조정", ["2.05"]),
+            ("손상차손", ["2.06"]),
+            ("상장규정", ["3.01"]),
+            ("주식발행", ["3.02"]),
+            ("회계법인변경", ["4.01"]),
+            ("회계이슈", ["4.02"]),
+            ("경영권변경", ["5.01"]),
             ("임원변경", ["5.02"]),
+            ("정관변경", ["5.03"]),
+            ("주주총회", ["5.07"]),
+            ("중요정보", ["7.01"]),
             ("기타주요사항", ["8.01"]),
         ]
         for label, patterns in sec_item_rules:
