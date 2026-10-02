@@ -157,10 +157,6 @@
     const section = document.createElement('section');
     section.className = 'right-panel-related-news';
     section.setAttribute('aria-label', '한달 공시');
-    const heading = document.createElement('div');
-    heading.className = 'right-panel-related-news__title';
-    heading.textContent = '한달 공시?';
-    section.appendChild(heading);
     const list = document.createElement('div');
     list.className = 'right-panel-related-news__list';
     relatedDisclosureItems.forEach((item) => {
