@@ -176,6 +176,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 disclosurePrompt.insertAdjacentElement('afterend', disclosureBlock);
                 await window.GaemiGTPDisclosures.renderDisclosures({
                   disclosures,
+                  allDisclosures,
                   articles: [],
                   block: disclosureBlock,
                   responseMessageClass,
