@@ -55,12 +55,14 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             if (storyboard.length) {
               const storyboardList = document.createElement('div');
               storyboardList.className = 'space-y-2';
+              const storyboardRows = [];
               storyboard.forEach((event) => {
                 const row = document.createElement('div');
                 row.className = 'flex items-baseline gap-3';
                 const timeEl = document.createElement('span');
                 timeEl.className = 'shrink-0 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
-                timeEl.textContent = event.time || '';
+                const timeText = event.time || '';
+                timeEl.textContent = '';
                 const keywordEl = document.createElement('span');
                 keywordEl.className = 'analysis-hashtag font-semibold';
                 const keywordTones = event.keyword_tones && typeof event.keyword_tones === 'object' ? event.keyword_tones : {};
@@ -75,7 +77,8 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   span.className = tone === 'negative'
                     ? 'text-[#38BDF8]'
                     : 'text-[#FF8DA1]';
-                  span.textContent = `#${label}`;
+                  span.dataset.typingText = `#${label}`;
+                  span.textContent = '';
                   return span;
                 });
                 keywordParts.forEach((part, index) => {
@@ -85,8 +88,16 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 row.appendChild(timeEl);
                 row.appendChild(keywordEl);
                 storyboardList.appendChild(row);
+                storyboardRows.push({ timeEl, timeText, keywordParts });
               });
               block.appendChild(storyboardList);
+
+              for (const { timeEl, timeText, keywordParts } of storyboardRows) {
+                await typeText(timeEl, timeText);
+                for (const part of keywordParts) {
+                  await typeText(part, part.dataset.typingText || '');
+                }
+              }
             }
   
             const articles = await window.GaemiGTPNews.renderArticles({
