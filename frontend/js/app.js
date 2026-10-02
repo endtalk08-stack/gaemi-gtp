@@ -289,7 +289,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (!homeDefault || !host) return;
 
       leftSidebarSectionOrigins.forEach((origin, node) => {
-        if (node.parentNode === host) origin.parent.insertBefore(node, origin.nextSibling);
+        if (node.parentNode === host) {
+          node.style.removeProperty('width');
+          node.style.removeProperty('flex-basis');
+          origin.parent.insertBefore(node, origin.nextSibling);
+        }
       });
       leftSidebarSectionOrigins.clear();
       host.replaceChildren();
