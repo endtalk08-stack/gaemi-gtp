@@ -346,7 +346,7 @@ STOCK_INDIRECT_IMPACT_WORDS = [
     "지수 편입", "지수편입", "편입", "추종 펀드", "추종펀드",
 ]
 
-MARKET_STORY_TITLE_MARKERS = ["[특징주]", "특징주", "[증시마감]", "증시마감"]
+MARKET_STORY_QUERIES = [\n    "장중 특징주", "장중 시황", "특징주", "증시마감", "개장 전 급등주", "개장 전 급락주",\n]\nMARKET_STORY_TITLE_MARKERS = [\n    "[특징주]", "특징주", "[증시마감]", "증시마감", "장중 시황",\n    "개장 전 급등주", "개장전 급등주", "개장 전 급락주", "개장전 급락주",\n]
 
 
 def _stock_aliases_for_name(stock_name):
@@ -409,7 +409,16 @@ def fetch_stock_news(stock_name, limit=20, market=None):
             queries = list(dict.fromkeys([stock_name] + aliases[:3]))
             break
 
-    items = [_enrich_item(x) for x in _fetch_queries(queries, category="종목", per_query=max(20, limit))]
+    # Keep the existing stock-name collection intact, then add material-dense
+    # market stories as a separate candidate pool. The same relevance/material
+    # validation below decides whether any of them are actually used.
+    stock_items = _fetch_queries(queries, category="종목", per_query=max(20, limit))
+    market_story_items = _fetch_queries(
+        MARKET_STORY_QUERIES,
+        category="종목",
+        per_query=max(20, min(int(limit), 30)),
+    )
+    items = [_enrich_item(x) for x in _dedupe(stock_items + market_story_items)]
     relevant = []
     for item in items:
         text = _search_text(item)
