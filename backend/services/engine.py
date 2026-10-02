@@ -19,7 +19,7 @@ from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
 from .news_feed import fetch_stock_news
-from .news_scoring import score_stock_news, build_keyword_storyboard
+from .news_scoring import score_stock_news, build_keyword_storyboard, build_connected_keyword_test
 from .disclosure_scoring import score_disclosures
 from .market_levels import (
     calculate_volume_profile_levels,
@@ -2517,6 +2517,10 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 storyboard_news_list = score_stock_news(fetch_stock_news(raw_name, market="국내", limit=50), raw_name)
+                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
+                for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
+                    article["article_keywords"] = keyword_result.get("keywords", [])
+                    article["article_keyword_details"] = keyword_result.get("keyword_details", [])
                 news_list = storyboard_news_list[:3]
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
@@ -2590,6 +2594,10 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 storyboard_news_list = score_stock_news(fetch_stock_news(raw_name, market="미국", limit=50), raw_name)
+                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
+                for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
+                    article["article_keywords"] = keyword_result.get("keywords", [])
+                    article["article_keyword_details"] = keyword_result.get("keyword_details", [])
                 news_list = storyboard_news_list[:3]
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
