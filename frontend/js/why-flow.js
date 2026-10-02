@@ -186,12 +186,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 if (!disclosures.length) {
                   const emptyDisclosure = document.createElement('p');
                   emptyDisclosure.className = responseMessageClass;
-                  const monthSection = disclosureBlock.querySelector('[aria-label="훔쳐보기"]')?.closest('section');
-                  if (monthSection) {
-                    disclosureBlock.insertBefore(emptyDisclosure, monthSection);
-                  } else {
-                    disclosureBlock.appendChild(emptyDisclosure);
-                  }
+                  disclosureBlock.appendChild(emptyDisclosure);
                   await typeText(emptyDisclosure, '꽝이야\n\n없어');
                 }
                 const disclosureReplyText = `${disclosurePrompt.innerText}\n${disclosureBlock.innerText}`;
