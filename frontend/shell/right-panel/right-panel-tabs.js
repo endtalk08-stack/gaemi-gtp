@@ -179,6 +179,26 @@
       keywordLine.className = 'right-panel-related-news__meta';
       keywordLine.textContent = keywords.map((keyword) => `#${keyword}`).join(' ');
       row.append(title, meta);
+      const holdings = Array.isArray(item.executive_shareholdings) ? item.executive_shareholdings : [];
+      holdings.forEach((detail) => {
+        const person = String(detail.repror || '').trim();
+        const position = String(detail.isu_exctv_ofcps || '').trim();
+        const currentShares = String(detail.sp_stock_lmp_cnt || '').trim();
+        const shareDelta = String(detail.sp_stock_lmp_irds_cnt || '').trim();
+        const currentRate = String(detail.sp_stock_lmp_rate || '').trim();
+        const personLine = document.createElement('div');
+        personLine.className = 'right-panel-related-news__meta';
+        personLine.textContent = [person, position].filter(Boolean).join(' · ');
+        const holdingLine = document.createElement('div');
+        holdingLine.className = 'right-panel-related-news__meta';
+        holdingLine.textContent = [
+          currentShares ? `${currentShares}주` : '',
+          shareDelta ? `${shareDelta}주` : '',
+          currentRate ? `${currentRate}%` : ''
+        ].filter(Boolean).join(' · ');
+        if (personLine.textContent) row.appendChild(personLine);
+        if (holdingLine.textContent) row.appendChild(holdingLine);
+      });
       if (keywords.length) row.appendChild(keywordLine);
       list.appendChild(row);
     });
