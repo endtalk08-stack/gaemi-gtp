@@ -43,6 +43,40 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                 const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
                 const keywordText = keywords.map((keyword) => `#${String(keyword).replace(/^#/, '')}`).join(' ');
 
+                const majorChange = item.major_shareholder_change && typeof item.major_shareholder_change === 'object'
+                  ? item.major_shareholder_change : null;
+                if (majorChange) {
+                  const shareDelta = Number(majorChange.share_delta);
+                  const currentRate = Number(majorChange.current_rate);
+                  const rateDelta = Number(majorChange.rate_delta);
+                  const summaryRight = document.createElement('span');
+                  summaryRight.dataset.typingText = [
+                    Number.isFinite(shareDelta) ? `총 ${shareDelta > 0 ? '+' : ''}${Math.round(shareDelta).toLocaleString('ko-KR')}주` : '',
+                    Number.isFinite(currentRate) ? `지분율 ${currentRate.toFixed(2)}%` : '',
+                    Number.isFinite(rateDelta) && rateDelta !== 0 ? `(${rateDelta > 0 ? '+' : ''}${rateDelta.toFixed(2)}%p)` : (Number.isFinite(currentRate) ? '유지' : '')
+                  ].filter(Boolean).join(' · ');
+                  summaryRight.textContent = '';
+                  if (summaryRight.dataset.typingText) metaEl.appendChild(summaryRight);
+
+                  const detailChanges = Array.isArray(majorChange.detail_changes) ? majorChange.detail_changes : [];
+                  detailChanges.forEach((detail) => {
+                    const detailLine = document.createElement('div');
+                    detailLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                    const detailLeft = document.createElement('span');
+                    detailLeft.dataset.typingText = [detail.name || '', detail.relation || '', detail.reason || ''].filter(Boolean).join(' · ');
+                    detailLeft.textContent = '';
+                    detailLine.appendChild(detailLeft);
+                    const delta = Number(detail.share_delta);
+                    if (Number.isFinite(delta)) {
+                      const detailRight = document.createElement('span');
+                      detailRight.dataset.typingText = `${delta > 0 ? '+' : ''}${Math.round(delta).toLocaleString('ko-KR')}주`;
+                      detailRight.textContent = '';
+                      detailLine.appendChild(detailRight);
+                    }
+                    row.appendChild(detailLine);
+                  });
+                }
+
                 const holdings = Array.isArray(item.executive_shareholdings) ? item.executive_shareholdings : [];
                 holdings.forEach((detail) => {
                   const person = String(detail.repror || '').trim();
