@@ -182,9 +182,41 @@
       if (String(item.form || '').toUpperCase() === '8-K') {
         const keyPoints = Array.isArray(item.key_points_ko) ? item.key_points_ko.filter(Boolean).slice(0, 3) : [];
         keyPoints.forEach((point) => {
+          const pointText = String(point).trim();
           const pointLine = document.createElement('div');
           pointLine.className = 'right-panel-disclosures__line';
-          pointLine.textContent = `• ${point}`;
+
+          const pointLeft = document.createElement('span');
+          let pointRightText = '';
+          let pointLeftText = pointText;
+
+          let match = pointText.match(/^회전신용 한도 최대 (.+?) 추가 확대 가능 · 총 한도 최대 (.+)$/);
+          if (match) {
+            pointLeftText = '회전신용 한도 추가 확대';
+            pointRightText = `${match[1]} · 총 ${match[2]}`;
+          } else {
+            match = pointText.match(/^최소 (.+?) 유동성 유지 조건$/);
+            if (match) {
+              pointLeftText = '최소 유동성 유지 조건';
+              pointRightText = match[1];
+            } else {
+              match = pointText.match(/^기존 회전신용 계약 한도 (.+?) · (\d{4}-\d{2}-\d{2}) 만기$/);
+              if (match) {
+                pointLeftText = '기존 회전신용 계약 만기';
+                pointRightText = match[2];
+              }
+            }
+          }
+
+          pointLeft.textContent = pointLeftText;
+          pointLine.appendChild(pointLeft);
+
+          if (pointRightText) {
+            const pointRight = document.createElement('span');
+            pointRight.textContent = pointRightText;
+            pointLine.appendChild(pointRight);
+          }
+
           row.appendChild(pointLine);
         });
       }
