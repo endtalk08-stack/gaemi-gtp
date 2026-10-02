@@ -186,13 +186,13 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 if (!disclosures.length) {
                   const emptyDisclosure = document.createElement('p');
                   emptyDisclosure.className = responseMessageClass;
-                  const moreButton = disclosureBlock.querySelector('[aria-label="더보기"]');
+                  const moreButton = disclosureBlock.querySelector('[aria-label="훔쳐보기"]')?.closest('section');
                   if (moreButton) {
                     disclosureBlock.insertBefore(emptyDisclosure, moreButton);
                   } else {
                     disclosureBlock.appendChild(emptyDisclosure);
                   }
-                  await typeText(emptyDisclosure, '꽝이야\n없어!');
+                  await typeText(emptyDisclosure, '꽝이야\n\n없어');
                 }
                 const disclosureReplyText = `${disclosurePrompt.innerText}\n${disclosureBlock.innerText}`;
                 const disclosureActions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(
