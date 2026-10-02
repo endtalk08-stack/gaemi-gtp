@@ -423,6 +423,40 @@ def _clean_dart_cell_text(value):
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
+class _DartTableHTMLParser(HTMLParser):
+    """정상 XML이 아닌 DART 원문에서도 표 행/셀 텍스트만 읽는다."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.rows = []
+        self._row = None
+        self._cell_parts = None
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag == "tr":
+            self._row = []
+        elif tag in ("td", "th") and self._row is not None:
+            self._cell_parts = []
+
+    def handle_data(self, data):
+        if self._cell_parts is not None:
+            self._cell_parts.append(data)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in ("td", "th") and self._cell_parts is not None:
+            text_value = _clean_dart_cell_text(" ".join(self._cell_parts))
+            if text_value and self._row is not None:
+                self._row.append(text_value)
+            self._cell_parts = None
+        elif tag == "tr" and self._row is not None:
+            if self._row:
+                self.rows.append(self._row)
+            self._row = None
+            self._cell_parts = None
+
+
 def _dart_document_rows(receipt_no):
     """OpenDART 원본 문서를 표의 행/셀 단위 텍스트로 읽는다."""
     receipt_no = str(receipt_no or "").strip()
@@ -442,6 +476,9 @@ def _dart_document_rows(receipt_no):
             try:
                 root = ET.fromstring(raw)
             except Exception:
+                parser = _DartTableHTMLParser()
+                parser.feed(raw.decode("utf-8", errors="ignore"))
+                rows.extend(parser.rows)
                 continue
             for tr in root.iter():
                 if str(tr.tag).split("}")[-1].upper() != "TR":
@@ -487,9 +524,6 @@ def fetch_dart_major_shareholder_change(receipt_no):
             return cached[1]
         try:
             rows = _dart_document_rows(receipt_no)
-            print(f"[DART 최대주주 추적] receipt_no={receipt_no} rows={len(rows)}")
-            for row_index, row_cells in enumerate(rows):
-                print(f"[DART 최대주주 추적] row={row_index} cells={row_cells}")
             if not rows:
                 return {}
 
@@ -577,9 +611,7 @@ def _attach_dart_major_shareholder_change_details(disclosures):
         receipt_no = str(item.get("receipt_no") or "").strip()
         if "최대주주등소유주식변동신고" not in report or not receipt_no:
             continue
-        print(f"[DART 최대주주 추적] report={report} receipt_no={receipt_no}")
         detail = fetch_dart_major_shareholder_change(receipt_no)
-        print(f"[DART 최대주주 추적] parsed receipt_no={receipt_no} detail={detail}")
         if not detail:
             continue
         item["major_shareholder_change"] = detail
