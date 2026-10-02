@@ -1135,6 +1135,81 @@ def _summarize_8k_key_points_ko(key_points):
     return summaries
 
 
+def _extract_8k_exhibit_99_1_points(index_html, filing, max_points=4):
+    """같은 8-K 제출 건의 Exhibit 99.1에서 화면용 핵심 숫자 문장만 뽑는다."""
+    accession = str(filing.get("accession") or "").strip()
+    cik = str(filing.get("cik") or "").strip()
+    if not accession or not cik:
+        return []
+
+    candidates = []
+    for match in re.finditer(r'(?is)<tr[^>]*>(.*?)</tr>', str(index_html or "")):
+        row_html = match.group(1)
+        row_text = _plain_text_from_html(row_html)
+        if not re.search(r"(?i)(?:EX-?99\.1|Exhibit\s+99\.1)", row_text):
+            continue
+        href_match = re.search(r'(?i)href=["\']([^"\']+)["\']', row_html)
+        if href_match:
+            candidates.append(href_match.group(1))
+
+    if not candidates:
+        return []
+
+    clean_accession = accession.replace("-", "")
+    href = candidates[0]
+    if href.startswith("http://") or href.startswith("https://"):
+        exhibit_url = href
+    elif href.startswith("/"):
+        exhibit_url = "https://www.sec.gov" + href
+    else:
+        exhibit_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{clean_accession}/{href}"
+
+    req = urllib.request.Request(
+        exhibit_url,
+        headers={
+            "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
+            "Accept": "text/html,application/xhtml+xml,*/*",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        exhibit_text = _plain_text_from_html(resp.read().decode("utf-8", errors="ignore"))
+
+    sentences = re.split(r"(?<=[.!?])\s+|\n+", exhibit_text)
+    signal_words = (
+        "production", "produced", "deliveries", "delivered", "revenue", "revenues",
+        "operating income", "net income", "earnings", "eps", "earnings per share",
+        "free cash flow", "cash flow", "guidance", "outlook", "margin",
+    )
+    ranked = []
+    for index, sentence in enumerate(sentences):
+        sentence = re.sub(r"\s+", " ", sentence).strip(" -•\t\r\n")
+        if len(sentence) < 20 or len(sentence) > 420:
+            continue
+        lowered = sentence.lower()
+        signal_count = sum(1 for word in signal_words if word in lowered)
+        if signal_count <= 0 or not re.search(r"\d", sentence):
+            continue
+        score = signal_count * 3
+        if "$" in sentence or "%" in sentence:
+            score += 2
+        if re.search(r"\b\d{1,3}(?:,\d{3})+\b", sentence):
+            score += 2
+        ranked.append((score, index, sentence))
+
+    ranked.sort(key=lambda row: (-row[0], row[1]))
+    selected = []
+    seen = set()
+    for _, index, sentence in ranked:
+        normalized = sentence[:320].strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            selected.append((index, normalized))
+        if len(selected) >= max_points:
+            break
+    selected.sort(key=lambda row: row[0])
+    return [sentence for _, sentence in selected]
+
+
 def _enrich_us_8k_from_submission(filing, ticker_symbol):
     """SEC 8-K 원문에서 표시할 사건만 골라 Item/제목/해시태그 재료를 붙인다."""
     filing_url = str(filing.get("original_document_url") or "").strip()
@@ -1160,6 +1235,23 @@ def _enrich_us_8k_from_submission(filing, ticker_symbol):
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
             document_text = _plain_text_from_html(resp.read().decode("utf-8", errors="ignore"))
+
+        exhibit_points = []
+        try:
+            filing_page_url = str(filing.get("url") or "").strip()
+            if filing_page_url:
+                index_req = urllib.request.Request(
+                    filing_page_url,
+                    headers={
+                        "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
+                        "Accept": "text/html,application/xhtml+xml,*/*",
+                    },
+                )
+                with urllib.request.urlopen(index_req, timeout=5) as index_resp:
+                    index_html = index_resp.read().decode("utf-8", errors="ignore")
+                exhibit_points = _extract_8k_exhibit_99_1_points(index_html, filing)
+        except Exception as exhibit_err:
+            print(f"[미국 공시] {ticker_symbol} Exhibit 99.1 보강 실패: {type(exhibit_err).__name__}: {exhibit_err}")
 
         item_sections = _extract_8k_item_sections(document_text)
         selected = []
@@ -1189,6 +1281,9 @@ def _enrich_us_8k_from_submission(filing, ticker_symbol):
 
             key_points = _extract_8k_key_points(" ".join(selected_sections), max_points=3)
             key_points_ko = _summarize_8k_key_points_ko(key_points)
+            if exhibit_points and any(item_no == "2.02" for item_no in item_numbers):
+                key_points = exhibit_points[:3]
+                key_points_ko = exhibit_points[:3]
             detail = {
                 "display_8k": True,
                 "item": item_numbers[0],
