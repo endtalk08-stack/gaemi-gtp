@@ -64,7 +64,7 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                 disclosureRows.push(row);
               });
               if (typeof typeText === 'function') {
-                await typeText(disclosureTitle, '관련 공시도 확인했어 📄');
+                await typeText(disclosureTitle, '오늘 공시는?');
                 for (const row of disclosureRows) {
                   const parts = row.querySelectorAll('[data-typing-text]');
                   for (const part of parts) {
@@ -72,7 +72,7 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   }
                 }
               } else {
-                disclosureTitle.textContent = '관련 공시도 확인했어 📄';
+                disclosureTitle.textContent = '오늘 공시는?';
                 disclosureRows.forEach((row) => {
                   row.querySelectorAll('[data-typing-text]').forEach((part) => {
                     part.textContent = part.dataset.typingText || '';
