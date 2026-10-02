@@ -41,6 +41,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             const allDisclosures = (Array.isArray(result.disclosures) && result.disclosures.length
               ? result.disclosures
               : (Array.isArray(result.us_filings) ? result.us_filings : []));
+            window.GaemiGTPRightPanelTabs?.showRelatedDisclosures?.(allDisclosures);
             const today = new Date();
             const todayMonth = today.getMonth() + 1;
             const todayDay = today.getDate();
