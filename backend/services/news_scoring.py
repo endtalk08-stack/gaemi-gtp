@@ -399,3 +399,82 @@ def summarize_stock_flow(items):
         "top_issues": [{"label": label, "count": count} for label, count in issue_counts.most_common(5)],
         "top_themes": [{"label": label, "count": count} for label, count in theme_counts.most_common(5)],
     }
+
+def build_connected_keyword_test(items, stock_name, max_keywords=3):
+    """Test-only: find a small connected keyword set from title+description evidence."""
+    aliases = set(_stock_aliases(stock_name))
+    keyword_articles = {}
+    keyword_scores = Counter()
+    pair_scores = Counter()
+    evidence = {}
+
+    for index, item in enumerate(items or []):
+        text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
+        if not text.strip():
+            continue
+
+        labels = []
+        for signal in _refine_movement_signals(item):
+            label = str(signal.get("label") or "").strip()
+            if label and label.lower() not in aliases and label not in labels:
+                labels.append(label)
+
+        for label, _tone, phrases in DETAIL_KEYWORD_RULES:
+            if label not in labels and any(phrase.lower() in text for phrase in phrases):
+                labels.append(label)
+
+        labels = labels[:8]
+        article_weight = max(1, int(item.get("flow_score") or 1))
+        for label in labels:
+            keyword_articles.setdefault(label, set()).add(index)
+            keyword_scores[label] += article_weight
+            evidence.setdefault(label, []).append({
+                "title": item.get("title") or "",
+                "description": item.get("description") or "",
+            })
+
+        for left_index, left in enumerate(labels):
+            for right in labels[left_index + 1:]:
+                pair_scores[tuple(sorted((left, right)))] += article_weight
+
+    if not keyword_scores:
+        return {"stock": stock_name, "keywords": [], "connections": [], "evidence": {}}
+
+    ranked = sorted(keyword_scores, key=lambda label: (
+        len(keyword_articles.get(label, set())), keyword_scores[label], label
+    ), reverse=True)
+    selected = [ranked[0]]
+
+    while len(selected) < max_keywords:
+        candidates = [label for label in ranked if label not in selected]
+        if not candidates:
+            break
+
+        def connection_score(label):
+            links = sum(pair_scores.get(tuple(sorted((label, chosen))), 0) for chosen in selected)
+            return (links, len(keyword_articles.get(label, set())), keyword_scores[label])
+
+        best = max(candidates, key=connection_score)
+        if connection_score(best)[0] <= 0:
+            break
+        selected.append(best)
+
+    connections = []
+    for left_index, left in enumerate(selected):
+        for right in selected[left_index + 1:]:
+            score = pair_scores.get(tuple(sorted((left, right))), 0)
+            if score > 0:
+                shared = keyword_articles.get(left, set()) & keyword_articles.get(right, set())
+                connections.append({
+                    "from": left, "to": right,
+                    "shared_article_count": len(shared),
+                    "connection_score": score,
+                })
+
+    return {
+        "stock": stock_name,
+        "keywords": [{"label": label, "article_count": len(keyword_articles.get(label, set())), "evidence_score": keyword_scores[label]} for label in selected],
+        "connections": sorted(connections, key=lambda row: (row["shared_article_count"], row["connection_score"]), reverse=True),
+        "evidence": {label: evidence.get(label, [])[:3] for label in selected},
+    }
+
