@@ -130,11 +130,13 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             followups.innerHTML = `
               <p class="${responseMessageClass}"></p>
               <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
-                <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-why-followup="big-money">#큰손은_뭐해?</button>
-                <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:opacity-80 dark:text-[#e889aa]" data-why-followup="disclosure">#공시는_있어?</button>
+                <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-why-followup="big-money"></button>
+                <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:opacity-80 dark:text-[#e889aa]" data-why-followup="disclosure"></button>
               </div>`;
             (actions || block).insertAdjacentElement('afterend', followups);
             await typeText(followups.querySelector('p'), '하나만 찍어');
+            await typeText(followups.querySelector('[data-why-followup="big-money"]'), '#큰손은_뭐해?');
+            await typeText(followups.querySelector('[data-why-followup="disclosure"]'), '#공시는_있어?');
 
             followups.addEventListener('click', async (event) => {
               const button = event.target.closest('[data-why-followup]');
