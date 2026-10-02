@@ -105,3 +105,34 @@
 .right-panel-related-news__item:hover .right-panel-related-news__title {
   text-decoration: underline;
 }
+
+
+/* 공시 패널 전용: 뉴스 카드 스타일은 변경하지 않는다. */
+.right-panel-disclosures__item {
+  cursor: default;
+}
+.right-panel-disclosures__line {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 7px;
+  color: var(--gtp-faint);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+  font-family: inherit;
+}
+.right-panel-disclosures__line:first-child {
+  margin-top: 0;
+}
+.right-panel-disclosures__title {
+  color: var(--gtp-faint);
+  font-size: 11px;
+  font-weight: 650;
+}
+.right-panel-disclosures__line > span:last-child:not(:first-child) {
+  margin-left: auto;
+  text-align: right;
+}
