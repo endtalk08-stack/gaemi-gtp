@@ -49,6 +49,28 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   letter-spacing: -0.025em;
 }
 
+.left-sidebar-home__brand-menu {
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gtp-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  cursor: pointer;
+}
+.left-sidebar-home__brand-menu:hover { background: var(--gtp-hover); }
+.left-sidebar-home__brand-menu svg {
+  width: 14px;
+  height: 14px;
+  color: var(--gtp-muted);
+  stroke-width: 1.75;
+}
+
 .left-sidebar-home__actions { display: inline-flex; align-items: center; gap: 2px; }
 .left-sidebar-home__icon-button {
   width: 36px;
