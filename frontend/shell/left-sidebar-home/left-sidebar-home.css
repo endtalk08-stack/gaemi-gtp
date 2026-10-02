@@ -32,6 +32,7 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   justify-content: space-between;
   gap: 8px;
   background: var(--gtp-bg);
+  border: 1px solid var(--gtp-border);
 }
 
 .left-sidebar-home__icon-button {
