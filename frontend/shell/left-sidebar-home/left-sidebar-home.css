@@ -84,7 +84,7 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   z-index: 50;
   padding: 7px;
   border-radius: 12px;
-  background: #000;
+  background: var(--gtp-surface);
   box-shadow: 0 14px 30px rgba(0, 0, 0, .22);
 }
 .left-sidebar-home__dropdown.hidden { display: none; }
