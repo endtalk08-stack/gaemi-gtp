@@ -287,12 +287,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const heroView = document.getElementById('mainHeroView');
       if (heroView) heroView.classList.remove('hidden');
 
-      if (saved?.leftHomeOpen) document.body.classList.add('left-home-open');
+      document.body.classList.add('left-home-open');
       if (saved?.leftMarketOpen) document.body.classList.add('left-market-open');
       if (saved?.leftContextOpen) document.body.classList.add('left-context-open');
       if (saved?.leftPluginOpen) document.body.classList.add('left-plugin-open');
       if (saved?.rightPanelOpen) document.body.classList.add('right-panel-open');
-      if (saved?.leftMarketOpen || saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-home-open');
       if (saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-market-open');
       if (saved?.leftContextOpen) document.body.classList.remove('left-plugin-open');
       if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
@@ -328,15 +327,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         } else {
           document.body.classList.remove('right-panel-maximized');
         }
-        if (saved?.leftHomeOpen) document.body.classList.add('left-home-open');
-        else document.body.classList.remove('left-home-open');
+        document.body.classList.add('left-home-open');
         if (saved?.leftMarketOpen) document.body.classList.add('left-market-open');
         else document.body.classList.remove('left-market-open');
         if (saved?.leftContextOpen) document.body.classList.add('left-context-open');
         else document.body.classList.remove('left-context-open');
         if (saved?.leftPluginOpen) document.body.classList.add('left-plugin-open');
         else document.body.classList.remove('left-plugin-open');
-        if (saved?.leftMarketOpen || saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-home-open');
         if (saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-market-open');
         if (saved?.leftContextOpen) document.body.classList.remove('left-plugin-open');
         if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
