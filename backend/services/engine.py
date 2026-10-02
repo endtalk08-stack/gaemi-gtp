@@ -350,6 +350,55 @@ def fetch_dart_executive_shareholdings(stock_code):
     return []
 
 
+def _attach_dart_executive_shareholding_details(stock_code, disclosures):
+    """목록 공시의 접수번호와 elestock 상세 원천을 정확히 일치시켜 붙인다."""
+    if not disclosures:
+        return disclosures
+
+    target_receipt_nos = {
+        str(item.get("receipt_no") or "").strip()
+        for item in disclosures
+        if "임원" in str(item.get("report") or "")
+        and "주요주주" in str(item.get("report") or "")
+        and str(item.get("receipt_no") or "").strip()
+    }
+    if not target_receipt_nos:
+        return disclosures
+
+    details = fetch_dart_executive_shareholdings(stock_code)
+    details_by_receipt = {}
+    for detail in details:
+        receipt_no = str(detail.get("rcept_no") or "").strip()
+        if receipt_no in target_receipt_nos:
+            details_by_receipt.setdefault(receipt_no, []).append(detail)
+
+    for item in disclosures:
+        receipt_no = str(item.get("receipt_no") or "").strip()
+        matched = details_by_receipt.get(receipt_no, [])
+        if not matched:
+            continue
+
+        item["executive_shareholdings"] = matched
+        share_delta = 0
+        has_delta = False
+        for detail in matched:
+            raw_delta = str(detail.get("sp_stock_lmp_irds_cnt") or "").replace(",", "").strip()
+            try:
+                share_delta += int(raw_delta)
+                has_delta = True
+            except (TypeError, ValueError):
+                continue
+        if has_delta:
+            item["shareholding_change"] = (
+                "지분증가" if share_delta > 0
+                else "지분감소" if share_delta < 0
+                else "지분변동없음"
+            )
+            item["shareholding_delta"] = share_delta
+
+    return disclosures
+
+
 def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
     """OpenDART에서 국내 기업의 최근 공시를 코드로 조회한다."""
     if not OPENDART_API_KEY or not stock_code:
@@ -2214,6 +2263,9 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=30, max_results=30)
+                kr_official_disclosures = _attach_dart_executive_shareholding_details(
+                    clean_code, kr_official_disclosures
+                )
             except Exception as e:
                 print(f"[국내 공시] fail: {type(e).__name__}: {e}")
                 kr_official_disclosures = []
@@ -2417,7 +2469,13 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "time_zone": item.get("time_zone", ""),
                     "receipt_datetime": item.get("receipt_datetime", ""),
                     "link": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={item.get('receipt_no', '')}" if item.get("receipt_no") else "",
-                    "keywords": item.get("keywords", []),
+                    "keywords": (
+                        item.get("keywords", [])
+                        + ([f"#{item.get('shareholding_change')}"] if item.get("shareholding_change") else [])
+                    ),
+                    "executive_shareholdings": item.get("executive_shareholdings", []),
+                    "shareholding_change": item.get("shareholding_change", ""),
+                    "shareholding_delta": item.get("shareholding_delta"),
                 })
         us_filings = []
         if not is_krw and ticker_symbol:
