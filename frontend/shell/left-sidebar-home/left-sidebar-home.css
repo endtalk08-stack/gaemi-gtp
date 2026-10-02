@@ -129,6 +129,26 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   padding: 12px 16px 28px;
 }
 
+.left-sidebar-home__section-content {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.left-sidebar-home__section-content.hidden { display: none; }
+.left-sidebar-home__section-content > #leftMarketSidebar,
+.left-sidebar-home__section-content > #leftContextSidebar,
+.left-sidebar-home__section-content > #leftPluginSidebar {
+  width: 100% !important;
+  flex: 1 1 auto !important;
+  height: 100%;
+  border-right: 0 !important;
+}
+.left-sidebar-home__section-content .market-sidebar-header,
+.left-sidebar-home__section-content .context-sidebar-header,
+.left-sidebar-home__section-content .plugin-sidebar-header {
+  display: none;
+}
+
 .left-sidebar-home__menu {
   display: flex;
   flex-direction: column;
