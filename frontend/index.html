@@ -40,30 +40,6 @@
     </div>
   </div>
 
-  <!-- 왼쪽 세로 내비게이션 레일: 화면 구조용 UI. 기능 연결은 이후 단계에서 확정한다. -->
-  <nav id="leftNavRail" aria-label="gaemiGTP 기본 메뉴">
-    <div class="left-nav-rail-top">
-      <button type="button" class="left-nav-rail-btn left-nav-rail-brand" onclick="toggleLeftSidebarHome()" aria-label="사이드바 홈 열기" title="사이드바 홈">
-        <span class="left-nav-rail-logo">g</span>
-      </button>
-      <div class="left-nav-rail-divider"></div>
-      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftSidebar()" aria-label="시장정보 열기/닫기" title="시장정보">
-        <i data-lucide="panel-left" class="w-5 h-5"></i>
-      </button>
-      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftContextSidebar()" aria-label="관심종목/최근 본 종목" title="관심종목">
-        <i data-lucide="star" class="w-5 h-5"></i>
-      </button>
-      <button type="button" class="left-nav-rail-btn" onclick="toggleLeftPluginSidebar()" aria-label="플러그인 위젯 추가" title="플러그인 · 위젯 추가">
-        <i data-lucide="plug" class="w-5 h-5"></i>
-      </button>
-    </div>
-    <div class="left-nav-rail-bottom">
-      <button type="button" class="left-nav-rail-btn" aria-label="로그인 / 계정" title="로그인 / 계정">
-        <i data-lucide="circle-user-round" class="w-5 h-5"></i>
-      </button>
-    </div>
-  </nav>
-
   <!-- 왼쪽 사이드바 첫 메뉴: 저장된 프로젝트/선택 항목을 한곳에서 확인하는 홈 -->
   <aside id="leftSidebarHome" class="left-sidebar-home" aria-label="gaemiGTP 사이드바 홈" aria-hidden="true">
     <header class="left-sidebar-home__header">
