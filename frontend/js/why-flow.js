@@ -199,5 +199,5 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               }
             });
             if (window.lucide) window.lucide.createIcons();
-            block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            followups.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
