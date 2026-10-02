@@ -80,10 +80,23 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                 if (String(item.form || '').toUpperCase() === '8-K') {
                   const keyPoints = Array.isArray(item.key_points_ko) ? item.key_points_ko.filter(Boolean).slice(0, 3) : [];
                   keyPoints.forEach((point) => {
+                    const parts = String(point).split(' · ').map((part) => part.trim()).filter(Boolean);
                     const pointLine = document.createElement('div');
-                    pointLine.className = 'text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
-                    pointLine.dataset.typingText = `• ${point}`;
-                    pointLine.textContent = '';
+                    pointLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+
+                    const pointLeft = document.createElement('span');
+                    pointLeft.dataset.typingText = parts[0] || '';
+                    pointLeft.textContent = '';
+                    pointLine.appendChild(pointLeft);
+
+                    if (parts.length > 1) {
+                      const pointRight = document.createElement('span');
+                      pointRight.className = 'text-right';
+                      pointRight.dataset.typingText = parts.slice(1).join(' · ');
+                      pointRight.textContent = '';
+                      pointLine.appendChild(pointRight);
+                    }
+
                     row.appendChild(pointLine);
                   });
                 }
