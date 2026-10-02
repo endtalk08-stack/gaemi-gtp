@@ -77,6 +77,17 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   });
                 }
 
+                if (String(item.form || '').toUpperCase() === '8-K') {
+                  const keyPoints = Array.isArray(item.key_points_ko) ? item.key_points_ko.filter(Boolean).slice(0, 3) : [];
+                  keyPoints.forEach((point) => {
+                    const pointLine = document.createElement('div');
+                    pointLine.className = 'text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                    pointLine.dataset.typingText = `• ${point}`;
+                    pointLine.textContent = '';
+                    row.appendChild(pointLine);
+                  });
+                }
+
                 const holdings = Array.isArray(item.executive_shareholdings) ? item.executive_shareholdings : [];
                 holdings.forEach((detail) => {
                   const person = String(detail.repror || '').trim();
