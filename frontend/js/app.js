@@ -401,6 +401,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       const requestId = ++activeAnalysisRequestId;
       activeStock = stockName;
+      window.GaemiGTPActiveStock = activeStock;
       saveWorkspaceState();
 
       const chatArea = document.getElementById('chatArea');
