@@ -38,9 +38,21 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
   
             const evidence = getWhyEvidence();
             const allNewsItems = Array.isArray(result.news_items) ? result.news_items : [];
-            const disclosures = (Array.isArray(result.disclosures) && result.disclosures.length
+            const allDisclosures = (Array.isArray(result.disclosures) && result.disclosures.length
               ? result.disclosures
-              : (Array.isArray(result.us_filings) ? result.us_filings : [])).slice(0, 3);
+              : (Array.isArray(result.us_filings) ? result.us_filings : []));
+            const today = new Date();
+            const todayMonth = today.getMonth() + 1;
+            const todayDay = today.getDate();
+            const disclosures = allDisclosures.filter((item) => {
+              const dateText = String(item?.date || '').trim();
+              const match = dateText.match(/^(?:(\d{4})[-/.])?(\d{1,2})[-/.](\d{1,2})/);
+              if (!match) return false;
+              const year = match[1] ? Number(match[1]) : today.getFullYear();
+              return year === today.getFullYear()
+                && Number(match[2]) === todayMonth
+                && Number(match[3]) === todayDay;
+            });
             const storyboard = Array.isArray(result.keyword_storyboard) ? result.keyword_storyboard : [];
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5 animate-fade';
@@ -174,7 +186,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   const emptyDisclosure = document.createElement('p');
                   emptyDisclosure.className = responseMessageClass;
                   disclosureBlock.appendChild(emptyDisclosure);
-                  await typeText(emptyDisclosure, '오늘 확인된 공시는 없어 ㅠㅠ');
+                  await typeText(emptyDisclosure, '꽝이야\n없어!');
                 }
                 const disclosureReplyText = `${disclosurePrompt.innerText}\n${disclosureBlock.innerText}`;
                 const disclosureActions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(
