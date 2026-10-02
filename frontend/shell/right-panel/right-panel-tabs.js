@@ -96,12 +96,31 @@
     }
     renderRelatedDisclosuresPanel();
   }
+  async function loadActiveStockNews() {
+    const stock = String(window.GaemiGTPActiveStock || '').trim();
+    if (!stock) {
+      relatedNewsItems = [];
+      renderRelatedNewsPanel();
+      return;
+    }
+    try {
+      const response = await fetch(`https://gaemi-gtp.onrender.com/analyze?stock=${encodeURIComponent(stock)}`);
+      const result = await response.json();
+      relatedNewsItems = (
+        Array.isArray(result.news_items) ? result.news_items : []
+      ).slice(0, 20);
+    } catch (_) {
+      relatedNewsItems = [];
+    }
+    renderRelatedNewsPanel();
+  }
   function selectPanelWorkspaceView(type) {
     if (!PANEL_WORKSPACE_VIEWS[type]) return;
     panelWorkspaceView = type;
     setActiveTab('panel-workspace');
     savePanelWorkspaceView();
     togglePanelWorkspaceMenu(false);
+    if (type === 'news') loadActiveStockNews();
     if (type === 'disclosures') loadActiveStockDisclosures();
   }
   function formatNewsDate(value) {
