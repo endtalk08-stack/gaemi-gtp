@@ -41,17 +41,31 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             const allDisclosures = (Array.isArray(result.disclosures) && result.disclosures.length
               ? result.disclosures
               : (Array.isArray(result.us_filings) ? result.us_filings : []));
-            const today = new Date();
-            const todayMonth = today.getMonth() + 1;
-            const todayDay = today.getDate();
+            const getTodayParts = (timeZone) => {
+              const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone,
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric'
+              }).formatToParts(new Date());
+              const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+              return {
+                year: Number(values.year),
+                month: Number(values.month),
+                day: Number(values.day)
+              };
+            };
             const disclosures = allDisclosures.filter((item) => {
               const dateText = String(item?.date || '').trim();
               const match = dateText.match(/^(?:(\d{4})[-/.])?(\d{1,2})[-/.](\d{1,2})/);
               if (!match) return false;
-              const year = match[1] ? Number(match[1]) : today.getFullYear();
-              return year === today.getFullYear()
-                && Number(match[2]) === todayMonth
-                && Number(match[3]) === todayDay;
+              const isSec = String(item?.source || '').toUpperCase() === 'SEC'
+                || String(item?.time_zone || '').toUpperCase() === 'ET';
+              const today = getTodayParts(isSec ? 'America/New_York' : 'Asia/Seoul');
+              const year = match[1] ? Number(match[1]) : today.year;
+              return year === today.year
+                && Number(match[2]) === today.month
+                && Number(match[3]) === today.day;
             });
             const storyboard = Array.isArray(result.keyword_storyboard) ? result.keyword_storyboard : [];
             const block = document.createElement('section');
@@ -175,7 +189,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 disclosureBlock.className = 'mt-5 space-y-5 animate-fade';
                 disclosurePrompt.insertAdjacentElement('afterend', disclosureBlock);
                 await window.GaemiGTPDisclosures.renderDisclosures({
-                  disclosures: allDisclosures,
+                  disclosures,
                   allDisclosures,
                   articles: [],
                   block: disclosureBlock,
@@ -183,7 +197,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal,
                   typeText
                 });
-                if (!allDisclosures.length) {
+                if (!disclosures.length) {
                   const emptyDisclosure = document.createElement('p');
                   emptyDisclosure.className = responseMessageClass;
                   disclosureBlock.appendChild(emptyDisclosure);
