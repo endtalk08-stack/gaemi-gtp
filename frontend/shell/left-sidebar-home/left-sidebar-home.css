@@ -73,6 +73,40 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   color: var(--gtp-muted);
   stroke-width: 1.75;
 }
+.left-sidebar-home__brand-menu[aria-expanded="true"] { background: var(--gtp-hover); }
+.left-sidebar-home__brand-menu[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.left-sidebar-home__dropdown {
+  position: absolute;
+  top: 56px;
+  left: 12px;
+  right: 12px;
+  z-index: 4;
+  padding: 7px;
+  border-radius: 12px;
+  background: var(--gtp-surface);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .22);
+}
+.left-sidebar-home__dropdown.hidden { display: none; }
+.left-sidebar-home__dropdown button {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 9px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gtp-text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+.left-sidebar-home__dropdown button:hover { background: var(--gtp-hover); color: var(--gtp-text); }
+.left-sidebar-home__dropdown svg { width: 17px; height: 17px; color: var(--gtp-muted); stroke-width: 1.9; }
 
 .left-sidebar-home__actions { display: inline-flex; align-items: center; gap: 2px; }
 .left-sidebar-home__icon-button {
