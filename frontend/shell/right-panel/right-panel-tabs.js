@@ -190,10 +190,10 @@
           let pointRightText = '';
           let pointLeftText = pointText;
 
-          let match = pointText.match(/^에너지 저장 · (.+)$/);
+          let match = pointText.match(/^(생산량|인도량|에너지 저장|재무실적) · (.+)$/);
           if (match) {
-            pointLeftText = '';
-            pointRightText = pointText;
+            pointLeftText = match[1];
+            pointRightText = match[2];
           } else {
             match = pointText.match(/^회전신용 한도 최대 (.+?) 추가 확대 가능 · 총 한도 최대 (.+)$/);
           }
