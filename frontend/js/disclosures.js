@@ -10,12 +10,18 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
   openExternalLinkModal,
   typeText
 }) {
+            const disclosureSection = document.createElement('section');
+            disclosureSection.className = 'space-y-2';
+            const disclosureTitle = Object.assign(document.createElement('p'), { className: responseMessageClass });
+            disclosureSection.appendChild(disclosureTitle);
+            block.appendChild(disclosureSection);
+            if (typeof typeText === 'function') {
+              await typeText(disclosureTitle, '오늘 공시는?');
+            } else {
+              disclosureTitle.textContent = '오늘 공시는?';
+            }
+
             if (disclosures.length) {
-              const disclosureSection = document.createElement('section');
-              disclosureSection.className = 'space-y-2';
-              const disclosureTitle = Object.assign(document.createElement('p'), { className: responseMessageClass });
-              disclosureSection.appendChild(disclosureTitle);
-              block.appendChild(disclosureSection);
               const disclosureRows = [];
               disclosures.forEach((item) => {
                 const row = document.createElement('button');
@@ -65,7 +71,6 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                 disclosureRows.push(row);
               });
               if (typeof typeText === 'function') {
-                await typeText(disclosureTitle, '오늘 공시는?');
                 for (const row of disclosureRows) {
                   const parts = row.querySelectorAll('[data-typing-text]');
                   for (const part of parts) {
@@ -73,7 +78,6 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   }
                 }
               } else {
-                disclosureTitle.textContent = '오늘 공시는?';
                 disclosureRows.forEach((row) => {
                   row.querySelectorAll('[data-typing-text]').forEach((part) => {
                     part.textContent = part.dataset.typingText || '';
