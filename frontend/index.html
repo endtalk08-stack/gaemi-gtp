@@ -78,19 +78,20 @@
       </div>
     </header>
     <div class="left-sidebar-home__body">
-      <section class="left-sidebar-home__section" aria-labelledby="leftSidebarProjectsTitle">
-        <h2 id="leftSidebarProjectsTitle" class="left-sidebar-home__section-title"><i data-lucide="folder" aria-hidden="true"></i><span>프로젝트</span></h2>
-      </section>
-      <section class="left-sidebar-home__section" aria-labelledby="leftSidebarPluginsTitle">
-        <h2 id="leftSidebarPluginsTitle" class="left-sidebar-home__section-title"><i data-lucide="plug" aria-hidden="true"></i><span>플러그인</span></h2>
-        <ul id="leftSidebarHomePluginList" class="left-sidebar-home__items" aria-label="추가한 플러그인"></ul>
-      </section>
-      <section class="left-sidebar-home__section" aria-labelledby="leftSidebarReservationsTitle">
-        <h2 id="leftSidebarReservationsTitle" class="left-sidebar-home__section-title"><i data-lucide="calendar-clock" aria-hidden="true"></i><span>예약</span></h2>
-      </section>
-      <section class="left-sidebar-home__section" aria-labelledby="leftSidebarStocksTitle">
-        <h2 id="leftSidebarStocksTitle" class="left-sidebar-home__section-title"><i data-lucide="star" aria-hidden="true"></i><span>내 종목</span></h2>
-      </section>
+      <nav class="left-sidebar-home__menu" aria-label="왼쪽 기본 메뉴">
+        <button type="button" class="left-sidebar-home__menu-item" onclick="resetToHome(); closeLeftSidebarHome();">
+          <i data-lucide="house" aria-hidden="true"></i><span>메인</span>
+        </button>
+        <button type="button" class="left-sidebar-home__menu-item" onclick="toggleLeftSidebar()">
+          <i data-lucide="radio" aria-hidden="true"></i><span>실시간</span>
+        </button>
+        <button type="button" class="left-sidebar-home__menu-item" onclick="toggleLeftContextSidebar()">
+          <i data-lucide="star" aria-hidden="true"></i><span>관심종목</span>
+        </button>
+        <button type="button" class="left-sidebar-home__menu-item" onclick="toggleLeftPluginSidebar()">
+          <i data-lucide="plug" aria-hidden="true"></i><span>플러그인</span>
+        </button>
+      </nav>
     </div>
   </aside>
 
