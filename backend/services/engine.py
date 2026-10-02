@@ -3045,6 +3045,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "items": item.get("items", []),
                     "event_title": item.get("event_title", ""),
                     "key_points": item.get("key_points", []),
+                    "key_points_ko": item.get("key_points_ko", []),
                     "person": item.get("person", ""),
                     "officer_title": item.get("officer_title", ""),
                     "transaction_kind": item.get("transaction_kind", ""),
