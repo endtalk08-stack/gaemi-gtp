@@ -311,13 +311,13 @@ def _fetch_dart_receipt_time(receipt_no):
         return value
 
 
-def _fetch_kr_official_disclosures_uncached(stock_code, days=7):
+def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
     """OpenDART에서 국내 기업의 최근 공시를 코드로 조회한다."""
     if not OPENDART_API_KEY or not stock_code:
         return []
 
     stock_code = str(stock_code).strip()
-    cache_key = (stock_code, days)
+    cache_key = (stock_code, days, max_results)
     cached = DART_DISCLOSURE_CACHE.get(cache_key)
     now_ts = datetime.datetime.now().timestamp()
     if cached and now_ts - cached[0] < 300:
@@ -389,11 +389,11 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7):
             key=lambda x: (x["score"], x["date"], x["receipt_no"]),
             reverse=True,
         )
-        results = results[:3]
+        results = results[:max_results]
 
-        # 최종 3건의 DART 접수시간 보강은 서로 독립적이므로 병렬 조회한다.
+        # 최종 표시 후보 중 상위 3건의 DART 접수시간만 보강은 서로 독립적이므로 병렬 조회한다.
         # 첫 검색에서 최대 3번의 순차 HTTP 대기를 제거한다.
-        receipt_items = list(results)
+        receipt_items = list(results[:3])
         with ThreadPoolExecutor(max_workers=min(3, len(receipt_items) or 1)) as receipt_executor:
             receipt_futures = {
                 receipt_executor.submit(_fetch_dart_receipt_time, item.get("receipt_no", "")): item
@@ -426,12 +426,12 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7):
     return []
 
 
-def fetch_kr_official_disclosures(stock_code, days=7):
+def fetch_kr_official_disclosures(stock_code, days=7, max_results=3):
     """DART 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
     if not OPENDART_API_KEY or not stock_code:
         return []
     stock_code = str(stock_code).strip()
-    cache_key = (stock_code, days)
+    cache_key = (stock_code, days, max_results)
     now_ts = datetime.datetime.now().timestamp()
     cached = DART_DISCLOSURE_CACHE.get(cache_key)
     if cached and now_ts - cached[0] < 300:
@@ -442,7 +442,7 @@ def fetch_kr_official_disclosures(stock_code, days=7):
         cached = DART_DISCLOSURE_CACHE.get(cache_key)
         if cached and now_ts - cached[0] < 300:
             return cached[1]
-        return _fetch_kr_official_disclosures_uncached(stock_code, days)
+        return _fetch_kr_official_disclosures_uncached(stock_code, days, max_results)
 
 
 def format_kr_official_disclosures(stock_code, disclosures=None):
@@ -613,11 +613,11 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
         return filing
 
 
-def _fetch_us_official_filings_uncached(ticker_symbol, days=7):
+def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
     """SEC 공식 제출자료 중 최근 주요 공시를 수집한다. AI/웹검색 없이 코드로만 수집."""
     ticker_symbol = ticker_symbol.upper()
     cik = US_CIKS.get(ticker_symbol)
-    cache_key = (ticker_symbol, days)
+    cache_key = (ticker_symbol, days, max_results)
     cached = US_FILING_CACHE.get(cache_key)
     if cached and (datetime.datetime.now().timestamp() - cached[0] < 300):
         return cached[1]
@@ -698,11 +698,11 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7):
 
             results.append(filing)
 
-            if len(results) >= 3:
+            if len(results) >= max_results:
                 break
 
         # Form 4 세부 원문 요청은 최대 3건을 병렬로 실행한다.
-        enrich_targets = [f for f in results if f.get("_needs_form4_enrichment")]
+        enrich_targets = [f for f in results[:3] if f.get("_needs_form4_enrichment")]
         if enrich_targets:
             with ThreadPoolExecutor(max_workers=min(3, len(enrich_targets))) as enrich_executor:
                 future_map = {
@@ -726,12 +726,12 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7):
     US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), [])
     return []
 
-def fetch_us_official_filings(ticker_symbol, days=7):
+def fetch_us_official_filings(ticker_symbol, days=7, max_results=3):
     """SEC 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
     ticker_symbol = str(ticker_symbol or "").upper().strip()
     if not ticker_symbol or ticker_symbol not in US_CIKS:
         return []
-    cache_key = (ticker_symbol, days)
+    cache_key = (ticker_symbol, days, max_results)
     now_ts = datetime.datetime.now().timestamp()
     cached = US_FILING_CACHE.get(cache_key)
     if cached and now_ts - cached[0] < 300:
@@ -742,7 +742,7 @@ def fetch_us_official_filings(ticker_symbol, days=7):
         cached = US_FILING_CACHE.get(cache_key)
         if cached and now_ts - cached[0] < 300:
             return cached[1]
-        return _fetch_us_official_filings_uncached(ticker_symbol, days)
+        return _fetch_us_official_filings_uncached(ticker_symbol, days, max_results)
 
 
 def format_us_official_filings(ticker_symbol, filings=None):
@@ -2174,7 +2174,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 storyboard_news_list = []
 
             try:
-                kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=30)
+                kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=30, max_results=30)
             except Exception as e:
                 print(f"[국내 공시] fail: {type(e).__name__}: {e}")
                 kr_official_disclosures = []
@@ -2241,7 +2241,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 storyboard_news_list = []
 
             try:
-                us_filings_raw = fetch_us_official_filings(ticker_symbol, days=30)
+                us_filings_raw = fetch_us_official_filings(ticker_symbol, days=30, max_results=30)
             except Exception as e:
                 print(f"[미국 공시] fail: {type(e).__name__}: {e}")
                 us_filings_raw = []
