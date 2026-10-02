@@ -190,17 +190,17 @@
           let pointRightText = '';
           let pointLeftText = pointText;
 
-          let match = pointText.match(/^(생산량|인도량|에너지 저장|재무실적) · (.+)$/);
+          let match = pointText.match(/^에너지 저장 · (.+)$/);
           if (match) {
-            pointLeftText = match[1];
-            pointRightText = match[2];
+            pointLeftText = '';
+            pointRightText = pointText;
           } else {
             match = pointText.match(/^회전신용 한도 최대 (.+?) 추가 확대 가능 · 총 한도 최대 (.+)$/);
           }
           if (!pointRightText && match && pointText.startsWith('회전신용 한도 최대 ')) {
             pointLeftText = '회전신용 한도 추가 확대';
             pointRightText = `${match[1]} · 총 ${match[2]}`;
-          } else {
+          } else if (!pointRightText) {
             match = pointText.match(/^최소 (.+?) 유동성 유지 조건$/);
             if (match) {
               pointLeftText = '최소 유동성 유지 조건';
