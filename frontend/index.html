@@ -43,19 +43,17 @@
   <!-- 왼쪽 사이드바 첫 메뉴: 저장된 프로젝트/선택 항목을 한곳에서 확인하는 홈 -->
   <aside id="leftSidebarHome" class="left-sidebar-home" aria-label="gaemiGTP 사이드바 홈" aria-hidden="true">
     <header class="left-sidebar-home__header">
-      <div class="left-sidebar-home__title">gaemiGTP</div>
-      <div class="left-sidebar-home__actions">
-        <button type="button" class="left-sidebar-home__icon-button" onclick="focusSidebarStockSearch()" aria-label="종목 검색" title="종목 검색">
-          <i data-lucide="search" aria-hidden="true"></i>
-        </button>
-        <button type="button" class="left-sidebar-home__icon-button" onclick="closeLeftSidebarHome()" aria-label="사이드바 닫기" title="사이드바 닫기">
-          <i data-lucide="x" aria-hidden="true"></i>
-        </button>
-      </div>
+      <button type="button" class="left-sidebar-home__brand-menu" aria-label="gaemiGTP 메뉴" title="gaemiGTP 메뉴">
+        <span class="left-sidebar-home__title">gaemiGTP</span>
+        <i data-lucide="chevron-down" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="left-sidebar-home__icon-button" onclick="focusSidebarStockSearch()" aria-label="종목 검색" title="종목 검색">
+        <i data-lucide="search" aria-hidden="true"></i>
+      </button>
     </header>
     <div class="left-sidebar-home__body">
       <nav class="left-sidebar-home__menu" aria-label="왼쪽 기본 메뉴">
-        <button type="button" class="left-sidebar-home__menu-item" onclick="resetToHome(); closeLeftSidebarHome();">
+        <button type="button" class="left-sidebar-home__menu-item" onclick="resetToHome();">
           <i data-lucide="house" aria-hidden="true"></i><span>메인</span>
         </button>
         <button type="button" class="left-sidebar-home__menu-item" onclick="toggleLeftSidebar()">
