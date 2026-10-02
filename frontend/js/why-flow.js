@@ -175,7 +175,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 disclosureBlock.className = 'mt-5 space-y-5 animate-fade';
                 disclosurePrompt.insertAdjacentElement('afterend', disclosureBlock);
                 await window.GaemiGTPDisclosures.renderDisclosures({
-                  disclosures,
+                  disclosures: allDisclosures,
                   allDisclosures,
                   articles: [],
                   block: disclosureBlock,
@@ -183,7 +183,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal,
                   typeText
                 });
-                if (!disclosures.length) {
+                if (!allDisclosures.length) {
                   const emptyDisclosure = document.createElement('p');
                   emptyDisclosure.className = responseMessageClass;
                   disclosureBlock.appendChild(emptyDisclosure);
