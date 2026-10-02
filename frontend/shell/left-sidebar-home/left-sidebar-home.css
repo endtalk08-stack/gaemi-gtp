@@ -121,12 +121,10 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
 .left-sidebar-home__item { min-width: 0; padding: 5px 0; color: var(--gtp-text-2); font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 1023px) {
-  /* 모바일에서 기본 레일(48px)과 함께 열릴 때는 레일 영역을 제외한 폭만 사용한다.
-     100vw를 그대로 쓰면 레일 + 사이드바가 화면 너비를 넘어가 오른쪽이 잘린다. */
   #leftSidebarHome.left-sidebar-home {
-    width: calc(100vw - 48px);
-    flex-basis: calc(100vw - 48px);
-    max-width: calc(100vw - 48px);
+    width: 100vw;
+    flex-basis: 100vw;
+    max-width: 100vw;
   }
   body.right-panel-open #leftSidebarHome.left-sidebar-home {
     width: 100vw;
