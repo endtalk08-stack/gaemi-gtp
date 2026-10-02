@@ -177,9 +177,11 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   row.appendChild(personLine);
                 } else if (!holdings.length && keywordText) {
                   const keywordLine = document.createElement('div');
-                  keywordLine.className = String(item.form || '').toUpperCase() === '8-K'
-                    ? 'flex items-baseline justify-end gap-3 analysis-hashtag text-xs font-semibold text-[#db2777] dark:text-[#e889aa]'
-                    : 'analysis-hashtag text-xs font-semibold text-[#db2777] dark:text-[#e889aa]';
+                  keywordLine.className = 'analysis-hashtag text-xs font-semibold text-[#db2777] dark:text-[#e889aa]';
+                  if (String(item.form || '').toUpperCase() === '8-K') {
+                    keywordLine.style.width = '100%';
+                    keywordLine.style.textAlign = 'right';
+                  }
                   keywordLine.dataset.typingText = keywordText;
                   keywordLine.textContent = '';
                   row.appendChild(keywordLine);
