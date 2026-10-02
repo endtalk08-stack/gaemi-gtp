@@ -178,6 +178,38 @@
       keywordLine.textContent = keywords.map((keyword) => `#${keyword}`).join(' ');
 
       row.append(title, meta);
+
+      const majorChange = item.major_shareholder_change && typeof item.major_shareholder_change === 'object'
+        ? item.major_shareholder_change : null;
+      if (majorChange) {
+        const shareDelta = Number(majorChange.share_delta);
+        const currentRate = Number(majorChange.current_rate);
+        const rateDelta = Number(majorChange.rate_delta);
+        const summaryLine = document.createElement('span');
+        summaryLine.textContent = [
+          Number.isFinite(shareDelta) ? `총 ${shareDelta > 0 ? '+' : ''}${Math.round(shareDelta).toLocaleString('ko-KR')}주` : '',
+          Number.isFinite(currentRate) ? `지분율 ${currentRate.toFixed(2)}%` : '',
+          Number.isFinite(rateDelta) && rateDelta !== 0 ? `(${rateDelta > 0 ? '+' : ''}${rateDelta.toFixed(2)}%p)` : (Number.isFinite(currentRate) ? '유지' : '')
+        ].filter(Boolean).join(' · ');
+        if (summaryLine.textContent) meta.appendChild(summaryLine);
+
+        const detailChanges = Array.isArray(majorChange.detail_changes) ? majorChange.detail_changes : [];
+        detailChanges.forEach((detail) => {
+          const detailLine = document.createElement('div');
+          detailLine.className = 'right-panel-disclosures__line';
+          const detailLeft = document.createElement('span');
+          detailLeft.textContent = [detail.name || '', detail.relation || '', detail.reason || ''].filter(Boolean).join(' · ');
+          detailLine.appendChild(detailLeft);
+          const detailRight = document.createElement('span');
+          const delta = Number(detail.share_delta);
+          detailRight.textContent = Number.isFinite(delta)
+            ? `${delta > 0 ? '+' : ''}${Math.round(delta).toLocaleString('ko-KR')}주`
+            : '';
+          if (detailRight.textContent) detailLine.appendChild(detailRight);
+          if (detailLine.textContent) row.appendChild(detailLine);
+        });
+      }
+
       const holdings = Array.isArray(item.executive_shareholdings) ? item.executive_shareholdings : [];
       holdings.forEach((detail) => {
         const person = String(detail.repror || '').trim();
