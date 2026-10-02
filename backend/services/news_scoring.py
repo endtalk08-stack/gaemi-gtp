@@ -401,80 +401,77 @@ def summarize_stock_flow(items):
     }
 
 def build_connected_keyword_test(items, stock_name, max_keywords=3):
-    """Test-only: find a small connected keyword set from title+description evidence."""
-    aliases = set(_stock_aliases(stock_name))
-    keyword_articles = {}
-    keyword_scores = Counter()
-    pair_scores = Counter()
-    evidence = {}
+    """Test-only: extract up to three connected keywords from each article."""
+    phrase_rules = [
+        ("가격상승", ["가격 상승", "가격이 상승", "가격 급등", "가격이 급등", "가격 두 자릿수 급등"]),
+        ("가격하락", ["가격 하락", "가격이 하락", "가격 급락", "가격이 급락"]),
+        ("물량증가", ["물량 증가", "물량이 증가", "출하량 증가", "판매량 증가"]),
+        ("물량감소", ["물량 감소", "물량이 감소", "출하량 감소", "판매량 감소"]),
+        ("성장가속", ["성장 가속", "성장이 가속", "성장세 가속"]),
+        ("상승진입", ["상승 국면 진입", "상승국면 진입", "상승 사이클 진입"]),
+        ("공급확대", ["공급 확대", "공급이 확대"]),
+        ("양산확대", ["양산 확대", "양산이 확대"]),
+        ("수요증가", ["수요 증가", "수요가 증가", "수요 확대", "수요가 확대"]),
+        ("수요둔화", ["수요 둔화", "수요가 둔화", "수요 감소", "수요가 감소"]),
+        ("실적개선", ["실적 개선", "실적이 개선"]),
+        ("실적악화", ["실적 악화", "실적이 악화"]),
+    ]
+    topic_rules = [
+        ("HBM", ["hbm", "고대역폭 메모리"]),
+        ("메모리", ["메모리"]),
+        ("D램", ["d램", "dram"]),
+        ("낸드", ["낸드", "nand"]),
+        ("반도체", ["반도체"]),
+        ("AI", ["ai", "인공지능"]),
+    ]
 
-    for index, item in enumerate(items or []):
-        text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
+    results = []
+    for item in items or []:
+        title = str(item.get("title") or "").strip()
+        description = str(item.get("description") or "").strip()
+        text = f"{title} {description}".lower()
         if not text.strip():
             continue
 
-        labels = []
+        candidates = []
+        seen = set()
+
+        def add(label, role, source):
+            if not label or label in seen:
+                return
+            seen.add(label)
+            candidates.append({"label": label, "role": role, "source": source})
+
+        # 기사 안에 실제로 적힌 변화/결과 표현을 우선한다.
+        for label, phrases in phrase_rules:
+            matched = next((phrase for phrase in phrases if phrase.lower() in text), "")
+            if matched:
+                role = "result" if label in {"성장가속", "상승진입", "실적개선", "실적악화"} else "change"
+                add(label, role, matched)
+
+        # 기존 분류기가 잡은 구체 신호도 같은 기사 안의 근거가 있을 때만 보조 후보로 쓴다.
         for signal in _refine_movement_signals(item):
             label = str(signal.get("label") or "").strip()
-            if label and label.lower() not in aliases and label not in labels:
-                labels.append(label)
+            if label:
+                add(label, "signal", label)
 
-        for label, _tone, phrases in DETAIL_KEYWORD_RULES:
-            if label not in labels and any(phrase.lower() in text for phrase in phrases):
-                labels.append(label)
+        # 변화/결과만으로 세 개가 안 될 때 기사 주제를 보완한다.
+        for label, phrases in topic_rules:
+            matched = next((phrase for phrase in phrases if phrase.lower() in text), "")
+            if matched:
+                add(label, "topic", matched)
 
-        labels = labels[:8]
-        article_weight = max(1, int(item.get("flow_score") or 1))
-        for label in labels:
-            keyword_articles.setdefault(label, set()).add(index)
-            keyword_scores[label] += article_weight
-            evidence.setdefault(label, []).append({
-                "title": item.get("title") or "",
-                "description": item.get("description") or "",
-            })
+        role_order = {"change": 0, "result": 1, "signal": 2, "topic": 3}
+        candidates.sort(key=lambda row: role_order.get(row["role"], 9))
+        selected = candidates[:max_keywords]
 
-        for left_index, left in enumerate(labels):
-            for right in labels[left_index + 1:]:
-                pair_scores[tuple(sorted((left, right)))] += article_weight
+        results.append({
+            "title": title,
+            "description": description,
+            "keywords": [row["label"] for row in selected],
+            "keyword_details": selected,
+            "enough_evidence": len(selected) >= max_keywords,
+        })
 
-    if not keyword_scores:
-        return {"stock": stock_name, "keywords": [], "connections": [], "evidence": {}}
-
-    ranked = sorted(keyword_scores, key=lambda label: (
-        len(keyword_articles.get(label, set())), keyword_scores[label], label
-    ), reverse=True)
-    selected = [ranked[0]]
-
-    while len(selected) < max_keywords:
-        candidates = [label for label in ranked if label not in selected]
-        if not candidates:
-            break
-
-        def connection_score(label):
-            links = sum(pair_scores.get(tuple(sorted((label, chosen))), 0) for chosen in selected)
-            return (links, len(keyword_articles.get(label, set())), keyword_scores[label])
-
-        best = max(candidates, key=connection_score)
-        if connection_score(best)[0] <= 0:
-            break
-        selected.append(best)
-
-    connections = []
-    for left_index, left in enumerate(selected):
-        for right in selected[left_index + 1:]:
-            score = pair_scores.get(tuple(sorted((left, right))), 0)
-            if score > 0:
-                shared = keyword_articles.get(left, set()) & keyword_articles.get(right, set())
-                connections.append({
-                    "from": left, "to": right,
-                    "shared_article_count": len(shared),
-                    "connection_score": score,
-                })
-
-    return {
-        "stock": stock_name,
-        "keywords": [{"label": label, "article_count": len(keyword_articles.get(label, set())), "evidence_score": keyword_scores[label]} for label in selected],
-        "connections": sorted(connections, key=lambda row: (row["shared_article_count"], row["connection_score"]), reverse=True),
-        "evidence": {label: evidence.get(label, [])[:3] for label in selected},
-    }
+    return {"stock": stock_name, "articles": results}
 
