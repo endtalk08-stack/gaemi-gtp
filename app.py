@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from backend.providers.deepl_translate import translate_to_korean
-from backend.services.engine import analyze_stock, fetch_dart_executive_shareholdings, get_live_calendar_data, start_calendar_warmup
+from backend.services.engine import analyze_stock, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 from backend.services.marketaux_news import (
     CATEGORIES as MARKETAUX_CATEGORIES,
     MarketauxConfigurationError,
@@ -117,6 +117,17 @@ def debug_dart_elestock():
         "stock_code": stock_code,
         "items": fetch_dart_executive_shareholdings(stock_code),
     })
+
+@app.get("/debug/sec/form4")
+def debug_sec_form4():
+    ticker = str(request.args.get("ticker", "NVDA") or "").upper().strip()
+    filings = fetch_us_official_filings(ticker, days=30, max_results=30)
+    return jsonify({
+        "ok": True,
+        "ticker": ticker,
+        "items": [item for item in filings if str(item.get("form") or "").upper() == "4"],
+    })
+
 
 @app.get("/analyze")
 def analyze():
