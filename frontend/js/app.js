@@ -273,7 +273,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function focusSidebarStockSearch() {
-      closeLeftSidebarHome();
       focusStockInput();
     }
 
