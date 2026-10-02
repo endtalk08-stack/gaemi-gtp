@@ -495,16 +495,11 @@ def fetch_dart_major_shareholder_change(receipt_no):
             section = ""
             current_person = {}
             for cells in rows:
-                joined = " ".join(cells)
-                if "3. 보고의 개요" in joined or "보고의 개요" == joined:
+                first_cell = cells[0] if cells else ""
+                if first_cell in ("직전보고서제출일", "이번보고서제출일", "증감", "합계"):
                     section = "summary"
-                    continue
-                if "4. 개인별 세부변동사항" in joined or "개인별 세부변동사항" == joined:
+                elif "성명" in cells:
                     section = "details"
-                    continue
-                if joined.startswith("5.") and "주식소유현황" in joined:
-                    section = ""
-                    continue
 
                 if section == "summary":
                     if cells[0] in ("직전보고서제출일", "이번보고서제출일", "증감"):
