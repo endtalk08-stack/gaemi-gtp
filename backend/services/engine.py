@@ -1210,6 +1210,37 @@ def _extract_8k_exhibit_99_1_points(index_html, filing, max_points=4):
     return [sentence for _, sentence in selected]
 
 
+
+def _summarize_8k_exhibit_points_ko(points):
+    """Exhibit 99.1 핵심문장을 패널용 짧은 한국어 결과로 가공한다."""
+    summaries = []
+    for point in points or []:
+        text = re.sub(r"\s+", " ", str(point or "")).strip()
+        lowered = text.lower()
+
+        production = re.search(r"produced\s+(?:over\s+)?([0-9,]+)\s+vehicles?", text, re.I)
+        deliveries = re.search(r"delivered\s+(?:over\s+)?([0-9,]+)\s+vehicles?", text, re.I)
+        storage = re.search(r"deployed\s+([0-9]+(?:\.[0-9]+)?)\s*GWh", text, re.I)
+        if production or deliveries or storage:
+            if production:
+                summaries.append("생산량 · " + production.group(1) + "대 이상")
+            if deliveries:
+                summaries.append("인도량 · " + deliveries.group(1) + "대 이상")
+            if storage:
+                summaries.append("에너지 저장 · " + storage.group(1) + " GWh")
+            continue
+
+        if ("net income" in lowered or "cash flow" in lowered) and "announce" in lowered and "q3" in lowered:
+            summaries.append("재무실적 · Q3 실적 발표 시 공개")
+
+    unique = []
+    for summary in summaries:
+        if summary not in unique:
+            unique.append(summary)
+        if len(unique) >= 4:
+            break
+    return unique
+
 def _enrich_us_8k_from_submission(filing, ticker_symbol):
     """SEC 8-K 원문에서 표시할 사건만 골라 Item/제목/해시태그 재료를 붙인다."""
     filing_url = str(filing.get("original_document_url") or "").strip()
@@ -1283,7 +1314,8 @@ def _enrich_us_8k_from_submission(filing, ticker_symbol):
             key_points_ko = _summarize_8k_key_points_ko(key_points)
             if exhibit_points and any(item_no == "2.02" for item_no in item_numbers):
                 key_points = exhibit_points[:3]
-                key_points_ko = exhibit_points[:3]
+                exhibit_points_ko = _summarize_8k_exhibit_points_ko(exhibit_points)
+                key_points_ko = exhibit_points_ko or exhibit_points[:3]
             detail = {
                 "display_8k": True,
                 "item": item_numbers[0],
