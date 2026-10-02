@@ -129,6 +129,17 @@ def debug_sec_form4():
     })
 
 
+@app.get("/debug/sec/8k")
+def debug_sec_8k():
+    ticker = str(request.args.get("ticker", "TSLA") or "").upper().strip()
+    filings = fetch_us_official_filings(ticker, days=30, max_results=30)
+    return jsonify({
+        "ok": True,
+        "ticker": ticker,
+        "items": [item for item in filings if str(item.get("form") or "").upper() == "8-K"],
+    })
+
+
 @app.get("/analyze")
 def analyze():
     stock = request.args.get("stock", "SK하이닉스")
