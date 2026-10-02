@@ -155,25 +155,28 @@
     if (!root) return;
     root.innerHTML = '';
     const section = document.createElement('section');
-    section.className = 'right-panel-related-news';
+    section.className = 'right-panel-related-news right-panel-disclosures';
     section.setAttribute('aria-label', '한달 공시');
     const list = document.createElement('div');
     list.className = 'right-panel-related-news__list';
     relatedDisclosureItems.forEach((item) => {
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'right-panel-related-news__item';
-      row.addEventListener('click', () => window.GaemiGTPExternalLinkModal?.openExternalLinkModal?.(item));
+      const row = document.createElement('div');
+      row.className = 'right-panel-related-news__item right-panel-disclosures__item';
+
       const title = document.createElement('div');
-      title.className = 'right-panel-related-news__title';
+      title.className = 'right-panel-disclosures__line right-panel-disclosures__title';
       title.textContent = item.title || '공시 제목 확인 필요';
+
       const meta = document.createElement('div');
-      meta.className = 'right-panel-related-news__meta';
-      meta.textContent = [item.date || '', item.time || '', item.source || '공시'].filter(Boolean).join(' · ');
+      meta.className = 'right-panel-disclosures__line';
+      const metaLeft = document.createElement('span');
+      metaLeft.textContent = [item.date || '', item.time || '', item.source || '공시'].filter(Boolean).join(' · ');
+      meta.appendChild(metaLeft);
+
       const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
-      const keywordLine = document.createElement('div');
-      keywordLine.className = 'right-panel-related-news__meta';
+      const keywordLine = document.createElement('span');
       keywordLine.textContent = keywords.map((keyword) => `#${keyword}`).join(' ');
+
       row.append(title, meta);
       const holdings = Array.isArray(item.executive_shareholdings) ? item.executive_shareholdings : [];
       holdings.forEach((detail) => {
@@ -183,25 +186,28 @@
         const shareDelta = String(detail.sp_stock_lmp_irds_cnt || '').trim();
         const currentRate = String(detail.sp_stock_lmp_rate || '').trim();
         const personLine = document.createElement('div');
-        personLine.className = 'right-panel-related-news__meta';
+        personLine.className = 'right-panel-disclosures__line';
         personLine.textContent = [person, position].filter(Boolean).join(' · ');
-        const holdingLine = document.createElement('div');
-        holdingLine.className = 'right-panel-related-news__meta';
+        const holdingLine = document.createElement('span');
         holdingLine.textContent = [
           currentShares ? `${currentShares}주` : '',
           shareDelta ? `${shareDelta}주` : '',
           currentRate ? `${currentRate}%` : ''
         ].filter(Boolean).join(' · ');
+        if (holdingLine.textContent) meta.appendChild(holdingLine);
+        if (keywordLine.textContent) personLine.appendChild(keywordLine);
         if (personLine.textContent) row.appendChild(personLine);
-        if (holdingLine.textContent) row.appendChild(holdingLine);
       });
+
       if (String(item.form || '').toUpperCase() === '4') {
         const person = String(item.person || '').trim();
         const position = String(item.officer_title || '').trim();
         const personLine = document.createElement('div');
-        personLine.className = 'right-panel-related-news__meta';
-        personLine.textContent = [person, position].filter(Boolean).join(' · ');
-        if (personLine.textContent) row.appendChild(personLine);
+        personLine.className = 'right-panel-disclosures__line';
+        const personLeft = document.createElement('span');
+        personLeft.textContent = [person, position].filter(Boolean).join(' · ');
+        personLine.appendChild(personLeft);
+
         const transactions = Array.isArray(item.transactions) ? item.transactions : [];
         let totalShares = 0;
         let totalValue = 0;
@@ -212,19 +218,24 @@
           if (Number.isFinite(shares) && Number.isFinite(price)) totalValue += shares * price;
         });
         if (transactions.length) {
-          const transactionLine = document.createElement('div');
-          transactionLine.className = 'right-panel-related-news__meta';
           const totalValueText = totalValue >= 1000000
-            ? `약 ${(totalValue / 1000000).toLocaleString('en-US', { maximumFractionDigits: 2 })}M`
-            : (totalValue > 0 ? `약 ${Math.round(totalValue).toLocaleString('en-US')}` : '');
+            ? `약 $${(totalValue / 1000000).toLocaleString('en-US', { maximumFractionDigits: 2 })}M`
+            : (totalValue > 0 ? `약 $${Math.round(totalValue).toLocaleString('en-US')}` : '');
+          const transactionLine = document.createElement('span');
           transactionLine.textContent = [
             totalShares > 0 ? `총 ${Math.round(totalShares).toLocaleString('en-US')}주` : '',
             totalValueText
           ].filter(Boolean).join(' · ');
-          if (transactionLine.textContent) row.appendChild(transactionLine);
+          if (transactionLine.textContent) meta.appendChild(transactionLine);
         }
+        if (keywordLine.textContent) personLine.appendChild(keywordLine);
+        if (personLine.textContent) row.appendChild(personLine);
+      } else if (!holdings.length && keywordLine.textContent) {
+        const keywordOnlyLine = document.createElement('div');
+        keywordOnlyLine.className = 'right-panel-disclosures__line';
+        keywordOnlyLine.appendChild(keywordLine);
+        row.appendChild(keywordOnlyLine);
       }
-      if (keywords.length) row.appendChild(keywordLine);
       list.appendChild(row);
     });
     section.appendChild(list);
