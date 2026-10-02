@@ -11,6 +11,7 @@
   let activeTabId = 'panel-workspace';
   let panelWorkspaceView = '';
   let relatedNewsItems = [];
+  let relatedDisclosureItems = [];
   const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '대시보드', icon: 'layout-dashboard' }, news: { label: '뉴스', icon: 'newspaper' }, disclosures: { label: '공시', icon: 'file-text' } };
 
   function normalizeLegacyPanelWorkspaceDom() {
@@ -54,6 +55,7 @@
     if (!panelWorkspaceView) { root.innerHTML = ''; return; }
     if (panelWorkspaceView === 'panel-workspace') { root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>'; if (window.GaemiGTPPanelWorkspace && typeof window.GaemiGTPPanelWorkspace.mount === 'function') window.GaemiGTPPanelWorkspace.mount(root); return; }
     if (panelWorkspaceView === 'news') { renderRelatedNewsPanel(); return; }
+    if (panelWorkspaceView === 'disclosures' && relatedDisclosureItems.length) { renderRelatedDisclosuresPanel(); return; }
     if (panelWorkspaceView === 'disclosures') { root.innerHTML = '<section id="rightPanelDisclosures" style="height:100%;min-height:0;" aria-label="공시"></section>'; mountDisclosuresPage(); }
   }
   function renderTabs() {
@@ -119,6 +121,48 @@
     }
     root.appendChild(section);
   }
+  function renderRelatedDisclosuresPanel() {
+    const root = document.getElementById('rightPanelWorkspace');
+    if (!root) return;
+    root.innerHTML = '';
+    const section = document.createElement('section');
+    section.className = 'right-panel-related-news';
+    section.setAttribute('aria-label', '한달 공시');
+    const heading = document.createElement('div');
+    heading.className = 'right-panel-related-news__title';
+    heading.textContent = '한달 공시?';
+    section.appendChild(heading);
+    const list = document.createElement('div');
+    list.className = 'right-panel-related-news__list';
+    relatedDisclosureItems.forEach((item) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'right-panel-related-news__item';
+      row.addEventListener('click', () => window.GaemiGTPExternalLinkModal?.openExternalLinkModal?.(item));
+      const title = document.createElement('div');
+      title.className = 'right-panel-related-news__title';
+      title.textContent = item.title || '공시 제목 확인 필요';
+      const meta = document.createElement('div');
+      meta.className = 'right-panel-related-news__meta';
+      meta.textContent = [item.date || '', item.time || '', item.source || '공시'].filter(Boolean).join(' · ');
+      row.append(title, meta);
+      list.appendChild(row);
+    });
+    section.appendChild(list);
+    root.appendChild(section);
+  }
+  function showRelatedDisclosures(items) {
+    relatedDisclosureItems = Array.isArray(items) ? items.slice(0, 30) : [];
+    panelWorkspaceView = 'disclosures';
+    savePanelWorkspaceView();
+    document.body.classList.add('right-panel-open');
+    window.applySidebarState?.();
+    if (activeTabId !== 'panel-workspace') {
+      setActiveTab('panel-workspace', false);
+      return;
+    }
+    renderRelatedDisclosuresPanel();
+  }
   function showRelatedNews(items) {
     relatedNewsItems = Array.isArray(items) ? items.slice(0, 20) : [];
     panelWorkspaceView = 'news';
@@ -146,6 +190,6 @@
     getTabList().addEventListener('click', event => { const toggle = event.target.closest('[data-panel-workspace-menu-toggle]'); if (toggle) { event.stopPropagation(); togglePanelWorkspaceMenu(); return; } const viewButton = event.target.closest('[data-panel-workspace-view]'); if (viewButton) { event.stopPropagation(); selectPanelWorkspaceView(viewButton.dataset.panelWorkspaceView); return; } const close = event.target.closest('[data-close-tab-id]'); if (close) { event.stopPropagation(); removeTab(close.dataset.closeTabId); return; } const tab = event.target.closest('[data-right-panel-tab]'); if (tab) { togglePanelWorkspaceMenu(false); setActiveTab(tab.dataset.rightPanelTab); } });
     document.addEventListener('click', event => { if (!event.target.closest('#rightPanelTabs')) togglePanelWorkspaceMenu(false); }); getTabList().dataset.bound = 'true'; setActiveTab(activeTabId, false); saveState();
   }
-  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedNews, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
+  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedNews, showRelatedDisclosures, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true }); else initialize();
 })();
