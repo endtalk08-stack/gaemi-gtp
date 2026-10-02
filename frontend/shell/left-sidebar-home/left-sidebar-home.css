@@ -126,6 +126,9 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   color: var(--gtp-faint);
   stroke-width: 1.75;
 }
+.left-sidebar-home__legacy {
+  margin-top: 24px;
+}
 .left-sidebar-home__section { margin: 0 0 23px; }
 .left-sidebar-home__section:last-child { margin-bottom: 0; }
 .left-sidebar-home__section-title {
