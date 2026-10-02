@@ -2534,6 +2534,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "transaction_kind": item.get("transaction_kind", ""),
                     "transaction_summary": item.get("transaction_summary", ""),
                     "transaction_count": item.get("transaction_count", 0),
+                    "transactions": item.get("transactions", []),
                     "price_range": item.get("price_range", ""),
                 })
         return {
