@@ -145,7 +145,12 @@
       const meta = document.createElement('div');
       meta.className = 'right-panel-related-news__meta';
       meta.textContent = [item.date || '', item.time || '', item.source || '공시'].filter(Boolean).join(' · ');
+      const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
+      const keywordLine = document.createElement('div');
+      keywordLine.className = 'right-panel-related-news__meta';
+      keywordLine.textContent = keywords.map((keyword) => `#${keyword}`).join(' ');
       row.append(title, meta);
+      if (keywords.length) row.appendChild(keywordLine);
       list.appendChild(row);
     });
     section.appendChild(list);
