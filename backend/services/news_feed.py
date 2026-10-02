@@ -339,6 +339,15 @@ STOCK_DIRECT_EVENT_WORDS = [
     "협력", "제휴", "착공", "준공", "리콜", "소송", "규제",
 ]
 
+STOCK_INDIRECT_IMPACT_WORDS = [
+    "경쟁", "경쟁사", "점유율", "공급망", "부품", "수급", "공급 부족", "공급 차질",
+    "생산 중단", "생산 차질", "가격 상승", "가격 하락", "수요 증가", "수요 감소",
+    "증설", "감산", "재고", "관세", "수출 규제", "규제", "금리", "환율", "유가",
+    "지수 편입", "지수편입", "편입", "추종 펀드", "추종펀드",
+]
+
+MARKET_STORY_TITLE_MARKERS = ["[특징주]", "특징주", "[증시마감]", "증시마감"]
+
 
 def _stock_aliases_for_name(stock_name):
     aliases = [str(stock_name or "").strip()]
@@ -359,21 +368,31 @@ def _stock_analysis_relevance(item, stock_name):
     if any(alias in title for alias in aliases):
         return 3
 
-    # Description-only mentions are accepted only when a concrete company event
-    # appears close to the stock alias. This rejects broad columns/theme stories
-    # that merely name the stock somewhere in the body.
+    # Description-only mentions can still be useful when the article explains
+    # either a concrete company event or a clear transmission path to the stock.
+    # This keeps competitor/supply-chain/market-impact stories without reopening
+    # broad columns that merely mention the company.
     for alias in aliases:
         start = 0
         while True:
             index = description.find(alias, start)
             if index < 0:
                 break
-            left = max(0, index - 90)
-            right = min(len(description), index + len(alias) + 90)
+            left = max(0, index - 120)
+            right = min(len(description), index + len(alias) + 120)
             nearby = description[left:right]
             if _contains_any(nearby, STOCK_DIRECT_EVENT_WORDS):
                 return 2
+            if _contains_any(nearby, STOCK_INDIRECT_IMPACT_WORDS):
+                return 2
             start = index + len(alias)
+
+    # [특징주]/[증시마감] are useful market-story test material only when the
+    # searched stock is actually named in the article and material signals exist.
+    if _contains_any(title, MARKET_STORY_TITLE_MARKERS):
+        full_text = f"{title} {description}"
+        if any(alias in full_text for alias in aliases) and _contains_any(full_text, STOCK_MATERIAL_SIGNALS):
+            return 1
 
     return 0
 
