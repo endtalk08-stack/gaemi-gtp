@@ -161,12 +161,14 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
 
                 const disclosureBlock = document.createElement('section');
                 disclosureBlock.className = 'mt-5 space-y-5 animate-fade';
-                window.GaemiGTPDisclosures.renderDisclosures({
+                disclosurePrompt.insertAdjacentElement('afterend', disclosureBlock);
+                await window.GaemiGTPDisclosures.renderDisclosures({
                   disclosures,
                   articles: [],
                   block: disclosureBlock,
                   responseMessageClass,
-                  openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal
+                  openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal,
+                  typeText
                 });
                 if (!disclosures.length) {
                   const emptyDisclosure = document.createElement('p');
@@ -174,7 +176,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   disclosureBlock.appendChild(emptyDisclosure);
                   await typeText(emptyDisclosure, '오늘 확인된 공시는 없어 ㅠㅠ');
                 }
-                disclosurePrompt.insertAdjacentElement('afterend', disclosureBlock);
                 const disclosureReplyText = `${disclosurePrompt.innerText}\n${disclosureBlock.innerText}`;
                 const disclosureActions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(
                   disclosureBlock,
