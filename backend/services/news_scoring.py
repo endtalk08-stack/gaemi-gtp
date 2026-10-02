@@ -503,6 +503,18 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         for phase in re.findall(r"(?<!\d)([123])상(?:\s*임상(?:시험)?)?", title):
             add(f"{phase}상데이터", "title-entity", f"{phase}상", 80)
 
+        # Test-only: keep concrete Korean event phrases from the headline.
+        # This supplements reusable rules without adding stock-specific terms.
+        korean_event_patterns = [
+            r"([가-힣A-Za-z0-9]+(?:팹|공장))\s*(착공|준공|증설)",
+            r"([가-힣A-Za-z0-9]+(?:메모리|제품|기술))\s*(공개|출시|개발)",
+            r"([A-Za-z0-9가-힣]+)\s*(양산|생산)",
+        ]
+        for pattern in korean_event_patterns:
+            for match in re.finditer(pattern, title):
+                subject, event = match.groups()
+                add(f"{subject}{event}", "title-event", match.group(0), 84)
+
         # Keep headline scale only when it belongs to a concrete corporate event.
         event_scale_words = ("매입", "인수", "계약", "수주", "투자", "매각", "증자")
         if any(word in title for word in event_scale_words):
