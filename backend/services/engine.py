@@ -1022,6 +1022,59 @@ def _extract_8k_item_sections(text):
     return sections
 
 
+def _extract_8k_key_points(section_text, max_points=3):
+    """8-K Item 본문에서 화면에 보여줄 핵심 문장을 최대 3개만 고른다."""
+    text = re.sub(r"(?im)^Item\s+[1-9]\.\d{2}\b[^\n]*", " ", str(section_text or ""))
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return []
+
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9$])", text)
+    skip_starts = (
+        "the information contained in this current report",
+        "the information in this item",
+        "the foregoing",
+        "the description above",
+        "reference is made",
+        "incorporated herein by reference",
+    )
+    signal_words = (
+        "$", "%", "million", "billion", "revenue", "earnings", "income", "sales",
+        "deliveries", "production", "guidance", "agreement", "contract", "credit",
+        "loan", "debt", "acquisition", "merger", "purchase", "sale", "appoint",
+        "resign", "chief executive", "chief financial", "director", "restructur",
+        "impairment", "bankruptcy", "investigation", "dividend", "repurchase",
+    )
+
+    ranked = []
+    for index, sentence in enumerate(sentences):
+        sentence = sentence.strip(" -•\t\r\n")
+        if len(sentence) < 35 or len(sentence) > 420:
+            continue
+        lowered = sentence.lower()
+        if lowered.startswith(skip_starts):
+            continue
+        score = sum(2 for word in signal_words if word in lowered)
+        if re.search(r"\d", sentence):
+            score += 2
+        if "$" in sentence or "%" in sentence:
+            score += 2
+        if score <= 0:
+            continue
+        ranked.append((score, index, sentence))
+
+    ranked.sort(key=lambda row: (-row[0], row[1]))
+    selected = []
+    for _, index, sentence in ranked:
+        normalized = sentence[:300].strip()
+        if normalized and normalized not in [point[1] for point in selected]:
+            selected.append((index, normalized))
+        if len(selected) >= max_points:
+            break
+    selected.sort(key=lambda point: point[0])
+    return [point[1] for point in selected]
+
+
 def _enrich_us_8k_from_submission(filing, ticker_symbol):
     """SEC 8-K 원문에서 표시할 사건만 골라 Item/제목/해시태그 재료를 붙인다."""
     filing_url = str(filing.get("original_document_url") or "").strip()
@@ -1063,18 +1116,25 @@ def _enrich_us_8k_from_submission(filing, ticker_symbol):
             item_numbers = [item_no for item_no, _ in selected]
             labels = []
             keywords = []
-            for _, (label, item_keywords) in selected:
+            selected_sections = []
+            section_map = {item_no: section_text for item_no, section_text in item_sections}
+            for item_no, (label, item_keywords) in selected:
                 if label not in labels:
                     labels.append(label)
                 for keyword in item_keywords:
                     if keyword not in keywords:
                         keywords.append(keyword)
+                if section_map.get(item_no):
+                    selected_sections.append(section_map[item_no])
+
+            key_points = _extract_8k_key_points(" ".join(selected_sections), max_points=3)
             detail = {
                 "display_8k": True,
                 "item": item_numbers[0],
                 "items": item_numbers,
                 "event_title": labels[0] if len(labels) == 1 else " · ".join(labels[:2]),
                 "keywords": keywords[:3],
+                "key_points": key_points,
             }
     except Exception as detail_err:
         print(f"[미국 공시] {ticker_symbol} 8-K 원문 보강 실패: {type(detail_err).__name__}: {detail_err}")
@@ -1347,6 +1407,9 @@ def format_us_official_filings(ticker_symbol, filings=None):
             event_title = str(item.get("event_title", "")).strip()
             lines.append(f"📌 {display_date} · {'기업 주요 공시' if form == '8-K' else form}")
             lines.append(f"📰 {event_title or desc or '주요 내용 발표'}")
+            if form == "8-K":
+                for point in (item.get("key_points") or [])[:3]:
+                    lines.append(f"• {point}")
 
     return "\n".join(lines)
 
@@ -2919,6 +2982,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "item": item.get("item", ""),
                     "items": item.get("items", []),
                     "event_title": item.get("event_title", ""),
+                    "key_points": item.get("key_points", []),
                     "person": item.get("person", ""),
                     "officer_title": item.get("officer_title", ""),
                     "transaction_kind": item.get("transaction_kind", ""),
