@@ -201,118 +201,6 @@
 
 
 /* ================================================================
-   LEFT NAV RAIL v1
-   - Always-visible slim vertical rail, like the reference UI
-   - Market information sidebar remains a separate expandable column
-   ================================================================ */
-#leftNavRail {
-  width: 48px;
-  flex: 0 0 48px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 4px 10px;
-  background: var(--gtp-rail-bg);
-  border-right: 1px solid var(--gtp-border);
-  z-index: 60;
-  position: relative;
-}
-
-/* 분석 본문 안의 신호 태그는 선택/근거 태그와 같은 크기로 보인다. */
-.analysis-hashtag {
-  font-size: 1rem;
-  line-height: 1.5rem;
-}
-
-/* 첫 답변의 현재 주가 문장과 해시태그를 같은 글자 크기로 맞춘다. */
-.first-answer-hashtag {
-  font-size: 1rem;
-  line-height: 1.5rem;
-}
-@media (min-width: 640px) {
-  .first-answer-hashtag {
-    font-size: 1.125rem;
-    line-height: 1.75rem;
-  }
-}
-.left-nav-rail-top,
-.left-nav-rail-bottom {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-.left-nav-rail-divider {
-  width: 24px;
-  height: 1px;
-  background: var(--gtp-border);
-  margin: 2px 0 4px;
-}
-.left-nav-rail-btn {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--gtp-muted);
-  cursor: pointer;
-  transition: background .15s ease, color .15s ease;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-.left-nav-rail-btn svg {
-  width: 18px;
-  height: 18px;
-  stroke-width: 1.75;
-}
-.left-nav-rail-btn:hover {
-  background: var(--gtp-hover);
-  color: var(--gtp-text);
-}
-.left-nav-rail-btn:focus-visible {
-  outline: 2px solid rgba(161,161,170,.45);
-  outline-offset: 1px;
-}
-.left-nav-rail-brand {
-  color: var(--gtp-text);
-}
-.left-nav-rail-logo {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: var(--gtp-active);
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-}
-
-@media (max-width: 1023px) {
-  #leftNavRail {
-    width: 48px;
-    flex-basis: 48px;
-    padding-left: 4px;
-    padding-right: 4px;
-  }
-  .left-nav-rail-btn {
-    width: 40px;
-    min-width: 40px;
-    height: 40px;
-    min-height: 40px;
-  }
-}
-
-/* ================================================================
    Workspace v2: 외부 왼쪽 시장정보 + 내부 본문/패널
    - 시장정보는 바깥 영역으로 고정
    - 본문과 패널만 같은 Workspace에서 2열로 재배치
@@ -500,19 +388,6 @@ body.left-panel-resizing * { user-select: none !important; }
 
 
 @media (max-width: 1023px) {
-  /* 모바일에서는 기본적으로 세로 레일을 숨긴다.
-     단, 왼쪽 사이드바(시장정보/내 종목/플러그인)를 열면 레일을 함께 표시한다.
-     오른쪽 패널을 열었을 때는 아래 right-panel-open 규칙이 우선해 전체 화면을 사용한다. */
-  #leftNavRail {
-    display: none !important;
-  }
-  body.left-market-open #leftNavRail,
-  body.left-context-open #leftNavRail,
-  body.left-plugin-open #leftNavRail,
-  body.left-home-open #leftNavRail {
-    display: flex !important;
-  }
-
   #leftMarketSidebar.market-sidebar {
     width: min(300px, 82vw);
     flex-basis: min(300px, 82vw);
@@ -522,11 +397,6 @@ body.left-panel-resizing * { user-select: none !important; }
     flex-basis: 0;
   }
   body.right-panel-open #leftMarketSidebar.market-sidebar {
-    display: none !important;
-  }
-  /* 모바일: 오른쪽 패널을 열면 세로 내비게이션 레일도 잠시 숨겨 패널을 화면 전체로 사용한다.
-     패널을 닫으면 레일은 자동으로 다시 표시된다. */
-  body.right-panel-open #leftNavRail {
     display: none !important;
   }
 }
