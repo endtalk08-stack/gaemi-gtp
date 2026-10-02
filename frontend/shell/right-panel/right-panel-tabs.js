@@ -190,8 +190,14 @@
           let pointRightText = '';
           let pointLeftText = pointText;
 
-          let match = pointText.match(/^회전신용 한도 최대 (.+?) 추가 확대 가능 · 총 한도 최대 (.+)$/);
+          let match = pointText.match(/^(생산량|인도량|에너지 저장|재무실적) · (.+)$/);
           if (match) {
+            pointLeftText = match[1];
+            pointRightText = match[2];
+          } else {
+            match = pointText.match(/^회전신용 한도 최대 (.+?) 추가 확대 가능 · 총 한도 최대 (.+)$/);
+          }
+          if (!pointRightText && match && pointText.startsWith('회전신용 한도 최대 ')) {
             pointLeftText = '회전신용 한도 추가 확대';
             pointRightText = `${match[1]} · 총 ${match[2]}`;
           } else {
@@ -307,6 +313,9 @@
       } else if (!holdings.length && keywordLine.textContent) {
         const keywordOnlyLine = document.createElement('div');
         keywordOnlyLine.className = 'right-panel-disclosures__line';
+        if (String(item.form || '').toUpperCase() === '8-K') {
+          keywordOnlyLine.appendChild(document.createElement('span'));
+        }
         keywordOnlyLine.appendChild(keywordLine);
         row.appendChild(keywordOnlyLine);
       }
