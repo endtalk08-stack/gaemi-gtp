@@ -142,11 +142,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (enterAnalysis) {
         document.getElementById('mainHeroView').classList.add('hidden');
         document.body.classList.add('analysis-mode');
-
-        // 홈 → 종목분석으로 이동할 때 현재 Workspace 상태를 그대로 보존한다.
-        // 사용자가 열어둔 왼쪽 시장정보/오른쪽 패널을 임의로 닫지 않는다.
-        applySidebarState();
       }
+
+      // 모바일에서는 종목을 선택하면 본문을 바로 볼 수 있도록 왼쪽 사이드바만 닫는다.
+      if (window.innerWidth < 1024) {
+        document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
+      }
+      applySidebarState();
 
       requestStock(normalizedStockName);
     }
