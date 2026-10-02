@@ -187,7 +187,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   const emptyDisclosure = document.createElement('p');
                   emptyDisclosure.className = responseMessageClass;
                   disclosureBlock.appendChild(emptyDisclosure);
-                  await typeText(emptyDisclosure, '꽝이야\n\n없어');
+                  await typeText(emptyDisclosure, '꽝이야\n없어');
                 }
                 const disclosureReplyText = `${disclosurePrompt.innerText}\n${disclosureBlock.innerText}`;
                 const disclosureActions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(
