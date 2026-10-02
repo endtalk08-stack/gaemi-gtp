@@ -137,15 +137,24 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       applySidebarState();
     }
 
-    function switchToAnalysisMode(stockName) {
-      document.getElementById('mainHeroView').classList.add('hidden');
-      document.body.classList.add('analysis-mode');
+    function selectStock(stockName, { enterAnalysis = false } = {}) {
+      const normalizedStockName = String(stockName || '').trim();
+      if (!normalizedStockName) return;
 
-      // 홈 → 종목분석으로 이동할 때 현재 Workspace 상태를 그대로 보존한다.
-      // 사용자가 열어둔 왼쪽 시장정보/오른쪽 패널을 임의로 닫지 않는다.
-      // 화면 이동은 '분석 화면으로 전환'만 담당하고, 사이드바 상태는 사용자의 선택을 따른다.
-      applySidebarState();
-      requestStock(stockName || '삼성전자');
+      if (enterAnalysis) {
+        document.getElementById('mainHeroView').classList.add('hidden');
+        document.body.classList.add('analysis-mode');
+
+        // 홈 → 종목분석으로 이동할 때 현재 Workspace 상태를 그대로 보존한다.
+        // 사용자가 열어둔 왼쪽 시장정보/오른쪽 패널을 임의로 닫지 않는다.
+        applySidebarState();
+      }
+
+      requestStock(normalizedStockName);
+    }
+
+    function switchToAnalysisMode(stockName) {
+      selectStock(stockName || '삼성전자', { enterAnalysis: true });
     }
 
     function focusStockInput() {
@@ -166,7 +175,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     function handleBottomSearch() {
       const val = document.getElementById('bottomStockInput').value;
       if (val) {
-        requestStock(val);
+        selectStock(val);
         document.getElementById('bottomStockInput').value = '';
       }
     }
