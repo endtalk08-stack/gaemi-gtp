@@ -48,7 +48,7 @@ window.GaemiGTPNews.renderArticles = async function ({
               const sourceItems = sourceArticles.slice(0, 20);
               const sourceChip = document.createElement('button');
               sourceChip.type = 'button';
-              sourceChip.className = 'news-source-chip';
+              sourceChip.className = 'news-source-chip hidden';
               sourceChip.style.marginTop = '12px';
               sourceChip.setAttribute('aria-label', '더보기');
               const badges = document.createElement('span');
@@ -78,7 +78,9 @@ window.GaemiGTPNews.renderArticles = async function ({
                 for (const row of articleRows) {
                   await typeText(row, row.dataset.typingText || '제목 확인 필요');
                 }
+                sourceChip.classList.remove('hidden');
               } else {
+                sourceChip.classList.remove('hidden');
                 articleTitle.textContent = '관련 기사를 찾아봤어 👇';
                 articleRows.forEach((row) => { row.textContent = row.dataset.typingText || '제목 확인 필요'; });
               }
