@@ -594,6 +594,25 @@ def fetch_dart_major_shareholder_change(receipt_no):
             if "rate_delta" not in summary and "previous_rate" in summary and "current_rate" in summary:
                 summary["rate_delta"] = round(summary["current_rate"] - summary["previous_rate"], 4)
 
+            # 같은 사람/법인의 여러 거래는 화면에 한 줄만 보이도록 순변동으로 합친다.
+            grouped_changes = {}
+            for change in detail_changes:
+                key = (
+                    change.get("name", ""),
+                    change.get("relation", ""),
+                    change.get("stock_type", ""),
+                )
+                grouped = grouped_changes.get(key)
+                if grouped is None:
+                    grouped_changes[key] = dict(change)
+                    continue
+                grouped["share_delta"] = (grouped.get("share_delta") or 0) + (change.get("share_delta") or 0)
+                grouped["after_shares"] = change.get("after_shares")
+                grouped["date"] = change.get("date") or grouped.get("date", "")
+                if change.get("reason") != grouped.get("reason"):
+                    grouped["reason"] = "순변동"
+            detail_changes = list(grouped_changes.values())
+
             if not summary and not detail_changes:
                 return {}
             result = {**summary, "detail_changes": detail_changes}
