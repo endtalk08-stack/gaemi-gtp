@@ -600,7 +600,6 @@ def fetch_dart_major_shareholder_change(receipt_no):
                 key = (
                     change.get("name", ""),
                     change.get("relation", ""),
-                    change.get("stock_type", ""),
                 )
                 grouped = grouped_changes.get(key)
                 if grouped is None:
