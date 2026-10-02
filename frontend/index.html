@@ -63,18 +63,18 @@
       <button type="button" role="menuitem" onclick="openLeftSidebarSection('plugin')"><i data-lucide="plug" aria-hidden="true"></i><span>플러그인</span></button>
     </div>
 
-    <div class="left-sidebar-home__body">
+    <div id="leftSidebarHomeDefault" class="left-sidebar-home__body">
       <nav class="left-sidebar-home__menu" aria-label="왼쪽 기본 메뉴">
-        <button type="button" class="left-sidebar-home__menu-item" onclick="resetToHome();">
+        <button type="button" class="left-sidebar-home__menu-item" onclick="showLeftSidebarHomeSection()">
           <i data-lucide="house" aria-hidden="true"></i><span>메인</span>
         </button>
-        <button type="button" class="left-sidebar-home__menu-item" onclick="toggleLeftSidebar()">
+        <button type="button" class="left-sidebar-home__menu-item" onclick="showLeftSidebarHomeSection('market')">
           <i data-lucide="radio" aria-hidden="true"></i><span>실시간</span>
         </button>
-        <button type="button" class="left-sidebar-home__menu-item" onclick="toggleLeftContextSidebar()">
+        <button type="button" class="left-sidebar-home__menu-item" onclick="showLeftSidebarHomeSection('context')">
           <i data-lucide="star" aria-hidden="true"></i><span>관심종목</span>
         </button>
-        <button type="button" class="left-sidebar-home__menu-item" onclick="toggleLeftPluginSidebar()">
+        <button type="button" class="left-sidebar-home__menu-item" onclick="showLeftSidebarHomeSection('plugin')">
           <i data-lucide="plug" aria-hidden="true"></i><span>플러그인</span>
         </button>
       </nav>
@@ -95,6 +95,7 @@
         </section>
       </div>
     </div>
+    <div id="leftSidebarHomeSectionContent" class="left-sidebar-home__section-content hidden" aria-live="polite"></div>
   </aside>
 
   <!-- 왼쪽 시장정보 패널 -->
