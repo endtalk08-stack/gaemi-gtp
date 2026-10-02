@@ -143,6 +143,8 @@ DART_CORP_CACHE = {"ts": 0.0, "map": {}}
 DART_DISCLOSURE_CACHE = {}
 DART_EXECUTIVE_SHAREHOLDING_CACHE = {}
 DART_EXECUTIVE_SHAREHOLDING_CACHE_TTL = 3600
+DART_MAJOR_SHAREHOLDER_CHANGE_CACHE = {}
+DART_MAJOR_SHAREHOLDER_CHANGE_CACHE_TTL = 3600
 # 같은 종목을 동시에 여러 사용자가 조회해도 DART/SEC 외부 요청이 중복되지 않도록
 # 종목별 단일 비행(single-flight) 락을 사용한다. 서로 다른 종목은 동시에 처리한다.
 _DART_SINGLEFLIGHT_LOCKS = {}
@@ -414,6 +416,181 @@ def _attach_dart_executive_shareholding_details(stock_code, disclosures):
             )
             item["shareholding_delta"] = share_delta
 
+    return disclosures
+
+
+def _clean_dart_cell_text(value):
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _dart_document_rows(receipt_no):
+    """OpenDART 원본 문서를 표의 행/셀 단위 텍스트로 읽는다."""
+    receipt_no = str(receipt_no or "").strip()
+    if not receipt_no or not OPENDART_API_KEY:
+        return []
+    params = urllib.parse.urlencode({"crtfc_key": OPENDART_API_KEY, "rcept_no": receipt_no})
+    url = f"https://opendart.fss.or.kr/api/document.xml?{params}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        payload = resp.read()
+    rows = []
+    with zipfile.ZipFile(io.BytesIO(payload)) as zf:
+        for name in zf.namelist():
+            if not name.lower().endswith((".xml", ".html", ".htm")):
+                continue
+            raw = zf.read(name)
+            try:
+                root = ET.fromstring(raw)
+            except Exception:
+                continue
+            for tr in root.iter():
+                if str(tr.tag).split("}")[-1].upper() != "TR":
+                    continue
+                cells = []
+                for child in list(tr):
+                    tag = str(child.tag).split("}")[-1].upper()
+                    if tag not in ("TD", "TH"):
+                        continue
+                    text_value = _clean_dart_cell_text(" ".join(child.itertext()))
+                    if text_value:
+                        cells.append(text_value)
+                if cells:
+                    rows.append(cells)
+    return rows
+
+
+def _parse_number_text(value, as_float=False):
+    text_value = str(value or "").replace(",", "").replace("%", "").strip()
+    if not text_value or text_value in ("-", "해당없음"):
+        return None
+    try:
+        return float(text_value) if as_float else int(float(text_value))
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_dart_major_shareholder_change(receipt_no):
+    """최대주주등소유주식변동신고 원본에서 화면에 필요한 핵심값만 가공한다."""
+    receipt_no = str(receipt_no or "").strip()
+    if not receipt_no:
+        return {}
+    now_ts = datetime.datetime.now().timestamp()
+    cached = DART_MAJOR_SHAREHOLDER_CHANGE_CACHE.get(receipt_no)
+    if cached and now_ts - cached[0] < DART_MAJOR_SHAREHOLDER_CHANGE_CACHE_TTL:
+        return cached[1]
+
+    lock = _get_singleflight_lock(_DART_SINGLEFLIGHT_LOCKS, ("major-holder-change", receipt_no))
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = DART_MAJOR_SHAREHOLDER_CHANGE_CACHE.get(receipt_no)
+        if cached and now_ts - cached[0] < DART_MAJOR_SHAREHOLDER_CHANGE_CACHE_TTL:
+            return cached[1]
+        try:
+            rows = _dart_document_rows(receipt_no)
+            if not rows:
+                return {}
+
+            summary = {}
+            detail_changes = []
+            section = ""
+            current_person = {}
+            for cells in rows:
+                joined = " ".join(cells)
+                if "3. 보고의 개요" in joined or "보고의 개요" == joined:
+                    section = "summary"
+                    continue
+                if "4. 개인별 세부변동사항" in joined or "개인별 세부변동사항" == joined:
+                    section = "details"
+                    continue
+                if joined.startswith("5.") and "주식소유현황" in joined:
+                    section = ""
+                    continue
+
+                if section == "summary":
+                    if cells[0] in ("직전보고서제출일", "이번보고서제출일", "증감"):
+                        label = cells[0]
+                        nums = []
+                        for value in cells[1:]:
+                            parsed = _parse_number_text(value, as_float=True)
+                            if parsed is not None:
+                                nums.append(parsed)
+                        if len(nums) >= 2:
+                            shares = int(nums[-2])
+                            rate = float(nums[-1])
+                            if label == "직전보고서제출일":
+                                summary["previous_shares"] = shares
+                                summary["previous_rate"] = rate
+                            elif label == "이번보고서제출일":
+                                summary["current_shares"] = shares
+                                summary["current_rate"] = rate
+                            else:
+                                summary["share_delta"] = shares
+                                summary["rate_delta"] = rate
+
+                elif section == "details":
+                    if "성명" in cells:
+                        try:
+                            idx = cells.index("성명")
+                            current_person["name"] = cells[idx + 1]
+                        except Exception:
+                            pass
+                    if "최대주주 및 발행회사와의 관계" in cells:
+                        try:
+                            idx = cells.index("최대주주 및 발행회사와의 관계")
+                            current_person["relation"] = cells[idx + 1]
+                        except Exception:
+                            pass
+                    date_index = next((i for i, value in enumerate(cells) if re.match(r"^\d{4}-\d{2}-\d{2}$", value)), None)
+                    if date_index is not None and len(cells) >= date_index + 6:
+                        before = _parse_number_text(cells[date_index + 3])
+                        delta = _parse_number_text(cells[date_index + 4])
+                        after = _parse_number_text(cells[date_index + 5])
+                        if delta is not None:
+                            detail_changes.append({
+                                "name": current_person.get("name", ""),
+                                "relation": current_person.get("relation", ""),
+                                "date": cells[date_index],
+                                "reason": cells[date_index + 1],
+                                "stock_type": cells[date_index + 2],
+                                "before_shares": before,
+                                "share_delta": delta,
+                                "after_shares": after,
+                            })
+
+            if "share_delta" not in summary and "previous_shares" in summary and "current_shares" in summary:
+                summary["share_delta"] = summary["current_shares"] - summary["previous_shares"]
+            if "rate_delta" not in summary and "previous_rate" in summary and "current_rate" in summary:
+                summary["rate_delta"] = round(summary["current_rate"] - summary["previous_rate"], 4)
+
+            if not summary and not detail_changes:
+                return {}
+            result = {**summary, "detail_changes": detail_changes}
+            DART_MAJOR_SHAREHOLDER_CHANGE_CACHE[receipt_no] = (now_ts, result)
+            return result
+        except Exception as e:
+            print(f"[국내 공시 상세] 최대주주 변동 {receipt_no} 실패: {type(e).__name__}: {e}")
+            return {}
+
+
+def _attach_dart_major_shareholder_change_details(disclosures):
+    """최대주주등소유주식변동신고만 원본 상세를 읽어 가공 결과를 붙인다."""
+    for item in disclosures or []:
+        report = str(item.get("report") or "")
+        receipt_no = str(item.get("receipt_no") or "").strip()
+        if "최대주주등소유주식변동신고" not in report or not receipt_no:
+            continue
+        detail = fetch_dart_major_shareholder_change(receipt_no)
+        if not detail:
+            continue
+        item["major_shareholder_change"] = detail
+        delta = detail.get("share_delta")
+        if isinstance(delta, (int, float)):
+            item["shareholding_change"] = (
+                "지분증가" if delta > 0
+                else "지분감소" if delta < 0
+                else "지분변동없음"
+            )
+            item["shareholding_delta"] = int(delta)
     return disclosures
 
 
@@ -2301,6 +2478,9 @@ def analyze_stock(raw_name='SK하이닉스'):
                 kr_official_disclosures = _attach_dart_executive_shareholding_details(
                     clean_code, kr_official_disclosures
                 )
+                kr_official_disclosures = _attach_dart_major_shareholder_change_details(
+                    kr_official_disclosures
+                )
             except Exception as e:
                 print(f"[국내 공시] fail: {type(e).__name__}: {e}")
                 kr_official_disclosures = []
@@ -2511,6 +2691,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "executive_shareholdings": item.get("executive_shareholdings", []),
                     "shareholding_change": item.get("shareholding_change", ""),
                     "shareholding_delta": item.get("shareholding_delta"),
+                    "major_shareholder_change": item.get("major_shareholder_change", {}),
                 })
         us_filings = []
         if not is_krw and ticker_symbol:
