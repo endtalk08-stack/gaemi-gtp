@@ -3,6 +3,7 @@ window.GaemiGTPDisclosures = window.GaemiGTPDisclosures || {};
 
 window.GaemiGTPDisclosures.renderDisclosures = async function ({
   disclosures,
+  allDisclosures,
   articles,
   block,
   responseMessageClass,
@@ -79,5 +80,22 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   });
                 });
               }
+            }
+
+            const monthItems = Array.isArray(allDisclosures) ? allDisclosures : disclosures;
+            if (monthItems.length) {
+              const more = document.createElement('button');
+              more.type = 'button';
+              more.className = 'news-source-chip';
+              more.style.marginTop = '12px';
+              more.setAttribute('aria-label', '더보기');
+              const label = document.createElement('span');
+              label.className = 'news-source-chip__label';
+              label.textContent = '더보기';
+              more.appendChild(label);
+              more.addEventListener('click', () => {
+                window.GaemiGTPRightPanelTabs?.showRelatedDisclosures?.(monthItems);
+              });
+              block.appendChild(more);
             }
 };
