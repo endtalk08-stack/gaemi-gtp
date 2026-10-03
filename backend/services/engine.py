@@ -3131,6 +3131,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         storyboard_selected_news = sorted(
             selected_news,
             key=lambda item: item.get("pub_date") or item.get("published_at") or "",
+            reverse=True,
         )
         disclosures = []
         if is_krw and clean_code:
