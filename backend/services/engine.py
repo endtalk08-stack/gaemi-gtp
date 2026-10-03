@@ -3127,12 +3127,13 @@ def analyze_stock(raw_name='SK하이닉스'):
             storyboard_news_list if isinstance(storyboard_news_list, list) else [],
             display_timezone="Asia/Seoul",
         )
-        selected_news = news_items[:3]
-        storyboard_selected_news = sorted(
-            selected_news,
+        news_items = sorted(
+            news_items,
             key=lambda item: item.get("pub_date") or item.get("published_at") or "",
             reverse=True,
         )
+        selected_news = news_items[:3]
+        storyboard_selected_news = selected_news
         disclosures = []
         if is_krw and clean_code:
             for item in score_disclosures(kr_official_disclosures or []):
