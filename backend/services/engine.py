@@ -2913,10 +2913,6 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 storyboard_news_list = fetch_stock_news(raw_name, market="국내", limit=50)
-                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
-                for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
-                    article["article_keywords"] = keyword_result.get("keywords", [])
-                    article["article_keyword_details"] = keyword_result.get("keyword_details", [])
                 news_list = storyboard_news_list[:3]
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
@@ -2990,10 +2986,6 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 storyboard_news_list = fetch_stock_news(raw_name, market="미국", limit=50)
-                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
-                for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
-                    article["article_keywords"] = keyword_result.get("keywords", [])
-                    article["article_keyword_details"] = keyword_result.get("keyword_details", [])
                 news_list = storyboard_news_list[:3]
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
@@ -3181,25 +3173,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "transactions": item.get("transactions", []),
                     "price_range": item.get("price_range", ""),
                 })
-        # 아래에 실제 표시되는 기사 3개만 키워드 대상으로 사용한다.
-        # 기사 선정 로직은 그대로 두고, 각 표시 기사와 키워드를 1:1로 맞춘다.
-        storyboard_timezone = "Asia/Seoul" if is_krw else "America/New_York"
         paired_keyword_storyboard = []
-        displayed_news_articles = (
-            list(storyboard_news_list)[:3]
-            if isinstance(storyboard_news_list, list)
-            else []
-        )
-        for article in displayed_news_articles:
-            article_events = build_keyword_storyboard(
-                [article],
-                display_timezone=storyboard_timezone,
-            )
-            if not article_events:
-                continue
-            event = dict(article_events[0])
-            event["article"] = article
-            paired_keyword_storyboard.append(event)
 
         return {
             "sections": sections,
