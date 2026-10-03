@@ -381,6 +381,18 @@ MARKET_STORY_TITLE_MARKERS = [
     "개장 전 급등주", "개장전 급등주", "개장 전 급락주", "개장전 급락주",
 ]
 
+# Generic market roundups are useful for the general feed, but are too broad
+# to use as evidence for an individual stock analysis.
+STOCK_ROUNDUP_TITLE_MARKERS = [
+    "오늘의 증시", "오늘의 증권소식", "오늘 증시", "증시 브리핑",
+]
+
+
+def _is_stock_roundup(item):
+    title = str(item.get("title") or "").lower()
+    return _contains_any(title, STOCK_ROUNDUP_TITLE_MARKERS)
+
+
 
 def _stock_aliases_for_name(stock_name):
     aliases = [str(stock_name or "").strip()]
@@ -454,6 +466,8 @@ def fetch_stock_news(stock_name, limit=20, market=None):
     items = [_enrich_item(x) for x in _dedupe(stock_items + market_story_items)]
     relevant = []
     for item in items:
+        if _is_stock_roundup(item):
+            continue
         text = _search_text(item)
         relevance_tier = _stock_analysis_relevance(item, stock_name)
         if relevance_tier <= 0:
