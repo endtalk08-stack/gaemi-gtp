@@ -453,11 +453,47 @@ STORYBOARD_EVENT_FRAGMENTS = (
 
 
 def _storyboard_representative(item):
-    """Pick one event/action keyword from already extracted title+description signals."""
+    """Pick one concrete event/action from title + description evidence."""
     title = str(item.get("title") or "").lower()
     description = str(item.get("description") or "").lower()
+    combined = f"{title} {description}".strip()
     candidates = []
 
+    # The article-level extractor already reads title + description together.
+    # Use those grounded results first instead of letting broad movement/topic
+    # signals decide the storyboard before the article evidence is considered.
+    detail_by_label = {
+        str(detail.get("label") or "").strip(): detail
+        for detail in item.get("article_keyword_details") or []
+        if str(detail.get("label") or "").strip()
+    }
+    for index, raw_label in enumerate(item.get("article_keywords") or []):
+        label = str(raw_label or "").strip()
+        if not label or label in STORYBOARD_EXCLUDED_KEYWORDS:
+            continue
+        normalized = label.lower().replace(" ", "")
+        detail = detail_by_label.get(label, {})
+        source = str(detail.get("source") or "")
+        evidence = str(detail.get("evidence") or "").lower()
+        score = 0
+        if any(fragment.lower() in normalized for fragment in STORYBOARD_EVENT_FRAGMENTS):
+            score += 120
+        if source.startswith("title"):
+            score += 35
+        elif source.startswith("description"):
+            score += 25
+        if evidence and evidence in combined:
+            score += 20
+        score += min(len(normalized), 12)
+        candidates.append((score, -index, label, str(detail.get("tone") or "neutral").strip()))
+
+    if candidates:
+        _, _, label, tone = max(candidates)
+        return label, tone if tone in ("positive", "negative", "neutral") else "neutral"
+
+    # Fallback only: preserve the existing movement-signal path for articles
+    # where the article-level extractor did not produce enough evidence.
+    fallback = []
     for index, signal in enumerate(item.get("movement_signals") or []):
         label = str(signal.get("label") or "").strip()
         if not label or label in STORYBOARD_EXCLUDED_KEYWORDS:
@@ -466,30 +502,17 @@ def _storyboard_representative(item):
         score = 0
         if any(fragment.lower() in normalized for fragment in STORYBOARD_EVENT_FRAGMENTS):
             score += 100
-        # Prefer evidence visible in the title, then description. This keeps the
-        # selection grounded in the article instead of dictionary order.
         label_text = label.lower()
         if label_text in title or label_text.replace(" ", "") in title.replace(" ", ""):
             score += 20
         elif label_text in description or label_text.replace(" ", "") in description.replace(" ", ""):
             score += 10
-        # Specific labels beat broad one- or two-syllable topic tags on ties.
         score += min(len(normalized), 12)
-        candidates.append((score, -index, label, str(signal.get("tone") or "neutral").strip()))
+        fallback.append((score, -index, label, str(signal.get("tone") or "neutral").strip()))
 
-    if candidates:
-        _, _, label, tone = max(candidates)
+    if fallback:
+        _, _, label, tone = max(fallback)
         return label, tone if tone in ("positive", "negative", "neutral") else "neutral"
-
-    detail_tones = {
-        str(detail.get("label") or "").strip(): str(detail.get("tone") or "neutral").strip()
-        for detail in item.get("article_keyword_details") or []
-    }
-    for raw_label in item.get("article_keywords") or []:
-        label = str(raw_label or "").strip()
-        if label and label not in STORYBOARD_EXCLUDED_KEYWORDS:
-            tone = detail_tones.get(label, "neutral")
-            return label, tone if tone in ("positive", "negative", "neutral") else "neutral"
     return None, "neutral"
 
 
