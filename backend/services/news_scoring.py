@@ -535,6 +535,27 @@ def attach_storyboard_representatives(items, display_timezone="Asia/Seoul"):
     return attached
 
 
+def select_today_storyboard_news(items, limit=3, display_timezone="Asia/Seoul"):
+    """Select today's keyword-bearing article bundles without changing news scoring."""
+    try:
+        tz = ZoneInfo(str(display_timezone or "Asia/Seoul"))
+    except Exception:
+        tz = datetime.timezone.utc
+
+    today = datetime.datetime.now(tz).date()
+    candidates = []
+    for item in items or []:
+        dt = _parse_date(item.get("pub_date") or item.get("published_at"))
+        if not dt or dt.astimezone(tz).date() != today:
+            continue
+        if not item.get("storyboard_keyword"):
+            continue
+        candidates.append((dt, item))
+
+    candidates.sort(key=lambda pair: pair[0], reverse=True)
+    return [item for _, item in candidates[:max(1, int(limit))]]
+
+
 def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seoul"):
     """Build a compact time-ordered keyword flow without changing article display.
 
