@@ -2913,7 +2913,7 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 storyboard_news_list = fetch_stock_news(raw_name, market="국내", limit=50)
-                article_keyword_result = build_connected_keyword_test(storyboard_news_list[:3], raw_name, max_keywords=3)
+                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
                 for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
                     article["article_keywords"] = keyword_result.get("keywords", [])
                     article["article_keyword_details"] = keyword_result.get("keyword_details", [])
@@ -2990,7 +2990,7 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 storyboard_news_list = fetch_stock_news(raw_name, market="미국", limit=50)
-                article_keyword_result = build_connected_keyword_test(storyboard_news_list[:3], raw_name, max_keywords=3)
+                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
                 for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
                     article["article_keywords"] = keyword_result.get("keywords", [])
                     article["article_keyword_details"] = keyword_result.get("keyword_details", [])
