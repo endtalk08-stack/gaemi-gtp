@@ -19,7 +19,7 @@ from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
 from .news_feed import fetch_stock_news
-from .news_scoring import score_stock_news, build_keyword_storyboard, build_connected_keyword_test
+from .news_scoring import score_stock_news, build_keyword_storyboard, build_connected_keyword_test, attach_storyboard_representatives
 from .disclosure_scoring import score_disclosures
 from .market_levels import (
     calculate_volume_profile_levels,
@@ -3124,6 +3124,10 @@ def analyze_stock(raw_name='SK하이닉스'):
             }
         ])
         news_items = (list(storyboard_news_list)[:10] if isinstance(storyboard_news_list, list) else [])
+        selected_news = attach_storyboard_representatives(
+            news_list if isinstance(news_list, list) else [],
+            display_timezone="Asia/Seoul" if is_krw else "America/New_York",
+        )
         disclosures = []
         if is_krw and clean_code:
             for item in score_disclosures(kr_official_disclosures or []):
@@ -3183,11 +3187,18 @@ def analyze_stock(raw_name='SK하이닉스'):
                 })
         return {
             "sections": sections,
-            "news_items": news_list if isinstance(news_list, list) else [],
-            "keyword_storyboard": build_keyword_storyboard(
-                news_list if isinstance(news_list, list) else [],
-                display_timezone="Asia/Seoul" if is_krw else "America/New_York",
-            ),
+            "news_items": selected_news,
+            "keyword_storyboard": [
+                {
+                    "time": item.get("storyboard_time", ""),
+                    "keywords": [item.get("storyboard_keyword")] if item.get("storyboard_keyword") else [],
+                    "keyword_tones": {
+                        item.get("storyboard_keyword"): item.get("storyboard_keyword_tone", "neutral")
+                    } if item.get("storyboard_keyword") else {},
+                }
+                for item in selected_news
+                if item.get("storyboard_keyword")
+            ],
             "disclosures": disclosures,
             "us_filings": us_filings,
         }
