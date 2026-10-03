@@ -438,10 +438,7 @@ def fetch_stock_news(stock_name, limit=20, market=None):
         relevant.append(selected)
 
     relevant.sort(
-        key=lambda item: (
-            int(item.get("analysis_relevance_tier") or 0),
-            item.get("published_at") or "",
-        ),
+        key=lambda item: item.get("published_at") or "",
         reverse=True,
     )
     return relevant[: max(1, int(limit))]
