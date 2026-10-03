@@ -407,7 +407,7 @@ def _refine_movement_signals(item):
     for group_rules in CONCRETE_SIGNAL_RULES.values():
         for label, phrases in group_rules:
             if label not in seen and any(phrase.lower() in text for phrase in phrases):
-                tone = "negative" if label in {"금리부담", "유가부담", "환율부담", "시장약세", "반도체주약세", "외국인매도", "기관매도", "실적악화", "전망하향"} else "positive"
+                tone = "negative" if label in {"금리부담", "유가부담", "환율부담", "시장약세", "반도체주약세", "실적악화", "전망하향"} else "positive"
                 refined.append({"label": label, "tone": tone})
                 seen.add(label)
 
