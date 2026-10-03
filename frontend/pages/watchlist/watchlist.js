@@ -59,8 +59,8 @@
 
     root.querySelectorAll('[data-watchlist-stock]').forEach((button) => {
       button.addEventListener('click', () => {
-        if (typeof window.switchToAnalysisMode === 'function') {
-          window.switchToAnalysisMode(button.dataset.watchlistStock);
+        if (typeof window.openStockInChat === 'function') {
+          window.openStockInChat(button.dataset.watchlistStock);
         }
       });
     });
