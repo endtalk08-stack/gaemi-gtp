@@ -816,7 +816,10 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             if len(selected) >= max_keywords:
                 break
 
-        enough = len(selected) == max_keywords
+        # One grounded event is enough for the storyboard. Requiring all
+        # max_keywords candidates here discarded good single-event results and
+        # forced the display back to the old movement-signal path.
+        enough = len(selected) > 0
         results.append({
             "title": title,
             "description": description,
