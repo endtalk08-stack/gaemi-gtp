@@ -3181,11 +3181,16 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "transactions": item.get("transactions", []),
                     "price_range": item.get("price_range", ""),
                 })
-        # 화면의 키워드와 뉴스가 반드시 같은 원본 기사를 사용하도록
-        # 기사별 storyboard를 만든 뒤 기사 시간 최신순으로 정렬한다.
+        # 아래에 실제 표시되는 기사 3개만 키워드 대상으로 사용한다.
+        # 기사 선정 로직은 그대로 두고, 각 표시 기사와 키워드를 1:1로 맞춘다.
         storyboard_timezone = "Asia/Seoul" if is_krw else "America/New_York"
         paired_keyword_storyboard = []
-        for article in (storyboard_news_list if isinstance(storyboard_news_list, list) else []):
+        displayed_news_articles = (
+            list(storyboard_news_list)[:3]
+            if isinstance(storyboard_news_list, list)
+            else []
+        )
+        for article in displayed_news_articles:
             article_events = build_keyword_storyboard(
                 [article],
                 display_timezone=storyboard_timezone,
@@ -3195,11 +3200,6 @@ def analyze_stock(raw_name='SK하이닉스'):
             event = dict(article_events[0])
             event["article"] = article
             paired_keyword_storyboard.append(event)
-        paired_keyword_storyboard.sort(
-            key=lambda event: event.get("timestamp", ""),
-            reverse=True,
-        )
-        paired_keyword_storyboard = paired_keyword_storyboard[:3]
 
         return {
             "sections": sections,
