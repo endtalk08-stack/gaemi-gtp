@@ -19,7 +19,7 @@ from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
 from .news_feed import fetch_stock_news
-from .news_scoring import score_stock_news, build_keyword_storyboard, build_connected_keyword_test, attach_storyboard_representatives
+from .news_scoring import score_stock_news, build_keyword_storyboard, build_connected_keyword_test, attach_storyboard_representatives, select_today_storyboard_news
 from .disclosure_scoring import score_disclosures
 from .market_levels import (
     calculate_volume_profile_levels,
@@ -3127,11 +3127,10 @@ def analyze_stock(raw_name='SK하이닉스'):
             storyboard_news_list if isinstance(storyboard_news_list, list) else [],
             display_timezone="Asia/Seoul",
         )
-        selected_news = news_items[:3]
-        storyboard_selected_news = sorted(
-            selected_news,
-            key=lambda item: item.get("pub_date") or item.get("published_at") or "",
-            reverse=True,
+        storyboard_selected_news = select_today_storyboard_news(
+            news_items,
+            limit=3,
+            display_timezone="Asia/Seoul",
         )
         disclosures = []
         if is_krw and clean_code:
@@ -3193,6 +3192,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         return {
             "sections": sections,
             "news_items": news_items,
+            "storyboard_news_items": storyboard_selected_news,
             "keyword_storyboard": [
                 {
                     "time": item.get("storyboard_time", ""),
@@ -3219,6 +3219,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 }
             ],
             "news_items": [],
+            "storyboard_news_items": [],
             "keyword_storyboard": [],
             "disclosures": [],
             "us_filings": [],
