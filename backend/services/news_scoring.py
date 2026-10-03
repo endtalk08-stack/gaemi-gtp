@@ -439,6 +439,59 @@ def _classification_score(item):
 
 STORYBOARD_EXCLUDED_KEYWORDS = {"적당한"}
 
+# Representative storyboard keywords should describe what happened, not merely
+# what the article is about. These fragments reward action/change/result labels
+# while leaving the full keyword dictionary intact for classification.
+STORYBOARD_EVENT_FRAGMENTS = (
+    "상승", "하락", "증가", "감소", "확대", "축소", "급증", "급감", "급등", "급락",
+    "반등", "강세", "약세", "돌파", "최고", "최저", "호실적", "부진", "서프라이즈",
+    "상회", "하회", "개선", "악화", "전환", "종료", "재개", "중단", "부족", "품귀",
+    "투자", "조달", "증설", "생산", "판매", "수요", "공급", "매입", "매도", "순매수",
+    "수주", "계약", "선정", "출시", "진출", "인수", "합병", "협력", "지원", "발행",
+    "소각", "경고", "소송", "발표", "귀환", "발사", "수출", "건설", "인하", "인상",
+)
+
+
+def _storyboard_representative(item):
+    """Pick one event/action keyword from already extracted title+description signals."""
+    title = str(item.get("title") or "").lower()
+    description = str(item.get("description") or "").lower()
+    candidates = []
+
+    for index, signal in enumerate(item.get("movement_signals") or []):
+        label = str(signal.get("label") or "").strip()
+        if not label or label in STORYBOARD_EXCLUDED_KEYWORDS:
+            continue
+        normalized = label.lower().replace(" ", "")
+        score = 0
+        if any(fragment.lower() in normalized for fragment in STORYBOARD_EVENT_FRAGMENTS):
+            score += 100
+        # Prefer evidence visible in the title, then description. This keeps the
+        # selection grounded in the article instead of dictionary order.
+        label_text = label.lower()
+        if label_text in title or label_text.replace(" ", "") in title.replace(" ", ""):
+            score += 20
+        elif label_text in description or label_text.replace(" ", "") in description.replace(" ", ""):
+            score += 10
+        # Specific labels beat broad one- or two-syllable topic tags on ties.
+        score += min(len(normalized), 12)
+        candidates.append((score, -index, label, str(signal.get("tone") or "neutral").strip()))
+
+    if candidates:
+        _, _, label, tone = max(candidates)
+        return label, tone if tone in ("positive", "negative", "neutral") else "neutral"
+
+    detail_tones = {
+        str(detail.get("label") or "").strip(): str(detail.get("tone") or "neutral").strip()
+        for detail in item.get("article_keyword_details") or []
+    }
+    for raw_label in item.get("article_keywords") or []:
+        label = str(raw_label or "").strip()
+        if label and label not in STORYBOARD_EXCLUDED_KEYWORDS:
+            tone = detail_tones.get(label, "neutral")
+            return label, tone if tone in ("positive", "negative", "neutral") else "neutral"
+    return None, "neutral"
+
 
 def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seoul"):
     """Build a compact time-ordered keyword flow without changing article display.
@@ -457,41 +510,12 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
         dt = _parse_date(item.get("pub_date") or item.get("published_at"))
         if not dt or dt < cutoff:
             continue
-        article_keywords = item.get("article_keywords") or []
-        article_keyword_details = item.get("article_keyword_details") or []
         keywords = []
         keyword_tones = {}
-
-        # The storyboard is a glanceable flow, not a tag cloud. Keep all
-        # extracted candidates on the article, but surface one representative
-        # investment point per news item. Curated movement signals are preferred
-        # because they come from title+description evidence; article keywords are
-        # only a fallback when no concrete signal was found.
-        representative = None
-        signals = item.get("movement_signals") or []
-        for signal in signals:
-            label = str(signal.get("label") or "").strip()
-            tone = str(signal.get("tone") or "neutral").strip()
-            if label and label not in STORYBOARD_EXCLUDED_KEYWORDS:
-                representative = label
-                keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
-                break
-
-        if representative is None:
-            detail_tones = {
-                str(detail.get("label") or "").strip(): str(detail.get("tone") or "neutral").strip()
-                for detail in article_keyword_details
-            }
-            for raw_label in article_keywords:
-                label = str(raw_label or "").strip()
-                if label and label not in STORYBOARD_EXCLUDED_KEYWORDS:
-                    representative = label
-                    tone = detail_tones.get(label, "neutral")
-                    keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
-                    break
-
+        representative, representative_tone = _storyboard_representative(item)
         if representative:
             keywords.append(representative)
+            keyword_tones[representative] = representative_tone
         if not dt or not keywords:
             continue
         local_dt = dt.astimezone(tz)
