@@ -63,10 +63,7 @@
       const id = btn.dataset.pluginWidgetId;
       if (window.GaemiGTPWidgetDock?.add) {
         const added = window.GaemiGTPWidgetDock.add(id);
-        if (added) {
-          document.getElementById('mainHeroView')?.classList.add('hidden');
-          document.body.classList.add('analysis-mode');
-        }
+        if (added) window.enterChatWorkspace?.();
         render();
       }
     });
