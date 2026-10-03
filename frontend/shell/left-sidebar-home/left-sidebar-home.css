@@ -142,6 +142,7 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   flex: 1 1 auto !important;
   height: 100%;
   border-right: 0 !important;
+  pointer-events: auto !important;
 }
 .left-sidebar-home__section-content .market-sidebar-header,
 .left-sidebar-home__section-content .context-sidebar-header,
