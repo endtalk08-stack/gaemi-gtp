@@ -59,26 +59,31 @@
 /* KOSPI sample — compact two-line card; API connection comes later. */
 .central-widget-card--kospi {
   position: relative;
-  min-height: 0;
-  height: 68px;
-  padding: 16px 10px 8px 10px;
+  min-height: 86px;
+  padding: 10px 11px;
 }
 .central-widget-card__close--overlay {
   position: absolute;
   top: 4px;
   right: 4px;
 }
-.central-widget-card__kospi {
-  display: flex;
+.central-widget-card__kospi-title {
+  padding-right: 22px;
+  color: var(--gtp-text);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 22px;
+}
+.central-widget-card__kospi-body {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  height: 100%;
-  min-width: 0;
+  margin-top: 2px;
 }
 .central-widget-card__sparkline {
-  width: 46px;
-  height: 26px;
-  flex: 0 0 46px;
+  width: 58px;
+  height: 30px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -87,6 +92,8 @@
 .central-widget-card__kospi-copy {
   min-width: 0;
   flex: 1;
+  display: grid;
+  gap: 2px;
 }
 .central-widget-card__kospi-row {
   display: flex;
@@ -95,18 +102,14 @@
   gap: 5px;
   min-width: 0;
   color: var(--gtp-text);
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.35;
   white-space: nowrap;
 }
-.central-widget-card__kospi-row > span:last-child {
+.central-widget-card__kospi-row > span {
   color: var(--gtp-faint);
-  font-size: 9px;
+  font-size: 10px;
 }
-.central-widget-card__kospi-badge {
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: var(--gtp-hover);
-  overflow: hidden;
-  text-overflow: ellipsis;
+.central-widget-card__kospi-reason {
+  justify-content: flex-end;
 }
