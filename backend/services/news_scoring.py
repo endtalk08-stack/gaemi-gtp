@@ -120,6 +120,7 @@ DETAIL_KEYWORD_RULES = [
     ("AI반도체", "neutral", ["ai 반도체"]),
     ("AI인프라", "neutral", ["ai 인프라"]),
     ("AI생태계", "neutral", ["ai 생태계"]),
+    ("AI속도조절론", "neutral", ["ai 속도조절론", "ai 속도 조절론", "ai 투자 속도조절", "ai 투자 속도 조절"]),
     ("ALD", "neutral", ["ald"]),
     ("LMR배터리", "neutral", ["lmr 배터리"]),
     ("전공정장비", "neutral", ["전공정 장비"]),
