@@ -60,7 +60,10 @@
 .central-widget-card--kospi {
   position: relative;
   min-height: 86px;
+  height: 86px;
   padding: 10px 11px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .central-widget-card__close--overlay {
   position: absolute;
@@ -72,18 +75,19 @@
   color: var(--gtp-text);
   font-size: 11px;
   font-weight: 700;
-  line-height: 22px;
+  line-height: 18px;
 }
 .central-widget-card__kospi-body {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  margin-top: 2px;
+  margin-top: 4px;
+  min-height: 0;
 }
 .central-widget-card__sparkline {
   width: 58px;
-  height: 30px;
+  height: 28px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -93,7 +97,7 @@
   min-width: 0;
   flex: 1;
   display: grid;
-  gap: 2px;
+  gap: 0;
 }
 .central-widget-card__kospi-row {
   display: flex;
@@ -103,7 +107,7 @@
   min-width: 0;
   color: var(--gtp-text);
   font-size: 11px;
-  line-height: 1.35;
+  line-height: 14px;
   white-space: nowrap;
 }
 .central-widget-card__kospi-row > span {
