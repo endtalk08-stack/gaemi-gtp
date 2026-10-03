@@ -55,3 +55,48 @@
 @media (max-width: 640px) {
   .central-widget-dock__body { grid-template-columns: 1fr 1fr; }
 }
+
+
+/* KOSPI sample — fixed two-line content; API connection comes later. */
+.central-widget-card__kospi {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  min-width: 0;
+}
+.central-widget-card__sparkline {
+  width: 52px;
+  height: 28px;
+  flex: 0 0 52px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  color: var(--gtp-text);
+}
+.central-widget-card__kospi-copy {
+  min-width: 0;
+  flex: 1;
+}
+.central-widget-card__kospi-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  color: var(--gtp-text);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+.central-widget-card__kospi-row > span:last-child {
+  color: var(--gtp-faint);
+  font-size: 9px;
+}
+.central-widget-card__kospi-badge {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--gtp-hover);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
