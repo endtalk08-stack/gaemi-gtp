@@ -346,6 +346,33 @@ STOCK_INDIRECT_IMPACT_WORDS = [
     "지수 편입", "지수편입", "편입", "추종 펀드", "추종펀드",
 ]
 
+# Stock analysis should start from articles that contain an actual event/change,
+# not from articles that merely mention a topic such as HBM/AI/semiconductors.
+# Both title and description are treated as one evidence body here.
+STOCK_EVENT_ACTION_WORDS = [
+    "상승", "하락", "급등", "급락", "반등", "강세", "약세", "최고치", "최저치", "경신",
+    "증가", "감소", "확대", "축소", "급증", "급감", "개선", "악화", "상회", "하회",
+    "전환", "종료", "재개", "중단", "부족", "품귀", "인상", "인하", "동결",
+    "투자", "자금 조달", "조달", "증설", "감산", "생산 확대", "생산 감소",
+    "수요 증가", "수요 감소", "공급 확대", "공급 감소", "공급 부족",
+    "매입", "매도", "순매수", "순매도", "수주", "계약", "납품", "선정",
+    "출시", "진출", "인수", "합병", "협력", "지원", "발행", "소각",
+    "소송", "합의", "리콜", "규제", "경고", "발표", "수출", "착공", "건설",
+    "어닝 서프라이즈", "어닝 쇼크", "호실적", "실적 부진", "전망 상향", "전망 하향",
+]
+
+
+def _stock_event_strength(item):
+    """Measure concrete event/change evidence from title + description."""
+    title = str(item.get("title") or "").lower()
+    description = str(item.get("description") or "").lower()
+    title_hits = sum(1 for word in STOCK_EVENT_ACTION_WORDS if word.lower() in title)
+    description_hits = sum(1 for word in STOCK_EVENT_ACTION_WORDS if word.lower() in description)
+    # Title is useful evidence, but description participates from the start
+    # instead of being used only as a fallback.
+    return (title_hits * 2) + description_hits
+
+
 MARKET_STORY_QUERIES = [
     "장중 특징주", "장중 시황", "특징주", "증시마감", "개장 전 급등주", "개장 전 급락주",
 ]
@@ -433,12 +460,19 @@ def fetch_stock_news(stock_name, limit=20, market=None):
             continue
         if not _contains_any(text, STOCK_MATERIAL_SIGNALS):
             continue
+        event_strength = _stock_event_strength(item)
+        if event_strength <= 0:
+            continue
         selected = dict(item)
         selected["analysis_relevance_tier"] = relevance_tier
+        selected["analysis_event_strength"] = event_strength
         relevant.append(selected)
 
+    # Choose eventful articles first. Stock relevance still breaks ties, and
+    # recency is the final tie-breaker.
     relevant.sort(
         key=lambda item: (
+            int(item.get("analysis_event_strength") or 0),
             int(item.get("analysis_relevance_tier") or 0),
             item.get("published_at") or "",
         ),
