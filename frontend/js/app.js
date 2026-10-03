@@ -135,14 +135,18 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       applySidebarState();
     }
 
+    function enterChatWorkspace() {
+      document.getElementById('mainHeroView')?.classList.add('hidden');
+      document.body.classList.add('analysis-mode');
+    }
+
+    window.enterChatWorkspace = enterChatWorkspace;
+
     function selectStock(stockName, { enterAnalysis = false } = {}) {
       const normalizedStockName = String(stockName || '').trim();
       if (!normalizedStockName) return;
 
-      if (enterAnalysis) {
-        document.getElementById('mainHeroView').classList.add('hidden');
-        document.body.classList.add('analysis-mode');
-      }
+      if (enterAnalysis) enterChatWorkspace();
 
       // 모바일에서는 종목을 선택하면 본문을 바로 볼 수 있도록 왼쪽 사이드바만 닫는다.
       if (window.innerWidth < 1024) {
@@ -153,9 +157,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       requestStock(normalizedStockName);
     }
 
-    function switchToAnalysisMode(stockName) {
+    function openStockInChat(stockName) {
       selectStock(stockName || '삼성전자', { enterAnalysis: true });
     }
+
+    window.openStockInChat = openStockInChat;
 
     function focusStockInput() {
       const hero = document.getElementById('heroStockInput');
@@ -169,7 +175,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function handleHeroSearch() {
       const val = document.getElementById('heroStockInput').value;
-      switchToAnalysisMode(val || '삼성전자');
+      openStockInChat(val || '삼성전자');
     }
 
     function handleBottomSearch() {
