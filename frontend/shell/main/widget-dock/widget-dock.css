@@ -128,3 +128,9 @@
 
 .central-widget-card__kospi-change--up { color: #ff4d67 !important; }
 .central-widget-card__kospi-change--down { color: #3b82f6 !important; }
+.central-widget-card__sparkline polygon {
+  fill: url(#kospiSparklineGradient);
+  stroke: none;
+}
+.central-widget-card__sparkline--up { color: #ff4d67; }
+.central-widget-card__sparkline--down { color: #3b82f6; }
