@@ -3128,6 +3128,10 @@ def analyze_stock(raw_name='SK하이닉스'):
             storyboard_news_list if isinstance(storyboard_news_list, list) else [],
             display_timezone="Asia/Seoul",
         )
+        news_items.sort(
+            key=lambda item: item.get("published_at") or "",
+            reverse=True,
+        )
         simple_storyboard_news = build_simple_today_news(
             storyboard_news_list if isinstance(storyboard_news_list, list) else [],
             raw_name,
