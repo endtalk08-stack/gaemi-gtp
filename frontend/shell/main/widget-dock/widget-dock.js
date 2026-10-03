@@ -47,6 +47,13 @@
           <div class="central-widget-card__kospi-title">코스피</div>
           <div class="central-widget-card__kospi-body" aria-label="코스피 샘플 데이터">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="kospiSparklineGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="currentColor" stop-opacity="0.28"></stop>
+                  <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
+                </linearGradient>
+              </defs>
+              <polygon data-kospi-sparkline-fill points="1,27 1,23 8,21 15,22 22,17 29,19 36,14 43,16 50,10 57,12 64,7 71,5 71,27"></polygon>
               <polyline data-kospi-sparkline points="1,23 8,21 15,22 22,17 29,19 36,14 43,16 50,10 57,12 64,7 71,5"></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
@@ -99,6 +106,8 @@
           return x.toFixed(1) + ',' + y.toFixed(1);
         }).join(' ');
         sparkline.setAttribute('points', points);
+        const fill = card.querySelector('[data-kospi-sparkline-fill]');
+        if (fill) fill.setAttribute('points', '1,27 ' + points + ' 71,27');
       }
       const priceEl = card.querySelector('[data-kospi-price]');
       const changeEl = card.querySelector('[data-kospi-change]');
@@ -107,6 +116,9 @@
         changeEl.textContent = (changePercent > 0 ? '+' : '') + changePercent.toFixed(2) + '%';
         changeEl.classList.toggle('central-widget-card__kospi-change--up', changePercent > 0);
         changeEl.classList.toggle('central-widget-card__kospi-change--down', changePercent < 0);
+        const chart = card.querySelector('.central-widget-card__sparkline');
+        chart?.classList.toggle('central-widget-card__sparkline--up', changePercent > 0);
+        chart?.classList.toggle('central-widget-card__sparkline--down', changePercent < 0);
       }
     } catch (_) {
       // 샘플 연결 실패 시 기존 표시값을 유지한다.
