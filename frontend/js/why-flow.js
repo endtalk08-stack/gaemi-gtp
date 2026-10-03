@@ -78,11 +78,15 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             prompt.insertAdjacentElement('afterend', block);
             await typeText(signalTitle, signalTitleText);
 
+            let articles = [];
             if (storyboard.length) {
               const storyboardList = document.createElement('div');
-              storyboardList.className = 'space-y-2';
+              storyboardList.className = 'space-y-4';
               const storyboardRows = [];
               storyboard.forEach((event) => {
+                const group = document.createElement('div');
+                group.className = 'space-y-1';
+
                 const row = document.createElement('div');
                 row.className = 'flex items-baseline gap-3';
                 const timeEl = document.createElement('span');
@@ -93,8 +97,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 keywordEl.className = 'analysis-hashtag font-semibold';
                 const keywordTones = event.keyword_tones && typeof event.keyword_tones === 'object' ? event.keyword_tones : {};
                 const eventToneValues = Object.values(keywordTones);
-                // 방향성이 명시되지 않은 키워드도 흐름 안에서는 같은 색 체계를 사용한다.
-                // 같은 이벤트에 악재가 하나라도 있으면 파랑, 그 외에는 핑크를 기본으로 한다.
                 const fallbackTone = eventToneValues.includes('negative') ? 'negative' : 'positive';
                 const keywordParts = (Array.isArray(event.keywords) ? event.keywords : []).map((keyword) => {
                   const label = String(keyword).replace(/^#/, '');
@@ -113,26 +115,46 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 });
                 row.appendChild(timeEl);
                 row.appendChild(keywordEl);
-                storyboardList.appendChild(row);
-                storyboardRows.push({ timeEl, timeText, keywordParts });
+                group.appendChild(row);
+
+                const article = event.article && typeof event.article === 'object' ? event.article : null;
+                let articleRow = null;
+                if (article) {
+                  articleRow = document.createElement('button');
+                  articleRow.type = 'button';
+                  articleRow.className = 'block w-full text-left leading-5 sm:leading-6 text-[#475569] hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white line-clamp-1';
+                  articleRow.classList.add(...String(responseMessageClass || '').split(/\s+/).filter(Boolean));
+                  articleRow.style.fontSize = window.matchMedia('(min-width: 640px)').matches ? '1rem' : '13px';
+                  articleRow.dataset.typingText = article.title || '제목 확인 필요';
+                  articleRow.textContent = '';
+                  articleRow.addEventListener('click', () => window.GaemiGTPExternalLinkModal.openExternalLinkModal(article));
+                  group.appendChild(articleRow);
+                  articles.push(article);
+                }
+
+                storyboardList.appendChild(group);
+                storyboardRows.push({ timeEl, timeText, keywordParts, articleRow });
               });
               block.appendChild(storyboardList);
 
-              for (const { timeEl, timeText, keywordParts } of storyboardRows) {
+              for (const { timeEl, timeText, keywordParts, articleRow } of storyboardRows) {
                 await typeText(timeEl, timeText);
                 for (const part of keywordParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
+                if (articleRow) {
+                  await typeText(articleRow, articleRow.dataset.typingText || '제목 확인 필요');
+                }
               }
+            } else {
+              articles = await window.GaemiGTPNews.renderArticles({
+                evidence: { ...evidence, articles: allNewsItems, matchedArticles: evidence.articles },
+                block,
+                responseMessageClass,
+                openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal,
+                typeText
+              });
             }
-  
-            const articles = await window.GaemiGTPNews.renderArticles({
-              evidence: { ...evidence, articles: allNewsItems, matchedArticles: evidence.articles },
-              block,
-              responseMessageClass,
-              openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal,
-              typeText
-            });
   
             if (!articles.length && !disclosures.length) {
               const empty = document.createElement('p');
