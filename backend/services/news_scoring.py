@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from .news_feed import STOCK_UNIVERSE
 from email.utils import parsedate_to_datetime
-from krwordrank.word import KRWordRank
+from kiwipiepy import Kiwi
 
 
 STRONG_EVIDENCE_WORDS = (
@@ -610,12 +610,7 @@ def summarize_stock_flow(items):
     }
 
 def build_connected_keyword_test(items, stock_name, max_keywords=3):
-    """Extract up to three article keywords with KR-WordRank.
-
-    This test replaces the previous rule/score-based keyword selection only.
-    The input remains the article title + description, and the stock name is
-    excluded from the final keyword list.
-    """
+    """Extract up to three noun keywords from title + description with Kiwi."""
     import re
 
     aliases = {
@@ -623,65 +618,52 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         for alias in _stock_aliases(stock_name)
         if str(alias or "").strip()
     }
-
+    kiwi = Kiwi()
     results = []
+
     for item in items or []:
         title = str(item.get("title") or "").strip()
         description = str(item.get("description") or "").strip()
-        if not title and not description:
+        text = f"{title} {description}".strip()
+        if not text:
             continue
 
-        texts = [text for text in (title, description) if text]
-        extractor = KRWordRank(min_count=1, max_length=10)
-        keywords, _, _ = extractor.extract(
-            texts,
-            beta=0.85,
-            max_iter=10,
-        )
-
-        ranked = sorted(
-            keywords.items(),
-            key=lambda row: row[1],
-            reverse=True,
-        )
-
-        selected = []
-        candidates = []
-        seen = set()
-
-        for raw_word, rank in ranked:
-            word = re.sub(r"\\s+", "", str(raw_word or "").strip())
+        counts = Counter()
+        first_position = {}
+        for token in kiwi.tokenize(text):
+            if not str(token.tag or "").startswith("N"):
+                continue
+            word = str(token.form or "").strip()
             if len(word) < 2:
                 continue
 
-            compact = word.lower()
-            if compact in seen:
-                continue
-
-            # Exclude the searched stock name and fragments contained inside it.
+            compact = re.sub(r"\\s+", "", word).lower()
             if any(compact == alias or compact in alias or alias in compact for alias in aliases):
                 continue
 
-            seen.add(compact)
-            candidates.append(word)
+            counts[word] += 1
+            first_position.setdefault(word, int(token.start))
 
-            if len(selected) < max_keywords:
-                selected.append({
-                    "label": word,
-                    "source": "kr-wordrank",
-                    "evidence": word,
-                    "priority": float(rank),
-                    "support": 0,
-                    "rank": float(rank),
-                })
+        ranked = sorted(
+            counts,
+            key=lambda word: (-counts[word], first_position.get(word, 10**9), -len(word), word),
+        )
 
-        selected = selected[:max_keywords]
+        selected = []
+        for word in ranked[:max_keywords]:
+            selected.append({
+                "label": word,
+                "source": "kiwi-noun",
+                "evidence": word,
+                "priority": counts[word],
+                "support": counts[word],
+            })
+
         keyword_labels = [row["label"] for row in selected]
-
         results.append({
             "title": title,
             "description": description,
-            "candidate_keywords": candidates[:10],
+            "candidate_keywords": ranked[:10],
             "keywords": keyword_labels,
             "keyword_details": selected,
             "enough_evidence": bool(keyword_labels),
