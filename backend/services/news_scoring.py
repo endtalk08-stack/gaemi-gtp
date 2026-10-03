@@ -662,12 +662,24 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             clean = re.sub(r"\s+", "", str(label or "").strip())
             if not clean or clean in seen or clean.lower() in aliases:
                 return
+
+            # The title is the primary candidate source, not an automatic winner.
+            # Prefer candidates supported by both title and description.
+            compact = clean.lower()
+            title_compact = re.sub(r"\s+", "", title_lower)
+            desc_compact = re.sub(r"\s+", "", desc_lower)
+            in_title = compact in title_compact
+            in_description = compact in desc_compact
+            support = 2 if in_title and in_description else 1 if (in_title or in_description) else 0
+            adjusted_priority = priority + (24 if support == 2 else 0) - (18 if source.startswith("title") and support < 2 else 0)
+
             seen.add(clean)
             candidates.append({
                 "label": clean,
                 "source": source,
                 "evidence": str(evidence or "").strip(),
-                "priority": priority,
+                "priority": adjusted_priority,
+                "support": support,
             })
 
         # 1) Title-first: reusable meaning phrases found in the headline.
@@ -736,7 +748,10 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             if row["label"] not in broad_labels
             and row["label"] not in {"주가상승", "주가하락", "급등", "급락"}
         ]
-        candidates.sort(key=lambda row: (-row["priority"], row["source"], row["label"]))
+        # Article-wide support comes before source-specific priority.
+        candidates.sort(
+            key=lambda row: (-row.get("support", 0), -row["priority"], row["source"], row["label"])
+        )
 
         selected = []
         for row in candidates:
