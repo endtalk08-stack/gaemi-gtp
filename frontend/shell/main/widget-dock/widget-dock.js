@@ -48,7 +48,7 @@
             </svg>
             <div class="central-widget-card__kospi-copy">
               <div class="central-widget-card__kospi-row"><strong>코스피</strong><span class="central-widget-card__kospi-badge">기관 매수 전환</span></div>
-              <div class="central-widget-card__kospi-row"><strong>7,003.74</strong><span>+32.39 (0.46%)</span></div>
+              <div class="central-widget-card__kospi-row"><strong>7,003.74</strong><span>0.46%</span></div>
             </div>
           </div>
         </article>`;
