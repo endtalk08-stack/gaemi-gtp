@@ -111,8 +111,8 @@
   white-space: nowrap;
 }
 .central-widget-card__kospi-row > span {
-  color: var(--gtp-faint);
-  font-size: 10px;
+  color: var(--gtp-text);
+  font-size: 11px;
 }
 .central-widget-card__kospi-reason {
   justify-content: flex-end;
