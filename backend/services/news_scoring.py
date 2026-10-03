@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from .news_feed import STOCK_UNIVERSE
 from email.utils import parsedate_to_datetime
+from krwordrank.word import KRWordRank
 
 
 STRONG_EVIDENCE_WORDS = (
@@ -609,196 +610,82 @@ def summarize_stock_flow(items):
     }
 
 def build_connected_keyword_test(items, stock_name, max_keywords=3):
-    """Test-only: build article-summary keyword candidates, then keep three."""
+    """Extract up to three article keywords with KR-WordRank.
+
+    This test replaces the previous rule/score-based keyword selection only.
+    The input remains the article title + description, and the stock name is
+    excluded from the final keyword list.
+    """
     import re
 
-    # Reusable expressions are helpers only. They must not decide the whole
-    # article by themselves; title evidence stays the strongest signal.
-    summary_rules = [
-        ("목표가상향", ["목표가 상향", "목표주가 상향"]),
-        ("목표가하향", ["목표가 하향", "목표주가 하향"]),
-        ("매수의견", ["매수 의견", "매수의견", "'매수' 상향", '"매수" 상향']),
-        ("투자의견상향", ["투자의견 상향", "의견 상향"]),
-        ("투자의견하향", ["투자의견 하향", "의견 하향"]),
-        ("가격상승", ["가격 상승", "가격 급등", "가격이 상승", "가격이 급등"]),
-        ("가격하락", ["가격 하락", "가격 급락", "가격이 하락", "가격이 급락"]),
-        ("물량증가", ["물량 증가", "출하량 증가", "판매량 증가"]),
-        ("물량감소", ["물량 감소", "출하량 감소", "판매량 감소"]),
-        ("수요증가", ["수요 증가", "수요 확대", "수요 급증"]),
-        ("수요둔화", ["수요 둔화", "수요 감소"]),
-        ("성장가속", ["성장 가속", "성장세 가속"]),
-        ("투자확대", ["투자 확대", "투자를 확대"]),
-        ("현금유입", ["현금 유입"]),
-        ("안전성확인", ["안전성 확인", "안전성을 확인"]),
-        ("실적프리뷰", ["실적 프리뷰"]),
-        ("투자심리악화", ["투자심리 악화", "투자 심리 악화", "투자심리가 부정적"]),
-        ("내부자매수", ["내부자 매수", "내부 임원", "임원 매입", "이사 매입"]),
-        ("매입종료", ["매입 종료", "매입 마무리", "매입을 마무리", "매입 완료", "매입을 완료"]),
-        ("사업매각", ["사업 매각"]),
-        ("사업분사", ["사업 분사", "분사"]),
-        ("발사계약", ["발사 계약"]),
-        ("3상데이터", ["3상 데이터", "3상 임상", "3상 임상시험"]),
-    ]
+    aliases = {
+        re.sub(r"\\s+", "", str(alias or "").strip()).lower()
+        for alias in _stock_aliases(stock_name)
+        if str(alias or "").strip()
+    }
 
-    # Broad words are useful classification context but weak final summary
-    # keywords when a more concrete article phrase exists.
-    broad_labels = {"AI", "반도체", "메모리", "시장", "기업", "주식", "증시"}
-    aliases = _stock_aliases(stock_name)
     results = []
-
     for item in items or []:
         title = str(item.get("title") or "").strip()
         description = str(item.get("description") or "").strip()
-        if not title:
+        if not title and not description:
             continue
 
-        title_lower = title.lower()
-        desc_lower = description.lower()
-        full_lower = f"{title_lower} {desc_lower}".strip()
-        candidates = []
-        seen = set()
+        texts = [text for text in (title, description) if text]
+        extractor = KRWordRank(min_count=1, max_length=10)
+        keywords, _, _ = extractor.extract(
+            texts,
+            beta=0.85,
+            max_iter=10,
+        )
 
-        def add(label, source, evidence, priority):
-            clean = re.sub(r"\s+", "", str(label or "").strip())
-            if not clean or clean in seen or clean.lower() in aliases:
-                return
-
-            # The title is the primary candidate source, not an automatic winner.
-            # Prefer candidates supported by both title and description.
-            compact = clean.lower()
-            title_compact = re.sub(r"\s+", "", title_lower)
-            desc_compact = re.sub(r"\s+", "", desc_lower)
-            in_title = compact in title_compact
-            in_description = compact in desc_compact
-            support = 2 if in_title and in_description else 1 if (in_title or in_description) else 0
-            adjusted_priority = priority + (24 if support == 2 else 0) - (18 if source.startswith("title") and support < 2 else 0)
-
-            seen.add(clean)
-            candidates.append({
-                "label": clean,
-                "source": source,
-                "evidence": str(evidence or "").strip(),
-                "priority": adjusted_priority,
-                "support": support,
-            })
-
-        # 1) Title-first: reusable meaning phrases found in the headline.
-        for label, phrases in summary_rules:
-            matched = next((p for p in phrases if p.lower() in title_lower), "")
-            if matched:
-                add(label, "title", matched, 100)
-
-        # Existing signal dictionaries remain useful as supporting vocabulary,
-        # but title matches outrank description-only matches.
-        for signal in _refine_movement_signals(item):
-            label = str(signal.get("label") or "").strip()
-            if not label or label in broad_labels:
-                continue
-            compact = label.replace(" ", "")
-            if compact.lower() in title_lower.replace(" ", ""):
-                add(label, "title-signal", label, 90)
-            elif compact.lower() in desc_lower.replace(" ", ""):
-                add(label, "description-signal", label, 45)
-
-        # 2) Description supplements the headline; it never replaces the
-        # headline as the article's center.
-        for label, phrases in summary_rules:
-            if label in seen:
-                continue
-            matched = next((p for p in phrases if p.lower() in desc_lower), "")
-            if matched:
-                add(label, "description", matched, 55)
-
-        # 3) Keep concrete headline nouns/names that make this article
-        # distinguishable. Quoted names, English product/project names and
-        # phase labels are candidates, not automatic winners.
-        quote_pattern = r"['\"“”‘’]([^'\"“”‘’]{2,24})['\"“”‘’]"
-        for quote_match in re.finditer(quote_pattern, title):
-            quoted = quote_match.group(1).strip()
-            if any(word in quoted for word in ("상승", "하락", "급등", "급락")):
-                continue
-
-            # Keep a quoted phrase only when the article tells us what the
-            # phrase is about.  First inspect the headline context immediately
-            # after the quote, then use description text as supporting context.
-            trailing_context = title[quote_match.end():].strip(" .,…·-—:;!?")
-            context_text = f"{trailing_context} {description}".strip()
-            topic_match = re.search(
-                r"(?:^|\s)([A-Za-z][A-Za-z0-9.\-]{1,20}|[가-힣A-Za-z0-9]{2,20}(?:론|산업|시장|기술|제품|서비스|사업|수요|공급|가격|경쟁|우려|위기|전망))",
-                context_text,
-            )
-            if not topic_match:
-                continue
-
-            quote_topic = topic_match.group(1).strip()
-            add(quoted, "title-entity", quoted, 82)
-            add(quote_topic, "quote-topic", quote_topic, 82)
-
-        for token in re.findall(r"\b[A-Za-z][A-Za-z0-9.\-]{2,20}\b", title):
-            if token.lower() not in {"the", "and", "for", "with", "from"}:
-                add(token, "title-entity", token, 78)
-
-        for phase in re.findall(r"(?<!\d)([123])상(?:\s*임상(?:시험)?)?", title):
-            add(f"{phase}상데이터", "title-entity", f"{phase}상", 80)
-
-        # Test-only: keep concrete Korean event phrases from the headline.
-        # This supplements reusable rules without adding stock-specific terms.
-        korean_event_patterns = [
-            r"([가-힣A-Za-z0-9]+(?:팹|공장))\s*(착공|준공|증설)",
-            r"([가-힣A-Za-z0-9]+(?:메모리|제품|기술))\s*(공개|출시|개발)",
-            r"([A-Za-z0-9가-힣]+)\s*(양산|생산)",
-        ]
-        for pattern in korean_event_patterns:
-            for match in re.finditer(pattern, title):
-                subject, event = match.groups()
-                add(f"{subject}{event}", "title-event", match.group(0), 84)
-
-        # Keep headline scale only when it belongs to a concrete corporate event.
-        event_scale_words = ("매입", "인수", "계약", "수주", "투자", "매각", "증자")
-        if any(word in title for word in event_scale_words):
-            for amount in re.findall(r"(?<![\d.])(?:\d+(?:[.,]\d+)*)\s*(?:조원|억원|만원|달러)", title):
-                add(amount, "title-scale", amount, 76)
-
-        # A final keyword should explain article content, not merely repeat the
-        # searched stock or its own price move.
-        candidates = [
-            row for row in candidates
-            if row["label"] not in broad_labels
-            and row["label"] not in {"주가상승", "주가하락", "급등", "급락"}
-        ]
-        # Article-wide support comes before source-specific priority.
-        candidates.sort(
-            key=lambda row: (-row.get("support", 0), -row["priority"], row["source"], row["label"])
+        ranked = sorted(
+            keywords.items(),
+            key=lambda row: row[1],
+            reverse=True,
         )
 
         selected = []
-        for row in candidates:
-            label = row["label"]
-            overlap_index = next(
-                (
-                    index for index, old in enumerate(selected)
-                    if label in old["label"] or old["label"] in label
-                ),
-                None,
-            )
-            if overlap_index is not None:
-                old = selected[overlap_index]
-                if old["label"] in label and len(label) > len(old["label"]):
-                    selected[overlap_index] = row
-                continue
-            selected.append(row)
-            if len(selected) >= max_keywords:
-                break
+        candidates = []
+        seen = set()
 
-        enough = len(selected) == max_keywords
+        for raw_word, rank in ranked:
+            word = re.sub(r"\\s+", "", str(raw_word or "").strip())
+            if len(word) < 2:
+                continue
+
+            compact = word.lower()
+            if compact in seen:
+                continue
+
+            # Exclude the searched stock name and fragments contained inside it.
+            if any(compact == alias or compact in alias or alias in compact for alias in aliases):
+                continue
+
+            seen.add(compact)
+            candidates.append(word)
+
+            if len(selected) < max_keywords:
+                selected.append({
+                    "label": word,
+                    "source": "kr-wordrank",
+                    "evidence": word,
+                    "priority": float(rank),
+                    "support": 0,
+                    "rank": float(rank),
+                })
+
+        selected = selected[:max_keywords]
+        keyword_labels = [row["label"] for row in selected]
+
         results.append({
             "title": title,
             "description": description,
-            "candidate_keywords": [row["label"] for row in candidates],
-            "keywords": [row["label"] for row in selected] if enough else [],
-            "keyword_details": selected if enough else [],
-            "enough_evidence": enough,
-            "status": "PASS" if enough else "SKIP",
+            "candidate_keywords": candidates[:10],
+            "keywords": keyword_labels,
+            "keyword_details": selected,
+            "enough_evidence": bool(keyword_labels),
+            "status": "PASS" if keyword_labels else "SKIP",
         })
 
     return {"stock": stock_name, "articles": results}
