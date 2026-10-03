@@ -36,15 +36,12 @@
 
     bodyEl.innerHTML = activeIds.map(id => {
       const meta = catalog()[id];
-      return `
-        <article class="central-widget-card" data-central-widget-id="${escapeHtml(id)}">
-          <div class="central-widget-card__top">
-            <div class="central-widget-card__name">${escapeHtml(meta.title)}</div>
-            <button type="button" class="central-widget-card__close" data-central-widget-remove="${escapeHtml(id)}" aria-label="${escapeHtml(meta.title)} 위젯 삭제" title="위젯 삭제">
-              <i data-lucide="x" class="w-3 h-3"></i>
-            </button>
-          </div>
-          ${id === 'why-up' ? `
+      if (id === 'why-up') {
+        return `
+        <article class="central-widget-card central-widget-card--kospi" data-central-widget-id="${escapeHtml(id)}">
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="코스피 위젯 삭제" title="위젯 삭제">
+            <i data-lucide="x" class="w-3 h-3"></i>
+          </button>
           <div class="central-widget-card__kospi" aria-label="코스피 샘플 데이터">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" aria-hidden="true">
               <polyline points="1,23 8,21 15,22 22,17 29,19 36,14 43,16 50,10 57,12 64,7 71,5"></polyline>
@@ -53,7 +50,18 @@
               <div class="central-widget-card__kospi-row"><strong>코스피</strong><span class="central-widget-card__kospi-badge">기관 매수 전환</span></div>
               <div class="central-widget-card__kospi-row"><strong>7,003.74</strong><span>+32.39 (0.46%)</span></div>
             </div>
-          </div>` : `<div class="central-widget-card__desc" data-central-widget-mount="${escapeHtml(id)}">${escapeHtml(meta.description)} · 데이터 미연결</div>`}
+          </div>
+        </article>`;
+      }
+      return `
+        <article class="central-widget-card" data-central-widget-id="${escapeHtml(id)}">
+          <div class="central-widget-card__top">
+            <div class="central-widget-card__name">${escapeHtml(meta.title)}</div>
+            <button type="button" class="central-widget-card__close" data-central-widget-remove="${escapeHtml(id)}" aria-label="${escapeHtml(meta.title)} 위젯 삭제" title="위젯 삭제">
+              <i data-lucide="x" class="w-3 h-3"></i>
+            </button>
+          </div>
+          <div class="central-widget-card__desc" data-central-widget-mount="${escapeHtml(id)}">${escapeHtml(meta.description)} · 데이터 미연결</div>
         </article>`;
     }).join('');
 
