@@ -461,25 +461,37 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
         article_keyword_details = item.get("article_keyword_details") or []
         keywords = []
         keyword_tones = {}
-        if len(article_keywords) == 3:
+
+        # The storyboard is a glanceable flow, not a tag cloud. Keep all
+        # extracted candidates on the article, but surface one representative
+        # investment point per news item. Curated movement signals are preferred
+        # because they come from title+description evidence; article keywords are
+        # only a fallback when no concrete signal was found.
+        representative = None
+        signals = item.get("movement_signals") or []
+        for signal in signals:
+            label = str(signal.get("label") or "").strip()
+            tone = str(signal.get("tone") or "neutral").strip()
+            if label and label not in STORYBOARD_EXCLUDED_KEYWORDS:
+                representative = label
+                keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
+                break
+
+        if representative is None:
             detail_tones = {
                 str(detail.get("label") or "").strip(): str(detail.get("tone") or "neutral").strip()
                 for detail in article_keyword_details
             }
-            for label in article_keywords:
-                label = str(label or "").strip()
-                if label and label not in STORYBOARD_EXCLUDED_KEYWORDS and label not in keywords:
-                    keywords.append(label)
+            for raw_label in article_keywords:
+                label = str(raw_label or "").strip()
+                if label and label not in STORYBOARD_EXCLUDED_KEYWORDS:
+                    representative = label
                     tone = detail_tones.get(label, "neutral")
                     keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
-        else:
-            signals = item.get("movement_signals") or []
-            for signal in signals:
-                label = str(signal.get("label") or "").strip()
-                tone = str(signal.get("tone") or "neutral").strip()
-                if label and label not in STORYBOARD_EXCLUDED_KEYWORDS and label not in keywords:
-                    keywords.append(label)
-                    keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
+                    break
+
+        if representative:
+            keywords.append(representative)
         if not dt or not keywords:
             continue
         local_dt = dt.astimezone(tz)
