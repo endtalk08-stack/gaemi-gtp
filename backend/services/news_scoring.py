@@ -712,9 +712,27 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         # 3) Keep concrete headline nouns/names that make this article
         # distinguishable. Quoted names, English product/project names and
         # phase labels are candidates, not automatic winners.
-        for quoted in re.findall(r"['\"“”‘’]([^'\"“”‘’]{2,24})['\"“”‘’]", title):
-            if not any(word in quoted for word in ("상승", "하락", "급등", "급락")):
-                add(quoted, "title-entity", quoted, 82)
+        quote_pattern = r"['\"“”‘’]([^'\"“”‘’]{2,24})['\"“”‘’]"
+        for quote_match in re.finditer(quote_pattern, title):
+            quoted = quote_match.group(1).strip()
+            if any(word in quoted for word in ("상승", "하락", "급등", "급락")):
+                continue
+
+            # Keep a quoted phrase only when the article tells us what the
+            # phrase is about.  First inspect the headline context immediately
+            # after the quote, then use description text as supporting context.
+            trailing_context = title[quote_match.end():].strip(" .,…·-—:;!?")
+            context_text = f"{trailing_context} {description}".strip()
+            topic_match = re.search(
+                r"(?:^|\s)([A-Za-z][A-Za-z0-9.\-]{1,20}|[가-힣A-Za-z0-9]{2,20}(?:론|산업|시장|기술|제품|서비스|사업|수요|공급|가격|경쟁|우려|위기|전망))",
+                context_text,
+            )
+            if not topic_match:
+                continue
+
+            quote_topic = topic_match.group(1).strip()
+            add(quoted, "title-entity", quoted, 82)
+            add(quote_topic, "quote-topic", quote_topic, 82)
 
         for token in re.findall(r"\b[A-Za-z][A-Za-z0-9.\-]{2,20}\b", title):
             if token.lower() not in {"the", "and", "for", "with", "from"}:
