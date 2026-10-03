@@ -26,6 +26,8 @@
     try { localStorage.setItem(STATE_KEY, JSON.stringify(activeIds)); } catch (_) {}
   }
 
+  const KOSPI_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EKS11?range=1d&interval=5m';
+
   function root() { return document.getElementById('centralWidgetDock'); }
   function body() { return document.getElementById('centralWidgetDockBody'); }
 
@@ -48,7 +50,7 @@
               <polyline points="1,23 8,21 15,22 22,17 29,19 36,14 43,16 50,10 57,12 64,7 71,5"></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
-              <div class="central-widget-card__kospi-row"><strong>7,003.74</strong><span class="central-widget-card__kospi-change central-widget-card__kospi-change--up">+0.46%</span></div>
+              <div class="central-widget-card__kospi-row"><strong data-kospi-price>7,003.74</strong><span data-kospi-change class="central-widget-card__kospi-change central-widget-card__kospi-change--up">+0.46%</span></div>
               <div class="central-widget-card__kospi-row central-widget-card__kospi-reason"><span class="central-widget-card__kospi-change central-widget-card__kospi-change--up">기관 매수 전환</span></div>
             </div>
           </div>
@@ -68,6 +70,34 @@
 
     dock.dataset.count = String(activeIds.length);
     if (window.lucide) window.lucide.createIcons();
+    if (activeIds.includes('why-up')) loadKospiSample();
+  }
+
+
+  async function loadKospiSample() {
+    const card = document.querySelector('.central-widget-card--kospi');
+    if (!card) return;
+    try {
+      const response = await fetch(KOSPI_URL, { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const result = payload?.chart?.result?.[0];
+      const meta = result?.meta;
+      const price = Number(meta?.regularMarketPrice);
+      const previousClose = Number(meta?.chartPreviousClose ?? meta?.previousClose);
+      if (!Number.isFinite(price) || !Number.isFinite(previousClose) || previousClose === 0) return;
+      const changePercent = ((price - previousClose) / previousClose) * 100;
+      const priceEl = card.querySelector('[data-kospi-price]');
+      const changeEl = card.querySelector('[data-kospi-change]');
+      if (priceEl) priceEl.textContent = price.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (changeEl) {
+        changeEl.textContent = (changePercent > 0 ? '+' : '') + changePercent.toFixed(2) + '%';
+        changeEl.classList.toggle('central-widget-card__kospi-change--up', changePercent > 0);
+        changeEl.classList.toggle('central-widget-card__kospi-change--down', changePercent < 0);
+      }
+    } catch (_) {
+      // 샘플 연결 실패 시 기존 표시값을 유지한다.
+    }
   }
 
   function escapeHtml(value) {
