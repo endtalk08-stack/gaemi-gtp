@@ -3181,13 +3181,30 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "transactions": item.get("transactions", []),
                     "price_range": item.get("price_range", ""),
                 })
+        # 화면의 키워드와 뉴스가 반드시 같은 원본 기사를 사용하도록
+        # 기사별 storyboard를 만든 뒤 기사 시간 최신순으로 정렬한다.
+        storyboard_timezone = "Asia/Seoul" if is_krw else "America/New_York"
+        paired_keyword_storyboard = []
+        for article in (storyboard_news_list if isinstance(storyboard_news_list, list) else []):
+            article_events = build_keyword_storyboard(
+                [article],
+                display_timezone=storyboard_timezone,
+            )
+            if not article_events:
+                continue
+            event = dict(article_events[0])
+            event["article"] = article
+            paired_keyword_storyboard.append(event)
+        paired_keyword_storyboard.sort(
+            key=lambda event: event.get("timestamp", ""),
+            reverse=True,
+        )
+        paired_keyword_storyboard = paired_keyword_storyboard[:3]
+
         return {
             "sections": sections,
             "news_items": storyboard_news_list if isinstance(storyboard_news_list, list) else news_items,
-            "keyword_storyboard": build_keyword_storyboard(
-                storyboard_news_list if isinstance(storyboard_news_list, list) else [],
-                display_timezone="Asia/Seoul" if is_krw else "America/New_York",
-            ),
+            "keyword_storyboard": paired_keyword_storyboard,
             "disclosures": disclosures,
             "us_filings": us_filings,
         }
