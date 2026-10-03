@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 from .news_feed import fetch_stock_news
 from .news_scoring import score_stock_news, build_keyword_storyboard, build_connected_keyword_test, attach_storyboard_representatives, select_today_storyboard_news
+from .simple_news_storyboard import build_simple_today_news
 from .disclosure_scoring import score_disclosures
 from .market_levels import (
     calculate_volume_profile_levels,
@@ -3127,11 +3128,13 @@ def analyze_stock(raw_name='SK하이닉스'):
             storyboard_news_list if isinstance(storyboard_news_list, list) else [],
             display_timezone="Asia/Seoul",
         )
-        storyboard_selected_news = select_today_storyboard_news(
-            news_items,
+        simple_storyboard_news = build_simple_today_news(
+            storyboard_news_list if isinstance(storyboard_news_list, list) else [],
+            raw_name,
             limit=3,
             display_timezone="Asia/Seoul",
         )
+        storyboard_selected_news = simple_storyboard_news
         disclosures = []
         if is_krw and clean_code:
             for item in score_disclosures(kr_official_disclosures or []):
