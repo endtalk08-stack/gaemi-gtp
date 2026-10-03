@@ -49,7 +49,7 @@
             </svg>
             <div class="central-widget-card__kospi-copy">
               <div class="central-widget-card__kospi-row"><strong>7,003.74</strong><span class="central-widget-card__kospi-change central-widget-card__kospi-change--up">+0.46%</span></div>
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-reason"><span>기관 매수</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-reason"><span class="central-widget-card__kospi-change central-widget-card__kospi-change--up">기관 매수 전환</span></div>
             </div>
           </div>
         </article>`;
