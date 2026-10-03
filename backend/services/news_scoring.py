@@ -329,6 +329,9 @@ def _classification_score(item):
     return min(10, issue_count * 2 + theme_count * 2 + min(stock_count, 2))
 
 
+STORYBOARD_EXCLUDED_KEYWORDS = {"적당한"}
+
+
 def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seoul"):
     """Build a compact time-ordered keyword flow without changing article display.
 
@@ -357,7 +360,7 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
             }
             for label in article_keywords:
                 label = str(label or "").strip()
-                if label and label not in keywords:
+                if label and label not in STORYBOARD_EXCLUDED_KEYWORDS and label not in keywords:
                     keywords.append(label)
                     tone = detail_tones.get(label, "neutral")
                     keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
@@ -366,7 +369,7 @@ def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seo
             for signal in signals:
                 label = str(signal.get("label") or "").strip()
                 tone = str(signal.get("tone") or "neutral").strip()
-                if label and label not in keywords:
+                if label and label not in STORYBOARD_EXCLUDED_KEYWORDS and label not in keywords:
                     keywords.append(label)
                     keyword_tones[label] = tone if tone in ("positive", "negative", "neutral") else "neutral"
         if not dt or not keywords:
