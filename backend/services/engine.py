@@ -3183,9 +3183,9 @@ def analyze_stock(raw_name='SK하이닉스'):
                 })
         return {
             "sections": sections,
-            "news_items": storyboard_news_list if isinstance(storyboard_news_list, list) else news_items,
+            "news_items": news_list if isinstance(news_list, list) else [],
             "keyword_storyboard": build_keyword_storyboard(
-                storyboard_news_list if isinstance(storyboard_news_list, list) else [],
+                news_list if isinstance(news_list, list) else [],
                 display_timezone="Asia/Seoul" if is_krw else "America/New_York",
             ),
             "disclosures": disclosures,
