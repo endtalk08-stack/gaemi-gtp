@@ -50,8 +50,8 @@
               <polyline points="1,23 8,21 15,22 22,17 29,19 36,14 43,16 50,10 57,12 64,7 71,5"></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
-              <div class="central-widget-card__kospi-row"><strong data-kospi-price>7,003.74</strong><span data-kospi-change class="central-widget-card__kospi-change central-widget-card__kospi-change--up">+0.46%</span></div>
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-reason"><span class="central-widget-card__kospi-change central-widget-card__kospi-change--up">기관 매수 전환</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>7,003.74</strong><span data-kospi-change class="central-widget-card__kospi-change central-widget-card__kospi-change--up">+0.46%</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-reason"><span>기관 매수 전환</span></div>
             </div>
           </div>
         </article>`;
