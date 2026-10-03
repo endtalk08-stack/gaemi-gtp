@@ -519,6 +519,25 @@ def _storyboard_representative(item):
     return None, "neutral"
 
 
+def attach_storyboard_representatives(items, display_timezone="Asia/Seoul"):
+    """Attach one representative event keyword to each selected article."""
+    try:
+        tz = ZoneInfo(str(display_timezone or "Asia/Seoul"))
+    except Exception:
+        tz = datetime.timezone.utc
+
+    attached = []
+    for raw in items or []:
+        item = dict(raw)
+        representative, tone = _storyboard_representative(item)
+        dt = _parse_date(item.get("pub_date") or item.get("published_at"))
+        item["storyboard_keyword"] = representative or ""
+        item["storyboard_keyword_tone"] = tone if tone in ("positive", "negative", "neutral") else "neutral"
+        item["storyboard_time"] = dt.astimezone(tz).strftime("%H:%M") if dt else ""
+        attached.append(item)
+    return attached
+
+
 def build_keyword_storyboard(items, merge_minutes=30, display_timezone="Asia/Seoul"):
     """Build a compact time-ordered keyword flow without changing article display.
 
