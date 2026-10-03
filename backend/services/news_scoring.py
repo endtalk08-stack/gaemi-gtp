@@ -475,9 +475,12 @@ def _storyboard_representative(item):
         detail = detail_by_label.get(label, {})
         source = str(detail.get("source") or "")
         evidence = str(detail.get("evidence") or "").lower()
-        score = 0
-        if any(fragment.lower() in normalized for fragment in STORYBOARD_EVENT_FRAGMENTS):
-            score += 120
+        is_event = any(fragment.lower() in normalized for fragment in STORYBOARD_EVENT_FRAGMENTS)
+        # Entity/title-copy candidates must never beat a real event. The
+        # storyboard is intentionally event-only at this stage.
+        if not is_event:
+            continue
+        score = 120
         if source.startswith("title"):
             score += 35
         elif source.startswith("description"):
@@ -756,16 +759,9 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             if matched:
                 add(label, "description", matched, 55)
 
-        # 3) Keep concrete headline nouns/names that make this article
-        # distinguishable. Quoted names, English product/project names and
-        # phase labels are candidates, not automatic winners.
-        for quoted in re.findall(r"['\"“”‘’]([^'\"“”‘’]{2,24})['\"“”‘’]", title):
-            if not any(word in quoted for word in ("상승", "하락", "급등", "급락")):
-                add(quoted, "title-entity", quoted, 82)
-
-        for token in re.findall(r"\b[A-Za-z][A-Za-z0-9.\-]{2,20}\b", title):
-            if token.lower() not in {"the", "and", "for", "with", "from"}:
-                add(token, "title-entity", token, 78)
+        # Do not promote quoted headline copy or standalone product/entity names
+        # into storyboard keywords. They describe what the article is about,
+        # while the storyboard should explain what happened.
 
         for phase in re.findall(r"(?<!\d)([123])상(?:\s*임상(?:시험)?)?", title):
             add(f"{phase}상데이터", "title-entity", f"{phase}상", 80)
