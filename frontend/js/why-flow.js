@@ -124,14 +124,11 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               }
             }
 
-            const keywordArticles = storyboard
-              .map((event) => event?.article)
-              .filter((article) => article && typeof article === 'object');
             const articles = await window.GaemiGTPNews.renderArticles({
               evidence: {
                 ...evidence,
                 articles: allNewsItems,
-                matchedArticles: keywordArticles.length ? keywordArticles : evidence.articles
+                matchedArticles: allNewsItems.slice(0, 3)
               },
               block,
               responseMessageClass,
