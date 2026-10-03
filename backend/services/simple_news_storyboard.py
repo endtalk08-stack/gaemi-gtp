@@ -8,8 +8,6 @@ extractor, and keeps article + timestamp + keyword together as one bundle.
 import datetime
 from zoneinfo import ZoneInfo
 
-from .news_scoring import build_connected_keyword_test
-
 
 def _parse_article_datetime(value):
     raw = str(value or "").strip()
@@ -36,13 +34,11 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
         tz = datetime.timezone.utc
 
     source_items = [dict(item) for item in (items or [])]
-    keyword_result = build_connected_keyword_test(source_items, stock_name, max_keywords=3)
-    keyword_rows = keyword_result.get("articles", [])
 
     today = datetime.datetime.now(tz).date()
     bundles = []
 
-    for article, keyword_row in zip(source_items, keyword_rows):
+    for article in source_items:
         dt = _parse_article_datetime(article.get("pub_date") or article.get("published_at"))
         if not dt:
             continue
@@ -50,8 +46,8 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
         if local_dt.date() != today:
             continue
 
-        keywords = list(keyword_row.get("keywords") or [])
-        details = list(keyword_row.get("keyword_details") or [])
+        keywords = list(article.get("article_keywords") or [])
+        details = list(article.get("article_keyword_details") or [])
         if not keywords:
             continue
 
