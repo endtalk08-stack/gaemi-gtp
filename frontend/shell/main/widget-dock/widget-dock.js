@@ -46,8 +46,8 @@
           </button>
           <div class="central-widget-card__kospi-title">코스피</div>
           <div class="central-widget-card__kospi-body" aria-label="코스피 샘플 데이터">
-            <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" aria-hidden="true">
-              <polyline points="1,23 8,21 15,22 22,17 29,19 36,14 43,16 50,10 57,12 64,7 71,5"></polyline>
+            <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
+              <polyline data-kospi-sparkline points="1,23 8,21 15,22 22,17 29,19 36,14 43,16 50,10 57,12 64,7 71,5"></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
               <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>7,003.74</strong><span data-kospi-change class="central-widget-card__kospi-change central-widget-card__kospi-change--up">+0.46%</span></div>
@@ -87,6 +87,19 @@
       const previousClose = Number(meta?.chartPreviousClose ?? meta?.previousClose);
       if (!Number.isFinite(price) || !Number.isFinite(previousClose) || previousClose === 0) return;
       const changePercent = ((price - previousClose) / previousClose) * 100;
+      const closes = (result?.indicators?.quote?.[0]?.close || []).map(Number).filter(Number.isFinite);
+      const sparkline = card.querySelector('[data-kospi-sparkline]');
+      if (sparkline && closes.length > 1) {
+        const min = Math.min(...closes);
+        const max = Math.max(...closes);
+        const range = max - min || 1;
+        const points = closes.map((value, index) => {
+          const x = 1 + (index / (closes.length - 1)) * 70;
+          const y = 25 - ((value - min) / range) * 22;
+          return x.toFixed(1) + ',' + y.toFixed(1);
+        }).join(' ');
+        sparkline.setAttribute('points', points);
+      }
       const priceEl = card.querySelector('[data-kospi-price]');
       const changeEl = card.querySelector('[data-kospi-change]');
       if (priceEl) priceEl.textContent = price.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
