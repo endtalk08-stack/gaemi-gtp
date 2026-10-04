@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from backend.providers.deepl_translate import translate_to_korean
-from backend.services.engine import analyze_stock, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup, start_dart_corp_warmup
+from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup, start_dart_corp_warmup
 from backend.services.marketaux_news import (
     CATEGORIES as MARKETAUX_CATEGORIES,
     MarketauxConfigurationError,
@@ -109,6 +109,21 @@ def marketaux_news_feed():
     except MarketauxRequestError:
         return jsonify({"ok": False, "feeds": {}, "error": "marketaux_unavailable"}), 502
     return jsonify({"ok": True, "feeds": feeds})
+
+@app.get("/disclosures/dart/detail")
+def dart_disclosure_detail():
+    stock_code = str(request.args.get("stock_code", "") or "").strip()
+    receipt_no = str(request.args.get("receipt_no", "") or "").strip()
+    report_name = str(request.args.get("report", "") or "").strip()
+    if not stock_code or not receipt_no:
+        return jsonify({"ok": False, "detail": {}, "error": "missing_identifier"}), 400
+    try:
+        detail = fetch_dart_disclosure_detail(stock_code, receipt_no, report_name)
+        return jsonify({"ok": True, "detail": detail})
+    except Exception as exc:
+        print(f"[국내 공시 상세 API] 실패: {type(exc).__name__}: {exc}")
+        return jsonify({"ok": False, "detail": {}, "error": "detail_failed"}), 200
+
 
 @app.get("/debug/dart/elestock")
 def debug_dart_elestock():
