@@ -431,7 +431,9 @@ def fetch_dart_executive_shareholdings(stock_code):
         if cached and now_ts - cached[0] < DART_EXECUTIVE_SHAREHOLDING_CACHE_TTL:
             return cached[1]
 
-        corp_code = fetch_dart_corp_map().get(stock_code)
+        # 상세 전용 요청에서도 전체 corpCode.xml 맵을 다시 만들지 않는다.
+        # 서버 시작 시 준비된 메모리/Redis의 단일 종목 corp_code만 재사용한다.
+        corp_code = fetch_dart_corp_code(stock_code)
         if not corp_code:
             return []
 
@@ -743,6 +745,37 @@ def _attach_dart_major_shareholder_change_details(disclosures, max_detail_fetche
             )
             item["shareholding_delta"] = int(delta)
     return disclosures
+
+
+def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
+    """선택된 DART 공시 한 건의 기존 상세 파서를 필요할 때만 실행한다."""
+    stock_code = str(stock_code or "").strip()
+    receipt_no = str(receipt_no or "").strip()
+    report_name = str(report_name or "").strip()
+    if not stock_code or not receipt_no:
+        return {}
+
+    item = {
+        "report": report_name,
+        "receipt_no": receipt_no,
+    }
+    disclosures = [item]
+
+    # 기존에 구현된 상세 파서를 재사용한다. /analyze에서는 호출하지 않는다.
+    if "최대주주등소유주식변동신고" in report_name:
+        _attach_dart_major_shareholder_change_details(disclosures, max_detail_fetches=1)
+
+    if "임원" in report_name and "주요주주" in report_name:
+        _attach_dart_executive_shareholding_details(stock_code, disclosures)
+
+    detail = disclosures[0]
+    return {
+        "receipt_no": receipt_no,
+        "executive_shareholdings": detail.get("executive_shareholdings", []),
+        "major_shareholder_change": detail.get("major_shareholder_change", {}),
+        "shareholding_change": detail.get("shareholding_change", ""),
+        "shareholding_delta": detail.get("shareholding_delta"),
+    }
 
 
 def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
@@ -3248,6 +3281,9 @@ def analyze_stock(raw_name='SK하이닉스'):
                 disclosures.append({
                     "title": report_title,
                     "source": "DART",
+                    "receipt_no": item.get("receipt_no", ""),
+                    "stock_code": clean_code,
+                    "report": item.get("report", ""),
                     "date": item.get("date", ""),
                     "time": item.get("time", ""),
                     "time_zone": item.get("time_zone", ""),
