@@ -449,7 +449,6 @@ DETAIL_KEYWORD_RULES = [
     ("산업재편", "neutral", ["산업 재편", "산업재편", "업계 재편"]),
     ("규제완화", "positive", ["규제 완화", "규제를 완화"]),
     ("정책수혜", "positive", ["정책 수혜", "정책 수혜주", "정책 혜택"]),
-    ("보조금", "positive", ["보조금", "보조금 지원"]),
     ("세제혜택", "positive", ["세제 혜택", "세금 혜택", "세액 공제"]),
     ("관세인상", "negative", ["관세 인상", "관세를 인상"]),
     ("관세완화", "positive", ["관세 완화", "관세를 완화", "관세 인하"]),
@@ -993,7 +992,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
     blocked_final_labels = {
         "매출발표", "자금조달",
         "낸드가격", "메모리가격", "D램가격",
-        "HBM", "국채금리", "주도주",
+        "HBM", "국채금리", "주도주", "성과급", "신제품", "보조금",
     }
     aliases = _stock_aliases(stock_name)
     results = []
