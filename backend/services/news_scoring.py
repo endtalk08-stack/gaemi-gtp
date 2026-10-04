@@ -1180,17 +1180,10 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         # into movement_signals. Reuse that result here so newly added shared
         # keywords reach article_keywords without running the expensive matcher
         # a second time for every article.
-        for signal in item.get("movement_signals") or []:
-            label = str(signal.get("label") or "").strip()
-            if not label or label in broad_labels:
-                continue
-            compact = label.replace(" ", "")
-            if compact.lower() in title_lower.replace(" ", ""):
-                add(label, "title-signal", label, 90)
-            elif compact.lower() in desc_lower.replace(" ", ""):
-                add(label, "description-signal", label, 45)
-            else:
-                add(label, "shared-signal", label, 50)
+        # movement_signals are evidence for scoring/classification only.
+        # Do not promote them directly into user-facing article keywords:
+        # generic evidence such as product/category/context words can be useful
+        # internally without explaining why the stock may move.
 
         # 2) Description supplements the headline; it never replaces the
         # headline as the article's center.
