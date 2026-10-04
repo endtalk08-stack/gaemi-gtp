@@ -28,6 +28,7 @@ window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = n
       item.financing_detail = detail.financing_detail || {};
       item.treasury_stock_detail = detail.treasury_stock_detail || {};
       item.dividend_detail = detail.dividend_detail || {};
+      item.corporate_action_detail = detail.corporate_action_detail || {};
       item.shareholding_change = detail.shareholding_change || item.shareholding_change || '';
       if (detail.shareholding_delta !== null && detail.shareholding_delta !== undefined) {
         item.shareholding_delta = detail.shareholding_delta;
@@ -114,6 +115,35 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                       detailRight.textContent = '';
                       detailLine.appendChild(detailRight);
                     }
+                    row.appendChild(detailLine);
+                  });
+                }
+
+                const actionDetail = item.corporate_action_detail && typeof item.corporate_action_detail === 'object'
+                  ? item.corporate_action_detail : null;
+                if (actionDetail && Object.keys(actionDetail).length) {
+                  const amount = Number(actionDetail.amount);
+                  const equityRatio = Number(actionDetail.equity_ratio);
+                  const shares = Number(actionDetail.shares);
+                  const ratio = Number(actionDetail.ratio);
+                  [
+                    ['구분', String(actionDetail.kind || '')],
+                    ['상대회사', String(actionDetail.counterparty || '')],
+                    ['거래금액', Number.isFinite(amount) ? Math.round(amount).toLocaleString('ko-KR') : ''],
+                    ['지분율', Number.isFinite(equityRatio) ? `${equityRatio.toFixed(2)}%` : ''],
+                    ['주식수', Number.isFinite(shares) ? `${Math.round(shares).toLocaleString('ko-KR')}주` : ''],
+                    ['자기자본 대비', Number.isFinite(ratio) ? `${ratio.toFixed(2)}%` : ''],
+                    ['목적', String(actionDetail.purpose || '')]
+                  ].filter(([, value]) => value).slice(0, 4).forEach(([label, value]) => {
+                    const detailLine = document.createElement('div');
+                    detailLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                    const left = document.createElement('span');
+                    left.dataset.typingText = label;
+                    left.textContent = '';
+                    const right = document.createElement('span');
+                    right.dataset.typingText = value;
+                    right.textContent = '';
+                    detailLine.append(left, right);
                     row.appendChild(detailLine);
                   });
                 }
