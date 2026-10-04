@@ -48,9 +48,6 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
 
         keywords = list(article.get("article_keywords") or [])
         details = list(article.get("article_keyword_details") or [])
-        if not keywords:
-            continue
-
         detail_by_label = {
             str(detail.get("label") or "").strip(): detail
             for detail in details
@@ -65,8 +62,8 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
                 tone = "neutral"
             storyboard_keyword_tones[keyword] = tone
 
-        representative = storyboard_keywords[0]
-        tone = storyboard_keyword_tones.get(representative, "neutral")
+        representative = storyboard_keywords[0] if storyboard_keywords else ""
+        tone = storyboard_keyword_tones.get(representative, "neutral") if representative else "neutral"
 
         article["article_keywords"] = keywords
         article["article_keyword_details"] = details
