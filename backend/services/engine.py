@@ -747,6 +747,54 @@ def _attach_dart_major_shareholder_change_details(disclosures, max_detail_fetche
     return disclosures
 
 
+def _extract_dart_generic_detail(receipt_no, report_name=""):
+    """DART 원문 표에서 공시 종류와 무관하게 화면에 쓸 핵심 라벨/값을 보존한다."""
+    try:
+        rows = _dart_document_rows(receipt_no)
+    except Exception as e:
+        print(f"[국내 공시 상세] 원문 {receipt_no} 실패: {type(e).__name__}: {e}")
+        return []
+
+    report_name = str(report_name or "")
+    priority_terms = (
+        "매출", "영업이익", "당기순이익", "계약", "금액", "기간", "상대방",
+        "배당", "주당", "발행", "증자", "사채", "취득", "처분", "주식수",
+        "지분", "비율", "투자", "목적", "일자", "예정", "결정", "변동",
+    )
+    skip_terms = ("작성기준", "단위", "주석", "비고", "참고", "관련공시")
+    details = []
+    seen = set()
+
+    for cells in rows:
+        clean_cells = [_clean_dart_cell_text(value) for value in cells if _clean_dart_cell_text(value)]
+        if len(clean_cells) < 2:
+            continue
+        label = clean_cells[0].strip(" -·")
+        value = " · ".join(clean_cells[1:]).strip()
+        if not label or not value or label == value:
+            continue
+        if len(label) > 45 or len(value) > 180:
+            continue
+        if any(term in label for term in skip_terms):
+            continue
+
+        # 공시 원문의 핵심 숫자/기간/상대방 행을 우선한다.
+        is_priority = any(term in label for term in priority_terms)
+        has_value_signal = bool(re.search(r"[0-9%₩원주억만]|\d{4}[-./]\d{1,2}", value))
+        if not is_priority and not has_value_signal:
+            continue
+
+        key = (label, value)
+        if key in seen:
+            continue
+        seen.add(key)
+        details.append({"label": label, "value": value})
+        if len(details) >= 8:
+            break
+
+    return details
+
+
 def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     """선택된 DART 공시 한 건의 기존 상세 파서를 필요할 때만 실행한다."""
     stock_code = str(stock_code or "").strip()
@@ -769,8 +817,11 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
         _attach_dart_executive_shareholding_details(stock_code, disclosures)
 
     detail = disclosures[0]
+    # 전용 파서가 없는 공시도 제목만 보이지 않도록 원문 핵심 행을 함께 제공한다.
+    generic_details = _extract_dart_generic_detail(receipt_no, report_name)
     return {
         "receipt_no": receipt_no,
+        "detail_fields": generic_details,
         "executive_shareholdings": detail.get("executive_shareholdings", []),
         "major_shareholder_change": detail.get("major_shareholder_change", {}),
         "shareholding_change": detail.get("shareholding_change", ""),
