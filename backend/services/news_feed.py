@@ -33,7 +33,7 @@ STOCK_UNIVERSE = {
         "삼성바이오로직스": ["삼성바이오로직스", "samsung biologics"],
         "현대차": ["현대차", "현대자동차", "hyundai motor"],
         "기아": ["기아", "kia"],
-        "한화에어로스페이스": ["한화에어로스페이스", "hanwha aerospace"],
+        "한화에어로스페이스": ["한화에어로스페이스", "한화에어로", "hanwha aerospace"],
         "KB금융": ["kb금융", "kb financial"],
         "NAVER": ["naver", "네이버"],
         "두산에너빌리티": ["두산에너빌리티", "doosan enerbility"],
