@@ -605,12 +605,20 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
             <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-next-analysis="us-market">#미국장</button>
             <button type="button" class="text-sm font-semibold transition hover:opacity-80" style="color:${whyState.color}" data-next-analysis="why">${whyState.tag}</button>
-            <span class="text-sm font-semibold text-[#a855f7] dark:text-[#c084fc]">#떡상운세</span>
+            <button type="button" class="text-sm font-semibold text-[#a855f7] transition hover:opacity-80 dark:text-[#c084fc]" data-next-analysis="fortune">#떡상운세</button>
           </div>`;
 
         const appendUsMarketPrompt = () => {
           if (mainContainer.querySelector('[data-us-market-prompt]')) return;
           const prompt = makeUserPrompt('미국장 어땠어?', 'usMarketPrompt');
+          choices.insertAdjacentElement('afterend', prompt);
+          prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        };
+
+        const appendFortunePrompt = () => {
+          if (mainContainer.querySelector('[data-fortune-prompt]')) return;
+          // 종목명 사용자 말풍선과 완전히 같은 공통 레이아웃을 재사용한다.
+          const prompt = makeUserPrompt('떡상운세', 'fortunePrompt');
           choices.insertAdjacentElement('afterend', prompt);
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
@@ -670,6 +678,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           }
           if (button.dataset.nextAnalysis === 'why') {
             await appendWhy();
+            return;
+          }
+          if (button.dataset.nextAnalysis === 'fortune') {
+            appendFortunePrompt();
+            choices.remove();
             return;
           }
           if (button.dataset.nextAnalysis === 'materials') await appendMaterials();
