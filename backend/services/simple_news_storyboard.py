@@ -56,14 +56,22 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
             for detail in details
             if str(detail.get("label") or "").strip()
         }
-        representative = str(keywords[0]).strip()
-        detail = detail_by_label.get(representative, {})
-        tone = str(detail.get("tone") or "neutral").strip()
-        if tone not in ("positive", "negative", "neutral"):
-            tone = "neutral"
+        storyboard_keywords = [str(keyword).strip() for keyword in keywords[:3] if str(keyword).strip()]
+        storyboard_keyword_tones = {}
+        for keyword in storyboard_keywords:
+            detail = detail_by_label.get(keyword, {})
+            tone = str(detail.get("tone") or "neutral").strip()
+            if tone not in ("positive", "negative", "neutral"):
+                tone = "neutral"
+            storyboard_keyword_tones[keyword] = tone
+
+        representative = storyboard_keywords[0]
+        tone = storyboard_keyword_tones.get(representative, "neutral")
 
         article["article_keywords"] = keywords
         article["article_keyword_details"] = details
+        article["storyboard_keywords"] = storyboard_keywords
+        article["storyboard_keyword_tones"] = storyboard_keyword_tones
         article["storyboard_keyword"] = representative
         article["storyboard_keyword_tone"] = tone
         article["storyboard_time"] = local_dt.strftime("%H:%M")
