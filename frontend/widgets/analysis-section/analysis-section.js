@@ -140,8 +140,6 @@
     function createFlow(stockName, token) {
       const chatArea = document.getElementById('chatArea');
       if (!chatArea) return null;
-      const oldLoader = Array.from(chatArea.children).find(el => el.classList.contains('flex-col') && el.classList.contains('items-center') && el.classList.contains('justify-center') && el.classList.contains('rounded-3xl'));
-      if (oldLoader) oldLoader.style.display = 'none';
       const stage = document.createElement('div');
       stage.className = 'analysis-loading-sequence animate-fade';
       stage.innerHTML = `<div class="analysis-loading-dots" aria-label="분석 준비 중"><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="analysis-loading-message" aria-live="polite"></div><div class="analysis-loading-message analysis-loading-message--secondary" aria-live="polite"></div>`;
