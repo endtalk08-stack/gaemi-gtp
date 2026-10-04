@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from backend.providers.deepl_translate import translate_to_korean
-from backend.services.engine import analyze_stock, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
+from backend.services.engine import analyze_stock, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup, start_dart_corp_warmup
 from backend.services.marketaux_news import (
     CATEGORIES as MARKETAUX_CATEGORIES,
     MarketauxConfigurationError,
@@ -23,6 +23,7 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 CORS(app)
 start_calendar_warmup()
+start_dart_corp_warmup()
 application = app
 
 @app.get("/")
