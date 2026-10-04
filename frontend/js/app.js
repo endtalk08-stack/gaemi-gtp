@@ -486,29 +486,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       userDiv.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">${stockName}</div>`;
       chatArea.appendChild(userDiv);
 
-      const loaderDiv = document.createElement('div');
-      loaderDiv.className = "flex flex-col items-center justify-center p-8 bg-white dark:bg-[#1e1f24] border border-[#e2e8f0] dark:border-[#27272a] rounded-3xl my-2 text-center shadow-sm animate-fade";
-      loaderDiv.innerHTML = `
-        <div class="flex items-center gap-4 mb-3">
-          <div class="w-14 h-14 rounded-full bg-[#f8fafc] dark:bg-[#27272a] border border-[#cbd5e1] dark:border-[#3f3f46] flex items-center justify-center text-2xl animate-bounce">🐜</div>
-          <span class="text-[#94a3b8] dark:text-[#71717a] font-bold text-xl">×</span>
-          <div class="w-14 h-14 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black font-black flex items-center justify-center text-2xl">🕶️</div>
-        </div>
-        <h4 class="font-black text-lg text-[#0f172a] dark:text-white">${stockName} 퀀트 5초 정밀 스캔 중...</h4>
-      `;
-      chatArea.appendChild(loaderDiv);
-
       const controller = activeAnalysisController;
       const fetchPromise = fetchAnalysisFromBackend(stockName, controller.signal);
       const delayPromise = new Promise(resolve => setTimeout(resolve, 120));
       const [result] = await Promise.all([fetchPromise, delayPromise]);
-      if (requestId !== activeAnalysisRequestId || result.aborted) {
-        loaderDiv.remove();
-        return;
-      }
+      if (requestId !== activeAnalysisRequestId || result.aborted) return;
       const sections = result.sections || [];
 
-      loaderDiv.remove();
       if (activeAnalysisController === controller) activeAnalysisController = null;
 
       if (!result.ok || sections.length === 0) {
