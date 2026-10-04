@@ -1193,6 +1193,39 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                         add(f"{industry}{state_label}", f"{source_name}-sharp", f"{industry}{state_label}", priority)
                         break
 
+        # Context combinations for financing/dilution events. Ambiguous nouns
+        # such as 유상증자/CB are not directional by themselves; surface only
+        # the concrete structure/result stated by the article.
+        context_texts = (("title", title, 105), ("description", description, 65))
+        for source_name, source_text, priority in context_texts:
+            compact = re.sub(r"\s+", "", source_text.lower())
+
+            if "유상증자" in compact or "유증" in compact:
+                if "제3자배정" in compact or "3자배정" in compact:
+                    add("제3자배정유상증자", f"{source_name}-context", "제3자배정 유상증자", priority)
+                    if any(word in compact for word in ("납입완료", "납입성공", "납입확정")):
+                        add("제3자배정납입완료", f"{source_name}-context", "제3자배정 유상증자 납입 완료", priority + 3)
+                if "주주배정" in compact:
+                    add("주주배정유상증자", f"{source_name}-context", "주주배정 유상증자", priority)
+                if any(word in compact for word in ("납입일연기", "납입연기")):
+                    add("유상증자납입연기", f"{source_name}-context", "유상증자 납입 연기", priority + 3)
+                if any(word in compact for word in ("지분희석", "주가희석", "희석우려", "희석부담")):
+                    add("유상증자지분희석", f"{source_name}-context", "유상증자 지분 희석", priority + 2)
+
+            cb_present = any(word in compact for word in ("전환사채", "cb발행", "cb "))
+            bw_present = any(word in compact for word in ("신주인수권부사채", "bw발행", "bw "))
+            if cb_present:
+                if any(word in compact for word in ("전환가액하향", "전환가격하향", "리픽싱")):
+                    add("CB리픽싱", f"{source_name}-context", "CB 전환가액 하향", priority + 3)
+                if any(word in compact for word in ("전환청구권행사", "전환권행사")):
+                    add("CB전환청구권행사", f"{source_name}-context", "CB 전환청구권 행사", priority + 2)
+            if bw_present and any(word in compact for word in ("신주인수권행사", "행사청구")):
+                add("BW신주인수권행사", f"{source_name}-context", "BW 신주인수권 행사", priority + 2)
+
+            if any(word in compact for word in ("보호예수해제", "락업해제")):
+                if any(word in compact for word in ("물량", "주식", "오버행", "매물")):
+                    add("보호예수해제물량", f"{source_name}-context", "보호예수 해제 물량", priority + 2)
+
         # Dynamic earnings facts: keep the financial item attached to its
         # actual amount so high-value facts do not collapse into generic "매출발표".
         # Korean headlines often omit "원" ("영업익 108조 전망"), so amount-only
