@@ -1088,7 +1088,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
     weak_final_labels = {
         "매출발표", "자금조달", "투자계획", "설비투자", "주식발행",
         "실적전망", "지표발표", "신규도입", "시장진출",
-        "공급과잉", "가격경쟁", "투자확대", "현금유입",
+        "공급과잉", "가격경쟁", "투자확대", "현금유입", "수요증가", "수요둔화",
         "낸드가격", "메모리가격", "D램가격",
     }
     # These labels are useful internally but are too generic for the three
@@ -1097,6 +1097,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         "매출발표", "자금조달",
         "낸드가격", "메모리가격", "D램가격",
         "HBM", "국채금리", "주도주", "성과급", "신제품", "보조금", "광통신", "점유율확대", "고금리", "설비투자", "AI모델",
+        "수요증가", "수요둔화",
     }
     aliases = _stock_aliases(stock_name)
     results = []
@@ -1157,6 +1158,25 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             if investment_amount:
                 amount = next((g for g in investment_amount.groups() if g), "")
                 add(f"{amount}투자", f"{source_name}-sharp", investment_amount.group(0), priority + 2)
+
+            # Preserve product/technology + concrete market action from the article itself.
+            # These are grounded phrase combinations, not stock-specific keyword mappings.
+            compact_plain = re.sub(r"\\s+", "", source_text)
+            for match in re.finditer(r"([A-Za-z0-9가-힣]+).{0,8}(?:시장)?점유율.{0,10}(확대|상승|증가|추격)", compact_plain, flags=re.IGNORECASE):
+                subject = re.sub(r"[^A-Za-z0-9가-힣]", "", match.group(1))
+                if subject and subject.lower() not in aliases:
+                    add(f"{subject}점유율{match.group(2)}", f"{source_name}-sharp", match.group(0), priority + 3)
+
+            # Headlines such as "HBM4로 시장 점유율 확대" omit the product
+            # immediately before 점유율. Keep the nearest concrete product token.
+            for match in re.finditer(r"([A-Za-z]+\\d+[A-Za-z0-9-]*|[A-Za-z]{2,}\\d*).{0,14}(?:시장)?점유율.{0,10}(확대|상승|증가|추격)", source_text, flags=re.IGNORECASE):
+                product = match.group(1).upper() if match.group(1).lower().startswith("hbm") else match.group(1)
+                add(f"{product}점유율{match.group(2)}", f"{source_name}-sharp", match.group(0), priority + 4)
+
+            # Concrete employment effects should retain the stated scale.
+            for match in re.finditer(r"(\\d+(?:[.,]\\d+)?(?:만|천)?명).{0,12}(?:고용|일자리).{0,8}(?:창출|효과|예상|전망)?", source_text):
+                amount = re.sub(r"\\s+", "", match.group(1))
+                add(f"{amount}고용창출", f"{source_name}-sharp", match.group(0), priority + 2)
 
             # Capacity expansion is more explanatory than generic 투자/증설.
             if re.search(r"(생산능력|생산캐파|생산capacity|캐파).{0,12}(확대|증가|확충|증설)", compact_source):
