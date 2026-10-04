@@ -924,7 +924,11 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
 
         # Existing signal dictionaries remain useful as supporting vocabulary,
         # but title matches outrank description-only matches.
-        for signal in _refine_movement_signals(item):
+        # score_stock_news() already refined the shared DETAIL_KEYWORD_RULES
+        # into movement_signals. Reuse that result here so newly added shared
+        # keywords reach article_keywords without running the expensive matcher
+        # a second time for every article.
+        for signal in item.get("movement_signals") or []:
             label = str(signal.get("label") or "").strip()
             if not label or label in broad_labels:
                 continue
@@ -933,6 +937,8 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 add(label, "title-signal", label, 90)
             elif compact.lower() in desc_lower.replace(" ", ""):
                 add(label, "description-signal", label, 45)
+            else:
+                add(label, "shared-signal", label, 50)
 
         # 2) Description supplements the headline; it never replaces the
         # headline as the article's center.
