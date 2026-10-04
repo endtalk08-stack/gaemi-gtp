@@ -225,6 +225,28 @@
         });
       }
 
+      const supplyDetail = item.supply_contract_detail && typeof item.supply_contract_detail === 'object'
+        ? item.supply_contract_detail : null;
+      if (supplyDetail && Object.keys(supplyDetail).length) {
+        const contractAmount = Number(supplyDetail.contract_amount);
+        const salesRatio = Number(supplyDetail.sales_ratio);
+        [
+          ['계약금액', Number.isFinite(contractAmount) ? Math.round(contractAmount).toLocaleString('ko-KR') : ''],
+          ['매출액 대비', Number.isFinite(salesRatio) ? `${salesRatio.toFixed(2)}%` : ''],
+          ['계약상대', String(supplyDetail.counterparty || '')],
+          ['계약내용', String(supplyDetail.contract_name || '')]
+        ].filter(([, value]) => value).slice(0, 4).forEach(([label, value]) => {
+          const detailLine = document.createElement('div');
+          detailLine.className = 'right-panel-disclosures__line';
+          const left = document.createElement('span');
+          left.textContent = label;
+          const right = document.createElement('span');
+          right.textContent = value;
+          detailLine.append(left, right);
+          row.appendChild(detailLine);
+        });
+      }
+
       const earningsDetail = item.earnings_detail && typeof item.earnings_detail === 'object'
         ? item.earnings_detail : null;
       const earningsMetrics = Array.isArray(earningsDetail?.metrics) ? earningsDetail.metrics : [];
