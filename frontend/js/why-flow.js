@@ -134,12 +134,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               typeText
             });
   
-            if (!articles.length && !disclosures.length) {
-              const empty = document.createElement('p');
-              empty.className = `${responseMessageClass} whitespace-pre-line`;
-              empty.textContent = '기사에서 딱히 잡히는 재료도 없고,\n오늘은 시장 흐름을 조금 더 지켜보자 ☕';
-              block.appendChild(empty);
-            }
   
             window.GaemiGTPRelatedStocks.renderRelatedStocks({
               articles,
