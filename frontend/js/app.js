@@ -820,11 +820,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             return;
           }
           if (button.dataset.nextAnalysis === 'why') {
-            // why-flow는 원래 최초 choices를 기준으로 결과를 붙인다.
-            // 운세 뒤의 새 선택지에서는 현재 선택지 위치를 원본 choices 자리로 옮겨
-            // 기존 GaemiGTPWhyFlow를 그대로 재사용한다.
+            // 기존 why-flow는 최초 choices 객체를 직접 참조한다.
+            // 최초 choices는 운세 시작 때 DOM에서 제거됐으므로, 현재 follow-up 위치에
+            // 그 동일한 객체를 다시 붙인 뒤 why-flow를 실행한다.
             if (choiceSection && choiceSection !== choices) {
-              choices.replaceWith(choiceSection);
+              choiceSection.replaceWith(choices);
             }
             await appendWhy();
             return;
