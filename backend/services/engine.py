@@ -19,7 +19,7 @@ from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
 from .news_feed import fetch_stock_news
-from .news_scoring import score_stock_news, build_keyword_storyboard, build_connected_keyword_test, attach_storyboard_representatives, select_today_storyboard_news
+from .news_scoring import score_stock_news, build_connected_keyword_test
 from .simple_news_storyboard import build_simple_today_news
 from .disclosure_scoring import score_disclosures
 from .market_levels import (
@@ -3124,14 +3124,6 @@ def analyze_stock(raw_name='SK하이닉스'):
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ])
-        news_items = attach_storyboard_representatives(
-            storyboard_news_list if isinstance(storyboard_news_list, list) else [],
-            display_timezone="Asia/Seoul",
-        )
-        news_items.sort(
-            key=lambda item: item.get("published_at") or "",
-            reverse=True,
-        )
         paired_news_items = build_simple_today_news(
             storyboard_news_list if isinstance(storyboard_news_list, list) else [],
             raw_name,
@@ -3198,7 +3190,6 @@ def analyze_stock(raw_name='SK하이닉스'):
                 })
         return {
             "sections": sections,
-            "news_items": news_items,
             "paired_news_items": paired_news_items,
             "storyboard_news_items": storyboard_selected_news,
             "keyword_storyboard": [
@@ -3226,7 +3217,6 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "content": f"{raw_name} 분석에 필요한 데이터를 가져오지 못했어. 잠시 후 다시 시도해줘."
                 }
             ],
-            "news_items": [],
             "paired_news_items": [],
             "storyboard_news_items": [],
             "keyword_storyboard": [],
