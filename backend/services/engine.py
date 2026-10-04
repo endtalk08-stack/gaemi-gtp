@@ -757,8 +757,29 @@ def _is_dart_earnings_report(report_name):
     ))
 
 
+def _dart_earnings_header_map(rows):
+    """실적 표의 헤더를 읽어 현재/전기/전년동기 열 위치를 찾는다."""
+    header_map = {}
+    for cells in rows:
+        normalized = [_clean_dart_cell_text(value).replace(" ", "") for value in cells]
+        if not normalized:
+            continue
+        for index, value in enumerate(normalized):
+            if index == 0:
+                continue
+            if any(token in value for token in ("당기실적", "당분기", "당기", "금기", "이번분기", "이번연도")):
+                header_map.setdefault("current", index)
+            elif any(token in value for token in ("전기실적", "전분기", "전기", "직전분기")):
+                header_map.setdefault("previous", index)
+            elif any(token in value for token in ("전년동기", "전년", "전년도")):
+                header_map.setdefault("year_ago", index)
+        if "current" in header_map and ("previous" in header_map or "year_ago" in header_map):
+            break
+    return header_map
+
+
 def fetch_dart_earnings_detail(receipt_no):
-    """실적 관련 DART 원문에서 매출/영업이익/순이익 핵심값만 추출한다."""
+    """실적 DART 원문에서 표 헤더 기준으로 매출/영업이익/순이익 핵심값만 추출한다."""
     receipt_no = str(receipt_no or "").strip()
     if not receipt_no:
         return {}
@@ -783,6 +804,7 @@ def fetch_dart_earnings_detail(receipt_no):
                 ("operating_profit", "영업이익", ("영업이익", "영업손익")),
                 ("net_income", "당기순이익", ("당기순이익", "당기순손익", "분기순이익", "분기순손익")),
             )
+            header_map = _dart_earnings_header_map(rows)
             metrics = []
             seen = set()
             for cells in rows:
@@ -796,22 +818,42 @@ def fetch_dart_earnings_detail(receipt_no):
                 if not matched or matched[0] in seen:
                     continue
 
-                numeric_values = []
-                for value in cells[1:]:
-                    parsed = _parse_number_text(value)
-                    if parsed is not None:
-                        numeric_values.append(parsed)
-                if not numeric_values:
+                key, label = matched
+                metric = {"key": key, "label": label}
+
+                def value_at(column_name):
+                    index = header_map.get(column_name)
+                    if index is None or index >= len(cells):
+                        return None
+                    return _parse_number_text(cells[index])
+
+                current = value_at("current")
+                previous = value_at("previous")
+                year_ago = value_at("year_ago")
+
+                # 헤더를 식별하지 못한 예외 표만 기존 순서 기반 fallback을 사용한다.
+                if current is None and not header_map:
+                    numeric_values = [
+                        parsed for parsed in (_parse_number_text(value) for value in cells[1:])
+                        if parsed is not None
+                    ]
+                    if numeric_values:
+                        current = numeric_values[0]
+                        previous = numeric_values[1] if len(numeric_values) >= 2 else None
+
+                if current is None:
                     continue
 
-                key, label = matched
-                metric = {"key": key, "label": label, "current": numeric_values[0]}
-                if len(numeric_values) >= 2:
-                    metric["previous"] = numeric_values[1]
-                    if numeric_values[1] != 0:
-                        metric["change_rate"] = round(
-                            (numeric_values[0] - numeric_values[1]) / abs(numeric_values[1]) * 100, 2
-                        )
+                metric["current"] = current
+                if previous is not None:
+                    metric["previous"] = previous
+                    if previous != 0:
+                        metric["change_rate"] = round((current - previous) / abs(previous) * 100, 2)
+                if year_ago is not None:
+                    metric["year_ago"] = year_ago
+                    if year_ago != 0:
+                        metric["year_over_year_rate"] = round((current - year_ago) / abs(year_ago) * 100, 2)
+
                 metrics.append(metric)
                 seen.add(key)
 
