@@ -358,7 +358,8 @@ DETAIL_KEYWORD_RULES = [
     ("사업인수", "neutral", ["사업 인수", "사업부 인수", "기업 인수", "인수합병", "m&a"]),
     ("규제강화", "negative", ["규제 강화", "규제 확대", "규제 압박", "제재 강화", "규제 도입"]),
     ("수출호조", "positive", ["수출 호조", "수출 증가", "수출 급증", "수출 확대", "역대 최대 수출", "사상 최대 수출"]),
-    ("잠정실적", "neutral", ["잠정 실적", "잠정실적", "잠정 영업이익", "잠정 매출"]),
+    ("잠정실적발표", "neutral", ["잠정 실적 발표", "잠정실적 발표", "잠정 실적", "잠정실적", "잠정 영업이익", "잠정 매출"]),
+    ("분기최대실적", "positive", ["분기 최대 실적", "분기 사상 최대 실적", "분기 역대 최대 실적", "분기 최대 매출", "분기 최대 영업이익"]),
     ("실적상향", "positive", ["실적 상향", "실적 전망 상향", "이익 전망 상향"]),
     ("실적하향", "negative", ["실적 하향", "실적 전망 하향", "이익 전망 하향"]),
     ("컨센서스상회", "positive", ["컨센서스 상회", "시장 예상치 상회", "시장 전망치 상회", "예상치 상회"]),
@@ -937,6 +938,23 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 "evidence": str(evidence or "").strip(),
                 "priority": priority,
             })
+
+        # Dynamic earnings facts: keep the financial item attached to its
+        # actual amount so high-value facts do not collapse into generic "매출발표".
+        amount_pattern = r"\\d+(?:[.,]\\d+)?\\s*(?:조(?:\\s*\\d+(?:[.,]\\d+)?\\s*억)?|억|만)?\\s*원"
+        earnings_texts = (("title", title, 98), ("description", description, 58))
+        for source_name, source_text, priority in earnings_texts:
+            for metric in ("영업이익", "매출", "순이익"):
+                metric_pattern = re.escape(metric) + r"\\s*(?:은|는|이|가|을|를|도|약|총)?\\s*(" + amount_pattern + r")"
+                for match in re.finditer(metric_pattern, source_text):
+                    amount = re.sub(r"\\s+", "", match.group(1))
+                    tail = source_text[match.end():match.end() + 18]
+                    event = ""
+                    if re.search(r"(돌파|넘어|넘었|상회)", tail):
+                        event = "돌파"
+                    elif re.search(r"(최대|최고|신기록)", source_text[max(0, match.start() - 18):match.end() + 18]):
+                        event = "최대"
+                    add(f"{metric}{amount}{event}", f"{source_name}-earnings", match.group(0), priority)
 
         # 1) Title-first: reusable meaning phrases found in the headline.
         for label, phrases in summary_rules:
