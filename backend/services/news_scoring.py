@@ -213,7 +213,6 @@ DETAIL_KEYWORD_RULES = [
     ("AI데이터센터", "neutral", ["ai 데이터센터", "ai 데이터 센터"]),
     ("AI로봇", "neutral", ["ai 로봇", "로봇 ai"]),
     ("휴머노이드", "neutral", ["휴머노이드"]),
-    ("AI모델", "neutral", ["ai 모델", "인공지능 모델"]),
     ("주행데이터", "neutral", ["주행 데이터"]),
     ("자체알고리즘", "neutral", ["자체 알고리즘"]),
     ("AI판매상담", "neutral", ["ai 판매 상담", "ai 판매상담", "ai 판매 상담원", "ai 상담원"]),
@@ -989,7 +988,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
     blocked_final_labels = {
         "매출발표", "자금조달",
         "낸드가격", "메모리가격", "D램가격",
-        "HBM", "국채금리", "주도주", "성과급", "신제품", "보조금", "광통신", "점유율확대", "고금리", "설비투자",
+        "HBM", "국채금리", "주도주", "성과급", "신제품", "보조금", "광통신", "점유율확대", "고금리", "설비투자", "AI모델",
     }
     aliases = _stock_aliases(stock_name)
     results = []
