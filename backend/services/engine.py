@@ -150,6 +150,8 @@ DART_MAJOR_SHAREHOLDER_CHANGE_CACHE = {}
 DART_MAJOR_SHAREHOLDER_CHANGE_CACHE_TTL = 3600
 DART_EARNINGS_DETAIL_CACHE = {}
 DART_EARNINGS_DETAIL_CACHE_TTL = 3600
+DART_SUPPLY_CONTRACT_DETAIL_CACHE = {}
+DART_SUPPLY_CONTRACT_DETAIL_CACHE_TTL = 3600
 # 같은 종목을 동시에 여러 사용자가 조회해도 DART/SEC 외부 요청이 중복되지 않도록
 # 종목별 단일 비행(single-flight) 락을 사용한다. 서로 다른 종목은 동시에 처리한다.
 _DART_SINGLEFLIGHT_LOCKS = {}
@@ -865,6 +867,97 @@ def fetch_dart_earnings_detail(receipt_no):
             return {}
 
 
+
+def _is_dart_supply_contract_report(report_name):
+    text = str(report_name or "").replace(" ", "")
+    return any(keyword in text for keyword in (
+        "단일판매ㆍ공급계약", "단일판매·공급계약", "단일판매공급계약", "공급계약체결", "수주계약",
+    ))
+
+
+def _dart_contract_value_after_label(cells, labels, numeric=False):
+    normalized = [_clean_dart_cell_text(value).strip() for value in cells]
+    for index, value in enumerate(normalized):
+        compact = value.replace(" ", "")
+        if not any(label.replace(" ", "") in compact for label in labels):
+            continue
+        for candidate in normalized[index + 1:]:
+            if not candidate:
+                continue
+            if numeric:
+                parsed = _parse_number_text(candidate, as_float=True)
+                if parsed is not None:
+                    return parsed
+            else:
+                return candidate
+    return None
+
+
+def fetch_dart_supply_contract_detail(receipt_no):
+    """단일판매·공급계약 공시에서 계약 핵심값만 추출한다."""
+    receipt_no = str(receipt_no or "").strip()
+    if not receipt_no:
+        return {}
+    now_ts = datetime.datetime.now().timestamp()
+    cached = DART_SUPPLY_CONTRACT_DETAIL_CACHE.get(receipt_no)
+    if cached and now_ts - cached[0] < DART_SUPPLY_CONTRACT_DETAIL_CACHE_TTL:
+        return cached[1]
+
+    lock = _get_singleflight_lock(_DART_SINGLEFLIGHT_LOCKS, ("supply-contract", receipt_no))
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = DART_SUPPLY_CONTRACT_DETAIL_CACHE.get(receipt_no)
+        if cached and now_ts - cached[0] < DART_SUPPLY_CONTRACT_DETAIL_CACHE_TTL:
+            return cached[1]
+        try:
+            rows = _dart_document_rows(receipt_no)
+            if not rows:
+                return {}
+
+            detail = {}
+            for cells in rows:
+                if "contract_amount" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("계약금액", "계약금액(원)", "계약금액(백만원)"), numeric=True
+                    )
+                    if value is not None:
+                        detail["contract_amount"] = value
+                if "sales_ratio" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("매출액대비", "최근매출액대비", "매출액 대비"), numeric=True
+                    )
+                    if value is not None:
+                        detail["sales_ratio"] = value
+                if "counterparty" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("계약상대", "계약상대방", "수요기관", "발주처")
+                    )
+                    if value:
+                        detail["counterparty"] = value
+                if "contract_name" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("계약내용", "판매ㆍ공급계약내용", "판매·공급계약내용", "공사명", "수주내용")
+                    )
+                    if value:
+                        detail["contract_name"] = value
+                if "start_date" not in detail:
+                    value = _dart_contract_value_after_label(cells, ("계약기간시작", "시작일", "계약시작일"))
+                    if value:
+                        detail["start_date"] = value
+                if "end_date" not in detail:
+                    value = _dart_contract_value_after_label(cells, ("계약기간종료", "종료일", "계약종료일"))
+                    if value:
+                        detail["end_date"] = value
+
+            # 계약금액/매출비중/상대방/내용 중 실제로 잡힌 값만 화면에 넘긴다.
+            result = detail if detail else {}
+            DART_SUPPLY_CONTRACT_DETAIL_CACHE[receipt_no] = (now_ts, result)
+            return result
+        except Exception as e:
+            print(f"[국내 공시 상세] 공급계약 {receipt_no} 실패: {type(e).__name__}: {e}")
+            return {}
+
+
 def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     """선택된 DART 공시 한 건의 기존 상세 파서를 필요할 때만 실행한다."""
     stock_code = str(stock_code or "").strip()
@@ -889,12 +982,16 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     if _is_dart_earnings_report(report_name):
         item["earnings_detail"] = fetch_dart_earnings_detail(receipt_no)
 
+    if _is_dart_supply_contract_report(report_name):
+        item["supply_contract_detail"] = fetch_dart_supply_contract_detail(receipt_no)
+
     detail = disclosures[0]
     return {
         "receipt_no": receipt_no,
         "executive_shareholdings": detail.get("executive_shareholdings", []),
         "major_shareholder_change": detail.get("major_shareholder_change", {}),
         "earnings_detail": detail.get("earnings_detail", {}),
+        "supply_contract_detail": detail.get("supply_contract_detail", {}),
         "shareholding_change": detail.get("shareholding_change", ""),
         "shareholding_delta": detail.get("shareholding_delta"),
     }
