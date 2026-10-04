@@ -1661,7 +1661,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             row for row in candidates
             if not (
                 row["label"].startswith(vague_numeric_prefixes)
-                and re.fullmatch(r"(?:가격|시장|투자|기술|공급|수요)\\d+(?:[.,]\\d+)?(?:조원?|억원?|만원?|천원?|원|달러|%)?", row["label"])
+                and re.fullmatch(r"(?:가격|시장|투자|기술|공급|수요)\d+(?:[.,]\d+)?(?:조원?|억원?|만원?|천원?|원|달러|%)?", row["label"])
             )
         ]
 
