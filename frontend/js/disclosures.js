@@ -1,10 +1,10 @@
 // gaemiGTP - 공시 표시 전용
 window.GaemiGTPDisclosures = window.GaemiGTPDisclosures || {};
 
-window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = 3) {
-  const targets = (Array.isArray(items) ? items : [])
-    .filter((item) => String(item?.source || '').toUpperCase() === 'DART' && item?.receipt_no && item?.stock_code)
-    .slice(0, limit);
+window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = null) {
+  const candidates = (Array.isArray(items) ? items : [])
+    .filter((item) => String(item?.source || '').toUpperCase() === 'DART' && item?.receipt_no && item?.stock_code);
+  const targets = Number.isFinite(limit) ? candidates.slice(0, Math.max(0, limit)) : candidates;
   if (!targets.length) return items;
 
   await Promise.all(targets.map(async (item) => {
@@ -55,7 +55,7 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
             }
 
             if (disclosures.length) {
-              await window.GaemiGTPDisclosures.hydrateDartDetails(disclosures, 3);
+              await window.GaemiGTPDisclosures.hydrateDartDetails(disclosures);
 
               const disclosureRows = [];
               disclosures.forEach((item) => {
