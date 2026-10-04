@@ -647,16 +647,17 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           fortune.dataset.fortuneResult = 'true';
           fortune.className = 'space-y-3 animate-fade';
           const fortuneText = [
-            '🔮 오늘의 투자운세',
+            '🔮 오늘의 떡상 기운',
             '',
-            '오늘의 투자운 72점',
+            '오늘의 계좌 온도: 72°C 📈',
             '',
-            '#기다림 #분할접근 #뉴스확인',
+            '#관망의미학 #숨참고러브다이브 #줍줍각',
             '',
-            '\"오늘은 추격보다 한 박자 기다리는 개미가',
-            '마음 편한 날입니다.\"',
+            '오늘은 무지성 추격보다,',
+            '한 템포 쉬어가는 개미가',
+            '결국 웃게 될 운명 ✨',
             '',
-            '재미로 보는 운세이며 투자 판단 자료가 아닙니다'
+            '※ 100% 재미용! 챗봇 탓 금지 🤫'
           ].join('\n');
           const resultText = document.createElement('p');
           resultText.className = `${responseMessageClass} whitespace-pre-line`;
