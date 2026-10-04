@@ -80,7 +80,9 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   position: absolute;
   top: 56px;
   left: 8px;
-  right: 8px;
+  right: auto;
+  width: calc(100% - 16px);
+  box-sizing: border-box;
   z-index: 50;
   padding: 8px;
   border-radius: 12px;
