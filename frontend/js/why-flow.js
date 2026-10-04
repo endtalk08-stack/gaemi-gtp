@@ -37,9 +37,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             loading.remove();
   
             const evidence = getWhyEvidence();
-            const allNewsItems = Array.isArray(result.paired_news_items) && result.paired_news_items.length
-              ? result.paired_news_items
-              : (Array.isArray(result.news_items) ? result.news_items : []);
+            const allNewsItems = Array.isArray(result.paired_news_items) ? result.paired_news_items : [];
             const allDisclosures = (Array.isArray(result.disclosures) && result.disclosures.length
               ? result.disclosures
               : (Array.isArray(result.us_filings) ? result.us_filings : []));
