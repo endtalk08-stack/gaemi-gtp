@@ -25,6 +25,7 @@ window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = n
       item.major_shareholder_change = detail.major_shareholder_change || {};
       item.earnings_detail = detail.earnings_detail || {};
       item.supply_contract_detail = detail.supply_contract_detail || {};
+      item.financing_detail = detail.financing_detail || {};
       item.shareholding_change = detail.shareholding_change || item.shareholding_change || '';
       if (detail.shareholding_delta !== null && detail.shareholding_delta !== undefined) {
         item.shareholding_delta = detail.shareholding_delta;
@@ -111,6 +112,33 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                       detailRight.textContent = '';
                       detailLine.appendChild(detailRight);
                     }
+                    row.appendChild(detailLine);
+                  });
+                }
+
+                const financingDetail = item.financing_detail && typeof item.financing_detail === 'object'
+                  ? item.financing_detail : null;
+                if (financingDetail && Object.keys(financingDetail).length) {
+                  const amount = Number(financingDetail.amount);
+                  const issuePrice = Number(financingDetail.issue_price);
+                  const newShares = Number(financingDetail.new_shares);
+                  [
+                    ['조달유형', String(financingDetail.kind || '')],
+                    ['조달금액', Number.isFinite(amount) ? Math.round(amount).toLocaleString('ko-KR') : ''],
+                    ['발행가액', Number.isFinite(issuePrice) ? Math.round(issuePrice).toLocaleString('ko-KR') : ''],
+                    ['신주수', Number.isFinite(newShares) ? `${Math.round(newShares).toLocaleString('ko-KR')}주` : ''],
+                    ['방식', String(financingDetail.method || '')],
+                    ['목적', String(financingDetail.purpose || '')]
+                  ].filter(([, value]) => value).slice(0, 4).forEach(([label, value]) => {
+                    const detailLine = document.createElement('div');
+                    detailLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                    const left = document.createElement('span');
+                    left.dataset.typingText = label;
+                    left.textContent = '';
+                    const right = document.createElement('span');
+                    right.dataset.typingText = value;
+                    right.textContent = '';
+                    detailLine.append(left, right);
                     row.appendChild(detailLine);
                   });
                 }
