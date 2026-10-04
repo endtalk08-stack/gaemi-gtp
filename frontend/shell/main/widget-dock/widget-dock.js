@@ -16,9 +16,11 @@
     try {
       const raw = localStorage.getItem(STATE_KEY);
       const value = raw ? JSON.parse(raw) : null;
-      return Array.isArray(value) ? value.filter(id => catalog()[id]) : [];
+      // First visit: show KOSPI by default. Once the user has saved a choice,
+      // including an intentionally empty dock, preserve that exact state.
+      return Array.isArray(value) ? value.filter(id => catalog()[id]) : ['why-up'];
     } catch (_) {
-      return [];
+      return ['why-up'];
     }
   }
 
