@@ -207,7 +207,7 @@ def _fetch_dart_corp_map_uncached():
             url,
             headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*"},
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             payload = resp.read()
 
         with zipfile.ZipFile(io.BytesIO(payload)) as zf:
@@ -625,13 +625,18 @@ def fetch_dart_major_shareholder_change(receipt_no):
             return {}
 
 
-def _attach_dart_major_shareholder_change_details(disclosures):
-    """최대주주등소유주식변동신고만 원본 상세를 읽어 가공 결과를 붙인다."""
+def _attach_dart_major_shareholder_change_details(disclosures, max_detail_fetches=2):
+    """최대주주 변동 상세는 일부만 조회해 /analyze 전체 응답을 지연시키지 않는다."""
+    detail_fetches = 0
     for item in disclosures or []:
         report = str(item.get("report") or "")
         receipt_no = str(item.get("receipt_no") or "").strip()
         if "최대주주등소유주식변동신고" not in report or not receipt_no:
             continue
+        if detail_fetches >= max_detail_fetches:
+            print(f"[국내 공시 상세] 요청당 최대 {max_detail_fetches}건까지만 조회")
+            break
+        detail_fetches += 1
         detail = fetch_dart_major_shareholder_change(receipt_no)
         if not detail:
             continue
