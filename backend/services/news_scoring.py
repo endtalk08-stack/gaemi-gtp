@@ -1401,7 +1401,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         for source_name, source_text, priority in earnings_texts:
             # e.g. "3분기 영업익 108조 전망", "영업이익 100조 시대 연다"
             metric_forecast = (
-                r"(영업이익|영업익|매출|순이익)\s*(?:은|는|이|가|약|총|첫)?\s*"
+                r"(영업이익|영업익|매출|순이익)\s*(?:은|는|이|가|약|총|첫)?.{0,18}?"
                 + forecast_amount_pattern + r".{0,10}?" + forecast_words
             )
             for match in re.finditer(metric_forecast, source_text):
