@@ -22,6 +22,37 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
             }
 
             if (disclosures.length) {
+              // 국내 DART는 /analyze를 빠르게 유지하고, 실제로 화면에 표시할 공시만
+              // 상세 API에서 기존 원문 파서를 실행해 세부 데이터를 붙인다.
+              const dartTargets = disclosures
+                .filter((item) => String(item?.source || '').toUpperCase() === 'DART' && item?.receipt_no && item?.stock_code)
+                .slice(0, 3);
+              if (dartTargets.length) {
+                await Promise.all(dartTargets.map(async (item) => {
+                  try {
+                    const params = new URLSearchParams({
+                      stock_code: String(item.stock_code || ''),
+                      receipt_no: String(item.receipt_no || ''),
+                      report: String(item.report || item.title || '')
+                    });
+                    const response = await fetch(`/disclosures/dart/detail?${params.toString()}`);
+                    if (!response.ok) return;
+                    const payload = await response.json();
+                    const detail = payload && payload.ok && payload.detail ? payload.detail : null;
+                    if (!detail) return;
+                    item.executive_shareholdings = Array.isArray(detail.executive_shareholdings)
+                      ? detail.executive_shareholdings : [];
+                    item.major_shareholder_change = detail.major_shareholder_change || {};
+                    item.shareholding_change = detail.shareholding_change || item.shareholding_change || '';
+                    if (detail.shareholding_delta !== null && detail.shareholding_delta !== undefined) {
+                      item.shareholding_delta = detail.shareholding_delta;
+                    }
+                  } catch (error) {
+                    console.warn('[국내 공시 상세] 조회 실패:', error);
+                  }
+                }));
+              }
+
               const disclosureRows = [];
               disclosures.forEach((item) => {
                 const row = document.createElement('div');
