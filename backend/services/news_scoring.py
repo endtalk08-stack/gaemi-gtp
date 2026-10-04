@@ -1356,6 +1356,40 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 if any(p in compact for p in phrases):
                     add(label, f"{source_name}-micro", label, priority + 1)
 
+        # Bio / approval / supply-chain milestone combinations. Prefer a
+        # completed milestone (approval/pass/designation) over a bare technology noun.
+        milestone_texts = (("title", title, 106), ("description", description, 66))
+        for source_name, source_text, priority in milestone_texts:
+            compact = re.sub(r"\s+", "", source_text.lower())
+            milestone_rules = (
+                ("FDA승인", ("fda승인", "fda품목허가승인")),
+                ("FDA승인거절", ("fda승인거절", "fda승인반려")),
+                ("IND승인", ("ind승인", "임상시험계획승인")),
+                ("NDA신청", ("nda신청", "fda신약허가신청")),
+                ("임상3상성공", ("임상3상성공", "3상임상성공")),
+                ("1차평가변수충족", ("1차평가변수충족", "1차평가지표충족")),
+                ("CE인증획득", ("ce인증획득", "ce인증취득")),
+                ("GMP승인", ("gmp승인", "gmp인증승인")),
+                ("퀄테스트통과", ("퀄테스트통과", "품질테스트통과")),
+                ("퀄테스트탈락", ("퀄테스트탈락", "품질테스트탈락")),
+                ("벤더등록", ("벤더등록", "vendor등록", "공급업체등록")),
+                ("Tier1공급사지정", ("tier1공급사지정", "tier1벤더지정")),
+                ("소재국산화", ("소재국산화",)),
+                ("부품국산화", ("부품국산화",)),
+                ("AEC-Q200인증", ("aec-q200인증", "aecq200인증")),
+            )
+            for label, phrases in milestone_rules:
+                if any(p in compact for p in phrases):
+                    add(label, f"{source_name}-milestone", label, priority + 2)
+
+            # Keep customer qualification concrete when the customer is stated.
+            customer_tokens = ("엔비디아", "nvidia", "애플", "apple", "테슬라", "tesla", "삼성전자", "sk하이닉스")
+            if any(customer in compact for customer in customer_tokens):
+                if "퀄테스트통과" in compact or "품질테스트통과" in compact:
+                    add("고객사퀄테스트통과", f"{source_name}-milestone", "고객사 퀄테스트 통과", priority + 3)
+                if any(word in compact for word in ("공급망진입", "벤더등록", "공급사지정")):
+                    add("고객사공급망진입", f"{source_name}-milestone", "고객사 공급망 진입", priority + 3)
+
         # Dynamic earnings facts: keep the financial item attached to its
         # actual amount so high-value facts do not collapse into generic "매출발표".
         # Korean headlines often omit "원" ("영업익 108조 전망"), so amount-only
