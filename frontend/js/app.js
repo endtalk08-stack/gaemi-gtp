@@ -667,7 +667,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
           // 기존 첫 답변과 같은 액션 버튼을 운세 하단에도 붙인다.
           // 복사/공유는 운세 텍스트만 대상으로 하고, 좋아요/싫어요는 같은 UI 동작을 재사용한다.
-          appendFirstReplyActions(resultText, fortuneText, 'fortune');
+          const fortuneActions = appendFirstReplyActions(resultText, fortuneText, 'fortune');
+          // 액션 모듈은 기본적으로 첫 답변용 그룹만 렌더링하므로,
+          // fortune 그룹을 별도로 넘기지 않고 기존 검증된 액션 UI를 그대로 재사용한다.
+          if (!fortuneActions) appendFirstReplyActions(resultText, fortuneText);
           fortune.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
