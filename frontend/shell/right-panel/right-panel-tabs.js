@@ -225,6 +225,31 @@
         });
       }
 
+      const treasuryDetail = item.treasury_stock_detail && typeof item.treasury_stock_detail === 'object'
+        ? item.treasury_stock_detail : null;
+      if (treasuryDetail && Object.keys(treasuryDetail).length) {
+        const shares = Number(treasuryDetail.shares);
+        const amount = Number(treasuryDetail.amount);
+        const price = Number(treasuryDetail.price);
+        [
+          ['구분', String(treasuryDetail.kind || '')],
+          ['예정주식수', Number.isFinite(shares) ? `${Math.round(shares).toLocaleString('ko-KR')}주` : ''],
+          ['예정금액', Number.isFinite(amount) ? Math.round(amount).toLocaleString('ko-KR') : ''],
+          ['1주당가액', Number.isFinite(price) ? Math.round(price).toLocaleString('ko-KR') : ''],
+          ['목적', String(treasuryDetail.purpose || '')],
+          ['방법', String(treasuryDetail.method || '')]
+        ].filter(([, value]) => value).slice(0, 4).forEach(([label, value]) => {
+          const detailLine = document.createElement('div');
+          detailLine.className = 'right-panel-disclosures__line';
+          const left = document.createElement('span');
+          left.textContent = label;
+          const right = document.createElement('span');
+          right.textContent = value;
+          detailLine.append(left, right);
+          row.appendChild(detailLine);
+        });
+      }
+
       const financingDetail = item.financing_detail && typeof item.financing_detail === 'object'
         ? item.financing_detail : null;
       if (financingDetail && Object.keys(financingDetail).length) {
