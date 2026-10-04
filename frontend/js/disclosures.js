@@ -79,21 +79,6 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                 const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
                 const keywordText = keywords.map((keyword) => `#${String(keyword).replace(/^#/, '')}`).join(' ');
 
-                const detailFields = Array.isArray(item.detail_fields) ? item.detail_fields.slice(0, 8) : [];
-                detailFields.forEach((detail) => {
-                  const detailLine = document.createElement('div');
-                  detailLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
-                  const detailLeft = document.createElement('span');
-                  detailLeft.dataset.typingText = String(detail.label || '');
-                  detailLeft.textContent = '';
-                  const detailRight = document.createElement('span');
-                  detailRight.className = 'text-right';
-                  detailRight.dataset.typingText = String(detail.value || '');
-                  detailRight.textContent = '';
-                  detailLine.append(detailLeft, detailRight);
-                  row.appendChild(detailLine);
-                });
-
                 const majorChange = item.major_shareholder_change && typeof item.major_shareholder_change === 'object'
                   ? item.major_shareholder_change : null;
                 if (majorChange) {
