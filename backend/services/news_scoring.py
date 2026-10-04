@@ -1233,19 +1233,27 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                         if obj and obj not in {"약", "규모", "총", "최대", "시장", "AI"}:
                             add(f"{obj}{amount}{action}", f"{source_name}-grounded-numeric-event", match.group(0), priority + 8)
 
-                # Numeric scale is meaningful when attached to a concrete topic
-                # in the same stock-anchored sentence: e.g. 데이터센터 4047조.
-                scale_pattern = r"(\d+(?:[.,]\d+)?)\s*(조|억|만|%|달러|원)"
+                # Numeric scale is only meaningful when it is directly attached
+                # to the topic. Avoid combining an unrelated later number from
+                # the same sentence (for example "실적 ... 19만" or "AI ... 80억").
+                # Genuine scales such as "데이터센터 4047조원" still survive.
+                scale_pattern = r"(\d+(?:[.,]\d+)?)\s*(조원|억원|만원|천원|달러|조|억|만|%)"
+                scale_gap_pattern = r"(?:\s|[:：·,'\"()\[\]-]){0,6}"
                 for topic in topic_words:
-                    topic_match = re.search(re.escape(topic), label_source, flags=re.IGNORECASE)
-                    if not topic_match:
-                        continue
-                    nearby = label_source[topic_match.end():topic_match.end() + 32]
-                    scale_match = re.search(scale_pattern, nearby)
+                    topic_scale_pattern = re.compile(
+                        re.escape(topic) + scale_gap_pattern + scale_pattern,
+                        flags=re.IGNORECASE,
+                    )
+                    scale_match = topic_scale_pattern.search(label_source)
                     if scale_match:
-                        amount = re.sub(r"\s+", "", scale_match.group(0))
+                        amount = re.sub(r"\s+", "", scale_match.group(1) + scale_match.group(2))
                         topic_label = topic.upper() if topic.lower() == "ai" else topic
-                        add(f"{topic_label}{amount}", f"{source_name}-grounded-scale", segment, priority + 3)
+                        add(
+                            f"{topic_label}{amount}",
+                            f"{source_name}-grounded-scale",
+                            scale_match.group(0),
+                            priority + 3,
+                        )
 
         # Sharp compound material keywords. Prefer "why it matters" over a
         # generic event word when the article itself supplies the evidence.
