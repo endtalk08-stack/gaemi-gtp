@@ -2934,9 +2934,9 @@ def analyze_stock(raw_name='SK하이닉스'):
                 kr_official_disclosures = _attach_dart_executive_shareholding_details(
                     clean_code, kr_official_disclosures
                 )
-                kr_official_disclosures = _attach_dart_major_shareholder_change_details(
-                    kr_official_disclosures
-                )
+                # DART 원문 document.xml 전체 파싱은 큰 공시에서 Gunicorn worker를
+                # 장시간 점유할 수 있다. /analyze 핵심 응답에서는 원문 상세를 동기
+                # 파싱하지 않고 목록/구조화 공시 결과를 우선 반환한다.
             except Exception as e:
                 print(f"[국내 공시] fail: {type(e).__name__}: {e}")
                 kr_official_disclosures = []
