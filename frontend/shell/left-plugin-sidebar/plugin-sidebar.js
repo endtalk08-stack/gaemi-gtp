@@ -30,9 +30,19 @@
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function releaseFocusBeforeHide() {
+    const sidebar = document.getElementById('leftPluginSidebar');
+    const active = document.activeElement;
+    if (!sidebar || !active || !sidebar.contains(active)) return;
+
+    // Do not leave keyboard focus inside a region that is about to become aria-hidden.
+    if (typeof active.blur === 'function') active.blur();
+  }
+
   function setOpen(open) {
     const body = document.body;
     if (!open) {
+      releaseFocusBeforeHide();
       body.classList.remove('left-plugin-open');
     } else {
       body.classList.remove('left-home-open', 'left-market-open', 'left-context-open');
