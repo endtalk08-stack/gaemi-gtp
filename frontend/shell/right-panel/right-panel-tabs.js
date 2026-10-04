@@ -150,7 +150,7 @@
     if (!root) return;
     root.innerHTML = '';
     if (window.GaemiGTPDisclosures?.hydrateDartDetails) {
-      await window.GaemiGTPDisclosures.hydrateDartDetails(relatedDisclosureItems, 3);
+      await window.GaemiGTPDisclosures.hydrateDartDetails(relatedDisclosureItems);
     }
     const section = document.createElement('section');
     section.className = 'right-panel-related-news right-panel-disclosures';
