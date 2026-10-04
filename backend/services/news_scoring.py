@@ -405,6 +405,26 @@ def _concrete_signal_label(item, label):
     return str(label or "").strip()
 
 
+def _detail_phrase_matches(text, phrase):
+    """Match a detail phrase while allowing common Korean particles between words."""
+    import re
+
+    haystack = str(text or "").lower()
+    needle = str(phrase or "").strip().lower()
+    if not needle:
+        return False
+    if needle in haystack:
+        return True
+
+    parts = [part for part in re.split(r"\\s+", needle) if part]
+    if len(parts) < 2:
+        return False
+
+    particle = r"(?:이|가|은|는|을|를|의|에|에서|로|으로|와|과)?"
+    pattern = particle.join(re.escape(part) + r"\\s*" for part in parts[:-1]) + re.escape(parts[-1])
+    return re.search(pattern, haystack, flags=re.IGNORECASE) is not None
+
+
 def _refine_movement_signals(item):
     text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
     refined, seen = [], set()
@@ -427,7 +447,7 @@ def _refine_movement_signals(item):
                 seen.add(label)
 
     for label, tone, phrases in DETAIL_KEYWORD_RULES:
-        if label not in seen and any(phrase.lower() in text for phrase in phrases):
+        if label not in seen and any(_detail_phrase_matches(text, phrase) for phrase in phrases):
             refined.append({"label": label, "tone": tone})
             seen.add(label)
     return refined
