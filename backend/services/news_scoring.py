@@ -916,7 +916,11 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
     weak_final_labels = {
         "매출발표", "자금조달", "투자계획", "설비투자", "주식발행",
         "실적전망", "지표발표", "신규도입", "시장진출",
+        "공급과잉", "가격경쟁", "투자확대", "현금유입",
     }
+    # These labels are useful internally but are too generic for the three
+    # user-facing material slots. Never surface them as final keywords.
+    blocked_final_labels = {"매출발표", "자금조달"}
     aliases = _stock_aliases(stock_name)
     results = []
 
@@ -972,10 +976,19 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 ("HBM", ("hbm",)),
                 ("반도체", ("반도체",)),
             )
+            # Expansion/capacity competition is a sharper causal material than
+            # standalone 증설/투자. Keep the industry name when evidence supports it.
+            for industry, aliases_for_industry in industry_aliases:
+                if not any(alias in compact_source for alias in aliases_for_industry):
+                    continue
+                if re.search(r"(증설|생산능력확대|생산능력증가|캐파확대).{0,18}(경쟁|잇따라|확대)|(?:경쟁).{0,18}(증설|생산능력확대)", compact_source):
+                    add(f"{industry}증설경쟁", f"{source_name}-sharp", f"{industry} 증설 경쟁", priority + 1)
+
             state_rules = (
-                ("시장호황", ("시장호황", "시장 호황", "호황")),
+                ("시장호황", ("시장호황", "시장 호황", "호황", "최고 상승폭", "상승폭")),
                 ("업황개선", ("업황개선", "업황 개선", "업황회복", "업황 회복")),
                 ("수요급증", ("수요급증", "수요 급증", "수요폭증", "수요 폭증")),
+                ("공급과잉우려", ("공급과잉우려", "공급 과잉 우려", "공급과잉 우려", "공급 과잉을 우려")),
                 ("공급과잉", ("공급과잉", "공급 과잉")),
             )
             for industry, aliases_for_industry in industry_aliases:
@@ -1106,6 +1119,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         candidates = [
             row for row in candidates
             if row["label"] not in broad_labels
+            and row["label"] not in blocked_final_labels
             and row["label"] not in {"주가상승", "주가하락", "급등", "급락"}
         ]
         # If the article has sharper evidence, generic labels such as
