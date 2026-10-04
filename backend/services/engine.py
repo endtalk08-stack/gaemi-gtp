@@ -3650,14 +3650,8 @@ def analyze_stock(raw_name='SK하이닉스'):
                 raw_news_list = fetch_stock_news(raw_name, market="국내", limit=50, include_market_stories=False)
                 print(f"[analyze news trace] stock={raw_name} part=fetch done elapsed={time.monotonic() - news_part_started:.2f}s items={len(raw_news_list)}", flush=True)
                 news_part_started = time.monotonic()
-                # News-flow keywords describe what the selected stock's articles say.
-                # Do not pre-rank the article pool by price-movement/material/investment
-                # assumptions; those signals belong to the later integrated analysis.
-                storyboard_news_list = [
-                    dict(item) for item in raw_news_list
-                    if any("\uac00" <= char <= "\ud7a3" for char in f"{item.get('title') or ''} {item.get('description') or ''}")
-                ]
-                print(f"[analyze news trace] stock={raw_name} part=content_pool done elapsed={time.monotonic() - news_part_started:.2f}s items={len(storyboard_news_list)}", flush=True)
+                storyboard_news_list = score_stock_news(raw_news_list, raw_name)
+                print(f"[analyze news trace] stock={raw_name} part=score done elapsed={time.monotonic() - news_part_started:.2f}s items={len(storyboard_news_list)}", flush=True)
                 news_part_started = time.monotonic()
                 article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
                 print(f"[analyze news trace] stock={raw_name} part=keywords done elapsed={time.monotonic() - news_part_started:.2f}s", flush=True)
@@ -3743,14 +3737,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 call_vol, put_vol, option_error = 0, 0, str(e)
 
             try:
-                raw_news_list = fetch_stock_news(raw_name, market="미국", limit=50, include_market_stories=False)
-                # Keep the news-flow path factual: article content first. Movement,
-                # material and investment scoring remains available separately for
-                # later synthesis with price/flow/sector data.
-                storyboard_news_list = [
-                    dict(item) for item in raw_news_list
-                    if any("\uac00" <= char <= "\ud7a3" for char in f"{item.get('title') or ''} {item.get('description') or ''}")
-                ]
+                storyboard_news_list = score_stock_news(fetch_stock_news(raw_name, market="미국", limit=50, include_market_stories=False), raw_name)
                 article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
                 for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
                     article["article_keywords"] = keyword_result.get("keywords", [])
