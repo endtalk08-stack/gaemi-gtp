@@ -732,27 +732,10 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
         )
         results = results[:max_results]
 
-        # 최종 표시 후보 중 상위 3건의 DART 접수시간만 보강은 서로 독립적이므로 병렬 조회한다.
-        # 첫 검색에서 최대 3번의 순차 HTTP 대기를 제거한다.
-        receipt_items = list(results[:3])
-        with ThreadPoolExecutor(max_workers=min(3, len(receipt_items) or 1)) as receipt_executor:
-            receipt_futures = {
-                receipt_executor.submit(_fetch_dart_receipt_time, item.get("receipt_no", "")): item
-                for item in receipt_items
-            }
-            for future, item in receipt_futures.items():
-                try:
-                    receipt_time = future.result()
-                except Exception:
-                    receipt_time = ""
-                item["time"] = receipt_time
-                item["time_zone"] = "KST" if receipt_time else ""
-                receipt_date_raw = str(item.get("receipt_datetime") or "")[:8]
-                item["receipt_datetime"] = (
-                    f"{receipt_date_raw} {receipt_time}".strip()
-                    if receipt_time and len(receipt_date_raw) == 8
-                    else item.get("receipt_datetime", "")
-                )
+        # /analyze 핵심 응답에서는 DART 목록 API의 결과만 사용한다.
+        # 접수시간 보강은 각 공시 원문 HTML을 다시 조회해야 하며, 표시용 메타데이터 때문에
+        # 최대 3개의 추가 외부 요청을 기다리면 Gunicorn worker timeout 위험이 커진다.
+        # 원문 접수시간은 공시 상세 전용 경로에서 필요할 때 조회한다.
 
         print(f"[국내 공시] {stock_code} 성공 / 선택={len(results)}")
         DART_DISCLOSURE_CACHE[cache_key] = (now_ts, results)
