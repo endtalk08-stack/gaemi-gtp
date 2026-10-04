@@ -3195,10 +3195,8 @@ def analyze_stock(raw_name='SK하이닉스'):
             "keyword_storyboard": [
                 {
                     "time": item.get("storyboard_time", ""),
-                    "keywords": [item.get("storyboard_keyword")] if item.get("storyboard_keyword") else [],
-                    "keyword_tones": {
-                        item.get("storyboard_keyword"): item.get("storyboard_keyword_tone", "neutral")
-                    } if item.get("storyboard_keyword") else {},
+                    "keywords": item.get("storyboard_keywords", [])[:3],
+                    "keyword_tones": item.get("storyboard_keyword_tones", {}),
                 }
                 for item in storyboard_selected_news
                 if item.get("storyboard_keyword")
