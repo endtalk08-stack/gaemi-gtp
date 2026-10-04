@@ -37,6 +37,12 @@
       reason: '기관 매수 전환',
       closes: Object.freeze([6990.10, 6993.20, 6991.80, 6996.40, 6994.50, 6998.30, 6996.90, 7000.40, 6999.10, 7002.20, 7003.74]),
     }),
+    kospi200NightFutures: Object.freeze({
+      price: 1127.10,
+      changePercent: 1.25,
+      reason: '야간선물 상승',
+      closes: Object.freeze([1112.30, 1116.40, 1114.80, 1119.20, 1117.90, 1122.60, 1120.70, 1125.10, 1123.80, 1129.40, 1127.10]),
+    }),
   });
 
   function root() { return document.getElementById('centralWidgetDock'); }
@@ -74,6 +80,31 @@
           </div>
         </article>`;
       }
+      if (id === 'night-futures') {
+        return `
+        <article class="central-widget-card central-widget-card--kospi central-widget-card--night-futures" data-central-widget-id="${escapeHtml(id)}">
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="코스피200 야간선물 위젯 삭제" title="위젯 삭제">
+            <i data-lucide="x" class="w-3 h-3"></i>
+          </button>
+          <div class="central-widget-card__kospi-title">코스피200 야간선물</div>
+          <div class="central-widget-card__kospi-body" aria-label="코스피200 야간선물 공개 시세 참고 샘플">
+            <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="nightFuturesSparklineGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="currentColor" stop-opacity="0.28"></stop>
+                  <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
+                </linearGradient>
+              </defs>
+              <polygon data-market-sparkline-fill points="1,27 1,23 8,21 15,22 22,17 29,19 36,14 43,16 50,10 57,12 64,7 71,5 71,27"></polygon>
+              <polyline data-market-sparkline points="1,23 8,21 15,22 22,17 29,19 36,14 43,16 50,10 57,12 64,7 71,5"></polyline>
+            </svg>
+            <div class="central-widget-card__kospi-copy">
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-market-price>1,127.10</strong><span data-market-change class="central-widget-card__kospi-change central-widget-card__kospi-change--up">+1.25%</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-reason"><span>야간선물 상승</span></div>
+            </div>
+          </div>
+        </article>`;
+      }
       return `
         <article class="central-widget-card" data-central-widget-id="${escapeHtml(id)}">
           <div class="central-widget-card__top">
@@ -89,6 +120,7 @@
     dock.dataset.count = String(activeIds.length);
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('why-up')) renderKospiMarketResult();
+    if (activeIds.includes('night-futures')) renderNightFuturesMarketResult();
   }
 
 
@@ -118,6 +150,45 @@
 
     const priceEl = card.querySelector('[data-kospi-price]');
     const changeEl = card.querySelector('[data-kospi-change]');
+    const reasonEl = card.querySelector('.central-widget-card__kospi-reason span');
+    if (priceEl && Number.isFinite(price)) priceEl.textContent = price.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (reasonEl) reasonEl.textContent = String(result.reason || '');
+    if (changeEl && Number.isFinite(changePercent)) {
+      changeEl.textContent = (changePercent > 0 ? '+' : '') + changePercent.toFixed(2) + '%';
+      changeEl.classList.toggle('central-widget-card__kospi-change--up', changePercent > 0);
+      changeEl.classList.toggle('central-widget-card__kospi-change--down', changePercent < 0);
+      const chart = card.querySelector('.central-widget-card__sparkline');
+      chart?.classList.toggle('central-widget-card__sparkline--up', changePercent > 0);
+      chart?.classList.toggle('central-widget-card__sparkline--down', changePercent < 0);
+    }
+  }
+
+
+  function renderNightFuturesMarketResult() {
+    const card = document.querySelector('.central-widget-card--night-futures');
+    const result = MARKET_RESULT.kospi200NightFutures;
+    if (!card || !result) return;
+
+    const price = Number(result.price);
+    const changePercent = Number(result.changePercent);
+    const closes = Array.isArray(result.closes) ? result.closes.map(Number).filter(Number.isFinite) : [];
+    const sparkline = card.querySelector('[data-market-sparkline]');
+    if (sparkline && closes.length > 1) {
+      const min = Math.min(...closes);
+      const max = Math.max(...closes);
+      const range = max - min || 1;
+      const points = closes.map((value, index) => {
+        const x = 1 + (index / (closes.length - 1)) * 70;
+        const y = 25 - ((value - min) / range) * 22;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+      sparkline.setAttribute('points', points);
+      const fill = card.querySelector('[data-market-sparkline-fill]');
+      if (fill) fill.setAttribute('points', '1,27 ' + points + ' 71,27');
+    }
+
+    const priceEl = card.querySelector('[data-market-price]');
+    const changeEl = card.querySelector('[data-market-change]');
     const reasonEl = card.querySelector('.central-widget-card__kospi-reason span');
     if (priceEl && Number.isFinite(price)) priceEl.textContent = price.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     if (reasonEl) reasonEl.textContent = String(result.reason || '');
