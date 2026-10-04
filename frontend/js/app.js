@@ -601,7 +601,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         choices.dataset.nextAnalysisChoices = 'true';
         choices.className = 'mt-6 space-y-2 animate-fade text-right';
         choices.innerHTML = `
-          <p class="${responseMessageClass}">하나만 클릭해</p>
+          <p class="${responseMessageClass}">뭐가 궁금해?</p>
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
             <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-next-analysis="us-market">#미국장</button>
             <button type="button" class="text-sm font-semibold transition hover:opacity-80" style="color:${whyState.color}" data-next-analysis="why">${whyState.tag}</button>
