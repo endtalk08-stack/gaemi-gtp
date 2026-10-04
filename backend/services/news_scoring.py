@@ -425,22 +425,31 @@ def _concrete_signal_label(item, label):
     return str(label or "").strip()
 
 
-@lru_cache(maxsize=512)
-def _detail_phrase_pattern(phrase):
-    """Compile each static detail phrase once instead of on every article/rule pass."""
-    needle = str(phrase or "").strip().lower()
-    parts = [part for part in re.split(r"\s+", needle) if part]
-    if len(parts) < 2:
-        return None
+_DETAIL_PARTICLES = ("으로", "에서", "이", "가", "은", "는", "을", "를", "의", "에", "로", "와", "과")
+_DETAIL_SHORT_MODIFIERS = frozenset(("매우", "크게", "계속", "꾸준히", "빠르게", "급격히", "대폭"))
 
-    particle = r"(?:이|가|은|는|을|를|의|에|에서|로|으로|와|과)?"
-    short_modifier = r"(?:매우|크게|계속|꾸준히|빠르게|급격히|대폭)?"
-    separator = r"\s*" + particle + r"\s*" + short_modifier + r"\s*"
-    return re.compile(separator.join(re.escape(part) for part in parts), flags=re.IGNORECASE)
+
+def _detail_token_variants(token):
+    """Return the token itself plus the same token with one Korean particle removed."""
+    clean = str(token or "").strip().lower()
+    if not clean:
+        return ()
+    variants = [clean]
+    for particle in _DETAIL_PARTICLES:
+        if clean.endswith(particle) and len(clean) > len(particle):
+            variants.append(clean[:-len(particle)])
+            break
+    return tuple(variants)
+
+
+@lru_cache(maxsize=1024)
+def _detail_phrase_parts(phrase):
+    """Prepare static phrase tokens once; article matching itself uses no regex."""
+    return tuple(part for part in str(phrase or "").strip().lower().split() if part)
 
 
 def _detail_phrase_matches(text, phrase):
-    """Match detail phrases without recompiling the same regex thousands of times."""
+    """Match phrase tokens in order, allowing only Korean particles and short modifiers."""
     haystack = str(text or "").lower()
     needle = str(phrase or "").strip().lower()
     if not needle:
@@ -448,8 +457,29 @@ def _detail_phrase_matches(text, phrase):
     if needle in haystack:
         return True
 
-    pattern = _detail_phrase_pattern(needle)
-    return pattern.search(haystack) is not None if pattern else False
+    expected = _detail_phrase_parts(needle)
+    if len(expected) < 2:
+        return False
+
+    words = tuple(part for part in haystack.split() if part)
+    expected_variants = tuple(_detail_token_variants(part) for part in expected)
+    for start in range(len(words)):
+        word_index = start
+        matched = True
+        for variants in expected_variants:
+            while word_index < len(words) and words[word_index] in _DETAIL_SHORT_MODIFIERS:
+                word_index += 1
+            if word_index >= len(words):
+                matched = False
+                break
+            actual_variants = _detail_token_variants(words[word_index])
+            if not any(left == right for left in actual_variants for right in variants):
+                matched = False
+                break
+            word_index += 1
+        if matched:
+            return True
+    return False
 
 
 def _refine_movement_signals(item):
