@@ -1176,6 +1176,11 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                         continue
                     action = action_match.group(0)
                     between = tail[:action_match.start()]
+                    # Topic/action must be a compact phrase. Long prose bridges are
+                    # where false joins such as 가격탄력성...공급 are created.
+                    bridge_tokens = re.findall(r"[A-Za-z0-9가-힣]+", between)
+                    if len(between.strip()) > 12 or len(bridge_tokens) > 2:
+                        continue
                     # Keep at most one short meaningful modifier while dropping
                     # punctuation/particles; the article wording stays grounded.
                     modifier_tokens = re.findall(r"[A-Za-z0-9가-힣]+", between)
@@ -1188,6 +1193,18 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                     topic_label = topic.upper() if topic.lower() == "ai" else topic
                     label = f"{topic_label}{modifier}{action}" if modifier else f"{topic_label}{action}"
                     add(label, f"{source_name}-grounded", segment, priority + 2)
+
+                # Concrete achievement/result phrases outrank loose topic+action joins.
+                # Examples: "37만6840대로 2위 탈환", "시장점유율 1위 탈환".
+                result_patterns = (
+                    r"(\d+(?:[.,]\d+)?(?:만|천)?(?:대|개|명|건)?)(?:로|으로)?\s*(\d+위)\s*(탈환|등극|진입|상승)",
+                    r"(\d+위)\s*(탈환|등극|진입|상승)",
+                )
+                for pattern in result_patterns:
+                    for match in re.finditer(pattern, label_source):
+                        compact_result = re.sub(r"[^A-Za-z0-9가-힣%]", "", match.group(0))
+                        if compact_result:
+                            add(compact_result, f"{source_name}-grounded-result", segment, priority + 7)
 
                 # Numeric scale is meaningful when attached to a concrete topic
                 # in the same stock-anchored sentence: e.g. 데이터센터 4047조.
