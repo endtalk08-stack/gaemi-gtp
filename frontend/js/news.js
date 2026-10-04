@@ -19,7 +19,7 @@ window.GaemiGTPNews.renderArticles = async function ({
               .map((signal) => normalizeSignalLabel(signal?.label))
               .filter(Boolean);
 
-            // 백엔드는 관련도 점수순으로 news_items를 정렬한다.
+            // 백엔드는 1번 공통 뉴스 결과(paired_news_items)를 시간순으로 전달한다.
             // 중앙에는 상위 1~3개만 보여주고, 전체 목록은 아래 더보기에서 유지한다.
             const articles = matchedArticles.slice(0, 3);
             
