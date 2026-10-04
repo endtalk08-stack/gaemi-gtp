@@ -71,4 +71,7 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
         bundles.append((local_dt, article))
 
     bundles.sort(key=lambda pair: pair[0], reverse=True)
-    ordered = [article for _, article in bundles]\n    if limit is None:\n        return ordered\n    return ordered[:max(1, int(limit))]
+    ordered = [article for _, article in bundles]
+    if limit is None:
+        return ordered
+    return ordered[:max(1, int(limit))]
