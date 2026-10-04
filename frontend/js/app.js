@@ -815,8 +815,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           const button = event.currentTarget;
           const choiceSection = button.closest('[data-next-analysis-choices]');
           if (button.dataset.nextAnalysis === 'us-market') {
+            // 미국장 흐름도 최초 choices 객체를 기준으로 말풍선을 붙이므로
+            // 운세 뒤 follow-up에서 누른 경우 원본 앵커를 현재 위치에 복원한다.
+            if (choiceSection && choiceSection !== choices) {
+              choiceSection.replaceWith(choices);
+            }
             appendUsMarketPrompt();
-            choiceSection?.remove();
+            choices.remove();
             return;
           }
           if (button.dataset.nextAnalysis === 'why') {
