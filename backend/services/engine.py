@@ -794,10 +794,18 @@ def _pick_dart_detail_fields(rows, report_name=""):
             ("자금용도", ("자금의 사용목적", "자금용도", "목적")),
             ("납입일", ("납입일", "납입기일")),
         ]
+    elif "거래계획보고서" in report:
+        wanted = [
+            ("거래예정주식수", ("거래예정수량", "거래예정주식수", "예정수량")),
+            ("거래예정금액", ("거래예정금액", "예정금액")),
+            ("거래예정기간", ("거래예정기간", "거래 기간", "거래기간")),
+            ("거래방법", ("거래방법", "거래 방법")),
+            ("거래목적", ("거래목적", "거래 목적")),
+        ]
     elif any(term in report for term in ("최대주주", "특정증권등소유상황", "대량보유상황")):
         wanted = [
-            ("보유주식수", ("보유주식수", "소유주식수", "소유 주식 수")),
-            ("변동주식수", ("증감", "변동주식수", "순변동")),
+            ("보유주식", ("보유주식수", "소유주식수", "소유 주식 수")),
+            ("이번변동", ("증감", "변동주식수", "순변동")),
             ("지분율", ("지분율", "소유비율", "소유 비율")),
             ("변동사유", ("변동사유", "변동 사유")),
         ]
@@ -884,19 +892,28 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     if detail.get("major_shareholder_change"):
         major = detail["major_shareholder_change"]
         preferred = []
-        if major.get("shares_before") is not None or major.get("shares_after") is not None:
-            before = major.get("shares_before")
-            after = major.get("shares_after")
-            if before is not None and after is not None:
-                preferred.append({"label": "보유주식수", "value": f"{before:,}주 → {after:,}주"})
-        if major.get("delta") is not None:
-            preferred.append({"label": "변동주식수", "value": f"{int(major['delta']):+,}주"})
+        before = major.get("previous_shares")
+        after = major.get("current_shares")
+        delta = major.get("share_delta")
+        before_rate = major.get("previous_rate")
+        after_rate = major.get("current_rate")
+        if before is not None and after is not None:
+            preferred.append({"label": "보유주식", "value": f"{int(before):,}주 → {int(after):,}주"})
+        if delta is not None:
+            preferred.append({"label": "이번변동", "value": f"{int(delta):+,}주"})
+        if before_rate is not None and after_rate is not None:
+            preferred.append({"label": "지분율", "value": f"{float(before_rate):g}% → {float(after_rate):g}%"})
+        detail_changes = major.get("detail_changes") or []
+        if detail_changes:
+            top_change = max(detail_changes, key=lambda row: abs(row.get("share_delta") or 0))
+            person = str(top_change.get("name") or "").strip()
+            relation = str(top_change.get("relation") or "").strip()
+            person_delta = top_change.get("share_delta")
+            if person and person_delta is not None:
+                label = person + (f" · {relation}" if relation else "")
+                preferred.append({"label": label, "value": f"{int(person_delta):+,}주"})
         if preferred:
-            # 같은 의미의 범용 필드는 제거해 중복/산식 노출을 막는다.
-            display_details = preferred + [
-                row for row in display_details
-                if row.get("label") not in {"보유주식수", "변동주식수"}
-            ]
+            display_details = preferred[:5]
 
     return {
         "receipt_no": receipt_no,
