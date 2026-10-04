@@ -685,6 +685,35 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           ].join('\n');
         };
 
+        const appendRemainingChoices = (after, completed = []) => {
+          if (!after || !after.isConnected) return;
+          const remaining = [
+            { key: 'us-market', label: '#미국장', className: 'text-[#3b82f6] dark:text-[#7aa2e3]' },
+            { key: 'why', label: whyState.tag, color: whyState.color },
+            { key: 'fortune', label: '#떡상운세', className: 'text-[#a855f7] dark:text-[#c084fc]' }
+          ].filter((item) => !completed.includes(item.key));
+          if (!remaining.length) return;
+
+          const followup = document.createElement('section');
+          followup.dataset.nextAnalysisChoices = 'true';
+          followup.className = 'mt-6 space-y-2 animate-fade text-right';
+          followup.innerHTML = `
+            <p class="${responseMessageClass}">더 볼래?</p>
+            <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5"></div>`;
+          const row = followup.querySelector('div');
+          remaining.forEach((item) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.nextAnalysis = item.key;
+            button.className = `text-sm font-semibold transition hover:opacity-80 ${item.className || ''}`;
+            if (item.color) button.style.color = item.color;
+            button.textContent = item.label;
+            button.addEventListener('click', handleNextAnalysisChoice);
+            row.appendChild(button);
+          });
+          after.insertAdjacentElement('afterend', followup);
+        };
+
         const appendFortunePrompt = async () => {
           if (mainContainer.querySelector('[data-fortune-prompt]')) return;
 
@@ -729,6 +758,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           // 액션 모듈은 기본적으로 첫 답변용 그룹만 렌더링하므로,
           // fortune 그룹을 별도로 넘기지 않고 기존 검증된 액션 UI를 그대로 재사용한다.
           if (!fortuneActions) appendFirstReplyActions(resultText, fortuneText);
+          appendRemainingChoices(fortune, ['fortune']);
           fortune.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
@@ -778,11 +808,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           });
         };
 
-        const handleNextAnalysisChoice = async (event) => {
+        async function handleNextAnalysisChoice(event) {
           const button = event.currentTarget;
+          const choiceSection = button.closest('[data-next-analysis-choices]');
           if (button.dataset.nextAnalysis === 'us-market') {
             appendUsMarketPrompt();
-            choices.remove();
+            choiceSection?.remove();
             return;
           }
           if (button.dataset.nextAnalysis === 'why') {
@@ -793,12 +824,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             // appendFortunePrompt는 첫 await 전에 말풍선을 실제 DOM에 붙인다.
             // 선택지를 먼저 제거하면 detached DOM 뒤에 붙어서 화면에 안 보이므로 순서를 지킨다.
             const fortuneFlow = appendFortunePrompt();
-            choices.remove();
+            choiceSection?.remove();
             await fortuneFlow;
             return;
           }
           if (button.dataset.nextAnalysis === 'materials') await appendMaterials();
-        };
+        }
         choices.querySelectorAll('[data-next-analysis]').forEach((button) => {
           button.addEventListener('click', handleNextAnalysisChoice);
         });
