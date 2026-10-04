@@ -956,6 +956,46 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                         event = "최대"
                     add(f"{metric}{amount}{event}", f"{source_name}-earnings", match.group(0), priority)
 
+        # Dynamic investor-flow facts from news evidence. This is a news
+        # material keyword only; it does not replace the supply/trading dataset.
+        flow_amount_pattern = r"\\d+(?:[.,]\\d+)?\\s*(?:조(?:\\s*\\d+(?:[.,]\\d+)?\\s*억)?|억|만)?\\s*원?"
+        flow_texts = (("title", title, 99), ("description", description, 59))
+        for source_name, source_text, priority in flow_texts:
+            compact_text = re.sub(r"\\s+", "", source_text)
+            for actor in ("외국인", "기관", "개인"):
+                # e.g. 외국인 한달새 17조 팔아 / 기관 2조 순매수
+                flow_pattern = (
+                    re.escape(actor)
+                    + r".{0,18}?(" + flow_amount_pattern + r").{0,12}?"
+                    + r"(순매수|순매도|매수|매도|사들여|사들였|팔아|팔았)"
+                )
+                for match in re.finditer(flow_pattern, source_text):
+                    amount = re.sub(r"\\s+", "", match.group(1))
+                    action_raw = match.group(2)
+                    action = {
+                        "사들여": "매수", "사들였": "매수",
+                        "팔아": "매도", "팔았": "매도",
+                    }.get(action_raw, action_raw)
+                    add(f"{actor}{amount}{action}", f"{source_name}-flow", match.group(0), priority)
+
+                # Preserve the article's stated record horizon instead of
+                # exaggerating "연중 최저" into "역대 최저".
+                stake_patterns = [
+                    (r"외국인지분율.{0,16}?(연중|역대|사상)\\s*(최저|최고)", lambda m: f"외국인지분율{m.group(1)}{m.group(2)}"),
+                    (r"외국인지분율.{0,16}?(\\d+)\\s*년(?:래|만의)?\\s*(최저|최고)", lambda m: f"외국인지분율{m.group(1)}년{m.group(2)}"),
+                    (r"외국인.{0,8}?지분(?:율)?.{0,16}?(연중|역대|사상)\\s*(최저|최고)", lambda m: f"외국인지분율{m.group(1)}{m.group(2)}"),
+                    (r"외국인.{0,8}?지분(?:율)?.{0,16}?(\\d+)\\s*년(?:래|만의)?\\s*(최저|최고)", lambda m: f"외국인지분율{m.group(1)}년{m.group(2)}"),
+                ]
+                if actor == "외국인":
+                    for pattern, label_builder in stake_patterns:
+                        for match in re.finditer(pattern, compact_text):
+                            add(label_builder(match), f"{source_name}-stake", match.group(0), priority + 1)
+
+                # e.g. 외국인 10일 연속 매도
+                streak_pattern = re.escape(actor) + r".{0,12}?(\\d+)\\s*일\\s*연속\\s*(순매수|순매도|매수|매도)"
+                for match in re.finditer(streak_pattern, source_text):
+                    add(f"{actor}{match.group(1)}일연속{match.group(2)}", f"{source_name}-flow-streak", match.group(0), priority)
+
         # 1) Title-first: reusable meaning phrases found in the headline.
         for label, phrases in summary_rules:
             matched = next((p for p in phrases if p.lower() in title_lower), "")
