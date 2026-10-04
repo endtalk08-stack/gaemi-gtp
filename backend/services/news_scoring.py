@@ -390,6 +390,19 @@ DETAIL_KEYWORD_RULES = [
     ("급등", "positive", ["급등", "주가 급등"]),
     ("랠리", "positive", ["랠리", "주가 랠리"]),
     ("주도주", "positive", ["주도주", "시장 주도주", "증시 주도주"]),
+    # AI risk/development and political-policy context. Person-name context stays neutral;
+    # concrete tariff/regulation/policy effects continue to be captured by directional rules above.
+    ("AI위협", "negative", ["ai 위협", "ai 리스크", "ai 위험", "ai 대체 위협", "ai가 위협"]),
+    ("AI점검", "neutral", ["ai 점검", "ai 안전 점검", "ai 시스템 점검", "ai 위험 점검"]),
+    ("AI개발", "neutral", ["ai 개발", "ai 기술 개발", "ai 모델 개발", "자체 ai 개발"]),
+    ("AI수혜", "positive", ["ai 수혜", "ai 수혜주", "ai 혜택"]),
+    ("AI투자축소", "negative", ["ai 투자 축소", "ai 투자 감소", "ai 투자 감축"]),
+    ("AI규제강화", "negative", ["ai 규제 강화", "ai 규제 확대", "ai 규제 압박"]),
+    ("AI규제완화", "positive", ["ai 규제 완화", "ai 규제 완화 기대"]),
+    ("트럼프관세", "neutral", ["트럼프 관세", "트럼프발 관세", "트럼프의 관세"]),
+    ("트럼프규제", "neutral", ["트럼프 규제", "트럼프발 규제", "트럼프의 규제"]),
+    ("트럼프정책", "neutral", ["트럼프 정책", "트럼프발 정책", "트럼프의 정책"]),
+    ("트럼프발언", "neutral", ["트럼프 발언", "트럼프의 발언", "트럼프가 발언", "트럼프 언급"]),
 
 ]
 
