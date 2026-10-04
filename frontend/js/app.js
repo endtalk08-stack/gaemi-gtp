@@ -615,6 +615,57 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
+        const buildDailyFortune = () => {
+          // 한국 날짜를 seed로 사용해 같은 날에는 몇 번 눌러도 같은 운세가 나온다.
+          const dateKey = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Seoul',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).format(new Date());
+
+          let seed = 0;
+          for (let i = 0; i < dateKey.length; i += 1) {
+            seed = ((seed * 31) + dateKey.charCodeAt(i)) >>> 0;
+          }
+          const pick = (items, salt = 0) => items[(seed + salt) % items.length];
+
+          const temperatures = [58, 61, 64, 67, 69, 72, 74, 77, 79, 82, 84, 87, 89, 92];
+          const tagSets = [
+            ['#관망의미학', '#숨참고러브다이브', '#줍줍각'],
+            ['#존버의미학', '#분할접근', '#촉은살아있다'],
+            ['#눈치게임', '#한템포쉬기', '#개미촉ON'],
+            ['#천천히줍줍', '#추격금지', '#기다림승부'],
+            ['#돈신내림', '#분할매수', '#오늘은신중'],
+            ['#촉주의보', '#뉴스체크', '#무지성금지'],
+            ['#개미레이더', '#숨고르기', '#타이밍대기']
+          ];
+          const messages = [
+            ['오늘은 무지성 추격보다,', '한 템포 쉬어가는 개미가', '결국 웃게 될 운명 ✨'],
+            ['급할수록 계좌만 숨차다.', '오늘은 천천히 보는 개미에게', '떡상 기운이 슬쩍 붙는 날 🔮'],
+            ['촉은 왔지만 손은 잠깐 주머니에.', '한 번 더 보고 움직이는 개미가', '마음 편하게 웃는 날 🐜'],
+            ['오늘은 앞자리보다 뒷자리가 명당.', '남들 뛸 때 숨 한번 고르고', '내 타이밍을 기다려보자 ✨'],
+            ['떡상 기운은 있는데 성급함은 금지.', '조금씩 나눠 보는 개미에게', '운빨이 은근히 붙는 날 📈'],
+            ['차트보다 내 손가락이 더 위험한 날.', '뉴스 한 번 더 보고 천천히.', '오늘의 행운은 참을성에 있다 🤫'],
+            ['개미 레이더는 켜두고 손은 가볍게.', '기회는 도망가지 않으니', '오늘은 타이밍과 눈치 싸움 👀']
+          ];
+
+          const temperature = pick(temperatures, 3);
+          const tags = pick(tagSets, 11);
+          const message = pick(messages, 19);
+          return [
+            '🔮 오늘의 떡상 기운',
+            '',
+            `오늘의 계좌 온도: ${temperature}°C 📈`,
+            '',
+            tags.join(' '),
+            '',
+            ...message,
+            '',
+            '※ 100% 재미용! 챗봇 탓 금지 🤫'
+          ].join('\n');
+        };
+
         const appendFortunePrompt = async () => {
           if (mainContainer.querySelector('[data-fortune-prompt]')) return;
 
@@ -646,19 +697,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           const fortune = document.createElement('div');
           fortune.dataset.fortuneResult = 'true';
           fortune.className = 'space-y-3 animate-fade';
-          const fortuneText = [
-            '🔮 오늘의 떡상 기운',
-            '',
-            '오늘의 계좌 온도: 72°C 📈',
-            '',
-            '#관망의미학 #숨참고러브다이브 #줍줍각',
-            '',
-            '오늘은 무지성 추격보다,',
-            '한 템포 쉬어가는 개미가',
-            '결국 웃게 될 운명 ✨',
-            '',
-            '※ 100% 재미용! 챗봇 탓 금지 🤫'
-          ].join('\n');
+          const fortuneText = buildDailyFortune();
           const resultText = document.createElement('p');
           resultText.className = `${responseMessageClass} whitespace-pre-line`;
           fortune.appendChild(resultText);
