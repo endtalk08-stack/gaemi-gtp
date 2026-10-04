@@ -157,8 +157,6 @@
       await sleep(STAGE_MS); if (flow.token !== flowToken) return;
       flow.dots.hidden = true; showMessage(flow, flow.primaryMessage, '시세를 조회중입니다');
       await sleep(STAGE_MS); if (flow.token !== flowToken) return;
-      showMessage(flow, flow.secondaryMessage, `${flow.stockName} 흐름을 체크중입니다`);
-      await sleep(STAGE_MS); if (flow.token !== flowToken) return;
       flow.ready = true; flow.release?.();
     }
 
