@@ -57,7 +57,7 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
   background: transparent;
   color: var(--gtp-text);
   display: inline-flex;
@@ -66,7 +66,7 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   font: inherit;
   cursor: pointer;
 }
-.left-sidebar-home__brand-menu:hover { background: var(--gtp-hover); }
+.left-sidebar-home__brand-menu:hover { background: transparent; }
 .left-sidebar-home__brand-menu svg {
   width: 14px;
   height: 14px;
