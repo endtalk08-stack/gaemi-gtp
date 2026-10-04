@@ -87,17 +87,32 @@ def select_keyword_storyboard_news(items, limit=3):
     selected = []
     seen_keywords = set()
 
+    def _keyword_key(value):
+        return "".join(str(value or "").split()).lower()
+
+    def _overlaps_existing(value):
+        key = _keyword_key(value)
+        if not key:
+            return True
+        for seen in seen_keywords:
+            # Treat containment as the same event, but only for meaningful
+            # multi-token labels. This keeps e.g. AI요금개편 and
+            # 제미나이AI요금개편 from occupying two central slots.
+            if min(len(key), len(seen)) >= 5 and (key in seen or seen in key):
+                return True
+        return False
+
     for source in items or []:
         keywords = [str(value).strip() for value in (source.get("storyboard_keywords") or []) if str(value).strip()]
         if not keywords:
             continue
 
         tones = dict(source.get("storyboard_keyword_tones") or {})
-        keyword = next((value for value in keywords if value not in seen_keywords), "")
+        keyword = next((value for value in keywords if not _overlaps_existing(value)), "")
         if not keyword:
             continue
 
-        seen_keywords.add(keyword)
+        seen_keywords.add(_keyword_key(keyword))
         article = dict(source)
         article["storyboard_keywords"] = [keyword]
         article["storyboard_keyword"] = keyword
