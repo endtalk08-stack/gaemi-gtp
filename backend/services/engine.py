@@ -747,53 +747,104 @@ def _attach_dart_major_shareholder_change_details(disclosures, max_detail_fetche
     return disclosures
 
 
-def _extract_dart_generic_detail(receipt_no, report_name=""):
-    """DART 원문 표에서 공시 종류와 무관하게 화면에 쓸 핵심 라벨/값을 보존한다."""
+def _normalize_dart_detail_label(value):
+    text = _clean_dart_cell_text(value).strip(" -·")
+    text = re.sub(r"^\d+[.)-]?\s*", "", text)
+    return text
+
+
+def _pick_dart_detail_fields(rows, report_name=""):
+    """원문은 넓게 읽되 화면에는 공시 유형별 투자 핵심값만 3~5개 남긴다."""
+    report = str(report_name or "")
+    if any(term in report for term in ("잠정실적", "영업(잠정)", "매출액또는손익구조")):
+        wanted = [
+            ("매출액", ("매출액",)),
+            ("영업이익", ("영업이익", "영업손익")),
+            ("당기순이익", ("당기순이익", "당기순손익")),
+            ("전년동기대비", ("전년동기대비", "전년동기 대비")),
+            ("전분기대비", ("전분기대비", "전분기 대비")),
+        ]
+    elif any(term in report for term in ("단일판매", "공급계약")):
+        wanted = [
+            ("계약금액", ("계약금액",)),
+            ("최근매출액", ("최근매출액", "최근 매출액")),
+            ("매출대비", ("매출액대비", "매출액 대비")),
+            ("계약상대방", ("계약상대방", "계약 상대방")),
+            ("계약기간", ("계약기간", "계약 기간")),
+        ]
+    elif "배당" in report:
+        wanted = [
+            ("주당배당금", ("주당배당금", "1주당 배당금")),
+            ("배당금총액", ("배당금총액", "배당금 총액")),
+            ("시가배당률", ("시가배당율", "시가배당률")),
+            ("배당기준일", ("배당기준일", "배당 기준일")),
+        ]
+    elif any(term in report for term in ("자기주식", "자사주")):
+        wanted = [
+            ("주식수", ("취득예정주식", "처분예정주식", "주식수")),
+            ("금액", ("취득예정금액", "처분예정금액", "금액")),
+            ("목적", ("취득목적", "처분목적", "목적")),
+            ("기간", ("취득예상기간", "처분예정기간", "기간")),
+        ]
+    elif any(term in report for term in ("유상증자", "전환사채", "신주인수권부사채")):
+        wanted = [
+            ("조달금액", ("자금조달", "발행총액", "사채의 권면총액")),
+            ("발행가", ("발행가액", "발행가격")),
+            ("전환가", ("전환가액",)),
+            ("자금용도", ("자금의 사용목적", "자금용도", "목적")),
+            ("납입일", ("납입일", "납입기일")),
+        ]
+    elif any(term in report for term in ("최대주주", "특정증권등소유상황", "대량보유상황")):
+        wanted = [
+            ("보유주식수", ("보유주식수", "소유주식수", "소유 주식 수")),
+            ("변동주식수", ("증감", "변동주식수", "순변동")),
+            ("지분율", ("지분율", "소유비율", "소유 비율")),
+            ("변동사유", ("변동사유", "변동 사유")),
+        ]
+    else:
+        wanted = [
+            ("금액", ("계약금액", "취득금액", "처분금액", "투자금액", "금액")),
+            ("주식수", ("주식수", "주식 수")),
+            ("비율", ("비율", "지분율")),
+            ("상대방", ("상대방",)),
+            ("목적", ("목적",)),
+        ]
+
+    candidates = []
+    for cells in rows or []:
+        clean = [_clean_dart_cell_text(v) for v in cells if _clean_dart_cell_text(v)]
+        if len(clean) < 2:
+            continue
+        label = _normalize_dart_detail_label(clean[0])
+        value = " · ".join(clean[1:]).strip()
+        if not label or not value or len(label) > 55 or len(value) > 140:
+            continue
+        candidates.append((label, value))
+
+    selected = []
+    used = set()
+    for display_label, patterns in wanted:
+        for label, value in candidates:
+            compact_label = re.sub(r"\s+", "", label)
+            if not any(re.sub(r"\s+", "", pattern) in compact_label for pattern in patterns):
+                continue
+            key = (display_label, value)
+            if key in used:
+                continue
+            used.add(key)
+            selected.append({"label": display_label, "value": value})
+            break
+        if len(selected) >= 5:
+            break
+    return selected
+
+
+def _extract_dart_display_detail(receipt_no, report_name=""):
     try:
-        rows = _dart_document_rows(receipt_no)
+        return _pick_dart_detail_fields(_dart_document_rows(receipt_no), report_name)
     except Exception as e:
         print(f"[국내 공시 상세] 원문 {receipt_no} 실패: {type(e).__name__}: {e}")
         return []
-
-    report_name = str(report_name or "")
-    priority_terms = (
-        "매출", "영업이익", "당기순이익", "계약", "금액", "기간", "상대방",
-        "배당", "주당", "발행", "증자", "사채", "취득", "처분", "주식수",
-        "지분", "비율", "투자", "목적", "일자", "예정", "결정", "변동",
-    )
-    skip_terms = ("작성기준", "단위", "주석", "비고", "참고", "관련공시")
-    details = []
-    seen = set()
-
-    for cells in rows:
-        clean_cells = [_clean_dart_cell_text(value) for value in cells if _clean_dart_cell_text(value)]
-        if len(clean_cells) < 2:
-            continue
-        label = clean_cells[0].strip(" -·")
-        value = " · ".join(clean_cells[1:]).strip()
-        if not label or not value or label == value:
-            continue
-        if len(label) > 45 or len(value) > 180:
-            continue
-        if any(term in label for term in skip_terms):
-            continue
-
-        # 공시 원문의 핵심 숫자/기간/상대방 행을 우선한다.
-        is_priority = any(term in label for term in priority_terms)
-        has_value_signal = bool(re.search(r"[0-9%₩원주억만]|\d{4}[-./]\d{1,2}", value))
-        if not is_priority and not has_value_signal:
-            continue
-
-        key = (label, value)
-        if key in seen:
-            continue
-        seen.add(key)
-        details.append({"label": label, "value": value})
-        if len(details) >= 8:
-            break
-
-    return details
-
 
 def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     """선택된 DART 공시 한 건의 기존 상세 파서를 필요할 때만 실행한다."""
@@ -817,11 +868,11 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
         _attach_dart_executive_shareholding_details(stock_code, disclosures)
 
     detail = disclosures[0]
-    # 전용 파서가 없는 공시도 제목만 보이지 않도록 원문 핵심 행을 함께 제공한다.
-    generic_details = _extract_dart_generic_detail(receipt_no, report_name)
+    # 원문은 충분히 읽되 화면에는 공시 유형별 핵심값만 간결하게 제공한다.
+    display_details = _extract_dart_display_detail(receipt_no, report_name)
     return {
         "receipt_no": receipt_no,
-        "detail_fields": generic_details,
+        "detail_fields": display_details,
         "executive_shareholdings": detail.get("executive_shareholdings", []),
         "major_shareholder_change": detail.get("major_shareholder_change", {}),
         "shareholding_change": detail.get("shareholding_change", ""),
