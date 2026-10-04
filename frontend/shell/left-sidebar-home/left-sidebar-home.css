@@ -73,7 +73,7 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   color: var(--gtp-muted);
   stroke-width: 1.75;
 }
-.left-sidebar-home__brand-menu[aria-expanded="true"] { background: var(--gtp-hover); }
+.left-sidebar-home__brand-menu[aria-expanded="true"] { background: transparent; }
 .left-sidebar-home__brand-menu[aria-expanded="true"] svg { transform: rotate(180deg); }
 
 .left-sidebar-home__dropdown {
