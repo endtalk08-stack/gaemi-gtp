@@ -232,12 +232,67 @@ def _fetch_dart_corp_map_uncached():
 
         DART_CORP_CACHE["ts"] = now
         DART_CORP_CACHE["map"] = mapping
+        _save_dart_corp_map_to_persistent_cache(mapping)
         print(f"[국내 공시] DART 기업코드 매핑 완료: {len(mapping)}개")
         return mapping
 
     except Exception as e:
         print(f"[국내 공시] 기업코드 조회 실패: {type(e).__name__}: {e}")
         return {}
+
+
+def _save_dart_corp_map_to_persistent_cache(mapping):
+    """전체 DART 매핑을 만든 시점에 종목별 corp_code를 Upstash에 영속 저장한다."""
+    if not mapping or not CALENDAR_REDIS_URL or not CALENDAR_REDIS_TOKEN:
+        return 0
+
+    saved = 0
+    # Upstash REST pipeline으로 한 요청에 묶어 저장한다.
+    commands = []
+    for stock_code, corp_code in mapping.items():
+        key = DART_CORP_REDIS_KEY_PREFIX + str(stock_code).strip()
+        value = str(corp_code).strip()
+        if key and value:
+            commands.append(["SET", key, value])
+
+    try:
+        url = CALENDAR_REDIS_URL.rstrip("/") + "/pipeline"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(commands, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {CALENDAR_REDIS_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resp.read()
+        saved = len(commands)
+        print(f"[국내 공시] corp_code Redis 저장 완료: {saved}개")
+    except Exception as exc:
+        print(f"[국내 공시] corp_code Redis 저장 실패: {type(exc).__name__}: {exc}")
+    return saved
+
+
+def warm_dart_corp_cache():
+    """서버 시작 후 백그라운드에서 DART 기업코드 맵을 준비한다."""
+    if not OPENDART_API_KEY:
+        return
+    try:
+        mapping = fetch_dart_corp_map()
+        if mapping:
+            print(f"[국내 공시] corp_code warmup 완료: {len(mapping)}개")
+    except Exception as exc:
+        print(f"[국내 공시] corp_code warmup 실패: {type(exc).__name__}: {exc}")
+
+
+def start_dart_corp_warmup():
+    """사용자 /analyze 요청을 막지 않도록 DART corpCode 준비는 백그라운드에서 수행한다."""
+    if not OPENDART_API_KEY:
+        return
+    thread = threading.Thread(target=warm_dart_corp_cache, name="dart-corp-warmup", daemon=True)
+    thread.start()
 
 
 def _load_dart_corp_code_from_persistent_cache(stock_code):
