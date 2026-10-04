@@ -1276,8 +1276,21 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                     add(f"{actor}{match.group(1)}일연속{match.group(2)}", f"{source_name}-flow-streak", match.group(0), priority)
 
         # 1) Title-first: reusable meaning phrases found in the headline.
+        # Negation guard: a phrase mentioned only to deny/dismiss it must not
+        # become a user-facing cause keyword (e.g. "어닝쇼크가 아니다").
+        negation_tails = ("아니다", "아니라", "아닌", "없다", "없어", "없었다", "면했다", "피했다")
+        def is_negated_phrase(text_lower, phrase):
+            start = text_lower.find(phrase.lower())
+            if start < 0:
+                return False
+            tail = text_lower[start + len(phrase):start + len(phrase) + 18]
+            return any(token in tail for token in negation_tails)
+
         for label, phrases in summary_rules:
-            matched = next((p for p in phrases if p.lower() in title_lower), "")
+            matched = next(
+                (p for p in phrases if p.lower() in title_lower and not is_negated_phrase(title_lower, p)),
+                "",
+            )
             if matched:
                 add(label, "title", matched, 100)
 
@@ -1297,7 +1310,10 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         for label, phrases in summary_rules:
             if label in seen:
                 continue
-            matched = next((p for p in phrases if p.lower() in desc_lower), "")
+            matched = next(
+                (p for p in phrases if p.lower() in desc_lower and not is_negated_phrase(desc_lower, p)),
+                "",
+            )
             if matched:
                 add(label, "description", matched, 55)
 
