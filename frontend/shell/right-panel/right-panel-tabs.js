@@ -225,6 +225,33 @@
         });
       }
 
+      const actionDetail = item.corporate_action_detail && typeof item.corporate_action_detail === 'object'
+        ? item.corporate_action_detail : null;
+      if (actionDetail && Object.keys(actionDetail).length) {
+        const amount = Number(actionDetail.amount);
+        const equityRatio = Number(actionDetail.equity_ratio);
+        const shares = Number(actionDetail.shares);
+        const ratio = Number(actionDetail.ratio);
+        [
+          ['구분', String(actionDetail.kind || '')],
+          ['상대회사', String(actionDetail.counterparty || '')],
+          ['거래금액', Number.isFinite(amount) ? Math.round(amount).toLocaleString('ko-KR') : ''],
+          ['지분율', Number.isFinite(equityRatio) ? `${equityRatio.toFixed(2)}%` : ''],
+          ['주식수', Number.isFinite(shares) ? `${Math.round(shares).toLocaleString('ko-KR')}주` : ''],
+          ['자기자본 대비', Number.isFinite(ratio) ? `${ratio.toFixed(2)}%` : ''],
+          ['목적', String(actionDetail.purpose || '')]
+        ].filter(([, value]) => value).slice(0, 4).forEach(([label, value]) => {
+          const detailLine = document.createElement('div');
+          detailLine.className = 'right-panel-disclosures__line';
+          const left = document.createElement('span');
+          left.textContent = label;
+          const right = document.createElement('span');
+          right.textContent = value;
+          detailLine.append(left, right);
+          row.appendChild(detailLine);
+        });
+      }
+
       const dividendDetail = item.dividend_detail && typeof item.dividend_detail === 'object'
         ? item.dividend_detail : null;
       if (dividendDetail && Object.keys(dividendDetail).length) {
