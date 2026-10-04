@@ -148,6 +148,8 @@ DART_EXECUTIVE_SHAREHOLDING_CACHE = {}
 DART_EXECUTIVE_SHAREHOLDING_CACHE_TTL = 3600
 DART_MAJOR_SHAREHOLDER_CHANGE_CACHE = {}
 DART_MAJOR_SHAREHOLDER_CHANGE_CACHE_TTL = 3600
+DART_EARNINGS_DETAIL_CACHE = {}
+DART_EARNINGS_DETAIL_CACHE_TTL = 3600
 # 같은 종목을 동시에 여러 사용자가 조회해도 DART/SEC 외부 요청이 중복되지 않도록
 # 종목별 단일 비행(single-flight) 락을 사용한다. 서로 다른 종목은 동시에 처리한다.
 _DART_SINGLEFLIGHT_LOCKS = {}
@@ -747,6 +749,80 @@ def _attach_dart_major_shareholder_change_details(disclosures, max_detail_fetche
     return disclosures
 
 
+
+def _is_dart_earnings_report(report_name):
+    text = str(report_name or "").replace(" ", "")
+    return any(keyword in text for keyword in (
+        "잠정실적", "매출액또는손익구조", "영업(잠정)실적", "연결재무제표기준영업(잠정)실적",
+    ))
+
+
+def fetch_dart_earnings_detail(receipt_no):
+    """실적 관련 DART 원문에서 매출/영업이익/순이익 핵심값만 추출한다."""
+    receipt_no = str(receipt_no or "").strip()
+    if not receipt_no:
+        return {}
+    now_ts = datetime.datetime.now().timestamp()
+    cached = DART_EARNINGS_DETAIL_CACHE.get(receipt_no)
+    if cached and now_ts - cached[0] < DART_EARNINGS_DETAIL_CACHE_TTL:
+        return cached[1]
+
+    lock = _get_singleflight_lock(_DART_SINGLEFLIGHT_LOCKS, ("earnings-detail", receipt_no))
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = DART_EARNINGS_DETAIL_CACHE.get(receipt_no)
+        if cached and now_ts - cached[0] < DART_EARNINGS_DETAIL_CACHE_TTL:
+            return cached[1]
+        try:
+            rows = _dart_document_rows(receipt_no)
+            if not rows:
+                return {}
+
+            aliases = (
+                ("revenue", "매출액", ("매출액", "매출")),
+                ("operating_profit", "영업이익", ("영업이익", "영업손익")),
+                ("net_income", "당기순이익", ("당기순이익", "당기순손익", "분기순이익", "분기순손익")),
+            )
+            metrics = []
+            seen = set()
+            for cells in rows:
+                if not cells:
+                    continue
+                label_text = _clean_dart_cell_text(cells[0]).replace(" ", "")
+                matched = next((
+                    (key, label) for key, label, names in aliases
+                    if any(name.replace(" ", "") in label_text for name in names)
+                ), None)
+                if not matched or matched[0] in seen:
+                    continue
+
+                numeric_values = []
+                for value in cells[1:]:
+                    parsed = _parse_number_text(value)
+                    if parsed is not None:
+                        numeric_values.append(parsed)
+                if not numeric_values:
+                    continue
+
+                key, label = matched
+                metric = {"key": key, "label": label, "current": numeric_values[0]}
+                if len(numeric_values) >= 2:
+                    metric["previous"] = numeric_values[1]
+                    if numeric_values[1] != 0:
+                        metric["change_rate"] = round(
+                            (numeric_values[0] - numeric_values[1]) / abs(numeric_values[1]) * 100, 2
+                        )
+                metrics.append(metric)
+                seen.add(key)
+
+            result = {"metrics": metrics} if metrics else {}
+            DART_EARNINGS_DETAIL_CACHE[receipt_no] = (now_ts, result)
+            return result
+        except Exception as e:
+            print(f"[국내 공시 상세] 실적 {receipt_no} 실패: {type(e).__name__}: {e}")
+            return {}
+
+
 def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     """선택된 DART 공시 한 건의 기존 상세 파서를 필요할 때만 실행한다."""
     stock_code = str(stock_code or "").strip()
@@ -768,11 +844,15 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     if "임원" in report_name and "주요주주" in report_name:
         _attach_dart_executive_shareholding_details(stock_code, disclosures)
 
+    if _is_dart_earnings_report(report_name):
+        item["earnings_detail"] = fetch_dart_earnings_detail(receipt_no)
+
     detail = disclosures[0]
     return {
         "receipt_no": receipt_no,
         "executive_shareholdings": detail.get("executive_shareholdings", []),
         "major_shareholder_change": detail.get("major_shareholder_change", {}),
+        "earnings_detail": detail.get("earnings_detail", {}),
         "shareholding_change": detail.get("shareholding_change", ""),
         "shareholding_delta": detail.get("shareholding_delta"),
     }
