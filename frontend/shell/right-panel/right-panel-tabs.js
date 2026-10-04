@@ -145,10 +145,13 @@
     }
     root.appendChild(section);
   }
-  function renderRelatedDisclosuresPanel() {
+  async function renderRelatedDisclosuresPanel() {
     const root = document.getElementById('rightPanelWorkspace');
     if (!root) return;
     root.innerHTML = '';
+    if (window.GaemiGTPDisclosures?.hydrateDartDetails) {
+      await window.GaemiGTPDisclosures.hydrateDartDetails(relatedDisclosureItems, 3);
+    }
     const section = document.createElement('section');
     section.className = 'right-panel-related-news right-panel-disclosures';
     section.setAttribute('aria-label', '한달 공시');
