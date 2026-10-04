@@ -1065,8 +1065,33 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
 
         # Dynamic earnings facts: keep the financial item attached to its
         # actual amount so high-value facts do not collapse into generic "매출발표".
+        # Korean headlines often omit "원" ("영업익 108조 전망"), so amount-only
+        # earnings forecasts need their own grounded pattern.
         amount_pattern = r"\\d+(?:[.,]\\d+)?\\s*(?:조(?:\\s*\\d+(?:[.,]\\d+)?\\s*억)?|억|만)?\\s*원"
         earnings_texts = (("title", title, 98), ("description", description, 58))
+        forecast_amount_pattern = r"(?<![\\d.])(\\d+(?:[.,]\\d+)?\\s*(?:조(?:\\s*\\d+(?:[.,]\\d+)?\\s*억)?|억))\\s*(?:원)?"
+        forecast_words = r"(전망|예상|추정|관측|내다봐|내다봤|기대)"
+        for source_name, source_text, priority in earnings_texts:
+            # e.g. "3분기 영업익 108조 전망", "영업이익 100조 시대 연다"
+            metric_forecast = (
+                r"(영업이익|영업익|매출|순이익)\\s*(?:은|는|이|가|약|총)?\\s*"
+                + forecast_amount_pattern + r".{0,10}?" + forecast_words
+            )
+            for match in re.finditer(metric_forecast, source_text):
+                metric = "영업이익" if match.group(1) == "영업익" else match.group(1)
+                amount = re.sub(r"\\s+", "", match.group(2))
+                add(f"{metric}{amount}전망", f"{source_name}-earnings", match.group(0), priority + 3)
+
+            # Headline shorthand where the metric is implied by nearby earnings context:
+            # "108조 전망", "100조 시대 연다". Keep the article wording; do not invent a metric.
+            if re.search(r"(실적|영업이익|영업익|매출|순이익)", source_text):
+                for match in re.finditer(forecast_amount_pattern + r".{0,8}?" + forecast_words, source_text):
+                    amount = re.sub(r"\\s+", "", match.group(1))
+                    add(f"{amount}전망", f"{source_name}-earnings", match.group(0), priority + 2)
+                for match in re.finditer(forecast_amount_pattern + r"\\s*(?:시대|시대가)\\s*(?:연다|열린다|진입)", source_text):
+                    amount = re.sub(r"\\s+", "", match.group(1))
+                    add(f"{amount}시대", f"{source_name}-earnings", match.group(0), priority + 2)
+
         for source_name, source_text, priority in earnings_texts:
             for metric in ("영업이익", "매출", "순이익"):
                 metric_pattern = re.escape(metric) + r"\\s*(?:은|는|이|가|을|를|도|약|총)?\\s*(" + amount_pattern + r")"
