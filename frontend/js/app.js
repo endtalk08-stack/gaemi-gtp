@@ -622,16 +622,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           const prompt = makeUserPrompt('떡상운세', 'fortunePrompt');
           choices.insertAdjacentElement('afterend', prompt);
 
-          const loadingMessages = [
-            '동쪽에서 밀려오는 강력한 기운을 측정하고 있습니다',
-            '우주가 당신의 계좌에 양봉을 쏘아 올리는 중입니다',
-            '내 계좌에 들어올 빨간 기운을 스캔하는 중입니다'
-          ];
-          const loading = document.createElement('p');
-          loading.dataset.fortuneLoading = 'true';
-          loading.className = `${responseMessageClass} animate-fade`;
-          prompt.insertAdjacentElement('afterend', loading);
-          const loadingText = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+          const loadingText = '동쪽에서 밀려오는 떡상 기운을 측정하고 있습니다';
           await typeText(loading, loadingText, { chunkSize: 3 });
           if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
 
