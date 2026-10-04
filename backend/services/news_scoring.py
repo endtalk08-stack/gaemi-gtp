@@ -1321,6 +1321,41 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 if any(p in compact for p in phrases):
                     add(label, f"{source_name}-risk", label, priority + 1)
 
+        # Market-microstructure combinations. Keep actor + action + direction
+        # together so generic "수급" or "공매도" nouns never become the reason.
+        micro_texts = (("title", title, 105), ("description", description, 65))
+        for source_name, source_text, priority in micro_texts:
+            compact = re.sub(r"\s+", "", source_text.lower())
+            micro_rules = (
+                ("연기금연속순매수", ("연기금연속순매수", "연기금연속매수")),
+                ("패시브자금유입", ("패시브자금유입", "패시브펀드자금유입")),
+                ("프로그램순매수", ("프로그램순매수", "프로그램매수우위")),
+                ("대차잔고감소", ("대차잔고감소",)),
+                ("대차잔고증가", ("대차잔고증가",)),
+                ("공매도잔고감소", ("공매도잔고감소",)),
+                ("공매도잔고증가", ("공매도잔고증가",)),
+                ("공매도숏커버", ("공매도숏커버", "숏커버링", "쇼트커버링")),
+                ("대주주장내매수", ("대주주장내매수", "최대주주장내매수")),
+                ("대주주장내매도", ("대주주장내매도", "최대주주장내매도")),
+                ("임원장내매수", ("임원장내매수",)),
+                ("임원장내매도", ("임원장내매도",)),
+                ("시간외대량매매", ("시간외대량매매", "블록딜")),
+                ("반대매매실행", ("반대매매실행", "반대매매물량")),
+            )
+            for label, phrases in micro_rules:
+                if any(p in compact for p in phrases):
+                    add(label, f"{source_name}-micro", label, priority + 2)
+
+            # Index/ETF inclusion is useful only with the concrete destination.
+            index_rules = (
+                ("MSCI편입", ("msci편입", "msci지수편입")),
+                ("코스피200편입", ("코스피200편입", "kospi200편입")),
+                ("ETF신규편입", ("etf신규편입", "etf편입")),
+            )
+            for label, phrases in index_rules:
+                if any(p in compact for p in phrases):
+                    add(label, f"{source_name}-micro", label, priority + 1)
+
         # Dynamic earnings facts: keep the financial item attached to its
         # actual amount so high-value facts do not collapse into generic "매출발표".
         # Korean headlines often omit "원" ("영업익 108조 전망"), so amount-only
