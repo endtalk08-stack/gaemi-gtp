@@ -2931,9 +2931,9 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=30, max_results=30)
-                kr_official_disclosures = _attach_dart_executive_shareholding_details(
-                    clean_code, kr_official_disclosures
-                )
+                # DART 임원·주요주주 상세(elestock)도 외부 API 호출이라 지연 시
+                # /analyze 전체 worker를 막을 수 있다. 핵심 응답에서는 공시 목록을
+                # 우선 반환하고 상세 조회는 공시 전용 경로에서 처리한다.
                 # DART 원문 document.xml 전체 파싱은 큰 공시에서 Gunicorn worker를
                 # 장시간 점유할 수 있다. /analyze 핵심 응답에서는 원문 상세를 동기
                 # 파싱하지 않고 목록/구조화 공시 결과를 우선 반환한다.
