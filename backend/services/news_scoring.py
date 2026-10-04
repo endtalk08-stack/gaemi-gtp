@@ -1137,12 +1137,12 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             "확대", "확충", "강화", "상향", "하향", "증가", "감소", "급증", "급감",
             "상승", "하락", "강세", "약세", "진출", "수출", "수주", "계약", "협력",
             "재편", "개발", "출시", "공개", "도입", "매입", "매도", "인수", "매각",
-            "투자", "양산", "생산", "공급", "돌파", "회복", "둔화", "개선", "악화",
+            "투자", "양산", "생산", "돌파", "회복", "둔화", "개선", "악화",
         )
         topic_words = (
             "AI", "반도체", "메모리", "데이터센터", "협력망", "공급망", "산업화",
             "수출역량", "생산능력", "점유율", "수요", "공급", "가격", "매출",
-            "영업이익", "실적", "가이던스", "투자", "기술", "시장",
+            "영업이익", "실적", "가이던스", "투자",
         )
 
         for source_name, source_text, priority in grounded_texts:
@@ -1164,6 +1164,19 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                     if alias:
                         label_source = re.sub(re.escape(alias), " ", label_source, flags=re.IGNORECASE)
 
+                # Prefer complete event nouns already written in the article.
+                # They are stronger than mechanically joining a broad topic with
+                # a later verb (e.g. "기술 ... 매도").
+                complete_event_patterns = (
+                    (r"협력망", "협력망"),
+                    (r"공급망", "공급망"),
+                    (r"AI(?:를|을)?\s*산업화", "AI산업화"),
+                    (r"수출\s*역량", "수출역량"),
+                )
+                for pattern, label in complete_event_patterns:
+                    if re.search(pattern, label_source, flags=re.IGNORECASE):
+                        add(label, f"{source_name}-grounded-complete", segment, priority + 5)
+
                 # Preserve a grounded topic + action phrase, allowing Korean
                 # particles or short modifiers between them.
                 for topic in topic_words:
@@ -1180,9 +1193,12 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                     # punctuation/particles; the article wording stays grounded.
                     modifier_tokens = re.findall(r"[A-Za-z0-9가-힣]+", between)
                     modifier = ""
+                    stop_tokens = {"시장", "관련", "대한", "통해", "위해", "하고", "하며", "하면서", "그리고", "또한"}
                     for token in modifier_tokens:
-                        clean_token = re.sub(r"(은|는|이|가|을|를|의|로|으로|에|서|와|과|도|만)$", "", token)
-                        if 1 < len(clean_token) <= 10 and clean_token not in {"시장", "관련", "대한", "통해", "위해"}:
+                        clean_token = re.sub(r"(으로|에서|에게|부터|까지|은|는|이|가|을|를|의|로|에|서|와|과|도|만)$", "", token)
+                        if clean_token.endswith(("하고", "하며", "하면서")):
+                            continue
+                        if 1 < len(clean_token) <= 10 and clean_token not in stop_tokens:
                             modifier = clean_token
                             break
                     topic_label = topic.upper() if topic.lower() == "ai" else topic
