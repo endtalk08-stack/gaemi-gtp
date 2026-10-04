@@ -424,7 +424,7 @@ def _concrete_signal_label(item, label):
 
 
 def _detail_phrase_matches(text, phrase):
-    """Match a detail phrase while allowing common Korean particles between words."""
+    """Match detail phrases with common Korean particles and short modifiers."""
     import re
 
     haystack = str(text or "").lower()
@@ -434,12 +434,15 @@ def _detail_phrase_matches(text, phrase):
     if needle in haystack:
         return True
 
-    parts = [part for part in re.split(r"\\s+", needle) if part]
+    parts = [part for part in re.split(r"\s+", needle) if part]
     if len(parts) < 2:
         return False
 
+    # Keep the gap narrow: particles plus a small set of modifiers common in
+    # news prose, e.g. "HBM이 부족", "GPU 수요가 크게 증가".
     particle = r"(?:이|가|은|는|을|를|의|에|에서|로|으로|와|과)?"
-    separator = r"\\s*" + particle + r"\\s*"
+    short_modifier = r"(?:매우|크게|계속|꾸준히|빠르게|급격히|대폭)?"
+    separator = r"\s*" + particle + r"\s*" + short_modifier + r"\s*"
     pattern = separator.join(re.escape(part) for part in parts)
     return re.search(pattern, haystack, flags=re.IGNORECASE) is not None
 
