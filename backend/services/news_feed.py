@@ -442,7 +442,7 @@ def _stock_analysis_relevance(item, stock_name):
     return 0
 
 
-def fetch_stock_news(stock_name, limit=20, market=None):
+def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=True):
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
@@ -454,15 +454,18 @@ def fetch_stock_news(stock_name, limit=20, market=None):
             queries = list(dict.fromkeys([stock_name] + aliases[:3]))
             break
 
-    # Keep the existing stock-name collection intact, then add material-dense
-    # market stories as a separate candidate pool. The same relevance/material
-    # validation below decides whether any of them are actually used.
+    # 종목 직접 검색은 분석의 핵심 경로다.
     stock_items = _fetch_queries(queries, category="종목", per_query=max(20, limit))
-    market_story_items = _fetch_queries(
-        MARKET_STORY_QUERIES,
-        category="종목",
-        per_query=max(20, min(int(limit), 30)),
-    )
+
+    # 특징주/시황 6개 검색은 보조 후보군이다. 일반 뉴스/상세 화면에서는 유지하되,
+    # /analyze hot path에서는 호출 수 누적 때문에 선택적으로 생략할 수 있게 한다.
+    market_story_items = []
+    if include_market_stories:
+        market_story_items = _fetch_queries(
+            MARKET_STORY_QUERIES,
+            category="종목",
+            per_query=max(20, min(int(limit), 30)),
+        )
     items = [_enrich_item(x) for x in _dedupe(stock_items + market_story_items)]
     relevant = []
     for item in items:
