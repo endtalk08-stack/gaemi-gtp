@@ -591,7 +591,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             output.push({ label: `#${label.replace(/^#/, '').replace(/\s+/g, '')}`, tone });
           };
 
-          const articles = Array.isArray(result.storyboard_news_items) ? result.storyboard_news_items : (Array.isArray(result.news_items) ? result.news_items : []);
+          const articles = Array.isArray(result.storyboard_news_items) ? result.storyboard_news_items : [];
           articles.forEach((item) => {
             const serverSignals = Array.isArray(item.movement_signals) ? item.movement_signals : [];
             serverSignals.forEach((signal) => {
