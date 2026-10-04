@@ -968,6 +968,23 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                     amount = next((g for g in financing_amount.groups() if g), "")
                     add(f"{amount}자금조달", f"{source_name}-sharp", financing_amount.group(0), priority + 1)
 
+            # Prefer the article's completed financing/investment meaning over
+            # generic 자금조달/투자 labels.
+            if re.search(r"(외부|외부에서|외부로부터).{0,12}(자금|투자금).{0,8}(조달|유치)|(?:외부자금).{0,8}(조달|유치)", compact_source):
+                add("외부자금조달", f"{source_name}-sharp", "외부 자금 조달", priority + 2)
+
+            if re.search(r"(대규모|대형|공격적|대대적).{0,10}(투자|설비투자|시설투자)|(?:투자|설비투자|시설투자).{0,10}(대규모|대형)", compact_source):
+                add("대규모투자", f"{source_name}-sharp", "대규모 투자", priority + 2)
+
+            investment_amount = re.search(
+                r"(\\d+(?:[.,]\\d+)?(?:조|억)원?).{0,10}(투자|설비투자|시설투자)|"
+                r"(?:투자|설비투자|시설투자).{0,10}(\\d+(?:[.,]\\d+)?(?:조|억)원?)",
+                compact_source,
+            )
+            if investment_amount:
+                amount = next((g for g in investment_amount.groups() if g), "")
+                add(f"{amount}투자", f"{source_name}-sharp", investment_amount.group(0), priority + 2)
+
             # Capacity expansion is more explanatory than generic 투자/증설.
             if re.search(r"(생산능력|생산캐파|생산capacity|캐파).{0,12}(확대|증가|확충|증설)", compact_source):
                 add("생산능력확대", f"{source_name}-sharp", "생산능력 확대", priority)
