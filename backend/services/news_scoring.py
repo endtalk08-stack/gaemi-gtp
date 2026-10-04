@@ -508,8 +508,8 @@ def _detail_phrase_parts(phrase):
     return tuple(part for part in str(phrase or "").strip().lower().split() if part)
 
 
-def _detail_phrase_matches(text, phrase):
-    """Match phrase tokens in order, allowing only Korean particles and short modifiers."""
+def _detail_phrase_matches(text, phrase, words=None, word_variants=None):
+    """Match phrase tokens in order, reusing article tokenization across the shared dictionary."""
     haystack = str(text or "").lower()
     needle = str(phrase or "").strip().lower()
     if not needle:
@@ -521,7 +521,10 @@ def _detail_phrase_matches(text, phrase):
     if len(expected) < 2:
         return False
 
-    words = tuple(part for part in haystack.split() if part)
+    if words is None:
+        words = tuple(part for part in haystack.split() if part)
+    if word_variants is None:
+        word_variants = tuple(_detail_token_variants(part) for part in words)
     expected_variants = tuple(_detail_token_variants(part) for part in expected)
     for start in range(len(words)):
         word_index = start
@@ -532,7 +535,7 @@ def _detail_phrase_matches(text, phrase):
             if word_index >= len(words):
                 matched = False
                 break
-            actual_variants = _detail_token_variants(words[word_index])
+            actual_variants = word_variants[word_index]
             if not any(left == right for left in actual_variants for right in variants):
                 matched = False
                 break
@@ -563,8 +566,15 @@ def _refine_movement_signals(item):
                 refined.append({"label": label, "tone": tone})
                 seen.add(label)
 
+    # Tokenize the article once. DETAIL_KEYWORD_RULES can keep growing without
+    # paying the same split/particle-normalization cost again for every phrase.
+    detail_words = tuple(part for part in text.split() if part)
+    detail_word_variants = tuple(_detail_token_variants(part) for part in detail_words)
     for label, tone, phrases in DETAIL_KEYWORD_RULES:
-        if label not in seen and any(_detail_phrase_matches(text, phrase) for phrase in phrases):
+        if label not in seen and any(
+            _detail_phrase_matches(text, phrase, detail_words, detail_word_variants)
+            for phrase in phrases
+        ):
             refined.append({"label": label, "tone": tone})
             seen.add(label)
     return refined
