@@ -1226,6 +1226,55 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 if any(word in compact for word in ("물량", "주식", "오버행", "매물")):
                     add("보호예수해제물량", f"{source_name}-context", "보호예수 해제 물량", priority + 2)
 
+        # Accounting / operating-driver combinations. Preserve the metric,
+        # direction and (when stated) magnitude instead of collapsing to a noun.
+        driver_texts = (("title", title, 104), ("description", description, 64))
+        for source_name, source_text, priority in driver_texts:
+            driver_rules = (
+                ("영업이익률", "영업이익률"),
+                ("매출총이익률", "매출총이익률"),
+                ("GPM", "GPM"),
+                ("원가율", "원가율"),
+                ("판관비율", "판관비율"),
+                ("부채비율", "부채비율"),
+                ("가동률", "가동률"),
+                ("수율", "수율"),
+                ("출하량", "출하량"),
+                ("판매량", "판매량"),
+            )
+            direction_map = {
+                "증가": "증가", "상승": "상승", "개선": "개선", "확대": "확대",
+                "감소": "감소", "하락": "하락", "악화": "악화", "축소": "축소",
+                "급증": "급증", "급감": "급감",
+            }
+            for phrase, label_base in driver_rules:
+                pattern = re.escape(phrase) + r".{0,10}?(급증|급감|증가|감소|상승|하락|개선|악화|확대|축소)"
+                for match in re.finditer(pattern, source_text, flags=re.IGNORECASE):
+                    add(f"{label_base}{direction_map[match.group(1)]}", f"{source_name}-driver", match.group(0), priority)
+
+                pct_pattern = (
+                    re.escape(phrase)
+                    + r".{0,12}?(\d+(?:\.\d+)?)\s*%\s*(?:p|포인트)?\s*"
+                    + r"(증가|감소|상승|하락|개선|악화)"
+                )
+                for match in re.finditer(pct_pattern, source_text, flags=re.IGNORECASE):
+                    value, direction = match.group(1), match.group(2)
+                    add(f"{label_base}{value}%{direction}", f"{source_name}-driver", match.group(0), priority + 3)
+
+            # P/Q/C style operating causes frequently used in research notes.
+            compact = re.sub(r"\s+", "", source_text)
+            pqc_rules = (
+                ("단가", ("인상", "상승", "하락", "인하")),
+                ("출하량", ("증가", "확대", "감소", "축소")),
+                ("판매량", ("증가", "확대", "감소", "축소")),
+                ("원가", ("상승", "증가", "하락", "감소")),
+                ("고정비", ("절감", "감소", "증가")),
+            )
+            for base, directions in pqc_rules:
+                for direction in directions:
+                    if base + direction in compact:
+                        add(f"{base}{direction}", f"{source_name}-driver", f"{base} {direction}", priority + 1)
+
         # Dynamic earnings facts: keep the financial item attached to its
         # actual amount so high-value facts do not collapse into generic "매출발표".
         # Korean headlines often omit "원" ("영업익 108조 전망"), so amount-only
