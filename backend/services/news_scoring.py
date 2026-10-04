@@ -911,6 +911,12 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
     # Broad words are useful classification context but weak final summary
     # keywords when a more concrete article phrase exists.
     broad_labels = {"AI", "반도체", "메모리", "시장", "기업", "주식", "증시"}
+    # Generic event labels remain available as fallback evidence, but should
+    # lose to keywords that explain scale, direction, industry state or result.
+    weak_final_labels = {
+        "매출발표", "자금조달", "투자계획", "설비투자", "주식발행",
+        "실적전망", "지표발표", "신규도입", "시장진출",
+    }
     aliases = _stock_aliases(stock_name)
     results = []
 
@@ -938,6 +944,47 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 "evidence": str(evidence or "").strip(),
                 "priority": priority,
             })
+
+        # Sharp compound material keywords. Prefer "why it matters" over a
+        # generic event word when the article itself supplies the evidence.
+        sharp_texts = (("title", title, 103), ("description", description, 63))
+        for source_name, source_text, priority in sharp_texts:
+            compact_source = re.sub(r"\\s+", "", source_text.lower())
+
+            # Scale + financing: 대규모 자금조달 / 10조 자금조달.
+            if "자금조달" in compact_source or "자금조달" in compact_source.replace("·", ""):
+                if re.search(r"(대규모|대형|역대최대|사상최대)", compact_source):
+                    add("대규모자금조달", f"{source_name}-sharp", "대규모 자금조달", priority)
+                financing_amount = re.search(r"(\\d+(?:[.,]\\d+)?(?:조|억)원?).{0,10}자금조달|자금조달.{0,10}(\\d+(?:[.,]\\d+)?(?:조|억)원?)", compact_source)
+                if financing_amount:
+                    amount = next((g for g in financing_amount.groups() if g), "")
+                    add(f"{amount}자금조달", f"{source_name}-sharp", financing_amount.group(0), priority + 1)
+
+            # Capacity expansion is more explanatory than generic 투자/증설.
+            if re.search(r"(생산능력|생산캐파|생산capacity|캐파).{0,12}(확대|증가|확충|증설)", compact_source):
+                add("생산능력확대", f"{source_name}-sharp", "생산능력 확대", priority)
+
+            # Industry/product + cycle state: e.g. 낸드시장호황, 메모리시장호황.
+            industry_aliases = (
+                ("낸드", ("낸드", "nand")),
+                ("메모리", ("메모리",)),
+                ("D램", ("d램", "dram")),
+                ("HBM", ("hbm",)),
+                ("반도체", ("반도체",)),
+            )
+            state_rules = (
+                ("시장호황", ("시장호황", "시장 호황", "호황")),
+                ("업황개선", ("업황개선", "업황 개선", "업황회복", "업황 회복")),
+                ("수요급증", ("수요급증", "수요 급증", "수요폭증", "수요 폭증")),
+                ("공급과잉", ("공급과잉", "공급 과잉")),
+            )
+            for industry, aliases_for_industry in industry_aliases:
+                if not any(alias in compact_source for alias in aliases_for_industry):
+                    continue
+                for state_label, state_phrases in state_rules:
+                    if any(re.sub(r"\\s+", "", phrase.lower()) in compact_source for phrase in state_phrases):
+                        add(f"{industry}{state_label}", f"{source_name}-sharp", f"{industry}{state_label}", priority)
+                        break
 
         # Dynamic earnings facts: keep the financial item attached to its
         # actual amount so high-value facts do not collapse into generic "매출발표".
@@ -1061,7 +1108,24 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             if row["label"] not in broad_labels
             and row["label"] not in {"주가상승", "주가하락", "급등", "급락"}
         ]
-        candidates.sort(key=lambda row: (-row["priority"], row["source"], row["label"]))
+        # If the article has sharper evidence, generic labels such as
+        # 매출발표/자금조달 must not consume one of the final three slots.
+        has_sharp_candidate = any(
+            row["source"].endswith(("-sharp", "-earnings", "-flow", "-stake", "-flow-streak"))
+            or row["priority"] >= 98
+            for row in candidates
+        )
+        if has_sharp_candidate:
+            candidates = [row for row in candidates if row["label"] not in weak_final_labels]
+
+        candidates.sort(
+            key=lambda row: (
+                row["label"] in weak_final_labels,
+                -row["priority"],
+                row["source"],
+                row["label"],
+            )
+        )
 
         selected = []
         for row in candidates:
