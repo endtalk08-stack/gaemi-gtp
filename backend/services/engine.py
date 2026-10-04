@@ -156,6 +156,8 @@ DART_FINANCING_DETAIL_CACHE = {}
 DART_FINANCING_DETAIL_CACHE_TTL = 3600
 DART_TREASURY_STOCK_DETAIL_CACHE = {}
 DART_TREASURY_STOCK_DETAIL_CACHE_TTL = 3600
+DART_DIVIDEND_DETAIL_CACHE = {}
+DART_DIVIDEND_DETAIL_CACHE_TTL = 3600
 # 같은 종목을 동시에 여러 사용자가 조회해도 DART/SEC 외부 요청이 중복되지 않도록
 # 종목별 단일 비행(single-flight) 락을 사용한다. 서로 다른 종목은 동시에 처리한다.
 _DART_SINGLEFLIGHT_LOCKS = {}
@@ -1161,6 +1163,76 @@ def fetch_dart_treasury_stock_detail(receipt_no, report_name=""):
             return {}
 
 
+
+def _is_dart_dividend_report(report_name):
+    text = str(report_name or "").replace(" ", "")
+    return any(keyword in text for keyword in (
+        "현금ㆍ현물배당결정", "현금·현물배당결정", "배당결정", "주식배당결정",
+    ))
+
+
+def fetch_dart_dividend_detail(receipt_no):
+    """배당 결정 공시에서 주당배당금/배당률/총액/기준일 핵심값만 추출한다."""
+    receipt_no = str(receipt_no or "").strip()
+    if not receipt_no:
+        return {}
+    now_ts = datetime.datetime.now().timestamp()
+    cached = DART_DIVIDEND_DETAIL_CACHE.get(receipt_no)
+    if cached and now_ts - cached[0] < DART_DIVIDEND_DETAIL_CACHE_TTL:
+        return cached[1]
+
+    lock = _get_singleflight_lock(_DART_SINGLEFLIGHT_LOCKS, ("dividend-detail", receipt_no))
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = DART_DIVIDEND_DETAIL_CACHE.get(receipt_no)
+        if cached and now_ts - cached[0] < DART_DIVIDEND_DETAIL_CACHE_TTL:
+            return cached[1]
+        try:
+            rows = _dart_document_rows(receipt_no)
+            if not rows:
+                return {}
+
+            detail = {}
+            for cells in rows:
+                if "dividend_per_share" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("1주당배당금", "주당배당금", "1주당 현금배당금"), numeric=True
+                    )
+                    if value is not None:
+                        detail["dividend_per_share"] = value
+                if "dividend_rate" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("시가배당율", "시가배당률", "배당률"), numeric=True
+                    )
+                    if value is not None:
+                        detail["dividend_rate"] = value
+                if "total_amount" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("배당금총액", "배당금 총액", "현금배당금총액"), numeric=True
+                    )
+                    if value is not None:
+                        detail["total_amount"] = value
+                if "record_date" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("배당기준일", "기준일")
+                    )
+                    if value:
+                        detail["record_date"] = value
+                if "payment_date" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("배당금지급예정일", "지급예정일", "지급일")
+                    )
+                    if value:
+                        detail["payment_date"] = value
+
+            result = detail if detail else {}
+            DART_DIVIDEND_DETAIL_CACHE[receipt_no] = (now_ts, result)
+            return result
+        except Exception as e:
+            print(f"[국내 공시 상세] 배당 {receipt_no} 실패: {type(e).__name__}: {e}")
+            return {}
+
+
 def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     """선택된 DART 공시 한 건의 기존 상세 파서를 필요할 때만 실행한다."""
     stock_code = str(stock_code or "").strip()
@@ -1194,6 +1266,9 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     if _dart_treasury_stock_kind(report_name):
         item["treasury_stock_detail"] = fetch_dart_treasury_stock_detail(receipt_no, report_name)
 
+    if _is_dart_dividend_report(report_name):
+        item["dividend_detail"] = fetch_dart_dividend_detail(receipt_no)
+
     detail = disclosures[0]
     return {
         "receipt_no": receipt_no,
@@ -1203,6 +1278,7 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
         "supply_contract_detail": detail.get("supply_contract_detail", {}),
         "financing_detail": detail.get("financing_detail", {}),
         "treasury_stock_detail": detail.get("treasury_stock_detail", {}),
+        "dividend_detail": detail.get("dividend_detail", {}),
         "shareholding_change": detail.get("shareholding_change", ""),
         "shareholding_delta": detail.get("shareholding_delta"),
     }
