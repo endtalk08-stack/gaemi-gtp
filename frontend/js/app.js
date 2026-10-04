@@ -615,12 +615,50 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
-        const appendFortunePrompt = () => {
+        const appendFortunePrompt = async () => {
           if (mainContainer.querySelector('[data-fortune-prompt]')) return;
+
           // 종목명 사용자 말풍선과 완전히 같은 공통 레이아웃을 재사용한다.
           const prompt = makeUserPrompt('떡상운세', 'fortunePrompt');
           choices.insertAdjacentElement('afterend', prompt);
-          prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+          const loadingMessages = [
+            '동쪽에서 밀려오는 강력한 기운을 측정하고 있습니다',
+            '우주가 당신의 계좌에 양봉을 쏘아 올리는 중입니다',
+            '내 계좌에 들어올 빨간 기운을 스캔하는 중입니다'
+          ];
+          const loading = document.createElement('p');
+          loading.dataset.fortuneLoading = 'true';
+          loading.className = `${responseMessageClass} animate-fade`;
+          prompt.insertAdjacentElement('afterend', loading);
+          const loadingText = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+          await typeText(loading, loadingText, { chunkSize: 3 });
+          if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
+
+          await new Promise((resolve) => setTimeout(resolve, 350));
+          loading.remove();
+
+          const fortune = document.createElement('div');
+          fortune.dataset.fortuneResult = 'true';
+          fortune.className = 'space-y-3 animate-fade';
+          const fortuneText = [
+            '🔮 오늘의 투자운세',
+            '',
+            '오늘의 투자운 72점',
+            '',
+            '#기다림 #분할접근 #뉴스확인',
+            '',
+            '\"오늘은 추격보다 한 박자 기다리는 개미가',
+            '마음 편한 날입니다.\"',
+            '',
+            '재미로 보는 운세이며 투자 판단 자료가 아닙니다'
+          ].join('\\n');
+          const resultText = document.createElement('p');
+          resultText.className = `${responseMessageClass} whitespace-pre-line`;
+          fortune.appendChild(resultText);
+          prompt.insertAdjacentElement('afterend', fortune);
+          await typeText(resultText, fortuneText, { chunkSize: 3 });
+          fortune.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
         const appendMaterials = async (choiceAnchor = choices) => {
@@ -681,8 +719,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             return;
           }
           if (button.dataset.nextAnalysis === 'fortune') {
-            appendFortunePrompt();
             choices.remove();
+            await appendFortunePrompt();
             return;
           }
           if (button.dataset.nextAnalysis === 'materials') await appendMaterials();
