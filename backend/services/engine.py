@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 
 from .news_feed import fetch_stock_news
 from .news_scoring import score_stock_news, build_connected_keyword_test
-from .simple_news_storyboard import build_simple_today_news
+from .simple_news_storyboard import build_simple_today_news, select_keyword_storyboard_news
 from .disclosure_scoring import score_disclosures
 from .market_levels import (
     calculate_volume_profile_levels,
@@ -3877,7 +3877,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             limit=None,
             display_timezone="Asia/Seoul",
         )
-        storyboard_selected_news = paired_news_items[:3]
+        # Central chat summarizes keyword events from all of today's paired news.\n        # The full paired list remains unchanged for the right panel / related articles.\n        storyboard_selected_news = select_keyword_storyboard_news(paired_news_items, limit=3)
         disclosures = []
         if is_krw and clean_code:
             for item in score_disclosures(kr_official_disclosures or []):
