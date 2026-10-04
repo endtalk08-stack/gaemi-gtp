@@ -618,17 +618,24 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         const appendFortunePrompt = async () => {
           if (mainContainer.querySelector('[data-fortune-prompt]')) return;
 
-          // 종목명 사용자 말풍선과 완전히 같은 공통 레이아웃을 재사용한다.
+          // 1) 떡상운세 사용자 말풍선을 먼저 표시한다.
           const prompt = makeUserPrompt('떡상운세', 'fortunePrompt');
           choices.insertAdjacentElement('afterend', prompt);
+          prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-          const loadingText = '동쪽에서 밀려오는 떡상 기운을 측정하고 있습니다';
-          await typeText(loading, loadingText, { chunkSize: 3 });
+          // 2) 말풍선 다음에 로딩 연출 멘트를 정확히 4초 동안 보여준다.
+          const loading = document.createElement('p');
+          loading.dataset.fortuneLoading = 'true';
+          loading.className = `${responseMessageClass} animate-fade`;
+          loading.textContent = '동쪽에서 밀려오는 떡상 기운을 측정하고 있습니다';
+          prompt.insertAdjacentElement('afterend', loading);
+          loading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+          await new Promise((resolve) => setTimeout(resolve, 4000));
           if (requestId !== activeAnalysisRequestId || !mainContainer.isConnected) return;
-
-          await new Promise((resolve) => setTimeout(resolve, 350));
           loading.remove();
 
+          // 3) 로딩이 끝난 뒤 운세 결과만 타이핑 효과로 출력한다.
           const fortune = document.createElement('div');
           fortune.dataset.fortuneResult = 'true';
           fortune.className = 'space-y-3 animate-fade';
@@ -710,8 +717,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             return;
           }
           if (button.dataset.nextAnalysis === 'fortune') {
+            // appendFortunePrompt는 첫 await 전에 말풍선을 실제 DOM에 붙인다.
+            // 선택지를 먼저 제거하면 detached DOM 뒤에 붙어서 화면에 안 보이므로 순서를 지킨다.
+            const fortuneFlow = appendFortunePrompt();
             choices.remove();
-            await appendFortunePrompt();
+            await fortuneFlow;
             return;
           }
           if (button.dataset.nextAnalysis === 'materials') await appendMaterials();
