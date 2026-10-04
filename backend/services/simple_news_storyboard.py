@@ -80,3 +80,32 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
     if limit is None:
         return ordered
     return ordered[:max(1, int(limit))]
+
+
+def select_keyword_storyboard_news(items, limit=3):
+    """Pick distinct keyword events from the full today-news set for central chat."""
+    selected = []
+    seen_keywords = set()
+
+    for source in items or []:
+        keywords = [str(value).strip() for value in (source.get("storyboard_keywords") or []) if str(value).strip()]
+        if not keywords:
+            continue
+
+        tones = dict(source.get("storyboard_keyword_tones") or {})
+        keyword = next((value for value in keywords if value not in seen_keywords), "")
+        if not keyword:
+            continue
+
+        seen_keywords.add(keyword)
+        article = dict(source)
+        article["storyboard_keywords"] = [keyword]
+        article["storyboard_keyword"] = keyword
+        article["storyboard_keyword_tones"] = {keyword: tones.get(keyword, "neutral")}
+        article["storyboard_keyword_tone"] = tones.get(keyword, "neutral")
+        selected.append(article)
+
+        if len(selected) >= max(1, int(limit)):
+            break
+
+    return selected
