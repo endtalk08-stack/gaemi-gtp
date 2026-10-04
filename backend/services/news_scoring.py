@@ -917,10 +917,14 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         "매출발표", "자금조달", "투자계획", "설비투자", "주식발행",
         "실적전망", "지표발표", "신규도입", "시장진출",
         "공급과잉", "가격경쟁", "투자확대", "현금유입",
+        "낸드가격", "메모리가격", "D램가격",
     }
     # These labels are useful internally but are too generic for the three
     # user-facing material slots. Never surface them as final keywords.
-    blocked_final_labels = {"매출발표", "자금조달"}
+    blocked_final_labels = {
+        "매출발표", "자금조달",
+        "낸드가격", "메모리가격", "D램가격",
+    }
     aliases = _stock_aliases(stock_name)
     results = []
 
