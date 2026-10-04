@@ -403,6 +403,23 @@ DETAIL_KEYWORD_RULES = [
     ("수출호조", "positive", ["수출 호조", "수출 증가", "수출 급증", "수출 확대", "역대 최대 수출", "사상 최대 수출"]),
     ("잠정실적발표", "neutral", ["잠정 실적 발표", "잠정실적 발표", "잠정 실적", "잠정실적", "잠정 영업이익", "잠정 매출"]),
     ("분기최대실적", "positive", ["분기 최대 실적", "분기 사상 최대 실적", "분기 역대 최대 실적", "분기 최대 매출", "분기 최대 영업이익"]),
+    # HBM should surface as a complete material phrase, never as the bare product name.
+    ("HBM개발", "neutral", ["hbm 개발", "고대역폭 메모리 개발"]),
+    ("HBM개발속도", "positive", ["hbm 개발 속도", "hbm 개발 가속", "hbm 개발 속도를 높", "hbm 개발에 속도"]),
+    ("커스텀HBM개발", "neutral", ["커스텀 hbm 개발", "맞춤형 hbm 개발", "custom hbm 개발"]),
+    ("HBM양산", "positive", ["hbm 양산", "hbm4 양산", "hbm3e 양산"]),
+    ("HBM공급확대", "positive", ["hbm 공급 확대", "hbm 공급량 확대", "hbm 공급을 확대"]),
+    ("HBM공급부족", "positive", ["hbm 공급 부족", "hbm 품귀", "hbm 부족"]),
+    ("HBM수요급증", "positive", ["hbm 수요 급증", "hbm 수요 폭증", "hbm 수요가 급증"]),
+    ("HBM가격상승", "positive", ["hbm 가격 상승", "hbm 가격 강세", "hbm 가격 인상"]),
+    ("HBM증설경쟁", "neutral", ["hbm 증설 경쟁", "hbm 생산 확대 경쟁", "hbm 생산능력 확대 경쟁"]),
+    ("HBM점유율상승", "positive", ["hbm 점유율 상승", "hbm 점유율 확대"]),
+    ("HBM점유율하락", "negative", ["hbm 점유율 하락", "hbm 점유율 감소"]),
+    ("HBM인증", "neutral", ["hbm 인증", "hbm 품질 인증", "hbm 품질인증"]),
+    ("HBM4개발", "neutral", ["hbm4 개발", "hbm 4 개발"]),
+    ("HBM4양산", "positive", ["hbm4 양산", "hbm 4 양산"]),
+    ("HBM4적용", "neutral", ["hbm4 적용", "hbm 4 적용", "hbm4를 적용", "hbm4가 적용"]),
+    ("차세대HBM", "neutral", ["차세대 hbm", "차세대 고대역폭 메모리"]),
     ("실적상향", "positive", ["실적 상향", "실적 전망 상향", "이익 전망 상향"]),
     ("실적하향", "negative", ["실적 하향", "실적 전망 하향", "이익 전망 하향"]),
     ("컨센서스상회", "positive", ["컨센서스 상회", "시장 예상치 상회", "시장 전망치 상회", "예상치 상회"]),
@@ -967,6 +984,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
     blocked_final_labels = {
         "매출발표", "자금조달",
         "낸드가격", "메모리가격", "D램가격",
+        "HBM",
     }
     aliases = _stock_aliases(stock_name)
     results = []
