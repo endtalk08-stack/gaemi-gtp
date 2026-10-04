@@ -1206,6 +1206,22 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                         if compact_result:
                             add(compact_result, f"{source_name}-grounded-result", segment, priority + 7)
 
+                # Preserve a complete nearby numeric event when the article
+                # gives object + amount + action (e.g. 엔비디아 칩 80억달러 입찰).
+                numeric_event_actions = ("입찰", "계약", "수주", "협력", "투자", "조달", "매입", "매도", "인수", "매각", "돌파", "확대")
+                numeric_event_pattern = re.compile(
+                    r"([A-Za-z0-9가-힣·-]{2,18})\\s*"
+                    r"(\\d+(?:[.,]\\d+)?\\s*(?:조원|억원|만원|천원|원|조|억|만|달러|%))"
+                    r".{0,10}?(" + "|".join(map(re.escape, numeric_event_actions)) + r")",
+                    flags=re.IGNORECASE,
+                )
+                for match in numeric_event_pattern.finditer(label_source):
+                    obj = re.sub(r"[^A-Za-z0-9가-힣]", "", match.group(1))
+                    amount = re.sub(r"\\s+", "", match.group(2))
+                    action = match.group(3)
+                    if obj and obj not in {"약", "규모", "총", "최대", "시장", "AI"}:
+                        add(f"{obj}{amount}{action}", f"{source_name}-grounded-numeric-event", match.group(0), priority + 8)
+
                 # Numeric scale is meaningful when attached to a concrete topic
                 # in the same stock-anchored sentence: e.g. 데이터센터 4047조.
                 scale_pattern = r"(\d+(?:[.,]\d+)?)\s*(조|억|만|%|달러|원)"
@@ -1721,7 +1737,14 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 score += 2
             if any(word in label for word in result_words):
                 score += 2
-            if row["source"].endswith(("-earnings", "-sharp", "-grounded-result")):
+            # A number is strongest when its meaning is complete: object/metric
+            # + amount + event. This beats a shorter amount-only candidate.
+            if re.search(r"\\d", label) and any(word in label for word in (
+                "입찰", "계약", "수주", "협력", "투자", "조달", "매입", "매도",
+                "인수", "매각", "돌파", "확대", "증가", "감소", "전망",
+            )):
+                score += 5
+            if row["source"].endswith(("-earnings", "-sharp", "-grounded-result", "-grounded-numeric-event")):
                 score += 3
             return score
 
