@@ -475,14 +475,22 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
         relevance_tier = _stock_analysis_relevance(item, stock_name)
         if relevance_tier <= 0:
             continue
-        if not _contains_any(text, STOCK_MATERIAL_SIGNALS):
-            continue
+
+        # A direct stock-name hit is already strong relevance evidence.  Do not
+        # discard that article only because its event wording is absent from the
+        # material/action dictionaries; the downstream scorer/keyword extractor
+        # should get a chance to read the actual title + description.
+        has_material_signal = _contains_any(text, STOCK_MATERIAL_SIGNALS)
         event_strength = _stock_event_strength(item)
-        if event_strength <= 0:
+        if relevance_tier < 3 and not has_material_signal:
             continue
+        if relevance_tier < 3 and event_strength <= 0:
+            continue
+
         selected = dict(item)
         selected["analysis_relevance_tier"] = relevance_tier
         selected["analysis_event_strength"] = event_strength
+        selected["analysis_material_signal"] = has_material_signal
         relevant.append(selected)
 
     # Choose eventful articles first. Stock relevance still breaks ties, and
