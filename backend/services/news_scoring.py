@@ -1700,9 +1700,35 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         if has_sharp_candidate:
             candidates = [row for row in candidates if row["label"] not in weak_final_labels]
 
+        # Let candidates compete on specificity before the final top-N.
+        # Prefer a concrete metric/product/result over a broader industry/topic
+        # phrase when both explain the same article evidence.
+        specific_prefixes = (
+            "영업이익", "영업이익률", "매출", "순이익", "HBM", "D램", "낸드",
+            "고대역폭메모리", "데이터센터",
+        )
+        broad_prefixes = ("반도체", "메모리", "시장", "기술", "공급", "수요", "가격")
+        result_words = ("탈환", "등극", "돌파", "최대", "최고", "상향", "하향", "확대", "증가", "감소")
+
+        def _specificity_score(row):
+            label = row["label"]
+            score = 0
+            if label.startswith(specific_prefixes):
+                score += 5
+            if label.startswith(broad_prefixes):
+                score -= 2
+            if re.search(r"\d", label):
+                score += 2
+            if any(word in label for word in result_words):
+                score += 2
+            if row["source"].endswith(("-earnings", "-sharp", "-grounded-result")):
+                score += 3
+            return score
+
         candidates.sort(
             key=lambda row: (
                 row["label"] in weak_final_labels,
+                -_specificity_score(row),
                 -row["priority"],
                 row["source"],
                 row["label"],
