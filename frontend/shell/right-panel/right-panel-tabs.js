@@ -225,6 +225,18 @@
         });
       }
 
+      const detailFields = Array.isArray(item.detail_fields) ? item.detail_fields.slice(0, 8) : [];
+      detailFields.forEach((detail) => {
+        const detailLine = document.createElement('div');
+        detailLine.className = 'right-panel-disclosures__line';
+        const detailLeft = document.createElement('span');
+        detailLeft.textContent = String(detail.label || '');
+        const detailRight = document.createElement('span');
+        detailRight.textContent = String(detail.value || '');
+        detailLine.append(detailLeft, detailRight);
+        row.appendChild(detailLine);
+      });
+
       const majorChange = item.major_shareholder_change && typeof item.major_shareholder_change === 'object'
         ? item.major_shareholder_change : null;
       if (majorChange) {
