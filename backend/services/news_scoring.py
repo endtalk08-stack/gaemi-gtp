@@ -941,7 +941,7 @@ def _related_stock_entities(item):
 
 
 def build_connected_keyword_test(items, stock_name, max_keywords=3):
-    """Test-only: build article-summary keyword candidates, then keep three."""
+    """Compress each article title + description into grounded content keywords."""
     import re
 
     # Reusable expressions are helpers only. They must not decide the whole
@@ -970,8 +970,8 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         ("사업분사", ["사업 분사", "분사"]),
         ("발사계약", ["발사 계약"]),
         ("3상데이터", ["3상 데이터", "3상 임상", "3상 임상시험"]),
-        # Toss-style causal summaries: subject + direction/result. These
-        # phrases are useful only when the article itself states the full cause.
+        # Reusable article-content phrases. They are evidence for what the article says,
+        # not a judgment about whether the phrase caused a stock-price move.
         ("메모리업황기대", ["메모리 업황 기대", "메모리 업황 회복 기대"]),
         ("외국인매도부담", ["외국인 매도 부담", "외국인 순매도 부담"]),
         ("AI서버부품수혜", ["AI 서버 부품 수혜", "AI서버 부품 수혜"]),
@@ -1205,10 +1205,10 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                     "진출", "수주", "계약", "협력", "재편", "개발", "출시", "공개", "도입",
                     "인수", "매각", "양산", "생산", "돌파", "회복", "둔화", "개선", "악화",
                     "개편", "변경", "제한", "제외", "중단", "인상", "인하", "무료", "유료",
-                    "탈환", "등극",
+                    "탈환", "등극", "예고",
                 )
                 semantic_pattern = re.compile(
-                    r"([A-Za-z0-9가-힣-]{2,16}(?:[\\s·]+[A-Za-z0-9가-힣-]{2,16}){0,2})\\s*("
+                    r"([A-Za-z0-9가-힣-]{2,16}(?:[\s·]+[A-Za-z0-9가-힣-]{2,16}){0,2})\s*("
                     + "|".join(map(re.escape, semantic_actions))
                     + r")"
                 )
