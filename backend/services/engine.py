@@ -152,6 +152,8 @@ DART_EARNINGS_DETAIL_CACHE = {}
 DART_EARNINGS_DETAIL_CACHE_TTL = 3600
 DART_SUPPLY_CONTRACT_DETAIL_CACHE = {}
 DART_SUPPLY_CONTRACT_DETAIL_CACHE_TTL = 3600
+DART_FINANCING_DETAIL_CACHE = {}
+DART_FINANCING_DETAIL_CACHE_TTL = 3600
 # 같은 종목을 동시에 여러 사용자가 조회해도 DART/SEC 외부 요청이 중복되지 않도록
 # 종목별 단일 비행(single-flight) 락을 사용한다. 서로 다른 종목은 동시에 처리한다.
 _DART_SINGLEFLIGHT_LOCKS = {}
@@ -958,6 +960,103 @@ def fetch_dart_supply_contract_detail(receipt_no):
             return {}
 
 
+
+def _dart_financing_kind(report_name):
+    text = str(report_name or "").replace(" ", "")
+    if "유상증자" in text:
+        return "유상증자"
+    if "전환사채" in text:
+        return "전환사채"
+    if "신주인수권부사채" in text:
+        return "신주인수권부사채"
+    if "교환사채" in text:
+        return "교환사채"
+    return ""
+
+
+def fetch_dart_financing_detail(receipt_no, report_name=""):
+    """증자·CB/BW/EB 공시에서 자금조달 핵심값만 추출한다."""
+    receipt_no = str(receipt_no or "").strip()
+    kind = _dart_financing_kind(report_name)
+    if not receipt_no or not kind:
+        return {}
+    now_ts = datetime.datetime.now().timestamp()
+    cache_key = (receipt_no, kind)
+    cached = DART_FINANCING_DETAIL_CACHE.get(cache_key)
+    if cached and now_ts - cached[0] < DART_FINANCING_DETAIL_CACHE_TTL:
+        return cached[1]
+
+    lock = _get_singleflight_lock(_DART_SINGLEFLIGHT_LOCKS, ("financing-detail", receipt_no, kind))
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = DART_FINANCING_DETAIL_CACHE.get(cache_key)
+        if cached and now_ts - cached[0] < DART_FINANCING_DETAIL_CACHE_TTL:
+            return cached[1]
+        try:
+            rows = _dart_document_rows(receipt_no)
+            if not rows:
+                return {}
+
+            detail = {"kind": kind}
+            for cells in rows:
+                if "amount" not in detail:
+                    labels = (
+                        ("자금조달의목적", "조달금액", "발행총액", "사채의권면(전자등록)총액", "사채의권면총액")
+                        if kind != "유상증자"
+                        else ("신주의종류와수", "자금조달의목적", "시설자금", "영업양수자금", "운영자금", "채무상환자금", "타법인증권취득자금")
+                    )
+                    value = _dart_contract_value_after_label(cells, labels, numeric=True)
+                    if value is not None:
+                        detail["amount"] = value
+
+                if "issue_price" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("신주발행가액", "발행가액", "전환가액", "행사가액", "교환가액"), numeric=True
+                    )
+                    if value is not None:
+                        detail["issue_price"] = value
+
+                if "new_shares" not in detail and kind == "유상증자":
+                    value = _dart_contract_value_after_label(
+                        cells, ("신주의종류와수", "보통주식", "기타주식"), numeric=True
+                    )
+                    if value is not None:
+                        detail["new_shares"] = value
+
+                if "method" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("증자방식", "발행방법", "사채의종류", "배정방법")
+                    )
+                    if value:
+                        detail["method"] = value
+
+                if "purpose" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("자금조달의목적", "자금의사용목적", "사용목적")
+                    )
+                    if value and _parse_number_text(value) is None:
+                        detail["purpose"] = value
+
+                if "maturity_date" not in detail and kind != "유상증자":
+                    value = _dart_contract_value_after_label(cells, ("사채만기일", "만기일"))
+                    if value:
+                        detail["maturity_date"] = value
+
+                if "conversion_start" not in detail and kind in ("전환사채", "신주인수권부사채", "교환사채"):
+                    value = _dart_contract_value_after_label(
+                        cells, ("전환청구기간시작일", "권리행사기간시작일", "교환청구기간시작일")
+                    )
+                    if value:
+                        detail["conversion_start"] = value
+
+            result = detail if len(detail) > 1 else {}
+            DART_FINANCING_DETAIL_CACHE[cache_key] = (now_ts, result)
+            return result
+        except Exception as e:
+            print(f"[국내 공시 상세] 자금조달 {receipt_no} 실패: {type(e).__name__}: {e}")
+            return {}
+
+
 def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     """선택된 DART 공시 한 건의 기존 상세 파서를 필요할 때만 실행한다."""
     stock_code = str(stock_code or "").strip()
@@ -985,6 +1084,9 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     if _is_dart_supply_contract_report(report_name):
         item["supply_contract_detail"] = fetch_dart_supply_contract_detail(receipt_no)
 
+    if _dart_financing_kind(report_name):
+        item["financing_detail"] = fetch_dart_financing_detail(receipt_no, report_name)
+
     detail = disclosures[0]
     return {
         "receipt_no": receipt_no,
@@ -992,6 +1094,7 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
         "major_shareholder_change": detail.get("major_shareholder_change", {}),
         "earnings_detail": detail.get("earnings_detail", {}),
         "supply_contract_detail": detail.get("supply_contract_detail", {}),
+        "financing_detail": detail.get("financing_detail", {}),
         "shareholding_change": detail.get("shareholding_change", ""),
         "shareholding_delta": detail.get("shareholding_delta"),
     }
