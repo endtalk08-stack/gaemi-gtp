@@ -21,7 +21,20 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             choices.insertAdjacentElement('afterend', prompt);
             choices.remove();
   
+            const loading = document.createElement('div');
+            loading.className = 'mt-5 space-y-2';
+            prompt.insertAdjacentElement('afterend', loading);
+            const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (const message of ['뉴스를 확인합니다', '생각중']) {
+              if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
+              const line = document.createElement('p');
+              line.className = `${responseMessageClass} font-semibold animate-pulse`;
+              line.textContent = message;
+              loading.appendChild(line);
+              await wait(4000);
+            }
             if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
+            loading.remove();
   
             const evidence = getWhyEvidence();
             const allNewsItems = Array.isArray(result.paired_news_items) ? result.paired_news_items : [];
@@ -159,7 +172,18 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 followups.insertAdjacentElement('afterend', disclosurePrompt);
                 followups.remove();
 
-                if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
+                const disclosureLoading = document.createElement('div');
+                disclosureLoading.className = 'mt-5 space-y-2';
+                disclosurePrompt.insertAdjacentElement('afterend', disclosureLoading);
+                for (const message of ['전자 공시 뒤지고 있습니다', '돋보기 가동중 🔍']) {
+                  if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
+                  const line = document.createElement('p');
+                  line.className = `${responseMessageClass} font-semibold animate-pulse`;
+                  line.textContent = message;
+                  disclosureLoading.appendChild(line);
+                  await wait(4000);
+                }
+                disclosureLoading.remove();
 
                 const disclosureBlock = document.createElement('section');
                 disclosureBlock.className = 'mt-5 space-y-5 animate-fade';
