@@ -624,10 +624,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
           // 2) 말풍선 다음에 로딩 연출 멘트를 정확히 4초 동안 보여준다.
-          const loading = document.createElement('p');
+          const loading = document.createElement('div');
           loading.dataset.fortuneLoading = 'true';
-          loading.className = `${responseMessageClass} animate-fade`;
-          loading.textContent = '동쪽에서 밀려오는 떡상 기운을 측정하고 있습니다';
+          loading.className = 'analysis-loading-sequence animate-fade';
+          loading.innerHTML = `
+            <div class="analysis-loading-message is-visible is-shimmer" aria-live="polite">
+              동쪽에서 밀려오는 떡상 기운을 측정하고 있습니다
+            </div>`;
           prompt.insertAdjacentElement('afterend', loading);
           loading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
