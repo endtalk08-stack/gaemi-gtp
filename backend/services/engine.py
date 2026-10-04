@@ -155,6 +155,7 @@ _SEC_SINGLEFLIGHT_LOCKS = {}
 _SINGLEFLIGHT_LOCK_GUARD = threading.Lock()
 _DART_CORP_LOCK = threading.Lock()
 DART_RECEIPT_TIME_CACHE = {}
+DART_CORP_REDIS_KEY_PREFIX = "gaemiGTP:dart:corp:v1:"
 
 def _get_singleflight_lock(lock_map, key):
     with _SINGLEFLIGHT_LOCK_GUARD:
@@ -239,8 +240,45 @@ def _fetch_dart_corp_map_uncached():
         return {}
 
 
+def _load_dart_corp_code_from_persistent_cache(stock_code):
+    """이미 저장된 종목별 DART corp_code만 읽는다. /analyze에서는 전체 XML을 만들지 않는다."""
+    stock_code = str(stock_code or "").strip()
+    if not stock_code:
+        return ""
+    if CALENDAR_REDIS_URL and CALENDAR_REDIS_TOKEN:
+        try:
+            key = urllib.parse.quote(DART_CORP_REDIS_KEY_PREFIX + stock_code, safe="")
+            url = CALENDAR_REDIS_URL.rstrip("/") + "/get/" + key
+            req = urllib.request.Request(
+                url,
+                headers={"Authorization": f"Bearer {CALENDAR_REDIS_TOKEN}"},
+            )
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            value = str(data.get("result") or "").strip()
+            if value:
+                return value
+        except Exception as exc:
+            print(f"[국내 공시] corp_code persistent cache read skipped: {type(exc).__name__}: {exc}")
+    return ""
+
+
+def fetch_dart_corp_code(stock_code):
+    """분석 hot path용: 메모리/영속 캐시에 이미 있는 단일 corp_code만 반환한다."""
+    stock_code = str(stock_code or "").strip()
+    if not OPENDART_API_KEY or not stock_code:
+        return ""
+    cached = DART_CORP_CACHE["map"].get(stock_code)
+    if cached:
+        return cached
+    corp_code = _load_dart_corp_code_from_persistent_cache(stock_code)
+    if corp_code:
+        DART_CORP_CACHE["map"][stock_code] = corp_code
+    return corp_code
+
+
 def fetch_dart_corp_map():
-    """DART 기업코드 전체맵을 서버 프로세스당 한 번만 갱신한다."""
+    """전체 DART 기업코드 맵 갱신용. 사용자 /analyze hot path에서는 호출하지 않는다."""
     if not OPENDART_API_KEY:
         return {}
     now = datetime.datetime.now().timestamp()
@@ -664,10 +702,11 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
     if cached and now_ts - cached[0] < 300:
         return cached[1]
 
-    corp_map = fetch_dart_corp_map()
-    corp_code = corp_map.get(stock_code)
+    # 사용자 분석 요청에서 corpCode.xml 전체 다운로드/파싱을 절대 수행하지 않는다.
+    # 미리 저장된 단일 corp_code가 없으면 공시만 건너뛰고 분석 응답을 계속한다.
+    corp_code = fetch_dart_corp_code(stock_code)
     if not corp_code:
-        print(f"[국내 공시] {stock_code} DART 기업코드 없음")
+        print(f"[국내 공시] {stock_code} corp_code cache miss - analyze에서는 전체 XML 파싱 생략")
         DART_DISCLOSURE_CACHE[cache_key] = (now_ts, [])
         return []
 
