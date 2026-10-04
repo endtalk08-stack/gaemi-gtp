@@ -468,7 +468,7 @@ def _dart_document_rows(receipt_no):
     params = urllib.parse.urlencode({"crtfc_key": OPENDART_API_KEY, "rcept_no": receipt_no})
     url = f"https://opendart.fss.or.kr/api/document.xml?{params}"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    with urllib.request.urlopen(req, timeout=3) as resp:
         payload = resp.read()
     rows = []
     with zipfile.ZipFile(io.BytesIO(payload)) as zf:
