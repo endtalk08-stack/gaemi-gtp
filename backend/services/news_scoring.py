@@ -1275,6 +1275,52 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                     if base + direction in compact:
                         add(f"{base}{direction}", f"{source_name}-driver", f"{base} {direction}", priority + 1)
 
+        # Filing / audit / litigation combinations. Keep the concrete
+        # regulatory event rather than surfacing generic "소송/감사/공시" nouns.
+        risk_texts = (("title", title, 106), ("description", description, 66))
+        for source_name, source_text, priority in risk_texts:
+            compact = re.sub(r"\s+", "", source_text.lower())
+
+            audit_rules = (
+                ("감사보고서제출지연", ("감사보고서제출지연", "감사보고서지연")),
+                ("감사의견거절", ("감사의견거절",)),
+                ("감사의견한정", ("감사의견한정",)),
+                ("내부회계비적정", ("내부회계관리제도비적정", "내부회계관리제도부적정")),
+                ("계속기업불확실성", ("계속기업가정불확실성", "계속기업존속능력불확실성")),
+                ("불성실공시지정예고", ("불성실공시법인지정예고",)),
+                ("불성실공시법인지정", ("불성실공시법인지정",)),
+                ("매매거래정지예고", ("매매거래정지예고", "거래정지예고")),
+                ("상장폐지실질심사", ("상장폐지실질심사",)),
+            )
+            for label, phrases in audit_rules:
+                if any(p in compact for p in phrases):
+                    add(label, f"{source_name}-risk", label, priority + 2)
+
+            litigation_rules = (
+                ("특허침해소송", ("특허침해소송", "특허침해소송제기")),
+                ("특허무효소송", ("특허무효소송",)),
+                ("손해배상청구소송", ("손해배상청구소송", "손해배상소송")),
+                ("직무집행정지가처분", ("직무집행정지가처분",)),
+                ("검찰압수수색", ("검찰압수수색", "압수수색영장")),
+                ("공정위과징금", ("공정위과징금", "공정거래위원회과징금")),
+                ("주가조작혐의", ("주가조작혐의", "시세조종혐의")),
+            )
+            for label, phrases in litigation_rules:
+                if any(p in compact for p in phrases):
+                    add(label, f"{source_name}-risk", label, priority + 2)
+
+            # Debt/default stress should be explicit; generic borrowing is not enough.
+            debt_rules = (
+                ("채무불이행", ("채무불이행", "디폴트")),
+                ("어음부도", ("어음부도", "수표부도", "어음수표부도")),
+                ("당좌거래정지", ("당좌거래정지",)),
+                ("신용등급하향", ("신용등급하향", "신용등급강등")),
+                ("단기차입금증가", ("단기차입금증가",)),
+            )
+            for label, phrases in debt_rules:
+                if any(p in compact for p in phrases):
+                    add(label, f"{source_name}-risk", label, priority + 1)
+
         # Dynamic earnings facts: keep the financial item attached to its
         # actual amount so high-value facts do not collapse into generic "매출발표".
         # Korean headlines often omit "원" ("영업익 108조 전망"), so amount-only
