@@ -3072,7 +3072,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             else intro_ment
         )
 
-        # 뉴스/공시는 아래의 구조화된 클릭형 목록(news_items / disclosures / us_filings)에서
+        # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
         first_content_parts = [
             intro_ment,
