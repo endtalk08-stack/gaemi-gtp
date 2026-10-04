@@ -18,21 +18,7 @@ window.GaemiGTPMaterialsFlow.appendMaterials = async function ({
             choices.insertAdjacentElement('afterend', prompt);
             choices.remove();
   
-            const loading = document.createElement('div');
-            loading.className = 'mt-5 space-y-2';
-            prompt.insertAdjacentElement('afterend', loading);
-  
-            const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            for (const message of ['뉴스와 공시를 확인합니다', '생각중', '내용을 정리중입니다']) {
-              if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
-              const line = document.createElement('p');
-              line.className = `${responseMessageClass} animate-pulse`;
-              line.textContent = message;
-              loading.appendChild(line);
-              await wait(4000);
-            }
             if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
-            loading.remove();
   
             const materials = window.GaemiGTPSourceLists.renderSourceLists(result, { includeHeader: false });
             if (!materials) return;
