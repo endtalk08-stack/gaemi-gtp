@@ -758,7 +758,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           // 액션 모듈은 기본적으로 첫 답변용 그룹만 렌더링하므로,
           // fortune 그룹을 별도로 넘기지 않고 기존 검증된 액션 UI를 그대로 재사용한다.
           if (!fortuneActions) appendFirstReplyActions(resultText, fortuneText);
-          appendRemainingChoices(fortune, ['fortune']);
+          // 액션 버튼은 resultText의 형제로 붙으므로 운세 컨테이너의 마지막 요소 뒤에
+          // 남은 선택지를 연결해야 액션 모듈의 중복 검사에 막히지 않는다.
+          const fortuneTail = fortune.lastElementChild || resultText;
+          appendRemainingChoices(fortuneTail, ['fortune']);
           fortune.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
