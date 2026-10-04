@@ -876,84 +876,6 @@ def _related_stock_entities(item):
     return list(dict.fromkeys(entities))
 
 
-def _extract_completed_meaning_phrases(text):
-    """Extract grounded subject/event/direction phrases without enumerating every keyword."""
-    source = str(text or "")
-    compact = re.sub(r"\\s+", "", source)
-    if not compact:
-        return []
-
-    # Longest/most informative subjects first so "메모리가격강세" beats "가격강세".
-    subjects = (
-        "생산능력", "영업이익", "외부자금", "메모리가격", "낸드시장", "D램가격",
-        "HBM수요", "AI투자", "설비투자", "시설투자", "분기실적", "최대실적",
-        "메모리증설", "반도체투자", "자금조달", "매출", "순이익", "수요", "공급",
-    )
-    directions = (
-        "사상최대", "역대최대", "분기최대", "최대실적", "최고치", "신기록",
-        "갱신", "돌파", "확대", "확충", "증가", "급증", "강세", "호황", "회복",
-        "개선", "상승", "상향", "부족", "경쟁", "우려", "둔화", "감소", "약세",
-        "하락", "하향", "축소", "중단",
-    )
-    events = ("투자", "증설", "가격", "실적", "생산", "조달", "수요", "공급", "점유율")
-
-    found = []
-    seen = set()
-
-    def keep(label, evidence):
-        label = re.sub(r"\\s+", "", label)
-        if len(label) < 4 or label in seen:
-            return
-        seen.add(label)
-        found.append((label, evidence))
-
-    # Direct completed phrases: subject + direction, allowing short particles/verbs.
-    for subject in subjects:
-        start = 0
-        while True:
-            pos = compact.lower().find(subject.lower(), start)
-            if pos < 0:
-                break
-            window = compact[pos:pos + 34]
-            for direction in directions:
-                match = re.search(r".{0,14}?" + re.escape(direction), window, re.IGNORECASE)
-                if match:
-                    middle = match.group(0)
-                    # Avoid crossing sentence-like boundaries after compaction.
-                    if not re.search(r"[.!?。]|(?:다|했다|된다|이다)[\"'”’)]*$", middle[:-len(direction)]):
-                        keep(subject + direction, window[:match.end()])
-                        break
-            start = pos + len(subject)
-
-    # Product/industry + event + direction: AI 투자 확대, 메모리 증설 경쟁, etc.
-    industry_tokens = ("AI", "메모리", "낸드", "D램", "HBM", "반도체")
-    for industry in industry_tokens:
-        for event in events:
-            for direction in directions:
-                pattern = (
-                    re.escape(industry) + r"\\s*.{0,6}?" + re.escape(event)
-                    + r"\\s*.{0,8}?" + re.escape(direction)
-                )
-                match = re.search(pattern, source, re.IGNORECASE)
-                if match:
-                    keep(f"{industry}{event}{direction}", match.group(0))
-
-    # Record/forecast expressions are especially useful for earnings articles.
-    record_patterns = (
-        (r"(?:분기|사상|역대)?\\s*최대\\s*실적.{0,8}?(?:갱신|전망|예상|기대)", "최대실적"),
-        (r"(?:분기|사상|역대)\\s*최대\\s*(?:매출|영업이익|순이익).{0,8}?(?:갱신|전망|예상)", None),
-    )
-    for pattern, prefix in record_patterns:
-        for match in re.finditer(pattern, source):
-            raw = re.sub(r"\\s+", "", match.group(0))
-            if prefix and raw.startswith("최대실적"):
-                keep(raw, match.group(0))
-            else:
-                keep(raw, match.group(0))
-
-    return found
-
-
 def build_connected_keyword_test(items, stock_name, max_keywords=3):
     """Test-only: build article-summary keyword candidates, then keep three."""
     import re
@@ -1030,13 +952,6 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 "evidence": str(evidence or "").strip(),
                 "priority": priority,
             })
-
-        # First priority: completed meaning phrases already present in the
-        # article. This reduces dictionary maintenance and keeps the final
-        # keywords grounded in the article's own wording.
-        for source_name, source_text, priority in (("title", title, 108), ("description", description, 68)):
-            for label, evidence in _extract_completed_meaning_phrases(source_text):
-                add(label, f"{source_name}-meaning-phrase", evidence, priority)
 
         # Sharp compound material keywords. Prefer "why it matters" over a
         # generic event word when the article itself supplies the evidence.
