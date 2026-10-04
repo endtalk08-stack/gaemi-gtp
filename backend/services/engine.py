@@ -3877,7 +3877,9 @@ def analyze_stock(raw_name='SK하이닉스'):
             limit=None,
             display_timezone="Asia/Seoul",
         )
-        # Central chat summarizes keyword events from all of today's paired news.\n        # The full paired list remains unchanged for the right panel / related articles.\n        storyboard_selected_news = select_keyword_storyboard_news(paired_news_items, limit=3)
+        # Central chat summarizes keyword events from all of today's paired news.
+        # The full paired list remains unchanged for the right panel / related articles.
+        storyboard_selected_news = select_keyword_storyboard_news(paired_news_items, limit=3)
         disclosures = []
         if is_krw and clean_code:
             for item in score_disclosures(kr_official_disclosures or []):
