@@ -421,7 +421,8 @@ def _detail_phrase_matches(text, phrase):
         return False
 
     particle = r"(?:이|가|은|는|을|를|의|에|에서|로|으로|와|과)?"
-    pattern = particle.join(re.escape(part) + r"\\s*" for part in parts[:-1]) + re.escape(parts[-1])
+    separator = r"\\s*" + particle + r"\\s*"
+    pattern = separator.join(re.escape(part) for part in parts)
     return re.search(pattern, haystack, flags=re.IGNORECASE) is not None
 
 
