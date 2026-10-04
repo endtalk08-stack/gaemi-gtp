@@ -819,6 +819,15 @@ def _pick_dart_detail_fields(rows, report_name=""):
         value = " · ".join(clean[1:]).strip()
         if not label or not value or len(label) > 55 or len(value) > 140:
             continue
+        # DART 표의 산식/열 설명은 실제 공시값이 아니다.
+        compact_value = re.sub(r"\s+", "", value)
+        if any(token in compact_value for token in (
+            "소유비율(A/J)", "소유비율(B/J)", "A/J×100", "B/J×100",
+            "주권의소유비율", "특정증권등의소유비율",
+        )):
+            continue
+        if re.search(r"\([A-Z]/[A-Z]\)\s*[x×*]\s*100", value, re.I):
+            continue
         candidates.append((label, value))
 
     selected = []
@@ -870,6 +879,25 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     detail = disclosures[0]
     # 원문은 충분히 읽되 화면에는 공시 유형별 핵심값만 간결하게 제공한다.
     display_details = _extract_dart_display_detail(receipt_no, report_name)
+
+    # 지분변동 계열은 이미 전용 파서가 계산한 값이 있으면 범용 표 추출보다 우선한다.
+    if detail.get("major_shareholder_change"):
+        major = detail["major_shareholder_change"]
+        preferred = []
+        if major.get("shares_before") is not None or major.get("shares_after") is not None:
+            before = major.get("shares_before")
+            after = major.get("shares_after")
+            if before is not None and after is not None:
+                preferred.append({"label": "보유주식수", "value": f"{before:,}주 → {after:,}주"})
+        if major.get("delta") is not None:
+            preferred.append({"label": "변동주식수", "value": f"{int(major['delta']):+,}주"})
+        if preferred:
+            # 같은 의미의 범용 필드는 제거해 중복/산식 노출을 막는다.
+            display_details = preferred + [
+                row for row in display_details
+                if row.get("label") not in {"보유주식수", "변동주식수"}
+            ]
+
     return {
         "receipt_no": receipt_no,
         "detail_fields": display_details,
