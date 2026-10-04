@@ -2888,18 +2888,30 @@ def analyze_stock(raw_name='SK하이닉스'):
         # Render/Gunicorn에서는 이 누적이 반복 검색 시 502로 이어질 수 있어
         # 요청마다 외부 작업이 남지 않도록 직접 호출한다.
         if is_krw and clean_code:
+            analyze_started = time.monotonic()
+            def _trace_stage(stage, started):
+                print(f"[analyze trace] stock={raw_name} stage={stage} elapsed={time.monotonic() - started:.2f}s total={time.monotonic() - analyze_started:.2f}s", flush=True)
+
+            stage_started = time.monotonic()
+            print(f"[analyze trace] stock={raw_name} stage=realtime start", flush=True)
             try:
                 cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
             except Exception as e:
                 print(f"[국내 시세] fail: {type(e).__name__}: {e}")
                 cur_p, diff, ratio = 0.0, 0.0, 0.0
+            _trace_stage("realtime done", stage_started)
 
+            stage_started = time.monotonic()
+            print(f"[analyze trace] stock={raw_name} stage=supply start", flush=True)
             try:
                 ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
             except Exception as e:
                 print(f"[국내 수급] fail: {type(e).__name__}: {e}")
                 ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
+            _trace_stage("supply done", stage_started)
 
+            stage_started = time.monotonic()
+            print(f"[analyze trace] stock={raw_name} stage=news start", flush=True)
             try:
                 storyboard_news_list = score_stock_news(fetch_stock_news(raw_name, market="국내", limit=50), raw_name)
                 article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
@@ -2911,7 +2923,10 @@ def analyze_stock(raw_name='SK하이닉스'):
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
                 news_list = []
                 storyboard_news_list = []
+            _trace_stage("news done", stage_started)
 
+            stage_started = time.monotonic()
+            print(f"[analyze trace] stock={raw_name} stage=dart start", flush=True)
             try:
                 kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=30, max_results=30)
                 # DART 임원·주요주주 상세(elestock)도 외부 API 호출이라 지연 시
@@ -2923,12 +2938,16 @@ def analyze_stock(raw_name='SK하이닉스'):
             except Exception as e:
                 print(f"[국내 공시] fail: {type(e).__name__}: {e}")
                 kr_official_disclosures = []
+            _trace_stage("dart done", stage_started)
 
+            stage_started = time.monotonic()
+            print(f"[analyze trace] stock={raw_name} stage=volume_profile start", flush=True)
             try:
                 volume_profile = fetch_kr_historical_volume_profile(ticker_symbol, current_price=cur_p)
             except Exception as e:
                 print(f"[매물대] fail: {type(e).__name__}: {e}")
                 volume_profile = None
+            _trace_stage("volume_profile done", stage_started)
 
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             official_filings_block = ""
