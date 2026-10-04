@@ -225,6 +225,26 @@
         });
       }
 
+      const earningsDetail = item.earnings_detail && typeof item.earnings_detail === 'object'
+        ? item.earnings_detail : null;
+      const earningsMetrics = Array.isArray(earningsDetail?.metrics) ? earningsDetail.metrics : [];
+      earningsMetrics.slice(0, 3).forEach((metric) => {
+        const metricLine = document.createElement('div');
+        metricLine.className = 'right-panel-disclosures__line';
+        const metricLeft = document.createElement('span');
+        metricLeft.textContent = String(metric.label || '');
+        metricLine.appendChild(metricLeft);
+        const current = Number(metric.current);
+        const changeRate = Number(metric.change_rate);
+        const metricRight = document.createElement('span');
+        metricRight.textContent = [
+          Number.isFinite(current) ? Math.round(current).toLocaleString('ko-KR') : '',
+          Number.isFinite(changeRate) ? `${changeRate > 0 ? '+' : ''}${changeRate.toFixed(2)}%` : ''
+        ].filter(Boolean).join(' · ');
+        if (metricRight.textContent) metricLine.appendChild(metricRight);
+        if (metricLine.textContent) row.appendChild(metricLine);
+      });
+
       const majorChange = item.major_shareholder_change && typeof item.major_shareholder_change === 'object'
         ? item.major_shareholder_change : null;
       if (majorChange) {
