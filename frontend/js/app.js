@@ -664,6 +664,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           fortune.appendChild(resultText);
           prompt.insertAdjacentElement('afterend', fortune);
           await typeText(resultText, fortuneText, { chunkSize: 3 });
+
+          // 기존 첫 답변과 같은 액션 버튼을 운세 하단에도 붙인다.
+          // 복사/공유는 운세 텍스트만 대상으로 하고, 좋아요/싫어요는 같은 UI 동작을 재사용한다.
+          appendFirstReplyActions(resultText, fortuneText, 'fortune');
           fortune.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
