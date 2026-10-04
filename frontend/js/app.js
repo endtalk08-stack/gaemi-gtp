@@ -653,7 +653,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             '마음 편한 날입니다.\"',
             '',
             '재미로 보는 운세이며 투자 판단 자료가 아닙니다'
-          ].join('\\n');
+          ].join('\n');
           const resultText = document.createElement('p');
           resultText.className = `${responseMessageClass} whitespace-pre-line`;
           fortune.appendChild(resultText);
