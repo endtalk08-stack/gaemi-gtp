@@ -1127,6 +1127,82 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                 "priority": priority,
             })
 
+        # Grounded semantic phrase extraction. This is intentionally generic:
+        # compose a keyword from wording already present in the article instead
+        # of requiring the exact phrase to exist in a dictionary. To avoid
+        # promoting another company's event from a broad market article, only
+        # use clauses/sentences that explicitly mention the selected stock.
+        grounded_texts = (("title", title, 109), ("description", description, 69))
+        action_words = (
+            "확대", "확충", "강화", "상향", "하향", "증가", "감소", "급증", "급감",
+            "상승", "하락", "강세", "약세", "진출", "수출", "수주", "계약", "협력",
+            "재편", "개발", "출시", "공개", "도입", "매입", "매도", "인수", "매각",
+            "투자", "양산", "생산", "공급", "돌파", "회복", "둔화", "개선", "악화",
+        )
+        topic_words = (
+            "AI", "반도체", "메모리", "데이터센터", "협력망", "공급망", "산업화",
+            "수출역량", "생산능력", "점유율", "수요", "공급", "가격", "매출",
+            "영업이익", "실적", "가이던스", "투자", "기술", "시장",
+        )
+
+        for source_name, source_text, priority in grounded_texts:
+            # Headlines are already the article center. Description text is
+            # sentence-scoped so a secondary company's event cannot leak into
+            # the selected stock's representative keyword.
+            segments = [source_text] if source_name == "title" else [
+                part.strip() for part in re.split(r"[.!?。]|(?:\s+[·•]\s+)", source_text) if part.strip()
+            ]
+            for segment in segments:
+                segment_lower = segment.lower()
+                if not any(alias and alias in segment_lower for alias in aliases):
+                    continue
+
+                # Remove the searched company token only from the label source;
+                # evidence remains the untouched article text.
+                label_source = segment
+                for alias in sorted(aliases, key=len, reverse=True):
+                    if alias:
+                        label_source = re.sub(re.escape(alias), " ", label_source, flags=re.IGNORECASE)
+
+                # Preserve a grounded topic + action phrase, allowing Korean
+                # particles or short modifiers between them.
+                for topic in topic_words:
+                    topic_match = re.search(re.escape(topic), label_source, flags=re.IGNORECASE)
+                    if not topic_match:
+                        continue
+                    tail = label_source[topic_match.end():topic_match.end() + 28]
+                    action_match = re.search("|".join(map(re.escape, action_words)), tail)
+                    if not action_match:
+                        continue
+                    action = action_match.group(0)
+                    between = tail[:action_match.start()]
+                    # Keep at most one short meaningful modifier while dropping
+                    # punctuation/particles; the article wording stays grounded.
+                    modifier_tokens = re.findall(r"[A-Za-z0-9가-힣]+", between)
+                    modifier = ""
+                    for token in modifier_tokens:
+                        clean_token = re.sub(r"(은|는|이|가|을|를|의|로|으로|에|서|와|과|도|만)$", "", token)
+                        if 1 < len(clean_token) <= 10 and clean_token not in {"시장", "관련", "대한", "통해", "위해"}:
+                            modifier = clean_token
+                            break
+                    topic_label = topic.upper() if topic.lower() == "ai" else topic
+                    label = f"{topic_label}{modifier}{action}" if modifier else f"{topic_label}{action}"
+                    add(label, f"{source_name}-grounded", segment, priority + 2)
+
+                # Numeric scale is meaningful when attached to a concrete topic
+                # in the same stock-anchored sentence: e.g. 데이터센터 4047조.
+                scale_pattern = r"(\d+(?:[.,]\d+)?)\s*(조|억|만|%|달러|원)"
+                for topic in topic_words:
+                    topic_match = re.search(re.escape(topic), label_source, flags=re.IGNORECASE)
+                    if not topic_match:
+                        continue
+                    nearby = label_source[topic_match.end():topic_match.end() + 32]
+                    scale_match = re.search(scale_pattern, nearby)
+                    if scale_match:
+                        amount = re.sub(r"\s+", "", scale_match.group(0))
+                        topic_label = topic.upper() if topic.lower() == "ai" else topic
+                        add(f"{topic_label}{amount}", f"{source_name}-grounded-scale", segment, priority + 3)
+
         # Sharp compound material keywords. Prefer "why it matters" over a
         # generic event word when the article itself supplies the evidence.
         sharp_texts = (("title", title, 103), ("description", description, 63))
