@@ -109,16 +109,6 @@ def select_keyword_storyboard_news(items, limit=3):
 
         tones = dict(source.get("storyboard_keyword_tones") or {})
 
-        # One article represents one event in the central storyboard.
-        # If that article already supplied a selected keyword, do not use
-        # another phrase from the same article merely to fill three slots.
-        source_key = str(source.get("url") or source.get("link") or source.get("title") or "").strip()
-        if source_key and any(
-            str(item.get("url") or item.get("link") or item.get("title") or "").strip() == source_key
-            for item in selected
-        ):
-            continue
-
         keyword = next((value for value in keywords if not _overlaps_existing(value)), "")
         if not keyword:
             continue
