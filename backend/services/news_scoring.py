@@ -864,6 +864,17 @@ def summarize_stock_flow(items):
         "top_themes": [{"label": label, "count": count} for label, count in theme_counts.most_common(5)],
     }
 
+def _related_stock_entities(item):
+    text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
+    entities = []
+    for market_stocks in STOCK_UNIVERSE.values():
+        for canonical_name, aliases in market_stocks.items():
+            names = [canonical_name, *(aliases or [])]
+            if any(str(name or "").strip().lower() in text for name in names if str(name or "").strip()):
+                entities.append(canonical_name)
+    return list(dict.fromkeys(entities))
+
+
 def build_connected_keyword_test(items, stock_name, max_keywords=3):
     """Test-only: build article-summary keyword candidates, then keep three."""
     import re
@@ -913,6 +924,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         full_lower = f"{title_lower} {desc_lower}".strip()
         candidates = []
         seen = set()
+        stock_entities = _related_stock_entities(item)
 
         def add(label, source, evidence, priority):
             clean = re.sub(r"\s+", "", str(label or "").strip())
@@ -1022,6 +1034,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             "candidate_keywords": [row["label"] for row in candidates],
             "keywords": [row["label"] for row in selected] if enough else [],
             "keyword_details": selected if enough else [],
+            "stock_entities": stock_entities,
             "enough_evidence": enough,
             "status": "PASS" if enough else "SKIP",
         })
