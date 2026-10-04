@@ -475,14 +475,23 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
         relevance_tier = _stock_analysis_relevance(item, stock_name)
         if relevance_tier <= 0:
             continue
-        if not _contains_any(text, STOCK_MATERIAL_SIGNALS):
-            continue
+
+        # Keep articles that name the stock directly in the title even when our
+        # material/action dictionaries do not know the article's wording yet.
+        # Indirect mentions still require the existing material + event checks
+        # so broad market stories do not flood stock analysis.
+        material_signal = _contains_any(text, STOCK_MATERIAL_SIGNALS)
         event_strength = _stock_event_strength(item)
-        if event_strength <= 0:
-            continue
+        if relevance_tier < 3:
+            if not material_signal:
+                continue
+            if event_strength <= 0:
+                continue
+
         selected = dict(item)
         selected["analysis_relevance_tier"] = relevance_tier
         selected["analysis_event_strength"] = event_strength
+        selected["analysis_material_signal"] = material_signal
         relevant.append(selected)
 
     # Choose eventful articles first. Stock relevance still breaks ties, and
