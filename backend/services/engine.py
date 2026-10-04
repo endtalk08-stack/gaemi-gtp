@@ -3132,13 +3132,13 @@ def analyze_stock(raw_name='SK하이닉스'):
             key=lambda item: item.get("published_at") or "",
             reverse=True,
         )
-        simple_storyboard_news = build_simple_today_news(
+        paired_news_items = build_simple_today_news(
             storyboard_news_list if isinstance(storyboard_news_list, list) else [],
             raw_name,
-            limit=3,
+            limit=None,
             display_timezone="Asia/Seoul",
         )
-        storyboard_selected_news = simple_storyboard_news
+        storyboard_selected_news = paired_news_items[:3]
         disclosures = []
         if is_krw and clean_code:
             for item in score_disclosures(kr_official_disclosures or []):
@@ -3199,6 +3199,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         return {
             "sections": sections,
             "news_items": news_items,
+            "paired_news_items": paired_news_items,
             "storyboard_news_items": storyboard_selected_news,
             "keyword_storyboard": [
                 {
@@ -3226,6 +3227,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 }
             ],
             "news_items": [],
+            "paired_news_items": [],
             "storyboard_news_items": [],
             "keyword_storyboard": [],
             "disclosures": [],
