@@ -27,6 +27,7 @@ window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = n
       item.supply_contract_detail = detail.supply_contract_detail || {};
       item.financing_detail = detail.financing_detail || {};
       item.treasury_stock_detail = detail.treasury_stock_detail || {};
+      item.dividend_detail = detail.dividend_detail || {};
       item.shareholding_change = detail.shareholding_change || item.shareholding_change || '';
       if (detail.shareholding_delta !== null && detail.shareholding_delta !== undefined) {
         item.shareholding_delta = detail.shareholding_delta;
@@ -113,6 +114,31 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                       detailRight.textContent = '';
                       detailLine.appendChild(detailRight);
                     }
+                    row.appendChild(detailLine);
+                  });
+                }
+
+                const dividendDetail = item.dividend_detail && typeof item.dividend_detail === 'object'
+                  ? item.dividend_detail : null;
+                if (dividendDetail && Object.keys(dividendDetail).length) {
+                  const perShare = Number(dividendDetail.dividend_per_share);
+                  const rate = Number(dividendDetail.dividend_rate);
+                  const total = Number(dividendDetail.total_amount);
+                  [
+                    ['주당배당금', Number.isFinite(perShare) ? `${Math.round(perShare).toLocaleString('ko-KR')}원` : ''],
+                    ['시가배당률', Number.isFinite(rate) ? `${rate.toFixed(2)}%` : ''],
+                    ['배당금총액', Number.isFinite(total) ? Math.round(total).toLocaleString('ko-KR') : ''],
+                    ['배당기준일', String(dividendDetail.record_date || '')]
+                  ].filter(([, value]) => value).forEach(([label, value]) => {
+                    const detailLine = document.createElement('div');
+                    detailLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                    const left = document.createElement('span');
+                    left.dataset.typingText = label;
+                    left.textContent = '';
+                    const right = document.createElement('span');
+                    right.dataset.typingText = value;
+                    right.textContent = '';
+                    detailLine.append(left, right);
                     row.appendChild(detailLine);
                   });
                 }
