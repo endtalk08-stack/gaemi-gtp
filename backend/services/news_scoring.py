@@ -1638,17 +1638,31 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         # Keep extraction permissive, then reject only obvious malformed joins.
         # This preserves rich novel phrases/numbers while preventing connective
         # endings from becoming user-facing keywords.
-        malformed_connectives = ("하고", "하며", "하면서", "그리고", "또한")
+        malformed_connectives = (
+            "하고", "하며", "하면서", "있으며", "했으며", "됐으며", "되었으며",
+            "이어", "통해", "그리고", "또한",
+        )
         candidates = [
             row for row in candidates
             if not any(token in row["label"] for token in malformed_connectives)
         ]
-        # Broad '기술+매수/매도' is usually a nearby market phrase rather than
-        # the selected company's concrete event. Reject it late instead of
-        # weakening extraction of other technology phrases.
+        # Broad topic + trading-action joins are usually nearby market wording,
+        # not the selected company's concrete event. Reject them late instead
+        # of weakening extraction of legitimate technology/market phrases.
         candidates = [
             row for row in candidates
-            if row["label"] not in {"기술매수", "기술매도"}
+            if row["label"] not in {"기술매수", "기술매도", "시장매수", "시장매도"}
+        ]
+        # A bare generic noun plus a number (가격1만, 시장10억, 투자5만...) is
+        # not self-explanatory. Keep numeric facts only when the label names a
+        # concrete metric/object such as 영업이익185조, 데이터센터4047조원.
+        vague_numeric_prefixes = ("가격", "시장", "투자", "기술", "공급", "수요")
+        candidates = [
+            row for row in candidates
+            if not (
+                row["label"].startswith(vague_numeric_prefixes)
+                and re.fullmatch(r"(?:가격|시장|투자|기술|공급|수요)\\d+(?:[.,]\\d+)?(?:조원?|억원?|만원?|천원?|원|달러|%)?", row["label"])
+            )
         ]
 
         # A final keyword should explain article content, not merely repeat the
