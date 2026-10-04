@@ -628,9 +628,13 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           loading.dataset.fortuneLoading = 'true';
           loading.className = 'analysis-loading-sequence animate-fade';
           loading.innerHTML = `
-            <div class="analysis-loading-message is-visible is-shimmer" aria-live="polite">
+            <div class="analysis-loading-message is-visible" aria-live="polite">
               동쪽에서 밀려오는 떡상 기운을 측정하고 있습니다
             </div>`;
+          const loadingMessage = loading.querySelector('.analysis-loading-message');
+          // 기존 분석 로딩의 "생각중/시세를 조회중입니다"와 같은 글자색 이동 효과를
+          // DOM에 붙인 다음 활성화해 모바일에서도 동일하게 재생한다.
+          requestAnimationFrame(() => loadingMessage?.classList.add('is-shimmer'));
           prompt.insertAdjacentElement('afterend', loading);
           loading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
