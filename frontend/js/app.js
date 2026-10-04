@@ -651,8 +651,27 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           ];
 
           const temperature = pick(temperatures, 3);
-          const tags = pick(tagSets, 11);
-          const message = pick(messages, 19);
+          const seoulDay = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Asia/Seoul',
+            weekday: 'short'
+          }).format(new Date());
+          const isWeekend = seoulDay === 'Sat' || seoulDay === 'Sun';
+
+          const weekendTagSets = [
+            ['#주말존버', '#월요일대기', '#개미충전중'],
+            ['#장도휴식중', '#손가락휴무', '#떡상기운저장'],
+            ['#주말눈치게임', '#월요일준비', '#개미휴게소'],
+            ['#오늘은관망', '#차트도쉰다', '#충전완료대기']
+          ];
+          const weekendMessages = [
+            ['떡상 기운은 충만한데', '오늘은 장이 쉬는 날 🐜', '손가락도 같이 쉬어가자 ✨'],
+            ['계좌 온도는 뜨겁지만', '오늘 거래소는 휴무 중.', '떡상 기운은 월요일까지 저장 🔋'],
+            ['촉은 벌써 출근했는데', '장은 아직 주말 모드다.', '오늘은 개미도 충전하는 날 🐜'],
+            ['오늘의 운빨은 아껴두자.', '차트도 쉬고 개미도 쉬고,', '월요일에 다시 레이더 ON 📡']
+          ];
+
+          const tags = isWeekend ? pick(weekendTagSets, 11) : pick(tagSets, 11);
+          const message = isWeekend ? pick(weekendMessages, 19) : pick(messages, 19);
           return [
             '🔮 오늘의 떡상 기운',
             '',
