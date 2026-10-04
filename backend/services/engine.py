@@ -158,6 +158,8 @@ DART_TREASURY_STOCK_DETAIL_CACHE = {}
 DART_TREASURY_STOCK_DETAIL_CACHE_TTL = 3600
 DART_DIVIDEND_DETAIL_CACHE = {}
 DART_DIVIDEND_DETAIL_CACHE_TTL = 3600
+DART_CORPORATE_ACTION_DETAIL_CACHE = {}
+DART_CORPORATE_ACTION_DETAIL_CACHE_TTL = 3600
 # 같은 종목을 동시에 여러 사용자가 조회해도 DART/SEC 외부 요청이 중복되지 않도록
 # 종목별 단일 비행(single-flight) 락을 사용한다. 서로 다른 종목은 동시에 처리한다.
 _DART_SINGLEFLIGHT_LOCKS = {}
@@ -1233,6 +1235,100 @@ def fetch_dart_dividend_detail(receipt_no):
             return {}
 
 
+
+def _dart_corporate_action_kind(report_name):
+    text = str(report_name or "").replace(" ", "")
+    if "합병" in text:
+        return "합병"
+    if "분할" in text:
+        return "분할"
+    if "영업양수" in text:
+        return "영업양수"
+    if "영업양도" in text:
+        return "영업양도"
+    if "타법인주식및출자증권취득" in text or "타법인주식취득" in text:
+        return "타법인지분취득"
+    if "타법인주식및출자증권처분" in text or "타법인주식처분" in text:
+        return "타법인지분처분"
+    return ""
+
+
+def fetch_dart_corporate_action_detail(receipt_no, report_name=""):
+    """합병·분할·영업양수도·타법인지분 공시에서 투자 핵심값만 추출한다."""
+    receipt_no = str(receipt_no or "").strip()
+    kind = _dart_corporate_action_kind(report_name)
+    if not receipt_no or not kind:
+        return {}
+    now_ts = datetime.datetime.now().timestamp()
+    cache_key = (receipt_no, kind)
+    cached = DART_CORPORATE_ACTION_DETAIL_CACHE.get(cache_key)
+    if cached and now_ts - cached[0] < DART_CORPORATE_ACTION_DETAIL_CACHE_TTL:
+        return cached[1]
+
+    lock = _get_singleflight_lock(_DART_SINGLEFLIGHT_LOCKS, ("corporate-action", receipt_no, kind))
+    with lock:
+        now_ts = datetime.datetime.now().timestamp()
+        cached = DART_CORPORATE_ACTION_DETAIL_CACHE.get(cache_key)
+        if cached and now_ts - cached[0] < DART_CORPORATE_ACTION_DETAIL_CACHE_TTL:
+            return cached[1]
+        try:
+            rows = _dart_document_rows(receipt_no)
+            if not rows:
+                return {}
+
+            detail = {"kind": kind}
+            for cells in rows:
+                if "counterparty" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("상대회사", "상대방", "양수회사", "양도회사", "피합병회사", "합병상대회사", "발행회사")
+                    )
+                    if value:
+                        detail["counterparty"] = value
+                if "amount" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("양수금액", "양도금액", "취득금액", "처분금액", "거래금액"), numeric=True
+                    )
+                    if value is not None:
+                        detail["amount"] = value
+                if "equity_ratio" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("취득후지분비율", "처분후지분비율", "지분비율", "소유비율"), numeric=True
+                    )
+                    if value is not None:
+                        detail["equity_ratio"] = value
+                if "shares" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("취득주식수", "처분주식수", "주식수"), numeric=True
+                    )
+                    if value is not None:
+                        detail["shares"] = value
+                if "ratio" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("자기자본대비", "총자산대비", "최근사업연도말자산총액대비"), numeric=True
+                    )
+                    if value is not None:
+                        detail["ratio"] = value
+                if "purpose" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("취득목적", "처분목적", "합병목적", "분할목적", "양수목적", "양도목적")
+                    )
+                    if value and _parse_number_text(value) is None:
+                        detail["purpose"] = value
+                if "effective_date" not in detail:
+                    value = _dart_contract_value_after_label(
+                        cells, ("합병기일", "분할기일", "양수예정일자", "양도예정일자", "취득예정일자", "처분예정일자")
+                    )
+                    if value:
+                        detail["effective_date"] = value
+
+            result = detail if len(detail) > 1 else {}
+            DART_CORPORATE_ACTION_DETAIL_CACHE[cache_key] = (now_ts, result)
+            return result
+        except Exception as e:
+            print(f"[국내 공시 상세] 기업행위 {receipt_no} 실패: {type(e).__name__}: {e}")
+            return {}
+
+
 def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     """선택된 DART 공시 한 건의 기존 상세 파서를 필요할 때만 실행한다."""
     stock_code = str(stock_code or "").strip()
@@ -1269,6 +1365,9 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
     if _is_dart_dividend_report(report_name):
         item["dividend_detail"] = fetch_dart_dividend_detail(receipt_no)
 
+    if _dart_corporate_action_kind(report_name):
+        item["corporate_action_detail"] = fetch_dart_corporate_action_detail(receipt_no, report_name)
+
     detail = disclosures[0]
     return {
         "receipt_no": receipt_no,
@@ -1279,6 +1378,7 @@ def fetch_dart_disclosure_detail(stock_code, receipt_no, report_name=""):
         "financing_detail": detail.get("financing_detail", {}),
         "treasury_stock_detail": detail.get("treasury_stock_detail", {}),
         "dividend_detail": detail.get("dividend_detail", {}),
+        "corporate_action_detail": detail.get("corporate_action_detail", {}),
         "shareholding_change": detail.get("shareholding_change", ""),
         "shareholding_delta": detail.get("shareholding_delta"),
     }
