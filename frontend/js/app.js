@@ -605,6 +605,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
             <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-next-analysis="us-market">#미국장</button>
             <button type="button" class="text-sm font-semibold transition hover:opacity-80" style="color:${whyState.color}" data-next-analysis="why">${whyState.tag}</button>
+            <span class="text-sm font-semibold text-[#a855f7] dark:text-[#c084fc]">#떡상운세</span>
           </div>`;
 
         const appendUsMarketPrompt = () => {
