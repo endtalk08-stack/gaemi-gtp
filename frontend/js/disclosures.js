@@ -24,6 +24,7 @@ window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = n
         ? detail.executive_shareholdings : [];
       item.major_shareholder_change = detail.major_shareholder_change || {};
       item.earnings_detail = detail.earnings_detail || {};
+      item.supply_contract_detail = detail.supply_contract_detail || {};
       item.shareholding_change = detail.shareholding_change || item.shareholding_change || '';
       if (detail.shareholding_delta !== null && detail.shareholding_delta !== undefined) {
         item.shareholding_delta = detail.shareholding_delta;
@@ -110,6 +111,31 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                       detailRight.textContent = '';
                       detailLine.appendChild(detailRight);
                     }
+                    row.appendChild(detailLine);
+                  });
+                }
+
+                const supplyDetail = item.supply_contract_detail && typeof item.supply_contract_detail === 'object'
+                  ? item.supply_contract_detail : null;
+                if (supplyDetail && Object.keys(supplyDetail).length) {
+                  const contractAmount = Number(supplyDetail.contract_amount);
+                  const salesRatio = Number(supplyDetail.sales_ratio);
+                  const contractRows = [
+                    ['계약금액', Number.isFinite(contractAmount) ? Math.round(contractAmount).toLocaleString('ko-KR') : ''],
+                    ['매출액 대비', Number.isFinite(salesRatio) ? `${salesRatio.toFixed(2)}%` : ''],
+                    ['계약상대', String(supplyDetail.counterparty || '')],
+                    ['계약내용', String(supplyDetail.contract_name || '')]
+                  ].filter(([, value]) => value);
+                  contractRows.slice(0, 4).forEach(([label, value]) => {
+                    const detailLine = document.createElement('div');
+                    detailLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                    const left = document.createElement('span');
+                    left.dataset.typingText = label;
+                    left.textContent = '';
+                    const right = document.createElement('span');
+                    right.dataset.typingText = value;
+                    right.textContent = '';
+                    detailLine.append(left, right);
                     row.appendChild(detailLine);
                   });
                 }
