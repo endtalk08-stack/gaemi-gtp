@@ -7,6 +7,8 @@ refined back to concrete phrases that are actually present in title+description.
 """
 
 import datetime
+import re
+from functools import lru_cache
 from collections import Counter
 from zoneinfo import ZoneInfo
 
@@ -423,10 +425,22 @@ def _concrete_signal_label(item, label):
     return str(label or "").strip()
 
 
-def _detail_phrase_matches(text, phrase):
-    """Match detail phrases with common Korean particles and short modifiers."""
-    import re
+@lru_cache(maxsize=512)
+def _detail_phrase_pattern(phrase):
+    """Compile each static detail phrase once instead of on every article/rule pass."""
+    needle = str(phrase or "").strip().lower()
+    parts = [part for part in re.split(r"\s+", needle) if part]
+    if len(parts) < 2:
+        return None
 
+    particle = r"(?:이|가|은|는|을|를|의|에|에서|로|으로|와|과)?"
+    short_modifier = r"(?:매우|크게|계속|꾸준히|빠르게|급격히|대폭)?"
+    separator = r"\s*" + particle + r"\s*" + short_modifier + r"\s*"
+    return re.compile(separator.join(re.escape(part) for part in parts), flags=re.IGNORECASE)
+
+
+def _detail_phrase_matches(text, phrase):
+    """Match detail phrases without recompiling the same regex thousands of times."""
     haystack = str(text or "").lower()
     needle = str(phrase or "").strip().lower()
     if not needle:
@@ -434,17 +448,8 @@ def _detail_phrase_matches(text, phrase):
     if needle in haystack:
         return True
 
-    parts = [part for part in re.split(r"\s+", needle) if part]
-    if len(parts) < 2:
-        return False
-
-    # Keep the gap narrow: particles plus a small set of modifiers common in
-    # news prose, e.g. "HBM이 부족", "GPU 수요가 크게 증가".
-    particle = r"(?:이|가|은|는|을|를|의|에|에서|로|으로|와|과)?"
-    short_modifier = r"(?:매우|크게|계속|꾸준히|빠르게|급격히|대폭)?"
-    separator = r"\s*" + particle + r"\s*" + short_modifier + r"\s*"
-    pattern = separator.join(re.escape(part) for part in parts)
-    return re.search(pattern, haystack, flags=re.IGNORECASE) is not None
+    pattern = _detail_phrase_pattern(needle)
+    return pattern.search(haystack) is not None if pattern else False
 
 
 def _refine_movement_signals(item):
