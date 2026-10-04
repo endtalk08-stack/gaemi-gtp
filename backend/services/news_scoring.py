@@ -970,6 +970,13 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         ("사업분사", ["사업 분사", "분사"]),
         ("발사계약", ["발사 계약"]),
         ("3상데이터", ["3상 데이터", "3상 임상", "3상 임상시험"]),
+        ("호실적", ["호실적", "어닝 서프라이즈", "실적 서프라이즈"]),
+        ("주가반응부진", ["주가 반응 부진", "주가반응 부진", "주가 반응이 부진"]),
+        ("매출성장세", ["매출 성장세", "매출 성장", "매출이 성장"]),
+        ("인도량예상치상회", ["인도량 예상치 상회", "인도량이 예상치를 상회", "인도량 예상 상회"]),
+        ("유럽판매반등", ["유럽 판매 반등", "유럽 판매가 반등", "유럽 판매 회복"]),
+        ("메모리주랠리부담", ["메모리주 랠리 부담", "메모리 주 랠리 부담"]),
+        ("AI데이터센터", ["AI 데이터센터", "AI 데이터 센터"]),
         # Reusable article-content phrases. They are evidence for what the article says,
         # not a judgment about whether the phrase caused a stock-price move.
         ("메모리업황기대", ["메모리 업황 기대", "메모리 업황 회복 기대"]),
@@ -1115,9 +1122,35 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         seen = set()
         stock_entities = _related_stock_entities(item)
 
+        evaluative_company_labels = {
+            "호실적", "어닝서프라이즈", "실적상회", "실적개선", "실적부진",
+            "실적악화", "어닝쇼크", "매출성장세", "주가반응부진",
+        }
+
+        def evidence_belongs_to_selected_stock(evidence):
+            needle = str(evidence or "").strip().lower()
+            if not needle:
+                return True
+            positions = []
+            for canonical_name, entity_aliases in (
+                (name, _stock_aliases(name)) for name in stock_entities
+            ):
+                for alias in entity_aliases:
+                    start = full_lower.find(alias)
+                    while start >= 0:
+                        positions.append((abs(start - max(0, full_lower.find(needle))), canonical_name))
+                        start = full_lower.find(alias, start + len(alias))
+            if not positions:
+                return True
+            positions.sort(key=lambda pair: pair[0])
+            nearest_name = positions[0][1]
+            return str(nearest_name).strip().lower() == str(stock_name).strip().lower()
+
         def add(label, source, evidence, priority):
             clean = re.sub(r"\s+", "", str(label or "").strip())
             if not clean or clean in seen or clean.lower() in aliases:
+                return
+            if clean in evaluative_company_labels and not evidence_belongs_to_selected_stock(evidence):
                 return
             seen.add(clean)
             candidates.append({
@@ -1791,7 +1824,9 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             if label.startswith(broad_prefixes):
                 score -= 2
             if re.search(r"\d", label):
-                score += 2
+                score += 1
+                if not any(word in label for word in result_words):
+                    score -= 2
             if any(word in label for word in result_words):
                 score += 2
             # A number is strongest when its meaning is complete: object/metric
