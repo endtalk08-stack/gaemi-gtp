@@ -23,6 +23,7 @@ window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = n
       item.executive_shareholdings = Array.isArray(detail.executive_shareholdings)
         ? detail.executive_shareholdings : [];
       item.major_shareholder_change = detail.major_shareholder_change || {};
+      item.earnings_detail = detail.earnings_detail || {};
       item.shareholding_change = detail.shareholding_change || item.shareholding_change || '';
       if (detail.shareholding_delta !== null && detail.shareholding_delta !== undefined) {
         item.shareholding_delta = detail.shareholding_delta;
@@ -112,6 +113,29 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                     row.appendChild(detailLine);
                   });
                 }
+
+                const earningsDetail = item.earnings_detail && typeof item.earnings_detail === 'object'
+                  ? item.earnings_detail : null;
+                const earningsMetrics = Array.isArray(earningsDetail?.metrics) ? earningsDetail.metrics : [];
+                earningsMetrics.slice(0, 3).forEach((metric) => {
+                  const metricLine = document.createElement('div');
+                  metricLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                  const metricLeft = document.createElement('span');
+                  metricLeft.dataset.typingText = String(metric.label || '');
+                  metricLeft.textContent = '';
+                  metricLine.appendChild(metricLeft);
+
+                  const current = Number(metric.current);
+                  const changeRate = Number(metric.change_rate);
+                  const metricRight = document.createElement('span');
+                  metricRight.dataset.typingText = [
+                    Number.isFinite(current) ? Math.round(current).toLocaleString('ko-KR') : '',
+                    Number.isFinite(changeRate) ? `${changeRate > 0 ? '+' : ''}${changeRate.toFixed(2)}%` : ''
+                  ].filter(Boolean).join(' · ');
+                  metricRight.textContent = '';
+                  if (metricRight.dataset.typingText) metricLine.appendChild(metricRight);
+                  row.appendChild(metricLine);
+                });
 
                 if (String(item.form || '').toUpperCase() === '8-K') {
                   const keyPoints = Array.isArray(item.key_points_ko) ? item.key_points_ko.filter(Boolean).slice(0, 3) : [];
