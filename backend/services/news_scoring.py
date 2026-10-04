@@ -1196,6 +1196,42 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                     label = f"{topic_label}{modifier}{action}" if modifier else f"{topic_label}{action}"
                     add(label, f"{source_name}-grounded", segment, priority + 2)
 
+                # Generic grounded event phrase: numbers are optional. Preserve a
+                # compact noun phrase immediately attached to a meaningful change
+                # word so new stocks/industries can surface article-native events
+                # without waiting for a topic dictionary entry.
+                semantic_actions = (
+                    "확대", "확충", "강화", "상향", "하향", "증가", "감소", "급증", "급감",
+                    "진출", "수주", "계약", "협력", "재편", "개발", "출시", "공개", "도입",
+                    "인수", "매각", "양산", "생산", "돌파", "회복", "둔화", "개선", "악화",
+                    "개편", "변경", "제한", "제외", "중단", "인상", "인하", "무료", "유료",
+                    "탈환", "등극",
+                )
+                semantic_pattern = re.compile(
+                    r"([A-Za-z0-9가-힣-]{2,16}(?:[\\s·]+[A-Za-z0-9가-힣-]{2,16}){0,2})\\s*("
+                    + "|".join(map(re.escape, semantic_actions))
+                    + r")"
+                )
+                semantic_stop_tokens = {
+                    "관련", "대한", "통해", "위해", "이어", "따라", "전망", "예상",
+                    "기자", "사진", "뉴스", "주가", "증시",
+                }
+                for match in semantic_pattern.finditer(label_source):
+                    phrase, action = match.groups()
+                    phrase_tokens = re.findall(r"[A-Za-z0-9가-힣-]+", phrase)
+                    cleaned_tokens = []
+                    for token in phrase_tokens:
+                        clean_token = re.sub(r"(은|는|이|가|을|를|의|로|으로|에|서|와|과|도|만)$", "", token)
+                        if clean_token and clean_token not in semantic_stop_tokens:
+                            cleaned_tokens.append(clean_token)
+                    # Require enough semantic body to avoid generic one-word
+                    # outputs such as 시장확대 when the headline supplies a
+                    # fuller phrase such as 수출 품목·시장 확대.
+                    if len(cleaned_tokens) >= 2:
+                        semantic_label = "".join(cleaned_tokens[-3:]) + action
+                        if 4 <= len(semantic_label) <= 32:
+                            add(semantic_label, f"{source_name}-grounded-semantic", match.group(0), priority + 6)
+
                 # Concrete achievement/result phrases outrank loose topic+action joins.
                 # Examples: "37만6840대로 2위 탈환", "시장점유율 1위 탈환".
                 result_patterns = (
