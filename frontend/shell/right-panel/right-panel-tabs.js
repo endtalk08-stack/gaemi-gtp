@@ -74,44 +74,20 @@
   }
   function togglePanelWorkspaceMenu(force) { const menu = document.querySelector('[data-panel-workspace-menu]'); const toggle = document.querySelector('[data-panel-workspace-menu-toggle]'); if (!menu || !toggle) return; const next = typeof force === 'boolean' ? force : menu.hidden; menu.hidden = !next; toggle.setAttribute('aria-expanded', String(next)); if (next && window.lucide) window.lucide.createIcons(); }
   function addNamedTab(type) { if (!['panel-workspace', 'auto-trade'].includes(type)) return; const existing = tabs.find(t => t.id === type); if (existing) { setActiveTab(existing.id); togglePanelWorkspaceMenu(false); return; } const labels = { 'panel-workspace': '대시보드', 'auto-trade': '자동매매' }; const icons = { 'panel-workspace': 'layout-dashboard', 'auto-trade': 'bot' }; const tab = { id: type, label: labels[type], icon: icons[type], closable: type !== 'panel-workspace' }; tabs.push(tab); if (type !== 'panel-workspace') makePlaceholderView(tab); setActiveTab(type); togglePanelWorkspaceMenu(false); }
-  async function loadActiveStockDisclosures() {
-    const stock = String(window.GaemiGTPActiveStock || '').trim();
-    if (!stock) {
-      relatedDisclosureItems = [];
-      renderRelatedDisclosuresPanel();
-      return;
-    }
-    const root = document.getElementById('rightPanelWorkspace');
-    if (root) root.innerHTML = '<section class="right-panel-related-news"><div class="right-panel-related-news__meta">공시 확인중...</div></section>';
-    try {
-      const response = await fetch(`https://gaemi-gtp.onrender.com/analyze?stock=${encodeURIComponent(stock)}`);
-      const result = await response.json();
-      relatedDisclosureItems = (
-        Array.isArray(result.disclosures) && result.disclosures.length
-          ? result.disclosures
-          : (Array.isArray(result.us_filings) ? result.us_filings : [])
-      ).slice(0, 30);
-    } catch (_) {
-      relatedDisclosureItems = [];
-    }
+  function loadActiveStockDisclosures() {
+    const snapshot = window.GaemiGTPAnalysisData?.get?.();
+    relatedDisclosureItems = (
+      Array.isArray(snapshot?.disclosures) && snapshot.disclosures.length
+        ? snapshot.disclosures
+        : (Array.isArray(snapshot?.usFilings) ? snapshot.usFilings : [])
+    ).slice(0, 30);
     renderRelatedDisclosuresPanel();
   }
-  async function loadActiveStockNews() {
-    const stock = String(window.GaemiGTPActiveStock || '').trim();
-    if (!stock) {
-      relatedNewsItems = [];
-      renderRelatedNewsPanel();
-      return;
-    }
-    try {
-      const response = await fetch(`https://gaemi-gtp.onrender.com/analyze?stock=${encodeURIComponent(stock)}`);
-      const result = await response.json();
-      relatedNewsItems = (
-        Array.isArray(result.news_items) ? result.news_items : []
-      ).slice(0, 20);
-    } catch (_) {
-      relatedNewsItems = [];
-    }
+  function loadActiveStockNews() {
+    const snapshot = window.GaemiGTPAnalysisData?.get?.();
+    relatedNewsItems = (
+      Array.isArray(snapshot?.newsItems) ? snapshot.newsItems : []
+    ).slice(0, 20);
     renderRelatedNewsPanel();
   }
   function selectPanelWorkspaceView(type) {
