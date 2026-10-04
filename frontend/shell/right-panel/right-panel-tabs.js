@@ -225,6 +225,29 @@
         });
       }
 
+      const dividendDetail = item.dividend_detail && typeof item.dividend_detail === 'object'
+        ? item.dividend_detail : null;
+      if (dividendDetail && Object.keys(dividendDetail).length) {
+        const perShare = Number(dividendDetail.dividend_per_share);
+        const rate = Number(dividendDetail.dividend_rate);
+        const total = Number(dividendDetail.total_amount);
+        [
+          ['주당배당금', Number.isFinite(perShare) ? `${Math.round(perShare).toLocaleString('ko-KR')}원` : ''],
+          ['시가배당률', Number.isFinite(rate) ? `${rate.toFixed(2)}%` : ''],
+          ['배당금총액', Number.isFinite(total) ? Math.round(total).toLocaleString('ko-KR') : ''],
+          ['배당기준일', String(dividendDetail.record_date || '')]
+        ].filter(([, value]) => value).forEach(([label, value]) => {
+          const detailLine = document.createElement('div');
+          detailLine.className = 'right-panel-disclosures__line';
+          const left = document.createElement('span');
+          left.textContent = label;
+          const right = document.createElement('span');
+          right.textContent = value;
+          detailLine.append(left, right);
+          row.appendChild(detailLine);
+        });
+      }
+
       const treasuryDetail = item.treasury_stock_detail && typeof item.treasury_stock_detail === 'object'
         ? item.treasury_stock_detail : null;
       if (treasuryDetail && Object.keys(treasuryDetail).length) {
