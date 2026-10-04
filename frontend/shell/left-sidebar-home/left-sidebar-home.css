@@ -100,14 +100,14 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   gap: 9px;
   border-radius: 8px;
   background: transparent;
-  color: #f5f5f5;
+  color: var(--gtp-text-2);
   font: inherit;
   font-size: 13px;
   font-weight: 650;
   text-align: left;
   cursor: pointer;
 }
-.left-sidebar-home__dropdown button:hover { background: #1f1f1f; color: #fff; }
+.left-sidebar-home__dropdown button:hover { background: var(--gtp-hover); color: var(--gtp-text); }
 .left-sidebar-home__dropdown svg { width: 17px; height: 17px; color: var(--gtp-muted); stroke-width: 1.9; }
 
 .left-sidebar-home__actions { display: inline-flex; align-items: center; gap: 2px; }
