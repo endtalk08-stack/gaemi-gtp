@@ -1206,21 +1206,32 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                         if compact_result:
                             add(compact_result, f"{source_name}-grounded-result", segment, priority + 7)
 
-                # Preserve a complete nearby numeric event when the article
-                # gives object + amount + action (e.g. 엔비디아 칩 80억달러 입찰).
+                # Preserve a complete nearby numeric event in either common
+                # article order: object -> amount -> action, or amount -> object -> action.
+                # This lets phrases such as "엔비디아 칩 80억달러 입찰" and
+                # "80억달러 규모 엔비디아 칩 입찰" compete as complete events
+                # before the looser topic+scale fallback (for example AI80억).
                 numeric_event_actions = ("입찰", "계약", "수주", "협력", "투자", "조달", "매입", "매도", "인수", "매각", "돌파", "확대")
-                numeric_event_pattern = re.compile(
-                    r"([A-Za-z0-9가-힣·-]{2,18})\\s*"
-                    r"(\\d+(?:[.,]\\d+)?\\s*(?:조원|억원|만원|천원|원|조|억|만|달러|%))"
-                    r".{0,10}?(" + "|".join(map(re.escape, numeric_event_actions)) + r")",
-                    flags=re.IGNORECASE,
+                numeric_amount_pattern = r"(\\d+(?:[.,]\\d+)?\\s*(?:조원|억원|만원|천원|원|조|억|만|달러|%))"
+                numeric_object_pattern = r"([A-Za-z0-9가-힣·-]{2,18}(?:\\s+[A-Za-z0-9가-힣·-]{1,12})?)"
+                action_pattern = "(" + "|".join(map(re.escape, numeric_event_actions)) + ")"
+                numeric_event_patterns = (
+                    (re.compile(
+                        numeric_object_pattern + r"\\s*" + numeric_amount_pattern + r".{0,10}?" + action_pattern,
+                        flags=re.IGNORECASE,
+                    ), 1, 2, 3),
+                    (re.compile(
+                        numeric_amount_pattern + r"(?:\\s*규모)?\\s*" + numeric_object_pattern + r".{0,10}?" + action_pattern,
+                        flags=re.IGNORECASE,
+                    ), 2, 1, 3),
                 )
-                for match in numeric_event_pattern.finditer(label_source):
-                    obj = re.sub(r"[^A-Za-z0-9가-힣]", "", match.group(1))
-                    amount = re.sub(r"\\s+", "", match.group(2))
-                    action = match.group(3)
-                    if obj and obj not in {"약", "규모", "총", "최대", "시장", "AI"}:
-                        add(f"{obj}{amount}{action}", f"{source_name}-grounded-numeric-event", match.group(0), priority + 8)
+                for numeric_event_pattern, obj_group, amount_group, action_group in numeric_event_patterns:
+                    for match in numeric_event_pattern.finditer(label_source):
+                        obj = re.sub(r"[^A-Za-z0-9가-힣]", "", match.group(obj_group))
+                        amount = re.sub(r"\\s+", "", match.group(amount_group))
+                        action = match.group(action_group)
+                        if obj and obj not in {"약", "규모", "총", "최대", "시장", "AI"}:
+                            add(f"{obj}{amount}{action}", f"{source_name}-grounded-numeric-event", match.group(0), priority + 8)
 
                 # Numeric scale is meaningful when attached to a concrete topic
                 # in the same stock-anchored sentence: e.g. 데이터센터 4047조.
