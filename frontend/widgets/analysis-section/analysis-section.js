@@ -118,7 +118,7 @@
     const style = document.createElement('style');
     style.textContent = `
       #surpriseAntPopup { display: none !important; }
-      .analysis-loading-sequence { width:100%; min-height:92px; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; padding:18px 8px; text-align:left; }
+      .analysis-loading-sequence { width:100%; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; padding:8px 0 0; text-align:left; }
       .analysis-loading-dots { display:flex; align-items:center; justify-content:flex-start; gap:10px; }
       .analysis-loading-dots[hidden] { display:none; }
       .analysis-loading-dots span { width:10px; height:10px; border-radius:999px; background:#94a3b8; animation:gaemiLoadingDot 1.15s ease-in-out infinite; }
