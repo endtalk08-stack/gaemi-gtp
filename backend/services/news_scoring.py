@@ -1850,24 +1850,10 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             )
         )
 
-        selected = []
-        for row in candidates:
-            label = row["label"]
-            overlap_index = next(
-                (
-                    index for index, old in enumerate(selected)
-                    if label in old["label"] or old["label"] in label
-                ),
-                None,
-            )
-            if overlap_index is not None:
-                old = selected[overlap_index]
-                if old["label"] in label and len(label) > len(old["label"]):
-                    selected[overlap_index] = row
-                continue
-            selected.append(row)
-            if len(selected) >= max_keywords:
-                break
+        # Central news flow uses one representative meaning per article.
+        # Candidate generation stays broad for compatibility/debugging, but the
+        # article itself should contribute only its strongest grounded keyword.
+        selected = candidates[:1]
 
         # One grounded event is enough for the storyboard. Requiring all
         # max_keywords candidates here discarded good single-event results and
