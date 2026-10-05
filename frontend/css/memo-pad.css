@@ -54,6 +54,13 @@
   line-height: 1.45;
 }
 
+.memo-pad-head-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
 .memo-pad-status {
   flex: 0 0 auto;
   min-height: 18px;
