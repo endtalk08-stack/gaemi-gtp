@@ -33,14 +33,12 @@ window.GaemiGTPNews.renderArticles = async function ({
               // 중앙에는 핵심 기사만 간단히 보여주고, 전체 출처는 오른쪽 패널에서 확인한다.
               const articleRows = [];
               articles.forEach((item) => {
-                const row = document.createElement('button');
-                row.type = 'button';
-                row.className = 'block w-full text-left leading-5 sm:leading-6 text-[#475569] hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white line-clamp-1';
+                const row = document.createElement('p');
+                row.className = 'block w-full text-left leading-5 sm:leading-6 text-[#475569] dark:text-[#d4d4d8] line-clamp-1';
                 row.classList.add(...String(responseMessageClass || '').split(/\s+/).filter(Boolean));
                 row.style.fontSize = window.matchMedia('(min-width: 640px)').matches ? '1rem' : '13px';
                 row.dataset.typingText = item.title || '제목 확인 필요';
                 row.textContent = '';
-                row.addEventListener('click', () => openExternalLinkModal(item));
                 articleSection.appendChild(row);
                 articleRows.push(row);
               });
