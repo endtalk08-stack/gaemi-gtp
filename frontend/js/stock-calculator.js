@@ -160,6 +160,7 @@
 
     const message = document.createElement('section');
     message.className = 'stock-calculator-message';
+    message.dataset.chatToolMessage = 'stock-calculator';
     message.setAttribute('aria-label', '주식 계산기');
     message.innerHTML = `
       <div id="gaemiStockCalculatorCard" class="stock-calculator-card">
@@ -168,6 +169,9 @@
             <h2 class="stock-calculator-title">주식 계산기</h2>
             <p class="stock-calculator-subtitle">필요한 값만 입력하면 바로 계산합니다.</p>
           </div>
+          <button type="button" class="chat-tool-close" data-chat-tool-close aria-label="주식 계산기 닫기" title="닫기">
+            <i data-lucide="x" aria-hidden="true"></i>
+          </button>
         </div>
         <div class="stock-calculator-tabs" role="tablist" aria-label="계산 종류"></div>
         <form class="stock-calculator-form" novalidate>
@@ -321,6 +325,7 @@
     renderTabs();
     renderFields();
     chatArea.appendChild(message);
+    if (window.lucide) window.lucide.createIcons();
     message.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
