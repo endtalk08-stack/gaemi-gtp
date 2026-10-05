@@ -12,9 +12,9 @@
 
 /* Market sidebar header — match the left plugin/context sidebar header geometry */
 .market-sidebar-header {
-  height: 64px;
-  flex: 0 0 64px;
-  padding: 0 16px;
+  height: var(--gtp-header-height);
+  flex: 0 0 var(--gtp-header-height);
+  padding: 0 var(--gtp-header-padding-x);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -34,8 +34,8 @@
   margin-top: 0;
 }
 .market-sidebar-close {
-  width: 32px;
-  height: 32px;
+  width: var(--gtp-header-control-size);
+  height: var(--gtp-header-control-size);
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -49,3 +49,5 @@
   background: var(--gtp-hover);
   color: var(--gtp-text);
 }
+
+.market-sidebar-close svg { width: var(--gtp-header-icon-size); height: var(--gtp-header-icon-size); }
