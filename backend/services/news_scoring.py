@@ -941,159 +941,169 @@ def _related_stock_entities(item):
 
 
 def build_connected_keyword_test(items, stock_name, max_keywords=1):
-    """Extract one stock-grounded semantic event from each article.
+    """Extract one stock-grounded representative semantic event per article.
 
-    The extractor is deliberately local and cheap: it reads the already-fetched
-    title/description, finds the selected-company clause, then compresses
-    object + change/event.  No extra collection or external model call occurs.
+    This stays local/cheap: title + Naver description only, no extra collection
+    and no external model call.  Internally it separates semantic axes (time,
+    event/result, business change, context) and then selects the strongest
+    company-grounded event.  Finished stock keywords are never registered.
     """
-    import re
-
     aliases = _stock_aliases(stock_name)
     results = []
 
-    # Normalization is intentionally small and generic.  These are semantic
-    # event families, not an ever-growing list of finished stock keywords.
+    # Common financial/event grammar.  These are reusable event meanings, not
+    # stock-specific or finished keyword dictionaries.
     event_map = (
-        (r"(웃돌|상회|넘어서|넘었)", "상회"),
-        (r"(밑돌|하회|못\s*미쳐)", "하회"),
-        (r"(반등|회복|증가세로\s*전환|증가세로\s*돌아서)", "반등"),
-        (r"(급증|크게\s*늘|대폭\s*증가)", "급증"),
-        (r"(증가|늘었|늘어|늘린|확대)", "증가"),
-        (r"(급감|크게\s*줄|대폭\s*감소)", "급감"),
-        (r"(감소|줄었|줄어|축소)", "감소"),
-        (r"(상향|올렸|올려)", "상향"),
-        (r"(하향|내렸|낮췄)", "하향"),
-        (r"(개선|호전)", "개선"),
-        (r"(악화|부진)", "부진"),
-        (r"(돌파|넘어섰|최고가)", "돌파"),
-        (r"(수주|따냈|수주했)", "수주"),
-        (r"(계약|체결)", "계약"),
-        (r"(승인|허가)", "승인"),
-        (r"(거절|반려)", "거절"),
-        (r"(출시|공개)", "출시"),
-        (r"(양산|생산\s*개시)", "양산"),
-        (r"(중단|가동\s*중단)", "중단"),
-        (r"(인수)", "인수"),
-        (r"(매각)", "매각"),
-        (r"(매입|취득)", "매입"),
-        (r"(소각)", "소각"),
+        (r"(예상치|기대치|컨센서스).{0,8}(웃돌|상회|넘어서|넘었)", "상회", 34),
+        (r"(예상치|기대치|컨센서스).{0,8}(밑돌|하회|못\s*미쳐)", "하회", 34),
+        (r"(웃돌|상회|넘어서|넘었)", "상회", 30),
+        (r"(밑돌|하회|못\s*미쳐)", "하회", 30),
+        (r"(흑자\s*전환)", "흑자전환", 36),
+        (r"(적자\s*전환)", "적자전환", 36),
+        (r"(반등|회복|증가세로\s*전환|증가세로\s*돌아서)", "반등", 30),
+        (r"(급증|크게\s*늘|대폭\s*증가)", "급증", 29),
+        (r"(증가|늘었|늘어|늘린|확대)", "증가", 25),
+        (r"(급감|크게\s*줄|대폭\s*감소)", "급감", 29),
+        (r"(감소|줄었|줄어|축소)", "감소", 25),
+        (r"(상향|올렸|올려)", "상향", 31),
+        (r"(하향|내렸|낮췄)", "하향", 31),
+        (r"(개선|호전)", "개선", 25),
+        (r"(악화|부진)", "부진", 25),
+        (r"(돌파|넘어섰|최고가)", "돌파", 22),
+        (r"(수주|따냈|수주했)", "수주", 32),
+        (r"(계약\s*해지|계약\s*종료)", "계약해지", 36),
+        (r"(계약|체결)", "계약", 30),
+        (r"(승인|허가)", "승인", 32),
+        (r"(거절|반려)", "거절", 34),
+        (r"(출시|공개)", "출시", 28),
+        (r"(양산|생산\s*개시)", "양산", 30),
+        (r"(중단|가동\s*중단)", "중단", 33),
+        (r"(인수)", "인수", 30),
+        (r"(매각)", "매각", 30),
+        (r"(매입|취득)", "매입", 28),
+        (r"(소각)", "소각", 31),
     )
     object_hints = (
         "목표주가", "목표가", "투자의견", "가이던스", "영업이익", "영업익",
         "순이익", "매출", "인도량", "판매", "판매량", "점유율", "수요", "공급",
         "생산", "생산능력", "출하량", "가격", "단가", "수주", "수주잔고",
         "자사주", "배당", "데이터센터", "AI데이터센터", "HBM", "D램", "낸드",
-        "임상", "FDA", "공장", "지분", "수출",
+        "임상", "FDA", "공장", "지분", "수출", "수입", "영업현금흐름",
     )
     context_hints = (
-        "유럽", "미국", "중국", "한국", "국내", "해외", "AI", "데이터센터",
-        "HBM", "D램", "낸드",
+        "유럽", "미국", "중국", "한국", "국내", "해외", "북미", "AI",
+        "데이터센터", "HBM", "D램", "낸드",
     )
-    stop_objects = {"시장", "기업", "주식", "기술", "투자", "관련", "업계", "전망"}
-    # Structural noise must never become the semantic head.  This is grammar/
-    # shape filtering, not a finished-keyword dictionary.
+    stop_objects = {
+        "시장", "기업", "주식", "기술", "투자", "관련", "업계", "전망", "기대",
+        "가능성", "관심", "분석", "평가", "올해", "지난해", "전년", "전월",
+    }
     time_words = {"사상", "역대", "최근", "올해", "지난해", "전년", "전월", "당일", "연속"}
-    head_suffixes = ("판매", "판매량", "매출", "인도량", "출하량", "수요", "점유율", "가격", "생산", "수출", "수주")
+    head_suffixes = (
+        "판매", "판매량", "매출", "인도량", "출하량", "수요", "점유율",
+        "가격", "생산", "수출", "수입", "수주", "이익", "가이던스",
+    )
     negations = ("아니다", "아니라", "아닌", "않", "못했다", "부인")
+    time_pattern = re.compile(r"^(?:내년|올해|지난해)?\d+(?:\.\d+)?(?:개월|년|분기|일|주|시간|월)$")
 
     def compact(value):
         return re.sub(r"\s+", "", str(value or "").strip())
 
     def contains_selected(text):
-        lower = text.lower()
+        lower = str(text or "").lower()
         return any(alias and alias in lower for alias in aliases)
 
     def split_clauses(text):
-        # Keep clauses short enough that subject/object/event still belong
-        # together.  Description is supporting evidence, never a remote word pool.
         return [
             part.strip()
-            for part in re.split(r"[.!?。]|[;]|\s+[·•]\s+|(?<=다),\s+|(?<=며),\s+", text)
+            for part in re.split(r"[.!?。;]|\s+[·•]\s+|(?<=다),\s+|(?<=며),\s+", str(text or ""))
             if part.strip()
         ]
 
     def strip_company(text):
-        out = text
+        out = str(text or "")
         for alias in sorted(aliases, key=len, reverse=True):
             if alias:
                 out = re.sub(re.escape(alias), " ", out, flags=re.IGNORECASE)
         return out
 
-    def event_of(clause):
-        for pattern, normalized in event_map:
-            match = re.search(pattern, clause, flags=re.IGNORECASE)
-            if not match:
-                continue
-            tail = clause[match.end():match.end() + 12]
-            if any(word in tail for word in negations):
-                continue
-            return normalized, match
-        return "", None
+    def time_axes(clause):
+        axes = []
+        for match in re.finditer(r"(?:내년\s*)?\d+(?:\.\d+)?\s*(?:분기|월|년|개월)|올해|지난해|최근", clause):
+            label = compact(match.group(0))
+            if label and label not in axes:
+                axes.append(label)
+        return axes
+
+    def event_candidates(clause):
+        found = []
+        for pattern, normalized, weight in event_map:
+            for match in re.finditer(pattern, clause, flags=re.IGNORECASE):
+                tail = clause[match.end():match.end() + 12]
+                if any(word in tail for word in negations):
+                    continue
+                found.append((weight, match.start(), normalized, match))
+        # Prefer the strongest semantic event, then the earlier headline event.
+        return sorted(found, key=lambda row: (-row[0], row[1]))
 
     def object_of(clause, event_match):
         before = clause[:event_match.start()] if event_match else clause
         clean_before = strip_company(before)
-
-        # Score every plausible head instead of blindly taking the nearest one.
-        # This keeps the engine stock-agnostic while preserving the semantic
-        # object that the event actually changes (판매/수요/매출/모델...).
         candidates = []
+
         for hint in object_hints:
             for match in re.finditer(re.escape(hint), clean_before, flags=re.IGNORECASE):
                 distance = max(0, len(clean_before) - match.end())
-                score = 40 - min(distance, 30)
-                if hint in {"판매", "판매량", "매출", "인도량", "수요", "점유율", "출하량", "영업이익", "순이익"}:
-                    score += 8
+                score = 44 - min(distance, 32)
+                if hint in {"판매", "판매량", "매출", "인도량", "수요", "점유율", "출하량", "영업이익", "순이익", "목표주가", "가이던스"}:
+                    score += 9
                 candidates.append((score, match.start(), hint))
 
         tokens = list(re.finditer(r"[A-Za-z0-9가-힣]+", clean_before))
-        for match in tokens[-6:]:
+        for match in tokens[-7:]:
             token = match.group(0)
-            clean = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만)$", "", token)
-            if not (1 < len(clean) <= 14) or clean in stop_objects or re.fullmatch(r"\d+", clean):
+            clean = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만|부터|까지)$", "", token)
+            if not (1 < len(clean) <= 16) or clean in stop_objects or re.fullmatch(r"\d+", clean):
                 continue
             distance = max(0, len(clean_before) - match.end())
             score = 18 - min(distance, 15)
-            # Grammatical subject/object markers are useful evidence that this
-            # noun is the head affected by the following event.
             tail = clean_before[match.end():match.end() + 3]
             if re.match(r"^(이|가|은|는|을|를)", tail):
                 score += 8
-            # Time/amount/rate fragments describe an event but are not the
-            # thing that changed: "4개월 돌파" must not become 4개월돌파.
-            if clean in time_words or re.fullmatch(r"\\d+(?:[.,]\\d+)?(?:개월|년|분기|일|주|시간|%|배|원|달러)", clean):
-                score -= 30
-            # A compound noun that already ends in a semantic head is valuable
-            # even when it was never registered (하이브리드판매, 서버수요...).
+            if clean in time_words or time_pattern.fullmatch(clean) or re.fullmatch(r"\d+(?:[.,]\d+)?(?:%|배|원|달러)", clean):
+                score -= 40
             if clean.endswith(head_suffixes):
-                score += 12
+                score += 13
             candidates.append((score, match.start(), clean))
 
         if not candidates:
             return ""
 
-        _, obj_pos, obj = max(candidates, key=lambda row: (row[0], row[1]))
+        score, obj_pos, obj = max(candidates, key=lambda row: (row[0], row[1]))
+        if score < 0:
+            return ""
 
-        # Preserve a nearby geographic/product qualifier.  This is generic
-        # composition, not a finished-keyword dictionary.
-        prefix = clean_before[max(0, obj_pos - 14):obj_pos]
+        prefix = clean_before[max(0, obj_pos - 16):obj_pos]
         context = next(
-            (
-                hint for hint in context_hints
-                if hint.lower() in prefix.lower() and hint.lower() not in obj.lower()
-            ),
+            (hint for hint in context_hints if hint.lower() in prefix.lower() and hint.lower() not in obj.lower()),
             "",
         )
 
-        # If a novel product/category directly modifies a semantic head such as
-        # 수요/판매/매출, keep it too: "세단 수요 증가" -> 세단수요증가.
-        if obj in {"수요", "판매", "판매량", "매출", "인도량", "출하량", "점유율"}:
+        # Preserve a nearby novel modifier only when the noun is clearly a
+        # semantic head.  Temporal/comparison expressions never become objects.
+        if obj in {"수요", "판매", "판매량", "매출", "인도량", "출하량", "점유율", "수출", "수입"}:
             prefix_tokens = re.findall(r"[A-Za-z0-9가-힣]+", prefix)
             modifier = ""
             for token in reversed(prefix_tokens[-2:]):
-                clean = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만)$", "", token)
-                if 1 < len(clean) <= 12 and clean not in stop_objects and clean not in context_hints:
+                clean = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만|부터|까지)$", "", token)
+                if (
+                    1 < len(clean) <= 12
+                    and clean not in stop_objects
+                    and clean not in context_hints
+                    and clean not in time_words
+                    and not time_pattern.fullmatch(clean)
+                    and not re.fullmatch(r"(?:전년|전월|전분기)대비", clean)
+                ):
                     modifier = clean
                     break
             if modifier and modifier.lower() not in obj.lower():
@@ -1101,40 +1111,56 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
 
         return f"{context}{obj}" if context else obj
 
-    def semantic_candidate(clause, source):
+    def semantic_axes(clause, source):
         if not contains_selected(clause):
-            return None
-        event, event_match = event_of(clause)
-        if not event:
-            return None
-        obj = object_of(clause, event_match)
-        if not obj:
-            return None
+            return []
 
-        label = compact(f"{obj}{event}")
-        if len(label) < 3 or len(label) > 24:
-            return None
-        if label.startswith(("시장", "기업", "주식", "기술", "관련")):
-            return None
-        # Reject incomplete heads rather than surfacing a novel-but-empty tag.
-        # Examples: 인공지능증가 / 4개월돌파.  A useful modifier is welcome,
-        # but it still needs a meaningful object (수요/판매/매출/모델...).
-        if obj in time_words or re.fullmatch(r"\\d+(?:[.,]\\d+)?(?:개월|년|분기|일|주|시간|%|배|원|달러)", obj):
-            return None
-        if event in {"증가", "감소", "급증", "급감", "반등", "상회", "하회"}:
-            meaningful_change_head = (
-                obj in object_hints
-                or obj.endswith(head_suffixes)
-                or any(hint in obj for hint in ("영업이익", "순이익", "자사주", "배당", "지분"))
-            )
-            if not meaningful_change_head:
-                return None
-        return {
-            "label": label,
-            "source": source,
-            "evidence": clause,
-            "priority": 100 if source == "title-semantic" else 60,
-        }
+        axes = [
+            {"role": "time", "label": label, "source": source, "evidence": clause, "score": 8}
+            for label in time_axes(clause)
+        ]
+        for weight, _, event, match in event_candidates(clause):
+            obj = object_of(clause, match)
+            if not obj:
+                continue
+            if obj in time_words or time_pattern.fullmatch(obj):
+                continue
+            if event in {"증가", "감소", "급증", "급감", "반등", "상회", "하회"}:
+                meaningful = (
+                    obj in object_hints
+                    or obj.endswith(head_suffixes)
+                    or any(hint in obj for hint in ("영업이익", "순이익", "자사주", "배당", "지분"))
+                )
+                if not meaningful:
+                    continue
+
+            label = compact(f"{obj}{event}")
+            if len(label) < 3 or len(label) > 24:
+                continue
+            if label.startswith(("시장", "기업", "주식", "기술", "관련")):
+                continue
+
+            role = "result"
+            if event in {"증가", "감소", "급증", "급감", "반등", "개선", "부진"}:
+                role = "business-change"
+            elif event in {"수주", "계약", "계약해지", "승인", "거절", "출시", "양산", "중단", "인수", "매각", "매입", "소각"}:
+                role = "event"
+
+            score = weight + (28 if source == "title-semantic" else 10)
+            if obj in object_hints or obj.endswith(head_suffixes):
+                score += 8
+            if event in {"상회", "하회", "흑자전환", "적자전환", "수주", "계약해지", "승인", "거절"}:
+                score += 6
+            axes.append({
+                "role": role,
+                "label": label,
+                "source": source,
+                "evidence": clause,
+                "event": event,
+                "object": obj,
+                "score": score,
+            })
+        return axes
 
     for item in items or []:
         title = str(item.get("title") or "").strip()
@@ -1143,29 +1169,37 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
             continue
 
         stock_entities = _related_stock_entities(item)
-        representative = None
+        axes = []
 
-        # Headline is the article's semantic center.
+        # Title defines the article's semantic center.
         for clause in split_clauses(title):
-            candidate = semantic_candidate(clause, "title-semantic")
-            if candidate:
-                representative = candidate
-                break
+            axes.extend(semantic_axes(clause, "title-semantic"))
 
-        # Description can supply the event only when the selected company is
-        # explicitly named in that same clause.
-        if representative is None:
-            for clause in split_clauses(description):
-                candidate = semantic_candidate(clause, "description-semantic")
-                if candidate:
-                    representative = candidate
-                    break
+        # Description verifies/complements the headline, but only where the
+        # selected company is explicitly grounded in that same clause.
+        for clause in split_clauses(description):
+            axes.extend(semantic_axes(clause, "description-semantic"))
+
+        # De-duplicate equivalent axes while retaining the strongest evidence.
+        best_by_label = {}
+        for axis in axes:
+            label = axis["label"]
+            previous = best_by_label.get(label)
+            if previous is None or axis["score"] > previous["score"]:
+                best_by_label[label] = axis
+        distinct_axes = sorted(best_by_label.values(), key=lambda axis: axis["score"], reverse=True)
+
+        # Time is a legitimate internal axis (e.g. 3분기) but should not beat a
+        # concrete event/result as the single central-chat representative.
+        event_axes = [axis for axis in distinct_axes if axis["role"] != "time"]
+        representative = event_axes[0] if event_axes else None
 
         selected = [representative] if representative else []
         results.append({
             "title": title,
             "description": description,
-            "candidate_keywords": [representative["label"]] if representative else [],
+            "candidate_keywords": [axis["label"] for axis in distinct_axes[:3]],
+            "semantic_axes": distinct_axes[:3],
             "keywords": [representative["label"]] if representative else [],
             "keyword_details": selected,
             "stock_entities": stock_entities,
