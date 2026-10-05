@@ -1,10 +1,8 @@
 (() => {
-  const trigger = document.getElementById('stockToolsTrigger');
-  const menu = document.getElementById('stockToolsMenu');
   const openButton = document.getElementById('stockCalculatorMenuItem');
   const chatArea = document.getElementById('chatArea');
 
-  if (!trigger || !menu || !openButton || !chatArea) return;
+  if (!openButton || !chatArea) return;
 
   const tabs = [
     { id: 'average', label: '평단' },
@@ -148,19 +146,6 @@
     if (cleaned === '') return NaN;
     const value = Number(cleaned);
     return Number.isFinite(value) ? value : NaN;
-  };
-
-  const closeMenu = () => {
-    menu.hidden = true;
-    trigger.setAttribute('aria-expanded', 'false');
-  };
-
-  const toggleMenu = () => {
-    const shouldOpen = menu.hidden;
-    if (shouldOpen) document.getElementById('bottomModeMenu')?.classList.add('hidden');
-    menu.hidden = !shouldOpen;
-    trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
-    if (shouldOpen) openButton.focus();
   };
 
   const createCalculator = () => {
@@ -339,25 +324,9 @@
     message.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
-  trigger.addEventListener('click', (event) => {
-    event.stopPropagation();
-    toggleMenu();
-  });
-
   openButton.addEventListener('click', () => {
-    closeMenu();
+    window.GaemiGTPChatTools?.closeMenu();
     createCalculator();
-  });
-
-  document.addEventListener('click', (event) => {
-    if (!menu.hidden && !menu.contains(event.target) && event.target !== trigger) closeMenu();
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !menu.hidden) {
-      closeMenu();
-      trigger.focus();
-    }
   });
 
   window.openStockCalculatorInChat = createCalculator;
