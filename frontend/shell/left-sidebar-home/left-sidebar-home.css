@@ -48,8 +48,8 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
 .left-sidebar-home__title {
   min-width: 0;
   color: var(--gtp-text);
-  font-size: 15px;
-  font-weight: 800;
+  font-size: var(--gtp-type-brand);
+  font-weight: var(--gtp-weight-brand);
   letter-spacing: -0.025em;
 }
 
@@ -103,8 +103,8 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   background: transparent;
   color: var(--gtp-text-2);
   font: inherit;
-  font-size: 13px;
-  font-weight: 650;
+  font-size: var(--gtp-type-item);
+  font-weight: var(--gtp-weight-title);
   text-align: left;
   cursor: pointer;
 }
@@ -170,8 +170,8 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   align-items: center;
   gap: 10px;
   font: inherit;
-  font-size: 13px;
-  font-weight: 650;
+  font-size: var(--gtp-type-item);
+  font-weight: var(--gtp-weight-title);
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -198,13 +198,13 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   align-items: center;
   gap: 8px;
   color: var(--gtp-muted);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--gtp-type-item);
+  font-weight: var(--gtp-weight-title);
   letter-spacing: -0.01em;
 }
 .left-sidebar-home__section-title svg { width: 16px; height: 16px; color: var(--gtp-faint); stroke-width: 1.75; }
 .left-sidebar-home__items { margin: 8px 0 0 24px; padding: 0; list-style: none; }
-.left-sidebar-home__item { min-width: 0; padding: 5px 0; color: var(--gtp-text-2); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.left-sidebar-home__item { min-width: 0; padding: 5px 0; color: var(--gtp-text-2); font-size: var(--gtp-type-item); font-weight: var(--gtp-weight-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 1023px) {
   #leftSidebarHome.left-sidebar-home {
