@@ -32,6 +32,12 @@
   modeButton?.addEventListener('click', closeMenu);
 
   document.addEventListener('click', (event) => {
+    const closeButton = event.target.closest('[data-chat-tool-close]');
+    if (closeButton) {
+      closeButton.closest('[data-chat-tool-message]')?.remove();
+      return;
+    }
+
     if (!menu.hidden && !menu.contains(event.target) && event.target !== trigger) closeMenu();
   });
 
