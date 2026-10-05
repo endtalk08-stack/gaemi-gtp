@@ -483,7 +483,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       const userDiv = document.createElement('div');
       userDiv.className = "flex justify-end animate-fade";
-      userDiv.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">${stockName}</div>`;
+      userDiv.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] gtp-dark-text text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">${stockName}</div>`;
       chatArea.appendChild(userDiv);
 
       const controller = activeAnalysisController;
@@ -535,7 +535,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       chatArea.appendChild(mainContainer);
 
       // 첫 답변의 본문 크기·색상·반응형 규칙을 안내/연출 멘트의 공통 기준으로 쓴다.
-      const responseMessageClass = 'text-base sm:text-lg text-[#334155] dark:text-[#e4e4e7] leading-relaxed';
+      const responseMessageClass = 'text-base sm:text-lg text-[#334155] gtp-dark-text leading-relaxed';
 
       let secIdx = 0;
 
@@ -560,7 +560,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           if (dataName) prompt.dataset[dataName] = 'true';
           prompt.className = 'flex justify-end animate-fade';
           const bubble = document.createElement('div');
-          bubble.className = 'bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] dark:text-white text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]';
+          bubble.className = 'bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] gtp-dark-text text-base font-bold px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]';
           bubble.textContent = text;
           prompt.appendChild(bubble);
           return prompt;
@@ -869,7 +869,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         const headingMarkup = `
           <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
-            ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">${dynamicTitle}</h4>` : ''}
+            ${dynamicTitle ? `<h4 class="font-black text-lg sm:text-xl text-[#0f172a] gtp-dark-text">${dynamicTitle}</h4>` : ''}
           </div>`;
         const shouldTypeSection = true;
         const contentMarkup = `<p id="p-content-${secIdx}" class="${responseMessageClass} whitespace-pre-line typing-cursor"></p>`;
