@@ -163,22 +163,6 @@
     if (shouldOpen) openButton.focus();
   };
 
-  const copyText = async (text) => {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
-    const helper = document.createElement('textarea');
-    helper.value = text;
-    helper.setAttribute('readonly', '');
-    helper.style.position = 'absolute';
-    helper.style.left = '-9999px';
-    document.body.appendChild(helper);
-    helper.select();
-    document.execCommand('copy');
-    helper.remove();
-  };
-
   const createCalculator = () => {
     const existing = document.getElementById('gaemiStockCalculatorCard');
     if (existing) {
@@ -211,7 +195,6 @@
         <div class="stock-calculator-result" hidden aria-live="polite">
           <div class="stock-calculator-result-head">
             <span class="stock-calculator-result-title">계산 결과</span>
-            <button class="stock-calculator-copy" type="button">복사</button>
           </div>
           <div class="stock-calculator-result-rows"></div>
         </div>
@@ -224,7 +207,10 @@
     const validation = message.querySelector('.stock-calculator-validation');
     const result = message.querySelector('.stock-calculator-result');
     const resultRows = message.querySelector('.stock-calculator-result-rows');
-    const copyButton = message.querySelector('.stock-calculator-copy');
+
+    const removeResultActions = () => {
+      message.querySelector('[data-reply-actions="stock-calculator"]')?.remove();
+    };
 
     const renderTabs = () => {
       tabWrap.innerHTML = '';
@@ -239,6 +225,7 @@
           if (activeMode === tab.id) return;
           activeMode = tab.id;
           lastCopyText = '';
+          removeResultActions();
           renderTabs();
           renderFields();
           result.hidden = true;
@@ -311,6 +298,15 @@
 
       lastCopyText = plain.join('\n');
       result.hidden = false;
+
+      removeResultActions();
+      window.GaemiGTPFirstReplyActions?.appendFirstReplyActions(
+        result,
+        lastCopyText,
+        'stock-calculator',
+        '주식 계산기'
+      );
+
       result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     };
 
@@ -322,6 +318,7 @@
       if (read.error) {
         validation.textContent = read.error;
         result.hidden = true;
+        removeResultActions();
         return;
       }
 
@@ -329,24 +326,11 @@
       if (error) {
         validation.textContent = error;
         result.hidden = true;
+        removeResultActions();
         return;
       }
 
       renderResult(modes[activeMode].calculate(read.values));
-    });
-
-    copyButton.addEventListener('click', async () => {
-      if (!lastCopyText) return;
-      const original = copyButton.textContent;
-      try {
-        await copyText(lastCopyText);
-        copyButton.textContent = '복사됨';
-      } catch (_) {
-        copyButton.textContent = '복사 실패';
-      }
-      window.setTimeout(() => {
-        if (copyButton.isConnected) copyButton.textContent = original;
-      }, 1200);
     });
 
     renderTabs();
