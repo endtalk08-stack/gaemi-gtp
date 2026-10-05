@@ -10,6 +10,8 @@
   min-width: 240px;
   max-width: none;
   height: 100%;
+  border-left: 0 !important;
+  background: var(--gtp-bg);
 }
 
 /* 고정 폭 패널의 세로 구분선. 드래그 손잡이가 아니다. */
@@ -29,14 +31,12 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 3px;
-  width: 4px;
-  border-radius: 4px;
-  background: #d7dce4;
-  opacity: .72;
-  transition: opacity .12s ease, width .12s ease, left .12s ease;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--gtp-border);
 }
-html.dark #gaemiWorkspace #rightPanelResizer::after { background: #4a4c53; }
+html.dark #gaemiWorkspace #rightPanelResizer::after { background: var(--gtp-border); }
 
 body.right-panel-closed #rightPanel,
 body.right-panel-closed #rightPanelResizer,
