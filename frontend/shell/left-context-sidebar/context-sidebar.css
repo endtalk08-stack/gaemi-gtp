@@ -35,9 +35,9 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
 }
 
 .context-sidebar-header {
-  height: 64px;
-  flex: 0 0 64px;
-  padding: 0 16px;
+  height: var(--gtp-header-height);
+  flex: 0 0 var(--gtp-header-height);
+  padding: 0 var(--gtp-header-padding-x);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -57,8 +57,8 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
   margin-top: 2px;
 }
 .context-sidebar-close {
-  width: 32px;
-  height: 32px;
+  width: var(--gtp-header-control-size);
+  height: var(--gtp-header-control-size);
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -159,3 +159,5 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
     display: none !important;
   }
 }
+
+.context-sidebar-close svg { width: var(--gtp-header-icon-size); height: var(--gtp-header-icon-size); }
