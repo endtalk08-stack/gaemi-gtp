@@ -36,6 +36,12 @@
   --gtp-weight-title: 650;
   --gtp-weight-body: 500;
   --gtp-weight-meta: 500;
+
+  /* Shared top-header geometry */
+  --gtp-header-height: 64px;
+  --gtp-header-padding-x: 12px;
+  --gtp-header-control-size: 44px;
+  --gtp-header-icon-size: 16px;
 }
 
 .dark {
