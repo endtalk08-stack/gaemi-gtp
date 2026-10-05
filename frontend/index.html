@@ -14,7 +14,9 @@
   <script>try { const t = localStorage.getItem('gaemiGTP_theme_v1'); if (t !== 'light') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); document.documentElement.dataset.theme = (t === 'light' ? 'light' : 'dark'); } catch (_) { document.documentElement.classList.add('dark'); }</script>
   <link rel="stylesheet" href="theme/theme.css?v=20260924-v712">
   <link rel="stylesheet" href="css/app.css?v=20260929-message-scale-v1">
-  <link rel="stylesheet" href="css/stock-calculator.css?v=20261005-v2">
+  <link rel="stylesheet" href="css/chat-tools.css?v=20261005-v1">
+  <link rel="stylesheet" href="css/stock-calculator.css?v=20261005-v3">
+  <link rel="stylesheet" href="css/memo-pad.css?v=20261005-v1">
   <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261004-brand-box-v2">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20260925-v8-layout-320-full">
   <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20260925-v1">
@@ -329,6 +331,10 @@
             <span class="stock-tools-menu__title">주식 계산기</span>
             <span class="stock-tools-menu__desc">평단 · 물타기 · 수익률 · 본전 · 목표가</span>
           </button>
+          <button id="memoPadMenuItem" type="button" class="stock-tools-menu__item">
+            <span class="stock-tools-menu__title">메모장</span>
+            <span class="stock-tools-menu__desc">채팅하면서 바로 메모하고 저장</span>
+          </button>
         </div>
 
         <!-- 하단 개미/인포/프로 드롭다운 -->
@@ -435,7 +441,9 @@
   <script src="js/source-lists.js?v=20260930-chat-split-v1"></script>
   <script src="js/why-flow.js?v=20261005-ant-revert-v1"></script>
   <script src="js/materials-flow.js?v=20260930-chat-split-v1"></script>
-  <script src="js/stock-calculator.js?v=20261005-v3"></script>
+  <script src="js/chat-tools.js?v=20261005-v1"></script>
+  <script src="js/stock-calculator.js?v=20261005-v4"></script>
+  <script src="js/memo-pad.js?v=20261005-v1"></script>
   <script src="js/app.js?v=20261005-live-typing-color-v1"></script>
 </body>
 </html>
