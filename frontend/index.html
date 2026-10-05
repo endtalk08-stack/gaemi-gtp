@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="css/stock-calculator.css?v=20261005-v4">
   <link rel="stylesheet" href="css/memo-pad.css?v=20261005-v2">
   <link rel="stylesheet" href="css/sketch-pad.css?v=20261005-v1">
-  <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261005-header-system-v1">
+  <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261005-layout-v1">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20261005-header-system-v1">
@@ -69,16 +69,55 @@
     </div>
 
     <div id="leftSidebarHomeDefault" class="left-sidebar-home__body">
-      <div class="left-sidebar-home__legacy">
+      <nav class="left-sidebar-home__menu" aria-label="사이드바 기본 메뉴">
+        <button type="button" class="left-sidebar-home__menu-item is-active" data-left-home-nav="home" aria-current="page">
+          <i data-lucide="house" aria-hidden="true"></i>
+          <span>메인</span>
+        </button>
+        <button type="button" class="left-sidebar-home__menu-item" data-left-home-nav="market">
+          <i data-lucide="activity" aria-hidden="true"></i>
+          <span>실시간</span>
+        </button>
+        <button type="button" class="left-sidebar-home__menu-item" data-left-home-nav="watchlist">
+          <i data-lucide="star" aria-hidden="true"></i>
+          <span>관심종목</span>
+        </button>
+        <button type="button" class="left-sidebar-home__menu-item" data-left-home-nav="plugin">
+          <i data-lucide="blocks" aria-hidden="true"></i>
+          <span>플러그인</span>
+        </button>
+      </nav>
+
+      <div class="left-sidebar-home__sections">
         <section class="left-sidebar-home__section" aria-labelledby="leftSidebarProjectsTitle">
-          <h2 id="leftSidebarProjectsTitle" class="left-sidebar-home__section-title"><span>프로젝트</span></h2>
+          <div class="left-sidebar-home__section-head">
+            <h2 id="leftSidebarProjectsTitle" class="left-sidebar-home__section-title">프로젝트</h2>
+            <button type="button" class="left-sidebar-home__section-menu" aria-label="프로젝트 관리 메뉴" title="프로젝트 관리 메뉴" data-left-home-section-menu="projects">
+              <i data-lucide="ellipsis" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="left-sidebar-home__empty">프로젝트가 여기에 표시됩니다</div>
         </section>
+
         <section class="left-sidebar-home__section" aria-labelledby="leftSidebarPluginsTitle">
-          <h2 id="leftSidebarPluginsTitle" class="left-sidebar-home__section-title"><span>플러그인</span></h2>
+          <div class="left-sidebar-home__section-head">
+            <h2 id="leftSidebarPluginsTitle" class="left-sidebar-home__section-title">플러그인</h2>
+            <button type="button" class="left-sidebar-home__section-menu" aria-label="플러그인 관리 메뉴" title="플러그인 관리 메뉴" data-left-home-section-menu="plugins">
+              <i data-lucide="ellipsis" aria-hidden="true"></i>
+            </button>
+          </div>
           <ul id="leftSidebarHomePluginList" class="left-sidebar-home__items" aria-label="추가한 플러그인"></ul>
+          <div id="leftSidebarHomePluginEmpty" class="left-sidebar-home__empty">추가된 플러그인이 없습니다</div>
         </section>
+
         <section class="left-sidebar-home__section" aria-labelledby="leftSidebarStocksTitle">
-          <h2 id="leftSidebarStocksTitle" class="left-sidebar-home__section-title"><span>관심종목</span></h2>
+          <div class="left-sidebar-home__section-head">
+            <h2 id="leftSidebarStocksTitle" class="left-sidebar-home__section-title">관심종목</h2>
+            <button type="button" class="left-sidebar-home__section-menu" aria-label="관심종목 관리 메뉴" title="관심종목 관리 메뉴" data-left-home-section-menu="watchlist">
+              <i data-lucide="ellipsis" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="left-sidebar-home__empty">관심종목이 여기에 표시됩니다</div>
         </section>
       </div>
     </div>
@@ -429,7 +468,7 @@
   <script src="widgets/analysis-section/analysis-section.js?v=20260926-v4"></script>
   <script src="shell/left-plugin-sidebar/plugin-sidebar.js?v=20261003-chat-entry-v2"></script>
   <script src="shell/main/widget-dock/widget-dock.js?v=20261003-kospi-gradient-v1"></script>
-  <script src="shell/left-sidebar-home/left-sidebar-home.js?v=20260927-v1"></script>
+  <script src="shell/left-sidebar-home/left-sidebar-home.js?v=20261005-layout-v1"></script>
   <script src="theme/theme.js?v=20260924-v712"></script>
   <script src="widgets/market-state/market-state.js?v=20260924-v76"></script>
   <script src="pages/auto-trade/auto-trade.js?v=20260924-v76"></script>
