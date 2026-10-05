@@ -15,6 +15,7 @@
   z-index: 41;
   background: var(--gtp-panel-bg);
   border-right: 1px solid var(--gtp-border);
+  font-family: inherit;
   transition: width .25s ease, flex-basis .25s ease;
 }
 body.left-context-closed #leftContextSidebar.context-sidebar {
@@ -51,7 +52,8 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
 }
 .context-sidebar-subtitle {
   color: var(--gtp-faint);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 600;
   margin-top: 2px;
 }
 .context-sidebar-close {
@@ -91,14 +93,15 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
 }
 .context-sidebar-section-title {
   color: var(--gtp-text-2);
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 700;
 }
 .context-sidebar-section-action {
   border: 0;
   background: transparent;
   color: var(--gtp-faint);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
 }
 .context-sidebar-section-action:hover { color: #e4e4e7; }
@@ -120,12 +123,13 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
 }
 .context-sidebar-empty-title {
   color: var(--gtp-muted);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
 }
 .context-sidebar-empty-copy {
   color: var(--gtp-faint);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1.5;
   margin-top: 4px;
 }
@@ -136,7 +140,8 @@ body.left-context-open #leftMarketSidebar.market-sidebar {
 }
 .context-sidebar-note {
   color: var(--gtp-faint);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1.5;
 }
 
