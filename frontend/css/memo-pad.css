@@ -1,0 +1,160 @@
+/* Central chat memo pad only. */
+
+.memo-pad-message {
+  width: 100%;
+  min-width: 0;
+  animation: memoPadPop .18s cubic-bezier(.2, .8, .2, 1);
+}
+
+@keyframes memoPadPop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.memo-pad-card {
+  width: 100%;
+  min-width: 0;
+  color: var(--gtp-text);
+  user-select: text;
+}
+
+.memo-pad-card button,
+.memo-pad-card textarea {
+  user-select: auto;
+}
+
+.memo-pad-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.memo-pad-title {
+  margin: 0;
+  color: var(--gtp-text);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+}
+
+.memo-pad-subtitle {
+  margin: 3px 0 0;
+  color: var(--gtp-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.memo-pad-status {
+  flex: 0 0 auto;
+  min-height: 18px;
+  color: var(--gtp-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.memo-pad-textarea {
+  display: block;
+  width: 100%;
+  min-height: 160px;
+  max-height: 420px;
+  resize: none;
+  overflow-y: auto;
+  padding: 14px 15px;
+  border: 1px solid var(--gtp-border);
+  border-radius: 14px;
+  background: var(--gtp-surface);
+  color: var(--gtp-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.65;
+  letter-spacing: -0.012em;
+  outline: none;
+  transition: border-color .16s ease, background .16s ease;
+}
+
+.memo-pad-textarea::placeholder {
+  color: var(--gtp-faint);
+  font-weight: 550;
+}
+
+.memo-pad-textarea:focus {
+  border-color: var(--gtp-border-strong);
+  background: var(--gtp-surface-2);
+}
+
+.memo-pad-textarea:focus-visible,
+.memo-pad-button:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.memo-pad-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.memo-pad-actions__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.memo-pad-button {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, opacity .16s ease, transform .16s ease;
+}
+
+.memo-pad-button:active {
+  transform: translateY(1px);
+}
+
+.memo-pad-button--quiet {
+  border: 1px solid var(--gtp-border);
+  background: transparent;
+  color: var(--gtp-muted);
+}
+
+.memo-pad-button--quiet:hover {
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
+}
+
+.memo-pad-button--primary {
+  border: 1px solid var(--gtp-border-strong);
+  background: var(--gtp-text);
+  color: var(--gtp-surface);
+}
+
+.memo-pad-button--primary:hover {
+  opacity: .9;
+}
+
+@media (max-width: 520px) {
+  .memo-pad-head {
+    gap: 8px;
+  }
+
+  .memo-pad-textarea {
+    min-height: 150px;
+  }
+}
