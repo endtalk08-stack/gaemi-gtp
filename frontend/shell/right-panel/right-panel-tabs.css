@@ -2,7 +2,14 @@
    상단 탭만 담당한다. 위젯/데이터 스타일은 각 페이지/위젯에서 담당한다.
 */
 
-.right-panel-header { min-width: 0; overflow: visible; position: relative; z-index: 100; }
+.right-panel-header {
+  min-width: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 100;
+  border-bottom: 1px solid var(--gtp-border) !important;
+  background: var(--gtp-bg) !important;
+}
 .right-panel-tabs { display: flex; align-items: center; gap: 3px; min-width: 0; height: 100%; overflow-x: visible; scrollbar-width: none; padding: 0 2px; }
 .right-panel-tabs::-webkit-scrollbar { display: none; }
 .right-panel-tab { height: 32px; max-width: 150px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0; padding: 0 9px; border: 0; border-radius: 9px; background: transparent; color: var(--gtp-faint); cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease; font: inherit; }
@@ -58,9 +65,8 @@
 }
 .right-panel-related-news__list { display: flex; flex-direction: column; }
 .right-panel-related-news__item {
-  padding: 14px 2px;
+  padding: 10px;
 }
-.right-panel-related-news__item:first-child { padding-top: 2px; }
 .right-panel-related-news__title {
   color: var(--gtp-text-2);
   font-size: var(--gtp-type-title);
@@ -104,13 +110,11 @@
   font: inherit;
 }
 .right-panel-related-news__item {
-  border: 1px solid transparent;
-  border-radius: 10px;
-  transition: background-color 160ms ease, border-color 160ms ease;
+  border-radius: 9px;
+  transition: background-color 160ms ease;
 }
 .right-panel-related-news__item:hover {
   background: var(--gtp-surface-2);
-  border-color: var(--gtp-border);
 }
 
 
