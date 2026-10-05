@@ -882,84 +882,118 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         mainContainer.appendChild(textBlock);
 
         const pEl = document.getElementById(`p-content-${secIdx}`);
-
-        const formatAnalysisText = (rawText) => {
-          let formatted = rawText;
-          try {
-            formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
-            formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
-
-            if (formatted.includes('#') && !formatted.includes('캘린더')) {
-              const isDown = /(?:^|\\n).*-(?:\\d+(?:\\.\\d+)?%)|보합|눈치싸움|파란불|숨고르기|투매/.test(rawText);
-              const themeColor = isDown ? '#38BDF8' : '#FF8DA1';
-              const lines = formatted.split('\n\n');
-              if (lines.length > 0) {
-                const lastLine = lines[lines.length - 1];
-                if (lastLine.includes('#')) {
-                  const tempDiv = document.createElement('div');
-                  tempDiv.innerHTML = lastLine;
-                  const rawLine = tempDiv.textContent || tempDiv.innerText || '';
-                  lines[lines.length - 1] = rawLine.split(/\\s+/).map((word) => {
-                    if (!word.startsWith('#')) return word;
-                    let color = themeColor;
-                    if (word.includes('+')) color = '#FF8DA1';
-                    else if (word.includes('-')) color = '#38BDF8';
-                    return `<span class="font-bold first-answer-hashtag" style="color: ${color};">${word}</span>`;
-                  }).join(' ');
-                  formatted = lines.join('\n\n');
-                }
-              }
-            }
-
-            formatted = formatted.replace(/(?:\\s|^)([+-]\\d+(?:\\.\\d+)?%)/g, (match, value) => {
-              const color = value.startsWith('+') ? '#FF8DA1' : '#38BDF8';
-              return match.replace(value, `<span class="font-bold" style="color: ${color};">${value}</span>`);
-            });
-          } catch (err) {
-            console.warn('치환 예외 안전 무시:', err);
-          }
-
-          formatted = formatted
-            .replace(/(^|\n)\\s*[📰📌][^\n]*(?=\n|$)/g, '$1')
-            .replace(/\n{3,}/g, '\n\n');
-
-          return formatted.replace(/<span([^>]*)>(#[^<]+)<\\/span>/g, (match, attributes, tagText) => {
-            if (/first-answer-hashtag/.test(attributes)) return match;
-            const nextAttributes = /\\bclass="/.test(attributes)
-              ? attributes.replace(/class="([^"]*)"/, 'class="$1 first-answer-hashtag"')
-              : `${attributes} class="analysis-hashtag"`;
-            return `<span${nextAttributes}>${tagText}</span>`;
-          });
-        };
-
         let charIdx = 0;
-        const chunkSize = 1;
+        const chunkSize = 3;
 
-        // 최종 색상 규칙을 타이핑 중에도 매 글자마다 적용한다.
+        // 분석 본문은 모두 같은 타이핑 연출을 사용한다.
         function typeChunk() {
           if (requestId !== activeAnalysisRequestId) return;
           if (charIdx < text.length) {
-            charIdx += chunkSize;
-            const visibleText = text.slice(0, charIdx);
-            pEl.innerHTML = formatAnalysisText(visibleText);
-            const chunk = visibleText.slice(-chunkSize);
+            const chunk = text.substr(charIdx, chunkSize);
+            pEl.textContent += chunk;
+            charIdx += chunk.length;
             const pause = /[.!?…]$/.test(chunk) ? 180 : (/\n$/.test(chunk) ? 120 : 40);
             setTimeout(typeChunk, pause);
-            return;
-          }
+          } else {
+            pEl.classList.remove('typing-cursor');
+            let formatted = pEl.textContent;
 
-          pEl.classList.remove('typing-cursor');
-          pEl.innerHTML = formatAnalysisText(text).trim();
+            try {
+              // 1. 실적 종목명(#오라클, #어도비 등) -> 핑크
+              formatted = formatted.replace(/(#(?:오라클|어도비|엔비디아|테슬라|애플|구글|마이크로소프트|아마존|메타|일라이릴리))/g, '<span class="font-bold" style="color: #FF8DA1;">$1</span>');
 
-          if (secIdx === 0) {
-            const actions = appendFirstReplyActions(pEl, pEl.innerText);
-            appendNextAnalysisChoices(actions);
-            return;
-          }
+              // 2. 경제 지표(#PPI, #CPI, #FOMC, #PCE, #NFP) -> 블루
+              formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
 
-          secIdx++;
-          if (requestId === activeAnalysisRequestId) {
-            setTimeout(typeNextSection, 50);
+              // 5. 첫 섹션 태그 라인 오류 완전 해결
+              if (formatted.includes('#') && !formatted.includes('캘린더')) {
+                // HTML 변환 뒤의 문자열에는 class/style의 '-'도 들어가므로,
+                // HTML 문자열이 아니라 실제 답변 텍스트를 기준으로 방향을 판단한다.
+                const directionText = pEl.textContent || formatted;
+                const isDown = /(?:^|\\n).*-(?:\\d+(?:\\.\\d+)?%)|보합|눈치싸움|파란불|숨고르기|투매/.test(directionText);
+                const themeColor = isDown ? '#38BDF8' : '#FF8DA1';
+                
+                let lines = formatted.split('\n\n');
+                if (lines.length > 0) {
+                  let lastLine = lines[lines.length - 1];
+                  // HTML 태그(<span ...>)가 이미 들어간 경우 순수 텍스트만 뽑아서 다시 색을 칠함
+                  if (lastLine.includes('#') && lastLine.includes('<span')) {
+                     // 1. 임시 div를 만들어 HTML 태그를 모두 벗겨냄
+                     let tempDiv = document.createElement('div');
+                     tempDiv.innerHTML = lastLine;
+                     let rawText = tempDiv.textContent || tempDiv.innerText || "";
+                     
+                     // 2. 벗겨낸 순수 텍스트(예: #엔비디아 #-2.01% #숨고르기 #버텨보자)를 단어별로 다시 칠함
+                     const words = rawText.split(/\s+/);
+                     const newWords = words.map(w => {
+                       if (w.startsWith('#')) {
+                         let color = themeColor;
+                         if (w.includes('+')) color = '#FF8DA1';
+                         else if (w.includes('-')) color = '#38BDF8';
+                         return `<span class="font-bold" style="color: ${color};">${w}</span>`;
+                       }
+                       return w;
+                     });
+                     lines[lines.length - 1] = newWords.join(' ');
+                     formatted = lines.join('\n\n');
+                  } else if (lastLine.includes('#')) {
+                     // HTML 태그가 없을 땐 기존 방식대로 처리
+                     const words = lastLine.split(/\s+/);
+                     const newWords = words.map(w => {
+                       if (w.startsWith('#')) {
+                         let color = themeColor;
+                         if (w.includes('+')) color = '#FF8DA1';
+                         else if (w.includes('-')) color = '#38BDF8';
+                         return `<span class="font-bold" style="color: ${color};">${w}</span>`;
+                       }
+                       return w;
+                     });
+                     lines[lines.length - 1] = newWords.join(' ');
+                     formatted = lines.join('\n\n');
+                  }
+                }
+              }
+
+              // 6. 본문 텍스트 내 등락률 (-0.19%, +8.26% 등)
+              formatted = formatted.replace(/(?:\s|^)([+-]\d+(?:\.\d+)?%)/g, function(match, p1) {
+                const color = p1.startsWith('+') ? '#FF8DA1' : '#38BDF8';
+                return match.replace(p1, `<span class="font-bold" style="color: ${color};">${p1}</span>`);
+              });
+
+            } catch (err) {
+              console.warn("치환 예외 안전 무시:", err);
+            }
+
+            // 뉴스/공시는 본문에 다시 렌더링하지 않는다.
+            // 기존 백엔드가 남긴 레거시 📰/📌 줄만 안전하게 제거하고,
+            // 실제 뉴스/공시는 renderSourceLists()에서 한 번만 표시한다.
+              formatted = formatted
+                .replace(/(^|\n)\s*[📰📌][^\n]*(?=\n|$)/g, '$1')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+
+            // 첫 답변 안의 해시태그도 2단계와 같은 14px 기준으로 고정한다.
+            formatted = formatted.replace(/<span([^>]*)>(#[^<]+)<\/span>/g, (match, attributes, tagText) => {
+              const nextAttributes = /\bclass="/.test(attributes)
+                ? attributes.replace(/class="([^"]*)"/, 'class="$1 first-answer-hashtag"')
+                : `${attributes} class="analysis-hashtag"`;
+              return `<span${nextAttributes}>${tagText}</span>`;
+            });
+
+            pEl.innerHTML = formatted;
+
+            // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
+            // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
+            if (secIdx === 0) {
+              const actions = appendFirstReplyActions(pEl, pEl.innerText);
+              appendNextAnalysisChoices(actions);
+              return;
+            }
+
+            secIdx++;
+            if (requestId === activeAnalysisRequestId) {
+              setTimeout(typeNextSection, 50);
+            }
           }
         }
         typeChunk();
