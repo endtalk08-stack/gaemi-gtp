@@ -1,0 +1,254 @@
+/* Central chat sketch pad only. */
+
+.sketch-pad-message {
+  width: 100%;
+  min-width: 0;
+  animation: sketchPadPop .18s cubic-bezier(.2, .8, .2, 1);
+}
+
+@keyframes sketchPadPop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.sketch-pad-card {
+  width: 100%;
+  min-width: 0;
+  color: var(--gtp-text);
+  user-select: none;
+}
+
+.sketch-pad-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sketch-pad-title {
+  margin: 0;
+  color: var(--gtp-text);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+}
+
+.sketch-pad-subtitle {
+  margin: 3px 0 0;
+  color: var(--gtp-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.sketch-pad-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 10px;
+  padding: 7px;
+  overflow-x: auto;
+  border: 1px solid var(--gtp-border);
+  border-radius: 13px;
+  background: var(--gtp-surface);
+}
+
+.sketch-pad-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.sketch-pad-tool,
+.sketch-pad-icon {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--gtp-muted);
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease;
+}
+
+.sketch-pad-tool {
+  padding: 0 10px;
+}
+
+.sketch-pad-icon {
+  width: 34px;
+  padding: 0;
+}
+
+.sketch-pad-tool:hover,
+.sketch-pad-icon:hover,
+.sketch-pad-tool.is-active {
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
+}
+
+.sketch-pad-tool svg,
+.sketch-pad-icon svg,
+.sketch-pad-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.sketch-pad-colors {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 0 4px;
+}
+
+.sketch-pad-color {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--sketch-color);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+  cursor: pointer;
+}
+
+.sketch-pad-color.is-active {
+  border-color: var(--gtp-text);
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+.sketch-pad-size {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px;
+  color: var(--gtp-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sketch-pad-size input {
+  width: 78px;
+  accent-color: currentColor;
+}
+
+.sketch-pad-tool:focus-visible,
+.sketch-pad-icon:focus-visible,
+.sketch-pad-color:focus-visible,
+.sketch-pad-size input:focus-visible,
+.sketch-pad-button:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.sketch-pad-canvas-wrap {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--gtp-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.sketch-pad-canvas {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  background: #fff;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.sketch-pad-canvas.is-erasing {
+  cursor: cell;
+}
+
+.sketch-pad-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.sketch-pad-button {
+  height: 38px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, opacity .16s ease, transform .16s ease;
+}
+
+.sketch-pad-button:active {
+  transform: translateY(1px);
+}
+
+.sketch-pad-button--quiet {
+  border: 1px solid var(--gtp-border);
+  background: transparent;
+  color: var(--gtp-muted);
+}
+
+.sketch-pad-button--quiet:hover {
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
+}
+
+.sketch-pad-button--primary {
+  border: 1px solid var(--gtp-border-strong);
+  background: var(--gtp-text);
+  color: var(--gtp-surface);
+}
+
+.sketch-pad-button--primary:hover {
+  opacity: .9;
+}
+
+@media (max-width: 520px) {
+  .sketch-pad-toolbar {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .sketch-pad-tool {
+    padding: 0 8px;
+  }
+
+  .sketch-pad-tool span {
+    display: none;
+  }
+
+  .sketch-pad-size span {
+    display: none;
+  }
+
+  .sketch-pad-size input {
+    width: 70px;
+  }
+
+  .sketch-pad-canvas-wrap {
+    border-radius: 12px;
+  }
+}
