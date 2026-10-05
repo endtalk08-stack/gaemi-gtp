@@ -107,7 +107,7 @@
       line-height: 1.4; display: -webkit-box;
       -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
     }
-    .dark .source-list-title { color: #e4e4e7; }
+    .dark .source-list-title { color: var(--gtp-text-2); }
     .source-list-meta { margin-top: 3px; color: var(--gtp-faint); font-size: var(--gtp-type-fine); font-weight: var(--gtp-weight-meta); }
     .source-list-arrow { flex: 0 0 auto; width: 16px; height: 16px; color: #71717a; }
 
