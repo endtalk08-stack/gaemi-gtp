@@ -157,6 +157,7 @@
 
   const toggleMenu = () => {
     const shouldOpen = menu.hidden;
+    if (shouldOpen) document.getElementById('bottomModeMenu')?.classList.add('hidden');
     menu.hidden = !shouldOpen;
     trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
     if (shouldOpen) openButton.focus();
