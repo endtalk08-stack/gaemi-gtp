@@ -941,106 +941,163 @@ def _related_stock_entities(item):
 
 
 def build_connected_keyword_test(items, stock_name, max_keywords=1):
-    """Extract one conservative issue keyword from each stock-related article.
+    """Pick one grounded, stock-relevant representative keyword per article.
 
-    The input is intentionally limited to the existing Naver title+description.
-    This is an issue extractor, not a full article-understanding engine: prefer
-    a phrase that is visibly present in the text and skip ambiguous articles.
+    News collection/scoring stays upstream.  This function intentionally avoids
+    the old large candidate-expansion pipeline: title is the primary semantic
+    frame, description only confirms/supports it, and no extra network work is
+    performed here.
     """
+    import re
+
     aliases = _stock_aliases(stock_name)
     results = []
 
-    # Reusable issue heads, not stock-specific finished keywords.
-    issue_heads = (
-        "목표주가", "목표가", "투자의견", "가이던스", "영업이익", "영업익", "순이익",
-        "매출", "인도량", "판매량", "판매", "출하량", "점유율", "수요", "공급",
-        "생산능력", "생산", "수주잔고", "수주", "자사주", "배당", "데이터센터",
-        "HBM", "D램", "낸드", "반도체", "하이브리드", "전기차", "배터리", "임상",
-        "FDA", "공장", "지분", "수출", "수입", "실적",
+    # High-information phrases first.  These are reusable event meanings, not
+    # stock-specific mappings.  Longer/more specific evidence wins naturally.
+    phrase_rules = (
+        ("목표가상향", ("목표주가 상향", "목표가 상향")),
+        ("목표가하향", ("목표주가 하향", "목표가 하향")),
+        ("투자의견상향", ("투자의견 상향", "의견 상향")),
+        ("투자의견하향", ("투자의견 하향", "의견 하향")),
+        ("예상치상회", ("예상치 상회", "예상을 상회", "컨센서스 상회", "시장 예상 상회")),
+        ("예상치하회", ("예상치 하회", "예상을 하회", "컨센서스 하회", "시장 예상 하회")),
+        ("호실적", ("호실적", "어닝 서프라이즈", "실적 서프라이즈")),
+        ("어닝쇼크", ("어닝 쇼크", "실적 쇼크")),
+        ("실적전망상향", ("실적 전망 상향", "가이던스 상향")),
+        ("실적전망하향", ("실적 전망 하향", "가이던스 하향")),
+        ("매출성장세", ("매출 성장세", "매출 성장")),
+        ("판매반등", ("판매 반등", "판매 회복")),
+        ("인도량예상치상회", ("인도량 예상치 상회", "인도량이 예상치를 상회")),
+        ("차익실현", ("차익 실현", "차익실현")),
+        ("주가반응부진", ("주가 반응 부진", "주가반응 부진")),
+        ("수주확대", ("수주 확대", "수주 증가")),
+        ("대형수주", ("대형 수주",)),
+        ("공급계약", ("공급 계약", "공급계약")),
+        ("계약해지", ("계약 해지", "공급계약 해지")),
+        ("생산확대", ("생산 확대", "생산능력 확대", "생산 능력 확대")),
+        ("생산중단", ("생산 중단", "가동 중단")),
+        ("투자확대", ("투자 확대",)),
+        ("수요급증", ("수요 급증",)),
+        ("수요둔화", ("수요 둔화",)),
+        ("공급부족", ("공급 부족",)),
+        ("공급과잉우려", ("공급과잉 우려", "공급 과잉 우려")),
+        ("가격인상", ("가격 인상", "단가 인상")),
+        ("가격인하", ("가격 인하", "단가 인하")),
+        ("점유율확대", ("점유율 확대", "점유율 상승")),
+        ("자사주매입", ("자사주 매입", "자기주식 취득")),
+        ("자사주소각", ("자사주 소각", "자기주식 소각")),
+        ("배당확대", ("배당 확대", "배당 증액")),
+        ("FDA승인", ("FDA 승인",)),
+        ("FDA승인거절", ("FDA 승인 거절", "FDA 승인 반려")),
+        ("임상3상성공", ("임상 3상 성공", "3상 임상 성공")),
+        ("임상실패", ("임상 실패", "임상시험 실패")),
+        ("사상최고가돌파", ("사상 최고가 돌파", "사상 최고 돌파", "역대 최고가 돌파")),
+        ("AI데이터센터", ("AI 데이터센터", "AI 데이터 센터")),
     )
-    issue_events = (
-        ("자사주", r"매입|취득", "자사주매입"),
-        ("자사주", r"소각", "자사주소각"),
-        ("목표주가", r"상향|올렸|올려", "목표주가상향"),
-        ("목표가", r"상향|올렸|올려", "목표가상향"),
-        ("목표주가", r"하향|내렸|낮췄", "목표주가하향"),
-        ("목표가", r"하향|내렸|낮췄", "목표가하향"),
+
+    # Compact event fallback.  It only joins nearby words already present in
+    # the article, preventing malformed long-distance joins such as 특AI개발.
+    event_words = (
+        "상향", "하향", "상회", "하회", "반등", "회복", "급증", "급감",
+        "확대", "축소", "증가", "감소", "개선", "악화", "돌파", "수주",
+        "계약", "승인", "거절", "출시", "양산", "중단", "인수", "매각",
     )
-    direction_map = (
-        (r"급증|대폭\s*증가|크게\s*늘", "급증"),
-        (r"반등|회복", "반등"),
-        (r"증가|늘었|늘어|확대", "증가"),
-        (r"급감|대폭\s*감소|크게\s*줄", "급감"),
-        (r"감소|줄었|줄어|축소", "감소"),
-        (r"상회|웃돌|넘어서|넘었", "상회"),
-        (r"하회|밑돌|못\s*미쳐", "하회"),
-    )
-    junk = {
-        "시장", "기업", "주식", "관련", "전망", "기대", "가능성", "관심", "분석", "평가",
-        "지난", "이어", "이후", "앞서", "최근", "올해", "지난해", "가격",
+    broad_only = {
+        "시장", "투자", "기술", "AI", "반도체", "메모리", "수요", "공급",
+        "가격", "주식", "기업",
     }
+    negation_words = ("아니다", "아니라", "아닌", "없다", "없어", "부인")
 
     def compact(value):
-        return re.sub(r"\s+", "", str(value or "").strip())
+        return re.sub(r"\\s+", "", str(value or "").strip())
 
-    def contains_selected(text):
-        lower = str(text or "").lower()
+    def selected_stock_is_present(text):
+        lower = text.lower()
         return any(alias and alias in lower for alias in aliases)
 
-    def clauses(text):
-        return [p.strip() for p in re.split(r"[.!?。;]|(?<=다),\s+", str(text or "")) if p.strip()]
+    def other_company_owns_phrase(text, phrase):
+        """Conservative guard for evaluative/result phrases in multi-company news."""
+        lower = text.lower()
+        pos = lower.find(phrase.lower())
+        if pos < 0:
+            return False
+        nearest = []
+        for market_stocks in STOCK_UNIVERSE.values():
+            for canonical, entity_aliases in market_stocks.items():
+                for name in (canonical, *(entity_aliases or [])):
+                    token = str(name or "").strip().lower()
+                    if not token:
+                        continue
+                    p = lower.rfind(token, 0, pos + 1)
+                    if p >= 0:
+                        nearest.append((pos - p, canonical))
+        if not nearest:
+            return False
+        nearest.sort(key=lambda pair: pair[0])
+        return compact(nearest[0][1]).lower() != compact(stock_name).lower()
 
-    def clean_company(text):
-        out = str(text or "")
+    def find_rule(text, require_stock_context=False):
+        lower = text.lower()
+        if require_stock_context and not selected_stock_is_present(text):
+            return None
+        for label, phrases in phrase_rules:
+            for phrase in phrases:
+                p = lower.find(phrase.lower())
+                if p < 0:
+                    continue
+                tail = lower[p + len(phrase):p + len(phrase) + 16]
+                if any(word in tail for word in negation_words):
+                    continue
+                if label in {
+                    "호실적", "어닝쇼크", "예상치상회", "예상치하회",
+                    "매출성장세", "판매반등", "주가반응부진",
+                } and other_company_owns_phrase(text, phrase):
+                    continue
+                return {
+                    "label": label,
+                    "source": "title-rule" if text is title else "description-rule",
+                    "evidence": phrase,
+                    "priority": 100 if text is title else 60,
+                }
+        return None
+
+    def fallback_from_title(text):
+        # Strip the selected stock name before looking for the local event phrase.
+        work = text
         for alias in sorted(aliases, key=len, reverse=True):
             if alias:
-                out = re.sub(re.escape(alias), " ", out, flags=re.IGNORECASE)
-        return out
-
-    def phrase_candidates(clause, source):
-        if not contains_selected(clause):
-            return []
-        text = clean_company(clause)
-        found = []
-
-        # A few universally unambiguous issue phrases can be normalized safely.
-        for head, event_pattern, label in issue_events:
-            m = re.search(rf"{re.escape(head)}.{{0,8}}(?:{event_pattern})", text, flags=re.IGNORECASE)
-            if m:
-                found.append((95 if source == "title-issue" else 75, label, m.group(0)))
-
-        # Prefer an issue phrase that already exists around a known business head.
-        for head in issue_heads:
-            for hm in re.finditer(re.escape(head), text, flags=re.IGNORECASE):
-                left = text[max(0, hm.start() - 16):hm.start()]
-                right = text[hm.end():min(len(text), hm.end() + 18)]
-                modifier = ""
-                tokens = re.findall(r"[A-Za-z0-9가-힣]+", left)
-                if tokens:
-                    token = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만|부터|까지)$", "", tokens[-1])
-                    if (
-                        1 < len(token) <= 12
-                        and token not in junk
-                        and not re.fullmatch(r"\d+(?:\.\d+)?(?:년|월|분기|개월|일|%|배|원|달러)?", token)
-                    ):
-                        modifier = token
-
-                direction = ""
-                for pattern, normalized in direction_map:
-                    if re.search(pattern, right, flags=re.IGNORECASE):
-                        direction = normalized
-                        break
-
-                # The issue itself is useful even without a direction.  Add a
-                # modifier only when it is literally adjacent context.
-                base = f"{modifier}{head}" if modifier and modifier.lower() not in head.lower() else head
-                label = compact(f"{base}{direction}")
-                if label in junk or len(label) < 2 or len(label) > 22:
+                work = re.sub(re.escape(alias), " ", work, flags=re.IGNORECASE)
+        clauses = [p.strip() for p in re.split(r"[|·…,:;!?]+", work) if p.strip()]
+        for clause in clauses:
+            tokens = re.findall(r"[A-Za-z0-9가-힣%]+", clause)
+            if not tokens:
+                continue
+            for i, token in enumerate(tokens):
+                action = next((word for word in event_words if word in token), "")
+                if not action:
                     continue
-                score = (70 if source == "title-issue" else 48) + (12 if direction else 0) + (5 if modifier else 0)
-                found.append((score, label, text[max(0, hm.start()-16):min(len(text), hm.end()+18)].strip()))
-
-        return found
+                left = tokens[max(0, i - 2):i]
+                subject = next(
+                    (
+                        re.sub(r"(은|는|이|가|을|를|의|로|으로|에|서|와|과)$", "", value)
+                        for value in reversed(left)
+                        if 1 < len(value) <= 12
+                    ),
+                    "",
+                )
+                label = compact(f"{subject}{action}" if subject else action)
+                if not label or label in broad_only or len(label) < 3:
+                    continue
+                if label.startswith(("특AI", "시장개인", "기술AI")):
+                    continue
+                return {
+                    "label": label,
+                    "source": "title-event",
+                    "evidence": clause,
+                    "priority": 50,
+                }
+        return None
 
     for item in items or []:
         title = str(item.get("title") or "").strip()
@@ -1049,31 +1106,19 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
             continue
 
         stock_entities = _related_stock_entities(item)
-        candidates = []
-        for clause in clauses(title):
-            candidates.extend(phrase_candidates(clause, "title-issue"))
-        for clause in clauses(description):
-            candidates.extend(phrase_candidates(clause, "description-issue"))
+        representative = find_rule(title)
+        if representative is None:
+            representative = find_rule(description, require_stock_context=True)
+        if representative is None and selected_stock_is_present(title):
+            representative = fallback_from_title(title)
 
-        best = {}
-        for score, label, evidence in candidates:
-            if label not in best or score > best[label][0]:
-                best[label] = (score, evidence)
-        ranked = sorted(
-            ({"label": label, "score": score, "evidence": evidence, "role": "issue"}
-             for label, (score, evidence) in best.items()),
-            key=lambda row: row["score"],
-            reverse=True,
-        )
-        representative = ranked[0] if ranked else None
-
+        selected = [representative] if representative else []
         results.append({
             "title": title,
             "description": description,
-            "candidate_keywords": [row["label"] for row in ranked[:3]],
-            "semantic_axes": ranked[:3],
+            "candidate_keywords": [representative["label"]] if representative else [],
             "keywords": [representative["label"]] if representative else [],
-            "keyword_details": [representative] if representative else [],
+            "keyword_details": selected,
             "stock_entities": stock_entities,
             "enough_evidence": bool(representative),
             "status": "PASS" if representative else "SKIP",
