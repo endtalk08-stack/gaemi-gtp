@@ -35,7 +35,7 @@ window.GaemiGTPNews.renderArticles = async function ({
               articles.forEach((item) => {
                 const row = document.createElement('button');
                 row.type = 'button';
-                row.className = 'block w-full text-left leading-5 sm:leading-6 text-[#475569] hover:text-[#0f172a] dark:text-[#d4d4d8] dark:hover:text-white line-clamp-1 cursor-pointer';
+                row.className = 'block w-full text-left leading-5 sm:leading-6 text-[#475569] hover:text-[#0f172a] dark:text-[#d4d4d8] gtp-dark-hover-text line-clamp-1 cursor-pointer';
                 row.classList.add(...String(responseMessageClass || '').split(/\s+/).filter(Boolean));
                 row.style.fontSize = window.matchMedia('(min-width: 640px)').matches ? '1rem' : '13px';
                 row.dataset.typingText = item.title || '제목 확인 필요';
