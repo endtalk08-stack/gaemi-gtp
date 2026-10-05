@@ -19,7 +19,7 @@ window.GaemiGTPSourceLists.renderSourceLists = function(result, { includeHeader 
       header.className = 'flex items-center gap-2.5';
       header.innerHTML = `
         <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
-        <h4 class="font-black text-lg sm:text-xl text-[#0f172a] dark:text-white">재료는 있어?</h4>
+        <h4 class="font-black text-lg sm:text-xl text-[#0f172a] gtp-dark-text">재료는 있어?</h4>
       `;
       if (includeHeader) wrap.appendChild(header);
 
