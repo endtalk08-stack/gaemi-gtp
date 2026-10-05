@@ -30,8 +30,8 @@
   --gtp-surface: #18191d;
   --gtp-surface-2: #202228;
   --gtp-surface-3: #23252b;
-  --gtp-text: #f4f4f5;
-  --gtp-text-2: #d4d4d8;
+  --gtp-text: #e4e4e7;
+  --gtp-text-2: #c4c4cc;
   --gtp-muted: #a1a1aa;
   --gtp-faint: #71717a;
   --gtp-border: #27272a;
@@ -68,3 +68,31 @@ html, body {
 .theme-text { color: var(--gtp-text); }
 .theme-muted { color: var(--gtp-muted); }
 .theme-faint { color: var(--gtp-faint); }
+
+
+/* Dark text tone contract.
+   Main app text uses softened neutral tones instead of pure white.
+   New code should prefer the theme tokens/classes below. */
+.dark .gtp-dark-text { color: var(--gtp-text) !important; }
+.dark .gtp-dark-hover-text:hover { color: var(--gtp-text) !important; }
+.theme-text-2 { color: var(--gtp-text-2); }
+
+/* Compatibility bridge for existing Tailwind dark:text-white utilities
+   inside the three primary app surfaces. */
+.dark #leftSidebarHome [class~="dark:text-white"],
+.dark #leftMarketSidebar [class~="dark:text-white"],
+.dark #leftContextSidebar [class~="dark:text-white"],
+.dark #leftPluginSidebar [class~="dark:text-white"],
+.dark #mainContent [class~="dark:text-white"],
+.dark #rightPanel [class~="dark:text-white"] {
+  color: var(--gtp-text) !important;
+}
+
+.dark #leftSidebarHome [class~="dark:hover:text-white"]:hover,
+.dark #leftMarketSidebar [class~="dark:hover:text-white"]:hover,
+.dark #leftContextSidebar [class~="dark:hover:text-white"]:hover,
+.dark #leftPluginSidebar [class~="dark:hover:text-white"]:hover,
+.dark #mainContent [class~="dark:hover:text-white"]:hover,
+.dark #rightPanel [class~="dark:hover:text-white"]:hover {
+  color: var(--gtp-text) !important;
+}
