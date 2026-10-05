@@ -33,8 +33,7 @@
 .stock-tools-menu__item:focus-visible,
 .stock-calculator-tab:focus-visible,
 .stock-calculator-input:focus-visible,
-.stock-calculator-action:focus-visible,
-.stock-calculator-copy:focus-visible {
+.stock-calculator-action:focus-visible {
   outline: 2px solid #38bdf8;
   outline-offset: 2px;
 }
@@ -278,23 +277,6 @@
   color: var(--gtp-muted);
   font-size: 12px;
   font-weight: 750;
-}
-
-.stock-calculator-copy {
-  height: 30px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--gtp-muted);
-  font-size: 11px;
-  font-weight: 750;
-  cursor: pointer;
-}
-
-.stock-calculator-copy:hover {
-  background: var(--gtp-hover);
-  color: var(--gtp-text);
 }
 
 .stock-calculator-result-row {
