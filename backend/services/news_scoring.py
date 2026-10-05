@@ -1029,32 +1029,68 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
 
     def object_of(clause, event_match):
         before = clause[:event_match.start()] if event_match else clause
-        # Prefer known investment objects nearest to the event.
-        found = []
-        for hint in object_hints:
-            for match in re.finditer(re.escape(hint), before, flags=re.IGNORECASE):
-                found.append((match.start(), hint))
-        if found:
-            _, obj = max(found, key=lambda pair: pair[0])
-            # Add a useful geographic/product context only when it is close to
-            # the object, producing e.g. 유럽판매반등 rather than 판매반등.
-            obj_pos = before.lower().rfind(obj.lower())
-            prefix = before[max(0, obj_pos - 12):obj_pos]
-            context = next(
-                (hint for hint in context_hints if hint.lower() in prefix.lower() and hint.lower() not in obj.lower()),
-                "",
-            )
-            return f"{context}{obj}" if context else obj
+        clean_before = strip_company(before)
 
-        # Novel object fallback: use the nearest short noun-like token, but
-        # reject generic market prose.  This is what lets unseen events work
-        # without pre-registering a finished keyword.
-        tokens = re.findall(r"[A-Za-z0-9가-힣]+", strip_company(before))
-        for token in reversed(tokens[-4:]):
+        # Score every plausible head instead of blindly taking the nearest one.
+        # This keeps the engine stock-agnostic while preserving the semantic
+        # object that the event actually changes (판매/수요/매출/모델...).
+        candidates = []
+        for hint in object_hints:
+            for match in re.finditer(re.escape(hint), clean_before, flags=re.IGNORECASE):
+                distance = max(0, len(clean_before) - match.end())
+                score = 40 - min(distance, 30)
+                if hint in {"판매", "판매량", "매출", "인도량", "수요", "점유율", "출하량", "영업이익", "순이익"}:
+                    score += 8
+                candidates.append((score, match.start(), hint))
+
+        tokens = list(re.finditer(r"[A-Za-z0-9가-힣]+", clean_before))
+        for match in tokens[-6:]:
+            token = match.group(0)
             clean = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만)$", "", token)
-            if 1 < len(clean) <= 14 and clean not in stop_objects and not re.fullmatch(r"\d+", clean):
-                return clean
-        return ""
+            if not (1 < len(clean) <= 14) or clean in stop_objects or re.fullmatch(r"\d+", clean):
+                continue
+            distance = max(0, len(clean_before) - match.end())
+            score = 18 - min(distance, 15)
+            # Grammatical subject/object markers are useful evidence that this
+            # noun is the head affected by the following event.
+            tail = clean_before[match.end():match.end() + 3]
+            if re.match(r"^(이|가|은|는|을|를)", tail):
+                score += 8
+            # Adverbial/history fragments are poor heads even when close.
+            if clean in {"사상", "역대", "최근", "올해", "지난해", "전년", "전월"}:
+                score -= 20
+            candidates.append((score, match.start(), clean))
+
+        if not candidates:
+            return ""
+
+        _, obj_pos, obj = max(candidates, key=lambda row: (row[0], row[1]))
+
+        # Preserve a nearby geographic/product qualifier.  This is generic
+        # composition, not a finished-keyword dictionary.
+        prefix = clean_before[max(0, obj_pos - 14):obj_pos]
+        context = next(
+            (
+                hint for hint in context_hints
+                if hint.lower() in prefix.lower() and hint.lower() not in obj.lower()
+            ),
+            "",
+        )
+
+        # If a novel product/category directly modifies a semantic head such as
+        # 수요/판매/매출, keep it too: "세단 수요 증가" -> 세단수요증가.
+        if obj in {"수요", "판매", "판매량", "매출", "인도량", "출하량", "점유율"}:
+            prefix_tokens = re.findall(r"[A-Za-z0-9가-힣]+", prefix)
+            modifier = ""
+            for token in reversed(prefix_tokens[-2:]):
+                clean = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만)$", "", token)
+                if 1 < len(clean) <= 12 and clean not in stop_objects and clean not in context_hints:
+                    modifier = clean
+                    break
+            if modifier and modifier.lower() not in obj.lower():
+                obj = f"{modifier}{obj}"
+
+        return f"{context}{obj}" if context else obj
 
     def semantic_candidate(clause, source):
         if not contains_selected(clause):
