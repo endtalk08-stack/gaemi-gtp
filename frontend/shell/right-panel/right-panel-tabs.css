@@ -18,12 +18,12 @@
 .right-panel-workspace-menu-wrap { position: relative; flex: 0 0 auto; }
 .right-panel-tab-add { width: 30px; height: 30px; margin-left: 1px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--gtp-faint); cursor: pointer; transition: background .15s ease, color .15s ease; }
 .right-panel-tab-add:hover { color: var(--gtp-text); background: var(--gtp-active); }
-.right-panel-tab-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; width: 180px; padding: 6px; border: 0; border-radius: 10px; background: var(--gtp-surface-2); box-shadow: 0 14px 30px rgba(15, 23, 42, .16); }
-.right-panel-workspace-menu { left: 0; right: auto; width: 150px; }
+.right-panel-tab-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; width: 176px; padding: 6px; border: 1px solid var(--gtp-border-strong); border-radius: 12px; background: var(--gtp-surface-2); box-shadow: var(--gtp-shadow); font-family: var(--gtp-font-family); }
+.right-panel-workspace-menu { left: 0; right: auto; width: 176px; }
 .right-panel-tab-menu[hidden] { display: none !important; }
 .right-panel-tab-menu__section { padding: 6px 8px 4px; color: var(--gtp-faint); font-size: var(--gtp-type-fine); font-weight: var(--gtp-weight-title); }
-.right-panel-tab-menu__item { width: 100%; min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--gtp-text-2); font-size: var(--gtp-type-meta); font-weight: var(--gtp-weight-title); text-align: left; cursor: pointer; }
-.right-panel-tab-menu__item:hover { background: var(--gtp-hover); color: var(--gtp-text); }
+.right-panel-tab-menu__item { width: 100%; min-height: 42px; display: flex; align-items: center; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--gtp-text-2); font: inherit; font-size: var(--gtp-type-title); font-weight: var(--gtp-weight-title); letter-spacing: -0.015em; text-align: left; cursor: pointer; }
+.right-panel-tab-menu__item:hover { background: var(--gtp-surface-3); color: var(--gtp-text); }
 .right-panel-tab-menu__item svg { width: 14px; height: 14px; flex: 0 0 auto; }
 .right-panel-tab-menu__item--delete { justify-content: space-between; }
 .right-panel-tab-menu__empty { padding: 7px 8px; color: var(--gtp-faint); font-size: var(--gtp-type-fine); font-weight: var(--gtp-weight-meta); }
