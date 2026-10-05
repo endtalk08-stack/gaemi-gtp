@@ -89,6 +89,36 @@
   font-weight: 600;
 }
 
+.chat-tool-close {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--gtp-muted);
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease;
+}
+
+.chat-tool-close:hover {
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
+}
+
+.chat-tool-close:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.chat-tool-close svg {
+  width: 16px;
+  height: 16px;
+}
+
 @media (max-width: 520px) {
   .stock-tools-menu {
     width: min(230px, calc(100vw - 32px));
