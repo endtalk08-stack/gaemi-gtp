@@ -62,22 +62,6 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   background: var(--gtp-hover);
 }
 
-.left-sidebar-home__brand-mark {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--gtp-border-strong);
-  border-radius: 8px;
-  background: var(--gtp-surface);
-  color: var(--gtp-text);
-  font-size: 13px;
-  font-weight: 850;
-  letter-spacing: -0.04em;
-}
-
 .left-sidebar-home__title {
   min-width: 0;
   overflow: hidden;
