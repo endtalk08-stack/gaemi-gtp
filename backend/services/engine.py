@@ -167,7 +167,6 @@ _SEC_SINGLEFLIGHT_LOCKS = {}
 _SINGLEFLIGHT_LOCK_GUARD = threading.Lock()
 _DART_CORP_LOCK = threading.Lock()
 DART_RECEIPT_TIME_CACHE = {}
-DART_CORP_REDIS_KEY_PREFIX = "gaemiGTP:dart:corp:v1:"
 
 def _get_singleflight_lock(lock_map, key):
     with _SINGLEFLIGHT_LOCK_GUARD:
@@ -244,47 +243,12 @@ def _fetch_dart_corp_map_uncached():
 
         DART_CORP_CACHE["ts"] = now
         DART_CORP_CACHE["map"] = mapping
-        _save_dart_corp_map_to_persistent_cache(mapping)
         print(f"[국내 공시] DART 기업코드 매핑 완료: {len(mapping)}개")
         return mapping
 
     except Exception as e:
         print(f"[국내 공시] 기업코드 조회 실패: {type(e).__name__}: {e}")
         return {}
-
-
-def _save_dart_corp_map_to_persistent_cache(mapping):
-    """전체 DART 매핑을 만든 시점에 종목별 corp_code를 Upstash에 영속 저장한다."""
-    if not mapping or not CALENDAR_REDIS_URL or not CALENDAR_REDIS_TOKEN:
-        return 0
-
-    saved = 0
-    # Upstash REST pipeline으로 한 요청에 묶어 저장한다.
-    commands = []
-    for stock_code, corp_code in mapping.items():
-        key = DART_CORP_REDIS_KEY_PREFIX + str(stock_code).strip()
-        value = str(corp_code).strip()
-        if key and value:
-            commands.append(["SET", key, value])
-
-    try:
-        url = CALENDAR_REDIS_URL.rstrip("/") + "/pipeline"
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(commands, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {CALENDAR_REDIS_TOKEN}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            resp.read()
-        saved = len(commands)
-        print(f"[국내 공시] corp_code Redis 저장 완료: {saved}개")
-    except Exception as exc:
-        print(f"[국내 공시] corp_code Redis 저장 실패: {type(exc).__name__}: {exc}")
-    return saved
 
 
 def warm_dart_corp_cache():
@@ -307,41 +271,17 @@ def start_dart_corp_warmup():
     thread.start()
 
 
-def _load_dart_corp_code_from_persistent_cache(stock_code):
-    """이미 저장된 종목별 DART corp_code만 읽는다. /analyze에서는 전체 XML을 만들지 않는다."""
-    stock_code = str(stock_code or "").strip()
-    if not stock_code:
-        return ""
-    if CALENDAR_REDIS_URL and CALENDAR_REDIS_TOKEN:
-        try:
-            key = urllib.parse.quote(DART_CORP_REDIS_KEY_PREFIX + stock_code, safe="")
-            url = CALENDAR_REDIS_URL.rstrip("/") + "/get/" + key
-            req = urllib.request.Request(
-                url,
-                headers={"Authorization": f"Bearer {CALENDAR_REDIS_TOKEN}"},
-            )
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            value = str(data.get("result") or "").strip()
-            if value:
-                return value
-        except Exception as exc:
-            print(f"[국내 공시] corp_code persistent cache read skipped: {type(exc).__name__}: {exc}")
-    return ""
-
-
 def fetch_dart_corp_code(stock_code):
-    """분석 hot path용: 메모리/영속 캐시에 이미 있는 단일 corp_code만 반환한다."""
+    """분석용: 현재 프로세스 메모리의 DART 기업코드만 사용한다."""
     stock_code = str(stock_code or "").strip()
     if not OPENDART_API_KEY or not stock_code:
         return ""
     cached = DART_CORP_CACHE["map"].get(stock_code)
     if cached:
         return cached
-    corp_code = _load_dart_corp_code_from_persistent_cache(stock_code)
-    if corp_code:
-        DART_CORP_CACHE["map"][stock_code] = corp_code
-    return corp_code
+    # 영속 저장소를 사용하지 않는다. 필요하면 OpenDART 원본에서 메모리 맵만 준비한다.
+    mapping = fetch_dart_corp_map()
+    return str(mapping.get(stock_code) or "").strip()
 
 
 def fetch_dart_corp_map():
@@ -444,7 +384,7 @@ def fetch_dart_executive_shareholdings(stock_code):
             return cached[1]
 
         # 상세 전용 요청에서도 전체 corpCode.xml 맵을 다시 만들지 않는다.
-        # 서버 시작 시 준비된 메모리/Redis의 단일 종목 corp_code만 재사용한다.
+        # 현재 프로세스 메모리의 corp_code만 재사용한다.
         corp_code = fetch_dart_corp_code(stock_code)
         if not corp_code:
             return []
@@ -2721,7 +2661,7 @@ def build_us_options_content(ticker_symbol, call_vol, put_vol, option_error):
 # 실시간 시장 일정 캘린더
 # - 고정 날짜 목록을 사용하지 않는다.
 # - 공식 미국 경제일정(BLS/BEA/Fed/Census) + Finnhub 주요 실적 캘린더를 주기적으로 갱신한다.
-# - 캐시가 있으면 /analyze에서 즉시 반환하고, 갱신은 백그라운드에서 수행한다.
+# - 프로세스 메모리 캐시만 사용하며, 갱신은 백그라운드에서 수행한다.
 # -----------------------------------------------------------------------------
 CALENDAR_CACHE = {
     "expires_at": 0.0,
@@ -2733,12 +2673,6 @@ CALENDAR_LAST_REFRESH_AT = 0.0
 _CALENDAR_LOCK = threading.Lock()
 _CALENDAR_REFRESHING = False
 CALENDAR_CACHE_TTL = 1800  # 30분
-CALENDAR_PERSIST_TTL = 21600  # 6시간: 프로세스/워커 재시작 후에도 최근 일정 재사용
-CALENDAR_PERSIST_FILE = os.path.join(os.path.dirname(__file__), "..", "cache", "calendar_cache.json")
-CALENDAR_REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip().strip('\'"')
-CALENDAR_REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "").strip().strip('\'"')
-CALENDAR_REDIS_KEY = "gaemiGTP:calendar:v1"
-_CALENDAR_PERSIST_LOADED = False
 
 CALENDAR_WATCH_SYMBOLS = [
     # 주요 지수 영향주 + AI/반도체 + 소비/금융 대형주.
@@ -2778,95 +2712,6 @@ def _calendar_events_from_json(raw):
     except Exception as exc:
         print(f"[시장 일정] persistent cache decode fail: {type(exc).__name__}: {exc}")
         return []
-
-
-def _load_calendar_persistent_cache():
-    """Redis가 있으면 Redis를 우선 사용하고, 없으면 로컬 파일을 사용한다."""
-    global _CALENDAR_PERSIST_LOADED
-    if _CALENDAR_PERSIST_LOADED:
-        return
-    _CALENDAR_PERSIST_LOADED = True
-
-    # 1) Upstash REST (Render 워커 재시작/재배포 후에도 유지)
-    if CALENDAR_REDIS_URL and CALENDAR_REDIS_TOKEN:
-        try:
-            key = urllib.parse.quote(CALENDAR_REDIS_KEY, safe="")
-            url = CALENDAR_REDIS_URL.rstrip("/") + "/get/" + key
-            req = urllib.request.Request(
-                url,
-                headers={"Authorization": f"Bearer {CALENDAR_REDIS_TOKEN}"},
-                method="GET",
-            )
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                body = json.loads(resp.read().decode("utf-8", errors="replace"))
-            raw = body.get("result") if isinstance(body, dict) else None
-            if raw:
-                cached = json.loads(raw)
-                saved_at = float(cached.get("saved_at", 0))
-                if time.time() - saved_at <= CALENDAR_PERSIST_TTL:
-                    events = _calendar_events_from_json(json.dumps(cached.get("events", []), ensure_ascii=False))
-                    if events:
-                        with _CALENDAR_LOCK:
-                            CALENDAR_CACHE["events"] = events
-                            CALENDAR_CACHE["loaded"] = True
-                            CALENDAR_CACHE["expires_at"] = time.time() + CALENDAR_CACHE_TTL
-                        print(f"[시장 일정] persistent Redis cache loaded: {len(events)} events")
-                        return
-        except Exception as exc:
-            print(f"[시장 일정] Redis cache load skipped: {type(exc).__name__}: {exc}")
-
-    # 2) 파일 fallback (같은 Render 인스턴스의 워커 간 공유)
-    try:
-        path = os.path.abspath(CALENDAR_PERSIST_FILE)
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                cached = json.load(f)
-            saved_at = float(cached.get("saved_at", 0))
-            if time.time() - saved_at <= CALENDAR_PERSIST_TTL:
-                events = _calendar_events_from_json(json.dumps(cached.get("events", []), ensure_ascii=False))
-                if events:
-                    with _CALENDAR_LOCK:
-                        CALENDAR_CACHE["events"] = events
-                        CALENDAR_CACHE["loaded"] = True
-                        CALENDAR_CACHE["expires_at"] = time.time() + CALENDAR_CACHE_TTL
-                    print(f"[시장 일정] persistent file cache loaded: {len(events)} events")
-    except Exception as exc:
-        print(f"[시장 일정] file cache load skipped: {type(exc).__name__}: {exc}")
-
-
-def _save_calendar_persistent_cache(events):
-    payload = {
-        "saved_at": time.time(),
-        "events": json.loads(_calendar_events_to_json(events)),
-    }
-
-    # Redis 우선 저장
-    if CALENDAR_REDIS_URL and CALENDAR_REDIS_TOKEN:
-        try:
-            key = urllib.parse.quote(CALENDAR_REDIS_KEY, safe="")
-            encoded = urllib.parse.quote(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), safe="")
-            url = CALENDAR_REDIS_URL.rstrip("/") + "/set/" + key + "/" + encoded + "/EX/21600"
-            req = urllib.request.Request(
-                url,
-                headers={"Authorization": f"Bearer {CALENDAR_REDIS_TOKEN}"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=1.5):
-                pass
-            return
-        except Exception as exc:
-            print(f"[시장 일정] Redis cache save skipped: {type(exc).__name__}: {exc}")
-
-    # 파일 fallback
-    try:
-        path = os.path.abspath(CALENDAR_PERSIST_FILE)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
-        os.replace(tmp, path)
-    except Exception as exc:
-        print(f"[시장 일정] file cache save skipped: {type(exc).__name__}: {exc}")
 
 
 def _calendar_week_window(now_kst):
@@ -3439,8 +3284,6 @@ def _refresh_calendar_cache():
             CALENDAR_LAST_REFRESH_AT = time.time()
             CALENDAR_CACHE["events"] = events
             CALENDAR_CACHE["expires_at"] = time.time() + CALENDAR_CACHE_TTL
-        if events:
-            _save_calendar_persistent_cache(events)
     except Exception as exc:
         # 실제 API 오류를 Render 로그에서 바로 볼 수 있게 남긴다.
         CALENDAR_LAST_ERROR = f"{type(exc).__name__}: {exc}"
@@ -3456,8 +3299,7 @@ def _refresh_calendar_cache():
 
 
 def start_calendar_warmup():
-    """서버 시작 시 영속 캐시를 먼저 읽고, 이후 공식 일정/실적을 백그라운드 갱신한다."""
-    _load_calendar_persistent_cache()
+    """서버 시작 시 시장 일정은 외부 원본에서 받아 프로세스 메모리에만 보관한다."""
     threading.Thread(target=_refresh_calendar_cache, daemon=True, name="calendar-warmup").start()
 
 
@@ -3498,8 +3340,6 @@ def _format_calendar_display_name(event):
 def get_live_calendar_data(stock_name, ticker_symbol):
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     now_kst = datetime.datetime.now(kst_tz)
-
-    _load_calendar_persistent_cache()
 
     with _CALENDAR_LOCK:
         events = list(CALENDAR_CACHE.get("events") or [])
