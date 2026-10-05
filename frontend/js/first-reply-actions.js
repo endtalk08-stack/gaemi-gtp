@@ -10,11 +10,11 @@ window.GaemiGTPFirstReplyActions.appendFirstReplyActions = function(anchor, repl
         actions.dataset.replyActions = actionGroup;
         actions.className = 'mt-3 flex items-center gap-1 text-[#64748b] dark:text-[#a1a1aa]';
         actions.innerHTML = `
-          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] dark:hover:text-white" data-first-reply-action="copy" aria-label="답변 복사" title="복사"><i data-lucide="copy" class="h-4 w-4"></i></button>
-          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] dark:hover:text-white" data-first-reply-action="share" aria-label="답변 공유" title="공유"><i data-lucide="share-2" class="h-4 w-4"></i></button>
-          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] dark:hover:text-white" data-first-reply-action="read" aria-label="답변 소리 내어 읽기" title="소리 내어 읽기"><i data-lucide="volume-2" class="h-4 w-4"></i></button>
-          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] dark:hover:text-white" data-first-reply-action="like" aria-label="좋아요" title="좋아요" aria-pressed="false"><i data-lucide="thumbs-up" class="h-4 w-4"></i></button>
-          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] dark:hover:text-white" data-first-reply-action="dislike" aria-label="별로예요" title="별로예요" aria-pressed="false"><i data-lucide="thumbs-down" class="h-4 w-4"></i></button>`;
+          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] gtp-dark-hover-text" data-first-reply-action="copy" aria-label="답변 복사" title="복사"><i data-lucide="copy" class="h-4 w-4"></i></button>
+          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] gtp-dark-hover-text" data-first-reply-action="share" aria-label="답변 공유" title="공유"><i data-lucide="share-2" class="h-4 w-4"></i></button>
+          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] gtp-dark-hover-text" data-first-reply-action="read" aria-label="답변 소리 내어 읽기" title="소리 내어 읽기"><i data-lucide="volume-2" class="h-4 w-4"></i></button>
+          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] gtp-dark-hover-text" data-first-reply-action="like" aria-label="좋아요" title="좋아요" aria-pressed="false"><i data-lucide="thumbs-up" class="h-4 w-4"></i></button>
+          <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#f1f5f9] hover:text-[#0f172a] dark:hover:bg-[#27272a] gtp-dark-hover-text" data-first-reply-action="dislike" aria-label="별로예요" title="별로예요" aria-pressed="false"><i data-lucide="thumbs-down" class="h-4 w-4"></i></button>`;
 
         const setTemporaryLabel = (button, label) => {
           const original = button.title;
@@ -76,8 +76,8 @@ window.GaemiGTPFirstReplyActions.appendFirstReplyActions = function(anchor, repl
           button.setAttribute('aria-pressed', String(selected));
           opposite?.setAttribute('aria-pressed', 'false');
           button.classList.toggle('text-[#0f172a]', selected);
-          button.classList.toggle('dark:text-white', selected);
-          opposite?.classList.remove('text-[#0f172a]', 'dark:text-white');
+          button.classList.toggle('gtp-dark-text', selected);
+          opposite?.classList.remove('text-[#0f172a]', 'gtp-dark-text');
         });
 
         anchor.insertAdjacentElement('afterend', actions);
