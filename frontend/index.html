@@ -14,6 +14,7 @@
   <script>try { const t = localStorage.getItem('gaemiGTP_theme_v1'); if (t !== 'light') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); document.documentElement.dataset.theme = (t === 'light' ? 'light' : 'dark'); } catch (_) { document.documentElement.classList.add('dark'); }</script>
   <link rel="stylesheet" href="theme/theme.css?v=20260924-v712">
   <link rel="stylesheet" href="css/app.css?v=20260929-message-scale-v1">
+  <link rel="stylesheet" href="css/stock-calculator.css?v=20261005-v1">
   <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261004-brand-box-v2">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20260925-v8-layout-320-full">
   <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20260925-v1">
@@ -306,11 +307,12 @@
     <div class="gaemi-chat-bottom shrink-0 p-3 sm:p-4 pb-5 sm:pb-6 bg-white/95 dark:bg-[#16171b]/95 backdrop-blur border-t border-[#e2e8f0] dark:border-[#27272a] z-20">
       <div class="max-w-3xl mx-auto relative">
         <form class="relative flex items-center w-full" onsubmit="event.preventDefault(); handleBottomSearch();">
+          <button id="stockToolsTrigger" type="button" class="stock-tools-trigger" aria-label="기능 메뉴 열기" aria-expanded="false" aria-controls="stockToolsMenu" title="기능">+</button>
           <input 
             id="bottomStockInput" 
             type="text" 
             placeholder="종목명 입력 (예: 삼성전자, SK하이닉스, NVDA, TSLA)" 
-            class="w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-[#f4f4f5] placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-md transition"
+            class="stock-tools-enabled w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] dark:text-[#f4f4f5] placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-md transition"
           >
           <div class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
             <button type="button" onclick="toggleModeDropdown('bottom')" id="bottomModeBtn" class="flex items-center gap-1 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] dark:hover:text-white px-2 py-1.5 rounded-lg hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition cursor-pointer">
@@ -321,6 +323,13 @@
             </button>
           </div>
         </form>
+
+        <div id="stockToolsMenu" class="stock-tools-menu" hidden aria-label="채팅 기능">
+          <button id="stockCalculatorMenuItem" type="button" class="stock-tools-menu__item">
+            <span class="stock-tools-menu__title">주식 계산기</span>
+            <span class="stock-tools-menu__desc">평단 · 물타기 · 수익률 · 본전 · 목표가</span>
+          </button>
+        </div>
 
         <!-- 하단 개미/인포/프로 드롭다운 -->
         <div id="bottomModeMenu" class="absolute right-14 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
@@ -426,6 +435,7 @@
   <script src="js/source-lists.js?v=20260930-chat-split-v1"></script>
   <script src="js/why-flow.js?v=20261005-ant-revert-v1"></script>
   <script src="js/materials-flow.js?v=20260930-chat-split-v1"></script>
+  <script src="js/stock-calculator.js?v=20261005-v1"></script>
   <script src="js/app.js?v=20261005-live-typing-color-v1"></script>
 </body>
 </html>
