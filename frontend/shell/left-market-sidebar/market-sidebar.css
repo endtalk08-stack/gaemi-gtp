@@ -23,14 +23,14 @@
 }
 .market-sidebar-title {
   color: var(--gtp-text);
-  font-size: 15px;
-  font-weight: 800;
+  font-size: var(--gtp-type-brand);
+  font-weight: var(--gtp-weight-brand);
   letter-spacing: -0.02em;
 }
 .market-sidebar-subtitle {
   color: var(--gtp-faint);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--gtp-type-fine);
+  font-weight: var(--gtp-weight-meta);
   margin-top: 0;
 }
 .market-sidebar-close {
