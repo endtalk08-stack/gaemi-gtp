@@ -1,1 +1,1 @@
-Cache layer reserved for Redis/Upstash integration; existing in-memory caches remain in engine.py for now.
+Persistent cache is intentionally disabled. Runtime-only in-memory caches may be used to prevent duplicate API calls; no Redis/Upstash or file persistence is used.
