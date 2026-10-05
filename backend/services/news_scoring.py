@@ -991,6 +991,10 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
         "HBM", "D램", "낸드",
     )
     stop_objects = {"시장", "기업", "주식", "기술", "투자", "관련", "업계", "전망"}
+    # Structural noise must never become the semantic head.  This is grammar/
+    # shape filtering, not a finished-keyword dictionary.
+    time_words = {"사상", "역대", "최근", "올해", "지난해", "전년", "전월", "당일", "연속"}
+    head_suffixes = ("판매", "판매량", "매출", "인도량", "출하량", "수요", "점유율", "가격", "생산", "수출", "수주")
     negations = ("아니다", "아니라", "아닌", "않", "못했다", "부인")
 
     def compact(value):
@@ -1056,9 +1060,14 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
             tail = clean_before[match.end():match.end() + 3]
             if re.match(r"^(이|가|은|는|을|를)", tail):
                 score += 8
-            # Adverbial/history fragments are poor heads even when close.
-            if clean in {"사상", "역대", "최근", "올해", "지난해", "전년", "전월"}:
-                score -= 20
+            # Time/amount/rate fragments describe an event but are not the
+            # thing that changed: "4개월 돌파" must not become 4개월돌파.
+            if clean in time_words or re.fullmatch(r"\\d+(?:[.,]\\d+)?(?:개월|년|분기|일|주|시간|%|배|원|달러)", clean):
+                score -= 30
+            # A compound noun that already ends in a semantic head is valuable
+            # even when it was never registered (하이브리드판매, 서버수요...).
+            if clean.endswith(head_suffixes):
+                score += 12
             candidates.append((score, match.start(), clean))
 
         if not candidates:
@@ -1107,6 +1116,19 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
             return None
         if label.startswith(("시장", "기업", "주식", "기술", "관련")):
             return None
+        # Reject incomplete heads rather than surfacing a novel-but-empty tag.
+        # Examples: 인공지능증가 / 4개월돌파.  A useful modifier is welcome,
+        # but it still needs a meaningful object (수요/판매/매출/모델...).
+        if obj in time_words or re.fullmatch(r"\\d+(?:[.,]\\d+)?(?:개월|년|분기|일|주|시간|%|배|원|달러)", obj):
+            return None
+        if event in {"증가", "감소", "급증", "급감", "반등", "상회", "하회"}:
+            meaningful_change_head = (
+                obj in object_hints
+                or obj.endswith(head_suffixes)
+                or any(hint in obj for hint in ("영업이익", "순이익", "자사주", "배당", "지분"))
+            )
+            if not meaningful_change_head:
+                return None
         return {
             "label": label,
             "source": source,
