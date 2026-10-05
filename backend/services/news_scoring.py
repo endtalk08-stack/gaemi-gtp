@@ -940,174 +940,164 @@ def _related_stock_entities(item):
     return list(dict.fromkeys(entities))
 
 
-def build_connected_keyword_test(items, stock_name, max_keywords=3):
-    """Compress each article title + description into grounded content keywords."""
+def build_connected_keyword_test(items, stock_name, max_keywords=1):
+    """Pick one grounded, stock-relevant representative keyword per article.
+
+    News collection/scoring stays upstream.  This function intentionally avoids
+    the old large candidate-expansion pipeline: title is the primary semantic
+    frame, description only confirms/supports it, and no extra network work is
+    performed here.
+    """
     import re
 
-    # Reusable expressions are helpers only. They must not decide the whole
-    # article by themselves; title evidence stays the strongest signal.
-    summary_rules = [
-        ("목표가상향", ["목표가 상향", "목표주가 상향"]),
-        ("목표가하향", ["목표가 하향", "목표주가 하향"]),
-        ("매수의견", ["매수 의견", "매수의견", "'매수' 상향", '"매수" 상향']),
-        ("투자의견상향", ["투자의견 상향", "의견 상향"]),
-        ("투자의견하향", ["투자의견 하향", "의견 하향"]),
-        ("가격상승", ["가격 상승", "가격 급등", "가격이 상승", "가격이 급등"]),
-        ("가격하락", ["가격 하락", "가격 급락", "가격이 하락", "가격이 급락"]),
-        ("물량증가", ["물량 증가", "출하량 증가", "판매량 증가"]),
-        ("물량감소", ["물량 감소", "출하량 감소", "판매량 감소"]),
-        ("수요증가", ["수요 증가", "수요 확대", "수요 급증"]),
-        ("수요둔화", ["수요 둔화", "수요 감소"]),
-        ("성장가속", ["성장 가속", "성장세 가속"]),
-        ("투자확대", ["투자 확대", "투자를 확대"]),
-        ("현금유입", ["현금 유입"]),
-        ("안전성확인", ["안전성 확인", "안전성을 확인"]),
-        ("실적프리뷰", ["실적 프리뷰"]),
-        ("투자심리악화", ["투자심리 악화", "투자 심리 악화", "투자심리가 부정적"]),
-        ("내부자매수", ["내부자 매수", "내부 임원", "임원 매입", "이사 매입"]),
-        ("매입종료", ["매입 종료", "매입 마무리", "매입을 마무리", "매입 완료", "매입을 완료"]),
-        ("사업매각", ["사업 매각"]),
-        ("사업분사", ["사업 분사", "분사"]),
-        ("발사계약", ["발사 계약"]),
-        ("3상데이터", ["3상 데이터", "3상 임상", "3상 임상시험"]),
-        ("호실적", ["호실적", "어닝 서프라이즈", "실적 서프라이즈"]),
-        ("주가반응부진", ["주가 반응 부진", "주가반응 부진", "주가 반응이 부진"]),
-        ("매출성장세", ["매출 성장세", "매출 성장", "매출이 성장"]),
-        ("인도량예상치상회", ["인도량 예상치 상회", "인도량이 예상치를 상회", "인도량 예상 상회"]),
-        ("유럽판매반등", ["유럽 판매 반등", "유럽 판매가 반등", "유럽 판매 회복"]),
-        ("메모리주랠리부담", ["메모리주 랠리 부담", "메모리 주 랠리 부담"]),
-        ("AI데이터센터", ["AI 데이터센터", "AI 데이터 센터"]),
-        # Reusable article-content phrases. They are evidence for what the article says,
-        # not a judgment about whether the phrase caused a stock-price move.
-        ("메모리업황기대", ["메모리 업황 기대", "메모리 업황 회복 기대"]),
-        ("외국인매도부담", ["외국인 매도 부담", "외국인 순매도 부담"]),
-        ("AI서버부품수혜", ["AI 서버 부품 수혜", "AI서버 부품 수혜"]),
-        ("HBM장비주강세", ["HBM 장비주 강세", "HBM장비주 강세"]),
-        ("기관순매수효과", ["기관 순매수 효과", "기관 순매수 영향"]),
-        ("광통신수요확대", ["광통신 수요 확대", "광통신수요 확대"]),
-        ("광통신수요증가", ["광통신 수요 증가", "광통신수요 증가"]),
-        ("광통신수요감소", ["광통신 수요 감소", "광통신수요 감소"]),
-        ("광통신수요둔화", ["광통신 수요 둔화", "광통신수요 둔화"]),
-        ("반도체소부장약세", ["반도체 소부장 약세", "반도체소부장 약세"]),
-        ("반도체주강세", ["반도체주 강세", "반도체 주 강세"]),
-        ("기술주랠리", ["기술주 랠리", "기술주 상승 랠리"]),
-        ("기술주강세", ["기술주 강세"]),
-        ("가격경쟁력", ["가격 경쟁력", "가격경쟁력"]),
-        ("성장펀더멘털부각", ["성장 펀더멘털 부각", "성장펀더멘털 부각"]),
-        ("애저성장전망", ["애저 성장 전망", "Azure 성장 전망"]),
-        ("AI인프라확대", ["AI 인프라 확대", "AI인프라 확대"]),
-        ("보호예수해제부담", ["보호예수 해제 부담", "락업 해제 부담"]),
-        ("중동긴장부담", ["중동 긴장 부담", "중동 긴장감 부담"]),
-        ("반독점조사부담", ["반독점 조사 부담", "반독점 규제 조사 부담"]),
-        ("기관매수전환", ["기관 매수 전환", "기관 순매수 전환"]),
-        ("외국인기관매도", ["외국인·기관 매도", "외국인 기관 매도", "외국인과 기관 매도"]),
-        ("반도체업황기대", ["반도체 업황 기대", "반도체 업황 회복 기대"]),
-        ("ETF자금순유입", ["ETF 자금 순유입", "ETF자금 순유입"]),
-        ("금리인상우려", ["금리 인상 우려", "금리인상 우려"]),
-        # Curated high-signal event/result phrases from research-style cause vocab.
-        ("영업이익률개선", ["영업이익률 개선", "영업 이익률 개선"]),
-        ("영업이익률하락", ["영업이익률 하락", "영업 이익률 하락"]),
-        ("영업이익급증", ["영업이익 급증", "영업익 급증"]),
-        ("영업이익급감", ["영업이익 급감", "영업익 급감"]),
-        ("적자폭축소", ["적자 폭 축소", "적자폭 축소"]),
-        ("적자확대", ["적자 확대", "적자폭 확대", "적자 폭 확대"]),
-        ("수율개선", ["수율 개선", "수율이 개선"]),
-        ("퀄테스트통과", ["퀄테스트 통과", "퀄 테스트 통과"]),
-        ("퀄테스트탈락", ["퀄테스트 탈락", "퀄 테스트 탈락"]),
-        ("수주잔고최고치", ["수주 잔고 최고치", "수주잔고 최고치", "수주 잔고 사상 최대"]),
-        ("수주잔고감소", ["수주 잔고 감소", "수주잔고 감소"]),
-        ("단가인상", ["단가 인상", "판매단가 인상"]),
-        ("단가인하", ["단가 인하", "단가 인하 요구"]),
-        ("출하량증가", ["출하량 증가", "출하량이 증가"]),
-        ("출하량감소", ["출하량 감소", "출하량이 감소"]),
-        ("FDA승인", ["FDA 승인", "미국 FDA 승인"]),
-        ("FDA승인거절", ["FDA 승인 거절", "FDA 승인 반려"]),
-        ("품목허가반려", ["품목 허가 반려", "품목허가 반려"]),
-        ("임상3상성공", ["임상 3상 성공", "3상 임상 성공"]),
-        ("임상실패", ["임상 실패", "임상시험 실패"]),
-        ("1차평가변수충족", ["1차 평가변수 충족", "1차 평가 변수 충족"]),
-        ("양산개시", ["양산 개시", "양산 시작", "양산 체제 돌입"]),
-        ("공장가동중단", ["공장 가동 중단", "생산시설 가동 중단"]),
-        ("자사주매입", ["자사주 매입", "자기주식 취득"]),
-        ("자사주소각", ["자사주 소각", "자기주식 소각"]),
-        ("배당확대", ["배당 확대", "배당 증액"]),
-        ("배당축소", ["배당 축소", "배당 감액"]),
-        ("가이던스하향", ["가이던스 하향", "실적 가이던스 하향"]),
-        ("원가율상승", ["원가율 상승", "원가율이 상승"]),
-        ("판관비급증", ["판관비 급증", "판매관리비 급증"]),
-        ("재고자산평가손실", ["재고자산 평가손실", "재고 자산 평가손실"]),
-        ("계약해지", ["계약 해지", "공급계약 해지"]),
-        ("수주취소", ["수주 취소", "수주가 취소"]),
-        ("납품연기", ["납품 연기", "납품 지연"]),
-        ("품질하자", ["품질 하자", "제품 하자"]),
-        ("리콜발생", ["리콜 발생", "리콜을 실시"]),
-        ("가동률저하", ["가동률 저하", "가동률이 하락"]),
-        ("보호예수해제", ["보호예수 해제", "락업 해제"]),
-        ("대주주지분매도", ["대주주 지분 매도", "대주주 지분을 매도"]),
-        ("감사의견거절", ["감사의견 거절", "감사 의견 거절"]),
-        ("감사의견한정", ["감사의견 한정", "감사 의견 한정"]),
-        ("자본잠식", ["자본잠식", "자본 잠식"]),
-        ("상장폐지실질심사", ["상장폐지 실질심사", "상장 폐지 실질심사"]),
-        ("불성실공시법인지정", ["불성실공시법인 지정", "불성실 공시법인 지정"]),
-        ("반대매매물량", ["반대매매 물량", "반대 매매 물량"]),
-        ("재료소멸", ["재료 소멸", "재료소멸"]),
-        # Deep-granular signals: keep concrete accounting, filing, approval and flow events.
-        ("EBITDA증가", ["EBITDA 증가", "에비타 증가"]),
-        ("판관비율하락", ["판관비율 하락", "판관비 비율 하락"]),
-        ("부채비율감소", ["부채비율 감소", "부채 비율 감소"]),
-        ("차입금상환", ["차입금 상환", "차입금을 상환"]),
-        ("FCF양수전환", ["FCF 양수 전환", "잉여현금흐름 양수 전환"]),
-        ("최대주주장내매수", ["최대주주 장내매수", "최대 주주 장내 매수"]),
-        ("임원장내매수", ["임원 장내매수", "임원 장내 매수"]),
-        ("신규시설투자", ["신규 시설투자", "신규시설 투자"]),
-        ("CE인증획득", ["CE 인증 획득", "CE인증 획득"]),
-        ("GMP승인", ["GMP 승인", "GMP 인증 승인"]),
-        ("IND승인", ["IND 승인", "임상시험계획 승인"]),
-        ("소재국산화", ["소재 국산화"]),
-        ("부품국산화", ["부품 국산화"]),
-        ("연기금연속순매수", ["연기금 연속 순매수"]),
-        ("패시브자금유입", ["패시브 자금 유입"]),
-        ("ETF신규편입", ["ETF 신규 편입"]),
-        ("공매도잔고감소", ["공매도 잔고 감소"]),
-        ("감사보고서제출지연", ["감사보고서 제출 지연"]),
-        ("내부회계비적정", ["내부회계관리제도 비적정", "내부회계관리제도 부적정"]),
-        ("계속기업불확실성", ["계속기업 가정 불확실성", "계속기업 존속능력 불확실성"]),
-        ("불성실공시지정예고", ["불성실공시법인 지정예고", "불성실 공시법인 지정 예고"]),
-        ("유상증자납입연기", ["유상증자 납입일 연기", "유증 납입일 연기"]),
-        ("전환가액하향조정", ["전환가액 하향 조정", "전환 가격 하향 조정"]),
-        ("단기차입금증가", ["단기차입금 증가", "단기 차입금 증가"]),
-        ("채무불이행", ["채무불이행", "채무 불이행"]),
-        ("신용등급하향", ["신용등급 하향", "신용 등급 하향"]),
-        ("특허침해소송", ["특허침해 소송", "특허 침해 소송"]),
-        ("손해배상청구소송", ["손해배상 청구소송", "손해 배상 청구 소송"]),
-        ("공정위과징금", ["공정위 과징금", "공정거래위원회 과징금"]),
-        ("보호예수해제물량", ["보호예수 해제 물량", "락업 해제 물량"]),
-        ("대주주장내매도", ["대주주 장내매도", "대주주 장내 매도"]),
-        ("임원장내매도", ["임원 장내매도", "임원 장내 매도"]),
-        ("공매도잔고증가", ["공매도 잔고 증가"]),
-    ]
-
-    # Broad words are useful classification context but weak final summary
-    # keywords when a more concrete article phrase exists.
-    broad_labels = {"AI", "반도체", "메모리", "시장", "기업", "주식", "증시"}
-    # Generic event labels remain available as fallback evidence, but should
-    # lose to keywords that explain scale, direction, industry state or result.
-    weak_final_labels = {
-        "매출발표", "자금조달", "투자계획", "설비투자", "주식발행",
-        "실적전망", "지표발표", "신규도입", "시장진출",
-        "공급과잉", "가격경쟁", "투자확대", "현금유입", "수요증가", "수요둔화",
-        "낸드가격", "메모리가격", "D램가격",
-    }
-    # These labels are useful internally but are too generic for the three
-    # user-facing material slots. Never surface them as final keywords.
-    blocked_final_labels = {
-        "매출발표", "자금조달",
-        "낸드가격", "메모리가격", "D램가격",
-        "HBM", "국채금리", "주도주", "성과급", "신제품", "보조금", "광통신", "점유율확대", "고금리", "설비투자", "AI모델",
-        "수요증가", "수요둔화",
-    }
     aliases = _stock_aliases(stock_name)
     results = []
+
+    # High-information phrases first.  These are reusable event meanings, not
+    # stock-specific mappings.  Longer/more specific evidence wins naturally.
+    phrase_rules = (
+        ("목표가상향", ("목표주가 상향", "목표가 상향")),
+        ("목표가하향", ("목표주가 하향", "목표가 하향")),
+        ("투자의견상향", ("투자의견 상향", "의견 상향")),
+        ("투자의견하향", ("투자의견 하향", "의견 하향")),
+        ("예상치상회", ("예상치 상회", "예상을 상회", "컨센서스 상회", "시장 예상 상회")),
+        ("예상치하회", ("예상치 하회", "예상을 하회", "컨센서스 하회", "시장 예상 하회")),
+        ("호실적", ("호실적", "어닝 서프라이즈", "실적 서프라이즈")),
+        ("어닝쇼크", ("어닝 쇼크", "실적 쇼크")),
+        ("실적전망상향", ("실적 전망 상향", "가이던스 상향")),
+        ("실적전망하향", ("실적 전망 하향", "가이던스 하향")),
+        ("매출성장세", ("매출 성장세", "매출 성장")),
+        ("판매반등", ("판매 반등", "판매 회복")),
+        ("인도량예상치상회", ("인도량 예상치 상회", "인도량이 예상치를 상회")),
+        ("차익실현", ("차익 실현", "차익실현")),
+        ("주가반응부진", ("주가 반응 부진", "주가반응 부진")),
+        ("수주확대", ("수주 확대", "수주 증가")),
+        ("대형수주", ("대형 수주",)),
+        ("공급계약", ("공급 계약", "공급계약")),
+        ("계약해지", ("계약 해지", "공급계약 해지")),
+        ("생산확대", ("생산 확대", "생산능력 확대", "생산 능력 확대")),
+        ("생산중단", ("생산 중단", "가동 중단")),
+        ("투자확대", ("투자 확대",)),
+        ("수요급증", ("수요 급증",)),
+        ("수요둔화", ("수요 둔화",)),
+        ("공급부족", ("공급 부족",)),
+        ("공급과잉우려", ("공급과잉 우려", "공급 과잉 우려")),
+        ("가격인상", ("가격 인상", "단가 인상")),
+        ("가격인하", ("가격 인하", "단가 인하")),
+        ("점유율확대", ("점유율 확대", "점유율 상승")),
+        ("자사주매입", ("자사주 매입", "자기주식 취득")),
+        ("자사주소각", ("자사주 소각", "자기주식 소각")),
+        ("배당확대", ("배당 확대", "배당 증액")),
+        ("FDA승인", ("FDA 승인",)),
+        ("FDA승인거절", ("FDA 승인 거절", "FDA 승인 반려")),
+        ("임상3상성공", ("임상 3상 성공", "3상 임상 성공")),
+        ("임상실패", ("임상 실패", "임상시험 실패")),
+        ("사상최고가돌파", ("사상 최고가 돌파", "사상 최고 돌파", "역대 최고가 돌파")),
+        ("AI데이터센터", ("AI 데이터센터", "AI 데이터 센터")),
+    )
+
+    # Compact event fallback.  It only joins nearby words already present in
+    # the article, preventing malformed long-distance joins such as 특AI개발.
+    event_words = (
+        "상향", "하향", "상회", "하회", "반등", "회복", "급증", "급감",
+        "확대", "축소", "증가", "감소", "개선", "악화", "돌파", "수주",
+        "계약", "승인", "거절", "출시", "양산", "중단", "인수", "매각",
+    )
+    broad_only = {
+        "시장", "투자", "기술", "AI", "반도체", "메모리", "수요", "공급",
+        "가격", "주식", "기업",
+    }
+    negation_words = ("아니다", "아니라", "아닌", "없다", "없어", "부인")
+
+    def compact(value):
+        return re.sub(r"\\s+", "", str(value or "").strip())
+
+    def selected_stock_is_present(text):
+        lower = text.lower()
+        return any(alias and alias in lower for alias in aliases)
+
+    def other_company_owns_phrase(text, phrase):
+        """Conservative guard for evaluative/result phrases in multi-company news."""
+        lower = text.lower()
+        pos = lower.find(phrase.lower())
+        if pos < 0:
+            return False
+        nearest = []
+        for market_stocks in STOCK_UNIVERSE.values():
+            for canonical, entity_aliases in market_stocks.items():
+                for name in (canonical, *(entity_aliases or [])):
+                    token = str(name or "").strip().lower()
+                    if not token:
+                        continue
+                    p = lower.rfind(token, 0, pos + 1)
+                    if p >= 0:
+                        nearest.append((pos - p, canonical))
+        if not nearest:
+            return False
+        nearest.sort(key=lambda pair: pair[0])
+        return compact(nearest[0][1]).lower() != compact(stock_name).lower()
+
+    def find_rule(text, require_stock_context=False):
+        lower = text.lower()
+        if require_stock_context and not selected_stock_is_present(text):
+            return None
+        for label, phrases in phrase_rules:
+            for phrase in phrases:
+                p = lower.find(phrase.lower())
+                if p < 0:
+                    continue
+                tail = lower[p + len(phrase):p + len(phrase) + 16]
+                if any(word in tail for word in negation_words):
+                    continue
+                if label in {
+                    "호실적", "어닝쇼크", "예상치상회", "예상치하회",
+                    "매출성장세", "판매반등", "주가반응부진",
+                } and other_company_owns_phrase(text, phrase):
+                    continue
+                return {
+                    "label": label,
+                    "source": "title-rule" if text is title else "description-rule",
+                    "evidence": phrase,
+                    "priority": 100 if text is title else 60,
+                }
+        return None
+
+    def fallback_from_title(text):
+        # Strip the selected stock name before looking for the local event phrase.
+        work = text
+        for alias in sorted(aliases, key=len, reverse=True):
+            if alias:
+                work = re.sub(re.escape(alias), " ", work, flags=re.IGNORECASE)
+        clauses = [p.strip() for p in re.split(r"[|·…,:;!?]+", work) if p.strip()]
+        for clause in clauses:
+            tokens = re.findall(r"[A-Za-z0-9가-힣%]+", clause)
+            if not tokens:
+                continue
+            for i, token in enumerate(tokens):
+                action = next((word for word in event_words if word in token), "")
+                if not action:
+                    continue
+                left = tokens[max(0, i - 2):i]
+                subject = next(
+                    (
+                        re.sub(r"(은|는|이|가|을|를|의|로|으로|에|서|와|과)$", "", value)
+                        for value in reversed(left)
+                        if 1 < len(value) <= 12
+                    ),
+                    "",
+                )
+                label = compact(f"{subject}{action}" if subject else action)
+                if not label or label in broad_only or len(label) < 3:
+                    continue
+                if label.startswith(("특AI", "시장개인", "기술AI")):
+                    continue
+                return {
+                    "label": label,
+                    "source": "title-event",
+                    "evidence": clause,
+                    "priority": 50,
+                }
+        return None
 
     for item in items or []:
         title = str(item.get("title") or "").strip()
@@ -1115,759 +1105,23 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         if not title:
             continue
 
-        title_lower = title.lower()
-        desc_lower = description.lower()
-        full_lower = f"{title_lower} {desc_lower}".strip()
-        candidates = []
-        seen = set()
         stock_entities = _related_stock_entities(item)
+        representative = find_rule(title)
+        if representative is None:
+            representative = find_rule(description, require_stock_context=True)
+        if representative is None and selected_stock_is_present(title):
+            representative = fallback_from_title(title)
 
-        evaluative_company_labels = {
-            "호실적", "어닝서프라이즈", "실적상회", "실적개선", "실적부진",
-            "실적악화", "어닝쇼크", "매출성장세", "주가반응부진",
-        }
-
-        def evidence_belongs_to_selected_stock(evidence):
-            needle = str(evidence or "").strip().lower()
-            if not needle:
-                return True
-            positions = []
-            for canonical_name, entity_aliases in (
-                (name, _stock_aliases(name)) for name in stock_entities
-            ):
-                for alias in entity_aliases:
-                    start = full_lower.find(alias)
-                    while start >= 0:
-                        positions.append((abs(start - max(0, full_lower.find(needle))), canonical_name))
-                        start = full_lower.find(alias, start + len(alias))
-            if not positions:
-                return True
-            positions.sort(key=lambda pair: pair[0])
-            nearest_name = positions[0][1]
-            return str(nearest_name).strip().lower() == str(stock_name).strip().lower()
-
-        def add(label, source, evidence, priority):
-            clean = re.sub(r"\s+", "", str(label or "").strip())
-            if not clean or clean in seen or clean.lower() in aliases:
-                return
-            if clean in evaluative_company_labels and not evidence_belongs_to_selected_stock(evidence):
-                return
-            seen.add(clean)
-            candidates.append({
-                "label": clean,
-                "source": source,
-                "evidence": str(evidence or "").strip(),
-                "priority": priority,
-            })
-
-        # Grounded semantic phrase extraction. This is intentionally generic:
-        # compose a keyword from wording already present in the article instead
-        # of requiring the exact phrase to exist in a dictionary. To avoid
-        # promoting another company's event from a broad market article, only
-        # use clauses/sentences that explicitly mention the selected stock.
-        grounded_texts = (("title", title, 109), ("description", description, 69))
-        action_words = (
-            "확대", "확충", "강화", "상향", "하향", "증가", "감소", "급증", "급감",
-            "상승", "하락", "강세", "약세", "진출", "수출", "수주", "계약", "협력",
-            "재편", "개발", "출시", "공개", "도입", "매입", "매도", "인수", "매각",
-            "투자", "양산", "생산", "공급", "돌파", "회복", "둔화", "개선", "악화",
-            "개편", "변경", "제한", "제외", "중단", "인상", "인하", "무료", "유료",
-        )
-        topic_words = (
-            "AI", "반도체", "메모리", "데이터센터", "협력망", "공급망", "산업화",
-            "수출역량", "생산능력", "점유율", "수요", "공급", "가격", "매출",
-            "영업이익", "실적", "가이던스", "투자", "기술", "시장",
-            "제미나이", "요금제", "프로모델", "고성능모델", "무료이용자", "구독자",
-        )
-
-        for source_name, source_text, priority in grounded_texts:
-            # Headlines are already the article center. Description text is
-            # sentence-scoped so a secondary company's event cannot leak into
-            # the selected stock's representative keyword.
-            segments = [source_text] if source_name == "title" else [
-                part.strip() for part in re.split(r"[.!?。]|(?:\s+[·•]\s+)", source_text) if part.strip()
-            ]
-            for segment in segments:
-                segment_lower = segment.lower()
-                if not any(alias and alias in segment_lower for alias in aliases):
-                    continue
-
-                # Remove the searched company token only from the label source;
-                # evidence remains the untouched article text.
-                label_source = segment
-                for alias in sorted(aliases, key=len, reverse=True):
-                    if alias:
-                        label_source = re.sub(re.escape(alias), " ", label_source, flags=re.IGNORECASE)
-
-                # Preserve a grounded topic + action phrase, allowing Korean
-                # particles or short modifiers between them.
-                for topic in topic_words:
-                    topic_match = re.search(re.escape(topic), label_source, flags=re.IGNORECASE)
-                    if not topic_match:
-                        continue
-                    tail = label_source[topic_match.end():topic_match.end() + 28]
-                    action_match = re.search("|".join(map(re.escape, action_words)), tail)
-                    if not action_match:
-                        continue
-                    action = action_match.group(0)
-                    between = tail[:action_match.start()]
-                    # Topic/action must be a compact phrase. Long prose bridges are
-                    # where false joins such as 가격탄력성...공급 are created.
-                    bridge_tokens = re.findall(r"[A-Za-z0-9가-힣]+", between)
-                    if len(between.strip()) > 12 or len(bridge_tokens) > 2:
-                        continue
-                    # Keep at most one short meaningful modifier while dropping
-                    # punctuation/particles; the article wording stays grounded.
-                    modifier_tokens = re.findall(r"[A-Za-z0-9가-힣]+", between)
-                    modifier = ""
-                    for token in modifier_tokens:
-                        clean_token = re.sub(r"(은|는|이|가|을|를|의|로|으로|에|서|와|과|도|만)$", "", token)
-                        if 1 < len(clean_token) <= 10 and clean_token not in {"시장", "관련", "대한", "통해", "위해"}:
-                            modifier = clean_token
-                            break
-                    topic_label = topic.upper() if topic.lower() == "ai" else topic
-                    label = f"{topic_label}{modifier}{action}" if modifier else f"{topic_label}{action}"
-                    add(label, f"{source_name}-grounded", segment, priority + 2)
-
-                # Generic grounded event phrase: numbers are optional. Preserve a
-                # compact noun phrase immediately attached to a meaningful change
-                # word so new stocks/industries can surface article-native events
-                # without waiting for a topic dictionary entry.
-                semantic_actions = (
-                    "확대", "확충", "강화", "상향", "하향", "증가", "감소", "급증", "급감",
-                    "진출", "수주", "계약", "협력", "재편", "개발", "출시", "공개", "도입",
-                    "인수", "매각", "양산", "생산", "돌파", "회복", "둔화", "개선", "악화",
-                    "개편", "변경", "제한", "제외", "중단", "인상", "인하", "무료", "유료",
-                    "탈환", "등극", "예고",
-                )
-                semantic_pattern = re.compile(
-                    r"([A-Za-z0-9가-힣-]{2,16}(?:[\s·]+[A-Za-z0-9가-힣-]{2,16}){0,2})\s*("
-                    + "|".join(map(re.escape, semantic_actions))
-                    + r")"
-                )
-                semantic_stop_tokens = {
-                    "관련", "대한", "통해", "위해", "이어", "따라", "전망", "예상",
-                    "기자", "사진", "뉴스", "주가", "증시",
-                }
-                for match in semantic_pattern.finditer(label_source):
-                    phrase, action = match.groups()
-                    phrase_tokens = re.findall(r"[A-Za-z0-9가-힣-]+", phrase)
-                    cleaned_tokens = []
-                    for token in phrase_tokens:
-                        clean_token = re.sub(r"(은|는|이|가|을|를|의|로|으로|에|서|와|과|도|만)$", "", token)
-                        if clean_token and clean_token not in semantic_stop_tokens:
-                            cleaned_tokens.append(clean_token)
-                    # Require enough semantic body to avoid generic one-word
-                    # outputs such as 시장확대 when the headline supplies a
-                    # fuller phrase such as 수출 품목·시장 확대.
-                    if len(cleaned_tokens) >= 2:
-                        semantic_label = "".join(cleaned_tokens[-3:]) + action
-                        if 4 <= len(semantic_label) <= 32:
-                            add(semantic_label, f"{source_name}-grounded-semantic", match.group(0), priority + 6)
-
-                # Concrete achievement/result phrases outrank loose topic+action joins.
-                # Examples: "37만6840대로 2위 탈환", "시장점유율 1위 탈환".
-                result_patterns = (
-                    r"(\d+(?:[.,]\d+)?(?:만|천)?(?:대|개|명|건)?)(?:로|으로)?\s*(\d+위)\s*(탈환|등극|진입|상승)",
-                    r"(\d+위)\s*(탈환|등극|진입|상승)",
-                )
-                for pattern in result_patterns:
-                    for match in re.finditer(pattern, label_source):
-                        compact_result = re.sub(r"[^A-Za-z0-9가-힣%]", "", match.group(0))
-                        if compact_result:
-                            add(compact_result, f"{source_name}-grounded-result", segment, priority + 7)
-
-                # Preserve a complete nearby numeric event in either common
-                # article order: object -> amount -> action, or amount -> object -> action.
-                # This lets phrases such as "엔비디아 칩 80억달러 입찰" and
-                # "80억달러 규모 엔비디아 칩 입찰" compete as complete events
-                # before the looser topic+scale fallback (for example AI80억).
-                numeric_event_actions = ("입찰", "계약", "수주", "협력", "투자", "조달", "매입", "매도", "인수", "매각", "돌파", "확대")
-                numeric_amount_pattern = r"(\\d+(?:[.,]\\d+)?\\s*(?:조원|억원|만원|천원|원|조|억|만|달러|%))"
-                numeric_object_pattern = r"([A-Za-z0-9가-힣·-]{2,18}(?:\\s+[A-Za-z0-9가-힣·-]{1,12})?)"
-                action_pattern = "(" + "|".join(map(re.escape, numeric_event_actions)) + ")"
-                numeric_event_patterns = (
-                    (re.compile(
-                        numeric_object_pattern + r"\\s*" + numeric_amount_pattern + r".{0,10}?" + action_pattern,
-                        flags=re.IGNORECASE,
-                    ), 1, 2, 3),
-                    (re.compile(
-                        numeric_amount_pattern + r"(?:\\s*규모)?\\s*" + numeric_object_pattern + r".{0,10}?" + action_pattern,
-                        flags=re.IGNORECASE,
-                    ), 2, 1, 3),
-                )
-                for numeric_event_pattern, obj_group, amount_group, action_group in numeric_event_patterns:
-                    for match in numeric_event_pattern.finditer(label_source):
-                        obj = re.sub(r"[^A-Za-z0-9가-힣]", "", match.group(obj_group))
-                        amount = re.sub(r"\\s+", "", match.group(amount_group))
-                        action = match.group(action_group)
-                        if obj and obj not in {"약", "규모", "총", "최대", "시장", "AI"}:
-                            add(f"{obj}{amount}{action}", f"{source_name}-grounded-numeric-event", match.group(0), priority + 8)
-
-                # Numeric scale is only meaningful when it is directly attached
-                # to the topic. Avoid combining an unrelated later number from
-                # the same sentence (for example "실적 ... 19만" or "AI ... 80억").
-                # Genuine scales such as "데이터센터 4047조원" still survive.
-                scale_pattern = r"(\d+(?:[.,]\d+)?)\s*(조원|억원|만원|천원|달러|조|억|만|%)"
-                scale_gap_pattern = r"(?:\s|[:：·,'\"()\[\]-]){0,6}"
-                for topic in topic_words:
-                    topic_scale_pattern = re.compile(
-                        re.escape(topic) + scale_gap_pattern + scale_pattern,
-                        flags=re.IGNORECASE,
-                    )
-                    scale_match = topic_scale_pattern.search(label_source)
-                    if scale_match:
-                        amount = re.sub(r"\s+", "", scale_match.group(1) + scale_match.group(2))
-                        topic_label = topic.upper() if topic.lower() == "ai" else topic
-                        add(
-                            f"{topic_label}{amount}",
-                            f"{source_name}-grounded-scale",
-                            scale_match.group(0),
-                            priority + 3,
-                        )
-
-        # Sharp compound material keywords. Prefer "why it matters" over a
-        # generic event word when the article itself supplies the evidence.
-        sharp_texts = (("title", title, 103), ("description", description, 63))
-        for source_name, source_text, priority in sharp_texts:
-            compact_source = re.sub(r"\\s+", "", source_text.lower())
-
-            # Scale + financing: 대규모 자금조달 / 10조 자금조달.
-            if "자금조달" in compact_source or "자금조달" in compact_source.replace("·", ""):
-                if re.search(r"(대규모|대형|역대최대|사상최대)", compact_source):
-                    add("대규모자금조달", f"{source_name}-sharp", "대규모 자금조달", priority)
-                financing_amount = re.search(r"(\\d+(?:[.,]\\d+)?(?:조|억)원?).{0,10}자금조달|자금조달.{0,10}(\\d+(?:[.,]\\d+)?(?:조|억)원?)", compact_source)
-                if financing_amount:
-                    amount = next((g for g in financing_amount.groups() if g), "")
-                    add(f"{amount}자금조달", f"{source_name}-sharp", financing_amount.group(0), priority + 1)
-
-            # Prefer the article's completed financing/investment meaning over
-            # generic 자금조달/투자 labels.
-            if re.search(r"(외부|외부에서|외부로부터).{0,12}(자금|투자금).{0,8}(조달|유치)|(?:외부자금).{0,8}(조달|유치)", compact_source):
-                add("외부자금조달", f"{source_name}-sharp", "외부 자금 조달", priority + 2)
-
-            if re.search(r"(대규모|대형|공격적|대대적).{0,10}(투자|설비투자|시설투자)|(?:투자|설비투자|시설투자).{0,10}(대규모|대형)", compact_source):
-                add("대규모투자", f"{source_name}-sharp", "대규모 투자", priority + 2)
-
-            investment_amount = re.search(
-                r"(\\d+(?:[.,]\\d+)?(?:조|억)원?).{0,10}(투자|설비투자|시설투자)|"
-                r"(?:투자|설비투자|시설투자).{0,10}(\\d+(?:[.,]\\d+)?(?:조|억)원?)",
-                compact_source,
-            )
-            if investment_amount:
-                amount = next((g for g in investment_amount.groups() if g), "")
-                add(f"{amount}투자", f"{source_name}-sharp", investment_amount.group(0), priority + 2)
-
-            # Preserve product/technology + concrete market action from the article itself.
-            # These are grounded phrase combinations, not stock-specific keyword mappings.
-            compact_plain = re.sub(r"\\s+", "", source_text)
-            for match in re.finditer(r"([A-Za-z0-9가-힣]+).{0,8}(?:시장)?점유율.{0,10}(확대|상승|증가|추격)", compact_plain, flags=re.IGNORECASE):
-                subject = re.sub(r"[^A-Za-z0-9가-힣]", "", match.group(1))
-                if subject and subject.lower() not in aliases:
-                    add(f"{subject}점유율{match.group(2)}", f"{source_name}-sharp", match.group(0), priority + 3)
-
-            # Headlines such as "HBM4로 시장 점유율 확대" omit the product
-            # immediately before 점유율. Keep the nearest concrete product token.
-            for match in re.finditer(r"([A-Za-z]+\\d+[A-Za-z0-9-]*|[A-Za-z]{2,}\\d*).{0,14}(?:시장)?점유율.{0,10}(확대|상승|증가|추격)", source_text, flags=re.IGNORECASE):
-                product = match.group(1).upper() if match.group(1).lower().startswith("hbm") else match.group(1)
-                add(f"{product}점유율{match.group(2)}", f"{source_name}-sharp", match.group(0), priority + 4)
-
-            # Concrete employment effects should retain the stated scale.
-            for match in re.finditer(r"(\\d+(?:[.,]\\d+)?(?:만|천)?명).{0,12}(?:고용|일자리).{0,8}(?:창출|효과|예상|전망)?", source_text):
-                amount = re.sub(r"\\s+", "", match.group(1))
-                add(f"{amount}고용창출", f"{source_name}-sharp", match.group(0), priority + 2)
-
-            # Capacity expansion is more explanatory than generic 투자/증설.
-            if re.search(r"(생산능력|생산캐파|생산capacity|캐파).{0,12}(확대|증가|확충|증설)", compact_source):
-                add("생산능력확대", f"{source_name}-sharp", "생산능력 확대", priority)
-
-            # Industry/product + cycle state: e.g. 낸드시장호황, 메모리시장호황.
-            industry_aliases = (
-                ("낸드", ("낸드", "nand")),
-                ("메모리", ("메모리",)),
-                ("D램", ("d램", "dram")),
-                ("HBM", ("hbm",)),
-                ("반도체", ("반도체",)),
-            )
-            # Expansion/capacity competition is a sharper causal material than
-            # standalone 증설/투자. Keep the industry name when evidence supports it.
-            for industry, aliases_for_industry in industry_aliases:
-                if not any(alias in compact_source for alias in aliases_for_industry):
-                    continue
-                if re.search(r"(증설|생산능력확대|생산능력증가|캐파확대).{0,18}(경쟁|잇따라|확대)|(?:경쟁).{0,18}(증설|생산능력확대)", compact_source):
-                    add(f"{industry}증설경쟁", f"{source_name}-sharp", f"{industry} 증설 경쟁", priority + 1)
-
-            state_rules = (
-                ("시장호황", ("시장호황", "시장 호황", "호황", "최고 상승폭", "상승폭")),
-                ("업황개선", ("업황개선", "업황 개선", "업황회복", "업황 회복")),
-                ("수요급증", ("수요급증", "수요 급증", "수요폭증", "수요 폭증")),
-                ("공급과잉우려", ("공급과잉우려", "공급 과잉 우려", "공급과잉 우려", "공급 과잉을 우려")),
-                ("공급과잉", ("공급과잉", "공급 과잉")),
-            )
-            for industry, aliases_for_industry in industry_aliases:
-                if not any(alias in compact_source for alias in aliases_for_industry):
-                    continue
-                for state_label, state_phrases in state_rules:
-                    if any(re.sub(r"\\s+", "", phrase.lower()) in compact_source for phrase in state_phrases):
-                        add(f"{industry}{state_label}", f"{source_name}-sharp", f"{industry}{state_label}", priority)
-                        break
-
-        # Context combinations for financing/dilution events. Ambiguous nouns
-        # such as 유상증자/CB are not directional by themselves; surface only
-        # the concrete structure/result stated by the article.
-        context_texts = (("title", title, 105), ("description", description, 65))
-        for source_name, source_text, priority in context_texts:
-            compact = re.sub(r"\s+", "", source_text.lower())
-
-            if "유상증자" in compact or "유증" in compact:
-                if "제3자배정" in compact or "3자배정" in compact:
-                    add("제3자배정유상증자", f"{source_name}-context", "제3자배정 유상증자", priority)
-                    if any(word in compact for word in ("납입완료", "납입성공", "납입확정")):
-                        add("제3자배정납입완료", f"{source_name}-context", "제3자배정 유상증자 납입 완료", priority + 3)
-                if "주주배정" in compact:
-                    add("주주배정유상증자", f"{source_name}-context", "주주배정 유상증자", priority)
-                if any(word in compact for word in ("납입일연기", "납입연기")):
-                    add("유상증자납입연기", f"{source_name}-context", "유상증자 납입 연기", priority + 3)
-                if any(word in compact for word in ("지분희석", "주가희석", "희석우려", "희석부담")):
-                    add("유상증자지분희석", f"{source_name}-context", "유상증자 지분 희석", priority + 2)
-
-            cb_present = any(word in compact for word in ("전환사채", "cb발행", "cb "))
-            bw_present = any(word in compact for word in ("신주인수권부사채", "bw발행", "bw "))
-            if cb_present:
-                if any(word in compact for word in ("전환가액하향", "전환가격하향", "리픽싱")):
-                    add("CB리픽싱", f"{source_name}-context", "CB 전환가액 하향", priority + 3)
-                if any(word in compact for word in ("전환청구권행사", "전환권행사")):
-                    add("CB전환청구권행사", f"{source_name}-context", "CB 전환청구권 행사", priority + 2)
-            if bw_present and any(word in compact for word in ("신주인수권행사", "행사청구")):
-                add("BW신주인수권행사", f"{source_name}-context", "BW 신주인수권 행사", priority + 2)
-
-            if any(word in compact for word in ("보호예수해제", "락업해제")):
-                if any(word in compact for word in ("물량", "주식", "오버행", "매물")):
-                    add("보호예수해제물량", f"{source_name}-context", "보호예수 해제 물량", priority + 2)
-
-        # Accounting / operating-driver combinations. Preserve the metric,
-        # direction and (when stated) magnitude instead of collapsing to a noun.
-        driver_texts = (("title", title, 104), ("description", description, 64))
-        for source_name, source_text, priority in driver_texts:
-            driver_rules = (
-                ("영업이익률", "영업이익률"),
-                ("매출총이익률", "매출총이익률"),
-                ("GPM", "GPM"),
-                ("원가율", "원가율"),
-                ("판관비율", "판관비율"),
-                ("부채비율", "부채비율"),
-                ("가동률", "가동률"),
-                ("수율", "수율"),
-                ("출하량", "출하량"),
-                ("판매량", "판매량"),
-            )
-            direction_map = {
-                "증가": "증가", "상승": "상승", "개선": "개선", "확대": "확대",
-                "감소": "감소", "하락": "하락", "악화": "악화", "축소": "축소",
-                "급증": "급증", "급감": "급감",
-            }
-            for phrase, label_base in driver_rules:
-                pattern = re.escape(phrase) + r".{0,10}?(급증|급감|증가|감소|상승|하락|개선|악화|확대|축소)"
-                for match in re.finditer(pattern, source_text, flags=re.IGNORECASE):
-                    add(f"{label_base}{direction_map[match.group(1)]}", f"{source_name}-driver", match.group(0), priority)
-
-                pct_pattern = (
-                    re.escape(phrase)
-                    + r".{0,12}?(\d+(?:\.\d+)?)\s*%\s*(?:p|포인트)?\s*"
-                    + r"(증가|감소|상승|하락|개선|악화)"
-                )
-                for match in re.finditer(pct_pattern, source_text, flags=re.IGNORECASE):
-                    value, direction = match.group(1), match.group(2)
-                    add(f"{label_base}{value}%{direction}", f"{source_name}-driver", match.group(0), priority + 3)
-
-            # P/Q/C style operating causes frequently used in research notes.
-            compact = re.sub(r"\s+", "", source_text)
-            pqc_rules = (
-                ("단가", ("인상", "상승", "하락", "인하")),
-                ("출하량", ("증가", "확대", "감소", "축소")),
-                ("판매량", ("증가", "확대", "감소", "축소")),
-                ("원가", ("상승", "증가", "하락", "감소")),
-                ("고정비", ("절감", "감소", "증가")),
-            )
-            for base, directions in pqc_rules:
-                for direction in directions:
-                    if base + direction in compact:
-                        add(f"{base}{direction}", f"{source_name}-driver", f"{base} {direction}", priority + 1)
-
-        # Filing / audit / litigation combinations. Keep the concrete
-        # regulatory event rather than surfacing generic "소송/감사/공시" nouns.
-        risk_texts = (("title", title, 106), ("description", description, 66))
-        for source_name, source_text, priority in risk_texts:
-            compact = re.sub(r"\s+", "", source_text.lower())
-
-            audit_rules = (
-                ("감사보고서제출지연", ("감사보고서제출지연", "감사보고서지연")),
-                ("감사의견거절", ("감사의견거절",)),
-                ("감사의견한정", ("감사의견한정",)),
-                ("내부회계비적정", ("내부회계관리제도비적정", "내부회계관리제도부적정")),
-                ("계속기업불확실성", ("계속기업가정불확실성", "계속기업존속능력불확실성")),
-                ("불성실공시지정예고", ("불성실공시법인지정예고",)),
-                ("불성실공시법인지정", ("불성실공시법인지정",)),
-                ("매매거래정지예고", ("매매거래정지예고", "거래정지예고")),
-                ("상장폐지실질심사", ("상장폐지실질심사",)),
-            )
-            for label, phrases in audit_rules:
-                if any(p in compact for p in phrases):
-                    add(label, f"{source_name}-risk", label, priority + 2)
-
-            litigation_rules = (
-                ("특허침해소송", ("특허침해소송", "특허침해소송제기")),
-                ("특허무효소송", ("특허무효소송",)),
-                ("손해배상청구소송", ("손해배상청구소송", "손해배상소송")),
-                ("직무집행정지가처분", ("직무집행정지가처분",)),
-                ("검찰압수수색", ("검찰압수수색", "압수수색영장")),
-                ("공정위과징금", ("공정위과징금", "공정거래위원회과징금")),
-                ("주가조작혐의", ("주가조작혐의", "시세조종혐의")),
-            )
-            for label, phrases in litigation_rules:
-                if any(p in compact for p in phrases):
-                    add(label, f"{source_name}-risk", label, priority + 2)
-
-            # Debt/default stress should be explicit; generic borrowing is not enough.
-            debt_rules = (
-                ("채무불이행", ("채무불이행", "디폴트")),
-                ("어음부도", ("어음부도", "수표부도", "어음수표부도")),
-                ("당좌거래정지", ("당좌거래정지",)),
-                ("신용등급하향", ("신용등급하향", "신용등급강등")),
-                ("단기차입금증가", ("단기차입금증가",)),
-            )
-            for label, phrases in debt_rules:
-                if any(p in compact for p in phrases):
-                    add(label, f"{source_name}-risk", label, priority + 1)
-
-        # Market-microstructure combinations. Keep actor + action + direction
-        # together so generic "수급" or "공매도" nouns never become the reason.
-        micro_texts = (("title", title, 105), ("description", description, 65))
-        for source_name, source_text, priority in micro_texts:
-            compact = re.sub(r"\s+", "", source_text.lower())
-            micro_rules = (
-                ("연기금연속순매수", ("연기금연속순매수", "연기금연속매수")),
-                ("패시브자금유입", ("패시브자금유입", "패시브펀드자금유입")),
-                ("프로그램순매수", ("프로그램순매수", "프로그램매수우위")),
-                ("대차잔고감소", ("대차잔고감소",)),
-                ("대차잔고증가", ("대차잔고증가",)),
-                ("공매도잔고감소", ("공매도잔고감소",)),
-                ("공매도잔고증가", ("공매도잔고증가",)),
-                ("공매도숏커버", ("공매도숏커버", "숏커버링", "쇼트커버링")),
-                ("대주주장내매수", ("대주주장내매수", "최대주주장내매수")),
-                ("대주주장내매도", ("대주주장내매도", "최대주주장내매도")),
-                ("임원장내매수", ("임원장내매수",)),
-                ("임원장내매도", ("임원장내매도",)),
-                ("시간외대량매매", ("시간외대량매매", "블록딜")),
-                ("반대매매실행", ("반대매매실행", "반대매매물량")),
-            )
-            for label, phrases in micro_rules:
-                if any(p in compact for p in phrases):
-                    add(label, f"{source_name}-micro", label, priority + 2)
-
-            # Index/ETF inclusion is useful only with the concrete destination.
-            index_rules = (
-                ("MSCI편입", ("msci편입", "msci지수편입")),
-                ("코스피200편입", ("코스피200편입", "kospi200편입")),
-                ("ETF신규편입", ("etf신규편입", "etf편입")),
-            )
-            for label, phrases in index_rules:
-                if any(p in compact for p in phrases):
-                    add(label, f"{source_name}-micro", label, priority + 1)
-
-        # Bio / approval / supply-chain milestone combinations. Prefer a
-        # completed milestone (approval/pass/designation) over a bare technology noun.
-        milestone_texts = (("title", title, 106), ("description", description, 66))
-        for source_name, source_text, priority in milestone_texts:
-            compact = re.sub(r"\s+", "", source_text.lower())
-            milestone_rules = (
-                ("FDA승인", ("fda승인", "fda품목허가승인")),
-                ("FDA승인거절", ("fda승인거절", "fda승인반려")),
-                ("IND승인", ("ind승인", "임상시험계획승인")),
-                ("NDA신청", ("nda신청", "fda신약허가신청")),
-                ("임상3상성공", ("임상3상성공", "3상임상성공")),
-                ("1차평가변수충족", ("1차평가변수충족", "1차평가지표충족")),
-                ("CE인증획득", ("ce인증획득", "ce인증취득")),
-                ("GMP승인", ("gmp승인", "gmp인증승인")),
-                ("퀄테스트통과", ("퀄테스트통과", "품질테스트통과")),
-                ("퀄테스트탈락", ("퀄테스트탈락", "품질테스트탈락")),
-                ("벤더등록", ("벤더등록", "vendor등록", "공급업체등록")),
-                ("Tier1공급사지정", ("tier1공급사지정", "tier1벤더지정")),
-                ("소재국산화", ("소재국산화",)),
-                ("부품국산화", ("부품국산화",)),
-                ("AEC-Q200인증", ("aec-q200인증", "aecq200인증")),
-            )
-            for label, phrases in milestone_rules:
-                if any(p in compact for p in phrases):
-                    add(label, f"{source_name}-milestone", label, priority + 2)
-
-            # Keep customer qualification concrete when the customer is stated.
-            customer_tokens = ("엔비디아", "nvidia", "애플", "apple", "테슬라", "tesla", "삼성전자", "sk하이닉스")
-            if any(customer in compact for customer in customer_tokens):
-                if "퀄테스트통과" in compact or "품질테스트통과" in compact:
-                    add("고객사퀄테스트통과", f"{source_name}-milestone", "고객사 퀄테스트 통과", priority + 3)
-                if any(word in compact for word in ("공급망진입", "벤더등록", "공급사지정")):
-                    add("고객사공급망진입", f"{source_name}-milestone", "고객사 공급망 진입", priority + 3)
-
-        # Dynamic earnings facts: keep the financial item attached to its
-        # actual amount so high-value facts do not collapse into generic "매출발표".
-        # Korean headlines often omit "원" ("영업익 108조 전망"), so amount-only
-        # earnings forecasts need their own grounded pattern.
-        amount_pattern = r"\d+(?:[.,]\d+)?\s*(?:조(?:\s*\d+(?:[.,]\d+)?\s*억)?|억|만)?\s*원"
-        earnings_texts = (("title", title, 98), ("description", description, 58))
-        forecast_amount_pattern = r"(?<![\d.])(\d+(?:[.,]\d+)?\s*(?:조(?:\s*\d+(?:[.,]\d+)?\s*억)?|억))\s*(?:원)?"
-        forecast_words = r"(전망|예상|추정|관측|내다봐|내다봤|기대)"
-        for source_name, source_text, priority in earnings_texts:
-            # e.g. "3분기 영업익 108조 전망", "영업이익 100조 시대 연다"
-            metric_forecast = (
-                r"(영업이익|영업익|매출|순이익)\s*(?:은|는|이|가|약|총|첫)?.{0,18}?"
-                + forecast_amount_pattern + r".{0,10}?" + forecast_words
-            )
-            for match in re.finditer(metric_forecast, source_text):
-                metric = "영업이익" if match.group(1) == "영업익" else match.group(1)
-                amount = re.sub(r"\s+", "", match.group(2))
-                add(f"{metric}{amount}전망", f"{source_name}-earnings", match.group(0), priority + 3)
-
-            # Headline shorthand where the metric is implied by nearby earnings context:
-            # "108조 전망", "100조 시대 연다". Keep the article wording; do not invent a metric.
-            if re.search(r"(실적|영업이익|영업익|매출|순이익)", source_text):
-                for match in re.finditer(forecast_amount_pattern + r".{0,8}?" + forecast_words, source_text):
-                    amount = re.sub(r"\s+", "", match.group(1))
-                    add(f"{amount}전망", f"{source_name}-earnings", match.group(0), priority + 2)
-                for match in re.finditer(forecast_amount_pattern + r"\s*(?:시대|시대가)\s*(?:연다|열린다|진입)", source_text):
-                    amount = re.sub(r"\s+", "", match.group(1))
-                    add(f"{amount}시대", f"{source_name}-earnings", match.group(0), priority + 2)
-
-        for source_name, source_text, priority in earnings_texts:
-            for metric in ("영업이익", "매출", "순이익"):
-                metric_pattern = re.escape(metric) + r"\s*(?:은|는|이|가|을|를|도|약|총)?\s*(" + amount_pattern + r")"
-                for match in re.finditer(metric_pattern, source_text):
-                    amount = re.sub(r"\s+", "", match.group(1))
-                    tail = source_text[match.end():match.end() + 18]
-                    event = ""
-                    if re.search(r"(돌파|넘어|넘었|상회)", tail):
-                        event = "돌파"
-                    elif re.search(r"(최대|최고|신기록)", source_text[max(0, match.start() - 18):match.end() + 18]):
-                        event = "최대"
-                    add(f"{metric}{amount}{event}", f"{source_name}-earnings", match.group(0), priority)
-
-        # Dynamic investor-flow facts from news evidence. This is a news
-        # material keyword only; it does not replace the supply/trading dataset.
-        flow_amount_pattern = r"\\d+(?:[.,]\\d+)?\\s*(?:조(?:\\s*\\d+(?:[.,]\\d+)?\\s*억)?|억|만)?\\s*원?"
-        flow_texts = (("title", title, 99), ("description", description, 59))
-        for source_name, source_text, priority in flow_texts:
-            compact_text = re.sub(r"\\s+", "", source_text)
-            for actor in ("외국인", "기관", "개인"):
-                # e.g. 외국인 한달새 17조 팔아 / 기관 2조 순매수
-                flow_pattern = (
-                    re.escape(actor)
-                    + r".{0,18}?(" + flow_amount_pattern + r").{0,12}?"
-                    + r"(순매수|순매도|매수|매도|사들여|사들였|팔아|팔았)"
-                )
-                for match in re.finditer(flow_pattern, source_text):
-                    amount = re.sub(r"\\s+", "", match.group(1))
-                    action_raw = match.group(2)
-                    action = {
-                        "사들여": "매수", "사들였": "매수",
-                        "팔아": "매도", "팔았": "매도",
-                    }.get(action_raw, action_raw)
-                    add(f"{actor}{amount}{action}", f"{source_name}-flow", match.group(0), priority)
-
-                # Preserve the article's stated record horizon instead of
-                # exaggerating "연중 최저" into "역대 최저".
-                stake_patterns = [
-                    (r"외국인지분율.{0,16}?(연중|역대|사상)\\s*(최저|최고)", lambda m: f"외국인지분율{m.group(1)}{m.group(2)}"),
-                    (r"외국인지분율.{0,16}?(\\d+)\\s*년(?:래|만의)?\\s*(최저|최고)", lambda m: f"외국인지분율{m.group(1)}년{m.group(2)}"),
-                    (r"외국인.{0,8}?지분(?:율)?.{0,16}?(연중|역대|사상)\\s*(최저|최고)", lambda m: f"외국인지분율{m.group(1)}{m.group(2)}"),
-                    (r"외국인.{0,8}?지분(?:율)?.{0,16}?(\\d+)\\s*년(?:래|만의)?\\s*(최저|최고)", lambda m: f"외국인지분율{m.group(1)}년{m.group(2)}"),
-                ]
-                if actor == "외국인":
-                    for pattern, label_builder in stake_patterns:
-                        for match in re.finditer(pattern, compact_text):
-                            add(label_builder(match), f"{source_name}-stake", match.group(0), priority + 1)
-
-                # e.g. 외국인 10일 연속 매도
-                streak_pattern = re.escape(actor) + r".{0,12}?(\\d+)\\s*일\\s*연속\\s*(순매수|순매도|매수|매도)"
-                for match in re.finditer(streak_pattern, source_text):
-                    add(f"{actor}{match.group(1)}일연속{match.group(2)}", f"{source_name}-flow-streak", match.group(0), priority)
-
-        # 1) Title-first: reusable meaning phrases found in the headline.
-        # Negation guard: a phrase mentioned only to deny/dismiss it must not
-        # become a user-facing cause keyword (e.g. "어닝쇼크가 아니다").
-        negation_tails = ("아니다", "아니라", "아닌", "없다", "없어", "없었다", "면했다", "피했다")
-        def is_negated_phrase(text_lower, phrase):
-            start = text_lower.find(phrase.lower())
-            if start < 0:
-                return False
-            tail = text_lower[start + len(phrase):start + len(phrase) + 18]
-            return any(token in tail for token in negation_tails)
-
-        for label, phrases in summary_rules:
-            matched = next(
-                (p for p in phrases if p.lower() in title_lower and not is_negated_phrase(title_lower, p)),
-                "",
-            )
-            if matched:
-                add(label, "title", matched, 100)
-
-        # Existing signal dictionaries remain useful as supporting vocabulary,
-        # but title matches outrank description-only matches.
-        # score_stock_news() already refined the shared DETAIL_KEYWORD_RULES
-        # into movement_signals. Reuse that result here so newly added shared
-        # keywords reach article_keywords without running the expensive matcher
-        # a second time for every article.
-        # movement_signals are evidence for scoring/classification only.
-        # Do not promote them directly into user-facing article keywords:
-        # generic evidence such as product/category/context words can be useful
-        # internally without explaining why the stock may move.
-
-        # 2) Description supplements the headline; it never replaces the
-        # headline as the article's center.
-        for label, phrases in summary_rules:
-            if label in seen:
-                continue
-            matched = next(
-                (p for p in phrases if p.lower() in desc_lower and not is_negated_phrase(desc_lower, p)),
-                "",
-            )
-            if matched:
-                add(label, "description", matched, 55)
-
-        # Do not promote quoted headline copy or standalone product/entity names
-        # into storyboard keywords. They describe what the article is about,
-        # while the storyboard should explain what happened.
-
-        for phase in re.findall(r"(?<!\d)([123])상(?:\s*임상(?:시험)?)?", title):
-            add(f"{phase}상데이터", "title-entity", f"{phase}상", 80)
-
-        # Test-only: keep concrete Korean event phrases from the headline.
-        # This supplements reusable rules without adding stock-specific terms.
-        korean_event_patterns = [
-            r"([가-힣A-Za-z0-9]+(?:팹|공장))\s*(착공|준공|증설)",
-            r"([가-힣A-Za-z0-9]+(?:메모리|제품|기술))\s*(공개|출시|개발)",
-            r"([A-Za-z0-9가-힣]+)\s*(양산|생산)",
-        ]
-        for pattern in korean_event_patterns:
-            for match in re.finditer(pattern, title):
-                subject, event = match.groups()
-                add(f"{subject}{event}", "title-event", match.group(0), 84)
-
-        # Keep headline scale only when it belongs to a concrete corporate event.
-        event_scale_words = ("매입", "인수", "계약", "수주", "투자", "매각", "증자")
-        if any(word in title for word in event_scale_words):
-            for amount in re.findall(r"(?<![\d.])(?:\d+(?:[.,]\d+)*)\s*(?:조원|억원|만원|달러)", title):
-                add(amount, "title-scale", amount, 76)
-
-        # Keep extraction permissive, then reject only obvious malformed joins.
-        # This preserves rich novel phrases/numbers while preventing connective
-        # endings from becoming user-facing keywords.
-        malformed_connectives = (
-            "하고", "하며", "하면서", "있으며", "했으며", "됐으며", "되었으며",
-            "이어", "통해", "그리고", "또한",
-        )
-        candidates = [
-            row for row in candidates
-            if not any(token in row["label"] for token in malformed_connectives)
-        ]
-        # Broad topic + trading-action joins are usually nearby market wording,
-        # not the selected company's concrete event. Reject them late instead
-        # of weakening extraction of legitimate technology/market phrases.
-        candidates = [
-            row for row in candidates
-            if row["label"] not in {"기술매수", "기술매도", "시장매수", "시장매도"}
-        ]
-        # A bare generic noun plus a number (가격1만, 시장10억, 투자5만...) is
-        # not self-explanatory. Keep numeric facts only when the label names a
-        # concrete metric/object such as 영업이익185조, 데이터센터4047조원.
-        vague_numeric_prefixes = ("가격", "시장", "투자", "기술", "공급", "수요")
-        candidates = [
-            row for row in candidates
-            if not (
-                row["label"].startswith(vague_numeric_prefixes)
-                and re.fullmatch(r"(?:가격|시장|투자|기술|공급|수요)\d+(?:[.,]\d+)?(?:조원?|억원?|만원?|천원?|원|달러|%)?", row["label"])
-            )
-        ]
-
-        # A final keyword should explain article content, not merely repeat the
-        # searched stock or its own price move.
-        candidates = [
-            row for row in candidates
-            if row["label"] not in broad_labels
-            and row["label"] not in blocked_final_labels
-            and row["label"] not in {"주가상승", "주가하락", "급등", "급락"}
-        ]
-        # If the article has sharper evidence, generic labels such as
-        # 매출발표/자금조달 must not consume one of the final three slots.
-        has_sharp_candidate = any(
-            row["source"].endswith(("-sharp", "-earnings", "-flow", "-stake", "-flow-streak"))
-            or row["priority"] >= 98
-            for row in candidates
-        )
-        if has_sharp_candidate:
-            candidates = [row for row in candidates if row["label"] not in weak_final_labels]
-
-        # Let candidates compete on specificity before the final top-N.
-        # Prefer a concrete metric/product/result over a broader industry/topic
-        # phrase when both explain the same article evidence.
-        specific_prefixes = (
-            "영업이익", "영업이익률", "매출", "순이익", "HBM", "D램", "낸드",
-            "고대역폭메모리", "데이터센터",
-        )
-        broad_prefixes = ("반도체", "메모리", "시장", "기술", "공급", "수요", "가격")
-        result_words = ("탈환", "등극", "돌파", "최대", "최고", "상향", "하향", "확대", "증가", "감소")
-
-        def _specificity_score(row):
-            label = row["label"]
-            score = 0
-            if label.startswith(specific_prefixes):
-                score += 5
-            if label.startswith(broad_prefixes):
-                score -= 2
-            if re.search(r"\d", label):
-                score += 1
-                if not any(word in label for word in result_words):
-                    score -= 2
-            if any(word in label for word in result_words):
-                score += 2
-            # A number is strongest when its meaning is complete: object/metric
-            # + amount + event. This beats a shorter amount-only candidate.
-            if re.search(r"\\d", label) and any(word in label for word in (
-                "입찰", "계약", "수주", "협력", "투자", "조달", "매입", "매도",
-                "인수", "매각", "돌파", "확대", "증가", "감소", "전망",
-            )):
-                score += 5
-            if row["source"].endswith(("-earnings", "-sharp", "-grounded-result", "-grounded-numeric-event")):
-                score += 3
-            return score
-
-        candidates.sort(
-            key=lambda row: (
-                row["label"] in weak_final_labels,
-                -_specificity_score(row),
-                -row["priority"],
-                row["source"],
-                row["label"],
-            )
-        )
-
-        # Central news flow uses one representative meaning per article.
-        # Candidate generation stays broad for compatibility/debugging, but the
-        # article itself should contribute only its strongest grounded keyword.
-        selected = candidates[:1]
-
-        # One grounded event is enough for the storyboard. Requiring all
-        # max_keywords candidates here discarded good single-event results and
-        # forced the display back to the old movement-signal path.
-        enough = len(selected) > 0
+        selected = [representative] if representative else []
         results.append({
             "title": title,
             "description": description,
-            "candidate_keywords": [row["label"] for row in candidates],
-            "keywords": [row["label"] for row in selected] if enough else [],
-            "keyword_details": selected if enough else [],
+            "candidate_keywords": [representative["label"]] if representative else [],
+            "keywords": [representative["label"]] if representative else [],
+            "keyword_details": selected,
             "stock_entities": stock_entities,
-            "enough_evidence": enough,
-            "status": "PASS" if enough else "SKIP",
+            "enough_evidence": bool(representative),
+            "status": "PASS" if representative else "SKIP",
         })
 
     return {"stock": stock_name, "articles": results}
