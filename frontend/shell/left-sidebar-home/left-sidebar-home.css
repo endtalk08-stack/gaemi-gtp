@@ -11,6 +11,7 @@
   z-index: 41;
   background: var(--gtp-panel-bg);
   border: 1px solid var(--gtp-border);
+  font-family: inherit;
   transition: width .25s ease, flex-basis .25s ease;
 }
 
@@ -169,8 +170,8 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   align-items: center;
   gap: 10px;
   font: inherit;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 650;
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -197,13 +198,13 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   align-items: center;
   gap: 8px;
   color: var(--gtp-muted);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 .left-sidebar-home__section-title svg { width: 16px; height: 16px; color: var(--gtp-faint); stroke-width: 1.75; }
 .left-sidebar-home__items { margin: 8px 0 0 24px; padding: 0; list-style: none; }
-.left-sidebar-home__item { min-width: 0; padding: 5px 0; color: var(--gtp-text-2); font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.left-sidebar-home__item { min-width: 0; padding: 5px 0; color: var(--gtp-text-2); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 1023px) {
   #leftSidebarHome.left-sidebar-home {
