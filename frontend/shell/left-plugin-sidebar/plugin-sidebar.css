@@ -44,8 +44,8 @@ body.left-plugin-open #leftContextSidebar.context-sidebar {
 }
 .plugin-sidebar-title {
   color: var(--gtp-text);
-  font-size: 15px;
-  font-weight: 800;
+  font-size: var(--gtp-type-brand);
+  font-weight: var(--gtp-weight-brand);
   letter-spacing: -0.02em;
 }
 .plugin-sidebar-close {
@@ -72,9 +72,9 @@ body.left-plugin-open #leftContextSidebar.context-sidebar {
   background: var(--gtp-surface-2); color: var(--gtp-muted);
 }
 .plugin-widget-meta { min-width: 0; flex: 1; }
-.plugin-widget-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.plugin-widget-desc { margin-top: 3px; font-size: 11px; font-weight: 600; color: var(--gtp-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.plugin-widget-status { font-size: 11px; font-weight: 600; color: var(--gtp-faint); white-space: nowrap; }
+.plugin-widget-title { font-size: var(--gtp-type-item); font-weight: var(--gtp-weight-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plugin-widget-desc { margin-top: 3px; font-size: var(--gtp-type-fine); font-weight: var(--gtp-weight-meta); color: var(--gtp-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plugin-widget-status { font-size: var(--gtp-type-fine); font-weight: var(--gtp-weight-meta); color: var(--gtp-faint); white-space: nowrap; }
 @media (max-width: 1023px) {
   #leftMarketSidebar.market-sidebar,
   #leftContextSidebar.context-sidebar,
