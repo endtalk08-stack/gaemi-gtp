@@ -50,6 +50,7 @@
 
     const message = document.createElement('section');
     message.className = 'memo-pad-message';
+    message.dataset.chatToolMessage = 'memo-pad';
     message.setAttribute('aria-label', '메모장');
     message.innerHTML = `
       <div id="gaemiMemoPadCard" class="memo-pad-card">
@@ -58,7 +59,12 @@
             <h2 class="memo-pad-title">메모장</h2>
             <p class="memo-pad-subtitle">채팅하다 떠오른 내용을 바로 적어두세요.</p>
           </div>
-          <span class="memo-pad-status" aria-live="polite"></span>
+          <div class="memo-pad-head-actions">
+            <span class="memo-pad-status" aria-live="polite"></span>
+            <button type="button" class="chat-tool-close" data-chat-tool-close aria-label="메모장 닫기" title="닫기">
+              <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
         <textarea class="memo-pad-textarea" aria-label="메모 내용" placeholder="메모를 입력하세요"></textarea>
         <div class="memo-pad-actions">
@@ -124,6 +130,7 @@
     });
 
     chatArea.appendChild(message);
+    if (window.lucide) window.lucide.createIcons();
     resize();
     message.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     requestAnimationFrame(() => textarea.focus());
