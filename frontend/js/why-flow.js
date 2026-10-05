@@ -154,7 +154,17 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:opacity-80 dark:text-[#e889aa]" data-why-followup="disclosure"></button>
               </div>`;
             (actions || block).insertAdjacentElement('afterend', followups);
-            await typeText(followups.querySelector('p'), '하나만 찍어');
+            const followupPrompt = followups.querySelector('p');
+            const gaemi = document.createElement('span');
+            gaemi.setAttribute('aria-hidden', 'true');
+            gaemi.textContent = '🐜';
+            gaemi.style.display = 'inline-block';
+            gaemi.style.marginRight = '6px';
+            gaemi.style.filter = 'grayscale(1) brightness(0.18)';
+            followupPrompt.appendChild(gaemi);
+            const followupPromptText = document.createElement('span');
+            followupPrompt.appendChild(followupPromptText);
+            await typeText(followupPromptText, '하나만 찍어');
             await typeText(followups.querySelector('[data-why-followup="big-money"]'), '#큰손은_뭐해?');
             await typeText(followups.querySelector('[data-why-followup="disclosure"]'), '#공시는_있어?');
 
