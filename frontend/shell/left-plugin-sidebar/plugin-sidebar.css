@@ -33,9 +33,9 @@ body.left-plugin-open #leftContextSidebar.context-sidebar {
   pointer-events: none;
 }
 .plugin-sidebar-header {
-  height: 64px;
-  flex: 0 0 64px;
-  padding: 0 16px;
+  height: var(--gtp-header-height);
+  flex: 0 0 var(--gtp-header-height);
+  padding: 0 var(--gtp-header-padding-x);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -49,7 +49,7 @@ body.left-plugin-open #leftContextSidebar.context-sidebar {
   letter-spacing: -0.02em;
 }
 .plugin-sidebar-close {
-  width: 32px; height: 32px; border: 0; border-radius: 9px;
+  width: var(--gtp-header-control-size); height: var(--gtp-header-control-size); border: 0; border-radius: 10px;
   background: transparent; color: var(--gtp-muted); display: inline-flex;
   align-items: center; justify-content: center; cursor: pointer;
 }
@@ -90,3 +90,5 @@ body.left-plugin-open #leftContextSidebar.context-sidebar {
   }
   body.left-plugin-open #rightPanel, body.left-plugin-open #rightPanelResizer { display: none !important; }
 }
+
+.plugin-sidebar-close svg { width: var(--gtp-header-icon-size); height: var(--gtp-header-icon-size); }
