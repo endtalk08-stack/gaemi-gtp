@@ -331,21 +331,39 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 /* 홈과 분석 화면은 같은 상단 기준선을 사용한다. 화면 상태가 바뀌어도
    브랜드와 양쪽 패널 제어 버튼의 위치가 달라지지 않도록 공통값을 둔다. */
 .gaemi-app-header {
-  height: 64px;
-  min-height: 64px;
-  padding-inline: 8px;
-  background: transparent;
+  height: var(--gtp-header-height);
+  min-height: var(--gtp-header-height);
+  padding-inline: var(--gtp-header-padding-x);
+  background: var(--gtp-bg);
+  border-bottom: 1px solid var(--gtp-border);
 }
 
 .gaemi-app-header__brand {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font-family: var(--gtp-font-family);
   font-size: var(--gtp-type-brand);
   font-weight: var(--gtp-weight-brand);
+  line-height: 1;
   letter-spacing: -0.02em;
-  color: #0f172a;
 }
 
 .dark .gaemi-app-header__brand {
   color: var(--gtp-text);
+}
+
+.gaemi-app-header .icon-hit {
+  width: var(--gtp-header-control-size) !important;
+  height: var(--gtp-header-control-size) !important;
+  min-width: var(--gtp-header-control-size) !important;
+  min-height: var(--gtp-header-control-size) !important;
+}
+
+.gaemi-app-header .icon-hit svg {
+  width: var(--gtp-header-icon-size) !important;
+  height: var(--gtp-header-icon-size) !important;
 }
 
 /* Analysis chat: top, scrollable body, and bottom input share one quiet
@@ -372,10 +390,6 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 }
 
 @media (min-width: 640px) {
-  .gaemi-app-header {
-    padding-inline: 16px;
-  }
-
   #mainContent > #chatArea.gaemi-chat-body {
     padding: 24px 24px 32px;
   }
