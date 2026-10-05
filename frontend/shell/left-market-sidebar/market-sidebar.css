@@ -2,6 +2,12 @@
 [data-shell="left-market-sidebar"] {
   min-width: 0;
   min-height: 0;
+  font-family: inherit;
+}
+
+#leftMarketSidebar button,
+#leftMarketSidebar input {
+  font-family: inherit;
 }
 
 /* Market sidebar header — match the left plugin/context sidebar header geometry */
@@ -23,7 +29,8 @@
 }
 .market-sidebar-subtitle {
   color: var(--gtp-faint);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 600;
   margin-top: 0;
 }
 .market-sidebar-close {
