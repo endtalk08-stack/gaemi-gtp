@@ -941,163 +941,142 @@ def _related_stock_entities(item):
 
 
 def build_connected_keyword_test(items, stock_name, max_keywords=1):
-    """Pick one grounded, stock-relevant representative keyword per article.
+    """Extract one stock-grounded semantic event from each article.
 
-    News collection/scoring stays upstream.  This function intentionally avoids
-    the old large candidate-expansion pipeline: title is the primary semantic
-    frame, description only confirms/supports it, and no extra network work is
-    performed here.
+    The extractor is deliberately local and cheap: it reads the already-fetched
+    title/description, finds the selected-company clause, then compresses
+    object + change/event.  No extra collection or external model call occurs.
     """
     import re
 
     aliases = _stock_aliases(stock_name)
     results = []
 
-    # High-information phrases first.  These are reusable event meanings, not
-    # stock-specific mappings.  Longer/more specific evidence wins naturally.
-    phrase_rules = (
-        ("목표가상향", ("목표주가 상향", "목표가 상향")),
-        ("목표가하향", ("목표주가 하향", "목표가 하향")),
-        ("투자의견상향", ("투자의견 상향", "의견 상향")),
-        ("투자의견하향", ("투자의견 하향", "의견 하향")),
-        ("예상치상회", ("예상치 상회", "예상을 상회", "컨센서스 상회", "시장 예상 상회")),
-        ("예상치하회", ("예상치 하회", "예상을 하회", "컨센서스 하회", "시장 예상 하회")),
-        ("호실적", ("호실적", "어닝 서프라이즈", "실적 서프라이즈")),
-        ("어닝쇼크", ("어닝 쇼크", "실적 쇼크")),
-        ("실적전망상향", ("실적 전망 상향", "가이던스 상향")),
-        ("실적전망하향", ("실적 전망 하향", "가이던스 하향")),
-        ("매출성장세", ("매출 성장세", "매출 성장")),
-        ("판매반등", ("판매 반등", "판매 회복")),
-        ("인도량예상치상회", ("인도량 예상치 상회", "인도량이 예상치를 상회")),
-        ("차익실현", ("차익 실현", "차익실현")),
-        ("주가반응부진", ("주가 반응 부진", "주가반응 부진")),
-        ("수주확대", ("수주 확대", "수주 증가")),
-        ("대형수주", ("대형 수주",)),
-        ("공급계약", ("공급 계약", "공급계약")),
-        ("계약해지", ("계약 해지", "공급계약 해지")),
-        ("생산확대", ("생산 확대", "생산능력 확대", "생산 능력 확대")),
-        ("생산중단", ("생산 중단", "가동 중단")),
-        ("투자확대", ("투자 확대",)),
-        ("수요급증", ("수요 급증",)),
-        ("수요둔화", ("수요 둔화",)),
-        ("공급부족", ("공급 부족",)),
-        ("공급과잉우려", ("공급과잉 우려", "공급 과잉 우려")),
-        ("가격인상", ("가격 인상", "단가 인상")),
-        ("가격인하", ("가격 인하", "단가 인하")),
-        ("점유율확대", ("점유율 확대", "점유율 상승")),
-        ("자사주매입", ("자사주 매입", "자기주식 취득")),
-        ("자사주소각", ("자사주 소각", "자기주식 소각")),
-        ("배당확대", ("배당 확대", "배당 증액")),
-        ("FDA승인", ("FDA 승인",)),
-        ("FDA승인거절", ("FDA 승인 거절", "FDA 승인 반려")),
-        ("임상3상성공", ("임상 3상 성공", "3상 임상 성공")),
-        ("임상실패", ("임상 실패", "임상시험 실패")),
-        ("사상최고가돌파", ("사상 최고가 돌파", "사상 최고 돌파", "역대 최고가 돌파")),
-        ("AI데이터센터", ("AI 데이터센터", "AI 데이터 센터")),
+    # Normalization is intentionally small and generic.  These are semantic
+    # event families, not an ever-growing list of finished stock keywords.
+    event_map = (
+        (r"(웃돌|상회|넘어서|넘었)", "상회"),
+        (r"(밑돌|하회|못s*미쳐)", "하회"),
+        (r"(반등|회복|증가세로s*전환|증가세로s*돌아서)", "반등"),
+        (r"(급증|크게s*늘|대폭s*증가)", "급증"),
+        (r"(증가|늘었|늘어|늘린|확대)", "증가"),
+        (r"(급감|크게s*줄|대폭s*감소)", "급감"),
+        (r"(감소|줄었|줄어|축소)", "감소"),
+        (r"(상향|올렸|올려)", "상향"),
+        (r"(하향|내렸|낮췄)", "하향"),
+        (r"(개선|호전)", "개선"),
+        (r"(악화|부진)", "부진"),
+        (r"(돌파|넘어섰|최고가)", "돌파"),
+        (r"(수주|따냈|수주했)", "수주"),
+        (r"(계약|체결)", "계약"),
+        (r"(승인|허가)", "승인"),
+        (r"(거절|반려)", "거절"),
+        (r"(출시|공개)", "출시"),
+        (r"(양산|생산s*개시)", "양산"),
+        (r"(중단|가동s*중단)", "중단"),
+        (r"(인수)", "인수"),
+        (r"(매각)", "매각"),
+        (r"(매입|취득)", "매입"),
+        (r"(소각)", "소각"),
     )
-
-    # Compact event fallback.  It only joins nearby words already present in
-    # the article, preventing malformed long-distance joins such as 특AI개발.
-    event_words = (
-        "상향", "하향", "상회", "하회", "반등", "회복", "급증", "급감",
-        "확대", "축소", "증가", "감소", "개선", "악화", "돌파", "수주",
-        "계약", "승인", "거절", "출시", "양산", "중단", "인수", "매각",
+    object_hints = (
+        "목표주가", "목표가", "투자의견", "가이던스", "영업이익", "영업익",
+        "순이익", "매출", "인도량", "판매", "판매량", "점유율", "수요", "공급",
+        "생산", "생산능력", "출하량", "가격", "단가", "수주", "수주잔고",
+        "자사주", "배당", "데이터센터", "AI데이터센터", "HBM", "D램", "낸드",
+        "임상", "FDA", "공장", "지분", "수출",
     )
-    broad_only = {
-        "시장", "투자", "기술", "AI", "반도체", "메모리", "수요", "공급",
-        "가격", "주식", "기업",
-    }
-    negation_words = ("아니다", "아니라", "아닌", "없다", "없어", "부인")
+    context_hints = (
+        "유럽", "미국", "중국", "한국", "국내", "해외", "AI", "데이터센터",
+        "HBM", "D램", "낸드",
+    )
+    stop_objects = {"시장", "기업", "주식", "기술", "투자", "관련", "업계", "전망"}
+    negations = ("아니다", "아니라", "아닌", "않", "못했다", "부인")
 
     def compact(value):
-        return re.sub(r"\\s+", "", str(value or "").strip())
+        return re.sub(r"\s+", "", str(value or "").strip())
 
-    def selected_stock_is_present(text):
+    def contains_selected(text):
         lower = text.lower()
         return any(alias and alias in lower for alias in aliases)
 
-    def other_company_owns_phrase(text, phrase):
-        """Conservative guard for evaluative/result phrases in multi-company news."""
-        lower = text.lower()
-        pos = lower.find(phrase.lower())
-        if pos < 0:
-            return False
-        nearest = []
-        for market_stocks in STOCK_UNIVERSE.values():
-            for canonical, entity_aliases in market_stocks.items():
-                for name in (canonical, *(entity_aliases or [])):
-                    token = str(name or "").strip().lower()
-                    if not token:
-                        continue
-                    p = lower.rfind(token, 0, pos + 1)
-                    if p >= 0:
-                        nearest.append((pos - p, canonical))
-        if not nearest:
-            return False
-        nearest.sort(key=lambda pair: pair[0])
-        return compact(nearest[0][1]).lower() != compact(stock_name).lower()
+    def split_clauses(text):
+        # Keep clauses short enough that subject/object/event still belong
+        # together.  Description is supporting evidence, never a remote word pool.
+        return [
+            part.strip()
+            for part in re.split(r"[.!?。]|[;]|\s+[·•]\s+|(?<=다),\s+|(?<=며),\s+", text)
+            if part.strip()
+        ]
 
-    def find_rule(text, require_stock_context=False):
-        lower = text.lower()
-        if require_stock_context and not selected_stock_is_present(text):
-            return None
-        for label, phrases in phrase_rules:
-            for phrase in phrases:
-                p = lower.find(phrase.lower())
-                if p < 0:
-                    continue
-                tail = lower[p + len(phrase):p + len(phrase) + 16]
-                if any(word in tail for word in negation_words):
-                    continue
-                if label in {
-                    "호실적", "어닝쇼크", "예상치상회", "예상치하회",
-                    "매출성장세", "판매반등", "주가반응부진",
-                } and other_company_owns_phrase(text, phrase):
-                    continue
-                return {
-                    "label": label,
-                    "source": "title-rule" if text is title else "description-rule",
-                    "evidence": phrase,
-                    "priority": 100 if text is title else 60,
-                }
-        return None
-
-    def fallback_from_title(text):
-        # Strip the selected stock name before looking for the local event phrase.
-        work = text
+    def strip_company(text):
+        out = text
         for alias in sorted(aliases, key=len, reverse=True):
             if alias:
-                work = re.sub(re.escape(alias), " ", work, flags=re.IGNORECASE)
-        clauses = [p.strip() for p in re.split(r"[|·…,:;!?]+", work) if p.strip()]
-        for clause in clauses:
-            tokens = re.findall(r"[A-Za-z0-9가-힣%]+", clause)
-            if not tokens:
+                out = re.sub(re.escape(alias), " ", out, flags=re.IGNORECASE)
+        return out
+
+    def event_of(clause):
+        for pattern, normalized in event_map:
+            match = re.search(pattern, clause, flags=re.IGNORECASE)
+            if not match:
                 continue
-            for i, token in enumerate(tokens):
-                action = next((word for word in event_words if word in token), "")
-                if not action:
-                    continue
-                left = tokens[max(0, i - 2):i]
-                subject = next(
-                    (
-                        re.sub(r"(은|는|이|가|을|를|의|로|으로|에|서|와|과)$", "", value)
-                        for value in reversed(left)
-                        if 1 < len(value) <= 12
-                    ),
-                    "",
-                )
-                label = compact(f"{subject}{action}" if subject else action)
-                if not label or label in broad_only or len(label) < 3:
-                    continue
-                if label.startswith(("특AI", "시장개인", "기술AI")):
-                    continue
-                return {
-                    "label": label,
-                    "source": "title-event",
-                    "evidence": clause,
-                    "priority": 50,
-                }
-        return None
+            tail = clause[match.end():match.end() + 12]
+            if any(word in tail for word in negations):
+                continue
+            return normalized, match
+        return "", None
+
+    def object_of(clause, event_match):
+        before = clause[:event_match.start()] if event_match else clause
+        # Prefer known investment objects nearest to the event.
+        found = []
+        for hint in object_hints:
+            for match in re.finditer(re.escape(hint), before, flags=re.IGNORECASE):
+                found.append((match.start(), hint))
+        if found:
+            _, obj = max(found, key=lambda pair: pair[0])
+            # Add a useful geographic/product context only when it is close to
+            # the object, producing e.g. 유럽판매반등 rather than 판매반등.
+            obj_pos = before.lower().rfind(obj.lower())
+            prefix = before[max(0, obj_pos - 12):obj_pos]
+            context = next(
+                (hint for hint in context_hints if hint.lower() in prefix.lower() and hint.lower() not in obj.lower()),
+                "",
+            )
+            return f"{context}{obj}" if context else obj
+
+        # Novel object fallback: use the nearest short noun-like token, but
+        # reject generic market prose.  This is what lets unseen events work
+        # without pre-registering a finished keyword.
+        tokens = re.findall(r"[A-Za-z0-9가-힣]+", strip_company(before))
+        for token in reversed(tokens[-4:]):
+            clean = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만)$", "", token)
+            if 1 < len(clean) <= 14 and clean not in stop_objects and not re.fullmatch(r"\d+", clean):
+                return clean
+        return ""
+
+    def semantic_candidate(clause, source):
+        if not contains_selected(clause):
+            return None
+        event, event_match = event_of(clause)
+        if not event:
+            return None
+        obj = object_of(clause, event_match)
+        if not obj:
+            return None
+
+        label = compact(f"{obj}{event}")
+        if len(label) < 3 or len(label) > 24:
+            return None
+        if label.startswith(("시장", "기업", "주식", "기술", "관련")):
+            return None
+        return {
+            "label": label,
+            "source": source,
+            "evidence": clause,
+            "priority": 100 if source == "title-semantic" else 60,
+        }
 
     for item in items or []:
         title = str(item.get("title") or "").strip()
@@ -1106,11 +1085,23 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
             continue
 
         stock_entities = _related_stock_entities(item)
-        representative = find_rule(title)
+        representative = None
+
+        # Headline is the article's semantic center.
+        for clause in split_clauses(title):
+            candidate = semantic_candidate(clause, "title-semantic")
+            if candidate:
+                representative = candidate
+                break
+
+        # Description can supply the event only when the selected company is
+        # explicitly named in that same clause.
         if representative is None:
-            representative = find_rule(description, require_stock_context=True)
-        if representative is None and selected_stock_is_present(title):
-            representative = fallback_from_title(title)
+            for clause in split_clauses(description):
+                candidate = semantic_candidate(clause, "description-semantic")
+                if candidate:
+                    representative = candidate
+                    break
 
         selected = [representative] if representative else []
         results.append({
