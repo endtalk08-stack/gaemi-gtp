@@ -119,16 +119,11 @@
     style.textContent = `
       #surpriseAntPopup { display: none !important; }
       .analysis-loading-sequence { width:100%; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; padding:8px 0 0; text-align:left; }
-      .analysis-loading-dots { display:flex; align-items:center; justify-content:flex-start; gap:10px; }
-      .analysis-loading-dots[hidden] { display:none; }
-      .analysis-loading-dots span { width:10px; height:10px; border-radius:999px; background:#94a3b8; animation:gaemiLoadingDot 1.15s ease-in-out infinite; }
-      .analysis-loading-dots span:nth-child(2){animation-delay:.10s}.analysis-loading-dots span:nth-child(3){animation-delay:.20s}.analysis-loading-dots span:nth-child(4){animation-delay:.30s}.analysis-loading-dots span:nth-child(5){animation-delay:.40s}.analysis-loading-dots span:nth-child(6){animation-delay:.50s}
       .analysis-loading-message { display:none; font-size:1rem; font-weight:800; letter-spacing:-.02em; }
       .analysis-loading-message.is-visible { display:inline-block; }
       .analysis-loading-message--secondary { margin-top:8px; }
       .analysis-loading-message.is-shimmer { color:transparent; background:linear-gradient(90deg,#64748b 0%,#64748b 34%,#e2e8f0 50%,#64748b 66%,#64748b 100%); background-size:220% 100%; background-clip:text; -webkit-background-clip:text; animation:gaemiLoadingShimmer 1.45s linear infinite; }
       .dark .analysis-loading-message.is-shimmer { background-image:linear-gradient(90deg,#a1a1aa 0%,#a1a1aa 34%,#f4f4f5 50%,#a1a1aa 66%,#a1a1aa 100%); }
-      @keyframes gaemiLoadingDot { 0%,60%,100%{opacity:.28;transform:translateY(0) scale(.82)}30%{opacity:1;transform:translateY(-4px) scale(1)} }
       @keyframes gaemiLoadingShimmer { from{background-position:120% 0}to{background-position:-120% 0} }
     `;
     document.head.appendChild(style);
@@ -142,9 +137,9 @@
       if (!chatArea) return null;
       const stage = document.createElement('div');
       stage.className = 'analysis-loading-sequence animate-fade';
-      stage.innerHTML = `<div class="analysis-loading-dots" aria-label="분석 준비 중"><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="analysis-loading-message" aria-live="polite"></div><div class="analysis-loading-message analysis-loading-message--secondary" aria-live="polite"></div>`;
+      stage.innerHTML = `<div class="analysis-loading-message" aria-live="polite"></div><div class="analysis-loading-message analysis-loading-message--secondary" aria-live="polite"></div>`;
       chatArea.appendChild(stage);
-      return { token, stockName, el:stage, dots:stage.querySelector('.analysis-loading-dots'), primaryMessage:stage.querySelector('.analysis-loading-message'), secondaryMessage:stage.querySelector('.analysis-loading-message--secondary'), ready:false, release:null, promise:null };
+      return { token, stockName, el:stage, primaryMessage:stage.querySelector('.analysis-loading-message'), secondaryMessage:stage.querySelector('.analysis-loading-message--secondary'), ready:false, release:null, promise:null };
     }
     function showMessage(flow, message, text) {
       if (!flow?.el?.isConnected || !message) return;
@@ -152,8 +147,7 @@
       message.classList.add('is-visible', 'is-shimmer');
     }
     async function play(flow) {
-      await sleep(STAGE_MS); if (flow.token !== flowToken) return;
-      flow.dots.hidden = true; showMessage(flow, flow.primaryMessage, '시세를 조회중입니다');
+      showMessage(flow, flow.primaryMessage, '시세를 조회중입니다');
       await sleep(STAGE_MS); if (flow.token !== flowToken) return;
       flow.ready = true; flow.release?.();
     }
