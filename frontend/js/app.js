@@ -535,7 +535,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       chatArea.appendChild(mainContainer);
 
       // 첫 답변의 본문 크기·색상·반응형 규칙을 안내/연출 멘트의 공통 기준으로 쓴다.
-      const responseMessageClass = 'gtp-chat-copy text-[#334155] gtp-dark-text';
+      const responseMessageClass = 'gtp-chat-copy';
 
       let secIdx = 0;
 
