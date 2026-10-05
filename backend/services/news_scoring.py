@@ -1047,50 +1047,69 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
         return sorted(found, key=lambda row: (-row[0], row[1]))
 
     def object_of(clause, event_match):
-        before = clause[:event_match.start()] if event_match else clause
+        """Return an object only when the clause itself links it to the event.
+
+        Do not promote an arbitrary nearby noun into an event object.  Generic
+        financial/business heads are accepted when they occur in the event's
+        local left context.  A novel modifier may decorate a known semantic
+        head, but never replace that head.
+        """
+        if not event_match:
+            return ""
+
+        before = clause[:event_match.start()]
         clean_before = strip_company(before)
+        # Keep the relation local.  This prevents an earlier noun/topic from
+        # being glued to a later event merely because it is in the same clause.
+        local_before = clean_before[-34:]
         candidates = []
 
         for hint in object_hints:
-            for match in re.finditer(re.escape(hint), clean_before, flags=re.IGNORECASE):
-                distance = max(0, len(clean_before) - match.end())
-                score = 44 - min(distance, 32)
+            for match in re.finditer(re.escape(hint), local_before, flags=re.IGNORECASE):
+                distance = max(0, len(local_before) - match.end())
+                # A semantic object must be reasonably close to its predicate.
+                if distance > 18:
+                    continue
+                score = 52 - distance
                 if hint in {"판매", "판매량", "매출", "인도량", "수요", "점유율", "출하량", "영업이익", "순이익", "목표주가", "가이던스"}:
                     score += 9
-                candidates.append((score, match.start(), hint))
+                candidates.append((score, match.start(), match.end(), hint))
 
-        tokens = list(re.finditer(r"[A-Za-z0-9가-힣]+", clean_before))
-        for match in tokens[-7:]:
-            token = match.group(0)
-            clean = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만|부터|까지)$", "", token)
-            if not (1 < len(clean) <= 16) or clean in stop_objects or re.fullmatch(r"\d+", clean):
+        # Novel compounds are allowed only when they terminate in a known
+        # semantic head (e.g. 하이브리드판매, 세단수요).  Bare words such as
+        # 지난/이어/가격/GB300 can no longer become an object on proximity alone.
+        for match in re.finditer(r"[A-Za-z0-9가-힣]+", local_before):
+            token = re.sub(r"(은|는|이|가|을|를|의|에|서|로|으로|와|과|도|만|부터|까지)$", "", match.group(0))
+            if not (2 < len(token) <= 18):
                 continue
-            distance = max(0, len(clean_before) - match.end())
-            score = 18 - min(distance, 15)
-            tail = clean_before[match.end():match.end() + 3]
-            if re.match(r"^(이|가|은|는|을|를)", tail):
-                score += 8
-            if clean in time_words or time_pattern.fullmatch(clean) or re.fullmatch(r"\d+(?:[.,]\d+)?(?:%|배|원|달러)", clean):
-                score -= 40
-            if clean.endswith(head_suffixes):
-                score += 13
-            candidates.append((score, match.start(), clean))
+            if token in stop_objects or token in time_words or time_pattern.fullmatch(token):
+                continue
+            if re.fullmatch(r"\d+(?:[.,]\d+)?(?:%|배|원|달러)", token):
+                continue
+            suffix = next((head for head in head_suffixes if token.endswith(head) and token != head), "")
+            if not suffix:
+                continue
+            distance = max(0, len(local_before) - match.end())
+            if distance > 14:
+                continue
+            candidates.append((46 - distance, match.start(), match.end(), token))
 
         if not candidates:
             return ""
 
-        score, obj_pos, obj = max(candidates, key=lambda row: (row[0], row[1]))
-        if score < 0:
+        score, obj_pos, obj_end, obj = max(candidates, key=lambda row: (row[0], row[1]))
+        if score < 30:
             return ""
 
-        prefix = clean_before[max(0, obj_pos - 16):obj_pos]
+        prefix = local_before[max(0, obj_pos - 14):obj_pos]
         context = next(
             (hint for hint in context_hints if hint.lower() in prefix.lower() and hint.lower() not in obj.lower()),
             "",
         )
 
-        # Preserve a nearby novel modifier only when the noun is clearly a
-        # semantic head.  Temporal/comparison expressions never become objects.
+        # Add one nearby modifier only to a known business head.  The modifier
+        # must itself look nominal; discourse/time/comparison fragments are
+        # deliberately excluded.
         if obj in {"수요", "판매", "판매량", "매출", "인도량", "출하량", "점유율", "수출", "수입"}:
             prefix_tokens = re.findall(r"[A-Za-z0-9가-힣]+", prefix)
             modifier = ""
@@ -1101,6 +1120,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
                     and clean not in stop_objects
                     and clean not in context_hints
                     and clean not in time_words
+                    and clean not in {"지난", "이어", "이후", "앞서", "다시", "또", "약", "최대"}
                     and not time_pattern.fullmatch(clean)
                     and not re.fullmatch(r"(?:전년|전월|전분기)대비", clean)
                 ):
