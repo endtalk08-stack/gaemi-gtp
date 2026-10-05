@@ -25,13 +25,13 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             loading.className = 'mt-5 space-y-2';
             prompt.insertAdjacentElement('afterend', loading);
             const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            for (const message of ['뉴스를 확인합니다', '생각중']) {
+            for (const message of ['생각중']) {
               if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
               const line = document.createElement('p');
               line.className = `${responseMessageClass} font-semibold animate-pulse`;
               line.textContent = message;
               loading.appendChild(line);
-              await wait(4000);
+              await wait(5000);
             }
             if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
             loading.remove();
