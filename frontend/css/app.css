@@ -36,12 +36,32 @@
     }
 
     body {
-      font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--gtp-font-family);
       letter-spacing: -0.015em;
       -webkit-font-smoothing: antialiased;
       word-break: keep-all;
     }
     #chatArea p { line-height: 1.65; letter-spacing: -0.02em; }
+
+    .gtp-chat-copy {
+      color: var(--gtp-text-2);
+      font-size: var(--gtp-type-body);
+      font-weight: var(--gtp-weight-body);
+      line-height: 1.65;
+      letter-spacing: -0.018em;
+    }
+    .gtp-chat-user {
+      font-size: var(--gtp-type-item);
+      font-weight: 650;
+      line-height: 1.45;
+    }
+    .gtp-chat-section-title {
+      color: var(--gtp-text);
+      font-size: var(--gtp-type-title);
+      font-weight: var(--gtp-weight-title);
+      line-height: 1.45;
+      letter-spacing: -0.02em;
+    }
 
     /* 출처: 토스처럼 작고 단순하게 표시하고, 열었을 때도 카드가 겹쳐 보이지 않게 한다. */
     .source-toggle-wrap { margin-top: 14px; }
@@ -83,12 +103,12 @@
     .source-list-row:last-child { border-bottom: 0; }
     .source-list-main { min-width: 0; flex: 1; }
     .source-list-title {
-      color: #0f172a; font-size: .82rem; font-weight: 700;
+      color: #0f172a; font-size: var(--gtp-type-item); font-weight: var(--gtp-weight-title);
       line-height: 1.4; display: -webkit-box;
       -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
     }
     .dark .source-list-title { color: #e4e4e7; }
-    .source-list-meta { margin-top: 3px; color: #71717a; font-size: .68rem; font-weight: 600; }
+    .source-list-meta { margin-top: 3px; color: var(--gtp-faint); font-size: var(--gtp-type-fine); font-weight: var(--gtp-weight-meta); }
     .source-list-arrow { flex: 0 0 auto; width: 16px; height: 16px; color: #71717a; }
 
     ::-webkit-scrollbar { display: none; width: 0px; }
@@ -318,8 +338,8 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 }
 
 .gaemi-app-header__brand {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: var(--gtp-type-brand);
+  font-weight: var(--gtp-weight-brand);
   letter-spacing: -0.02em;
   color: #0f172a;
 }
@@ -450,7 +470,7 @@ body.left-context-open #gaemiWorkspace {
 .dark .news-source-chip {
   border-color: #303136;
   background: #202124;
-  color: var(--gtp-overlay-text-2);
+  color: var(--gtp-text-2);
 }
 .dark .news-source-chip:hover {
   border-color: #52525b;
