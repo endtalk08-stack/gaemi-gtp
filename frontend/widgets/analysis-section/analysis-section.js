@@ -88,9 +88,12 @@
     return rows;
   }
 
-  async function loadCentralNewsFlow(stockName, result, sections) {
+  async function loadCentralNewsFlow(stockName, result, sections, externalSignal) {
     if (!result || !stockName) return;
     const controller = new AbortController();
+    const abortFromExternal = () => controller.abort();
+    if (externalSignal?.aborted) controller.abort();
+    else externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
     const timeout = setTimeout(() => controller.abort(), 6500);
     try {
       const response = await fetch(`${NEWS_FLOW_URL}?stock=${encodeURIComponent(stockName)}`, { signal: controller.signal, cache: 'no-store' });
@@ -106,6 +109,7 @@
       // 흐름 API가 늦거나 실패하면 기존 /analyze 결과로 그대로 진행한다.
     } finally {
       clearTimeout(timeout);
+      externalSignal?.removeEventListener('abort', abortFromExternal);
     }
   }
 
