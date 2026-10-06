@@ -1398,9 +1398,10 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
                 "score": _dart_report_score(report_name),
             })
 
-        # 영향도가 높은 공시를 우선하고, 같은 날에는 최신 접수번호를 우선한다.
+        # 국내 공시는 최신 접수일이 항상 위에 오도록 정렬한다.
+        # 같은 날에는 최신 접수번호를 우선한다.
         results.sort(
-            key=lambda x: (x["score"], x["date"], x["receipt_no"]),
+            key=lambda x: (x["receipt_datetime"], x["receipt_no"]),
             reverse=True,
         )
         results = results[:max_results]
