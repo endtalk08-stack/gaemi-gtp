@@ -6,8 +6,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let activeAnalysisRequestId = 0;
     let currentAppMode = 'gaemi';
     let workspaceUIReady = false;
-    let restoringWorkspaceState = false;
-    const WORKSPACE_STATE_KEY = 'gaemiGTP_workspace_state_v1';
 
     function getWorkspace() {
       return document.getElementById('gaemiWorkspace');
@@ -23,40 +21,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     }
 
     function readWorkspaceState() {
-      try {
-        const raw = localStorage.getItem(WORKSPACE_STATE_KEY);
-        if (!raw) return null;
-        const state = JSON.parse(raw);
-        if (!state || typeof state !== 'object') return null;
-        return state;
-      } catch (e) {
-        console.warn('[gaemiGTP] workspace state read warning:', e);
-        return null;
-      }
+      return window.GaemiGTPWorkspaceState?.read?.() || null;
     }
 
     function saveWorkspaceState() {
-      if (restoringWorkspaceState) return;
-      try {
-        const heroView = document.getElementById('mainHeroView');
-        const workspace = getWorkspace();
-        const panelOpen = document.body.classList.contains('right-panel-open');
-        const panelMaximized = document.body.classList.contains('right-panel-maximized');
-        const state = {
-          mode: document.body.classList.contains('analysis-mode') && heroView && heroView.classList.contains('hidden') ? 'analysis' : 'home',
-          stock: activeStock || '삼성전자',
-          leftHomeOpen: document.body.classList.contains('left-home-open'),
-          leftMarketOpen: document.body.classList.contains('left-market-open'),
-          leftContextOpen: document.body.classList.contains('left-context-open'),
-          leftPluginOpen: document.body.classList.contains('left-plugin-open'),
-          rightPanelOpen: panelOpen,
-          rightPanelMaximized: panelOpen && panelMaximized,
-          appMode: currentAppMode || 'gaemi'
-        };
-        localStorage.setItem(WORKSPACE_STATE_KEY, JSON.stringify(state));
-      } catch (e) {
-        console.warn('[gaemiGTP] workspace state save warning:', e);
-      }
+      window.GaemiGTPWorkspaceState?.save?.({ activeStock, currentAppMode });
     }
 
     function applySidebarState() {
@@ -278,7 +247,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     function initializeSidebars() {
       // 새로 열 때는 항상 검색 홈에서 시작하고, 레이아웃 설정만 복원한다.
       const saved = readWorkspaceState();
-      restoringWorkspaceState = true;
+      window.GaemiGTPWorkspaceState?.setRestoring?.(true);
 
       document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized','analysis-mode');
 
@@ -346,7 +315,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           restoreWorkspace();
-          restoringWorkspaceState = false;
+          window.GaemiGTPWorkspaceState?.setRestoring?.(false);
           saveWorkspaceState();
 
           // 마지막 종목 분석은 복원하지 않는다. 새 접속은 항상 검색 홈에서 시작한다.
