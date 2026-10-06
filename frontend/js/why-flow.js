@@ -25,16 +25,18 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             loading.className = 'mt-5 space-y-2';
             prompt.insertAdjacentElement('afterend', loading);
             const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            for (const message of ['생각중']) {
-              if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
-              const line = document.createElement('p');
-              line.className = `${responseMessageClass} font-semibold animate-pulse`;
-              line.textContent = message;
-              loading.appendChild(line);
+            const isActive = () => requestId === getActiveAnalysisRequestId() && mainContainer.isConnected;
+            const loadingLine = document.createElement('p');
+            loadingLine.className = `${responseMessageClass} font-semibold animate-pulse`;
+            loadingLine.textContent = '생각중';
+            loading.appendChild(loadingLine);
+
+            try {
               await wait(5000);
+              if (!isActive()) return;
+            } finally {
+              loading.remove();
             }
-            if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
-            loading.remove();
   
             const evidence = getWhyEvidence();
             const allNewsItems = Array.isArray(result.paired_news_items) ? result.paired_news_items : [];
@@ -169,15 +171,20 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 const disclosureLoading = document.createElement('div');
                 disclosureLoading.className = 'mt-5 space-y-2';
                 disclosurePrompt.insertAdjacentElement('afterend', disclosureLoading);
-                for (const message of ['전자 공시 뒤지고 있습니다', '돋보기 가동중 🔍']) {
-                  if (requestId !== getActiveAnalysisRequestId() || !mainContainer.isConnected) return;
-                  const line = document.createElement('p');
-                  line.className = `${responseMessageClass} font-semibold animate-pulse`;
-                  line.textContent = message;
-                  disclosureLoading.appendChild(line);
-                  await wait(4000);
+                const disclosureLoadingLine = document.createElement('p');
+                disclosureLoadingLine.className = `${responseMessageClass} font-semibold animate-pulse`;
+                disclosureLoading.appendChild(disclosureLoadingLine);
+
+                try {
+                  for (const message of ['전자 공시 뒤지고 있습니다', '돋보기 가동중 🔍']) {
+                    if (!isActive()) return;
+                    disclosureLoadingLine.textContent = message;
+                    await wait(4000);
+                  }
+                  if (!isActive()) return;
+                } finally {
+                  disclosureLoading.remove();
                 }
-                disclosureLoading.remove();
 
                 const disclosureBlock = document.createElement('section');
                 disclosureBlock.className = 'mt-5 space-y-5 animate-fade';
