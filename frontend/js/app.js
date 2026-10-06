@@ -899,13 +899,47 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         const pEl = document.getElementById(`p-content-${secIdx}`);
         let charIdx = 0;
         const chunkSize = 3;
+        const firstAnswerTagMatch = sec.id === 'why-up'
+          ? text.match(/(?:^|\n\n)([^\n]*#[^\n]*)$/)
+          : null;
+        const firstAnswerTagStart = firstAnswerTagMatch
+          ? text.lastIndexOf(firstAnswerTagMatch[1])
+          : -1;
+        const firstAnswerDirectionText = firstAnswerTagStart >= 0
+          ? text.slice(firstAnswerTagStart)
+          : '';
+        const firstAnswerIsDown = /-(?:\d+(?:\.\d+)?%)|보합|눈치싸움|파란불|숨고르기|투매/.test(firstAnswerDirectionText);
+        const firstAnswerThemeColor = firstAnswerIsDown ? '#38BDF8' : '#FF8DA1';
+        let activeTagSpan = null;
 
-        // 분석 본문은 모두 같은 타이핑 연출을 사용한다.
+        const appendTypingChunk = (chunk, chunkStart) => {
+          for (let offset = 0; offset < chunk.length; offset++) {
+            const char = chunk[offset];
+            const absoluteIndex = chunkStart + offset;
+            if (firstAnswerTagStart >= 0 && absoluteIndex >= firstAnswerTagStart) {
+              if (char === '#') {
+                activeTagSpan = document.createElement('span');
+                activeTagSpan.className = 'font-bold first-answer-hashtag';
+                activeTagSpan.style.color = firstAnswerThemeColor;
+                pEl.appendChild(activeTagSpan);
+              }
+              if (activeTagSpan && !/\s/.test(char)) {
+                activeTagSpan.textContent += char;
+                continue;
+              }
+              if (/\s/.test(char)) activeTagSpan = null;
+            }
+            pEl.appendChild(document.createTextNode(char));
+          }
+        };
+
+        // 첫 답변의 마지막 해시태그 줄은 최종 색상을 유지한 채 타이핑한다.
         function typeChunk() {
           if (requestId !== activeAnalysisRequestId) return;
           if (charIdx < text.length) {
+            const chunkStart = charIdx;
             const chunk = text.substr(charIdx, chunkSize);
-            pEl.textContent += chunk;
+            appendTypingChunk(chunk, chunkStart);
             charIdx += chunk.length;
             const pause = /[.!?…]$/.test(chunk) ? 180 : (/\n$/.test(chunk) ? 120 : 40);
             setTimeout(typeChunk, pause);
