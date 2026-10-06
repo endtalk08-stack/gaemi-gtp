@@ -46,6 +46,8 @@
     return applyTheme(current === 'dark' ? 'light' : 'dark', true);
   }
 
+  window.toggleTheme = toggle;
+
   window.GaemiGTPTheme = Object.freeze({
     key: KEY,
     initialize,
