@@ -3493,7 +3493,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 storyboard_news_list = score_stock_news(raw_news_list, raw_name)
                 print(f"[analyze news trace] stock={raw_name} part=score done elapsed={time.monotonic() - news_part_started:.2f}s items={len(storyboard_news_list)}", flush=True)
                 news_part_started = time.monotonic()
-                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
+                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=1)
                 print(f"[analyze news trace] stock={raw_name} part=keywords done elapsed={time.monotonic() - news_part_started:.2f}s", flush=True)
                 for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
                     article["article_keywords"] = keyword_result.get("keywords", [])
@@ -3580,7 +3580,7 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 storyboard_news_list = score_stock_news(fetch_stock_news(raw_name, market="미국", limit=50, include_market_stories=False), raw_name)
-                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=3)
+                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=1)
                 for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
                     article["article_keywords"] = keyword_result.get("keywords", [])
                     article["article_keyword_details"] = keyword_result.get("keyword_details", [])
