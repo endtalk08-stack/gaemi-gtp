@@ -288,10 +288,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
           // 기존 첫 답변과 같은 액션 버튼을 운세 하단에도 붙인다.
           // 복사/공유는 운세 텍스트만 대상으로 하고, 좋아요/싫어요는 같은 UI 동작을 재사용한다.
-          const fortuneActions = appendFirstReplyActions(resultText, fortuneText, 'fortune');
+          const fortuneActions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(resultText, fortuneText, 'fortune', stockName);
           // 액션 모듈은 기본적으로 첫 답변용 그룹만 렌더링하므로,
           // fortune 그룹을 별도로 넘기지 않고 기존 검증된 액션 UI를 그대로 재사용한다.
-          if (!fortuneActions) appendFirstReplyActions(resultText, fortuneText);
+          if (!fortuneActions) window.GaemiGTPFirstReplyActions.appendFirstReplyActions(resultText, fortuneText, 'first', stockName);
           // 액션 버튼은 resultText의 형제로 붙으므로 운세 컨테이너의 마지막 요소 뒤에
           // 남은 선택지를 연결해야 액션 모듈의 중복 검사에 막히지 않는다.
           const fortuneTail = fortune.lastElementChild || resultText;
@@ -553,7 +553,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
             // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
             if (secIdx === 0) {
-              const actions = appendFirstReplyActions(pEl, pEl.innerText);
+              const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(pEl, pEl.innerText, 'first', stockName);
               appendNextAnalysisChoices(actions);
               return;
             }
