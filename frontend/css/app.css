@@ -511,3 +511,34 @@ body.left-context-open #gaemiWorkspace {
 }
 .news-source-chip__label { white-space: nowrap; }
 
+
+/* Stock analysis loading: shared central-chat flow for desktop and mobile. */
+#surpriseAntPopup { display: none !important; }
+.analysis-loading-sequence {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 8px 0 0;
+  text-align: left;
+}
+.analysis-loading-message {
+  display: none;
+  font-size: var(--gtp-type-body);
+  font-weight: 500;
+  letter-spacing: -.02em;
+}
+.analysis-loading-message.is-visible { display: inline-block; }
+.analysis-loading-message.is-shimmer {
+  color: transparent;
+  background: linear-gradient(90deg, var(--gtp-muted) 0%, var(--gtp-muted) 34%, var(--gtp-text) 50%, var(--gtp-muted) 66%, var(--gtp-muted) 100%);
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: gaemiLoadingShimmer 1.45s linear infinite;
+}
+@keyframes gaemiLoadingShimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
