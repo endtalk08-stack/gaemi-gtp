@@ -880,24 +880,43 @@ def _supply_contract_detail_tags(item):
     tags = []
     contract_pos = min(contract_positions)
 
-    # Prefer a KRW amount written close to the supply-contract phrase. Requiring
-    # 억/조 keeps stock prices, dates and ordinary percentages out.
-    amount_pattern = re.compile(
-        r"(?<![\d.])(?:\d{1,4}(?:,\d{3})*|\d+(?:\.\d+)?)\s*조(?:\s*\d{1,4}(?:,\d{3})*\s*억)?\s*원?"
-        r"|(?<![\d.])(?:\d{1,4}(?:,\d{3})*|\d+(?:\.\d+)?)\s*억\s*원"
-        r"|(?<![\d.])(?:\d{1,4}(?:,\d{3})*|\d+(?:\.\d+)?)\s*억원"
+    # Keep the article's original contract currency. If both USD and a parenthetical
+    # KRW conversion are present, prefer USD instead of re-converting it ourselves.
+    usd_pattern = re.compile(
+        r"(?<![\d.])(?:\d{1,3}(?:,\d{3})*|\d+(?:\.\d+)?)\s*(?:조|억|만)?\s*달러"
+        r"|(?<![\d.])\$\s*(?:\d{1,3}(?:,\d{3})*|\d+(?:\.\d+)?)\s*(?:billion|million|bn|m)?",
+        flags=re.IGNORECASE,
     )
-    amount_matches = list(amount_pattern.finditer(text))
-    nearby_amounts = [
-        match for match in amount_matches
-        if abs(((match.start() + match.end()) // 2) - contract_pos) <= 90
-    ]
-    if nearby_amounts:
-        nearest = min(
-            nearby_amounts,
+    # Support Korean mixed-unit amounts such as 1조3천400억원 as one value so the
+    # trailing 400억원 is never mistaken for the whole contract size.
+    krw_pattern = re.compile(
+        r"(?<![\d가-힣])(?:\d{1,4}(?:,\d{3})*|\d+(?:\.\d+)?)\s*조"
+        r"(?:\s*(?:\d+천)?\s*\d{1,4}(?:,\d{3})*\s*억)?\s*원?"
+        r"|(?<![\d가-힣])(?:\d+천\s*)?\d{1,4}(?:,\d{3})*\s*억원"
+        r"|(?<![\d가-힣])(?:\d{1,4}(?:,\d{3})*|\d+(?:\.\d+)?)\s*억\s*원"
+    )
+
+    def nearby(matches):
+        return [
+            match for match in matches
+            if abs(((match.start() + match.end()) // 2) - contract_pos) <= 90
+        ]
+
+    usd_matches = nearby(list(usd_pattern.finditer(text)))
+    krw_matches = nearby(list(krw_pattern.finditer(text)))
+    amount_match = None
+    if usd_matches:
+        amount_match = min(
+            usd_matches,
             key=lambda match: abs(((match.start() + match.end()) // 2) - contract_pos),
         )
-        tags.append(re.sub(r"\s+", "", nearest.group(0)))
+    elif krw_matches:
+        amount_match = min(
+            krw_matches,
+            key=lambda match: abs(((match.start() + match.end()) // 2) - contract_pos),
+        )
+    if amount_match:
+        tags.append(re.sub(r"\s+", "", amount_match.group(0)))
 
     ratio_patterns = (
         r"(?:최근\s*)?매출액\s*대비\s*(\d+(?:\.\d+)?)\s*%",
@@ -910,7 +929,6 @@ def _supply_contract_detail_tags(item):
             break
 
     return list(dict.fromkeys(tags))
-
 
 def _grounded_entity_tags(item):
     """Return only explicit, whitelist-backed entities found in title + description."""
