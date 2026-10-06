@@ -1206,7 +1206,8 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
                 work = re.sub(re.escape(alias), " ", work, flags=re.IGNORECASE)
         clauses = [p.strip() for p in re.split(r"[|·…,:;!?]+", work) if p.strip()]
         for clause in clauses:
-            tokens = re.findall(r"[A-Za-z0-9가-힣%]+", clause)
+            # Keep decimal amounts intact so "17.5조 감소" does not become "5조감소".
+            tokens = re.findall(r"\d+(?:\.\d+)?[A-Za-z가-힣%]*|[A-Za-z가-힣%]+", clause)
             if not tokens:
                 continue
             for i, token in enumerate(tokens):
