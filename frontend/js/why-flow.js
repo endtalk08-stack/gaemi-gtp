@@ -113,16 +113,33 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   if (index) keywordEl.appendChild(document.createTextNode(' '));
                   keywordEl.appendChild(part);
                 });
+                const groundedParts = (Array.isArray(event.grounded_tags) ? event.grounded_tags : [])
+                  .map((tag) => String(tag || '').trim().replace(/^#/, ''))
+                  .filter(Boolean)
+                  .map((label) => {
+                    const span = document.createElement('span');
+                    span.className = 'gtp-chat-copy font-medium';
+                    span.dataset.typingText = '#' + label;
+                    span.textContent = '';
+                    return span;
+                  });
+                groundedParts.forEach((part) => {
+                  keywordEl.appendChild(document.createTextNode(' '));
+                  keywordEl.appendChild(part);
+                });
                 row.appendChild(timeEl);
                 row.appendChild(keywordEl);
                 storyboardList.appendChild(row);
-                storyboardRows.push({ timeEl, timeText, keywordParts });
+                storyboardRows.push({ timeEl, timeText, keywordParts, groundedParts });
               });
               block.appendChild(storyboardList);
 
-              for (const { timeEl, timeText, keywordParts } of storyboardRows) {
+              for (const { timeEl, timeText, keywordParts, groundedParts } of storyboardRows) {
                 await typeText(timeEl, timeText);
                 for (const part of keywordParts) {
+                  await typeText(part, part.dataset.typingText || '');
+                }
+                for (const part of groundedParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
               }
