@@ -75,14 +75,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       });
     }
 
-      async function fetchAnalysisFromBackend(stockName, signal) {
-        return window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend(stockName, signal);
-      }
-
-      function renderAnalysisStatus(chatArea, stockName, ok) {
-        return window.GaemiGTPAnalysisStatus.renderAnalysisStatus(chatArea, stockName, ok);
-      }
-
     async function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
@@ -118,7 +110,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       chatArea.appendChild(loadingDiv);
 
       const controller = activeAnalysisController;
-      const fetchPromise = fetchAnalysisFromBackend(stockName, controller.signal);
+      const fetchPromise = window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend(stockName, controller.signal);
       const loadingDelayPromise = new Promise(resolve => setTimeout(resolve, 4000));
       const [result] = await Promise.all([fetchPromise, loadingDelayPromise]);
       if (requestId !== activeAnalysisRequestId || result.aborted) {
@@ -141,7 +133,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           `;
           chatArea.appendChild(state);
         } else {
-          renderAnalysisStatus(chatArea, stockName, result.ok);
+          window.GaemiGTPAnalysisStatus.renderAnalysisStatus(chatArea, stockName, result.ok);
         }
         chatArea.scrollTop = 0;
         return;
@@ -159,15 +151,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (requestId !== activeAnalysisRequestId) return;
       startTypewriterFlow(stockName, sections, result, requestId);
     }
-
-
-      function openExternalLinkModal(item) {
-        return window.GaemiGTPExternalLinkModal.openExternalLinkModal(item);
-      }
-
-      function renderSourceLists(result, { includeHeader = true } = {}) {
-        return window.GaemiGTPSourceLists.renderSourceLists(result, { includeHeader });
-      }
 
     function startTypewriterFlow(stockName, sections, result, requestId) {
       if (requestId !== activeAnalysisRequestId) return;
@@ -577,7 +560,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
             // 뉴스/공시는 본문에 다시 렌더링하지 않는다.
             // 기존 백엔드가 남긴 레거시 📰/📌 줄만 안전하게 제거하고,
-            // 실제 뉴스/공시는 renderSourceLists()에서 한 번만 표시한다.
+            // 실제 뉴스/공시는 window.GaemiGTPSourceLists.renderSourceLists()에서 한 번만 표시한다.
               formatted = formatted
                 .replace(/(^|\n)\s*[📰📌][^\n]*(?=\n|$)/g, '$1')
                 .replace(/\n{3,}/g, '\n\n')
