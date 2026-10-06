@@ -3444,8 +3444,21 @@ def analyze_stock(raw_name='SK하이닉스'):
             ticker_symbol, clean_code = search_krx_code(raw_name)
 
         if not ticker_symbol:
-            ticker_symbol = "000660.KS"
-            clean_code = "000660"
+            return {
+                "sections": [
+                    {
+                        "id": "analysis-error",
+                        "title": "종목을 찾을 수 없습니다.",
+                        "content": f"{raw_name} 종목을 확인하지 못했습니다. 종목명이나 티커를 다시 확인해주세요."
+                    }
+                ],
+                "paired_news_items": [],
+                "storyboard_news_items": [],
+                "keyword_storyboard": [],
+                "disclosures": [],
+                "us_filings": [],
+                "ok": False,
+            }
 
         is_krw = ('-' not in ticker_symbol and ticker_symbol.endswith(('.KS', '.KQ'))) or (clean_code and len(clean_code) == 6)
 
