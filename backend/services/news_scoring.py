@@ -865,6 +865,53 @@ def _grounded_entity_alias_matches(text, alias):
     return token in text
 
 
+def _supply_contract_detail_tags(item):
+    """Extract explicit contract size and sales ratio only for supply-contract news."""
+    text = f"{item.get('title') or ''} {item.get('description') or ''}"
+    lower = text.lower()
+    contract_positions = [
+        pos for phrase in ("공급계약", "공급 계약")
+        for pos in [lower.find(phrase)]
+        if pos >= 0
+    ]
+    if not contract_positions:
+        return []
+
+    tags = []
+    contract_pos = min(contract_positions)
+
+    # Prefer a KRW amount written close to the supply-contract phrase. Requiring
+    # 억/조 keeps stock prices, dates and ordinary percentages out.
+    amount_pattern = re.compile(
+        r"(?<![\d.])(?:\d{1,4}(?:,\d{3})*|\d+(?:\.\d+)?)\s*조(?:\s*\d{1,4}(?:,\d{3})*\s*억)?\s*원?"
+        r"|(?<![\d.])(?:\d{1,4}(?:,\d{3})*|\d+(?:\.\d+)?)\s*억\s*원"
+        r"|(?<![\d.])(?:\d{1,4}(?:,\d{3})*|\d+(?:\.\d+)?)\s*억원"
+    )
+    amount_matches = list(amount_pattern.finditer(text))
+    nearby_amounts = [
+        match for match in amount_matches
+        if abs(((match.start() + match.end()) // 2) - contract_pos) <= 90
+    ]
+    if nearby_amounts:
+        nearest = min(
+            nearby_amounts,
+            key=lambda match: abs(((match.start() + match.end()) // 2) - contract_pos),
+        )
+        tags.append(re.sub(r"\s+", "", nearest.group(0)))
+
+    ratio_patterns = (
+        r"(?:최근\s*)?매출액\s*대비\s*(\d+(?:\.\d+)?)\s*%",
+        r"(?:최근\s*)?매출\s*대비\s*(\d+(?:\.\d+)?)\s*%",
+    )
+    for pattern in ratio_patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            tags.append(f"매출액대비{match.group(1)}%")
+            break
+
+    return list(dict.fromkeys(tags))
+
+
 def _grounded_entity_tags(item):
     """Return only explicit, whitelist-backed entities found in title + description."""
     text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
@@ -1171,6 +1218,10 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
             representative = find_rule(description, require_stock_context=True)
         if representative is None and selected_stock_is_present(title):
             representative = fallback_from_title(title)
+
+        if representative and representative.get("label") in {"공급계약", "장기공급계약"}:
+            grounded_tags.extend(_supply_contract_detail_tags(item))
+            grounded_tags = list(dict.fromkeys(grounded_tags))
 
         selected = [representative] if representative else []
         results.append({
