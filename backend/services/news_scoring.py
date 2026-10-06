@@ -842,6 +842,15 @@ GROUNDED_ENTITY_RULES = [
 ]
 
 
+def _grounded_entity_alias_matches(text, alias):
+    token = str(alias or "").strip().lower()
+    if not token:
+        return False
+    if re.fullmatch(r"[a-z0-9.\-]+", token) and len(token.replace(".", "").replace("-", "")) <= 5:
+        return re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", text) is not None
+    return token in text
+
+
 def _grounded_entity_tags(item):
     """Return only explicit, whitelist-backed entities found in title + description."""
     text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
@@ -849,7 +858,7 @@ def _grounded_entity_tags(item):
     for label, aliases in GROUNDED_ENTITY_RULES:
         if label == "HBM" and ("hbm4" in text or "hbm3e" in text):
             continue
-        if any(str(alias).lower() in text for alias in aliases):
+        if any(_grounded_entity_alias_matches(text, alias) for alias in aliases):
             tags.append(label)
     return list(dict.fromkeys(tags))
 
