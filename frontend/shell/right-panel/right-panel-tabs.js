@@ -480,7 +480,7 @@
     panelWorkspaceView = 'news';
     savePanelWorkspaceView();
     document.body.classList.add('right-panel-open');
-    window.applySidebarState?.();
+    window.GaemiGTPWorkspaceShellState?.apply?.();
     if (activeTabId !== 'panel-workspace') {
       setActiveTab('panel-workspace', false);
       return;
