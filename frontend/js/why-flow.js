@@ -121,15 +121,17 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 const groundedLabels = (Array.isArray(event.grounded_tags) ? event.grounded_tags : [])
                   .map((tag) => String(tag || '').trim().replace(/^#/, ''))
                   .filter(Boolean);
-                const makeTagParts = (labels) => labels.map((label) => {
+                const makeTagParts = (labels, inheritEventTone = false) => labels.map((label) => {
                   const span = document.createElement('span');
-                  span.className = 'gtp-chat-copy font-medium';
+                  span.className = inheritEventTone
+                    ? (fallbackTone === 'negative' ? 'gtp-chat-copy font-medium text-[#38BDF8]' : 'gtp-chat-copy font-medium text-[#FF8DA1]')
+                    : 'gtp-chat-copy font-medium';
                   span.dataset.typingText = '#' + label;
                   span.textContent = '';
                   return span;
                 });
                 const stockParts = makeTagParts(groundedLabels.filter((label) => stockEntitySet.has(label)));
-                const infoParts = makeTagParts(groundedLabels.filter((label) => !stockEntitySet.has(label)));
+                const infoParts = makeTagParts(groundedLabels.filter((label) => !stockEntitySet.has(label)), true);
                 const detailsEl = document.createElement('div');
                 detailsEl.className = 'mt-0.5 space-y-0.5';
                 const appendTagLine = (parts) => {
