@@ -940,6 +940,37 @@ def _related_stock_entities(item):
     return list(dict.fromkeys(entities))
 
 
+GROUNDED_ENTITY_RULES = [
+    ("HBM4", ["hbm4"]),
+    ("HBM3E", ["hbm3e"]),
+    ("HBM", ["hbm"]),
+    ("블랙웰", ["블랙웰", "blackwell"]),
+    ("CUDA", ["cuda"]),
+    ("2나노", ["2나노", "2nm"]),
+    ("3나노", ["3나노", "3nm"]),
+    ("FDA", ["fda"]),
+    ("SEC", ["sec"]),
+    ("공정위", ["공정위", "공정거래위원회"]),
+    ("산업부", ["산업부", "산업통상자원부"]),
+    ("코스피", ["코스피", "kospi"]),
+    ("코스닥", ["코스닥", "kosdaq"]),
+    ("나스닥", ["나스닥", "nasdaq"]),
+    ("비트코인", ["비트코인", "bitcoin"]),
+    ("WTI", ["wti"]),
+    ("젠슨황", ["젠슨 황", "젠슨황", "jensen huang"]),
+]
+
+
+def _grounded_entity_tags(item):
+    """Return only explicit, whitelist-backed entities found in title + description."""
+    text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
+    tags = list(_related_stock_entities(item))
+    for label, aliases in GROUNDED_ENTITY_RULES:
+        if any(str(alias).lower() in text for alias in aliases):
+            tags.append(label)
+    return list(dict.fromkeys(tags))
+
+
 def build_connected_keyword_test(items, stock_name, max_keywords=1):
     """Pick one grounded, stock-relevant representative keyword per article.
 
@@ -1220,6 +1251,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
             continue
 
         stock_entities = _related_stock_entities(item)
+        grounded_tags = _grounded_entity_tags(item)
         representative = find_rule(title)
         if representative is None:
             representative = find_rule(description, require_stock_context=True)
@@ -1234,6 +1266,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
             "keywords": [representative["label"]] if representative else [],
             "keyword_details": selected,
             "stock_entities": stock_entities,
+            "grounded_tags": grounded_tags,
             "enough_evidence": bool(representative),
             "status": "PASS" if representative else "SKIP",
         })
