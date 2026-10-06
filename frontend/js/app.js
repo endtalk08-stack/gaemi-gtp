@@ -244,33 +244,18 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       focusStockInput();
     }
 
-    function initializeSidebars() {
-      // 새로 열 때는 항상 검색 홈에서 시작하고, 레이아웃 설정만 복원한다.
+    function initializeWorkspace() {
+      // 새 접속은 항상 검색 홈에서 시작하고, 저장된 shell 레이아웃만 복원한다.
       const saved = readWorkspaceState();
       window.GaemiGTPWorkspaceState?.setRestoring?.(true);
 
       document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized','analysis-mode');
+      document.getElementById('mainHeroView')?.classList.remove('hidden');
 
-      const heroView = document.getElementById('mainHeroView');
-      if (heroView) heroView.classList.remove('hidden');
-
-      if (saved?.leftHomeOpen) document.body.classList.add('left-home-open');
-      if (saved?.leftMarketOpen) document.body.classList.add('left-market-open');
-      if (saved?.leftContextOpen) document.body.classList.add('left-context-open');
-      if (saved?.leftPluginOpen) document.body.classList.add('left-plugin-open');
-      if (saved?.rightPanelOpen) document.body.classList.add('right-panel-open');
-      if (saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-market-open');
-      if (saved?.leftContextOpen) document.body.classList.remove('left-plugin-open');
-      if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
-      if (saved?.rightPanelMaximized && saved?.rightPanelOpen) {
-        document.body.classList.add('right-panel-maximized');
-      }
       if (typeof saved?.stock === 'string' && saved.stock.trim()) activeStock = saved.stock.trim();
       if (typeof saved?.appMode === 'string' && ['gaemi', 'info', 'pro'].includes(saved.appMode)) currentAppMode = saved.appMode;
-      // 새로고침 후에도 gaemi/info/pro 선택 표시가 실제 상태와 일치하도록 복원한다.
       selectAppMode(currentAppMode);
 
-      // 상단 왼쪽 메뉴 버튼은 홈 사이드바를 직접 연다.
       document.querySelectorAll('[data-left-sidebar-toggle]').forEach((el) => {
         if (el.dataset.sidebarListenerBound === 'true') return;
         el.addEventListener('click', (event) => {
@@ -283,32 +268,20 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       workspaceUIReady = true;
       window.workspaceUIReady = true;
-      // Workspace가 렌더링된 다음 저장된 상태를 적용한다.
-      // 레이아웃/쉘 모듈의 초기화 타이밍 때문에 첫 프레임에서 상태가 덮어써지는 것을 막기 위해
-      // 두 프레임 뒤에 한 번 더 복원한다. 사용자가 마지막으로 만들어 둔 상태가 새로고침 후에도 그대로 유지된다.
+
       const restoreWorkspace = () => {
-        if (saved?.rightPanelOpen) document.body.classList.add('right-panel-open');
-        else document.body.classList.remove('right-panel-open');
-        if (saved?.rightPanelMaximized && saved?.rightPanelOpen) {
-          document.body.classList.add('right-panel-maximized');
-        } else {
-          document.body.classList.remove('right-panel-maximized');
-        }
-        if (saved?.leftHomeOpen) document.body.classList.add('left-home-open');
-        else document.body.classList.remove('left-home-open');
-        if (saved?.leftMarketOpen) document.body.classList.add('left-market-open');
-        else document.body.classList.remove('left-market-open');
-        if (saved?.leftContextOpen) document.body.classList.add('left-context-open');
-        else document.body.classList.remove('left-context-open');
-        if (saved?.leftPluginOpen) document.body.classList.add('left-plugin-open');
-        else document.body.classList.remove('left-plugin-open');
+        document.body.classList.toggle('right-panel-open', !!saved?.rightPanelOpen);
+        document.body.classList.toggle('right-panel-maximized', !!(saved?.rightPanelOpen && saved?.rightPanelMaximized));
+        document.body.classList.toggle('left-home-open', !!saved?.leftHomeOpen);
+        document.body.classList.toggle('left-market-open', !!saved?.leftMarketOpen);
+        document.body.classList.toggle('left-context-open', !!saved?.leftContextOpen);
+        document.body.classList.toggle('left-plugin-open', !!saved?.leftPluginOpen);
+
         if (saved?.leftContextOpen || saved?.leftPluginOpen) document.body.classList.remove('left-market-open');
         if (saved?.leftContextOpen) document.body.classList.remove('left-plugin-open');
         if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
 
-        if (!document.body.classList.contains('right-panel-maximized')) {
-          setPanelWidth();
-        }
+        if (!document.body.classList.contains('right-panel-maximized')) setPanelWidth();
         applySidebarState();
       };
 
@@ -317,8 +290,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           restoreWorkspace();
           window.GaemiGTPWorkspaceState?.setRestoring?.(false);
           saveWorkspaceState();
-
-          // 마지막 종목 분석은 복원하지 않는다. 새 접속은 항상 검색 홈에서 시작한다.
         });
       });
     }
@@ -905,7 +876,7 @@ window.addEventListener('resize', () => {
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
-    initializeSidebars();
+    initializeWorkspace();
     initializeWorkspaceInteractions();
   } catch (e) {
     console.warn('[gaemiGTP] workspace initialization warning:', e);
