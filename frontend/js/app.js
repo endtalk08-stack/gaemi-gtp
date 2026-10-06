@@ -486,11 +486,20 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       userDiv.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] gtp-dark-text gtp-chat-user px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">${stockName}</div>`;
       chatArea.appendChild(userDiv);
 
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'analysis-loading-sequence animate-fade';
+      loadingDiv.innerHTML = `<div class="analysis-loading-message is-visible is-shimmer" aria-live="polite">시세를 조회중입니다</div>`;
+      chatArea.appendChild(loadingDiv);
+
       const controller = activeAnalysisController;
       const fetchPromise = fetchAnalysisFromBackend(stockName, controller.signal);
-      const delayPromise = new Promise(resolve => setTimeout(resolve, 120));
-      const [result] = await Promise.all([fetchPromise, delayPromise]);
-      if (requestId !== activeAnalysisRequestId || result.aborted) return;
+      const loadingDelayPromise = new Promise(resolve => setTimeout(resolve, 4000));
+      const [result] = await Promise.all([fetchPromise, loadingDelayPromise]);
+      if (requestId !== activeAnalysisRequestId || result.aborted) {
+        loadingDiv.remove();
+        return;
+      }
+      loadingDiv.remove();
       const sections = result.sections || [];
 
       if (activeAnalysisController === controller) activeAnalysisController = null;
@@ -512,6 +521,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       surprisePopup.classList.add('hidden');
 
       chatArea.scrollTop = 0;
+      await window.GaemiGTPLoadCentralNewsFlow?.(stockName, result, sections);
+      if (requestId !== activeAnalysisRequestId) return;
       startTypewriterFlow(stockName, sections, result, requestId);
     }
 
