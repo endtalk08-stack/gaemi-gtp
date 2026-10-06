@@ -1,9 +1,9 @@
-# Main Shell
+# Center Chat Shell
 
 중앙 Workspace 전체의 큰 경계를 정의한다.
 
 ```text
-main
+center-chat
 └── workspace
     ├── header
     ├── widget-dock
