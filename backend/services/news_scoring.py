@@ -940,6 +940,9 @@ def _related_stock_entities(item):
     return list(dict.fromkeys(entities))
 
 
+# Easy-edit auxiliary tags for the central 3-line news view.
+# Add/remove only explicit title+description entities here. Stock-name hashtags
+# come from STOCK_UNIVERSE via _related_stock_entities(), not from this list.
 GROUNDED_ENTITY_RULES = [
     ("HBM4", ["hbm4"]),
     ("HBM3E", ["hbm3e"]),
@@ -982,10 +985,12 @@ def _grounded_entity_tags(item):
 def build_connected_keyword_test(items, stock_name, max_keywords=1):
     """Pick one grounded, stock-relevant representative keyword per article.
 
-    News collection/scoring stays upstream.  This function intentionally avoids
-    the old large candidate-expansion pipeline: title is the primary semantic
-    frame, description only confirms/supports it, and no extra network work is
-    performed here.
+    Active central-news keyword path. Keep one event keyword per article.
+    max_keywords remains only for compatibility with older callers; this extractor
+    intentionally returns at most one representative keyword.
+
+    News collection/scoring stays upstream. Title is the primary semantic frame,
+    description only confirms/supports it, and no extra network work is performed here.
     """
     import re
 
