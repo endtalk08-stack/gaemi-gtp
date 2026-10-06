@@ -513,7 +513,6 @@ body.left-context-open #gaemiWorkspace {
 
 
 /* Stock analysis loading: shared central-chat flow for desktop and mobile. */
-#surpriseAntPopup { display: none !important; }
 .analysis-loading-sequence {
   width: 100%;
   display: flex;
