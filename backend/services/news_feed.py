@@ -69,7 +69,6 @@ STOCK_UNIVERSE = {
         "오라클": ["ORCL", "오라클", "oracle"],
         "록히드마틴": ["LMT", "록히드마틴", "록히드 마틴", "lockheed martin"],
         "엑슨모빌": ["XOM", "엑슨모빌", "엑슨 모빌", "exxonmobil", "exxon mobil"],
-        "스페이스X": ["SPCX", "스페이스X", "스페이스엑스", "SpaceX", "space exploration technologies"],
         "샌디스크": ["SNDK", "샌디스크", "SanDisk", "sandisk corporation"],
     },
 }
