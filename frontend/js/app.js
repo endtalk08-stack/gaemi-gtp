@@ -130,38 +130,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       document.getElementById('bottomModeMenu').classList.add('hidden');
     }
 
-    function toggleRightPanel() {
-      const isOpen = document.body.classList.contains('right-panel-open');
-      if (isOpen) {
-        document.body.classList.remove('right-panel-open', 'right-panel-maximized');
-      } else {
-        if (window.innerWidth < 1024) {
-          document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
-        }
-        document.body.classList.add('right-panel-open');
-      }
-      window.GaemiGTPWorkspaceShellState?.apply?.();
-    }
-
-    function toggleRightPanelMaximize() {
-      if (!document.body.classList.contains('right-panel-open')) {
-        if (window.innerWidth < 1024) {
-          document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
-        }
-        document.body.classList.add('right-panel-open');
-      }
-      const maximized = document.body.classList.toggle('right-panel-maximized');
-      const button = document.querySelector('[data-panel-maximize]');
-      if (button) {
-        button.setAttribute('aria-label', maximized ? '패널 원래 크기로' : '패널 최대화');
-        button.setAttribute('title', maximized ? '패널 원래 크기로' : '패널 최대화');
-      }
-      if (!maximized) {
-        requestAnimationFrame(() => setPanelWidth());
-      }
-      window.GaemiGTPWorkspaceShellState?.apply?.();
-    }
-
     function closeAllSidebars() {
       document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
       window.GaemiGTPWorkspaceShellState?.apply?.();

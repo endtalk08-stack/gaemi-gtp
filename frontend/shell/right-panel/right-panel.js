@@ -24,6 +24,38 @@
     return rounded;
   }
   function setPanelWidth() { return applyPanelWidth(); }
+  function applyState() { window.GaemiGTPWorkspaceShellState?.apply?.(); }
+
+  function toggle() {
+    const isOpen = document.body.classList.contains('right-panel-open');
+    if (isOpen) {
+      document.body.classList.remove('right-panel-open', 'right-panel-maximized');
+    } else {
+      if (window.innerWidth < 1024) {
+        document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
+      }
+      document.body.classList.add('right-panel-open');
+    }
+    applyState();
+  }
+
+  function toggleMaximize() {
+    if (!document.body.classList.contains('right-panel-open')) {
+      if (window.innerWidth < 1024) {
+        document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
+      }
+      document.body.classList.add('right-panel-open');
+    }
+    const maximized = document.body.classList.toggle('right-panel-maximized');
+    const button = document.querySelector('[data-panel-maximize]');
+    if (button) {
+      button.setAttribute('aria-label', maximized ? '패널 원래 크기로' : '패널 최대화');
+      button.setAttribute('title', maximized ? '패널 원래 크기로' : '패널 최대화');
+    }
+    if (!maximized) requestAnimationFrame(() => setPanelWidth());
+    applyState();
+  }
+
   function initializeWorkspaceInteractions() {
     const workspace = getWorkspace();
     const panel = document.getElementById('rightPanel');
@@ -36,5 +68,7 @@
     panel.dataset.rightPanelBound = 'true';
   }
 
-  window.GaemiGTPRightPanelShell = { getWorkspace, getWorkAreaWidth, setPanelWidth, initializeWorkspaceInteractions };
+  window.GaemiGTPRightPanelShell = { getWorkspace, getWorkAreaWidth, setPanelWidth, toggle, toggleMaximize, initializeWorkspaceInteractions };
+  window.toggleRightPanel = toggle;
+  window.toggleRightPanelMaximize = toggleMaximize;
 })();
