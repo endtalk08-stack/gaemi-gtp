@@ -18,11 +18,11 @@
       body.classList.remove('left-context-open');
     }
 
-    if (typeof window.applySidebarState === 'function') window.applySidebarState();
+    window.GaemiGTPWorkspaceShellState?.apply?.();
   };
 
   window.closeLeftContextSidebar = function closeLeftContextSidebar() {
     document.body.classList.remove('left-context-open');
-    if (typeof window.applySidebarState === 'function') window.applySidebarState();
+    window.GaemiGTPWorkspaceShellState?.apply?.();
   };
 }());

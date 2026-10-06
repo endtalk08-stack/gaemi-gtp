@@ -23,7 +23,7 @@
   }
 
   function applyState() {
-    if (typeof window.applySidebarState === 'function') window.applySidebarState();
+    window.GaemiGTPWorkspaceShellState?.apply?.();
   }
 
   function toggle() {

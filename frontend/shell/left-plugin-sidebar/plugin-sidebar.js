@@ -49,7 +49,7 @@
       if (window.innerWidth < 1024) body.classList.remove('right-panel-open', 'right-panel-maximized');
       body.classList.add('left-plugin-open');
     }
-    if (typeof window.applySidebarState === 'function') window.applySidebarState();
+    window.GaemiGTPWorkspaceShellState?.apply?.();
     render();
   }
 

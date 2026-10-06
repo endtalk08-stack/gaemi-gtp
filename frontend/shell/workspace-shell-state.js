@@ -2,6 +2,13 @@
 (function () {
   'use strict';
 
+  function save() {
+    window.GaemiGTPWorkspaceState?.save?.({
+      activeStock: window.GaemiGTPAppState?.getActiveStock?.(),
+      currentAppMode: window.GaemiGTPAppState?.getCurrentAppMode?.()
+    });
+  }
+
   function apply() {
     const market = document.getElementById('leftMarketSidebar');
     const home = document.getElementById('leftSidebarHome');
@@ -68,7 +75,8 @@
     if (backdrop) backdrop.classList.toggle('hidden', !(mobile && (homeOpen || marketOpen || contextOpen || pluginOpen)));
     if (homeOpen) window.GaemiGTPSidebarHome?.render?.();
     if (window.lucide) window.lucide.createIcons();
+    save();
   }
 
-  window.GaemiGTPWorkspaceShellState = { apply };
+  window.GaemiGTPWorkspaceShellState = { apply, save };
 }());

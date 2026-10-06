@@ -20,27 +20,16 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       workspace.style.setProperty('--right-panel-width', `${rounded}px`);
     }
 
-    function readWorkspaceState() {
-      return window.GaemiGTPWorkspaceState?.read?.() || null;
-    }
-
-    function saveWorkspaceState() {
-      window.GaemiGTPWorkspaceState?.save?.({ activeStock, currentAppMode });
-    }
-
-    function applySidebarState() {
-      window.GaemiGTPWorkspaceShellState?.apply?.();
-      saveWorkspaceState();
-    }
-
-    // Left/right shell modules use this bridge after changing open state.
-    window.applySidebarState = applySidebarState;
+    window.GaemiGTPAppState = {
+      getActiveStock: () => activeStock,
+      getCurrentAppMode: () => currentAppMode
+    };
 
     function resetToHome() {
       document.getElementById('mainHeroView').classList.remove('hidden');
       document.body.classList.remove('analysis-mode');
       document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
-      applySidebarState();
+      window.GaemiGTPWorkspaceShellState?.apply?.();
     }
 
     function enterChatWorkspace() {
@@ -78,7 +67,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (window.innerWidth < 1024) {
         document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
       }
-      applySidebarState();
+      window.GaemiGTPWorkspaceShellState?.apply?.();
 
       requestStock(normalizedStockName);
     }
@@ -151,7 +140,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         }
         document.body.classList.add('right-panel-open');
       }
-      applySidebarState();
+      window.GaemiGTPWorkspaceShellState?.apply?.();
     }
 
     function toggleRightPanelMaximize() {
@@ -170,12 +159,12 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (!maximized) {
         requestAnimationFrame(() => setPanelWidth());
       }
-      applySidebarState();
+      window.GaemiGTPWorkspaceShellState?.apply?.();
     }
 
     function closeAllSidebars() {
       document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
-      applySidebarState();
+      window.GaemiGTPWorkspaceShellState?.apply?.();
     }
 
     function focusSidebarStockSearch() {
@@ -184,7 +173,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     function initializeWorkspace() {
       // 새 접속은 항상 검색 홈에서 시작하고, 저장된 shell 레이아웃만 복원한다.
-      const saved = readWorkspaceState();
+      const saved = window.GaemiGTPWorkspaceState?.read?.() || null;
       window.GaemiGTPWorkspaceState?.setRestoring?.(true);
 
       document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized','analysis-mode');
@@ -220,14 +209,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
 
         if (!document.body.classList.contains('right-panel-maximized')) setPanelWidth();
-        applySidebarState();
+        window.GaemiGTPWorkspaceShellState?.apply?.();
       };
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           restoreWorkspace();
           window.GaemiGTPWorkspaceState?.setRestoring?.(false);
-          saveWorkspaceState();
+          window.GaemiGTPWorkspaceShellState?.save?.();
         });
       });
     }
@@ -287,7 +276,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       const requestId = ++activeAnalysisRequestId;
       activeStock = stockName;
       window.GaemiGTPActiveStock = activeStock;
-      saveWorkspaceState();
+      window.GaemiGTPWorkspaceShellState?.save?.();
 
       const chatArea = document.getElementById('chatArea');
       chatArea.innerHTML = '';
@@ -802,14 +791,14 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 window.addEventListener('pagehide', () => {
   // 페이지를 떠나거나 새로고침할 때 마지막 실제 UI 상태를 즉시 저장한다.
   // 다음 로드에서 오른쪽 패널의 열림/최대화/폭 상태가 바뀌지 않도록 한다.
-  try { saveWorkspaceState(); } catch (e) { /* noop */ }
+  try { window.GaemiGTPWorkspaceShellState?.save?.(); } catch (e) { /* noop */ }
 });
 
 window.addEventListener('resize', () => {
   if (!document.body.classList.contains('right-panel-maximized')) {
     setPanelWidth();
   }
-  applySidebarState();
+  window.GaemiGTPWorkspaceShellState?.apply?.();
 });
 
 document.addEventListener("DOMContentLoaded", () => {
