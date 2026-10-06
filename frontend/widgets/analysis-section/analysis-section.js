@@ -121,7 +121,6 @@
       .analysis-loading-sequence { width:100%; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; padding:8px 0 0; text-align:left; }
       .analysis-loading-message { display:none; font-size:1rem; font-weight:800; letter-spacing:-.02em; }
       .analysis-loading-message.is-visible { display:inline-block; }
-      .analysis-loading-message--secondary { margin-top:8px; }
       .analysis-loading-message.is-shimmer { color:transparent; background:linear-gradient(90deg,#64748b 0%,#64748b 34%,#e2e8f0 50%,#64748b 66%,#64748b 100%); background-size:220% 100%; background-clip:text; -webkit-background-clip:text; animation:gaemiLoadingShimmer 1.45s linear infinite; }
       .dark .analysis-loading-message.is-shimmer { background-image:linear-gradient(90deg,#a1a1aa 0%,#a1a1aa 34%,#f4f4f5 50%,#a1a1aa 66%,#a1a1aa 100%); }
       @keyframes gaemiLoadingShimmer { from{background-position:120% 0}to{background-position:-120% 0} }
@@ -137,9 +136,9 @@
       if (!chatArea) return null;
       const stage = document.createElement('div');
       stage.className = 'analysis-loading-sequence animate-fade';
-      stage.innerHTML = `<div class="analysis-loading-message" aria-live="polite"></div><div class="analysis-loading-message analysis-loading-message--secondary" aria-live="polite"></div>`;
+      stage.innerHTML = `<div class="analysis-loading-message" aria-live="polite"></div>`;
       chatArea.appendChild(stage);
-      return { token, stockName, el:stage, primaryMessage:stage.querySelector('.analysis-loading-message'), secondaryMessage:stage.querySelector('.analysis-loading-message--secondary'), ready:false, release:null, promise:null };
+      return { token, stockName, el:stage, primaryMessage:stage.querySelector('.analysis-loading-message'), ready:false, release:null, promise:null };
     }
     function showMessage(flow, message, text) {
       if (!flow?.el?.isConnected || !message) return;
