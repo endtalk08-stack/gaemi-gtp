@@ -718,13 +718,23 @@ def summarize_stock_flow(items):
         "top_themes": [{"label": label, "count": count} for label, count in theme_counts.most_common(5)],
     }
 
+def _stock_alias_matches(text, alias):
+    """Match short Latin stock aliases as tokens instead of arbitrary substrings."""
+    token = str(alias or "").strip().lower()
+    if not token:
+        return False
+    if re.fullmatch(r"[a-z0-9.]+", token) and len(token.replace(".", "")) <= 5:
+        return re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", text) is not None
+    return token in text
+
+
 def _related_stock_entities(item):
     text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
     entities = []
     for market_stocks in STOCK_UNIVERSE.values():
         for canonical_name, aliases in market_stocks.items():
             names = [canonical_name, *(aliases or [])]
-            if any(str(name or "").strip().lower() in text for name in names if str(name or "").strip()):
+            if any(_stock_alias_matches(text, name) for name in names):
                 entities.append(canonical_name)
     return list(dict.fromkeys(entities))
 
