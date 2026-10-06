@@ -19,6 +19,12 @@
     document.body.classList.add('analysis-mode');
   }
 
+  function resetToHome() {
+    document.getElementById('mainHeroView')?.classList.remove('hidden');
+    document.body.classList.remove('analysis-mode', 'left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open', 'right-panel-open', 'right-panel-maximized');
+    window.GaemiGTPWorkspaceShellState?.apply?.();
+  }
+
   function selectStock(stockName, { enterAnalysis = false } = {}) {
     const normalizedStockName = resolveStockSearchInput(stockName);
     if (!normalizedStockName) return;
@@ -79,8 +85,9 @@
     document.getElementById('bottomModeMenu')?.classList.add('hidden');
   }
 
-  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, selectStock, openStockInChat, focusStockInput, submitStockSearch, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace };
+  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, selectStock, openStockInChat, focusStockInput, submitStockSearch, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace, resetToHome };
   window.enterChatWorkspace = enterChatWorkspace;
+  window.resetToHome = resetToHome;
   window.openStockInChat = openStockInChat;
   window.focusSidebarStockSearch = focusStockInput;
   window.handleHeroSearch = handleHeroSearch;
