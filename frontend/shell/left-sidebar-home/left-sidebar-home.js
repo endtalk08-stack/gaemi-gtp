@@ -39,6 +39,18 @@
     applyState();
   }
 
+  function bindToggleControls() {
+    document.querySelectorAll('[data-left-sidebar-toggle]').forEach((el) => {
+      if (el.dataset.sidebarListenerBound === 'true') return;
+      el.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggle();
+      });
+      el.dataset.sidebarListenerBound = 'true';
+    });
+  }
+
   function close() {
     document.body.classList.remove('left-home-open');
     applyState();
@@ -132,7 +144,7 @@
     }
   });
 
-  window.GaemiGTPSidebarHome = { render, setActiveNav, toggle, close, toggleMenu, showSection };
+  window.GaemiGTPSidebarHome = { render, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
   window.toggleLeftSidebarHome = toggle;
   window.closeLeftSidebarHome = close;
   window.toggleLeftSidebarHomeMenu = toggleMenu;
@@ -140,6 +152,7 @@
   window.openLeftSidebarSection = showSection;
 
   document.addEventListener('DOMContentLoaded', () => {
+    bindToggleControls();
     setActiveNav('home');
     render();
   });
