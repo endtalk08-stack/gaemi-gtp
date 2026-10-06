@@ -22,7 +22,8 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
     window.GaemiGTPAppState = {
       getActiveStock: () => activeStock,
-      getCurrentAppMode: () => currentAppMode
+      getCurrentAppMode: () => currentAppMode,
+      setCurrentAppMode: (mode) => { currentAppMode = mode; }
     };
 
     function resetToHome() {
@@ -32,111 +33,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       window.GaemiGTPWorkspaceShellState?.apply?.();
     }
 
-    function enterChatWorkspace() {
-      document.getElementById('mainHeroView')?.classList.add('hidden');
-      document.body.classList.add('analysis-mode');
-    }
-
-    window.enterChatWorkspace = enterChatWorkspace;
-
-    const STOCK_SEARCH_ALIASES = Object.freeze({
-      '구글': '알파벳',
-      'google': '알파벳',
-      'alphabet': '알파벳',
-      '스페이스엑스': '스페이스X',
-      'spacex': '스페이스X',
-      '현대자동차': '현대차',
-      '네이버': 'NAVER',
-      '포스코홀딩스': 'POSCO홀딩스',
-      '에이치엘비': 'HLB',
-    });
-
-    function resolveStockSearchInput(stockName) {
-      const query = String(stockName || '').trim();
-      if (!query) return '';
-      return STOCK_SEARCH_ALIASES[query.toLowerCase()] || STOCK_SEARCH_ALIASES[query] || query;
-    }
-
-    function selectStock(stockName, { enterAnalysis = false } = {}) {
-      const normalizedStockName = resolveStockSearchInput(stockName);
-      if (!normalizedStockName) return;
-
-      if (enterAnalysis) enterChatWorkspace();
-
-      // 모바일에서는 종목을 선택하면 본문을 바로 볼 수 있도록 왼쪽 사이드바만 닫는다.
-      if (window.innerWidth < 1024) {
-        document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
-      }
-      window.GaemiGTPWorkspaceShellState?.apply?.();
-
-      requestStock(normalizedStockName);
-    }
-
-    function openStockInChat(stockName) {
-      selectStock(stockName || '삼성전자', { enterAnalysis: true });
-    }
-
-    window.openStockInChat = openStockInChat;
-
-    function focusStockInput() {
-      const hero = document.getElementById('heroStockInput');
-      const bottom = document.getElementById('bottomStockInput');
-      const heroVisible = !!hero && !hero.closest('.hidden') && getComputedStyle(hero).display !== 'none';
-      const target = heroVisible ? hero : bottom;
-      if (!target) return;
-      target.focus();
-      target.select?.();
-    }
-
-    function submitStockSearch(inputId, { enterAnalysis = false, fallback = '' } = {}) {
-      const input = document.getElementById(inputId);
-      const query = String(input?.value || '').trim() || fallback;
-      if (!query) return;
-      selectStock(query, { enterAnalysis });
-      if (input && !enterAnalysis) input.value = '';
-    }
-
-    function handleHeroSearch() {
-      submitStockSearch('heroStockInput', { enterAnalysis: true, fallback: '삼성전자' });
-    }
-
-    function handleBottomSearch() {
-      submitStockSearch('bottomStockInput');
-    }
-
-    function toggleModeDropdown(which) {
-      const heroMenu = document.getElementById('heroModeMenu');
-      const bottomMenu = document.getElementById('bottomModeMenu');
-      if (which === 'hero') {
-        heroMenu.classList.toggle('hidden');
-        if (bottomMenu) bottomMenu.classList.add('hidden');
-      } else {
-        bottomMenu.classList.toggle('hidden');
-        if (heroMenu) heroMenu.classList.add('hidden');
-      }
-    }
-
-    function selectAppMode(mode) {
-      currentAppMode = mode;
-      document.getElementById('heroModeLabel').innerText = mode;
-      document.getElementById('bottomModeLabel').innerText = mode;
-      ['gaemi', 'info', 'pro'].forEach(m => {
-        const hChk = document.getElementById(`chk-hero-${m}`);
-        const bChk = document.getElementById(`chk-bottom-${m}`);
-        if (hChk) hChk.classList.toggle('hidden', m !== mode);
-        if (bChk) bChk.classList.toggle('hidden', m !== mode);
-      });
-      document.getElementById('heroModeMenu').classList.add('hidden');
-      document.getElementById('bottomModeMenu').classList.add('hidden');
-    }
-
     function closeAllSidebars() {
       document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
       window.GaemiGTPWorkspaceShellState?.apply?.();
-    }
-
-    function focusSidebarStockSearch() {
-      focusStockInput();
     }
 
     function initializeWorkspace() {
@@ -149,7 +48,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       if (typeof saved?.stock === 'string' && saved.stock.trim()) activeStock = saved.stock.trim();
       if (typeof saved?.appMode === 'string' && ['gaemi', 'info', 'pro'].includes(saved.appMode)) currentAppMode = saved.appMode;
-      selectAppMode(currentAppMode);
+      window.GaemiGTPCenterChatSearch?.selectAppMode?.(currentAppMode);
 
       document.querySelectorAll('[data-left-sidebar-toggle]').forEach((el) => {
         if (el.dataset.sidebarListenerBound === 'true') return;
@@ -768,6 +667,8 @@ window.addEventListener('resize', () => {
   }
   window.GaemiGTPWorkspaceShellState?.apply?.();
 });
+
+window.GaemiGTPApp = { requestStock };
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
