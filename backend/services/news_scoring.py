@@ -1064,7 +1064,6 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
         results.append({
             "title": title,
             "description": description,
-            "candidate_keywords": [representative["label"]] if representative else [],
             "keywords": [representative["label"]] if representative else [],
             "keyword_details": selected,
             "stock_entities": stock_entities,
