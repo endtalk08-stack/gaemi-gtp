@@ -743,7 +743,9 @@ def _related_stock_entities(item):
 # Add/remove only explicit title+description entities here. Stock-name hashtags
 # come from STOCK_UNIVERSE via _related_stock_entities(), not from this list.
 GROUNDED_ENTITY_RULES = [
+    ("HBM4E", ["hbm4e"]),
     ("HBM4", ["hbm4"]),
+    ("Custom HBM", ["custom hbm", "커스텀 hbm"]),
     ("HBM3E", ["hbm3e"]),
     ("HBM", ["hbm"]),
     ("블랙웰", ["블랙웰", "blackwell"]),
@@ -771,9 +773,14 @@ GROUNDED_ENTITY_RULES = [
     ("DRAM", ["dram", "d램"]),
     ("낸드", ["낸드", "nand"]),
     ("CXL", ["cxl"]),
+    ("HBF", ["hbf"]),
     ("ESS", ["ess"]),
     ("CDMO", ["cdmo"]),
     ("ADC", ["adc"]),
+    ("아이오닉5", ["아이오닉 5", "아이오닉5", "ioniq 5"]),
+    ("아이오닉6", ["아이오닉 6", "아이오닉6", "ioniq 6"]),
+    ("아이오닉9", ["아이오닉 9", "아이오닉9", "ioniq 9"]),
+    ("아이오닉V", ["아이오닉 v", "ioniq v"]),
     ("아이오닉", ["아이오닉", "ioniq"]),
     ("제네시스", ["제네시스", "genesis"]),
     ("EV3", ["ev3"]),
@@ -796,7 +803,10 @@ GROUNDED_ENTITY_RULES = [
     ("LNG선", ["lng선", "lng 선"]),
     ("전기요금", ["전기요금", "전기 요금"]),
     ("전력망", ["전력망", "power grid"]),
+    ("Vera Rubin", ["vera rubin", "베라 루빈"]),
     ("Rubin", ["rubin"]),
+    ("Spectrum-X", ["spectrum-x", "spectrum x"]),
+    ("BlueField-4", ["bluefield-4", "bluefield 4"]),
     ("NVLink", ["nvlink"]),
     ("NVL72", ["nvl72"]),
     ("Apple Intelligence", ["apple intelligence"]),
@@ -806,6 +816,9 @@ GROUNDED_ENTITY_RULES = [
     ("AWS", ["aws"]),
     ("Trainium", ["trainium"]),
     ("Gemini", ["gemini", "제미나이"]),
+    ("AI Overviews", ["ai overviews", "ai 오버뷰"]),
+    ("AI Mode", ["ai mode", "ai 모드"]),
+    ("Axion", ["axion", "액시온"]),
     ("TPU", ["tpu"]),
     ("Waymo", ["waymo", "웨이모"]),
     ("Llama", ["llama", "라마"]),
@@ -857,6 +870,12 @@ def _grounded_entity_tags(item):
     tags = list(_related_stock_entities(item))
     for label, aliases in GROUNDED_ENTITY_RULES:
         if label == "HBM" and ("hbm4" in text or "hbm3e" in text):
+            continue
+        if label == "HBM4" and "hbm4e" in text:
+            continue
+        if label == "아이오닉" and re.search(r"(아이오닉\s*(?:5|6|9|v)|ioniq\s*(?:5|6|9|v))", text):
+            continue
+        if label == "Rubin" and ("vera rubin" in text or "베라 루빈" in text):
             continue
         if any(_grounded_entity_alias_matches(text, alias) for alias in aliases):
             tags.append(label)
