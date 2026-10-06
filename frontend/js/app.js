@@ -13,18 +13,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       setCurrentAppMode: (mode) => { currentAppMode = mode; }
     };
 
-    function resetToHome() {
-      document.getElementById('mainHeroView').classList.remove('hidden');
-      document.body.classList.remove('analysis-mode');
-      document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
-      window.GaemiGTPWorkspaceShellState?.apply?.();
-    }
-
-    function closeAllSidebars() {
-      document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized');
-      window.GaemiGTPWorkspaceShellState?.apply?.();
-    }
-
     function initializeWorkspace() {
       // 새 접속은 항상 검색 홈에서 시작하고, 저장된 shell 레이아웃만 복원한다.
       const saved = window.GaemiGTPWorkspaceState?.read?.() || null;
