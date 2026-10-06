@@ -118,33 +118,51 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                     .map((name) => String(name || '').trim())
                     .filter(Boolean)
                 );
-                const groundedParts = (Array.isArray(event.grounded_tags) ? event.grounded_tags : [])
+                const groundedLabels = (Array.isArray(event.grounded_tags) ? event.grounded_tags : [])
                   .map((tag) => String(tag || '').trim().replace(/^#/, ''))
-                  .filter(Boolean)
-                  .map((label) => {
-                    const span = document.createElement('span');
-                    span.className = 'gtp-chat-copy font-medium';
-                    span.dataset.typingText = stockEntitySet.has(label) ? '#' + label : label;
-                    span.textContent = '';
-                    return span;
-                  });
-                groundedParts.forEach((part) => {
-                  keywordEl.appendChild(document.createTextNode(' '));
-                  keywordEl.appendChild(part);
+                  .filter(Boolean);
+                const makeTagParts = (labels) => labels.map((label) => {
+                  const span = document.createElement('span');
+                  span.className = 'gtp-chat-copy font-medium';
+                  span.dataset.typingText = '#' + label;
+                  span.textContent = '';
+                  return span;
                 });
+                const stockParts = makeTagParts(groundedLabels.filter((label) => stockEntitySet.has(label)));
+                const infoParts = makeTagParts(groundedLabels.filter((label) => !stockEntitySet.has(label)));
+                const detailsEl = document.createElement('div');
+                detailsEl.className = 'mt-0.5 space-y-0.5';
+                const appendTagLine = (parts) => {
+                  if (!parts.length) return;
+                  const line = document.createElement('div');
+                  line.className = 'gtp-chat-copy font-medium';
+                  parts.forEach((part, index) => {
+                    if (index) line.appendChild(document.createTextNode('  '));
+                    line.appendChild(part);
+                  });
+                  detailsEl.appendChild(line);
+                };
+                appendTagLine(stockParts);
+                appendTagLine(infoParts);
+                const contentEl = document.createElement('div');
+                contentEl.appendChild(keywordEl);
+                contentEl.appendChild(detailsEl);
                 row.appendChild(timeEl);
-                row.appendChild(keywordEl);
+                row.appendChild(contentEl);
                 storyboardList.appendChild(row);
-                storyboardRows.push({ timeEl, timeText, keywordParts, groundedParts });
+                storyboardRows.push({ timeEl, timeText, keywordParts, stockParts, infoParts });
               });
               block.appendChild(storyboardList);
 
-              for (const { timeEl, timeText, keywordParts, groundedParts } of storyboardRows) {
+              for (const { timeEl, timeText, keywordParts, stockParts, infoParts } of storyboardRows) {
                 await typeText(timeEl, timeText);
                 for (const part of keywordParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
-                for (const part of groundedParts) {
+                for (const part of stockParts) {
+                  await typeText(part, part.dataset.typingText || '');
+                }
+                for (const part of infoParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
               }
