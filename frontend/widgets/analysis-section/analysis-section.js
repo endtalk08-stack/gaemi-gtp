@@ -90,11 +90,10 @@
 
   async function loadCentralNewsFlow(stockName, result, sections) {
     if (!result || !stockName) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6500);
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6500);
       const response = await fetch(`${NEWS_FLOW_URL}?stock=${encodeURIComponent(stockName)}`, { signal: controller.signal, cache: 'no-store' });
-      clearTimeout(timeout);
       if (!response.ok) return;
       const payload = await response.json();
       const priceState = getPriceState(sections);
@@ -105,6 +104,8 @@
       }
     } catch (_) {
       // 흐름 API가 늦거나 실패하면 기존 /analyze 결과로 그대로 진행한다.
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
