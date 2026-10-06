@@ -948,8 +948,8 @@ GROUNDED_ENTITY_RULES = [
     ("CUDA", ["cuda"]),
     ("2나노", ["2나노", "2nm"]),
     ("3나노", ["3나노", "3nm"]),
-    ("FDA", ["fda"]),
-    ("SEC", ["sec"]),
+    ("FDA", [" fda ", "(fda)", "fda "] ),
+    ("SEC", [" sec ", "(sec)", "sec "] ),
     ("공정위", ["공정위", "공정거래위원회"]),
     ("산업부", ["산업부", "산업통상자원부"]),
     ("코스피", ["코스피", "kospi"]),
@@ -958,6 +958,12 @@ GROUNDED_ENTITY_RULES = [
     ("비트코인", ["비트코인", "bitcoin"]),
     ("WTI", ["wti"]),
     ("젠슨황", ["젠슨 황", "젠슨황", "jensen huang"]),
+    ("갤럭시탭S12", ["갤럭시 탭 s12", "galaxy tab s12"]),
+    ("스마트태그3", ["스마트태그3", "smarttag3", "smart tag 3"]),
+    ("그록", ["그록", "groq"]),
+    ("미국", ["미국"]),
+    ("중국", ["중국"]),
+    ("대만", ["대만", "타이완"]),
 ]
 
 
@@ -966,6 +972,8 @@ def _grounded_entity_tags(item):
     text = f"{item.get('title') or ''} {item.get('description') or ''}".lower()
     tags = list(_related_stock_entities(item))
     for label, aliases in GROUNDED_ENTITY_RULES:
+        if label == "HBM" and ("hbm4" in text or "hbm3e" in text):
+            continue
         if any(str(alias).lower() in text for alias in aliases):
             tags.append(label)
     return list(dict.fromkeys(tags))
