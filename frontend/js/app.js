@@ -37,16 +37,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (typeof saved?.appMode === 'string' && ['gaemi', 'info', 'pro'].includes(saved.appMode)) currentAppMode = saved.appMode;
       window.GaemiGTPCenterChatSearch?.selectAppMode?.(currentAppMode);
 
-      document.querySelectorAll('[data-left-sidebar-toggle]').forEach((el) => {
-        if (el.dataset.sidebarListenerBound === 'true') return;
-        el.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          window.toggleLeftSidebarHome?.();
-        });
-        el.dataset.sidebarListenerBound = 'true';
-      });
-
       workspaceUIReady = true;
       window.workspaceUIReady = true;
 
