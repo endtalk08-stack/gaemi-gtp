@@ -113,13 +113,18 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   if (index) keywordEl.appendChild(document.createTextNode(' '));
                   keywordEl.appendChild(part);
                 });
+                const stockEntitySet = new Set(
+                  (Array.isArray(event.stock_entities) ? event.stock_entities : [])
+                    .map((name) => String(name || '').trim())
+                    .filter(Boolean)
+                );
                 const groundedParts = (Array.isArray(event.grounded_tags) ? event.grounded_tags : [])
                   .map((tag) => String(tag || '').trim().replace(/^#/, ''))
                   .filter(Boolean)
                   .map((label) => {
                     const span = document.createElement('span');
                     span.className = 'gtp-chat-copy font-medium';
-                    span.dataset.typingText = '#' + label;
+                    span.dataset.typingText = stockEntitySet.has(label) ? '#' + label : label;
                     span.textContent = '';
                     return span;
                   });
