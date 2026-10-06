@@ -510,7 +510,18 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       if (activeAnalysisController === controller) activeAnalysisController = null;
 
       if (!result.ok || sections.length === 0) {
-        renderAnalysisStatus(chatArea, stockName, result.ok);
+        const notFoundSection = sections.find((section) => section?.id === 'analysis-error');
+        if (notFoundSection) {
+          const state = document.createElement('div');
+          state.className = 'animate-fade gtp-chat-copy';
+          state.innerHTML = `
+            <div class="font-semibold gtp-dark-text">${notFoundSection.title || '종목을 찾을 수 없습니다.'}</div>
+            <div class="mt-3 text-[#64748b] dark:text-[#a1a1aa]">${notFoundSection.content || `${stockName} 종목을 확인하지 못했습니다. 종목명이나 티커를 다시 확인해주세요.`}</div>
+          `;
+          chatArea.appendChild(state);
+        } else {
+          renderAnalysisStatus(chatArea, stockName, result.ok);
+        }
         chatArea.scrollTop = 0;
         return;
       }
