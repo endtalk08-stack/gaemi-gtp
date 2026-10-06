@@ -8,9 +8,7 @@
 
   function getWorkspace() { return document.getElementById('gaemiWorkspace'); }
   function getWorkAreaWidth() {
-    const navRail = document.getElementById('leftNavRail');
-    const navWidth = navRail ? navRail.getBoundingClientRect().width : 0;
-    return Math.max(0, window.innerWidth - navWidth);
+    return Math.max(0, window.innerWidth);
   }
   function clampWidth(width) {
     const max = Math.max(MIN_PANEL_WIDTH, getWorkAreaWidth() - MIN_CHAT_WIDTH);

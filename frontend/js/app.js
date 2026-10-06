@@ -7,19 +7,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
     let currentAppMode = 'gaemi';
     let workspaceUIReady = false;
 
-    function getWorkspace() {
-      return document.getElementById('gaemiWorkspace');
-    }
-
-    function setPanelWidth() {
-      const shell = window.GaemiGTPRightPanelShell;
-      if (shell?.setPanelWidth) return shell.setPanelWidth();
-      const workspace = getWorkspace();
-      if (!workspace) return;
-      const rounded = window.innerWidth < 1024 ? 360 : Math.round(window.innerWidth * (3 / 12));
-      workspace.style.setProperty('--right-panel-width', `${rounded}px`);
-    }
-
     window.GaemiGTPAppState = {
       getActiveStock: () => activeStock,
       getCurrentAppMode: () => currentAppMode,
@@ -75,7 +62,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         if (saved?.leftContextOpen) document.body.classList.remove('left-plugin-open');
         if (saved?.leftPluginOpen) document.body.classList.remove('left-context-open');
 
-        if (!document.body.classList.contains('right-panel-maximized')) setPanelWidth();
+        if (!document.body.classList.contains('right-panel-maximized')) window.GaemiGTPRightPanelShell?.setPanelWidth?.();
         window.GaemiGTPWorkspaceShellState?.apply?.();
       };
 
@@ -86,14 +73,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           window.GaemiGTPWorkspaceShellState?.save?.();
         });
       });
-    }
-
-    function initializeWorkspaceInteractions() {
-      const shell = window.GaemiGTPRightPanelShell;
-      if (shell?.initializeWorkspaceInteractions) {
-        shell.initializeWorkspaceInteractions();
-        return;
-      }
     }
 
       async function fetchAnalysisFromBackend(stockName, signal) {
@@ -642,7 +621,7 @@ window.addEventListener('pagehide', () => {
 
 window.addEventListener('resize', () => {
   if (!document.body.classList.contains('right-panel-maximized')) {
-    setPanelWidth();
+    window.GaemiGTPRightPanelShell?.setPanelWidth?.();
   }
   window.GaemiGTPWorkspaceShellState?.apply?.();
 });
@@ -652,7 +631,7 @@ window.GaemiGTPApp = { requestStock };
 document.addEventListener("DOMContentLoaded", () => {
   try {
     initializeWorkspace();
-    initializeWorkspaceInteractions();
+    window.GaemiGTPRightPanelShell?.initializeWorkspaceInteractions?.();
   } catch (e) {
     console.warn('[gaemiGTP] workspace initialization warning:', e);
   }
