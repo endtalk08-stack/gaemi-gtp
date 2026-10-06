@@ -122,6 +122,7 @@ TICKERS = {
     '로빈후드': 'HOOD',
     '록히드마틴': 'LMT',
     '엑슨모빌': 'XOM',
+    '스페이스X': 'SPCX',
     '샌디스크': 'SNDK',
     '오라클': 'ORCL',
     'ORCL': 'ORCL',
