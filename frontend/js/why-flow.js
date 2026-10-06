@@ -160,10 +160,13 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             await typeText(followups.querySelector('[data-why-followup="big-money"]'), '#큰손은_뭐해?');
             await typeText(followups.querySelector('[data-why-followup="disclosure"]'), '#공시는_있어?');
 
+            let disclosureFlowStarted = false;
             followups.addEventListener('click', async (event) => {
               const button = event.target.closest('[data-why-followup]');
               if (!button) return;
               if (button.dataset.whyFollowup === 'disclosure') {
+                if (disclosureFlowStarted) return;
+                disclosureFlowStarted = true;
                 const disclosurePrompt = makeUserPrompt('공시는 있어?', 'disclosureFlow');
                 followups.insertAdjacentElement('afterend', disclosurePrompt);
                 followups.remove();
