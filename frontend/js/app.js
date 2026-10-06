@@ -145,10 +145,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
       let secIdx = 0;
 
-      function appendFirstReplyActions(anchor, replyText, actionGroup = 'first') {
-        return window.GaemiGTPFirstReplyActions.appendFirstReplyActions(anchor, replyText, actionGroup, stockName);
-      }
-
       function appendNextAnalysisChoices(anchor) {
         if (!anchor || anchor.parentElement?.querySelector('[data-next-analysis-choices]')) return;
 
