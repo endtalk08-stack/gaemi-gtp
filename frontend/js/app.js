@@ -301,7 +301,16 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       // 새로고침 후에도 gaemi/info/pro 선택 표시가 실제 상태와 일치하도록 복원한다.
       selectAppMode(currentAppMode);
 
-      window.GaemiGTPLeftNavRail?.initialize?.();
+      // 상단 왼쪽 메뉴 버튼은 홈 사이드바를 직접 연다.
+      document.querySelectorAll('[data-left-sidebar-toggle]').forEach((el) => {
+        if (el.dataset.sidebarListenerBound === 'true') return;
+        el.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          window.toggleLeftSidebarHome?.();
+        });
+        el.dataset.sidebarListenerBound = 'true';
+      });
 
       workspaceUIReady = true;
       window.workspaceUIReady = true;
