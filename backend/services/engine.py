@@ -3499,6 +3499,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     article["article_keywords"] = keyword_result.get("keywords", [])
                     article["article_keyword_details"] = keyword_result.get("keyword_details", [])
                     article["grounded_tags"] = keyword_result.get("grounded_tags", [])
+                    article["stock_entities"] = keyword_result.get("stock_entities", [])
                 news_list = storyboard_news_list[:3]
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
@@ -3584,6 +3585,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     article["article_keywords"] = keyword_result.get("keywords", [])
                     article["article_keyword_details"] = keyword_result.get("keyword_details", [])
                     article["grounded_tags"] = keyword_result.get("grounded_tags", [])
+                    article["stock_entities"] = keyword_result.get("stock_entities", [])
                 news_list = storyboard_news_list[:3]
             except Exception as e:
                 print(f"[뉴스] fail: {type(e).__name__}: {e}")
@@ -3792,6 +3794,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "keywords": item.get("storyboard_keywords", [])[:3],
                     "keyword_tones": item.get("storyboard_keyword_tones", {}),
                     "grounded_tags": item.get("grounded_tags", [])[:4],
+                    "stock_entities": item.get("stock_entities", [])[:4],
                 }
                 for item in storyboard_selected_news
                 if item.get("storyboard_keyword")
