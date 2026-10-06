@@ -142,8 +142,8 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   });
                   detailsEl.appendChild(line);
                 };
-                appendTagLine(stockParts);
                 appendTagLine(infoParts);
+                appendTagLine(stockParts);
                 const contentEl = document.createElement('div');
                 contentEl.appendChild(keywordEl);
                 contentEl.appendChild(detailsEl);
@@ -159,10 +159,10 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 for (const part of keywordParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
-                for (const part of stockParts) {
+                for (const part of infoParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
-                for (const part of infoParts) {
+                for (const part of stockParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
               }
