@@ -850,9 +850,21 @@ GROUNDED_ENTITY_RULES = [
     ("Starlink", ["starlink", "스타링크"]),
     ("Falcon 9", ["falcon 9", "팰컨 9"]),
     ("SSD", ["ssd"]),
-    ("미국", ["미국"]),
-    ("중국", ["중국"]),
-    ("대만", ["대만", "타이완"]),
+    # Geographic tags: only emit places explicitly named in the article.
+    ("유럽", ["유럽", "europe"]),
+    ("아시아", ["아시아", "asia"]),
+    ("중동", ["중동", "middle east"]),
+    ("한국", ["한국", "대한민국", "south korea"]),
+    ("미국", ["미국", "united states", "u.s."]),
+    ("중국", ["중국", "china"]),
+    ("일본", ["일본", "japan"]),
+    ("독일", ["독일", "germany"]),
+    ("프랑스", ["프랑스", "france"]),
+    ("영국", ["영국", "united kingdom", "u.k."]),
+    ("인도", ["인도", "india"]),
+    ("대만", ["대만", "타이완", "taiwan"]),
+    ("캐나다", ["캐나다", "canada"]),
+    ("멕시코", ["멕시코", "mexico"]),
 ]
 
 
