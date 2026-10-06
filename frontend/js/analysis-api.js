@@ -15,7 +15,7 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
           keyword_storyboard: Array.isArray(data.keyword_storyboard) ? data.keyword_storyboard : [],
           disclosures: Array.isArray(data.disclosures) ? data.disclosures : [],
           us_filings: Array.isArray(data.us_filings) ? data.us_filings : [],
-          ok: true
+          ok: data.ok !== false
         };
       } catch (err) {
         if (err?.name === 'AbortError') return { sections: [], ok: false, aborted: true };
