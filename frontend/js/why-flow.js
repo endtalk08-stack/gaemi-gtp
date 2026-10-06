@@ -92,7 +92,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 const timeText = event.time || '';
                 timeEl.textContent = '';
                 const keywordEl = document.createElement('span');
-                keywordEl.className = 'analysis-hashtag font-semibold';
+                keywordEl.className = 'analysis-hashtag gtp-chat-copy font-semibold';
                 const keywordTones = event.keyword_tones && typeof event.keyword_tones === 'object' ? event.keyword_tones : {};
                 const eventToneValues = Object.values(keywordTones);
                 // 방향성이 명시되지 않은 키워드도 흐름 안에서는 같은 색 체계를 사용한다.
