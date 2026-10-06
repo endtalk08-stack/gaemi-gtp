@@ -26,6 +26,19 @@
     if (typeof window.applySidebarState === 'function') window.applySidebarState();
   }
 
+  function toggle() {
+    if (typeof window.workspaceUIReady !== 'undefined' && !window.workspaceUIReady) return;
+    const isOpen = document.body.classList.contains('left-home-open');
+    if (isOpen) {
+      document.body.classList.remove('left-home-open');
+    } else {
+      document.body.classList.remove('left-market-open', 'left-context-open', 'left-plugin-open');
+      if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
+      document.body.classList.add('left-home-open');
+    }
+    applyState();
+  }
+
   function close() {
     document.body.classList.remove('left-home-open');
     applyState();
@@ -119,7 +132,8 @@
     }
   });
 
-  window.GaemiGTPSidebarHome = { render, setActiveNav, close, toggleMenu, showSection };
+  window.GaemiGTPSidebarHome = { render, setActiveNav, toggle, close, toggleMenu, showSection };
+  window.toggleLeftSidebarHome = toggle;
   window.closeLeftSidebarHome = close;
   window.toggleLeftSidebarHomeMenu = toggleMenu;
   window.showLeftSidebarHomeSection = showSection;

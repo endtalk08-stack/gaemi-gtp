@@ -271,19 +271,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       applySidebarState();
     }
 
-    function toggleLeftSidebarHome() {
-      if (!workspaceUIReady) return;
-      const isOpen = document.body.classList.contains('left-home-open');
-      if (isOpen) {
-        document.body.classList.remove('left-home-open');
-      } else {
-        document.body.classList.remove('left-market-open', 'left-context-open', 'left-plugin-open');
-        if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
-        document.body.classList.add('left-home-open');
-      }
-      applySidebarState();
-    }
-
     function focusSidebarStockSearch() {
       focusStockInput();
     }
