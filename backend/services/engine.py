@@ -3888,6 +3888,8 @@ def analyze_stock(raw_name='SK하이닉스'):
             "\n".join(price_range_lines),
         ]
         if bollinger_lines:
+            if rsi_14 is not None:
+                bollinger_lines.append(f"RSI   {rsi_14:.1f}")
             first_content_parts.append("\n".join(bollinger_lines))
         first_content_parts.append(tags_str)
 
