@@ -220,6 +220,8 @@ KR_TREND_CACHE = {}
 KR_TREND_CACHE_TTL = 20
 KR_VOLUME_PROFILE_CACHE = {}
 KR_VOLUME_PROFILE_CACHE_TTL = 600
+KR_BOLLINGER_CACHE = {}
+KR_BOLLINGER_CACHE_TTL = 600
 US_YAHOO_CACHE = {}
 US_YAHOO_CACHE_TTL = 15
 KR_SEARCH_CACHE = {}
@@ -2497,6 +2499,46 @@ def fetch_kr_historical_volume_profile(ticker_symbol, current_price=None):
             print(f"[국내 매물대] {symbol} 계산 예외: {type(e).__name__}: {e}")
             KR_VOLUME_PROFILE_CACHE[symbol] = (now, None)
             return None
+
+def fetch_kr_bollinger_60_2(ticker_symbol):
+    """국내 종목 기존 Yahoo 일봉 흐름에서 볼린저밴드 60/2 가격을 계산한다."""
+    symbol = str(ticker_symbol or "").strip()
+    if not symbol:
+        return None
+    now = time.time()
+    cached = KR_BOLLINGER_CACHE.get(symbol)
+    if cached and now - cached[0] < KR_BOLLINGER_CACHE_TTL:
+        return cached[1]
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}?range=6mo&interval=1d"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        result = (data.get("chart", {}).get("result") or [None])[0]
+        if not result:
+            return None
+        quote = (result.get("indicators", {}).get("quote") or [{}])[0]
+        closes = []
+        for value in quote.get("close") or []:
+            try:
+                price = float(value)
+                if math.isfinite(price) and price > 0:
+                    closes.append(price)
+            except (TypeError, ValueError):
+                continue
+        if len(closes) < 60:
+            return None
+        window = closes[-60:]
+        middle = sum(window) / 60
+        variance = sum((price - middle) ** 2 for price in window) / 60
+        stddev = math.sqrt(variance)
+        bollinger = {"upper": middle + 2 * stddev, "middle": middle, "lower": middle - 2 * stddev}
+        KR_BOLLINGER_CACHE[symbol] = (now, bollinger)
+        return bollinger
+    except Exception as e:
+        print(f"[국내 볼린저 60/2] {symbol} 계산 예외: {type(e).__name__}: {e}")
+        return None
+
 
 def fetch_yahoo_direct_v8(ticker_str):
     key = str(ticker_str or "").strip().upper()
