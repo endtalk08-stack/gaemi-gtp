@@ -138,6 +138,29 @@ def calculate_volume_profile_levels(highs, lows, closes, volumes, bins=24, curre
         print(f"[Volume Profile] 계산 예외: {type(e).__name__}: {e}")
         return None
 
+
+def build_volume_profile_from_daily_rows(daily_rows, current_price=None, state_key=None):
+    """공통 일봉 원천을 재사용해 매물대 결과를 계산한다."""
+    rows = [row for row in (daily_rows or []) if isinstance(row, dict)]
+    if len(rows) > 1:
+        rows = rows[:-1]
+
+    highs = [row.get("high") for row in rows]
+    lows = [row.get("low") for row in rows]
+    closes = [row.get("close") for row in rows]
+    volumes = [row.get("volume") for row in rows]
+
+    return calculate_volume_profile_levels(
+        highs,
+        lows,
+        closes,
+        volumes,
+        bins=24,
+        current_price=current_price,
+        state_key=state_key,
+    )
+
+
 def format_volume_profile(profile, is_usd=True):
     if not profile:
         return ""

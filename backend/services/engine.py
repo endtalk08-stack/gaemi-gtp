@@ -23,9 +23,10 @@ from .news_scoring import score_stock_news, build_connected_keyword_test
 from .simple_news_storyboard import build_simple_today_news, select_keyword_storyboard_news
 from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
+from ..providers.market_price import fetch_daily_price_history
 
 from .market_levels import (
-    calculate_volume_profile_levels,
+    build_volume_profile_from_daily_rows,
     format_volume_profile,
     format_shares,
     round_krw_tick,
@@ -216,10 +217,6 @@ OPTIONS_CACHE_TTL = 60
 # 캐시는 정확도를 떨어뜨리는 것이 아니라 같은 순간의 중복 외부 호출을 줄이는 용도다.
 KR_TREND_CACHE = {}
 KR_TREND_CACHE_TTL = 20
-KR_VOLUME_PROFILE_CACHE = {}
-KR_VOLUME_PROFILE_CACHE_TTL = 600
-US_YAHOO_CACHE = {}
-US_YAHOO_CACHE_TTL = 15
 KR_SEARCH_CACHE = {}
 KR_SEARCH_CACHE_TTL = 3600
 _ANALYSIS_CACHE_LOCKS = {}
@@ -2389,145 +2386,6 @@ def fetch_krx_trend_and_supply(code_six):
     KR_TREND_CACHE[code_six] = (now, result)
     return result
 
-def _reanchor_volume_profile(profile, current_price):
-    """캐시된 과거 매물대 구간을 새 현재가 기준으로 위/아래만 다시 잡는다."""
-    if not profile:
-        return None
-    try:
-        price = float(current_price) if current_price and float(current_price) > 0 else float(profile.get("current_price") or 0)
-    except Exception:
-        price = float(profile.get("current_price") or 0)
-    if price <= 0:
-        return profile
-
-    zones = list(profile.get("zones") or [])
-    above = sorted([z for z in zones if z.get("lower", 0) > price], key=lambda z: z.get("lower", 0))
-    below = sorted([z for z in zones if z.get("upper", 0) < price], key=lambda z: z.get("upper", 0), reverse=True)
-    inside = [z for z in zones if z.get("lower", 0) <= price <= z.get("upper", 0)]
-    updated = dict(profile)
-    updated["current_price"] = price
-    updated["above"] = above[0] if above else None
-    updated["below"] = below[0] if below else None
-    updated["inside"] = inside[0] if inside else None
-    return updated
-
-
-def fetch_kr_historical_volume_profile(ticker_symbol, current_price=None):
-    """국내 종목의 과거 6개월 일봉 OHLCV 기반 매물대. 과거 데이터는 10분 캐시."""
-    symbol = str(ticker_symbol or "").strip()
-    if not symbol:
-        return None
-    now = time.time()
-    cached = KR_VOLUME_PROFILE_CACHE.get(symbol)
-    if cached and now - cached[0] < KR_VOLUME_PROFILE_CACHE_TTL:
-        return _reanchor_volume_profile(cached[1], current_price)
-
-    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("kr-volume", symbol))
-    with lock:
-        now = time.time()
-        cached = KR_VOLUME_PROFILE_CACHE.get(symbol)
-        if cached and now - cached[0] < KR_VOLUME_PROFILE_CACHE_TTL:
-            return _reanchor_volume_profile(cached[1], current_price)
-        try:
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}?range=6mo&interval=1d"
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            result = (data.get("chart", {}).get("result") or [None])[0]
-            if not result:
-                return None
-            quote = (result.get("indicators", {}).get("quote") or [{}])[0]
-            highs = quote.get("high") or []
-            lows = quote.get("low") or []
-            closes = quote.get("close") or []
-            volumes = quote.get("volume") or []
-            profile_highs = highs[:-1] if len(highs) > 1 else highs
-            profile_lows = lows[:-1] if len(lows) > 1 else lows
-            profile_closes = closes[:-1] if len(closes) > 1 else closes
-            profile_volumes = volumes[:-1] if len(volumes) > 1 else volumes
-            profile = calculate_volume_profile_levels(
-                profile_highs, profile_lows, profile_closes, profile_volumes, bins=24,
-                current_price=None, state_key=symbol
-            )
-            KR_VOLUME_PROFILE_CACHE[symbol] = (now, profile)
-            return _reanchor_volume_profile(profile, current_price)
-        except Exception as e:
-            print(f"[국내 매물대] {symbol} 계산 예외: {type(e).__name__}: {e}")
-            KR_VOLUME_PROFILE_CACHE[symbol] = (now, None)
-            return None
-
-def fetch_yahoo_direct_v8(ticker_str):
-    key = str(ticker_str or "").strip().upper()
-    now = time.time()
-    cached = US_YAHOO_CACHE.get(key)
-    if cached and now - cached[0] < US_YAHOO_CACHE_TTL:
-        return cached[1]
-
-    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("us-yahoo", key))
-    with lock:
-        now = time.time()
-        cached = US_YAHOO_CACHE.get(key)
-        if cached and now - cached[0] < US_YAHOO_CACHE_TTL:
-            return cached[1]
-        try:
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(key)}?range=6mo&interval=1d"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                              'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36'
-            }
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-
-            res = data.get('chart', {}).get('result', [])
-            if not res:
-                return None, None, None, None, None, None, None, None, None
-
-            quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
-            raw_closes = quotes.get('close', [])
-            raw_highs = quotes.get('high', [])
-            raw_lows = quotes.get('low', [])
-            raw_volumes = quotes.get('volume', [])
-
-            rows = []
-            for c, h, l, v in zip(raw_closes, raw_highs, raw_lows, raw_volumes):
-                if c is None or h is None or l is None or v is None:
-                    continue
-                try:
-                    c, h, l, v = float(c), float(h), float(l), float(v)
-                    if all(math.isfinite(x) for x in (c, h, l, v)) and c > 0 and v > 0:
-                        rows.append((c, h, l, v))
-                except Exception:
-                    continue
-
-            if len(rows) < 2:
-                return None, None, None, None, None, None, None, None, None
-
-            closes = [r[0] for r in rows]
-            highs = [r[1] for r in rows]
-            lows = [r[2] for r in rows]
-            volumes = [r[3] for r in rows]
-
-            cur_p = closes[-1]
-            profile_highs = highs[:-1] if len(highs) > 1 else highs
-            profile_lows = lows[:-1] if len(lows) > 1 else lows
-            profile_closes = closes[:-1] if len(closes) > 1 else closes
-            profile_volumes = volumes[:-1] if len(volumes) > 1 else volumes
-            volume_profile = calculate_volume_profile_levels(
-                profile_highs, profile_lows, profile_closes, profile_volumes, bins=24,
-                current_price=cur_p, state_key=key
-            )
-
-            result = (None, None, 0.0, 0.0, volume_profile, None, None, None, None)
-            US_YAHOO_CACHE[key] = (now, result)
-            return result
-
-        except Exception as e:
-            print("미국 야후 v8 예외:", e)
-            result = (None, None, None, None, None, None, None, None, None)
-            US_YAHOO_CACHE[key] = (now, result)
-            return result
-
 def fetch_us_options_volume(ticker_symbol):
     """CBOE 지연 옵션 거래량을 조회한다. 결과는 짧게 캐시한다."""
     key = str(ticker_symbol).upper().strip()
@@ -3520,7 +3378,11 @@ def analyze_stock(raw_name='SK하이닉스'):
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=volume_profile start", flush=True)
             try:
-                volume_profile = fetch_kr_historical_volume_profile(ticker_symbol, current_price=cur_p)
+                volume_profile = build_volume_profile_from_daily_rows(
+                    fetch_daily_price_history(ticker_symbol),
+                    current_price=cur_p,
+                    state_key=ticker_symbol,
+                )
             except Exception as e:
                 print(f"[매물대] fail: {type(e).__name__}: {e}")
                 volume_profile = None
@@ -3559,10 +3421,13 @@ def analyze_stock(raw_name='SK하이닉스'):
             )
             cur_p = price_result["current_price"]
 
-            # 기존 미국 매물대 section에 필요한 volume_profile만 유지한다.
+            # 미국 매물대도 같은 일봉 원천을 재사용한다.
             try:
-                _legacy_us_price = fetch_yahoo_direct_v8(ticker_symbol)
-                volume_profile = _legacy_us_price[4] if _legacy_us_price else None
+                volume_profile = build_volume_profile_from_daily_rows(
+                    fetch_daily_price_history(ticker_symbol),
+                    current_price=cur_p,
+                    state_key=ticker_symbol,
+                )
             except Exception as e:
                 print(f"[미국 매물대] fail: {type(e).__name__}: {e}")
                 volume_profile = None
