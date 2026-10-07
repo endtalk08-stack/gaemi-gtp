@@ -432,7 +432,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
           if (requestId !== activeAnalysisRequestId) return;
           if (charIdx < text.length) {
             const chunkStart = charIdx;
-            const chunk = text.substr(charIdx, chunkSize);
+            const remainingText = text.slice(charIdx);
+            const signedPercentMatch = remainingText.match(/^[+-]\d+(?:\.\d+)?%/);
+            const chunk = signedPercentMatch
+              ? signedPercentMatch[0]
+              : text.substr(charIdx, chunkSize);
             appendTypingChunk(chunk, chunkStart);
             charIdx += chunk.length;
             const pause = /[.!?…]$/.test(chunk) ? 180 : (/\n$/.test(chunk) ? 120 : 40);
