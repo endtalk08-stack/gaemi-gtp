@@ -385,11 +385,20 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         const firstAnswerTagStart = firstAnswerTagMatch
           ? text.lastIndexOf(firstAnswerTagMatch[1])
           : -1;
-        const firstAnswerDirectionText = firstAnswerTagStart >= 0
-          ? text.slice(firstAnswerTagStart)
-          : '';
-        const firstAnswerIsDown = /-(?:\d+(?:\.\d+)?%)|보합|눈치싸움|파란불|숨고르기|투매/.test(firstAnswerDirectionText);
-        const firstAnswerThemeColor = firstAnswerIsDown ? '#38BDF8' : '#FF8DA1';
+        const risingFirstAnswerTags = new Set([
+          '#고가갱신', '#고가권', '#단기상승', '#상승우위',
+          '#가즈아', '#불기둥', '#우상향', '#야금야금'
+        ]);
+        const fallingFirstAnswerTags = new Set([
+          '#저가갱신', '#저가권', '#단기하락', '#하락우위',
+          '#숨고르기', '#버터보자', '#버텨보자', '#투매금지', '#멘탈관리'
+        ]);
+        const firstAnswerTagColor = (tag) => {
+          const value = String(tag || '').trim();
+          if (value.includes('+') || risingFirstAnswerTags.has(value)) return '#FF8DA1';
+          if (value.includes('-') || fallingFirstAnswerTags.has(value)) return '#38BDF8';
+          return '#94A3B8';
+        };
         let activeTagSpan = null;
 
         const appendTypingChunk = (chunk, chunkStart) => {
@@ -398,9 +407,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             const absoluteIndex = chunkStart + offset;
             if (firstAnswerTagStart >= 0 && absoluteIndex >= firstAnswerTagStart) {
               if (char === '#') {
+                const fullTag = (text.slice(absoluteIndex).match(/^#[^\s]+/) || ['#'])[0];
                 activeTagSpan = document.createElement('span');
                 activeTagSpan.className = 'font-bold first-answer-hashtag';
-                activeTagSpan.style.color = firstAnswerThemeColor;
+                activeTagSpan.style.color = firstAnswerTagColor(fullTag);
                 pEl.appendChild(activeTagSpan);
               }
               if (activeTagSpan && !/\s/.test(char)) {
@@ -434,51 +444,26 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
               // 2. 경제 지표(#PPI, #CPI, #FOMC, #PCE, #NFP) -> 블루
               formatted = formatted.replace(/(#(?:PPI|CPI|FOMC|PCE|NFP))/g, '<span class="font-bold" style="color: #38BDF8;">$1</span>');
 
-              // 5. 첫 섹션 태그 라인 오류 완전 해결
+              // 5. 첫 답변 해시태그는 상승/중립/하락 상태별 색을 독립 적용한다.
               if (formatted.includes('#') && !formatted.includes('캘린더')) {
-                // HTML 변환 뒤의 문자열에는 class/style의 '-'도 들어가므로,
-                // HTML 문자열이 아니라 실제 답변 텍스트를 기준으로 방향을 판단한다.
-                const directionText = pEl.textContent || formatted;
-                const isDown = /(?:^|\\n).*-(?:\\d+(?:\\.\\d+)?%)|보합|눈치싸움|파란불|숨고르기|투매/.test(directionText);
-                const themeColor = isDown ? '#38BDF8' : '#FF8DA1';
-                
                 let lines = formatted.split('\n\n');
                 if (lines.length > 0) {
                   let lastLine = lines[lines.length - 1];
-                  // HTML 태그(<span ...>)가 이미 들어간 경우 순수 텍스트만 뽑아서 다시 색을 칠함
-                  if (lastLine.includes('#') && lastLine.includes('<span')) {
-                     // 1. 임시 div를 만들어 HTML 태그를 모두 벗겨냄
-                     let tempDiv = document.createElement('div');
-                     tempDiv.innerHTML = lastLine;
-                     let rawText = tempDiv.textContent || tempDiv.innerText || "";
-                     
-                     // 2. 벗겨낸 순수 텍스트(예: #엔비디아 #-2.01% #숨고르기 #버텨보자)를 단어별로 다시 칠함
-                     const words = rawText.split(/\s+/);
-                     const newWords = words.map(w => {
-                       if (w.startsWith('#')) {
-                         let color = themeColor;
-                         if (w.includes('+')) color = '#FF8DA1';
-                         else if (w.includes('-')) color = '#38BDF8';
-                         return `<span class="font-bold" style="color: ${color};">${w}</span>`;
-                       }
-                       return w;
-                     });
-                     lines[lines.length - 1] = newWords.join(' ');
-                     formatted = lines.join('\n\n');
-                  } else if (lastLine.includes('#')) {
-                     // HTML 태그가 없을 땐 기존 방식대로 처리
-                     const words = lastLine.split(/\s+/);
-                     const newWords = words.map(w => {
-                       if (w.startsWith('#')) {
-                         let color = themeColor;
-                         if (w.includes('+')) color = '#FF8DA1';
-                         else if (w.includes('-')) color = '#38BDF8';
-                         return `<span class="font-bold" style="color: ${color};">${w}</span>`;
-                       }
-                       return w;
-                     });
-                     lines[lines.length - 1] = newWords.join(' ');
-                     formatted = lines.join('\n\n');
+                  if (lastLine.includes('#')) {
+                    let rawText = lastLine;
+                    if (lastLine.includes('<span')) {
+                      const tempDiv = document.createElement('div');
+                      tempDiv.innerHTML = lastLine;
+                      rawText = tempDiv.textContent || tempDiv.innerText || '';
+                    }
+                    const words = rawText.split(/\s+/);
+                    const newWords = words.map((word) => {
+                      if (!word.startsWith('#')) return word;
+                      const color = firstAnswerTagColor(word);
+                      return `<span class="font-bold" style="color: ${color};">${word}</span>`;
+                    });
+                    lines[lines.length - 1] = newWords.join(' ');
+                    formatted = lines.join('\n\n');
                   }
                 }
               }
