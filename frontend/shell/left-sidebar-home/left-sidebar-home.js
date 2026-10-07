@@ -70,6 +70,7 @@
     if (typeof window.workspaceUIReady !== 'undefined' && !window.workspaceUIReady) return;
     const homeDefault = document.getElementById('leftSidebarHomeDefault');
     const host = document.getElementById('leftSidebarHomeSectionContent');
+    const title = document.querySelector('.left-sidebar-home__title');
     if (!homeDefault || !host) return;
 
     sectionOrigins.forEach((origin, node) => {
@@ -88,6 +89,7 @@
       const idBySection = {
         market: 'leftMarketSidebar',
         context: 'leftContextSidebar',
+        calendar: 'leftEarningsCalendarSidebar',
         plugin: 'leftPluginSidebar'
       };
       const node = document.getElementById(idBySection[section]);
@@ -110,6 +112,7 @@
       embedded.style.flexBasis = '100%';
     }
     if (section === 'plugin') window.GaemiGTPPluginSidebar?.render?.();
+    if (title) title.textContent = section === 'calendar' ? '실적 캘린더' : 'gaemiGTP';
     applyState();
   }
 
@@ -133,7 +136,9 @@
   document.addEventListener('click', (event) => {
     const navButton = event.target.closest('#leftSidebarHome [data-left-home-nav]');
     if (navButton) {
-      setActiveNav(navButton.dataset.leftHomeNav);
+      const nav = navButton.dataset.leftHomeNav;
+      setActiveNav(nav);
+      if (nav === 'calendar') showSection('calendar');
       return;
     }
 

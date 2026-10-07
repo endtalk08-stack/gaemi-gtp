@@ -142,6 +142,7 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
 .left-sidebar-home__section-content.hidden { display: none; }
 .left-sidebar-home__section-content > #leftMarketSidebar,
 .left-sidebar-home__section-content > #leftContextSidebar,
+.left-sidebar-home__section-content > #leftEarningsCalendarSidebar,
 .left-sidebar-home__section-content > #leftPluginSidebar {
   width: 100% !important;
   flex: 1 1 auto !important;
@@ -151,6 +152,7 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
 }
 .left-sidebar-home__section-content .market-sidebar-header,
 .left-sidebar-home__section-content .context-sidebar-header,
+.left-sidebar-home__section-content .earnings-calendar-sidebar__header,
 .left-sidebar-home__section-content .plugin-sidebar-header {
   display: none;
 }
