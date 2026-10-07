@@ -3887,8 +3887,6 @@ def analyze_stock(raw_name='SK하이닉스'):
             "\n".join(price_range_lines),
         ]
         if bollinger_lines:
-            if rsi_14 is not None:
-                bollinger_lines.append(f"RSI   {rsi_14:.1f}")
             first_content_parts.append("\n".join(bollinger_lines))
         first_content_parts.append(tags_str)
 
@@ -3897,7 +3895,8 @@ def analyze_stock(raw_name='SK하이닉스'):
                 "id": "why-up",
                 "title": f"{status_emoji} 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
-                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
+                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"],
+                "first_reply_rsi": f"{rsi_14:.1f} RSI" if rsi_14 is not None else ""
             }
         ]
 
