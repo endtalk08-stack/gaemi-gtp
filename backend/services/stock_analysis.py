@@ -95,10 +95,16 @@ def _build_stock_price_result(*, is_krw, ticker_symbol, current, previous=None, 
         change_pct=change_pct,
     )
     daily_rows = fetch_daily_price_history(ticker_symbol)
-    indicators = build_price_indicators(daily_rows, price_result["current_price"])
+    indicators = build_price_indicators(
+        daily_rows,
+        price_result["current_price"],
+        day_high=price_result.get("high_price"),
+        day_low=price_result.get("low_price"),
+    )
     return {
         **price_result,
         "indicators": indicators,
+        "price_tags": list(indicators.get("price_tags") or []),
         "first_reply_metrics_text": _build_first_reply_metrics(price_result, indicators),
     }
 
