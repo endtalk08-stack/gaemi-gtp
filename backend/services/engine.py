@@ -2284,6 +2284,32 @@ def format_us_official_filings(ticker_symbol, filings=None):
 
     return "\n".join(lines)
 
+# -----------------------------------------------------------------------------
+# 실시간 시장 일정 캘린더
+# - 고정 날짜 목록을 사용하지 않는다.
+# - 공식 미국 경제일정(BLS/BEA/Fed/Census) + Finnhub 주요 실적 캘린더를 주기적으로 갱신한다.
+# - 프로세스 메모리 캐시만 사용하며, 갱신은 백그라운드에서 수행한다.
+# -----------------------------------------------------------------------------
+CALENDAR_CACHE = {
+    "expires_at": 0.0,
+    "events": [],
+    "loaded": False,
+}
+CALENDAR_LAST_ERROR = ""
+CALENDAR_LAST_REFRESH_AT = 0.0
+_CALENDAR_LOCK = threading.Lock()
+_CALENDAR_REFRESHING = False
+CALENDAR_CACHE_TTL = 1800  # 30분
+
+CALENDAR_WATCH_SYMBOLS = [
+    # 주요 지수 영향주 + AI/반도체 + 소비/금융 대형주.
+    # 전체 실적 캘린더를 보여주지 않고, 이 목록의 실적만 '주요 실적'으로 표시한다.
+    "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA",
+    "AVGO", "AMD", "INTC", "MU", "ORCL", "ADBE", "NFLX", "CRM",
+    "COST", "LLY", "NKE", "WMT", "HD", "LOW", "PEP", "KO", "MCD",
+    "JPM", "BAC", "GS", "MS", "FDX", "UPS", "CTAS", "DRI"
+]
+
 def _calendar_events_to_json(events):
     payload = []
     for ev in events or []:
