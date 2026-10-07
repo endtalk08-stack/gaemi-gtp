@@ -558,14 +558,25 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
             pEl.innerHTML = formatted;
 
-            if (isFirstAnswer && sec.first_reply_rsi) {
+            if (isFirstAnswer && (sec.first_reply_rsi || sec.first_reply_ma20)) {
               const html = pEl.innerHTML;
               const lines = html.split('\n');
-              const highIndex = lines.findIndex((line) => /^고가\s/.test(line.replace(/<[^>]+>/g, '').trim()));
-              if (highIndex >= 0) {
-                lines[highIndex] = `<span class="first-reply-metric-line"><span class="first-reply-metric-content">${lines[highIndex]}</span><span class="first-reply-rsi">${sec.first_reply_rsi}</span></span>`;
-                pEl.innerHTML = lines.join('\n');
+
+              if (sec.first_reply_rsi) {
+                const highIndex = lines.findIndex((line) => /^고가\s/.test(line.replace(/<[^>]+>/g, '').trim()));
+                if (highIndex >= 0) {
+                  lines[highIndex] = `<span class="first-reply-metric-line"><span class="first-reply-metric-content">${lines[highIndex]}</span><span class="first-reply-rsi">${sec.first_reply_rsi}</span></span>`;
+                }
               }
+
+              if (sec.first_reply_ma20) {
+                const lowIndex = lines.findIndex((line) => /^저가\s/.test(line.replace(/<[^>]+>/g, '').trim()));
+                if (lowIndex >= 0) {
+                  lines[lowIndex] = `<span class="first-reply-metric-line"><span class="first-reply-metric-content">${lines[lowIndex]}</span><span class="first-reply-ma20">${sec.first_reply_ma20}</span></span>`;
+                }
+              }
+
+              pEl.innerHTML = lines.join('\n');
             }
 
             // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.

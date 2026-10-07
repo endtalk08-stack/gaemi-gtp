@@ -3881,6 +3881,12 @@ def analyze_stock(raw_name='SK하이닉스'):
         if legacy_mood_tags:
             tags_str = f"{tags_str}   {legacy_mood_tags}"
 
+        ma20_position_text = ""
+        if current_price > 0 and ma20 > 0:
+            ma20_gap_pct = ((current_price - ma20) / ma20) * 100
+            ma20_arrow = "↗" if ma20_gap_pct >= 0 else "↘"
+            ma20_position_text = f"{ma20_gap_pct:+.2f}% {ma20_arrow} 20일선"
+
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
@@ -3896,7 +3902,8 @@ def analyze_stock(raw_name='SK하이닉스'):
                 "title": f"{status_emoji} 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"],
-                "first_reply_rsi": f"{rsi_14:.1f} RSI" if rsi_14 is not None else ""
+                "first_reply_rsi": f"{rsi_14:.1f} RSI" if rsi_14 is not None else "",
+                "first_reply_ma20": ma20_position_text
             }
         ]
 

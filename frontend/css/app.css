@@ -75,7 +75,8 @@
       min-width: 0;
       line-height: inherit;
     }
-    .first-reply-rsi {
+    .first-reply-rsi,
+    .first-reply-ma20 {
       margin-left: auto;
       white-space: nowrap;
       line-height: inherit;
