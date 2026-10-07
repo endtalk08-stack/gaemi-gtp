@@ -3724,7 +3724,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
-            *price_range_lines,
+            "\n".join(price_range_lines),
             tags_str,
         ]
 
