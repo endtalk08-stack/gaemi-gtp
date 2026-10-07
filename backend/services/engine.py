@@ -3816,7 +3816,6 @@ def analyze_stock(raw_name='SK하이닉스'):
         price_range_lines = price_result["range_lines"]
         bollinger_lines = []
         if bollinger_60_2 and current_price > 0:
-            bollinger_lines.append("볼린저밴드 60/2")
             for label, key in (("상단", "upper"), ("중심", "middle"), ("하단", "lower")):
                 level_price = float(bollinger_60_2.get(key) or 0)
                 if level_price <= 0:
