@@ -56,21 +56,29 @@
       line-height: 1.45;
     }
 
-    .first-reply-metric-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      column-gap: 12px;
+    .first-reply-seq-line {
+      display: block;
+      visibility: hidden;
+      line-height: inherit;
+    }
+    .first-reply-seq-line.is-visible {
+      visibility: visible;
+    }
+    .first-reply-metric-line {
+      display: flex;
+      align-items: baseline;
       width: 100%;
+      gap: 12px;
       line-height: inherit;
     }
-    .first-reply-metric-left,
-    .first-reply-metric-right {
+    .first-reply-metric-content {
+      min-width: 0;
       line-height: inherit;
     }
-    .first-reply-metric-right {
-      justify-self: end;
+    .first-reply-rsi {
+      margin-left: auto;
       white-space: nowrap;
+      line-height: inherit;
       text-align: right;
     }
     .gtp-chat-section-title {
