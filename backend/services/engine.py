@@ -23,7 +23,7 @@ from .news_scoring import score_stock_news, build_connected_keyword_test
 from .simple_news_storyboard import build_simple_today_news, select_keyword_storyboard_news
 from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
-from .market_supply import fetch_kr_supply_summary, fetch_us_options_volume, build_us_options_content
+from .market_supply import fetch_kr_supply_summary, build_kr_supply_content, fetch_us_options_volume, build_us_options_content
 from ..providers.market_price import fetch_daily_price_history
 
 from .market_levels import (
@@ -3219,7 +3219,6 @@ def analyze_stock(raw_name='SK하이닉스'):
             change_pct = price_result["change_pct"]
             price_str = price_result["price_text"]
 
-            from .market_supply import build_kr_supply_content
             supply_content = build_kr_supply_content(f_5d, i_5d, ind_5d, v_days)
 
         # 2. 미국 주식
