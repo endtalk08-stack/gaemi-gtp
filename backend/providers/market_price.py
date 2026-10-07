@@ -11,6 +11,7 @@ KR_QUOTE_CACHE = {}
 KR_QUOTE_CACHE_TTL = 5
 US_QUOTE_CACHE = {}
 US_QUOTE_CACHE_TTL = 15
+DAILY_HISTORY_CACHE = {}
 
 
 def _get_lock(key):
@@ -20,6 +21,11 @@ def _get_lock(key):
             lock = threading.Lock()
             _CACHE_LOCKS[key] = lock
         return lock
+
+
+def _history_ttl(ticker):
+    symbol = str(ticker or "").upper()
+    return 600 if symbol.endswith((".KS", ".KQ")) else 15
 
 
 def fetch_kr_stock_quote(code_six):
@@ -65,6 +71,69 @@ def fetch_kr_stock_quote(code_six):
     return result
 
 
+def fetch_daily_price_history(ticker):
+    """Yahoo 2년 일봉 원천을 공통으로 제공한다."""
+    key = str(ticker or "").strip().upper()
+    if not key:
+        return []
+
+    now = time.time()
+    ttl = _history_ttl(key)
+    cached = DAILY_HISTORY_CACHE.get(key)
+    if cached and now - cached[0] < ttl:
+        return cached[1]
+
+    with _get_lock(("daily-history", key)):
+        now = time.time()
+        cached = DAILY_HISTORY_CACHE.get(key)
+        if cached and now - cached[0] < ttl:
+            return cached[1]
+
+        rows = []
+        try:
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(key)}?range=2y&interval=1d"
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+                },
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            chart_rows = data.get("chart", {}).get("result", [])
+            if chart_rows:
+                quote = chart_rows[0].get("indicators", {}).get("quote", [{}])[0]
+                closes = quote.get("close", [])
+                highs = quote.get("high", [])
+                lows = quote.get("low", [])
+                volumes = quote.get("volume", [])
+
+                for close, high, low, volume in zip(closes, highs, lows, volumes):
+                    if close is None or high is None or low is None:
+                        continue
+                    try:
+                        close_value = float(close)
+                        high_value = float(high)
+                        low_value = float(low)
+                        volume_value = float(volume or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    if close_value <= 0 or high_value <= 0 or low_value <= 0:
+                        continue
+                    rows.append({
+                        "close": close_value,
+                        "high": high_value,
+                        "low": low_value,
+                        "volume": volume_value,
+                    })
+        except Exception as exc:
+            print("야후 일봉 조회 예외:", exc)
+
+        DAILY_HISTORY_CACHE[key] = (now, rows)
+        return rows
+
+
 def fetch_us_stock_quote(ticker):
     key = str(ticker or "").strip().upper()
     now = time.time()
@@ -77,45 +146,19 @@ def fetch_us_stock_quote(ticker):
         cached = US_QUOTE_CACHE.get(key)
         if cached and now - cached[0] < US_QUOTE_CACHE_TTL:
             return cached[1]
-        try:
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(key)}?range=6mo&interval=1d"
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
-                },
+
+        rows = fetch_daily_price_history(key)
+        if len(rows) >= 2:
+            latest = rows[-1]
+            previous = rows[-2]
+            result = (
+                latest["close"],
+                previous["close"],
+                latest["high"],
+                latest["low"],
             )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-
-            chart_rows = data.get("chart", {}).get("result", [])
-            if not chart_rows:
-                result = (None, None, None, None)
-                US_QUOTE_CACHE[key] = (now, result)
-                return result
-
-            quote = chart_rows[0].get("indicators", {}).get("quote", [{}])[0]
-            closes = quote.get("close", [])
-            highs = quote.get("high", [])
-            lows = quote.get("low", [])
-            prices = []
-            for close in closes:
-                if close is None:
-                    continue
-                try:
-                    value = float(close)
-                    if value > 0:
-                        prices.append(value)
-                except Exception:
-                    continue
-
-            latest_high = next((float(value) for value in reversed(highs) if value is not None and float(value) > 0), None)
-            latest_low = next((float(value) for value in reversed(lows) if value is not None and float(value) > 0), None)
-            result = (prices[-1], prices[-2], latest_high, latest_low) if len(prices) >= 2 else (None, None, None, None)
-            US_QUOTE_CACHE[key] = (now, result)
-            return result
-        except Exception as exc:
-            print("미국 야후 v8 예외:", exc)
+        else:
             result = (None, None, None, None)
-            US_QUOTE_CACHE[key] = (now, result)
-            return result
+
+        US_QUOTE_CACHE[key] = (now, result)
+        return result
