@@ -6,6 +6,8 @@
   'use strict';
 
   window.GaemiGTPWidgetCatalog = Object.freeze({
+    'kospi': { title: '코스피', icon: 'sparkles', description: '국내 시장 흐름' },
+    'night-futures': { title: '코스피200 야간선물', icon: 'moon-star', description: '야간 선물 흐름' },
     'materials': { title: '재료는 있어?', icon: 'newspaper', description: '관련 뉴스·공시·재료' },
     'levels':    { title: '여기 깨지면 큰일인데?', icon: 'chart-no-axes-combined', description: '지지·저항 구간' },
     'chart':     { title: '차트', icon: 'chart-candlestick', description: '가격 흐름' },

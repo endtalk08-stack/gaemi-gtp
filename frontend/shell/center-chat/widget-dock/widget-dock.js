@@ -16,8 +16,14 @@
 
   function readState() {
     try {
-      const value = JSON.parse(localStorage.getItem(STATE_KEY) || '[]');
-      return Array.isArray(value) ? value.filter(id => catalog()[id]) : [];
+      const saved = localStorage.getItem(STATE_KEY);
+      if (saved === null) return ['kospi'];
+      const value = JSON.parse(saved);
+      if (!Array.isArray(value)) return ['kospi'];
+      // 이전 버전의 코스피 위젯 ID를 새 명확한 ID로 한 번만 이관한다.
+      return value
+        .map(id => id === 'why-up' ? 'kospi' : id)
+        .filter((id, index, list) => catalog()[id] && list.indexOf(id) === index);
     } catch (_) { return []; }
   }
   function saveState() {
@@ -29,6 +35,17 @@
     if (!dock || !bodyEl) return;
     bodyEl.innerHTML = activeIds.map(id => {
       const meta = catalog()[id];
+      if (id === 'kospi' || id === 'night-futures') {
+        const title = id === 'kospi' ? '코스피' : '코스피200 야간선물';
+        const detail = id === 'kospi'
+          ? '키움 원천 데이터 연결 후 시세·등락률·장중 흐름을 표시합니다.'
+          : '야간선물 원천 데이터 연결 후 시세·등락률·흐름을 표시합니다.';
+        return `<article class="central-widget-card central-widget-card--kospi" data-central-widget-id="${escapeHtml(id)}">
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="${escapeHtml(title)} 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
+          <div class="central-widget-card__kospi-title">${escapeHtml(title)}</div>
+          <div class="central-widget-card__market-empty">${escapeHtml(detail)}</div>
+        </article>`;
+      }
       return `<article class="central-widget-card" data-central-widget-id="${escapeHtml(id)}">
         <div class="central-widget-card__top">
           <div class="central-widget-card__name">${escapeHtml(meta.title)}</div>
