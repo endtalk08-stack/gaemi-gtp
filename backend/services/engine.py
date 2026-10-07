@@ -2481,7 +2481,7 @@ def fetch_yahoo_direct_v8(ticker_str):
 
             res = data.get('chart', {}).get('result', [])
             if not res:
-                return None, None, None, None, None, None, None, None, None
+                return None, None, None, None, None
 
             quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
             raw_closes = quotes.get('close', [])
@@ -2501,7 +2501,7 @@ def fetch_yahoo_direct_v8(ticker_str):
                     continue
 
             if len(rows) < 2:
-                return None, None, None, None, None, None, None, None, None
+                return None, None, None, None, None
 
             closes = [r[0] for r in rows]
             highs = [r[1] for r in rows]
@@ -2509,6 +2509,9 @@ def fetch_yahoo_direct_v8(ticker_str):
             volumes = [r[3] for r in rows]
 
             cur_p = closes[-1]
+            prev_p = closes[-2]
+            ma20 = sum(closes[-20:]) / min(20, len(closes))
+
             profile_highs = highs[:-1] if len(highs) > 1 else highs
             profile_lows = lows[:-1] if len(lows) > 1 else lows
             profile_closes = closes[:-1] if len(closes) > 1 else closes
@@ -2518,13 +2521,19 @@ def fetch_yahoo_direct_v8(ticker_str):
                 current_price=cur_p, state_key=key
             )
 
-            result = (None, None, 0.0, 0.0, volume_profile, None, None, None, None)
+            res_p = (
+                volume_profile["above"]["center"]
+                if volume_profile and volume_profile.get("above")
+                else 0.0
+            )
+
+            result = (cur_p, prev_p, ma20, res_p, volume_profile)
             US_YAHOO_CACHE[key] = (now, result)
             return result
 
         except Exception as e:
             print("미국 야후 v8 예외:", e)
-            result = (None, None, None, None, None, None, None, None, None)
+            result = (None, None, None, None, None)
             US_YAHOO_CACHE[key] = (now, result)
             return result
 
@@ -3472,10 +3481,10 @@ def analyze_stock(raw_name='SK하이닉스'):
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=supply start", flush=True)
             try:
-                _legacy_ma20, _legacy_resistance, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
+                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
             except Exception as e:
                 print(f"[국내 수급] fail: {type(e).__name__}: {e}")
-                _legacy_ma20, _legacy_resistance, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
+                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
             _trace_stage("supply done", stage_started)
 
             stage_started = time.monotonic()
@@ -3529,9 +3538,11 @@ def analyze_stock(raw_name='SK하이닉스'):
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             official_filings_block = ""
 
-            # 현재가/고가·저가/볼린저/RSI/20일선/가격 태그는 stock_analysis 결과만 사용한다.
+            # 현재가 원천만 stock_analysis 결과를 사용한다.
             current_price = price_result["current_price"]
             change_pct = price_result["change_pct"]
+            ma20 = float(ma20_val) if ma20_val and float(ma20_val) > 0 else 0.0
+            resistance_price = float(res_val) if res_val and float(res_val) > 0 else 0.0
             price_str = price_result["price_text"]
 
             if f_5d is not None and i_5d is not None and v_days > 0:
@@ -3559,13 +3570,11 @@ def analyze_stock(raw_name='SK하이닉스'):
             )
             cur_p = price_result["current_price"]
 
-            # 기존 미국 매물대 section에 필요한 volume_profile만 유지한다.
             try:
-                _legacy_us_price = fetch_yahoo_direct_v8(ticker_symbol)
-                volume_profile = _legacy_us_price[4] if _legacy_us_price else None
+                _daily_cur_p, _daily_prev_p, ma20_val, res_val, volume_profile = fetch_yahoo_direct_v8(ticker_symbol)
             except Exception as e:
-                print(f"[미국 매물대] fail: {type(e).__name__}: {e}")
-                volume_profile = None
+                print(f"[미국 시세] fail: {type(e).__name__}: {e}")
+                ma20_val, res_val, volume_profile = 0, 0, None
 
             try:
                 call_vol, put_vol, option_error = fetch_us_options_volume(ticker_symbol)
@@ -3598,7 +3607,12 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             current_price = price_result["current_price"]
             change_pct = price_result["change_pct"]
-            if current_price <= 0:
+            if current_price > 0:
+                ma20 = ma20_val or 0.0
+                resistance_price = res_val or 0.0
+            else:
+                ma20 = 0.0
+                resistance_price = 0.0
                 volume_profile = None
                 print(f"[미국 주가] {ticker_symbol} 조회 실패 - 가짜 가격 사용 안 함")
 
@@ -3651,32 +3665,18 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
-        price_range_lines = price_result["range_lines"]
-        bollinger_lines = list(price_result.get("bollinger_lines") or [])
-
-        legacy_mood_tags = "   ".join(tags_str.split()[2:])
-        price_tags = list(price_result.get("price_tags") or [])
-        tags_str = "   ".join(price_tags)
-        if legacy_mood_tags:
-            tags_str = f"{tags_str}   {legacy_mood_tags}" if tags_str else legacy_mood_tags
-
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
-            "\n".join(price_range_lines),
+            tags_str,
         ]
-        if bollinger_lines:
-            first_content_parts.append("\n".join(bollinger_lines))
-        first_content_parts.append(tags_str)
 
         sections = [
             {
                 "id": "why-up",
                 "title": f"{status_emoji} 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
-                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"],
-                "first_reply_rsi": price_result.get("first_reply_rsi", ""),
-                "first_reply_ma20": price_result.get("first_reply_ma20", "")
+                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
             }
         ]
 
