@@ -475,7 +475,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                      const newWords = words.map(w => {
                        if (w.startsWith('#')) {
                          let color = themeColor;
-                         if (w.includes('+')) color = '#FF8DA1';
+                         if (/^#(?:고가갱신|고가권|상승우위)$/.test(w)) color = '#FF8DA1';
+                         else if (/^#(?:저가갱신|저가권|하락우위)$/.test(w)) color = '#38BDF8';
+                         else if (/^#(?:중간권|박스권)$/.test(w)) color = '#a1a1aa';
+                         else if (w.includes('+')) color = '#FF8DA1';
                          else if (w.includes('-')) color = '#38BDF8';
                          return `<span class="font-bold" style="color: ${color};">${w}</span>`;
                        }
@@ -489,7 +492,10 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                      const newWords = words.map(w => {
                        if (w.startsWith('#')) {
                          let color = themeColor;
-                         if (w.includes('+')) color = '#FF8DA1';
+                         if (/^#(?:고가갱신|고가권|상승우위)$/.test(w)) color = '#FF8DA1';
+                         else if (/^#(?:저가갱신|저가권|하락우위)$/.test(w)) color = '#38BDF8';
+                         else if (/^#(?:중간권|박스권)$/.test(w)) color = '#a1a1aa';
+                         else if (w.includes('+')) color = '#FF8DA1';
                          else if (w.includes('-')) color = '#38BDF8';
                          return `<span class="font-bold" style="color: ${color};">${w}</span>`;
                        }
