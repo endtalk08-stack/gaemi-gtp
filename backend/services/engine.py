@@ -22,7 +22,7 @@ from .news_feed import fetch_stock_news
 from .news_scoring import score_stock_news, build_connected_keyword_test
 from .simple_news_storyboard import build_simple_today_news, select_keyword_storyboard_news
 from .disclosure_scoring import score_disclosures
-from ..analysis.price import build_price_result
+from .stock_analysis import fetch_stock_price_result
 
 from .market_levels import (
     calculate_volume_profile_levels,
@@ -214,8 +214,6 @@ OPTIONS_CACHE_TTL = 60
 
 # 실시간 데이터는 아주 짧게, 과거 계산 데이터는 길게 캐시한다.
 # 캐시는 정확도를 떨어뜨리는 것이 아니라 같은 순간의 중복 외부 호출을 줄이는 용도다.
-KR_QUOTE_CACHE = {}
-KR_QUOTE_CACHE_TTL = 5
 KR_TREND_CACHE = {}
 KR_TREND_CACHE_TTL = 20
 KR_VOLUME_PROFILE_CACHE = {}
@@ -2334,46 +2332,6 @@ def search_krx_code(stock_name):
     # 실패 결과는 장시간 캐시하지 않는다. 외부 자동검색이 잠깐 실패해도 다음 조회에서 재시도한다.
     return None, None
 
-def fetch_kr_stock_realtime(code_six):
-    code_six = str(code_six or "").strip()
-    now = time.time()
-    cached = KR_QUOTE_CACHE.get(code_six)
-    if cached and now - cached[0] < KR_QUOTE_CACHE_TTL:
-        return cached[1]
-
-    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("kr-quote", code_six))
-    with lock:
-        now = time.time()
-        cached = KR_QUOTE_CACHE.get(code_six)
-        if cached and now - cached[0] < KR_QUOTE_CACHE_TTL:
-            return cached[1]
-        try:
-            url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code_six}"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-                'Referer': 'https://m.stock.naver.com/'
-            }
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                datas = data.get('datas', [])
-                if datas:
-                    item = datas[0]
-                    cur_p = float(str(item.get('closePrice', 0)).replace(',', ''))
-                    diff = float(str(item.get('compareToPreviousClosePrice', 0)).replace(',', ''))
-                    ratio = float(str(item.get('fluctuationsRatio', 0)).replace(',', ''))
-                    high_p = float(str(item.get('highPrice', 0)).replace(',', ''))
-                    low_p = float(str(item.get('lowPrice', 0)).replace(',', ''))
-                    result = (cur_p, diff, ratio, high_p, low_p)
-                    KR_QUOTE_CACHE[code_six] = (now, result)
-                    return result
-        except Exception as e:
-            print("네이버 실시간 시세 조회 예외:", e)
-
-    result = (None, None, None, None, None)
-    KR_QUOTE_CACHE[code_six] = (now, result)
-    return result
-
 def fetch_krx_trend_and_supply(code_six):
     code_six = str(code_six or "").strip()
     now = time.time()
@@ -3596,11 +3554,12 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=realtime start", flush=True)
-            try:
-                cur_p, diff, ratio, high_p, low_p = fetch_kr_stock_realtime(clean_code)
-            except Exception as e:
-                print(f"[국내 시세] fail: {type(e).__name__}: {e}")
-                cur_p, diff, ratio, high_p, low_p = 0.0, 0.0, 0.0, 0.0, 0.0
+            price_result = fetch_stock_price_result(
+                is_krw=True,
+                ticker_symbol=ticker_symbol,
+                clean_code=clean_code,
+            )
+            cur_p = price_result["current_price"]
             _trace_stage("realtime done", stage_started)
 
             stage_started = time.monotonic()
@@ -3670,14 +3629,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             official_filings_block = ""
 
-            # 실시간 시세가 없으면 임의의 가격/등락률을 만들지 않는다.
-            price_result = build_price_result(
-                is_krw=True,
-                current=cur_p,
-                high=high_p,
-                low=low_p,
-                change_pct=ratio,
-            )
+            # 현재가는 provider -> price analysis -> stock_analysis 결과만 사용한다.
             current_price = price_result["current_price"]
             change_pct = price_result["change_pct"]
             ma20 = float(ma20_val) if ma20_val and float(ma20_val) > 0 else 0.0
@@ -3709,11 +3661,18 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         # 2. 미국 주식
         else:
+            price_result = fetch_stock_price_result(
+                is_krw=False,
+                ticker_symbol=ticker_symbol,
+            )
+            cur_p = price_result["current_price"]
+
+            # 기존 일봉 기반 지표 계산은 그대로 유지하고, 현재가 원천으로는 사용하지 않는다.
             try:
-                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p, bollinger_60_2, rsi_14 = fetch_yahoo_direct_v8(ticker_symbol)
+                _daily_cur_p, _daily_prev_p, ma20_val, res_val, volume_profile, _daily_high_p, _daily_low_p, bollinger_60_2, rsi_14 = fetch_yahoo_direct_v8(ticker_symbol)
             except Exception as e:
                 print(f"[미국 시세] fail: {type(e).__name__}: {e}")
-                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p, bollinger_60_2, rsi_14 = 0, 0, 0, 0, None, 0, 0, None, None
+                ma20_val, res_val, volume_profile, bollinger_60_2, rsi_14 = 0, 0, None, None, None
 
             try:
                 call_vol, put_vol, option_error = fetch_us_options_volume(ticker_symbol)
@@ -3744,13 +3703,6 @@ def analyze_stock(raw_name='SK하이닉스'):
             official_filings_block = format_us_official_filings(ticker_symbol, us_filings_raw)
             kr_official_disclosures_block = ""
 
-            price_result = build_price_result(
-                is_krw=False,
-                current=cur_p,
-                previous=prev_p,
-                high=high_p,
-                low=low_p,
-            )
             current_price = price_result["current_price"]
             change_pct = price_result["change_pct"]
             if current_price > 0:
