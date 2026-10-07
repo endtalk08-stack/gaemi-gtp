@@ -3815,18 +3815,11 @@ def analyze_stock(raw_name='SK하이닉스'):
             lower = float(bollinger_60_2.get("lower") or 0)
             if upper > middle > lower > 0:
                 if current_price > upper:
-                    bollinger_tag = "#상단돌파"
+                    bollinger_tag = "#상승우위"
                 elif current_price < lower:
-                    bollinger_tag = "#하단이탈"
+                    bollinger_tag = "#하락우위"
                 else:
-                    half_band = (upper - lower) / 2
-                    center_gap = abs(current_price - middle)
-                    if center_gap <= half_band * 0.25:
-                        bollinger_tag = "#박스권"
-                    elif current_price > middle:
-                        bollinger_tag = "#상승우위"
-                    else:
-                        bollinger_tag = "#하락우위"
+                    bollinger_tag = "#박스권"
 
         daily_tag = "#중간권"
         day_high = float(price_result.get("high_price") or 0)
