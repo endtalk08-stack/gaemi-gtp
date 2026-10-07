@@ -521,9 +521,9 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
             if (sec.id === 'why-up' && sec.first_reply_rsi) {
               const html = pEl.innerHTML;
               const lines = html.split('\n');
-              const highIndex = lines.findIndex((line) => /^고가\s/.test(line.replace(/<[^>]+>/g, '').trim()));
-              if (highIndex >= 0) {
-                lines[highIndex] = `<span style="display:flex;justify-content:space-between;align-items:baseline;width:100%;gap:12px;"><span>${lines[highIndex]}</span><span style="margin-left:auto;white-space:nowrap;">${sec.first_reply_rsi}</span></span>`;
+              const lowIndex = lines.findIndex((line) => /^저가\s/.test(line.replace(/<[^>]+>/g, '').trim()));
+              if (lowIndex >= 0) {
+                lines[lowIndex] = `<span style="display:flex;justify-content:space-between;align-items:baseline;width:100%;gap:12px;"><span>${lines[lowIndex]}</span><span style="margin-left:auto;white-space:nowrap;">${sec.first_reply_rsi}</span></span>`;
                 pEl.innerHTML = lines.join('\n');
               }
             }
