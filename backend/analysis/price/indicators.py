@@ -96,9 +96,58 @@ def calculate_52w_position(rows, current_price):
     }
 
 
-def build_price_indicators(rows, current_price):
+def build_price_indicators(rows, current_price, day_high=None, day_low=None):
+    closes = _closes(rows)
+    current = _positive_float(current_price)
+    high = _positive_float(day_high)
+    low = _positive_float(day_low)
+
+    ma20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else 0.0
+    bollinger = calculate_bollinger_60_2(rows)
+    rsi_14 = calculate_rsi_14(rows)
+
+    daily_tag = "#중간권"
+    if current > 0 and high > low > 0:
+        if current >= high:
+            daily_tag = "#고가갱신"
+        elif current <= low:
+            daily_tag = "#저가갱신"
+        else:
+            day_position = (current - low) / (high - low)
+            if day_position >= 0.70:
+                daily_tag = "#고가권"
+            elif day_position <= 0.30:
+                daily_tag = "#저가권"
+
+    bollinger_tag = "#박스권"
+    if bollinger and current > 0:
+        upper = _positive_float(bollinger.get("upper"))
+        middle = _positive_float(bollinger.get("middle"))
+        lower = _positive_float(bollinger.get("lower"))
+        if upper > middle > lower > 0:
+            if current > upper:
+                bollinger_tag = "#상승우위"
+            elif current < lower:
+                bollinger_tag = "#하락우위"
+
+    short_term_tag = "#단기중립"
+    if current > 0 and ma20 > 0:
+        if current > ma20:
+            short_term_tag = "#단기상승"
+        elif current < ma20:
+            short_term_tag = "#단기하락"
+
+    rsi_tag = "#중립"
+    if rsi_14 is not None:
+        if rsi_14 >= 70:
+            rsi_tag = "#과매수구간"
+        elif rsi_14 <= 30:
+            rsi_tag = "#과매도구간"
+
     return {
-        "rsi_14": calculate_rsi_14(rows),
-        "bollinger_60_2": calculate_bollinger_60_2(rows),
-        "week_52": calculate_52w_position(rows, current_price),
+        "rsi_14": rsi_14,
+        "bollinger_60_2": bollinger,
+        "week_52": calculate_52w_position(rows, current),
+        "ma20": ma20,
+        "price_tags": [daily_tag, bollinger_tag, short_term_tag, rsi_tag],
     }
