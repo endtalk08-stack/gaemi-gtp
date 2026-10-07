@@ -22,6 +22,8 @@ from .news_feed import fetch_stock_news
 from .news_scoring import score_stock_news, build_connected_keyword_test
 from .simple_news_storyboard import build_simple_today_news, select_keyword_storyboard_news
 from .disclosure_scoring import score_disclosures
+from ..analysis.price import build_price_result
+
 from .market_levels import (
     calculate_volume_profile_levels,
     format_volume_profile,
@@ -2358,13 +2360,15 @@ def fetch_kr_stock_realtime(code_six):
                     cur_p = float(str(item.get('closePrice', 0)).replace(',', ''))
                     diff = float(str(item.get('compareToPreviousClosePrice', 0)).replace(',', ''))
                     ratio = float(str(item.get('fluctuationsRatio', 0)).replace(',', ''))
-                    result = (cur_p, diff, ratio)
+                    high_p = float(str(item.get('highPrice', 0)).replace(',', ''))
+                    low_p = float(str(item.get('lowPrice', 0)).replace(',', ''))
+                    result = (cur_p, diff, ratio, high_p, low_p)
                     KR_QUOTE_CACHE[code_six] = (now, result)
                     return result
         except Exception as e:
             print("네이버 실시간 시세 조회 예외:", e)
 
-    result = (None, None, None)
+    result = (None, None, None, None, None)
     KR_QUOTE_CACHE[code_six] = (now, result)
     return result
 
@@ -3511,10 +3515,10 @@ def analyze_stock(raw_name='SK하이닉스'):
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=realtime start", flush=True)
             try:
-                cur_p, diff, ratio = fetch_kr_stock_realtime(clean_code)
+                cur_p, diff, ratio, high_p, low_p = fetch_kr_stock_realtime(clean_code)
             except Exception as e:
                 print(f"[국내 시세] fail: {type(e).__name__}: {e}")
-                cur_p, diff, ratio = 0.0, 0.0, 0.0
+                cur_p, diff, ratio, high_p, low_p = 0.0, 0.0, 0.0, 0.0, 0.0
             _trace_stage("realtime done", stage_started)
 
             stage_started = time.monotonic()
@@ -3578,8 +3582,15 @@ def analyze_stock(raw_name='SK하이닉스'):
             official_filings_block = ""
 
             # 실시간 시세가 없으면 임의의 가격/등락률을 만들지 않는다.
-            current_price = float(cur_p) if cur_p and float(cur_p) > 0 else 0.0
-            change_pct = float(ratio) if ratio is not None else 0.0
+            price_result = build_price_result(
+                is_krw=True,
+                current=cur_p,
+                high=high_p,
+                low=low_p,
+                change_pct=ratio,
+            )
+            current_price = price_result["current_price"]
+            change_pct = price_result["change_pct"]
             ma20 = float(ma20_val) if ma20_val and float(ma20_val) > 0 else 0.0
             resistance_price = float(res_val) if res_val and float(res_val) > 0 else 0.0
 
@@ -3708,9 +3719,12 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
+        price_range_lines = price_result["range_lines"] if is_krw and clean_code else []
+
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
+            *price_range_lines,
             tags_str,
         ]
 
