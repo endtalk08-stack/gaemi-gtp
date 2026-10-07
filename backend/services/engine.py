@@ -2585,7 +2585,7 @@ def fetch_yahoo_direct_v8(ticker_str):
                     continue
 
             if len(rows) < 2:
-                return None, None, None, None, None
+                return None, None, None, None, None, None, None, None
 
             closes = [r[0] for r in rows]
             highs = [r[1] for r in rows]
@@ -2613,13 +2613,24 @@ def fetch_yahoo_direct_v8(ticker_str):
 
             high_p = highs[-1]
             low_p = lows[-1]
-            result = (cur_p, prev_p, ma20, res_p, volume_profile, high_p, low_p)
+            bollinger_60_2 = None
+            if len(closes) >= 60:
+                window = closes[-60:]
+                middle = sum(window) / 60
+                variance = sum((price - middle) ** 2 for price in window) / 60
+                stddev = math.sqrt(variance)
+                bollinger_60_2 = {
+                    "upper": middle + 2 * stddev,
+                    "middle": middle,
+                    "lower": middle - 2 * stddev,
+                }
+            result = (cur_p, prev_p, ma20, res_p, volume_profile, high_p, low_p, bollinger_60_2)
             US_YAHOO_CACHE[key] = (now, result)
             return result
 
         except Exception as e:
             print("미국 야후 v8 예외:", e)
-            result = (None, None, None, None, None)
+            result = (None, None, None, None, None, None, None, None)
             US_YAHOO_CACHE[key] = (now, result)
             return result
 
@@ -3672,10 +3683,10 @@ def analyze_stock(raw_name='SK하이닉스'):
         # 2. 미국 주식
         else:
             try:
-                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p = fetch_yahoo_direct_v8(ticker_symbol)
+                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p, bollinger_60_2 = fetch_yahoo_direct_v8(ticker_symbol)
             except Exception as e:
                 print(f"[미국 시세] fail: {type(e).__name__}: {e}")
-                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p = 0, 0, 0, 0, None, 0, 0
+                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p, bollinger_60_2 = 0, 0, 0, 0, None, 0, 0, None
 
             try:
                 call_vol, put_vol, option_error = fetch_us_options_volume(ticker_symbol)
@@ -3777,7 +3788,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
         price_range_lines = price_result["range_lines"]
         bollinger_lines = []
-        if is_krw and bollinger_60_2 and current_price > 0:
+        if bollinger_60_2 and current_price > 0:
             bollinger_lines.append("볼린저밴드 60/2")
             for label, key in (("상단", "upper"), ("중심", "middle"), ("하단", "lower")):
                 level_price = float(bollinger_60_2.get(key) or 0)
@@ -3785,7 +3796,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     continue
                 level_gap_pct = ((level_price - current_price) / current_price) * 100
                 level_arrow = "↗" if level_gap_pct >= 0 else "↘"
-                level_text = f"{round_krw_tick(level_price):,}원"
+                level_text = f"{round_krw_tick(level_price):,}원" if is_krw else f"${level_price:,.2f}"
                 breakout_text = ""
                 if key == "upper" and current_price > level_price:
                     breakout_text = "   🔥 상단 돌파"
