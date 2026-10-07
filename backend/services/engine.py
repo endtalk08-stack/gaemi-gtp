@@ -3640,7 +3640,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         elif -5.0 < change_pct <= -0.5:
             status_emoji, title_word = '❄️', '숨고르기일까'
             intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #숨고르기   #버텨보자"
+            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #숨고르기   #버터보자"
         else:
             status_emoji, title_word = '❄️', '빠질까'
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
