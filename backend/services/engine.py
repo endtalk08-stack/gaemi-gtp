@@ -218,8 +218,6 @@ KR_TREND_CACHE = {}
 KR_TREND_CACHE_TTL = 20
 KR_VOLUME_PROFILE_CACHE = {}
 KR_VOLUME_PROFILE_CACHE_TTL = 600
-KR_BOLLINGER_CACHE = {}
-KR_BOLLINGER_CACHE_TTL = 600
 US_YAHOO_CACHE = {}
 US_YAHOO_CACHE_TTL = 15
 KR_SEARCH_CACHE = {}
@@ -2458,70 +2456,6 @@ def fetch_kr_historical_volume_profile(ticker_symbol, current_price=None):
             KR_VOLUME_PROFILE_CACHE[symbol] = (now, None)
             return None
 
-def _calculate_rsi_14(closes):
-    """이미 수집된 일봉 종가로 14일 RSI를 계산한다."""
-    if not closes or len(closes) < 15:
-        return None
-    window = closes[-15:]
-    gains = []
-    losses = []
-    for previous, current in zip(window, window[1:]):
-        change = current - previous
-        gains.append(max(change, 0.0))
-        losses.append(max(-change, 0.0))
-    avg_gain = sum(gains) / 14
-    avg_loss = sum(losses) / 14
-    if avg_loss == 0:
-        return 100.0 if avg_gain > 0 else 50.0
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
-
-
-def fetch_kr_bollinger_60_2(ticker_symbol):
-    """국내 종목 기존 Yahoo 일봉 흐름에서 볼린저밴드 60/2 가격을 계산한다."""
-    symbol = str(ticker_symbol or "").strip()
-    if not symbol:
-        return None
-    now = time.time()
-    cached = KR_BOLLINGER_CACHE.get(symbol)
-    if cached and now - cached[0] < KR_BOLLINGER_CACHE_TTL:
-        return cached[1]
-    try:
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}?range=6mo&interval=1d"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        result = (data.get("chart", {}).get("result") or [None])[0]
-        if not result:
-            return None
-        quote = (result.get("indicators", {}).get("quote") or [{}])[0]
-        closes = []
-        for value in quote.get("close") or []:
-            try:
-                price = float(value)
-                if math.isfinite(price) and price > 0:
-                    closes.append(price)
-            except (TypeError, ValueError):
-                continue
-        if len(closes) < 60:
-            return None
-        window = closes[-60:]
-        middle = sum(window) / 60
-        variance = sum((price - middle) ** 2 for price in window) / 60
-        stddev = math.sqrt(variance)
-        bollinger = {
-            "upper": middle + 2 * stddev,
-            "middle": middle,
-            "lower": middle - 2 * stddev,
-            "rsi_14": _calculate_rsi_14(closes),
-        }
-        KR_BOLLINGER_CACHE[symbol] = (now, bollinger)
-        return bollinger
-    except Exception as e:
-        print(f"[국내 볼린저 60/2] {symbol} 계산 예외: {type(e).__name__}: {e}")
-        return None
-
-
 def fetch_yahoo_direct_v8(ticker_str):
     key = str(ticker_str or "").strip().upper()
     now = time.time()
@@ -2575,9 +2509,6 @@ def fetch_yahoo_direct_v8(ticker_str):
             volumes = [r[3] for r in rows]
 
             cur_p = closes[-1]
-            prev_p = closes[-2]
-            ma20 = sum(closes[-20:]) / min(20, len(closes))
-
             profile_highs = highs[:-1] if len(highs) > 1 else highs
             profile_lows = lows[:-1] if len(lows) > 1 else lows
             profile_closes = closes[:-1] if len(closes) > 1 else closes
@@ -2587,27 +2518,7 @@ def fetch_yahoo_direct_v8(ticker_str):
                 current_price=cur_p, state_key=key
             )
 
-            res_p = (
-                volume_profile["above"]["center"]
-                if volume_profile and volume_profile.get("above")
-                else 0.0
-            )
-
-            high_p = highs[-1]
-            low_p = lows[-1]
-            bollinger_60_2 = None
-            if len(closes) >= 60:
-                window = closes[-60:]
-                middle = sum(window) / 60
-                variance = sum((price - middle) ** 2 for price in window) / 60
-                stddev = math.sqrt(variance)
-                bollinger_60_2 = {
-                    "upper": middle + 2 * stddev,
-                    "middle": middle,
-                    "lower": middle - 2 * stddev,
-                }
-            rsi_14 = _calculate_rsi_14(closes)
-            result = (cur_p, prev_p, ma20, res_p, volume_profile, high_p, low_p, bollinger_60_2, rsi_14)
+            result = (None, None, 0.0, 0.0, volume_profile, None, None, None, None)
             US_YAHOO_CACHE[key] = (now, result)
             return result
 
@@ -3535,12 +3446,8 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         current_price = 0.0
         change_pct = 0.0
-        ma20 = 0.0
-        resistance_price = 0.0
         volume_profile = None
         supply_content = ""
-        bollinger_60_2 = None
-        rsi_14 = None
 
         # 1~2. 외부 API는 한 요청 안에서 순차 처리한다.
         # 이전 구조는 여러 외부 API를 ThreadPoolExecutor에 동시에 넣은 뒤
@@ -3565,10 +3472,10 @@ def analyze_stock(raw_name='SK하이닉스'):
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=supply start", flush=True)
             try:
-                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
+                _legacy_ma20, _legacy_resistance, f_5d, i_5d, ind_5d, v_days = fetch_krx_trend_and_supply(clean_code)
             except Exception as e:
                 print(f"[국내 수급] fail: {type(e).__name__}: {e}")
-                ma20_val, res_val, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
+                _legacy_ma20, _legacy_resistance, f_5d, i_5d, ind_5d, v_days = 0, 0, 0, 0, 0, 0
             _trace_stage("supply done", stage_started)
 
             stage_started = time.monotonic()
@@ -3619,28 +3526,13 @@ def analyze_stock(raw_name='SK하이닉스'):
                 volume_profile = None
             _trace_stage("volume_profile done", stage_started)
 
-            try:
-                bollinger_60_2 = fetch_kr_bollinger_60_2(ticker_symbol)
-                rsi_14 = bollinger_60_2.get("rsi_14") if bollinger_60_2 else None
-            except Exception as e:
-                print(f"[볼린저 60/2] fail: {type(e).__name__}: {e}")
-                bollinger_60_2 = None
-
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             official_filings_block = ""
 
-            # 현재가는 provider -> price analysis -> stock_analysis 결과만 사용한다.
+            # 현재가/고가·저가/볼린저/RSI/20일선/가격 태그는 stock_analysis 결과만 사용한다.
             current_price = price_result["current_price"]
             change_pct = price_result["change_pct"]
-            ma20 = float(ma20_val) if ma20_val and float(ma20_val) > 0 else 0.0
-            resistance_price = float(res_val) if res_val and float(res_val) > 0 else 0.0
-
-            clean_price = round_krw_tick(current_price)
-            clean_ma20 = round_krw_tick(ma20)
-            clean_res = round_krw_tick(resistance_price)
-            price_str = f"{clean_price:,}원"
-            ma20_str = f"{clean_ma20:,}원"
-            res_str = f"{clean_res:,}원"
+            price_str = price_result["price_text"]
 
             if f_5d is not None and i_5d is not None and v_days > 0:
                 f_abs = format_shares(f_5d)
@@ -3667,12 +3559,13 @@ def analyze_stock(raw_name='SK하이닉스'):
             )
             cur_p = price_result["current_price"]
 
-            # 기존 일봉 기반 지표 계산은 그대로 유지하고, 현재가 원천으로는 사용하지 않는다.
+            # 기존 미국 매물대 section에 필요한 volume_profile만 유지한다.
             try:
-                _daily_cur_p, _daily_prev_p, ma20_val, res_val, volume_profile, _daily_high_p, _daily_low_p, bollinger_60_2, rsi_14 = fetch_yahoo_direct_v8(ticker_symbol)
+                _legacy_us_price = fetch_yahoo_direct_v8(ticker_symbol)
+                volume_profile = _legacy_us_price[4] if _legacy_us_price else None
             except Exception as e:
-                print(f"[미국 시세] fail: {type(e).__name__}: {e}")
-                ma20_val, res_val, volume_profile, bollinger_60_2, rsi_14 = 0, 0, None, None, None
+                print(f"[미국 매물대] fail: {type(e).__name__}: {e}")
+                volume_profile = None
 
             try:
                 call_vol, put_vol, option_error = fetch_us_options_volume(ticker_symbol)
@@ -3705,18 +3598,11 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             current_price = price_result["current_price"]
             change_pct = price_result["change_pct"]
-            if current_price > 0:
-                ma20 = ma20_val or 0.0
-                resistance_price = res_val or 0.0
-            else:
-                ma20 = 0.0
-                resistance_price = 0.0
+            if current_price <= 0:
                 volume_profile = None
                 print(f"[미국 주가] {ticker_symbol} 조회 실패 - 가짜 가격 사용 안 함")
 
             price_str = price_result["price_text"]
-            ma20_str = f"${ma20:,.2f}" if ma20 > 0 else "계산 대기"
-            res_str = f"${resistance_price:,.2f}" if resistance_price > 0 else "계산 대기"
             supply_content = build_us_options_content(
                 ticker_symbol, call_vol, put_vol, option_error
             )
@@ -3766,78 +3652,13 @@ def analyze_stock(raw_name='SK하이닉스'):
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
         price_range_lines = price_result["range_lines"]
-        bollinger_lines = []
-        if bollinger_60_2 and current_price > 0:
-            for label, key in (("상단", "upper"), ("중심", "middle"), ("하단", "lower")):
-                level_price = float(bollinger_60_2.get(key) or 0)
-                if level_price <= 0:
-                    continue
-                level_gap_pct = ((level_price - current_price) / current_price) * 100
-                level_arrow = "↗" if level_gap_pct >= 0 else "↘"
-                level_text = f"{round_krw_tick(level_price):,}원" if is_krw else f"${level_price:,.2f}"
-                breakout_text = ""
-                if key == "upper" and current_price > level_price:
-                    breakout_text = "   🔥 상단 돌파"
-                elif key == "lower" and current_price < level_price:
-                    breakout_text = "   ⚠ 하단 이탈"
-                bollinger_lines.append(
-                    f"{label}  {level_text}   {level_gap_pct:+.2f}% {level_arrow}{breakout_text}"
-                )
-
-        # 첫 답변 하단 태그는 이미 수집·계산된 가격 결과만 재사용한다.
-        # 볼린저 60/2는 중기 위치, 당일 고가·저가는 오늘의 가격 위치를 나타낸다.
-        bollinger_tag = "#박스권"
-        if bollinger_60_2 and current_price > 0:
-            upper = float(bollinger_60_2.get("upper") or 0)
-            middle = float(bollinger_60_2.get("middle") or 0)
-            lower = float(bollinger_60_2.get("lower") or 0)
-            if upper > middle > lower > 0:
-                if current_price > upper:
-                    bollinger_tag = "#상승우위"
-                elif current_price < lower:
-                    bollinger_tag = "#하락우위"
-                else:
-                    bollinger_tag = "#박스권"
-
-        daily_tag = "#중간권"
-        day_high = float(price_result.get("high_price") or 0)
-        day_low = float(price_result.get("low_price") or 0)
-        if current_price > 0 and day_high > day_low > 0:
-            if current_price >= day_high:
-                daily_tag = "#고가갱신"
-            elif current_price <= day_low:
-                daily_tag = "#저가갱신"
-            else:
-                day_position = (current_price - day_low) / (day_high - day_low)
-                if day_position >= 0.70:
-                    daily_tag = "#고가권"
-                elif day_position <= 0.30:
-                    daily_tag = "#저가권"
-
-        short_term_tag = "#단기중립"
-        if current_price > 0 and ma20 > 0:
-            if current_price > ma20:
-                short_term_tag = "#단기상승"
-            elif current_price < ma20:
-                short_term_tag = "#단기하락"
-
-        rsi_tag = "#중립"
-        if rsi_14 is not None:
-            if rsi_14 >= 70:
-                rsi_tag = "#과매수구간"
-            elif rsi_14 <= 30:
-                rsi_tag = "#과매도구간"
+        bollinger_lines = list(price_result.get("bollinger_lines") or [])
 
         legacy_mood_tags = "   ".join(tags_str.split()[2:])
-        tags_str = f"{daily_tag}   {bollinger_tag}   {short_term_tag}   {rsi_tag}"
+        price_tags = list(price_result.get("price_tags") or [])
+        tags_str = "   ".join(price_tags)
         if legacy_mood_tags:
-            tags_str = f"{tags_str}   {legacy_mood_tags}"
-
-        ma20_position_text = ""
-        if current_price > 0 and ma20 > 0:
-            ma20_gap_pct = ((current_price - ma20) / ma20) * 100
-            ma20_arrow = "↗" if ma20_gap_pct >= 0 else "↘"
-            ma20_position_text = f"{ma20_gap_pct:+.2f}% {ma20_arrow} 20일선"
+            tags_str = f"{tags_str}   {legacy_mood_tags}" if tags_str else legacy_mood_tags
 
         first_content_parts = [
             intro_ment,
@@ -3854,8 +3675,8 @@ def analyze_stock(raw_name='SK하이닉스'):
                 "title": f"{status_emoji} 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
                 "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"],
-                "first_reply_rsi": f"{rsi_14:.1f} RSI" if rsi_14 is not None else "",
-                "first_reply_ma20": ma20_position_text
+                "first_reply_rsi": price_result.get("first_reply_rsi", ""),
+                "first_reply_ma20": price_result.get("first_reply_ma20", "")
             }
         ]
 
