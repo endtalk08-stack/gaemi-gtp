@@ -3776,13 +3776,33 @@ def analyze_stock(raw_name='SK하이닉스'):
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
         price_range_lines = price_result["range_lines"]
+        bollinger_lines = []
+        if is_krw and bollinger_60_2 and current_price > 0:
+            bollinger_lines.append("볼린저밴드 60/2")
+            for label, key in (("상단", "upper"), ("중심", "middle"), ("하단", "lower")):
+                level_price = float(bollinger_60_2.get(key) or 0)
+                if level_price <= 0:
+                    continue
+                level_gap_pct = ((level_price - current_price) / current_price) * 100
+                level_arrow = "↗" if level_gap_pct >= 0 else "↘"
+                level_text = f"{round_krw_tick(level_price):,}원"
+                breakout_text = ""
+                if key == "upper" and current_price > level_price:
+                    breakout_text = "   🔥 상단 돌파"
+                elif key == "lower" and current_price < level_price:
+                    breakout_text = "   ⚠ 하단 이탈"
+                bollinger_lines.append(
+                    f"{label}  {level_text}   {level_gap_pct:+.2f}% {level_arrow}{breakout_text}"
+                )
 
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
             "\n".join(price_range_lines),
-            tags_str,
         ]
+        if bollinger_lines:
+            first_content_parts.append("\n".join(bollinger_lines))
+        first_content_parts.append(tags_str)
 
         sections = [
             {
