@@ -50,14 +50,14 @@ def _build_first_reply_metrics(price_result, indicators):
 
     high_gap = _format_gap(price_result.get("high_gap_pct"))
     low_gap = _format_gap(price_result.get("low_gap_pct"))
-    rsi = indicators.get("rsi_14")
+    ma20_gap = _format_gap(indicators.get("ma20_gap_pct"))
     row_one = []
     if high_gap:
         row_one.append(f"고가 {high_gap}")
     if low_gap:
         row_one.append(f"저가 {low_gap}")
-    if rsi is not None:
-        row_one.append(f"RSI {int(round(rsi))}")
+    if ma20_gap:
+        row_one.append(f"20일선 {ma20_gap}")
     if row_one:
         first_parts.append(_SPACER.join(row_one))
 
