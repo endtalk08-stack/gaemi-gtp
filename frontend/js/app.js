@@ -410,19 +410,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
               if (/\s/.test(char)) activeTagSpan = null;
             }
 
-            const remainingText = text.slice(absoluteIndex);
-            const signedPercentMatch = remainingText.match(/^[+-]\d+(?:\.\d+)?%/);
-            if (signedPercentMatch) {
-              const percentSpan = document.createElement('span');
-              percentSpan.className = 'font-bold';
-              percentSpan.style.color = signedPercentMatch[0].startsWith('+') ? '#FF8DA1' : '#38BDF8';
-              percentSpan.textContent = signedPercentMatch[0];
-              pEl.appendChild(percentSpan);
-              const skipCount = signedPercentMatch[0].length - 1;
-              offset += skipCount;
-              continue;
-            }
-
             pEl.appendChild(document.createTextNode(char));
           }
         };
