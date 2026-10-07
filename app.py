@@ -5,15 +5,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-from backend.providers.deepl_translate import translate_to_korean
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup, start_dart_corp_warmup
-from backend.services.marketaux_news import (
-    CATEGORIES as MARKETAUX_CATEGORIES,
-    MarketauxConfigurationError,
-    MarketauxRequestError,
-    fetch_marketaux_news,
-    fetch_marketaux_test_feed,
-)
 from backend.services.news_feed import fetch_general_news, fetch_stock_news, get_news_coverage
 from backend.services.news_scoring import score_stock_news, summarize_stock_flow
 
@@ -72,43 +64,6 @@ def stock_news_flow():
 @app.get("/news/coverage")
 def news_coverage():
     return jsonify(get_news_coverage())
-
-@app.get("/marketaux/news")
-def marketaux_news():
-    category = request.args.get("category", "전체")
-    if category not in MARKETAUX_CATEGORIES:
-        return jsonify({"ok": False, "items": [], "error": "invalid_category"}), 400
-    limit = request.args.get("limit", default=3, type=int)
-    try:
-        items = fetch_marketaux_news(category=category, limit=limit)
-    except MarketauxConfigurationError:
-        return jsonify({"ok": False, "items": [], "error": "marketaux_not_configured"}), 503
-    except MarketauxRequestError:
-        return jsonify({"ok": False, "items": [], "error": "marketaux_unavailable"}), 502
-    for item in items:
-        item["original_title"] = item.get("title", "")
-        item["original_description"] = item.get("description", "")
-        title_ko = translate_to_korean(item["original_title"])
-        description_ko = translate_to_korean(item["original_description"])
-        if title_ko:
-            item["title"] = title_ko
-        if description_ko:
-            item["description"] = description_ko
-        item["translation_test"] = bool(title_ko or description_ko)
-        item["provider"] = "marketaux"
-        item["link"] = item.get("url", "")
-        item["original_link"] = item.get("url", "")
-    return jsonify({"ok": True, "category": category, "items": items})
-
-@app.get("/marketaux/news-feed")
-def marketaux_news_feed():
-    try:
-        feeds = fetch_marketaux_test_feed()
-    except MarketauxConfigurationError:
-        return jsonify({"ok": False, "feeds": {}, "error": "marketaux_not_configured"}), 503
-    except MarketauxRequestError:
-        return jsonify({"ok": False, "feeds": {}, "error": "marketaux_unavailable"}), 502
-    return jsonify({"ok": True, "feeds": feeds})
 
 @app.get("/disclosures/dart/detail")
 def dart_disclosure_detail():
