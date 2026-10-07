@@ -3843,7 +3843,10 @@ def analyze_stock(raw_name='SK하이닉스'):
                 elif day_position <= 0.30:
                     daily_tag = "#저가권"
 
+        legacy_mood_tags = "   ".join(tags_str.split()[2:])
         tags_str = f"{bollinger_tag}   {daily_tag}"
+        if legacy_mood_tags:
+            tags_str = f"{tags_str}   {legacy_mood_tags}"
 
         first_content_parts = [
             intro_ment,
