@@ -25,6 +25,7 @@ from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
 from .market_supply import fetch_kr_supply_summary, build_kr_supply_content, fetch_us_options_volume, build_us_options_content
 from ..providers.market_price import fetch_daily_price_history
+from ..providers.stock_identifiers import search_krx_code
 
 from .market_levels import (
     build_volume_profile_from_daily_rows,
@@ -211,8 +212,6 @@ def _get_singleflight_lock(lock_map, key):
 
 # 실시간 데이터는 아주 짧게, 과거 계산 데이터는 길게 캐시한다.
 # 캐시는 정확도를 떨어뜨리는 것이 아니라 같은 순간의 중복 외부 호출을 줄이는 용도다.
-KR_SEARCH_CACHE = {}
-KR_SEARCH_CACHE_TTL = 3600
 _ANALYSIS_CACHE_LOCKS = {}
 
 
@@ -2284,68 +2283,6 @@ def format_us_official_filings(ticker_symbol, filings=None):
                     lines.append(f"• {point}")
 
     return "\n".join(lines)
-
-def search_krx_code(stock_name):
-    key = str(stock_name or "").strip()
-    if not key:
-        return None, None
-
-    now = time.time()
-    cached = KR_SEARCH_CACHE.get(key)
-    if cached and now - cached[0] < KR_SEARCH_CACHE_TTL:
-        return cached[1], cached[2]
-
-    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("kr-search", key))
-    with lock:
-        now = time.time()
-        cached = KR_SEARCH_CACHE.get(key)
-        if cached and now - cached[0] < KR_SEARCH_CACHE_TTL:
-            return cached[1], cached[2]
-        try:
-            url = f"https://ac.finance.naver.com/ac?q={urllib.parse.quote(key)}&q_enc=utf-8&st=1&r_lt=1&r_format=json&r_enc=utf-8"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                res_json = json.loads(resp.read().decode('utf-8'))
-                items = res_json.get('items', [])
-                if items and len(items[0]) > 0:
-                    first = items[0][0]
-                    code = first[0]
-                    market = first[3].upper()
-                    suffix = '.KS' if 'KOSPI' in market else '.KQ'
-                    value = (f"{code}{suffix}", code)
-                    KR_SEARCH_CACHE[key] = (now, value[0], value[1])
-                    return value
-        except Exception:
-            pass
-
-    # 실패 결과는 장시간 캐시하지 않는다. 외부 자동검색이 잠깐 실패해도 다음 조회에서 재시도한다.
-    return None, None
-
-# -----------------------------------------------------------------------------
-# 실시간 시장 일정 캘린더
-# - 고정 날짜 목록을 사용하지 않는다.
-# - 공식 미국 경제일정(BLS/BEA/Fed/Census) + Finnhub 주요 실적 캘린더를 주기적으로 갱신한다.
-# - 프로세스 메모리 캐시만 사용하며, 갱신은 백그라운드에서 수행한다.
-# -----------------------------------------------------------------------------
-CALENDAR_CACHE = {
-    "expires_at": 0.0,
-    "events": [],
-    "loaded": False,
-}
-CALENDAR_LAST_ERROR = ""
-CALENDAR_LAST_REFRESH_AT = 0.0
-_CALENDAR_LOCK = threading.Lock()
-_CALENDAR_REFRESHING = False
-CALENDAR_CACHE_TTL = 1800  # 30분
-
-CALENDAR_WATCH_SYMBOLS = [
-    # 주요 지수 영향주 + AI/반도체 + 소비/금융 대형주.
-    # 전체 실적 캘린더를 보여주지 않고, 이 목록의 실적만 '주요 실적'으로 표시한다.
-    "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA",
-    "AVGO", "AMD", "INTC", "MU", "ORCL", "ADBE", "NFLX", "CRM",
-    "COST", "LLY", "NKE", "WMT", "HD", "LOW", "PEP", "KO", "MCD",
-    "JPM", "BAC", "GS", "MS", "FDX", "UPS", "CTAS", "DRI"
-]
 
 def _calendar_events_to_json(events):
     payload = []
