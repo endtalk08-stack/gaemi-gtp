@@ -3545,6 +3545,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         resistance_price = 0.0
         volume_profile = None
         supply_content = ""
+        bollinger_60_2 = None
 
         # 1~2. 외부 API는 한 요청 안에서 순차 처리한다.
         # 이전 구조는 여러 외부 API를 ThreadPoolExecutor에 동시에 넣은 뒤
@@ -3621,6 +3622,12 @@ def analyze_stock(raw_name='SK하이닉스'):
                 print(f"[매물대] fail: {type(e).__name__}: {e}")
                 volume_profile = None
             _trace_stage("volume_profile done", stage_started)
+
+            try:
+                bollinger_60_2 = fetch_kr_bollinger_60_2(ticker_symbol)
+            except Exception as e:
+                print(f"[볼린저 60/2] fail: {type(e).__name__}: {e}")
+                bollinger_60_2 = None
 
             kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
             official_filings_block = ""
