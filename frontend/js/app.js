@@ -523,7 +523,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
               const lines = html.split('\n');
               const lowIndex = lines.findIndex((line) => /^저가\s/.test(line.replace(/<[^>]+>/g, '').trim()));
               if (lowIndex >= 0) {
-                lines[lowIndex] = `<span style="display:flex;justify-content:space-between;align-items:baseline;width:100%;gap:12px;"><span>${lines[lowIndex]}</span><span style="margin-left:auto;white-space:nowrap;">${sec.first_reply_rsi}</span></span>`;
+                lines[lowIndex] = `<span class="first-reply-metric-row"><span class="first-reply-metric-left">${lines[lowIndex]}</span><span class="first-reply-metric-right">${sec.first_reply_rsi}</span></span>`;
                 pEl.innerHTML = lines.join('\n');
               }
             }

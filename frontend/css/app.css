@@ -55,6 +55,24 @@
       font-weight: 650;
       line-height: 1.45;
     }
+
+    .first-reply-metric-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: 12px;
+      width: 100%;
+      line-height: inherit;
+    }
+    .first-reply-metric-left,
+    .first-reply-metric-right {
+      line-height: inherit;
+    }
+    .first-reply-metric-right {
+      justify-self: end;
+      white-space: nowrap;
+      text-align: right;
+    }
     .gtp-chat-section-title {
       color: var(--gtp-text);
       font-size: var(--gtp-type-title);
