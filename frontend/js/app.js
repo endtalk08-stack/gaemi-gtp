@@ -518,6 +518,16 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
             pEl.innerHTML = formatted;
 
+            if (sec.id === 'why-up' && sec.first_reply_rsi) {
+              const html = pEl.innerHTML;
+              const lines = html.split('\n');
+              const highIndex = lines.findIndex((line) => /^고가\s/.test(line.replace(/<[^>]+>/g, '').trim()));
+              if (highIndex >= 0) {
+                lines[highIndex] = `<span style="display:flex;justify-content:space-between;align-items:baseline;width:100%;gap:12px;"><span>${lines[highIndex]}</span><span style="margin-left:auto;white-space:nowrap;">${sec.first_reply_rsi}</span></span>`;
+                pEl.innerHTML = lines.join('\n');
+              }
+            }
+
             // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
             // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
             if (secIdx === 0) {
