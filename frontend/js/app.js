@@ -518,6 +518,41 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
             pEl.innerHTML = formatted;
 
+            if (sec.id === 'why-up' && sec.first_reply_metrics) {
+              const rows = Array.from(pEl.childNodes);
+              const metricValues = [
+                String(sec.first_reply_metrics.ma20 || '').trim(),
+                String(sec.first_reply_metrics.rsi || '').trim(),
+              ].filter(Boolean);
+              if (metricValues.length) {
+                const lineTexts = (pEl.innerText || '').split('\n');
+                const targetIndexes = lineTexts
+                  .map((line, index) => ({ line: line.trim(), index }))
+                  .filter(({ line }) => /^(고가|저가)\s/.test(line))
+                  .map(({ index }) => index);
+                if (targetIndexes.length) {
+                  const wrapper = document.createElement('div');
+                  wrapper.className = 'first-reply-metric-grid';
+                  lineTexts.forEach((line, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'first-reply-metric-row';
+                    const left = document.createElement('span');
+                    left.textContent = line;
+                    row.appendChild(left);
+                    const metricIndex = targetIndexes.indexOf(index);
+                    if (metricIndex >= 0 && metricValues[metricIndex]) {
+                      const right = document.createElement('span');
+                      right.className = 'first-reply-metric-right';
+                      right.textContent = metricValues[metricIndex];
+                      row.appendChild(right);
+                    }
+                    wrapper.appendChild(row);
+                  });
+                  pEl.replaceChildren(wrapper);
+                }
+              }
+            }
+
             // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
             // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
             if (secIdx === 0) {
