@@ -3665,6 +3665,12 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
+        legacy_mood_tags = "   ".join(tags_str.split()[2:])
+        price_tags = list(price_result.get("price_tags") or [])
+        tags_str = "   ".join(price_tags)
+        if legacy_mood_tags:
+            tags_str = f"{tags_str}   {legacy_mood_tags}" if tags_str else legacy_mood_tags
+
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
