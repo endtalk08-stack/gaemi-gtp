@@ -164,12 +164,6 @@ def format_volume_profile(profile, is_usd=True):
 
     return "\n".join(lines)
 
-def format_shares(n):
-    if n is None: return "0주"
-    sign = "+" if n > 0 else ""
-    if abs(n) >= 10000:
-        return f"{sign}{n / 10000:,.1f}만주"
-    return f"{sign}{n:,}주"
 
 def round_krw_tick(price):
     if price is None: return 0

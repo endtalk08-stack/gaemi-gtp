@@ -1,7 +1,8 @@
 // Frontend is served by GitHub Pages; analysis API runs on Render.
-const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
+const BACKEND_URL = window.location.hostname.endsWith('github.io')
+  ? 'https://gaemi-gtp.onrender.com'
+  : window.location.origin;
     let activeAnalysisController = null;
-    let activeCentralNewsController = null;
     let activeStock = '삼성전자';
     let activeAnalysisRequestId = 0;
     let currentAppMode = 'gaemi';
@@ -22,10 +23,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       // 서버에서도 같은 종목의 중복 외부 호출은 백엔드 캐시/single-flight가 막는다.
       if (activeAnalysisController) {
         activeAnalysisController.abort();
-      }
-      if (activeCentralNewsController) {
-        activeCentralNewsController.abort();
-        activeCentralNewsController = null;
       }
       activeAnalysisController = new AbortController();
 
@@ -83,10 +80,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
       window.GaemiGTPAnalysisData?.set?.(stockName, result);
 
       chatArea.scrollTop = 0;
-      const newsController = new AbortController();
-      activeCentralNewsController = newsController;
-      await window.GaemiGTPLoadCentralNewsFlow?.(stockName, result, sections, newsController.signal);
-      if (activeCentralNewsController === newsController) activeCentralNewsController = null;
       if (requestId !== activeAnalysisRequestId) return;
       startTypewriterFlow(stockName, sections, result, requestId);
     }

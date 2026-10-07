@@ -6,10 +6,7 @@
   'use strict';
 
   window.GaemiGTPWidgetCatalog = Object.freeze({
-    'why-up':    { title: '코스피', icon: 'sparkles', description: '가격 변동 요인' },
-    'night-futures': { title: '코스피200 야간선물', icon: 'moon-star', description: '야간 선물 흐름' },
     'materials': { title: '재료는 있어?', icon: 'newspaper', description: '관련 뉴스·공시·재료' },
-    'supply':    { title: '큰손들은 뭐하고 있어?', icon: 'users-round', description: '수급 분석' },
     'levels':    { title: '여기 깨지면 큰일인데?', icon: 'chart-no-axes-combined', description: '지지·저항 구간' },
     'chart':     { title: '차트', icon: 'chart-candlestick', description: '가격 흐름' },
     'volume':    { title: '거래량', icon: 'chart-column', description: '거래량 흐름' },

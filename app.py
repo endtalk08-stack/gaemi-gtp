@@ -6,8 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup, start_dart_corp_warmup
-from backend.services.news_feed import fetch_general_news, fetch_stock_news, get_news_coverage
-from backend.services.news_scoring import score_stock_news, summarize_stock_flow
+from backend.services.news_feed import fetch_general_news, get_news_coverage
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -21,10 +20,6 @@ application = app
 @app.get("/")
 def home():
     return send_from_directory(FRONTEND_DIR, "index.html")
-
-@app.get("/admin")
-def admin():
-    return send_from_directory(FRONTEND_DIR / "admin", "index.html")
 
 @app.get("/health")
 def health():
@@ -40,26 +35,6 @@ def news():
     market = request.args.get("market", "전체")
     limit = request.args.get("limit", default=10, type=int)
     return jsonify({"items": fetch_general_news(category=category, region=market, limit=limit)})
-
-@app.get("/news/stock-flow")
-def stock_news_flow():
-    stock = str(request.args.get("stock", "") or "").strip()
-    if not stock:
-        return jsonify({"ok": True, "items": [], "flow": summarize_stock_flow([])})
-
-    # 중앙의 '왜?' 분석은 화면에 보여 줄 3개 기사보다 넓은 뉴스 흐름을 본다.
-    # 패널/기존 분석 응답은 그대로 두고, 같은 공통 뉴스 가공 결과만 최대 10개까지 재사용한다.
-    try:
-        items = fetch_stock_news(stock, limit=10)
-    except Exception as exc:
-        print(f"[뉴스 흐름] 조회 실패: {type(exc).__name__}: {exc}")
-        items = []
-
-    # 수집/분류 결과를 다시 만들지 않고, 중앙 분석용으로만 설명 가능한 점수를 붙인다.
-    # 화면에 대표 기사를 고르기 전에 전체 기사에서 신호/이슈/테마 흐름을 먼저 집계한다.
-    scored_items = score_stock_news(items, stock)
-    flow = summarize_stock_flow(scored_items)
-    return jsonify({"ok": True, "items": scored_items[:10], "flow": flow})
 
 @app.get("/news/coverage")
 def news_coverage():

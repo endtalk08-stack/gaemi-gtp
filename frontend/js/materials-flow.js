@@ -58,12 +58,7 @@ window.GaemiGTPMaterialsFlow.appendMaterials = async function ({
               await wait(550);
             }
   
-            const hashtags = document.createElement('p');
-            hashtags.className = 'mt-5 text-sm font-semibold leading-7 text-[#db2777] dark:text-[#e889aa] animate-fade';
-            hashtags.textContent = '#HBM #반도체슈퍼사이클 #증권사컨센서스 #주식호재 #경제뉴스 #스마트투자';
-            materials.insertAdjacentElement('afterend', hashtags);
-  
-            const materialText = `${materials.innerText}\n${hashtags.innerText}`;
-            window.GaemiGTPFirstReplyActions.appendFirstReplyActions(hashtags, materialText, 'materials', stockName);
+            const materialText = materials.innerText;
+            window.GaemiGTPFirstReplyActions.appendFirstReplyActions(materials, materialText, 'materials', stockName);
             materials.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };

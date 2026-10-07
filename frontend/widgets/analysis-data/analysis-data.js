@@ -6,7 +6,6 @@
 
   const SECTION_IDS_BY_LEGACY_TITLE = [
     ['오늘은 왜', 'why-up'],
-    ['큰손들은', 'supply'],
     ['여기 깨지면', 'levels'],
     ['오늘 밤, 이번주', 'calendar'],
   ];
