@@ -2523,7 +2523,7 @@ def fetch_yahoo_direct_v8(ticker_str):
 
             res = data.get('chart', {}).get('result', [])
             if not res:
-                return None, None, None, None, None
+                return None, None, None, None, None, None, None
 
             quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
             raw_closes = quotes.get('close', [])
@@ -2569,7 +2569,9 @@ def fetch_yahoo_direct_v8(ticker_str):
                 else 0.0
             )
 
-            result = (cur_p, prev_p, ma20, res_p, volume_profile)
+            high_p = highs[-1]
+            low_p = lows[-1]
+            result = (cur_p, prev_p, ma20, res_p, volume_profile, high_p, low_p)
             US_YAHOO_CACHE[key] = (now, result)
             return result
 
@@ -3621,10 +3623,10 @@ def analyze_stock(raw_name='SK하이닉스'):
         # 2. 미국 주식
         else:
             try:
-                cur_p, prev_p, ma20_val, res_val, volume_profile = fetch_yahoo_direct_v8(ticker_symbol)
+                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p = fetch_yahoo_direct_v8(ticker_symbol)
             except Exception as e:
                 print(f"[미국 시세] fail: {type(e).__name__}: {e}")
-                cur_p, prev_p, ma20_val, res_val, volume_profile = 0, 0, 0, 0, None
+                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p = 0, 0, 0, 0, None, 0, 0
 
             try:
                 call_vol, put_vol, option_error = fetch_us_options_volume(ticker_symbol)
@@ -3655,20 +3657,25 @@ def analyze_stock(raw_name='SK하이닉스'):
             official_filings_block = format_us_official_filings(ticker_symbol, us_filings_raw)
             kr_official_disclosures_block = ""
 
-            if cur_p and prev_p:
-                current_price = cur_p
-                change_pct = ((cur_p - prev_p) / prev_p) * 100
+            price_result = build_price_result(
+                is_krw=False,
+                current=cur_p,
+                previous=prev_p,
+                high=high_p,
+                low=low_p,
+            )
+            current_price = price_result["current_price"]
+            change_pct = price_result["change_pct"]
+            if current_price > 0:
                 ma20 = ma20_val or 0.0
                 resistance_price = res_val or 0.0
             else:
-                current_price = 0.0
-                change_pct = 0.0
                 ma20 = 0.0
                 resistance_price = 0.0
                 volume_profile = None
                 print(f"[미국 주가] {ticker_symbol} 조회 실패 - 가짜 가격 사용 안 함")
 
-            price_str = f"${current_price:,.2f}" if current_price > 0 else "시세 조회 실패"
+            price_str = price_result["price_text"]
             ma20_str = f"${ma20:,.2f}" if ma20 > 0 else "계산 대기"
             res_str = f"${resistance_price:,.2f}" if resistance_price > 0 else "계산 대기"
             supply_content = build_us_options_content(
@@ -3719,7 +3726,7 @@ def analyze_stock(raw_name='SK하이닉스'):
 
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
-        price_range_lines = price_result["range_lines"] if is_krw and clean_code else []
+        price_range_lines = price_result["range_lines"]
 
         first_content_parts = [
             intro_ment,
