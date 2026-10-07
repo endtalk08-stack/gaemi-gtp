@@ -1,11 +1,14 @@
 #leftEarningsCalendarSidebar.earnings-calendar-sidebar {
-  width: var(--left-sidebar-width, 320px);
-  flex: 0 0 var(--left-sidebar-width, 320px);
+  /* The calendar is moved into the sidebar-home host only when its menu is
+     selected. It must not create a second permanent desktop column. */
+  width: 0;
+  flex: 0 0 0;
   min-width: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  pointer-events: none;
   background: var(--gtp-bg);
   border-right: 1px solid var(--gtp-border);
 }
