@@ -21,18 +21,13 @@ window.GaemiGTPFirstReplyActions.appendFirstReplyActions = function(anchor, repl
           button.title = label;
           setTimeout(() => { button.title = original; }, 1200);
         };
-        const getCopyText = () => {
-          return String(replyText || '')
-            .replace(/([+-]\d+(?:\.\d+)?%)(?:\d+(?:\.\d+)?%|\.\d+%)/g, '$1');
-        };
         const copyReply = async () => {
-          const copyText = getCopyText();
           try {
-            await navigator.clipboard.writeText(copyText);
+            await navigator.clipboard.writeText(replyText);
             return true;
           } catch (_) {
             const textarea = document.createElement('textarea');
-            textarea.value = copyText;
+            textarea.value = replyText;
             document.body.appendChild(textarea);
             textarea.select();
             const copied = document.execCommand('copy');

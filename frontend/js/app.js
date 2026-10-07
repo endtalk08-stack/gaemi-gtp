@@ -391,15 +391,6 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
         const firstAnswerIsDown = /-(?:\d+(?:\.\d+)?%)|보합|눈치싸움|파란불|숨고르기|투매/.test(firstAnswerDirectionText);
         const firstAnswerThemeColor = firstAnswerIsDown ? '#38BDF8' : '#FF8DA1';
         let activeTagSpan = null;
-        const isFirstAnswer = sec.id === 'why-up';
-
-        // 첫 답변은 글자 단위 타이핑 대신 완성된 행을 먼저 배치한 뒤
-        // 위에서부터 행 단위로 순차 표시한다.
-        if (isFirstAnswer) {
-          pEl.style.visibility = 'hidden';
-          pEl.textContent = text;
-          charIdx = text.length;
-        }
 
         const appendTypingChunk = (chunk, chunkStart) => {
           for (let offset = 0; offset < chunk.length; offset++) {
@@ -418,43 +409,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
               }
               if (/\s/.test(char)) activeTagSpan = null;
             }
-
             pEl.appendChild(document.createTextNode(char));
           }
         };
 
-        const revealFirstAnswerRows = (onDone) => {
-          const lines = pEl.innerHTML.split('\n');
-          const rows = lines.map((line) => {
-            const row = document.createElement('span');
-            row.className = 'first-reply-seq-line';
-            if (line.trim()) {
-              row.innerHTML = line;
-            } else {
-              row.classList.add('is-blank');
-              row.innerHTML = '&nbsp;';
-            }
-            return row;
-          });
-
-          pEl.replaceChildren(...rows);
-          pEl.style.visibility = 'visible';
-
-          let rowIndex = 0;
-          const revealNextRow = () => {
-            if (requestId !== activeAnalysisRequestId) return;
-            if (rowIndex >= rows.length) {
-              onDone();
-              return;
-            }
-            rows[rowIndex].classList.add('is-visible');
-            rowIndex += 1;
-            setTimeout(revealNextRow, 120);
-          };
-          revealNextRow();
-        };
-
-        // 일반 섹션은 기존 글자 단위 타이핑을 유지한다.
+        // 첫 답변의 마지막 해시태그 줄은 최종 색상을 유지한 채 타이핑한다.
         function typeChunk() {
           if (requestId !== activeAnalysisRequestId) return;
           if (charIdx < text.length) {
@@ -498,10 +457,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                      const newWords = words.map(w => {
                        if (w.startsWith('#')) {
                          let color = themeColor;
-                         if (/^#(?:고가갱신|고가권|상승우위)$/.test(w)) color = '#FF8DA1';
-                         else if (/^#(?:저가갱신|저가권|하락우위)$/.test(w)) color = '#38BDF8';
-                         else if (/^#(?:중간권|박스권)$/.test(w)) color = '#a1a1aa';
-                         else if (w.includes('+')) color = '#FF8DA1';
+                         if (w.includes('+')) color = '#FF8DA1';
                          else if (w.includes('-')) color = '#38BDF8';
                          return `<span class="font-bold" style="color: ${color};">${w}</span>`;
                        }
@@ -515,10 +471,7 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
                      const newWords = words.map(w => {
                        if (w.startsWith('#')) {
                          let color = themeColor;
-                         if (/^#(?:고가갱신|고가권|상승우위)$/.test(w)) color = '#FF8DA1';
-                         else if (/^#(?:저가갱신|저가권|하락우위)$/.test(w)) color = '#38BDF8';
-                         else if (/^#(?:중간권|박스권)$/.test(w)) color = '#a1a1aa';
-                         else if (w.includes('+')) color = '#FF8DA1';
+                         if (w.includes('+')) color = '#FF8DA1';
                          else if (w.includes('-')) color = '#38BDF8';
                          return `<span class="font-bold" style="color: ${color};">${w}</span>`;
                        }
@@ -558,35 +511,11 @@ const BACKEND_URL = 'https://gaemi-gtp.onrender.com';
 
             pEl.innerHTML = formatted;
 
-            if (isFirstAnswer && (sec.first_reply_rsi || sec.first_reply_ma20)) {
-              const html = pEl.innerHTML;
-              const lines = html.split('\n');
-
-              if (sec.first_reply_rsi) {
-                const highIndex = lines.findIndex((line) => /^고가\s/.test(line.replace(/<[^>]+>/g, '').trim()));
-                if (highIndex >= 0) {
-                  lines[highIndex] = `<span class="first-reply-metric-line"><span class="first-reply-metric-content">${lines[highIndex]}</span><span class="first-reply-rsi">${sec.first_reply_rsi}</span></span>`;
-                }
-              }
-
-              if (sec.first_reply_ma20) {
-                const lowIndex = lines.findIndex((line) => /^저가\s/.test(line.replace(/<[^>]+>/g, '').trim()));
-                if (lowIndex >= 0) {
-                  lines[lowIndex] = `<span class="first-reply-metric-line"><span class="first-reply-metric-content">${lines[lowIndex]}</span><span class="first-reply-ma20">${sec.first_reply_ma20}</span></span>`;
-                }
-              }
-
-              pEl.innerHTML = lines.join('\n');
-            }
-
             // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
             // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
             if (secIdx === 0) {
-              const firstReplyCopyText = pEl.innerText;
-              revealFirstAnswerRows(() => {
-                const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(pEl, firstReplyCopyText, 'first', stockName);
-                appendNextAnalysisChoices(actions);
-              });
+              const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(pEl, pEl.innerText, 'first', stockName);
+              appendNextAnalysisChoices(actions);
               return;
             }
 

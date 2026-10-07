@@ -55,33 +55,6 @@
       font-weight: 650;
       line-height: 1.45;
     }
-
-    .first-reply-seq-line {
-      display: block;
-      visibility: hidden;
-      line-height: inherit;
-    }
-    .first-reply-seq-line.is-visible {
-      visibility: visible;
-    }
-    .first-reply-metric-line {
-      display: flex;
-      align-items: baseline;
-      width: 100%;
-      gap: 12px;
-      line-height: inherit;
-    }
-    .first-reply-metric-content {
-      min-width: 0;
-      line-height: inherit;
-    }
-    .first-reply-rsi,
-    .first-reply-ma20 {
-      margin-left: auto;
-      white-space: nowrap;
-      line-height: inherit;
-      text-align: right;
-    }
     .gtp-chat-section-title {
       color: var(--gtp-text);
       font-size: var(--gtp-type-title);
