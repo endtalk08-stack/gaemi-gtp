@@ -2500,6 +2500,25 @@ def fetch_kr_historical_volume_profile(ticker_symbol, current_price=None):
             KR_VOLUME_PROFILE_CACHE[symbol] = (now, None)
             return None
 
+def _calculate_rsi_14(closes):
+    """이미 수집된 일봉 종가로 14일 RSI를 계산한다."""
+    if not closes or len(closes) < 15:
+        return None
+    window = closes[-15:]
+    gains = []
+    losses = []
+    for previous, current in zip(window, window[1:]):
+        change = current - previous
+        gains.append(max(change, 0.0))
+        losses.append(max(-change, 0.0))
+    avg_gain = sum(gains) / 14
+    avg_loss = sum(losses) / 14
+    if avg_loss == 0:
+        return 100.0 if avg_gain > 0 else 50.0
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
 def fetch_kr_bollinger_60_2(ticker_symbol):
     """국내 종목 기존 Yahoo 일봉 흐름에서 볼린저밴드 60/2 가격을 계산한다."""
     symbol = str(ticker_symbol or "").strip()
@@ -2532,7 +2551,12 @@ def fetch_kr_bollinger_60_2(ticker_symbol):
         middle = sum(window) / 60
         variance = sum((price - middle) ** 2 for price in window) / 60
         stddev = math.sqrt(variance)
-        bollinger = {"upper": middle + 2 * stddev, "middle": middle, "lower": middle - 2 * stddev}
+        bollinger = {
+            "upper": middle + 2 * stddev,
+            "middle": middle,
+            "lower": middle - 2 * stddev,
+            "rsi_14": _calculate_rsi_14(closes),
+        }
         KR_BOLLINGER_CACHE[symbol] = (now, bollinger)
         return bollinger
     except Exception as e:
@@ -2565,7 +2589,7 @@ def fetch_yahoo_direct_v8(ticker_str):
 
             res = data.get('chart', {}).get('result', [])
             if not res:
-                return None, None, None, None, None, None, None
+                return None, None, None, None, None, None, None, None, None
 
             quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
             raw_closes = quotes.get('close', [])
@@ -2585,7 +2609,7 @@ def fetch_yahoo_direct_v8(ticker_str):
                     continue
 
             if len(rows) < 2:
-                return None, None, None, None, None, None, None, None
+                return None, None, None, None, None, None, None, None, None
 
             closes = [r[0] for r in rows]
             highs = [r[1] for r in rows]
@@ -2624,13 +2648,14 @@ def fetch_yahoo_direct_v8(ticker_str):
                     "middle": middle,
                     "lower": middle - 2 * stddev,
                 }
-            result = (cur_p, prev_p, ma20, res_p, volume_profile, high_p, low_p, bollinger_60_2)
+            rsi_14 = _calculate_rsi_14(closes)
+            result = (cur_p, prev_p, ma20, res_p, volume_profile, high_p, low_p, bollinger_60_2, rsi_14)
             US_YAHOO_CACHE[key] = (now, result)
             return result
 
         except Exception as e:
             print("미국 야후 v8 예외:", e)
-            result = (None, None, None, None, None, None, None, None)
+            result = (None, None, None, None, None, None, None, None, None)
             US_YAHOO_CACHE[key] = (now, result)
             return result
 
@@ -3557,6 +3582,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         volume_profile = None
         supply_content = ""
         bollinger_60_2 = None
+        rsi_14 = None
 
         # 1~2. 외부 API는 한 요청 안에서 순차 처리한다.
         # 이전 구조는 여러 외부 API를 ThreadPoolExecutor에 동시에 넣은 뒤
@@ -3636,6 +3662,7 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             try:
                 bollinger_60_2 = fetch_kr_bollinger_60_2(ticker_symbol)
+                rsi_14 = bollinger_60_2.get("rsi_14") if bollinger_60_2 else None
             except Exception as e:
                 print(f"[볼린저 60/2] fail: {type(e).__name__}: {e}")
                 bollinger_60_2 = None
@@ -3683,10 +3710,10 @@ def analyze_stock(raw_name='SK하이닉스'):
         # 2. 미국 주식
         else:
             try:
-                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p, bollinger_60_2 = fetch_yahoo_direct_v8(ticker_symbol)
+                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p, bollinger_60_2, rsi_14 = fetch_yahoo_direct_v8(ticker_symbol)
             except Exception as e:
                 print(f"[미국 시세] fail: {type(e).__name__}: {e}")
-                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p, bollinger_60_2 = 0, 0, 0, 0, None, 0, 0, None
+                cur_p, prev_p, ma20_val, res_val, volume_profile, high_p, low_p, bollinger_60_2, rsi_14 = 0, 0, 0, 0, None, 0, 0, None, None
 
             try:
                 call_vol, put_vol, option_error = fetch_us_options_volume(ticker_symbol)
@@ -3843,8 +3870,15 @@ def analyze_stock(raw_name='SK하이닉스'):
             elif current_price < ma20:
                 short_term_tag = "#단기하락"
 
+        rsi_tag = "#중립"
+        if rsi_14 is not None:
+            if rsi_14 >= 70:
+                rsi_tag = "#과매수구간"
+            elif rsi_14 <= 30:
+                rsi_tag = "#과매도구간"
+
         legacy_mood_tags = "   ".join(tags_str.split()[2:])
-        tags_str = f"{daily_tag}   {bollinger_tag}   {short_term_tag}"
+        tags_str = f"{daily_tag}   {bollinger_tag}   {short_term_tag}   {rsi_tag}"
         if legacy_mood_tags:
             tags_str = f"{tags_str}   {legacy_mood_tags}"
 
