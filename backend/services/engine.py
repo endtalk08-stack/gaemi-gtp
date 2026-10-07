@@ -3668,8 +3668,11 @@ def analyze_stock(raw_name='SK하이닉스'):
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
-            tags_str,
         ]
+        price_metrics_text = str(price_result.get("first_reply_metrics_text") or "").strip()
+        if price_metrics_text:
+            first_content_parts.append(price_metrics_text)
+        first_content_parts.append(tags_str)
 
         sections = [
             {
