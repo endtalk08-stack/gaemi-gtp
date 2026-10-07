@@ -3837,7 +3837,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                     daily_tag = "#저가권"
 
         legacy_mood_tags = "   ".join(tags_str.split()[2:])
-        tags_str = f"{bollinger_tag}   {daily_tag}"
+        tags_str = f"{daily_tag}   {bollinger_tag}"
         if legacy_mood_tags:
             tags_str = f"{tags_str}   {legacy_mood_tags}"
 
