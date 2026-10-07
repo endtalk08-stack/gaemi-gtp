@@ -32,16 +32,16 @@ def build_price_result(*, is_krw, current, high=None, low=None, change_pct=None,
     else:
         price_text = f"${current_price:,.2f}"
 
-    range_lines = []
-    if current_price > 0 and high_price > 0:
-        high_gap_pct = ((current_price - high_price) / high_price) * 100
-        high_text = f"{high_price:,.0f}원" if is_krw else f"${high_price:,.2f}"
-        range_lines.append(f"고가   {high_text}   {high_gap_pct:+.2f}% ↘")
-
-    if current_price > 0 and low_price > 0:
-        low_gap_pct = ((current_price - low_price) / low_price) * 100
-        low_text = f"{low_price:,.0f}원" if is_krw else f"${low_price:,.2f}"
-        range_lines.append(f"저가   {low_text}   {low_gap_pct:+.2f}% ↗")
+    high_gap_pct = (
+        ((current_price - high_price) / high_price) * 100
+        if current_price > 0 and high_price > 0
+        else None
+    )
+    low_gap_pct = (
+        ((current_price - low_price) / low_price) * 100
+        if current_price > 0 and low_price > 0
+        else None
+    )
 
     return {
         "current_price": current_price,
@@ -49,5 +49,6 @@ def build_price_result(*, is_krw, current, high=None, low=None, change_pct=None,
         "high_price": high_price,
         "low_price": low_price,
         "price_text": price_text,
-        "range_lines": range_lines,
+        "high_gap_pct": high_gap_pct,
+        "low_gap_pct": low_gap_pct,
     }
