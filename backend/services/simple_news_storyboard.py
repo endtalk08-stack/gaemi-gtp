@@ -83,9 +83,46 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
 
 
 def select_keyword_storyboard_news(items, limit=3):
-    """Pick distinct keyword events from the full today-news set for central chat."""
+    """Pick at most ``limit`` notable, distinct events for the central flow.
+
+    The source list is already restricted to today's stock-relevant articles.
+    This final step must not simply show the three newest articles: a direct,
+    concrete event is more useful than a newer but weak mention.  It also keeps
+    the selection deliberately sparse; if no article has a grounded event
+    keyword, the caller receives an empty list rather than filler.
+    """
     selected = []
     seen_keywords = set()
+
+    def _number(value, default=0.0):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _selection_score(source):
+        """Rank evidence without inventing a market interpretation.
+
+        ``analysis_relevance_tier`` and ``analysis_event_strength`` come from
+        the collector, while ``flow_score_breakdown`` comes from the existing
+        explainable scorer.  The weights intentionally favor a company named
+        in the headline and an explicit event over recency.
+        """
+        tier = max(0, int(_number(source.get("analysis_relevance_tier"))))
+        event_strength = max(0.0, _number(source.get("analysis_event_strength")))
+        breakdown = source.get("flow_score_breakdown") or {}
+        direct = max(0.0, _number(breakdown.get("direct_stock")))
+        material = max(0.0, _number(breakdown.get("material_strength")))
+        signal = max(0.0, _number(breakdown.get("movement_signal")))
+
+        return (
+            (tier * 100)
+            + min(event_strength, 8.0) * 8.0
+            + min(direct, 35.0)
+            + min(material, 20.0)
+            + min(signal, 20.0)
+            + min(_number(source.get("flow_score")), 100.0) / 10.0
+        )
 
     def _keyword_key(value):
         return "".join(str(value or "").split()).lower()
@@ -95,6 +132,8 @@ def select_keyword_storyboard_news(items, limit=3):
         if not key:
             return True
         for seen in seen_keywords:
+            if key == seen:
+                return True
             # Treat containment as the same event, but only for meaningful
             # multi-token labels. This keeps e.g. AI요금개편 and
             # 제미나이AI요금개편 from occupying two central slots.
@@ -102,10 +141,25 @@ def select_keyword_storyboard_news(items, limit=3):
                 return True
         return False
 
+    candidates = []
     for source in items or []:
         keywords = [str(value).strip() for value in (source.get("storyboard_keywords") or []) if str(value).strip()]
         if not keywords:
             continue
+
+        # Keep only articles that passed the existing grounded-keyword path.
+        # This prevents a bare company mention from occupying a daily slot.
+        candidates.append((source, keywords))
+
+    candidates.sort(
+        key=lambda pair: (
+            _selection_score(pair[0]),
+            str(pair[0].get("published_at") or pair[0].get("pub_date") or ""),
+        ),
+        reverse=True,
+    )
+
+    for source, keywords in candidates:
 
         tones = dict(source.get("storyboard_keyword_tones") or {})
 
@@ -119,9 +173,16 @@ def select_keyword_storyboard_news(items, limit=3):
         article["storyboard_keyword"] = keyword
         article["storyboard_keyword_tones"] = {keyword: tones.get(keyword, "neutral")}
         article["storyboard_keyword_tone"] = tones.get(keyword, "neutral")
+        article["storyboard_selection_score"] = round(_selection_score(source), 1)
         selected.append(article)
 
         if len(selected) >= max(1, int(limit)):
             break
 
+    # Selection is based on importance, but the chat is a timeline.  Present
+    # the chosen events in newest-first order without changing their members.
+    selected.sort(
+        key=lambda item: str(item.get("published_at") or item.get("pub_date") or ""),
+        reverse=True,
+    )
     return selected
