@@ -3806,6 +3806,45 @@ def analyze_stock(raw_name='SK하이닉스'):
                     f"{label}  {level_text}   {level_gap_pct:+.2f}% {level_arrow}{breakout_text}"
                 )
 
+        # 첫 답변 하단 태그는 이미 수집·계산된 가격 결과만 재사용한다.
+        # 볼린저 60/2는 중기 위치, 당일 고가·저가는 오늘의 가격 위치를 나타낸다.
+        bollinger_tag = "#박스권"
+        if bollinger_60_2 and current_price > 0:
+            upper = float(bollinger_60_2.get("upper") or 0)
+            middle = float(bollinger_60_2.get("middle") or 0)
+            lower = float(bollinger_60_2.get("lower") or 0)
+            if upper > middle > lower > 0:
+                if current_price > upper:
+                    bollinger_tag = "#상단돌파"
+                elif current_price < lower:
+                    bollinger_tag = "#하단이탈"
+                else:
+                    half_band = (upper - lower) / 2
+                    center_gap = abs(current_price - middle)
+                    if center_gap <= half_band * 0.25:
+                        bollinger_tag = "#박스권"
+                    elif current_price > middle:
+                        bollinger_tag = "#상승우위"
+                    else:
+                        bollinger_tag = "#하락우위"
+
+        daily_tag = "#중간권"
+        day_high = float(price_result.get("high_price") or 0)
+        day_low = float(price_result.get("low_price") or 0)
+        if current_price > 0 and day_high > day_low > 0:
+            if current_price >= day_high:
+                daily_tag = "#고가갱신"
+            elif current_price <= day_low:
+                daily_tag = "#저가갱신"
+            else:
+                day_position = (current_price - day_low) / (day_high - day_low)
+                if day_position >= 0.70:
+                    daily_tag = "#고가권"
+                elif day_position <= 0.30:
+                    daily_tag = "#저가권"
+
+        tags_str = f"{bollinger_tag}   {daily_tag}"
+
         first_content_parts = [
             intro_ment,
             f"현재 주가는 {price_str} 기록 중!",
