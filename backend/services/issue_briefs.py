@@ -229,26 +229,32 @@ def _join_brief_facts(values):
     return ", ".join(facts)
 
 
-def _compose_brief_summary(headline, remaining, fallback_stock):
+def _compose_brief_summary(headline, remaining, summary_index=0):
     """Turn grounded labels into one readable, fact-bounded central sentence."""
-    stock = str(fallback_stock or "").strip()
     extra = [str(value or "").strip() for value in remaining[:2] if str(value or "").strip()]
-    if not stock or not extra:
+    if not extra:
         return ""
+
+    endings = (
+        "관련 내용이 있어.",
+        "관련 내용을 확인했어.",
+        "관련 내용도 있었어.",
+    )
+    ending = endings[min(max(int(summary_index or 0), 0), len(endings) - 1)]
 
     uncertainty_endings = (
         "기대", "전망", "예상", "추정", "관측", "가능성", "검토", "계획", "예정",
     )
     if headline.endswith(uncertainty_endings):
         particle = _korean_particle(headline, "이", "가")
-        return f"{stock}는 {headline}{particle} 나오고, {', '.join(extra)} 관련 내용도 확인됐어요."
+        return f"{headline}{particle} 나오고, {', '.join(extra)} {ending}"
 
     facts = [headline, *extra]
     joined = _join_brief_facts(facts)
-    return f"{stock}에서는 {joined} 관련 내용도 확인됐어요."
+    return f"{joined} {ending}"
 
 
-def _brief_text(labels, themes, issues, stock_names, fallback_stock):
+def _brief_text(labels, themes, issues, stock_names, fallback_stock, summary_index=0):
     """Compose natural central copy from grounded facts without source-copy filler."""
     raw_labels = [str(label or "").strip().lstrip("#") for label in labels or []]
     raw_labels = [label for label in raw_labels if label]
@@ -289,7 +295,7 @@ def _brief_text(labels, themes, issues, stock_names, fallback_stock):
     if not remaining:
         return headline, ""
 
-    summary = _compose_brief_summary(headline, remaining, fallback_stock)
+    summary = _compose_brief_summary(headline, remaining, summary_index=summary_index)
     display_headline = headline if headline.endswith("이슈") else f"{headline} 이슈"
     return display_headline, summary
 def build_issue_briefs(items, stock_name, limit=3):
@@ -304,6 +310,7 @@ def build_issue_briefs(items, stock_name, limit=3):
             item.get("issues") or [],
             stock_names,
             stock_name,
+            summary_index=len(briefs),
         )
         if not headline or not summary:
             continue
