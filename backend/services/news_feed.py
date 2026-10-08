@@ -410,6 +410,49 @@ def _primary_us_ticker(stock_name):
     return ""
 
 
+def _select_stock_news_with_source_reserve(relevant, limit):
+    """Preserve trusted US source rows before filling the remaining ranked slots."""
+    max_count = max(1, int(limit))
+    source_limits = {
+        "official_company": min(10, max_count),
+        "sec_filing": min(5, max_count),
+    }
+
+    selected = []
+    selected_ids = set()
+
+    def item_key(item):
+        return (
+            str(item.get("url") or item.get("link") or "").strip()
+            or str(item.get("title") or "").strip()
+        )
+
+    for source_type, reserve in source_limits.items():
+        kept = 0
+        for item in relevant:
+            if kept >= reserve or len(selected) >= max_count:
+                break
+            if str(item.get("source_type") or "") != source_type:
+                continue
+            key = item_key(item)
+            if not key or key in selected_ids:
+                continue
+            selected.append(item)
+            selected_ids.add(key)
+            kept += 1
+
+    for item in relevant:
+        if len(selected) >= max_count:
+            break
+        key = item_key(item)
+        if not key or key in selected_ids:
+            continue
+        selected.append(item)
+        selected_ids.add(key)
+
+    return selected
+
+
 def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=True):
     stock_name = _clean_text(stock_name)
     if not stock_name:
@@ -516,7 +559,7 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
         ),
         reverse=True,
     )
-    return relevant[: max(1, int(limit))]
+    return _select_stock_news_with_source_reserve(relevant, limit)
 
 
 def get_news_coverage():
