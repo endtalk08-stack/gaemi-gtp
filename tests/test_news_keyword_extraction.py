@@ -155,5 +155,27 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertIn("공급계약", article["keywords"])
 
 
+    def test_preserves_price_subject_in_keyword(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, HBM 가격 상승에 실적 개선 기대",
+            "description": "삼성전자 HBM 수요가 이어지고 있다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("HBM가격상승", article["keywords"])
+        self.assertNotIn("가격상승", article["keywords"])
+
+    def test_keeps_generic_price_keyword_only_without_named_subject(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, 가격 상승 영향 점검",
+            "description": "삼성전자는 관련 영향을 검토하고 있다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("가격상승", article["keywords"])
+
+
 if __name__ == "__main__":
     unittest.main()

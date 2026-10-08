@@ -199,5 +199,17 @@ class IssueBriefTests(unittest.TestCase):
         self.assertNotIn("107조4000억원", " ".join(result[0]["tags"]))
 
 
+    def test_central_brief_displays_specific_price_subject(self):
+        result = build_issue_briefs([{
+            "storyboard_time": "00:12",
+            "storyboard_keywords": ["HBM가격상승"],
+            "article_keywords": ["HBM가격상승", "실적개선"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+
+        self.assertEqual(result[0]["headline"], "HBM 가격 상승 이슈")
+        self.assertIn("HBM 가격 상승", result[0]["summary"])
+
+
 if __name__ == "__main__":
     unittest.main()
