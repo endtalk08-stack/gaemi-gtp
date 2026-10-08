@@ -3,8 +3,9 @@ import unittest
 from backend.services.simple_news_storyboard import select_keyword_storyboard_news
 
 
-def article(*, keyword, tier, strength, published_at, flow_score=0):
+def article(*, keyword, tier, strength, published_at, flow_score=0, title=""):
     return {
+        "title": title,
         "storyboard_keywords": [keyword] if keyword else [],
         "storyboard_keyword_tones": {keyword: "positive"} if keyword else {},
         "analysis_relevance_tier": tier,
@@ -63,6 +64,33 @@ class NotableFlowSelectionTests(unittest.TestCase):
         ])
 
         self.assertEqual(selected, [])
+
+    def test_keeps_syndicated_headline_rewrite_out_of_storyboard(self):
+        first = article(
+            keyword="실적상회",
+            tier=3,
+            strength=5,
+            published_at="2026-10-07T10:00:00+00:00",
+            title="삼성전자 3분기 실적 시장 예상치 크게 웃돌아",
+        )
+        rewrite = article(
+            keyword="어닝서프라이즈",
+            tier=3,
+            strength=4,
+            published_at="2026-10-07T09:55:00+00:00",
+            title="삼성전자 3분기 실적 시장 예상치 대폭 상회",
+        )
+        separate_event = article(
+            keyword="자사주매입",
+            tier=3,
+            strength=4,
+            published_at="2026-10-07T09:50:00+00:00",
+            title="삼성전자 대규모 자사주 매입 계획 발표",
+        )
+
+        selected = select_keyword_storyboard_news([first, rewrite, separate_event], limit=3)
+
+        self.assertEqual([item["storyboard_keyword"] for item in selected], ["실적상회", "자사주매입"])
 
 
 if __name__ == "__main__":

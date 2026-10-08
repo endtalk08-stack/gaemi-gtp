@@ -6,6 +6,8 @@ extractor, and keeps article + timestamp + keyword together as one bundle.
 """
 
 import datetime
+import re
+from difflib import SequenceMatcher
 from zoneinfo import ZoneInfo
 
 
@@ -93,6 +95,7 @@ def select_keyword_storyboard_news(items, limit=3):
     """
     selected = []
     seen_keywords = set()
+    selected_headlines = []
 
     def _number(value, default=0.0):
         try:
@@ -141,6 +144,25 @@ def select_keyword_storyboard_news(items, limit=3):
                 return True
         return False
 
+    def _headline_key(value):
+        """Build a comparison key without changing the original headline."""
+        return re.sub(r"[^0-9a-z가-힣]", "", str(value or "").lower())
+
+    def _is_same_event_as_selected(source):
+        """Keep syndicated rewrites of the same event out of the 3-item flow.
+
+        The full article list remains untouched.  This guard applies only to
+        the concise central storyboard, where showing three rewrites of one
+        event is less useful than showing three distinct events.
+        """
+        headline = _headline_key(source.get("title"))
+        if len(headline) < 12:
+            return False
+        return any(
+            SequenceMatcher(None, headline, previous).ratio() >= 0.75
+            for previous in selected_headlines
+        )
+
     candidates = []
     for source in items or []:
         keywords = [str(value).strip() for value in (source.get("storyboard_keywords") or []) if str(value).strip()]
@@ -166,8 +188,13 @@ def select_keyword_storyboard_news(items, limit=3):
         keyword = next((value for value in keywords if not _overlaps_existing(value)), "")
         if not keyword:
             continue
+        if _is_same_event_as_selected(source):
+            continue
 
         seen_keywords.add(_keyword_key(keyword))
+        headline = _headline_key(source.get("title"))
+        if headline:
+            selected_headlines.append(headline)
         article = dict(source)
         article["storyboard_keywords"] = [keyword]
         article["storyboard_keyword"] = keyword
