@@ -131,20 +131,90 @@ def build_issue_briefs(items, stock_name, limit=3):
 
 
 def build_news_test_articles(items, stock_name, limit=3):
-    """Build the test-panel article payload from the same extracted news facts.
+    """Build article-shaped test output from structured news facts only.
 
-    The central issue flow remains unchanged.  This is a separate article-shaped
-    output used only by the right-panel "뉴스 테스트" view, and it deliberately
-    has no publisher title, description, source, or URL fields.
+    Unlike ``build_issue_briefs``, this produces a headline and two short
+    paragraphs for the right-panel test view.  It never passes through an
+    original publisher title, description, source, or URL.
     """
     articles = []
-    for index, brief in enumerate(build_issue_briefs(items, stock_name, limit=limit), start=1):
+    for index, item in enumerate(items or [], start=1):
+        labels = _signal_labels(item)
+        stock_names = _stock_names(item, stock_name)
+        headline, body, tags = _article_text(
+            labels,
+            item.get("themes") or [],
+            item.get("issues") or [],
+            stock_names,
+            stock_name,
+        )
         articles.append({
             "id": f"news-test-{index}",
-            "time": brief["time"],
-            "headline": brief["headline"],
-            "body": brief["summary"],
-            "tags": brief["tags"],
-            "stock_names": brief["stock_names"],
+            "time": str(item.get("storyboard_time") or "").strip(),
+            "headline": headline,
+            "body": body,
+            "tags": tags,
+            "stock_names": stock_names[:4],
         })
+        if len(articles) >= max(1, int(limit)):
+            break
     return articles
+
+
+def _stock_phrase(stock_names, fallback):
+    names = _clean_labels(stock_names, limit=3) or _clean_labels([fallback], limit=1)
+    if len(names) == 2:
+        return f"{names[0]}와 {names[1]}"
+    return ", ".join(names)
+
+
+def _article_tags(labels, themes, primary=""):
+    tags = ["특징주"]
+    for label in [primary, *(themes or []), *labels]:
+        label = str(label or "").strip().lstrip("#")
+        if label and label not in tags:
+            tags.append(label)
+        if len(tags) >= 3:
+            break
+    return tags
+
+
+def _article_text(labels, themes, issues, stock_names, fallback):
+    """Return original article-style copy derived from classifier facts."""
+    primary = next((label for label in labels if label in _SIGNAL_BRIEFS), "")
+    subject = _stock_phrase(stock_names, fallback)
+    theme = next(iter(themes or []), "") or "관련 업종"
+
+    if primary == "AI메모리":
+        detail = "관련 기업별 실적 개선 기대와 HBM 수요가\n주가 흐름의 핵심 재료로 언급됐어요."
+        if "삼성전자" in stock_names and "SK하이닉스" in stock_names:
+            detail = (
+                "삼성전자는 실적 개선 기대가, SK하이닉스는 HBM 수요가\n"
+                "각각 주가 흐름의 핵심 재료로 언급됐어요."
+            )
+        return (
+            "AI 메모리 기대감에 반도체주 강세",
+            f"AI 서버 투자와 메모리 가격 상승 기대가 이어지며\n{subject}에 매수세가 유입되고 있어요.\n\n{detail}",
+            _article_tags(labels, themes, primary),
+        )
+
+    if primary == "메모리가격":
+        return (
+            "메모리 가격 기대에 반도체주 관심",
+            f"메모리 가격 흐름 개선 기대가 이어지며\n{subject}을 중심으로 투자자 관심이 커지고 있어요.\n\n{theme} 업황 회복 가능성이 주가 흐름의\n주요 재료로 언급됐어요.",
+            _article_tags(labels, themes, primary),
+        )
+
+    if primary in {"실적상회", "호실적", "사상최대실적"}:
+        return (
+            f"실적 기대에 {subject} 주목",
+            f"실적 개선 기대가 이어지며\n{subject}의 주가 흐름에 관심이 모이고 있어요.\n\n발표된 실적과 향후 전망이 시장 기대에 부합하는지가\n추가 흐름을 가를 핵심으로 언급됐어요.",
+            _article_tags(labels, themes, primary),
+        )
+
+    topic = next(iter(issues or []), "") or theme or next(iter(labels or []), "시장")
+    return (
+        f"{topic} 이슈에 {subject} 관심",
+        f"{topic} 관련 흐름이 이어지며\n{subject}에 투자자 관심이 모이고 있어요.\n\n관련 뉴스와 수급 변화가\n단기 주가 흐름의 재료로 언급됐어요.",
+        _article_tags(labels, themes, primary),
+    )
