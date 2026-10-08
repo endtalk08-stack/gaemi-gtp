@@ -144,7 +144,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         const appendFollowupChoices = (after) => {
           const followups = document.createElement('section');
           followups.dataset.whyFollowupChoices = 'true';
-          followups.className = 'mt-6 space-y-2 animate-fade';
+          followups.className = 'mt-6 space-y-2';
           followups.innerHTML = `
             <p class="${responseMessageClass}">더 살펴볼래?</p>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -155,13 +155,13 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
 
         const choices = document.createElement('section');
         choices.dataset.nextAnalysisChoices = 'true';
-        choices.className = 'mt-6 space-y-2 animate-fade text-right';
+        choices.className = 'mt-6 space-y-2 text-right';
         choices.innerHTML = `
-          <p class="${responseMessageClass}">뭐가 궁금해?</p>
+          <p class="${responseMessageClass}"></p>
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
-            <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-next-analysis="us-market">#미국장</button>
-            <button type="button" class="text-sm font-semibold transition hover:opacity-80" style="color:${whyState.color}" data-next-analysis="why">${whyState.tag}</button>
-            <button type="button" class="text-sm font-semibold text-[#8f7aa8] transition hover:text-[#9d87b8] dark:text-[#a995bd] dark:hover:text-[#b7a4c9]" data-next-analysis="fortune">#떡상운세</button>
+            <button type="button" class="text-sm font-semibold text-[#3b82f6] transition hover:text-[#2563eb] dark:text-[#7aa2e3] dark:hover:text-[#9ab8ee]" data-next-analysis="us-market"></button>
+            <button type="button" class="text-sm font-semibold transition hover:opacity-80" style="color:${whyState.color}" data-next-analysis="why"></button>
+            <button type="button" class="text-sm font-semibold text-[#8f7aa8] transition hover:text-[#9d87b8] dark:text-[#a995bd] dark:hover:text-[#b7a4c9]" data-next-analysis="fortune"></button>
           </div>`;
 
         const appendUsMarketPrompt = () => {
@@ -182,7 +182,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
 
           const followup = document.createElement('section');
           followup.dataset.nextAnalysisChoices = 'true';
-          followup.className = 'mt-6 space-y-2 animate-fade text-right';
+          followup.className = 'mt-6 space-y-2 text-right';
           followup.innerHTML = `
             <p class="${responseMessageClass}">더 볼래?</p>
             <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5"></div>`;
@@ -337,6 +337,20 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         });
 
         anchor.insertAdjacentElement('afterend', choices);
+
+        const typeInitialChoices = async () => {
+          const sequence = [
+            [choices.querySelector('p'), '뭐가 궁금해?'],
+            [choices.querySelector('[data-next-analysis="us-market"]'), '#미국장'],
+            [choices.querySelector('[data-next-analysis="why"]'), whyState.tag],
+            [choices.querySelector('[data-next-analysis="fortune"]'), '#떡상운세']
+          ];
+          for (const [element, text] of sequence) {
+            if (requestId !== activeAnalysisRequestId || !choices.isConnected) return;
+            await typeText(element, text, { chunkSize: 1 });
+          }
+        };
+        typeInitialChoices();
       }
 
       function typeNextSection() {
