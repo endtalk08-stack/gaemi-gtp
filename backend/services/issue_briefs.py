@@ -238,7 +238,7 @@ def _compose_brief_summary(headline, remaining, summary_index=0):
     endings = (
         "관련 이슈가 있어.",
         "관련 내용을 확인했어.",
-        "관련 재료도 있었어.",
+        "관련 이슈도 있었어.",
     )
     ending = endings[min(max(int(summary_index or 0), 0), len(endings) - 1)]
 

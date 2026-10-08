@@ -148,7 +148,7 @@ class IssueBriefTests(unittest.TestCase):
             [
                 "자사주 소각과 영업이익 100조원 기대 관련 이슈가 있어.",
                 "공급 확대와 해외 진출 관련 내용을 확인했어.",
-                "AI 메모리와 HBM 수요 관련 재료도 있었어.",
+                "AI 메모리와 HBM 수요 관련 이슈도 있었어.",
             ],
         )
         self.assertNotIn("삼성전자에서는", " ".join(brief["summary"] for brief in result))
