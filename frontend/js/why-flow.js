@@ -69,7 +69,9 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 && Number(match[2]) === today.month
                 && Number(match[3]) === today.day;
             });
-            const storyboard = Array.isArray(result.keyword_storyboard) ? result.keyword_storyboard : [];
+            // 중앙 화면은 원문 기사 제목·설명을 받지 않는다. 서버가 기사에서
+            // 추출한 사실을 바탕으로 만든 display-only 이슈 브리핑만 사용한다.
+            const storyboard = Array.isArray(result.issue_briefs) ? result.issue_briefs : [];
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5 animate-fade';
             const signalTitle = document.createElement('p');
@@ -82,109 +84,91 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
 
             if (storyboard.length) {
               const storyboardList = document.createElement('div');
-              storyboardList.className = 'space-y-2';
+              storyboardList.className = 'space-y-7';
               const storyboardRows = [];
               storyboard.forEach((event) => {
-                const row = document.createElement('div');
-                row.className = 'flex items-baseline gap-3';
+                const article = document.createElement('article');
+                article.className = 'space-y-2';
+
+                const headline = document.createElement('p');
+                headline.className = `${responseMessageClass} font-semibold`;
                 const timeEl = document.createElement('span');
-                timeEl.className = 'shrink-0 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
-                const timeText = event.time || '';
-                timeEl.textContent = '';
-                const keywordEl = document.createElement('span');
+                timeEl.className = 'mr-2 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+                const titleEl = document.createElement('span');
+                headline.append(timeEl, titleEl);
+
+                const descriptionEl = document.createElement('p');
+                descriptionEl.className = `${responseMessageClass} whitespace-pre-line`;
+
+                const keywordEl = document.createElement('p');
                 keywordEl.className = 'analysis-hashtag gtp-chat-copy font-semibold';
-                const keywordTones = event.keyword_tones && typeof event.keyword_tones === 'object' ? event.keyword_tones : {};
-                const eventToneValues = Object.values(keywordTones);
-                // 방향성이 명시되지 않은 키워드도 흐름 안에서는 같은 색 체계를 사용한다.
-                // 같은 이벤트에 악재가 하나라도 있으면 파랑, 그 외에는 핑크를 기본으로 한다.
-                const fallbackTone = eventToneValues.includes('negative') ? 'negative' : 'positive';
-                const keywordParts = (Array.isArray(event.keywords) ? event.keywords : []).map((keyword) => {
-                  const label = String(keyword).replace(/^#/, '');
-                  const tone = keywordTones[keyword] || keywordTones[label] || fallbackTone;
-                  const span = document.createElement('span');
-                  span.className = tone === 'negative'
-                    ? 'text-[#38BDF8]'
-                    : 'text-[#FF8DA1]';
-                  span.dataset.typingText = `#${label}`;
-                  span.textContent = '';
-                  return span;
+                const keywords = (Array.isArray(event.tags) ? event.tags : [])
+                  .map((keyword) => String(keyword || '').trim().replace(/^#/, ''))
+                  .filter(Boolean)
+                  .slice(0, 3);
+                const keywordParts = keywords.map((label) => {
+                  const keyword = document.createElement('span');
+                  keyword.className = 'text-[#94a3b8] dark:text-[#d4d4d8]';
+                  keyword.dataset.typingText = `#${label}`;
+                  return keyword;
                 });
                 keywordParts.forEach((part, index) => {
-                  if (index) keywordEl.appendChild(document.createTextNode(' '));
+                  if (index) keywordEl.appendChild(document.createTextNode('  '));
                   keywordEl.appendChild(part);
                 });
-                const stockEntitySet = new Set(
-                  (Array.isArray(event.stock_entities) ? event.stock_entities : [])
-                    .map((name) => String(name || '').trim())
-                    .filter(Boolean)
-                );
-                const groundedLabels = (Array.isArray(event.grounded_tags) ? event.grounded_tags : [])
-                  .map((tag) => String(tag || '').trim().replace(/^#/, ''))
-                  .filter(Boolean);
-                const makeTagParts = (labels, inheritEventTone = false) => labels.map((label) => {
-                  const span = document.createElement('span');
-                  span.className = inheritEventTone
-                    ? (fallbackTone === 'negative' ? 'gtp-chat-copy font-medium text-[#38BDF8]' : 'gtp-chat-copy font-medium text-[#FF8DA1]')
-                    : 'gtp-chat-copy font-medium';
-                  span.dataset.typingText = '#' + label;
-                  span.textContent = '';
-                  return span;
-                });
-                const stockParts = makeTagParts(groundedLabels.filter((label) => stockEntitySet.has(label)));
-                const infoParts = makeTagParts(groundedLabels.filter((label) => !stockEntitySet.has(label)), true);
-                const detailsEl = document.createElement('div');
-                detailsEl.className = 'mt-0.5 space-y-0.5';
-                const appendTagLine = (parts) => {
-                  if (!parts.length) return;
-                  const line = document.createElement('div');
-                  line.className = 'gtp-chat-copy font-medium';
-                  parts.forEach((part, index) => {
-                    if (index) line.appendChild(document.createTextNode('  '));
-                    line.appendChild(part);
+
+                const stockNames = [...new Set((Array.isArray(event.stock_names) ? event.stock_names : [])
+                  .map((name) => String(name || '').trim())
+                  .filter(Boolean))].slice(0, 4);
+                let stocksTitle = null;
+                let stocksEl = null;
+                if (stockNames.length) {
+                  stocksTitle = document.createElement('p');
+                  stocksTitle.className = `${responseMessageClass} font-semibold`;
+                  stocksTitle.textContent = '기사에 언급된 종목';
+                  stocksEl = document.createElement('div');
+                  stocksEl.className = 'space-y-1';
+                  stockNames.forEach((name) => {
+                    const stock = document.createElement('p');
+                    stock.className = responseMessageClass;
+                    stock.dataset.typingText = name;
+                    stocksEl.appendChild(stock);
                   });
-                  detailsEl.appendChild(line);
-                };
-                appendTagLine(infoParts);
-                appendTagLine(stockParts);
-                const contentEl = document.createElement('div');
-                contentEl.appendChild(keywordEl);
-                contentEl.appendChild(detailsEl);
-                row.appendChild(timeEl);
-                row.appendChild(contentEl);
-                storyboardList.appendChild(row);
-                storyboardRows.push({ timeEl, timeText, keywordParts, stockParts, infoParts });
+                }
+
+                article.append(headline);
+                if (String(event.summary || '').trim()) article.append(descriptionEl);
+                if (keywordParts.length) article.append(keywordEl);
+                if (stocksTitle && stocksEl) article.append(stocksTitle, stocksEl);
+                storyboardList.appendChild(article);
+                storyboardRows.push({
+                  timeEl,
+                  timeText: event.time || '',
+                  titleEl,
+                  titleText: String(event.headline || '').trim(),
+                  descriptionEl,
+                  descriptionText: String(event.summary || '').trim(),
+                  keywordParts,
+                  stocksEl,
+                });
               });
               block.appendChild(storyboardList);
 
-              for (const { timeEl, timeText, keywordParts, stockParts, infoParts } of storyboardRows) {
-                await typeText(timeEl, timeText);
-                for (const part of keywordParts) {
+              for (const row of storyboardRows) {
+                await typeText(row.timeEl, row.timeText);
+                await typeText(row.titleEl, row.titleText);
+                if (row.descriptionText) await typeText(row.descriptionEl, row.descriptionText);
+                for (const part of row.keywordParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
-                for (const part of infoParts) {
-                  await typeText(part, part.dataset.typingText || '');
-                }
-                for (const part of stockParts) {
-                  await typeText(part, part.dataset.typingText || '');
+                row.stocksEl?.querySelectorAll('[data-typing-text]').forEach((stock) => {
+                  stock.textContent = '';
+                });
+                for (const stock of row.stocksEl?.querySelectorAll('[data-typing-text]') || []) {
+                  await typeText(stock, stock.dataset.typingText || '');
                 }
               }
             }
-  
-            const articles = await window.GaemiGTPNews.renderArticles({
-              evidence: { ...evidence, articles: allNewsItems, matchedArticles: evidence.articles },
-              block,
-              responseMessageClass,
-              openExternalLinkModal: window.GaemiGTPExternalLinkModal.openExternalLinkModal,
-              typeText
-            });
-  
-  
-            window.GaemiGTPRelatedStocks.renderRelatedStocks({
-              articles,
-              stockName,
-              block,
-              responseMessageClass
-            });
   
             const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(block, `${prompt.innerText}\n${block.innerText}`, 'why', stockName);
 
