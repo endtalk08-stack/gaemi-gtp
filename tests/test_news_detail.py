@@ -1,6 +1,6 @@
 import unittest
 
-from backend.services.news_detail import extract_article_text
+from backend.services.news_detail import extract_article_text, extract_structured_article_facts
 
 
 class NewsDetailTests(unittest.TestCase):
@@ -36,6 +36,34 @@ class NewsDetailTests(unittest.TestCase):
 
         self.assertTrue(text.startswith("Alphabet announced"))
         self.assertIn("Gemini enterprise product", text)
+
+
+    def test_extracts_structured_contract_facts_from_selected_article(self):
+        text = (
+            "Google entered a 20-year power agreement with Constellation Energy "
+            "in the United States. The $3.6 billion deal covers 3.59 GW, "
+            "including 890 MW of nuclear capacity."
+        )
+        facts = extract_structured_article_facts(
+            text,
+            {
+                "event_owner": "알파벳",
+                "relation_type": "direct",
+                "source_type": "official_company",
+                "provider_stock": "알파벳",
+            },
+            "알파벳",
+            grounded_tags=["Gemini"],
+        )
+
+        self.assertEqual(facts["product_name"], "Gemini")
+        self.assertEqual(facts["counterparty"], "Constellation Energy")
+        self.assertEqual(facts["amount"], "$3.6 billion")
+        self.assertIn("미국", facts["region"])
+        self.assertEqual(facts["announcer"], "알파벳")
+        self.assertIn("20-year", facts["key_numbers"])
+        self.assertIn("3.59 GW", facts["key_numbers"])
+        self.assertIn("890 MW", facts["key_numbers"])
 
 
 if __name__ == "__main__":

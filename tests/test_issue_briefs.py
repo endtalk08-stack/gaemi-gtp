@@ -225,5 +225,28 @@ class IssueBriefTests(unittest.TestCase):
         self.assertEqual(result[0]["tags"][0], "Gemini")
 
 
+    def test_central_contract_brief_uses_structured_counterparty_and_amount(self):
+        result = build_issue_briefs([{
+            "storyboard_time": "20:32",
+            "storyboard_keywords": ["공급계약"],
+            "article_keywords": ["공급계약"],
+            "stock_entities": ["알파벳"],
+            "detail_facts": {
+                "product_name": "",
+                "counterparty": "Constellation Energy",
+                "amount": "$3.6 billion",
+                "region": ["미국"],
+                "announcer": "알파벳",
+                "key_numbers": ["20-year", "3.59 GW", "890 MW"],
+            },
+        }], "알파벳")
+
+        self.assertEqual(result[0]["headline"], "공급 계약 이슈")
+        self.assertEqual(
+            result[0]["summary"],
+            "Constellation Energy와 계약, 규모 $3.6 billion, 20-year 관련 내용을 확인했어.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

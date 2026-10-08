@@ -10,7 +10,7 @@ from backend.analysis.news import (
 )
 
 from .issue_briefs import build_issue_briefs, build_news_test_articles
-from .news_detail import read_selected_article_details
+from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
 
 
@@ -136,6 +136,18 @@ def build_stock_news_result(
                     list(item.get("grounded_tags") or [])
                     + list(detail_result.get("grounded_tags") or [])
                 ))
+                detail_owner = str(detail_result.get("event_owner") or "").strip()
+                detail_relation = str(detail_result.get("relation_type") or "").strip()
+                facts_item = dict(item)
+                if detail_owner and detail_relation == "direct":
+                    facts_item["event_owner"] = detail_owner
+                    facts_item["relation_type"] = detail_relation
+                item["detail_facts"] = extract_structured_article_facts(
+                    detail_text,
+                    facts_item,
+                    stock_name,
+                    grounded_tags=item.get("grounded_tags") or [],
+                )
                 item["detail_read"] = True
         print(
             f"[analyze news trace] stock={stock_name} part=detail done "

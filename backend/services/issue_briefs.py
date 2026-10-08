@@ -252,10 +252,15 @@ _EVENT_SUBJECT_BLOCKLIST = {
 
 
 def _concrete_event_subject(item, labels, stock_names):
-    """Use only already-grounded product/service tags to clarify generic events."""
+    """Use only structured/grounded product facts to clarify generic events."""
     primary = str(next(iter(labels or []), "") or "").strip().lstrip("#")
     if primary != "제품공개":
         return ""
+
+    detail_product = str((item.get("detail_facts") or {}).get("product_name") or "").strip()
+    if detail_product:
+        return detail_product
+
     stock_set = {str(name or "").strip() for name in stock_names or []}
     for value in item.get("grounded_tags") or []:
         tag = str(value or "").strip().lstrip("#")
@@ -263,6 +268,71 @@ def _concrete_event_subject(item, labels, stock_names):
             continue
         return tag
     return ""
+
+
+def _structured_detail_summary(item, labels, summary_index=0):
+    """Render a few explicit detail facts without copying article prose."""
+    detail = item.get("detail_facts") or {}
+    if not isinstance(detail, dict):
+        return ""
+
+    label_set = {
+        str(value or "").strip().lstrip("#")
+        for value in labels or []
+        if str(value or "").strip()
+    }
+    contract_labels = {"공급계약", "장기공급계약", "계약체결", "수주·계약", "대형수주", "신규수주"}
+    investment_labels = {"신규투자", "투자확대", "설비투자", "인수합병", "지분인수"}
+
+    facts = []
+    counterparty = str(detail.get("counterparty") or "").strip()
+    amount = str(detail.get("amount") or "").strip()
+    regions = [
+        str(value or "").strip()
+        for value in (detail.get("region") or [])
+        if str(value or "").strip()
+    ]
+    key_numbers = [
+        str(value or "").strip()
+        for value in (detail.get("key_numbers") or [])
+        if str(value or "").strip()
+    ]
+
+    if label_set & contract_labels:
+        if counterparty:
+            particle = _korean_particle(counterparty, "과", "와")
+            facts.append(f"{counterparty}{particle} 계약")
+        if amount:
+            facts.append(f"규모 {amount}")
+        for value in key_numbers:
+            if value not in facts:
+                facts.append(value)
+            if len(facts) >= 3:
+                break
+    elif label_set & investment_labels:
+        if counterparty:
+            facts.append(counterparty)
+        if amount:
+            facts.append(f"규모 {amount}")
+        if regions:
+            facts.append(regions[0])
+    elif label_set & {"해외진출", "시장진출", "사업확대"}:
+        if regions:
+            facts.append(regions[0])
+        if amount:
+            facts.append(f"규모 {amount}")
+
+    facts = list(dict.fromkeys(facts))[:3]
+    if not facts:
+        return ""
+
+    endings = (
+        "관련 내용을 확인했어.",
+        "관련 내용도 확인했어.",
+        "관련 핵심 내용이야.",
+    )
+    ending = endings[min(max(int(summary_index or 0), 0), len(endings) - 1)]
+    return f"{', '.join(facts)} {ending}"
 
 
 def _stock_names(item, fallback):
@@ -387,6 +457,14 @@ def build_issue_briefs(items, stock_name, limit=3):
                 summary = summary.replace("제품 공개", f"{concrete_subject} 제품 공개", 1)
             else:
                 summary = f"{concrete_subject} 제품 공개 관련 내용을 확인했어."
+
+        structured_summary = _structured_detail_summary(
+            item,
+            labels,
+            summary_index=len(briefs),
+        )
+        if structured_summary:
+            summary = structured_summary
 
         if not headline or not summary:
             continue
