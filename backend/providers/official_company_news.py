@@ -17,6 +17,7 @@ from email.utils import parsedate_to_datetime
 
 
 REQUEST_TIMEOUT = 2.2
+MAX_ANALYSIS_DESCRIPTION_CHARS = 1200
 _CACHE_TTL = 180
 _CACHE = {}
 _CACHE_LOCK = threading.Lock()
@@ -47,6 +48,16 @@ OFFICIAL_FEEDS = {
 def _clean_text(value):
     text = html.unescape(re.sub(r"<[^>]+>", " ", str(value or "")))
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _analysis_excerpt(value, max_chars=MAX_ANALYSIS_DESCRIPTION_CHARS):
+    """Bound official-feed text before it reaches the shared scoring loops."""
+    text = _clean_text(value)
+    limit = max(1, int(max_chars))
+    if len(text) <= limit:
+        return text
+    shortened = text[:limit].rsplit(" ", 1)[0].strip()
+    return shortened or text[:limit].strip()
 
 
 def _parse_date(value):
@@ -108,7 +119,12 @@ def _parse_feed_bytes(payload, *, stock_name, source_name, feed_url):
         title = _clean_text(_first_child_text(entry, {"title"}))
         if not title:
             continue
-        description = _clean_text(_first_child_text(entry, {"description", "summary", "content"}))
+        description_source = (
+            _first_child_text(entry, {"description"})
+            or _first_child_text(entry, {"summary"})
+            or _first_child_text(entry, {"content"})
+        )
+        description = _analysis_excerpt(description_source)
         published_at = _parse_date(_first_child_text(entry, {"pubdate", "published", "updated", "date"}))
         link = _entry_link(entry)
         if not link:

@@ -75,5 +75,48 @@ class SecProviderTests(unittest.TestCase):
         self.assertIn("sec.gov/Archives/edgar/data/1652044/", rows[0]["url"])
 
 
+    def test_prefers_summary_over_full_content_and_caps_analysis_text(self):
+        long_content = "full article body " * 500
+        payload = f"""<?xml version="1.0"?>
+        <feed>
+          <entry>
+            <title>Introducing the Gemini agent</title>
+            <content>{long_content}</content>
+            <summary>Short official summary for Gemini.</summary>
+            <published>2026-10-08T16:00:00Z</published>
+            <link href="https://blog.google/example" rel="alternate" />
+          </entry>
+        </feed>""".encode("utf-8")
+
+        rows = _parse_feed_bytes(
+            payload,
+            stock_name="알파벳",
+            source_name="Google Blog",
+            feed_url="https://blog.google/rss/",
+        )
+
+        self.assertEqual(rows[0]["description"], "Short official summary for Gemini.")
+
+    def test_caps_long_official_description_before_scoring(self):
+        long_description = "Google announced a Gemini product update. " * 100
+        payload = f"""<?xml version="1.0"?>
+        <rss><channel><item>
+          <title>Google launches new Gemini product</title>
+          <description>{long_description}</description>
+          <pubDate>Thu, 08 Oct 2026 16:00:00 GMT</pubDate>
+          <link>https://blog.google/example</link>
+        </item></channel></rss>""".encode("utf-8")
+
+        rows = _parse_feed_bytes(
+            payload,
+            stock_name="알파벳",
+            source_name="Google Blog",
+            feed_url="https://blog.google/rss/",
+        )
+
+        self.assertLessEqual(len(rows[0]["description"]), 1200)
+        self.assertTrue(rows[0]["description"].startswith("Google announced"))
+
+
 if __name__ == "__main__":
     unittest.main()
