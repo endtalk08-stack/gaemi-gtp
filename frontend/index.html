@@ -13,7 +13,7 @@
   <script>tailwind.config = { darkMode: 'class' }</script>
   <script>try { const t = localStorage.getItem('gaemiGTP_theme_v1'); if (t !== 'light') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); document.documentElement.dataset.theme = (t === 'light' ? 'light' : 'dark'); } catch (_) { document.documentElement.classList.add('dark'); }</script>
   <link rel="stylesheet" href="theme/theme.css?v=20261005-header-system-v1">
-  <link rel="stylesheet" href="css/app.css?v=20261006-central-loading-v1">
+  <link rel="stylesheet" href="css/app.css?v=20261008-home-composer-v1">
   <link rel="stylesheet" href="css/chat-tools.css?v=20261008-news-reaction-v3">
   <link rel="stylesheet" href="css/stock-calculator.css?v=20261005-v4">
   <link rel="stylesheet" href="css/memo-pad.css?v=20261005-v2">
@@ -228,31 +228,29 @@
       </div>
     </header>
 
-    <div class="flex-1 flex flex-col items-center justify-center px-4 -mt-12 w-full max-w-3xl mx-auto text-center space-y-6">
-      <div class="space-y-1.5">
-        <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-[#0f172a] gtp-dark-text">gaemiGTP</h1>
-        <p class="text-sm sm:text-base text-[#64748b] dark:text-[#a1a1aa] font-medium">종목명 하나면 10초 만에 끝납니다</p>
-      </div>
+    <div class="gaemi-home-center">
+      <h1 class="gaemi-home-heading">시장의 순간 움직임</h1>
 
-      <div class="w-full relative">
-        <form class="relative flex items-center" onsubmit="event.preventDefault(); handleHeroSearch();">
-          <input 
-            id="heroStockInput" 
-            type="text" 
-            placeholder="종목명 입력 (예: 삼성전자, SK하이닉스, NVDA, TSLA)" 
-            class="w-full bg-white dark:bg-[#18191d] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-6 py-4 text-sm sm:text-base text-[#0f172a] gtp-dark-text placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-xl transition"
+      <div class="gaemi-home-search">
+        <form class="gaemi-home-composer" onsubmit="event.preventDefault(); handleHeroSearch();">
+          <input
+            id="heroStockInput"
+            type="text"
+            autocomplete="off"
+            placeholder="관심 종목명을 입력하세요"
+            aria-label="관심 종목명 입력"
           >
-          <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-2">
-            <button type="button" onclick="toggleModeDropdown('hero')" id="heroModeBtn" class="flex items-center gap-1 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text px-2 py-1.5 rounded-lg hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition cursor-pointer">
-              <span id="heroModeLabel">gaemi</span> <span class="text-[10px]">▲</span>
+          <div class="gaemi-home-composer__actions">
+            <button type="button" onclick="toggleModeDropdown('hero')" id="heroModeBtn" class="gaemi-home-mode" aria-label="분석 모드 선택">
+              <span id="heroModeLabel">gaemi</span>
+              <span class="gaemi-home-mode__chevron" aria-hidden="true">▲</span>
             </button>
-            <button type="submit" class="w-9 h-9 rounded-full bg-[#0f172a] dark:bg-[#2a2b30] hover:bg-[#334155] dark:hover:bg-white text-white dark:text-[#a1a1aa] dark:hover:text-black flex items-center justify-center transition cursor-pointer shadow">
-              <span class="text-base font-black">↑</span>
+            <button type="submit" class="gaemi-home-submit" aria-label="종목 분석 시작">
+              <span aria-hidden="true">↑</span>
             </button>
           </div>
         </form>
 
-        <!-- 히어로 개미/인포/프로 드롭다운 -->
         <div id="heroModeMenu" class="absolute right-12 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
           <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
             <div class="text-left flex-1">
@@ -278,14 +276,19 @@
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
-        <button type="button" onclick="openStockInChat('삼성전자')" class="text-xs bg-white dark:bg-[#18191d] hover:bg-[#f1f5f9] dark:hover:bg-[#262830] text-[#334155] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text border border-[#cbd5e1] dark:border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">삼성전자</button>
-        <button type="button" onclick="openStockInChat('SK하이닉스')" class="text-xs bg-white dark:bg-[#18191d] hover:bg-[#f1f5f9] dark:hover:bg-[#262830] text-[#334155] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text border border-[#cbd5e1] dark:border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">SK하이닉스</button>
-        <button type="button" onclick="openStockInChat('현대차')" class="text-xs bg-white dark:bg-[#18191d] hover:bg-[#f1f5f9] dark:hover:bg-[#262830] text-[#334155] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text border border-[#cbd5e1] dark:border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">현대차</button>
-        <button type="button" onclick="openStockInChat('엔비디아')" class="text-xs bg-white dark:bg-[#18191d] hover:bg-[#f1f5f9] dark:hover:bg-[#262830] text-[#334155] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text border border-[#cbd5e1] dark:border-[#282a30] px-4 py-2 rounded-full transition cursor-pointer">엔비디아</button>
+      <div class="gaemi-home-shortcuts" aria-label="홈 바로가기">
+        <button type="button" onclick="showLeftSidebarHomeSection('home')">프로젝트</button>
+        <button type="button" onclick="openLeftSidebarSection('context')">관심종목</button>
+        <button type="button" onclick="openLeftSidebarSection('plugin')">플러그인</button>
+      </div>
+
+      <div class="gaemi-home-prompts" aria-label="종목 기능 예시">
+        <button type="button" onclick="openStockInChat('삼성전자')">삼성전자 오늘 움직임 알려줘</button>
+        <button type="button" onclick="openStockInChat('SK하이닉스')">SK하이닉스 20일 큰손 평균단가 알려줘</button>
+        <button type="button" onclick="openStockInChat('엔비디아')">엔비디아 이슈 발생 이후 몇 % 움직였어?</button>
       </div>
     </div>
-    <div class="h-6"></div>
+    <div class="gaemi-home-spacer" aria-hidden="true"></div>
   </div>
 
     <header class="gaemi-app-header gaemi-chat-top flex items-center justify-between shrink-0 z-10">
