@@ -165,7 +165,7 @@
 .news-reaction__title {
   margin: 0 0 1px;
   color: var(--gtp-muted);
-  font-size: var(--gtp-type-meta);
+  font-size: var(--gtp-type-body);
   font-weight: 600;
   line-height: 1.4;
 }
@@ -180,7 +180,7 @@
 
 .news-reaction__name,
 .news-reaction__value {
-  font-size: var(--gtp-type-meta);
+  font-size: var(--gtp-type-body);
   font-weight: 600;
   line-height: 1.25;
 }
