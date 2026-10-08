@@ -680,6 +680,49 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
   color: var(--gtp-text);
 }
 
+/* Home examples: a single, quiet entrance. Odd/even rows alternate direction,
+   then stay fixed so the home screen does not keep moving. */
+.gaemi-home-prompts button:nth-child(odd) {
+  animation: gaemiHomePromptFromLeft .6s ease-out both;
+}
+
+.gaemi-home-prompts button:nth-child(even) {
+  animation: gaemiHomePromptFromRight .6s ease-out both;
+}
+
+.gaemi-home-prompts button:nth-child(2) { animation-delay: .14s; }
+.gaemi-home-prompts button:nth-child(3) { animation-delay: .28s; }
+.gaemi-home-prompts button:nth-child(4) { animation-delay: .42s; }
+.gaemi-home-prompts button:nth-child(5) { animation-delay: .56s; }
+
+@keyframes gaemiHomePromptFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes gaemiHomePromptFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gaemi-home-prompts button {
+    animation: none;
+  }
+}
+
 .gaemi-home-spacer {
   height: 24px;
   flex: 0 0 auto;
