@@ -5,8 +5,10 @@ from backend.services.news_feed import fetch_stock_news
 
 
 class StockNewsQueryTests(unittest.TestCase):
+    @patch("backend.services.news_feed.sec_filings.fetch_recent_filings", return_value=[])
+    @patch("backend.services.news_feed.official_company_news.fetch_company_news", return_value=[])
     @patch("backend.services.news_feed._fetch_queries", return_value=[])
-    def test_us_stock_uses_all_company_aliases(self, fetch_queries):
+    def test_us_stock_uses_all_company_aliases(self, fetch_queries, official_news, sec_news):
         fetch_stock_news(
             "알파벳",
             market="미국",

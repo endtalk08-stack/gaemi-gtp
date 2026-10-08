@@ -1,4 +1,4 @@
-"""Shared NAVER news feed normalization for the panel and central chat."""
+"""Shared news feed normalization for the panel and central chat."""
 
 import datetime
 import html
@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.utils import parsedate_to_datetime
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE
-from backend.providers import naver_news
+from backend.providers import naver_news, official_company_news, sec_filings
 
 _CACHE = {}
 _CACHE_TTL = 120
@@ -268,7 +268,7 @@ def _match_movement_signals(item):
 
 def _enrich_item(item):
     enriched = dict(item)
-    enriched["region"] = _region_for_item(item)
+    enriched["region"] = item.get("region") or _region_for_item(item)
     enriched["stocks"] = _match_stocks(item)
     enriched["themes"] = _match_rules(item, THEME_RULES)
     enriched["issues"] = _match_rules(item, ISSUE_RULES)
@@ -364,6 +364,11 @@ def _stock_analysis_relevance(item, stock_name):
     title = str(item.get("title") or "").lower()
     description = str(item.get("description") or "").lower()
 
+    provider_stock = str(item.get("provider_stock") or "").strip().lower()
+    trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
+    if trusted_source and provider_stock == str(stock_name or "").strip().lower():
+        return 3
+
     if any(alias in title for alias in aliases):
         return 3
 
@@ -396,15 +401,26 @@ def _stock_analysis_relevance(item, stock_name):
     return 0
 
 
+def _primary_us_ticker(stock_name):
+    aliases = STOCK_UNIVERSE.get("미국", {}).get(stock_name) or []
+    for value in aliases:
+        token = str(value or "").strip().upper()
+        if re.fullmatch(r"[A-Z]{1,5}(?:\.[A-Z])?", token):
+            return token
+    return ""
+
+
 def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=True):
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
 
     queries = [stock_name]
+    stock_region = ""
     for region, stocks in STOCK_UNIVERSE.items():
         aliases = stocks.get(stock_name)
         if aliases:
+            stock_region = region
             # Keep the existing three-alias cap for domestic stocks, but do not
             # cut off US company-name aliases behind ticker symbols.  Names such
             # as 구글/google/alphabet are important NAVER search terms for 알파벳.
@@ -412,19 +428,57 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
             queries = list(dict.fromkeys([stock_name] + search_aliases))
             break
 
-    # 종목 직접 검색은 분석의 핵심 경로다.
-    stock_items = _fetch_queries(queries, category="종목", per_query=max(20, limit))
+    is_us_stock = stock_region == "미국" or market == "미국"
+    ticker = _primary_us_ticker(stock_name) if is_us_stock else ""
 
-    # 특징주/시황 6개 검색은 보조 후보군이다. 일반 뉴스/상세 화면에서는 유지하되,
-    # /analyze hot path에서는 호출 수 누적 때문에 선택적으로 생략할 수 있게 한다.
-    market_story_items = []
-    if include_market_stories:
-        market_story_items = _fetch_queries(
-            MARKET_STORY_QUERIES,
+    # Keep independent providers concurrent so adding official/SEC sources does
+    # not serialize extra network latency onto the existing NAVER hot path.
+    jobs = {}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        jobs["stock"] = pool.submit(
+            _fetch_queries,
+            queries,
             category="종목",
-            per_query=max(20, min(int(limit), 30)),
+            per_query=max(20, limit),
         )
-    items = [_enrich_item(x) for x in _dedupe(stock_items + market_story_items)]
+        if include_market_stories:
+            jobs["market"] = pool.submit(
+                _fetch_queries,
+                MARKET_STORY_QUERIES,
+                category="종목",
+                per_query=max(20, min(int(limit), 30)),
+            )
+        if is_us_stock:
+            jobs["official"] = pool.submit(
+                official_company_news.fetch_company_news,
+                stock_name,
+                min(max(6, int(limit)), 15),
+            )
+            jobs["sec"] = pool.submit(
+                sec_filings.fetch_recent_filings,
+                stock_name,
+                ticker,
+                min(max(4, int(limit)), 10),
+                MAX_NEWS_AGE_DAYS,
+            )
+
+        provider_rows = {}
+        for name, future in jobs.items():
+            try:
+                provider_rows[name] = future.result()
+            except Exception:
+                provider_rows[name] = []
+
+    stock_items = provider_rows.get("stock") or []
+    market_story_items = provider_rows.get("market") or []
+    official_items = provider_rows.get("official") or []
+    sec_items = provider_rows.get("sec") or []
+
+    items = [
+        _enrich_item(x)
+        for x in _dedupe(stock_items + market_story_items + official_items + sec_items)
+        if _item_age_ok(x)
+    ]
     relevant = []
     for item in items:
         if _is_stock_roundup(item):

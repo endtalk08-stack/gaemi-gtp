@@ -521,11 +521,20 @@ def _stock_region(stock_name):
 
 
 def _direct_score(item, stock_name):
+    provider_stock = str(item.get("provider_stock") or "").strip().lower()
+    trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
+    if trusted_source and provider_stock == str(stock_name or "").strip().lower():
+        return 35
     title = str(item.get("title") or "").lower()
     return 35 if any(alias in title for alias in _stock_aliases(stock_name)) else 0
 
 
 def _context_relevance_score(item, stock_name):
+    provider_stock = str(item.get("provider_stock") or "").strip().lower()
+    trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
+    if trusted_source and provider_stock == str(stock_name or "").strip().lower():
+        return 35
+
     title = str(item.get("title") or "").lower()
     description = str(item.get("description") or "").lower()
     aliases = _stock_aliases(stock_name)
@@ -1240,8 +1249,13 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                         })
         return mentions
 
-    def event_owner_for_detail(detail, title, description):
+    def event_owner_for_detail(detail, title, description, item):
         """Assign the representative event to the nearest named company, without inference."""
+        provider_stock = str(item.get("provider_stock") or "").strip()
+        trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
+        if trusted_source and compact(provider_stock).lower() == compact(stock_name).lower():
+            return stock_name, "direct"
+
         source = str((detail or {}).get("source") or "")
         text = description if source.startswith("description") else title
         evidence = str((detail or {}).get("evidence") or "").strip()
@@ -1591,6 +1605,10 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             continue
 
         stock_entities = _related_stock_entities(item)
+        provider_stock = str(item.get("provider_stock") or "").strip()
+        trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
+        if trusted_source and provider_stock and provider_stock not in stock_entities:
+            stock_entities.append(provider_stock)
         grounded_tags = _grounded_entity_tags(item)
 
         try:
@@ -1624,7 +1642,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             grounded_tags = list(dict.fromkeys(grounded_tags))
 
         for detail in selected:
-            owner, relation = event_owner_for_detail(detail, title, description)
+            owner, relation = event_owner_for_detail(detail, title, description, item)
             detail["event_owner"] = owner
             detail["relation_type"] = relation
 
