@@ -241,12 +241,11 @@ def _compose_brief_summary(headline, remaining, fallback_stock):
     )
     if headline.endswith(uncertainty_endings):
         particle = _korean_particle(headline, "이", "가")
-        return f"{stock}는 {headline}{particle} 나오고, {', '.join(extra)}도 함께 언급됐어요."
+        return f"{stock}는 {headline}{particle} 나오고, {', '.join(extra)} 관련 내용도 확인됐어요."
 
     facts = [headline, *extra]
     joined = _join_brief_facts(facts)
-    particle = _korean_particle(facts[-1], "이", "가")
-    return f"{stock} 관련해서는 {joined}{particle} 함께 언급됐어요."
+    return f"{stock}에서는 {joined} 관련 내용도 확인됐어요."
 
 
 def _brief_text(labels, themes, issues, stock_names, fallback_stock):
@@ -291,7 +290,8 @@ def _brief_text(labels, themes, issues, stock_names, fallback_stock):
         return headline, ""
 
     summary = _compose_brief_summary(headline, remaining, fallback_stock)
-    return headline, summary
+    display_headline = headline if headline.endswith("이슈") else f"{headline} 이슈"
+    return display_headline, summary
 def build_issue_briefs(items, stock_name, limit=3):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []
