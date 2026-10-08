@@ -511,6 +511,15 @@ def _stock_aliases(stock_name):
     return list(dict.fromkeys(alias for alias in aliases if alias))
 
 
+def _stock_region(stock_name):
+    """Return the catalog region for a canonical stock name."""
+    stock = str(stock_name or "").strip().lower()
+    for region, stocks in STOCK_UNIVERSE.items():
+        if any(str(name).strip().lower() == stock for name in stocks):
+            return region
+    return ""
+
+
 def _direct_score(item, stock_name):
     title = str(item.get("title") or "").lower()
     return 35 if any(alias in title for alias in _stock_aliases(stock_name)) else 0
@@ -673,8 +682,12 @@ def score_stock_news(items, stock_name):
         scored.append(item)
     scored.sort(key=lambda item: (item.get("flow_score", 0), item.get("pub_date", "")), reverse=True)
 
-    # Stock-news analysis/display uses Korean-language articles only.
-    # Collection and the existing relevance/material scoring stay unchanged.
+    # Domestic stock analysis keeps the existing Korean-language guard.
+    # US stocks must retain English candidates so they can reach the later
+    # translation/keyword stages instead of disappearing here.
+    if _stock_region(stock_name) == "미국":
+        return scored
+
     def has_korean_text(item):
         text = f"{item.get('title') or ''} {item.get('description') or ''}"
         return any("\uac00" <= char <= "\ud7a3" for char in text)
