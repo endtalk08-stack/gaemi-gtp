@@ -247,6 +247,40 @@ def select_keyword_storyboard_news(items, limit=3):
         except (TypeError, ValueError):
             return default
 
+    def _relation_type(source):
+        relation = str(source.get("relation_type") or "unknown").strip().lower()
+        return relation if relation in {"direct", "indirect", "mention_only"} else "unknown"
+
+    def _representative_detail_source(source):
+        keyword = str(source.get("storyboard_keyword") or "").strip()
+        for detail in source.get("article_keyword_details") or []:
+            if str((detail or {}).get("label") or "").strip() == keyword:
+                return str((detail or {}).get("source") or "").strip()
+        return ""
+
+    def _central_candidate_allowed(source):
+        """Keep central issues stock-owned; preserve legacy items with no ownership annotation."""
+        relation = _relation_type(source)
+        if relation == "mention_only":
+            return False
+        if relation != "indirect":
+            return True
+
+        # Indirect events are allowed only when the selected stock has a strong
+        # description-level transmission path.  A different company's title
+        # event (for example Samsung HBM news that merely mentions Google later)
+        # must stay in related news, not become the selected stock's central issue.
+        tier = max(0, int(_number(source.get("analysis_relevance_tier"))))
+        event_strength = max(0.0, _number(source.get("analysis_event_strength")))
+        material_signal = bool(source.get("analysis_material_signal"))
+        detail_source = _representative_detail_source(source)
+        return (
+            tier >= 2
+            and event_strength >= 2
+            and material_signal
+            and detail_source.startswith("description")
+        )
+
     def _selection_score(source):
         """Rank evidence without inventing a market interpretation."""
         tier = max(0, int(_number(source.get("analysis_relevance_tier"))))
@@ -255,9 +289,12 @@ def select_keyword_storyboard_news(items, limit=3):
         direct = max(0.0, _number(breakdown.get("direct_stock")))
         material = max(0.0, _number(breakdown.get("material_strength")))
         signal = max(0.0, _number(breakdown.get("movement_signal")))
+        relation = _relation_type(source)
+        relation_bonus = 300.0 if relation == "direct" else 40.0 if relation == "indirect" else 0.0
 
         return (
-            (tier * 100)
+            relation_bonus
+            + (tier * 100)
             + min(event_strength, 8.0) * 8.0
             + min(direct, 35.0)
             + min(material, 20.0)
@@ -344,6 +381,9 @@ def select_keyword_storyboard_news(items, limit=3):
 
     candidates = []
     for source in items or []:
+        if not _central_candidate_allowed(source):
+            continue
+
         keywords = [
             str(value).strip()
             for value in (source.get("storyboard_keywords") or [])

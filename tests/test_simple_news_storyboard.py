@@ -3,13 +3,30 @@ import unittest
 from backend.analysis.news.storyboard import select_keyword_storyboard_news
 
 
-def article(*, keyword, tier, strength, published_at, flow_score=0, title=""):
+def article(
+    *,
+    keyword,
+    tier,
+    strength,
+    published_at,
+    flow_score=0,
+    title="",
+    relation_type="unknown",
+    material_signal=True,
+    detail_source="title-rule",
+):
     return {
         "title": title,
         "storyboard_keywords": [keyword] if keyword else [],
         "storyboard_keyword_tones": {keyword: "positive"} if keyword else {},
+        "article_keyword_details": (
+            [{"label": keyword, "source": detail_source, "evidence": keyword}]
+            if keyword else []
+        ),
         "analysis_relevance_tier": tier,
         "analysis_event_strength": strength,
+        "analysis_material_signal": material_signal,
+        "relation_type": relation_type,
         "flow_score": flow_score,
         "flow_score_breakdown": {
             "direct_stock": 35 if tier == 3 else 0,
@@ -238,6 +255,76 @@ class NotableFlowSelectionTests(unittest.TestCase):
             ]),
             1,
         )
+
+
+    def test_direct_event_beats_higher_scored_indirect_event(self):
+        direct = article(
+            keyword="실적전망상향",
+            tier=2,
+            strength=2,
+            published_at="2026-10-08T09:00:00+00:00",
+            relation_type="direct",
+            title="Alphabet raises guidance",
+        )
+        indirect = article(
+            keyword="HBM가격상승",
+            tier=3,
+            strength=8,
+            published_at="2026-10-08T10:00:00+00:00",
+            relation_type="indirect",
+            detail_source="description-rule",
+            title="삼성전자 HBM 가격 상승",
+        )
+
+        selected = select_keyword_storyboard_news([indirect, direct], limit=1)
+
+        self.assertEqual(selected[0]["storyboard_keyword"], "실적전망상향")
+
+    def test_mention_only_article_is_excluded_from_central_storyboard(self):
+        mention = article(
+            keyword="AI데이터센터",
+            tier=3,
+            strength=5,
+            published_at="2026-10-08T10:00:00+00:00",
+            relation_type="mention_only",
+            title="AI 업계 동향 속 구글 언급",
+        )
+
+        selected = select_keyword_storyboard_news([mention], limit=3)
+
+        self.assertEqual(selected, [])
+
+    def test_other_company_title_event_stays_out_of_selected_stock_central_issue(self):
+        samsung_hbm = article(
+            keyword="HBM가격상승",
+            tier=2,
+            strength=8,
+            published_at="2026-10-08T10:00:00+00:00",
+            relation_type="indirect",
+            material_signal=True,
+            detail_source="title-rule",
+            title="삼성전자 HBM 가격 상승, 구글 AI 투자 확대",
+        )
+
+        selected = select_keyword_storyboard_news([samsung_hbm], limit=3)
+
+        self.assertEqual(selected, [])
+
+    def test_strong_description_level_indirect_event_can_remain_candidate(self):
+        indirect = article(
+            keyword="공급부족",
+            tier=2,
+            strength=3,
+            published_at="2026-10-08T10:00:00+00:00",
+            relation_type="indirect",
+            material_signal=True,
+            detail_source="description-rule",
+            title="AI 공급망 변화",
+        )
+
+        selected = select_keyword_storyboard_news([indirect], limit=3)
+
+        self.assertEqual([item["storyboard_keyword"] for item in selected], ["공급부족"])
 
 
 if __name__ == "__main__":
