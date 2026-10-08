@@ -402,10 +402,14 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
         return []
 
     queries = [stock_name]
-    for stocks in STOCK_UNIVERSE.values():
+    for region, stocks in STOCK_UNIVERSE.items():
         aliases = stocks.get(stock_name)
         if aliases:
-            queries = list(dict.fromkeys([stock_name] + aliases[:3]))
+            # Keep the existing three-alias cap for domestic stocks, but do not
+            # cut off US company-name aliases behind ticker symbols.  Names such
+            # as 구글/google/alphabet are important NAVER search terms for 알파벳.
+            search_aliases = aliases if region == "미국" else aliases[:3]
+            queries = list(dict.fromkeys([stock_name] + search_aliases))
             break
 
     # 종목 직접 검색은 분석의 핵심 경로다.
