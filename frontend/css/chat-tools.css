@@ -146,3 +146,118 @@
     font-size: 11px;
   }
 }
+
+
+/* Central news: related-stock reaction from the article timestamp to latest 5m price. */
+.news-reaction {
+  width: min(430px, 100%);
+  margin-top: 2px;
+  display: grid;
+  gap: 7px;
+  color: var(--gtp-text-2);
+  font-family: var(--gtp-font-family);
+}
+
+.news-reaction[hidden] {
+  display: none;
+}
+
+.news-reaction__title {
+  margin: 0 0 1px;
+  color: var(--gtp-muted);
+  font-size: var(--gtp-type-meta);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.news-reaction__row {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(110px, 1fr) 76px;
+  align-items: center;
+  gap: 9px;
+  min-height: 20px;
+}
+
+.news-reaction__name,
+.news-reaction__value {
+  font-size: var(--gtp-type-meta);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.news-reaction__name {
+  overflow: hidden;
+  color: var(--gtp-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.news-reaction__value {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.news-reaction__bar {
+  position: relative;
+  display: block;
+  height: 12px;
+}
+
+.news-reaction__bar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--gtp-border-strong);
+  transform: translateY(-50%);
+}
+
+.news-reaction__axis {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--gtp-muted);
+  transform: translateX(-50%);
+}
+
+.news-reaction__fill {
+  position: absolute;
+  top: 4px;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.news-reaction__fill--up {
+  background: #f472b6;
+}
+
+.news-reaction__fill--down {
+  background: #38bdf8;
+}
+
+.news-reaction__fill--flat {
+  background: var(--gtp-faint);
+}
+
+.news-reaction__value--up {
+  color: #f472b6;
+}
+
+.news-reaction__value--down {
+  color: #38bdf8;
+}
+
+.news-reaction__value--flat {
+  color: var(--gtp-muted);
+}
+
+@media (max-width: 520px) {
+  .news-reaction__row {
+    grid-template-columns: minmax(66px, auto) minmax(96px, 1fr) 72px;
+    gap: 7px;
+  }
+}

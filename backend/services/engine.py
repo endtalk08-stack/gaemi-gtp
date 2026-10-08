@@ -21,6 +21,7 @@ from zoneinfo import ZoneInfo
 from .news_result import build_stock_news_result
 from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
+from ..providers.market_price import fetch_news_price_reaction
 
 from .market_levels import (
     calculate_volume_profile_levels,
@@ -3245,6 +3246,53 @@ def get_live_calendar_data(stock_name, ticker_symbol):
     return tonight_card
 
 
+def _attach_news_price_reactions(news_result):
+    """Attach cached post-news price reactions to central issue briefs only."""
+    if not isinstance(news_result, dict):
+        return news_result
+
+    briefs = news_result.get("issue_briefs") or []
+    if not briefs:
+        return news_result
+
+    active_tickers = set()
+    reaction_cache = {}
+    for brief in briefs:
+        published_at = str(brief.get("reaction_at") or "").strip()
+        reactions = []
+        if published_at:
+            for stock_name in (brief.get("stock_names") or [])[:3]:
+                name = str(stock_name or "").strip()
+                ticker = TICKERS.get(name)
+                if not name or not ticker:
+                    continue
+                if ticker not in active_tickers:
+                    if len(active_tickers) >= 3:
+                        continue
+                    active_tickers.add(ticker)
+                cache_key = (ticker, published_at)
+                try:
+                    if cache_key not in reaction_cache:
+                        reaction_cache[cache_key] = fetch_news_price_reaction(ticker, published_at)
+                    reaction = reaction_cache[cache_key]
+                except Exception as exc:
+                    print(f"[뉴스 반응] {name} 계산 예외: {type(exc).__name__}: {exc}")
+                    continue
+                if not reaction or reaction.get("status") != "ready":
+                    continue
+                change_pct = reaction.get("change_pct")
+                if change_pct is None:
+                    continue
+                reactions.append({
+                    "name": name,
+                    "change_pct": change_pct,
+                })
+        # No waiting/error placeholder: unavailable reaction data stays invisible.
+        brief["stock_reactions"] = reactions
+
+    return news_result
+
+
 def analyze_stock(raw_name='SK하이닉스'):
     raw_name = str(raw_name or 'SK하이닉스').strip()
     ticker_symbol = TICKERS.get(raw_name)
@@ -3313,6 +3361,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 limit=50,
                 include_market_stories=False,
             )
+            news_result = _attach_news_price_reactions(news_result)
             _trace_stage("news done", stage_started)
 
             stage_started = time.monotonic()
@@ -3367,6 +3416,7 @@ def analyze_stock(raw_name='SK하이닉스'):
                 limit=50,
                 include_market_stories=False,
             )
+            news_result = _attach_news_price_reactions(news_result)
 
             try:
                 us_filings_raw = fetch_us_official_filings(ticker_symbol, days=30, max_results=30)

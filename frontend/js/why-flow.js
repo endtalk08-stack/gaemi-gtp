@@ -117,20 +117,63 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   keywordEl.appendChild(part);
                 });
 
-                const stockNames = [...new Set((Array.isArray(event.stock_names) ? event.stock_names : [])
-                  .map((name) => String(name || '').trim())
-                  .filter(Boolean))].slice(0, 4);
-                let stocksEl = null;
-                if (stockNames.length) {
-                  stocksEl = document.createElement('p');
-                  stocksEl.className = responseMessageClass;
-                  stocksEl.dataset.typingText = `관련 종목  ${stockNames.join('  ')}`;
+                const reactions = (Array.isArray(event.stock_reactions) ? event.stock_reactions : [])
+                  .map((item) => ({
+                    name: String(item?.name || '').trim(),
+                    changePct: Number(item?.change_pct),
+                  }))
+                  .filter((item) => item.name && Number.isFinite(item.changePct))
+                  .slice(0, 3);
+                let reactionsEl = null;
+                if (reactions.length) {
+                  const maxAbs = Math.max(1, ...reactions.map((item) => Math.abs(item.changePct)));
+                  reactionsEl = document.createElement('div');
+                  reactionsEl.className = 'news-reaction';
+                  reactionsEl.hidden = true;
+
+                  const reactionTitle = document.createElement('p');
+                  reactionTitle.className = 'news-reaction__title';
+                  reactionTitle.textContent = '관련 종목 · 발표 이후';
+                  reactionsEl.appendChild(reactionTitle);
+
+                  reactions.forEach((item) => {
+                    const row = document.createElement('div');
+                    row.className = 'news-reaction__row';
+
+                    const nameEl = document.createElement('span');
+                    nameEl.className = 'news-reaction__name';
+                    nameEl.textContent = item.name;
+
+                    const barEl = document.createElement('span');
+                    barEl.className = 'news-reaction__bar';
+                    const axisEl = document.createElement('span');
+                    axisEl.className = 'news-reaction__axis';
+                    const fillEl = document.createElement('span');
+                    const direction = item.changePct > 0 ? 'up' : item.changePct < 0 ? 'down' : 'flat';
+                    fillEl.className = `news-reaction__fill news-reaction__fill--${direction}`;
+                    const fillWidth = item.changePct === 0
+                      ? 0
+                      : Math.min(48, Math.max(2, (Math.abs(item.changePct) / maxAbs) * 48));
+                    fillEl.style.width = `${fillWidth}%`;
+                    if (item.changePct > 0) fillEl.style.left = '50%';
+                    if (item.changePct < 0) fillEl.style.right = '50%';
+                    barEl.append(axisEl, fillEl);
+
+                    const valueEl = document.createElement('span');
+                    valueEl.className = `news-reaction__value news-reaction__value--${direction}`;
+                    const arrow = item.changePct > 0 ? ' ↗' : item.changePct < 0 ? ' ↘' : '';
+                    const sign = item.changePct > 0 ? '+' : '';
+                    valueEl.textContent = `${sign}${item.changePct.toFixed(2)}%${arrow}`;
+
+                    row.append(nameEl, barEl, valueEl);
+                    reactionsEl.appendChild(row);
+                  });
                 }
 
                 article.append(headline);
                 if (String(event.summary || '').trim()) article.append(descriptionEl);
                 if (keywordParts.length) article.append(keywordEl);
-                if (stocksEl) article.append(stocksEl);
+                if (reactionsEl) article.append(reactionsEl);
                 storyboardList.appendChild(article);
                 storyboardRows.push({
                   timeEl,
@@ -140,7 +183,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   descriptionEl,
                   descriptionText: String(event.summary || '').trim(),
                   keywordParts,
-                  stocksEl,
+                  reactionsEl,
                 });
               });
               block.appendChild(storyboardList);
@@ -152,9 +195,8 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 for (const part of row.keywordParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
-                if (row.stocksEl) {
-                  row.stocksEl.textContent = '';
-                  await typeText(row.stocksEl, row.stocksEl.dataset.typingText || '');
+                if (row.reactionsEl) {
+                  row.reactionsEl.hidden = false;
                 }
               }
             }

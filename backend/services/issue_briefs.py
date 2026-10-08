@@ -309,6 +309,7 @@ def build_issue_briefs(items, stock_name, limit=3):
             continue
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),
+            "reaction_at": str(item.get("published_at") or "").strip(),
             "headline": headline,
             "summary": summary,
             "tags": labels[:3],

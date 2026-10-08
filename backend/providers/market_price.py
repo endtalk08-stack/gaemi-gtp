@@ -1,3 +1,4 @@
+import datetime
 import json
 import threading
 import time
@@ -12,6 +13,8 @@ KR_QUOTE_CACHE_TTL = 5
 US_QUOTE_CACHE = {}
 US_QUOTE_CACHE_TTL = 15
 DAILY_HISTORY_CACHE = {}
+INTRADAY_HISTORY_CACHE = {}
+INTRADAY_HISTORY_CACHE_TTL = 60
 
 
 def _get_lock(key):
@@ -132,6 +135,169 @@ def fetch_daily_price_history(ticker):
 
         DAILY_HISTORY_CACHE[key] = (now, rows)
         return rows
+
+
+def fetch_intraday_price_history(ticker):
+    """Return cached 5-minute closes for short-lived news reaction calculations."""
+    key = str(ticker or "").strip().upper()
+    if not key:
+        return []
+
+    now = time.time()
+    cached = INTRADAY_HISTORY_CACHE.get(key)
+    if cached and now - cached[0] < INTRADAY_HISTORY_CACHE_TTL:
+        return cached[1]
+
+    with _get_lock(("intraday-history", key)):
+        now = time.time()
+        cached = INTRADAY_HISTORY_CACHE.get(key)
+        if cached and now - cached[0] < INTRADAY_HISTORY_CACHE_TTL:
+            return cached[1]
+
+        rows = []
+        try:
+            url = (
+                f"https://query1.finance.yahoo.com/v8/finance/chart/"
+                f"{urllib.parse.quote(key)}?range=1d&interval=5m&includePrePost=false"
+            )
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/152.0.0.0 Safari/537.36"
+                    )
+                },
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            chart_rows = data.get("chart", {}).get("result", [])
+            if chart_rows:
+                chart = chart_rows[0]
+                timestamps = chart.get("timestamp") or []
+                quote = (chart.get("indicators", {}).get("quote") or [{}])[0]
+                closes = quote.get("close") or []
+                for stamp, close in zip(timestamps, closes):
+                    if stamp is None or close is None:
+                        continue
+                    try:
+                        stamp_value = int(stamp)
+                        close_value = float(close)
+                    except (TypeError, ValueError):
+                        continue
+                    if stamp_value > 0 and close_value > 0:
+                        rows.append({
+                            "timestamp": stamp_value,
+                            "close": close_value,
+                        })
+        except Exception as exc:
+            print("야후 5분봉 조회 예외:", exc)
+
+        INTRADAY_HISTORY_CACHE[key] = (now, rows)
+        return rows
+
+
+def _parse_news_timestamp(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except Exception:
+        try:
+            from email.utils import parsedate_to_datetime
+            parsed = parsedate_to_datetime(raw)
+        except Exception:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    return parsed.timestamp()
+
+
+def calculate_news_price_reaction(rows, published_at):
+    """Calculate post-news change from the nearest tradable 5-minute close.
+
+    If the article arrived after the latest available market candle, return a
+    waiting state instead of falsely reporting 0%.
+    """
+    target = _parse_news_timestamp(published_at)
+    if target is None:
+        return None
+
+    clean_rows = []
+    for row in rows or []:
+        try:
+            stamp = int((row or {}).get("timestamp") or 0)
+            close = float((row or {}).get("close") or 0)
+        except (TypeError, ValueError):
+            continue
+        if stamp > 0 and close > 0:
+            clean_rows.append((stamp, close))
+    clean_rows.sort(key=lambda item: item[0])
+    if not clean_rows:
+        return None
+
+    latest_stamp, latest_close = clean_rows[-1]
+    # No completed post-news candle exists yet. Hide the reaction rather than
+    # treating a pre-news/after-hours price as a 0% response.
+    if target >= latest_stamp:
+        return {
+            "status": "waiting",
+            "change_pct": None,
+            "base_price": None,
+            "current_price": latest_close,
+            "baseline_at": None,
+            "current_at": latest_stamp,
+        }
+
+    prior = None
+    future = None
+    for stamp, close in clean_rows:
+        if stamp <= target:
+            prior = (stamp, close)
+        if stamp >= target:
+            future = (stamp, close)
+            break
+
+    baseline = None
+    if prior and target - prior[0] <= 10 * 60:
+        baseline = prior
+        if future and abs(future[0] - target) < abs(target - prior[0]):
+            baseline = future
+    elif future:
+        # After-hours/weekend article: first candle of the next tradable session.
+        baseline = future
+
+    if not baseline or latest_stamp < baseline[0]:
+        return {
+            "status": "waiting",
+            "change_pct": None,
+            "base_price": None,
+            "current_price": latest_close,
+            "baseline_at": None,
+            "current_at": latest_stamp,
+        }
+
+    base_stamp, base_close = baseline
+    if base_close <= 0:
+        return None
+    change_pct = ((latest_close - base_close) / base_close) * 100
+    return {
+        "status": "ready",
+        "change_pct": round(change_pct, 2),
+        "base_price": base_close,
+        "current_price": latest_close,
+        "baseline_at": base_stamp,
+        "current_at": latest_stamp,
+    }
+
+
+def fetch_news_price_reaction(ticker, published_at):
+    """Fetch cached intraday data once per ticker and calculate a news reaction."""
+    rows = fetch_intraday_price_history(ticker)
+    return calculate_news_price_reaction(rows, published_at)
 
 
 def fetch_us_stock_quote(ticker):
