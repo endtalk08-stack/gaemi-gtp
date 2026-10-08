@@ -119,5 +119,41 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertIn("영업이익전망치1.6%상회", article["keywords"])
 
 
+    def test_extracts_common_english_nvidia_event_phrases(self):
+        result = build_connected_keyword_test([{
+            "title": "Nvidia raises guidance on strong AI demand",
+            "description": "Nvidia said demand for its AI chips remains strong.",
+            "stocks": [{"name": "엔비디아", "region": "미국"}],
+        }], "엔비디아", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["status"], "PASS")
+        self.assertIn("실적전망상향", article["keywords"])
+        self.assertIn("수요증가", article["keywords"])
+
+    def test_extracts_common_english_alphabet_earnings_phrases(self):
+        result = build_connected_keyword_test([{
+            "title": "Alphabet beats estimates as cloud revenue grows",
+            "description": "Alphabet reported stronger cloud sales.",
+            "stocks": [{"name": "알파벳", "region": "미국"}],
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["status"], "PASS")
+        self.assertIn("예상치상회", article["keywords"])
+        self.assertIn("매출증가", article["keywords"])
+
+    def test_extracts_common_english_buyback_and_supply_phrases(self):
+        result = build_connected_keyword_test([{
+            "title": "Nvidia announces share buyback and new supply agreement",
+            "description": "Nvidia signed a supply deal with a partner.",
+            "stocks": [{"name": "엔비디아", "region": "미국"}],
+        }], "엔비디아", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("자사주매입", article["keywords"])
+        self.assertIn("공급계약", article["keywords"])
+
+
 if __name__ == "__main__":
     unittest.main()
