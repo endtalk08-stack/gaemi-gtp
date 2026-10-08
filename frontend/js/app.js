@@ -41,8 +41,8 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       chatArea.appendChild(userDiv);
 
       const loadingDiv = document.createElement('div');
-      loadingDiv.className = 'analysis-loading-sequence animate-fade';
-      loadingDiv.innerHTML = `<div class="analysis-loading-message is-visible is-shimmer" aria-live="polite">시세를 조회중입니다</div>`;
+      loadingDiv.className = 'analysis-loading-sequence';
+      loadingDiv.innerHTML = `<div class="gtp-chat-copy font-semibold animate-pulse" aria-live="polite">시세를 조회중입니다</div>`;
       chatArea.appendChild(loadingDiv);
 
       const controller = activeAnalysisController;

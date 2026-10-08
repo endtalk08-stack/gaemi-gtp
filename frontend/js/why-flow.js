@@ -237,6 +237,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 if (disclosureFlowStarted) return;
                 disclosureFlowStarted = true;
                 const disclosurePrompt = makeUserPrompt('공시는 있어?', 'disclosureFlow');
+                disclosurePrompt.classList.remove('animate-fade');
                 followups.insertAdjacentElement('afterend', disclosurePrompt);
                 followups.remove();
 
@@ -259,7 +260,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 }
 
                 const disclosureBlock = document.createElement('section');
-                disclosureBlock.className = 'mt-5 space-y-5 animate-fade';
+                disclosureBlock.className = 'mt-5 space-y-5';
                 disclosurePrompt.insertAdjacentElement('afterend', disclosureBlock);
                 await window.GaemiGTPDisclosures.renderDisclosures({
                   disclosures,
@@ -290,7 +291,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
 
                 const disclosureFollowups = document.createElement('section');
                 disclosureFollowups.dataset.disclosureFollowupChoices = 'true';
-                disclosureFollowups.className = 'mt-6 space-y-2 animate-fade text-right';
+                disclosureFollowups.className = 'mt-6 space-y-2 text-right';
                 disclosureFollowups.innerHTML = `
                   <p class="${responseMessageClass}"></p>
                   <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
