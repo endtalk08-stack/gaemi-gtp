@@ -26,7 +26,7 @@ class NewsPriceReactionTests(unittest.TestCase):
         self.assertEqual(result["current_price"], 104)
         self.assertEqual(result["change_pct"], 4.0)
 
-    def test_waits_when_news_is_newer_than_latest_trade(self):
+    def test_after_hours_news_uses_last_close_and_starts_at_zero(self):
         rows = [
             {"timestamp": 1200, "close": 100},
             {"timestamp": 1800, "close": 104},
@@ -34,20 +34,23 @@ class NewsPriceReactionTests(unittest.TestCase):
 
         result = calculate_news_price_reaction(rows, _iso(3000))
 
-        self.assertEqual(result["status"], "waiting")
-        self.assertIsNone(result["change_pct"])
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["base_price"], 104)
+        self.assertEqual(result["current_price"], 104)
+        self.assertEqual(result["change_pct"], 0.0)
 
-    def test_uses_first_trade_after_pre_market_news(self):
+    def test_next_session_keeps_previous_close_as_news_baseline(self):
         rows = [
-            {"timestamp": 3600, "close": 100},
-            {"timestamp": 3900, "close": 101},
-            {"timestamp": 4200, "close": 103},
+            {"timestamp": 1800, "close": 100},
+            {"timestamp": 3600, "close": 102},
+            {"timestamp": 3900, "close": 103},
         ]
 
         result = calculate_news_price_reaction(rows, _iso(3000))
 
         self.assertEqual(result["status"], "ready")
         self.assertEqual(result["base_price"], 100)
+        self.assertEqual(result["current_price"], 103)
         self.assertEqual(result["change_pct"], 3.0)
 
 

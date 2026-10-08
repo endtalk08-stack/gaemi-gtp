@@ -117,6 +117,9 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   keywordEl.appendChild(part);
                 });
 
+                const stockNames = [...new Set((Array.isArray(event.stock_names) ? event.stock_names : [])
+                  .map((name) => String(name || '').trim())
+                  .filter(Boolean))].slice(0, 3);
                 const reactions = (Array.isArray(event.stock_reactions) ? event.stock_reactions : [])
                   .map((item) => ({
                     name: String(item?.name || '').trim(),
@@ -124,8 +127,10 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   }))
                   .filter((item) => item.name && Number.isFinite(item.changePct))
                   .slice(0, 3);
+                const reactionByName = new Map(reactions.map((item) => [item.name, item]));
+                const displayNames = stockNames.length ? stockNames : reactions.map((item) => item.name);
                 let reactionsEl = null;
-                if (reactions.length) {
+                if (displayNames.length) {
                   const maxAbs = Math.max(1, ...reactions.map((item) => Math.abs(item.changePct)));
                   reactionsEl = document.createElement('div');
                   reactionsEl.className = 'news-reaction';
@@ -133,16 +138,23 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
 
                   const reactionTitle = document.createElement('p');
                   reactionTitle.className = 'news-reaction__title';
-                  reactionTitle.textContent = '관련 종목 · 발표 이후';
+                  reactionTitle.textContent = '관련 종목 · 발표 이후 움직임';
                   reactionsEl.appendChild(reactionTitle);
 
-                  reactions.forEach((item) => {
+                  displayNames.forEach((name) => {
+                    const item = reactionByName.get(name);
                     const row = document.createElement('div');
-                    row.className = 'news-reaction__row';
+                    row.className = item ? 'news-reaction__row' : 'news-reaction__row news-reaction__row--name-only';
 
                     const nameEl = document.createElement('span');
                     nameEl.className = 'news-reaction__name';
-                    nameEl.textContent = item.name;
+                    nameEl.textContent = name;
+
+                    if (!item) {
+                      row.appendChild(nameEl);
+                      reactionsEl.appendChild(row);
+                      return;
+                    }
 
                     const barEl = document.createElement('span');
                     barEl.className = 'news-reaction__bar';

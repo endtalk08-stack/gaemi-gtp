@@ -192,6 +192,10 @@
   white-space: nowrap;
 }
 
+.news-reaction__row--name-only .news-reaction__name {
+  grid-column: 1 / -1;
+}
+
 .news-reaction__value {
   text-align: right;
   white-space: nowrap;

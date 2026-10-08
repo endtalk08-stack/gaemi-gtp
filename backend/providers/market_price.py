@@ -158,7 +158,7 @@ def fetch_intraday_price_history(ticker):
         try:
             url = (
                 f"https://query1.finance.yahoo.com/v8/finance/chart/"
-                f"{urllib.parse.quote(key)}?range=1d&interval=5m&includePrePost=false"
+                f"{urllib.parse.quote(key)}?range=5d&interval=5m&includePrePost=false"
             )
             req = urllib.request.Request(
                 url,
@@ -217,10 +217,12 @@ def _parse_news_timestamp(value):
 
 
 def calculate_news_price_reaction(rows, published_at):
-    """Calculate post-news change from the nearest tradable 5-minute close.
+    """Calculate post-news change from the last trade at or before the article time.
 
-    If the article arrived after the latest available market candle, return a
-    waiting state instead of falsely reporting 0%.
+    After-hours news uses the session's last traded price as the baseline. Until
+    a later trade exists, current and baseline are identical, so the reaction is
+    correctly reported as 0%. On the next session, the same baseline preserves
+    the opening gap and subsequent move.
     """
     target = _parse_news_timestamp(published_at)
     if target is None:
@@ -240,49 +242,21 @@ def calculate_news_price_reaction(rows, published_at):
         return None
 
     latest_stamp, latest_close = clean_rows[-1]
-    # No completed post-news candle exists yet. Hide the reaction rather than
-    # treating a pre-news/after-hours price as a 0% response.
-    if target >= latest_stamp:
-        return {
-            "status": "waiting",
-            "change_pct": None,
-            "base_price": None,
-            "current_price": latest_close,
-            "baseline_at": None,
-            "current_at": latest_stamp,
-        }
-
-    prior = None
-    future = None
+    baseline = None
     for stamp, close in clean_rows:
         if stamp <= target:
-            prior = (stamp, close)
-        if stamp >= target:
-            future = (stamp, close)
+            baseline = (stamp, close)
+        else:
             break
 
-    baseline = None
-    if prior and target - prior[0] <= 10 * 60:
-        baseline = prior
-        if future and abs(future[0] - target) < abs(target - prior[0]):
-            baseline = future
-    elif future:
-        # After-hours/weekend article: first candle of the next tradable session.
-        baseline = future
-
-    if not baseline or latest_stamp < baseline[0]:
-        return {
-            "status": "waiting",
-            "change_pct": None,
-            "base_price": None,
-            "current_price": latest_close,
-            "baseline_at": None,
-            "current_at": latest_stamp,
-        }
+    # The fetched intraday window does not contain a pre-news trade.
+    if not baseline:
+        return None
 
     base_stamp, base_close = baseline
     if base_close <= 0:
         return None
+
     change_pct = ((latest_close - base_close) / base_close) * 100
     return {
         "status": "ready",
@@ -292,7 +266,6 @@ def calculate_news_price_reaction(rows, published_at):
         "baseline_at": base_stamp,
         "current_at": latest_stamp,
     }
-
 
 def fetch_news_price_reaction(ticker, published_at):
     """Fetch cached intraday data once per ticker and calculate a news reaction."""
