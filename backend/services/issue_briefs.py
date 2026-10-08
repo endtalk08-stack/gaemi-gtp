@@ -91,6 +91,25 @@ _CENTRAL_LABEL_TEXT = {
     "차익실현": "차익실현",
     "실적부진": "실적 부진",
     "전망하향": "전망 하향",
+    "공급확대": "공급 확대",
+    "공급축소": "공급 축소",
+    "생산확대": "생산 확대",
+    "생산축소": "생산 축소",
+    "해외진출": "해외 진출",
+    "시장진출": "시장 진출",
+    "사업확대": "사업 확대",
+    "수요증가": "수요 증가",
+    "수요급증": "수요 급증",
+    "판매증가": "판매 증가",
+    "판매감소": "판매 감소",
+    "원화강세": "원화 강세",
+    "원화약세": "원화 약세",
+    "환율상승": "환율 상승",
+    "환율하락": "환율 하락",
+    "매출증가": "매출 증가",
+    "매출감소": "매출 감소",
+    "영업이익증가": "영업이익 증가",
+    "영업이익감소": "영업이익 감소",
 }
 
 
@@ -120,7 +139,19 @@ def _clean_labels(values, limit=3):
 
 
 def _signal_labels(item):
-    labels = _clean_labels(item.get("storyboard_keywords") or item.get("article_keywords"), limit=3)
+    """Merge the representative event with other grounded facts from the same article."""
+    labels = []
+    for values in (
+        item.get("storyboard_keywords") or [],
+        item.get("article_keywords") or [],
+    ):
+        for value in values:
+            label = str(value or "").strip().lstrip("#")
+            if label and label not in labels:
+                labels.append(label)
+            if len(labels) >= 3:
+                return labels
+
     for signal in item.get("movement_signals") or []:
         label = str((signal or {}).get("label") or "").strip().lstrip("#")
         if label and label not in labels:
@@ -142,53 +173,31 @@ def _stock_names(item, fallback):
 
 
 def _brief_text(labels, themes, issues, stock_names, fallback_stock):
-    """Build a concise central issue from facts already extracted from the article."""
-    label_set = {str(label or "").strip().lstrip("#") for label in labels or []}
-    stock = next((str(name or "").strip() for name in stock_names or [] if str(name or "").strip()), "")
-    stock = stock or str(fallback_stock or "").strip()
-
-    if {"수익성개선", "HBM", "공급부족"}.issubset(label_set):
-        return (
-            "수익성 개선·HBM 공급 이슈",
-            "수익성 개선 흐름과 HBM, 공급 부족 관련 내용이\n기사에서 함께 언급됐어요.",
-        )
-
-    if "메모리가격" in label_set and "가격상승" in label_set:
-        return (
-            "메모리 가격 상승 기대",
-            "메모리 가격 상승과 반도체 업황 관련 기대가\n기사에서 함께 언급됐어요.",
-        )
-
-    if label_set.intersection({"실적발표", "잠정실적발표", "매출발표"}):
-        if stock:
-            return (
-                "실적 발표 관련 이슈",
-                f"실적 발표 관련 내용이 확인됐고,\n{stock}가 기사에서 직접 언급됐어요.",
-            )
-        return (
-            "실적 발표 관련 이슈",
-            "실적 발표 관련 내용이\n기사에서 확인됐어요.",
-        )
-
+    """Use each extracted fact once instead of repeating one keyword as title/body."""
     readable = _central_readable_labels(labels)
-    if len(readable) >= 2:
-        return (
-            f"{readable[0]}·{readable[1]} 이슈",
-            f"{', '.join(readable[:3])} 관련 내용이\n기사에서 함께 언급됐어요.",
-        )
-    if readable:
-        return (
-            f"{readable[0]} 관련 이슈",
-            f"{readable[0]} 관련 내용이\n기사에서 언급됐어요.",
-        )
+    if not readable:
+        topic = str(next(iter(themes or []), "") or next(iter(issues or []), "") or "시장").strip()
+        return f"{topic} 관련 흐름", ""
 
-    topic = str(next(iter(themes or []), "") or next(iter(issues or []), "") or "시장").strip()
-    return (
-        f"{topic} 관련 이슈",
-        f"{topic} 관련 내용이\n기사에서 확인됐어요.",
-    )
+    label_set = {str(label or "").strip().lstrip("#") for label in labels or []}
 
+    if "가격상승" in label_set and "메모리가격" in label_set:
+        headline = "메모리 가격 상승"
+        consumed = {"가격 상승", "메모리 가격"}
+    elif "수익성개선" in label_set and "HBM" in label_set:
+        headline = "수익성 개선·HBM"
+        consumed = {"수익성 개선", "HBM"}
+    else:
+        headline_parts = readable[:2] if len(readable) >= 3 else readable[:1]
+        headline = "·".join(headline_parts)
+        consumed = set(headline_parts)
 
+    remaining = [value for value in readable if value not in consumed]
+    if not remaining:
+        return headline, ""
+
+    summary = f"{', '.join(remaining[:2])} 내용도 기사에서 함께 확인됐어요."
+    return headline, summary
 def build_issue_briefs(items, stock_name, limit=3):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []

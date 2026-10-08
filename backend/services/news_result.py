@@ -56,7 +56,7 @@ def build_stock_news_result(
         )
 
         part_started = time.monotonic()
-        article_keyword_result = build_connected_keyword_test(scored_news, stock_name, max_keywords=1)
+        article_keyword_result = build_connected_keyword_test(scored_news, stock_name, max_keywords=3)
         print(
             f"[analyze news trace] stock={stock_name} part=keywords done "
             f"elapsed={time.monotonic() - part_started:.2f}s",

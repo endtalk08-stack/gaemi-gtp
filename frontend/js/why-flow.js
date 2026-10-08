@@ -120,26 +120,17 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 const stockNames = [...new Set((Array.isArray(event.stock_names) ? event.stock_names : [])
                   .map((name) => String(name || '').trim())
                   .filter(Boolean))].slice(0, 4);
-                let stocksTitle = null;
                 let stocksEl = null;
                 if (stockNames.length) {
-                  stocksTitle = document.createElement('p');
-                  stocksTitle.className = `${responseMessageClass} font-semibold`;
-                  stocksTitle.textContent = '관련 종목';
-                  stocksEl = document.createElement('div');
-                  stocksEl.className = 'space-y-1';
-                  stockNames.forEach((name) => {
-                    const stock = document.createElement('p');
-                    stock.className = responseMessageClass;
-                    stock.dataset.typingText = name;
-                    stocksEl.appendChild(stock);
-                  });
+                  stocksEl = document.createElement('p');
+                  stocksEl.className = responseMessageClass;
+                  stocksEl.dataset.typingText = `관련 종목  ${stockNames.join('  ')}`;
                 }
 
                 article.append(headline);
                 if (String(event.summary || '').trim()) article.append(descriptionEl);
                 if (keywordParts.length) article.append(keywordEl);
-                if (stocksTitle && stocksEl) article.append(stocksTitle, stocksEl);
+                if (stocksEl) article.append(stocksEl);
                 storyboardList.appendChild(article);
                 storyboardRows.push({
                   timeEl,
@@ -161,11 +152,9 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 for (const part of row.keywordParts) {
                   await typeText(part, part.dataset.typingText || '');
                 }
-                row.stocksEl?.querySelectorAll('[data-typing-text]').forEach((stock) => {
-                  stock.textContent = '';
-                });
-                for (const stock of row.stocksEl?.querySelectorAll('[data-typing-text]') || []) {
-                  await typeText(stock, stock.dataset.typingText || '');
+                if (row.stocksEl) {
+                  row.stocksEl.textContent = '';
+                  await typeText(row.stocksEl, row.stocksEl.dataset.typingText || '');
                 }
               }
             }

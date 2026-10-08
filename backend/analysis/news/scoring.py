@@ -960,15 +960,15 @@ def _grounded_entity_tags(item):
     return list(dict.fromkeys(tags))
 
 
-def build_connected_keyword_test(items, stock_name, max_keywords=1):
-    """Pick one grounded, stock-relevant representative keyword per article.
+def build_connected_keyword_test(items, stock_name, max_keywords=3):
+    """Extract up to max_keywords grounded article facts.
 
-    Active central-news keyword path. Keep one event keyword per article.
-    max_keywords remains only for compatibility with older callers; this extractor
-    intentionally returns at most one representative keyword.
+    The first keyword remains the representative event used for storyboard selection.
+    Additional keywords preserve other explicit facts from the same title/description
+    so the central brief can explain the issue without repeating one label three times.
 
-    News collection/scoring stays upstream. Title is the primary semantic frame,
-    description only confirms/supports it, and no extra network work is performed here.
+    News collection/scoring stays upstream. Title evidence is preferred over description
+    evidence, and no extra network work is performed here.
     """
     import re
 
@@ -1173,11 +1173,16 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
         nearest.sort(key=lambda pair: pair[0])
         return compact(nearest[0][1]).lower() != compact(stock_name).lower()
 
-    def find_rule(text, require_stock_context=False):
+    def find_rules(text, *, source, require_stock_context=False):
         lower = text.lower()
         if require_stock_context and not selected_stock_is_present(text):
-            return None
-        for label, phrases in phrase_rules:
+            return []
+
+        matches = []
+        seen = set()
+        priority = 100 if source == "title" else 60
+        for rule_index, (label, phrases) in enumerate(phrase_rules):
+            best = None
             for phrase in phrases:
                 p = lower.find(phrase.lower())
                 if p < 0:
@@ -1190,13 +1195,41 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
                     "매출성장세", "판매반등", "주가반응부진",
                 } and other_company_owns_phrase(text, phrase):
                     continue
-                return {
+                candidate = {
                     "label": label,
-                    "source": "title-rule" if text is title else "description-rule",
+                    "source": f"{source}-rule",
                     "evidence": phrase,
-                    "priority": 100 if text is title else 60,
+                    "priority": priority,
+                    "_position": p,
+                    "_specificity": len(phrase.replace(" ", "")),
+                    "_rule_index": rule_index,
                 }
-        return None
+                if best is None or (
+                    candidate["_specificity"],
+                    -candidate["_position"],
+                ) > (
+                    best["_specificity"],
+                    -best["_position"],
+                ):
+                    best = candidate
+            if best is not None and label not in seen:
+                matches.append(best)
+                seen.add(label)
+
+        matches.sort(
+            key=lambda item: (
+                item["priority"],
+                item["_specificity"],
+                -item["_position"],
+                -item["_rule_index"],
+            ),
+            reverse=True,
+        )
+        for item in matches:
+            item.pop("_position", None)
+            item.pop("_specificity", None)
+            item.pop("_rule_index", None)
+        return matches
 
     def fallback_from_title(text):
         # Strip the selected stock name before looking for the local event phrase.
@@ -1244,26 +1277,44 @@ def build_connected_keyword_test(items, stock_name, max_keywords=1):
 
         stock_entities = _related_stock_entities(item)
         grounded_tags = _grounded_entity_tags(item)
-        representative = find_rule(title)
-        if representative is None:
-            representative = find_rule(description, require_stock_context=True)
-        if representative is None and selected_stock_is_present(title):
-            representative = fallback_from_title(title)
 
-        if representative and representative.get("label") in {"공급계약", "장기공급계약"}:
+        try:
+            keyword_limit = max(1, min(3, int(max_keywords or 1)))
+        except (TypeError, ValueError):
+            keyword_limit = 3
+
+        selected = []
+        seen_labels = set()
+        for candidate in (
+            find_rules(title, source="title")
+            + find_rules(description, source="description", require_stock_context=True)
+        ):
+            label = str(candidate.get("label") or "").strip()
+            if not label or label in seen_labels:
+                continue
+            selected.append(candidate)
+            seen_labels.add(label)
+            if len(selected) >= keyword_limit:
+                break
+
+        if not selected and selected_stock_is_present(title):
+            fallback = fallback_from_title(title)
+            if fallback:
+                selected.append(fallback)
+
+        if any(detail.get("label") in {"공급계약", "장기공급계약"} for detail in selected):
             grounded_tags.extend(_supply_contract_detail_tags(item))
             grounded_tags = list(dict.fromkeys(grounded_tags))
 
-        selected = [representative] if representative else []
         results.append({
             "title": title,
             "description": description,
-            "keywords": [representative["label"]] if representative else [],
+            "keywords": [detail["label"] for detail in selected],
             "keyword_details": selected,
             "stock_entities": stock_entities,
             "grounded_tags": grounded_tags,
-            "enough_evidence": bool(representative),
-            "status": "PASS" if representative else "SKIP",
+            "enough_evidence": bool(selected),
+            "status": "PASS" if selected else "SKIP",
         })
 
     return {"stock": stock_name, "articles": results}
