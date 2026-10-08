@@ -469,17 +469,18 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 }
 
 .gaemi-home-composer__toolbar {
-  min-height: 48px;
-  padding: 6px 8px;
-  display: flex;
+  min-height: 52px;
+  padding: 7px 8px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   border-top: 1px solid var(--gtp-border);
   background: var(--gtp-surface-3);
 }
 
 .gaemi-home-toolbar__left,
+.gaemi-home-toolbar__center,
 .gaemi-home-toolbar__right {
   min-width: 0;
   display: flex;
@@ -487,12 +488,14 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
   gap: 4px;
 }
 
-.gaemi-home-toolbar__left {
-  flex: 1 1 auto;
-}
-
+.gaemi-home-toolbar__left,
 .gaemi-home-toolbar__right {
   flex: 0 0 auto;
+}
+
+.gaemi-home-toolbar__center {
+  justify-content: center;
+  gap: 6px;
 }
 
 .gaemi-home-more,
@@ -530,7 +533,7 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 }
 
 .gaemi-home-tool {
-  height: 34px;
+  height: 36px;
   min-width: 0;
   padding: 0 9px;
   display: inline-flex;
@@ -539,15 +542,16 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
   border-radius: 9px;
   background: transparent;
   color: var(--gtp-text-2);
-  font-size: var(--gtp-type-meta);
+  font-size: var(--gtp-type-item);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .gaemi-home-tool svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
+  stroke-width: 2;
 }
 
 .gaemi-home-more:hover,
@@ -702,12 +706,17 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
   }
 
   .gaemi-home-composer__toolbar {
-    min-height: 46px;
+    min-height: 50px;
     padding: 6px;
+    gap: 4px;
+  }
+
+  .gaemi-home-toolbar__center {
+    gap: 2px;
   }
 
   .gaemi-home-tool {
-    padding: 0 7px;
+    padding: 0 6px;
     gap: 5px;
   }
 
@@ -722,11 +731,14 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 
 @media (max-width: 420px) {
   .gaemi-home-tool {
-    padding-inline: 5px;
+    padding-inline: 4px;
+    gap: 3px;
+    font-size: var(--gtp-type-meta);
   }
 
   .gaemi-home-tool svg {
-    display: none;
+    width: 15px;
+    height: 15px;
   }
 
   .gaemi-home-mode {
