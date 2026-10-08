@@ -208,6 +208,47 @@ def _stock_names(item, fallback):
     return names or _clean_labels([fallback], limit=1)
 
 
+def _korean_particle(value, consonant, vowel):
+    """Choose a Korean particle from the final Hangul syllable when possible."""
+    text = str(value or "").strip()
+    if not text:
+        return vowel
+    code = ord(text[-1]) - 0xAC00
+    if 0 <= code <= 11171:
+        return consonant if code % 28 else vowel
+    return vowel
+
+
+def _join_brief_facts(values):
+    facts = [str(value or "").strip() for value in values or [] if str(value or "").strip()]
+    if len(facts) <= 1:
+        return facts[0] if facts else ""
+    if len(facts) == 2:
+        particle = _korean_particle(facts[0], "과", "와")
+        return f"{facts[0]}{particle} {facts[1]}"
+    return ", ".join(facts)
+
+
+def _compose_brief_summary(headline, remaining, fallback_stock):
+    """Turn grounded labels into one readable, fact-bounded central sentence."""
+    stock = str(fallback_stock or "").strip()
+    extra = [str(value or "").strip() for value in remaining[:2] if str(value or "").strip()]
+    if not stock or not extra:
+        return ""
+
+    uncertainty_endings = (
+        "기대", "전망", "예상", "추정", "관측", "가능성", "검토", "계획", "예정",
+    )
+    if headline.endswith(uncertainty_endings):
+        particle = _korean_particle(headline, "이", "가")
+        return f"{stock}는 {headline}{particle} 나오고, {', '.join(extra)}도 함께 언급됐어요."
+
+    facts = [headline, *extra]
+    joined = _join_brief_facts(facts)
+    particle = _korean_particle(facts[-1], "이", "가")
+    return f"{stock} 관련해서는 {joined}{particle} 함께 언급됐어요."
+
+
 def _brief_text(labels, themes, issues, stock_names, fallback_stock):
     """Compose natural central copy from grounded facts without source-copy filler."""
     raw_labels = [str(label or "").strip().lstrip("#") for label in labels or []]
@@ -249,7 +290,7 @@ def _brief_text(labels, themes, issues, stock_names, fallback_stock):
     if not remaining:
         return headline, ""
 
-    summary = f"{', '.join(remaining[:2])}도 함께 언급됐어요."
+    summary = _compose_brief_summary(headline, remaining, fallback_stock)
     return headline, summary
 def build_issue_briefs(items, stock_name, limit=3):
     """Return display-only issue briefs without publisher title/description fields."""
