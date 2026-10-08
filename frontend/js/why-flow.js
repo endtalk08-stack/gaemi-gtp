@@ -18,6 +18,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
   
             if (mainContainer.querySelector('[data-why-flow]')) return;
             const prompt = makeUserPrompt(whyState.label, 'whyFlow');
+            prompt.classList.remove('animate-fade');
             choices.insertAdjacentElement('afterend', prompt);
             choices.remove();
   
@@ -72,15 +73,16 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             // 중앙 화면은 원문 기사 제목·설명을 받지 않는다. 서버가 기사에서
             // 추출한 사실을 바탕으로 만든 display-only 이슈 브리핑만 사용한다.
             const storyboard = Array.isArray(result.issue_briefs) ? result.issue_briefs : [];
+            const typeWhyText = (element, text) => typeText(element, text, { chunkSize: 1 });
             const block = document.createElement('section');
-            block.className = 'mt-5 space-y-5 animate-fade';
+            block.className = 'mt-5 space-y-5';
             const signalTitle = document.createElement('p');
             signalTitle.className = responseMessageClass;
             const signalTitleText = evidence.signals.length || storyboard.length || disclosures.length ? '오늘 눈에 띄는 흐름 👀' : '오늘은 흐름 없음 ☁️';
             block.appendChild(signalTitle);
             // 타이핑이 실제 화면에서 보이도록 결과 블록을 먼저 붙인다.
             prompt.insertAdjacentElement('afterend', block);
-            await typeText(signalTitle, signalTitleText);
+            await typeWhyText(signalTitle, signalTitleText);
 
             if (storyboard.length) {
               const storyboardList = document.createElement('div');
@@ -201,11 +203,11 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               block.appendChild(storyboardList);
 
               for (const row of storyboardRows) {
-                await typeText(row.timeEl, row.timeText);
-                await typeText(row.titleEl, row.titleText);
-                if (row.descriptionText) await typeText(row.descriptionEl, row.descriptionText);
+                await typeWhyText(row.timeEl, row.timeText);
+                await typeWhyText(row.titleEl, row.titleText);
+                if (row.descriptionText) await typeWhyText(row.descriptionEl, row.descriptionText);
                 for (const part of row.keywordParts) {
-                  await typeText(part, part.dataset.typingText || '');
+                  await typeWhyText(part, part.dataset.typingText || '');
                 }
                 if (row.reactionsEl) {
                   row.reactionsEl.hidden = false;
@@ -217,15 +219,15 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
 
             const followups = document.createElement('section');
             followups.dataset.whyFollowupChoices = 'true';
-            followups.className = 'mt-6 space-y-2 animate-fade text-right';
+            followups.className = 'mt-6 space-y-2 text-right';
             followups.innerHTML = `
               <p class="${responseMessageClass}"></p>
               <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
                 <button type="button" class="text-sm font-semibold text-[#db2777] transition hover:opacity-80 dark:text-[#e889aa]" data-why-followup="disclosure"></button>
               </div>`;
             (actions || block).insertAdjacentElement('afterend', followups);
-            await typeText(followups.querySelector('p'), '하나만 찍어');
-            await typeText(followups.querySelector('[data-why-followup="disclosure"]'), '#공시는_있어?');
+            await typeWhyText(followups.querySelector('p'), '하나만 찍어');
+            await typeWhyText(followups.querySelector('[data-why-followup="disclosure"]'), '#공시는_있어?');
 
             let disclosureFlowStarted = false;
             followups.addEventListener('click', async (event) => {
