@@ -67,6 +67,8 @@ def build_stock_news_result(
             article["article_keyword_details"] = keyword_result.get("keyword_details", [])
             article["grounded_tags"] = keyword_result.get("grounded_tags", [])
             article["stock_entities"] = keyword_result.get("stock_entities", [])
+            article["event_owner"] = keyword_result.get("event_owner", "")
+            article["relation_type"] = keyword_result.get("relation_type", "unknown")
 
         paired_news_items = build_simple_today_news(
             scored_news,

@@ -1204,6 +1204,84 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         window = lower[max(0, start - radius):min(len(lower), end + radius)]
         return any(alias and alias in window for alias in aliases)
 
+    def stock_entity_mentions(text):
+        """Locate known stock/company mentions so an event can be assigned to its nearest owner."""
+        lower = str(text or "").lower()
+        mentions = []
+        seen = set()
+        for market_stocks in STOCK_UNIVERSE.values():
+            for canonical, entity_aliases in market_stocks.items():
+                for name in (canonical, *(entity_aliases or [])):
+                    token = str(name or "").strip().lower()
+                    if not token:
+                        continue
+                    if re.fullmatch(r"[a-z0-9.]+", token) and len(token.replace(".", "")) <= 5:
+                        pattern = rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])"
+                        positions = [match.span() for match in re.finditer(pattern, lower)]
+                    else:
+                        positions = []
+                        start = 0
+                        while True:
+                            index = lower.find(token, start)
+                            if index < 0:
+                                break
+                            positions.append((index, index + len(token)))
+                            start = index + max(1, len(token))
+                    for start, end in positions:
+                        key = (canonical, start, end)
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        mentions.append({
+                            "stock": canonical,
+                            "start": start,
+                            "end": end,
+                            "token": token,
+                        })
+        return mentions
+
+    def event_owner_for_detail(detail, title, description):
+        """Assign the representative event to the nearest named company, without inference."""
+        source = str((detail or {}).get("source") or "")
+        text = description if source.startswith("description") else title
+        evidence = str((detail or {}).get("evidence") or "").strip()
+        mentions = stock_entity_mentions(text)
+        if not mentions:
+            return "", "mention_only"
+
+        lower = str(text or "").lower()
+        evidence_pos = lower.find(evidence.lower()) if evidence else -1
+        if evidence_pos < 0:
+            unique_stocks = list(dict.fromkeys(mention["stock"] for mention in mentions))
+            if len(unique_stocks) == 1:
+                owner = unique_stocks[0]
+                relation = "direct" if compact(owner).lower() == compact(stock_name).lower() else "indirect"
+                return owner, relation
+            return "", "mention_only"
+
+        evidence_end = evidence_pos + len(evidence)
+        ranked = []
+        for mention in mentions:
+            if mention["end"] <= evidence_pos:
+                gap = evidence_pos - mention["end"]
+                side_rank = 0
+            elif mention["start"] >= evidence_end:
+                gap = mention["start"] - evidence_end
+                side_rank = 1
+            else:
+                gap = 0
+                side_rank = 0
+            ranked.append((gap, side_rank, mention["start"], mention["stock"]))
+
+        ranked.sort(key=lambda value: (value[0], value[1], -value[2]))
+        gap, _, _, owner = ranked[0]
+        # Avoid assigning a far-away company in a long multi-company description.
+        if gap > 120:
+            return "", "mention_only"
+
+        relation = "direct" if compact(owner).lower() == compact(stock_name).lower() else "indirect"
+        return owner, relation
+
     def certainty_suffix(text, start, end):
         """Preserve nearby uncertainty without leaking it across article clauses."""
         before = text[max(0, start - 16):start]
@@ -1545,6 +1623,18 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             grounded_tags.extend(_supply_contract_detail_tags(item))
             grounded_tags = list(dict.fromkeys(grounded_tags))
 
+        for detail in selected:
+            owner, relation = event_owner_for_detail(detail, title, description)
+            detail["event_owner"] = owner
+            detail["relation_type"] = relation
+
+        representative_owner = str(selected[0].get("event_owner") or "") if selected else ""
+        representative_relation = (
+            str(selected[0].get("relation_type") or "mention_only")
+            if selected
+            else ("mention_only" if selected_stock_is_present(f"{title} {description}") else "unknown")
+        )
+
         results.append({
             "title": title,
             "description": description,
@@ -1552,6 +1642,8 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             "keyword_details": selected,
             "stock_entities": stock_entities,
             "grounded_tags": grounded_tags,
+            "event_owner": representative_owner,
+            "relation_type": representative_relation,
             "enough_evidence": bool(selected),
             "status": "PASS" if selected else "SKIP",
         })

@@ -177,5 +177,46 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertIn("가격상승", article["keywords"])
 
 
+    def test_marks_selected_stock_as_direct_event_owner(self):
+        result = build_connected_keyword_test([{
+            "title": "Alphabet beats estimates as cloud revenue grows",
+            "description": "Alphabet reported stronger cloud sales.",
+            "stocks": [{"name": "알파벳", "region": "미국"}],
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["event_owner"], "알파벳")
+        self.assertEqual(article["relation_type"], "direct")
+        self.assertEqual(article["keyword_details"][0]["event_owner"], "알파벳")
+        self.assertEqual(article["keyword_details"][0]["relation_type"], "direct")
+
+    def test_marks_other_company_event_as_indirect_for_selected_stock(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, HBM 가격 상승에 실적 개선 기대",
+            "description": "구글은 AI 투자 확대를 이어가고 있다.",
+            "stocks": [
+                {"name": "삼성전자", "region": "국내"},
+                {"name": "알파벳", "region": "미국"},
+            ],
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("HBM가격상승", article["keywords"])
+        self.assertEqual(article["event_owner"], "삼성전자")
+        self.assertEqual(article["relation_type"], "indirect")
+
+    def test_marks_plain_selected_stock_mention_without_event_as_mention_only(self):
+        result = build_connected_keyword_test([{
+            "title": "구글 관련 업계 동향",
+            "description": "여러 기업과 함께 구글이 언급됐다.",
+            "stocks": [{"name": "알파벳", "region": "미국"}],
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"], [])
+        self.assertEqual(article["event_owner"], "")
+        self.assertEqual(article["relation_type"], "mention_only")
+
+
 if __name__ == "__main__":
     unittest.main()
