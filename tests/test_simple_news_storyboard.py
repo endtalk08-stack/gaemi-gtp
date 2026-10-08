@@ -1,6 +1,8 @@
+import datetime
 import unittest
+from unittest.mock import patch
 
-from backend.analysis.news.storyboard import select_keyword_storyboard_news
+from backend.analysis.news.storyboard import build_simple_today_news, select_keyword_storyboard_news
 
 
 def article(
@@ -325,6 +327,41 @@ class NotableFlowSelectionTests(unittest.TestCase):
         selected = select_keyword_storyboard_news([indirect], limit=3)
 
         self.assertEqual([item["storyboard_keyword"] for item in selected], ["공급부족"])
+
+
+    def test_us_stock_uses_new_york_session_date_for_morning_korea_view(self):
+        class FixedDateTime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                base = cls(2026, 10, 8, 22, 30, tzinfo=datetime.timezone.utc)
+                return base.astimezone(tz) if tz else base.replace(tzinfo=None)
+
+        source = {
+            "title": "Welcome to Gemini at Work 2026",
+            "published_at": "2026-10-08T14:00:00+00:00",
+            "article_keywords": ["제품공개"],
+            "article_keyword_details": [
+                {"label": "제품공개", "source": "title-official-event"}
+            ],
+        }
+
+        with patch("backend.analysis.news.storyboard.datetime.datetime", FixedDateTime):
+            us_items = build_simple_today_news(
+                [source],
+                "알파벳",
+                limit=None,
+                display_timezone="Asia/Seoul",
+            )
+            kr_items = build_simple_today_news(
+                [source],
+                "삼성전자",
+                limit=None,
+                display_timezone="Asia/Seoul",
+            )
+
+        self.assertEqual(len(us_items), 1)
+        self.assertEqual(kr_items, [])
+        self.assertEqual(us_items[0]["storyboard_date"], "2026-10-08")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@ import re
 from difflib import SequenceMatcher
 from zoneinfo import ZoneInfo
 
+from .catalog import STOCK_UNIVERSE
+
 
 def _parse_article_datetime(value):
     raw = str(value or "").strip()
@@ -37,16 +39,31 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
 
     source_items = [dict(item) for item in (items or [])]
 
-    today = datetime.datetime.now(tz).date()
+    stock_region = next(
+        (
+            region for region, stocks in STOCK_UNIVERSE.items()
+            if str(stock_name or "").strip() in stocks
+        ),
+        "",
+    )
+    if stock_region == "미국":
+        try:
+            session_tz = ZoneInfo("America/New_York")
+        except Exception:
+            session_tz = tz
+    else:
+        session_tz = tz
+
+    session_date = datetime.datetime.now(session_tz).date()
     bundles = []
 
     for article in source_items:
         dt = _parse_article_datetime(article.get("pub_date") or article.get("published_at"))
         if not dt:
             continue
-        local_dt = dt.astimezone(tz)
-        if local_dt.date() != today:
+        if dt.astimezone(session_tz).date() != session_date:
             continue
+        local_dt = dt.astimezone(tz)
 
         keywords = list(article.get("article_keywords") or [])
         details = list(article.get("article_keyword_details") or [])

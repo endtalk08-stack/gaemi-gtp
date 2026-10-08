@@ -24,7 +24,7 @@ _CACHE_LOCK = threading.Lock()
 OFFICIAL_FEEDS = {
     "알파벳": [
         ("Google Blog", "https://blog.google/rss/"),
-        ("Google Cloud Blog", "https://cloud.google.com/feeds/cloud-blog.xml"),
+        ("Google Cloud Blog", "https://cloudblog.withgoogle.com/rss"),
     ],
     "애플": [
         ("Apple Newsroom", "https://www.apple.com/newsroom/rss-feed.rss"),

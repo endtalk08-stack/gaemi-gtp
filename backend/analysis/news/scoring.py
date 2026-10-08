@@ -1637,6 +1637,37 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             if fallback:
                 selected.append(fallback)
 
+        if (
+            not selected
+            and str(item.get("source_type") or "") == "official_company"
+            and grounded_tags
+        ):
+            lower_title = title.lower()
+            official_action = next(
+                (
+                    phrase for phrase in (
+                        "introducing ",
+                        "introduces ",
+                        "introduced ",
+                        "launches ",
+                        "launched ",
+                        "announcing ",
+                        "announces ",
+                        "unveils ",
+                        "unveiled ",
+                    )
+                    if phrase in lower_title
+                ),
+                "",
+            )
+            if official_action:
+                selected.append({
+                    "label": "제품공개",
+                    "source": "title-official-event",
+                    "evidence": official_action.strip(),
+                    "priority": 90,
+                })
+
         if any(detail.get("label") in {"공급계약", "장기공급계약"} for detail in selected):
             grounded_tags.extend(_supply_contract_detail_tags(item))
             grounded_tags = list(dict.fromkeys(grounded_tags))
