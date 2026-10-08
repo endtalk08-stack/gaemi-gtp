@@ -163,6 +163,43 @@ def _central_readable_labels(labels):
     return output
 
 
+_CENTRAL_SIMPLE_NUMERIC_PREFIXES = (
+    "영업이익률",
+    "영업이익",
+    "매출",
+    "순이익",
+    "HBM매출",
+    "D램매출",
+    "낸드매출",
+    "목표가",
+)
+
+
+def _central_simple_numeric_label(value):
+    """Hide extraction-shaped numeric labels in the central display only."""
+    label = str(value or "").strip().lstrip("#")
+    if not any(char.isdigit() for char in label):
+        return ""
+    return next(
+        (prefix for prefix in _CENTRAL_SIMPLE_NUMERIC_PREFIXES if label.startswith(prefix)),
+        "",
+    )
+
+
+def _central_display_tags(labels):
+    tags = []
+    for raw in labels or []:
+        label = str(raw or "").strip().lstrip("#")
+        if not label:
+            continue
+        display = _central_simple_numeric_label(label) or label
+        if display not in tags:
+            tags.append(display)
+        if len(tags) >= 3:
+            break
+    return tags
+
+
 def _clean_labels(values, limit=3):
     labels = []
     for value in values or []:
@@ -314,12 +351,20 @@ def build_issue_briefs(items, stock_name, limit=3):
         )
         if not headline or not summary:
             continue
+
+        # Keep the rich numeric facts in summary/internal data, but present the
+        # central title and hashtags as stable topic labels rather than exposing
+        # extractor-shaped values such as 영업이익107조4000억원.
+        primary_display = _central_simple_numeric_label(labels[0] if labels else "")
+        display_headline = f"{primary_display} 이슈" if primary_display else headline
+        display_tags = _central_display_tags(labels)
+
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),
             "reaction_at": str(item.get("published_at") or "").strip(),
-            "headline": headline,
+            "headline": display_headline,
             "summary": summary,
-            "tags": labels[:3],
+            "tags": display_tags,
             "stock_names": stock_names[:4],
         })
         if len(briefs) >= max(1, int(limit)):

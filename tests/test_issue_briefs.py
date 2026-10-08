@@ -97,11 +97,11 @@ class IssueBriefTests(unittest.TestCase):
             "themes": ["반도체"],
         }], "삼성전자")
 
-        self.assertEqual(result[0]["headline"], "영업이익 100조원 기대 이슈")
+        self.assertEqual(result[0]["headline"], "영업이익 이슈")
         self.assertEqual(result[0]["summary"], "영업이익 100조원 기대가 나오고, 자사주 매입 관련 이슈가 있어.")
         self.assertEqual(
             result[0]["tags"],
-            ["영업이익100조원기대", "자사주매입", "실적발표"],
+            ["영업이익", "자사주매입", "실적발표"],
         )
         self.assertNotIn("기사", result[0]["summary"])
 
@@ -177,6 +177,26 @@ class IssueBriefTests(unittest.TestCase):
         self.assertEqual(result[0]["tags"], ["특징주", "AI메모리", "반도체"])
         self.assertNotIn("원문 제목", str(result[0]))
         self.assertNotIn("원문 설명", str(result[0]))
+
+
+    def test_central_numeric_title_and_tags_hide_extraction_pattern(self):
+        result = build_issue_briefs([{
+            "storyboard_time": "19:54",
+            "published_at": "2026-10-09T10:54:00+00:00",
+            "storyboard_keywords": ["영업이익107조4000억원"],
+            "article_keywords": [
+                "영업이익107조4000억원",
+                "영업이익107.4조원",
+                "영업이익2.42%감소",
+            ],
+            "stock_entities": ["삼성전자", "SK하이닉스", "엔비디아"],
+        }], "삼성전자")
+
+        self.assertEqual(result[0]["headline"], "영업이익 이슈")
+        self.assertEqual(result[0]["tags"], ["영업이익"])
+        self.assertIn("107조4000억원", result[0]["summary"])
+        self.assertNotIn("107조4000억원", result[0]["headline"])
+        self.assertNotIn("107조4000억원", " ".join(result[0]["tags"]))
 
 
 if __name__ == "__main__":
