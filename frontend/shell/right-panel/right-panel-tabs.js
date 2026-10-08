@@ -88,8 +88,12 @@
   function loadActiveStockNews() {
     const snapshot = window.GaemiGTPAnalysisData?.get?.();
     relatedNewsItems = (
-      Array.isArray(snapshot?.newsItems) ? snapshot.newsItems : []
-    ).slice(0, 20);
+      Array.isArray(snapshot?.newsItems) ? [...snapshot.newsItems] : []
+    ).sort((left, right) => {
+      const leftTime = Date.parse(left?.published_at || '') || 0;
+      const rightTime = Date.parse(right?.published_at || '') || 0;
+      return rightTime - leftTime;
+    }).slice(0, 20);
     renderRelatedNewsPanel();
   }
   function renderNewsTestPanel() {
