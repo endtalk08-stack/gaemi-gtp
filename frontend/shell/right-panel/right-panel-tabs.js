@@ -13,7 +13,7 @@
   let relatedNewsItems = [];
   let relatedDisclosureItems = [];
   let earningsCalendarElement = null;
-  const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '대시보드', icon: 'layout-dashboard' }, news: { label: '뉴스', icon: 'newspaper' }, disclosures: { label: '공시', icon: 'file-text' }, earnings: { label: '실적', icon: 'calendar-days' } };
+  const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '대시보드', icon: 'layout-dashboard' }, news: { label: '뉴스', icon: 'newspaper' }, 'news-test': { label: '뉴스 테스트', icon: 'newspaper' }, disclosures: { label: '공시', icon: 'file-text' }, earnings: { label: '실적', icon: 'calendar-days' } };
 
   function normalizeLegacyPanelWorkspaceDom() {
     const legacyView = document.getElementById('rightPanelTabView-dashboard');
@@ -56,6 +56,7 @@
     if (!panelWorkspaceView) { root.innerHTML = ''; return; }
     if (panelWorkspaceView === 'panel-workspace') { root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>'; if (window.GaemiGTPPanelWorkspace && typeof window.GaemiGTPPanelWorkspace.mount === 'function') window.GaemiGTPPanelWorkspace.mount(root); return; }
     if (panelWorkspaceView === 'news') { renderRelatedNewsPanel(); return; }
+    if (panelWorkspaceView === 'news-test') { renderNewsTestPanel(); return; }
     if (panelWorkspaceView === 'disclosures') { renderRelatedDisclosuresPanel(); return; }
     if (panelWorkspaceView === 'earnings') { renderEarningsCalendarPanel(); return; }
   }
@@ -65,7 +66,7 @@
       if (tab.id === 'panel-workspace') {
         const wrap = document.createElement('div'); wrap.className = 'right-panel-workspace-menu-wrap';
         const button = document.createElement('button'); button.type = 'button'; button.className = 'right-panel-tab-add'; button.dataset.panelWorkspaceMenuToggle = 'true'; button.setAttribute('aria-label', '패널 메뉴'); button.setAttribute('aria-expanded', 'false'); button.title = '패널 메뉴'; button.innerHTML = '<i data-lucide="ellipsis"></i>'; wrap.appendChild(button);
-        const menu = document.createElement('div'); menu.className = 'right-panel-tab-menu right-panel-workspace-menu'; menu.dataset.panelWorkspaceMenu = 'true'; menu.hidden = true; menu.innerHTML = `<button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="panel-workspace"><span>대시보드</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="news"><span>뉴스</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="disclosures"><span>공시</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="earnings"><span>실적</span></button>`; wrap.appendChild(menu); list.appendChild(wrap); return;
+        const menu = document.createElement('div'); menu.className = 'right-panel-tab-menu right-panel-workspace-menu'; menu.dataset.panelWorkspaceMenu = 'true'; menu.hidden = true; menu.innerHTML = `<button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="panel-workspace"><span>대시보드</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="news"><span>뉴스</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="news-test"><span>뉴스 테스트</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="disclosures"><span>공시</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="earnings"><span>실적</span></button>`; wrap.appendChild(menu); list.appendChild(wrap); return;
       }
       const button = document.createElement('button'); button.type = 'button'; button.className = `right-panel-tab${activeTabId === tab.id ? ' is-active' : ''}`; button.dataset.rightPanelTab = tab.id; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', activeTabId === tab.id ? 'true' : 'false'); button.title = tab.label;
       const label = document.createElement('span'); label.className = 'right-panel-tab__label'; label.textContent = tab.label; button.appendChild(label);
@@ -91,6 +92,12 @@
     ).slice(0, 20);
     renderRelatedNewsPanel();
   }
+  function renderNewsTestPanel() {
+    const root = document.getElementById('rightPanelWorkspace');
+    const snapshot = window.GaemiGTPAnalysisData?.get?.();
+    const articles = Array.isArray(snapshot?.newsTestArticles) ? snapshot.newsTestArticles : [];
+    window.GaemiGTPNewsTestPanel?.render?.(root, articles);
+  }
   function selectPanelWorkspaceView(type) {
     if (!PANEL_WORKSPACE_VIEWS[type]) return;
     panelWorkspaceView = type;
@@ -98,6 +105,7 @@
     savePanelWorkspaceView();
     togglePanelWorkspaceMenu(false);
     if (type === 'news') loadActiveStockNews();
+    if (type === 'news-test') renderNewsTestPanel();
     if (type === 'disclosures') loadActiveStockDisclosures();
     if (type === 'earnings') renderEarningsCalendarPanel();
   }

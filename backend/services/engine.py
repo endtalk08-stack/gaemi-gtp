@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 from .news_feed import fetch_stock_news
 from .news_scoring import score_stock_news, build_connected_keyword_test
 from .simple_news_storyboard import build_simple_today_news, select_keyword_storyboard_news
-from .issue_briefs import build_issue_briefs
+from .issue_briefs import build_issue_briefs, build_news_test_articles
 from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
 
@@ -3513,6 +3513,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         # The full paired list remains unchanged for the right panel / related articles.
         storyboard_selected_news = select_keyword_storyboard_news(paired_news_items, limit=3)
         issue_briefs = build_issue_briefs(storyboard_selected_news, raw_name, limit=3)
+        news_test_articles = build_news_test_articles(storyboard_selected_news, raw_name, limit=3)
         disclosures = []
         if is_krw and clean_code:
             for item in score_disclosures(kr_official_disclosures or []):
@@ -3578,6 +3579,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             "paired_news_items": paired_news_items,
             "storyboard_news_items": storyboard_selected_news,
             "issue_briefs": issue_briefs,
+            "news_test_articles": news_test_articles,
             "keyword_storyboard": [
                 {
                     "time": item.get("storyboard_time", ""),
@@ -3606,6 +3608,7 @@ def analyze_stock(raw_name='SK하이닉스'):
             "paired_news_items": [],
             "storyboard_news_items": [],
             "issue_briefs": [],
+            "news_test_articles": [],
             "keyword_storyboard": [],
             "disclosures": [],
             "us_filings": [],

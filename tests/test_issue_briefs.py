@@ -1,6 +1,6 @@
 import unittest
 
-from backend.services.issue_briefs import build_issue_briefs
+from backend.services.issue_briefs import build_issue_briefs, build_news_test_articles
 
 
 class IssueBriefTests(unittest.TestCase):
@@ -40,6 +40,20 @@ class IssueBriefTests(unittest.TestCase):
 
         self.assertEqual(result[0]["headline"], "반도체 이슈에 삼성전자 주목")
         self.assertNotIn("복사하면 안 되는", str(result[0]))
+
+    def test_news_test_articles_keep_only_display_fields(self):
+        result = build_news_test_articles([{
+            "title": "원문 제목",
+            "description": "원문 설명",
+            "storyboard_time": "11:40",
+            "storyboard_keywords": ["AI메모리"],
+            "stock_entities": ["삼성전자"],
+            "themes": ["반도체"],
+        }], "삼성전자")
+
+        self.assertEqual(set(result[0]), {"id", "time", "headline", "body", "tags", "stock_names"})
+        self.assertNotIn("원문 제목", str(result[0]))
+        self.assertNotIn("원문 설명", str(result[0]))
 
 
 if __name__ == "__main__":

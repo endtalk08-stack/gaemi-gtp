@@ -128,3 +128,23 @@ def build_issue_briefs(items, stock_name, limit=3):
         if len(briefs) >= max(1, int(limit)):
             break
     return briefs
+
+
+def build_news_test_articles(items, stock_name, limit=3):
+    """Build the test-panel article payload from the same extracted news facts.
+
+    The central issue flow remains unchanged.  This is a separate article-shaped
+    output used only by the right-panel "뉴스 테스트" view, and it deliberately
+    has no publisher title, description, source, or URL fields.
+    """
+    articles = []
+    for index, brief in enumerate(build_issue_briefs(items, stock_name, limit=limit), start=1):
+        articles.append({
+            "id": f"news-test-{index}",
+            "time": brief["time"],
+            "headline": brief["headline"],
+            "body": brief["summary"],
+            "tags": brief["tags"],
+            "stock_names": brief["stock_names"],
+        })
+    return articles
