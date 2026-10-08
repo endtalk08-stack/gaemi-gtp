@@ -64,5 +64,29 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertNotIn("영업이익50조원예상", article["keywords"])
 
 
+    def test_accepts_common_operating_profit_abbreviation_and_margin(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자 3Q 영업익 107.4조·매출 195조",
+            "description": "삼성전자 영업이익률은 55.1%를 기록했다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("영업이익107.4조", article["keywords"])
+        self.assertIn("매출195조", article["keywords"])
+        self.assertIn("영업이익률55.1%", article["keywords"])
+
+    def test_uncertainty_does_not_leak_across_next_clause(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자 영업이익 107조원 기록…4분기 117조원 전망",
+            "description": "삼성전자는 3분기 실적을 발표했다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("영업이익107조원", article["keywords"])
+        self.assertNotIn("영업이익107조원전망", article["keywords"])
+
+
 if __name__ == "__main__":
     unittest.main()

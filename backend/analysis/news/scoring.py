@@ -1180,9 +1180,13 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         return any(alias and alias in window for alias in aliases)
 
     def certainty_suffix(text, start, end):
-        """Preserve uncertainty/planning words instead of turning them into facts."""
-        window = text[max(0, start - 24):min(len(text), end + 28)]
-        for marker in ("검토", "계획", "예정", "전망", "예상", "추정", "관측", "가능성"):
+        """Preserve nearby uncertainty without leaking it across article clauses."""
+        before = text[max(0, start - 16):start]
+        after = text[end:min(len(text), end + 16)]
+        before = re.split(r"[|·…,:;!?]+", before)[-1]
+        after = re.split(r"[|·…,:;!?]+", after)[0]
+        window = f"{before}{text[start:end]}{after}"
+        for marker in ("검토", "계획", "예정", "전망", "예상", "추정", "관측", "가능성", "기대"):
             if marker in window:
                 return marker
         return ""
@@ -1255,6 +1259,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
 
         metric_names = {
             "영업이익": "영업이익",
+            "영업익": "영업이익",
             "매출": "매출",
             "매출액": "매출",
             "순이익": "순이익",
@@ -1288,6 +1293,16 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             direction = canonical_direction(match.group("direction"))
             suffix = certainty_suffix(text, *match.span())
             add_fact(f"{metric}{match.group('pct')}%{direction}{suffix}", match)
+
+        for match in re.finditer(
+            r"(?P<metric>영업\s*이익률|영업이익률|마진율|수익률)"
+            r".{0,16}?(?P<pct>\d+(?:\.\d+)?)\s*%",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            metric = normalize_fact_label(match.group("metric"))
+            suffix = certainty_suffix(text, *match.span())
+            add_fact(f"{metric}{match.group('pct')}%{suffix}", match)
 
         subject_names = {
             "생산능력": "생산능력",
