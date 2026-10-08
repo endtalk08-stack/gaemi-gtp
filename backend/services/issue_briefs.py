@@ -8,6 +8,8 @@ safe to render without repeating publisher wording.
 
 from __future__ import annotations
 
+import re
+
 
 _SIGNAL_BRIEFS = {
     "AI메모리": (
@@ -110,12 +112,46 @@ _CENTRAL_LABEL_TEXT = {
     "매출감소": "매출 감소",
     "영업이익증가": "영업이익 증가",
     "영업이익감소": "영업이익 감소",
+    "자사주매입": "자사주 매입",
+    "자사주소각": "자사주 소각",
+    "어닝서프라이즈": "어닝 서프라이즈",
+    "공급계약": "공급 계약",
+    "AI인프라": "AI 인프라",
+    "AI데이터센터": "AI 데이터센터",
 }
 
 
 def _central_label_text(value):
     label = str(value or "").strip().lstrip("#")
-    return _CENTRAL_LABEL_TEXT.get(label, label)
+    mapped = _CENTRAL_LABEL_TEXT.get(label)
+    if mapped:
+        return mapped
+
+    # Numeric facts are stored compactly for matching, but central copy should
+    # read like normal Korean: 영업이익100조원기대 -> 영업이익 100조원 기대.
+    match = re.match(
+        r"^(영업이익률|영업이익|매출|순이익|HBM매출|D램매출|낸드매출|"
+        r"목표가|생산능력|생산량|공급량|출하량|판매량)(.+)$",
+        label,
+    )
+    if not match:
+        return label
+
+    prefix, tail = match.groups()
+    tail = re.sub(r"^(전망치)(?=\d)", r"\1 ", tail)
+    tail = re.sub(
+        r"(증가|감소|상승|하락|확대|축소|상향|하향|상회|하회)"
+        r"(?=\s*(?:검토|계획|예정|전망|예상|추정|관측|가능성|기대)?$)",
+        r" \1",
+        tail,
+    )
+    tail = re.sub(
+        r"(검토|계획|예정|전망|예상|추정|관측|가능성|기대)$",
+        r" \1",
+        tail,
+    )
+    tail = re.sub(r"\s+", " ", tail).strip()
+    return f"{prefix} {tail}".strip()
 
 
 def _central_readable_labels(labels):
@@ -173,14 +209,32 @@ def _stock_names(item, fallback):
 
 
 def _brief_text(labels, themes, issues, stock_names, fallback_stock):
-    """Use each extracted fact once instead of repeating one keyword as title/body."""
-    readable = _central_readable_labels(labels)
+    """Compose natural central copy from grounded facts without source-copy filler."""
+    raw_labels = [str(label or "").strip().lstrip("#") for label in labels or []]
+    raw_labels = [label for label in raw_labels if label]
+
+    # Do not spend central-copy space on generic earnings labels when a more
+    # concrete earnings fact from the same item already exists.
+    has_numeric_earnings = any(
+        label.startswith(("영업이익", "매출", "순이익", "영업이익률"))
+        and any(char.isdigit() for char in label)
+        for label in raw_labels
+    )
+    display_labels = list(raw_labels)
+    if has_numeric_earnings:
+        display_labels = [
+            label for label in display_labels
+            if label not in {"실적발표", "잠정실적발표", "매출발표"}
+        ]
+    if "어닝서프라이즈" in display_labels or "사상최대실적" in display_labels:
+        display_labels = [label for label in display_labels if label != "호실적"]
+
+    readable = _central_readable_labels(display_labels)
     if not readable:
         topic = str(next(iter(themes or []), "") or next(iter(issues or []), "") or "시장").strip()
         return f"{topic} 관련 흐름", ""
 
-    label_set = {str(label or "").strip().lstrip("#") for label in labels or []}
-
+    label_set = set(display_labels)
     if "가격상승" in label_set and "메모리가격" in label_set:
         headline = "메모리 가격 상승"
         consumed = {"가격 상승", "메모리 가격"}
@@ -188,15 +242,14 @@ def _brief_text(labels, themes, issues, stock_names, fallback_stock):
         headline = "수익성 개선·HBM"
         consumed = {"수익성 개선", "HBM"}
     else:
-        headline_parts = readable[:2] if len(readable) >= 3 else readable[:1]
-        headline = "·".join(headline_parts)
-        consumed = set(headline_parts)
+        headline = readable[0]
+        consumed = {headline}
 
     remaining = [value for value in readable if value not in consumed]
     if not remaining:
         return headline, ""
 
-    summary = f"{', '.join(remaining[:2])} 내용도 기사에서 함께 확인됐어요."
+    summary = f"{', '.join(remaining[:2])}도 함께 언급됐어요."
     return headline, summary
 def build_issue_briefs(items, stock_name, limit=3):
     """Return display-only issue briefs without publisher title/description fields."""
