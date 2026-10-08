@@ -13,7 +13,7 @@
   <script>tailwind.config = { darkMode: 'class' }</script>
   <script>try { const t = localStorage.getItem('gaemiGTP_theme_v1'); if (t !== 'light') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); document.documentElement.dataset.theme = (t === 'light' ? 'light' : 'dark'); } catch (_) { document.documentElement.classList.add('dark'); }</script>
   <link rel="stylesheet" href="theme/theme.css?v=20261005-header-system-v1">
-  <link rel="stylesheet" href="css/app.css?v=20261008-home-composer-v1">
+  <link rel="stylesheet" href="css/app.css?v=20261008-home-composer-v2">
   <link rel="stylesheet" href="css/chat-tools.css?v=20261008-news-reaction-v3">
   <link rel="stylesheet" href="css/stock-calculator.css?v=20261005-v4">
   <link rel="stylesheet" href="css/memo-pad.css?v=20261005-v2">
@@ -233,53 +233,58 @@
 
       <div class="gaemi-home-search">
         <form class="gaemi-home-composer" onsubmit="event.preventDefault(); handleHeroSearch();">
-          <input
-            id="heroStockInput"
-            type="text"
-            autocomplete="off"
-            placeholder="관심 종목명을 입력하세요"
-            aria-label="관심 종목명 입력"
-          >
-          <div class="gaemi-home-composer__actions">
-            <button type="button" onclick="toggleModeDropdown('hero')" id="heroModeBtn" class="gaemi-home-mode" aria-label="분석 모드 선택">
-              <span id="heroModeLabel">gaemi</span>
-              <span class="gaemi-home-mode__chevron" aria-hidden="true">▲</span>
-            </button>
-            <button type="submit" class="gaemi-home-submit" aria-label="종목 분석 시작">
-              <span aria-hidden="true">↑</span>
-            </button>
+          <div class="gaemi-home-composer__field">
+            <input
+              id="heroStockInput"
+              type="text"
+              autocomplete="off"
+              placeholder="관심 종목명을 입력하세요"
+              aria-label="관심 종목명 입력"
+            >
+          </div>
+
+          <div class="gaemi-home-composer__toolbar">
+            <div class="gaemi-home-toolbar__left">
+              <button type="button" class="gaemi-home-more" onclick="showLeftSidebarHomeSection('home')" aria-label="기능 더보기" title="기능 더보기">
+                <i data-lucide="plus" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="gaemi-home-tool" onclick="showLeftSidebarHomeSection('home')">
+                <i data-lucide="folder-kanban" aria-hidden="true"></i><span>프로젝트</span>
+              </button>
+              <button type="button" class="gaemi-home-tool" onclick="openLeftSidebarSection('context')">
+                <i data-lucide="star" aria-hidden="true"></i><span>관심종목</span>
+              </button>
+              <button type="button" class="gaemi-home-tool" onclick="openLeftSidebarSection('plugin')">
+                <i data-lucide="blocks" aria-hidden="true"></i><span>플러그인</span>
+              </button>
+            </div>
+
+            <div class="gaemi-home-toolbar__right">
+              <button type="button" onclick="toggleModeDropdown('hero')" id="heroModeBtn" class="gaemi-home-mode" aria-label="분석 모드 선택">
+                <span id="heroModeLabel">gaemi</span>
+                <i data-lucide="chevron-down" class="gaemi-home-mode__chevron" aria-hidden="true"></i>
+              </button>
+              <button type="submit" class="gaemi-home-submit" aria-label="종목 분석 시작">
+                <i data-lucide="arrow-up" aria-hidden="true"></i>
+              </button>
+            </div>
           </div>
         </form>
 
-        <div id="heroModeMenu" class="absolute right-12 bottom-16 bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#2e3038] rounded-2xl p-2 w-48 shadow-2xl text-left hidden z-50 animate-fade">
-          <button type="button" onclick="selectAppMode('gaemi')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div class="text-left flex-1">
-              <div class="font-bold text-sm text-[#0f172a] gtp-dark-text text-left">gaemi</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">정보를 확인하세요</div>
-            </div>
-            <span id="chk-hero-gaemi" class="text-sky-500 font-bold ml-auto">✓</span>
+        <div id="heroModeMenu" class="gaemi-home-mode-menu hidden animate-fade">
+          <button type="button" onclick="selectAppMode('gaemi')">
+            <span><strong>gaemi</strong><small>정보를 확인하세요</small></span>
+            <span id="chk-hero-gaemi" class="gaemi-home-mode-menu__check">✓</span>
           </button>
-          <button type="button" onclick="selectAppMode('info')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div class="text-left flex-1">
-              <div class="font-bold text-sm text-[#0f172a] gtp-dark-text text-left">info</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">도움을 받으세요</div>
-            </div>
-            <span id="chk-hero-info" class="text-sky-500 font-bold ml-auto hidden">✓</span>
+          <button type="button" onclick="selectAppMode('info')">
+            <span><strong>info</strong><small>도움을 받으세요</small></span>
+            <span id="chk-hero-info" class="gaemi-home-mode-menu__check hidden">✓</span>
           </button>
-          <button type="button" onclick="selectAppMode('pro')" class="w-full flex items-center p-2.5 rounded-xl text-left hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] transition">
-            <div class="text-left flex-1">
-              <div class="font-bold text-sm text-[#0f172a] gtp-dark-text text-left">pro</div>
-              <div class="text-[11px] text-[#64748b] dark:text-[#71717a] text-left">실력을 키우세요</div>
-            </div>
-            <span id="chk-hero-pro" class="text-sky-500 font-bold ml-auto hidden">✓</span>
+          <button type="button" onclick="selectAppMode('pro')">
+            <span><strong>pro</strong><small>실력을 키우세요</small></span>
+            <span id="chk-hero-pro" class="gaemi-home-mode-menu__check hidden">✓</span>
           </button>
         </div>
-      </div>
-
-      <div class="gaemi-home-shortcuts" aria-label="홈 바로가기">
-        <button type="button" onclick="showLeftSidebarHomeSection('home')">프로젝트</button>
-        <button type="button" onclick="openLeftSidebarSection('context')">관심종목</button>
-        <button type="button" onclick="openLeftSidebarSection('plugin')">플러그인</button>
       </div>
 
       <div class="gaemi-home-prompts" aria-label="종목 기능 예시">

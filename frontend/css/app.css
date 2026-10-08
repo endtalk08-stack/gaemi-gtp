@@ -401,11 +401,11 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 
 
 
-/* Home: stock-name entry stays simple; shortcuts and examples are separate actions. */
+/* Home: stock-name entry in a two-tier composer, matching the main chat visual rhythm. */
 .gaemi-home-center {
-  width: min(44rem, 100%);
+  width: min(44rem, calc(100% - 32px));
   margin: auto;
-  padding: 0 20px 6vh;
+  padding-bottom: 4vh;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -413,10 +413,10 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 }
 
 .gaemi-home-heading {
-  margin: 0;
+  margin: 0 0 2px;
   color: var(--gtp-text);
   font-family: var(--gtp-font-family);
-  font-size: clamp(24px, 3vw, 30px);
+  font-size: 26px;
   font-weight: 650;
   line-height: 1.25;
   letter-spacing: -0.025em;
@@ -430,118 +430,228 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 
 .gaemi-home-composer {
   width: 100%;
-  min-height: 64px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px 8px 20px;
+  overflow: hidden;
   border: 1px solid var(--gtp-border-strong);
-  border-radius: 28px;
+  border-radius: 24px;
   background: var(--gtp-surface-2);
   box-shadow: var(--gtp-shadow);
+  transition: border-color .16s ease;
 }
 
 .gaemi-home-composer:focus-within {
   border-color: var(--gtp-muted);
 }
 
+.gaemi-home-composer__field {
+  min-height: 78px;
+  padding: 18px 18px 14px;
+  display: flex;
+  align-items: flex-start;
+}
+
 .gaemi-home-composer input {
+  width: 100%;
   min-width: 0;
-  flex: 1;
+  padding: 0;
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--gtp-text);
-  font: inherit;
   font-family: var(--gtp-font-family);
   font-size: var(--gtp-type-body);
   font-weight: var(--gtp-weight-body);
+  line-height: 1.5;
 }
 
 .gaemi-home-composer input::placeholder {
   color: var(--gtp-muted);
+  opacity: 1;
 }
 
-.gaemi-home-composer__actions {
-  flex: 0 0 auto;
+.gaemi-home-composer__toolbar {
+  min-height: 48px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--gtp-border);
+  background: var(--gtp-surface-3);
+}
+
+.gaemi-home-toolbar__left,
+.gaemi-home-toolbar__right {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
+.gaemi-home-toolbar__left {
+  flex: 1 1 auto;
+}
+
+.gaemi-home-toolbar__right {
+  flex: 0 0 auto;
+}
+
+.gaemi-home-more,
+.gaemi-home-tool,
 .gaemi-home-mode,
 .gaemi-home-submit,
-.gaemi-home-shortcuts button,
-.gaemi-home-prompts button {
+.gaemi-home-prompts button,
+.gaemi-home-mode-menu button {
   font-family: var(--gtp-font-family);
 }
 
+.gaemi-home-more,
+.gaemi-home-tool,
+.gaemi-home-mode,
+.gaemi-home-submit {
+  border: 0;
+  cursor: pointer;
+}
+
+.gaemi-home-more {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--gtp-text-2);
+}
+
+.gaemi-home-more svg {
+  width: 17px;
+  height: 17px;
+}
+
+.gaemi-home-tool {
+  height: 34px;
+  min-width: 0;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--gtp-text-2);
+  font-size: var(--gtp-type-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gaemi-home-tool svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.gaemi-home-more:hover,
+.gaemi-home-tool:hover,
+.gaemi-home-mode:hover {
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
+}
+
 .gaemi-home-mode {
-  height: 36px;
+  height: 34px;
   padding: 0 8px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   color: var(--gtp-muted);
   font-size: var(--gtp-type-meta);
   font-weight: 600;
-  cursor: pointer;
-}
-
-.gaemi-home-mode:hover {
-  background: var(--gtp-surface-3);
-  color: var(--gtp-text-2);
 }
 
 .gaemi-home-mode__chevron {
-  font-size: var(--gtp-type-fine);
+  width: 13px;
+  height: 13px;
 }
 
 .gaemi-home-submit {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 0;
   border-radius: 50%;
   background: var(--gtp-text);
   color: var(--gtp-bg);
-  font-size: var(--gtp-type-body);
-  font-weight: 700;
-  cursor: pointer;
 }
 
-.gaemi-home-shortcuts {
+.gaemi-home-submit svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.gaemi-home-mode-menu {
+  position: absolute;
+  right: 46px;
+  bottom: 52px;
+  z-index: 55;
+  width: 192px;
+  padding: 6px;
+  border: 1px solid var(--gtp-border-strong);
+  border-radius: 14px;
+  background: var(--gtp-surface);
+  box-shadow: var(--gtp-shadow);
+}
+
+.gaemi-home-mode-menu button {
+  width: 100%;
+  min-height: 48px;
+  padding: 7px 9px;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-}
-
-.gaemi-home-shortcuts button {
-  min-height: 34px;
-  padding: 0 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 10px;
   background: transparent;
-  color: var(--gtp-text-2);
-  font-size: var(--gtp-type-item);
-  font-weight: 600;
+  color: var(--gtp-text);
+  text-align: left;
   cursor: pointer;
 }
 
-.gaemi-home-shortcuts button:hover {
-  background: var(--gtp-surface-2);
-  color: var(--gtp-text);
+.gaemi-home-mode-menu button:hover {
+  background: var(--gtp-hover);
+}
+
+.gaemi-home-mode-menu button > span:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.gaemi-home-mode-menu strong {
+  font-size: var(--gtp-type-item);
+  font-weight: 650;
+}
+
+.gaemi-home-mode-menu small {
+  color: var(--gtp-muted);
+  font-size: var(--gtp-type-fine);
+  font-weight: var(--gtp-weight-meta);
+}
+
+.gaemi-home-mode-menu__check {
+  flex: 0 0 auto;
+  color: var(--gtp-muted);
+  font-size: var(--gtp-type-item);
+  font-weight: 650;
 }
 
 .gaemi-home-prompts {
-  width: min(36rem, 100%);
-  margin: 2px auto 0;
+  width: 100%;
+  padding: 0 8px;
   display: grid;
   gap: 2px;
 }
@@ -549,9 +659,9 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 .gaemi-home-prompts button {
   width: 100%;
   min-height: 42px;
-  padding: 8px 12px;
+  padding: 8px 8px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: var(--gtp-text-2);
   font-size: var(--gtp-type-item);
@@ -573,7 +683,8 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 
 @media (max-width: 640px) {
   .gaemi-home-center {
-    padding: 0 16px 4vh;
+    width: calc(100% - 32px);
+    padding-bottom: 2vh;
     gap: 14px;
   }
 
@@ -582,18 +693,48 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
   }
 
   .gaemi-home-composer {
-    min-height: 58px;
-    padding-left: 16px;
-    border-radius: 26px;
+    border-radius: 22px;
+  }
+
+  .gaemi-home-composer__field {
+    min-height: 70px;
+    padding: 16px 16px 12px;
+  }
+
+  .gaemi-home-composer__toolbar {
+    min-height: 46px;
+    padding: 6px;
+  }
+
+  .gaemi-home-tool {
+    padding: 0 7px;
+    gap: 5px;
+  }
+
+  .gaemi-home-prompts {
+    padding-inline: 2px;
+  }
+
+  .gaemi-home-prompts button {
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 420px) {
+  .gaemi-home-tool {
+    padding-inline: 5px;
+  }
+
+  .gaemi-home-tool svg {
+    display: none;
   }
 
   .gaemi-home-mode {
     display: none;
   }
 
-  .gaemi-home-prompts button {
-    min-height: 40px;
-    padding-inline: 8px;
+  .gaemi-home-mode-menu {
+    right: 8px;
   }
 }
 
