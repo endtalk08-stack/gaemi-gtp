@@ -82,29 +82,29 @@ def build_price_indicators(rows, current_price, day_high=None, day_low=None):
         else None
     )
 
-    daily_tag = "#중간권"
+    daily_tag = "#당일중간권"
     if current > 0 and high > low > 0:
         if current >= high:
-            daily_tag = "#고가갱신"
+            daily_tag = "#당일고가권"
         elif current <= low:
-            daily_tag = "#저가갱신"
+            daily_tag = "#당일저가권"
         else:
             day_position = (current - low) / (high - low)
             if day_position >= 0.70:
-                daily_tag = "#고가권"
+                daily_tag = "#당일고가권"
             elif day_position <= 0.30:
-                daily_tag = "#저가권"
+                daily_tag = "#당일저가권"
 
-    bollinger_tag = "#박스권"
+    bollinger_tag = "#장기박스구간"
     if bollinger and current > 0:
         upper = _positive_float(bollinger.get("upper"))
         middle = _positive_float(bollinger.get("middle"))
         lower = _positive_float(bollinger.get("lower"))
         if upper > middle > lower > 0:
             if current > upper:
-                bollinger_tag = "#상승우위"
+                bollinger_tag = "#장기상승구간"
             elif current < lower:
-                bollinger_tag = "#하락우위"
+                bollinger_tag = "#장기하락구간"
 
     short_term_tag = "#단기중립"
     if current > 0 and ma20 > 0:

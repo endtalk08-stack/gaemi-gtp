@@ -21,6 +21,17 @@
   justify-content: space-between;
   border-bottom: 1px solid var(--gtp-border);
 }
+
+/* The same calendar is shown from the right-panel menu, not as a second
+   left navigation surface. */
+#rightPanelWorkspace > .earnings-calendar-sidebar--panel {
+  width: 100% !important;
+  flex: 1 1 auto !important;
+  height: 100%;
+  pointer-events: auto;
+  border-right: 0;
+}
+#rightPanelWorkspace > .earnings-calendar-sidebar--panel .earnings-calendar-sidebar__header { display: none; }
 .earnings-calendar-sidebar__title { color: var(--gtp-text); font-size: var(--gtp-type-brand); font-weight: var(--gtp-weight-brand); letter-spacing: -0.02em; }
 .earnings-calendar-sidebar__close {
   width: var(--gtp-header-control-size);

@@ -379,11 +379,11 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           ? text.lastIndexOf(firstAnswerTagMatch[1])
           : -1;
         const risingFirstAnswerTags = new Set([
-          '#고가갱신', '#고가권', '#단기상승', '#상승우위',
+          '#고가갱신', '#고가권', '#당일고가권', '#단기상승', '#상승우위', '#장기상승구간',
           '#가즈아', '#불기둥', '#우상향', '#야금야금'
         ]);
         const fallingFirstAnswerTags = new Set([
-          '#저가갱신', '#저가권', '#단기하락', '#하락우위',
+          '#저가갱신', '#저가권', '#당일저가권', '#단기하락', '#하락우위', '#장기하락구간',
           '#숨고르기', '#버터보자', '#버텨보자', '#투매금지', '#멘탈관리'
         ]);
         const firstAnswerTagColor = (tag) => {
@@ -393,11 +393,31 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           return '#94A3B8';
         };
         let activeTagSpan = null;
+        let activePercentSpan = null;
+        let activePercentLength = 0;
 
         const appendTypingChunk = (chunk, chunkStart) => {
           for (let offset = 0; offset < chunk.length; offset++) {
             const char = chunk[offset];
             const absoluteIndex = chunkStart + offset;
+            // 등락률은 완성 뒤에 한꺼번에 칠하지 않는다. 부호가 출력되는 순간
+            // span을 만들어서 타이핑되는 숫자 전체가 처음부터 같은 색을 유지한다.
+            if (!activePercentSpan && (char === '+' || char === '-')) {
+              const fullPercent = (text.slice(absoluteIndex).match(/^[+-]\d+(?:\.\d+)?%/) || [null])[0];
+              if (fullPercent) {
+                activePercentSpan = document.createElement('span');
+                activePercentSpan.className = 'font-bold';
+                activePercentSpan.style.color = fullPercent.startsWith('+') ? '#FF8DA1' : '#38BDF8';
+                activePercentLength = fullPercent.length;
+                pEl.appendChild(activePercentSpan);
+              }
+            }
+            if (activePercentSpan) {
+              activePercentSpan.textContent += char;
+              activePercentLength -= 1;
+              if (activePercentLength === 0) activePercentSpan = null;
+              continue;
+            }
             if (firstAnswerTagStart >= 0 && absoluteIndex >= firstAnswerTagStart) {
               if (char === '#') {
                 const fullTag = (text.slice(absoluteIndex).match(/^#[^\s]+/) || ['#'])[0];

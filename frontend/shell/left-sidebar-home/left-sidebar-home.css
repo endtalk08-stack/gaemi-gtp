@@ -220,8 +220,8 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
 }
 
 .left-sidebar-home__section-head {
-  min-height: 30px;
-  padding: 0 2px 4px 8px;
+  min-height: 42px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -230,11 +230,15 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
 
 .left-sidebar-home__section-title {
   margin: 0;
-  color: var(--gtp-muted);
-  font-size: var(--gtp-type-meta);
-  font-weight: var(--gtp-weight-meta);
-  letter-spacing: -0.01em;
+  color: var(--gtp-text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--gtp-type-item);
+  font-weight: var(--gtp-weight-title);
+  letter-spacing: -0.015em;
 }
+.left-sidebar-home__section-title svg { width: 17px; height: 17px; stroke-width: 1.75; color: var(--gtp-muted); }
 
 .left-sidebar-home__section-menu {
   width: 28px;
@@ -260,7 +264,11 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   width: 15px;
   height: 15px;
   stroke-width: 1.8;
+  transition: transform .16s ease;
 }
+.left-sidebar-home__section-menu[aria-expanded="false"] svg { transform: rotate(-90deg); }
+
+.left-sidebar-home__section-body[hidden] { display: none; }
 
 .left-sidebar-home__items {
   margin: 2px 0 0;

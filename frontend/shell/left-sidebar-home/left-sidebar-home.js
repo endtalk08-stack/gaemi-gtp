@@ -89,7 +89,6 @@
       const idBySection = {
         market: 'leftMarketSidebar',
         context: 'leftContextSidebar',
-        calendar: 'leftEarningsCalendarSidebar',
         plugin: 'leftPluginSidebar'
       };
       const node = document.getElementById(idBySection[section]);
@@ -112,7 +111,7 @@
       embedded.style.flexBasis = '100%';
     }
     if (section === 'plugin') window.GaemiGTPPluginSidebar?.render?.();
-    if (title) title.textContent = section === 'calendar' ? '실적 캘린더' : 'gaemiGTP';
+    if (title) title.textContent = 'gaemiGTP';
     applyState();
   }
 
@@ -138,13 +137,19 @@
     if (navButton) {
       const nav = navButton.dataset.leftHomeNav;
       setActiveNav(nav);
-      if (nav === 'calendar') showSection('calendar');
       return;
     }
 
-    const sectionMenu = event.target.closest('#leftSidebarHome [data-left-home-section-menu]');
-    if (sectionMenu) {
-      /* Layout placeholder only. Management actions will be connected later. */
+    const sectionToggle = event.target.closest('#leftSidebarHome [data-left-home-section-toggle]');
+    if (sectionToggle) {
+      const bodyId = sectionToggle.getAttribute('aria-controls');
+      const sectionBody = bodyId ? document.getElementById(bodyId) : null;
+      if (!sectionBody) return;
+      const expanded = sectionToggle.getAttribute('aria-expanded') !== 'false';
+      sectionToggle.setAttribute('aria-expanded', String(!expanded));
+      sectionToggle.setAttribute('aria-label', expanded ? `${sectionToggle.dataset.leftHomeSectionToggle === 'watchlist' ? '관심종목' : '플러그인'} 펼치기` : `${sectionToggle.dataset.leftHomeSectionToggle === 'watchlist' ? '관심종목' : '플러그인'} 접기`);
+      sectionToggle.setAttribute('title', sectionToggle.getAttribute('aria-label'));
+      sectionBody.hidden = expanded;
       return;
     }
   });
