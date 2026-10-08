@@ -125,7 +125,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 if (stockNames.length) {
                   stocksTitle = document.createElement('p');
                   stocksTitle.className = `${responseMessageClass} font-semibold`;
-                  stocksTitle.textContent = '기사에 언급된 종목';
+                  stocksTitle.textContent = '관련 종목';
                   stocksEl = document.createElement('div');
                   stocksEl.className = 'space-y-1';
                   stockNames.forEach((name) => {

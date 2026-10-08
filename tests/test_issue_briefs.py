@@ -21,7 +21,11 @@ class IssueBriefTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         brief = result[0]
         self.assertEqual(brief["time"], "11:40")
-        self.assertEqual(brief["headline"], "AI 메모리 기대감에 반도체주 주목")
+        self.assertEqual(brief["headline"], "AI 메모리·메모리 가격 이슈")
+        self.assertEqual(
+            brief["summary"],
+            "AI 메모리, 메모리 가격 관련 내용이\n기사에서 함께 언급됐어요.",
+        )
         self.assertEqual(brief["stock_names"], ["삼성전자", "SK하이닉스"])
         self.assertIn("AI메모리", brief["tags"])
         self.assertNotIn(source_title, str(brief))
@@ -38,8 +42,50 @@ class IssueBriefTests(unittest.TestCase):
             "issues": [],
         }], "삼성전자")
 
-        self.assertEqual(result[0]["headline"], "반도체 이슈에 삼성전자 주목")
+        self.assertEqual(result[0]["headline"], "새로운신호 관련 이슈")
+        self.assertEqual(
+            result[0]["summary"],
+            "새로운신호 관련 내용이\n기사에서 언급됐어요.",
+        )
         self.assertNotIn("복사하면 안 되는", str(result[0]))
+
+    def test_central_brief_uses_materials_instead_of_generic_attention_copy(self):
+        result = build_issue_briefs([{
+            "storyboard_time": "15:38",
+            "storyboard_keywords": ["수익성개선"],
+            "movement_signals": [
+                {"label": "HBM", "tone": "positive"},
+                {"label": "공급부족", "tone": "positive"},
+            ],
+            "stock_entities": ["삼성전자"],
+            "themes": ["반도체"],
+        }], "삼성전자")
+
+        self.assertEqual(result[0]["headline"], "수익성 개선·HBM 공급 이슈")
+        self.assertEqual(
+            result[0]["summary"],
+            "수익성 개선 흐름과 HBM, 공급 부족 관련 내용이\n기사에서 함께 언급됐어요.",
+        )
+        self.assertNotIn("주목", str(result[0]))
+        self.assertNotIn("관심이 모이고", str(result[0]))
+
+    def test_central_brief_formats_memory_price_issue(self):
+        result = build_issue_briefs([{
+            "storyboard_time": "15:24",
+            "storyboard_keywords": ["가격상승"],
+            "movement_signals": [
+                {"label": "메모리가격", "tone": "positive"},
+                {"label": "반도체호황", "tone": "positive"},
+            ],
+            "stock_entities": ["삼성전자"],
+            "themes": ["반도체"],
+        }], "삼성전자")
+
+        self.assertEqual(result[0]["headline"], "메모리 가격 상승 기대")
+        self.assertEqual(
+            result[0]["summary"],
+            "메모리 가격 상승과 반도체 업황 관련 기대가\n기사에서 함께 언급됐어요.",
+        )
 
     def test_news_test_articles_keep_only_display_fields(self):
         result = build_news_test_articles([{

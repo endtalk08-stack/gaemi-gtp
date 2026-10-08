@@ -61,6 +61,53 @@ _SIGNAL_BRIEFS = {
 }
 
 
+# Central "오늘 눈에 띄는 흐름" copy stays fact-bounded.
+# These labels were already extracted from the article title + description;
+# the central brief only makes them readable and never adds price/supply claims.
+_CENTRAL_LABEL_TEXT = {
+    "수익성개선": "수익성 개선",
+    "HBM": "HBM",
+    "HBM수요": "HBM 수요",
+    "HBM수요급증": "HBM 수요 급증",
+    "HBM공급부족": "HBM 공급 부족",
+    "HBM공급확대": "HBM 공급 확대",
+    "공급부족": "공급 부족",
+    "가격상승": "가격 상승",
+    "가격하락": "가격 하락",
+    "메모리가격": "메모리 가격",
+    "반도체호황": "반도체 업황",
+    "반도체업황개선": "반도체 업황 개선",
+    "AI메모리": "AI 메모리",
+    "실적발표": "실적 발표",
+    "잠정실적발표": "실적 발표",
+    "매출발표": "실적 발표",
+    "실적개선": "실적 개선",
+    "실적상회": "실적 상회",
+    "호실적": "호실적",
+    "사상최대실적": "사상 최대 실적",
+    "외국인매도": "외국인 매도",
+    "수주·계약": "수주·계약",
+    "주주환원": "주주환원",
+    "차익실현": "차익실현",
+    "실적부진": "실적 부진",
+    "전망하향": "전망 하향",
+}
+
+
+def _central_label_text(value):
+    label = str(value or "").strip().lstrip("#")
+    return _CENTRAL_LABEL_TEXT.get(label, label)
+
+
+def _central_readable_labels(labels):
+    output = []
+    for label in labels or []:
+        value = _central_label_text(label)
+        if value and value not in output:
+            output.append(value)
+    return output
+
+
 def _clean_labels(values, limit=3):
     labels = []
     for value in values or []:
@@ -94,17 +141,51 @@ def _stock_names(item, fallback):
     return names or _clean_labels([fallback], limit=1)
 
 
-def _brief_text(labels, themes, issues, stock_name):
-    primary = next((label for label in labels if label in _SIGNAL_BRIEFS), "")
-    stock = str(stock_name or "관련 종목").strip() or "관련 종목"
-    if primary:
-        headline, summary = _SIGNAL_BRIEFS[primary]
-        return headline.format(stock=stock), summary
+def _brief_text(labels, themes, issues, stock_names, fallback_stock):
+    """Build a concise central issue from facts already extracted from the article."""
+    label_set = {str(label or "").strip().lstrip("#") for label in labels or []}
+    stock = next((str(name or "").strip() for name in stock_names or [] if str(name or "").strip()), "")
+    stock = stock or str(fallback_stock or "").strip()
 
-    topic = next(iter(themes or []), "") or next(iter(issues or []), "") or next(iter(labels or []), "시장")
+    if {"수익성개선", "HBM", "공급부족"}.issubset(label_set):
+        return (
+            "수익성 개선·HBM 공급 이슈",
+            "수익성 개선 흐름과 HBM, 공급 부족 관련 내용이\n기사에서 함께 언급됐어요.",
+        )
+
+    if "메모리가격" in label_set and "가격상승" in label_set:
+        return (
+            "메모리 가격 상승 기대",
+            "메모리 가격 상승과 반도체 업황 관련 기대가\n기사에서 함께 언급됐어요.",
+        )
+
+    if label_set.intersection({"실적발표", "잠정실적발표", "매출발표"}):
+        if stock:
+            return (
+                "실적 발표 관련 이슈",
+                f"실적 발표 관련 내용이 확인됐고,\n{stock}가 기사에서 직접 언급됐어요.",
+            )
+        return (
+            "실적 발표 관련 이슈",
+            "실적 발표 관련 내용이\n기사에서 확인됐어요.",
+        )
+
+    readable = _central_readable_labels(labels)
+    if len(readable) >= 2:
+        return (
+            f"{readable[0]}·{readable[1]} 이슈",
+            f"{', '.join(readable[:3])} 관련 내용이\n기사에서 함께 언급됐어요.",
+        )
+    if readable:
+        return (
+            f"{readable[0]} 관련 이슈",
+            f"{readable[0]} 관련 내용이\n기사에서 언급됐어요.",
+        )
+
+    topic = str(next(iter(themes or []), "") or next(iter(issues or []), "") or "시장").strip()
     return (
-        f"{topic} 이슈에 {stock} 주목",
-        f"{topic} 관련 흐름이 확인되면서\n관련 종목에 관심이 모이고 있어요.",
+        f"{topic} 관련 이슈",
+        f"{topic} 관련 내용이\n기사에서 확인됐어요.",
     )
 
 
@@ -114,8 +195,13 @@ def build_issue_briefs(items, stock_name, limit=3):
     for item in items or []:
         labels = _signal_labels(item)
         stock_names = _stock_names(item, stock_name)
-        subject = stock_names[0] if stock_names else stock_name
-        headline, summary = _brief_text(labels, item.get("themes") or [], item.get("issues") or [], subject)
+        headline, summary = _brief_text(
+            labels,
+            item.get("themes") or [],
+            item.get("issues") or [],
+            stock_names,
+            stock_name,
+        )
         if not headline or not summary:
             continue
         briefs.append({
