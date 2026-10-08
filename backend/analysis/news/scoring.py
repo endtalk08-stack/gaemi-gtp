@@ -1173,6 +1173,191 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         nearest.sort(key=lambda pair: pair[0])
         return compact(nearest[0][1]).lower() != compact(stock_name).lower()
 
+    def selected_stock_is_near(text, start, end, radius=90):
+        """Require description facts to stay close to the selected company."""
+        lower = text.lower()
+        window = lower[max(0, start - radius):min(len(lower), end + radius)]
+        return any(alias and alias in window for alias in aliases)
+
+    def certainty_suffix(text, start, end):
+        """Preserve uncertainty/planning words instead of turning them into facts."""
+        window = text[max(0, start - 24):min(len(text), end + 28)]
+        for marker in ("검토", "계획", "예정", "전망", "예상", "추정", "관측", "가능성"):
+            if marker in window:
+                return marker
+        return ""
+
+    def canonical_direction(value):
+        value = str(value or "")
+        if value.startswith(("늘", "증가", "상승")):
+            return "증가"
+        if value.startswith(("줄", "감소", "하락")):
+            return "감소"
+        if value.startswith(("상향", "인상")):
+            return "상향"
+        if value.startswith(("하향", "인하")):
+            return "하향"
+        if value.startswith(("확대", "증설")):
+            return "확대"
+        if value.startswith("축소"):
+            return "축소"
+        return value
+
+    def normalize_fact_label(value):
+        return re.sub(r"\s+", "", str(value or "").strip())
+
+    def extract_structured_facts(text, *, source, require_stock_context=False):
+        """Extract explicit metric/number/direction facts without generative inference."""
+        if not text:
+            return []
+        if require_stock_context and not selected_stock_is_present(text):
+            return []
+
+        priority = 130 if source == "title" else 85
+        facts = []
+        seen = set()
+
+        def add_fact(label, match, *, evidence=None):
+            label = normalize_fact_label(label)
+            if not label or label in seen:
+                return
+            evidence = str(evidence or match.group(0) or "").strip()
+            start, end = match.span()
+            local = text[max(0, start - 18):min(len(text), end + 20)]
+            if any(word in local.lower() for word in negation_words):
+                return
+            if require_stock_context and not selected_stock_is_near(text, start, end):
+                return
+            if evidence and other_company_owns_phrase(text, evidence):
+                return
+            facts.append({
+                "label": label,
+                "source": f"{source}-fact",
+                "evidence": evidence,
+                "priority": priority,
+                "_position": start,
+                "_specificity": len(label),
+            })
+            seen.add(label)
+
+        metric_pattern = (
+            r"(?P<metric>영업\s*이익|매출(?:액)?|순\s*이익|"
+            r"HBM\s*매출|D램\s*매출|DRAM\s*매출|낸드\s*매출|NAND\s*매출)"
+        )
+        amount_pattern = (
+            r"(?P<amount>"
+            r"\d+(?:\.\d+)?\s*조(?:\s*\d{1,4}(?:,\d{3})*\s*억(?:원)?)?\s*원?"
+            r"|\d{1,4}(?:,\d{3})*\s*억원"
+            r"|\d{1,3}(?:,\d{3})+\s*원"
+            r"|\d+(?:\.\d+)?\s*달러"
+            r")"
+        )
+
+        metric_names = {
+            "영업이익": "영업이익",
+            "매출": "매출",
+            "매출액": "매출",
+            "순이익": "순이익",
+            "HBM매출": "HBM매출",
+            "D램매출": "D램매출",
+            "DRAM매출": "D램매출",
+            "낸드매출": "낸드매출",
+            "NAND매출": "낸드매출",
+        }
+
+        for match in re.finditer(
+            metric_pattern + r".{0,24}?" + amount_pattern,
+            text,
+            flags=re.IGNORECASE,
+        ):
+            metric_key = normalize_fact_label(match.group("metric"))
+            metric = metric_names.get(metric_key.upper(), metric_names.get(metric_key, metric_key))
+            amount = normalize_fact_label(match.group("amount"))
+            suffix = certainty_suffix(text, *match.span())
+            add_fact(f"{metric}{amount}{suffix}", match)
+
+        for match in re.finditer(
+            metric_pattern
+            + r".{0,42}?(?P<pct>\d+(?:\.\d+)?)\s*%\s*"
+            + r"(?P<direction>증가|감소|상승|하락|늘(?:었|어|고|며|어난|어났|어난다)?|줄(?:었|어|고|며|어든|었다)?)",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            metric_key = normalize_fact_label(match.group("metric"))
+            metric = metric_names.get(metric_key.upper(), metric_names.get(metric_key, metric_key))
+            direction = canonical_direction(match.group("direction"))
+            suffix = certainty_suffix(text, *match.span())
+            add_fact(f"{metric}{match.group('pct')}%{direction}{suffix}", match)
+
+        subject_names = {
+            "생산능력": "생산능력",
+            "생산량": "생산량",
+            "공급량": "공급량",
+            "출하량": "출하량",
+            "판매량": "판매량",
+        }
+        for match in re.finditer(
+            r"(?P<subject>생산\s*능력|생산량|공급량|출하량|판매량)"
+            r".{0,30}?(?P<ratio>\d+(?:\.\d+)?)\s*배"
+            r".{0,18}?(?P<direction>확대|증가|증설|늘(?:린|릴|려|어난|어날|었다)?)",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            subject_key = normalize_fact_label(match.group("subject"))
+            subject = subject_names.get(subject_key, subject_key)
+            direction = canonical_direction(match.group("direction"))
+            suffix = certainty_suffix(text, *match.span())
+            add_fact(f"{subject}{match.group('ratio')}배{direction}{suffix}", match)
+
+        target_patterns = (
+            re.compile(
+                r"목표(?:주가|가).{0,24}?(?P<old>\d[\d,.]*)\s*(?:원|달러)\s*에서\s*"
+                r"(?P<new>\d[\d,.]*)\s*(?P<unit>원|달러)\s*(?:로)?\s*"
+                r"(?P<direction>상향|하향|인상|인하)",
+                flags=re.IGNORECASE,
+            ),
+            re.compile(
+                r"목표(?:주가|가).{0,24}?(?P<new>\d[\d,.]*)\s*(?P<unit>원|달러)"
+                r".{0,14}?(?P<direction>상향|하향|인상|인하)",
+                flags=re.IGNORECASE,
+            ),
+        )
+        for pattern in target_patterns:
+            for match in pattern.finditer(text):
+                direction = canonical_direction(match.group("direction"))
+                suffix = certainty_suffix(text, *match.span())
+                add_fact(
+                    f"목표가{match.group('new')}{match.group('unit')}{direction}{suffix}",
+                    match,
+                )
+
+        facts.sort(
+            key=lambda item: (
+                item["priority"],
+                item["_specificity"],
+                -item["_position"],
+            ),
+            reverse=True,
+        )
+        for item in facts:
+            item.pop("_position", None)
+            item.pop("_specificity", None)
+        return facts
+
+    def covered_by_specific_fact(label, selected_labels):
+        """Do not spend a slot on a generic label already expressed by a numeric fact."""
+        for existing in selected_labels:
+            if label == existing:
+                return True
+            if len(label) >= 4 and label in existing:
+                return True
+            for direction in ("증가", "감소", "확대", "축소", "상향", "하향"):
+                if label.endswith(direction) and existing.endswith(direction):
+                    stem = label[:-len(direction)]
+                    if stem and stem in existing:
+                        return True
+        return False
+
     def find_rules(text, *, source, require_stock_context=False):
         lower = text.lower()
         if require_stock_context and not selected_stock_is_present(text):
@@ -1286,11 +1471,13 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         selected = []
         seen_labels = set()
         for candidate in (
-            find_rules(title, source="title")
+            extract_structured_facts(title, source="title")
+            + find_rules(title, source="title")
+            + extract_structured_facts(description, source="description", require_stock_context=True)
             + find_rules(description, source="description", require_stock_context=True)
         ):
             label = str(candidate.get("label") or "").strip()
-            if not label or label in seen_labels:
+            if not label or covered_by_specific_fact(label, seen_labels):
                 continue
             selected.append(candidate)
             seen_labels.add(label)

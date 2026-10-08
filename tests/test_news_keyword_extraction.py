@@ -23,5 +23,46 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         ])
 
 
+    def test_extracts_numeric_financial_facts_without_inventing_context(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, 3분기 영업이익 107조4,000억원... 역대 최대 실적",
+            "description": "삼성전자 영업이익은 전년 동기 대비 782.5% 증가했다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"], [
+            "영업이익107조4,000억원",
+            "사상최대실적",
+            "영업이익782.5%증가",
+        ])
+        self.assertEqual(article["keyword_details"][0]["source"], "title-fact")
+        self.assertEqual(article["keyword_details"][2]["source"], "description-fact")
+
+    def test_preserves_uncertainty_for_expansion_review(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, 내년 생산능력 2배 확대 검토",
+            "description": "삼성전자는 HBM 수요에 대응하는 방안을 검토 중이다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "생산능력2배확대검토")
+        self.assertNotIn("생산능력2배확대", article["keywords"])
+
+    def test_description_numeric_fact_requires_selected_stock_nearby(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자와 SK하이닉스 실적 전망",
+            "description": "SK하이닉스 영업이익은 50조원으로 예상됐다. 삼성전자는 별도 수치를 제시하지 않았다.",
+            "stocks": [
+                {"name": "삼성전자", "region": "국내"},
+                {"name": "SK하이닉스", "region": "국내"},
+            ],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertNotIn("영업이익50조원예상", article["keywords"])
+
+
 if __name__ == "__main__":
     unittest.main()
