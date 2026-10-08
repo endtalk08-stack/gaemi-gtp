@@ -18,10 +18,7 @@ from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
-from .news_feed import fetch_stock_news
-from .news_scoring import score_stock_news, build_connected_keyword_test
-from .simple_news_storyboard import build_simple_today_news, select_keyword_storyboard_news
-from .issue_briefs import build_issue_briefs, build_news_test_articles
+from .news_result import build_stock_news_result
 from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
 
@@ -3310,26 +3307,12 @@ def analyze_stock(raw_name='SK하이닉스'):
 
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=news start", flush=True)
-            try:
-                news_part_started = time.monotonic()
-                raw_news_list = fetch_stock_news(raw_name, market="국내", limit=50, include_market_stories=False)
-                print(f"[analyze news trace] stock={raw_name} part=fetch done elapsed={time.monotonic() - news_part_started:.2f}s items={len(raw_news_list)}", flush=True)
-                news_part_started = time.monotonic()
-                storyboard_news_list = score_stock_news(raw_news_list, raw_name)
-                print(f"[analyze news trace] stock={raw_name} part=score done elapsed={time.monotonic() - news_part_started:.2f}s items={len(storyboard_news_list)}", flush=True)
-                news_part_started = time.monotonic()
-                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=1)
-                print(f"[analyze news trace] stock={raw_name} part=keywords done elapsed={time.monotonic() - news_part_started:.2f}s", flush=True)
-                for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
-                    article["article_keywords"] = keyword_result.get("keywords", [])
-                    article["article_keyword_details"] = keyword_result.get("keyword_details", [])
-                    article["grounded_tags"] = keyword_result.get("grounded_tags", [])
-                    article["stock_entities"] = keyword_result.get("stock_entities", [])
-                news_list = storyboard_news_list[:3]
-            except Exception as e:
-                print(f"[뉴스] fail: {type(e).__name__}: {e}")
-                news_list = []
-                storyboard_news_list = []
+            news_result = build_stock_news_result(
+                raw_name,
+                market="국내",
+                limit=50,
+                include_market_stories=False,
+            )
             _trace_stage("news done", stage_started)
 
             stage_started = time.monotonic()
@@ -3378,19 +3361,12 @@ def analyze_stock(raw_name='SK하이닉스'):
                 print(f"[미국 시세] fail: {type(e).__name__}: {e}")
                 volume_profile = None
 
-            try:
-                storyboard_news_list = score_stock_news(fetch_stock_news(raw_name, market="미국", limit=50, include_market_stories=False), raw_name)
-                article_keyword_result = build_connected_keyword_test(storyboard_news_list, raw_name, max_keywords=1)
-                for article, keyword_result in zip(storyboard_news_list, article_keyword_result.get("articles", [])):
-                    article["article_keywords"] = keyword_result.get("keywords", [])
-                    article["article_keyword_details"] = keyword_result.get("keyword_details", [])
-                    article["grounded_tags"] = keyword_result.get("grounded_tags", [])
-                    article["stock_entities"] = keyword_result.get("stock_entities", [])
-                news_list = storyboard_news_list[:3]
-            except Exception as e:
-                print(f"[뉴스] fail: {type(e).__name__}: {e}")
-                news_list = []
-                storyboard_news_list = []
+            news_result = build_stock_news_result(
+                raw_name,
+                market="미국",
+                limit=50,
+                include_market_stories=False,
+            )
 
             try:
                 us_filings_raw = fetch_us_official_filings(ticker_symbol, days=30, max_results=30)
@@ -3429,12 +3405,6 @@ def analyze_stock(raw_name='SK하이닉스'):
             status_emoji, title_word = '❄️', '빠질까'
             intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
             tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
-
-        news_lines = (
-            "\n".join([f"📰 \"{item.get('title', '')}\"" for item in news_list])
-            if news_list
-            else "📰 현재 확인된 관련 뉴스를 가져오지 못했습니다."
-        )
 
 
         # 첫 화면은 현재 주가를 가장 위에 배치한다.
@@ -3503,17 +3473,6 @@ def analyze_stock(raw_name='SK하이닉스'):
                 "content": get_live_calendar_data(raw_name, ticker_symbol)
             }
         ])
-        paired_news_items = build_simple_today_news(
-            storyboard_news_list if isinstance(storyboard_news_list, list) else [],
-            raw_name,
-            limit=None,
-            display_timezone="Asia/Seoul",
-        )
-        # Central chat summarizes keyword events from all of today's paired news.
-        # The full paired list remains unchanged for the right panel / related articles.
-        storyboard_selected_news = select_keyword_storyboard_news(paired_news_items, limit=3)
-        issue_briefs = build_issue_briefs(storyboard_selected_news, raw_name, limit=3)
-        news_test_articles = build_news_test_articles(storyboard_selected_news, raw_name, limit=3)
         disclosures = []
         if is_krw and clean_code:
             for item in score_disclosures(kr_official_disclosures or []):
@@ -3576,21 +3535,11 @@ def analyze_stock(raw_name='SK하이닉스'):
                 })
         return {
             "sections": sections,
-            "paired_news_items": paired_news_items,
-            "storyboard_news_items": storyboard_selected_news,
-            "issue_briefs": issue_briefs,
-            "news_test_articles": news_test_articles,
-            "keyword_storyboard": [
-                {
-                    "time": item.get("storyboard_time", ""),
-                    "keywords": item.get("storyboard_keywords", [])[:3],
-                    "keyword_tones": item.get("storyboard_keyword_tones", {}),
-                    "grounded_tags": item.get("grounded_tags", [])[:4],
-                    "stock_entities": item.get("stock_entities", [])[:4],
-                }
-                for item in storyboard_selected_news
-                if item.get("storyboard_keyword")
-            ],
+            "paired_news_items": news_result.get("paired_news_items", []),
+            "storyboard_news_items": news_result.get("storyboard_news_items", []),
+            "issue_briefs": news_result.get("issue_briefs", []),
+            "news_test_articles": news_result.get("news_test_articles", []),
+            "keyword_storyboard": news_result.get("keyword_storyboard", []),
             "disclosures": disclosures,
             "us_filings": us_filings,
         }

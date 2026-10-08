@@ -1,6 +1,6 @@
 import unittest
 
-from backend.services.simple_news_storyboard import select_keyword_storyboard_news
+from backend.analysis.news.storyboard import select_keyword_storyboard_news
 
 
 def article(*, keyword, tier, strength, published_at, flow_score=0, title=""):

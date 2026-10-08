@@ -11,7 +11,7 @@ import re
 from functools import lru_cache
 from collections import Counter
 
-from .news_feed import STOCK_UNIVERSE
+from .catalog import STOCK_UNIVERSE
 from email.utils import parsedate_to_datetime
 
 

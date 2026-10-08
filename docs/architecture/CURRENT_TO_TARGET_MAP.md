@@ -8,7 +8,9 @@
 | `frontend/js/app.js` | `frontend/shell` + `pages` + `widgets` | 현재 역할 혼합. 가장 늦게 쪼갬 |
 | `frontend/widgets/news-widget.js` | `frontend/widgets/news/` | 독립 위젯으로 정리 대상 |
 | `backend/services/engine.py` | `backend/data` + `backend/analysis` + 일부 `backend/core` | 역할을 먼저 분석한 후 단계적 분리 |
-| `backend/services/news.py` | `backend/data/news` + `backend/analysis/news` | 수집/필터/점수 책임 분리 대상 |
+| `backend/providers/naver_news.py` + `backend/services/news_feed.py` | 원천 수집/정규화 유지 | 공통 뉴스 원천 경로 |
+| `backend/analysis/news/` | `backend/analysis/news/` | 점수/키워드/핵심 이슈 선별 |
+| `backend/services/news_result.py` | 기능별 뉴스 결과 조립 | 중앙/오른쪽/뉴스 테스트가 같은 결과를 공유 |
 | `backend/services/market_levels.py` | `backend/analysis/levels` | 분석 모듈 분리 대상 |
 | `backend/services/warmup.py` | `backend/data`/인프라 영역 | 역할 확인 후 이동 |
 | `backend/database/` | `backend/database/` | 유지 |

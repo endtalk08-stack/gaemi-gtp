@@ -25,21 +25,22 @@
 ```
 app.py /analyze
  → backend/services/engine.py analyze_stock
- → fetch_stock_news(...)
- → score_stock_news(...)
- → build_connected_keyword_test(...)
+ → backend/services/news_result.py build_stock_news_result(...)
+ → backend/services/news_feed.py fetch_stock_news(...)
+ → backend/analysis/news/scoring.py score_stock_news(...)
+ → backend/analysis/news/scoring.py build_connected_keyword_test(...)
  → article_keywords / article_keyword_details 부착
- → build_simple_today_news(...)
- → select_keyword_storyboard_news(...)
- → paired_news_items / storyboard_news_items / keyword_storyboard
- → 중앙/상세 화면
+ → backend/analysis/news/storyboard.py build_simple_today_news(...)
+ → backend/analysis/news/storyboard.py select_keyword_storyboard_news(...)
+ → paired_news_items / storyboard_news_items / issue_briefs / news_test_articles / keyword_storyboard
+ → 중앙/오른쪽 뉴스/뉴스 테스트
 ```
 
 뉴스 공급자는 현재 이 흐름에서 Naver News를 사용한다. Google News를 임의로 추가하지 않는다.
 
 ## 3. 키워드 엔진의 역할
 
-핵심 함수는 `backend/services/news_scoring.py`의 `build_connected_keyword_test()`이다.
+핵심 함수는 `backend/analysis/news/scoring.py`의 `build_connected_keyword_test()`이다.
 
 키워드는 두 축을 함께 사용한다.
 
