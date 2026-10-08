@@ -245,6 +245,26 @@ def _signal_labels(item):
     return labels
 
 
+_EVENT_SUBJECT_BLOCKLIST = {
+    "미국", "한국", "중국", "일본", "유럽", "아시아", "중동",
+    "SEC", "FDA", "코스피", "코스닥", "나스닥", "뉴욕증시", "WTI",
+}
+
+
+def _concrete_event_subject(item, labels, stock_names):
+    """Use only already-grounded product/service tags to clarify generic events."""
+    primary = str(next(iter(labels or []), "") or "").strip().lstrip("#")
+    if primary != "제품공개":
+        return ""
+    stock_set = {str(name or "").strip() for name in stock_names or []}
+    for value in item.get("grounded_tags") or []:
+        tag = str(value or "").strip().lstrip("#")
+        if not tag or tag in stock_set or tag in _EVENT_SUBJECT_BLOCKLIST:
+            continue
+        return tag
+    return ""
+
+
 def _stock_names(item, fallback):
     names = _clean_labels(item.get("stock_entities"), limit=4)
     for stock in item.get("stocks") or []:
@@ -360,6 +380,14 @@ def build_issue_briefs(items, stock_name, limit=3):
             stock_name,
             summary_index=len(briefs),
         )
+        concrete_subject = _concrete_event_subject(item, labels, stock_names)
+        if concrete_subject and labels and labels[0] == "제품공개":
+            headline = f"{concrete_subject} 제품 공개 이슈"
+            if summary:
+                summary = summary.replace("제품 공개", f"{concrete_subject} 제품 공개", 1)
+            else:
+                summary = f"{concrete_subject} 제품 공개 관련 내용을 확인했어."
+
         if not headline or not summary:
             continue
 
@@ -368,7 +396,11 @@ def build_issue_briefs(items, stock_name, limit=3):
         # extractor-shaped values such as 영업이익107조4000억원.
         primary_display = _central_simple_numeric_label(labels[0] if labels else "")
         display_headline = f"{primary_display} 이슈" if primary_display else headline
+        if concrete_subject and labels and labels[0] == "제품공개":
+            display_headline = headline
         display_tags = _central_display_tags(labels)
+        if concrete_subject and concrete_subject not in display_tags:
+            display_tags = [concrete_subject, *display_tags][:3]
 
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),

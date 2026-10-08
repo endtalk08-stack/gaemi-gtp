@@ -211,5 +211,19 @@ class IssueBriefTests(unittest.TestCase):
         self.assertIn("HBM 가격 상승", result[0]["summary"])
 
 
+    def test_central_product_event_uses_grounded_product_name(self):
+        result = build_issue_briefs([{
+            "storyboard_time": "21:00",
+            "storyboard_keywords": ["제품공개"],
+            "article_keywords": ["제품공개", "우주경쟁"],
+            "grounded_tags": ["Gemini", "미국"],
+            "stock_entities": ["알파벳"],
+        }], "알파벳")
+
+        self.assertEqual(result[0]["headline"], "Gemini 제품 공개 이슈")
+        self.assertIn("Gemini 제품 공개", result[0]["summary"])
+        self.assertEqual(result[0]["tags"][0], "Gemini")
+
+
 if __name__ == "__main__":
     unittest.main()
