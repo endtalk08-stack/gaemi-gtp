@@ -1193,9 +1193,9 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
 
     def canonical_direction(value):
         value = str(value or "")
-        if value.startswith(("늘", "증가", "상승")):
+        if value == "↑" or value.startswith(("늘", "증가", "상승")):
             return "증가"
-        if value.startswith(("줄", "감소", "하락")):
+        if value == "↓" or value.startswith(("줄", "감소", "하락")):
             return "감소"
         if value.startswith(("상향", "인상")):
             return "상향"
@@ -1250,8 +1250,8 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         )
         amount_pattern = (
             r"(?P<amount>"
-            r"\d+(?:\.\d+)?\s*조(?:\s*\d{1,4}(?:,\d{3})*\s*억(?:원)?)?\s*원?"
-            r"|\d{1,4}(?:,\d{3})*\s*억원"
+            r"\d+(?:\.\d+)?\s*조(?:\s*(?:\d+천)?\s*\d{1,4}(?:,\d{3})*\s*억(?:원)?)?\s*원?"
+            r"|(?:\d+천\s*)?\d{1,4}(?:,\d{3})*\s*억원"
             r"|\d{1,3}(?:,\d{3})+\s*원"
             r"|\d+(?:\.\d+)?\s*달러"
             r")"
@@ -1284,7 +1284,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         for match in re.finditer(
             metric_pattern
             + r".{0,42}?(?P<pct>\d+(?:\.\d+)?)\s*%\s*"
-            + r"(?P<direction>증가|감소|상승|하락|늘(?:었|어|고|며|어난|어났|어난다)?|줄(?:었|어|고|며|어든|었다)?)",
+            + r"(?P<direction>증가|감소|상승|하락|↑|↓|늘(?:었|어|고|며|어난|어났|어난다)?|줄(?:었|어|고|며|어든|었다)?)",
             text,
             flags=re.IGNORECASE,
         ):
@@ -1323,6 +1323,18 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             direction = canonical_direction(match.group("direction"))
             suffix = certainty_suffix(text, *match.span())
             add_fact(f"{subject}{match.group('ratio')}배{direction}{suffix}", match)
+
+        for match in re.finditer(
+            r"(?P<metric>영업\s*(?:이익|익)|매출(?:액)?|순\s*이익)"
+            r".{0,48}?(?:시장\s*)?(?:전망치|예상치|컨센서스)"
+            r".{0,36}?(?P<pct>\d+(?:\.\d+)?)\s*%\s*(?P<direction>상회|하회)",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            metric_key = normalize_fact_label(match.group("metric"))
+            metric = metric_names.get(metric_key.upper(), metric_names.get(metric_key, metric_key))
+            suffix = certainty_suffix(text, *match.span())
+            add_fact(f"{metric}전망치{match.group('pct')}%{match.group('direction')}{suffix}", match)
 
         target_patterns = (
             re.compile(

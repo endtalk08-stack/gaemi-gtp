@@ -88,5 +88,36 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertNotIn("영업이익107조원전망", article["keywords"])
 
 
+    def test_extracts_mixed_korean_amount(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, 3분기 영업이익 107조4천억원",
+            "description": "삼성전자 실적 발표",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("영업이익107조4천억원", article["keywords"])
+
+    def test_normalizes_arrow_growth_direction(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, 영업이익 782.5%↑",
+            "description": "삼성전자 영업이익이 전년 동기 대비 크게 늘었다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("영업이익782.5%증가", article["keywords"])
+
+    def test_extracts_consensus_beat_percentage(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, 3분기 영업익 시장 전망치 1.6% 상회",
+            "description": "삼성전자 영업이익이 시장 전망치를 웃돌았다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("영업이익전망치1.6%상회", article["keywords"])
+
+
 if __name__ == "__main__":
     unittest.main()
