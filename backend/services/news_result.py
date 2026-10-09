@@ -73,6 +73,7 @@ def build_stock_news_result(
             stock_name,
             limit=None,
             display_timezone=display_timezone,
+            market=market,
         )
         storyboard_news_items = select_keyword_storyboard_news(
             paired_news_items,
