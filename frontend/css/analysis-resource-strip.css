@@ -13,7 +13,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid #cbd5e1;
+  border: 0;
   border-radius: 9999px;
   background: #fff;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -21,17 +21,8 @@
   transition: border-color .15s ease;
 }
 
-.analysis-resource-strip:hover {
-  border-color: #94a3b8;
-}
-
 .dark .analysis-resource-strip {
-  border-color: #282a30;
   background: #1e1f24;
-}
-
-.dark .analysis-resource-strip:hover {
-  border-color: #3a3d46;
 }
 
 .analysis-resource-strip__button {
