@@ -259,11 +259,17 @@ def calculate_news_price_reaction(rows, published_at):
 
     latest_stamp, latest_close, _, _ = clean_rows[-1]
     baseline = None
+    exact_bar_boundary = False
     for stamp, close, high, low in clean_rows:
-        if stamp <= target:
+        if stamp < target:
             baseline = (stamp, close)
-        else:
-            break
+            continue
+        if stamp == target:
+            # Yahoo 5-minute timestamps represent the bar start. When an
+            # article lands exactly on that boundary, the same bar belongs to
+            # the post-news reaction, not to the pre-news baseline.
+            exact_bar_boundary = True
+        break
 
     # The fetched intraday window does not contain a pre-news trade.
     if not baseline:
@@ -288,7 +294,10 @@ def calculate_news_price_reaction(rows, published_at):
         "close_pct": None,
     }
 
-    post_rows = [row for row in clean_rows if row[0] > target]
+    if exact_bar_boundary:
+        post_rows = [row for row in clean_rows if row[0] >= target]
+    else:
+        post_rows = [row for row in clean_rows if row[0] > target]
     if not post_rows:
         return result
 

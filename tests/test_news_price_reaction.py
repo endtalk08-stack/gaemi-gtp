@@ -31,6 +31,21 @@ class NewsPriceReactionTests(unittest.TestCase):
         self.assertEqual(result["high_pct"], 6.0)
         self.assertEqual(result["close_pct"], 4.0)
 
+    def test_exact_five_minute_boundary_uses_previous_close_and_includes_boundary_bar(self):
+        rows = [
+            {"timestamp": 1200, "close": 100, "high": 101, "low": 99},
+            {"timestamp": 1500, "close": 102, "high": 105, "low": 98},
+            {"timestamp": 1800, "close": 104, "high": 106, "low": 101},
+        ]
+
+        result = calculate_news_price_reaction(rows, _iso(1500))
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["base_price"], 100)
+        self.assertEqual(result["low_pct"], -2.0)
+        self.assertEqual(result["high_pct"], 6.0)
+        self.assertEqual(result["close_pct"], 4.0)
+
     def test_after_hours_news_uses_last_close_and_starts_at_zero(self):
         rows = [
             {"timestamp": 1200, "close": 100},
