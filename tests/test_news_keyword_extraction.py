@@ -248,5 +248,53 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertEqual(article["keywords"], [])
 
 
+    def test_direct_korean_investment_injection_with_amount_becomes_event(self):
+        result = build_connected_keyword_test([{
+            "title": "엔비디아, 미국 과학 연구에 1조4천억원 투입",
+            "description": "엔비디아가 미국 첨단 과학 연구를 지원한다.",
+            "stocks": [{"name": "엔비디아", "region": "미국"}],
+        }], "엔비디아", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["status"], "PASS")
+        self.assertEqual(article["keywords"][0], "신규투자")
+        self.assertEqual(article["event_owner"], "엔비디아")
+        self.assertEqual(article["relation_type"], "direct")
+        self.assertEqual(article["keyword_details"][0]["source"], "title-direct-investment")
+
+    def test_direct_korean_investment_plan_with_target_becomes_event(self):
+        result = build_connected_keyword_test([{
+            "title": "엔비디아, 양자컴퓨팅 연구 투자 계획 발표",
+            "description": "엔비디아가 관련 연구 생태계를 지원할 계획이다.",
+            "stocks": [{"name": "엔비디아", "region": "미국"}],
+        }], "엔비디아", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "신규투자")
+        self.assertEqual(article["relation_type"], "direct")
+
+    def test_direct_english_to_invest_with_amount_becomes_event(self):
+        result = build_connected_keyword_test([{
+            "title": "Nvidia to invest $1 billion in quantum research",
+            "description": "Nvidia announced support for advanced science programs.",
+            "stocks": [{"name": "엔비디아", "region": "미국"}],
+        }], "엔비디아", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "신규투자")
+        self.assertEqual(article["event_owner"], "엔비디아")
+        self.assertEqual(article["relation_type"], "direct")
+
+    def test_vague_investment_word_without_amount_or_target_does_not_force_event(self):
+        result = build_connected_keyword_test([{
+            "title": "엔비디아 투자 관련 시장 관심",
+            "description": "구체적인 투자 계획이나 금액은 확인되지 않았다.",
+            "stocks": [{"name": "엔비디아", "region": "미국"}],
+        }], "엔비디아", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertNotIn("신규투자", article["keywords"])
+
+
 if __name__ == "__main__":
     unittest.main()

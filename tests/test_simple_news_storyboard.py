@@ -312,7 +312,7 @@ class NotableFlowSelectionTests(unittest.TestCase):
 
         self.assertEqual(selected, [])
 
-    def test_strong_description_level_indirect_event_can_remain_candidate(self):
+    def test_description_level_indirect_event_stays_out_of_central_storyboard(self):
         indirect = article(
             keyword="공급부족",
             tier=2,
@@ -326,7 +326,7 @@ class NotableFlowSelectionTests(unittest.TestCase):
 
         selected = select_keyword_storyboard_news([indirect], limit=3)
 
-        self.assertEqual([item["storyboard_keyword"] for item in selected], ["공급부족"])
+        self.assertEqual(selected, [])
 
 
     def test_us_stock_uses_new_york_session_date_for_morning_korea_view(self):
