@@ -1560,6 +1560,60 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             item.pop("_rule_index", None)
         return matches
 
+    def direct_investment_from_title(text):
+        """Recognize explicit selected-company investment actions with concrete evidence."""
+        if not selected_stock_is_present(text):
+            return None
+
+        lower = str(text or "").lower()
+        action_patterns = (
+            r"투자\s*계획",
+            r"투자\s*예정",
+            r"투자하기로",
+            r"투자한다",
+            r"투자할\s*계획",
+            r"투입",
+            r"\binvests\b",
+            r"\binvested\b",
+            r"\bto\s+invest\b",
+            r"\binvestment\s+plan\b",
+            r"\bplans?\s+to\s+invest\b",
+        )
+        action_match = next(
+            (match for pattern in action_patterns if (match := re.search(pattern, lower))),
+            None,
+        )
+        if not action_match:
+            return None
+
+        has_amount = bool(re.search(
+            r"(?:[$€£]\s*\d[\d,.]*(?:\s*(?:trillion|billion|million|bn|m))?|"
+            r"\d[\d,.]*(?:\.\d+)?\s*(?:trillion|billion|million)\s*(?:u\.s\.\s*)?dollars?|"
+            r"\d+(?:\.\d+)?\s*조(?:\s*\d+천)?\s*\d{0,4}(?:,\d{3})*\s*억?원?|"
+            r"\d{1,4}(?:,\d{3})*\s*억원|"
+            r"\d[\d,.]*\s*(?:조|억|만)?\s*달러)",
+            str(text or ""),
+            flags=re.IGNORECASE,
+        ))
+        has_target = bool(re.search(
+            r"(?:과학\s*연구|연구|양자\s*컴퓨팅|양자|AI|인공지능|데이터\s*센터|"
+            r"인프라|시설|공장|사업|프로젝트|science|research|quantum|"
+            r"artificial intelligence|\bai\b|data\s*cent(?:er|re)|infrastructure|"
+            r"facility|factory|project)",
+            str(text or ""),
+            flags=re.IGNORECASE,
+        ))
+        if not (has_amount or has_target):
+            return None
+
+        return {
+            "label": "신규투자",
+            "source": "title-direct-investment",
+            "evidence": action_match.group(0),
+            "priority": 95,
+        }
+
+
     def fallback_from_title(text):
         # Strip the selected stock name before looking for the local event phrase.
         work = text
@@ -1631,6 +1685,11 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             seen_labels.add(label)
             if len(selected) >= keyword_limit:
                 break
+
+        if not selected:
+            direct_investment = direct_investment_from_title(title)
+            if direct_investment:
+                selected.append(direct_investment)
 
         if not selected and selected_stock_is_present(title):
             fallback = fallback_from_title(title)
