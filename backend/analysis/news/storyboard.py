@@ -30,7 +30,7 @@ def _parse_article_datetime(value):
 
 
 def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/Seoul"):
-    """Return article bundles published within the most recent 24 hours."""
+    """Return today's article bundles; each article keeps its own keyword and time."""
     try:
         tz = ZoneInfo(str(display_timezone or "Asia/Seoul"))
     except Exception:
@@ -38,16 +38,17 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
 
     source_items = [dict(item) for item in (items or [])]
 
-    now_utc = datetime.datetime.now(datetime.timezone.utc)
-    cutoff_utc = now_utc - datetime.timedelta(hours=24)
+    # 중앙의 "오늘 뉴스" 기준은 국내/미국 모두 화면 기준 시간대를 사용한다.
+    # 기본 화면 시간대가 Asia/Seoul이므로 미국 종목도 한국 날짜와 함께 넘어간다.
+    session_tz = tz
+    session_date = datetime.datetime.now(session_tz).date()
     bundles = []
 
     for article in source_items:
         dt = _parse_article_datetime(article.get("pub_date") or article.get("published_at"))
         if not dt:
             continue
-        published_utc = dt.astimezone(datetime.timezone.utc)
-        if published_utc < cutoff_utc or published_utc > now_utc:
+        if dt.astimezone(session_tz).date() != session_date:
             continue
         local_dt = dt.astimezone(tz)
 

@@ -329,24 +329,16 @@ class NotableFlowSelectionTests(unittest.TestCase):
         self.assertEqual(selected, [])
 
 
-    def test_news_keeps_only_items_from_the_most_recent_24_hours(self):
+    def test_us_stock_uses_korea_date_like_domestic_stock(self):
         class FixedDateTime(datetime.datetime):
             @classmethod
             def now(cls, tz=None):
-                base = cls(2026, 10, 9, 5, 0, tzinfo=datetime.timezone.utc)
+                base = cls(2026, 10, 8, 22, 30, tzinfo=datetime.timezone.utc)
                 return base.astimezone(tz) if tz else base.replace(tzinfo=None)
 
-        recent = {
-            "title": "Recent company event",
-            "published_at": "2026-10-08T05:01:00+00:00",
-            "article_keywords": ["제품공개"],
-            "article_keyword_details": [
-                {"label": "제품공개", "source": "title-official-event"}
-            ],
-        }
-        expired = {
-            "title": "Expired company event",
-            "published_at": "2026-10-08T04:59:00+00:00",
+        source = {
+            "title": "Welcome to Gemini at Work 2026",
+            "published_at": "2026-10-08T22:00:00+00:00",
             "article_keywords": ["제품공개"],
             "article_keyword_details": [
                 {"label": "제품공개", "source": "title-official-event"}
@@ -355,21 +347,22 @@ class NotableFlowSelectionTests(unittest.TestCase):
 
         with patch("backend.analysis.news.storyboard.datetime.datetime", FixedDateTime):
             us_items = build_simple_today_news(
-                [recent, expired],
+                [source],
                 "알파벳",
                 limit=None,
                 display_timezone="Asia/Seoul",
             )
             kr_items = build_simple_today_news(
-                [recent, expired],
+                [source],
                 "삼성전자",
                 limit=None,
                 display_timezone="Asia/Seoul",
             )
 
-        self.assertEqual([item["title"] for item in us_items], ["Recent company event"])
-        self.assertEqual([item["title"] for item in kr_items], ["Recent company event"])
-        self.assertEqual(us_items[0]["storyboard_date"], "2026-10-08")
+        self.assertEqual(len(us_items), 1)
+        self.assertEqual(len(kr_items), 1)
+        self.assertEqual(us_items[0]["storyboard_date"], "2026-10-09")
+        self.assertEqual(kr_items[0]["storyboard_date"], "2026-10-09")
 
 
 if __name__ == "__main__":
