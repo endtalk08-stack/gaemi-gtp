@@ -10,7 +10,6 @@ import re
 from difflib import SequenceMatcher
 from zoneinfo import ZoneInfo
 
-from .catalog import STOCK_UNIVERSE
 
 
 def _parse_article_datetime(value):
@@ -39,21 +38,9 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
 
     source_items = [dict(item) for item in (items or [])]
 
-    stock_region = next(
-        (
-            region for region, stocks in STOCK_UNIVERSE.items()
-            if str(stock_name or "").strip() in stocks
-        ),
-        "",
-    )
-    if stock_region == "미국":
-        try:
-            session_tz = ZoneInfo("America/New_York")
-        except Exception:
-            session_tz = tz
-    else:
-        session_tz = tz
-
+    # 중앙의 "오늘 뉴스" 기준은 국내/미국 모두 화면 기준 시간대를 사용한다.
+    # 기본 화면 시간대가 Asia/Seoul이므로 미국 종목도 한국 날짜와 함께 넘어간다.
+    session_tz = tz
     session_date = datetime.datetime.now(session_tz).date()
     bundles = []
 

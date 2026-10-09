@@ -329,7 +329,7 @@ class NotableFlowSelectionTests(unittest.TestCase):
         self.assertEqual(selected, [])
 
 
-    def test_us_stock_uses_new_york_session_date_for_morning_korea_view(self):
+    def test_us_stock_uses_korea_date_like_domestic_stock(self):
         class FixedDateTime(datetime.datetime):
             @classmethod
             def now(cls, tz=None):
@@ -338,7 +338,7 @@ class NotableFlowSelectionTests(unittest.TestCase):
 
         source = {
             "title": "Welcome to Gemini at Work 2026",
-            "published_at": "2026-10-08T14:00:00+00:00",
+            "published_at": "2026-10-08T22:00:00+00:00",
             "article_keywords": ["제품공개"],
             "article_keyword_details": [
                 {"label": "제품공개", "source": "title-official-event"}
@@ -360,8 +360,9 @@ class NotableFlowSelectionTests(unittest.TestCase):
             )
 
         self.assertEqual(len(us_items), 1)
-        self.assertEqual(kr_items, [])
-        self.assertEqual(us_items[0]["storyboard_date"], "2026-10-08")
+        self.assertEqual(len(kr_items), 1)
+        self.assertEqual(us_items[0]["storyboard_date"], "2026-10-09")
+        self.assertEqual(kr_items[0]["storyboard_date"], "2026-10-09")
 
 
 if __name__ == "__main__":
