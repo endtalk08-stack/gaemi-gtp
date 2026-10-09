@@ -276,27 +276,17 @@ def select_keyword_storyboard_news(items, limit=3):
         return ""
 
     def _central_candidate_allowed(source):
-        """Keep central issues stock-owned; preserve legacy items with no ownership annotation."""
+        """Keep top-level central issues owned by the selected stock."""
         relation = _relation_type(source)
-        if relation == "mention_only":
-            return False
-        if relation != "indirect":
+        if relation == "direct":
             return True
-
-        # Indirect events are allowed only when the selected stock has a strong
-        # description-level transmission path.  A different company's title
-        # event (for example Samsung HBM news that merely mentions Google later)
-        # must stay in related news, not become the selected stock's central issue.
-        tier = max(0, int(_number(source.get("analysis_relevance_tier"))))
-        event_strength = max(0.0, _number(source.get("analysis_event_strength")))
-        material_signal = bool(source.get("analysis_material_signal"))
-        detail_source = _representative_detail_source(source)
-        return (
-            tier >= 2
-            and event_strength >= 2
-            and material_signal
-            and detail_source.startswith("description")
-        )
+        if relation == "unknown":
+            # Preserve legacy/unannotated rows only; the current pipeline
+            # annotates ownership before storyboard selection.
+            return True
+        # Indirect and mention-only stories remain available to the shared news
+        # result/right panel, but they do not become a central issue row.
+        return False
 
     def _selection_score(source):
         """Rank evidence without inventing a market interpretation."""
