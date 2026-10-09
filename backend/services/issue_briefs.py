@@ -74,16 +74,6 @@ _CENTRAL_LABEL_TEXT = {
     "HBM공급부족": "HBM 공급 부족",
     "HBM공급확대": "HBM 공급 확대",
     "공급부족": "공급 부족",
-    "HBM가격상승": "HBM 가격 상승",
-    "HBM가격하락": "HBM 가격 하락",
-    "메모리가격상승": "메모리 가격 상승",
-    "메모리가격하락": "메모리 가격 하락",
-    "D램가격상승": "D램 가격 상승",
-    "D램가격하락": "D램 가격 하락",
-    "낸드가격상승": "낸드 가격 상승",
-    "낸드가격하락": "낸드 가격 하락",
-    "제품가격상승": "제품 가격 상승",
-    "제품가격하락": "제품 가격 하락",
     "가격상승": "가격 상승",
     "가격하락": "가격 하락",
     "메모리가격": "메모리 가격",
@@ -126,7 +116,6 @@ _CENTRAL_LABEL_TEXT = {
     "자사주소각": "자사주 소각",
     "어닝서프라이즈": "어닝 서프라이즈",
     "공급계약": "공급 계약",
-    "제품공개": "제품 공개",
     "AI인프라": "AI 인프라",
     "AI데이터센터": "AI 데이터센터",
 }
@@ -174,43 +163,6 @@ def _central_readable_labels(labels):
     return output
 
 
-_CENTRAL_SIMPLE_NUMERIC_PREFIXES = (
-    "영업이익률",
-    "영업이익",
-    "매출",
-    "순이익",
-    "HBM매출",
-    "D램매출",
-    "낸드매출",
-    "목표가",
-)
-
-
-def _central_simple_numeric_label(value):
-    """Hide extraction-shaped numeric labels in the central display only."""
-    label = str(value or "").strip().lstrip("#")
-    if not any(char.isdigit() for char in label):
-        return ""
-    return next(
-        (prefix for prefix in _CENTRAL_SIMPLE_NUMERIC_PREFIXES if label.startswith(prefix)),
-        "",
-    )
-
-
-def _central_display_tags(labels):
-    tags = []
-    for raw in labels or []:
-        label = str(raw or "").strip().lstrip("#")
-        if not label:
-            continue
-        display = _central_simple_numeric_label(label) or label
-        if display not in tags:
-            tags.append(display)
-        if len(tags) >= 3:
-            break
-    return tags
-
-
 def _clean_labels(values, limit=3):
     labels = []
     for value in values or []:
@@ -243,96 +195,6 @@ def _signal_labels(item):
         if len(labels) >= 3:
             break
     return labels
-
-
-_EVENT_SUBJECT_BLOCKLIST = {
-    "미국", "한국", "중국", "일본", "유럽", "아시아", "중동",
-    "SEC", "FDA", "코스피", "코스닥", "나스닥", "뉴욕증시", "WTI",
-}
-
-
-def _concrete_event_subject(item, labels, stock_names):
-    """Use only structured/grounded product facts to clarify generic events."""
-    primary = str(next(iter(labels or []), "") or "").strip().lstrip("#")
-    if primary != "제품공개":
-        return ""
-
-    detail_product = str((item.get("detail_facts") or {}).get("product_name") or "").strip()
-    if detail_product:
-        return detail_product
-
-    stock_set = {str(name or "").strip() for name in stock_names or []}
-    for value in item.get("grounded_tags") or []:
-        tag = str(value or "").strip().lstrip("#")
-        if not tag or tag in stock_set or tag in _EVENT_SUBJECT_BLOCKLIST:
-            continue
-        return tag
-    return ""
-
-
-def _structured_detail_summary(item, labels, summary_index=0):
-    """Render a few explicit detail facts without copying article prose."""
-    detail = item.get("detail_facts") or {}
-    if not isinstance(detail, dict):
-        return ""
-
-    label_set = {
-        str(value or "").strip().lstrip("#")
-        for value in labels or []
-        if str(value or "").strip()
-    }
-    contract_labels = {"공급계약", "장기공급계약", "계약체결", "수주·계약", "대형수주", "신규수주"}
-    investment_labels = {"신규투자", "투자확대", "설비투자", "인수합병", "지분인수"}
-
-    facts = []
-    counterparty = str(detail.get("counterparty") or "").strip()
-    amount = str(detail.get("amount") or "").strip()
-    regions = [
-        str(value or "").strip()
-        for value in (detail.get("region") or [])
-        if str(value or "").strip()
-    ]
-    key_numbers = [
-        str(value or "").strip()
-        for value in (detail.get("key_numbers") or [])
-        if str(value or "").strip()
-    ]
-
-    if label_set & contract_labels:
-        if counterparty:
-            particle = _korean_particle(counterparty, "과", "와")
-            facts.append(f"{counterparty}{particle} 계약")
-        if amount:
-            facts.append(f"규모 {amount}")
-        for value in key_numbers:
-            if value not in facts:
-                facts.append(value)
-            if len(facts) >= 3:
-                break
-    elif label_set & investment_labels:
-        if counterparty:
-            facts.append(counterparty)
-        if amount:
-            facts.append(f"규모 {amount}")
-        if regions:
-            facts.append(regions[0])
-    elif label_set & {"해외진출", "시장진출", "사업확대"}:
-        if regions:
-            facts.append(regions[0])
-        if amount:
-            facts.append(f"규모 {amount}")
-
-    facts = list(dict.fromkeys(facts))[:3]
-    if not facts:
-        return ""
-
-    endings = (
-        "관련 내용을 확인했어.",
-        "관련 내용도 확인했어.",
-        "관련 핵심 내용이야.",
-    )
-    ending = endings[min(max(int(summary_index or 0), 0), len(endings) - 1)]
-    return f"{', '.join(facts)} {ending}"
 
 
 def _stock_names(item, fallback):
@@ -450,42 +312,14 @@ def build_issue_briefs(items, stock_name, limit=3):
             stock_name,
             summary_index=len(briefs),
         )
-        concrete_subject = _concrete_event_subject(item, labels, stock_names)
-        if concrete_subject and labels and labels[0] == "제품공개":
-            headline = f"{concrete_subject} 제품 공개 이슈"
-            if summary:
-                summary = summary.replace("제품 공개", f"{concrete_subject} 제품 공개", 1)
-            else:
-                summary = f"{concrete_subject} 제품 공개 관련 내용을 확인했어."
-
-        structured_summary = _structured_detail_summary(
-            item,
-            labels,
-            summary_index=len(briefs),
-        )
-        if structured_summary:
-            summary = structured_summary
-
         if not headline or not summary:
             continue
-
-        # Keep the rich numeric facts in summary/internal data, but present the
-        # central title and hashtags as stable topic labels rather than exposing
-        # extractor-shaped values such as 영업이익107조4000억원.
-        primary_display = _central_simple_numeric_label(labels[0] if labels else "")
-        display_headline = f"{primary_display} 이슈" if primary_display else headline
-        if concrete_subject and labels and labels[0] == "제품공개":
-            display_headline = headline
-        display_tags = _central_display_tags(labels)
-        if concrete_subject and concrete_subject not in display_tags:
-            display_tags = [concrete_subject, *display_tags][:3]
-
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),
             "reaction_at": str(item.get("published_at") or "").strip(),
-            "headline": display_headline,
+            "headline": headline,
             "summary": summary,
-            "tags": display_tags,
+            "tags": labels[:3],
             "stock_names": stock_names[:4],
         })
         if len(briefs) >= max(1, int(limit)):

@@ -78,7 +78,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             block.className = 'mt-5 space-y-5';
             const signalTitle = document.createElement('p');
             signalTitle.className = responseMessageClass;
-            const signalTitleText = evidence.signals.length || storyboard.length || disclosures.length ? '오늘 눈에 띄는 흐름 👀' : '눈에 띄는 흐름 없음 ☁️';
+            const signalTitleText = evidence.signals.length || storyboard.length || disclosures.length ? '오늘 눈에 띄는 흐름 👀' : '오늘은 흐름 없음 ☁️';
             block.appendChild(signalTitle);
             // 타이핑이 실제 화면에서 보이도록 결과 블록을 먼저 붙인다.
             prompt.insertAdjacentElement('afterend', block);

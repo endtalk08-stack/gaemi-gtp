@@ -10,8 +10,6 @@ import re
 from difflib import SequenceMatcher
 from zoneinfo import ZoneInfo
 
-from .catalog import STOCK_UNIVERSE
-
 
 def _parse_article_datetime(value):
     raw = str(value or "").strip()
@@ -39,31 +37,16 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
 
     source_items = [dict(item) for item in (items or [])]
 
-    stock_region = next(
-        (
-            region for region, stocks in STOCK_UNIVERSE.items()
-            if str(stock_name or "").strip() in stocks
-        ),
-        "",
-    )
-    if stock_region == "미국":
-        try:
-            session_tz = ZoneInfo("America/New_York")
-        except Exception:
-            session_tz = tz
-    else:
-        session_tz = tz
-
-    session_date = datetime.datetime.now(session_tz).date()
+    today = datetime.datetime.now(tz).date()
     bundles = []
 
     for article in source_items:
         dt = _parse_article_datetime(article.get("pub_date") or article.get("published_at"))
         if not dt:
             continue
-        if dt.astimezone(session_tz).date() != session_date:
-            continue
         local_dt = dt.astimezone(tz)
+        if local_dt.date() != today:
+            continue
 
         keywords = list(article.get("article_keywords") or [])
         details = list(article.get("article_keyword_details") or [])
@@ -264,30 +247,6 @@ def select_keyword_storyboard_news(items, limit=3):
         except (TypeError, ValueError):
             return default
 
-    def _relation_type(source):
-        relation = str(source.get("relation_type") or "unknown").strip().lower()
-        return relation if relation in {"direct", "indirect", "mention_only"} else "unknown"
-
-    def _representative_detail_source(source):
-        keyword = str(source.get("storyboard_keyword") or "").strip()
-        for detail in source.get("article_keyword_details") or []:
-            if str((detail or {}).get("label") or "").strip() == keyword:
-                return str((detail or {}).get("source") or "").strip()
-        return ""
-
-    def _central_candidate_allowed(source):
-        """Keep top-level central issues owned by the selected stock."""
-        relation = _relation_type(source)
-        if relation == "direct":
-            return True
-        if relation == "unknown":
-            # Preserve legacy/unannotated rows only; the current pipeline
-            # annotates ownership before storyboard selection.
-            return True
-        # Indirect and mention-only stories remain available to the shared news
-        # result/right panel, but they do not become a central issue row.
-        return False
-
     def _selection_score(source):
         """Rank evidence without inventing a market interpretation."""
         tier = max(0, int(_number(source.get("analysis_relevance_tier"))))
@@ -296,12 +255,9 @@ def select_keyword_storyboard_news(items, limit=3):
         direct = max(0.0, _number(breakdown.get("direct_stock")))
         material = max(0.0, _number(breakdown.get("material_strength")))
         signal = max(0.0, _number(breakdown.get("movement_signal")))
-        relation = _relation_type(source)
-        relation_bonus = 300.0 if relation == "direct" else 40.0 if relation == "indirect" else 0.0
 
         return (
-            relation_bonus
-            + (tier * 100)
+            (tier * 100)
             + min(event_strength, 8.0) * 8.0
             + min(direct, 35.0)
             + min(material, 20.0)
@@ -388,9 +344,6 @@ def select_keyword_storyboard_news(items, limit=3):
 
     candidates = []
     for source in items or []:
-        if not _central_candidate_allowed(source):
-            continue
-
         keywords = [
             str(value).strip()
             for value in (source.get("storyboard_keywords") or [])

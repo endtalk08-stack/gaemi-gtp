@@ -97,11 +97,11 @@ class IssueBriefTests(unittest.TestCase):
             "themes": ["반도체"],
         }], "삼성전자")
 
-        self.assertEqual(result[0]["headline"], "영업이익 이슈")
+        self.assertEqual(result[0]["headline"], "영업이익 100조원 기대 이슈")
         self.assertEqual(result[0]["summary"], "영업이익 100조원 기대가 나오고, 자사주 매입 관련 이슈가 있어.")
         self.assertEqual(
             result[0]["tags"],
-            ["영업이익", "자사주매입", "실적발표"],
+            ["영업이익100조원기대", "자사주매입", "실적발표"],
         )
         self.assertNotIn("기사", result[0]["summary"])
 
@@ -177,75 +177,6 @@ class IssueBriefTests(unittest.TestCase):
         self.assertEqual(result[0]["tags"], ["특징주", "AI메모리", "반도체"])
         self.assertNotIn("원문 제목", str(result[0]))
         self.assertNotIn("원문 설명", str(result[0]))
-
-
-    def test_central_numeric_title_and_tags_hide_extraction_pattern(self):
-        result = build_issue_briefs([{
-            "storyboard_time": "19:54",
-            "published_at": "2026-10-09T10:54:00+00:00",
-            "storyboard_keywords": ["영업이익107조4000억원"],
-            "article_keywords": [
-                "영업이익107조4000억원",
-                "영업이익107.4조원",
-                "영업이익2.42%감소",
-            ],
-            "stock_entities": ["삼성전자", "SK하이닉스", "엔비디아"],
-        }], "삼성전자")
-
-        self.assertEqual(result[0]["headline"], "영업이익 이슈")
-        self.assertEqual(result[0]["tags"], ["영업이익"])
-        self.assertIn("107조4000억원", result[0]["summary"])
-        self.assertNotIn("107조4000억원", result[0]["headline"])
-        self.assertNotIn("107조4000억원", " ".join(result[0]["tags"]))
-
-
-    def test_central_brief_displays_specific_price_subject(self):
-        result = build_issue_briefs([{
-            "storyboard_time": "00:12",
-            "storyboard_keywords": ["HBM가격상승"],
-            "article_keywords": ["HBM가격상승", "실적개선"],
-            "stock_entities": ["삼성전자"],
-        }], "삼성전자")
-
-        self.assertEqual(result[0]["headline"], "HBM 가격 상승 이슈")
-        self.assertIn("HBM 가격 상승", result[0]["summary"])
-
-
-    def test_central_product_event_uses_grounded_product_name(self):
-        result = build_issue_briefs([{
-            "storyboard_time": "21:00",
-            "storyboard_keywords": ["제품공개"],
-            "article_keywords": ["제품공개", "우주경쟁"],
-            "grounded_tags": ["Gemini", "미국"],
-            "stock_entities": ["알파벳"],
-        }], "알파벳")
-
-        self.assertEqual(result[0]["headline"], "Gemini 제품 공개 이슈")
-        self.assertIn("Gemini 제품 공개", result[0]["summary"])
-        self.assertEqual(result[0]["tags"][0], "Gemini")
-
-
-    def test_central_contract_brief_uses_structured_counterparty_and_amount(self):
-        result = build_issue_briefs([{
-            "storyboard_time": "20:32",
-            "storyboard_keywords": ["공급계약"],
-            "article_keywords": ["공급계약"],
-            "stock_entities": ["알파벳"],
-            "detail_facts": {
-                "product_name": "",
-                "counterparty": "Constellation Energy",
-                "amount": "$3.6 billion",
-                "region": ["미국"],
-                "announcer": "알파벳",
-                "key_numbers": ["20-year", "3.59 GW", "890 MW"],
-            },
-        }], "알파벳")
-
-        self.assertEqual(result[0]["headline"], "공급 계약 이슈")
-        self.assertEqual(
-            result[0]["summary"],
-            "Constellation Energy와 계약, 규모 $3.6 billion, 20-year 관련 내용을 확인했어.",
-        )
 
 
 if __name__ == "__main__":

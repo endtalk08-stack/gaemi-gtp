@@ -511,30 +511,12 @@ def _stock_aliases(stock_name):
     return list(dict.fromkeys(alias for alias in aliases if alias))
 
 
-def _stock_region(stock_name):
-    """Return the catalog region for a canonical stock name."""
-    stock = str(stock_name or "").strip().lower()
-    for region, stocks in STOCK_UNIVERSE.items():
-        if any(str(name).strip().lower() == stock for name in stocks):
-            return region
-    return ""
-
-
 def _direct_score(item, stock_name):
-    provider_stock = str(item.get("provider_stock") or "").strip().lower()
-    trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
-    if trusted_source and provider_stock == str(stock_name or "").strip().lower():
-        return 35
     title = str(item.get("title") or "").lower()
     return 35 if any(alias in title for alias in _stock_aliases(stock_name)) else 0
 
 
 def _context_relevance_score(item, stock_name):
-    provider_stock = str(item.get("provider_stock") or "").strip().lower()
-    trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
-    if trusted_source and provider_stock == str(stock_name or "").strip().lower():
-        return 35
-
     title = str(item.get("title") or "").lower()
     description = str(item.get("description") or "").lower()
     aliases = _stock_aliases(stock_name)
@@ -691,12 +673,8 @@ def score_stock_news(items, stock_name):
         scored.append(item)
     scored.sort(key=lambda item: (item.get("flow_score", 0), item.get("pub_date", "")), reverse=True)
 
-    # Domestic stock analysis keeps the existing Korean-language guard.
-    # US stocks must retain English candidates so they can reach the later
-    # translation/keyword stages instead of disappearing here.
-    if _stock_region(stock_name) == "미국":
-        return scored
-
+    # Stock-news analysis/display uses Korean-language articles only.
+    # Collection and the existing relevance/material scoring stay unchanged.
     def has_korean_text(item):
         text = f"{item.get('title') or ''} {item.get('description') or ''}"
         return any("\uac00" <= char <= "\ud7a3" for char in text)
@@ -1004,12 +982,12 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         ("목표가하향", ("목표주가 하향", "목표가 하향")),
         ("투자의견상향", ("투자의견 상향", "의견 상향")),
         ("투자의견하향", ("투자의견 하향", "의견 하향")),
-        ("예상치상회", ("예상치 상회", "예상을 상회", "컨센서스 상회", "시장 예상 상회", "beats estimates", "beat estimates", "tops estimates", "above estimates")),
-        ("예상치하회", ("예상치 하회", "예상을 하회", "컨센서스 하회", "시장 예상 하회", "misses estimates", "missed estimates", "below estimates")),
+        ("예상치상회", ("예상치 상회", "예상을 상회", "컨센서스 상회", "시장 예상 상회")),
+        ("예상치하회", ("예상치 하회", "예상을 하회", "컨센서스 하회", "시장 예상 하회")),
         ("호실적", ("호실적", "어닝 서프라이즈", "실적 서프라이즈")),
         ("어닝쇼크", ("어닝 쇼크", "실적 쇼크")),
-        ("실적전망상향", ("실적 전망 상향", "가이던스 상향", "raises guidance", "raised guidance", "lifts guidance", "lifted guidance", "raises outlook", "raised outlook")),
-        ("실적전망하향", ("실적 전망 하향", "가이던스 하향", "cuts guidance", "cut guidance", "lowers guidance", "lowered guidance", "cuts outlook", "lowered outlook")),
+        ("실적전망상향", ("실적 전망 상향", "가이던스 상향")),
+        ("실적전망하향", ("실적 전망 하향", "가이던스 하향")),
         ("매출성장세", ("매출 성장세", "매출 성장")),
         ("판매반등", ("판매 반등", "판매 회복")),
         ("인도량예상치상회", ("인도량 예상치 상회", "인도량이 예상치를 상회")),
@@ -1017,7 +995,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         ("주가반응부진", ("주가 반응 부진", "주가반응 부진")),
         ("수주확대", ("수주 확대", "수주 증가")),
         ("대형수주", ("대형 수주",)),
-        ("공급계약", ("공급 계약", "공급계약", "supply agreement", "supply deal", "supply contract")),
+        ("공급계약", ("공급 계약", "공급계약")),
         ("계약해지", ("계약 해지", "공급계약 해지")),
         ("생산확대", ("생산 확대", "생산능력 확대", "생산 능력 확대")),
         ("생산중단", ("생산 중단", "가동 중단")),
@@ -1030,7 +1008,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         ("흑자전환", ("흑자 전환", "흑자전환")),
         ("적자전환", ("적자 전환", "적자전환")),
         ("사상최대실적", ("사상 최대 실적", "역대 최대 실적")),
-        ("매출증가", ("매출 증가", "매출 상승", "revenue growth", "revenue grows", "revenue rose", "revenue rises", "revenue increased")),
+        ("매출증가", ("매출 증가", "매출 상승")),
         ("매출감소", ("매출 감소", "매출 하락")),
         ("영업이익증가", ("영업이익 증가", "영업이익 상승")),
         ("영업이익감소", ("영업이익 감소", "영업이익 하락")),
@@ -1049,7 +1027,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         ("판매증가", ("판매 증가", "판매 상승")),
         ("판매급증", ("판매 급증", "판매 폭증")),
         ("판매감소", ("판매 감소", "판매 하락")),
-        ("수요증가", ("수요 증가", "수요 확대", "strong demand", "strong AI demand", "AI demand", "demand growth", "demand rises", "demand increased")),
+        ("수요증가", ("수요 증가", "수요 확대")),
         ("공급확대", ("공급 확대", "공급 증가")),
         ("공급축소", ("공급 축소", "공급 감소")),
         ("공급과잉", ("공급 과잉", "공급과잉")),
@@ -1058,27 +1036,15 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         ("신규수주", ("신규 수주", "새 수주")),
         ("장기공급계약", ("장기 공급계약", "장기 공급 계약")),
         ("계약체결", ("계약 체결",)),
-        # Preserve the price subject when the article names it explicitly.
-        # The broad 가격상승/가격하락 labels remain only as fallbacks.
-        ("HBM가격상승", ("HBM 가격 상승", "hbm 가격 상승")),
-        ("HBM가격하락", ("HBM 가격 하락", "hbm 가격 하락")),
-        ("메모리가격상승", ("메모리 가격 상승",)),
-        ("메모리가격하락", ("메모리 가격 하락",)),
-        ("D램가격상승", ("D램 가격 상승", "DRAM 가격 상승", "dram 가격 상승")),
-        ("D램가격하락", ("D램 가격 하락", "DRAM 가격 하락", "dram 가격 하락")),
-        ("낸드가격상승", ("낸드 가격 상승", "NAND 가격 상승", "nand 가격 상승")),
-        ("낸드가격하락", ("낸드 가격 하락", "NAND 가격 하락", "nand 가격 하락")),
-        ("제품가격상승", ("제품 가격 상승",)),
-        ("제품가격하락", ("제품 가격 하락",)),
         ("가격상승", ("가격 상승",)),
         ("가격하락", ("가격 하락",)),
         ("점유율하락", ("점유율 하락", "점유율 감소")),
         ("시장진출", ("시장 진출",)),
         ("해외진출", ("해외 진출",)),
-        ("인수합병", ("인수 합병", "인수합병", "M&A", "acquires", "acquired", "to acquire", "acquisition")),
+        ("인수합병", ("인수 합병", "인수합병", "M&A")),
         ("사업분할", ("사업 분할",)),
         ("구조조정", ("구조조정", "구조 조정")),
-        ("신제품출시", ("신제품 출시", "신제품을 출시", "launches new", "launched new", "new product launch", "unveils new", "unveiled new")),
+        ("신제품출시", ("신제품 출시", "신제품을 출시")),
         ("사업확대", ("사업 확대",)),
         ("사업철수", ("사업 철수",)),
         ("신사업진출", ("신사업 진출", "신사업에 진출")),
@@ -1155,7 +1121,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         ("가격인상", ("가격 인상", "단가 인상")),
         ("가격인하", ("가격 인하", "단가 인하")),
         ("점유율확대", ("점유율 확대", "점유율 상승")),
-        ("자사주매입", ("자사주 매입", "자기주식 취득", "share buyback", "stock buyback", "share repurchase", "stock repurchase")),
+        ("자사주매입", ("자사주 매입", "자기주식 취득")),
         ("자사주소각", ("자사주 소각", "자기주식 소각")),
         ("배당확대", ("배당 확대", "배당 증액")),
         ("FDA승인", ("FDA 승인",)),
@@ -1163,7 +1129,7 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         ("임상3상성공", ("임상 3상 성공", "3상 임상 성공")),
         ("임상실패", ("임상 실패", "임상시험 실패")),
         ("사상최고가돌파", ("사상 최고가 돌파", "사상 최고 돌파", "역대 최고가 돌파")),
-        ("AI데이터센터", ("AI 데이터센터", "AI 데이터 센터", "AI data center", "AI data centers")),
+        ("AI데이터센터", ("AI 데이터센터", "AI 데이터 센터")),
     )
 
     # Compact event fallback.  It only joins nearby words already present in
@@ -1212,89 +1178,6 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         lower = text.lower()
         window = lower[max(0, start - radius):min(len(lower), end + radius)]
         return any(alias and alias in window for alias in aliases)
-
-    def stock_entity_mentions(text):
-        """Locate known stock/company mentions so an event can be assigned to its nearest owner."""
-        lower = str(text or "").lower()
-        mentions = []
-        seen = set()
-        for market_stocks in STOCK_UNIVERSE.values():
-            for canonical, entity_aliases in market_stocks.items():
-                for name in (canonical, *(entity_aliases or [])):
-                    token = str(name or "").strip().lower()
-                    if not token:
-                        continue
-                    if re.fullmatch(r"[a-z0-9.]+", token) and len(token.replace(".", "")) <= 5:
-                        pattern = rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])"
-                        positions = [match.span() for match in re.finditer(pattern, lower)]
-                    else:
-                        positions = []
-                        start = 0
-                        while True:
-                            index = lower.find(token, start)
-                            if index < 0:
-                                break
-                            positions.append((index, index + len(token)))
-                            start = index + max(1, len(token))
-                    for start, end in positions:
-                        key = (canonical, start, end)
-                        if key in seen:
-                            continue
-                        seen.add(key)
-                        mentions.append({
-                            "stock": canonical,
-                            "start": start,
-                            "end": end,
-                            "token": token,
-                        })
-        return mentions
-
-    def event_owner_for_detail(detail, title, description, item):
-        """Assign the representative event to the nearest named company, without inference."""
-        provider_stock = str(item.get("provider_stock") or "").strip()
-        trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
-        if trusted_source and compact(provider_stock).lower() == compact(stock_name).lower():
-            return stock_name, "direct"
-
-        source = str((detail or {}).get("source") or "")
-        text = description if source.startswith("description") else title
-        evidence = str((detail or {}).get("evidence") or "").strip()
-        mentions = stock_entity_mentions(text)
-        if not mentions:
-            return "", "mention_only"
-
-        lower = str(text or "").lower()
-        evidence_pos = lower.find(evidence.lower()) if evidence else -1
-        if evidence_pos < 0:
-            unique_stocks = list(dict.fromkeys(mention["stock"] for mention in mentions))
-            if len(unique_stocks) == 1:
-                owner = unique_stocks[0]
-                relation = "direct" if compact(owner).lower() == compact(stock_name).lower() else "indirect"
-                return owner, relation
-            return "", "mention_only"
-
-        evidence_end = evidence_pos + len(evidence)
-        ranked = []
-        for mention in mentions:
-            if mention["end"] <= evidence_pos:
-                gap = evidence_pos - mention["end"]
-                side_rank = 0
-            elif mention["start"] >= evidence_end:
-                gap = mention["start"] - evidence_end
-                side_rank = 1
-            else:
-                gap = 0
-                side_rank = 0
-            ranked.append((gap, side_rank, mention["start"], mention["stock"]))
-
-        ranked.sort(key=lambda value: (value[0], value[1], -value[2]))
-        gap, _, _, owner = ranked[0]
-        # Avoid assigning a far-away company in a long multi-company description.
-        if gap > 120:
-            return "", "mention_only"
-
-        relation = "direct" if compact(owner).lower() == compact(stock_name).lower() else "indirect"
-        return owner, relation
 
     def certainty_suffix(text, start, end):
         """Preserve nearby uncertainty without leaking it across article clauses."""
@@ -1560,60 +1443,6 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             item.pop("_rule_index", None)
         return matches
 
-    def direct_investment_from_title(text):
-        """Recognize explicit selected-company investment actions with concrete evidence."""
-        if not selected_stock_is_present(text):
-            return None
-
-        lower = str(text or "").lower()
-        action_patterns = (
-            r"투자\s*계획",
-            r"투자\s*예정",
-            r"투자하기로",
-            r"투자한다",
-            r"투자할\s*계획",
-            r"투입",
-            r"\binvests\b",
-            r"\binvested\b",
-            r"\bto\s+invest\b",
-            r"\binvestment\s+plan\b",
-            r"\bplans?\s+to\s+invest\b",
-        )
-        action_match = next(
-            (match for pattern in action_patterns if (match := re.search(pattern, lower))),
-            None,
-        )
-        if not action_match:
-            return None
-
-        has_amount = bool(re.search(
-            r"(?:[$€£]\s*\d[\d,.]*(?:\s*(?:trillion|billion|million|bn|m))?|"
-            r"\d[\d,.]*(?:\.\d+)?\s*(?:trillion|billion|million)\s*(?:u\.s\.\s*)?dollars?|"
-            r"\d+(?:\.\d+)?\s*조(?:\s*\d+천)?\s*\d{0,4}(?:,\d{3})*\s*억?원?|"
-            r"\d{1,4}(?:,\d{3})*\s*억원|"
-            r"\d[\d,.]*\s*(?:조|억|만)?\s*달러)",
-            str(text or ""),
-            flags=re.IGNORECASE,
-        ))
-        has_target = bool(re.search(
-            r"(?:과학\s*연구|연구|양자\s*컴퓨팅|양자|AI|인공지능|데이터\s*센터|"
-            r"인프라|시설|공장|사업|프로젝트|science|research|quantum|"
-            r"artificial intelligence|\bai\b|data\s*cent(?:er|re)|infrastructure|"
-            r"facility|factory|project)",
-            str(text or ""),
-            flags=re.IGNORECASE,
-        ))
-        if not (has_amount or has_target):
-            return None
-
-        return {
-            "label": "신규투자",
-            "source": "title-direct-investment",
-            "evidence": action_match.group(0),
-            "priority": 95,
-        }
-
-
     def fallback_from_title(text):
         # Strip the selected stock name before looking for the local event phrase.
         work = text
@@ -1659,10 +1488,6 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             continue
 
         stock_entities = _related_stock_entities(item)
-        provider_stock = str(item.get("provider_stock") or "").strip()
-        trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
-        if trusted_source and provider_stock and provider_stock not in stock_entities:
-            stock_entities.append(provider_stock)
         grounded_tags = _grounded_entity_tags(item)
 
         try:
@@ -1686,62 +1511,14 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             if len(selected) >= keyword_limit:
                 break
 
-        if not selected:
-            direct_investment = direct_investment_from_title(title)
-            if direct_investment:
-                selected.append(direct_investment)
-
         if not selected and selected_stock_is_present(title):
             fallback = fallback_from_title(title)
             if fallback:
                 selected.append(fallback)
 
-        if (
-            not selected
-            and str(item.get("source_type") or "") == "official_company"
-            and grounded_tags
-        ):
-            lower_title = title.lower()
-            official_action = next(
-                (
-                    phrase for phrase in (
-                        "introducing ",
-                        "introduces ",
-                        "introduced ",
-                        "launches ",
-                        "launched ",
-                        "announcing ",
-                        "announces ",
-                        "unveils ",
-                        "unveiled ",
-                    )
-                    if phrase in lower_title
-                ),
-                "",
-            )
-            if official_action:
-                selected.append({
-                    "label": "제품공개",
-                    "source": "title-official-event",
-                    "evidence": official_action.strip(),
-                    "priority": 90,
-                })
-
         if any(detail.get("label") in {"공급계약", "장기공급계약"} for detail in selected):
             grounded_tags.extend(_supply_contract_detail_tags(item))
             grounded_tags = list(dict.fromkeys(grounded_tags))
-
-        for detail in selected:
-            owner, relation = event_owner_for_detail(detail, title, description, item)
-            detail["event_owner"] = owner
-            detail["relation_type"] = relation
-
-        representative_owner = str(selected[0].get("event_owner") or "") if selected else ""
-        representative_relation = (
-            str(selected[0].get("relation_type") or "mention_only")
-            if selected
-            else ("mention_only" if selected_stock_is_present(f"{title} {description}") else "unknown")
-        )
 
         results.append({
             "title": title,
@@ -1750,8 +1527,6 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             "keyword_details": selected,
             "stock_entities": stock_entities,
             "grounded_tags": grounded_tags,
-            "event_owner": representative_owner,
-            "relation_type": representative_relation,
             "enough_evidence": bool(selected),
             "status": "PASS" if selected else "SKIP",
         })
