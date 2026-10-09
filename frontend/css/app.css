@@ -769,6 +769,7 @@ body.analysis-mode #gaemiWorkspace [data-left-sidebar-toggle][data-left-sidebar-
 
   .gaemi-home-prompts button {
     min-height: 40px;
+    font-size: var(--gtp-type-body);
   }
 }
 
