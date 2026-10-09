@@ -1614,6 +1614,97 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         }
 
 
+    def direct_common_event_from_text(text, *, source):
+        """Conservative fallback for explicit selected-company actions missed by existing rules."""
+        source_text = str(text or "")
+        if not source_text or not selected_stock_is_present(source_text):
+            return None
+
+        lower = source_text.lower()
+        event_patterns = (
+            (
+                "신규수주",
+                (
+                    r"\b(?:wins?|won|secures?|secured)\b.{0,60}\b(?:contract|order)\b",
+                    r"\b(?:is|was|has been)\s+awarded\b.{0,60}\b(?:contract|order)\b",
+                ),
+            ),
+            (
+                "계약체결",
+                (
+                    r"계약(?:을)?\s*(?:체결|맺었|맺기로)",
+                    r"\b(?:signs?|signed|enters?|entered)\b.{0,50}\b(?:agreement|contract|deal)\b",
+                ),
+            ),
+            (
+                "전략협력",
+                (
+                    r"(?:전략적\s*)?파트너십(?:을)?\s*(?:체결|맺|구축)",
+                    r"(?:업무\s*)?협약(?:을)?\s*(?:체결|맺)",
+                    r"\bpartners?\s+with\b",
+                    r"\b(?:forms?|formed|enters?|entered)\b.{0,40}\bpartnership\b",
+                    r"\bcollaborat(?:es|ed|ing)\s+with\b",
+                ),
+            ),
+            (
+                "양산개시",
+                (
+                    r"양산(?:에)?\s*(?:돌입|착수)",
+                    r"\b(?:begins?|began|starts?|started)\b.{0,30}\bmass\s+production\b",
+                ),
+            ),
+            (
+                "공장건설",
+                (
+                    r"(?:공장|생산\s*시설)(?:을|를)?\s*(?:건설|신설|짓)",
+                    r"\b(?:builds?|building|plans?\s+to\s+build)\b.{0,50}\b(?:factory|plant|facility)\b",
+                ),
+            ),
+            (
+                "허가승인",
+                (
+                    r"(?:fda|식약처).{0,20}(?:승인|허가)(?:을)?\s*(?:받|획득)",
+                    r"(?:승인|허가)(?:을)?\s*(?:받|획득).{0,20}(?:fda|식약처)",
+                    r"\b(?:receives?|received|wins?|won|gets?|got)\b.{0,35}\bfda\s+(?:approval|clearance)\b",
+                    r"\bapproved\s+by\s+(?:the\s+)?fda\b",
+                ),
+            ),
+            (
+                "자금조달",
+                (
+                    r"(?:자금|운영자금|시설자금).{0,20}(?:조달|확보)",
+                    r"\b(?:raises?|raised|secures?|secured)\b.{0,30}(?:[$€£]\s*)?\d[\d,.]*(?:\s*(?:million|billion|bn|m))?.{0,20}\b(?:funding|financing|capital)\b",
+                ),
+            ),
+        )
+
+        for label, patterns in event_patterns:
+            for pattern in patterns:
+                match = re.search(pattern, source_text, flags=re.IGNORECASE)
+                if not match:
+                    continue
+                if not selected_stock_is_near(
+                    source_text,
+                    match.start(),
+                    match.end(),
+                    radius=140,
+                ):
+                    continue
+                local = lower[
+                    max(0, match.start() - 24):
+                    min(len(lower), match.end() + 24)
+                ]
+                if any(word in local for word in negation_words):
+                    continue
+                return {
+                    "label": label,
+                    "source": f"{source}-direct-event",
+                    "evidence": match.group(0),
+                    "priority": 92 if source == "title" else 55,
+                }
+        return None
+
+
     def fallback_from_title(text):
         # Strip the selected stock name before looking for the local event phrase.
         work = text
@@ -1690,6 +1781,16 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             direct_investment = direct_investment_from_title(title)
             if direct_investment:
                 selected.append(direct_investment)
+
+        if not selected:
+            direct_event = direct_common_event_from_text(title, source="title")
+            if direct_event:
+                selected.append(direct_event)
+
+        if not selected:
+            direct_event = direct_common_event_from_text(description, source="description")
+            if direct_event:
+                selected.append(direct_event)
 
         if not selected and selected_stock_is_present(title):
             fallback = fallback_from_title(title)

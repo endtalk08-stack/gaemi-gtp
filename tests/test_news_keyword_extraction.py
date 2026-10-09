@@ -296,5 +296,76 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertNotIn("신규투자", article["keywords"])
 
 
+    def test_common_direct_event_fallback_recognizes_english_order_win(self):
+        result = build_connected_keyword_test([{
+            "title": "Hanwha Aerospace wins $2 billion order in Poland",
+            "description": "Hanwha Aerospace announced the award on Thursday.",
+            "stocks": [{"name": "한화에어로스페이스", "region": "국내"}],
+        }], "한화에어로스페이스", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "신규수주")
+        self.assertEqual(article["relation_type"], "direct")
+        self.assertEqual(article["keyword_details"][0]["source"], "title-direct-event")
+
+    def test_common_direct_event_fallback_recognizes_partnership(self):
+        result = build_connected_keyword_test([{
+            "title": "Alphabet partners with Anthropic on AI infrastructure",
+            "description": "Alphabet said the companies will expand their technical cooperation.",
+            "stocks": [{"name": "알파벳", "region": "미국"}],
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "전략협력")
+        self.assertEqual(article["relation_type"], "direct")
+
+    def test_common_direct_event_fallback_recognizes_fda_approval(self):
+        result = build_connected_keyword_test([{
+            "title": "Celltrion receives FDA approval for new treatment",
+            "description": "Celltrion announced the regulatory decision.",
+            "stocks": [{"name": "셀트리온", "region": "국내"}],
+        }], "셀트리온", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "허가승인")
+        self.assertEqual(article["relation_type"], "direct")
+
+    def test_common_direct_event_fallback_recognizes_mass_production(self):
+        result = build_connected_keyword_test([{
+            "title": "Samsung Biologics begins mass production at new facility",
+            "description": "Samsung Biologics started commercial operations this week.",
+            "stocks": [{"name": "삼성바이오로직스", "region": "국내"}],
+        }], "삼성바이오로직스", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "양산개시")
+        self.assertEqual(article["relation_type"], "direct")
+
+    def test_common_direct_event_fallback_can_use_description_only_after_existing_rules_miss(self):
+        result = build_connected_keyword_test([{
+            "title": "현대차, 미국 사업 계획 발표",
+            "description": "현대차가 조지아에 새 공장을 건설하기로 했다.",
+            "stocks": [{"name": "현대차", "region": "국내"}],
+        }], "현대차", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "공장건설")
+        self.assertEqual(article["relation_type"], "direct")
+        self.assertEqual(article["keyword_details"][0]["source"], "description-direct-event")
+
+    def test_common_direct_event_fallback_does_not_force_other_company_event(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자 관련 업계 동향",
+            "description": "Hanwha Aerospace wins $2 billion order in Poland.",
+            "stocks": [
+                {"name": "삼성전자", "region": "국내"},
+                {"name": "한화에어로스페이스", "region": "국내"},
+            ],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertNotIn("신규수주", article["keywords"])
+
+
 if __name__ == "__main__":
     unittest.main()
