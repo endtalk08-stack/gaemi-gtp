@@ -10,6 +10,7 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
         // 구조화 데이터만 프론트까지 전달한다. (표시용 변경만)
         return {
           sections: data.sections || [],
+          price_result: data.price_result && typeof data.price_result === 'object' ? data.price_result : {},
           paired_news_items: Array.isArray(data.paired_news_items) ? data.paired_news_items : [],
           storyboard_news_items: Array.isArray(data.storyboard_news_items) ? data.storyboard_news_items : [],
           issue_briefs: Array.isArray(data.issue_briefs) ? data.issue_briefs : [],
