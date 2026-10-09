@@ -1,149 +1,293 @@
-/* Central chat + tools menu.
-   Shared only by tools launched from the central chat composer. */
+/* Analysis chat bottom composer only. The home composer remains independent. */
+.gaemi-chat-composer {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--gtp-border-strong);
+  border-radius: 22px;
+  background: var(--gtp-surface-2);
+  box-shadow: var(--gtp-shadow);
+  transition: border-color .16s ease;
+}
 
-.stock-tools-trigger {
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 3;
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
+.gaemi-chat-composer:focus-within {
+  border-color: var(--gtp-muted);
+}
+
+.gaemi-chat-composer__field {
+  min-height: 48px;
+  padding: 13px 16px 8px;
+  display: flex;
   align-items: center;
-  justify-content: center;
+}
+
+.gaemi-chat-composer__field input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
   border: 0;
-  border-radius: 999px;
+  outline: 0;
   background: transparent;
-  color: var(--gtp-muted);
-  font-size: 25px;
-  font-weight: 300;
-  line-height: 1;
+  color: var(--gtp-text);
+  font-family: var(--gtp-font-family);
+  font-size: var(--gtp-type-item);
+  font-weight: var(--gtp-weight-body);
+  line-height: 1.5;
+}
+
+.gaemi-chat-composer__field input::placeholder {
+  color: var(--gtp-faint);
+  opacity: 1;
+}
+
+.gaemi-chat-composer__toolbar {
+  min-height: 42px;
+  padding: 5px 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--gtp-border);
+  background: var(--gtp-surface-3);
+}
+
+.gaemi-chat-composer__resources,
+.gaemi-chat-composer__actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.gaemi-chat-composer__resources {
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.gaemi-chat-composer__resources::-webkit-scrollbar {
+  display: none;
+}
+
+.gaemi-chat-composer__actions {
+  gap: 3px;
+}
+
+.gaemi-chat-resource,
+.gaemi-chat-composer__mode,
+.gaemi-chat-composer__submit {
+  border: 0;
+  background: transparent;
+  font-family: var(--gtp-font-family);
   cursor: pointer;
+}
+
+.gaemi-chat-resource {
+  min-height: 32px;
+  padding: 0 7px;
+  border-radius: 9px;
+  color: var(--gtp-text-2);
+  font-size: var(--gtp-type-meta);
+  font-weight: 600;
+  white-space: nowrap;
   transition: background .16s ease, color .16s ease;
 }
 
-.stock-tools-trigger:hover,
-.stock-tools-trigger[aria-expanded="true"] {
+.gaemi-chat-resource:hover,
+.gaemi-chat-resource[aria-expanded="true"] {
   background: var(--gtp-hover);
   color: var(--gtp-text);
 }
 
-.stock-tools-trigger:focus-visible,
-.stock-tools-menu__item:focus-visible {
-  outline: 2px solid #38bdf8;
-  outline-offset: 2px;
+.gaemi-chat-composer__mode {
+  min-height: 32px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 9px;
+  color: var(--gtp-muted);
+  font-size: var(--gtp-type-meta);
+  font-weight: 600;
+  transition: background .16s ease, color .16s ease;
 }
 
-#bottomStockInput.stock-tools-enabled {
-  padding-left: 54px;
+.gaemi-chat-composer__mode:hover {
+  background: var(--gtp-hover);
+  color: var(--gtp-text);
 }
 
-.stock-tools-menu {
+.gaemi-chat-composer__mode svg {
+  width: 12px;
+  height: 12px;
+}
+
+.gaemi-chat-composer__submit {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--gtp-text);
+  color: var(--gtp-bg);
+  transition: opacity .16s ease, transform .16s ease;
+}
+
+.gaemi-chat-composer__submit:hover {
+  opacity: .9;
+}
+
+.gaemi-chat-composer__submit:active {
+  transform: scale(.96);
+}
+
+.gaemi-chat-composer__submit svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.gaemi-chat-resource-menu,
+.gaemi-chat-mode-menu {
   position: absolute;
-  left: 0;
   bottom: calc(100% + 10px);
   z-index: 60;
-  width: min(380px, calc(100vw - 32px));
-  max-height: min(420px, calc(100dvh - 160px));
-  overflow-y: auto;
-  padding: 6px;
-  border: 1px solid var(--gtp-border);
-  border-radius: 16px;
+  border: 1px solid var(--gtp-border-strong);
   background: var(--gtp-surface);
   box-shadow: var(--gtp-shadow);
 }
 
-.stock-tools-menu[hidden] {
+.gaemi-chat-resource-menu {
+  left: 0;
+  width: min(280px, calc(100vw - 32px));
+  max-height: min(360px, calc(100dvh - 180px));
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 14px;
+}
+
+.gaemi-chat-resource-menu[hidden] {
   display: none;
 }
 
-.stock-tools-menu__item {
+.gaemi-chat-resource-menu__item,
+.gaemi-chat-resource-menu__empty {
   width: 100%;
-  min-height: 42px;
-  padding: 8px 11px;
+  min-height: 40px;
+  padding: 8px 10px;
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
+  gap: 9px;
   border: 0;
-  border-radius: 11px;
+  border-radius: 10px;
   background: transparent;
   color: var(--gtp-text);
+  font-family: var(--gtp-font-family);
+  font-size: var(--gtp-type-item);
+  font-weight: 600;
+  text-align: left;
+}
+
+button.gaemi-chat-resource-menu__item {
+  cursor: pointer;
+}
+
+button.gaemi-chat-resource-menu__item:hover {
+  background: var(--gtp-hover);
+}
+
+.gaemi-chat-resource-menu__item small {
+  margin-left: auto;
+  color: var(--gtp-faint);
+  font-size: var(--gtp-type-fine);
+  font-weight: 500;
+}
+
+.gaemi-chat-resource-menu__empty {
+  color: var(--gtp-muted);
+  font-size: var(--gtp-type-meta);
+  font-weight: 500;
+}
+
+.gaemi-chat-mode-menu {
+  right: 46px;
+  width: 192px;
+  padding: 6px;
+  border-radius: 14px;
+}
+
+.gaemi-chat-mode-menu button {
+  width: 100%;
+  min-height: 46px;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--gtp-text);
+  font-family: var(--gtp-font-family);
   text-align: left;
   cursor: pointer;
 }
 
-.stock-tools-menu__item:hover {
+.gaemi-chat-mode-menu button:hover {
   background: var(--gtp-hover);
 }
 
-.stock-tools-menu__title {
-  flex: 0 0 auto;
-  font-size: 14px;
-  font-weight: 750;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
+.gaemi-chat-mode-menu button > span:first-child {
+  display: grid;
+  gap: 2px;
 }
 
-.stock-tools-menu__desc {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
+.gaemi-chat-mode-menu strong {
+  font-size: var(--gtp-type-item);
+  font-weight: 650;
+}
+
+.gaemi-chat-mode-menu small {
   color: var(--gtp-muted);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--gtp-type-fine);
+  font-weight: 500;
 }
 
-.chat-tool-close {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--gtp-muted);
-  cursor: pointer;
-  transition: background .16s ease, color .16s ease;
-}
-
-.chat-tool-close:hover {
-  background: var(--gtp-hover);
-  color: var(--gtp-text);
-}
-
-.chat-tool-close:focus-visible {
-  outline: 2px solid #38bdf8;
-  outline-offset: 2px;
-}
-
-.chat-tool-close svg {
-  width: 16px;
-  height: 16px;
+.gaemi-chat-mode-menu__check {
+  color: #38bdf8;
+  font-size: var(--gtp-type-item);
+  font-weight: 650;
 }
 
 @media (max-width: 520px) {
-  .stock-tools-menu {
-    width: calc(100vw - 32px);
+  .gaemi-chat-composer {
+    border-radius: 20px;
   }
 
-  .stock-tools-menu__item {
-    gap: 10px;
+  .gaemi-chat-composer__field {
+    min-height: 46px;
+    padding: 12px 14px 7px;
   }
 
-  .stock-tools-menu__title {
-    font-size: 13px;
+  .gaemi-chat-composer__toolbar {
+    min-height: 40px;
+    padding: 4px 6px;
+    gap: 4px;
   }
 
-  .stock-tools-menu__desc {
-    font-size: 11px;
+  .gaemi-chat-resource {
+    padding-inline: 5px;
+    font-size: var(--gtp-type-fine);
+  }
+
+  .gaemi-chat-composer__mode {
+    padding-inline: 5px;
+    font-size: var(--gtp-type-fine);
+  }
+
+  .gaemi-chat-composer__submit {
+    width: 32px;
+    height: 32px;
   }
 }
 
