@@ -3,35 +3,45 @@
 
 .analysis-resource-strip-wrap {
   position: relative;
-  margin-top: 7px;
+  margin-top: 6px;
 }
 
 .analysis-resource-strip {
-  min-height: 38px;
-  padding: 3px 5px;
+  min-height: 44px;
+  padding: 4px 8px;
   display: flex;
   align-items: center;
-  gap: 2px;
-  border: 1px solid var(--gtp-border);
-  border-radius: 12px;
+  gap: 6px;
+  border: 0;
+  border-radius: 14px;
   background: var(--gtp-surface-2);
   font-family: var(--gtp-font-family);
 }
 
 .analysis-resource-strip__button {
-  min-height: 30px;
+  min-height: 36px;
   padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
   border-radius: 9px;
   background: transparent;
   color: var(--gtp-text-2);
   font-family: inherit;
-  font-size: var(--gtp-type-meta);
+  font-size: var(--gtp-type-item);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
   transition: background .16s ease, color .16s ease;
+}
+
+.analysis-resource-strip__button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  stroke-width: 2;
 }
 
 .analysis-resource-strip__button:hover,
@@ -117,11 +127,20 @@ button.analysis-resource-menu__item:hover:not(:disabled) {
   }
 
   .analysis-resource-strip {
-    min-height: 36px;
+    min-height: 42px;
+    padding: 3px 7px;
+    gap: 3px;
   }
 
   .analysis-resource-strip__button {
-    padding-inline: 8px;
-    font-size: var(--gtp-type-fine);
+    min-height: 34px;
+    padding-inline: 7px;
+    gap: 5px;
+    font-size: var(--gtp-type-item);
+  }
+
+  .analysis-resource-strip__button svg {
+    width: 15px;
+    height: 15px;
   }
 }
