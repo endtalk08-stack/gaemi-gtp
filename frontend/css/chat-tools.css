@@ -148,7 +148,7 @@
 }
 
 
-/* Central news: related-stock reaction from the article timestamp to latest 5m price. */
+/* Central news: related-stock range from the article timestamp through its first reaction session. */
 .news-reaction {
   width: min(430px, 100%);
   margin-top: 2px;
@@ -172,22 +172,19 @@
 
 .news-reaction__row {
   display: grid;
-  grid-template-columns: minmax(72px, auto) minmax(110px, 1fr) 76px;
+  grid-template-columns: minmax(72px, 90px) 54px minmax(88px, 1fr) 54px 84px;
   align-items: center;
-  gap: 9px;
+  gap: 6px;
   min-height: 20px;
 }
 
-.news-reaction__name,
-.news-reaction__value {
+.news-reaction__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--gtp-text-2);
   font-size: var(--gtp-type-body);
   font-weight: 600;
   line-height: 1.25;
-}
-
-.news-reaction__name {
-  overflow: hidden;
-  color: var(--gtp-text-2);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -196,9 +193,20 @@
   grid-column: 1 / -1;
 }
 
-.news-reaction__value {
-  text-align: right;
+.news-reaction__value,
+.news-reaction__close {
+  font-size: var(--gtp-type-meta);
+  font-weight: 600;
+  line-height: 1.25;
   white-space: nowrap;
+}
+
+.news-reaction__value {
+  text-align: center;
+}
+
+.news-reaction__close {
+  text-align: right;
 }
 
 .news-reaction__bar {
@@ -218,32 +226,33 @@
   transform: translateY(-50%);
 }
 
-.news-reaction__axis {
+.news-reaction__bar::after {
+  content: "";
   position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--gtp-muted);
-  transform: translateX(-50%);
+  inset: 3px 0;
+  border-left: 1px solid var(--gtp-muted);
+  border-right: 1px solid var(--gtp-muted);
 }
 
-.news-reaction__fill {
+.news-reaction__close-marker {
   position: absolute;
-  top: 4px;
-  height: 4px;
+  z-index: 1;
+  top: 50%;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
+  transform: translate(-50%, -50%);
 }
 
-.news-reaction__fill--up {
+.news-reaction__close-marker--up {
   background: #f472b6;
 }
 
-.news-reaction__fill--down {
+.news-reaction__close-marker--down {
   background: #38bdf8;
 }
 
-.news-reaction__fill--flat {
+.news-reaction__close-marker--flat {
   background: var(--gtp-faint);
 }
 
@@ -261,7 +270,12 @@
 
 @media (max-width: 520px) {
   .news-reaction__row {
-    grid-template-columns: minmax(66px, auto) minmax(96px, 1fr) 72px;
-    gap: 7px;
+    grid-template-columns: minmax(64px, 80px) 45px minmax(70px, 1fr) 45px 72px;
+    gap: 5px;
+  }
+
+  .news-reaction__value,
+  .news-reaction__close {
+    font-size: var(--gtp-type-fine);
   }
 }

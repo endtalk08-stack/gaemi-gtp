@@ -16,9 +16,9 @@ def _iso(timestamp):
 class NewsPriceReactionTests(unittest.TestCase):
     def test_calculates_change_from_nearest_news_candle(self):
         rows = [
-            {"timestamp": 1200, "close": 100},
-            {"timestamp": 1500, "close": 102},
-            {"timestamp": 1800, "close": 104},
+            {"timestamp": 1200, "close": 100, "high": 101, "low": 99},
+            {"timestamp": 1500, "close": 102, "high": 105, "low": 98},
+            {"timestamp": 1800, "close": 104, "high": 106, "low": 101},
         ]
 
         result = calculate_news_price_reaction(rows, _iso(1300))
@@ -27,6 +27,9 @@ class NewsPriceReactionTests(unittest.TestCase):
         self.assertEqual(result["base_price"], 100)
         self.assertEqual(result["current_price"], 104)
         self.assertEqual(result["change_pct"], 4.0)
+        self.assertEqual(result["low_pct"], -2.0)
+        self.assertEqual(result["high_pct"], 6.0)
+        self.assertEqual(result["close_pct"], 4.0)
 
     def test_after_hours_news_uses_last_close_and_starts_at_zero(self):
         rows = [
@@ -40,20 +43,40 @@ class NewsPriceReactionTests(unittest.TestCase):
         self.assertEqual(result["base_price"], 104)
         self.assertEqual(result["current_price"], 104)
         self.assertEqual(result["change_pct"], 0.0)
+        self.assertIsNone(result["low_pct"])
+        self.assertIsNone(result["high_pct"])
+        self.assertIsNone(result["close_pct"])
 
     def test_next_session_keeps_previous_close_as_news_baseline(self):
         rows = [
-            {"timestamp": 1800, "close": 100},
-            {"timestamp": 3600, "close": 102},
-            {"timestamp": 3900, "close": 103},
+            {"timestamp": 82800, "close": 100},
+            {"timestamp": 90000, "close": 102, "high": 104, "low": 99},
+            {"timestamp": 90300, "close": 103, "high": 105, "low": 101},
         ]
 
-        result = calculate_news_price_reaction(rows, _iso(3000))
+        result = calculate_news_price_reaction(rows, _iso(84600))
 
         self.assertEqual(result["status"], "ready")
         self.assertEqual(result["base_price"], 100)
         self.assertEqual(result["current_price"], 103)
         self.assertEqual(result["change_pct"], 3.0)
+        self.assertEqual(result["low_pct"], -1.0)
+        self.assertEqual(result["high_pct"], 5.0)
+        self.assertEqual(result["close_pct"], 3.0)
+
+    @patch("backend.providers.market_price.time.time", return_value=1900)
+    def test_live_session_does_not_label_latest_trade_as_close(self, _time):
+        rows = [
+            {"timestamp": 1200, "close": 100, "high": 101, "low": 99},
+            {"timestamp": 1500, "close": 102, "high": 105, "low": 98},
+            {"timestamp": 1800, "close": 104, "high": 106, "low": 101},
+        ]
+
+        result = calculate_news_price_reaction(rows, _iso(1300))
+
+        self.assertEqual(result["low_pct"], -2.0)
+        self.assertEqual(result["high_pct"], 6.0)
+        self.assertIsNone(result["close_pct"])
 
 
     @patch("backend.services.engine.fetch_news_price_reaction")
@@ -72,6 +95,9 @@ class NewsPriceReactionTests(unittest.TestCase):
         fetch_reaction.return_value = {
             "status": "ready",
             "change_pct": 1.25,
+            "low_pct": -2.5,
+            "high_pct": 3.75,
+            "close_pct": 1.25,
         }
         news_result = {
             "issue_briefs": [
@@ -97,6 +123,16 @@ class NewsPriceReactionTests(unittest.TestCase):
             ["종목D", "종목E"],
         )
         self.assertEqual(fetch_reaction.call_count, 5)
+        self.assertEqual(
+            result["issue_briefs"][0]["stock_reactions"][0],
+            {
+                "name": "종목A",
+                "low_pct": -2.5,
+                "high_pct": 3.75,
+                "close_pct": 1.25,
+                "change_pct": 1.25,
+            },
+        )
 
 
 if __name__ == "__main__":

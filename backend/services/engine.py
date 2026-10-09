@@ -3291,13 +3291,30 @@ def _attach_news_price_reactions(news_result):
             reaction = reaction_cache.get(cache_key)
             if not reaction or reaction.get("status") != "ready":
                 continue
-            change_pct = reaction.get("change_pct")
-            if change_pct is None:
+            low_pct = reaction.get("low_pct")
+            high_pct = reaction.get("high_pct")
+            if not all(
+                isinstance(value, (int, float)) and math.isfinite(value)
+                for value in (low_pct, high_pct)
+            ):
                 continue
-            reactions.append({
+
+            reaction_item = {
                 "name": name,
-                "change_pct": change_pct,
-            })
+                "low_pct": low_pct,
+                "high_pct": high_pct,
+            }
+            close_pct = reaction.get("close_pct")
+            if isinstance(close_pct, (int, float)) and math.isfinite(close_pct):
+                reaction_item["close_pct"] = close_pct
+
+            # Keep the old field in the shared result for compatibility with
+            # any non-central consumers, but the central row no longer renders it.
+            change_pct = reaction.get("change_pct")
+            if isinstance(change_pct, (int, float)) and math.isfinite(change_pct):
+                reaction_item["change_pct"] = change_pct
+
+            reactions.append(reaction_item)
         # No waiting/error placeholder: unavailable reaction data stays invisible.
         brief["stock_reactions"] = reactions
 

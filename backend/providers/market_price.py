@@ -138,7 +138,7 @@ def fetch_daily_price_history(ticker):
 
 
 def fetch_intraday_price_history(ticker):
-    """Return cached 5-minute closes for short-lived news reaction calculations."""
+    """Return cached 5-minute OHLC rows for short-lived news reaction calculations."""
     key = str(ticker or "").strip().upper()
     if not key:
         return []
@@ -179,18 +179,30 @@ def fetch_intraday_price_history(ticker):
                 timestamps = chart.get("timestamp") or []
                 quote = (chart.get("indicators", {}).get("quote") or [{}])[0]
                 closes = quote.get("close") or []
-                for stamp, close in zip(timestamps, closes):
+                highs = quote.get("high") or []
+                lows = quote.get("low") or []
+                for index, (stamp, close) in enumerate(zip(timestamps, closes)):
                     if stamp is None or close is None:
                         continue
+                    high = highs[index] if index < len(highs) else close
+                    low = lows[index] if index < len(lows) else close
+                    if high is None:
+                        high = close
+                    if low is None:
+                        low = close
                     try:
                         stamp_value = int(stamp)
                         close_value = float(close)
+                        high_value = float(high)
+                        low_value = float(low)
                     except (TypeError, ValueError):
                         continue
-                    if stamp_value > 0 and close_value > 0:
+                    if stamp_value > 0 and close_value > 0 and high_value > 0 and low_value > 0:
                         rows.append({
                             "timestamp": stamp_value,
                             "close": close_value,
+                            "high": high_value,
+                            "low": low_value,
                         })
         except Exception as exc:
             print("야후 5분봉 조회 예외:", exc)
@@ -217,12 +229,14 @@ def _parse_news_timestamp(value):
 
 
 def calculate_news_price_reaction(rows, published_at):
-    """Calculate post-news change from the last trade at or before the article time.
+    """Calculate the first trading session's price range after a news event.
 
-    After-hours news uses the session's last traded price as the baseline. Until
-    a later trade exists, current and baseline are identical, so the reaction is
-    correctly reported as 0%. On the next session, the same baseline preserves
-    the opening gap and subsequent move.
+    The baseline stays the last trade at or before the article timestamp. The
+    low/high range is limited to the first regular trading session that follows
+    the news timestamp, so a later day's move is not mixed into the event.
+    close_pct is exposed only after that session is clearly finished; while the
+    session is live, the moving latest price is intentionally not presented as
+    a closing price.
     """
     target = _parse_news_timestamp(published_at)
     if target is None:
@@ -233,17 +247,19 @@ def calculate_news_price_reaction(rows, published_at):
         try:
             stamp = int((row or {}).get("timestamp") or 0)
             close = float((row or {}).get("close") or 0)
+            high = float((row or {}).get("high") or close)
+            low = float((row or {}).get("low") or close)
         except (TypeError, ValueError):
             continue
-        if stamp > 0 and close > 0:
-            clean_rows.append((stamp, close))
+        if stamp > 0 and close > 0 and high > 0 and low > 0:
+            clean_rows.append((stamp, close, high, low))
     clean_rows.sort(key=lambda item: item[0])
     if not clean_rows:
         return None
 
-    latest_stamp, latest_close = clean_rows[-1]
+    latest_stamp, latest_close, _, _ = clean_rows[-1]
     baseline = None
-    for stamp, close in clean_rows:
+    for stamp, close, high, low in clean_rows:
         if stamp <= target:
             baseline = (stamp, close)
         else:
@@ -257,15 +273,63 @@ def calculate_news_price_reaction(rows, published_at):
     if base_close <= 0:
         return None
 
+    # Keep the legacy latest-change fields for internal compatibility. The
+    # central UI no longer renders them as the news reaction.
     change_pct = ((latest_close - base_close) / base_close) * 100
-    return {
+    result = {
         "status": "ready",
         "change_pct": round(change_pct, 2),
         "base_price": base_close,
         "current_price": latest_close,
         "baseline_at": base_stamp,
         "current_at": latest_stamp,
+        "low_pct": None,
+        "high_pct": None,
+        "close_pct": None,
     }
+
+    post_rows = [row for row in clean_rows if row[0] > target]
+    if not post_rows:
+        return result
+
+    reaction_day = datetime.datetime.fromtimestamp(
+        post_rows[0][0],
+        tz=datetime.timezone.utc,
+    ).date()
+    session_rows = []
+    for row in post_rows:
+        row_day = datetime.datetime.fromtimestamp(
+            row[0],
+            tz=datetime.timezone.utc,
+        ).date()
+        if row_day == reaction_day:
+            session_rows.append(row)
+        elif session_rows:
+            break
+
+    if not session_rows:
+        return result
+
+    low_price = min(row[3] for row in session_rows)
+    high_price = max(row[2] for row in session_rows)
+    close_stamp, close_price, _, _ = session_rows[-1]
+    result["low_pct"] = round(((low_price - base_close) / base_close) * 100, 2)
+    result["high_pct"] = round(((high_price - base_close) / base_close) * 100, 2)
+
+    # If a later trading day exists, this session is certainly complete. For
+    # the latest day, wait 30 minutes after the last 5-minute candle before
+    # treating that candle as the session close, avoiding a live current price
+    # being mislabeled as a close.
+    later_session_exists = any(
+        datetime.datetime.fromtimestamp(row[0], tz=datetime.timezone.utc).date() != reaction_day
+        for row in clean_rows
+        if row[0] > close_stamp
+    )
+    session_is_stale = time.time() - close_stamp >= 30 * 60
+    if later_session_exists or session_is_stale:
+        result["close_pct"] = round(((close_price - base_close) / base_close) * 100, 2)
+
+    return result
 
 def fetch_news_price_reaction(ticker, published_at):
     """Fetch cached intraday data once per ticker and calculate a news reaction."""

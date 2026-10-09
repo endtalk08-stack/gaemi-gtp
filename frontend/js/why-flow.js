@@ -122,25 +122,33 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 const stockNames = [...new Set((Array.isArray(event.stock_names) ? event.stock_names : [])
                   .map((name) => String(name || '').trim())
                   .filter(Boolean))].slice(0, 3);
+                const finiteOrNull = (value) => {
+                  if (value === null || value === undefined || value === '') return null;
+                  const number = Number(value);
+                  return Number.isFinite(number) ? number : null;
+                };
                 const reactions = (Array.isArray(event.stock_reactions) ? event.stock_reactions : [])
                   .map((item) => ({
                     name: String(item?.name || '').trim(),
-                    changePct: Number(item?.change_pct),
+                    lowPct: finiteOrNull(item?.low_pct),
+                    highPct: finiteOrNull(item?.high_pct),
+                    closePct: finiteOrNull(item?.close_pct),
                   }))
-                  .filter((item) => item.name && Number.isFinite(item.changePct))
+                  .filter((item) => item.name && item.lowPct !== null && item.highPct !== null)
                   .slice(0, 3);
                 const reactionByName = new Map(reactions.map((item) => [item.name, item]));
                 const displayNames = stockNames.length ? stockNames : reactions.map((item) => item.name);
+                const direction = (value) => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
+                const formatPct = (value) => `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
                 let reactionsEl = null;
                 if (displayNames.length) {
-                  const maxAbs = Math.max(1, ...reactions.map((item) => Math.abs(item.changePct)));
                   reactionsEl = document.createElement('div');
                   reactionsEl.className = 'news-reaction';
                   reactionsEl.hidden = true;
 
                   const reactionTitle = document.createElement('p');
                   reactionTitle.className = 'news-reaction__title';
-                  reactionTitle.textContent = '관련 종목 · 발표 이후 움직임';
+                  reactionTitle.textContent = '관련 종목 · 뉴스 이후 최저 ↔ 최고 · 종가';
                   reactionsEl.appendChild(reactionTitle);
 
                   displayNames.forEach((name) => {
@@ -158,28 +166,37 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                       return;
                     }
 
+                    const lowEl = document.createElement('span');
+                    lowEl.className = `news-reaction__value news-reaction__value--${direction(item.lowPct)}`;
+                    lowEl.textContent = formatPct(item.lowPct);
+
                     const barEl = document.createElement('span');
                     barEl.className = 'news-reaction__bar';
-                    const axisEl = document.createElement('span');
-                    axisEl.className = 'news-reaction__axis';
-                    const fillEl = document.createElement('span');
-                    const direction = item.changePct > 0 ? 'up' : item.changePct < 0 ? 'down' : 'flat';
-                    fillEl.className = `news-reaction__fill news-reaction__fill--${direction}`;
-                    const fillWidth = item.changePct === 0
-                      ? 0
-                      : Math.min(48, Math.max(2, (Math.abs(item.changePct) / maxAbs) * 48));
-                    fillEl.style.width = `${fillWidth}%`;
-                    if (item.changePct > 0) fillEl.style.left = '50%';
-                    if (item.changePct < 0) fillEl.style.right = '50%';
-                    barEl.append(axisEl, fillEl);
 
-                    const valueEl = document.createElement('span');
-                    valueEl.className = `news-reaction__value news-reaction__value--${direction}`;
-                    const arrow = item.changePct > 0 ? ' ↗' : item.changePct < 0 ? ' ↘' : '';
-                    const sign = item.changePct > 0 ? '+' : '';
-                    valueEl.textContent = `${sign}${item.changePct.toFixed(2)}%${arrow}`;
+                    if (item.closePct !== null) {
+                      const markerEl = document.createElement('span');
+                      const closeDirection = direction(item.closePct);
+                      markerEl.className = `news-reaction__close-marker news-reaction__close-marker--${closeDirection}`;
+                      const span = item.highPct - item.lowPct;
+                      const position = span > 0
+                        ? ((item.closePct - item.lowPct) / span) * 100
+                        : 50;
+                      markerEl.style.left = `${Math.max(0, Math.min(100, position))}%`;
+                      barEl.appendChild(markerEl);
+                    }
 
-                    row.append(nameEl, barEl, valueEl);
+                    const highEl = document.createElement('span');
+                    highEl.className = `news-reaction__value news-reaction__value--${direction(item.highPct)}`;
+                    highEl.textContent = formatPct(item.highPct);
+
+                    const closeEl = document.createElement('span');
+                    closeEl.className = 'news-reaction__close';
+                    if (item.closePct !== null) {
+                      closeEl.classList.add(`news-reaction__value--${direction(item.closePct)}`);
+                      closeEl.textContent = `종가 ${formatPct(item.closePct)}`;
+                    }
+
+                    row.append(nameEl, lowEl, barEl, highEl, closeEl);
                     reactionsEl.appendChild(row);
                   });
                 }
