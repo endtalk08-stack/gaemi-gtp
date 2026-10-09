@@ -285,6 +285,29 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertEqual(article["event_owner"], "엔비디아")
         self.assertEqual(article["relation_type"], "direct")
 
+    def test_direct_investment_expression_variants_become_events(self):
+        cases = [
+            "엔비디아, AI 연구 투자 예정",
+            "엔비디아, 양자 연구에 투자하기로",
+            "엔비디아, 데이터센터에 2조원 투자한다",
+            "엔비디아, AI 연구에 투자할 계획",
+            "Nvidia invests in quantum research",
+            "Nvidia announces investment plan for AI infrastructure",
+        ]
+
+        for title in cases:
+            with self.subTest(title=title):
+                result = build_connected_keyword_test([{
+                    "title": title,
+                    "description": "구체적인 투자 대상이 제목에 명시됐다.",
+                    "stocks": [{"name": "엔비디아", "region": "미국"}],
+                }], "엔비디아", max_keywords=3)
+
+                article = result["articles"][0]
+                self.assertEqual(article["keywords"][0], "신규투자")
+                self.assertEqual(article["event_owner"], "엔비디아")
+                self.assertEqual(article["relation_type"], "direct")
+
     def test_vague_investment_word_without_amount_or_target_does_not_force_event(self):
         result = build_connected_keyword_test([{
             "title": "엔비디아 투자 관련 시장 관심",
