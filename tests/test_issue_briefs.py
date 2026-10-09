@@ -1,6 +1,6 @@
 import unittest
 
-from backend.services.issue_briefs import build_issue_briefs, build_news_test_articles
+from backend.services.issue_briefs import build_issue_briefs
 
 
 class IssueBriefTests(unittest.TestCase):
@@ -153,31 +153,6 @@ class IssueBriefTests(unittest.TestCase):
         )
         self.assertNotIn("삼성전자에서는", " ".join(brief["summary"] for brief in result))
         self.assertNotIn("현대차에서는", " ".join(brief["summary"] for brief in result))
-
-    def test_news_test_articles_keep_only_display_fields(self):
-        result = build_news_test_articles([{
-            "title": "원문 제목",
-            "description": "원문 설명",
-            "storyboard_time": "11:40",
-            "storyboard_keywords": ["AI메모리"],
-            "movement_signals": [{"label": "메모리가격", "tone": "positive"}],
-            "stock_entities": ["삼성전자", "SK하이닉스"],
-            "themes": ["반도체"],
-        }], "삼성전자")
-
-        self.assertEqual(set(result[0]), {"id", "time", "headline", "body", "tags", "stock_names"})
-        self.assertEqual(result[0]["headline"], "AI 메모리 기대감에 반도체주 강세")
-        self.assertEqual(
-            result[0]["body"],
-            "AI 서버 투자와 메모리 가격 상승 기대가 이어지며\n"
-            "삼성전자와 SK하이닉스에 매수세가 유입되고 있어요.\n\n"
-            "삼성전자는 실적 개선 기대가, SK하이닉스는 HBM 수요가\n"
-            "각각 주가 흐름의 핵심 재료로 언급됐어요.",
-        )
-        self.assertEqual(result[0]["tags"], ["특징주", "AI메모리", "반도체"])
-        self.assertNotIn("원문 제목", str(result[0]))
-        self.assertNotIn("원문 설명", str(result[0]))
-
 
     def test_central_numeric_title_and_tags_hide_extraction_pattern(self):
         result = build_issue_briefs([{

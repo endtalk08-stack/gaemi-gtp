@@ -9,7 +9,7 @@ from backend.analysis.news import (
     select_keyword_storyboard_news,
 )
 
-from .issue_briefs import build_issue_briefs, build_news_test_articles
+from .issue_briefs import build_issue_briefs
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
 
@@ -19,7 +19,6 @@ def _empty_news_result():
         "paired_news_items": [],
         "storyboard_news_items": [],
         "issue_briefs": [],
-        "news_test_articles": [],
         "keyword_storyboard": [],
     }
 
@@ -161,11 +160,6 @@ def build_stock_news_result(
             stock_name,
             limit=storyboard_limit,
         )
-        news_test_articles = build_news_test_articles(
-            storyboard_news_items,
-            stock_name,
-            limit=storyboard_limit,
-        )
         keyword_storyboard = [
             {
                 "time": item.get("storyboard_time", ""),
@@ -181,7 +175,6 @@ def build_stock_news_result(
             "paired_news_items": paired_news_items,
             "storyboard_news_items": storyboard_news_items,
             "issue_briefs": issue_briefs,
-            "news_test_articles": news_test_articles,
             "keyword_storyboard": keyword_storyboard,
         }
     except Exception as exc:

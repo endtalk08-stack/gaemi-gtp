@@ -20,7 +20,6 @@ gaemiGTP/
 │   │   │   ├── watchlist.js
 │   │   │   └── README.md
 │   │   ├── dashboard/
-│   │   ├── auto-trade/
 │   │   └── custom-analysis/
 │   ├── widgets/
 │   │   ├── why-up/
