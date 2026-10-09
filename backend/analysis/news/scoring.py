@@ -1832,6 +1832,46 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
             grounded_tags.extend(_supply_contract_detail_tags(item))
             grounded_tags = list(dict.fromkeys(grounded_tags))
 
+        # Preserve every existing keyword and use direct-event fallbacks only to
+        # fill unused keyword slots.  This keeps the representative event/order
+        # unchanged while allowing explicit actions from title/detail text to add
+        # evidence when the existing extractor returned fewer than max_keywords.
+        if selected and len(selected) < keyword_limit:
+            existing_labels = {
+                str((detail or {}).get("label") or "").strip()
+                for detail in selected
+                if str((detail or {}).get("label") or "").strip()
+            }
+            supplements = []
+
+            direct_investment = direct_investment_from_title(title)
+            if direct_investment:
+                supplements.append(direct_investment)
+
+            for source_name, source_text in (
+                ("title", title),
+                ("description", description),
+            ):
+                direct_event = direct_common_event_from_text(
+                    source_text,
+                    source=source_name,
+                )
+                if direct_event:
+                    supplements.append(direct_event)
+
+            supplements.sort(
+                key=lambda detail: int((detail or {}).get("priority") or 0),
+                reverse=True,
+            )
+            for supplement in supplements:
+                label = str((supplement or {}).get("label") or "").strip()
+                if not label or label in existing_labels:
+                    continue
+                selected.append(supplement)
+                existing_labels.add(label)
+                if len(selected) >= keyword_limit:
+                    break
+
         for detail in selected:
             owner, relation = event_owner_for_detail(detail, title, description, item)
             detail["event_owner"] = owner

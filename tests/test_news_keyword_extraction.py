@@ -367,5 +367,50 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertNotIn("신규수주", article["keywords"])
 
 
+    def test_direct_investment_fills_only_an_unused_keyword_slot(self):
+        result = build_connected_keyword_test([{
+            "title": "Nvidia AI demand rises as Nvidia plans to invest $1 billion in quantum research",
+            "description": "Nvidia described stronger AI demand and the new research investment.",
+            "stocks": [{"name": "엔비디아", "region": "미국"}],
+        }], "엔비디아", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "수요증가")
+        self.assertIn("신규투자", article["keywords"])
+        self.assertLessEqual(len(article["keywords"]), 3)
+
+    def test_common_direct_event_fills_description_slot_without_replacing_existing_keyword(self):
+        result = build_connected_keyword_test([{
+            "title": "현대차, 미국 사업 확대 계획",
+            "description": "현대차가 조지아에 새 공장을 건설하기로 했다.",
+            "stocks": [{"name": "현대차", "region": "국내"}],
+        }], "현대차", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"][0], "사업확대")
+        self.assertIn("공장건설", article["keywords"])
+        self.assertEqual(article["keyword_details"][0]["source"], "title-rule")
+
+    def test_three_existing_keywords_are_not_changed_by_direct_event_supplement(self):
+        result = build_connected_keyword_test([{
+            "title": "현대차, 해외 진출 확대하며 공급 확대",
+            "description": "현대차는 현지 수요에 맞춰 생산 확대 계획도 밝혔다. 현대차가 새 공장을 건설하기로 했다.",
+            "stocks": [{"name": "현대차", "region": "국내"}],
+        }], "현대차", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"], ["공급확대", "해외진출", "생산확대"])
+
+    def test_direct_event_supplement_does_not_duplicate_existing_label(self):
+        result = build_connected_keyword_test([{
+            "title": "Celltrion receives FDA approval for new treatment",
+            "description": "Celltrion received FDA approval after regulatory review.",
+            "stocks": [{"name": "셀트리온", "region": "국내"}],
+        }], "셀트리온", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"].count("허가승인"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
