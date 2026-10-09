@@ -3,19 +3,35 @@
 
 .analysis-resource-strip-wrap {
   position: relative;
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .analysis-resource-strip {
-  min-height: 44px;
-  padding: 4px 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 5px 8px;
   display: flex;
   align-items: center;
   gap: 6px;
-  border: 0;
-  border-radius: 14px;
-  background: var(--gtp-surface-2);
+  border: 1px solid #cbd5e1;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   font-family: var(--gtp-font-family);
+  transition: border-color .15s ease;
+}
+
+.analysis-resource-strip:hover {
+  border-color: #94a3b8;
+}
+
+.dark .analysis-resource-strip {
+  border-color: #282a30;
+  background: #1e1f24;
+}
+
+.dark .analysis-resource-strip:hover {
+  border-color: #3a3d46;
 }
 
 .analysis-resource-strip__button {
@@ -123,12 +139,12 @@ button.analysis-resource-menu__item:hover:not(:disabled) {
 
 @media (max-width: 520px) {
   .analysis-resource-strip-wrap {
-    margin-top: 6px;
+    margin-top: 0;
   }
 
   .analysis-resource-strip {
-    min-height: 42px;
-    padding: 3px 7px;
+    min-height: 48px;
+    padding: 5px 7px;
     gap: 3px;
   }
 
@@ -142,5 +158,12 @@ button.analysis-resource-menu__item:hover:not(:disabled) {
   .analysis-resource-strip__button svg {
     width: 15px;
     height: 15px;
+  }
+}
+
+@media (min-width: 640px) {
+  .analysis-resource-strip {
+    min-height: 56px;
+    padding-block: 7px;
   }
 }
