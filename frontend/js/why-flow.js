@@ -132,7 +132,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                     name: String(item?.name || '').trim(),
                     lowPct: finiteOrNull(item?.low_pct),
                     highPct: finiteOrNull(item?.high_pct),
-                    closePct: finiteOrNull(item?.close_pct),
                   }))
                   .filter((item) => item.name && item.lowPct !== null && item.highPct !== null)
                   .slice(0, 3);
@@ -168,35 +167,16 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
 
                     const lowEl = document.createElement('span');
                     lowEl.className = `news-reaction__value news-reaction__value--${direction(item.lowPct)}`;
-                    lowEl.textContent = formatPct(item.lowPct);
+                    lowEl.textContent = `${formatPct(item.lowPct)}${item.lowPct < 0 ? ' ↘' : item.lowPct > 0 ? ' ↗' : ''}`;
 
                     const barEl = document.createElement('span');
                     barEl.className = 'news-reaction__bar';
 
-                    if (item.closePct !== null) {
-                      const markerEl = document.createElement('span');
-                      const closeDirection = direction(item.closePct);
-                      markerEl.className = `news-reaction__close-marker news-reaction__close-marker--${closeDirection}`;
-                      const span = item.highPct - item.lowPct;
-                      const position = span > 0
-                        ? ((item.closePct - item.lowPct) / span) * 100
-                        : 50;
-                      markerEl.style.left = `${Math.max(0, Math.min(100, position))}%`;
-                      barEl.appendChild(markerEl);
-                    }
-
                     const highEl = document.createElement('span');
                     highEl.className = `news-reaction__value news-reaction__value--${direction(item.highPct)}`;
-                    highEl.textContent = formatPct(item.highPct);
+                    highEl.textContent = `${formatPct(item.highPct)}${item.highPct > 0 ? ' ↗' : item.highPct < 0 ? ' ↘' : ''}`;
 
-                    const closeEl = document.createElement('span');
-                    closeEl.className = 'news-reaction__close';
-                    if (item.closePct !== null) {
-                      closeEl.classList.add(`news-reaction__value--${direction(item.closePct)}`);
-                      closeEl.textContent = `종가 ${formatPct(item.closePct)}`;
-                    }
-
-                    row.append(nameEl, lowEl, barEl, highEl, closeEl);
+                    row.append(nameEl, lowEl, barEl, highEl);
                     reactionsEl.appendChild(row);
                   });
                 }
