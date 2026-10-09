@@ -63,55 +63,6 @@
       letter-spacing: -0.02em;
     }
 
-    /* 첫 답변의 기존 당일 시세를 재사용하는 작은 위치 표시. 별도 시세 수집은 하지 않는다. */
-    .chat-price-position {
-      width: min(420px, 100%);
-      margin-top: 16px;
-    }
-    .chat-price-position__header,
-    .chat-price-position__edges {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-    .chat-price-position__title {
-      color: var(--gtp-text-2);
-      font-size: var(--gtp-type-item);
-      font-weight: var(--gtp-weight-title);
-      line-height: 1.4;
-    }
-    .chat-price-position__current {
-      color: var(--gtp-muted);
-      font-size: var(--gtp-type-meta);
-      font-weight: var(--gtp-weight-meta);
-      font-variant-numeric: tabular-nums;
-    }
-    .chat-price-position__track {
-      position: relative;
-      height: 4px;
-      margin-top: 10px;
-      border-radius: 999px;
-      background: var(--gtp-border-strong);
-    }
-    .chat-price-position__marker {
-      position: absolute;
-      top: 50%;
-      left: var(--price-position);
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--gtp-text-2);
-      transform: translate(-50%, -50%);
-    }
-    .chat-price-position__edges {
-      margin-top: 7px;
-      color: var(--gtp-faint);
-      font-size: var(--gtp-type-fine);
-      font-weight: var(--gtp-weight-meta);
-      font-variant-numeric: tabular-nums;
-    }
-
     /* 출처: 토스처럼 작고 단순하게 표시하고, 열었을 때도 카드가 겹쳐 보이지 않게 한다. */
     .source-toggle-wrap { margin-top: 14px; }
     .source-toggle-btn {
