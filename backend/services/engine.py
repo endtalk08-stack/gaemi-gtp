@@ -3247,7 +3247,7 @@ def get_live_calendar_data(stock_name, ticker_symbol):
 
 
 def _attach_news_price_reactions(news_result):
-    """Attach cached post-news price reactions to central issue briefs only."""
+    """Attach up to three post-news price reactions per central issue brief."""
     if not isinstance(news_result, dict):
         return news_result
 
@@ -3255,38 +3255,49 @@ def _attach_news_price_reactions(news_result):
     if not briefs:
         return news_result
 
-    active_tickers = set()
-    reaction_cache = {}
-    for brief in briefs:
+    requests_by_brief = [[] for _ in briefs]
+    unique_requests = {}
+    for brief_index, brief in enumerate(briefs):
         published_at = str(brief.get("reaction_at") or "").strip()
-        reactions = []
-        if published_at:
-            for stock_name in (brief.get("stock_names") or [])[:3]:
-                name = str(stock_name or "").strip()
-                ticker = TICKERS.get(name)
-                if not name or not ticker:
-                    continue
-                if ticker not in active_tickers:
-                    if len(active_tickers) >= 3:
-                        continue
-                    active_tickers.add(ticker)
-                cache_key = (ticker, published_at)
+        if not published_at:
+            continue
+        for stock_name in (brief.get("stock_names") or [])[:3]:
+            name = str(stock_name or "").strip()
+            ticker = TICKERS.get(name)
+            if not name or not ticker:
+                continue
+            cache_key = (ticker, published_at)
+            requests_by_brief[brief_index].append((name, cache_key))
+            unique_requests.setdefault(cache_key, (ticker, published_at))
+
+    reaction_cache = {}
+    if unique_requests:
+        with ThreadPoolExecutor(max_workers=min(3, len(unique_requests))) as pool:
+            futures = {
+                cache_key: pool.submit(fetch_news_price_reaction, ticker, published_at)
+                for cache_key, (ticker, published_at) in unique_requests.items()
+            }
+            for cache_key, future in futures.items():
                 try:
-                    if cache_key not in reaction_cache:
-                        reaction_cache[cache_key] = fetch_news_price_reaction(ticker, published_at)
-                    reaction = reaction_cache[cache_key]
+                    reaction_cache[cache_key] = future.result()
                 except Exception as exc:
-                    print(f"[뉴스 반응] {name} 계산 예외: {type(exc).__name__}: {exc}")
-                    continue
-                if not reaction or reaction.get("status") != "ready":
-                    continue
-                change_pct = reaction.get("change_pct")
-                if change_pct is None:
-                    continue
-                reactions.append({
-                    "name": name,
-                    "change_pct": change_pct,
-                })
+                    ticker, _ = unique_requests[cache_key]
+                    print(f"[뉴스 반응] {ticker} 계산 예외: {type(exc).__name__}: {exc}")
+                    reaction_cache[cache_key] = None
+
+    for brief, requests in zip(briefs, requests_by_brief):
+        reactions = []
+        for name, cache_key in requests:
+            reaction = reaction_cache.get(cache_key)
+            if not reaction or reaction.get("status") != "ready":
+                continue
+            change_pct = reaction.get("change_pct")
+            if change_pct is None:
+                continue
+            reactions.append({
+                "name": name,
+                "change_pct": change_pct,
+            })
         # No waiting/error placeholder: unavailable reaction data stays invisible.
         brief["stock_reactions"] = reactions
 
