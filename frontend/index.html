@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="theme/theme.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="css/app.css?v=20261008-home-prompts-motion-v1">
   <link rel="stylesheet" href="css/chat-tools.css?v=20261009-news-range-v1">
+  <link rel="stylesheet" href="css/analysis-resource-strip.css?v=20261009-v1">
   <link rel="stylesheet" href="css/stock-calculator.css?v=20261005-v4">
   <link rel="stylesheet" href="css/memo-pad.css?v=20261005-v2">
   <link rel="stylesheet" href="css/sketch-pad.css?v=20261005-v1">
@@ -381,6 +382,15 @@
           </button>
         </div>
       </div>
+
+      <div class="analysis-resource-strip-wrap max-w-3xl mx-auto">
+        <nav class="analysis-resource-strip" aria-label="분석 채팅 바로가기">
+          <button type="button" class="analysis-resource-strip__button" data-analysis-resource="plugin" aria-expanded="false" aria-controls="analysisResourceMenu">플러그인</button>
+          <button type="button" class="analysis-resource-strip__button" data-analysis-resource="watchlist" aria-expanded="false" aria-controls="analysisResourceMenu">관심종목</button>
+          <button type="button" class="analysis-resource-strip__button" data-analysis-resource="project" aria-expanded="false" aria-controls="analysisResourceMenu">프로젝트</button>
+        </nav>
+        <div id="analysisResourceMenu" class="analysis-resource-menu" hidden aria-label="분석 채팅 메뉴"></div>
+      </div>
     </div>
   </main>
 
@@ -464,6 +474,7 @@
   <script src="js/why-flow.js?v=20261009-issue-reaction-copy-v1"></script>
   <script src="js/materials-flow.js?v=20261006-loading-cleanup-v1"></script>
   <script src="js/chat-tools.js?v=20261005-v2"></script>
+  <script src="js/analysis-resource-strip.js?v=20261009-v1"></script>
   <script src="js/stock-calculator.js?v=20261005-v5"></script>
   <script src="js/memo-pad.js?v=20261005-v2"></script>
   <script src="js/sketch-pad.js?v=20261005-v1"></script>
