@@ -119,5 +119,134 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertIn("영업이익전망치1.6%상회", article["keywords"])
 
 
+    def test_extracts_common_english_nvidia_event_phrases(self):
+        result = build_connected_keyword_test([{
+            "title": "Nvidia raises guidance on strong AI demand",
+            "description": "Nvidia said demand for its AI chips remains strong.",
+            "stocks": [{"name": "엔비디아", "region": "미국"}],
+        }], "엔비디아", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["status"], "PASS")
+        self.assertIn("실적전망상향", article["keywords"])
+        self.assertIn("수요증가", article["keywords"])
+
+    def test_extracts_common_english_alphabet_earnings_phrases(self):
+        result = build_connected_keyword_test([{
+            "title": "Alphabet beats estimates as cloud revenue grows",
+            "description": "Alphabet reported stronger cloud sales.",
+            "stocks": [{"name": "알파벳", "region": "미국"}],
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["status"], "PASS")
+        self.assertIn("예상치상회", article["keywords"])
+        self.assertIn("매출증가", article["keywords"])
+
+    def test_extracts_common_english_buyback_and_supply_phrases(self):
+        result = build_connected_keyword_test([{
+            "title": "Nvidia announces share buyback and new supply agreement",
+            "description": "Nvidia signed a supply deal with a partner.",
+            "stocks": [{"name": "엔비디아", "region": "미국"}],
+        }], "엔비디아", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("자사주매입", article["keywords"])
+        self.assertIn("공급계약", article["keywords"])
+
+
+    def test_preserves_price_subject_in_keyword(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, HBM 가격 상승에 실적 개선 기대",
+            "description": "삼성전자 HBM 수요가 이어지고 있다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("HBM가격상승", article["keywords"])
+        self.assertNotIn("가격상승", article["keywords"])
+
+    def test_keeps_generic_price_keyword_only_without_named_subject(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, 가격 상승 영향 점검",
+            "description": "삼성전자는 관련 영향을 검토하고 있다.",
+            "stocks": [{"name": "삼성전자", "region": "국내"}],
+        }], "삼성전자", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("가격상승", article["keywords"])
+
+
+    def test_marks_selected_stock_as_direct_event_owner(self):
+        result = build_connected_keyword_test([{
+            "title": "Alphabet beats estimates as cloud revenue grows",
+            "description": "Alphabet reported stronger cloud sales.",
+            "stocks": [{"name": "알파벳", "region": "미국"}],
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["event_owner"], "알파벳")
+        self.assertEqual(article["relation_type"], "direct")
+        self.assertEqual(article["keyword_details"][0]["event_owner"], "알파벳")
+        self.assertEqual(article["keyword_details"][0]["relation_type"], "direct")
+
+    def test_marks_other_company_event_as_indirect_for_selected_stock(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자, HBM 가격 상승에 실적 개선 기대",
+            "description": "구글은 AI 투자 확대를 이어가고 있다.",
+            "stocks": [
+                {"name": "삼성전자", "region": "국내"},
+                {"name": "알파벳", "region": "미국"},
+            ],
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertIn("HBM가격상승", article["keywords"])
+        self.assertEqual(article["event_owner"], "삼성전자")
+        self.assertEqual(article["relation_type"], "indirect")
+
+    def test_marks_plain_selected_stock_mention_without_event_as_mention_only(self):
+        result = build_connected_keyword_test([{
+            "title": "구글 관련 업계 동향",
+            "description": "여러 기업과 함께 구글이 언급됐다.",
+            "stocks": [{"name": "알파벳", "region": "미국"}],
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"], [])
+        self.assertEqual(article["event_owner"], "")
+        self.assertEqual(article["relation_type"], "mention_only")
+
+
+    def test_official_gemini_introduction_becomes_direct_product_event(self):
+        result = build_connected_keyword_test([{
+            "title": "Welcome to Gemini at Work 2026: Introducing the Gemini agent",
+            "description": "This article is adapted from the Gemini at Work keynote.",
+            "provider_stock": "알파벳",
+            "source_type": "official_company",
+            "source": "Google Cloud Blog",
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["status"], "PASS")
+        self.assertEqual(article["keywords"], ["제품공개"])
+        self.assertIn("Gemini", article["grounded_tags"])
+        self.assertEqual(article["event_owner"], "알파벳")
+        self.assertEqual(article["relation_type"], "direct")
+
+    def test_official_commentary_without_explicit_launch_action_stays_out(self):
+        result = build_connected_keyword_test([{
+            "title": "Study suggests AI could improve patient-physician relationships",
+            "description": "Google researchers discussed findings from a study.",
+            "provider_stock": "알파벳",
+            "source_type": "official_company",
+            "source": "Google Blog",
+        }], "알파벳", max_keywords=3)
+
+        article = result["articles"][0]
+        self.assertEqual(article["status"], "SKIP")
+        self.assertEqual(article["keywords"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -10,6 +10,7 @@ from backend.analysis.news import (
 )
 
 from .issue_briefs import build_issue_briefs, build_news_test_articles
+from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
 
 
@@ -67,6 +68,8 @@ def build_stock_news_result(
             article["article_keyword_details"] = keyword_result.get("keyword_details", [])
             article["grounded_tags"] = keyword_result.get("grounded_tags", [])
             article["stock_entities"] = keyword_result.get("stock_entities", [])
+            article["event_owner"] = keyword_result.get("event_owner", "")
+            article["relation_type"] = keyword_result.get("relation_type", "unknown")
 
         paired_news_items = build_simple_today_news(
             scored_news,
@@ -78,6 +81,81 @@ def build_stock_news_result(
             paired_news_items,
             limit=storyboard_limit,
         )
+
+        # Second pass: read only the already-selected central candidates.  The
+        # raw article body never leaves this function; only grounded facts are
+        # merged back into the shared result.
+        detail_started = time.monotonic()
+        detail_texts = read_selected_article_details(
+            storyboard_news_items,
+            limit=storyboard_limit,
+        )
+        if any(detail_texts):
+            detail_inputs = []
+            for item, detail_text in zip(storyboard_news_items, detail_texts):
+                enriched = dict(item)
+                if detail_text:
+                    enriched["description"] = detail_text
+                    enriched["summary"] = detail_text
+                detail_inputs.append(enriched)
+
+            detail_keyword_result = build_connected_keyword_test(
+                detail_inputs,
+                stock_name,
+                max_keywords=3,
+            )
+            for item, detail_text, detail_result in zip(
+                storyboard_news_items,
+                detail_texts,
+                detail_keyword_result.get("articles", []),
+            ):
+                if not detail_text:
+                    continue
+                direct_details = [
+                    detail for detail in (detail_result.get("keyword_details") or [])
+                    if str((detail or {}).get("relation_type") or "") == "direct"
+                ]
+                direct_labels = [
+                    str((detail or {}).get("label") or "").strip()
+                    for detail in direct_details
+                    if str((detail or {}).get("label") or "").strip()
+                ]
+                item["article_keywords"] = list(dict.fromkeys(
+                    list(item.get("article_keywords") or []) + direct_labels
+                ))
+                existing_details = list(item.get("article_keyword_details") or [])
+                existing_labels = {
+                    str((detail or {}).get("label") or "").strip()
+                    for detail in existing_details
+                }
+                item["article_keyword_details"] = existing_details + [
+                    detail for detail in direct_details
+                    if str((detail or {}).get("label") or "").strip() not in existing_labels
+                ]
+                item["grounded_tags"] = list(dict.fromkeys(
+                    list(item.get("grounded_tags") or [])
+                    + list(detail_result.get("grounded_tags") or [])
+                ))
+                detail_owner = str(detail_result.get("event_owner") or "").strip()
+                detail_relation = str(detail_result.get("relation_type") or "").strip()
+                facts_item = dict(item)
+                if detail_owner and detail_relation == "direct":
+                    facts_item["event_owner"] = detail_owner
+                    facts_item["relation_type"] = detail_relation
+                item["detail_facts"] = extract_structured_article_facts(
+                    detail_text,
+                    facts_item,
+                    stock_name,
+                    grounded_tags=item.get("grounded_tags") or [],
+                )
+                item["detail_read"] = True
+        print(
+            f"[analyze news trace] stock={stock_name} part=detail done "
+            f"elapsed={time.monotonic() - detail_started:.2f}s "
+            f"read={sum(1 for value in detail_texts if value)}",
+            flush=True,
+        )
+
         issue_briefs = build_issue_briefs(
             storyboard_news_items,
             stock_name,
