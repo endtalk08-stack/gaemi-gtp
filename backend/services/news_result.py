@@ -28,7 +28,6 @@ def build_stock_news_result(
     *,
     market,
     limit=50,
-    include_market_stories=False,
     storyboard_limit=3,
     display_timezone="Asia/Seoul",
 ):
@@ -39,7 +38,6 @@ def build_stock_news_result(
             stock_name,
             market=market,
             limit=limit,
-            include_market_stories=include_market_stories,
         )
         print(
             f"[analyze news trace] stock={stock_name} part=fetch done "

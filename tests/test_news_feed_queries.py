@@ -13,9 +13,9 @@ class StockNewsQueryTests(unittest.TestCase):
             "알파벳",
             market="미국",
             limit=20,
-            include_market_stories=False,
         )
 
+        fetch_queries.assert_called_once()
         queries = fetch_queries.call_args.args[0]
         self.assertEqual(
             queries,
@@ -28,9 +28,9 @@ class StockNewsQueryTests(unittest.TestCase):
             "SK하이닉스",
             market="국내",
             limit=20,
-            include_market_stories=False,
         )
 
+        fetch_queries.assert_called_once()
         queries = fetch_queries.call_args.args[0]
         self.assertEqual(
             queries,
