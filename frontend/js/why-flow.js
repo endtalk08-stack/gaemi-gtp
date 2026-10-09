@@ -148,7 +148,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
 
                   const reactionTitle = document.createElement('p');
                   reactionTitle.className = 'news-reaction__title';
-                  reactionTitle.textContent = '관련 종목 · 뉴스 이후 최저 ↔ 최고 · 종가';
+                  reactionTitle.textContent = '관련 종목 · 발표 이후 움직임';
                   reactionsEl.appendChild(reactionTitle);
 
                   displayNames.forEach((name) => {
