@@ -3596,7 +3596,6 @@ def analyze_stock(raw_name='SK하이닉스'):
                 })
         return {
             "sections": sections,
-            "price_result": price_result,
             "paired_news_items": news_result.get("paired_news_items", []),
             "storyboard_news_items": news_result.get("storyboard_news_items", []),
             "issue_briefs": news_result.get("issue_briefs", []),
