@@ -97,55 +97,6 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       // 첫 답변의 본문 크기·색상·반응형 규칙을 안내/연출 멘트의 공통 기준으로 쓴다.
       const responseMessageClass = 'gtp-chat-copy';
 
-      const buildPricePositionBar = () => {
-        const price = result?.price_result || {};
-        const current = Number(price.current_price);
-        const low = Number(price.low_price);
-        const high = Number(price.high_price);
-        if (![current, low, high].every(Number.isFinite) || current <= 0 || low <= 0 || high <= low) {
-          return null;
-        }
-
-        const boundedCurrent = Math.min(high, Math.max(low, current));
-        const position = ((boundedCurrent - low) / (high - low)) * 100;
-        const isKrw = String(price.price_text || '').includes('원');
-        const formatPrice = (value) => isKrw
-          ? `${Math.round(value).toLocaleString('ko-KR')}원`
-          : `${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-        const root = document.createElement('div');
-        root.className = 'chat-price-position';
-        root.style.setProperty('--price-position', `${position.toFixed(2)}%`);
-        root.setAttribute('aria-label', `오늘 저가 ${formatPrice(low)}, 현재 ${formatPrice(current)}, 고가 ${formatPrice(high)}`);
-
-        const header = document.createElement('div');
-        header.className = 'chat-price-position__header';
-        const title = document.createElement('span');
-        title.className = 'chat-price-position__title';
-        title.textContent = '오늘 위치';
-        const currentLabel = document.createElement('span');
-        currentLabel.className = 'chat-price-position__current';
-        currentLabel.textContent = `현재 ${formatPrice(current)}`;
-        header.append(title, currentLabel);
-
-        const track = document.createElement('div');
-        track.className = 'chat-price-position__track';
-        const marker = document.createElement('span');
-        marker.className = 'chat-price-position__marker';
-        track.appendChild(marker);
-
-        const edges = document.createElement('div');
-        edges.className = 'chat-price-position__edges';
-        const lowLabel = document.createElement('span');
-        lowLabel.textContent = `저가 ${formatPrice(low)}`;
-        const highLabel = document.createElement('span');
-        highLabel.textContent = `고가 ${formatPrice(high)}`;
-        edges.append(lowLabel, highLabel);
-
-        root.append(header, track, edges);
-        return root;
-      };
-
       let secIdx = 0;
 
       function appendNextAnalysisChoices(anchor) {
@@ -575,10 +526,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
             // 첫 번째 분석 문장 아래에 뉴스·공시를 독립된 클릭형 목록으로 표시한다.
             // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
             if (secIdx === 0) {
-              const pricePosition = buildPricePositionBar();
-              if (pricePosition) pEl.insertAdjacentElement('afterend', pricePosition);
-              const actionAnchor = pricePosition || pEl;
-              const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(actionAnchor, pEl.innerText, 'first', stockName);
+              const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(pEl, pEl.innerText, 'first', stockName);
               appendNextAnalysisChoices(actions);
               return;
             }
