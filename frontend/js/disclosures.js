@@ -7,7 +7,13 @@ window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = n
   const targets = Number.isFinite(limit) ? candidates.slice(0, Math.max(0, limit)) : candidates;
   if (!targets.length) return items;
 
-  await Promise.all(targets.map(async (item) => {
+  // Bound concurrent detail requests to avoid flooding the DART detail endpoint.
+  // Keep all selected disclosures eligible; only change request concurrency.
+  const concurrency = Math.min(2, targets.length);
+  let nextIndex = 0;
+  await Promise.all(Array.from({ length: concurrency }, async () => {
+    while (nextIndex < targets.length) {
+      const item = targets[nextIndex++];
     try {
       const params = new URLSearchParams({
         stock_code: String(item.stock_code || ''),
@@ -35,6 +41,7 @@ window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = n
       }
     } catch (error) {
       console.warn('[국내 공시 상세] 조회 실패:', error);
+    }
     }
   }));
   return items;
