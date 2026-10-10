@@ -56,30 +56,59 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
   openExternalLinkModal,
   typeText
 }) {
+            const domesticItems = (Array.isArray(disclosures) ? disclosures : []).filter(
+              (item) => String(item?.source || '').toUpperCase() === 'DART'
+            );
+            // Only the central domestic disclosure uses the compact card. The right panel
+            // continues rendering its complete independent list.
+            const centralDomestic = domesticItems.length > 0;
+            const centralItems = centralDomestic ? domesticItems.slice(0, 1) : disclosures;
             const disclosureSection = document.createElement('section');
             disclosureSection.className = 'space-y-2';
+            if (centralDomestic) {
+              disclosureSection.style.cssText = [
+                'border:1px solid var(--gtp-border-strong, #3f3f46)',
+                'border-radius:18px',
+                'padding:18px',
+                'display:flex',
+                'flex-direction:column',
+                'gap:14px',
+                'font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+                'color:var(--gtp-text, #e4e4e7)'
+              ].join(';');
+            }
             const disclosureTitle = Object.assign(document.createElement('p'), { className: responseMessageClass });
             disclosureSection.appendChild(disclosureTitle);
             block.appendChild(disclosureSection);
             if (typeof typeText === 'function') {
-              await typeText(disclosureTitle, '오늘 공시는?');
+              await typeText(disclosureTitle, centralDomestic ? '오늘의 공식 공시' : '오늘 공시는?');
             } else {
-              disclosureTitle.textContent = '오늘 공시는?';
+              disclosureTitle.textContent = centralDomestic ? '오늘의 공식 공시' : '오늘 공시는?';
             }
 
-            if (disclosures.length) {
-              await window.GaemiGTPDisclosures.hydrateDartDetails(disclosures);
+            if (centralItems.length) {
+              await window.GaemiGTPDisclosures.hydrateDartDetails(centralItems);
 
               const disclosureRows = [];
-              disclosures.forEach((item) => {
+              centralItems.forEach((item) => {
                 const row = document.createElement('div');
                 row.className = 'space-y-1 text-[#475569] dark:text-[#d4d4d8]';
-                row.style.fontSize = window.matchMedia('(min-width: 640px)').matches ? '1rem' : '13px';
+                row.style.fontSize = window.matchMedia('(min-width: 640px)').matches ? '1rem' : '14px';
+                if (centralDomestic) row.style.cssText += ';display:flex;flex-direction:column;gap:10px';
 
                 const titleEl = document.createElement('div');
                 titleEl.dataset.typingText = item.title || '공시 제목 확인 필요';
                 titleEl.textContent = '';
                 row.appendChild(titleEl);
+                if (centralDomestic) {
+                  titleEl.style.cssText = 'font-size:var(--gtp-type-title,14px);font-weight:650;line-height:1.55;color:var(--gtp-text,#e4e4e7)';
+                  const topMeta = document.createElement('span');
+                  topMeta.style.cssText = 'font-size:var(--gtp-type-meta,12px);font-weight:500;color:var(--gtp-muted,#a1a1aa);white-space:nowrap;text-align:right';
+                  topMeta.dataset.typingText = [item.source || 'DART', item.date || '', item.time || ''].filter(Boolean).join(' · ');
+                  topMeta.textContent = '';
+                  disclosureSection.insertBefore(topMeta, disclosureTitle.nextSibling);
+                  disclosureTitle.style.cssText = 'font-size:var(--gtp-type-title,14px);font-weight:650;color:var(--gtp-text,#e4e4e7);margin:0';
+                }
 
                 const metaEl = document.createElement('div');
                 metaEl.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
@@ -87,7 +116,7 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                 metaLeft.dataset.typingText = [item.date || '', item.time || '', item.source || '공시'].filter(Boolean).join(' · ');
                 metaLeft.textContent = '';
                 metaEl.appendChild(metaLeft);
-                row.appendChild(metaEl);
+                if (!centralDomestic) row.appendChild(metaEl);
 
                 const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
                 const keywordText = keywords.map((keyword) => `#${String(keyword).replace(/^#/, '')}`).join(' ');
@@ -341,6 +370,38 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                     personLine.appendChild(keywordEl);
                   }
                   row.appendChild(personLine);
+                  if (centralDomestic) {
+                    const parseShares = (value) => {
+                      const text = String(value ?? '').replace(/,/g, '').trim();
+                      return /^[-+]?\\d+$/.test(text) ? Number(text) : NaN;
+                    };
+                    const after = parseShares(currentShares);
+                    const delta = parseShares(shareDelta);
+                    const before = after - delta;
+                    if (Number.isSafeInteger(after) && Number.isSafeInteger(delta) && before >= 0) {
+                      const comparison = document.createElement('div');
+                      comparison.style.cssText = 'display:grid;gap:8px;margin:4px 0 8px';
+                      const max = Math.max(before, after, 1);
+                      [['변동 전', before], ['변동 후', after]].forEach(([label, value]) => {
+                        const line = document.createElement('div');
+                        line.style.cssText = 'display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px;color:var(--gtp-text-2,#c4c4cc)';
+                        const name = document.createElement('span');
+                        name.textContent = label;
+                        const track = document.createElement('div');
+                        track.style.cssText = 'height:12px;border-radius:5px;background:var(--gtp-surface-2,#27272a);overflow:hidden';
+                        const fill = document.createElement('div');
+                        fill.style.cssText = 'height:100%;border-radius:5px;background:' +
+                          (label === '변동 전' ? '#71717a' : (delta >= 0 ? '#d74b58' : '#478aca')) +
+                          ';width:' + (value / max * 100).toFixed(2) + '%';
+                        track.appendChild(fill);
+                        const number = document.createElement('span');
+                        number.textContent = value.toLocaleString('ko-KR') + '주';
+                        line.append(name, track, number);
+                        comparison.appendChild(line);
+                      });
+                      row.appendChild(comparison);
+                    }
+                  }
                 });
 
                 if (String(item.form || '').toUpperCase() === '4') {
@@ -393,6 +454,15 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   row.appendChild(keywordLine);
                 }
 
+                if (centralDomestic && /^\\d{14}$/.test(String(item.receipt_no || ''))) {
+                  const original = document.createElement('a');
+                  original.href = 'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=' + item.receipt_no;
+                  original.target = '_blank';
+                  original.rel = 'noopener noreferrer';
+                  original.textContent = '공시 원문 보기 ↗';
+                  original.style.cssText = 'font-size:var(--gtp-type-meta,12px);color:var(--gtp-muted,#a1a1aa);text-decoration:none;margin-top:4px';
+                  row.appendChild(original);
+                }
                 disclosureSection.appendChild(row);
                 disclosureRows.push(row);
               });
