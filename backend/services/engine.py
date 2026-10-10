@@ -195,7 +195,6 @@ DART_STOCK_CORP_CODES = {
     "035720": "00258801",  # 카카오
     "015760": "00159193",  # 한국전력공사
 }
-DART_CORP_CACHE = {"ts": 0.0, "map": {}}
 DART_DISCLOSURE_CACHE = {}
 DART_EXECUTIVE_SHAREHOLDING_CACHE = {}
 DART_EXECUTIVE_SHAREHOLDING_CACHE_TTL = 3600
@@ -218,7 +217,6 @@ DART_CORPORATE_ACTION_DETAIL_CACHE_TTL = 3600
 _DART_SINGLEFLIGHT_LOCKS = {}
 _SEC_SINGLEFLIGHT_LOCKS = {}
 _SINGLEFLIGHT_LOCK_GUARD = threading.Lock()
-_DART_CORP_LOCK = threading.Lock()
 DART_RECEIPT_TIME_CACHE = {}
 
 def _get_singleflight_lock(lock_map, key):
@@ -248,109 +246,12 @@ US_MATERIAL_FORMS = {
     "S-3", "S-1", "SC 13D", "SC 13G", "SC 13G/A", "4"
 }
 
-def _fetch_dart_corp_map_uncached():
-    """OpenDART corpCode.xml에서 stock_code -> corp_code 매핑을 만든다."""
-    if not OPENDART_API_KEY:
-        return {}
-
-    now = datetime.datetime.now().timestamp()
-    if DART_CORP_CACHE["map"] and now - DART_CORP_CACHE["ts"] < 86400:
-        return DART_CORP_CACHE["map"]
-
-    try:
-        url = (
-            "https://opendart.fss.or.kr/api/corpCode.xml"
-            f"?crtfc_key={urllib.parse.quote(OPENDART_API_KEY)}"
-        )
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*"},
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            payload = resp.read()
-
-        # OpenDART returns an XML error body (not a ZIP) for API failures.
-        # Log only its status code/message; never log the API key or raw response.
-        if not zipfile.is_zipfile(io.BytesIO(payload)):
-            try:
-                error_root = ET.fromstring(payload)
-                status = str(error_root.findtext("status") or "").strip()
-                message = str(error_root.findtext("message") or "").strip()
-                print(f"[국내 공시] 기업코드 ZIP 오류 응답 status={status or 'unknown'} message={message[:120]}", flush=True)
-            except ET.ParseError:
-                print("[국내 공시] 기업코드 응답이 ZIP/XML 형식이 아닙니다.", flush=True)
-            return {}
-
-        with zipfile.ZipFile(io.BytesIO(payload)) as zf:
-            xml_name = next(
-                (name for name in zf.namelist() if name.upper().endswith("CORPCODE.XML")),
-                None,
-            )
-            if not xml_name:
-                print("[국내 공시] CORPCODE.xml을 찾지 못했습니다.")
-                return {}
-
-            xml_bytes = zf.read(xml_name)
-
-        root = ET.fromstring(xml_bytes)
-        mapping = {}
-        for item in root.findall(".//list"):
-            stock_code = (item.findtext("stock_code") or "").strip()
-            corp_code = (item.findtext("corp_code") or "").strip()
-            if stock_code and corp_code:
-                mapping[stock_code] = corp_code
-
-        DART_CORP_CACHE["ts"] = now
-        DART_CORP_CACHE["map"] = mapping
-        print(f"[국내 공시] DART 기업코드 매핑 완료: {len(mapping)}개")
-        return mapping
-
-    except Exception as e:
-        print(f"[국내 공시] 기업코드 조회 실패: {type(e).__name__}: {e}")
-        return {}
-
-
-def warm_dart_corp_cache():
-    """서버 시작 후 백그라운드에서 DART 기업코드 맵을 준비한다."""
-    if not OPENDART_API_KEY:
-        return
-    try:
-        mapping = fetch_dart_corp_map()
-        if mapping:
-            print(f"[국내 공시] corp_code warmup 완료: {len(mapping)}개")
-    except Exception as exc:
-        print(f"[국내 공시] corp_code warmup 실패: {type(exc).__name__}: {exc}")
-
-
-def start_dart_corp_warmup():
-    """사용자 /analyze 요청을 막지 않도록 DART corpCode 준비는 백그라운드에서 수행한다."""
-    if not OPENDART_API_KEY:
-        return
-    thread = threading.Thread(target=warm_dart_corp_cache, name="dart-corp-warmup", daemon=True)
-    thread.start()
-
-
 def fetch_dart_corp_code(stock_code):
-    """분석용: 현재 프로세스 메모리의 DART 기업코드만 사용한다."""
+    """Return the preverified DART code for the selected Korean stock only."""
     stock_code = str(stock_code or "").strip()
     if not OPENDART_API_KEY or not stock_code:
         return ""
-    # Resolve only the selected stock; never load or download the full DART registry.
     return DART_STOCK_CORP_CODES.get(stock_code, "")
-
-
-def fetch_dart_corp_map():
-    """전체 DART 기업코드 맵 갱신용. 사용자 /analyze hot path에서는 호출하지 않는다."""
-    if not OPENDART_API_KEY:
-        return {}
-    now = datetime.datetime.now().timestamp()
-    if DART_CORP_CACHE["map"] and now - DART_CORP_CACHE["ts"] < 86400:
-        return DART_CORP_CACHE["map"]
-    with _DART_CORP_LOCK:
-        now = datetime.datetime.now().timestamp()
-        if DART_CORP_CACHE["map"] and now - DART_CORP_CACHE["ts"] < 86400:
-            return DART_CORP_CACHE["map"]
-        return _fetch_dart_corp_map_uncached()
 
 
 def _dart_report_score(report_name):
