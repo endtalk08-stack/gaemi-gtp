@@ -91,7 +91,7 @@
     ).slice(0, 30);
     renderRelatedDisclosuresPanel();
   }
-  function selectRelatedNewsItems(items, limit = 20) {
+  function selectRelatedNewsItems(items, limit = 20, officialReserve = 4) {
     const source = Array.isArray(items) ? [...items] : [];
     const byLatest = source.sort((left, right) => {
       const leftTime = Date.parse(left?.published_at || '') || 0;
@@ -110,6 +110,13 @@
       return true;
     };
 
+    let officialCount = 0;
+    for (const item of byLatest) {
+      if (officialCount >= officialReserve) break;
+      if (item?.source_type !== 'official_company') continue;
+      if (pushItem(item)) officialCount += 1;
+    }
+
     for (const item of byLatest) {
       if (selected.length >= limit) break;
       pushItem(item);
@@ -124,7 +131,7 @@
 
   function loadActiveStockNews() {
     const snapshot = window.GaemiGTPAnalysisData?.get?.();
-    relatedNewsItems = selectRelatedNewsItems(snapshot?.newsItems, 20);
+    relatedNewsItems = selectRelatedNewsItems(snapshot?.newsItems, 20, 4);
     renderRelatedNewsPanel();
   }
   function selectPanelWorkspaceView(type) {
