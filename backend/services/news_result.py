@@ -159,6 +159,31 @@ def build_stock_news_result(
             stock_name,
             limit=storyboard_limit,
         )
+
+        # Diagnostic counts only: trace where central issues drop out without
+        # changing the shared news, selection, or presentation results.
+        central_eligible = [
+            item for item in paired_news_items
+            if str(item.get("relation_type") or "unknown").strip().lower()
+            not in {"indirect", "mention_only"}
+        ]
+        direct_count = sum(
+            1 for item in paired_news_items
+            if str(item.get("relation_type") or "").strip().lower() == "direct"
+        )
+        keyword_pass_count = sum(
+            1 for item in central_eligible
+            if any(str(value).strip() for value in (item.get("storyboard_keywords") or []))
+        )
+        print(
+            f"[analyze news funnel] stock={stock_name} "
+            f"period={'rolling_24h' if market == '미국' else 'korea_today'} "
+            f"period_pass={len(paired_news_items)} "
+            f"direct={direct_count} eligible={len(central_eligible)} "
+            f"keyword_pass={keyword_pass_count} "
+            f"selected={len(storyboard_news_items)} briefs={len(issue_briefs)}",
+            flush=True,
+        )
         keyword_storyboard = [
             {
                 "time": item.get("storyboard_time", ""),
