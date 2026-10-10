@@ -106,7 +106,10 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   topMeta.style.cssText = 'font-size:var(--gtp-type-meta,12px);font-weight:500;color:var(--gtp-muted,#a1a1aa);white-space:nowrap;text-align:right';
                   topMeta.dataset.typingText = [item.source || 'DART', item.date || '', item.time || ''].filter(Boolean).join(' · ');
                   topMeta.textContent = '';
-                  disclosureSection.insertBefore(topMeta, disclosureTitle.nextSibling);
+                  const cardHeader = document.createElement('div');
+                  cardHeader.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:10px';
+                  disclosureSection.insertBefore(cardHeader, disclosureTitle);
+                  cardHeader.append(disclosureTitle, topMeta);
                   disclosureTitle.style.cssText = 'font-size:var(--gtp-type-title,14px);font-weight:650;color:var(--gtp-text,#e4e4e7);margin:0';
                 }
 
