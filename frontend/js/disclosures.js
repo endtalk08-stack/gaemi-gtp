@@ -373,7 +373,7 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   if (centralDomestic) {
                     const parseShares = (value) => {
                       const text = String(value ?? '').replace(/,/g, '').trim();
-                      return /^[-+]?\\d+$/.test(text) ? Number(text) : NaN;
+                      return /^[-+]?\d+$/.test(text) ? Number(text) : NaN;
                     };
                     const after = parseShares(currentShares);
                     const delta = parseShares(shareDelta);
@@ -454,7 +454,7 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   row.appendChild(keywordLine);
                 }
 
-                if (centralDomestic && /^\\d{14}$/.test(String(item.receipt_no || ''))) {
+                if (centralDomestic && /^\d{14}$/.test(String(item.receipt_no || ''))) {
                   const original = document.createElement('a');
                   original.href = 'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=' + item.receipt_no;
                   original.target = '_blank';
