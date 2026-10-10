@@ -388,12 +388,9 @@ def extract_structured_article_facts(text, item, stock_name, grounded_tags=None)
 
     relation = str(item.get("relation_type") or "").strip().lower()
     event_owner = str(item.get("event_owner") or "").strip()
-    provider_stock = str(item.get("provider_stock") or "").strip()
     announcer = ""
     if relation == "direct" and event_owner:
         announcer = event_owner
-    elif str(item.get("source_type") or "") == "official_company" and provider_stock:
-        announcer = provider_stock
 
     amount = _extract_amount(source)
     facts = {
@@ -415,8 +412,6 @@ def read_selected_article_details(items, limit=3):
 
     with ThreadPoolExecutor(max_workers=min(3, max(1, len(source_items)))) as pool:
         for index, item in enumerate(source_items[:max(1, int(limit))]):
-            if str(item.get("source_type") or "") == "sec_filing":
-                continue
             url = str(item.get("url") or item.get("link") or "").strip()
             try:
                 parsed = urllib.parse.urlparse(url)

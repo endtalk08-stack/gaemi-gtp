@@ -91,7 +91,7 @@
     ).slice(0, 30);
     renderRelatedDisclosuresPanel();
   }
-  function selectRelatedNewsItems(items, limit = 20, officialReserve = 4) {
+  function selectRelatedNewsItems(items, limit = 20) {
     const source = Array.isArray(items) ? [...items] : [];
     const byLatest = source.sort((left, right) => {
       const leftTime = Date.parse(left?.published_at || '') || 0;
@@ -110,13 +110,6 @@
       return true;
     };
 
-    let officialCount = 0;
-    for (const item of byLatest) {
-      if (officialCount >= officialReserve) break;
-      if (item?.source_type !== 'official_company') continue;
-      if (pushItem(item)) officialCount += 1;
-    }
-
     for (const item of byLatest) {
       if (selected.length >= limit) break;
       pushItem(item);
@@ -131,7 +124,7 @@
 
   function loadActiveStockNews() {
     const snapshot = window.GaemiGTPAnalysisData?.get?.();
-    relatedNewsItems = selectRelatedNewsItems(snapshot?.newsItems, 20, 4);
+    relatedNewsItems = selectRelatedNewsItems(snapshot?.newsItems, 20);
     renderRelatedNewsPanel();
   }
   function selectPanelWorkspaceView(type) {
@@ -533,7 +526,7 @@
     renderRelatedDisclosuresPanel();
   }
   function showRelatedNews(items) {
-    relatedNewsItems = selectRelatedNewsItems(items, 20, 4);
+    relatedNewsItems = selectRelatedNewsItems(items, 20);
     // 분석이 끝났다는 이유만으로 오른쪽 패널을 열거나 화면을 바꾸지 않는다.
     // 사용자가 메뉴에서 '뉴스'를 선택했을 때만 목록을 표시한다.
     if (activeTabId === 'panel-workspace' && panelWorkspaceView === 'news') renderRelatedNewsPanel();

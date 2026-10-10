@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.utils import parsedate_to_datetime
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE
-from backend.providers import naver_news, official_company_news, sec_filings
+from backend.providers import naver_news
 
 _CACHE = {}
 _CACHE_TTL = 120
@@ -364,11 +364,6 @@ def _stock_analysis_relevance(item, stock_name):
     title = str(item.get("title") or "").lower()
     description = str(item.get("description") or "").lower()
 
-    provider_stock = str(item.get("provider_stock") or "").strip().lower()
-    trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
-    if trusted_source and provider_stock == str(stock_name or "").strip().lower():
-        return 3
-
     if any(alias in title for alias in aliases):
         return 3
 
@@ -401,69 +396,15 @@ def _stock_analysis_relevance(item, stock_name):
     return 0
 
 
-def _primary_us_ticker(stock_name):
-    aliases = STOCK_UNIVERSE.get("미국", {}).get(stock_name) or []
-    for value in aliases:
-        token = str(value or "").strip().upper()
-        if re.fullmatch(r"[A-Z]{1,5}(?:\.[A-Z])?", token):
-            return token
-    return ""
-
-
-def _select_stock_news_with_source_reserve(relevant, limit):
-    """Preserve trusted US source rows before filling the remaining ranked slots."""
-    max_count = max(1, int(limit))
-    source_limits = {
-        "official_company": min(10, max_count),
-        "sec_filing": min(5, max_count),
-    }
-
-    selected = []
-    selected_ids = set()
-
-    def item_key(item):
-        return (
-            str(item.get("url") or item.get("link") or "").strip()
-            or str(item.get("title") or "").strip()
-        )
-
-    for source_type, reserve in source_limits.items():
-        kept = 0
-        for item in relevant:
-            if kept >= reserve or len(selected) >= max_count:
-                break
-            if str(item.get("source_type") or "") != source_type:
-                continue
-            key = item_key(item)
-            if not key or key in selected_ids:
-                continue
-            selected.append(item)
-            selected_ids.add(key)
-            kept += 1
-
-    for item in relevant:
-        if len(selected) >= max_count:
-            break
-        key = item_key(item)
-        if not key or key in selected_ids:
-            continue
-        selected.append(item)
-        selected_ids.add(key)
-
-    return selected
-
-
 def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=True):
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
 
     queries = [stock_name]
-    stock_region = ""
     for region, stocks in STOCK_UNIVERSE.items():
         aliases = stocks.get(stock_name)
         if aliases:
-            stock_region = region
             # Keep the existing three-alias cap for domestic stocks, but do not
             # cut off US company-name aliases behind ticker symbols.  Names such
             # as 구글/google/alphabet are important NAVER search terms for 알파벳.
@@ -471,13 +412,9 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
             queries = list(dict.fromkeys([stock_name] + search_aliases))
             break
 
-    is_us_stock = stock_region == "미국" or market == "미국"
-    ticker = _primary_us_ticker(stock_name) if is_us_stock else ""
-
-    # Keep independent providers concurrent so adding official/SEC sources does
-    # not serialize extra network latency onto the existing NAVER hot path.
+    # Use the existing NAVER queries; do not inject company blogs or SEC filings.
     jobs = {}
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=2) as pool:
         jobs["stock"] = pool.submit(
             _fetch_queries,
             queries,
@@ -491,19 +428,6 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
                 category="종목",
                 per_query=max(20, min(int(limit), 30)),
             )
-        if is_us_stock:
-            jobs["official"] = pool.submit(
-                official_company_news.fetch_company_news,
-                stock_name,
-                min(max(6, int(limit)), 15),
-            )
-            jobs["sec"] = pool.submit(
-                sec_filings.fetch_recent_filings,
-                stock_name,
-                ticker,
-                min(max(4, int(limit)), 10),
-                MAX_NEWS_AGE_DAYS,
-            )
 
         provider_rows = {}
         for name, future in jobs.items():
@@ -514,12 +438,10 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
 
     stock_items = provider_rows.get("stock") or []
     market_story_items = provider_rows.get("market") or []
-    official_items = provider_rows.get("official") or []
-    sec_items = provider_rows.get("sec") or []
 
     items = [
         _enrich_item(x)
-        for x in _dedupe(stock_items + market_story_items + official_items + sec_items)
+        for x in _dedupe(stock_items + market_story_items)
         if _item_age_ok(x)
     ]
     relevant = []
@@ -559,7 +481,7 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
         ),
         reverse=True,
     )
-    return _select_stock_news_with_source_reserve(relevant, limit)
+    return relevant[:max(1, int(limit))]
 
 
 def get_news_coverage():
