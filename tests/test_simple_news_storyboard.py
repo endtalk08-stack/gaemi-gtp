@@ -329,16 +329,24 @@ class NotableFlowSelectionTests(unittest.TestCase):
         self.assertEqual(selected, [])
 
 
-    def test_us_and_domestic_news_display_korea_time(self):
+    def test_news_keeps_only_items_from_the_most_recent_24_hours(self):
         class FixedDateTime(datetime.datetime):
             @classmethod
             def now(cls, tz=None):
-                base = cls(2026, 10, 8, 22, 30, tzinfo=datetime.timezone.utc)
+                base = cls(2026, 10, 9, 5, 0, tzinfo=datetime.timezone.utc)
                 return base.astimezone(tz) if tz else base.replace(tzinfo=None)
 
-        source = {
-            "title": "Welcome to Gemini at Work 2026",
-            "published_at": "2026-10-08T22:00:00+00:00",
+        recent = {
+            "title": "Recent company event",
+            "published_at": "2026-10-08T05:01:00+00:00",
+            "article_keywords": ["제품공개"],
+            "article_keyword_details": [
+                {"label": "제품공개", "source": "title-official-event"}
+            ],
+        }
+        expired = {
+            "title": "Expired company event",
+            "published_at": "2026-10-08T04:59:00+00:00",
             "article_keywords": ["제품공개"],
             "article_keyword_details": [
                 {"label": "제품공개", "source": "title-official-event"}
@@ -347,51 +355,22 @@ class NotableFlowSelectionTests(unittest.TestCase):
 
         with patch("backend.analysis.news.storyboard.datetime.datetime", FixedDateTime):
             us_items = build_simple_today_news(
-                [source],
+                [recent, expired],
                 "알파벳",
                 limit=None,
                 display_timezone="Asia/Seoul",
-                market="미국",
             )
             kr_items = build_simple_today_news(
-                [source],
+                [recent, expired],
                 "삼성전자",
                 limit=None,
                 display_timezone="Asia/Seoul",
-                market="국내",
             )
 
-        self.assertEqual(len(us_items), 1)
-        self.assertEqual(len(kr_items), 1)
-        self.assertEqual(us_items[0]["storyboard_date"], "2026-10-09")
-        self.assertEqual(kr_items[0]["storyboard_date"], "2026-10-09")
+        self.assertEqual([item["title"] for item in us_items], ["Recent company event"])
+        self.assertEqual([item["title"] for item in kr_items], ["Recent company event"])
+        self.assertEqual(us_items[0]["storyboard_date"], "2026-10-08")
 
-
-    def test_us_rolling_24_hours_crosses_korean_midnight_without_changing_domestic_filter(self):
-        class FixedDateTime(datetime.datetime):
-            @classmethod
-            def now(cls, tz=None):
-                # 2026-10-09 00:30 KST.
-                base = cls(2026, 10, 8, 15, 30, tzinfo=datetime.timezone.utc)
-                return base.astimezone(tz) if tz else base.replace(tzinfo=None)
-
-        items = [
-            {"title": "Yesterday evening", "published_at": "2026-10-08T14:45:00+00:00"},
-            {"title": "Today early", "published_at": "2026-10-08T15:10:00+00:00"},
-            {"title": "Outside 24 hours", "published_at": "2026-10-07T15:29:00+00:00"},
-            {"title": "Future", "published_at": "2026-10-08T15:31:00+00:00"},
-        ]
-
-        with patch("backend.analysis.news.storyboard.datetime.datetime", FixedDateTime):
-            us_items = build_simple_today_news(items, "알파벳", limit=None, market="미국")
-            kr_items = build_simple_today_news(items[:-1], "삼성전자", limit=None, market="국내")
-
-        self.assertEqual([item["title"] for item in us_items], ["Today early", "Yesterday evening"])
-        self.assertEqual([item["title"] for item in kr_items], ["Today early"])
-        self.assertEqual(us_items[0]["storyboard_time"], "00:10")
-        self.assertEqual(us_items[1]["storyboard_time"], "23:45")
-        self.assertEqual(us_items[1]["storyboard_date"], "2026-10-08")
-        self.assertEqual(kr_items[0]["storyboard_date"], "2026-10-09")
 
 if __name__ == "__main__":
     unittest.main()

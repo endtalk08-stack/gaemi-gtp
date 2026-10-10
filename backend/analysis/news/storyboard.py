@@ -29,8 +29,8 @@ def _parse_article_datetime(value):
     return dt
 
 
-def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/Seoul", market=None):
-    """Select US news from the last 24 hours; domestic news from the Korean calendar day."""
+def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/Seoul"):
+    """Return article bundles published within the most recent 24 hours."""
     try:
         tz = ZoneInfo(str(display_timezone or "Asia/Seoul"))
     except Exception:
@@ -38,23 +38,16 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
 
     source_items = [dict(item) for item in (items or [])]
 
-    # 두 시장 모두 표시 시각은 한국 시간이다. 선정 기간만 시장별로 다르다.
-    session_tz = tz
-    session_date = datetime.datetime.now(session_tz).date()
-    is_us_market = market == "미국"
-    now_utc = datetime.datetime.now(datetime.timezone.utc) if is_us_market else None
-    cutoff_utc = now_utc - datetime.timedelta(hours=24) if is_us_market else None
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    cutoff_utc = now_utc - datetime.timedelta(hours=24)
     bundles = []
 
     for article in source_items:
         dt = _parse_article_datetime(article.get("pub_date") or article.get("published_at"))
         if not dt:
             continue
-        if is_us_market:
-            published_utc = dt.astimezone(datetime.timezone.utc)
-            if published_utc < cutoff_utc or published_utc > now_utc:
-                continue
-        elif dt.astimezone(session_tz).date() != session_date:
+        published_utc = dt.astimezone(datetime.timezone.utc)
+        if published_utc < cutoff_utc or published_utc > now_utc:
             continue
         local_dt = dt.astimezone(tz)
 

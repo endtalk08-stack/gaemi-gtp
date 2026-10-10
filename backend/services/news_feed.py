@@ -327,6 +327,9 @@ def _stock_event_strength(item):
     return (title_hits * 2) + description_hits
 
 
+MARKET_STORY_QUERIES = [
+    "장중 특징주", "장중 시황", "특징주", "증시마감", "개장 전 급등주", "개장 전 급락주",
+]
 MARKET_STORY_TITLE_MARKERS = [
     "[특징주]", "특징주", "[증시마감]", "증시마감", "장중 시황",
     "개장 전 급등주", "개장전 급등주", "개장 전 급락주", "개장전 급락주",
@@ -388,8 +391,8 @@ def _stock_analysis_relevance(item, stock_name):
                 return 2
             start = index + len(alias)
 
-    # [특징주]/[증시마감] headlines remain eligible only when the searched
-    # stock is actually named in the article and material signals exist.
+    # [특징주]/[증시마감] are useful market-story test material only when the
+    # searched stock is actually named in the article and material signals exist.
     if _contains_any(title, MARKET_STORY_TITLE_MARKERS):
         full_text = f"{title} {description}"
         if any(alias in full_text for alias in aliases) and _contains_any(full_text, STOCK_MATERIAL_SIGNALS):
@@ -450,7 +453,7 @@ def _select_stock_news_with_source_reserve(relevant, limit):
     return selected
 
 
-def fetch_stock_news(stock_name, limit=20, market=None):
+def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=True):
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
@@ -481,6 +484,13 @@ def fetch_stock_news(stock_name, limit=20, market=None):
             category="종목",
             per_query=max(20, limit),
         )
+        if include_market_stories:
+            jobs["market"] = pool.submit(
+                _fetch_queries,
+                MARKET_STORY_QUERIES,
+                category="종목",
+                per_query=max(20, min(int(limit), 30)),
+            )
         if is_us_stock:
             jobs["official"] = pool.submit(
                 official_company_news.fetch_company_news,
@@ -503,12 +513,13 @@ def fetch_stock_news(stock_name, limit=20, market=None):
                 provider_rows[name] = []
 
     stock_items = provider_rows.get("stock") or []
+    market_story_items = provider_rows.get("market") or []
     official_items = provider_rows.get("official") or []
     sec_items = provider_rows.get("sec") or []
 
     items = [
         _enrich_item(x)
-        for x in _dedupe(stock_items + official_items + sec_items)
+        for x in _dedupe(stock_items + market_story_items + official_items + sec_items)
         if _item_age_ok(x)
     ]
     relevant = []
