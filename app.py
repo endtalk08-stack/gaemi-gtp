@@ -6,6 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup, start_dart_corp_warmup
+from backend.services.news_feed import fetch_general_news, get_news_coverage
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -27,6 +28,17 @@ def health():
 @app.get("/calendar")
 def calendar():
     return jsonify({"ok": True, "content": get_live_calendar_data("", "")})
+
+@app.get("/news")
+def news():
+    category = request.args.get("category", "전체")
+    market = request.args.get("market", "전체")
+    limit = request.args.get("limit", default=10, type=int)
+    return jsonify({"items": fetch_general_news(category=category, region=market, limit=limit)})
+
+@app.get("/news/coverage")
+def news_coverage():
+    return jsonify(get_news_coverage())
 
 @app.get("/disclosures/dart/detail")
 def dart_disclosure_detail():
@@ -74,7 +86,7 @@ def analyze():
         return response
     except Exception as exc:
         print(f"[API /analyze] unexpected error: {type(exc).__name__}: {exc}")
-        return jsonify({"sections": [], "disclosures": [], "us_filings": [], "ok": False, "error": "analysis_failed"}), 200
+        return jsonify({"sections": [], "news_items": [], "disclosures": [], "us_filings": [], "ok": False, "error": "analysis_failed"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "10000"))

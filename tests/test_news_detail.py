@@ -49,6 +49,8 @@ class NewsDetailTests(unittest.TestCase):
             {
                 "event_owner": "알파벳",
                 "relation_type": "direct",
+                "source_type": "official_company",
+                "provider_stock": "알파벳",
             },
             "알파벳",
             grounded_tags=["Gemini"],

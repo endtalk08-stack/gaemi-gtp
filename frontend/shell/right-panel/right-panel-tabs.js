@@ -35,9 +35,9 @@
       if (!raw) return null;
       const state = JSON.parse(raw);
       if (!state || !Array.isArray(state.tabs)) return null;
-      const customTabs = state.tabs.filter(t => t && typeof t.id === 'string' && t.id.startsWith('tab_') && typeof t.label === 'string').map(t => ({ id: t.id, label: t.label, icon: typeof t.icon === 'string' ? t.icon : 'square-chart-gantt', closable: true }));
-      const cleanTabs = [...DEFAULT_TABS.map(t => ({ ...t })), ...customTabs];
-      return { tabs: cleanTabs, activeTabId: typeof state.activeTabId === 'string' ? state.activeTabId : 'panel-workspace' };
+      const cleanTabs = state.tabs.filter(t => t && typeof t.id === 'string' && typeof t.label === 'string' && !['chart', 'news', 'industry', 'disclosures', 'auto-trade'].includes(t.id)).map(t => ({ id: t.id === 'dashboard' ? 'panel-workspace' : t.id, label: t.id === 'dashboard' || t.id === 'panel-workspace' ? '대시보드' : t.label, icon: typeof t.icon === 'string' ? t.icon : 'square-chart-gantt', closable: !['dashboard', 'panel-workspace'].includes(t.id) }));
+      const storedActiveTabId = ['dashboard', 'auto-trade'].includes(state.activeTabId) ? 'panel-workspace' : state.activeTabId;
+      return { tabs: cleanTabs.length ? cleanTabs : null, activeTabId: typeof storedActiveTabId === 'string' ? storedActiveTabId : 'panel-workspace' };
     } catch (e) { console.warn('[gaemiGTP] right panel tabs read warning:', e); return null; }
   }
   function saveState() { try { localStorage.setItem(TABS_KEY, JSON.stringify({ tabs, activeTabId })); } catch (e) { console.warn('[gaemiGTP] right panel tabs save warning:', e); } }
@@ -532,6 +532,13 @@
     }
     renderRelatedDisclosuresPanel();
   }
+  function showRelatedNews(items) {
+    relatedNewsItems = selectRelatedNewsItems(items, 20, 4);
+    // 분석이 끝났다는 이유만으로 오른쪽 패널을 열거나 화면을 바꾸지 않는다.
+    // 사용자가 메뉴에서 '뉴스'를 선택했을 때만 목록을 표시한다.
+    if (activeTabId === 'panel-workspace' && panelWorkspaceView === 'news') renderRelatedNewsPanel();
+  }
+  function mountNewsPage() { const root = document.getElementById('rightPanelNews'); if (root && window.GaemiGTPMarketauxNews && typeof window.GaemiGTPMarketauxNews.mount === 'function') window.GaemiGTPMarketauxNews.mount(root); else if (root) window.addEventListener('load', () => { if (activeTabId === 'panel-workspace' && panelWorkspaceView === 'news' && window.GaemiGTPMarketauxNews && typeof window.GaemiGTPMarketauxNews.mount === 'function') window.GaemiGTPMarketauxNews.mount(root); }, { once: true }); }
   function setActiveTab(id, persist = true) { if (!tabs.some(t => t.id === id)) return; activeTabId = id; tabs.forEach(tab => { if (tab.id !== 'panel-workspace' && !getView(tab.id)) makePlaceholderView(tab); }); document.querySelectorAll('[data-tab-view]').forEach(view => { const active = view.dataset.tabView === activeTabId; view.hidden = !active; view.setAttribute('aria-hidden', active ? 'false' : 'true'); }); renderTabs(); if (activeTabId === 'panel-workspace') renderPanelWorkspaceView(); if (persist) saveState(); }
   function nextCustomLabel() { let n = 1; const existing = new Set(tabs.map(t => t.label)); while (existing.has(`분석 #${n}`)) n += 1; return `분석 #${n}`; }
   function addTab() { const id = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; const tab = { id, label: nextCustomLabel(), icon: 'square-chart-gantt', closable: true }; tabs.push(tab); makePlaceholderView(tab); setActiveTab(id); }
@@ -544,6 +551,6 @@
     getTabList().addEventListener('click', event => { const toggle = event.target.closest('[data-panel-workspace-menu-toggle]'); if (toggle) { event.stopPropagation(); togglePanelWorkspaceMenu(); return; } const viewButton = event.target.closest('[data-panel-workspace-view]'); if (viewButton) { event.stopPropagation(); selectPanelWorkspaceView(viewButton.dataset.panelWorkspaceView); return; } const close = event.target.closest('[data-close-tab-id]'); if (close) { event.stopPropagation(); removeTab(close.dataset.closeTabId); return; } const tab = event.target.closest('[data-right-panel-tab]'); if (tab) { togglePanelWorkspaceMenu(false); setActiveTab(tab.dataset.rightPanelTab); } });
     document.addEventListener('click', event => { if (!event.target.closest('#rightPanelTabs')) togglePanelWorkspaceMenu(false); }); getTabList().dataset.bound = 'true'; setActiveTab(activeTabId, false); saveState();
   }
-  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedDisclosures, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
+  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedNews, showRelatedDisclosures, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true }); else initialize();
 })();
