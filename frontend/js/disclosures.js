@@ -62,10 +62,11 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
             // Only the central domestic disclosure uses the compact card. The right panel
             // continues rendering its complete independent list.
             const centralDomestic = domesticItems.length > 0;
-            const centralItems = centralDomestic ? domesticItems.slice(0, 1) : disclosures;
+            const centralCard = Array.isArray(disclosures) && disclosures.length > 0;
+            const centralItems = centralCard ? disclosures.slice(0, 1) : disclosures;
             const disclosureSection = document.createElement('section');
             disclosureSection.className = 'space-y-2';
-            if (centralDomestic) {
+            if (centralCard) {
               disclosureSection.style.cssText = [
                 'border:1px solid var(--gtp-border-strong, #3f3f46)',
                 'border-radius:18px',
@@ -81,9 +82,9 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
             disclosureSection.appendChild(disclosureTitle);
             block.appendChild(disclosureSection);
             if (typeof typeText === 'function') {
-              await typeText(disclosureTitle, centralDomestic ? '오늘의 공식 공시' : '오늘 공시는?');
+              await typeText(disclosureTitle, centralCard ? '오늘의 공식 공시' : '오늘 공시는?');
             } else {
-              disclosureTitle.textContent = centralDomestic ? '오늘의 공식 공시' : '오늘 공시는?';
+              disclosureTitle.textContent = centralCard ? '오늘의 공식 공시' : '오늘 공시는?';
             }
 
             if (centralItems.length) {
@@ -94,17 +95,17 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                 const row = document.createElement('div');
                 row.className = 'space-y-1 text-[#475569] dark:text-[#d4d4d8]';
                 row.style.fontSize = window.matchMedia('(min-width: 640px)').matches ? '1rem' : '14px';
-                if (centralDomestic) row.style.cssText += ';display:flex;flex-direction:column;gap:10px';
+                if (centralCard) row.style.cssText += ';display:flex;flex-direction:column;gap:10px';
 
                 const titleEl = document.createElement('div');
                 titleEl.dataset.typingText = item.title || '공시 제목 확인 필요';
                 titleEl.textContent = '';
                 row.appendChild(titleEl);
-                if (centralDomestic) {
+                if (centralCard) {
                   titleEl.style.cssText = 'font-size:var(--gtp-type-title,14px);font-weight:650;line-height:1.55;color:var(--gtp-text,#e4e4e7)';
                   const topMeta = document.createElement('span');
                   topMeta.style.cssText = 'font-size:var(--gtp-type-meta,12px);font-weight:500;color:var(--gtp-muted,#a1a1aa);white-space:nowrap;text-align:right';
-                  topMeta.dataset.typingText = [item.source || 'DART', item.date || '', item.time || ''].filter(Boolean).join(' · ');
+                  topMeta.dataset.typingText = [item.source || (centralDomestic ? 'DART' : 'SEC'), item.date || '', item.time || ''].filter(Boolean).join(' · ');
                   topMeta.textContent = '';
                   const cardHeader = document.createElement('div');
                   cardHeader.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:10px';
@@ -119,7 +120,7 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                 metaLeft.dataset.typingText = [item.date || '', item.time || '', item.source || '공시'].filter(Boolean).join(' · ');
                 metaLeft.textContent = '';
                 metaEl.appendChild(metaLeft);
-                if (!centralDomestic) row.appendChild(metaEl);
+                if (!centralCard) row.appendChild(metaEl);
 
                 const keywords = Array.isArray(item.keywords) ? item.keywords.filter(Boolean) : [];
                 const keywordText = keywords.map((keyword) => `#${String(keyword).replace(/^#/, '')}`).join(' ');
@@ -430,6 +431,38 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                     metaRight.textContent = '';
                     metaEl.appendChild(metaRight);
                   }
+                  if (centralCard && transactions.length) {
+                    const grouped = { P: 0, S: 0 };
+                    transactions.forEach((transaction) => {
+                      const code = String(transaction.code || '').toUpperCase().trim();
+                      const qty = Number(String(transaction.shares ?? '').replaceAll(',', ''));
+                      if ((code === 'P' || code === 'S') && Number.isFinite(qty) && qty > 0) {
+                        grouped[code] += qty;
+                      }
+                    });
+                    const maxQty = Math.max(grouped.P, grouped.S);
+                    if (maxQty > 0) {
+                      const bars = document.createElement('div');
+                      bars.style.cssText = 'display:grid;gap:8px;margin:4px 0 8px';
+                      [['P', '내부자 매수', '#d74b58'], ['S', '내부자 매도', '#478aca']].forEach(([code, label, color]) => {
+                        if (!grouped[code]) return;
+                        const line = document.createElement('div');
+                        line.style.cssText = 'display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px;color:var(--gtp-text-2,#c4c4cc)';
+                        const name = document.createElement('span');
+                        name.textContent = label;
+                        const track = document.createElement('div');
+                        track.style.cssText = 'height:12px;border-radius:5px;background:var(--gtp-surface-2,#27272a);overflow:hidden';
+                        const fill = document.createElement('div');
+                        fill.style.cssText = 'height:100%;border-radius:5px;background:' + color + ';width:' + (grouped[code] / maxQty * 100).toFixed(2) + '%';
+                        track.appendChild(fill);
+                        const number = document.createElement('span');
+                        number.textContent = grouped[code].toLocaleString('ko-KR') + '주';
+                        line.append(name, track, number);
+                        bars.appendChild(line);
+                      });
+                      row.appendChild(bars);
+                    }
+                  }
 
                   const personLine = document.createElement('div');
                   personLine.className = 'flex items-baseline justify-between gap-3 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
@@ -457,6 +490,26 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
                   row.appendChild(keywordLine);
                 }
 
+                if (centralCard && !centralDomestic) {
+                  const summaryParts = Array.from(metaEl.querySelectorAll('span')).slice(1)
+                    .map((el) => el.dataset.typingText || '').filter(Boolean);
+                  if (summaryParts.length) {
+                    const summary = document.createElement('div');
+                    summary.style.cssText = 'font-size:var(--gtp-type-meta,12px);color:var(--gtp-text-2,#c4c4cc);font-weight:500';
+                    summary.dataset.typingText = summaryParts.join(' · ');
+                    row.appendChild(summary);
+                  }
+                  const secLink = String(item.url || item.link || '').trim();
+                  if (/^https:\/\/www\.sec\.gov\//i.test(secLink)) {
+                    const original = document.createElement('a');
+                    original.href = secLink;
+                    original.target = '_blank';
+                    original.rel = 'noopener noreferrer';
+                    original.textContent = 'SEC 공시 원문 보기 ↗';
+                    original.style.cssText = 'font-size:var(--gtp-type-meta,12px);color:var(--gtp-muted,#a1a1aa);text-decoration:none;margin-top:4px';
+                    row.appendChild(original);
+                  }
+                }
                 if (centralDomestic && /^\d{14}$/.test(String(item.receipt_no || ''))) {
                   const original = document.createElement('a');
                   original.href = 'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=' + item.receipt_no;
