@@ -8,7 +8,7 @@ class StockNewsQueryTests(unittest.TestCase):
     @patch("backend.services.news_feed._fetch_queries", return_value=[])
     def test_us_stock_uses_all_company_aliases(self, fetch_queries):
         fetch_stock_news(
-            "알파벳", market="미국", limit=20, include_market_stories=False,
+            "알파벳", market="미국", limit=20,
         )
         fetch_queries.assert_called_once()
         self.assertEqual(
@@ -19,7 +19,7 @@ class StockNewsQueryTests(unittest.TestCase):
     @patch("backend.services.news_feed._fetch_queries", return_value=[])
     def test_domestic_stock_keeps_existing_alias_cap(self, fetch_queries):
         fetch_stock_news(
-            "SK하이닉스", market="국내", limit=20, include_market_stories=False,
+            "SK하이닉스", market="국내", limit=20,
         )
         fetch_queries.assert_called_once()
         self.assertEqual(
@@ -46,7 +46,7 @@ class StockNewsQueryTests(unittest.TestCase):
             },
         ]
         result = fetch_stock_news(
-            "알파벳", market="미국", limit=20, include_market_stories=False,
+            "알파벳", market="미국", limit=20,
         )
         self.assertEqual(len(result), 2)
         self.assertEqual(

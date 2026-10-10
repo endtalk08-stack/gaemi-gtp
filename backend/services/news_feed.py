@@ -17,15 +17,6 @@ _CACHE_TTL = 120
 _CACHE_LOCK = threading.Lock()
 MAX_NEWS_AGE_DAYS = 7
 
-CATEGORY_QUERIES = {
-    "전체": ["증시", "경제"], "증시": ["코스피 코스닥 나스닥"], "종목": ["상장사 주식"],
-    "경제지표": ["CPI GDP 고용 물가"], "에너지": ["유가 원유 에너지"], "연준": ["연준 FOMC 금리"],
-    "일정": ["경제 일정 FOMC 일정"], "투자의견": ["목표주가 투자의견"],
-    "실적발표": ["실적 발표 매출 영업이익"],
-}
-
-# First-release coverage: 20 Korean and 20 US names.
-# Each entry includes common Korean/English news aliases where useful.
 THEME_RULES = {
     "반도체": ["반도체", "hbm", "dram", "낸드", "파운드리", "메모리", "칩"],
     "AI·소프트웨어": ["ai", "인공지능", "소프트웨어", "클라우드", "데이터센터"],
@@ -58,15 +49,6 @@ SOURCE_DOMAINS = {
     "etnews.com": "전자신문", "newsis.com": "뉴시스", "donga.com": "동아일보", "joongang.co.kr": "중앙일보",
     "khan.co.kr": "경향신문", "zdnet.co.kr": "ZDNet Korea",
 }
-MARKET_CORE_WORDS = [
-    "증시", "주식", "주가", "코스피", "코스닥", "나스닥", "다우", "s&p", "상장", "ipo", "시가총액",
-    "외국인", "기관", "매수", "매도", "거래량", "거래대금", "실적", "매출", "영업이익", "순이익",
-    "배당", "공시", "목표주가", "투자의견", "금리", "연준", "fomc", "환율", "cpi", "pce", "gdp",
-    "고용", "물가", "유가", "원유", "반도체", "배터리", "2차전지", "자동차", "조선", "방산", "바이오",
-    "ai", "인공지능", "수출", "관세", "무역", "공급망", "투자", "인수", "합병",
-]
-MARKET_CONTEXT_WORDS = ["기업", "상장사", "산업", "업종", "시장", "경제", "금융", "증권", "펀드", "etf", "생산", "판매", "수주", "계약", "공급", "투자자", "성장률", "경기", "정부", "규제", "정책"]
-NOISE_WORDS = ["연예", "배우", "가수", "아이돌", "드라마", "예능", "영화", "스포츠", "축구", "야구", "날씨", "맛집", "여행", "축제", "공연", "육아", "결혼", "범죄", "교통사고"]
 MARKET_SIGNALS = {
     "국내": ["국내 증시", "한국 증시", "코스피", "코스닥", "국내 주식", "한국 경제", "원화", "한국은행"],
     "미국": ["미국 증시", "미국 주식", "미국 경제", "미국 시장", "뉴욕증시", "나스닥", "s&p", "다우", "월가", "미 연준"],
@@ -214,15 +196,6 @@ def _contains_any(text, words):
     return any(str(word).lower() in text for word in words)
 
 
-def _is_market_relevant(item):
-    text = _search_text(item)
-    if _contains_any(text, MARKET_CORE_WORDS):
-        return True
-    if _contains_any(text, MARKET_CONTEXT_WORDS) and not _contains_any(text, NOISE_WORDS):
-        return True
-    return False
-
-
 def _region_for_item(item):
     text = _search_text(item)
     kr = sum(1 for word in MARKET_SIGNALS["국내"] if word.lower() in text)
@@ -276,16 +249,6 @@ def _enrich_item(item):
     return enriched
 
 
-def fetch_general_news(category="전체", limit=30, region="전체"):
-    category = category if category in CATEGORY_QUERIES else "전체"
-    queries = CATEGORY_QUERIES[category]
-    items = [_enrich_item(x) for x in _fetch_queries(queries, category=category, per_query=max(20, limit))]
-    items = [x for x in items if _is_market_relevant(x)]
-    if region in ("국내", "미국"):
-        items = [x for x in items if x.get("region") in (region, "전체")]
-    return items[: max(1, int(limit))]
-
-
 STOCK_DIRECT_EVENT_WORDS = [
     "실적", "매출", "영업이익", "순이익", "가이던스", "계약", "수주", "공급", "납품",
     "출하", "투자", "증설", "감산", "배당", "자사주", "목표주가", "투자의견",
@@ -327,9 +290,6 @@ def _stock_event_strength(item):
     return (title_hits * 2) + description_hits
 
 
-MARKET_STORY_QUERIES = [
-    "장중 특징주", "장중 시황", "특징주", "증시마감", "개장 전 급등주", "개장 전 급락주",
-]
 MARKET_STORY_TITLE_MARKERS = [
     "[특징주]", "특징주", "[증시마감]", "증시마감", "장중 시황",
     "개장 전 급등주", "개장전 급등주", "개장 전 급락주", "개장전 급락주",
@@ -396,7 +356,7 @@ def _stock_analysis_relevance(item, stock_name):
     return 0
 
 
-def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=True):
+def fetch_stock_news(stock_name, limit=20, market=None):
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
@@ -412,36 +372,16 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
             queries = list(dict.fromkeys([stock_name] + search_aliases))
             break
 
-    # Use the existing NAVER queries; do not inject company blogs or SEC filings.
-    jobs = {}
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        jobs["stock"] = pool.submit(
-            _fetch_queries,
-            queries,
-            category="종목",
-            per_query=max(20, limit),
+    try:
+        stock_items = _fetch_queries(
+            queries, category="종목", per_query=max(20, limit),
         )
-        if include_market_stories:
-            jobs["market"] = pool.submit(
-                _fetch_queries,
-                MARKET_STORY_QUERIES,
-                category="종목",
-                per_query=max(20, min(int(limit), 30)),
-            )
-
-        provider_rows = {}
-        for name, future in jobs.items():
-            try:
-                provider_rows[name] = future.result()
-            except Exception:
-                provider_rows[name] = []
-
-    stock_items = provider_rows.get("stock") or []
-    market_story_items = provider_rows.get("market") or []
+    except Exception:
+        stock_items = []
 
     items = [
         _enrich_item(x)
-        for x in _dedupe(stock_items + market_story_items)
+        for x in _dedupe(stock_items)
         if _item_age_ok(x)
     ]
     relevant = []
@@ -484,10 +424,3 @@ def fetch_stock_news(stock_name, limit=20, market=None, include_market_stories=T
     return relevant[:max(1, int(limit))]
 
 
-def get_news_coverage():
-    return {
-        "stocks": STOCK_UNIVERSE,
-        "themes": sorted(THEME_RULES.keys()),
-        "issues": sorted(ISSUE_RULES.keys()),
-        "categories": list(CATEGORY_QUERIES.keys()),
-    }
