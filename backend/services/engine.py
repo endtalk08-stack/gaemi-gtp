@@ -245,6 +245,18 @@ def _fetch_dart_corp_map_uncached():
         with urllib.request.urlopen(req, timeout=3) as resp:
             payload = resp.read()
 
+        # OpenDART returns an XML error body (not a ZIP) for API failures.
+        # Log only its status code/message; never log the API key or raw response.
+        if not zipfile.is_zipfile(io.BytesIO(payload)):
+            try:
+                error_root = ET.fromstring(payload)
+                status = str(error_root.findtext("status") or "").strip()
+                message = str(error_root.findtext("message") or "").strip()
+                print(f"[국내 공시] 기업코드 ZIP 오류 응답 status={status or 'unknown'} message={message[:120]}", flush=True)
+            except ET.ParseError:
+                print("[국내 공시] 기업코드 응답이 ZIP/XML 형식이 아닙니다.", flush=True)
+            return {}
+
         with zipfile.ZipFile(io.BytesIO(payload)) as zf:
             xml_name = next(
                 (name for name in zf.namelist() if name.upper().endswith("CORPCODE.XML")),
@@ -302,9 +314,9 @@ def fetch_dart_corp_code(stock_code):
     cached = DART_CORP_CACHE["map"].get(stock_code)
     if cached:
         return cached
-    # 영속 저장소를 사용하지 않는다. 필요하면 OpenDART 원본에서 메모리 맵만 준비한다.
-    mapping = fetch_dart_corp_map()
-    return str(mapping.get(stock_code) or "").strip()
+    # 분석 요청에서는 전체 corpCode.xml 다운로드를 절대 시작하지 않는다.
+    # 기업코드 맵은 서버 시작 시 백그라운드 warmup이 준비한다.
+    return ""
 
 
 def fetch_dart_corp_map():
