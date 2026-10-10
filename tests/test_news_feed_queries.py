@@ -5,6 +5,20 @@ from backend.services.news_feed import fetch_stock_news
 
 
 class StockNewsQueryTests(unittest.TestCase):
+    def setUp(self):
+        self.official_patcher = patch(
+            "backend.services.news_feed.official_company_news.fetch_company_news",
+            return_value=[],
+        )
+        self.sec_patcher = patch(
+            "backend.services.news_feed.sec_filings.fetch_recent_filings",
+            return_value=[],
+        )
+        self.official_fetch = self.official_patcher.start()
+        self.sec_fetch = self.sec_patcher.start()
+        self.addCleanup(self.official_patcher.stop)
+        self.addCleanup(self.sec_patcher.stop)
+
     @patch("backend.services.news_feed._fetch_queries", return_value=[])
     def test_us_stock_uses_all_company_aliases(self, fetch_queries):
         fetch_stock_news(
@@ -15,6 +29,13 @@ class StockNewsQueryTests(unittest.TestCase):
             fetch_queries.call_args.args[0],
             ["알파벳", "GOOGL", "GOOG", "구글", "google", "alphabet"],
         )
+
+    @patch("backend.services.news_feed._fetch_queries", return_value=[])
+    def test_us_stock_restores_official_and_sec_sources(self, fetch_queries):
+        fetch_stock_news("알파벳", market="미국", limit=20)
+        self.official_fetch.assert_called_once()
+        self.sec_fetch.assert_called_once()
+        self.assertEqual(self.sec_fetch.call_args.args[1], "GOOGL")
 
     @patch("backend.services.news_feed._fetch_queries", return_value=[])
     def test_domestic_stock_keeps_existing_alias_cap(self, fetch_queries):
