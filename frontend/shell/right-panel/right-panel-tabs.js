@@ -89,7 +89,6 @@
         ? snapshot.disclosures
         : (Array.isArray(snapshot?.usFilings) ? snapshot.usFilings : [])
     ).slice(0, 30);
-    renderRelatedDisclosuresPanel();
   }
   function selectRelatedNewsItems(items, limit = 20, officialReserve = 4) {
     const source = Array.isArray(items) ? [...items] : [];
@@ -137,11 +136,11 @@
   function selectPanelWorkspaceView(type) {
     if (!PANEL_WORKSPACE_VIEWS[type]) return;
     panelWorkspaceView = type;
+    if (type === 'disclosures') loadActiveStockDisclosures();
     setActiveTab('panel-workspace');
     savePanelWorkspaceView();
     togglePanelWorkspaceMenu(false);
     if (type === 'news') loadActiveStockNews();
-    if (type === 'disclosures') loadActiveStockDisclosures();
     if (type === 'earnings') renderEarningsCalendarPanel();
   }
 
