@@ -171,6 +171,30 @@ OPENDART_API_KEY = (
     os.environ.get("OPENDART_API_KEY", "").strip()
     or os.environ.get("DART_API_KEY", "").strip()
 )
+# Only the 20 supported Korean news-universe stocks; no full DART corpCode ZIP at runtime.
+# Source: Korean listed-company DART/KRX identifier crosswalk (snapshot 2026-10-04).
+DART_STOCK_CORP_CODES = {
+    "005930": "00126380",  # 삼성전자
+    "000660": "00164779",  # SK하이닉스
+    "373220": "01515323",  # LG에너지솔루션
+    "207940": "00877059",  # 삼성바이오로직스
+    "005380": "00164742",  # 현대자동차
+    "000270": "00106641",  # 기아
+    "012450": "00126566",  # 한화에어로스페이스
+    "105560": "00688996",  # KB금융
+    "035420": "00266961",  # NAVER
+    "034020": "00159616",  # 두산에너빌리티
+    "068270": "00413046",  # 셀트리온
+    "006400": "00126362",  # 삼성SDI
+    "012330": "00164788",  # 현대모비스
+    "055550": "00382199",  # 신한지주
+    "005490": "00155319",  # POSCO홀딩스
+    "051910": "00356361",  # LG화학
+    "329180": "01390344",  # HD현대중공업
+    "028260": "00149655",  # 삼성물산
+    "035720": "00258801",  # 카카오
+    "015760": "00159193",  # 한국전력공사
+}
 DART_CORP_CACHE = {"ts": 0.0, "map": {}}
 DART_DISCLOSURE_CACHE = {}
 DART_EXECUTIVE_SHAREHOLDING_CACHE = {}
@@ -311,12 +335,8 @@ def fetch_dart_corp_code(stock_code):
     stock_code = str(stock_code or "").strip()
     if not OPENDART_API_KEY or not stock_code:
         return ""
-    cached = DART_CORP_CACHE["map"].get(stock_code)
-    if cached:
-        return cached
-    # 분석 요청에서는 전체 corpCode.xml 다운로드를 절대 시작하지 않는다.
-    # 기업코드 맵은 서버 시작 시 백그라운드 warmup이 준비한다.
-    return ""
+    # Resolve only the selected stock; never load or download the full DART registry.
+    return DART_STOCK_CORP_CODES.get(stock_code, "")
 
 
 def fetch_dart_corp_map():
