@@ -35,9 +35,9 @@
       if (!raw) return null;
       const state = JSON.parse(raw);
       if (!state || !Array.isArray(state.tabs)) return null;
-      const cleanTabs = state.tabs.filter(t => t && typeof t.id === 'string' && typeof t.label === 'string' && !['chart', 'news', 'industry', 'disclosures', 'auto-trade'].includes(t.id)).map(t => ({ id: t.id === 'dashboard' ? 'panel-workspace' : t.id, label: t.id === 'dashboard' || t.id === 'panel-workspace' ? '대시보드' : t.label, icon: typeof t.icon === 'string' ? t.icon : 'square-chart-gantt', closable: !['dashboard', 'panel-workspace'].includes(t.id) }));
-      const storedActiveTabId = ['dashboard', 'auto-trade'].includes(state.activeTabId) ? 'panel-workspace' : state.activeTabId;
-      return { tabs: cleanTabs.length ? cleanTabs : null, activeTabId: typeof storedActiveTabId === 'string' ? storedActiveTabId : 'panel-workspace' };
+      const customTabs = state.tabs.filter(t => t && typeof t.id === 'string' && t.id.startsWith('tab_') && typeof t.label === 'string').map(t => ({ id: t.id, label: t.label, icon: typeof t.icon === 'string' ? t.icon : 'square-chart-gantt', closable: true }));
+      const cleanTabs = [...DEFAULT_TABS.map(t => ({ ...t })), ...customTabs];
+      return { tabs: cleanTabs, activeTabId: typeof state.activeTabId === 'string' ? state.activeTabId : 'panel-workspace' };
     } catch (e) { console.warn('[gaemiGTP] right panel tabs read warning:', e); return null; }
   }
   function saveState() { try { localStorage.setItem(TABS_KEY, JSON.stringify({ tabs, activeTabId })); } catch (e) { console.warn('[gaemiGTP] right panel tabs save warning:', e); } }
