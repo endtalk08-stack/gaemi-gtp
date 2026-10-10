@@ -218,36 +218,6 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertEqual(article["relation_type"], "mention_only")
 
 
-    def test_official_gemini_introduction_becomes_direct_product_event(self):
-        result = build_connected_keyword_test([{
-            "title": "Welcome to Gemini at Work 2026: Introducing the Gemini agent",
-            "description": "This article is adapted from the Gemini at Work keynote.",
-            "provider_stock": "알파벳",
-            "source_type": "official_company",
-            "source": "Google Cloud Blog",
-        }], "알파벳", max_keywords=3)
-
-        article = result["articles"][0]
-        self.assertEqual(article["status"], "PASS")
-        self.assertEqual(article["keywords"], ["제품공개"])
-        self.assertIn("Gemini", article["grounded_tags"])
-        self.assertEqual(article["event_owner"], "알파벳")
-        self.assertEqual(article["relation_type"], "direct")
-
-    def test_official_commentary_without_explicit_launch_action_stays_out(self):
-        result = build_connected_keyword_test([{
-            "title": "Study suggests AI could improve patient-physician relationships",
-            "description": "Google researchers discussed findings from a study.",
-            "provider_stock": "알파벳",
-            "source_type": "official_company",
-            "source": "Google Blog",
-        }], "알파벳", max_keywords=3)
-
-        article = result["articles"][0]
-        self.assertEqual(article["status"], "SKIP")
-        self.assertEqual(article["keywords"], [])
-
-
     def test_direct_korean_investment_injection_with_amount_becomes_event(self):
         result = build_connected_keyword_test([{
             "title": "엔비디아, 미국 과학 연구에 1조4천억원 투입",

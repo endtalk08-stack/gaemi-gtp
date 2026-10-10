@@ -3387,7 +3387,6 @@ def analyze_stock(raw_name='SK하이닉스'):
                 raw_name,
                 market="국내",
                 limit=50,
-                include_market_stories=False,
             )
             news_result = _attach_news_price_reactions(news_result)
             _trace_stage("news done", stage_started)
@@ -3442,7 +3441,6 @@ def analyze_stock(raw_name='SK하이닉스'):
                 raw_name,
                 market="미국",
                 limit=50,
-                include_market_stories=False,
             )
             news_result = _attach_news_price_reactions(news_result)
 

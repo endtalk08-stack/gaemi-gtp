@@ -1,15 +1,13 @@
-// gaemiGTP - 뉴스·공시 출처 패널 전용
+// gaemiGTP - 공시 출처 패널 전용
     window.GaemiGTPSourceLists = window.GaemiGTPSourceLists || {};
 
 window.GaemiGTPSourceLists.renderSourceLists = function(result, { includeHeader = true } = {}) {
       if (!result) return null;
 
-      const newsItems = Array.isArray(result.news_items) ? result.news_items : [];
       const disclosureItems = Array.isArray(result.disclosures) ? result.disclosures : [];
       const usFilingItems = Array.isArray(result.us_filings) ? result.us_filings : [];
       const sourceDisclosureItems = disclosureItems.length ? disclosureItems : usFilingItems;
-      const sourceCount = newsItems.length + sourceDisclosureItems.length;
-      if (!sourceCount) return null;
+      if (!sourceDisclosureItems.length) return null;
 
       // 기존 '출처' 접기/펼치기 UI 대신 본문과 동일한 G 섹션으로 항상 노출한다.
       const wrap = document.createElement('div');
@@ -125,9 +123,7 @@ window.GaemiGTPSourceLists.renderSourceLists = function(result, { includeHeader 
         return group;
       };
 
-      const newsGroup = makeGroup('뉴스', newsItems);
       const disclosureGroup = makeGroup('공시', sourceDisclosureItems);
-      if (newsGroup) panel.appendChild(newsGroup);
       if (disclosureGroup) panel.appendChild(disclosureGroup);
       wrap.appendChild(panel);
 

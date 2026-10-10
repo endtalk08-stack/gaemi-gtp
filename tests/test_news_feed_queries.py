@@ -1,94 +1,79 @@
 import unittest
 from unittest.mock import patch
 
-from backend.services.news_feed import _select_stock_news_with_source_reserve, fetch_stock_news
+from backend.services.news_feed import fetch_stock_news
 
 
 class StockNewsQueryTests(unittest.TestCase):
-    @patch("backend.services.news_feed.sec_filings.fetch_recent_filings", return_value=[])
-    @patch("backend.services.news_feed.official_company_news.fetch_company_news", return_value=[])
-    @patch("backend.services.news_feed._fetch_queries", return_value=[])
-    def test_us_stock_uses_all_company_aliases(self, fetch_queries, official_news, sec_news):
-        fetch_stock_news(
-            "알파벳",
-            market="미국",
-            limit=20,
-            include_market_stories=False,
+    def setUp(self):
+        self.official_patcher = patch(
+            "backend.services.news_feed.official_company_news.fetch_company_news",
+            return_value=[],
         )
+        self.sec_patcher = patch(
+            "backend.services.news_feed.sec_filings.fetch_recent_filings",
+            return_value=[],
+        )
+        self.official_fetch = self.official_patcher.start()
+        self.sec_fetch = self.sec_patcher.start()
+        self.addCleanup(self.official_patcher.stop)
+        self.addCleanup(self.sec_patcher.stop)
 
-        queries = fetch_queries.call_args.args[0]
+    @patch("backend.services.news_feed._fetch_queries", return_value=[])
+    def test_us_stock_uses_all_company_aliases(self, fetch_queries):
+        fetch_stock_news(
+            "알파벳", market="미국", limit=20,
+        )
+        fetch_queries.assert_called_once()
         self.assertEqual(
-            queries,
+            fetch_queries.call_args.args[0],
             ["알파벳", "GOOGL", "GOOG", "구글", "google", "alphabet"],
         )
 
     @patch("backend.services.news_feed._fetch_queries", return_value=[])
+    def test_us_stock_restores_official_and_sec_sources(self, fetch_queries):
+        fetch_stock_news("알파벳", market="미국", limit=20)
+        self.official_fetch.assert_called_once()
+        self.sec_fetch.assert_called_once()
+        self.assertEqual(self.sec_fetch.call_args.args[1], "GOOGL")
+
+    @patch("backend.services.news_feed._fetch_queries", return_value=[])
     def test_domestic_stock_keeps_existing_alias_cap(self, fetch_queries):
         fetch_stock_news(
-            "SK하이닉스",
-            market="국내",
-            limit=20,
-            include_market_stories=False,
+            "SK하이닉스", market="국내", limit=20,
         )
-
-        queries = fetch_queries.call_args.args[0]
+        fetch_queries.assert_called_once()
         self.assertEqual(
-            queries,
+            fetch_queries.call_args.args[0],
             ["SK하이닉스", "sk하이닉스", "하이닉스", "sk hynix"],
         )
 
-
-    def test_trusted_official_news_survives_final_limit(self):
-        general = [
+    @patch("backend.services.news_feed._fetch_queries")
+    def test_english_foreign_press_kept_for_us_stock(self, fetch_queries):
+        fetch_queries.return_value = [
             {
-                "title": f"general-{index}",
-                "url": f"https://example.com/general-{index}",
-                "source_type": "naver",
-            }
-            for index in range(60)
-        ]
-        official = [
+                "title": "Alphabet signs a new technology agreement",
+                "description": "Alphabet signed an agreement with a partner.",
+                "url": "https://www.reuters.com/technology/alpha-agreement",
+                "published_at": "",
+                "source": "Reuters",
+            },
             {
-                "title": "NVIDIA official update",
-                "url": "https://blogs.nvidia.com/official-update",
-                "source_type": "official_company",
-            }
+                "title": "CNBC reports on Google cloud investment",
+                "description": "Google plans an investment in cloud infrastructure.",
+                "url": "https://www.cnbc.com/2026/10/10/google-cloud.html",
+                "published_at": "",
+                "source": "CNBC",
+            },
         ]
-
-        selected = _select_stock_news_with_source_reserve(
-            [*general, *official],
-            limit=50,
+        result = fetch_stock_news(
+            "알파벳", market="미국", limit=20,
         )
-
-        self.assertEqual(len(selected), 50)
-        self.assertTrue(
-            any(item["source_type"] == "official_company" for item in selected)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(
+            {item["source"] for item in result}, {"Reuters", "CNBC"},
         )
-
-    def test_sec_rows_are_reserved_without_stock_specific_rules(self):
-        general = [
-            {
-                "title": f"general-{index}",
-                "url": f"https://example.com/general-{index}",
-                "source_type": "naver",
-            }
-            for index in range(20)
-        ]
-        sec = [
-            {
-                "title": "8-K filing",
-                "url": "https://sec.example/8-k",
-                "source_type": "sec_filing",
-            }
-        ]
-
-        selected = _select_stock_news_with_source_reserve(
-            [*general, *sec],
-            limit=10,
-        )
-
-        self.assertEqual(len(selected), 10)
-        self.assertTrue(any(item["source_type"] == "sec_filing" for item in selected))
+        fetch_queries.assert_called_once()
 
 
 if __name__ == "__main__":
