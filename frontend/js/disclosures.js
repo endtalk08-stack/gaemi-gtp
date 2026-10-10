@@ -14,34 +14,34 @@ window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = n
   await Promise.all(Array.from({ length: concurrency }, async () => {
     while (nextIndex < targets.length) {
       const item = targets[nextIndex++];
-    try {
-      const params = new URLSearchParams({
-        stock_code: String(item.stock_code || ''),
-        receipt_no: String(item.receipt_no || ''),
-        report: String(item.report || item.title || '')
-      });
-      const response = await fetch(`/disclosures/dart/detail?${params.toString()}`);
-      if (!response.ok) return;
-      const payload = await response.json();
-      const detail = payload && payload.ok && payload.detail ? payload.detail : null;
-      if (!detail) return;
-      item.detail_fields = Array.isArray(detail.detail_fields) ? detail.detail_fields : [];
-      item.executive_shareholdings = Array.isArray(detail.executive_shareholdings)
-        ? detail.executive_shareholdings : [];
-      item.major_shareholder_change = detail.major_shareholder_change || {};
-      item.earnings_detail = detail.earnings_detail || {};
-      item.supply_contract_detail = detail.supply_contract_detail || {};
-      item.financing_detail = detail.financing_detail || {};
-      item.treasury_stock_detail = detail.treasury_stock_detail || {};
-      item.dividend_detail = detail.dividend_detail || {};
-      item.corporate_action_detail = detail.corporate_action_detail || {};
-      item.shareholding_change = detail.shareholding_change || item.shareholding_change || '';
-      if (detail.shareholding_delta !== null && detail.shareholding_delta !== undefined) {
-        item.shareholding_delta = detail.shareholding_delta;
+      try {
+        const params = new URLSearchParams({
+          stock_code: String(item.stock_code || ''),
+          receipt_no: String(item.receipt_no || ''),
+          report: String(item.report || item.title || '')
+        });
+        const response = await fetch(`/disclosures/dart/detail?${params.toString()}`);
+        if (!response.ok) continue;
+        const payload = await response.json();
+        const detail = payload && payload.ok && payload.detail ? payload.detail : null;
+        if (!detail) continue;
+        item.detail_fields = Array.isArray(detail.detail_fields) ? detail.detail_fields : [];
+        item.executive_shareholdings = Array.isArray(detail.executive_shareholdings)
+          ? detail.executive_shareholdings : [];
+        item.major_shareholder_change = detail.major_shareholder_change || {};
+        item.earnings_detail = detail.earnings_detail || {};
+        item.supply_contract_detail = detail.supply_contract_detail || {};
+        item.financing_detail = detail.financing_detail || {};
+        item.treasury_stock_detail = detail.treasury_stock_detail || {};
+        item.dividend_detail = detail.dividend_detail || {};
+        item.corporate_action_detail = detail.corporate_action_detail || {};
+        item.shareholding_change = detail.shareholding_change || item.shareholding_change || '';
+        if (detail.shareholding_delta !== null && detail.shareholding_delta !== undefined) {
+          item.shareholding_delta = detail.shareholding_delta;
+        }
+      } catch (error) {
+        console.warn('[국내 공시 상세] 조회 실패:', error);
       }
-    } catch (error) {
-      console.warn('[국내 공시 상세] 조회 실패:', error);
-    }
     }
   }));
   return items;
