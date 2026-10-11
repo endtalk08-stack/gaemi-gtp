@@ -21,7 +21,7 @@
     .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
     #answer { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; margin: 8px 0; }
     #feedback { color: #ffd49b; min-height: 1.5em; margin-top: 12px; }
-    #quota { white-space: pre-line; }
+    #quota, #limitEvents, #dailyUsage, #recentCalls, #sourceInfo { white-space: pre-line; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
     @media (max-width: 600px) { main { margin-top: 16px; } section { padding: 16px; } }
   </style>
 </head>
@@ -53,6 +53,12 @@
     <p id="answer">아직 AI를 호출하지 않았습니다.</p>
     <p id="sourceInfo" class="muted"></p>
   </section>
+  <section>
+    <strong>모델별 오늘 토큰 사용량</strong>
+    <p id="dailyUsage" class="muted">관리자 인증 후 조회할 수 있습니다.</p>
+    <strong>최근 호출 기록 · 최대 20건</strong>
+    <p id="recentCalls" class="muted">관리자 인증 후 조회할 수 있습니다.</p>
+  </section>
   <p class="muted">비밀번호는 이 페이지에서 저장되지 않습니다. API 키(GROQ_API_KEY)를 여기에 입력하거나 채팅에 붙여넣지 마세요. 실제 매매 신호가 아닌 분석 기능 평가용입니다.</p>
 </main>
 <script>
@@ -62,6 +68,8 @@
   const askBtn = document.getElementById("askBtn");
   const quota = document.getElementById("quota");
   const limitEvents = document.getElementById("limitEvents");
+  const dailyUsage = document.getElementById("dailyUsage");
+  const recentCalls = document.getElementById("recentCalls");
   const feedback = document.getElementById("feedback");
   const answer = document.getElementById("answer");
   const sourceInfo = document.getElementById("sourceInfo");
@@ -83,6 +91,12 @@
     tokens_per_day: "하루 토큰",
     unknown: "원인 미확인"
   };
+  const callStatusLabels = {
+    success: "성공", rate_limit: "Groq 제한", provider_error: "Groq 오류", request_error: "요청 실패"
+  };
+  function tokenLabel(value) {
+    return Number.isInteger(value) && value >= 0 ? value.toLocaleString("ko-KR") : "미확인";
+  }
   function showQuota(info) {
     if (!info || !info.models) return;
     if (info.limit_source === "groq") {
@@ -100,7 +114,29 @@
           event.timestamp_kst + " · " + event.model_id
           + " · " + (limitLabels[event.limit_type] || limitLabels.unknown)
           + (event.retry_after ? " · 재시도 안내: " + event.retry_after : "")
-        ).join("\n") : "아직 기록이 없습니다.")
+        ).join("\n") : "아직 기록이 없습니다.");
+      const daily = info.daily_usage || {};
+      const summary = ["한국시간 " + (info.date_kst || "날짜 확인 불가") + " · 이 서버의 관리자 테스트 기준"];
+      for (const [role, item] of Object.entries(info.models)) {
+        const values = daily[role] || {};
+        summary.push(item.label + ": 입력 " + tokenLabel(values.prompt_tokens)
+          + " / 출력 " + tokenLabel(values.completion_tokens)
+          + " / 합계 " + tokenLabel(values.total_tokens)
+          + "토큰 · 성공 " + (values.successful_calls || 0)
+          + "건 (토큰 확인 " + (values.metered_calls || 0)
+          + "건) · 실패 " + (values.failed_calls || 0) + "건");
+      }
+      dailyUsage.textContent = summary.join("\n");
+      const calls = info.recent_calls || [];
+      recentCalls.textContent = (calls.length ? calls.map(item =>
+        item.timestamp_kst + " · " + item.model_id
+        + " · " + (callStatusLabels[item.status] || item.status)
+        + (item.limit_type ? " (" + (limitLabels[item.limit_type] || limitLabels.unknown) + ")" : "")
+        + (item.http_status ? " · HTTP " + item.http_status : "")
+        + "\n  입력 " + tokenLabel(item.prompt_tokens)
+        + " / 출력 " + tokenLabel(item.completion_tokens)
+        + " / 합계 " + tokenLabel(item.total_tokens) + "토큰"
+      ).join("\n") : "아직 기록이 없습니다.")
         + "\n" + (info.history_warning || "");
       return;
     }
@@ -159,10 +195,14 @@
         role: document.getElementById("role").value
       });
       answer.textContent = result.answer;
+      const usage = result.usage || {};
       sourceInfo.textContent = "사용 모델: " + result.model
         + " · 뉴스 " + result.source_counts.news
         + "건 · 공시 " + result.source_counts.disclosures
-        + "건 · 핵심 이슈 " + result.source_counts.issue_briefs + "건";
+        + "건 · 핵심 이슈 " + result.source_counts.issue_briefs + "건"
+        + "\n실제 사용 토큰: 입력 " + tokenLabel(usage.prompt_tokens)
+        + " / 출력 " + tokenLabel(usage.completion_tokens)
+        + " / 합계 " + tokenLabel(usage.total_tokens);
       feedback.textContent = "분석 완료";
     } catch (error) {
       answer.textContent = "AI 답변이 없습니다.";

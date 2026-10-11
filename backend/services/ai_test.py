@@ -47,6 +47,13 @@ _GROQ_REFERENCE_LIMITS = {
 _GROQ_RATE_LIMIT_EVENTS = deque(maxlen=100)
 _GROQ_RATE_LIMIT_LOCK = threading.Lock()
 
+# Administrator /ai-test usage only. Groq remains the sole quota enforcer.
+_GROQ_CALL_EVENTS = deque(maxlen=100)
+_GROQ_CALL_LOCK = threading.Lock()
+_GROQ_USAGE_DAY = ""
+_GROQ_DAILY_USAGE = {}
+
+
 
 def remember_chat_analysis(stock, result):
     from .private_access import private_enabled
@@ -138,9 +145,71 @@ def _remaining():
         }
 
 
+def _today_kst():
+    return datetime.datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
+
+
+def _empty_usage_totals():
+    return {
+        "successful_calls": 0, "failed_calls": 0, "metered_calls": 0,
+        "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+    }
+
+
+def _usage_numbers(usage):
+    source = usage if isinstance(usage, dict) else {}
+    fields = ("prompt_tokens", "completion_tokens", "total_tokens")
+    return {
+        key: source[key] if isinstance(source.get(key), int)
+        and not isinstance(source.get(key), bool) and source[key] >= 0 else None
+        for key in fields
+    }
+
+
+def _record_groq_call(role, outcome, usage=None, limit_type="", http_status=None):
+    global _GROQ_USAGE_DAY, _GROQ_DAILY_USAGE
+    now = datetime.datetime.now(ZoneInfo("Asia/Seoul"))
+    measured = _usage_numbers(usage)
+    event = {
+        "timestamp_kst": now.isoformat(timespec="seconds"),
+        "role": role, "model_id": MODELS[role]["id"], "status": outcome,
+        **measured,
+    }
+    if limit_type:
+        event["limit_type"] = limit_type
+    if http_status is not None:
+        event["http_status"] = http_status
+    with _GROQ_CALL_LOCK:
+        today = now.date().isoformat()
+        if _GROQ_USAGE_DAY != today:
+            _GROQ_USAGE_DAY = today
+            _GROQ_DAILY_USAGE = {key: _empty_usage_totals() for key in MODELS}
+        totals = _GROQ_DAILY_USAGE[role]
+        if outcome == "success":
+            totals["successful_calls"] += 1
+            if all(value is not None for value in measured.values()):
+                totals["metered_calls"] += 1
+                for key, value in measured.items():
+                    totals[key] += value
+        else:
+            totals["failed_calls"] += 1
+        _GROQ_CALL_EVENTS.append(event)
+    # No question, response text, credential, or unfiltered provider error in logs.
+    print("[Groq AI test call] " + json.dumps(event, ensure_ascii=False), flush=True)
+    return event
+
+
 def _provider_info():
     with _GROQ_RATE_LIMIT_LOCK:
         events = list(reversed(_GROQ_RATE_LIMIT_EVENTS))[:20]
+    with _GROQ_CALL_LOCK:
+        date_kst = _today_kst()
+        daily_usage = {
+            role: dict(_GROQ_DAILY_USAGE.get(role, _empty_usage_totals()))
+            if _GROQ_USAGE_DAY == date_kst else _empty_usage_totals()
+            for role in MODELS
+        }
+        recent_calls = list(reversed(_GROQ_CALL_EVENTS))[:20]
     return {
         "limit_source": "groq",
         "models": {
@@ -152,8 +221,11 @@ def _provider_info():
             for role, model in MODELS.items()
         },
         "recent_rate_limits": events,
+        "date_kst": date_kst,
+        "daily_usage": daily_usage,
+        "recent_calls": recent_calls,
         "note": "Groq에서 직접 한도를 적용합니다. 표시된 숫자는 조직 Free 한도 참고값이며 실제 프로젝트 한도와 남은 사용량은 Groq 콘솔에서 확인하세요.",
-        "history_warning": "최근 차단 기록은 서버 메모리 기준이며 재시작 시 초기화됩니다. Render 로그에서도 보존 기간 내 조회할 수 있습니다.",
+        "history_warning": "사용 기록과 오늘 누적치는 이 서버의 /ai-test 요청 기준입니다. 재시작 시 초기화되며 다른 프로젝트나 Groq 콘솔 호출은 포함되지 않습니다. Render 로그에서는 보존 기간 내 기록을 조회할 수 있습니다.",
     }
 
 
@@ -291,7 +363,8 @@ def _groq_answer(model_id, question, context, max_completion_tokens=650, style_p
     answer = (choices[0].get("message") or {}).get("content") or ""
     if not answer.strip():
         raise ValueError("empty_response")
-    return answer.strip()[:4000]
+    usage = result.get("usage")
+    return answer.strip()[:4000], (usage if isinstance(usage, dict) else None)
 
 
 @ai_test_bp.get("/api/ai-test/status")
@@ -330,6 +403,7 @@ def ai_test_chat():
 
     # Use the private conversation's existing processed result when possible.
     # Only a new-stock question falls back to the established analysis function.
+    provider_called = False
     try:
         context = _cached_chat_context(stock) if private_chat else None
 
@@ -401,15 +475,18 @@ def ai_test_chat():
         prompt = question
         if dialogue:
             prompt = "이전 대화:\n" + "\n".join(dialogue) + "\n\n현재 질문: " + question
-        answer = _groq_answer(
+        provider_called = True
+        answer, usage = _groq_answer(
             MODELS[role]["id"], prompt, context,
             style_prompt="반말로 짧고 명확하게 답해. 근거에 없는 숫자는 말하지 마." if private_chat else None,
         )
+        if admin_test:
+            _record_groq_call(role, "success", usage=usage)
         print("[Groq AI test success] " + json.dumps({
             "timestamp_kst": datetime.datetime.now(ZoneInfo("Asia/Seoul")).isoformat(timespec="seconds"),
             "role": role, "model_id": MODELS[role]["id"],
         }, ensure_ascii=False), flush=True)
-        return jsonify({
+        response_data = {
             "ok": True, "stock": stock, "answer": answer,
             "model": MODELS[role]["id"],
             "source_counts": {
@@ -418,10 +495,15 @@ def ai_test_chat():
                 "issue_briefs": len(context["issue_briefs"]),
             },
             "limits": limits_for_request(),
-        })
+        }
+        if admin_test:
+            response_data["usage"] = _usage_numbers(usage)
+        return jsonify(response_data)
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
             event = _record_groq_rate_limit(role, MODELS[role]["id"], exc)
+            if admin_test and provider_called:
+                _record_groq_call(role, "rate_limit", limit_type=event["limit_type"], http_status=429)
             return jsonify({
                 "ok": False, "error": "groq_rate_limit",
                 "model": event["model_id"],
@@ -429,11 +511,15 @@ def ai_test_chat():
                 "retry_after": event["retry_after"],
                 "limits": limits_for_request(),
             }), 429
+        if admin_test and provider_called:
+            _record_groq_call(role, "provider_error", http_status=exc.code)
         print(f"[Groq AI test provider error] role={role} model={MODELS[role]['id']} status={exc.code}", flush=True)
         return jsonify({
             "ok": False, "error": "groq_request_failed",
             "limits": limits_for_request(),
         }), 502
     except Exception as exc:
+        if admin_test and provider_called:
+            _record_groq_call(role, "request_error")
         print(f"[Groq AI test] failed: {type(exc).__name__}", flush=True)
         return jsonify({"ok": False, "error": "ai_test_failed", "limits": limits_for_request()}), 502
