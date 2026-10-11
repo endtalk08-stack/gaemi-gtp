@@ -153,8 +153,14 @@ def build_stock_news_result(
             flush=True,
         )
 
+        # The body is used only while composing the already-selected issue
+        # summaries; never attach it to the returned news/UI result.
+        brief_inputs = [
+            {**item, "_brief_detail_text": detail_texts[index]}
+            for index, item in enumerate(storyboard_news_items)
+        ]
         issue_briefs = build_issue_briefs(
-            storyboard_news_items,
+            brief_inputs,
             stock_name,
             limit=storyboard_limit,
         )
