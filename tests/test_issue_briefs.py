@@ -302,7 +302,7 @@ class IssueBriefTests(unittest.TestCase):
 
         summary = result[0]["summary"]
         self.assertIn("3분기", summary)
-        self.assertIn("전년 동기보다", summary)
+        self.assertIn("전년 동기 대비", summary)
         self.assertIn("782.5% 증가", summary)
         self.assertNotIn("기사", summary)
 
@@ -373,8 +373,8 @@ class IssueBriefTests(unittest.TestCase):
         self.assertEqual(brief["tags"], ["외국인매도", "자사주매입", "매출발표"])
         self.assertEqual(len(brief["summary"].splitlines()), 3)
         self.assertIn("2,000억원 순매도", brief["summary"])
-        self.assertIn("1조원 규모의 자사주 매입", brief["summary"])
-        self.assertIn("3분기 매출액이 86조원", brief["summary"])
+        self.assertIn("자사주 매입 규모 1조원", brief["summary"])
+        self.assertIn("3분기 매출액 86조원", brief["summary"])
         self.assertNotIn("국채금리", brief["summary"])
         self.assertNotIn("_brief_detail_text", brief)
         self.assertNotIn("주요 이슈야", brief["summary"])
@@ -423,6 +423,60 @@ class IssueBriefTests(unittest.TestCase):
             result[0]["summary"],
             "해시태그와 연결되는 구체적인 내용은 확인되지 않았어.",
         )
+
+    def test_news_listing_is_rejected_instead_of_copied(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 호실적",
+            "description": (
+                "93 - 외인·기관 동시 순매도에 코스피 3거래일 연속 하락 - "
+                "LG에너지솔루션, 분기 매출 호조 소식에 관련주 강세 - "
+                "삼성전자 호실적 불구 글로벌 금리·유가..."
+            ),
+            "storyboard_keywords": ["호실적"],
+            "article_keywords": ["호실적", "매출발표"],
+            "stock_entities": ["삼성전자", "LG에너지솔루션"],
+        }], "삼성전자")
+        summary = result[0]["summary"]
+        self.assertNotIn("93 -", summary)
+        self.assertNotIn("LG에너지솔루션, 분기 매출", summary)
+        self.assertIn("구체적인 내용은 확인되지 않았어", summary)
+
+    def test_joint_repurchase_and_selling_are_two_brief_facts(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 외국인 매도",
+            "_brief_detail_text": (
+                "삼성전자가 사상 최고 분기 실적을 발표했음에도 "
+                "외국인 매도세가 이어지는 데다, 삼성전자와 SK하이닉스의 "
+                "자사주 매입이 막바지에 접어들며 수급 공백 우려가 커지는 형편이다."
+            ),
+            "storyboard_keywords": ["외국인매도"],
+            "article_keywords": ["외국인매도", "자사주매입", "매출발표"],
+            "stock_entities": ["삼성전자", "SK하이닉스"],
+        }], "삼성전자")
+        summary = result[0]["summary"]
+        self.assertIn("사상 최고 분기 실적에도 외국인 매도세 지속", summary)
+        self.assertIn("삼성전자·SK하이닉스: 자사주 매입 마무리 단계", summary)
+        self.assertIn("수급 공백 우려", summary)
+        self.assertNotIn("형편이다", summary)
+
+    def test_samsung_counterparty_is_not_turned_into_contract_actor(self):
+        result = build_issue_briefs([{
+            "title": "유비온 삼성전자 계약 체결",
+            "_brief_detail_text": (
+                "유비온이 삼성전자와 사내 학습 시스템 'DScovery'의 "
+                "유지보수·운영 계약을 체결했다. "
+                "계약금액은 18억5000만원으로, 부가가치세는 포함되지 않았다."
+            ),
+            "storyboard_keywords": ["계약체결"],
+            "article_keywords": ["계약체결", "공급계약", "단일판매"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+        summary = result[0]["summary"]
+        self.assertIn("유비온 → 삼성전자:", summary)
+        self.assertIn("DScovery", summary)
+        self.assertIn("계약금액: 18억5000만원 (부가세 별도)", summary)
+        self.assertNotIn("삼성전자가 유비온", summary)
+        self.assertNotIn("계약을 체결했다", summary)
 
     def test_central_contract_brief_uses_structured_counterparty_and_amount(self):
         result = build_issue_briefs([{
