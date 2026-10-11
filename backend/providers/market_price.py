@@ -4,6 +4,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 _CACHE_LOCK_GUARD = threading.Lock()
@@ -106,13 +107,20 @@ def fetch_daily_price_history(ticker):
 
             chart_rows = data.get("chart", {}).get("result", [])
             if chart_rows:
-                quote = chart_rows[0].get("indicators", {}).get("quote", [{}])[0]
+                chart = chart_rows[0]
+                quote = chart.get("indicators", {}).get("quote", [{}])[0]
                 closes = quote.get("close", [])
                 highs = quote.get("high", [])
                 lows = quote.get("low", [])
                 volumes = quote.get("volume", [])
+                timestamps = chart.get("timestamp") or []
+                timezone_name = (chart.get("meta") or {}).get("exchangeTimezoneName")
+                try:
+                    exchange_timezone = ZoneInfo(timezone_name) if timezone_name else None
+                except (ZoneInfoNotFoundError, TypeError, ValueError):
+                    exchange_timezone = None
 
-                for close, high, low, volume in zip(closes, highs, lows, volumes):
+                for index, (close, high, low, volume) in enumerate(zip(closes, highs, lows, volumes)):
                     if close is None or high is None or low is None:
                         continue
                     try:
@@ -124,12 +132,24 @@ def fetch_daily_price_history(ticker):
                         continue
                     if close_value <= 0 or high_value <= 0 or low_value <= 0:
                         continue
-                    rows.append({
+                    row = {
                         "close": close_value,
                         "high": high_value,
                         "low": low_value,
                         "volume": volume_value,
-                    })
+                    }
+                    # 거래소 현지 날짜가 확인된 일봉만 날짜를 붙인다.
+                    # timestamp가 없거나 잘못되어도 기존 OHLCV 행은 보존한다.
+                    if exchange_timezone is not None and index < len(timestamps):
+                        stamp = timestamps[index]
+                        if isinstance(stamp, (int, float)) and not isinstance(stamp, bool):
+                            try:
+                                row["date"] = datetime.datetime.fromtimestamp(
+                                    stamp, tz=exchange_timezone
+                                ).date().isoformat()
+                            except (OverflowError, OSError, ValueError):
+                                pass
+                    rows.append(row)
         except Exception as exc:
             print("야후 일봉 조회 예외:", exc)
 
