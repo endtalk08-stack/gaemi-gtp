@@ -30,6 +30,42 @@ _COUNTS = defaultdict(int)
 _RECENT = []
 _LOCK = threading.Lock()
 _DAY = ""
+# A short-lived reuse of the same processed /analyze data, not another collector.
+_CHAT_CONTEXT_CACHE = {}
+_CHAT_CONTEXT_LOCK = threading.Lock()
+_CHAT_CONTEXT_TTL = 15 * 60
+
+
+def remember_chat_analysis(stock, result):
+    from .private_access import private_enabled
+    if not private_enabled() or result.get("ok") is False:
+        return
+    context = _context(stock, result)
+    with _CHAT_CONTEXT_LOCK:
+        _CHAT_CONTEXT_CACHE[str(stock).strip()] = (time.monotonic(), context)
+
+
+def _cached_chat_context(stock):
+    with _CHAT_CONTEXT_LOCK:
+        entry = _CHAT_CONTEXT_CACHE.get(stock)
+        if entry and time.monotonic() - entry[0] < _CHAT_CONTEXT_TTL:
+            return entry[1]
+    return None
+
+
+def _question_stock(question):
+    from .engine import TICKERS
+    value = str(question or "").strip().casefold()
+    for name in sorted(TICKERS, key=len, reverse=True):
+        normalized = name.casefold()
+        if value.startswith(normalized) and (
+            len(value) == len(normalized) or
+            value[len(normalized)] in " \t,，:：?？"
+        ):
+            return name
+    return ""
+
+
 
 SYSTEM_PROMPT = (
     "제공된 참고 데이터에 없는 숫자나 사실은 만들어내지 마. "
@@ -145,6 +181,7 @@ def _context(stock, data):
     return {
         "stock": stock,
         "price_information": price_lines[:5],
+        "price_metrics": data.get("price_snapshot") or {},
         "news": news,
         "issue_briefs": brief,
         "official_disclosures": disclosures,
@@ -199,7 +236,11 @@ def ai_test_status():
 
 @ai_test_bp.post("/api/ai-test/chat")
 def ai_test_chat():
-    if not _authorized():
+    # The site login is accepted only in private preview mode. The existing
+    # bearer token continues to authorize the standalone administrator test.
+    from .private_access import _authorized as dev_session_authorized, private_enabled
+    private_chat = private_enabled() and dev_session_authorized()
+    if not _authorized() and not private_chat:
         return jsonify({"ok": False, "error": "admin_test_disabled_or_unauthorized"}), 403
 
     if (request.content_length or 0) > 4500:
@@ -208,33 +249,59 @@ def ai_test_chat():
     if not isinstance(body, dict):
         return jsonify({"ok": False, "error": "invalid_json"}), 400
     role = str(body.get("role") or "news")
-    stock = str(body.get("stock") or "").strip()
     question = str(body.get("question") or "").strip()
+    stock = _question_stock(question) or str(body.get("stock") or "").strip()
     if role not in MODELS:
         return jsonify({"ok": False, "error": "unsupported_model"}), 400
     if not stock or len(stock) > 50 or not question or len(question) > 800:
         return jsonify({"ok": False, "error": "invalid_input"}), 400
 
-    # Reserve a slot before any data/AI processing. Failed attempts count too:
-    # this favors safety and avoids high-volume retry storms.
-    limit_error = _take_slot(role)
-    if limit_error:
-        return jsonify({"ok": False, "error": limit_error, "limits": _remaining()}), 429
-
+    # Use the private conversation's existing processed result when possible.
+    # Only a new-stock question falls back to the established analysis function.
     try:
-        from backend.services.engine import analyze_stock
-
-        result = analyze_stock(stock)
-        if result.get("ok") is False:
+        context = _cached_chat_context(stock) if private_chat else None
+        if context is None:
+            from backend.services.engine import analyze_stock
+            result = analyze_stock(stock)
+            if result.get("ok") is False:
+                return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": _remaining()}), 422
+            context = _context(stock, result)
+            if private_chat:
+                remember_chat_analysis(stock, result)
+        if not any((context["news"], context["official_disclosures"], context["price_information"], context["price_metrics"])):
             return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": _remaining()}), 422
-        context = _context(stock, result)
-        if not context["news"] and not context["official_disclosures"] and not context["price_information"]:
-            return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": _remaining()}), 422
 
-        answer = _groq_answer(MODELS[role]["id"], question, context)
+        # The same shared quote supports exact arithmetic in the general chat.
+        metrics = context.get("price_metrics") or {}
+        if private_chat and "52주" in question and ("최고가" in question or "신고가" in question):
+            needed = metrics.get("rise_to_52w_high_pct")
+            if isinstance(needed, (int, float)):
+                answer = f"{needed:.1f}% 남았어." if needed > 0 else "이미 52주 최고가에 도달했어."
+                return jsonify({"ok": True, "stock": stock, "answer": answer, "model": "calculation"})
+
+        if not _settings_ready():
+            return jsonify({"ok": False, "error": "ai_test_not_configured"}), 503
+        limit_error = _take_slot(role)
+        if limit_error:
+            return jsonify({"ok": False, "error": limit_error, "limits": _remaining()}), 429
+
+        history = body.get("history") or []
+        dialogue = []
+        if private_chat and isinstance(history, list):
+            for item in history[-6:]:
+                if isinstance(item, dict) and item.get("role") in ("user", "assistant"):
+                    message = str(item.get("text") or "").strip()[:240]
+                    if message:
+                        dialogue.append(f"{item['role']}: {message}")
+        prompt = question
+        if dialogue:
+            prompt = "이전 대화:\n" + "\n".join(dialogue) + "\n\n현재 질문: " + question
+        answer = _groq_answer(
+            MODELS[role]["id"], prompt, context,
+            style_prompt="반말로 짧고 명확하게 답해. 근거에 없는 숫자는 말하지 마." if private_chat else None,
+        )
         return jsonify({
-            "ok": True,
-            "answer": answer,
+            "ok": True, "stock": stock, "answer": answer,
             "model": MODELS[role]["id"],
             "source_counts": {
                 "news": len(context["news"]),
