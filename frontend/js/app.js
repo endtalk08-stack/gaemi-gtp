@@ -96,9 +96,25 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       }
       row.classList.remove('typing-cursor');
       if (activeChatSession?.id !== sessionId || !row.isConnected) return false;
-      window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
+      const actions = window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
         row, text, 'ai-' + row.dataset.chatMessageId, activeChatSession.stock || ''
       );
+      // AI 답변의 타이핑 흐름을 마지막 '싫어요' 아이콘까지 이어간다.
+      // 기존 공통 액션 생성/클릭 로직은 그대로 재사용한다.
+      if (actions) {
+        const buttons = [...actions.querySelectorAll('[data-first-reply-action]')];
+        buttons.forEach((button) => {
+          button.style.visibility = 'hidden';
+          button.style.pointerEvents = 'none';
+        });
+        for (const button of buttons) {
+          if (activeChatSession?.id !== sessionId || !row.isConnected) return false;
+          button.style.visibility = '';
+          button.style.pointerEvents = '';
+          button.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+          await new Promise((resolve) => setTimeout(resolve, 90));
+        }
+      }
       return true;
     }
 
