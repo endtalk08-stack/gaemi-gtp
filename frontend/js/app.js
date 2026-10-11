@@ -369,11 +369,9 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
 
         const textBlock = document.createElement('div');
         textBlock.className = "space-y-4 animate-fade";
-        const headingMarkup = `
-          <div class="flex items-center gap-2.5">
-            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div>
-            ${dynamicTitle ? `<h4 class="gtp-chat-section-title text-[#0f172a] gtp-dark-text">${dynamicTitle}</h4>` : ''}
-          </div>`;
+        const headingMarkup = dynamicTitle
+          ? `<div class="flex items-center gap-2.5"><h4 class="gtp-chat-section-title text-[#0f172a] gtp-dark-text">${dynamicTitle}</h4></div>`
+          : '';
         const shouldTypeSection = true;
         const contentMarkup = `<p id="p-content-${secIdx}" class="${responseMessageClass} whitespace-pre-line typing-cursor"></p>`;
         // 첫 답변은 현재 가격 설명만 보여 준다. 고정 "오늘은 왜 올랐어?"
