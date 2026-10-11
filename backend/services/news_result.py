@@ -228,8 +228,8 @@ def build_stock_news_result(
                 )
                 print("[news issue audit] " + json.dumps({
                     "trace": trace_id, "stock": stock_name,
-                    "stage": "brief_result", "rank": rank,
-                    **info, "verified": verified,
+                    "stage": "brief_result", **info,
+                    "rank": rank, "verified": verified,
                     "reason": "primary_hashtag_fact" if verified
                     else "no_primary_hashtag_fact",
                 }, ensure_ascii=False), flush=True)
