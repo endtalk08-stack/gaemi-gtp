@@ -86,7 +86,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
 
 
     // Shared safe formatting for AI text, independent of the model or topic.
-    // Only **bold**, paragraphs and simple bullet lists are supported.
+    // Only **bold**, paragraphs and simple unordered/numbered lists are supported.
     // Never use innerHTML for model-generated text.
     function appendAiChatFormattedAnswer(container, content) {
       const appendInline = (target, line) => {
@@ -94,7 +94,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           if (!part) return;
           if (/^\*\*[^*\n]+\*\*$/.test(part)) {
             const strong = document.createElement('strong');
-            strong.className = 'font-semibold';
+            strong.className = 'font-semibold theme-text';
             strong.textContent = part.slice(2, -2);
             target.appendChild(strong);
           } else {
@@ -105,6 +105,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       String(content || '').trim().split(/\n\s*\n/).forEach(block => {
         let lines = [];
         let list = null;
+        let listType = null;
         const flushParagraph = () => {
           if (!lines.length) return;
           const paragraph = document.createElement('p');
@@ -115,20 +116,28 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         };
         block.split('\n').forEach(rawLine => {
           const line = rawLine.trim();
+          const numbered = line.match(/^(\d{1,2})[.)]\s+(.+)$/);
           const bullet = line.match(/^[-*]\s+(.+)$/);
-          if (!bullet) {
+          if (!numbered && !bullet) {
             list = null;
+            listType = null;
             if (line) lines.push(line);
             return;
           }
           flushParagraph();
-          if (!list) {
-            list = document.createElement('ul');
-            list.className = 'gtp-chat-copy list-disc pl-5 space-y-1';
+          const type = numbered ? 'ol' : 'ul';
+          if (!list || listType !== type) {
+            list = document.createElement(type);
+            list.className = type === 'ol'
+              ? 'gtp-chat-copy list-decimal pl-6 space-y-3'
+              : 'gtp-chat-copy list-disc pl-6 space-y-3';
+            if (numbered) list.start = Number(numbered[1]);
             container.appendChild(list);
+            listType = type;
           }
           const item = document.createElement('li');
-          appendInline(item, bullet[1]);
+          if (numbered) item.value = Number(numbered[1]);
+          appendInline(item, numbered ? numbered[2] : bullet[1]);
           list.appendChild(item);
         });
         flushParagraph();
