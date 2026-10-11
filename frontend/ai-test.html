@@ -28,23 +28,24 @@
 <body>
 <main>
   <h1>gaemiGTP AI · 관리자 테스트</h1>
-  <p class="muted">기존 채팅·뉴스·공시 화면과 독립된 테스트 페이지입니다. Groq 모델별 하루 10/5/5회, 전체 20회, 분당 2회까지만 요청합니다. 카운터는 서버 재시작 시 초기화될 수 있습니다.</p>
+  <p class="muted">기존 채팅·뉴스·공시 화면과 독립된 관리자 테스트 페이지입니다. 이 페이지는 자체 호출 횟수 제한 없이 Groq 무료 플랜의 실제 요청·토큰 한도를 따릅니다. 조직 한도 참고값은 모델별 분당 30회·하루 1,000회·분당 8,000토큰·하루 200,000토큰이며, 프로젝트 설정과 실제 잔여량은 Groq 콘솔에서 확인하세요.</p>
   <section>
     <label for="token">관리자 테스트 비밀번호 (AI_TEST_TOKEN)</label>
     <input id="token" type="password" autocomplete="off" placeholder="Render 환경변수에 지정한 비밀번호">
-    <div class="actions"><button id="statusBtn" type="button" class="alt">인증·남은 횟수 확인</button></div>
+    <div class="actions"><button id="statusBtn" type="button" class="alt">인증·Groq 한도 확인</button></div>
     <p id="quota" class="muted"></p>
+    <p id="limitEvents" class="muted"></p>
     <label for="stock">종목명</label>
     <input id="stock" value="삼성전자" maxlength="50">
     <label for="role">AI 모델</label>
     <select id="role">
-      <option value="news">GPT-OSS 20B · 뉴스·일반 (하루 10회)</option>
-      <option value="deep">GPT-OSS 120B · 공시·심층 (하루 5회)</option>
-      <option value="compare">Qwen3.8 27B · 비교용 (하루 5회)</option>
+      <option value="news">GPT-OSS 20B · 뉴스·일반</option>
+      <option value="deep">GPT-OSS 120B · 공시·심층</option>
+      <option value="compare">Qwen3.8 27B · 비교용</option>
     </select>
     <label for="question">질문</label>
     <textarea id="question" maxlength="800">삼성전자 최근 뉴스와 공시에서 확인되는 핵심 재료를 3가지 이내로 설명해 줘. 부족한 데이터도 알려 줘.</textarea>
-    <div class="actions"><button id="askBtn" type="button">AI 분석 요청 (1회 차감)</button></div>
+    <div class="actions"><button id="askBtn" type="button">AI 분석 요청</button></div>
     <p id="feedback" role="status" aria-live="polite"></p>
   </section>
   <section>
@@ -60,6 +61,7 @@
   const statusBtn = document.getElementById("statusBtn");
   const askBtn = document.getElementById("askBtn");
   const quota = document.getElementById("quota");
+  const limitEvents = document.getElementById("limitEvents");
   const feedback = document.getElementById("feedback");
   const answer = document.getElementById("answer");
   const sourceInfo = document.getElementById("sourceInfo");
@@ -74,10 +76,36 @@
     invalid_input: "종목명과 질문을 확인하세요.",
     ai_test_failed: "AI 테스트 요청에 실패했습니다."
   };
+  const limitLabels = {
+    requests_per_minute: "분당 요청",
+    requests_per_day: "하루 요청",
+    tokens_per_minute: "분당 토큰",
+    tokens_per_day: "하루 토큰",
+    unknown: "원인 미확인"
+  };
   function showQuota(info) {
     if (!info || !info.models) return;
-    const lines = [ "기준일 (한국시간): " + info.date_kst,
-      "전체: " + info.total.used + " / " + info.total.limit ];
+    if (info.limit_source === "groq") {
+      const lines = ["한도 관리: Groq (gaemiGTP 자체 테스트 횟수 제한 없음)"];
+      for (const item of Object.values(info.models)) {
+        const ref = item.reference_limits || {};
+        lines.push(item.label + ": 분당 " + ref.requests_per_minute + "회 / 하루 "
+          + ref.requests_per_day + "회 / 분당 " + ref.tokens_per_minute
+          + "토큰 / 하루 " + ref.tokens_per_day + "토큰");
+      }
+      quota.textContent = lines.join("\n") + "\n" + (info.note || "");
+      const events = info.recent_rate_limits || [];
+      limitEvents.textContent = "최근 Groq 제한 기록 (최대 20건)\n"
+        + (events.length ? events.map(event =>
+          event.timestamp_kst + " · " + event.model_id
+          + " · " + (limitLabels[event.limit_type] || limitLabels.unknown)
+          + (event.retry_after ? " · 재시도 안내: " + event.retry_after : "")
+        ).join("\n") : "아직 기록이 없습니다.")
+        + "\n" + (info.history_warning || "");
+      return;
+    }
+    const lines = ["기준일 (한국시간): " + info.date_kst,
+      "전체: " + info.total.used + " / " + info.total.limit];
     for (const item of Object.values(info.models)) {
       lines.push(item.label + ": " + item.used + " / " + item.limit);
     }
@@ -96,7 +124,13 @@
     if (data.limits) showQuota(data.limits);
     else if (data.ok && data.models) showQuota(data);
     if (!response.ok || !data.ok) {
-      throw new Error(errors[data.error] || ("요청 실패 (" + response.status + ")"));
+      let message = errors[data.error] || ("요청 실패 (" + response.status + ")");
+      if (data.error === "groq_rate_limit") {
+        message += " · 모델: " + (data.model || "확인 불가")
+          + " · 제한: " + (limitLabels[data.rate_limit_type] || limitLabels.unknown);
+        if (data.retry_after) message += " · 재시도 안내: " + data.retry_after;
+      }
+      throw new Error(message);
     }
     return data;
   }
@@ -113,7 +147,7 @@
     }
   });
   askBtn.addEventListener("click", async function () {
-    if (!window.confirm("선택한 모델의 테스트 호출 1회를 사용합니다. 계속할까요?")) return;
+    if (!window.confirm("선택한 모델에 Groq 무료 한도 내에서 요청합니다. 계속할까요?")) return;
     feedback.textContent = "기존 뉴스·공시·시세 조회 및 AI 분석 중...";
     askBtn.disabled = true;
     answer.textContent = "분석 중...";
@@ -129,7 +163,7 @@
         + " · 뉴스 " + result.source_counts.news
         + "건 · 공시 " + result.source_counts.disclosures
         + "건 · 핵심 이슈 " + result.source_counts.issue_briefs + "건";
-      feedback.textContent = "분석 완료 (1회 차감)";
+      feedback.textContent = "분석 완료";
     } catch (error) {
       answer.textContent = "AI 답변이 없습니다.";
       feedback.textContent = error.message;

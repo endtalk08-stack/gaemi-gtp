@@ -1,18 +1,19 @@
 """Private, opt-in Groq evaluation API. Separate from the existing analysis routes.
 
 No Groq calls occur unless AI_TEST_ENABLED, AI_TEST_TOKEN and GROQ_API_KEY
-are set. In-process quotas are deliberately small; they reset after restart.
-Groq account limits remain the final provider-side safeguard.
+are set. Administrator /ai-test calls use Groq's provider quotas directly.
+Existing private central-chat in-process quotas stay unchanged.
 """
 import datetime
 import hmac
 import json
 import os
+import re
 import threading
 import time
 import urllib.error
 import urllib.request
-from collections import defaultdict
+from collections import defaultdict, deque
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, jsonify, request
@@ -34,6 +35,17 @@ _DAY = ""
 _CHAT_CONTEXT_CACHE = {}
 _CHAT_CONTEXT_LOCK = threading.Lock()
 _CHAT_CONTEXT_TTL = 15 * 60
+
+# Groq's own organization/project quotas govern administrator evaluation calls.
+# Reference values are from the Free organization's Limits page, not remaining usage.
+_GROQ_REFERENCE_LIMITS = {
+    "requests_per_minute": 30,
+    "requests_per_day": 1000,
+    "tokens_per_minute": 8000,
+    "tokens_per_day": 200000,
+}
+_GROQ_RATE_LIMIT_EVENTS = deque(maxlen=100)
+_GROQ_RATE_LIMIT_LOCK = threading.Lock()
 
 
 def remember_chat_analysis(stock, result):
@@ -126,6 +138,25 @@ def _remaining():
         }
 
 
+def _provider_info():
+    with _GROQ_RATE_LIMIT_LOCK:
+        events = list(reversed(_GROQ_RATE_LIMIT_EVENTS))[:20]
+    return {
+        "limit_source": "groq",
+        "models": {
+            role: {
+                "label": model["label"],
+                "model_id": model["id"],
+                "reference_limits": dict(_GROQ_REFERENCE_LIMITS),
+            }
+            for role, model in MODELS.items()
+        },
+        "recent_rate_limits": events,
+        "note": "Groq에서 직접 한도를 적용합니다. 표시된 숫자는 조직 Free 한도 참고값이며 실제 프로젝트 한도와 남은 사용량은 Groq 콘솔에서 확인하세요.",
+        "history_warning": "최근 차단 기록은 서버 메모리 기준이며 재시작 시 초기화됩니다. Render 로그에서도 보존 기간 내 조회할 수 있습니다.",
+    }
+
+
 def _take_slot(role):
     with _LOCK:
         _state()
@@ -138,6 +169,39 @@ def _take_slot(role):
         _COUNTS[role] += 1
         _RECENT.append(time.monotonic())
     return None
+
+
+def _groq_limit_type(exc):
+    # Do not log or expose provider error text: it may include account details.
+    try:
+        response = json.loads(exc.read(8192).decode("utf-8", errors="replace"))
+        details = response.get("error") if isinstance(response, dict) else {}
+        message = str((details or {}).get("message") or "").lower()
+    except (ValueError, TypeError, AttributeError, OSError):
+        message = ""
+    for kind, pattern in (
+        ("tokens_per_minute", r"tokens?\s+per\s+minute|\btpm\b"),
+        ("tokens_per_day", r"tokens?\s+per\s+day|\btpd\b"),
+        ("requests_per_minute", r"requests?\s+per\s+minute|\brpm\b"),
+        ("requests_per_day", r"requests?\s+per\s+day|\brpd\b"),
+    ):
+        if re.search(pattern, message):
+            return kind
+    return "unknown"
+
+
+def _record_groq_rate_limit(role, model_id, exc):
+    event = {
+        "timestamp_kst": datetime.datetime.now(ZoneInfo("Asia/Seoul")).isoformat(timespec="seconds"),
+        "role": role,
+        "model_id": model_id,
+        "limit_type": _groq_limit_type(exc),
+        "retry_after": str(exc.headers.get("Retry-After") or "").strip()[:32],
+    }
+    with _GROQ_RATE_LIMIT_LOCK:
+        _GROQ_RATE_LIMIT_EVENTS.append(event)
+    print("[Groq AI test rate limit] " + json.dumps(event, ensure_ascii=False), flush=True)
+    return event
 
 
 def _compact(value, limit=240):
@@ -234,7 +298,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=650, style_p
 def ai_test_status():
     if not _authorized():
         return jsonify({"ok": False, "error": "admin_test_disabled_or_unauthorized"}), 403
-    return jsonify({"ok": True, **_remaining()})
+    return jsonify({"ok": True, **_provider_info()})
 
 
 @ai_test_bp.post("/api/ai-test/chat")
@@ -242,9 +306,11 @@ def ai_test_chat():
     # The site login is accepted only in private preview mode. The existing
     # bearer token continues to authorize the standalone administrator test.
     from .private_access import _authorized as dev_session_authorized, private_enabled
-    private_chat = private_enabled() and dev_session_authorized()
-    if not _authorized() and not private_chat:
+    admin_test = _authorized()
+    private_chat = not admin_test and private_enabled() and dev_session_authorized()
+    if not admin_test and not private_chat:
         return jsonify({"ok": False, "error": "admin_test_disabled_or_unauthorized"}), 403
+    limits_for_request = _remaining if private_chat else _provider_info
 
     if (request.content_length or 0) > 4500:
         return jsonify({"ok": False, "error": "request_too_large"}), 413
@@ -259,11 +325,8 @@ def ai_test_chat():
     if not stock or len(stock) > 50 or not question or len(question) > 800:
         return jsonify({"ok": False, "error": "invalid_input"}), 400
 
-    # Keep the preexisting administrator-test accounting semantics unchanged.
-    if not private_chat:
-        limit_error = _take_slot(role)
-        if limit_error:
-            return jsonify({"ok": False, "error": limit_error, "limits": _remaining()}), 429
+    # Admin /ai-test requests use Groq's native limits, without a local quota.
+    # The existing central chat keeps its original private-chat quota logic.
 
     # Use the private conversation's existing processed result when possible.
     # Only a new-stock question falls back to the established analysis function.
@@ -305,12 +368,12 @@ def ai_test_chat():
             from backend.services.engine import analyze_stock
             result = analyze_stock(stock)
             if result.get("ok") is False:
-                return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": _remaining()}), 422
+                return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": limits_for_request()}), 422
             context = _context(stock, result)
             if private_chat:
                 remember_chat_analysis(stock, result)
         if not any((context["news"], context["official_disclosures"], context["price_information"], context["price_metrics"])):
-            return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": _remaining()}), 422
+            return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": limits_for_request()}), 422
 
         # The same shared quote supports exact arithmetic in the general chat.
         metrics = context.get("price_metrics") or {}
@@ -325,7 +388,7 @@ def ai_test_chat():
                 return jsonify({"ok": False, "error": "ai_test_not_configured"}), 503
             limit_error = _take_slot(role)
             if limit_error:
-                return jsonify({"ok": False, "error": limit_error, "limits": _remaining()}), 429
+                return jsonify({"ok": False, "error": limit_error, "limits": limits_for_request()}), 429
 
         history = body.get("history") or []
         dialogue = []
@@ -342,6 +405,10 @@ def ai_test_chat():
             MODELS[role]["id"], prompt, context,
             style_prompt="반말로 짧고 명확하게 답해. 근거에 없는 숫자는 말하지 마." if private_chat else None,
         )
+        print("[Groq AI test success] " + json.dumps({
+            "timestamp_kst": datetime.datetime.now(ZoneInfo("Asia/Seoul")).isoformat(timespec="seconds"),
+            "role": role, "model_id": MODELS[role]["id"],
+        }, ensure_ascii=False), flush=True)
         return jsonify({
             "ok": True, "stock": stock, "answer": answer,
             "model": MODELS[role]["id"],
@@ -350,14 +417,23 @@ def ai_test_chat():
                 "disclosures": len(context["official_disclosures"]),
                 "issue_briefs": len(context["issue_briefs"]),
             },
-            "limits": _remaining(),
+            "limits": limits_for_request(),
         })
     except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            event = _record_groq_rate_limit(role, MODELS[role]["id"], exc)
+            return jsonify({
+                "ok": False, "error": "groq_rate_limit",
+                "model": event["model_id"],
+                "rate_limit_type": event["limit_type"],
+                "retry_after": event["retry_after"],
+                "limits": limits_for_request(),
+            }), 429
+        print(f"[Groq AI test provider error] role={role} model={MODELS[role]['id']} status={exc.code}", flush=True)
         return jsonify({
-            "ok": False,
-            "error": "groq_rate_limit" if exc.code == 429 else "groq_request_failed",
-            "limits": _remaining(),
-        }), (429 if exc.code == 429 else 502)
+            "ok": False, "error": "groq_request_failed",
+            "limits": limits_for_request(),
+        }), 502
     except Exception as exc:
         print(f"[Groq AI test] failed: {type(exc).__name__}", flush=True)
-        return jsonify({"ok": False, "error": "ai_test_failed", "limits": _remaining()}), 502
+        return jsonify({"ok": False, "error": "ai_test_failed", "limits": limits_for_request()}), 502
