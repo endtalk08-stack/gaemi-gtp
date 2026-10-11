@@ -1,3 +1,7 @@
+from datetime import date, datetime
+from math import isfinite
+from zoneinfo import ZoneInfo
+
 from ..analysis.price import build_price_indicators, build_price_result
 from ..providers.market_price import (
     fetch_daily_price_history,
@@ -85,6 +89,42 @@ def _build_first_reply_metrics(price_result, indicators):
     return "\n".join(first_parts)
 
 
+def _previous_trading_day(rows, *, is_krw, as_of_date=None):
+    """Locate the last completed exchange-local session and its daily change."""
+    today = as_of_date or datetime.now(
+        ZoneInfo("Asia/Seoul" if is_krw else "America/New_York")
+    ).date()
+    completed = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        try:
+            trading_date = date.fromisoformat(str(row.get("date") or ""))
+            high = float(row.get("high") or 0)
+            close = float(row.get("close") or 0)
+        except (ValueError, TypeError, OverflowError):
+            continue
+        if trading_date >= today or not (isfinite(high) and isfinite(close) and high > 0 and close > 0):
+            continue
+        completed[trading_date] = {"high": high, "close": close}
+
+    ordered_dates = sorted(completed)
+    if not ordered_dates:
+        return None
+    last_date = ordered_dates[-1]
+    last = completed[last_date]
+    previous = {
+        "date": last_date.isoformat(),
+        "high": last["high"],
+        "close": last["close"],
+    }
+    if len(ordered_dates) >= 2:
+        earlier_close = completed[ordered_dates[-2]]["close"]
+        if earlier_close > 0:
+            previous["change_pct"] = round((last["close"] - earlier_close) / earlier_close * 100, 2)
+    return previous
+
+
 def _build_stock_price_result(*, is_krw, ticker_symbol, current, previous=None, high=None, low=None, change_pct=None):
     price_result = build_price_result(
         is_krw=is_krw,
@@ -104,6 +144,7 @@ def _build_stock_price_result(*, is_krw, ticker_symbol, current, previous=None, 
     return {
         **price_result,
         "indicators": indicators,
+        "previous_trading_day": _previous_trading_day(daily_rows, is_krw=is_krw),
         "price_tags": list(indicators.get("price_tags") or []),
         "first_reply_metrics_text": _build_first_reply_metrics(price_result, indicators),
     }
