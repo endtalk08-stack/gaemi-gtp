@@ -146,11 +146,6 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         const reply = document.createElement('section');
         reply.className = 'space-y-4 animate-fade py-2';
 
-        const heading = document.createElement('div');
-        heading.className = 'flex items-center gap-2.5';
-        heading.innerHTML = '<div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div><h4 class="gtp-chat-section-title text-[#0f172a] gtp-dark-text">gaemiGTP AI</h4>';
-        reply.appendChild(heading);
-
         const answer = document.createElement('p');
         answer.className = 'gtp-chat-copy whitespace-pre-line';
         answer.textContent = response.ok && result.ok && result.answer
@@ -159,13 +154,10 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         reply.appendChild(answer);
 
         if (response.ok && result.ok) {
-          const meta = document.createElement('p');
-          meta.className = 'text-xs text-[#64748b] dark:text-[#a1a1aa]';
-          const used = result.limits?.models?.news?.used;
-          const limit = result.limits?.models?.news?.limit;
-          const usage = Number.isFinite(used) && Number.isFinite(limit) ? ` · 오늘 테스트 ${used}/${limit}회` : '';
-          meta.textContent = `GPT-OSS 20B · ${result.cached ? '기존 답변 재사용 (AI 추가 호출 없음)' : 'AI 답변'}${usage} · 시세는 지연될 수 있어`;
-          reply.appendChild(meta);
+          const sourceNote = document.createElement('p');
+          sourceNote.className = 'text-xs theme-faint';
+          sourceNote.textContent = '시세 데이터 기준 · 지연 가능';
+          reply.appendChild(sourceNote);
         }
 
         chatArea.appendChild(reply);
