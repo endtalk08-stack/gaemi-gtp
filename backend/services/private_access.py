@@ -41,17 +41,12 @@ def _authorized():
     if signer is None:
         return False
     cookie = request.cookies.get(COOKIE_NAME, "")
-    auth_header = request.headers.get("Authorization", "")
-    bearer = auth_header[7:] if auth_header.startswith("Bearer ") else ""
-    for token in (cookie, bearer):
-        if not token:
-            continue
-        try:
-            if signer.loads(token, max_age=SESSION_TTL_SECONDS) == "dev":
-                return True
-        except (BadSignature, SignatureExpired, ValueError, TypeError):
-            continue
-    return False
+    if not cookie:
+        return False
+    try:
+        return signer.loads(cookie, max_age=SESSION_TTL_SECONDS) == "dev"
+    except (BadSignature, SignatureExpired, ValueError, TypeError):
+        return False
 
 
 def _attempt_allowed():
@@ -127,7 +122,7 @@ def install_private_access(app, frontend_dir):
             _record_failure()
             return jsonify({"ok": False, "error": "invalid_password"}), 403
         token = signer.dumps("dev")
-        response = jsonify({"ok": True, "private": True, "access_token": token})
+        response = jsonify({"ok": True, "private": True})
         response.set_cookie(
             COOKIE_NAME, token,
             max_age=SESSION_TTL_SECONDS,
