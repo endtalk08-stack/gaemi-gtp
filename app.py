@@ -4,7 +4,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from backend.services.ai_test import ai_test_bp
+from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.private_access import install_private_access
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
@@ -76,6 +76,7 @@ def analyze():
     started = time.perf_counter()
     try:
         result = analyze_stock(stock)
+        remember_chat_analysis(stock, result)
         response = jsonify(result)
         response.headers["X-Analysis-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.0f}"
         return response
