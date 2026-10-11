@@ -3542,8 +3542,20 @@ def analyze_stock(raw_name='SK하이닉스'):
                     "transactions": item.get("transactions", []),
                     "price_range": item.get("price_range", ""),
                 })
+        week_52 = (price_result.get("indicators") or {}).get("week_52") or {}
+        current_quote = float(price_result.get("current_price") or 0)
+        previous_high = float(week_52.get("high") or 0)
+        price_snapshot = {
+            "current": current_quote,
+            "week_52_high": previous_high,
+        }
+        if current_quote > 0 and previous_high > 0 and math.isfinite(current_quote) and math.isfinite(previous_high):
+            price_snapshot["rise_to_52w_high_pct"] = round(
+                max(0.0, (previous_high - current_quote) / current_quote * 100), 2
+            )
         return {
             "sections": sections,
+            "price_snapshot": price_snapshot,
             "paired_news_items": news_result.get("paired_news_items", []),
             "storyboard_news_items": news_result.get("storyboard_news_items", []),
             "issue_briefs": news_result.get("issue_briefs", []),
