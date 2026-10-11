@@ -39,9 +39,9 @@
     <input id="stock" value="삼성전자" maxlength="50">
     <label for="role">AI 모델</label>
     <select id="role">
-      <option value="news">GPT-OSS 20B · 1테스트</option>
-      <option value="deep">GPT-OSS 120B · 2테스트</option>
-      <option value="compare">Qwen3.8 27B · 3테스트</option>
+      <option value="news">GPT-OSS 20B - 1모델</option>
+      <option value="deep">GPT-OSS 120B - 2모델</option>
+      <option value="compare">Qwen3.8 27B - 3모델</option>
     </select>
     <label for="question">질문</label>
     <textarea id="question" maxlength="800">삼성전자 최근 뉴스와 공시에서 확인되는 핵심 재료를 3가지 이내로 설명해 줘. 부족한 데이터도 알려 줘.</textarea>
@@ -95,9 +95,9 @@
     unknown: "원인 미확인"
   };
   const modelNames = {
-    "openai/gpt-oss-20b": "GPT-OSS 20B · 1테스트",
-    "openai/gpt-oss-120b": "GPT-OSS 120B · 2테스트",
-    "qwen/qwen3.8-27b": "Qwen3.8 27B · 3테스트"
+    "openai/gpt-oss-20b": "GPT-OSS 20B - 1모델",
+    "openai/gpt-oss-120b": "GPT-OSS 120B - 2모델",
+    "qwen/qwen3.8-27b": "Qwen3.8 27B - 3모델"
   };
   function modelName(modelId) {
     return modelNames[modelId] || modelId || "미확인";
