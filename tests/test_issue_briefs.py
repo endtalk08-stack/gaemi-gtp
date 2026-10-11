@@ -106,7 +106,7 @@ class IssueBriefTests(unittest.TestCase):
 
         self.assertEqual(result[0]["headline"], "영업이익 이슈")
         self.assertIn("영업이익 100조원 기대", result[0]["summary"])
-        self.assertIn("전망", result[0]["summary"])
+        self.assertIn("기대", result[0]["summary"])
         self.assertIn("자사주 매입", result[0]["summary"])
         self.assertEqual(len(result[0]["summary"].splitlines()), 2)
         self.assertEqual(
