@@ -494,6 +494,20 @@ def _issue_evidence_summary(item, stock_name, labels):
                     if not any(label.startswith(metric) for label in raw_labels):
                         continue
                     value = re.sub(r"\s+", "", match.group("value"))
+                    # An article can mention multiple companies' earnings.
+                    # Match the reported figure to the stock-owned selected
+                    # numeric keyword, not merely the metric name.
+                    figure_digits = re.sub(r"\D", "", value)
+                    matching_labels = [
+                        label for label in raw_labels if label.startswith(metric)
+                    ]
+                    numeric_labels = [
+                        re.sub(r"\D", "", label[len(metric):])
+                        for label in matching_labels
+                        if re.search(r"\d", label[len(metric):])
+                    ]
+                    if numeric_labels and figure_digits not in numeric_labels:
+                        continue
                     unique_key = (metric, "rate" if pattern is _METRIC_RATE_RE else "amount")
                     if unique_key in seen_metrics:
                         continue
