@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>gaemiGTP · Groq AI 관리자 테스트</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    body { margin: 0; background: #101317; color: #f3f5f7; }
+    main { width: min(740px, calc(100% - 36px)); margin: 30px auto 70px; }
+    h1 { font-size: 1.35rem; margin-bottom: 6px; }
+    .muted { color: #aeb7c1; font-size: .92rem; line-height: 1.6; }
+    section { margin-top: 18px; padding: 20px; background: #1c2229; border: 1px solid #35404b; border-radius: 14px; }
+    label { display: block; margin: 14px 0 6px; font-size: .92rem; font-weight: 600; }
+    input, select, textarea { width: 100%; box-sizing: border-box; border: 1px solid #52606f; background: #0f151c; color: #f3f5f7; border-radius: 9px; padding: 12px; font-size: 1rem; }
+    textarea { min-height: 105px; resize: vertical; }
+    button { background: #3984ef; color: white; border: 0; border-radius: 9px; padding: 11px 17px; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    button.alt { background: #3f4c5a; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    #answer { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; margin: 8px 0; }
+    #feedback { color: #ffd49b; min-height: 1.5em; margin-top: 12px; }
+    #quota { white-space: pre-line; }
+    @media (max-width: 600px) { main { margin-top: 16px; } section { padding: 16px; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>gaemiGTP AI · 관리자 테스트</h1>
+  <p class="muted">기존 채팅·뉴스·공시 화면과 독립된 테스트 페이지입니다. Groq 모델별 하루 10/5/5회, 전체 20회, 분당 2회까지만 요청합니다. 카운터는 서버 재시작 시 초기화될 수 있습니다.</p>
+  <section>
+    <label for="token">관리자 테스트 비밀번호 (AI_TEST_TOKEN)</label>
+    <input id="token" type="password" autocomplete="off" placeholder="Render 환경변수에 지정한 비밀번호">
+    <div class="actions"><button id="statusBtn" type="button" class="alt">인증·남은 횟수 확인</button></div>
+    <p id="quota" class="muted"></p>
+    <label for="stock">종목명</label>
+    <input id="stock" value="삼성전자" maxlength="50">
+    <label for="role">AI 모델</label>
+    <select id="role">
+      <option value="news">GPT-OSS 20B · 뉴스·일반 (하루 10회)</option>
+      <option value="deep">GPT-OSS 120B · 공시·심층 (하루 5회)</option>
+      <option value="compare">Qwen3.8 27B · 비교용 (하루 5회)</option>
+    </select>
+    <label for="question">질문</label>
+    <textarea id="question" maxlength="800">삼성전자 최근 뉴스와 공시에서 확인되는 핵심 재료를 3가지 이내로 설명해 줘. 부족한 데이터도 알려 줘.</textarea>
+    <div class="actions"><button id="askBtn" type="button">AI 분석 요청 (1회 차감)</button></div>
+    <p id="feedback" role="status" aria-live="polite"></p>
+  </section>
+  <section>
+    <strong>AI 답변</strong>
+    <p id="answer">아직 AI를 호출하지 않았습니다.</p>
+    <p id="sourceInfo" class="muted"></p>
+  </section>
+  <p class="muted">비밀번호는 이 페이지에서 저장되지 않습니다. API 키(GROQ_API_KEY)를 여기에 입력하거나 채팅에 붙여넣지 마세요. 실제 매매 신호가 아닌 분석 기능 평가용입니다.</p>
+</main>
+<script>
+(function () {
+  const token = document.getElementById("token");
+  const statusBtn = document.getElementById("statusBtn");
+  const askBtn = document.getElementById("askBtn");
+  const quota = document.getElementById("quota");
+  const feedback = document.getElementById("feedback");
+  const answer = document.getElementById("answer");
+  const sourceInfo = document.getElementById("sourceInfo");
+  const errors = {
+    admin_test_disabled_or_unauthorized: "접근 불가: Render의 AI_TEST_ENABLED, AI_TEST_TOKEN, GROQ_API_KEY 설정 및 비밀번호를 확인하세요.",
+    model_daily_limit: "선택한 모델의 오늘 테스트 횟수를 모두 사용했습니다.",
+    total_daily_limit: "전체 AI 하루 테스트 횟수를 모두 사용했습니다.",
+    minute_limit: "분당 최대 2회입니다. 잠시 후 다시 시도하세요.",
+    groq_rate_limit: "Groq 무료 요금제 자체 제한에 걸렸습니다.",
+    groq_request_failed: "Groq 요청이 실패했습니다. 모델/계정 설정을 확인하세요.",
+    stock_data_unavailable: "기존 서버에서 해당 종목의 분석 데이터를 확인하지 못했습니다.",
+    invalid_input: "종목명과 질문을 확인하세요.",
+    ai_test_failed: "AI 테스트 요청에 실패했습니다."
+  };
+  function showQuota(info) {
+    if (!info || !info.models) return;
+    const lines = [ "기준일 (한국시간): " + info.date_kst,
+      "전체: " + info.total.used + " / " + info.total.limit ];
+    for (const item of Object.values(info.models)) {
+      lines.push(item.label + ": " + item.used + " / " + item.limit);
+    }
+    quota.textContent = lines.join("\n") + "\n" + (info.reset_warning || "");
+  }
+  async function requestApi(path, payload) {
+    const headers = { "Authorization": "Bearer " + token.value };
+    if (payload) headers["Content-Type"] = "application/json";
+    const response = await fetch(path, {
+      method: payload ? "POST" : "GET",
+      headers,
+      body: payload ? JSON.stringify(payload) : undefined,
+      cache: "no-store"
+    });
+    const data = await response.json();
+    if (data.limits) showQuota(data.limits);
+    else if (data.ok && data.models) showQuota(data);
+    if (!response.ok || !data.ok) {
+      throw new Error(errors[data.error] || ("요청 실패 (" + response.status + ")"));
+    }
+    return data;
+  }
+  statusBtn.addEventListener("click", async function () {
+    feedback.textContent = "확인 중...";
+    statusBtn.disabled = true;
+    try {
+      await requestApi("/api/ai-test/status");
+      feedback.textContent = "인증 성공! AI 테스트 준비 완료.";
+    } catch (error) {
+      feedback.textContent = error.message;
+    } finally {
+      statusBtn.disabled = false;
+    }
+  });
+  askBtn.addEventListener("click", async function () {
+    if (!window.confirm("선택한 모델의 테스트 호출 1회를 사용합니다. 계속할까요?")) return;
+    feedback.textContent = "기존 뉴스·공시·시세 조회 및 AI 분석 중...";
+    askBtn.disabled = true;
+    answer.textContent = "분석 중...";
+    sourceInfo.textContent = "";
+    try {
+      const result = await requestApi("/api/ai-test/chat", {
+        stock: document.getElementById("stock").value,
+        question: document.getElementById("question").value,
+        role: document.getElementById("role").value
+      });
+      answer.textContent = result.answer;
+      sourceInfo.textContent = "사용 모델: " + result.model
+        + " · 뉴스 " + result.source_counts.news
+        + "건 · 공시 " + result.source_counts.disclosures
+        + "건 · 핵심 이슈 " + result.source_counts.issue_briefs + "건";
+      feedback.textContent = "분석 완료 (1회 차감)";
+    } catch (error) {
+      answer.textContent = "AI 답변이 없습니다.";
+      feedback.textContent = error.message;
+    } finally {
+      askBtn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>
