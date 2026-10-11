@@ -54,25 +54,25 @@
 
   function submitChatInput(value, { enterAnalysis = false } = {}) {
     const query = String(value || '').trim();
-    if (!query) return;
+    if (!query) return false;
     if (!isQuestionInput(query)) {
       selectStock(query, { enterAnalysis });
-      return;
+      return true;
     }
     enterChatWorkspace();
     if (window.innerWidth < 1024) {
       document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
     }
     window.GaemiGTPWorkspaceShellState?.apply?.();
-    window.GaemiGTPApp?.submitQuestion?.(query, { newConversation: enterAnalysis });
+    return window.GaemiGTPApp?.submitQuestion?.(query, { newConversation: enterAnalysis }) === true;
   }
 
   function submitStockSearch(inputId, { enterAnalysis = false, fallback = '' } = {}) {
     const input = document.getElementById(inputId);
     const query = String(input?.value || '').trim() || fallback;
     if (!query) return;
-    submitChatInput(query, { enterAnalysis });
-    if (input && !enterAnalysis) input.value = '';
+    const submitted = submitChatInput(query, { enterAnalysis });
+    if (submitted && input && !enterAnalysis) input.value = '';
   }
 
   function handleHeroSearch() { submitStockSearch('heroStockInput', { enterAnalysis: true, fallback: '삼성전자' }); }
