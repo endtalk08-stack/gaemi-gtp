@@ -90,9 +90,9 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     // Never use innerHTML for model-generated text.
     function appendAiChatFormattedAnswer(container, content) {
       const appendInline = (target, line) => {
-        String(line || '').split(/(\\*\\*[^*\\n]+\\*\\*)/g).forEach(part => {
+        String(line || '').split(/(\*\*[^*\n]+\*\*)/g).forEach(part => {
           if (!part) return;
-          if (/^\\*\\*[^*\\n]+\\*\\*$/.test(part)) {
+          if (/^\*\*[^*\n]+\*\*$/.test(part)) {
             const strong = document.createElement('strong');
             strong.className = 'font-semibold';
             strong.textContent = part.slice(2, -2);
@@ -102,20 +102,20 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           }
         });
       };
-      String(content || '').trim().split(/\\n\\s*\\n/).forEach(block => {
+      String(content || '').trim().split(/\n\s*\n/).forEach(block => {
         let lines = [];
         let list = null;
         const flushParagraph = () => {
           if (!lines.length) return;
           const paragraph = document.createElement('p');
           paragraph.className = 'gtp-chat-copy whitespace-pre-line';
-          appendInline(paragraph, lines.join('\\n'));
+          appendInline(paragraph, lines.join('\n'));
           container.appendChild(paragraph);
           lines = [];
         };
-        block.split('\\n').forEach(rawLine => {
+        block.split('\n').forEach(rawLine => {
           const line = rawLine.trim();
-          const bullet = line.match(/^[-*]\\s+(.+)$/);
+          const bullet = line.match(/^[-*]\s+(.+)$/);
           if (!bullet) {
             list = null;
             if (line) lines.push(line);
