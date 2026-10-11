@@ -48,11 +48,30 @@
     target.select?.();
   }
 
+  function isQuestionInput(text) {
+    return /[?？]|알려\s*줘|보여\s*줘|설명\s*해|분석\s*해|해\s*줘|얼마|몇|왜|어때|어떻게|52주|20일|큰손|평균단가|신고가|신저가|최고가|최저가|목표가|주가|움직였|상승률|하락률|추세|수급|뉴스|공시|이슈|비교|전망/.test(text);
+  }
+
+  function submitChatInput(value, { enterAnalysis = false } = {}) {
+    const query = String(value || '').trim();
+    if (!query) return;
+    if (!isQuestionInput(query)) {
+      selectStock(query, { enterAnalysis });
+      return;
+    }
+    enterChatWorkspace();
+    if (window.innerWidth < 1024) {
+      document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
+    }
+    window.GaemiGTPWorkspaceShellState?.apply?.();
+    window.GaemiGTPApp?.submitQuestion?.(query, { newConversation: enterAnalysis });
+  }
+
   function submitStockSearch(inputId, { enterAnalysis = false, fallback = '' } = {}) {
     const input = document.getElementById(inputId);
     const query = String(input?.value || '').trim() || fallback;
     if (!query) return;
-    selectStock(query, { enterAnalysis });
+    submitChatInput(query, { enterAnalysis });
     if (input && !enterAnalysis) input.value = '';
   }
 
@@ -85,7 +104,7 @@
     document.getElementById('bottomModeMenu')?.classList.add('hidden');
   }
 
-  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, selectStock, openStockInChat, focusStockInput, submitStockSearch, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace, resetToHome };
+  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, selectStock, openStockInChat, focusStockInput, submitStockSearch, submitChatInput, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace, resetToHome };
   window.enterChatWorkspace = enterChatWorkspace;
   window.resetToHome = resetToHome;
   window.openStockInChat = openStockInChat;
