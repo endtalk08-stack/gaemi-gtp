@@ -504,7 +504,8 @@ def _issue_evidence_summary(item, stock_name, labels):
                         continue
                     # Restrict qualifiers/periods to the nearby clause.
                     before = source[max(0, match.start() - 75):match.start()]
-                    period_match = list(_PERIOD_RE.finditer(before))
+                    period_context = before[-55:] + match.group(0)
+                    period_match = list(_PERIOD_RE.finditer(period_context))
                     period = period_match[-1].group(0) if period_match else ""
                     period_text = f" {period}" if period else ""
                     local = source[max(0, match.start() - 40):match.end() + 28]
@@ -515,11 +516,11 @@ def _issue_evidence_summary(item, stock_name, labels):
                         comparison = re.findall(
                             r"전년\s*동기\s*대비|전년\s*대비|지난해\s*대비|"
                             r"전분기\s*대비|직전\s*분기\s*대비",
-                            before[-65:],
+                            before[-55:] + match.group(0),
                         )
                         if comparison:
-                            comparison_text = comparison[-1].replace(" 대비", "")
-                            statement = f"{subject}의{period_text} {metric}이 {comparison_text} {value} {direction}했어."
+                            comparison_text = re.sub(r"\\s*대비$", "", comparison[-1]).strip()
+                            statement = f"{subject}의{period_text} {metric}이 {comparison_text}보다 {value} {direction}했어."
                         else:
                             statement = f"{subject}의{period_text} {metric} {value} {direction} 흐름이야. 비교 기준은 확인되지 않았어."
                     elif expectation:
