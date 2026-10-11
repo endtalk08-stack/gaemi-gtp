@@ -1,10 +1,6 @@
 """Build the shared stock-news result consumed by chat and right-panel views."""
 
-import hashlib
-import json
 import time
-import urllib.parse
-import uuid
 
 from backend.analysis.news import (
     build_connected_keyword_test,
@@ -37,7 +33,6 @@ def build_stock_news_result(
 ):
     """Return one shared stock-news result for every screen representation."""
     try:
-        trace_id = uuid.uuid4().hex[:10]
         part_started = time.monotonic()
         raw_news_list = fetch_stock_news(
             stock_name,
@@ -83,36 +78,6 @@ def build_stock_news_result(
             paired_news_items,
             limit=storyboard_limit,
         )
-
-        initial_keywords = []
-        for rank, item in enumerate(storyboard_news_items, 1):
-            url = str(item.get("url") or item.get("link") or "")
-            article_id = hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
-            try:
-                parsed = urllib.parse.urlsplit(url)
-                public_url = urllib.parse.urlunsplit(
-                    (parsed.scheme, parsed.netloc, parsed.path, "", "")
-                )
-            except ValueError:
-                public_url = url.split("?", 1)[0].split("#", 1)[0]
-            initial_keywords.append(list(item.get("article_keywords") or []))
-            print("[news issue audit] " + json.dumps({
-                "trace": trace_id, "stock": stock_name, "rank": rank,
-                "stage": "selected_before_body", "article": article_id,
-                "url": public_url, "title": str(item.get("title") or "")[:140],
-                "relation": item.get("relation_type"),
-                "owner": item.get("event_owner"),
-                "primary_keyword": item.get("storyboard_keyword"),
-                "initial_keywords": initial_keywords[-1][:8],
-                "keyword_origins": [
-                    {
-                        "tag": detail.get("label"), "source": detail.get("source"),
-                        "owner": detail.get("event_owner")
-                    }
-                    for detail in (item.get("article_keyword_details") or [])[:8]
-                    if isinstance(detail, dict)
-                ],
-            }, ensure_ascii=False), flush=True)
 
         # Second pass: read only the already-selected central candidates.  The
         # raw article body never leaves this function; only grounded facts are
@@ -188,51 +153,11 @@ def build_stock_news_result(
             flush=True,
         )
 
-        for rank, (item, detail_text) in enumerate(
-            zip(storyboard_news_items, detail_texts), 1
-        ):
-            print("[news issue audit] " + json.dumps({
-                "trace": trace_id, "stock": stock_name, "rank": rank,
-                "stage": "after_body", "detail_chars": len(detail_text),
-                "detail_nonempty": bool(detail_text),
-                "before_tags": initial_keywords[rank - 1],
-                "after_tags": list(item.get("article_keywords") or [])[:10],
-                "detail_read": bool(item.get("detail_read")),
-                "detail_facts": sorted(
-                    key for key, value in (item.get("detail_facts") or {}).items()
-                    if value
-                ),
-            }, ensure_ascii=False), flush=True)
-
-        # The body is used only while composing the already-selected issue
-        # summaries; never attach it to the returned news/UI result.
-        brief_inputs = [
-            {**item, "_brief_detail_text": detail_texts[index]}
-            for index, item in enumerate(storyboard_news_items)
-        ]
-        issue_diagnostics = []
         issue_briefs = build_issue_briefs(
-            brief_inputs,
+            storyboard_news_items,
             stock_name,
             limit=storyboard_limit,
-            diagnostics=issue_diagnostics,
         )
-        # Keep the original top-three selection unchanged. Only hide
-        # notable-flow rows without a hashtag-backed factual explanation.
-        # Diagnostics contain skipped rows too, hence align emitted entries.
-        emitted_audits = [
-            audit for audit in issue_diagnostics if audit.get("emitted")
-        ]
-        issue_briefs = [
-            brief for brief, audit in zip(issue_briefs, emitted_audits)
-            if audit.get("brief_kind") == "matched_hashtag"
-            and any(check.get("chosen") for check in audit.get("tag_checks") or [])
-        ]
-        for item in issue_diagnostics:
-            print("[news issue audit] " + json.dumps({
-                "trace": trace_id, "stock": stock_name,
-                "stage": "brief_result", **item,
-            }, ensure_ascii=False), flush=True)
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
         central_eligible = [

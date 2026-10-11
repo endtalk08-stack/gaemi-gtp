@@ -115,7 +115,6 @@ _CENTRAL_LABEL_TEXT = {
     "판매증가": "판매 증가",
     "판매감소": "판매 감소",
     "원화강세": "원화 강세",
-    "역대급실적": "역대급 실적",
     "원화약세": "원화 약세",
     "환율상승": "환율 상승",
     "환율하락": "환율 하락",
@@ -272,7 +271,7 @@ def _concrete_event_subject(item, labels, stock_names):
 
 
 def _structured_detail_summary(item, labels, summary_index=0):
-    """Turn checked article-detail facts into an issue explanation, not a reading report."""
+    """Render a few explicit detail facts without copying article prose."""
     detail = item.get("detail_facts") or {}
     if not isinstance(detail, dict):
         return ""
@@ -285,7 +284,7 @@ def _structured_detail_summary(item, labels, summary_index=0):
     contract_labels = {"공급계약", "장기공급계약", "계약체결", "수주·계약", "대형수주", "신규수주"}
     investment_labels = {"신규투자", "투자확대", "설비투자", "인수합병", "지분인수"}
 
-    sentences = []
+    facts = []
     counterparty = str(detail.get("counterparty") or "").strip()
     amount = str(detail.get("amount") or "").strip()
     regions = [
@@ -293,29 +292,47 @@ def _structured_detail_summary(item, labels, summary_index=0):
         for value in (detail.get("region") or [])
         if str(value or "").strip()
     ]
+    key_numbers = [
+        str(value or "").strip()
+        for value in (detail.get("key_numbers") or [])
+        if str(value or "").strip()
+    ]
 
     if label_set & contract_labels:
         if counterparty:
             particle = _korean_particle(counterparty, "과", "와")
-            sentences.append(f"{counterparty}{particle}의 계약이 핵심이야.")
+            facts.append(f"{counterparty}{particle} 계약")
         if amount:
-            sentences.append(f"계약 금액은 {amount}로 정리돼 있어.")
+            facts.append(f"규모 {amount}")
+        for value in key_numbers:
+            if value not in facts:
+                facts.append(value)
+            if len(facts) >= 3:
+                break
     elif label_set & investment_labels:
         if counterparty:
-            sentences.append(f"{counterparty}가 투자에 연관돼 있어.")
+            facts.append(counterparty)
         if amount:
-            sentences.append(f"투자 관련 금액은 {amount}야.")
+            facts.append(f"규모 {amount}")
         if regions:
-            sentences.append(f"관련 지역은 {regions[0]}이야.")
+            facts.append(regions[0])
     elif label_set & {"해외진출", "시장진출", "사업확대"}:
         if regions:
-            sentences.append(f"{regions[0]} 시장 진출·사업 확대가 핵심이야.")
+            facts.append(regions[0])
         if amount:
-            sentences.append(f"관련 금액은 {amount}야.")
+            facts.append(f"규모 {amount}")
 
-    # key_numbers can be an unrelated percentage or measurement. Do not
-    # display numbers unless their business meaning is explicitly known.
-    return "\n".join(sentences[:3])
+    facts = list(dict.fromkeys(facts))[:3]
+    if not facts:
+        return ""
+
+    endings = (
+        "관련 내용을 확인했어.",
+        "관련 내용도 확인했어.",
+        "관련 핵심 내용이야.",
+    )
+    ending = endings[min(max(int(summary_index or 0), 0), len(endings) - 1)]
+    return f"{', '.join(facts)} {ending}"
 
 
 def _stock_names(item, fallback):
@@ -350,46 +367,29 @@ def _join_brief_facts(values):
     return ", ".join(facts)
 
 
-_ISSUE_FACT_SENTENCES = {
-    "원화 강세": "원화 강세 흐름이 나타났어.",
-    "원화 약세": "원화 약세 흐름이 나타났어.",
-    "외국인 매도": "외국인 매도 움직임이 나타났어.",
-    "역대급 실적": "실적이 역대급이라는 평가가 나왔어.",
-    "자사주 소각": "자사주 소각도 주요 이슈야.",
-    "자사주 매입": "자사주 매입도 주요 이슈야.",
-    "공급 계약": "공급 계약이 주요 이슈야.",
-    "계약 체결": "계약 체결이 주요 이슈야.",
-}
-
-
 def _compose_brief_summary(headline, remaining, summary_index=0):
-    """Describe the issue itself, with no references to reading an article."""
-    facts = [str(headline or "").strip()]
-    facts.extend(str(value or "").strip() for value in remaining[:2])
-    facts = [value for value in facts if value]
-    if len(facts) < 2:
+    """Turn grounded labels into one readable, fact-bounded central sentence."""
+    extra = [str(value or "").strip() for value in remaining[:2] if str(value or "").strip()]
+    if not extra:
         return ""
+
+    endings = (
+        "관련 이슈가 있어.",
+        "관련 내용을 확인했어.",
+        "관련 이슈도 있었어.",
+    )
+    ending = endings[min(max(int(summary_index or 0), 0), len(endings) - 1)]
 
     uncertainty_endings = (
         "기대", "전망", "예상", "추정", "관측", "가능성", "검토", "계획", "예정",
     )
-    sentences = []
-    for fact in facts[:3]:
-        if fact in _ISSUE_FACT_SENTENCES:
-            sentences.append(_ISSUE_FACT_SENTENCES[fact])
-            continue
-        if any(char.isdigit() for char in fact):
-            certainty = next((value for value in uncertainty_endings if fact.endswith(value)), "")
-            base = fact[:-len(certainty)].strip() if certainty else fact
-            if certainty:
-                particle = _korean_particle(certainty, "이", "가")
-                sentences.append(f"{base} {certainty}{particle} 나왔어.")
-            else:
-                sentences.append(f"{fact} 수치가 나왔어. 확정치나 비교 기준은 추가 확인이 필요해.")
-        else:
-            particle = _korean_particle(fact, "이", "가")
-            sentences.append(f"{fact}{particle} 주요 이슈야.")
-    return "\n".join(sentences)
+    if headline.endswith(uncertainty_endings):
+        particle = _korean_particle(headline, "이", "가")
+        return f"{headline}{particle} 나오고, {', '.join(extra)} {ending}"
+
+    facts = [headline, *extra]
+    joined = _join_brief_facts(facts)
+    return f"{joined} {ending}"
 
 
 def _brief_text(labels, themes, issues, stock_names, fallback_stock, summary_index=0):
@@ -436,476 +436,10 @@ def _brief_text(labels, themes, issues, stock_names, fallback_stock, summary_ind
     summary = _compose_brief_summary(headline, remaining, summary_index=summary_index)
     display_headline = headline if headline.endswith("이슈") else f"{headline} 이슈"
     return display_headline, summary
-_METRIC_AMOUNT_RE = re.compile(
-    r"(?P<metric>영업\s*이익|영업익|매출액|매출|순이익)"
-    r"[^\n,;:]{0,42}?"
-    r"(?P<value>\d+(?:\.\d+)?\s*조(?:\s*\d+(?:,\d+)*\s*억)?\s*원?"
-    r"|\d+(?:,\d+)*\s*억\s*원)",
-    re.IGNORECASE,
-)
-_METRIC_RATE_RE = re.compile(
-    r"(?P<metric>영업\s*이익|영업익|매출액|매출|순이익)"
-    r"[^\n,;:]{0,48}?"
-    r"(?P<value>\d+(?:\.\d+)?\s*%)\s*(?P<direction>증가|감소|상승|하락)",
-    re.IGNORECASE,
-)
-_RATIO_RE = re.compile(
-    r"(?:최근|전년도|지난해|직전)?\s*매출(?:액)?\s*(?:대비|의)\s*"
-    r"(?P<percent>\d+(?:\.\d+)?\s*%)",
-    re.IGNORECASE,
-)
-_PERIOD_RE = re.compile(
-    r"20\d{2}년(?:\s*[1-4]분기)?|올해|내년|지난해|"
-    r"(?:올|지난)\s*[1-4]분기|[1-4]분기|상반기|하반기|연간"
-)
-
-
-def _issue_evidence_summary(item, stock_name, labels):
-    """Write factual issue details from *existing* selected-article evidence.
-
-    Raw article text is ephemeral and is not included in the returned brief.
-    Never assign an unexplained percentage to a contract or claim causality.
-    """
-    title = str(item.get("title") or "").strip()
-    description = str(item.get("description") or "").strip()
-    detail_text = str(item.get("_brief_detail_text") or "").strip()
-    sources = [(title, False), (description, False), (detail_text, True)]
-    sources = [(value, is_body) for value, is_body in sources if value]
-    if not sources:
-        return ""
-
-    raw_labels = {str(v or "").strip().lstrip("#") for v in labels or []}
-    subject = str(stock_name or "").strip()
-    sentences = []
-    seen_metrics = set()
-    profit_related = any(
-        label.startswith(("영업이익", "매출", "순이익")) for label in raw_labels
-    )
-
-    if profit_related:
-        # Prioritize the headline's precise numerical context, then its snippet,
-        # and consult the selected body only when the shorter evidence lacks it.
-        for pattern in (_METRIC_AMOUNT_RE, _METRIC_RATE_RE):
-            found = False
-            for source, is_body in sources:
-                for match in pattern.finditer(source):
-                    metric = re.sub(r"\s+", "", match.group("metric"))
-                    metric = "영업이익" if metric == "영업익" else metric
-                    if not any(label.startswith(metric) for label in raw_labels):
-                        continue
-                    value = re.sub(r"\s+", "", match.group("value"))
-                    # An article can mention multiple companies' earnings.
-                    # Match the reported figure to the stock-owned selected
-                    # numeric keyword, not merely the metric name.
-                    figure_digits = re.sub(r"\D", "", value)
-                    matching_labels = [
-                        label for label in raw_labels if label.startswith(metric)
-                    ]
-                    numeric_labels = [
-                        re.sub(r"\D", "", label[len(metric):])
-                        for label in matching_labels
-                        if re.search(r"\d", label[len(metric):])
-                    ]
-                    if numeric_labels and figure_digits not in numeric_labels:
-                        continue
-                    unique_key = (metric, "rate" if pattern is _METRIC_RATE_RE else "amount")
-                    if unique_key in seen_metrics:
-                        continue
-                    # Body text may mention other companies. Require this stock
-                    # near the figure before using the lower-priority full body.
-                    vicinity = source[max(0, match.start() - 130):match.end() + 45]
-                    if is_body and subject and subject not in vicinity:
-                        continue
-                    # Restrict qualifiers/periods to the nearby clause.
-                    before = source[max(0, match.start() - 75):match.start()]
-                    period_context = before[-55:] + match.group(0)
-                    period_match = list(_PERIOD_RE.finditer(period_context))
-                    period = period_match[-1].group(0) if period_match else ""
-                    period_text = f" {period}" if period else ""
-                    local = source[max(0, match.start() - 40):match.end() + 28]
-                    expectation = bool(re.search(r"전망|예상|추정|기대|관측|컨센서스", local))
-                    tentative = bool(re.search(r"잠정|가결산", local))
-                    if pattern is _METRIC_RATE_RE:
-                        direction = match.group("direction")
-                        comparison = re.findall(
-                            r"전년\s*동기\s*대비|전년\s*대비|지난해\s*대비|"
-                            r"전분기\s*대비|직전\s*분기\s*대비",
-                            before[-55:] + match.group(0),
-                        )
-                        if comparison:
-                            comparison_text = re.sub(r"\s*대비$", "", comparison[-1]).strip()
-                            statement = f"{subject}의{period_text} {metric}이 {comparison_text}보다 {value} {direction}했어."
-                        else:
-                            statement = f"{subject}의{period_text} {metric} {value} {direction} 흐름이야. 비교 기준은 확인되지 않았어."
-                    elif expectation:
-                        statement = f"{subject}의{period_text} {metric}이 {value} 수준으로 전망됐어."
-                    elif tentative:
-                        statement = f"{subject}의{period_text} {metric} 잠정치가 {value}로 나왔어."
-                    else:
-                        statement = f"{subject}의{period_text} {metric}으로 {value}이 제시됐어. 확정 실적인지는 확인이 필요해."
-                    sentences.append(re.sub(r"\s+", " ", statement).strip())
-                    seen_metrics.add(unique_key)
-                    found = True
-                    break
-                if found:
-                    break
-            if len(sentences) >= 2:
-                break
-
-    is_contract = any(
-        "계약" in label or "수주" in label or "단일판매" in label
-        for label in raw_labels
-    )
-    if is_contract:
-        detail = item.get("detail_facts") or {}
-        counterparty = str(detail.get("counterparty") or "").strip()
-        amount = str(detail.get("amount") or "").strip()
-        if counterparty:
-            particle = _korean_particle(counterparty, "과", "와")
-            sentences.insert(0, f"{subject}가 {counterparty}{particle} 공급 계약을 맺었어.")
-        elif any(re.search(r"계약.{0,4}체결|계약을?\s*맺", src)
-                 for src, is_body in sources if not is_body):
-            sentences.insert(0, f"{subject}가 공급 계약을 체결했어.")
-        elif any(re.search(r"공급\s*계약|단일판매", src)
-                 for src, is_body in sources if not is_body):
-            sentences.insert(0, f"{subject}의 공급 계약이 핵심 이슈야.")
-        if amount and counterparty:
-            sentences.append(f"계약 규모는 {amount}로 알려졌어.")
-        for source, _ in (part for part in sources if not part[1]):
-            share = _RATIO_RE.search(source)
-            if share and is_contract:
-                sentences.append(f"계약 규모는 매출액 대비 {share.group('percent').strip()} 수준이야.")
-                break
-        # When the body is the only place with the ratio, require its contract
-        # context instead of borrowing an unrelated company's percentage.
-        if detail_text and not any("매출액 대비" in v for v in sentences):
-            for match in _RATIO_RE.finditer(detail_text):
-                nearby = detail_text[max(0, match.start() - 140):match.end() + 40]
-                if subject in nearby and re.search(r"계약|수주|단일판매", nearby):
-                    sentences.append(
-                        f"계약 규모는 매출액 대비 {match.group('percent').strip()} 수준이야."
-                    )
-                    break
-
-    # A separate flow must be corroborated by its original source, not simply
-    # placed next to profit figures because keyword extraction returned it.
-    if any("외국인매도" in label for label in raw_labels) and any(
-        re.search(r"외국인[^.\n]{0,16}(?:순매도|매도세|매도)", source)
-        for source, is_body in sources if not is_body
-    ):
-        sentences.append("외국인 매도세도 나타났어.")
-
-    return "\n".join(dict.fromkeys(sentences[:3]))
-
-
-
-# The three existing hashtags define which facts belong in the central brief.
-# Select short, evidence-backed source passages; never manufacture "issue" copy.
-_HASHTAG_EVIDENCE_RULES = {
-    "외국인매도": r"외국인.{0,24}(?:순매도|매도|매도세|매물|팔아|팔았)",
-    "외국인매수": r"외국인.{0,24}(?:순매수|매수|사들)",
-    "자사주매입": r"(?:자사주|자기주식).{0,24}(?:매입|취득|매수)|(?:매입|취득).{0,12}(?:자사주|자기주식)",
-    "자사주소각": r"(?:자사주|자기주식).{0,20}소각|소각.{0,15}(?:자사주|자기주식)",
-    "매출발표": r"매출(?:액)?.{0,32}(?:발표|공개|공시|잠정|\d)|(?:발표|잠정).{0,25}매출",
-    "실적발표": r"(?:실적|영업이익|매출).{0,35}(?:발표|잠정|공개|공시)|(?:발표|잠정).{0,25}실적",
-    "잠정실적발표": r"(?:잠정|가결산).{0,35}(?:실적|영업이익|매출)|(?:실적|영업이익|매출).{0,25}잠정",
-    "호실적": r"호실적|(?:실적|매출|영업이익|순이익).{0,45}(?:최대|상회|증가|급증|흑자|개선|늘었)",
-    "역대급실적": r"(?:실적|영업이익|매출).{0,40}(?:역대|사상|최대)|역대급.{0,15}실적",
-    "계약체결": r"(?:계약|수주).{0,22}(?:체결|맺|확정)|공급\s*계약|단일판매",
-    "공급계약": r"공급\s*계약|계약.{0,25}공급|단일판매",
-    "단일판매": r"단일판매|(?:계약\s*금액|공급\s*계약).{0,45}(?:매출액|\d)|매출액\s*대비\s*\d+(?:\.\d+)?\s*%",
-    "원화강세": r"원화.{0,18}(?:강세|가치\s*상승)|원/달러.{0,18}하락",
-    "원화약세": r"원화.{0,18}(?:약세|가치\s*하락)|원/달러.{0,18}상승",
-    "HBM": r"HBM|고대역폭\s*메모리",
-    "AI메모리": r"(?:AI.{0,20}메모리|메모리.{0,20}AI|HBM)",
-}
-
-
-_ARTICLE_LIST_MARKERS = (
-    "관련 기사", "많이 본 뉴스", "추천 기사", "실시간 인기", "주요 뉴스",
-    "랭킹 뉴스", "연관 뉴스", "최신 뉴스", "전체 기사", "함께 읽",
-)
-
-
-def _is_article_listing(sentence):
-    """Reject sidebar headlines / navigation fragments mistaken for article prose."""
-    text = str(sentence or "").strip()
-    if not text:
-        return True
-    if any(marker in text for marker in _ARTICLE_LIST_MARKERS):
-        return True
-    if re.search(r"^\s*\d{1,4}\s*[-–]\s+", text):
-        return True
-    # A cluster of news headlines, not an individual factual sentence.
-    if len(re.findall(r"\s[-–]\s", text)) >= 2:
-        return True
-    if re.search(r"(?:뉴스|증시|주가|관련주).{0,20}(?:속보|더보기|기사\s*목록)", text):
-        return True
-    return False
-
-
-def _issue_sentences(value):
-    text = re.sub(r"\s+", " ", str(value or "")).strip()
-    if not text:
-        return []
-    # Selected detail bodies have already been flattened into plain text.
-    pieces = re.split(r"(?<=[.!?。])\s+|[\n]+|\s*[;；]\s*", text)
-    result = []
-    for part in pieces:
-        cleaned = part.strip(" \t-•▶■“”\"'")
-        if len(cleaned) >= 12 and not _is_article_listing(cleaned):
-            result.append(cleaned)
-    return result
-
-
-def _issue_tag_matches(label, sentence):
-    tag = str(label or "").strip().lstrip("#")
-    if not tag:
-        return False
-    rule = _HASHTAG_EVIDENCE_RULES.get(tag)
-    if rule:
-        if not re.search(rule, sentence, re.IGNORECASE):
-            return False
-    else:
-        metric = re.match(r"^(영업이익률|영업이익|매출|순이익)(\d+)", tag)
-        if metric:
-            metric_rule = re.escape(metric.group(1)).replace("영업이익", r"영업\s*이익")
-            if not re.search(metric_rule, sentence):
-                return False
-        else:
-            compact_tag = re.sub(r"[^0-9a-z가-힣]", "", tag.lower())
-            compact_text = re.sub(r"[^0-9a-z가-힣]", "", sentence.lower())
-            if len(compact_tag) < 3 or compact_tag not in compact_text:
-                return False
-    number = re.search(r"\d+(?:\.\d+)?", tag)
-    if number:
-        wanted = re.sub(r"\D", "", number.group())
-        available = [
-            re.sub(r"\D", "", value)
-            for value in re.findall(r"\d+(?:[,.]\d+)*", sentence)
-        ]
-        if wanted not in available:
-            return False
-    return True
-
-
-def _issue_brief_actor(sentence):
-    match = re.search(
-        r"(?:^|[.!?]\s+)(?P<name>[가-힣A-Za-z][가-힣A-Za-z0-9·&.-]{1,25})(?:은|는|이|가)\s+",
-        sentence,
-    )
-    return match.group("name") if match else ""
-
-
-def _issue_brief_fact(sentence, tag, stock_name):
-    """Compose only the business fact matched by this hashtag, not source prose."""
-    sentence = str(sentence or "").strip()
-    actor = _issue_brief_actor(sentence) or stock_name
-    contract_tags = {"계약체결", "공급계약", "단일판매", "장기공급계약"}
-    if tag in contract_tags:
-        contract = re.search(
-            r"(?P<actor>[가-힣A-Za-z][가-힣A-Za-z0-9·&.-]{1,25})(?:은|는|이|가)\s+"
-            r"(?P<partner>[가-힣A-Za-z][가-힣A-Za-z0-9·&. -]{1,45}?)(?:와|과)\s+"
-            r"(?P<scope>.{4,100}?)\s*계약(?:을)?\s*(?:체결|맺|수주)",
-            sentence,
-        )
-        if contract:
-            company, partner, scope = (
-                contract.group(field).strip()
-                for field in ("actor", "partner", "scope")
-            )
-            scope = re.sub(r"(?:에\s*관한|관련)\s*$", "", scope).strip()
-            if len(scope) >= 4:
-                return f"{company} → {partner}: {scope} 계약 체결."
-        # The selected stock can be the buyer, not the contractor. An isolated
-        # company mention must never become "삼성전자가 계약을 체결했어".
-        if (
-            actor
-            and re.search(rf"{re.escape(actor)}(?:은|는|이|가)\s", sentence)
-            and re.search(r"계약.{0,16}체결|공급\s*계약", sentence)
-        ):
-            return f"{actor}: 공급 계약 체결."
-        return ""
-
-    if tag == "외국인매도":
-        if not re.search(r"외국인.{0,24}(?:순매도|매도|매도세)", sentence):
-            return ""
-        amount = re.search(
-            r"외국인.{0,32}?(?P<amt>\d[\d,.]*(?:억|조)\s*원).{0,15}(?:순매도|매도)",
-            sentence,
-        )
-        if amount:
-            return f"외국인: {stock_name} {amount.group('amt')} 순매도."
-        if re.search(r"사상\s*(?:최고|최대).{0,20}분기\s*실적", sentence):
-            return f"{stock_name}: 사상 최고 분기 실적에도 외국인 매도세 지속."
-        if re.search(r"이어지|지속|연속", sentence):
-            return f"{stock_name}: 외국인 매도세 지속."
-        if "확대" in sentence:
-            return f"{stock_name}: 외국인 매도세 확대."
-        return ""
-
-    if tag == "자사주매입":
-        if not re.search(
-            r"자사주.{0,20}(?:매입|취득)|자기주식.{0,20}(?:매입|취득)",
-            sentence,
-        ):
-            return ""
-        joint = re.search(
-            r"(?P<actors>[가-힣A-Za-z0-9·]+(?:와|과|·)\s*[가-힣A-Za-z0-9·]+)의?\s*자사주",
-            sentence,
-        )
-        company = joint.group("actors") if joint else actor
-        company = re.sub(r"와|과", "·", company).replace(" ", "").removesuffix("의")
-        if re.search(r"막바지|마무리|종료\s*단계", sentence):
-            ending = ", 수급 공백 우려." if "수급 공백" in sentence else "."
-            return f"{company}: 자사주 매입 마무리 단계{ending}"
-        amount = re.search(
-            r"(?P<amt>\d[\d,.]*(?:조|억)\s*원).{0,20}자사주\s*매입"
-            r"|자사주.{0,20}(?P<amt2>\d[\d,.]*(?:조|억)\s*원)",
-            sentence,
-        )
-        if amount:
-            return f"{company}: 자사주 매입 규모 {amount.group('amt') or amount.group('amt2')}."
-        return ""
-
-    earning_tags = {"호실적", "실적발표", "매출발표", "잠정실적발표", "사상최대실적"}
-    if tag in earning_tags or tag.startswith(("영업이익", "매출", "순이익")):
-        metric = re.search(
-            r"(?P<metric>매출(?:액)?|영업\s*이익|순이익).{0,25}?"
-            r"(?P<amt>\d[\d,.]*(?:조|억)\s*원)",
-            sentence,
-        )
-        period = re.search(
-            r"(?:20\d{2}년\s*)?[1-4]분기|상반기|하반기|연간|올해|지난해",
-            sentence,
-        )
-        period_text = f"{period.group()} " if period else ""
-        if metric:
-            certainty = (
-                "잠정" if "잠정" in sentence
-                else "전망" if re.search(r"전망|예상|추정", sentence)
-                else ""
-            )
-            metric_name = re.sub(r"\s+", "", metric.group("metric"))
-            status = f" ({certainty})" if certainty else ""
-            return f"{actor}: {period_text}{metric_name} {metric.group('amt')}{status}."
-        rate = re.search(
-            r"(?P<metric>매출(?:액)?|영업\s*이익|순이익).{0,42}?"
-            r"(?P<rate>\d+(?:\.\d+)?\s*%).{0,9}?"
-            r"(?P<direction>증가|감소|상승|하락|늘었)",
-            sentence,
-        )
-        if rate:
-            basis = (
-                "전년 동기 대비 " if re.search(r"전년\s*동기", sentence)
-                else "전년 대비 " if "전년" in sentence else ""
-            )
-            metric_name = re.sub(r"\s+", "", rate.group("metric"))
-            direction = "증가" if rate.group("direction") == "늘었" else rate.group("direction")
-            return (
-                f"{actor}: {period_text}{metric_name} {basis}"
-                f"{rate.group('rate').strip()} {direction}."
-            )
-        if re.search(r"사상\s*(?:최고|최대).{0,8}분기\s*실적", sentence):
-            return f"{actor}: 사상 최고 수준의 분기 실적."
-    return ""
-
-
-def _issue_contract_amount(sentences):
-    for sentence in sentences:
-        match = re.search(
-            r"계약\s*(?:금액|대금|규모|액)\s*(?:은|이|:|으로)?\s*"
-            r"(?P<value>\d[\d,]*(?:조|억|만)\s*\d*[\d,]*(?:억|만)?\s*원)",
-            sentence,
-        )
-        if match:
-            vat = " (부가세 별도)" if re.search(
-                r"부가(?:가치)?세.{0,18}(?:포함되지|제외|별도)", sentence
-            ) else ""
-            return f"계약금액: {match.group('value')}{vat}."
-    return ""
-
-
-def _issue_contract_ratio(sentences):
-    for sentence in sentences:
-        match = re.search(
-            r"(?:최근\s*)?매출액?\s*대비\s*(\d+(?:\.\d+)?\s*%)",
-            sentence,
-        )
-        if match:
-            return f"계약 규모: 매출액 대비 {match.group(1).strip()}."
-    return ""
-
-
-def _hashtag_core_summary(item, stock_name, labels, diagnostics=None):
-    """Rewrite grounded hashtag facts as our own concise briefing, without AI."""
-    sources = [
-        (str(item.get("_brief_detail_text") or ""), 3),
-        (str(item.get("description") or ""), 2),
-        (str(item.get("title") or ""), 1),
-    ]
-    if not any(source for source, _ in sources):
-        return ""
-    other_stocks = [
-        str(name).strip()
-        for name in item.get("stock_entities") or []
-        if str(name).strip() and str(name).strip() != stock_name
-    ]
-    chosen = []
-    for label in labels[:3]:
-        choices = []
-        matched = 0
-        excluded_other = 0
-        rewritten = 0
-        for source, priority in sources:
-            for sentence in _issue_sentences(source):
-                if not _issue_tag_matches(label, sentence):
-                    continue
-                matched += 1
-                if any(name in sentence for name in other_stocks) and stock_name not in sentence:
-                    excluded_other += 1
-                    continue
-                brief = _issue_brief_fact(sentence, label, stock_name)
-                if not brief:
-                    continue
-                rewritten += 1
-                specific = bool(re.search(r"\d|사상|막바지|수급 공백", brief))
-                score = priority * 2 + (3 if specific else 0) + len(brief) / 200
-                choices.append((score, brief, priority))
-        choices.sort(key=lambda value: value[0], reverse=True)
-        selected = bool(choices and choices[0][1] not in chosen)
-        if selected:
-            chosen.append(choices[0][1])
-        if diagnostics is not None:
-            diagnostics.append({
-                "tag": str(label),
-                "matched_passages": matched,
-                "rejected_other_company": excluded_other,
-                "rewritten_facts": rewritten,
-                "chosen": selected,
-                "chosen_source": (
-                    {3: "extracted_text", 2: "naver_description", 1: "naver_title"}
-                    .get(choices[0][2], "unknown") if selected else "none"
-                ),
-            })
-
-    if any(label in {"계약체결", "공급계약", "단일판매", "장기공급계약"} for label in labels):
-        passages = [
-            sentence
-            for source, _ in sources
-            for sentence in _issue_sentences(source)
-        ]
-        for detail in (_issue_contract_amount(passages), _issue_contract_ratio(passages)):
-            if detail and detail not in chosen:
-                chosen.append(detail)
-    return "\n".join(chosen[:3])
-
-
-def build_issue_briefs(items, stock_name, limit=3, *, diagnostics=None):
+def build_issue_briefs(items, stock_name, limit=3):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []
-    for rank, item in enumerate(items or [], 1):
-        tag_diagnostics = [] if diagnostics is not None else None
+    for item in items or []:
         labels = _signal_labels(item)
         stock_names = _stock_names(item, stock_name)
         headline, summary = _brief_text(
@@ -922,44 +456,16 @@ def build_issue_briefs(items, stock_name, limit=3, *, diagnostics=None):
             if summary:
                 summary = summary.replace("제품 공개", f"{concrete_subject} 제품 공개", 1)
             else:
-                summary = f"{concrete_subject} 제품 공개가 주요 이슈야."
+                summary = f"{concrete_subject} 제품 공개 관련 내용을 확인했어."
 
-        hashtag_summary = _hashtag_core_summary(
-            item, stock_name, labels, diagnostics=tag_diagnostics,
-        )
-        evidence_summary = _issue_evidence_summary(item, stock_name, labels)
         structured_summary = _structured_detail_summary(
             item,
             labels,
             summary_index=len(briefs),
         )
-        if hashtag_summary:
-            summary = hashtag_summary
-        elif item.get("title") or item.get("description") or item.get("_brief_detail_text"):
-            # Do not fall back to "호실적이 주요 이슈야" when no factual
-            # passage exists for the chosen hashtags.
-            summary = "해시태그와 연결되는 구체적인 내용은 확인되지 않았어."
-        elif evidence_summary:
-            summary = evidence_summary
-        elif structured_summary:
+        if structured_summary:
             summary = structured_summary
 
-        if diagnostics is not None:
-            diagnostics.append({
-                "rank": rank,
-                "tags": list(labels[:3]),
-                "tag_checks": tag_diagnostics,
-                "brief_kind": (
-                    "matched_hashtag" if hashtag_summary
-                    else "missing_hashtag_fact"
-                    if item.get("title") or item.get("description") or item.get("_brief_detail_text")
-                    else "structured_fallback" if structured_summary
-                    else "evidence_fallback" if evidence_summary
-                    else "keyword_only"
-                ),
-                "summary_chars": len(summary),
-                "emitted": bool(headline and summary),
-            })
         if not headline or not summary:
             continue
 

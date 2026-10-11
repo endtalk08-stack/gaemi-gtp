@@ -38,29 +38,6 @@ class NewsDetailTests(unittest.TestCase):
         self.assertIn("Gemini enterprise product", text)
 
 
-    def test_diagnostics_identify_metadata_without_changing_text(self):
-        payload = b"""
-        <html><head><meta name="description"
-        content="A long overview of the company earnings and product launches, without a real article body on this page."></head>
-        <body></body></html>
-        """
-        plain = extract_article_text(payload)
-        audit = {}
-        with_audit = extract_article_text(payload, diagnostics=audit)
-        self.assertEqual(plain, with_audit)
-        self.assertEqual(audit["source"], "meta_description")
-
-    def test_diagnostics_identify_article_paragraphs(self):
-        payload = b"""
-        <html><body><article>
-        <p>The company reported a detailed quarterly earnings update with new product investments and improved operational results.</p>
-        </article></body></html>
-        """
-        audit = {}
-        result = extract_article_text(payload, diagnostics=audit)
-        self.assertIn("quarterly earnings", result)
-        self.assertEqual(audit["source"], "article_or_main_paragraphs")
-
     def test_extracts_structured_contract_facts_from_selected_article(self):
         text = (
             "Google entered a 20-year power agreement with Constellation Energy "
