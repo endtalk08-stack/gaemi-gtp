@@ -88,10 +88,13 @@ def build_stock_news_result(
         for rank, item in enumerate(storyboard_news_items, 1):
             url = str(item.get("url") or item.get("link") or "")
             article_id = hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
-            parsed = urllib.parse.urlsplit(url)
-            public_url = urllib.parse.urlunsplit(
-                (parsed.scheme, parsed.netloc, parsed.path, "", "")
-            )
+            try:
+                parsed = urllib.parse.urlsplit(url)
+                public_url = urllib.parse.urlunsplit(
+                    (parsed.scheme, parsed.netloc, parsed.path, "", "")
+                )
+            except ValueError:
+                public_url = url.split("?", 1)[0].split("#", 1)[0]
             initial_keywords.append(list(item.get("article_keywords") or []))
             print("[news issue audit] " + json.dumps({
                 "trace": trace_id, "stock": stock_name, "rank": rank,
