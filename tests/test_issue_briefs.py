@@ -22,9 +22,10 @@ class IssueBriefTests(unittest.TestCase):
         brief = result[0]
         self.assertEqual(brief["time"], "11:40")
         self.assertEqual(brief["headline"], "AI 메모리 이슈")
-        self.assertIn("AI 메모리", brief["summary"])
-        self.assertIn("메모리 가격", brief["summary"])
-        self.assertEqual(len(brief["summary"].splitlines()), 2)
+        self.assertEqual(
+            brief["summary"],
+            "해시태그와 연결되는 구체적인 내용은 확인되지 않았어.",
+        )
         self.assertEqual(brief["stock_names"], ["삼성전자", "SK하이닉스"])
         self.assertIn("AI메모리", brief["tags"])
         self.assertNotIn(source_title, str(brief))
@@ -345,10 +346,83 @@ class IssueBriefTests(unittest.TestCase):
 
         summary = result[0]["summary"]
         self.assertIn("Constellation Energy", summary)
-        self.assertIn("$3.6 billion", summary)
+        self.assertIn("3.6 billion", summary)
         self.assertNotIn("기사", summary)
-        self.assertNotIn(original_detail, str(result[0]))
         self.assertNotIn("_brief_detail_text", result[0])
+
+    def test_hashtags_select_three_distinct_core_facts_from_existing_body(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 외국인 매도 및 자사주 매입",
+            "description": "삼성전자는 자사주 1조원을 12월까지 매입하기로 결정했다.",
+            "_brief_detail_text": (
+                "외국인은 삼성전자 주식을 오늘 2,000억원 순매도했다. "
+                "삼성전자는 이사회에서 1조원 규모의 자사주 매입을 결정했다. "
+                "삼성전자는 3분기 매출액이 86조원으로 잠정 집계됐다고 발표했다. "
+                "미국 국채금리는 4%로 상승했다."
+            ),
+            "storyboard_time": "07:01",
+            "storyboard_keywords": ["외국인매도"],
+            "article_keywords": ["외국인매도", "자사주매입", "매출발표"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+
+        self.assertEqual(len(result), 1)
+        brief = result[0]
+        self.assertEqual(brief["time"], "07:01")
+        self.assertEqual(brief["headline"], "외국인 매도 이슈")
+        self.assertEqual(brief["tags"], ["외국인매도", "자사주매입", "매출발표"])
+        self.assertEqual(len(brief["summary"].splitlines()), 3)
+        self.assertIn("2,000억원 순매도", brief["summary"])
+        self.assertIn("1조원 규모의 자사주 매입", brief["summary"])
+        self.assertIn("3분기 매출액이 86조원", brief["summary"])
+        self.assertNotIn("국채금리", brief["summary"])
+        self.assertNotIn("_brief_detail_text", brief)
+        self.assertNotIn("주요 이슈야", brief["summary"])
+
+    def test_hashtag_contract_only_uses_ratio_with_confirmed_meaning(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 단일판매 공급계약 체결",
+            "description": (
+                "계약 규모는 최근 매출액 대비 5.49% 수준이다. "
+                "별도 지분율은 25%다."
+            ),
+            "storyboard_keywords": ["계약체결"],
+            "article_keywords": ["계약체결", "공급계약", "단일판매"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+
+        self.assertIn("매출액 대비 5.49%", result[0]["summary"])
+        self.assertNotIn("25%", result[0]["summary"])
+
+    def test_hashtag_summary_does_not_use_competitor_earnings(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 호실적과 SK하이닉스 신제품 공개",
+            "description": "삼성전자 3분기 영업이익이 전년보다 30% 증가했다.",
+            "_brief_detail_text": (
+                "SK하이닉스의 영업이익은 15조원으로 증가했다. "
+                "삼성전자 3분기 영업이익이 전년 동기 대비 30% 늘었다."
+            ),
+            "storyboard_keywords": ["호실적"],
+            "article_keywords": ["호실적"],
+            "stock_entities": ["삼성전자", "SK하이닉스"],
+        }], "삼성전자")
+
+        self.assertIn("30%", result[0]["summary"])
+        self.assertNotIn("15조원", result[0]["summary"])
+
+    def test_insufficient_source_does_not_invent_an_issue(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 관련 여러 업계 의견",
+            "description": "구체적 실적이나 계약 규모에 대한 설명은 없다.",
+            "storyboard_keywords": ["호실적"],
+            "article_keywords": ["호실적", "실적발표"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+
+        self.assertEqual(
+            result[0]["summary"],
+            "해시태그와 연결되는 구체적인 내용은 확인되지 않았어.",
+        )
 
     def test_central_contract_brief_uses_structured_counterparty_and_amount(self):
         result = build_issue_briefs([{
