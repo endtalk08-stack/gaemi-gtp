@@ -3547,6 +3547,7 @@ def analyze_stock(raw_name='SK하이닉스'):
         previous_high = float(week_52.get("high") or 0)
         price_snapshot = {
             "current": current_quote,
+            "change_pct": price_result.get("change_pct"),
             "week_52_high": previous_high,
         }
         if current_quote > 0 and previous_high > 0 and math.isfinite(current_quote) and math.isfinite(previous_high):
