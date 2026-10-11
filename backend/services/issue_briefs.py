@@ -299,7 +299,7 @@ def _structured_detail_summary(item, labels, summary_index=0):
             particle = _korean_particle(counterparty, "과", "와")
             sentences.append(f"{counterparty}{particle}의 계약이 핵심이야.")
         if amount:
-            sentences.append(f"계약 규모로 {amount}가 제시됐어.")
+            sentences.append(f"계약 금액은 {amount}로 정리돼 있어.")
     elif label_set & investment_labels:
         if counterparty:
             sentences.append(f"{counterparty}가 투자에 연관돼 있어.")
@@ -567,7 +567,7 @@ def _issue_evidence_summary(item, stock_name, labels):
                  for src, is_body in sources if not is_body):
             sentences.insert(0, f"{subject}의 계약 체결이 핵심 이슈야.")
         if amount and counterparty:
-            sentences.append(f"계약 규모는 {amount}야.")
+            sentences.append(f"계약 규모는 {amount}로 알려졌어.")
         for source, _ in (part for part in sources if not part[1]):
             share = _RATIO_RE.search(source)
             if share and is_contract:
