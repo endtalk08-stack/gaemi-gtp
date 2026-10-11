@@ -7,6 +7,7 @@ Existing private central-chat in-process quotas stay unchanged.
 import datetime
 import hmac
 import json
+import math
 import os
 import re
 import threading
@@ -360,8 +361,56 @@ def _context(stock, data):
         "news": news,
         "issue_briefs": brief,
         "official_disclosures": disclosures,
-        "note": "시세 원천의 실시간성은 보장되지 않습니다. 누락된 값은 추측하지 마세요.",
+        "note": (
+            "price_metrics.change_pct는 현재 표시가격의 직전 종가 대비 등락률입니다. "
+            "price_metrics.previous_trading_day는 날짜가 확인된 직전 완료 거래일의 고가·종가·당일 등락률입니다. "
+            "두 등락률을 혼동하지 말고 거래일 날짜를 명시하세요. "
+            "시세 원천의 실시간성은 보장되지 않습니다. 누락된 값은 추측하지 마세요."
+        ),
     }
+
+
+def _previous_day_reply(question, metrics):
+    """Answer dated prior-session OHLCV facts without confusing them with today's quote."""
+    normalized = re.sub(r"\s+", "", str(question or ""))
+    refers_to_previous = any(key in normalized for key in ("전일", "어제", "전거래일", "지난거래일"))
+    is_today_vs_previous = any(
+        key in normalized for key in ("전일대비", "어제대비", "전거래일대비", "지난거래일대비")
+    )
+    wants_high = "최고가" in normalized or "고가" in normalized
+    wants_change = any(
+        key in normalized
+        for key in ("프로", "퍼센트", "%", "등락률", "상승률", "하락률", "올랐", "내렸", "떨어졌")
+    )
+    if not refers_to_previous or is_today_vs_previous or not (wants_high or wants_change):
+        return None
+
+    previous = metrics.get("previous_trading_day")
+    if not isinstance(previous, dict) or not previous.get("date"):
+        return "전 거래일의 날짜가 확인된 시세 데이터가 없어."
+
+    date_text = str(previous["date"])
+    facts = []
+    if wants_high:
+        high = previous.get("high")
+        if isinstance(high, (int, float)) and not isinstance(high, bool) and math.isfinite(high) and high > 0:
+            currency = metrics.get("currency")
+            if currency == "KRW":
+                facts.append(f"최고가 {high:,.0f}원")
+            elif currency == "USD":
+                facts.append(f"최고가 ${high:,.2f}")
+            else:
+                facts.append(f"최고가 {high:,.2f}(통화 단위 미확인)")
+        else:
+            facts.append("최고가 자료 없음")
+    if wants_change:
+        change = previous.get("change_pct")
+        if isinstance(change, (int, float)) and not isinstance(change, bool) and math.isfinite(change):
+            movement = "상승" if change > 0 else "하락" if change < 0 else "보합"
+            facts.append(f"그날의 등락률 {change:+.2f}% ({movement})")
+        else:
+            facts.append("그날의 등락률 자료 없음")
+    return f"전 거래일({date_text}) 기준 " + ", ".join(facts) + "."
 
 
 def _groq_answer(model_id, question, context, max_completion_tokens=650, style_prompt=None):
@@ -488,6 +537,10 @@ def ai_test_chat():
 
         # The same shared quote supports exact arithmetic in the general chat.
         metrics = context.get("price_metrics") or {}
+        if private_chat:
+            previous_answer = _previous_day_reply(question, metrics)
+            if previous_answer is not None:
+                return jsonify({"ok": True, "stock": stock, "answer": previous_answer, "model": "calculation"})
         if private_chat and "52주" in question and ("최고가" in question or "신고가" in question):
             needed = metrics.get("rise_to_52w_high_pct")
             if isinstance(needed, (int, float)):
