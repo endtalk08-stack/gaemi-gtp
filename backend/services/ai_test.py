@@ -269,6 +269,33 @@ def ai_test_chat():
     # Only a new-stock question falls back to the established analysis function.
     try:
         context = _cached_chat_context(stock) if private_chat else None
+
+        # A 52-week price question requires only the existing shared price
+        # result. Do not block a fresh chat on unrelated news/disclosures.
+        is_52week_question = private_chat and "52주" in question and ("최고가" in question or "신고가" in question)
+        if context is None and is_52week_question:
+            from backend.services.engine import TICKERS
+            from backend.services.stock_analysis import fetch_stock_price_result
+            ticker = TICKERS.get(stock) or (stock.upper() if stock.isascii() else "")
+            if ticker:
+                is_krw = ticker.endswith((".KS", ".KQ"))
+                clean_code = "".join(char for char in ticker if char.isdigit()) if is_krw else None
+                quote = fetch_stock_price_result(is_krw=is_krw, ticker_symbol=ticker, clean_code=clean_code)
+                current = float(quote.get("current_price") or 0)
+                high = float(((quote.get("indicators") or {}).get("week_52") or {}).get("high") or 0)
+                if not (current > 0 and high > 0):
+                    return jsonify({"ok": False, "error": "stock_data_unavailable"}), 422
+                metrics = {
+                    "current": current, "week_52_high": high,
+                    "rise_to_52w_high_pct": round(max(0.0, (high - current) / current * 100), 2),
+                }
+                context = {
+                    "stock": stock, "price_information": [], "price_metrics": metrics,
+                    "news": [], "issue_briefs": [], "official_disclosures": [],
+                }
+                with _CHAT_CONTEXT_LOCK:
+                    _CHAT_CONTEXT_CACHE[stock] = (time.monotonic(), context)
+
         if context is None:
             from backend.services.engine import analyze_stock
             result = analyze_stock(stock)
