@@ -75,6 +75,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         .map(({ role, text }) => ({ role, text: text.slice(0, 240) }));
       const row = appendChatMessage('user', text, 'question', sessionId);
       if (!row) return false;
+      window.GaemiGTPSidebarHome?.recordRecent?.('question', text);
       row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       void requestChatAnswer(text, sessionId, history);
       return true;
@@ -276,6 +277,9 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         chatArea.scrollTop = 0;
         return;
       }
+
+      // 유효한 종목 분석이 완료된 경우에만 최근 검색에 추가한다.
+      window.GaemiGTPSidebarHome?.recordRecent?.('stock', stockName);
 
       // 채팅과 플러그인 위젯이 같은 분석 응답을 공유한다.
       // 위젯은 제목 문자열이 아니라 백엔드의 고정 section id를 사용한다.
