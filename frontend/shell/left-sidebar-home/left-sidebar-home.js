@@ -10,7 +10,7 @@
   function readRecent() {
     try {
       const saved = localStorage.getItem(RECENT_STORAGE_KEY);
-      if (!saved) return recentFallback.slice();
+      if (!saved) return [];
       const entries = JSON.parse(saved);
       if (!Array.isArray(entries)) return [];
       return entries.filter((entry) => entry && ['stock', 'question'].includes(entry.type)
@@ -63,6 +63,7 @@
       window.GaemiGTPCenterChatSearch?.openStockInChat?.(entry.value);
     } else {
       window.GaemiGTPCenterChatSearch?.enterChatWorkspace?.();
+      applyState();
       window.GaemiGTPApp?.submitQuestion?.(entry.value, { newConversation: true });
     }
   }
