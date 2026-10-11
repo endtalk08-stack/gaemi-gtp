@@ -186,6 +186,9 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
 
       const session = beginChatSession(stockName);
       if (!session) return;
+      // 새 종목 조회 중 이전 종목의 뉴스·공시를 공유 데이터로 노출하지 않는다.
+      // 새 수집 없이 기존 결과 저장소의 스냅샷만 초기화한다.
+      window.GaemiGTPAnalysisData?.set?.(stockName, {});
       const chatArea = document.getElementById('chatArea');
       appendChatMessage('user', stockName, 'stock', session.id);
 
