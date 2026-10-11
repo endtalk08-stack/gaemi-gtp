@@ -296,6 +296,31 @@ body.left-home-closed #leftSidebarHome.left-sidebar-home {
   color: var(--gtp-text);
 }
 
+.left-sidebar-home__recent-link {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.left-sidebar-home__recent-link:focus-visible {
+  outline: 1px solid var(--gtp-border-strong);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
 .left-sidebar-home__empty {
   min-height: 34px;
   padding: 6px 10px;
