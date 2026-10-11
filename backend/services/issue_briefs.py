@@ -519,7 +519,7 @@ def _issue_evidence_summary(item, stock_name, labels):
                             before[-55:] + match.group(0),
                         )
                         if comparison:
-                            comparison_text = re.sub(r"\\s*대비$", "", comparison[-1]).strip()
+                            comparison_text = re.sub(r"\s*대비$", "", comparison[-1]).strip()
                             statement = f"{subject}의{period_text} {metric}이 {comparison_text}보다 {value} {direction}했어."
                         else:
                             statement = f"{subject}의{period_text} {metric} {value} {direction} 흐름이야. 비교 기준은 확인되지 않았어."
