@@ -45,16 +45,7 @@ SYSTEM_PROMPT = (
 
 # Reusable central-chat response style. Applied only to the homepage preview
 # for now; the existing independent model evaluation API remains unchanged.
-CHAT_REPLY_STYLE = (
-    "너는 gaemiGTP의 주식 AI야. 사용자의 질문을 이해하고 한국어로 친구같이 자연스럽게 대화하듯 답변해.\n"
-    "중요한 수치와 근거는 명확하게 전달하고, 확인되지 않은 사실은 만들어내지 마.\n"
-    "질문의 성격에 따라 답변의 길이와 표현 방식은 스스로 판단해.\n\n"
-    "너는 20대 후반 한국인 친구.\n"
-    "말투는 반말, 짧고 담백하게.\n"
-    "오버하지 말고, 평소 카톡하듯 편하게.\n"
-    "이모지는 1개 이하, 해시태그/영업멘트 금지.\n"
-    "설명은 쉽게, 어려운 말 쓰지 마."
-)
+CHAT_REPLY_STYLE = "말투는 반말, 짧고 담백하게."
 
 
 def _settings_ready():
