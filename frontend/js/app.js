@@ -174,6 +174,8 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       loadingText.textContent = '생각중';
       loading.appendChild(loadingText);
       chatArea.appendChild(loading);
+      // Keep "생각중" visible for at least 5 seconds without delaying the AI request.
+      const minimumThinkingDelay = new Promise(resolve => setTimeout(resolve, 5000));
 
       const errors = {
         price_data_unavailable: '52주 최고가 또는 현재가를 확인하지 못했어. 숫자를 추측하지 않고 여기서 멈출게.',
@@ -191,6 +193,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           headers: { 'Content-Type': 'application/json' }
         });
         const result = await response.json();
+        await minimumThinkingDelay;
         if (requestId !== activeAnalysisRequestId) return;
 
         const reply = document.createElement('section');
