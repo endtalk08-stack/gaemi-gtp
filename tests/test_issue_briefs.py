@@ -237,6 +237,42 @@ class IssueBriefTests(unittest.TestCase):
         self.assertIn("자사주 소각", summary)
         self.assertNotIn("따라서", summary)
 
+    def test_central_brief_speaks_as_issue_not_article_report(self):
+        result = build_issue_briefs([{
+            "storyboard_time": "06:50",
+            "storyboard_keywords": ["영업이익107조원"],
+            "article_keywords": ["영업이익107조원", "외국인매도", "잠정실적발표"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+
+        self.assertEqual(len(result), 1)
+        summary = result[0]["summary"]
+        self.assertIn("영업이익 107조원", summary)
+        self.assertIn("외국인 매도", summary)
+        self.assertNotIn("기사", summary)
+        self.assertNotIn("언급", summary)
+        self.assertNotIn("관련 내용을", summary)
+
+    def test_contract_detail_omits_unlabeled_percentages(self):
+        result = build_issue_briefs([{
+            "storyboard_time": "06:24",
+            "storyboard_keywords": ["계약체결"],
+            "article_keywords": ["계약체결", "공급계약", "단일판매"],
+            "stock_entities": ["삼성전자"],
+            "detail_facts": {
+                "counterparty": "",
+                "amount": "",
+                "region": [],
+                "key_numbers": ["5.49%", "25%"],
+            },
+        }], "삼성전자")
+
+        self.assertEqual(len(result), 1)
+        self.assertNotIn("5.49%", result[0]["summary"])
+        self.assertNotIn("25%", result[0]["summary"])
+        self.assertNotIn("기사", result[0]["summary"])
+        self.assertNotIn("언급", result[0]["summary"])
+
     def test_central_contract_brief_uses_structured_counterparty_and_amount(self):
         result = build_issue_briefs([{
             "storyboard_time": "20:32",
@@ -256,8 +292,10 @@ class IssueBriefTests(unittest.TestCase):
         self.assertEqual(result[0]["headline"], "공급 계약 이슈")
         self.assertIn("Constellation Energy", result[0]["summary"])
         self.assertIn("$3.6 billion", result[0]["summary"])
-        self.assertIn("20-year", result[0]["summary"])
-        self.assertEqual(len(result[0]["summary"].splitlines()), 3)
+        self.assertNotIn("20-year", result[0]["summary"])
+        self.assertEqual(len(result[0]["summary"].splitlines()), 2)
+        self.assertNotIn("기사", result[0]["summary"])
+        self.assertNotIn("언급", result[0]["summary"])
 
 
 if __name__ == "__main__":
