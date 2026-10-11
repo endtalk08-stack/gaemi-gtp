@@ -15,6 +15,77 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       setActiveStock: (stock) => { activeStock = stock; }
     };
 
+    let activeChatSession = null;
+    let nextChatSessionId = 0;
+    let nextChatMessageId = 0;
+
+    // One active conversation in the existing central chat; no separate chat UI.
+    function beginChatSession(stock = null) {
+      const area = document.getElementById('chatArea');
+      if (!area) return null;
+      activeChatSession = { id: ++nextChatSessionId, stock, messages: [] };
+      area.replaceChildren();
+      area.scrollTop = 0;
+      return activeChatSession;
+    }
+
+    function appendChatMessage(role, text, kind, sessionId) {
+      if (!activeChatSession || activeChatSession.id !== sessionId) return null;
+      const area = document.getElementById('chatArea');
+      if (!area) return null;
+      const message = { id: ++nextChatMessageId, role, kind, text: String(text) };
+      const row = document.createElement('div');
+      row.dataset.chatMessageId = String(message.id);
+      if (role === 'user') {
+        row.className = 'flex justify-end animate-fade';
+        const bubble = document.createElement('div');
+        bubble.className = 'bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] gtp-dark-text gtp-chat-user px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]';
+        bubble.textContent = message.text;
+        row.appendChild(bubble);
+      } else {
+        row.className = 'gtp-chat-copy whitespace-pre-line animate-fade';
+        row.textContent = message.text;
+      }
+      area.appendChild(row);
+      activeChatSession.messages.push(message);
+      return row;
+    }
+
+    // This step connects the question to its conversation, not yet to an AI API.
+    function submitQuestion(question, { newConversation = false } = {}) {
+      const text = String(question || '').trim();
+      if (!text) return false;
+      if (newConversation || !activeChatSession) {
+        activeAnalysisController?.abort();
+        activeAnalysisController = null;
+        ++activeAnalysisRequestId;
+        if (!beginChatSession()) return false;
+      }
+      const row = appendChatMessage('user', text, 'question', activeChatSession.id);
+      row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return !!row;
+    }
+
+    // Reply handlers must provide the originating session id to reject stale replies.
+    function appendChatReply(answer, sessionId) {
+      const text = String(answer || '').trim();
+      if (!text || !activeChatSession || sessionId !== activeChatSession.id) return false;
+      const row = appendChatMessage('assistant', text, 'answer', sessionId);
+      row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return !!row;
+    }
+
+    function getChatState() {
+      if (!activeChatSession) return null;
+      return {
+        id: activeChatSession.id, stock: activeChatSession.stock,
+        messages: activeChatSession.messages.map((message) => ({
+          ...message,
+          ...(message.sections ? { sections: message.sections.map((section) => ({ ...section })) } : {})
+        }))
+      };
+    }
+
     async function requestStock(stockName) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
@@ -31,14 +102,10 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       window.GaemiGTPActiveStock = activeStock;
       window.GaemiGTPWorkspaceShellState?.save?.();
 
+      const session = beginChatSession(stockName);
+      if (!session) return;
       const chatArea = document.getElementById('chatArea');
-      chatArea.innerHTML = '';
-      chatArea.scrollTop = 0;
-
-      const userDiv = document.createElement('div');
-      userDiv.className = "flex justify-end animate-fade";
-      userDiv.innerHTML = `<div class="bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] gtp-dark-text gtp-chat-user px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]">${stockName}</div>`;
-      chatArea.appendChild(userDiv);
+      appendChatMessage('user', stockName, 'stock', session.id);
 
       const loadingDiv = document.createElement('div');
       loadingDiv.className = 'analysis-loading-sequence';
@@ -80,7 +147,11 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       window.GaemiGTPAnalysisData?.set?.(stockName, result);
 
       chatArea.scrollTop = 0;
-      if (requestId !== activeAnalysisRequestId) return;
+      if (requestId !== activeAnalysisRequestId || activeChatSession?.id !== session.id) return;
+      activeChatSession.messages.push({
+        id: ++nextChatMessageId, role: 'assistant', kind: 'analysis',
+        sections: sections.map(({ id, title, content }) => ({ id, title, content }))
+      });
       startTypewriterFlow(stockName, sections, result, requestId);
     }
 
@@ -555,7 +626,7 @@ window.addEventListener('resize', () => {
   window.GaemiGTPWorkspaceShellState?.apply?.();
 });
 
-window.GaemiGTPApp = { requestStock };
+window.GaemiGTPApp = { requestStock, submitQuestion, appendChatReply, getChatState };
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
