@@ -18,9 +18,16 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     let activeChatSession = null;
     let nextChatSessionId = 0;
     let nextChatMessageId = 0;
+    let activeQuestionController = null;
+    let pendingQuestionSessionId = null;
+    let pendingAnalysis = null;
 
     // One active conversation in the existing central chat; no separate chat UI.
     function beginChatSession(stock = null) {
+      activeQuestionController?.abort();
+      activeQuestionController = null;
+      pendingQuestionSessionId = null;
+      pendingAnalysis = null;
       const area = document.getElementById('chatArea');
       if (!area) return null;
       activeChatSession = { id: ++nextChatSessionId, stock, messages: [] };
@@ -51,28 +58,103 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       return row;
     }
 
-    // This step connects the question to its conversation, not yet to an AI API.
     function submitQuestion(question, { newConversation = false } = {}) {
       const text = String(question || '').trim();
       if (!text) return false;
+      if (!newConversation && pendingQuestionSessionId === activeChatSession?.id) return false;
       if (newConversation || !activeChatSession) {
         activeAnalysisController?.abort();
         activeAnalysisController = null;
         ++activeAnalysisRequestId;
         if (!beginChatSession()) return false;
       }
-      const row = appendChatMessage('user', text, 'question', activeChatSession.id);
-      row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      return !!row;
+      const sessionId = activeChatSession.id;
+      const history = activeChatSession.messages
+        .filter((message) => message.kind === 'question' || message.kind === 'answer')
+        .slice(-6)
+        .map(({ role, text }) => ({ role, text: text.slice(0, 240) }));
+      const row = appendChatMessage('user', text, 'question', sessionId);
+      if (!row) return false;
+      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      void requestChatAnswer(text, sessionId, history);
+      return true;
     }
 
-    // Reply handlers must provide the originating session id to reject stale replies.
-    function appendChatReply(answer, sessionId) {
+    // The five existing response actions are attached only after typing ends.
+    async function appendChatReply(answer, sessionId) {
       const text = String(answer || '').trim();
-      if (!text || !activeChatSession || sessionId !== activeChatSession.id) return false;
+      if (!text || activeChatSession?.id !== sessionId) return false;
       const row = appendChatMessage('assistant', text, 'answer', sessionId);
+      if (!row) return false;
+      row.textContent = '';
+      row.classList.add('typing-cursor');
+      for (let index = 0; index < text.length; index += 3) {
+        if (activeChatSession?.id !== sessionId || !row.isConnected) return false;
+        row.textContent += text.slice(index, index + 3);
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        await new Promise((resolve) => setTimeout(resolve, 40));
+      }
+      row.classList.remove('typing-cursor');
+      if (activeChatSession?.id !== sessionId || !row.isConnected) return false;
+      window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
+        row, text, 'ai-' + row.dataset.chatMessageId, activeChatSession.stock || ''
+      );
+      return true;
+    }
+
+    function appendChatError(text, sessionId) {
+      if (activeChatSession?.id !== sessionId) return;
+      const row = appendChatMessage('assistant', text, 'error', sessionId);
       row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      return !!row;
+    }
+
+    async function requestChatAnswer(question, sessionId, history) {
+      const controller = new AbortController();
+      activeQuestionController = controller;
+      pendingQuestionSessionId = sessionId;
+      const stock = activeChatSession?.stock || '';
+      const errors = {
+        stock_data_unavailable: '종목 데이터를 확인하지 못했어.',
+        invalid_input: '종목명을 함께 입력해 줘.',
+        minute_limit: '잠시 뒤에 다시 물어봐.',
+        model_daily_limit: '오늘은 더 답변하기 어려워.',
+        total_daily_limit: '오늘은 더 답변하기 어려워.',
+        private_access_required: '로그인이 필요해.',
+        ai_test_not_configured: '아직 답변을 준비하지 못했어.'
+      };
+      try {
+        // If the first stock analysis is in flight, wait for its shared
+        // server-side result instead of collecting the same data twice.
+        if (pendingAnalysis?.stock === stock) await pendingAnalysis.promise;
+        if (controller.signal.aborted || activeChatSession?.id !== sessionId) return;
+        const response = await fetch(BACKEND_URL + '/api/ai-test/chat', {
+          method: 'POST',
+          credentials: 'same-origin',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'news', stock, question, history })
+        });
+        const result = await response.json();
+        if (controller.signal.aborted || activeChatSession?.id !== sessionId) return;
+        if (!response.ok || !result.ok || !result.answer) {
+          appendChatError(errors[result.error] || '지금 답변을 가져오지 못했어.', sessionId);
+          return;
+        }
+        if (result.stock) {
+          activeChatSession.stock = result.stock;
+          activeStock = result.stock;
+          window.GaemiGTPActiveStock = result.stock;
+          window.GaemiGTPWorkspaceShellState?.save?.();
+        }
+        await appendChatReply(result.answer, sessionId);
+      } catch (error) {
+        if (error?.name !== 'AbortError' && activeChatSession?.id === sessionId) {
+          appendChatError('지금 답변을 가져오지 못했어.', sessionId);
+        }
+      } finally {
+        if (activeQuestionController === controller) activeQuestionController = null;
+        if (pendingQuestionSessionId === sessionId) pendingQuestionSessionId = null;
+      }
     }
 
     function getChatState() {
@@ -114,8 +196,10 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
 
       const controller = activeAnalysisController;
       const fetchPromise = window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend(stockName, controller.signal);
+      pendingAnalysis = { stock: stockName, promise: fetchPromise };
       const loadingDelayPromise = new Promise(resolve => setTimeout(resolve, 4000));
       const [result] = await Promise.all([fetchPromise, loadingDelayPromise]);
+      if (pendingAnalysis?.promise === fetchPromise) pendingAnalysis = null;
       if (requestId !== activeAnalysisRequestId || result.aborted) {
         loadingDiv.remove();
         return;
