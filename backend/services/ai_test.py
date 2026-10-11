@@ -270,6 +270,11 @@ def ai_test_chat():
     try:
         context = _cached_chat_context(stock) if private_chat else None
 
+        # A quote-only cache cannot answer later news/disclosure questions.
+        if context and not ("52주" in question and ("최고가" in question or "신고가" in question)):
+            if not any((context["news"], context["official_disclosures"], context["issue_briefs"], context["price_information"])):
+                context = None
+
         # A 52-week price question requires only the existing shared price
         # result. Do not block a fresh chat on unrelated news/disclosures.
         is_52week_question = private_chat and "52주" in question and ("최고가" in question or "신고가" in question)
