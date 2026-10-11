@@ -84,6 +84,7 @@ class PreviousTradingDayTests(unittest.TestCase):
             "전 거래일(2026-10-08) 기준 그날의 등락률 +10.00% (상승).",
         )
         self.assertIsNone(_previous_day_reply("오늘 전일 대비 몇 프로야?", metrics))
+        self.assertIsNone(_previous_day_reply("전일 52주 최고가까지 얼마 남았어?", metrics))
         self.assertIsNone(_previous_day_reply("어제 뉴스 알려줘", metrics))
 
     def test_no_history_or_missing_prior_close_is_not_guessed(self):
