@@ -5,7 +5,8 @@
   const STOCK_SEARCH_ALIASES = Object.freeze({
     '구글': '알파벳', 'google': '알파벳', 'alphabet': '알파벳',
     '스페이스엑스': '스페이스X', '스페이스x': '스페이스X', 'spacex': '스페이스X', 'spcx': '스페이스X',
-    '현대자동차': '현대차', '네이버': 'NAVER', '포스코홀딩스': 'POSCO홀딩스', '에이치엘비': 'HLB'
+    '현대자동차': '현대차', '네이버': 'NAVER', '포스코홀딩스': 'POSCO홀딩스', '에이치엘비': 'HLB',
+    'sk하이닉스': 'SK하이닉스', '하이닉스': 'SK하이닉스'
   });
 
   function resolveStockSearchInput(stockName) {
