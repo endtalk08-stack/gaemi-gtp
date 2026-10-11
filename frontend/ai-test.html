@@ -48,6 +48,21 @@
     <p id="feedback" role="status" aria-live="polite"></p>
   </section>
   <section>
+    <strong>말투 빠른 테스트</strong>
+    <p class="muted">전체 뉴스·공시·시세 조회 없이 예시 데이터로 모델 말투만 확인합니다. 실제 시세가 아닙니다. 위에서 고른 AI 모델과 테스트 횟수 한도를 그대로 사용합니다.</p>
+    <label for="previewQuestion">테스트 질문</label>
+    <input id="previewQuestion" maxlength="800" value="삼성전자 52주 최고가 몇 % 남았어?">
+    <label for="sampleFacts">예시 데이터 (실제 시세 아님)</label>
+    <textarea id="sampleFacts" maxlength="1200">삼성전자 예시 데이터 (실제 시세 아님)
+현재가: 263,000원
+직전 52주 최고가: 374,500원
+현재가 대비 이전 최고가 도달 필요 상승률: 42.4%
+가격 차이: 111,500원</textarea>
+    <label for="toneOverride">말투 프롬프트 (선택)</label>
+    <textarea id="toneOverride" maxlength="1000" placeholder="비워두면 현재 gaemiGTP에 적용된 공통 말투 프롬프트를 사용합니다. 다른 말투를 실험하고 싶으면 여기에 적으세요."></textarea>
+    <div class="actions"><button id="previewBtn" type="button" class="alt">말투 빠른 테스트 (1회 차감)</button></div>
+  </section>
+  <section>
     <strong>AI 답변</strong>
     <p id="answer">아직 AI를 호출하지 않았습니다.</p>
     <p id="sourceInfo" class="muted"></p>
@@ -59,6 +74,10 @@
   const token = document.getElementById("token");
   const statusBtn = document.getElementById("statusBtn");
   const askBtn = document.getElementById("askBtn");
+  const previewBtn = document.getElementById("previewBtn");
+  const previewQuestion = document.getElementById("previewQuestion");
+  const sampleFacts = document.getElementById("sampleFacts");
+  const toneOverride = document.getElementById("toneOverride");
   const quota = document.getElementById("quota");
   const feedback = document.getElementById("feedback");
   const answer = document.getElementById("answer");
@@ -110,6 +129,37 @@
       feedback.textContent = error.message;
     } finally {
       statusBtn.disabled = false;
+    }
+  });
+  previewBtn.addEventListener("click", async function () {
+    if (!previewQuestion.value.trim() || !sampleFacts.value.trim()) {
+      feedback.textContent = "테스트 질문과 예시 데이터를 입력해 주세요.";
+      return;
+    }
+    if (!window.confirm("선택한 모델의 테스트 호출 1회를 사용합니다. 예시 데이터로 말투만 테스트할까요?")) return;
+    feedback.textContent = "전체 종목 분석 없이 AI 말투를 테스트하는 중...";
+    previewBtn.disabled = true;
+    askBtn.disabled = true;
+    answer.textContent = "말투 테스트 중...";
+    sourceInfo.textContent = "";
+    try {
+      const result = await requestApi("/api/ai-test/chat", {
+        test_mode: "prompt_preview",
+        stock: document.getElementById("stock").value,
+        role: document.getElementById("role").value,
+        question: previewQuestion.value,
+        sample_facts: sampleFacts.value,
+        custom_style: toneOverride.value
+      });
+      answer.textContent = result.answer;
+      sourceInfo.textContent = "사용 모델: " + result.model + " · 예시 데이터 기반 말투 테스트 (실제 시세 아님)";
+      feedback.textContent = "말투 테스트 완료 (1회 차감)";
+    } catch (error) {
+      answer.textContent = "AI 답변이 없습니다.";
+      feedback.textContent = error.message;
+    } finally {
+      previewBtn.disabled = false;
+      askBtn.disabled = false;
     }
   });
   askBtn.addEventListener("click", async function () {
