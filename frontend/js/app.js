@@ -213,13 +213,6 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           : (errors[result.error] || 'AI 답변을 가져오지 못했어. 다시 시도해 줘.');
         appendAiChatFormattedAnswer(reply, answerText);
 
-        if (response.ok && result.ok) {
-          const sourceNote = document.createElement('p');
-          sourceNote.className = 'text-xs theme-faint';
-          sourceNote.textContent = '시세 데이터 기준 · 지연 가능';
-          reply.appendChild(sourceNote);
-        }
-
         chatArea.appendChild(reply);
         reply.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } catch (error) {
