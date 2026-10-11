@@ -621,6 +621,29 @@ _HASHTAG_EVIDENCE_RULES = {
 }
 
 
+_ARTICLE_LIST_MARKERS = (
+    "관련 기사", "많이 본 뉴스", "추천 기사", "실시간 인기", "주요 뉴스",
+    "랭킹 뉴스", "연관 뉴스", "최신 뉴스", "전체 기사", "함께 읽",
+)
+
+
+def _is_article_listing(sentence):
+    """Reject sidebar headlines / navigation fragments mistaken for article prose."""
+    text = str(sentence or "").strip()
+    if not text:
+        return True
+    if any(marker in text for marker in _ARTICLE_LIST_MARKERS):
+        return True
+    if re.search(r"^\s*\d{1,4}\s*[-–]\s+", text):
+        return True
+    # A cluster of news headlines, not an individual factual sentence.
+    if len(re.findall(r"\s[-–]\s", text)) >= 2:
+        return True
+    if re.search(r"(?:뉴스|증시|주가|관련주).{0,20}(?:속보|더보기|기사\s*목록)", text):
+        return True
+    return False
+
+
 def _issue_sentences(value):
     text = re.sub(r"\s+", " ", str(value or "")).strip()
     if not text:
@@ -630,7 +653,7 @@ def _issue_sentences(value):
     result = []
     for part in pieces:
         cleaned = part.strip(" \t-•▶■“”\"'")
-        if len(cleaned) >= 12:
+        if len(cleaned) >= 12 and not _is_article_listing(cleaned):
             result.append(cleaned)
     return result
 
