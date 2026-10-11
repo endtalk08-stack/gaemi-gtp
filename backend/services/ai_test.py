@@ -298,6 +298,11 @@ def home_52week_ai_preview():
         gap_to_previous_high = max(0.0, previous_high - current)
         checked_at = datetime.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M KST")
         quote_key = (round(current, 2), round(previous_high, 2))
+        # Reuse the same validated quote in both cached and fresh UI responses.
+        chart_prices = {
+            "current_price_krw": quote_key[0],
+            "previous_52week_high_krw": quote_key[1],
+        }
 
         with _HOME_52W_LOCK:
             cached = _HOME_52W_CACHE.get("result") or {}
@@ -306,6 +311,7 @@ def home_52week_ai_preview():
                     "ok": True, "answer": cached["answer"],
                     "model": MODELS["news"]["id"], "cached": True,
                     "checked_at": checked_at,
+                    "chart_prices": chart_prices,
                     "limits": _remaining(),
                 })
 
@@ -343,7 +349,8 @@ def home_52week_ai_preview():
 
         return jsonify({
             "ok": True, "answer": answer, "model": MODELS["news"]["id"],
-            "cached": False, "checked_at": checked_at, "limits": _remaining(),
+            "cached": False, "checked_at": checked_at,
+            "chart_prices": chart_prices, "limits": _remaining(),
         })
     except urllib.error.HTTPError as exc:
         return jsonify({
