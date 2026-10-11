@@ -801,9 +801,10 @@ def _issue_brief_fact(sentence, tag, stock_name):
                 else "전년 대비 " if "전년" in sentence else ""
             )
             metric_name = re.sub(r"\s+", "", rate.group("metric"))
+            direction = "증가" if rate.group("direction") == "늘었" else rate.group("direction")
             return (
                 f"{actor}: {period_text}{metric_name} {basis}"
-                f"{rate.group('rate').strip()} {rate.group('direction')}."
+                f"{rate.group('rate').strip()} {direction}."
             )
         if re.search(r"사상\s*(?:최고|최대).{0,8}분기\s*실적", sentence):
             return f"{actor}: 사상 최고 수준의 분기 실적."
