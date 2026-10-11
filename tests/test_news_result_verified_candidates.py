@@ -1,4 +1,4 @@
-"""Central notable-flow selection: preserve the shared news result and verify facts."""
+"""Verify that the original top-three news selection only hides empty core briefs."""
 
 import unittest
 from unittest.mock import patch
@@ -6,121 +6,141 @@ from unittest.mock import patch
 from backend.services.news_result import build_stock_news_result
 
 
-class VerifiedCandidateSelectionTests(unittest.TestCase):
-    def _run(self, count=9, supported=(), secondary_only=()):
+class NotableFlowCoreFactsTests(unittest.TestCase):
+    def _run(self, count=6, supported=()):
         supported = set(supported)
-        secondary_only = set(secondary_only)
-        items = [
+        rows = [
             {
-                "title": f"SK하이닉스 후보 기사 {i}",
-                "url": f"https://example.test/news/{i}",
+                "title": f"SK하이닉스 뉴스 {i}",
+                "url": f"https://example.test/story/{i}",
                 "published_at": f"2026-10-12T0{i}:00:00",
                 "storyboard_time": f"0{i}:00",
-                "storyboard_keywords": [f"사건{i}"],
                 "storyboard_keyword": f"사건{i}",
-                "storyboard_selection_score": 100 - i,
+                "storyboard_keywords": [f"사건{i}"],
                 "relation_type": "direct",
-                "supported": i in supported,
-                "secondary_only": i in secondary_only,
+                "index": i,
             }
             for i in range(count)
         ]
         read_batches = []
 
-        def read_details(batch, *, limit):
-            read_batches.append([row["url"] for row in batch])
-            self.assertLessEqual(len(batch), 3)
-            return ["SK하이닉스가 주요 산업의 사업 동향을 발표했다." for _ in batch]
-
-        def keyword_analysis(rows, stock_name, max_keywords):
+        def keyword_analysis(items, stock_name, max_keywords=3):
             return {"articles": [
                 {
-                    "keywords": [],
+                    "keywords": [item["storyboard_keyword"]],
                     "keyword_details": [],
                     "grounded_tags": [],
                     "stock_entities": [stock_name],
                     "event_owner": stock_name,
                     "relation_type": "direct",
                 }
-                for _ in rows
+                for item in items
             ]}
 
-        def build_brief(rows, stock_name, limit, *, diagnostics):
-            row = rows[0]
-            valid = row["supported"]
-            secondary_only = row["secondary_only"]
-            tag_checks = [{"tag": row["storyboard_keyword"], "chosen": valid}]
-            if secondary_only:
-                tag_checks.append({"tag": "부가키워드", "chosen": True})
-            diagnostics.append({
-                "brief_kind": "matched_hashtag" if valid or secondary_only
-                else "missing_hashtag_fact",
-                "tag_checks": tag_checks,
-            })
-            return [{
-                "headline": row["storyboard_keyword"] + " 이슈",
-                "summary": "구체적인 사건 설명" if valid or secondary_only
-                else "해시태그와 연결되는 구체적인 내용은 확인되지 않았어.",
-                "time": row["storyboard_time"],
-                "tags": [row["storyboard_keyword"]],
-            }]
+        def reader(items, *, limit):
+            read_batches.append([row["index"] for row in items])
+            return ["실제 기사에서 확인한 내용" for _ in items[:limit]]
+
+        def brief_builder(items, stock_name, limit, *, diagnostics):
+            emitted = []
+            for rank, row in enumerate(items, 1):
+                valid = row["index"] in supported
+                diagnostics.append({
+                    "rank": rank,
+                    "emitted": True,
+                    "brief_kind": "matched_hashtag" if valid
+                    else "missing_hashtag_fact",
+                    "tag_checks": [{"chosen": valid}],
+                })
+                emitted.append({
+                    "headline": row["storyboard_keyword"] + " 이슈",
+                    "summary": "구체적 핵심 사실" if valid
+                    else "해시태그와 연결되는 구체적인 내용은 확인되지 않았어.",
+                    "tags": [row["storyboard_keyword"]],
+                })
+            return emitted
 
         with (
-            patch("backend.services.news_result.fetch_stock_news", return_value=items),
-            patch("backend.services.news_result.score_stock_news", side_effect=lambda values, _: values),
+            patch("backend.services.news_result.fetch_stock_news", return_value=rows),
+            patch("backend.services.news_result.score_stock_news", side_effect=lambda items, _: items),
             patch("backend.services.news_result.build_connected_keyword_test", side_effect=keyword_analysis),
-            patch("backend.services.news_result.build_simple_today_news", side_effect=lambda values, *args, **kwargs: values),
+            patch("backend.services.news_result.build_simple_today_news",
+                  side_effect=lambda items, *_args, **_kwargs: items),
             patch("backend.services.news_result.select_keyword_storyboard_news",
-                  side_effect=lambda values, limit: list(reversed(values[:limit]))),
-            patch("backend.services.news_result.read_selected_article_details", side_effect=read_details),
+                  side_effect=lambda items, limit: items[:limit]),
+            patch("backend.services.news_result.read_selected_article_details", side_effect=reader),
             patch("backend.services.news_result.extract_structured_article_facts", return_value={}),
-            patch("backend.services.news_result.build_issue_briefs", side_effect=build_brief),
+            patch("backend.services.news_result.build_issue_briefs", side_effect=brief_builder),
         ):
-            result = build_stock_news_result("SK하이닉스", market="KR", storyboard_limit=3)
+            result = build_stock_news_result("SK하이닉스", market="KR")
         return result, read_batches
 
-    def test_replaces_three_failed_top_candidates_with_verified_later_ones(self):
-        result, batches = self._run(supported=(3, 5, 7))
-        self.assertEqual(len(result["paired_news_items"]), 9)
+    def test_hides_only_missing_core_facts_from_original_three(self):
+        result, batches = self._run(supported=(0, 2, 3, 4))
+        self.assertEqual(len(result["paired_news_items"]), 6)
         self.assertEqual(len(result["storyboard_news_items"]), 3)
-        # Display remains newest-first even though verification is score-first.
-        self.assertEqual(
-            [x["storyboard_keyword"] for x in result["storyboard_news_items"]],
-            ["사건7", "사건5", "사건3"],
-        )
-        self.assertEqual(len(result["issue_briefs"]), 3)
+        self.assertEqual([row["summary"] for row in result["issue_briefs"]],
+                         ["구체적 핵심 사실", "구체적 핵심 사실"])
+        self.assertEqual(batches, [[0, 1, 2]])
         self.assertEqual(len(result["keyword_storyboard"]), 3)
-        self.assertEqual([len(batch) for batch in batches], [3, 3, 3])
-        self.assertNotIn("_brief_detail_text", result["storyboard_news_items"][0])
 
-    def test_does_not_fill_missing_slots_with_empty_issue_descriptions(self):
-        result, batches = self._run(count=4, supported=(1,))
-        self.assertEqual(len(result["storyboard_news_items"]), 1)
-        self.assertEqual(len(result["issue_briefs"]), 1)
-        self.assertEqual(result["issue_briefs"][0]["summary"], "구체적인 사건 설명")
-        self.assertEqual(len(result["paired_news_items"]), 4)
-        self.assertEqual([len(batch) for batch in batches], [3, 1])
-
-    def test_stops_after_three_verified_candidates(self):
-        result, batches = self._run(supported=(0, 1, 2, 3, 4))
-        self.assertEqual(len(result["issue_briefs"]), 3)
-        self.assertEqual([len(batch) for batch in batches], [3])
-
-    def test_secondary_tag_cannot_mask_missing_primary_issue_fact(self):
-        result, batches = self._run(
-            count=3, supported=(), secondary_only=(0, 1, 2),
-        )
+    def test_does_not_backfill_from_next_articles(self):
+        result, batches = self._run(supported=(3, 4, 5))
         self.assertEqual(result["issue_briefs"], [])
-        self.assertEqual(result["storyboard_news_items"], [])
-        self.assertEqual(len(result["paired_news_items"]), 3)
-        self.assertEqual([len(batch) for batch in batches], [3])
+        self.assertEqual(len(result["storyboard_news_items"]), 3)
+        self.assertEqual(batches, [[0, 1, 2]])
 
-    def test_empty_candidates_return_no_central_issues(self):
+    def test_keeps_all_three_when_all_have_core_facts(self):
+        result, batches = self._run(supported=(0, 1, 2))
+        self.assertEqual(len(result["issue_briefs"]), 3)
+        self.assertEqual(batches, [[0, 1, 2]])
+
+    def test_does_not_show_missing_fact_placeholders(self):
+        result, _ = self._run(supported=())
+        self.assertEqual(result["issue_briefs"], [])
+        self.assertEqual(len(result["paired_news_items"]), 6)
+
+    def test_no_news_returns_empty_results(self):
         result, batches = self._run(count=0)
         self.assertEqual(result["issue_briefs"], [])
         self.assertEqual(result["storyboard_news_items"], [])
-        self.assertEqual(result["paired_news_items"], [])
         self.assertEqual(batches, [])
+
+    def test_a_skipped_diagnostic_does_not_shift_result_alignment(self):
+        # Builder can skip a row with missing headline while still auditing it.
+        from backend.services.news_result import build_stock_news_result
+        source = [
+            {"title": str(i), "url": f"https://example.test/{i}",
+             "storyboard_keyword": f"t{i}", "storyboard_keywords": [f"t{i}"],
+             "published_at": "2026-10-12T00:00:00"}
+            for i in range(3)
+        ]
+
+        def briefer(items, stock, limit, *, diagnostics):
+            for i in range(3):
+                diagnostics.append({
+                    "emitted": i != 1,
+                    "brief_kind": "matched_hashtag" if i == 2 else "missing_hashtag_fact",
+                    "tag_checks": [{"chosen": i == 2}],
+                })
+            return [{"summary": "empty"}, {"summary": "real", "headline": "t2"}]
+
+        with (
+            patch("backend.services.news_result.fetch_stock_news", return_value=source),
+            patch("backend.services.news_result.score_stock_news", side_effect=lambda rows, _: rows),
+            patch("backend.services.news_result.build_connected_keyword_test",
+                  return_value={"articles": []}),
+            patch("backend.services.news_result.build_simple_today_news",
+                  side_effect=lambda rows, *_a, **_kw: rows),
+            patch("backend.services.news_result.select_keyword_storyboard_news",
+                  side_effect=lambda rows, limit: rows[:limit]),
+            patch("backend.services.news_result.read_selected_article_details",
+                  return_value=["", "", ""]),
+            patch("backend.services.news_result.build_issue_briefs", side_effect=briefer),
+        ):
+            result = build_stock_news_result("SK하이닉스", market="KR")
+        self.assertEqual(len(result["issue_briefs"]), 1)
+        self.assertEqual(result["issue_briefs"][0]["summary"], "real")
 
 
 if __name__ == "__main__":

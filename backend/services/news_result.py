@@ -79,177 +79,160 @@ def build_stock_news_result(
             limit=None,
             display_timezone=display_timezone,
         )
-        # Retain the existing importance ranking and duplicate-event merging,
-        # but verify the brief BEFORE fixing the final central top three.
-        # Never re-collect news or change the full paired-news result.
-        requested_count = max(1, int(storyboard_limit))
-        candidate_limit = max(requested_count, min(9, requested_count * 3))
-        candidate_news_items = select_keyword_storyboard_news(
+        storyboard_news_items = select_keyword_storyboard_news(
             paired_news_items,
-            limit=candidate_limit,
-        )
-        # The storyboard selector returns chronological display order. Restore
-        # importance order for trial candidates; accepted rows go back to
-        # chronological order for the unchanged central UI.
-        candidate_news_items.sort(
-            key=lambda item: float(item.get("storyboard_selection_score") or 0),
-            reverse=True,
+            limit=storyboard_limit,
         )
 
-        accepted = []
-        candidates_checked = 0
-        detail_started = time.monotonic()
-        for offset in range(0, len(candidate_news_items), requested_count):
-            if len(accepted) >= requested_count:
-                break
-            batch = candidate_news_items[offset:offset + requested_count]
-            initial_keywords = []
-            for rank, item in enumerate(batch, offset + 1):
-                url = str(item.get("url") or item.get("link") or "")
-                article_id = hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
-                try:
-                    parsed = urllib.parse.urlsplit(url)
-                    public_url = urllib.parse.urlunsplit(
-                        (parsed.scheme, parsed.netloc, parsed.path, "", "")
-                    )
-                except ValueError:
-                    public_url = url.split("?", 1)[0].split("#", 1)[0]
-                initial_keywords.append(list(item.get("article_keywords") or []))
-                print("[news issue audit] " + json.dumps({
-                    "trace": trace_id, "stock": stock_name, "rank": rank,
-                    "stage": "selected_before_body", "article": article_id,
-                    "url": public_url, "title": str(item.get("title") or "")[:140],
-                    "relation": item.get("relation_type"),
-                    "owner": item.get("event_owner"),
-                    "primary_keyword": item.get("storyboard_keyword"),
-                    "initial_keywords": initial_keywords[-1][:8],
-                    "keyword_origins": [
-                        {
-                            "tag": detail.get("label"), "source": detail.get("source"),
-                            "owner": detail.get("event_owner"),
-                        }
-                        for detail in (item.get("article_keyword_details") or [])[:8]
-                        if isinstance(detail, dict)
-                    ],
-                }, ensure_ascii=False), flush=True)
-
-            # Reuse the original reader, limited to three concurrent article
-            # requests per batch, and enrich only the same shortlisted items.
-            detail_texts = read_selected_article_details(batch, limit=len(batch))
-            if any(detail_texts):
-                detail_inputs = []
-                for item, detail_text in zip(batch, detail_texts):
-                    enriched = dict(item)
-                    if detail_text:
-                        enriched["description"] = detail_text
-                        enriched["summary"] = detail_text
-                    detail_inputs.append(enriched)
-
-                detail_keyword_result = build_connected_keyword_test(
-                    detail_inputs,
-                    stock_name,
-                    max_keywords=3,
+        initial_keywords = []
+        for rank, item in enumerate(storyboard_news_items, 1):
+            url = str(item.get("url") or item.get("link") or "")
+            article_id = hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
+            try:
+                parsed = urllib.parse.urlsplit(url)
+                public_url = urllib.parse.urlunsplit(
+                    (parsed.scheme, parsed.netloc, parsed.path, "", "")
                 )
-                for item, detail_text, detail_result in zip(
-                    batch,
-                    detail_texts,
-                    detail_keyword_result.get("articles", []),
-                ):
-                    if not detail_text:
-                        continue
-                    direct_details = [
-                        detail for detail in (detail_result.get("keyword_details") or [])
-                        if str((detail or {}).get("relation_type") or "") == "direct"
-                    ]
-                    direct_labels = [
-                        str((detail or {}).get("label") or "").strip()
-                        for detail in direct_details
-                        if str((detail or {}).get("label") or "").strip()
-                    ]
-                    item["article_keywords"] = list(dict.fromkeys(
-                        list(item.get("article_keywords") or []) + direct_labels
-                    ))
-                    existing_details = list(item.get("article_keyword_details") or [])
-                    existing_labels = {
-                        str((detail or {}).get("label") or "").strip()
-                        for detail in existing_details
+            except ValueError:
+                public_url = url.split("?", 1)[0].split("#", 1)[0]
+            initial_keywords.append(list(item.get("article_keywords") or []))
+            print("[news issue audit] " + json.dumps({
+                "trace": trace_id, "stock": stock_name, "rank": rank,
+                "stage": "selected_before_body", "article": article_id,
+                "url": public_url, "title": str(item.get("title") or "")[:140],
+                "relation": item.get("relation_type"),
+                "owner": item.get("event_owner"),
+                "primary_keyword": item.get("storyboard_keyword"),
+                "initial_keywords": initial_keywords[-1][:8],
+                "keyword_origins": [
+                    {
+                        "tag": detail.get("label"), "source": detail.get("source"),
+                        "owner": detail.get("event_owner")
                     }
-                    item["article_keyword_details"] = existing_details + [
-                        detail for detail in direct_details
-                        if str((detail or {}).get("label") or "").strip() not in existing_labels
-                    ]
-                    item["grounded_tags"] = list(dict.fromkeys(
-                        list(item.get("grounded_tags") or [])
-                        + list(detail_result.get("grounded_tags") or [])
-                    ))
-                    detail_owner = str(detail_result.get("event_owner") or "").strip()
-                    detail_relation = str(detail_result.get("relation_type") or "").strip()
-                    facts_item = dict(item)
-                    if detail_owner and detail_relation == "direct":
-                        facts_item["event_owner"] = detail_owner
-                        facts_item["relation_type"] = detail_relation
-                    item["detail_facts"] = extract_structured_article_facts(
-                        detail_text,
-                        facts_item,
-                        stock_name,
-                        grounded_tags=item.get("grounded_tags") or [],
-                    )
-                    item["detail_read"] = True
+                    for detail in (item.get("article_keyword_details") or [])[:8]
+                    if isinstance(detail, dict)
+                ],
+            }, ensure_ascii=False), flush=True)
 
-            for local_index, (item, detail_text) in enumerate(zip(batch, detail_texts)):
-                rank = offset + local_index + 1
-                candidates_checked += 1
-                print("[news issue audit] " + json.dumps({
-                    "trace": trace_id, "stock": stock_name, "rank": rank,
-                    "stage": "after_body", "detail_chars": len(detail_text),
-                    "detail_nonempty": bool(detail_text),
-                    "before_tags": initial_keywords[local_index],
-                    "after_tags": list(item.get("article_keywords") or [])[:10],
-                    "detail_read": bool(item.get("detail_read")),
-                    "detail_facts": sorted(
-                        key for key, value in (item.get("detail_facts") or {}).items()
-                        if value
-                    ),
-                }, ensure_ascii=False), flush=True)
+        # Second pass: read only the already-selected central candidates.  The
+        # raw article body never leaves this function; only grounded facts are
+        # merged back into the shared result.
+        detail_started = time.monotonic()
+        detail_texts = read_selected_article_details(
+            storyboard_news_items,
+            limit=storyboard_limit,
+        )
+        if any(detail_texts):
+            detail_inputs = []
+            for item, detail_text in zip(storyboard_news_items, detail_texts):
+                enriched = dict(item)
+                if detail_text:
+                    enriched["description"] = detail_text
+                    enriched["summary"] = detail_text
+                detail_inputs.append(enriched)
 
-                # A matched word is not a verified issue. Only accept a brief
-                # whose primary hashtag actually produced a grounded fact.
-                audit = []
-                brief_input = {**item, "_brief_detail_text": detail_text}
-                brief = build_issue_briefs(
-                    [brief_input], stock_name, limit=1, diagnostics=audit,
+            detail_keyword_result = build_connected_keyword_test(
+                detail_inputs,
+                stock_name,
+                max_keywords=3,
+            )
+            for item, detail_text, detail_result in zip(
+                storyboard_news_items,
+                detail_texts,
+                detail_keyword_result.get("articles", []),
+            ):
+                if not detail_text:
+                    continue
+                direct_details = [
+                    detail for detail in (detail_result.get("keyword_details") or [])
+                    if str((detail or {}).get("relation_type") or "") == "direct"
+                ]
+                direct_labels = [
+                    str((detail or {}).get("label") or "").strip()
+                    for detail in direct_details
+                    if str((detail or {}).get("label") or "").strip()
+                ]
+                item["article_keywords"] = list(dict.fromkeys(
+                    list(item.get("article_keywords") or []) + direct_labels
+                ))
+                existing_details = list(item.get("article_keyword_details") or [])
+                existing_labels = {
+                    str((detail or {}).get("label") or "").strip()
+                    for detail in existing_details
+                }
+                item["article_keyword_details"] = existing_details + [
+                    detail for detail in direct_details
+                    if str((detail or {}).get("label") or "").strip() not in existing_labels
+                ]
+                item["grounded_tags"] = list(dict.fromkeys(
+                    list(item.get("grounded_tags") or [])
+                    + list(detail_result.get("grounded_tags") or [])
+                ))
+                detail_owner = str(detail_result.get("event_owner") or "").strip()
+                detail_relation = str(detail_result.get("relation_type") or "").strip()
+                facts_item = dict(item)
+                if detail_owner and detail_relation == "direct":
+                    facts_item["event_owner"] = detail_owner
+                    facts_item["relation_type"] = detail_relation
+                item["detail_facts"] = extract_structured_article_facts(
+                    detail_text,
+                    facts_item,
+                    stock_name,
+                    grounded_tags=item.get("grounded_tags") or [],
                 )
-                info = audit[0] if audit else {}
-                tag_checks = info.get("tag_checks") or []
-                primary_supported = bool(tag_checks and tag_checks[0].get("chosen"))
-                verified = bool(
-                    brief and info.get("brief_kind") == "matched_hashtag"
-                    and primary_supported
-                )
-                print("[news issue audit] " + json.dumps({
-                    "trace": trace_id, "stock": stock_name,
-                    "stage": "brief_result", **info,
-                    "rank": rank, "verified": verified,
-                    "reason": "primary_hashtag_fact" if verified
-                    else "no_primary_hashtag_fact",
-                }, ensure_ascii=False), flush=True)
-                if verified and len(accepted) < requested_count:
-                    accepted.append((item, brief[0]))
-
+                item["detail_read"] = True
         print(
             f"[analyze news trace] stock={stock_name} part=detail done "
             f"elapsed={time.monotonic() - detail_started:.2f}s "
-            f"checked={candidates_checked} accepted={len(accepted)}",
+            f"read={sum(1 for value in detail_texts if value)}",
             flush=True,
         )
-        accepted.sort(
-            key=lambda pair: str(
-                pair[0].get("published_at") or pair[0].get("pub_date") or ""
-            ),
-            reverse=True,
+
+        for rank, (item, detail_text) in enumerate(
+            zip(storyboard_news_items, detail_texts), 1
+        ):
+            print("[news issue audit] " + json.dumps({
+                "trace": trace_id, "stock": stock_name, "rank": rank,
+                "stage": "after_body", "detail_chars": len(detail_text),
+                "detail_nonempty": bool(detail_text),
+                "before_tags": initial_keywords[rank - 1],
+                "after_tags": list(item.get("article_keywords") or [])[:10],
+                "detail_read": bool(item.get("detail_read")),
+                "detail_facts": sorted(
+                    key for key, value in (item.get("detail_facts") or {}).items()
+                    if value
+                ),
+            }, ensure_ascii=False), flush=True)
+
+        # The body is used only while composing the already-selected issue
+        # summaries; never attach it to the returned news/UI result.
+        brief_inputs = [
+            {**item, "_brief_detail_text": detail_texts[index]}
+            for index, item in enumerate(storyboard_news_items)
+        ]
+        issue_diagnostics = []
+        issue_briefs = build_issue_briefs(
+            brief_inputs,
+            stock_name,
+            limit=storyboard_limit,
+            diagnostics=issue_diagnostics,
         )
-        storyboard_news_items = [item for item, _ in accepted]
-        issue_briefs = [brief for _, brief in accepted]
+        # Keep the original top-three selection unchanged. Only hide
+        # notable-flow rows without a hashtag-backed factual explanation.
+        # Diagnostics contain skipped rows too, hence align emitted entries.
+        emitted_audits = [
+            audit for audit in issue_diagnostics if audit.get("emitted")
+        ]
+        issue_briefs = [
+            brief for brief, audit in zip(issue_briefs, emitted_audits)
+            if audit.get("brief_kind") == "matched_hashtag"
+            and any(check.get("chosen") for check in audit.get("tag_checks") or [])
+        ]
+        for item in issue_diagnostics:
+            print("[news issue audit] " + json.dumps({
+                "trace": trace_id, "stock": stock_name,
+                "stage": "brief_result", **item,
+            }, ensure_ascii=False), flush=True)
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
         central_eligible = [
