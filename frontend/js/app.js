@@ -84,6 +84,104 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       startTypewriterFlow(stockName, sections, result, requestId);
     }
 
+
+    // First homepage example only: this must not run the full /analyze workflow.
+    // All other stock searches and their first replies remain unchanged.
+    async function requestHome52wAi() {
+      const stockName = '삼성전자';
+      const question = '삼성전자 52주 최고가 몇 % 남았어?';
+
+      window.GaemiGTPCenterChatSearch?.enterChatWorkspace?.();
+      window.GaemiGTPWorkspaceShellState?.apply?.();
+
+      if (activeAnalysisController) activeAnalysisController.abort();
+      activeAnalysisController = new AbortController();
+      const controller = activeAnalysisController;
+      const requestId = ++activeAnalysisRequestId;
+
+      activeStock = stockName;
+      window.GaemiGTPActiveStock = stockName;
+      window.GaemiGTPWorkspaceShellState?.save?.();
+
+      const chatArea = document.getElementById('chatArea');
+      if (!chatArea) return;
+      chatArea.replaceChildren();
+      chatArea.scrollTop = 0;
+
+      const userDiv = document.createElement('div');
+      userDiv.className = 'flex justify-end animate-fade';
+      const userBubble = document.createElement('div');
+      userBubble.className = 'bg-[#f1f5f9] dark:bg-[#1e1f24] text-[#0f172a] gtp-dark-text gtp-chat-user px-5 py-3 rounded-2xl border border-[#cbd5e1] dark:border-[#3f3f46]';
+      userBubble.textContent = question;
+      userDiv.appendChild(userBubble);
+      chatArea.appendChild(userDiv);
+
+      const loading = document.createElement('div');
+      loading.className = 'analysis-loading-sequence';
+      const loadingText = document.createElement('p');
+      loadingText.className = 'gtp-chat-copy font-semibold animate-pulse';
+      loadingText.setAttribute('aria-live', 'polite');
+      loadingText.textContent = '시세를 확인하고 AI 답변을 만드는 중이야';
+      loading.appendChild(loadingText);
+      chatArea.appendChild(loading);
+
+      const errors = {
+        price_data_unavailable: '52주 최고가 또는 현재가를 확인하지 못했어. 숫자를 추측하지 않고 여기서 멈출게.',
+        model_daily_limit: '오늘 일반 AI 테스트 10회 한도에 도달했어. 내일 다시 테스트해 줘.',
+        total_daily_limit: '오늘 전체 AI 테스트 20회 한도에 도달했어.',
+        minute_limit: 'AI 테스트는 분당 2회까지만 가능해. 잠시 후 다시 눌러줘.',
+        groq_rate_limit: 'Groq 제공사의 호출 한도에 걸렸어. 잠시 후 다시 테스트해 줘.',
+        private_access_required: '관리자 로그인이 필요해. 메인으로 돌아가서 로그인해 줘.',
+        ai_test_not_configured: '관리자 AI 테스트 설정이 아직 준비되지 않았어.',
+      };
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/ai-test/home-52w`, {
+          method: 'POST', credentials: 'same-origin', signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        if (requestId !== activeAnalysisRequestId) return;
+
+        const reply = document.createElement('section');
+        reply.className = 'space-y-4 animate-fade py-2';
+
+        const heading = document.createElement('div');
+        heading.className = 'flex items-center gap-2.5';
+        heading.innerHTML = '<div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#0f172a] dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-xs sm:text-sm shadow-sm shrink-0">G</div><h4 class="gtp-chat-section-title text-[#0f172a] gtp-dark-text">gaemiGTP AI</h4>';
+        reply.appendChild(heading);
+
+        const answer = document.createElement('p');
+        answer.className = 'gtp-chat-copy whitespace-pre-line';
+        answer.textContent = response.ok && result.ok && result.answer
+          ? result.answer
+          : (errors[result.error] || 'AI 답변을 가져오지 못했어. 다시 시도해 줘.');
+        reply.appendChild(answer);
+
+        if (response.ok && result.ok) {
+          const meta = document.createElement('p');
+          meta.className = 'text-xs text-[#64748b] dark:text-[#a1a1aa]';
+          const used = result.limits?.models?.news?.used;
+          const limit = result.limits?.models?.news?.limit;
+          const usage = Number.isFinite(used) && Number.isFinite(limit) ? ` · 오늘 테스트 ${used}/${limit}회` : '';
+          meta.textContent = `GPT-OSS 20B · ${result.cached ? '기존 답변 재사용 (AI 추가 호출 없음)' : 'AI 답변'}${usage} · 시세는 지연될 수 있어`;
+          reply.appendChild(meta);
+        }
+
+        chatArea.appendChild(reply);
+        reply.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (error) {
+        if (error?.name === 'AbortError' || requestId !== activeAnalysisRequestId) return;
+        const failure = document.createElement('p');
+        failure.className = 'gtp-chat-copy';
+        failure.textContent = 'AI 서버 연결에 문제가 있어. 비용을 발생시키는 자동 재시도는 하지 않을게.';
+        chatArea.appendChild(failure);
+      } finally {
+        loading.remove();
+        if (activeAnalysisController === controller) activeAnalysisController = null;
+      }
+    }
+
     function startTypewriterFlow(stockName, sections, result, requestId) {
       if (requestId !== activeAnalysisRequestId) return;
       const chatArea = document.getElementById('chatArea');
@@ -556,7 +654,7 @@ window.addEventListener('resize', () => {
   window.GaemiGTPWorkspaceShellState?.apply?.();
 });
 
-window.GaemiGTPApp = { requestStock };
+window.GaemiGTPApp = { requestStock, requestHome52wAi };
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
