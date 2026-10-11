@@ -52,6 +52,8 @@ _GROQ_CALL_EVENTS = deque(maxlen=100)
 _GROQ_CALL_LOCK = threading.Lock()
 _GROQ_USAGE_DAY = ""
 _GROQ_DAILY_USAGE = {}
+_GROQ_LATEST_REMAINING = {}  # Last observed Groq response headers, by model.
+
 
 
 
@@ -199,6 +201,35 @@ def _record_groq_call(role, outcome, usage=None, limit_type="", http_status=None
     return event
 
 
+def _groq_remaining_headers(headers):
+    """Only use Groq-documented values: requests/day and tokens/minute."""
+    def quantity(name):
+        raw = str(headers.get(name) or "").strip() if headers is not None else ""
+        return int(raw) if raw.isascii() and raw.isdecimal() and len(raw) <= 15 else None
+
+    return {
+        "requests_per_day": {
+            "limit": quantity("x-ratelimit-limit-requests"),
+            "remaining": quantity("x-ratelimit-remaining-requests"),
+        },
+        "tokens_per_minute": {
+            "limit": quantity("x-ratelimit-limit-tokens"),
+            "remaining": quantity("x-ratelimit-remaining-tokens"),
+        },
+    }
+
+
+def _remember_groq_remaining(role, headers):
+    values = _groq_remaining_headers(headers)
+    if not any(value is not None for group in values.values() for value in group.values()):
+        return
+    values["observed_at_kst"] = datetime.datetime.now(
+        ZoneInfo("Asia/Seoul")
+    ).isoformat(timespec="seconds")
+    with _GROQ_CALL_LOCK:
+        _GROQ_LATEST_REMAINING[role] = values
+
+
 def _provider_info():
     with _GROQ_RATE_LIMIT_LOCK:
         events = list(reversed(_GROQ_RATE_LIMIT_EVENTS))[:20]
@@ -210,6 +241,10 @@ def _provider_info():
             for role in MODELS
         }
         recent_calls = list(reversed(_GROQ_CALL_EVENTS))[:20]
+        provider_remaining = {
+            role: dict(_GROQ_LATEST_REMAINING[role])
+            for role in MODELS if role in _GROQ_LATEST_REMAINING
+        }
     return {
         "limit_source": "groq",
         "models": {
@@ -224,8 +259,9 @@ def _provider_info():
         "date_kst": date_kst,
         "daily_usage": daily_usage,
         "recent_calls": recent_calls,
+        "provider_remaining": provider_remaining,
         "note": "Groq에서 직접 한도를 적용합니다. 표시된 숫자는 조직 Free 한도 참고값이며 실제 프로젝트 한도와 남은 사용량은 Groq 콘솔에서 확인하세요.",
-        "history_warning": "사용 기록과 오늘 누적치는 이 서버의 /ai-test 요청 기준입니다. 재시작 시 초기화되며 다른 프로젝트나 Groq 콘솔 호출은 포함되지 않습니다. Render 로그에서는 보존 기간 내 기록을 조회할 수 있습니다.",
+        "history_warning": "하루 예상 잔여 토큰은 오늘 이 서버의 관리자 테스트에서 관측한 사용량만 차감한 참고값입니다(한국시간 기준). Groq의 실제 하루 잔여 토큰은 응답 헤더에서 제공되지 않습니다. 실제 응답 잔여량도 마지막 호출 시점의 값입니다. 기록은 서버 재시작 시 초기화되고 다른 앱·프로젝트 사용량은 포함하지 않습니다.",
     }
 
 
@@ -357,6 +393,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=650, style_p
     )
     with urllib.request.urlopen(req, timeout=23) as response:
         result = json.loads(response.read().decode("utf-8"))
+        provider_headers = response.headers
     choices = result.get("choices") or []
     if not choices:
         raise ValueError("empty_choices")
@@ -364,7 +401,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=650, style_p
     if not answer.strip():
         raise ValueError("empty_response")
     usage = result.get("usage")
-    return answer.strip()[:4000], (usage if isinstance(usage, dict) else None)
+    return answer.strip()[:4000], (usage if isinstance(usage, dict) else None), provider_headers
 
 
 @ai_test_bp.get("/api/ai-test/status")
@@ -476,11 +513,12 @@ def ai_test_chat():
         if dialogue:
             prompt = "이전 대화:\n" + "\n".join(dialogue) + "\n\n현재 질문: " + question
         provider_called = True
-        answer, usage = _groq_answer(
+        answer, usage, provider_headers = _groq_answer(
             MODELS[role]["id"], prompt, context,
             style_prompt="반말로 짧고 명확하게 답해. 근거에 없는 숫자는 말하지 마." if private_chat else None,
         )
         if admin_test:
+            _remember_groq_remaining(role, provider_headers)
             _record_groq_call(role, "success", usage=usage)
         print("[Groq AI test success] " + json.dumps({
             "timestamp_kst": datetime.datetime.now(ZoneInfo("Asia/Seoul")).isoformat(timespec="seconds"),
@@ -500,6 +538,8 @@ def ai_test_chat():
             response_data["usage"] = _usage_numbers(usage)
         return jsonify(response_data)
     except urllib.error.HTTPError as exc:
+        if admin_test and provider_called:
+            _remember_groq_remaining(role, exc.headers)
         if exc.code == 429:
             event = _record_groq_rate_limit(role, MODELS[role]["id"], exc)
             if admin_test and provider_called:

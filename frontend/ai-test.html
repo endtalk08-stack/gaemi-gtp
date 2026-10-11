@@ -21,7 +21,7 @@
     .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
     #answer { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; margin: 8px 0; }
     #feedback { color: #ffd49b; min-height: 1.5em; margin-top: 12px; }
-    #quota, #limitEvents, #dailyUsage, #recentCalls, #sourceInfo { white-space: pre-line; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+    #quota, #limitEvents, #dailyUsage, #providerRemaining, #recentCalls, #sourceInfo { white-space: pre-line; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
     @media (max-width: 600px) { main { margin-top: 16px; } section { padding: 16px; } }
   </style>
 </head>
@@ -56,6 +56,8 @@
   <section>
     <strong>모델별 오늘 토큰 사용량</strong>
     <p id="dailyUsage" class="muted">관리자 인증 후 조회할 수 있습니다.</p>
+    <strong>Groq 응답 기준 잔여 한도 (마지막 호출 시점)</strong>
+    <p id="providerRemaining" class="muted">아직 Groq 응답을 받지 않았습니다.</p>
     <strong>최근 호출 기록 · 최대 20건</strong>
     <p id="recentCalls" class="muted">관리자 인증 후 조회할 수 있습니다.</p>
   </section>
@@ -69,6 +71,7 @@
   const quota = document.getElementById("quota");
   const limitEvents = document.getElementById("limitEvents");
   const dailyUsage = document.getElementById("dailyUsage");
+  const providerRemaining = document.getElementById("providerRemaining");
   const recentCalls = document.getElementById("recentCalls");
   const feedback = document.getElementById("feedback");
   const answer = document.getElementById("answer");
@@ -116,17 +119,38 @@
           + (event.retry_after ? " · 재시도 안내: " + event.retry_after : "")
         ).join("\n") : "아직 기록이 없습니다.");
       const daily = info.daily_usage || {};
+      const observed = info.provider_remaining || {};
+      const remainingLines = [];
       const summary = ["한국시간 " + (info.date_kst || "날짜 확인 불가") + " · 이 서버의 관리자 테스트 기준"];
       for (const [role, item] of Object.entries(info.models)) {
         const values = daily[role] || {};
+        const ref = item.reference_limits || {};
+        const observedAll = Number(values.successful_calls || 0) === Number(values.metered_calls || 0);
+        const estimatedLeft = observedAll && Number.isInteger(ref.tokens_per_day)
+          && Number.isInteger(values.total_tokens)
+          ? tokenLabel(Math.max(0, ref.tokens_per_day - values.total_tokens)) + "토큰"
+          : "미확인 (토큰 기록 누락)";
         summary.push(item.label + ": 입력 " + tokenLabel(values.prompt_tokens)
           + " / 출력 " + tokenLabel(values.completion_tokens)
           + " / 합계 " + tokenLabel(values.total_tokens)
-          + "토큰 · 성공 " + (values.successful_calls || 0)
+          + "토큰 · 오늘 예상 잔여 " + estimatedLeft
+          + " · 성공 " + (values.successful_calls || 0)
           + "건 (토큰 확인 " + (values.metered_calls || 0)
           + "건) · 실패 " + (values.failed_calls || 0) + "건");
+        const live = observed[role];
+        const dailyRequests = live?.requests_per_day || {};
+        const minuteTokens = live?.tokens_per_minute || {};
+        const requestLeft = Number.isInteger(dailyRequests.remaining)
+          ? tokenLabel(dailyRequests.remaining) + "회" : "미확인";
+        const minuteLeft = Number.isInteger(minuteTokens.remaining)
+          ? tokenLabel(minuteTokens.remaining) + "개" : "미확인";
+        remainingLines.push(item.label + ": " + (live?.observed_at_kst || "응답 없음")
+          + "\n  하루 남은 요청 " + requestLeft
+          + " / 분당 남은 토큰 " + minuteLeft);
       }
       dailyUsage.textContent = summary.join("\n");
+      providerRemaining.textContent = remainingLines.join("\n")
+        + "\nGroq 응답 헤더에는 하루 남은 토큰이 제공되지 않습니다. 분당 잔여 토큰은 시간이 지나면 변할 수 있습니다.";
       const calls = info.recent_calls || [];
       recentCalls.textContent = (calls.length ? calls.map(item =>
         item.timestamp_kst + " · " + item.model_id
