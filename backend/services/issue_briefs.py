@@ -369,12 +369,22 @@ def _compose_brief_summary(headline, remaining, summary_index=0):
     sentences = []
     for index, fact in enumerate(facts[:3]):
         if any(char.isdigit() for char in fact):
-            if fact.endswith(uncertainty_endings):
-                sentences.append(f"{fact}라는 전망·계획이 기사에서 언급됐어.")
+            certainty = next((value for value in uncertainty_endings if fact.endswith(value)), "")
+            base = fact[:-len(certainty)].strip() if certainty else fact
+            if certainty in {"기대", "가능성"}:
+                particle = _korean_particle(certainty, "이", "가")
+                sentences.append(f"{base}에 대한 {certainty}{particle} 기사에 언급돼 있어.")
+            elif certainty in {"전망", "예상", "추정", "관측"}:
+                particle = _korean_particle(base, "을", "를")
+                sentences.append(f"기사에서는 {base}{particle} {certainty}한 내용을 다뤘어.")
+            elif certainty:
+                sentences.append(f"기사에는 {base} 관련 {certainty}이 언급돼 있어.")
             elif index == 0:
                 sentences.append(f"기사에는 {fact}라는 수치가 제시돼 있어.")
             else:
                 sentences.append(f"{fact}라는 수치도 별도로 언급돼 있어.")
+        elif fact == "역대급 실적":
+            sentences.append("실적에 대해 '역대급'이라는 평가도 함께 언급돼 있어.")
         elif index == 0:
             sentences.append(f"기사에서는 {fact} 관련 내용을 다루고 있어.")
         else:
