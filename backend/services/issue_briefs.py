@@ -705,7 +705,7 @@ def _issue_brief_fact(sentence, tag, stock_name):
     if tag in contract_tags:
         contract = re.search(
             r"(?P<actor>[가-힣A-Za-z][가-힣A-Za-z0-9·&.-]{1,25})(?:은|는|이|가)\s+"
-            r"(?P<partner>[가-힣A-Za-z][가-힣A-Za-z0-9·&.-]{1,25})(?:와|과)\s+"
+            r"(?P<partner>[가-힣A-Za-z][가-힣A-Za-z0-9·&. -]{1,45}?)(?:와|과)\s+"
             r"(?P<scope>.{4,100}?)\s*계약(?:을)?\s*(?:체결|맺|수주)",
             sentence,
         )
@@ -740,6 +740,8 @@ def _issue_brief_fact(sentence, tag, stock_name):
             return f"{stock_name}: 사상 최고 분기 실적에도 외국인 매도세 지속."
         if re.search(r"이어지|지속|연속", sentence):
             return f"{stock_name}: 외국인 매도세 지속."
+        if "확대" in sentence:
+            return f"{stock_name}: 외국인 매도세 확대."
         return ""
 
     if tag == "자사주매입":
