@@ -171,7 +171,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       const loadingText = document.createElement('p');
       loadingText.className = 'gtp-chat-copy font-semibold animate-pulse';
       loadingText.setAttribute('aria-live', 'polite');
-      loadingText.textContent = '시세를 확인하고 AI 답변을 만드는 중이야';
+      loadingText.textContent = '생각중';
       loading.appendChild(loadingText);
       chatArea.appendChild(loading);
 
