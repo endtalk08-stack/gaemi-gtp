@@ -138,6 +138,30 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         private_access_required: '로그인이 필요해.',
         ai_test_not_configured: '아직 답변을 준비하지 못했어.'
       };
+      // 기존 중앙 채팅 로딩 스타일을 그대로 사용한다. 별도 AI 아이콘은 표시하지 않는다.
+      const loading = document.createElement('div');
+      loading.className = 'analysis-loading-sequence animate-fade';
+      loading.setAttribute('role', 'status');
+      loading.setAttribute('aria-live', 'polite');
+      const loadingText = document.createElement('p');
+      loadingText.className = 'analysis-loading-message is-visible is-shimmer';
+      loadingText.textContent = '생각 중';
+      loading.appendChild(loadingText);
+      document.getElementById('chatArea')?.appendChild(loading);
+
+      const updateWaiting = (message) => {
+        if (activeChatSession?.id === sessionId && !controller.signal.aborted && loading.isConnected) {
+          loadingText.textContent = message;
+        }
+      };
+      const waitingTimers = [
+        setTimeout(() => updateWaiting('조금 더 걸리고 있어'), 10000),
+        setTimeout(() => updateWaiting('응답이 지연되고 있어. 잠시만 기다려줘'), 20000)
+      ];
+      const stopThinking = () => {
+        waitingTimers.forEach(clearTimeout);
+        loading.remove();
+      };
       try {
         // If the first stock analysis is in flight, wait for its shared
         // server-side result instead of collecting the same data twice.
@@ -153,6 +177,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         const result = await response.json();
         if (controller.signal.aborted || activeChatSession?.id !== sessionId) return;
         if (!response.ok || !result.ok || !result.answer) {
+          stopThinking();
           appendChatError(errors[result.error] || '지금 답변을 가져오지 못했어.', sessionId);
           return;
         }
@@ -167,12 +192,14 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           window.GaemiGTPActiveStock = result.stock;
           window.GaemiGTPWorkspaceShellState?.save?.();
         }
+        stopThinking();
         await appendChatReply(result.answer, sessionId);
       } catch (error) {
         if (error?.name !== 'AbortError' && activeChatSession?.id === sessionId) {
           appendChatError('지금 답변을 가져오지 못했어.', sessionId);
         }
       } finally {
+        stopThinking();
         if (activeQuestionController === controller) activeQuestionController = null;
         if (pendingQuestionSessionId === sessionId) pendingQuestionSessionId = null;
       }
