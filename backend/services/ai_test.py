@@ -40,7 +40,10 @@ def remember_chat_analysis(stock, result):
     from .private_access import private_enabled
     if not private_enabled() or result.get("ok") is False:
         return
-    context = _context(stock, result)
+    try:
+        context = _context(stock, result)
+    except (TypeError, ValueError, AttributeError):
+        return  # Never fail the existing /analyze route for a chat-only cache.
     with _CHAT_CONTEXT_LOCK:
         _CHAT_CONTEXT_CACHE[str(stock).strip()] = (time.monotonic(), context)
 
@@ -256,6 +259,12 @@ def ai_test_chat():
     if not stock or len(stock) > 50 or not question or len(question) > 800:
         return jsonify({"ok": False, "error": "invalid_input"}), 400
 
+    # Keep the preexisting administrator-test accounting semantics unchanged.
+    if not private_chat:
+        limit_error = _take_slot(role)
+        if limit_error:
+            return jsonify({"ok": False, "error": limit_error, "limits": _remaining()}), 429
+
     # Use the private conversation's existing processed result when possible.
     # Only a new-stock question falls back to the established analysis function.
     try:
@@ -279,11 +288,12 @@ def ai_test_chat():
                 answer = f"{needed:.1f}% 남았어." if needed > 0 else "이미 52주 최고가에 도달했어."
                 return jsonify({"ok": True, "stock": stock, "answer": answer, "model": "calculation"})
 
-        if not _settings_ready():
-            return jsonify({"ok": False, "error": "ai_test_not_configured"}), 503
-        limit_error = _take_slot(role)
-        if limit_error:
-            return jsonify({"ok": False, "error": limit_error, "limits": _remaining()}), 429
+        if private_chat:
+            if not _settings_ready():
+                return jsonify({"ok": False, "error": "ai_test_not_configured"}), 503
+            limit_error = _take_slot(role)
+            if limit_error:
+                return jsonify({"ok": False, "error": limit_error, "limits": _remaining()}), 429
 
         history = body.get("history") or []
         dialogue = []
