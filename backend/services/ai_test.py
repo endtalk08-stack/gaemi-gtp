@@ -7,6 +7,7 @@ Groq account limits remain the final provider-side safeguard.
 import datetime
 import hmac
 import json
+import math
 import os
 import threading
 import time
@@ -157,7 +158,7 @@ def _context(stock, data):
     }
 
 
-def _groq_answer(model_id, question, context):
+def _groq_answer(model_id, question, context, max_completion_tokens=650):
     payload = {
         "model": model_id,
         "messages": [
@@ -169,7 +170,7 @@ def _groq_answer(model_id, question, context):
                 + "\n\n질문: " + question,
             },
         ],
-        "max_completion_tokens": 650,
+        "max_completion_tokens": max_completion_tokens,
         "temperature": 0.2,
         "reasoning_effort": "none" if model_id.startswith("qwen/") else "low",
         "stream": False,
@@ -257,3 +258,100 @@ def ai_test_chat():
     except Exception as exc:
         print(f"[Groq AI test] failed: {type(exc).__name__}", flush=True)
         return jsonify({"ok": False, "error": "ai_test_failed", "limits": _remaining()}), 502
+
+
+# Home prompt preview: use the existing quote/52-week calculation only.
+# In-memory cache prevents repeated Groq charges for unchanged market figures.
+_HOME_52W_CACHE = {}
+_HOME_52W_LOCK = threading.Lock()
+_HOME_52W_TTL_SECONDS = 15 * 60
+
+
+@ai_test_bp.post("/api/ai-test/home-52w")
+def home_52week_ai_preview():
+    """One specific homepage AI demo, not a public or generic chat API."""
+    from .private_access import _authorized as dev_session_authorized, private_enabled
+
+    # The public launch must never silently expose the paid model endpoint.
+    if not private_enabled() or not dev_session_authorized():
+        return jsonify({"ok": False, "error": "private_access_required"}), 401
+    if not _settings_ready():
+        return jsonify({"ok": False, "error": "ai_test_not_configured"}), 503
+
+    try:
+        # Existing quote module already owns this calculation. Avoid the full
+        # /analyze route: that would redundantly fetch news, disclosures, etc.
+        from .stock_analysis import fetch_stock_price_result
+
+        price = fetch_stock_price_result(
+            is_krw=True, ticker_symbol="005930.KS", clean_code="005930"
+        )
+        current = float(price.get("current_price") or 0)
+        week_52 = (price.get("indicators") or {}).get("week_52") or {}
+        previous_high = float(week_52.get("high") or 0)
+        if not (
+            math.isfinite(current) and math.isfinite(previous_high)
+            and current > 0 and previous_high > 0
+        ):
+            return jsonify({"ok": False, "error": "price_data_unavailable"}), 422
+
+        needed_rise_pct = max(0.0, (previous_high - current) / current * 100)
+        gap_to_previous_high = max(0.0, previous_high - current)
+        checked_at = datetime.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M KST")
+        quote_key = (round(current, 2), round(previous_high, 2))
+
+        with _HOME_52W_LOCK:
+            cached = _HOME_52W_CACHE.get("result") or {}
+            if cached.get("key") == quote_key and time.monotonic() - cached.get("saved_at", 0) < _HOME_52W_TTL_SECONDS:
+                return jsonify({
+                    "ok": True, "answer": cached["answer"],
+                    "model": MODELS["news"]["id"], "cached": True,
+                    "checked_at": checked_at,
+                    "limits": _remaining(),
+                })
+
+            # Shared with the existing Groq admin test: news 10/day, 20 total,
+            # and 2/min. A missing quote never consumes a model slot.
+            limit_error = _take_slot("news")
+            if limit_error:
+                return jsonify({"ok": False, "error": limit_error, "limits": _remaining()}), 429
+
+            context = {
+                "stock": "삼성전자",
+                "ticker": "005930.KS",
+                "current_price_krw": round(current, 2),
+                "previous_52week_high_krw": round(previous_high, 2),
+                "needed_rise_pct_from_current": round(needed_rise_pct, 2),
+                "gap_to_previous_high_krw": round(gap_to_previous_high, 2),
+                "above_previous_high": current >= previous_high,
+                "52week_rule": "오늘 봉을 제외한 직전 252거래일의 고가",
+                "data_note": "조회 시점의 최근 시세이며 실시간 체결가 보장은 없습니다.",
+            }
+            prompt = (
+                "삼성전자 52주 최고가 몇 % 남았어? "
+                "참고 데이터에 이미 계산된 needed_rise_pct_from_current를 그대로 사용해 "
+                "현재가, 직전 52주 최고가, 남은 가격과 상승 필요 비율을 한국어 2~3문장으로 설명해. "
+                "현재가가 기존 최고가 이상이면 이미 도달했으며 추가 상승 필요 비율은 0%라고 설명해. "
+                "이 필요 상승률은 (최고가-현재가)/현재가*100이고, 최고가 기준 괴리율과 다르다. "
+                "예상 주가나 상승 가능성, 새로운 뉴스는 만들지 마. 마크다운 사용하지 마."
+            )
+            answer = _groq_answer(
+                MODELS["news"]["id"], prompt, context, max_completion_tokens=260
+            )
+            _HOME_52W_CACHE["result"] = {
+                "key": quote_key, "answer": answer, "saved_at": time.monotonic()
+            }
+
+        return jsonify({
+            "ok": True, "answer": answer, "model": MODELS["news"]["id"],
+            "cached": False, "checked_at": checked_at, "limits": _remaining(),
+        })
+    except urllib.error.HTTPError as exc:
+        return jsonify({
+            "ok": False,
+            "error": "groq_rate_limit" if exc.code == 429 else "groq_request_failed",
+            "limits": _remaining(),
+        }), (429 if exc.code == 429 else 502)
+    except Exception as exc:
+        print(f"[Home 52w AI preview] failed: {type(exc).__name__}", flush=True)
+        return jsonify({"ok": False, "error": "ai_preview_failed", "limits": _remaining()}), 502
