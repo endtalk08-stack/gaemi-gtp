@@ -320,6 +320,18 @@ class IssueBriefTests(unittest.TestCase):
         self.assertNotIn("25%", summary)
         self.assertNotIn("기사", summary)
 
+    def test_earnings_figure_from_other_company_is_not_reassigned(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 실적 전망과 경쟁사 비교",
+            "description": "다른 기업의 영업이익은 200조원으로 예상된다.",
+            "storyboard_keywords": ["영업이익107조원전망"],
+            "article_keywords": ["영업이익107조원전망", "자사주매입"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+
+        self.assertEqual(len(result), 1)
+        self.assertNotIn("200조원", result[0]["summary"])
+
     def test_existing_body_evidence_is_only_used_for_internal_brief(self):
         original_detail = "삼성전자는 Constellation Energy와 3.6 billion 달러 공급 계약을 맺었다."
         result = build_issue_briefs([{
