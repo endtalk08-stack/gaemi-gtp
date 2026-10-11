@@ -478,6 +478,23 @@ class IssueBriefTests(unittest.TestCase):
         self.assertNotIn("삼성전자가 유비온", summary)
         self.assertNotIn("계약을 체결했다", summary)
 
+    def test_diagnostics_do_not_change_central_brief_output(self):
+        items = [{
+            "title": "삼성전자 외국인 매도 확대",
+            "description": "삼성전자에서 외국인 매도세가 확대됐다.",
+            "storyboard_keywords": ["외국인매도"],
+            "article_keywords": ["외국인매도", "메모리가격상승"],
+            "stock_entities": ["삼성전자"],
+        }]
+        original = build_issue_briefs(items, "삼성전자")
+        audit = []
+        traced = build_issue_briefs(items, "삼성전자", diagnostics=audit)
+        self.assertEqual(original, traced)
+        self.assertEqual(len(audit), 1)
+        self.assertEqual(audit[0]["brief_kind"], "matched_hashtag")
+        self.assertEqual(audit[0]["tag_checks"][0]["chosen_source"], "naver_description")
+        self.assertEqual(audit[0]["tag_checks"][1]["rewritten_facts"], 0)
+
     def test_central_contract_brief_uses_structured_counterparty_and_amount(self):
         result = build_issue_briefs([{
             "storyboard_time": "20:32",

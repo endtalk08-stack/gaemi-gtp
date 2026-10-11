@@ -6,6 +6,7 @@ article text, and returns it for fact re-extraction.  Raw article text is never
 returned to the frontend.
 """
 
+import hashlib
 import html
 import json
 import re
@@ -122,9 +123,11 @@ class _ArticleHTMLParser(HTMLParser):
             self.main_depth -= 1
 
 
-def extract_article_text(payload, charset="utf-8"):
+def extract_article_text(payload, charset="utf-8", *, diagnostics=None):
     """Extract a bounded article body from HTML bytes without returning page chrome."""
     if not payload:
+        if diagnostics is not None:
+            diagnostics["source"] = "empty"
         return ""
     try:
         source = payload.decode(charset or "utf-8", errors="replace")
@@ -136,26 +139,39 @@ def extract_article_text(payload, charset="utf-8"):
         parser.feed(source)
         parser.close()
     except Exception:
+        if diagnostics is not None:
+            diagnostics["source"] = "parse_failed"
         return ""
 
     candidates = [
-        parser.json_article_body,
-        " ".join(parser.preferred_paragraphs),
-        " ".join(parser.all_paragraphs),
-        parser.meta_description,
+        ("jsonld_article_body", parser.json_article_body),
+        ("article_or_main_paragraphs", " ".join(parser.preferred_paragraphs)),
+        ("all_page_paragraphs", " ".join(parser.all_paragraphs)),
+        ("meta_description", parser.meta_description),
     ]
-    for candidate in candidates:
+    for source_name, candidate in candidates:
         cleaned = _bounded_text(candidate)
         if len(cleaned) >= 80:
+            if diagnostics is not None:
+                diagnostics["source"] = source_name
             return cleaned
-    return _bounded_text(parser.meta_description)
+    fallback = _bounded_text(parser.meta_description)
+    if diagnostics is not None:
+        diagnostics["source"] = "meta_description_short" if fallback else "empty"
+    return fallback
 
 
 def _read_url(url):
     now = time.time()
+    article_id = hashlib.sha256(str(url).encode("utf-8")).hexdigest()[:12]
     with _CACHE_LOCK:
         cached = _CACHE.get(url)
         if cached and now - cached[0] <= _CACHE_TTL:
+            source_name = cached[2] if len(cached) > 2 else "cached_legacy"
+            print(
+                f"[news detail audit] article={article_id} source={source_name} "
+                f"chars={len(cached[1])} cached=1", flush=True,
+            )
             return cached[1]
 
     request = urllib.request.Request(
@@ -166,22 +182,32 @@ def _read_url(url):
         },
     )
     text = ""
+    evidence = {}
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
             content_type = str(response.headers.get("Content-Type") or "").lower()
             if "html" not in content_type and "xhtml" not in content_type:
-                return ""
-            charset = response.headers.get_content_charset() or "utf-8"
-            payload = response.read(MAX_RESPONSE_BYTES)
-        text = extract_article_text(payload, charset=charset)
+                evidence["source"] = "non_html"
+            else:
+                charset = response.headers.get_content_charset() or "utf-8"
+                payload = response.read(MAX_RESPONSE_BYTES)
+                text = extract_article_text(
+                    payload, charset=charset, diagnostics=evidence,
+                )
     except Exception as exc:
+        evidence["source"] = "fetch_failed"
         print(
             f"[news detail] failed url={url}: {type(exc).__name__}: {exc}",
             flush=True,
         )
 
+    source_name = evidence.get("source", "unknown")
+    print(
+        f"[news detail audit] article={article_id} source={source_name} "
+        f"chars={len(text)} cached=0", flush=True,
+    )
     with _CACHE_LOCK:
-        _CACHE[url] = (now, text)
+        _CACHE[url] = (now, text, source_name)
     return text
 
 

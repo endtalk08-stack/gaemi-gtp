@@ -837,7 +837,7 @@ def _issue_contract_ratio(sentences):
     return ""
 
 
-def _hashtag_core_summary(item, stock_name, labels):
+def _hashtag_core_summary(item, stock_name, labels, diagnostics=None):
     """Rewrite grounded hashtag facts as our own concise briefing, without AI."""
     sources = [
         (str(item.get("_brief_detail_text") or ""), 3),
@@ -854,21 +854,40 @@ def _hashtag_core_summary(item, stock_name, labels):
     chosen = []
     for label in labels[:3]:
         choices = []
+        matched = 0
+        excluded_other = 0
+        rewritten = 0
         for source, priority in sources:
             for sentence in _issue_sentences(source):
                 if not _issue_tag_matches(label, sentence):
                     continue
+                matched += 1
                 if any(name in sentence for name in other_stocks) and stock_name not in sentence:
+                    excluded_other += 1
                     continue
                 brief = _issue_brief_fact(sentence, label, stock_name)
                 if not brief:
                     continue
+                rewritten += 1
                 specific = bool(re.search(r"\d|사상|막바지|수급 공백", brief))
                 score = priority * 2 + (3 if specific else 0) + len(brief) / 200
-                choices.append((score, brief))
+                choices.append((score, brief, priority))
         choices.sort(key=lambda value: value[0], reverse=True)
-        if choices and choices[0][1] not in chosen:
+        selected = bool(choices and choices[0][1] not in chosen)
+        if selected:
             chosen.append(choices[0][1])
+        if diagnostics is not None:
+            diagnostics.append({
+                "tag": str(label),
+                "matched_passages": matched,
+                "rejected_other_company": excluded_other,
+                "rewritten_facts": rewritten,
+                "chosen": selected,
+                "chosen_source": (
+                    {3: "extracted_text", 2: "naver_description", 1: "naver_title"}
+                    .get(choices[0][2], "unknown") if selected else "none"
+                ),
+            })
 
     if any(label in {"계약체결", "공급계약", "단일판매", "장기공급계약"} for label in labels):
         passages = [
@@ -882,10 +901,11 @@ def _hashtag_core_summary(item, stock_name, labels):
     return "\n".join(chosen[:3])
 
 
-def build_issue_briefs(items, stock_name, limit=3):
+def build_issue_briefs(items, stock_name, limit=3, *, diagnostics=None):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []
-    for item in items or []:
+    for rank, item in enumerate(items or [], 1):
+        tag_diagnostics = [] if diagnostics is not None else None
         labels = _signal_labels(item)
         stock_names = _stock_names(item, stock_name)
         headline, summary = _brief_text(
@@ -904,7 +924,9 @@ def build_issue_briefs(items, stock_name, limit=3):
             else:
                 summary = f"{concrete_subject} 제품 공개가 주요 이슈야."
 
-        hashtag_summary = _hashtag_core_summary(item, stock_name, labels)
+        hashtag_summary = _hashtag_core_summary(
+            item, stock_name, labels, diagnostics=tag_diagnostics,
+        )
         evidence_summary = _issue_evidence_summary(item, stock_name, labels)
         structured_summary = _structured_detail_summary(
             item,
@@ -922,6 +944,22 @@ def build_issue_briefs(items, stock_name, limit=3):
         elif structured_summary:
             summary = structured_summary
 
+        if diagnostics is not None:
+            diagnostics.append({
+                "rank": rank,
+                "tags": list(labels[:3]),
+                "tag_checks": tag_diagnostics,
+                "brief_kind": (
+                    "matched_hashtag" if hashtag_summary
+                    else "missing_hashtag_fact"
+                    if item.get("title") or item.get("description") or item.get("_brief_detail_text")
+                    else "structured_fallback" if structured_summary
+                    else "evidence_fallback" if evidence_summary
+                    else "keyword_only"
+                ),
+                "summary_chars": len(summary),
+                "emitted": bool(headline and summary),
+            })
         if not headline or not summary:
             continue
 
