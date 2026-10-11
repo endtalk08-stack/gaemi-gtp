@@ -689,58 +689,194 @@ def _issue_tag_matches(label, sentence):
     return True
 
 
-def _hashtag_core_summary(item, stock_name, labels):
-    """Select one concrete passage per hashtag from this article, no AI calls.
+def _issue_brief_actor(sentence):
+    match = re.search(
+        r"(?:^|[.!?]\s+)(?P<name>[가-힣A-Za-z][가-힣A-Za-z0-9·&.-]{1,25})(?:은|는|이|가)\s+",
+        sentence,
+    )
+    return match.group("name") if match else ""
 
-    Uses the already-collected title, snippet and selected article detail.
-    Only the finished short summary is returned; article text stays internal.
-    """
-    title = str(item.get("title") or "").strip()
-    description = str(item.get("description") or "").strip()
-    detail_text = str(item.get("_brief_detail_text") or "").strip()
-    if not any((title, description, detail_text)):
+
+def _issue_brief_fact(sentence, tag, stock_name):
+    """Compose only the business fact matched by this hashtag, not source prose."""
+    sentence = str(sentence or "").strip()
+    actor = _issue_brief_actor(sentence) or stock_name
+    contract_tags = {"계약체결", "공급계약", "단일판매", "장기공급계약"}
+    if tag in contract_tags:
+        contract = re.search(
+            r"(?P<actor>[가-힣A-Za-z][가-힣A-Za-z0-9·&.-]{1,25})(?:은|는|이|가)\s+"
+            r"(?P<partner>[가-힣A-Za-z][가-힣A-Za-z0-9·&.-]{1,25})(?:와|과)\s+"
+            r"(?P<scope>.{4,100}?)\s*계약(?:을)?\s*(?:체결|맺|수주)",
+            sentence,
+        )
+        if contract:
+            company, partner, scope = (
+                contract.group(field).strip()
+                for field in ("actor", "partner", "scope")
+            )
+            scope = re.sub(r"(?:에\s*관한|관련)\s*$", "", scope).strip()
+            if len(scope) >= 4:
+                return f"{company} → {partner}: {scope} 계약 체결."
+        # The selected stock can be the buyer, not the contractor. An isolated
+        # company mention must never become "삼성전자가 계약을 체결했어".
+        if (
+            actor
+            and re.search(rf"{re.escape(actor)}(?:은|는|이|가)\s", sentence)
+            and re.search(r"계약.{0,16}체결|공급\s*계약", sentence)
+        ):
+            return f"{actor}: 공급 계약 체결."
         return ""
 
-    sources = ((detail_text, 3), (description, 2), (title, 1))
+    if tag == "외국인매도":
+        if not re.search(r"외국인.{0,24}(?:순매도|매도|매도세)", sentence):
+            return ""
+        amount = re.search(
+            r"외국인.{0,32}?(?P<amt>\d[\d,.]*(?:억|조)\s*원).{0,15}(?:순매도|매도)",
+            sentence,
+        )
+        if amount:
+            return f"외국인: {stock_name} {amount.group('amt')} 순매도."
+        if re.search(r"사상\s*(?:최고|최대).{0,20}분기\s*실적", sentence):
+            return f"{stock_name}: 사상 최고 분기 실적에도 외국인 매도세 지속."
+        if re.search(r"이어지|지속|연속", sentence):
+            return f"{stock_name}: 외국인 매도세 지속."
+        return ""
+
+    if tag == "자사주매입":
+        if not re.search(
+            r"자사주.{0,20}(?:매입|취득)|자기주식.{0,20}(?:매입|취득)",
+            sentence,
+        ):
+            return ""
+        joint = re.search(
+            r"(?P<actors>[가-힣A-Za-z0-9·]+(?:와|과|·)\s*[가-힣A-Za-z0-9·]+)의?\s*자사주",
+            sentence,
+        )
+        company = joint.group("actors") if joint else actor
+        company = re.sub(r"와|과", "·", company).replace(" ", "").removesuffix("의")
+        if re.search(r"막바지|마무리|종료\s*단계", sentence):
+            ending = ", 수급 공백 우려." if "수급 공백" in sentence else "."
+            return f"{company}: 자사주 매입 마무리 단계{ending}"
+        amount = re.search(
+            r"(?P<amt>\d[\d,.]*(?:조|억)\s*원).{0,20}자사주\s*매입"
+            r"|자사주.{0,20}(?P<amt2>\d[\d,.]*(?:조|억)\s*원)",
+            sentence,
+        )
+        if amount:
+            return f"{company}: 자사주 매입 규모 {amount.group('amt') or amount.group('amt2')}."
+        return ""
+
+    earning_tags = {"호실적", "실적발표", "매출발표", "잠정실적발표", "사상최대실적"}
+    if tag in earning_tags or tag.startswith(("영업이익", "매출", "순이익")):
+        metric = re.search(
+            r"(?P<metric>매출(?:액)?|영업\s*이익|순이익).{0,25}?"
+            r"(?P<amt>\d[\d,.]*(?:조|억)\s*원)",
+            sentence,
+        )
+        period = re.search(
+            r"(?:20\d{2}년\s*)?[1-4]분기|상반기|하반기|연간|올해|지난해",
+            sentence,
+        )
+        period_text = f"{period.group()} " if period else ""
+        if metric:
+            certainty = (
+                "잠정" if "잠정" in sentence
+                else "전망" if re.search(r"전망|예상|추정", sentence)
+                else ""
+            )
+            metric_name = re.sub(r"\s+", "", metric.group("metric"))
+            status = f" ({certainty})" if certainty else ""
+            return f"{actor}: {period_text}{metric_name} {metric.group('amt')}{status}."
+        rate = re.search(
+            r"(?P<metric>매출(?:액)?|영업\s*이익|순이익).{0,42}?"
+            r"(?P<rate>\d+(?:\.\d+)?\s*%).{0,9}?"
+            r"(?P<direction>증가|감소|상승|하락|늘었)",
+            sentence,
+        )
+        if rate:
+            basis = (
+                "전년 동기 대비 " if re.search(r"전년\s*동기", sentence)
+                else "전년 대비 " if "전년" in sentence else ""
+            )
+            metric_name = re.sub(r"\s+", "", rate.group("metric"))
+            return (
+                f"{actor}: {period_text}{metric_name} {basis}"
+                f"{rate.group('rate').strip()} {rate.group('direction')}."
+            )
+        if re.search(r"사상\s*(?:최고|최대).{0,8}분기\s*실적", sentence):
+            return f"{actor}: 사상 최고 수준의 분기 실적."
+    return ""
+
+
+def _issue_contract_amount(sentences):
+    for sentence in sentences:
+        match = re.search(
+            r"계약\s*(?:금액|대금|규모|액)\s*(?:은|이|:|으로)?\s*"
+            r"(?P<value>\d[\d,]*(?:조|억|만)\s*\d*[\d,]*(?:억|만)?\s*원)",
+            sentence,
+        )
+        if match:
+            vat = " (부가세 별도)" if re.search(
+                r"부가(?:가치)?세.{0,18}(?:포함되지|제외|별도)", sentence
+            ) else ""
+            return f"계약금액: {match.group('value')}{vat}."
+    return ""
+
+
+def _issue_contract_ratio(sentences):
+    for sentence in sentences:
+        match = re.search(
+            r"(?:최근\s*)?매출액?\s*대비\s*(\d+(?:\.\d+)?\s*%)",
+            sentence,
+        )
+        if match:
+            return f"계약 규모: 매출액 대비 {match.group(1).strip()}."
+    return ""
+
+
+def _hashtag_core_summary(item, stock_name, labels):
+    """Rewrite grounded hashtag facts as our own concise briefing, without AI."""
+    sources = [
+        (str(item.get("_brief_detail_text") or ""), 3),
+        (str(item.get("description") or ""), 2),
+        (str(item.get("title") or ""), 1),
+    ]
+    if not any(source for source, _ in sources):
+        return ""
     other_stocks = [
-        str(name).strip() for name in item.get("stock_entities") or []
+        str(name).strip()
+        for name in item.get("stock_entities") or []
         if str(name).strip() and str(name).strip() != stock_name
     ]
-    selected = []
-    used = set()
+    chosen = []
     for label in labels[:3]:
-        candidates = []
+        choices = []
         for source, priority in sources:
             for sentence in _issue_sentences(source):
                 if not _issue_tag_matches(label, sentence):
                     continue
-                # Avoid attributing a competitor's isolated result to this stock.
                 if any(name in sentence for name in other_stocks) and stock_name not in sentence:
                     continue
-                if re.search(r"무단\s*전재|저작권|구독\s*신청|기자\s*이메일|관련\s*기사|광고\s*문의", sentence):
+                brief = _issue_brief_fact(sentence, label, stock_name)
+                if not brief:
                     continue
-                if len(sentence) > 210:
-                    continue
-                key = re.sub(r"\s+", "", sentence).rstrip(".!?")
-                if key in used:
-                    continue
-                concrete = bool(re.search(r"\d|억원|조원|발표|체결|공시|전망|잠정|지난해|분기|확정", sentence))
-                score = (priority * 2 + (5 if concrete else 0)
-                         + (2 if stock_name and stock_name in sentence else 0)
-                         + (2 if 25 <= len(sentence) <= 150 else 0))
-                candidates.append((score, sentence))
-        candidates.sort(key=lambda pair: pair[0], reverse=True)
-        chosen = next((sentence for _, sentence in candidates if len(sentence) <= 160), "")
-        if not chosen:
-            continue
-        key = re.sub(r"\s+", "", chosen).rstrip(".!?")
-        if key in used:
-            continue
-        selected.append(chosen)
-        used.add(key)
-        if len(selected) >= 3:
-            break
-    return "\n".join(selected)
+                specific = bool(re.search(r"\d|사상|막바지|수급 공백", brief))
+                score = priority * 2 + (3 if specific else 0) + len(brief) / 200
+                choices.append((score, brief))
+        choices.sort(key=lambda value: value[0], reverse=True)
+        if choices and choices[0][1] not in chosen:
+            chosen.append(choices[0][1])
+
+    if any(label in {"계약체결", "공급계약", "단일판매", "장기공급계약"} for label in labels):
+        passages = [
+            sentence
+            for source, _ in sources
+            for sentence in _issue_sentences(source)
+        ]
+        for detail in (_issue_contract_amount(passages), _issue_contract_ratio(passages)):
+            if detail and detail not in chosen:
+                chosen.append(detail)
+    return "\n".join(chosen[:3])
 
 
 def build_issue_briefs(items, stock_name, limit=3):
