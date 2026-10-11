@@ -38,7 +38,7 @@
   <link rel="stylesheet" href="css/stock-calculator.css?v=20261005-v4">
   <link rel="stylesheet" href="css/memo-pad.css?v=20261005-v2">
   <link rel="stylesheet" href="css/sketch-pad.css?v=20261005-v1">
-  <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261008-sidebar-sections-v2">
+  <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261012-sidebar-recent-v1">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/left-earnings-calendar-sidebar/earnings-calendar-sidebar.css?v=20261008-right-panel-v1">
@@ -113,6 +113,19 @@
           </div>
           <div id="leftSidebarStocksBody" class="left-sidebar-home__section-body">
             <div class="left-sidebar-home__empty">관심종목이 여기에 표시됩니다</div>
+          </div>
+        </section>
+
+        <section class="left-sidebar-home__section" aria-labelledby="leftSidebarRecentTitle">
+          <div class="left-sidebar-home__section-head">
+            <h2 id="leftSidebarRecentTitle" class="left-sidebar-home__section-title"><i data-lucide="history" aria-hidden="true"></i><span>최근</span></h2>
+            <button type="button" class="left-sidebar-home__section-menu" aria-label="최근 접기" title="최근 접기" aria-expanded="true" aria-controls="leftSidebarRecentBody" data-left-home-section-toggle="recent">
+              <i data-lucide="chevron-down" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div id="leftSidebarRecentBody" class="left-sidebar-home__section-body">
+            <ul id="leftSidebarHomeRecentList" class="left-sidebar-home__items" aria-label="최근 검색한 종목과 질문"></ul>
+            <div id="leftSidebarHomeRecentEmpty" class="left-sidebar-home__empty">최근 검색 기록이 없습니다</div>
           </div>
         </section>
       </div>
@@ -462,7 +475,7 @@
   <script src="widgets/analysis-section/analysis-section.js?v=20261006-news-cancel-v1"></script>
   <script src="shell/left-plugin-sidebar/plugin-sidebar.js?v=20261003-chat-entry-v2"></script>
   <script src="shell/center-chat/widget-dock/widget-dock.js?v=20261003-kospi-gradient-v1"></script>
-  <script src="shell/left-sidebar-home/left-sidebar-home.js?v=20261008-sidebar-sections-v2"></script>
+  <script src="shell/left-sidebar-home/left-sidebar-home.js?v=20261012-sidebar-recent-v1"></script>
   <script src="theme/theme.js?v=20260924-v712"></script>
   <script src="pages/dashboard/dashboard.js?v=20260925-v85-full"></script>
   <script src="js/disclosures.js?v=20260930-chat-split-v1"></script>
@@ -480,6 +493,6 @@
   <script src="js/memo-pad.js?v=20261005-v2"></script>
   <script src="js/sketch-pad.js?v=20261005-v1"></script>
   <script src="shell/center-chat/search-controls.js?v=20261012-stock-name-v1"></script>
-  <script src="js/app.js?v=20261012-chat-thinking-v1"></script>
+  <script src="js/app.js?v=20261012-sidebar-recent-v1"></script>
 </body>
 </html>
