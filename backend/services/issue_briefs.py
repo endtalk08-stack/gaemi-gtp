@@ -272,7 +272,7 @@ def _concrete_event_subject(item, labels, stock_names):
 
 
 def _structured_detail_summary(item, labels, summary_index=0):
-    """Explain confirmed article facts separately, without copying publisher prose."""
+    """Turn checked article-detail facts into an issue explanation, not a reading report."""
     detail = item.get("detail_facts") or {}
     if not isinstance(detail, dict):
         return ""
@@ -293,33 +293,28 @@ def _structured_detail_summary(item, labels, summary_index=0):
         for value in (detail.get("region") or [])
         if str(value or "").strip()
     ]
-    key_numbers = [
-        str(value or "").strip()
-        for value in (detail.get("key_numbers") or [])
-        if str(value or "").strip()
-    ]
 
     if label_set & contract_labels:
         if counterparty:
             particle = _korean_particle(counterparty, "과", "와")
-            sentences.append(f"기사에는 {counterparty}{particle}의 계약이 언급돼 있어.")
+            sentences.append(f"{counterparty}{particle}의 계약이 핵심이야.")
         if amount:
-            sentences.append(f"계약 관련 금액은 {amount}로 제시돼 있어.")
-        if key_numbers:
-            sentences.append(f"추가로 {', '.join(dict.fromkeys(key_numbers[:2]))}라는 수치도 나와 있어.")
+            sentences.append(f"계약 규모로 {amount}가 제시됐어.")
     elif label_set & investment_labels:
         if counterparty:
-            sentences.append(f"관련 기업으로 {counterparty}가 언급돼 있어.")
+            sentences.append(f"{counterparty}가 투자 관련 기업으로 연결돼 있어.")
         if amount:
-            sentences.append(f"투자 관련 금액은 {amount}로 제시돼 있어.")
+            sentences.append(f"투자 관련 금액은 {amount}야.")
         if regions:
-            sentences.append(f"관련 지역으로 {regions[0]}이 언급돼 있어.")
+            sentences.append(f"관련 지역은 {regions[0]}이야.")
     elif label_set & {"해외진출", "시장진출", "사업확대"}:
         if regions:
-            sentences.append(f"관련 지역으로 {regions[0]}이 언급돼 있어.")
+            sentences.append(f"{regions[0]} 시장 진출·사업 확대가 핵심이야.")
         if amount:
-            sentences.append(f"기사에 나온 관련 금액은 {amount}야.")
+            sentences.append(f"관련 금액은 {amount}야.")
 
+    # key_numbers can be an unrelated percentage or measurement. Do not
+    # display numbers unless their business meaning is explicitly known.
     return "\n".join(sentences[:3])
 
 
@@ -355,8 +350,20 @@ def _join_brief_facts(values):
     return ", ".join(facts)
 
 
+_ISSUE_FACT_SENTENCES = {
+    "원화 강세": "원화 강세 흐름이 나타났어.",
+    "원화 약세": "원화 약세 흐름이 나타났어.",
+    "외국인 매도": "외국인 매도 움직임이 나타났어.",
+    "역대급 실적": "실적이 역대급이라는 평가가 나왔어.",
+    "자사주 소각": "자사주 소각도 주요 이슈야.",
+    "자사주 매입": "자사주 매입도 주요 이슈야.",
+    "공급 계약": "공급 계약이 주요 이슈야.",
+    "계약 체결": "계약 체결이 주요 이슈야.",
+}
+
+
 def _compose_brief_summary(headline, remaining, summary_index=0):
-    """Show each grounded fact as its own sentence, not an invented relationship."""
+    """Describe the issue itself, with no references to reading an article."""
     facts = [str(headline or "").strip()]
     facts.extend(str(value or "").strip() for value in remaining[:2])
     facts = [value for value in facts if value]
@@ -367,29 +374,20 @@ def _compose_brief_summary(headline, remaining, summary_index=0):
         "기대", "전망", "예상", "추정", "관측", "가능성", "검토", "계획", "예정",
     )
     sentences = []
-    for index, fact in enumerate(facts[:3]):
+    for fact in facts[:3]:
+        if fact in _ISSUE_FACT_SENTENCES:
+            sentences.append(_ISSUE_FACT_SENTENCES[fact])
+            continue
         if any(char.isdigit() for char in fact):
             certainty = next((value for value in uncertainty_endings if fact.endswith(value)), "")
             base = fact[:-len(certainty)].strip() if certainty else fact
-            if certainty in {"기대", "가능성"}:
-                particle = _korean_particle(certainty, "이", "가")
-                sentences.append(f"{base}에 대한 {certainty}{particle} 기사에 언급돼 있어.")
-            elif certainty in {"전망", "예상", "추정", "관측"}:
-                particle = _korean_particle(base, "을", "를")
-                sentences.append(f"기사에서는 {base}{particle} {certainty}한 내용을 다뤘어.")
-            elif certainty:
-                particle = _korean_particle(certainty, "이", "가")
-                sentences.append(f"기사에는 {base} 관련 {certainty}{particle} 언급돼 있어.")
-            elif index == 0:
-                sentences.append(f"기사에는 {fact}라는 수치가 제시돼 있어.")
+            if certainty:
+                sentences.append(f"{base} {certainty}이 나왔어.")
             else:
-                sentences.append(f"{fact}라는 수치도 별도로 언급돼 있어.")
-        elif fact == "역대급 실적":
-            sentences.append("실적에 대해 '역대급'이라는 평가도 함께 언급돼 있어.")
-        elif index == 0:
-            sentences.append(f"기사에서는 {fact} 관련 내용을 다루고 있어.")
+                sentences.append(f"{fact} 수치가 나왔어. 확정치나 비교 기준은 추가 확인이 필요해.")
         else:
-            sentences.append(f"{fact} 관련 내용도 함께 언급돼 있어.")
+            particle = _korean_particle(fact, "이", "가")
+            sentences.append(f"{fact}{particle} 주요 이슈야.")
     return "\n".join(sentences)
 
 
