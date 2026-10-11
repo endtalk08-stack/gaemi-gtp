@@ -12,6 +12,7 @@
   let panelWorkspaceView = '';
   let relatedNewsItems = [];
   let relatedDisclosureItems = [];
+  let disclosuresRenderVersion = 0;
   let earningsCalendarElement = null;
   const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '대시보드', icon: 'layout-dashboard' }, news: { label: '뉴스', icon: 'newspaper' }, disclosures: { label: '공시', icon: 'file-text' }, earnings: { label: '실적', icon: 'calendar-days' } };
 
@@ -203,16 +204,20 @@
   async function renderRelatedDisclosuresPanel() {
     const root = document.getElementById('rightPanelWorkspace');
     if (!root) return;
+    const renderVersion = ++disclosuresRenderVersion;
+    const items = relatedDisclosureItems;
     root.innerHTML = '';
     if (window.GaemiGTPDisclosures?.hydrateDartDetails) {
-      await window.GaemiGTPDisclosures.hydrateDartDetails(relatedDisclosureItems);
+      await window.GaemiGTPDisclosures.hydrateDartDetails(items);
     }
+    // 다른 종목이나 메뉴를 선택하는 동안 완료된 이전 상세 요청은 무시한다.
+    if (renderVersion !== disclosuresRenderVersion || panelWorkspaceView !== 'disclosures') return;
     const section = document.createElement('section');
     section.className = 'right-panel-related-news right-panel-disclosures';
     section.setAttribute('aria-label', '한달 공시');
     const list = document.createElement('div');
     list.className = 'right-panel-related-news__list';
-    relatedDisclosureItems.forEach((item) => {
+    items.forEach((item) => {
       const row = document.createElement('div');
       row.className = 'right-panel-related-news__item right-panel-disclosures__item';
 
@@ -543,6 +548,15 @@
     getTabList().addEventListener('click', event => { const toggle = event.target.closest('[data-panel-workspace-menu-toggle]'); if (toggle) { event.stopPropagation(); togglePanelWorkspaceMenu(); return; } const viewButton = event.target.closest('[data-panel-workspace-view]'); if (viewButton) { event.stopPropagation(); selectPanelWorkspaceView(viewButton.dataset.panelWorkspaceView); return; } const close = event.target.closest('[data-close-tab-id]'); if (close) { event.stopPropagation(); removeTab(close.dataset.closeTabId); return; } const tab = event.target.closest('[data-right-panel-tab]'); if (tab) { togglePanelWorkspaceMenu(false); setActiveTab(tab.dataset.rightPanelTab); } });
     document.addEventListener('click', event => { if (!event.target.closest('#rightPanelTabs')) togglePanelWorkspaceMenu(false); }); getTabList().dataset.bound = 'true'; setActiveTab(activeTabId, false); saveState();
   }
+  function syncActiveStockPanels() {
+    // 화면별 재수집 없이 기존 분석 데이터 변경을 현재 열린 메뉴에 반영한다.
+    if (panelWorkspaceView === 'news') loadActiveStockNews();
+    else if (panelWorkspaceView === 'disclosures') {
+      loadActiveStockDisclosures();
+      void renderRelatedDisclosuresPanel();
+    }
+  }
+  window.addEventListener('gaemi-analysis-data-change', syncActiveStockPanels);
   window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedDisclosures, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true }); else initialize();
 })();
