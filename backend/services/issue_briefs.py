@@ -437,26 +437,26 @@ def _brief_text(labels, themes, issues, stock_names, fallback_stock, summary_ind
     display_headline = headline if headline.endswith("이슈") else f"{headline} 이슈"
     return display_headline, summary
 _METRIC_AMOUNT_RE = re.compile(
-    r"(?P<metric>영업\\s*이익|영업익|매출액|매출|순이익)"
-    r"[^\\n,;:]{0,42}?"
-    r"(?P<value>\\d+(?:\\.\\d+)?\\s*조(?:\\s*\\d+(?:,\\d+)*\\s*억)?\\s*원?"
-    r"|\\d+(?:,\\d+)*\\s*억\\s*원)",
+    r"(?P<metric>영업\s*이익|영업익|매출액|매출|순이익)"
+    r"[^\n,;:]{0,42}?"
+    r"(?P<value>\d+(?:\.\d+)?\s*조(?:\s*\d+(?:,\d+)*\s*억)?\s*원?"
+    r"|\d+(?:,\d+)*\s*억\s*원)",
     re.IGNORECASE,
 )
 _METRIC_RATE_RE = re.compile(
-    r"(?P<metric>영업\\s*이익|영업익|매출액|매출|순이익)"
-    r"[^\\n,;:]{0,48}?"
-    r"(?P<value>\\d+(?:\\.\\d+)?\\s*%)\\s*(?P<direction>증가|감소|상승|하락)",
+    r"(?P<metric>영업\s*이익|영업익|매출액|매출|순이익)"
+    r"[^\n,;:]{0,48}?"
+    r"(?P<value>\d+(?:\.\d+)?\s*%)\s*(?P<direction>증가|감소|상승|하락)",
     re.IGNORECASE,
 )
 _RATIO_RE = re.compile(
-    r"(?:최근|전년도|지난해|직전)?\\s*매출(?:액)?\\s*(?:대비|의)\\s*"
-    r"(?P<percent>\\d+(?:\\.\\d+)?\\s*%)",
+    r"(?:최근|전년도|지난해|직전)?\s*매출(?:액)?\s*(?:대비|의)\s*"
+    r"(?P<percent>\d+(?:\.\d+)?\s*%)",
     re.IGNORECASE,
 )
 _PERIOD_RE = re.compile(
-    r"20\\d{2}년(?:\\s*[1-4]분기)?|올해|내년|지난해|"
-    r"(?:올|지난)\\s*[1-4]분기|[1-4]분기|상반기|하반기|연간"
+    r"20\d{2}년(?:\s*[1-4]분기)?|올해|내년|지난해|"
+    r"(?:올|지난)\s*[1-4]분기|[1-4]분기|상반기|하반기|연간"
 )
 
 
@@ -469,7 +469,8 @@ def _issue_evidence_summary(item, stock_name, labels):
     title = str(item.get("title") or "").strip()
     description = str(item.get("description") or "").strip()
     detail_text = str(item.get("_brief_detail_text") or "").strip()
-    sources = [value for value in (title, description, detail_text) if value]
+    sources = [(title, False), (description, False), (detail_text, True)]
+    sources = [(value, is_body) for value, is_body in sources if value]
     if not sources:
         return ""
 
@@ -485,26 +486,24 @@ def _issue_evidence_summary(item, stock_name, labels):
         # Prioritize the headline's precise numerical context, then its snippet,
         # and consult the selected body only when the shorter evidence lacks it.
         for pattern in (_METRIC_AMOUNT_RE, _METRIC_RATE_RE):
-            for source_index, source in enumerate(sources):
+            found = False
+            for source, is_body in sources:
                 for match in pattern.finditer(source):
-                    metric = re.sub(r"\\s+", "", match.group("metric"))
+                    metric = re.sub(r"\s+", "", match.group("metric"))
                     metric = "영업이익" if metric == "영업익" else metric
                     if not any(label.startswith(metric) for label in raw_labels):
                         continue
-                    value = re.sub(r"\\s+", "", match.group("value"))
+                    value = re.sub(r"\s+", "", match.group("value"))
                     unique_key = (metric, "rate" if pattern is _METRIC_RATE_RE else "amount")
                     if unique_key in seen_metrics:
                         continue
                     # Body text may mention other companies. Require this stock
                     # near the figure before using the lower-priority full body.
                     vicinity = source[max(0, match.start() - 130):match.end() + 45]
-                    if source_index == 2 and subject and subject not in vicinity:
+                    if is_body and subject and subject not in vicinity:
                         continue
                     # Restrict qualifiers/periods to the nearby clause.
                     before = source[max(0, match.start() - 75):match.start()]
-                    after = source[match.end():match.end() + 38]
-                    context = before + match.group(0) + after
-                    context = re.split(r"[\\n;!?]", context)[-1] if False else context
                     period_match = list(_PERIOD_RE.finditer(before))
                     period = period_match[-1].group(0) if period_match else ""
                     period_text = f" {period}" if period else ""
@@ -514,8 +513,8 @@ def _issue_evidence_summary(item, stock_name, labels):
                     if pattern is _METRIC_RATE_RE:
                         direction = match.group("direction")
                         comparison = re.findall(
-                            r"전년\\s*동기\\s*대비|전년\\s*대비|지난해\\s*대비|"
-                            r"전분기\\s*대비|직전\\s*분기\\s*대비",
+                            r"전년\s*동기\s*대비|전년\s*대비|지난해\s*대비|"
+                            r"전분기\s*대비|직전\s*분기\s*대비",
                             before[-65:],
                         )
                         if comparison:
@@ -529,10 +528,11 @@ def _issue_evidence_summary(item, stock_name, labels):
                         statement = f"{subject}의{period_text} {metric} 잠정치가 {value}로 나왔어."
                     else:
                         statement = f"{subject}의{period_text} {metric}으로 {value}이 제시됐어. 확정 실적인지는 확인이 필요해."
-                    sentences.append(re.sub(r"\\s+", " ", statement).strip())
+                    sentences.append(re.sub(r"\s+", " ", statement).strip())
                     seen_metrics.add(unique_key)
+                    found = True
                     break
-                if unique_key in seen_metrics if 'unique_key' in locals() else False:
+                if found:
                     break
             if len(sentences) >= 2:
                 break
@@ -548,18 +548,19 @@ def _issue_evidence_summary(item, stock_name, labels):
         if counterparty:
             particle = _korean_particle(counterparty, "과", "와")
             sentences.insert(0, f"{subject}가 {counterparty}{particle} 공급 계약을 맺었어.")
-        elif any(re.search(r"공급\\s*계약|계약\\s*체결|단일판매", src) for src in sources):
+        elif any(re.search(r"공급\s*계약|계약\s*체결|단일판매", src)
+                 for src, is_body in sources if not is_body):
             sentences.insert(0, f"{subject}의 계약 체결이 핵심 이슈야.")
         if amount and counterparty:
             sentences.append(f"계약 규모는 {amount}야.")
-        for source in sources[:2]:
+        for source, _ in (part for part in sources if not part[1]):
             share = _RATIO_RE.search(source)
             if share and is_contract:
                 sentences.append(f"계약 규모는 매출액 대비 {share.group('percent').strip()} 수준이야.")
                 break
         # When the body is the only place with the ratio, require its contract
         # context instead of borrowing an unrelated company's percentage.
-        if len(sources) == 3 and not any("매출액 대비" in v for v in sentences):
+        if detail_text and not any("매출액 대비" in v for v in sentences):
             for match in _RATIO_RE.finditer(detail_text):
                 nearby = detail_text[max(0, match.start() - 140):match.end() + 40]
                 if subject in nearby and re.search(r"계약|수주|단일판매", nearby):
@@ -571,12 +572,12 @@ def _issue_evidence_summary(item, stock_name, labels):
     # A separate flow must be corroborated by its original source, not simply
     # placed next to profit figures because keyword extraction returned it.
     if any("외국인매도" in label for label in raw_labels) and any(
-        re.search(r"외국인[^.\\n]{0,16}(?:순매도|매도세|매도)", source)
-        for source in sources[:2]
+        re.search(r"외국인[^.\n]{0,16}(?:순매도|매도세|매도)", source)
+        for source, is_body in sources if not is_body
     ):
         sentences.append("외국인 매도세도 나타났어.")
 
-    return "\\n".join(dict.fromkeys(sentences[:3]))
+    return "\n".join(dict.fromkeys(sentences[:3]))
 
 
 def build_issue_briefs(items, stock_name, limit=3):
