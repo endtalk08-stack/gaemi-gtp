@@ -563,9 +563,12 @@ def _issue_evidence_summary(item, stock_name, labels):
         if counterparty:
             particle = _korean_particle(counterparty, "과", "와")
             sentences.insert(0, f"{subject}가 {counterparty}{particle} 공급 계약을 맺었어.")
-        elif any(re.search(r"공급\s*계약|계약\s*체결|단일판매", src)
+        elif any(re.search(r"계약.{0,4}체결|계약을?\s*맺", src)
                  for src, is_body in sources if not is_body):
-            sentences.insert(0, f"{subject}의 계약 체결이 핵심 이슈야.")
+            sentences.insert(0, f"{subject}가 공급 계약을 체결했어.")
+        elif any(re.search(r"공급\s*계약|단일판매", src)
+                 for src, is_body in sources if not is_body):
+            sentences.insert(0, f"{subject}의 공급 계약이 핵심 이슈야.")
         if amount and counterparty:
             sentences.append(f"계약 규모는 {amount}로 알려졌어.")
         for source, _ in (part for part in sources if not part[1]):
