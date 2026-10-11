@@ -273,6 +273,71 @@ class IssueBriefTests(unittest.TestCase):
         self.assertNotIn("기사", result[0]["summary"])
         self.assertNotIn("언급", result[0]["summary"])
 
+    def test_real_earnings_forecast_uses_subject_period_and_status(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 올해 영업이익 107조원 전망, 외국인 매도세 확대",
+            "description": "삼성전자 올해 실적에 대한 전망이 나오고 외국인 매도세가 확대됐다.",
+            "storyboard_keywords": ["영업이익107조원"],
+            "article_keywords": ["영업이익107조원", "외국인매도"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+
+        summary = result[0]["summary"]
+        self.assertIn("삼성전자", summary)
+        self.assertIn("올해", summary)
+        self.assertIn("107조원", summary)
+        self.assertIn("전망", summary)
+        self.assertIn("외국인 매도세", summary)
+        self.assertNotIn("기사", summary)
+        self.assertNotIn("확정 실적", summary)
+
+    def test_rate_includes_comparison_period_only_when_explicit(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 3분기 영업이익 전년 동기 대비 782.5% 증가",
+            "storyboard_keywords": ["영업이익782.5%증가"],
+            "article_keywords": ["영업이익782.5%증가", "호실적"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+
+        summary = result[0]["summary"]
+        self.assertIn("3분기", summary)
+        self.assertIn("전년 동기보다", summary)
+        self.assertIn("782.5% 증가", summary)
+        self.assertNotIn("기사", summary)
+
+    def test_contract_percentage_is_named_only_with_explicit_ratio_basis(self):
+        result = build_issue_briefs([{
+            "title": "삼성전자 단일판매 공급계약 체결",
+            "description": "계약 규모는 최근 매출액 대비 5.49% 수준이다. 별도 지분율은 25%다.",
+            "storyboard_keywords": ["계약체결"],
+            "article_keywords": ["계약체결", "공급계약", "단일판매"],
+            "stock_entities": ["삼성전자"],
+        }], "삼성전자")
+
+        summary = result[0]["summary"]
+        self.assertIn("계약", summary)
+        self.assertIn("매출액 대비 5.49%", summary)
+        self.assertNotIn("25%", summary)
+        self.assertNotIn("기사", summary)
+
+    def test_existing_body_evidence_is_only_used_for_internal_brief(self):
+        original_detail = "삼성전자는 Constellation Energy와 3.6 billion 달러 공급 계약을 맺었다."
+        result = build_issue_briefs([{
+            "title": "삼성전자 공급계약 체결",
+            "storyboard_keywords": ["공급계약"],
+            "article_keywords": ["공급계약", "수주·계약"],
+            "stock_entities": ["삼성전자"],
+            "_brief_detail_text": original_detail,
+            "detail_facts": {"counterparty": "Constellation Energy", "amount": "$3.6 billion"},
+        }], "삼성전자")
+
+        summary = result[0]["summary"]
+        self.assertIn("Constellation Energy", summary)
+        self.assertIn("$3.6 billion", summary)
+        self.assertNotIn("기사", summary)
+        self.assertNotIn(original_detail, str(result[0]))
+        self.assertNotIn("_brief_detail_text", result[0])
+
     def test_central_contract_brief_uses_structured_counterparty_and_amount(self):
         result = build_issue_briefs([{
             "storyboard_time": "20:32",
