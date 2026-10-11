@@ -3,6 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <!-- Development access check. Public mode keeps the existing GitHub Pages UI unchanged. -->
+  <style>html.gaemi-private-preview-check body{visibility:hidden!important}</style>
+  <script>
+  (function () {
+    const preview = 'https://gaemi-gtp.onrender.com';
+    const hostname = window.location.hostname;
+    if (hostname === 'gaemi-gtp.onrender.com' || hostname === 'localhost' || hostname === '127.0.0.1') return;
+    document.documentElement.classList.add('gaemi-private-preview-check');
+    fetch(preview + '/dev-access/status', {cache:'no-store'})
+      .then(response => { if (!response.ok) throw new Error('status_unavailable'); return response.json(); })
+      .then(status => {
+        if (status.private) {
+          window.location.replace(preview + '/');
+        } else {
+          document.documentElement.classList.remove('gaemi-private-preview-check');
+        }
+      })
+      .catch(() => { window.location.replace(preview + '/'); });
+  }());
+  </script>
   <title>gaemiGTP</title>
   
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
