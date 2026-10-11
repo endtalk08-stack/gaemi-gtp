@@ -85,6 +85,56 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     }
 
 
+    // Shared safe formatting for AI text, independent of the model or topic.
+    // Only **bold**, paragraphs and simple bullet lists are supported.
+    // Never use innerHTML for model-generated text.
+    function appendAiChatFormattedAnswer(container, content) {
+      const appendInline = (target, line) => {
+        String(line || '').split(/(\\*\\*[^*\\n]+\\*\\*)/g).forEach(part => {
+          if (!part) return;
+          if (/^\\*\\*[^*\\n]+\\*\\*$/.test(part)) {
+            const strong = document.createElement('strong');
+            strong.className = 'font-semibold';
+            strong.textContent = part.slice(2, -2);
+            target.appendChild(strong);
+          } else {
+            target.appendChild(document.createTextNode(part));
+          }
+        });
+      };
+      String(content || '').trim().split(/\\n\\s*\\n/).forEach(block => {
+        let lines = [];
+        let list = null;
+        const flushParagraph = () => {
+          if (!lines.length) return;
+          const paragraph = document.createElement('p');
+          paragraph.className = 'gtp-chat-copy whitespace-pre-line';
+          appendInline(paragraph, lines.join('\\n'));
+          container.appendChild(paragraph);
+          lines = [];
+        };
+        block.split('\\n').forEach(rawLine => {
+          const line = rawLine.trim();
+          const bullet = line.match(/^[-*]\\s+(.+)$/);
+          if (!bullet) {
+            list = null;
+            if (line) lines.push(line);
+            return;
+          }
+          flushParagraph();
+          if (!list) {
+            list = document.createElement('ul');
+            list.className = 'gtp-chat-copy list-disc pl-5 space-y-1';
+            container.appendChild(list);
+          }
+          const item = document.createElement('li');
+          appendInline(item, bullet[1]);
+          list.appendChild(item);
+        });
+        flushParagraph();
+      });
+    }
+
     // First homepage example only: this must not run the full /analyze workflow.
     // All other stock searches and their first replies remain unchanged.
     async function requestHome52wAi() {
@@ -146,12 +196,10 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         const reply = document.createElement('section');
         reply.className = 'space-y-4 animate-fade py-2';
 
-        const answer = document.createElement('p');
-        answer.className = 'gtp-chat-copy whitespace-pre-line';
-        answer.textContent = response.ok && result.ok && result.answer
+        const answerText = response.ok && result.ok && result.answer
           ? result.answer
           : (errors[result.error] || 'AI 답변을 가져오지 못했어. 다시 시도해 줘.');
-        reply.appendChild(answer);
+        appendAiChatFormattedAnswer(reply, answerText);
 
         if (response.ok && result.ok) {
           const sourceNote = document.createElement('p');
