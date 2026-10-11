@@ -382,7 +382,8 @@ def _previous_day_reply(question, metrics):
         key in normalized
         for key in ("프로", "퍼센트", "%", "등락률", "상승률", "하락률", "올랐", "내렸", "떨어졌")
     )
-    if not refers_to_previous or is_today_vs_previous or not (wants_high or wants_change):
+    if (not refers_to_previous or is_today_vs_previous or "52주" in normalized
+            or "신고가" in normalized or not (wants_high or wants_change)):
         return None
 
     previous = metrics.get("previous_trading_day")
