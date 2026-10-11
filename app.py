@@ -4,6 +4,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+from backend.services.ai_test import ai_test_bp
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -11,6 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
+app.register_blueprint(ai_test_bp)
 CORS(app)
 start_calendar_warmup()
 application = app
@@ -18,6 +20,10 @@ application = app
 @app.get("/")
 def home():
     return send_from_directory(FRONTEND_DIR, "index.html")
+
+@app.get("/ai-test")
+def ai_test_page():
+    return send_from_directory(FRONTEND_DIR, "ai-test.html")
 
 @app.get("/health")
 def health():
