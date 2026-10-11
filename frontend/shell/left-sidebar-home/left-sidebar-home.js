@@ -3,6 +3,70 @@
 (function () {
   'use strict';
 
+  const RECENT_STORAGE_KEY = 'gaemiGTP_recent_searches_v1';
+  const RECENT_LIMIT = 10;
+  let recentFallback = [];
+
+  function readRecent() {
+    try {
+      const saved = localStorage.getItem(RECENT_STORAGE_KEY);
+      if (!saved) return recentFallback.slice();
+      const entries = JSON.parse(saved);
+      if (!Array.isArray(entries)) return [];
+      return entries.filter((entry) => entry && ['stock', 'question'].includes(entry.type)
+        && typeof entry.value === 'string' && entry.value.trim()).slice(0, RECENT_LIMIT);
+    } catch (_) {
+      return recentFallback.slice();
+    }
+  }
+
+  function renderRecent() {
+    const list = document.getElementById('leftSidebarHomeRecentList');
+    const empty = document.getElementById('leftSidebarHomeRecentEmpty');
+    if (!list) return;
+    const entries = readRecent();
+    list.replaceChildren();
+    entries.forEach((entry, index) => {
+      const row = document.createElement('li');
+      row.className = 'left-sidebar-home__item';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'left-sidebar-home__recent-link';
+      button.dataset.recentIndex = String(index);
+      button.textContent = entry.value;
+      button.title = entry.value;
+      button.setAttribute('aria-label', `${entry.type === 'stock' ? '종목' : '질문'} 다시 열기: ${entry.value}`);
+      row.appendChild(button);
+      list.appendChild(row);
+    });
+    if (empty) empty.hidden = entries.length > 0;
+  }
+
+  function recordRecent(type, value) {
+    if (type !== 'stock' && type !== 'question') return;
+    const text = String(value || '').trim().slice(0, type === 'stock' ? 80 : 240);
+    if (!text) return;
+    const entries = readRecent().filter((entry) => !(
+      entry.type === type && entry.value.toLocaleLowerCase() === text.toLocaleLowerCase()
+    ));
+    const next = [{ type, value: text }, ...entries].slice(0, RECENT_LIMIT);
+    recentFallback = next;
+    try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch (_) { /* browser storage unavailable */ }
+    renderRecent();
+  }
+
+  function openRecent(index) {
+    const entry = readRecent()[index];
+    if (!entry) return;
+    if (window.innerWidth < 1024) close();
+    if (entry.type === 'stock') {
+      window.GaemiGTPCenterChatSearch?.openStockInChat?.(entry.value);
+    } else {
+      window.GaemiGTPCenterChatSearch?.enterChatWorkspace?.();
+      window.GaemiGTPApp?.submitQuestion?.(entry.value, { newConversation: true });
+    }
+  }
+
   function escapeHtml(value) {
     return String(value)
       .replaceAll('&', '&amp;')
@@ -129,10 +193,17 @@
       .join('');
 
     if (empty) empty.hidden = visible.length > 0;
+    renderRecent();
     if (window.lucide) window.lucide.createIcons();
   }
 
   document.addEventListener('click', (event) => {
+    const recentButton = event.target.closest('#leftSidebarHome [data-recent-index]');
+    if (recentButton) {
+      openRecent(Number(recentButton.dataset.recentIndex));
+      return;
+    }
+
     const navButton = event.target.closest('#leftSidebarHome [data-left-home-nav]');
     if (navButton) {
       const nav = navButton.dataset.leftHomeNav;
@@ -147,14 +218,20 @@
       if (!sectionBody) return;
       const expanded = sectionToggle.getAttribute('aria-expanded') !== 'false';
       sectionToggle.setAttribute('aria-expanded', String(!expanded));
-      sectionToggle.setAttribute('aria-label', expanded ? `${sectionToggle.dataset.leftHomeSectionToggle === 'watchlist' ? '관심종목' : '플러그인'} 펼치기` : `${sectionToggle.dataset.leftHomeSectionToggle === 'watchlist' ? '관심종목' : '플러그인'} 접기`);
+      const sectionName = {
+        watchlist: '관심종목', plugins: '플러그인', recent: '최근'
+      }[sectionToggle.dataset.leftHomeSectionToggle] || '메뉴';
+      sectionToggle.setAttribute('aria-label', `${sectionName} ${expanded ? '펼치기' : '접기'}`);
       sectionToggle.setAttribute('title', sectionToggle.getAttribute('aria-label'));
       sectionBody.hidden = expanded;
       return;
     }
   });
 
-  window.GaemiGTPSidebarHome = { render, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
+  window.GaemiGTPSidebarHome = { render, recordRecent, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
+  window.addEventListener('storage', (event) => {
+    if (event.key === RECENT_STORAGE_KEY) renderRecent();
+  });
   window.toggleLeftSidebarHome = toggle;
   window.closeLeftSidebarHome = close;
   window.toggleLeftSidebarHomeMenu = toggleMenu;
