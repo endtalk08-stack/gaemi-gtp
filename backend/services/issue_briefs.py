@@ -378,7 +378,8 @@ def _compose_brief_summary(headline, remaining, summary_index=0):
                 particle = _korean_particle(base, "을", "를")
                 sentences.append(f"기사에서는 {base}{particle} {certainty}한 내용을 다뤘어.")
             elif certainty:
-                sentences.append(f"기사에는 {base} 관련 {certainty}이 언급돼 있어.")
+                particle = _korean_particle(certainty, "이", "가")
+                sentences.append(f"기사에는 {base} 관련 {certainty}{particle} 언급돼 있어.")
             elif index == 0:
                 sentences.append(f"기사에는 {fact}라는 수치가 제시돼 있어.")
             else:
