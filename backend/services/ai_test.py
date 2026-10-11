@@ -215,19 +215,9 @@ def ai_test_chat():
     role = str(body.get("role") or "news")
     stock = str(body.get("stock") or "").strip()
     question = str(body.get("question") or "").strip()
-    test_mode = body.get("test_mode") or ""
-    if test_mode not in ("", "prompt_preview"):
-        return jsonify({"ok": False, "error": "invalid_input"}), 400
-    sample_facts = body.get("sample_facts") if test_mode == "prompt_preview" else None
-    custom_style = body.get("custom_style") if test_mode == "prompt_preview" else None
     if role not in MODELS:
         return jsonify({"ok": False, "error": "unsupported_model"}), 400
     if not stock or len(stock) > 50 or not question or len(question) > 800:
-        return jsonify({"ok": False, "error": "invalid_input"}), 400
-    if test_mode == "prompt_preview" and (
-        not isinstance(sample_facts, str) or not sample_facts.strip() or len(sample_facts) > 1200
-        or (custom_style is not None and (not isinstance(custom_style, str) or len(custom_style) > 1000))
-    ):
         return jsonify({"ok": False, "error": "invalid_input"}), 400
 
     # Reserve a slot before any data/AI processing. Failed attempts count too:
@@ -237,25 +227,6 @@ def ai_test_chat():
         return jsonify({"ok": False, "error": limit_error, "limits": _remaining()}), 429
 
     try:
-        if test_mode == "prompt_preview":
-            # Lightweight tone comparison: no /analyze, provider fetches, or new quota.
-            # Sample facts are user-entered demonstration data, NOT a live quote.
-            context = {
-                "stock": stock,
-                "sample_facts": sample_facts.strip(),
-                "data_note": "관리자가 입력한 테스트용 예시 데이터이며 현재 시세나 검증된 뉴스가 아닙니다.",
-            }
-            answer = _groq_answer(
-                MODELS[role]["id"], question, context,
-                style_prompt=(custom_style.strip() if isinstance(custom_style, str) and custom_style.strip() else CHAT_REPLY_STYLE),
-            )
-            return jsonify({
-                "ok": True, "answer": answer,
-                "model": MODELS[role]["id"],
-                "test_mode": "prompt_preview",
-                "limits": _remaining(),
-            })
-
         from backend.services.engine import analyze_stock
 
         result = analyze_stock(stock)
