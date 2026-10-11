@@ -598,6 +598,128 @@ def _issue_evidence_summary(item, stock_name, labels):
     return "\n".join(dict.fromkeys(sentences[:3]))
 
 
+
+# The three existing hashtags define which facts belong in the central brief.
+# Select short, evidence-backed source passages; never manufacture "issue" copy.
+_HASHTAG_EVIDENCE_RULES = {
+    "외국인매도": r"외국인.{0,24}(?:순매도|매도|매도세|매물|팔아|팔았)",
+    "외국인매수": r"외국인.{0,24}(?:순매수|매수|사들)",
+    "자사주매입": r"(?:자사주|자기주식).{0,24}(?:매입|취득|매수)|(?:매입|취득).{0,12}(?:자사주|자기주식)",
+    "자사주소각": r"(?:자사주|자기주식).{0,20}소각|소각.{0,15}(?:자사주|자기주식)",
+    "매출발표": r"매출(?:액)?.{0,32}(?:발표|공개|공시|잠정|\d)|(?:발표|잠정).{0,25}매출",
+    "실적발표": r"(?:실적|영업이익|매출).{0,35}(?:발표|잠정|공개|공시)|(?:발표|잠정).{0,25}실적",
+    "잠정실적발표": r"(?:잠정|가결산).{0,35}(?:실적|영업이익|매출)|(?:실적|영업이익|매출).{0,25}잠정",
+    "호실적": r"호실적|(?:실적|매출|영업이익|순이익).{0,45}(?:최대|상회|증가|급증|흑자|개선|늘었)",
+    "역대급실적": r"(?:실적|영업이익|매출).{0,40}(?:역대|사상|최대)|역대급.{0,15}실적",
+    "계약체결": r"(?:계약|수주).{0,22}(?:체결|맺|확정)|공급\s*계약|단일판매",
+    "공급계약": r"공급\s*계약|계약.{0,25}공급|단일판매",
+    "단일판매": r"단일판매|(?:계약\s*금액|공급\s*계약).{0,45}(?:매출액|\d)|매출액\s*대비\s*\d+(?:\.\d+)?\s*%",
+    "원화강세": r"원화.{0,18}(?:강세|가치\s*상승)|원/달러.{0,18}하락",
+    "원화약세": r"원화.{0,18}(?:약세|가치\s*하락)|원/달러.{0,18}상승",
+    "HBM": r"HBM|고대역폭\s*메모리",
+    "AI메모리": r"(?:AI.{0,20}메모리|메모리.{0,20}AI|HBM)",
+}
+
+
+def _issue_sentences(value):
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text:
+        return []
+    # Selected detail bodies have already been flattened into plain text.
+    pieces = re.split(r"(?<=[.!?。])\s+|[\n]+|\s*[;；]\s*", text)
+    result = []
+    for part in pieces:
+        cleaned = part.strip(" \t-•▶■“”\"'")
+        if len(cleaned) >= 12:
+            result.append(cleaned)
+    return result
+
+
+def _issue_tag_matches(label, sentence):
+    tag = str(label or "").strip().lstrip("#")
+    if not tag:
+        return False
+    rule = _HASHTAG_EVIDENCE_RULES.get(tag)
+    if rule:
+        if not re.search(rule, sentence, re.IGNORECASE):
+            return False
+    else:
+        metric = re.match(r"^(영업이익률|영업이익|매출|순이익)(\d+)", tag)
+        if metric:
+            metric_rule = re.escape(metric.group(1)).replace("영업이익", r"영업\s*이익")
+            if not re.search(metric_rule, sentence):
+                return False
+        else:
+            compact_tag = re.sub(r"[^0-9a-z가-힣]", "", tag.lower())
+            compact_text = re.sub(r"[^0-9a-z가-힣]", "", sentence.lower())
+            if len(compact_tag) < 3 or compact_tag not in compact_text:
+                return False
+    number = re.search(r"\d+(?:\.\d+)?", tag)
+    if number:
+        wanted = re.sub(r"\D", "", number.group())
+        available = [
+            re.sub(r"\D", "", value)
+            for value in re.findall(r"\d+(?:[,.]\d+)*", sentence)
+        ]
+        if wanted not in available:
+            return False
+    return True
+
+
+def _hashtag_core_summary(item, stock_name, labels):
+    """Select one concrete passage per hashtag from this article, no AI calls.
+
+    Uses the already-collected title, snippet and selected article detail.
+    Only the finished short summary is returned; article text stays internal.
+    """
+    title = str(item.get("title") or "").strip()
+    description = str(item.get("description") or "").strip()
+    detail_text = str(item.get("_brief_detail_text") or "").strip()
+    if not any((title, description, detail_text)):
+        return ""
+
+    sources = ((detail_text, 3), (description, 2), (title, 1))
+    other_stocks = [
+        str(name).strip() for name in item.get("stock_entities") or []
+        if str(name).strip() and str(name).strip() != stock_name
+    ]
+    selected = []
+    used = set()
+    for label in labels[:3]:
+        candidates = []
+        for source, priority in sources:
+            for sentence in _issue_sentences(source):
+                if not _issue_tag_matches(label, sentence):
+                    continue
+                # Avoid attributing a competitor's isolated result to this stock.
+                if any(name in sentence for name in other_stocks) and stock_name not in sentence:
+                    continue
+                if re.search(r"무단\s*전재|저작권|구독\s*신청|기자\s*이메일|관련\s*기사|광고\s*문의", sentence):
+                    continue
+                if len(sentence) > 210:
+                    continue
+                key = re.sub(r"\s+", "", sentence).rstrip(".!?")
+                if key in used:
+                    continue
+                concrete = bool(re.search(r"\d|억원|조원|발표|체결|공시|전망|잠정|지난해|분기|확정", sentence))
+                score = (priority * 2 + (5 if concrete else 0)
+                         + (2 if stock_name and stock_name in sentence else 0)
+                         + (2 if 25 <= len(sentence) <= 150 else 0))
+                candidates.append((score, sentence))
+        candidates.sort(key=lambda pair: pair[0], reverse=True)
+        chosen = next((sentence for _, sentence in candidates if len(sentence) <= 160), "")
+        if not chosen:
+            continue
+        key = re.sub(r"\s+", "", chosen).rstrip(".!?")
+        if key in used:
+            continue
+        selected.append(chosen)
+        used.add(key)
+        if len(selected) >= 3:
+            break
+    return "\n".join(selected)
+
+
 def build_issue_briefs(items, stock_name, limit=3):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []
@@ -620,13 +742,20 @@ def build_issue_briefs(items, stock_name, limit=3):
             else:
                 summary = f"{concrete_subject} 제품 공개가 주요 이슈야."
 
+        hashtag_summary = _hashtag_core_summary(item, stock_name, labels)
         evidence_summary = _issue_evidence_summary(item, stock_name, labels)
         structured_summary = _structured_detail_summary(
             item,
             labels,
             summary_index=len(briefs),
         )
-        if evidence_summary:
+        if hashtag_summary:
+            summary = hashtag_summary
+        elif item.get("title") or item.get("description") or item.get("_brief_detail_text"):
+            # Do not fall back to "호실적이 주요 이슈야" when no factual
+            # passage exists for the chosen hashtags.
+            summary = "해시태그와 연결되는 구체적인 내용은 확인되지 않았어."
+        elif evidence_summary:
             summary = evidence_summary
         elif structured_summary:
             summary = structured_summary
