@@ -302,7 +302,7 @@ def _structured_detail_summary(item, labels, summary_index=0):
             sentences.append(f"계약 규모로 {amount}가 제시됐어.")
     elif label_set & investment_labels:
         if counterparty:
-            sentences.append(f"{counterparty}가 투자 관련 기업으로 연결돼 있어.")
+            sentences.append(f"{counterparty}가 투자에 연관돼 있어.")
         if amount:
             sentences.append(f"투자 관련 금액은 {amount}야.")
         if regions:
@@ -382,7 +382,8 @@ def _compose_brief_summary(headline, remaining, summary_index=0):
             certainty = next((value for value in uncertainty_endings if fact.endswith(value)), "")
             base = fact[:-len(certainty)].strip() if certainty else fact
             if certainty:
-                sentences.append(f"{base} {certainty}이 나왔어.")
+                particle = _korean_particle(certainty, "이", "가")
+                sentences.append(f"{base} {certainty}{particle} 나왔어.")
             else:
                 sentences.append(f"{fact} 수치가 나왔어. 확정치나 비교 기준은 추가 확인이 필요해.")
         else:
@@ -455,7 +456,7 @@ def build_issue_briefs(items, stock_name, limit=3):
             if summary:
                 summary = summary.replace("제품 공개", f"{concrete_subject} 제품 공개", 1)
             else:
-                summary = f"{concrete_subject} 제품 공개 관련 내용을 확인했어."
+                summary = f"{concrete_subject} 제품 공개가 주요 이슈야."
 
         structured_summary = _structured_detail_summary(
             item,
