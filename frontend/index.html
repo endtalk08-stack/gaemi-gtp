@@ -311,10 +311,11 @@
       </div>
 
       <div class="gaemi-home-prompts" aria-label="종목 기능 예시">
-        <button type="button" onclick="openStockInChat('SK하이닉스')">SK하이닉스 20일 큰손 평균단가 알려줘</button>
-        <button type="button" onclick="openStockInChat('엔비디아')">엔비디아 이슈 발생 이후 몇 % 움직였어?</button>
-        <button type="button" onclick="openStockInChat('현대차')">현대차 장기추세 알려줘</button>
-        <button type="button" onclick="openStockInChat('알파벳')">알파벳 신고가까지 몇 % 남았어?</button>
+        <button type="button" onclick="window.GaemiGTPCenterChatSearch?.submitChatInput?.(this.textContent, { enterAnalysis: true })">삼성전자 52주 최고가 몇 % 남았어?</button>
+        <button type="button" onclick="window.GaemiGTPCenterChatSearch?.submitChatInput?.(this.textContent, { enterAnalysis: true })">SK하이닉스 20일 큰손 평균단가 알려줘</button>
+        <button type="button" onclick="window.GaemiGTPCenterChatSearch?.submitChatInput?.(this.textContent, { enterAnalysis: true })">엔비디아 이슈 발생 이후 몇 % 움직였어?</button>
+        <button type="button" onclick="window.GaemiGTPCenterChatSearch?.submitChatInput?.(this.textContent, { enterAnalysis: true })">현대차 장기추세 알려줘</button>
+        <button type="button" onclick="window.GaemiGTPCenterChatSearch?.submitChatInput?.(this.textContent, { enterAnalysis: true })">알파벳 신고가까지 몇 % 남았어?</button>
       </div>
     </div>
     <div class="gaemi-home-spacer" aria-hidden="true"></div>
@@ -344,7 +345,7 @@
           <input 
             id="bottomStockInput" 
             type="text" 
-            placeholder="종목명 입력 (예: 삼성전자, SK하이닉스, NVDA, TSLA)" 
+            placeholder="종목명 또는 질문 입력" 
             class="stock-tools-enabled w-full bg-white dark:bg-[#1e1f24] border border-[#cbd5e1] dark:border-[#282a30] hover:border-[#94a3b8] dark:hover:border-[#3a3d46] focus:border-[#0f172a] dark:focus:border-[#4a4e5a] rounded-full px-5 sm:px-6 py-3.5 sm:py-4 text-sm sm:text-base text-[#0f172a] gtp-dark-text placeholder-[#94a3b8] dark:placeholder-[#71717a] focus:outline-none pr-44 shadow-md transition"
           >
           <div class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -478,7 +479,7 @@
   <script src="js/stock-calculator.js?v=20261005-v5"></script>
   <script src="js/memo-pad.js?v=20261005-v2"></script>
   <script src="js/sketch-pad.js?v=20261005-v1"></script>
-  <script src="shell/center-chat/search-controls.js?v=20261011-chat-route-v1"></script>
-  <script src="js/app.js?v=20261011-chat-session-v1"></script>
+  <script src="shell/center-chat/search-controls.js?v=20261012-chat-ai-v1"></script>
+  <script src="js/app.js?v=20261012-chat-ai-v1"></script>
 </body>
 </html>
