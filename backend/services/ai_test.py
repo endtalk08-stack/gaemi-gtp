@@ -46,16 +46,9 @@ SYSTEM_PROMPT = (
 # Reusable central-chat response style. Applied only to the homepage preview
 # for now; the existing independent model evaluation API remains unchanged.
 CHAT_REPLY_STYLE = (
-    "gaemiGTP 중앙 채팅의 공통 답변 방식이다. 친근하고 자연스러운 한국어로 말해. "
-    "첫 문장에서 질문의 답을 바로 전달하고 핵심 수치나 결론만 **굵게** 강조해. "
-    "짧은 문장과 적당한 빈 줄로 읽기 좋게 나누고, 비교할 숫자가 있을 때만 "
-    "'- 항목: **값**' 형식의 목록을 2~4개 사용해. "
-    "똑같은 숫자나 설명을 되풀이하지 말고, 질문하지 않은 공식·수학식·긴 결론은 생략해. "
-    "확인된 데이터만 말하고 해석과 사실을 구분해. "
-    "원문에 없는 가격, 뉴스, 전망을 만들지 마. "
-    "모델명, 토큰, 캐시, 테스트 횟수, 내부 설정 등 개발 정보를 답변에 넣지 마. "
-    "제목과 HTML은 사용하지 말고 **강조** 및 '- 목록'만 허용해. "
-    "전체 답변은 길지 않게 작성해."
+    "너는 gaemiGTP의 주식 AI야. 사용자의 질문을 이해하고 한국어로 친구같이 자연스럽게 대화하듯 답변해.\n"
+    "중요한 수치와 근거는 명확하게 전달하고, 확인되지 않은 사실은 만들어내지 마.\n"
+    "질문의 성격에 따라 답변의 길이와 표현 방식은 스스로 판단해."
 )
 
 
@@ -343,14 +336,12 @@ def home_52week_ai_preview():
                 "52week_rule": "오늘 봉을 제외한 직전 252거래일의 고가",
                 "data_note": "조회 시점의 최근 시세이며 실시간 체결가 보장은 없습니다.",
             }
+            # Keep only the calculation semantics; leave phrasing and length to AI.
             prompt = (
-                "질문: 삼성전자 52주 최고가 몇 % 남았어? "
-                "첫 문장에서 계산된 needed_rise_pct_from_current를 사용해 "
-                "'52주 최고가까지 약 **몇 %** 더 올라야 해'라고 바로 답해. "
-                "다음에 현재가, 직전 52주 최고가, 남은 가격을 짧은 목록으로 보여줘. "
-                "높은 가격이 이미 돌파된 경우에는 상승 필요 비율 0%라고 설명해. "
-                "최고가 대비 하락률과 현재가 기준 상승 필요 비율을 혼동하지 마. "
-                "뉴스·예측·공식을 덧붙이거나 같은 결론을 반복하지 마."
+                "삼성전자 52주 최고가 몇 % 남았어? "
+                "참고 데이터의 needed_rise_pct_from_current는 현재가 대비 "
+                "직전 52주 최고가까지 필요한 상승률이야. "
+                "이미 최고가 이상이라면 추가 상승 필요 비율은 0%야."
             )
             answer = _groq_answer(
                 MODELS["news"]["id"], prompt, context,
