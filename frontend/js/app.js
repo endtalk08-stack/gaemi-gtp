@@ -141,6 +141,11 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           return;
         }
         if (result.stock) {
+          // AI가 다른 종목을 답했다면 이전 종목의 뉴스·공시 결과를 새 종목에 연결하지 않는다.
+          const snapshotStock = window.GaemiGTPAnalysisData?.get?.()?.stockName;
+          if (snapshotStock && snapshotStock !== result.stock) {
+            window.GaemiGTPAnalysisData?.set?.(result.stock, {});
+          }
           activeChatSession.stock = result.stock;
           activeStock = result.stock;
           window.GaemiGTPActiveStock = result.stock;
