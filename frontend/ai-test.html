@@ -39,9 +39,9 @@
     <input id="stock" value="삼성전자" maxlength="50">
     <label for="role">AI 모델</label>
     <select id="role">
-      <option value="news">GPT-OSS 20B · 뉴스·일반</option>
-      <option value="deep">GPT-OSS 120B · 공시·심층</option>
-      <option value="compare">Qwen3.8 27B · 비교용</option>
+      <option value="news">1모델</option>
+      <option value="deep">2모델</option>
+      <option value="compare">3모델</option>
     </select>
     <label for="question">질문</label>
     <textarea id="question" maxlength="800">삼성전자 최근 뉴스와 공시에서 확인되는 핵심 재료를 3가지 이내로 설명해 줘. 부족한 데이터도 알려 줘.</textarea>
@@ -94,6 +94,14 @@
     tokens_per_day: "하루 토큰",
     unknown: "원인 미확인"
   };
+  const modelNames = {
+    "openai/gpt-oss-20b": "1모델",
+    "openai/gpt-oss-120b": "2모델",
+    "qwen/qwen3.8-27b": "3모델"
+  };
+  function modelName(modelId) {
+    return modelNames[modelId] || modelId || "미확인";
+  }
   const callStatusLabels = {
     success: "성공", rate_limit: "Groq 제한", provider_error: "Groq 오류", request_error: "요청 실패"
   };
@@ -106,7 +114,7 @@
       const lines = ["한도 관리: Groq (gaemiGTP 자체 테스트 횟수 제한 없음)"];
       for (const item of Object.values(info.models)) {
         const ref = item.reference_limits || {};
-        lines.push(item.label + ": 분당 " + ref.requests_per_minute + "회 / 하루 "
+        lines.push(modelName(item.model_id) + ": 분당 " + ref.requests_per_minute + "회 / 하루 "
           + ref.requests_per_day + "회 / 분당 " + ref.tokens_per_minute
           + "토큰 / 하루 " + ref.tokens_per_day + "토큰");
       }
@@ -114,7 +122,7 @@
       const events = info.recent_rate_limits || [];
       limitEvents.textContent = "최근 Groq 제한 기록 (최대 20건)\n"
         + (events.length ? events.map(event =>
-          event.timestamp_kst + " · " + event.model_id
+          event.timestamp_kst + " · " + modelName(event.model_id)
           + " · " + (limitLabels[event.limit_type] || limitLabels.unknown)
           + (event.retry_after ? " · 재시도 안내: " + event.retry_after : "")
         ).join("\n") : "아직 기록이 없습니다.");
@@ -130,7 +138,7 @@
           && Number.isInteger(values.total_tokens)
           ? tokenLabel(Math.max(0, ref.tokens_per_day - values.total_tokens)) + "토큰"
           : "미확인 (토큰 기록 누락)";
-        summary.push(item.label + ": 입력 " + tokenLabel(values.prompt_tokens)
+        summary.push(modelName(item.model_id) + ": 입력 " + tokenLabel(values.prompt_tokens)
           + " / 출력 " + tokenLabel(values.completion_tokens)
           + " / 합계 " + tokenLabel(values.total_tokens)
           + "토큰 · 오늘 예상 잔여 " + estimatedLeft
@@ -144,7 +152,7 @@
           ? tokenLabel(dailyRequests.remaining) + "회" : "미확인";
         const minuteLeft = Number.isInteger(minuteTokens.remaining)
           ? tokenLabel(minuteTokens.remaining) + "개" : "미확인";
-        remainingLines.push(item.label + ": " + (live?.observed_at_kst || "응답 없음")
+        remainingLines.push(modelName(item.model_id) + ": " + (live?.observed_at_kst || "응답 없음")
           + "\n  하루 남은 요청 " + requestLeft
           + " / 분당 남은 토큰 " + minuteLeft);
       }
@@ -153,7 +161,7 @@
         + "\nGroq 응답 헤더에는 하루 남은 토큰이 제공되지 않습니다. 분당 잔여 토큰은 시간이 지나면 변할 수 있습니다.";
       const calls = info.recent_calls || [];
       recentCalls.textContent = (calls.length ? calls.map(item =>
-        item.timestamp_kst + " · " + item.model_id
+        item.timestamp_kst + " · " + modelName(item.model_id)
         + " · " + (callStatusLabels[item.status] || item.status)
         + (item.limit_type ? " (" + (limitLabels[item.limit_type] || limitLabels.unknown) + ")" : "")
         + (item.http_status ? " · HTTP " + item.http_status : "")
@@ -167,7 +175,7 @@
     const lines = ["기준일 (한국시간): " + info.date_kst,
       "전체: " + info.total.used + " / " + info.total.limit];
     for (const item of Object.values(info.models)) {
-      lines.push(item.label + ": " + item.used + " / " + item.limit);
+      lines.push(modelName(item.model_id) + ": " + item.used + " / " + item.limit);
     }
     quota.textContent = lines.join("\n") + "\n" + (info.reset_warning || "");
   }
@@ -186,7 +194,7 @@
     if (!response.ok || !data.ok) {
       let message = errors[data.error] || ("요청 실패 (" + response.status + ")");
       if (data.error === "groq_rate_limit") {
-        message += " · 모델: " + (data.model || "확인 불가")
+        message += " · 모델: " + modelName(data.model)
           + " · 제한: " + (limitLabels[data.rate_limit_type] || limitLabels.unknown);
         if (data.retry_after) message += " · 재시도 안내: " + data.retry_after;
       }
@@ -220,7 +228,7 @@
       });
       answer.textContent = result.answer;
       const usage = result.usage || {};
-      sourceInfo.textContent = "사용 모델: " + result.model
+      sourceInfo.textContent = "사용 모델: " + modelName(result.model)
         + " · 뉴스 " + result.source_counts.news
         + "건 · 공시 " + result.source_counts.disclosures
         + "건 · 핵심 이슈 " + result.source_counts.issue_briefs + "건"
