@@ -6,7 +6,6 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     let activeStock = '삼성전자';
     let activeAnalysisRequestId = 0;
     let currentAppMode = 'gaemi';
-    let workspaceUIReady = false;
 
     window.GaemiGTPAppState = {
       getActiveStock: () => activeStock,
