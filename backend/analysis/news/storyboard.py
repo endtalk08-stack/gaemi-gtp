@@ -325,15 +325,17 @@ def select_keyword_storyboard_news(items, limit=3):
         if source_fact and previous_fact:
             return _same_financial_event(source, keyword, previous, previous_keyword)
 
-        if _keywords_overlap(keyword, previous_keyword):
-            return True
-
         source_headline = _headline_key(source.get("title"))
         previous_headline = _headline_key(previous.get("title"))
-        return (
-            min(len(source_headline), len(previous_headline)) >= 12
-            and SequenceMatcher(None, source_headline, previous_headline).ratio() >= 0.75
+        headline_similarity = (
+            SequenceMatcher(None, source_headline, previous_headline).ratio()
+            if min(len(source_headline), len(previous_headline)) >= 12 else 0.0
         )
+        # A shared topic keyword alone does not establish the same event:
+        # separate contracts, announcements, or policy steps must remain distinct.
+        if _keywords_overlap(keyword, previous_keyword):
+            return headline_similarity >= 0.60
+        return headline_similarity >= 0.75
 
     def _merge_duplicate(previous, source, keyword):
         if _source_time(source) < _source_time(previous):
