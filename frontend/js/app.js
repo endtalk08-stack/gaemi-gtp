@@ -81,148 +81,19 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       return true;
     }
 
-    // Render only Markdown bold in AI replies; keep all other text as literal text.
-    function renderChatBold(row, text) {
-      const nodes = [];
-      const boldPattern = /\*\*([^*\n]+)\*\*/g;
-      let lastIndex = 0;
-      for (const match of text.matchAll(boldPattern)) {
-        if (match.index > lastIndex) nodes.push(document.createTextNode(text.slice(lastIndex, match.index)));
-        const strong = document.createElement('strong');
-        strong.textContent = match[1];
-        nodes.push(strong);
-        lastIndex = match.index + match[0].length;
-      }
-      if (lastIndex < text.length) nodes.push(document.createTextNode(text.slice(lastIndex)));
-      row.replaceChildren(...nodes);
-    }
-
-    // The five existing response actions are attached only after typing ends.
-    async function appendChatReply(answer, sessionId) {
-      const text = String(answer || '').trim();
-      if (!text || activeChatSession?.id !== sessionId) return false;
-      const row = appendChatMessage('assistant', text, 'answer', sessionId);
-      if (!row) return false;
-      row.textContent = '';
-      row.classList.add('typing-cursor');
-      for (let index = 0; index < text.length; index += 3) {
-        if (activeChatSession?.id !== sessionId || !row.isConnected) return false;
-        row.textContent += text.slice(index, index + 3);
-        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        await new Promise((resolve) => setTimeout(resolve, 40));
-      }
-      row.classList.remove('typing-cursor');
-      if (activeChatSession?.id !== sessionId || !row.isConnected) return false;
-      renderChatBold(row, text);
-      const actions = window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
-        row, text, 'ai-' + row.dataset.chatMessageId, activeChatSession.stock || ''
-      );
-      // AI 답변의 타이핑 흐름을 마지막 '싫어요' 아이콘까지 이어간다.
-      // 기존 공통 액션 생성/클릭 로직은 그대로 재사용한다.
-      if (actions) {
-        const buttons = [...actions.querySelectorAll('[data-first-reply-action]')];
-        buttons.forEach((button) => {
-          button.style.visibility = 'hidden';
-          button.style.pointerEvents = 'none';
-        });
-        for (const button of buttons) {
-          if (activeChatSession?.id !== sessionId || !row.isConnected) return false;
-          button.style.visibility = '';
-          button.style.pointerEvents = '';
-          button.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-          await new Promise((resolve) => setTimeout(resolve, 90));
-        }
-      }
-      return true;
-    }
-
-    function appendChatError(text, sessionId) {
-      if (activeChatSession?.id !== sessionId) return;
-      const row = appendChatMessage('assistant', text, 'error', sessionId);
-      row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    async function requestChatAnswer(question, sessionId, history) {
-      const controller = new AbortController();
-      activeQuestionController = controller;
-      pendingQuestionSessionId = sessionId;
-      const mentionedStock = window.GaemiGTPCenterChatSearch?.resolveStockMention?.(question) || '';
-      const stock = mentionedStock || activeChatSession?.stock || '';
-      const errors = {
-        stock_data_unavailable: '종목 데이터를 확인하지 못했어.',
-        invalid_input: '종목명을 함께 입력해 줘.',
-        minute_limit: '잠시 뒤에 다시 물어봐.',
-        model_daily_limit: '오늘은 더 답변하기 어려워.',
-        total_daily_limit: '오늘은 더 답변하기 어려워.',
-        private_access_required: '로그인이 필요해.',
-        ai_test_not_configured: '아직 답변을 준비하지 못했어.'
-      };
-      // 기존 중앙 채팅 로딩 스타일을 그대로 사용한다. 별도 AI 아이콘은 표시하지 않는다.
-      const loading = document.createElement('div');
-      loading.className = 'analysis-loading-sequence animate-fade';
-      loading.setAttribute('role', 'status');
-      loading.setAttribute('aria-live', 'polite');
-      const loadingText = document.createElement('p');
-      loadingText.className = 'analysis-loading-message is-visible is-shimmer';
-      loadingText.textContent = '생각 중';
-      loading.appendChild(loadingText);
-      document.getElementById('chatArea')?.appendChild(loading);
-
-      const updateWaiting = (message) => {
-        if (activeChatSession?.id === sessionId && !controller.signal.aborted && loading.isConnected) {
-          loadingText.textContent = message;
-        }
-      };
-      const waitingTimers = [
-        setTimeout(() => updateWaiting('조금 더 걸리고 있어'), 10000),
-        setTimeout(() => updateWaiting('응답이 지연되고 있어. 잠시만 기다려줘'), 20000)
-      ];
-      const stopThinking = () => {
-        waitingTimers.forEach(clearTimeout);
-        loading.remove();
-      };
-      try {
-        // If the first stock analysis is in flight, wait for its shared
-        // server-side result instead of collecting the same data twice.
-        if (pendingAnalysis?.stock === stock) await pendingAnalysis.promise;
-        if (controller.signal.aborted || activeChatSession?.id !== sessionId) return;
-        const response = await fetch(BACKEND_URL + '/api/ai-test/chat', {
-          method: 'POST',
-          credentials: 'same-origin',
-          signal: controller.signal,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'news', stock, question, history })
-        });
-        const result = await response.json();
-        if (controller.signal.aborted || activeChatSession?.id !== sessionId) return;
-        if (!response.ok || !result.ok || !result.answer) {
-          stopThinking();
-          appendChatError(errors[result.error] || '지금 답변을 가져오지 못했어.', sessionId);
-          return;
-        }
-        if (result.stock) {
-          // AI가 다른 종목을 답했다면 이전 종목의 뉴스·공시 결과를 새 종목에 연결하지 않는다.
-          const snapshotStock = window.GaemiGTPAnalysisData?.get?.()?.stockName;
-          if (snapshotStock && snapshotStock !== result.stock) {
-            window.GaemiGTPAnalysisData?.set?.(result.stock, {});
-          }
-          activeChatSession.stock = result.stock;
-          activeStock = result.stock;
-          window.GaemiGTPActiveStock = result.stock;
-          window.GaemiGTPWorkspaceShellState?.save?.();
-        }
-        stopThinking();
-        await appendChatReply(result.answer, sessionId);
-      } catch (error) {
-        if (error?.name !== 'AbortError' && activeChatSession?.id === sessionId) {
-          appendChatError('지금 답변을 가져오지 못했어.', sessionId);
-        }
-      } finally {
-        stopThinking();
-        if (activeQuestionController === controller) activeQuestionController = null;
-        if (pendingQuestionSessionId === sessionId) pendingQuestionSessionId = null;
-      }
-    }
+    // AI response renderer and provider flow live in the central-chat module.
+    const aiChat = window.GaemiGTPCenterAIChat.create({
+      backendUrl: BACKEND_URL,
+      getSession: () => activeChatSession,
+      getPendingAnalysis: () => pendingAnalysis,
+      getActiveQuestionController: () => activeQuestionController,
+      setActiveQuestionController: (value) => { activeQuestionController = value; },
+      getPendingQuestionSessionId: () => pendingQuestionSessionId,
+      setPendingQuestionSessionId: (value) => { pendingQuestionSessionId = value; },
+      setStock: (value) => { activeStock = value; },
+      appendChatMessage
+    });
+    const { requestChatAnswer, appendChatReply } = aiChat;
 
     function getChatState() {
       if (!activeChatSession) return null;
