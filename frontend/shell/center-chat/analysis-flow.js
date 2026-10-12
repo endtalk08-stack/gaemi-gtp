@@ -459,7 +459,86 @@
       typeNextSection();
     }
 
-    return { startTypewriterFlow };
+    async function requestStock(stockName) {
+      if (!stockName || !stockName.trim()) return;
+      stockName = stockName.trim();
+
+      // 새 종목을 누르면 이전 분석 HTTP 요청을 즉시 끊어 브라우저가 오래된 응답을 기다리지 않게 한다.
+      // 서버에서도 같은 종목의 중복 외부 호출은 백엔드 캐시/single-flight가 막는다.
+      if (ctx.getAnalysisController()) {
+        ctx.getAnalysisController().abort();
+      }
+      ctx.setAnalysisController(new AbortController());
+
+      const requestId = ctx.nextAnalysisRequestId();
+      ctx.setActiveStock(stockName);
+      window.GaemiGTPActiveStock = ctx.getActiveStock();
+      window.GaemiGTPWorkspaceShellState?.save?.();
+
+      const session = ctx.beginChatSession(stockName);
+      if (!session) return;
+      // 새 종목 조회 중 이전 종목의 뉴스·공시를 공유 데이터로 노출하지 않는다.
+      // 새 수집 없이 기존 결과 저장소의 스냅샷만 초기화한다.
+      window.GaemiGTPAnalysisData?.set?.(stockName, {});
+      const chatArea = document.getElementById('chatArea');
+      ctx.appendChatMessage('user', stockName, 'stock', session.id);
+
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'analysis-loading-sequence';
+      loadingDiv.innerHTML = `<div class="gtp-chat-copy font-semibold animate-pulse" aria-live="polite">시세를 조회중입니다</div>`;
+      chatArea.appendChild(loadingDiv);
+
+      const controller = ctx.getAnalysisController();
+      const fetchPromise = window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend(stockName, controller.signal);
+      ctx.setPendingAnalysis({ stock: stockName, promise: fetchPromise });
+      const loadingDelayPromise = new Promise(resolve => setTimeout(resolve, 4000));
+      const [result] = await Promise.all([fetchPromise, loadingDelayPromise]);
+      if (ctx.getPendingAnalysis()?.promise === fetchPromise) ctx.setPendingAnalysis(null);
+      if (requestId !== ctx.getActiveAnalysisRequestId() || result.aborted) {
+        loadingDiv.remove();
+        return;
+      }
+      loadingDiv.remove();
+      const sections = result.sections || [];
+
+      if (ctx.getAnalysisController() === controller) ctx.setAnalysisController(null);
+
+      if (!result.ok || sections.length === 0) {
+        const notFoundSection = sections.find((section) => section?.id === 'analysis-error');
+        if (notFoundSection) {
+          const state = document.createElement('div');
+          state.className = 'animate-fade gtp-chat-copy';
+          state.innerHTML = `
+            <div class="font-semibold gtp-dark-text">${notFoundSection.title || '종목을 찾을 수 없습니다.'}</div>
+            <div class="mt-3 text-[#64748b] dark:text-[#a1a1aa]">${notFoundSection.content || `${stockName} 종목을 확인하지 못했습니다. 종목명이나 티커를 다시 확인해주세요.`}</div>
+          `;
+          chatArea.appendChild(state);
+        } else {
+          window.GaemiGTPAnalysisStatus.renderAnalysisStatus(chatArea, stockName, result.ok);
+        }
+        chatArea.scrollTop = 0;
+        return;
+      }
+
+      // 유효한 종목 분석이 완료된 경우에만 최근 검색에 추가한다.
+      window.GaemiGTPSidebarHome?.recordRecent?.('stock', stockName);
+
+      // 채팅과 플러그인 위젯이 같은 분석 응답을 공유한다.
+      // 위젯은 제목 문자열이 아니라 백엔드의 고정 section id를 사용한다.
+      window.GaemiGTPAnalysisData?.set?.(stockName, result);
+
+      chatArea.scrollTop = 0;
+      if (requestId !== ctx.getActiveAnalysisRequestId() || ctx.getSession()?.id !== session.id) return;
+      ctx.getSession().messages.push({
+        id: ctx.nextChatMessageId(), role: 'assistant', kind: 'analysis',
+        sections: sections.map(({ id, title, content }) => ({ id, title, content }))
+      });
+      startTypewriterFlow(stockName, sections, result, requestId);
+    }
+
+
+
+    return { startTypewriterFlow, requestStock };
   }
   window.GaemiGTPCenterAnalysisFlow = { create };
 }());
