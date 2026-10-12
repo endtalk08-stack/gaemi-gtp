@@ -2,6 +2,27 @@
 (function () {
   'use strict';
   function create(ctx) {
+    function submitQuestion(question, { newConversation = false } = {}) {
+      const text = String(question || '').trim();
+      if (!text) return false;
+      if (!newConversation && ctx.getPendingQuestionSessionId() === ctx.getSession()?.id) return false;
+      if (newConversation || !ctx.getSession()) {
+        ctx.abortAnalysis();
+        if (!ctx.beginChatSession()) return false;
+      }
+      const sessionId = ctx.getSession().id;
+      const history = ctx.getSession().messages
+        .filter((message) => message.kind === 'question' || message.kind === 'answer')
+        .slice(-6)
+        .map(({ role, text }) => ({ role, text: text.slice(0, 240) }));
+      const row = ctx.appendChatMessage('user', text, 'question', sessionId);
+      if (!row) return false;
+      window.GaemiGTPSidebarHome?.recordRecent?.('question', text);
+      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      void requestChatAnswer(text, sessionId, history);
+      return true;
+    }
+
     // Parse complete bold markers before typing so their ** delimiters never flash.
     function getChatBoldSegments(text) {
       const segments = [];
@@ -146,7 +167,7 @@
       }
     }
 
-    return { requestChatAnswer, appendChatReply };
+    return { submitQuestion, requestChatAnswer, appendChatReply };
   }
   window.GaemiGTPCenterAIChat = { create };
 }());
