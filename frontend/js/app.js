@@ -57,29 +57,6 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       return row;
     }
 
-    function submitQuestion(question, { newConversation = false } = {}) {
-      const text = String(question || '').trim();
-      if (!text) return false;
-      if (!newConversation && pendingQuestionSessionId === activeChatSession?.id) return false;
-      if (newConversation || !activeChatSession) {
-        activeAnalysisController?.abort();
-        activeAnalysisController = null;
-        ++activeAnalysisRequestId;
-        if (!beginChatSession()) return false;
-      }
-      const sessionId = activeChatSession.id;
-      const history = activeChatSession.messages
-        .filter((message) => message.kind === 'question' || message.kind === 'answer')
-        .slice(-6)
-        .map(({ role, text }) => ({ role, text: text.slice(0, 240) }));
-      const row = appendChatMessage('user', text, 'question', sessionId);
-      if (!row) return false;
-      window.GaemiGTPSidebarHome?.recordRecent?.('question', text);
-      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      void requestChatAnswer(text, sessionId, history);
-      return true;
-    }
-
     // AI response renderer and provider flow live in the central-chat module.
     const aiChat = window.GaemiGTPCenterAIChat.create({
       backendUrl: BACKEND_URL,
@@ -90,9 +67,15 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       getPendingQuestionSessionId: () => pendingQuestionSessionId,
       setPendingQuestionSessionId: (value) => { pendingQuestionSessionId = value; },
       setStock: (value) => { activeStock = value; },
-      appendChatMessage
+      appendChatMessage,
+      beginChatSession,
+      abortAnalysis: () => {
+        activeAnalysisController?.abort();
+        activeAnalysisController = null;
+        ++activeAnalysisRequestId;
+      }
     });
-    const { requestChatAnswer, appendChatReply } = aiChat;
+    const { submitQuestion, appendChatReply } = aiChat;
 
     function getChatState() {
       if (!activeChatSession) return null;
