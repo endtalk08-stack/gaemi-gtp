@@ -129,7 +129,8 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       const controller = new AbortController();
       activeQuestionController = controller;
       pendingQuestionSessionId = sessionId;
-      const stock = activeChatSession?.stock || '';
+      const mentionedStock = window.GaemiGTPCenterChatSearch?.resolveStockMention?.(question) || '';
+      const stock = mentionedStock || activeChatSession?.stock || '';
       const errors = {
         stock_data_unavailable: '종목 데이터를 확인하지 못했어.',
         invalid_input: '종목명을 함께 입력해 줘.',

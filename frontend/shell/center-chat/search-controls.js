@@ -15,6 +15,17 @@
     return STOCK_SEARCH_ALIASES[query.toLowerCase()] || STOCK_SEARCH_ALIASES[query] || query;
   }
 
+  // Reuse stock-search aliases when a user mentions a company in a chat question.
+  function resolveStockMention(question) {
+    const words = String(question || '').toLowerCase().match(/[a-z0-9가-힣]+/g) || [];
+    for (const word of words) {
+      if (STOCK_SEARCH_ALIASES[word]) return STOCK_SEARCH_ALIASES[word];
+      const bare = word.replace(/(?:에서|으로|부터|까지|은|는|이|가|을|를|도|와|과|랑|의|에|만)$/, '');
+      if (bare !== word && STOCK_SEARCH_ALIASES[bare]) return STOCK_SEARCH_ALIASES[bare];
+    }
+    return '';
+  }
+
   function enterChatWorkspace() {
     document.getElementById('mainHeroView')?.classList.add('hidden');
     document.body.classList.add('analysis-mode');
@@ -105,7 +116,7 @@
     document.getElementById('bottomModeMenu')?.classList.add('hidden');
   }
 
-  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, selectStock, openStockInChat, focusStockInput, submitStockSearch, submitChatInput, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace, resetToHome };
+  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, resolveStockMention, selectStock, openStockInChat, focusStockInput, submitStockSearch, submitChatInput, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace, resetToHome };
   window.enterChatWorkspace = enterChatWorkspace;
   window.resetToHome = resetToHome;
   window.openStockInChat = openStockInChat;
