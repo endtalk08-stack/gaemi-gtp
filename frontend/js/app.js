@@ -84,7 +84,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     // Render only Markdown bold in AI replies; keep all other text as literal text.
     function renderChatBold(row, text) {
       const nodes = [];
-      const boldPattern = /\\*\\*([^*\\n]+)\\*\\*/g;
+      const boldPattern = /\*\*([^*\n]+)\*\*/g;
       let lastIndex = 0;
       for (const match of text.matchAll(boldPattern)) {
         if (match.index > lastIndex) nodes.push(document.createTextNode(text.slice(lastIndex, match.index)));
