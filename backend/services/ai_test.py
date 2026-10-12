@@ -482,7 +482,7 @@ def ai_test_chat():
     private_chat = not admin_test and private_enabled() and dev_session_authorized()
     if not admin_test and not private_chat:
         return jsonify({"ok": False, "error": "admin_test_disabled_or_unauthorized"}), 403
-    limits_for_request = _remaining if private_chat else _provider_info
+    limits_for_request = _provider_info
 
     if (request.content_length or 0) > 4500:
         return jsonify({"ok": False, "error": "request_too_large"}), 413
@@ -515,8 +515,7 @@ def ai_test_chat():
     if not stock or len(stock) > 50:
         return jsonify({"ok": False, "error": "invalid_input"}), 400
 
-    # Admin /ai-test requests use Groq's native limits, without a local quota.
-    # The existing central chat keeps its original private-chat quota logic.
+    # Both administrator tests and central chat use Groq's native limits.
 
     # Use the private conversation's existing processed result when possible.
     # Only a new-stock question falls back to the established analysis function.
@@ -581,9 +580,6 @@ def ai_test_chat():
         if private_chat:
             if not _settings_ready():
                 return jsonify({"ok": False, "error": "ai_test_not_configured"}), 503
-            limit_error = _take_slot(role)
-            if limit_error:
-                return jsonify({"ok": False, "error": limit_error, "limits": limits_for_request()}), 429
 
         history = body.get("history") or []
         dialogue = []
