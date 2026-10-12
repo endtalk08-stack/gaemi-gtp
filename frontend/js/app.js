@@ -81,6 +81,22 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       return true;
     }
 
+    // Render only Markdown bold in AI replies; keep all other text as literal text.
+    function renderChatBold(row, text) {
+      const nodes = [];
+      const boldPattern = /\\*\\*([^*\\n]+)\\*\\*/g;
+      let lastIndex = 0;
+      for (const match of text.matchAll(boldPattern)) {
+        if (match.index > lastIndex) nodes.push(document.createTextNode(text.slice(lastIndex, match.index)));
+        const strong = document.createElement('strong');
+        strong.textContent = match[1];
+        nodes.push(strong);
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < text.length) nodes.push(document.createTextNode(text.slice(lastIndex)));
+      row.replaceChildren(...nodes);
+    }
+
     // The five existing response actions are attached only after typing ends.
     async function appendChatReply(answer, sessionId) {
       const text = String(answer || '').trim();
@@ -97,6 +113,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       }
       row.classList.remove('typing-cursor');
       if (activeChatSession?.id !== sessionId || !row.isConnected) return false;
+      renderChatBold(row, text);
       const actions = window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
         row, text, 'ai-' + row.dataset.chatMessageId, activeChatSession.stock || ''
       );
