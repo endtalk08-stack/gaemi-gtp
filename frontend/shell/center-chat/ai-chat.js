@@ -134,7 +134,7 @@
           credentials: 'same-origin',
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'news', stock, question, history })
+          body: JSON.stringify({ role: 'compare', stock, question, history })
         });
         const result = await response.json();
         if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
