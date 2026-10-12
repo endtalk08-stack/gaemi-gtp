@@ -2,20 +2,18 @@
 (function () {
   'use strict';
   function create(ctx) {
-    // Render only Markdown bold in AI replies; keep all other text as literal text.
-    function renderChatBold(row, text) {
-      const nodes = [];
+    // Parse complete bold markers before typing so their ** delimiters never flash.
+    function getChatBoldSegments(text) {
+      const segments = [];
       const boldPattern = /\*\*([^*\n]+)\*\*/g;
       let lastIndex = 0;
       for (const match of text.matchAll(boldPattern)) {
-        if (match.index > lastIndex) nodes.push(document.createTextNode(text.slice(lastIndex, match.index)));
-        const strong = document.createElement('strong');
-        strong.textContent = match[1];
-        nodes.push(strong);
+        if (match.index > lastIndex) segments.push({ text: text.slice(lastIndex, match.index), bold: false });
+        segments.push({ text: match[1], bold: true });
         lastIndex = match.index + match[0].length;
       }
-      if (lastIndex < text.length) nodes.push(document.createTextNode(text.slice(lastIndex)));
-      row.replaceChildren(...nodes);
+      if (lastIndex < text.length) segments.push({ text: text.slice(lastIndex), bold: false });
+      return segments;
     }
 
     // The five existing response actions are attached only after typing ends.
@@ -26,15 +24,18 @@
       if (!row) return false;
       row.textContent = '';
       row.classList.add('typing-cursor');
-      for (let index = 0; index < text.length; index += 3) {
-        if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
-        row.textContent += text.slice(index, index + 3);
-        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        await new Promise((resolve) => setTimeout(resolve, 40));
+      for (const segment of getChatBoldSegments(text)) {
+        const node = segment.bold ? document.createElement('strong') : document.createTextNode('');
+        row.appendChild(node);
+        for (let index = 0; index < segment.text.length; index += 3) {
+          if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
+          node.textContent += segment.text.slice(index, index + 3);
+          row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          await new Promise((resolve) => setTimeout(resolve, 40));
+        }
       }
       row.classList.remove('typing-cursor');
       if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
-      renderChatBold(row, text);
       const actions = window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
         row, text, 'ai-' + row.dataset.chatMessageId, ctx.getSession().stock || ''
       );
