@@ -277,6 +277,26 @@ class CentralArticleExcerptTests(unittest.TestCase):
         self.assertNotIn("원화강세", brief["tags"])
         self.assertEqual(brief["summary"], CELLTRION_BODY)
 
+    def test_hyundai_india_investment_title_and_tag_from_visible_body(self):
+        bodies = [
+            "정의선 현대차그룹 회장이 인도 뉴델리에서 나렌드라 모디 총리를 만났다. "
+            "현대차그룹은 올해부터 7년간 약 155억 달러를 인도에 투자할 계획이다. "
+            "신공장 건설과 연구개발 인프라 확충이 주요 투자 분야다.",
+            "현대차그룹은 2032년까지 인도에 155억달러를 투자해 생산능력을 "
+            "확충하겠다는 전략을 밝혔다. 정의선 회장은 나렌드라 모디 총리와 면담했다.",
+            "정의선 현대차그룹 회장이 인도 연 140만대 생산체제를 발표하며 "
+            "현지 투자 확대 계획을 밝혔다. 올해부터 7년간 약 "
+            "155억달러(약 20조8000억원) 규모의 투자를 추진한다.",
+        ]
+        for body in bodies:
+            with self.subTest(body=body[:40]):
+                brief = build_issue_briefs(
+                    [self._source_row()], "현대차", body_texts=[body],
+                )[0]
+                self.assertEqual(brief["headline"], "인도 155억 달러 투자 이슈")
+                self.assertIn("인도투자", brief["tags"])
+                self.assertEqual(brief["summary"], body)
+
     def test_no_supported_topic_uses_neutral_title_without_false_hashtags(self):
         body = (
             "관계자들이 어제 발표된 다양한 현안과 일정을 검토했다. "
