@@ -122,10 +122,10 @@ class _ArticleHTMLParser(HTMLParser):
             self.main_depth -= 1
 
 
-def extract_article_text(payload, charset="utf-8"):
-    """Extract a bounded article body from HTML bytes without returning page chrome."""
+def _extract_article_text_with_source(payload, charset="utf-8"):
+    """Return extracted text and its HTML evidence source."""
     if not payload:
-        return ""
+        return "", "fetch_failed"
     try:
         source = payload.decode(charset or "utf-8", errors="replace")
     except Exception:
@@ -136,27 +136,35 @@ def extract_article_text(payload, charset="utf-8"):
         parser.feed(source)
         parser.close()
     except Exception:
-        return ""
+        return "", "fetch_failed"
 
-    candidates = [
-        parser.json_article_body,
-        " ".join(parser.preferred_paragraphs),
-        " ".join(parser.all_paragraphs),
-        parser.meta_description,
-    ]
-    for candidate in candidates:
+    candidates = (
+        ("jsonld_article_body", parser.json_article_body),
+        ("article_or_main_paragraphs", " ".join(parser.preferred_paragraphs)),
+        ("all_page_paragraphs", " ".join(parser.all_paragraphs)),
+        ("meta_description", parser.meta_description),
+    )
+    for kind, candidate in candidates:
         cleaned = _bounded_text(candidate)
         if len(cleaned) >= 80:
-            return cleaned
-    return _bounded_text(parser.meta_description)
+            return cleaned, kind
+    fallback = _bounded_text(parser.meta_description)
+    return fallback, "meta_description" if fallback else "fetch_failed"
 
 
-def _read_url(url):
+def extract_article_text(payload, charset="utf-8"):
+    """Preserve the text-only API used by existing consumers and tests."""
+    return _extract_article_text_with_source(payload, charset=charset)[0]
+
+
+def _read_url(url, with_source=False):
     now = time.time()
     with _CACHE_LOCK:
         cached = _CACHE.get(url)
         if cached and now - cached[0] <= _CACHE_TTL:
-            return cached[1]
+            text = cached[1]
+            kind = cached[2] if len(cached) > 2 else "unknown"
+            return {"text": text, "source": kind} if with_source else text
 
     request = urllib.request.Request(
         url,
@@ -165,15 +173,15 @@ def _read_url(url):
             "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
         },
     )
-    text = ""
+    text, kind = "", "fetch_failed"
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
             content_type = str(response.headers.get("Content-Type") or "").lower()
             if "html" not in content_type and "xhtml" not in content_type:
-                return ""
+                return {"text": "", "source": "fetch_failed"} if with_source else ""
             charset = response.headers.get_content_charset() or "utf-8"
             payload = response.read(MAX_RESPONSE_BYTES)
-        text = extract_article_text(payload, charset=charset)
+        text, kind = _extract_article_text_with_source(payload, charset=charset)
     except Exception as exc:
         print(
             f"[news detail] failed url={url}: {type(exc).__name__}: {exc}",
@@ -181,8 +189,8 @@ def _read_url(url):
         )
 
     with _CACHE_LOCK:
-        _CACHE[url] = (now, text)
-    return text
+        _CACHE[url] = (now, text, kind)
+    return {"text": text, "source": kind} if with_source else text
 
 
 _REGION_ALIASES = (
@@ -407,10 +415,11 @@ def extract_structured_article_facts(text, item, stock_name, grounded_tags=None)
     return facts
 
 
-def read_selected_article_details(items, limit=3):
-    """Read only selected central candidates; results align with the input list."""
+def read_selected_article_details(items, limit=3, with_sources=False):
+    """Read selected articles; optionally retain source quality for central display."""
     source_items = list(items or [])
-    details = [""] * len(source_items)
+    empty = {"text": "", "source": "fetch_failed"}
+    details = [dict(empty) if with_sources else "" for _ in source_items]
     jobs = {}
 
     with ThreadPoolExecutor(max_workers=min(3, max(1, len(source_items)))) as pool:
@@ -424,13 +433,13 @@ def read_selected_article_details(items, limit=3):
                 continue
             if parsed.scheme not in {"http", "https"} or not parsed.netloc:
                 continue
-            jobs[pool.submit(_read_url, url)] = index
+            jobs[pool.submit(_read_url, url, with_source=with_sources)] = index
 
         for future in as_completed(jobs):
             index = jobs[future]
             try:
-                details[index] = future.result() or ""
+                details[index] = future.result() or (dict(empty) if with_sources else "")
             except Exception:
-                details[index] = ""
+                details[index] = dict(empty) if with_sources else ""
 
     return details
