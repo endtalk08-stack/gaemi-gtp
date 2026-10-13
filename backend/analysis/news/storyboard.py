@@ -339,7 +339,62 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
         ))
         return amounts, places, partners
 
+    def _verified_investment_anchor(source):
+        """Extract a strong investment announcement anchor from a verified lead."""
+        body = str(source.get("_central_checked_body") or "")
+        if not body or "투자" not in body:
+            return None
+
+        compact = re.sub(r"\\s+", "", body)
+        countries = {
+            country for country in (
+                "인도네시아", "인도", "베트남", "미국", "중국", "일본",
+                "한국", "독일", "프랑스", "멕시코", "캐나다", "폴란드",
+                "헝가리", "태국",
+            )
+            if re.search(
+                rf"(?<![가-힣]){country}(?!량|네시아)",
+                body,
+            )
+        }
+        # Compare the same reported money fact despite spaces such as
+        # '155억 달러' vs '155억달러' and attached Korean particles.
+        amounts = {
+            match.group()
+            for match in re.finditer(
+                r"(?<![0-9])\\d[\\d,]*(?:\\.\\d+)?"
+                r"(?:조(?:\\d{1,4}억)?|억)(?:달러|원)",
+                compact,
+            )
+            if "투자" in compact[max(0, match.start() - 70):match.end() + 70]
+        }
+        return (countries, amounts) if countries and amounts else None
+
+    def _same_verified_investment(source, previous):
+        left = _verified_investment_anchor(source)
+        right = _verified_investment_anchor(previous)
+        if not left or not right:
+            return False
+        left_owner = str(source.get("event_owner") or "").strip()
+        right_owner = str(previous.get("event_owner") or "").strip()
+        if left_owner and right_owner and left_owner != right_owner:
+            return False
+        if not (left[0] & right[0] and left[1] & right[1]):
+            return False
+
+        # Even with the same country and budget, separate named factories or
+        # supply-contract counterparties remain distinct events.
+        left_facts = _body_event_facts(source)
+        right_facts = _body_event_facts(previous)
+        return not any(
+            a and b and a.isdisjoint(b)
+            for a, b in zip(left_facts[1:], right_facts[1:])
+        )
+
     def _same_selected_event(source, keyword, previous):
+        # Shared event facts outrank differing publisher headlines/keywords.
+        if _same_verified_investment(source, previous):
+            return True
         previous_keyword = str(previous.get("storyboard_keyword") or "").strip()
         source_fact = _financial_amount_fact(source, keyword)
         previous_fact = _financial_amount_fact(previous, previous_keyword)
