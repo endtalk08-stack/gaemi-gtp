@@ -11,7 +11,7 @@ from backend.analysis.news import (
     select_keyword_storyboard_news,
 )
 
-from .issue_briefs import _article_excerpt, build_issue_briefs
+from .issue_briefs import _article_excerpt, build_issue_briefs, central_material_brief_supported
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
 
@@ -152,6 +152,10 @@ def build_stock_news_result(
                     continue
                 excerpt = _article_excerpt(detail.get("text") or "")
                 if not excerpt or not _central_direct_article(article, excerpt, stock_name):
+                    continue
+                # Only a grounded business/market event belongs in the central
+                # notable-news strip. Quote-only reports stay in the shared feed.
+                if not central_material_brief_supported(excerpt):
                     continue
                 candidate = dict(article)
                 # Only the central, body-verified copy becomes a direct candidate.
