@@ -320,11 +320,17 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
     def _body_event_facts(source):
         """Distinctive event facts for articles whose full body was verified."""
         text = f"{source.get('title') or ''} {source.get('_central_checked_body') or ''}"
-        amounts = set(re.findall(
-            r"(?<![0-9])\d[\d,]*(?:\.\d+)?\s*(?:조\s*원|억\s*원|만\s*원|"
-            r"조|억원|억\s*달러|달러|원)(?![가-힣])",
-            text,
-        ))
+        # Normalize reported currencies across publisher spacing and Korean
+        # particles (e.g. '155억 달러를' / '155억달러를').
+        amounts = {
+            re.sub(r"\s+", "", amount)
+            for amount in re.findall(
+                r"(?<![0-9])\d[\d,]*(?:\.\d+)?\s*"
+                r"(?:조\s*\d{1,4}\s*억\s*원|조\s*원|"
+                r"억\s*달러|억\s*원|억원|조|달러|원)",
+                text,
+            )
+        }
         places = set(re.findall(
             r"(?:평택|화성|용인|이천|기흥|수원|천안|아산|청주|광주|울산|부산|"
             r"대구|구미|인천|파주|오스틴|테일러|애리조나)\s*"
@@ -392,6 +398,15 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
         )
 
     def _same_selected_event(source, keyword, previous):
+        # Distinct investment budgets/destination countries are separate
+        # announcements even if publishers use identical headlines.
+        investment = _verified_investment_anchor(source)
+        previous_investment = _verified_investment_anchor(previous)
+        if investment and previous_investment and (
+            investment[0].isdisjoint(previous_investment[0])
+            or investment[1].isdisjoint(previous_investment[1])
+        ):
+            return False
         # Shared event facts outrank differing publisher headlines/keywords.
         if _same_verified_investment(source, previous):
             return True
