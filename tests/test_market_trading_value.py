@@ -117,6 +117,32 @@ class MarketTradingValueTests(unittest.TestCase):
             market_price.fetch_us_popular_ranking_raw()
         self.assertEqual(req.call_count, 2)
 
+    def test_industry_rows_are_categories_not_stocks(self):
+        kr = {"items": [{"industryName": "반도체", "industryCode": "13", "changeRate": "2.1"}]}
+        us = {"items": [{"sectorName": "Technology", "sectorCode": "45", "changeRate": "-0.3"}]}
+        with patch.object(market_rankings, "fetch_kr_industry_ranking_raw", return_value=kr):
+            korean = market_rankings.build_kr_industry_result()
+        with patch.object(market_rankings, "fetch_us_industry_ranking_raw", return_value=us):
+            american = market_rankings.build_us_industry_result()
+        self.assertEqual(korean[0]["name"], "반도체")
+        self.assertEqual(korean[0]["sector_code"], "13")
+        self.assertIsNone(korean[0]["symbol"])
+        self.assertEqual(american[0]["change_pct"], -0.3)
+        self.assertIsNone(american[0]["trading_value"])
+
+    def test_kr_us_industry_requests_are_independent_and_cached(self):
+        market_price.MARKET_RANKING_CACHE.clear()
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self): return json.dumps({"items": []}).encode("utf-8")
+        with patch.object(market_price.urllib.request, "urlopen", return_value=Response()) as req:
+            market_price.fetch_kr_industry_ranking_raw()
+            market_price.fetch_kr_industry_ranking_raw()
+            market_price.fetch_us_industry_ranking_raw()
+            market_price.fetch_us_industry_ranking_raw()
+        self.assertEqual(req.call_count, 2)
+
     def test_unavailable_source_is_not_reported_as_empty_success(self):
         with patch.object(market_rankings, "fetch_kr_trading_value_ranking_raw", return_value=None):
             self.assertIsNone(market_rankings.build_kr_trading_value_result())

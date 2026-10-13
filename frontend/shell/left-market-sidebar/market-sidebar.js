@@ -74,13 +74,13 @@
       const id = ++requestId;
       if (!list) return;
       const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
-      if (tab !== 'value' && tab !== 'popular' || (tab === 'popular' && !market)) {
+      if (!['value', 'popular', 'industry'].includes(tab) || (tab === 'popular' && !market)) {
         list.innerHTML = initialMarkup;
         if (title) title.textContent = '인기 TOP 20';
         if (subtitle) subtitle.textContent = '/ 고정 예시 데이터';
         return;
       }
-      if (title) title.textContent = tab === 'value' ? '거래대금 TOP 20' : '인기 TOP 20';
+      if (title) title.textContent = tab === 'value' ? '거래대금 TOP 20' : tab === 'popular' ? '인기 TOP 20' : '산업 TOP 20';
       if (!market) {
         list.replaceChildren();
         list.textContent = '국내 또는 해외를 선택하면 해당 순위를 볼 수 있어.';
@@ -91,7 +91,7 @@
       list.replaceChildren();
       list.textContent = '순위를 불러오는 중이야.';
       try {
-        const path = tab === 'value' ? '/market/trading-value' : '/market/popular';
+        const path = tab === 'value' ? '/market/trading-value' : tab === 'popular' ? '/market/popular' : '/market/industries';
         const response = await fetch(backendUrl + path + '?market=' + market);
         if (!response.ok) throw new Error('market ranking unavailable');
         const result = await response.json();
@@ -102,10 +102,14 @@
           return;
         }
         result.items.forEach((item, index) => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer';
-          button.addEventListener('click', () => window.openStockInChat?.(item.name));
+          const button = document.createElement(tab === 'industry' ? 'div' : 'button');
+          if (tab !== 'industry') {
+            button.type = 'button';
+            button.addEventListener('click', () => window.openStockInChat?.(item.name));
+          }
+          button.className = tab === 'industry'
+            ? 'w-full py-3 text-left'
+            : 'w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer';
 
           const top = document.createElement('div');
           top.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start';

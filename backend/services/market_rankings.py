@@ -7,6 +7,7 @@ import math
 from ..providers.market_price import (
     fetch_kr_trading_value_ranking_raw, fetch_us_trading_value_ranking_raw,
     fetch_kr_popular_ranking_raw, fetch_us_popular_ranking_raw,
+    fetch_kr_industry_ranking_raw, fetch_us_industry_ranking_raw,
 )
 
 
@@ -141,3 +142,34 @@ def build_kr_popular_result(limit=20):
 def build_us_popular_result(limit=20):
     """Use the same USA normalization, without inferring popularity metrics."""
     return _normalize_us_stock_rows(fetch_us_popular_ranking_raw(limit=limit), limit)
+
+
+def _normalize_industry_rows(raw, limit, market):
+    """Industry rankings are categories, not tradeable stock symbols."""
+    if raw is None:
+        return None
+    items = []
+    for entry in raw.get("items", [])[:limit]:
+        if not isinstance(entry, dict):
+            continue
+        name = _field([entry], ("industryName", "sectorName", "name", "categoryName", "displayName",
+                                "upjongName", "industryNameEng", "sectorNameEng"))
+        if not name:
+            continue
+        change = _number(_field([entry], ("fluctuationsRatio", "changeRate", "changePct", "changeRatio")))
+        category_code = _field([entry], ("industryCode", "sectorCode", "categoryCode", "no"))
+        items.append({
+            "rank": len(items) + 1, "name": str(name),
+            "symbol": None, "sector_code": str(category_code) if category_code else None,
+            "price": None, "change_pct": change,
+            "trading_value": None, "trading_value_text": None,
+        })
+    return items
+
+
+def build_kr_industry_result(limit=20):
+    return _normalize_industry_rows(fetch_kr_industry_ranking_raw(limit=limit), limit, "kr")
+
+
+def build_us_industry_result(limit=20):
+    return _normalize_industry_rows(fetch_us_industry_ranking_raw(limit=limit), limit, "us")
