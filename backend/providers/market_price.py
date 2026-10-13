@@ -483,24 +483,3 @@ def fetch_us_popular_ranking_raw(limit=20):
         {"size": size},
         ttl_seconds=120,
     )
-
-def fetch_kr_industry_ranking_raw(limit=20):
-    """Domestic industries, ranked by the Naver daily change-rate feed."""
-    size = max(1, min(int(limit), 20))
-    return _fetch_naver_market_ranking_raw(
-        ("kr", "industry", size),
-        "/api/stockSecurity/rankings/v2/domestic/industries",
-        {"sortType": "changeRate", "size": size, "period": "daily"},
-        ttl_seconds=180,
-    )
-
-
-def fetch_us_industry_ranking_raw(limit=20):
-    """USA sectors, ranked by the Naver daily change-rate feed."""
-    size = max(1, min(int(limit), 20))
-    return _fetch_naver_market_ranking_raw(
-        ("us", "industry", size),
-        "/api/stockSecurity/rankings/v2/foreign/USA/sectors",
-        {"sortType": "changeRate", "size": size, "period": "daily"},
-        ttl_seconds=180,
-    )
