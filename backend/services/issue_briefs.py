@@ -535,6 +535,33 @@ _BODY_DISPLAY_TOPICS = (
     # Country-specific capital investment: grounded in the displayed body.
     ("인도투자", "인도 투자",
      r"인도[^.!?]{0,130}?투자|투자[^.!?]{0,90}?인도"),
+    # Shared event families, not company-specific exceptions. These are
+    # recognized only when evidenced in the visible article excerpt.
+    ("공장증설", "공장 증설",
+     r"(?:공장|생산\s*시설|생산\s*라인|신규\s*라인)[^.!?]{0,24}?"
+     r"(?:증설|확장|신설|건설|착공)|(?:증설|확장)[^.!?]{0,14}?"
+     r"(?:공장|생산\s*시설|생산\s*라인)"),
+    ("기업인수", "기업 인수",
+     r"(?:기업|회사|지분|사업부)[^.!?]{0,28}?(?:인수|합병)|"
+     r"(?:인수|합병)[^.!?]{0,24}?(?:계약|결정|발표|완료)"),
+    ("전략제휴", "사업 제휴",
+     r"(?:전략적?\s*)?(?:협력|제휴|파트너십|업무\s*협약)"
+     r"[^.!?]{0,28}?(?:체결|맺|발표|합의|확대|구축)|"
+     r"(?:협약|파트너십)[^.!?]{0,20}?(?:체결|맺)"),
+    ("신제품출시", "신제품 출시",
+     r"(?:신제품|신형\s*제품|차세대\s*제품|새로운\s*제품)"
+     r"[^.!?]{0,36}?(?:출시|공개|발표|선보|판매\s*시작)"),
+    ("신규투자", "신규 투자",
+     r"(?:\d[\d,]*(?:\.\d+)?\s*(?:조|억)\s*(?:원|달러))"
+     r"[^.!?]{0,65}?투자(?:를|에|금|하기로|할\s*계획|한다고|하겠다고|계획|발표|결정|확대|추진)|"
+     r"(?:신규|추가|대규모|시설|설비)\s*투자"
+     r"[^.!?]{0,30}?(?:계획|발표|결정|확대|추진|단행)"),
+    ("경영진교체", "경영진 교체",
+     r"(?:대표이사|최고경영자|CEO|사장|회장)[^.!?]{0,35}?"
+     r"(?:선임|사임|해임|교체|퇴임|취임)"),
+    ("사업진출", "신규 사업 진출",
+     r"(?:신규|새로운|해외|글로벌)[^.!?]{0,30}?(?:시장|사업)"
+     r"[^.!?]{0,25}?(?:진출|확대)|(?:시장|사업)\s*진출(?:을|에|에\s*나선다)?"),
     ("설비투자", "설비 투자", r"설비\s*투자|생산\s*시설.{0,10}투자"),
     ("해외투자", "해외 투자", r"해외\s*투자|해외.{0,12}투자\s*확대"),
     ("생산확대", "생산 확대", r"생산\s*(?:능력|량)?\s*(?:확대|증설)"),
@@ -614,6 +641,37 @@ def _body_title_and_tags(excerpt):
         if len(tags) == 3:
             break
     return (f"{main_heading} 이슈" if main_heading else "기사 주요 내용"), tags
+
+
+def central_material_brief_supported(excerpt):
+    """Central-only quality gate: a stock mention or price print is not an event.
+
+    Reuse the same article-grounded display topics as the central heading.
+    An unsupported story stays in the full news list; it is not filler in chat.
+    """
+    title, tags = _body_title_and_tags(str(excerpt or ""))
+    if not tags or title == "기사 주요 내용":
+        return False
+
+    # A daily market quote can carry price/action words that resemble news.
+    # Permit it only when its visible body also contains a business/flow event.
+    snapshot = sum(bool(re.search(pattern, excerpt, flags=re.IGNORECASE)) for pattern in (
+        r"전\s*거래일\s*(?:보다|대비)",
+        r"(?:원|달러)에\s*거래(?:됐다|되고|중|를\s*마쳤)",
+        r"(?:등락률|등락폭|장중\s*변동폭)",
+        r"(?:고가|최고가)[^.!?]{0,65}?(?:저가|최저가)",
+        r"\d{1,2}시\s*\d{0,2}분?\s*기준",
+    )) >= 2
+    if not snapshot:
+        return True
+
+    # Price/market descriptions alone are not material central events.
+    # Topics backed by business actions, policy or investor flows still pass.
+    market_only_tags = {
+        "가격상승", "가격하락", "환율상승", "환율하락",
+        "원화강세", "원화약세",
+    }
+    return any(tag not in market_only_tags for tag in tags)
 
 
 def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
