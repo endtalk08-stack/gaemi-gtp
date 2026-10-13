@@ -154,6 +154,9 @@ def build_stock_news_result(
                 if not excerpt or not _central_direct_article(article, excerpt, stock_name):
                     continue
                 candidate = dict(article)
+                # Only the central, body-verified copy becomes a direct candidate.
+                candidate["relation_type"] = "direct"
+                candidate["event_owner"] = stock_name
                 candidate["_central_checked_body"] = excerpt
                 candidate["_central_checked_source"] = detail.get("source")
                 accepted_articles.append(candidate)
