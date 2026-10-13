@@ -394,3 +394,36 @@ def fetch_us_stock_quote(ticker):
 
         US_QUOTE_CACHE[key] = (now, result)
         return result
+
+
+def fetch_kr_trading_value_ranking_raw(limit=20):
+    """Fetch the market-wide Korean trading-value ranking from Naver.
+
+    Keep collection in the existing price provider. Return the original
+    payload without storing a second copy or estimating value from volume.
+    """
+    size = max(1, min(int(limit), 20))
+    query = urllib.parse.urlencode({
+        "listingType": "tradingValueDesc",
+        "exchangeType": "consolidated",
+        "index": 0,
+        "size": size,
+    })
+    url = "https://m.stock.naver.com/api/stockSecurity/individual-stocks/v3/domestic?" + query
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://m.stock.naver.com/",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+            raise ValueError("unexpected trading-value ranking payload")
+        return payload
+    except Exception as exc:
+        print(f"[국내 거래대금 원천] 조회 실패: {type(exc).__name__}: {exc}")
+        return None
