@@ -21,6 +21,69 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     let pendingQuestionSessionId = null;
     let pendingAnalysis = null;
 
+    // Persist only completed conversation content; no additional AI or market requests.
+    const CHAT_HISTORY_KEY = 'gaemiGTP_chat_history_v1';
+    const CHAT_HISTORY_LIMIT = 10;
+    function readChatHistory() {
+      try {
+        const value = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '{}');
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      } catch (_) { return {}; }
+    }
+    function saveChatHistory() {
+      if (!activeChatSession?.recentId) return;
+      const history = readChatHistory();
+      const id = activeChatSession.recentId;
+      history[id] = {
+        stock: activeChatSession.stock || null,
+        messages: activeChatSession.messages.map(({ role, kind, text, sections }) => ({
+          role, kind, text: String(text || ''),
+          ...(Array.isArray(sections) ? { sections: sections.map(({ id, title, content }) => ({ id, title, content })) } : {})
+        }))
+      };
+      const keys = Object.keys(history);
+      for (const old of keys.slice(0, Math.max(0, keys.length - CHAT_HISTORY_LIMIT))) delete history[old];
+      try { localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history)); } catch (_) { /* storage unavailable */ }
+    }
+    function linkRecentConversation(type, value) {
+      if (!activeChatSession) return;
+      activeChatSession.recentId = window.GaemiGTPSidebarHome?.recordRecent?.(type, value) || null;
+      saveChatHistory();
+    }
+    function restoreRecentConversation(recentId) {
+      const saved = readChatHistory()[recentId];
+      if (!saved || !Array.isArray(saved.messages)) return false;
+      activeAnalysisController?.abort();
+      activeAnalysisController = null;
+      ++activeAnalysisRequestId;
+      const session = beginChatSession(saved.stock || null);
+      if (!session) return false;
+      session.recentId = recentId;
+      if (saved.stock) {
+        activeStock = saved.stock;
+        window.GaemiGTPActiveStock = saved.stock;
+      }
+      for (const message of saved.messages) {
+        if (message.kind === 'analysis' && Array.isArray(message.sections)) {
+          session.messages.push({ id: ++nextChatMessageId, role: 'assistant', kind: 'analysis', sections: message.sections });
+          const area = document.getElementById('chatArea');
+          for (const section of message.sections) {
+            const row = document.createElement('div');
+            row.className = 'gtp-chat-copy whitespace-pre-line';
+            const title = document.createElement('strong');
+            title.textContent = section.title || '';
+            const body = document.createElement('p');
+            body.textContent = section.content || '';
+            row.append(title, body);
+            area.appendChild(row);
+          }
+        } else if (['user', 'assistant'].includes(message.role)) {
+          appendChatMessage(message.role, message.text || '', message.kind || 'answer', session.id);
+        }
+      }
+      return true;
+    }
+
     // One active conversation in the existing central chat; no separate chat UI.
     function beginChatSession(stock = null) {
       activeQuestionController?.abort();
@@ -29,6 +92,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       pendingAnalysis = null;
       const area = document.getElementById('chatArea');
       if (!area) return null;
+      saveChatHistory();
       activeChatSession = { id: ++nextChatSessionId, stock, messages: [] };
       area.replaceChildren();
       area.scrollTop = 0;
@@ -54,6 +118,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       }
       area.appendChild(row);
       activeChatSession.messages.push(message);
+      saveChatHistory();
       return row;
     }
 
@@ -104,6 +169,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     });
 
 window.addEventListener('pagehide', () => {
+  saveChatHistory();
   // 페이지를 떠나거나 새로고침할 때 마지막 실제 UI 상태를 즉시 저장한다.
   // 다음 로드에서 오른쪽 패널의 열림/최대화/폭 상태가 바뀌지 않도록 한다.
   try { window.GaemiGTPWorkspaceShellState?.save?.(); } catch (e) { /* noop */ }
@@ -116,7 +182,7 @@ window.addEventListener('resize', () => {
   window.GaemiGTPWorkspaceShellState?.apply?.();
 });
 
-window.GaemiGTPApp = { requestStock, submitQuestion, appendChatReply, getChatState };
+window.GaemiGTPApp = { requestStock, submitQuestion, appendChatReply, getChatState, linkRecentConversation, restoreRecentConversation, saveChatHistory };
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
