@@ -233,7 +233,7 @@ def _merge_central_labels(target_source, target_labels, source, source_labels):
     return merged
 
 
-def select_keyword_storyboard_news(items, limit=3):
+def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
     """Pick at most limit notable, distinct events for the central flow.
 
     The source list is already restricted to today's stock-relevant articles.
@@ -317,6 +317,28 @@ def select_keyword_storyboard_news(items, limit=3):
         dt = _parse_article_datetime(source.get("published_at") or source.get("pub_date"))
         return dt.timestamp() if dt else float("inf")
 
+    def _body_event_facts(source):
+        """Distinctive event facts for articles whose full body was verified."""
+        text = f"{source.get('title') or ''} {source.get('_central_checked_body') or ''}"
+        amounts = set(re.findall(
+            r"(?<![0-9])\\d[\\d,]*(?:\\.\\d+)?\\s*(?:조\\s*원|억\\s*원|만\\s*원|"
+            r"조|억원|억\\s*달러|달러|원)(?![가-힣])",
+            text,
+        ))
+        places = set(re.findall(
+            r"(?:평택|화성|용인|이천|기흥|수원|천안|아산|청주|광주|울산|부산|"
+            r"대구|구미|인천|파주|오스틴|테일러|애리조나)\\s*"
+            r"(?:공장|생산시설|캠퍼스|사업장|라인|반도체\\s*공장)",
+            text,
+        ))
+        partners = set(re.findall(
+            r"([A-Za-z가-힣0-9]{2,20})(?:와|과|에|향)\\s*"
+            r"(?:[A-Za-z가-힣0-9\\s]{0,18})?"
+            r"(?:공급\\s*계약|수주\\s*계약|납품\\s*계약|계약\\s*체결)",
+            text,
+        ))
+        return amounts, places, partners
+
     def _same_selected_event(source, keyword, previous):
         previous_keyword = str(previous.get("storyboard_keyword") or "").strip()
         source_fact = _financial_amount_fact(source, keyword)
@@ -331,8 +353,27 @@ def select_keyword_storyboard_news(items, limit=3):
             SequenceMatcher(None, source_headline, previous_headline).ratio()
             if min(len(source_headline), len(previous_headline)) >= 12 else 0.0
         )
-        # A shared topic keyword alone does not establish the same event:
-        # separate contracts, announcements, or policy steps must remain distinct.
+        # A verified central article can distinguish separate deals/factories
+        # even when two publishers reuse almost the same headline and keyword.
+        body = str(source.get("_central_checked_body") or "")
+        previous_body = str(previous.get("_central_checked_body") or "")
+        if body and previous_body:
+            source_facts = _body_event_facts(source)
+            previous_facts = _body_event_facts(previous)
+            for left, right in zip(source_facts, previous_facts):
+                if left and right and left.isdisjoint(right):
+                    return False
+            body_similarity = SequenceMatcher(None, body, previous_body).ratio()
+            shared_fact = any(left & right for left, right in zip(source_facts, previous_facts))
+            if _keywords_overlap(keyword, previous_keyword):
+                return (
+                    (shared_fact and headline_similarity >= 0.55)
+                    or headline_similarity >= 0.84
+                    or (headline_similarity >= 0.40 and body_similarity >= 0.78)
+                )
+            return headline_similarity >= 0.92 or body_similarity >= 0.88
+
+        # Keep the legacy comparator unchanged for non-central consumers.
         if _keywords_overlap(keyword, previous_keyword):
             return headline_similarity >= 0.60
         return headline_similarity >= 0.75
@@ -376,7 +417,7 @@ def select_keyword_storyboard_news(items, limit=3):
 
     candidates = []
     for source in items or []:
-        if not _central_candidate_allowed(source):
+        if not candidate_pool and not _central_candidate_allowed(source):
             continue
 
         keywords = [
@@ -416,7 +457,7 @@ def select_keyword_storyboard_news(items, limit=3):
                     if _same_selected_event(source, value, previous)
                 ),
                 None,
-            )
+            ) if not candidate_pool else None
             if matched is not None:
                 duplicate = matched
                 continue
@@ -434,7 +475,7 @@ def select_keyword_storyboard_news(items, limit=3):
                 if _same_selected_event(source, keyword, previous)
             ),
             None,
-        )
+        ) if not candidate_pool else None
         if headline_duplicate is not None:
             _merge_duplicate(headline_duplicate, source, keyword)
             continue
@@ -453,8 +494,9 @@ def select_keyword_storyboard_news(items, limit=3):
         article["storyboard_selection_score"] = round(_selection_score(source), 1)
         selected.append(article)
 
-    selected.sort(
-        key=lambda item: str(item.get("published_at") or item.get("pub_date") or ""),
-        reverse=True,
-    )
+    if not candidate_pool:
+        selected.sort(
+            key=lambda item: str(item.get("published_at") or item.get("pub_date") or ""),
+            reverse=True,
+        )
     return selected
