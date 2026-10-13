@@ -92,14 +92,24 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         if (message.kind === 'analysis' && Array.isArray(message.sections)) {
           session.messages.push({ id: ++nextChatMessageId, role: 'assistant', kind: 'analysis', sections: message.sections });
           const area = document.getElementById('chatArea');
-          for (const section of message.sections) {
+          // Live analysis currently displays only its first section.
+          // Restore that same visible scope, not hidden legacy sections.
+          const section = message.sections[0];
+          if (section && area) {
             const row = document.createElement('div');
             row.className = 'gtp-chat-copy whitespace-pre-line';
-            const title = document.createElement('strong');
-            title.textContent = section.title || '';
+            if (section.id !== 'why-up' && section.title) {
+              const title = document.createElement('strong');
+              title.textContent = section.title;
+              row.appendChild(title);
+            }
             const body = document.createElement('p');
-            body.textContent = section.content || '';
-            row.append(title, body);
+            body.textContent = String(section.content || '')
+              .replace(/이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야/g, '')
+              .replace(/(^|\n)\s*[📰📌][^\n]*(?=\n|$)/g, '$1')
+              .replace(/\n{3,}/g, '\n\n')
+              .trim();
+            row.appendChild(body);
             area.appendChild(row);
           }
         } else if (['user', 'assistant'].includes(message.role)) {
