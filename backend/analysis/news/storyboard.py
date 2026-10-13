@@ -350,8 +350,14 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
         source_headline = _headline_key(source.get("title"))
         previous_headline = _headline_key(previous.get("title"))
         headline_similarity = (
-            SequenceMatcher(None, source_headline, previous_headline).ratio()
-            if min(len(source_headline), len(previous_headline)) >= 12 else 0.0
+            1.0 if (
+                source_headline and source_headline == previous_headline
+                and source.get("_central_checked_body")
+                and previous.get("_central_checked_body")
+            ) else (
+                SequenceMatcher(None, source_headline, previous_headline).ratio()
+                if min(len(source_headline), len(previous_headline)) >= 12 else 0.0
+            )
         )
         # A verified central article can distinguish separate deals/factories
         # even when two publishers reuse almost the same headline and keyword.
