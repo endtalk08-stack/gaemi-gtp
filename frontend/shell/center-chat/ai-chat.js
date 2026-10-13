@@ -17,7 +17,7 @@
         .map(({ role, text }) => ({ role, text: text.slice(0, 240) }));
       const row = ctx.appendChatMessage('user', text, 'question', sessionId);
       if (!row) return false;
-      window.GaemiGTPSidebarHome?.recordRecent?.('question', text);
+      window.GaemiGTPApp?.linkRecentConversation?.('question', text);
       row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       void requestChatAnswer(text, sessionId, history);
       return true;
