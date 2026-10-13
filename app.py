@@ -6,7 +6,6 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.private_access import install_private_access
-from backend.services.market_rankings import registered_turnover_ranking
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -69,15 +68,6 @@ def debug_sec_form4():
         "ticker": ticker,
         "items": [item for item in filings if str(item.get("form") or "").upper() == "4"],
     })
-
-
-@app.get("/market/registered-turnover")
-def market_registered_turnover():
-    market = str(request.args.get("market") or "").strip().lower()
-    if market not in ("kr", "us"):
-        return jsonify({"ok": False, "error": "invalid_market"}), 400
-    items = registered_turnover_ranking(market, limit=22)
-    return jsonify({"ok": True, "market": market, "items": items, "metric": "estimated_close_times_volume"})
 
 
 @app.get("/analyze")
