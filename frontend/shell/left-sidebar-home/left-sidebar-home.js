@@ -68,13 +68,9 @@
       applyState();
       return;
     }
-    if (entry.type === 'stock') {
-      window.GaemiGTPCenterChatSearch?.openStockInChat?.(entry.value);
-    } else {
-      window.GaemiGTPCenterChatSearch?.enterChatWorkspace?.();
-      applyState();
-      window.GaemiGTPApp?.submitQuestion?.(entry.value, { newConversation: true });
-    }
+    // A recent entry is a saved conversation, not a command to start new analysis.
+    // Missing/corrupt history must not silently issue a new backend request.
+    console.warn('[recent] Saved conversation is unavailable:', entry.id);
   }
 
   function escapeHtml(value) {
