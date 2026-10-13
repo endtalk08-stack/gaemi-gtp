@@ -124,6 +124,8 @@ class MarketTradingValueTests(unittest.TestCase):
         self.assertEqual(items[0]["rank"], 1)
         self.assertEqual(items[0]["price"], 234000)
         self.assertEqual(items[0]["change_pct"], -6.59)
+        self.assertEqual(items[0]["trading_value"], 5916362000000.0)
+        self.assertIsNone(items[0]["industry"])
         self.assertEqual(items[1]["rank"], 4)
         self.assertEqual(items[1]["change_pct"], 1.25)
 
@@ -134,7 +136,7 @@ class MarketTradingValueTests(unittest.TestCase):
              "price": {"itemCode": "SKHY.O", "itemName": "SK하이닉스 ADR",
                        "itemNameEng": "SK hynix Inc. ADR",
                        "currentPrice": "162.2300", "changeRate": "-4.0230",
-                       "sectorName": "반도체", "currencyType": "USD"}},
+                       "tradingValue": "2396057000", "sectorName": "반도체", "currencyType": "USD"}},
             {"no": "2", "ranking": "3", "itemCode": "NVDA.O",
              "price": {"itemName": "NVIDIA", "currentPrice": "190.23",
                        "changeRate": "2.5"}},
@@ -147,6 +149,8 @@ class MarketTradingValueTests(unittest.TestCase):
         self.assertEqual(items[0]["rank"], 1)
         self.assertEqual(items[0]["price"], 162.23)
         self.assertEqual(items[0]["change_pct"], -4.023)
+        self.assertEqual(items[0]["trading_value"], 2396057000.0)
+        self.assertEqual(items[0]["industry"], "반도체")
         self.assertEqual(items[1]["rank"], 3)
         self.assertEqual(items[1]["name"], "NVIDIA")
 

@@ -129,7 +129,7 @@
           const turnover = document.createElement('span');
           turnover.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] truncate';
           const amount = (market === 'us' ? formatUsd(item.trading_value) : formatMoney(item.trading_value)) || item.trading_value_text;
-          turnover.textContent = tab === 'value' && amount ? '거래대금 ' + amount : '';
+          turnover.textContent = amount ? '거래대금 ' + amount : '';
           const change = document.createElement('span');
           const pct = item.change_pct;
           change.className = 'text-[11px] font-bold text-right' +
@@ -158,7 +158,7 @@
       }
     };
 
-    bindStaticSelection('[data-legacy-region]', 1);
+    bindStaticSelection('[data-legacy-region]');
     bindStaticSelection('[data-info-tab-action]');
     sidebar.querySelectorAll('[data-legacy-region]').forEach((button) => {
       if (button.disabled) return;
