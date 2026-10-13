@@ -4,7 +4,10 @@ No separate ticker-by-ticker scraping, estimated trading value, or database writ
 """
 import math
 
-from ..providers.market_price import fetch_kr_trading_value_ranking_raw, fetch_us_trading_value_ranking_raw
+from ..providers.market_price import (
+    fetch_kr_trading_value_ranking_raw, fetch_us_trading_value_ranking_raw,
+    fetch_kr_popular_ranking_raw, fetch_us_popular_ranking_raw,
+)
 
 
 def _number(value):
@@ -50,6 +53,10 @@ def build_kr_trading_value_result(limit=20):
     None denotes source failure; [] denotes a valid but empty source list.
     """
     raw = fetch_kr_trading_value_ranking_raw(limit=limit)
+    return _normalize_kr_stock_rows(raw, limit)
+
+
+def _normalize_kr_stock_rows(raw, limit):
     if raw is None:
         return None
 
@@ -93,6 +100,10 @@ def build_kr_trading_value_result(limit=20):
 def build_us_trading_value_result(limit=20):
     """Normalize USA ranking as USD rows; do not infer values from volume."""
     raw = fetch_us_trading_value_ranking_raw(limit=limit)
+    return _normalize_us_stock_rows(raw, limit)
+
+
+def _normalize_us_stock_rows(raw, limit):
     if raw is None:
         return None
     items = []
@@ -120,3 +131,13 @@ def build_us_trading_value_result(limit=20):
             "trading_value": amount, "trading_value_text": amount_label,
         })
     return items
+
+
+def build_kr_popular_result(limit=20):
+    """Use the same KR normalization as trading value; ranks are source ordered."""
+    return _normalize_kr_stock_rows(fetch_kr_popular_ranking_raw(limit=limit), limit)
+
+
+def build_us_popular_result(limit=20):
+    """Use the same USA normalization, without inferring popularity metrics."""
+    return _normalize_us_stock_rows(fetch_us_popular_ranking_raw(limit=limit), limit)

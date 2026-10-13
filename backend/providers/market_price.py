@@ -461,3 +461,24 @@ def fetch_us_trading_value_ranking_raw(limit=20):
         },
         ttl_seconds=30,
     )
+
+def fetch_kr_popular_ranking_raw(limit=20):
+    """Naver's domestic home popular ranking (not trading value)."""
+    size = max(1, min(int(limit), 20))
+    return _fetch_naver_market_ranking_raw(
+        ("kr", "popular", size),
+        "/api/stockSecurity/aggregate/domesticStock",
+        {"type": "popular", "exchangeType": "KRX", "size": size},
+        ttl_seconds=120,
+    )
+
+
+def fetch_us_popular_ranking_raw(limit=20):
+    """Naver's USA popular stock list (not trading value)."""
+    size = max(1, min(int(limit), 20))
+    return _fetch_naver_market_ranking_raw(
+        ("us", "popular", size),
+        "/api/stockSecurity/aggregate/foreignPopularStock",
+        {"size": size},
+        ttl_seconds=120,
+    )

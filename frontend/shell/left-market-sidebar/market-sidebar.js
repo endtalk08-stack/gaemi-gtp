@@ -73,25 +73,26 @@
     const showDomesticRanking = async () => {
       const id = ++requestId;
       if (!list) return;
-      if (tab !== 'value') {
+      const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
+      if (tab !== 'value' && tab !== 'popular' || (tab === 'popular' && !market)) {
         list.innerHTML = initialMarkup;
         if (title) title.textContent = '인기 TOP 20';
         if (subtitle) subtitle.textContent = '/ 고정 예시 데이터';
         return;
       }
-      if (title) title.textContent = '거래대금 TOP 20';
-      const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
+      if (title) title.textContent = tab === 'value' ? '거래대금 TOP 20' : '인기 TOP 20';
       if (!market) {
         list.replaceChildren();
-        list.textContent = '국내 또는 해외를 선택하면 해당 거래대금 순위를 볼 수 있어.';
+        list.textContent = '국내 또는 해외를 선택하면 해당 순위를 볼 수 있어.';
         return;
       }
 
       if (subtitle) subtitle.textContent = '/ 네이버 시장 원천';
       list.replaceChildren();
-      list.textContent = '거래대금 순위를 불러오는 중이야.';
+      list.textContent = '순위를 불러오는 중이야.';
       try {
-        const response = await fetch(backendUrl + '/market/trading-value?market=' + market);
+        const path = tab === 'value' ? '/market/trading-value' : '/market/popular';
+        const response = await fetch(backendUrl + path + '?market=' + market);
         if (!response.ok) throw new Error('market ranking unavailable');
         const result = await response.json();
         if (id !== requestId) return;
@@ -128,7 +129,7 @@
           const turnover = document.createElement('span');
           turnover.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] truncate';
           const amount = (market === 'us' ? formatUsd(item.trading_value) : formatMoney(item.trading_value)) || item.trading_value_text;
-          turnover.textContent = amount ? '거래대금 ' + amount : '';
+          turnover.textContent = tab === 'value' && amount ? '거래대금 ' + amount : '';
           const change = document.createElement('span');
           const pct = item.change_pct;
           change.className = 'text-[11px] font-bold text-right' +

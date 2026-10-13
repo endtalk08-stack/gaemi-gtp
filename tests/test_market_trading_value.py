@@ -90,6 +90,33 @@ class MarketTradingValueTests(unittest.TestCase):
         self.assertIn("nationType=USA", url)
         self.assertIn("includeOverMarket=true", url)
 
+    def test_popular_ranking_reuses_kr_and_us_stock_normalization(self):
+        kr = {"items": [{"itemCode": "005930", "stockName": "삼성전자",
+                         "price": {"krx": {"closePrice": "85100", "fluctuationsRatio": "2.5"}}}]}
+        us = {"items": [{"itemCode": "NVDA.O", "stockName": "NVIDIA",
+                         "price": {"closePrice": "144.23", "changeRate": "1.2"}}]}
+        with patch.object(market_rankings, "fetch_kr_popular_ranking_raw", return_value=kr):
+            ko = market_rankings.build_kr_popular_result()
+        with patch.object(market_rankings, "fetch_us_popular_ranking_raw", return_value=us):
+            en = market_rankings.build_us_popular_result()
+        self.assertEqual(ko[0]["name"], "삼성전자")
+        self.assertEqual(ko[0]["price"], 85100)
+        self.assertEqual(en[0]["symbol"], "NVDA.O")
+        self.assertEqual(en[0]["change_pct"], 1.2)
+
+    def test_popularity_is_cached_separately_from_turnover(self):
+        market_price.MARKET_RANKING_CACHE.clear()
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self): return json.dumps({"items": []}).encode("utf-8")
+        with patch.object(market_price.urllib.request, "urlopen", return_value=Response()) as req:
+            market_price.fetch_kr_popular_ranking_raw()
+            market_price.fetch_kr_popular_ranking_raw()
+            market_price.fetch_us_popular_ranking_raw()
+            market_price.fetch_us_popular_ranking_raw()
+        self.assertEqual(req.call_count, 2)
+
     def test_unavailable_source_is_not_reported_as_empty_success(self):
         with patch.object(market_rankings, "fetch_kr_trading_value_ranking_raw", return_value=None):
             self.assertIsNone(market_rankings.build_kr_trading_value_result())
