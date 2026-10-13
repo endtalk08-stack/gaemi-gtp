@@ -470,7 +470,7 @@ _BODY_DISPLAY_TOPICS = (
     ("HBM", "HBM", r"\bHBM\b(?!\w)|고대역폭\s*메모리"),
     ("AI서버", "AI 서버", r"(?:AI|인공지능)\s*서버"),
     ("기판공급부족", "기판 공급 부족", r"기판.{0,18}공급\s*부족"),
-    ("스마트폰수요둔화", "스마트폰 수요 둔화", r"스마트폰.{0,24}(?:수요\s*(?:둔화|부진|감소)|부진)"),
+    ("스마트폰수요둔화", "스마트폰 수요 둔화", r"스마트폰.{0,80}수요(?:는|가)?\s*(?:둔화|부진|감소)|스마트폰.{0,24}부진"),
     ("반도체공급부족", "반도체 공급 부족", r"반도체.{0,18}공급\s*부족"),
     ("자사주소각", "자사주 소각", r"(?:자사주|자기\s*주식).{0,10}소각"),
     ("자사주매입", "자사주 매입", r"(?:자사주|자기\s*주식).{0,10}(?:매입|취득)"),
@@ -510,17 +510,20 @@ def _body_title_and_tags(excerpt):
     for tag, heading, pattern in _BODY_DISPLAY_TOPICS:
         found = re.search(pattern, excerpt, flags=re.IGNORECASE)
         if found:
-            matches.append((found.start(), -len(found.group()), tag, heading))
+            matches.append((found.start(), -len(found.group()), found.end(), tag, heading))
 
     matches.sort()
     tags = []
+    used_ranges = []
     main_heading = ""
-    for _, _, tag, heading in matches:
-        if tag in tags:
+    for start, _, end, tag, heading in matches:
+        # A long phrase and its substring are one topic, not two hashtags.
+        if any(start < old_end and end > old_start for old_start, old_end in used_ranges):
             continue
         if not main_heading:
             main_heading = heading
         tags.append(tag)
+        used_ranges.append((start, end))
         if len(tags) == 3:
             break
     return (f"{main_heading} 이슈" if main_heading else "기사 주요 내용"), tags
