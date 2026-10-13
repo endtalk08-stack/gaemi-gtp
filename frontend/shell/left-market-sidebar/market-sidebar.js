@@ -45,7 +45,7 @@
       buttons.forEach((button, index) => button.setAttribute('aria-pressed', String(index === 0)));
     }
 
-    // Only the domestic trading-value tab uses a live, market-wide result.
+    // KR and USA trading-value tabs use source-specific market-wide ranking results.
     // Other tabs retain their existing UI and do not start new collectors.
     const list = sidebar.querySelector('#marketRankingList');
     const title = sidebar.querySelector('#rightListTitle');
@@ -63,6 +63,12 @@
       if (value >= 1e8) return (value / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 }) + '억원';
       return value.toLocaleString('ko-KR') + '원';
     };
+    const formatUsd = (value) => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      if (value >= 1e9) return '$' + (value / 1e9).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'B';
+      if (value >= 1e6) return '$' + (value / 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'M';
+      return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    };
 
     const showDomesticRanking = async () => {
       const id = ++requestId;
@@ -74,9 +80,10 @@
         return;
       }
       if (title) title.textContent = '거래대금 TOP 20';
-      if (region !== '국내') {
+      const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
+      if (!market) {
         list.replaceChildren();
-        list.textContent = '현재 국내 거래대금 순위만 원천 데이터에 연결되어 있어.';
+        list.textContent = '국내 또는 해외를 선택하면 해당 거래대금 순위를 볼 수 있어.';
         return;
       }
 
@@ -84,7 +91,7 @@
       list.replaceChildren();
       list.textContent = '거래대금 순위를 불러오는 중이야.';
       try {
-        const response = await fetch(backendUrl + '/market/trading-value');
+        const response = await fetch(backendUrl + '/market/trading-value?market=' + market);
         if (!response.ok) throw new Error('market ranking unavailable');
         const result = await response.json();
         if (id !== requestId) return;
@@ -110,7 +117,7 @@
           const price = document.createElement('span');
           price.className = 'font-black text-[13px] text-[#0f172a] gtp-dark-text text-right';
           price.textContent = typeof item.price === 'number' && Number.isFinite(item.price)
-            ? item.price.toLocaleString('ko-KR') + '원' : '';
+            ? (market === 'us' ? '$' + item.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : item.price.toLocaleString('ko-KR') + '원') : '';
           top.append(rank, name, price);
 
           // Match popular ranking's second row; display turnover in the blank
@@ -120,7 +127,7 @@
           secondRow.appendChild(document.createElement('span'));
           const turnover = document.createElement('span');
           turnover.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] truncate';
-          const amount = formatMoney(item.trading_value) || item.trading_value_text;
+          const amount = (market === 'us' ? formatUsd(item.trading_value) : formatMoney(item.trading_value)) || item.trading_value_text;
           turnover.textContent = amount ? '거래대금 ' + amount : '';
           const change = document.createElement('span');
           const pct = item.change_pct;

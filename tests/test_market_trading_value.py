@@ -1,4 +1,4 @@
-"""KR trading-value source/result regression tests (no live market calls)."""
+"""KR and USA trading-value source/result regression tests (no live market calls)."""
 import json
 import unittest
 from unittest.mock import patch
@@ -57,6 +57,38 @@ class MarketTradingValueTests(unittest.TestCase):
         self.assertIsNone(rows[0]["price"])
         self.assertIsNone(rows[0]["change_pct"])
         self.assertIsNone(rows[0]["trading_value"])
+
+    def test_us_trading_value_normalizes_usd_without_estimates(self):
+        raw = {"items": [
+            {"itemCode": "NVDA.O", "stockName": "NVIDIA",
+             "price": "140.25", "fluctuationsRatio": "1.23",
+             "tradingValue": "1230000000"},
+            {"itemCode": "AAPL.O", "stockName": "Apple", "tradingVolume": 500},
+        ]}
+        with patch.object(market_rankings, "fetch_us_trading_value_ranking_raw", return_value=raw):
+            rows = market_rankings.build_us_trading_value_result()
+        self.assertEqual(rows[0]["symbol"], "NVDA.O")
+        self.assertEqual(rows[0]["price"], 140.25)
+        self.assertEqual(rows[0]["trading_value"], 1230000000)
+        self.assertIsNone(rows[1]["trading_value"])
+
+    def test_us_trading_value_uses_cached_market_ranking(self):
+        market_price.MARKET_RANKING_CACHE.clear()
+
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self): return json.dumps({"items": []}).encode("utf-8")
+
+        with patch.object(market_price.urllib.request, "urlopen", return_value=Response()) as urlopen:
+            one = market_price.fetch_us_trading_value_ranking_raw()
+            two = market_price.fetch_us_trading_value_ranking_raw()
+        self.assertEqual(one, two)
+        self.assertEqual(urlopen.call_count, 1)
+        url = urlopen.call_args.args[0].full_url
+        self.assertIn("sortType=tradingValue", url)
+        self.assertIn("nationType=USA", url)
+        self.assertIn("includeOverMarket=true", url)
 
     def test_unavailable_source_is_not_reported_as_empty_success(self):
         with patch.object(market_rankings, "fetch_kr_trading_value_ranking_raw", return_value=None):

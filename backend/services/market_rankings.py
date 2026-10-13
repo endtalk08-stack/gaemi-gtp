@@ -4,7 +4,7 @@ No separate ticker-by-ticker scraping, estimated trading value, or database writ
 """
 import math
 
-from ..providers.market_price import fetch_kr_trading_value_ranking_raw
+from ..providers.market_price import fetch_kr_trading_value_ranking_raw, fetch_us_trading_value_ranking_raw
 
 
 def _number(value):
@@ -86,5 +86,37 @@ def build_kr_trading_value_result(limit=20):
             "change_pct": change,
             "trading_value": amount,
             "trading_value_text": amount_label,
+        })
+    return items
+
+
+def build_us_trading_value_result(limit=20):
+    """Normalize USA ranking as USD rows; do not infer values from volume."""
+    raw = fetch_us_trading_value_ranking_raw(limit=limit)
+    if raw is None:
+        return None
+    items = []
+    for entry in raw.get("items", [])[:limit]:
+        if not isinstance(entry, dict):
+            continue
+        stock = entry.get("stock")
+        identity = [entry, stock] if isinstance(stock, dict) else [entry]
+        name = _field(identity, ("stockName", "itemName", "name", "displayName", "stockNameEng", "englishName"))
+        symbol = _field(identity, ("itemCode", "reutersCode", "symbol", "code"))
+        if not name or not symbol:
+            continue
+        p = entry.get("price")
+        quote = [p, entry] if isinstance(p, dict) else [entry]
+        price = _number(_field(quote, ("closePrice", "currentPrice", "tradePrice", "nowPrice", "price")))
+        change = _number(_field(quote, ("fluctuationsRatio", "changeRate", "prevChangeRate", "changePct")))
+        amount_raw = _field(quote, ("accumulatedTradingValue", "tradingValue", "tradingAmount"))
+        amount = _number(amount_raw)
+        amount_label = (str(amount_raw).strip()
+                        if amount is None and isinstance(amount_raw, str) and amount_raw.strip()
+                        else None)
+        items.append({
+            "rank": len(items) + 1, "name": str(name), "symbol": str(symbol),
+            "price": price, "change_pct": change,
+            "trading_value": amount, "trading_value_text": amount_label,
         })
     return items

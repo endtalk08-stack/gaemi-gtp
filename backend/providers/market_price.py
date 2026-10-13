@@ -447,3 +447,17 @@ def fetch_kr_trading_value_ranking_raw(limit=20):
         {"listingType": "tradingValueDesc", "exchangeType": "consolidated", "index": 0, "size": size},
         ttl_seconds=30,
     )
+
+def fetch_us_trading_value_ranking_raw(limit=20):
+    """USA trading-value listing; no per-ticker quote or volume estimates."""
+    size = max(1, min(int(limit), 20))
+    return _fetch_naver_market_ranking_raw(
+        ("us", "trading-value", size),
+        "/api/stockSecurity/aggregate/foreignStock",
+        {
+            "type": "listing", "nationType": "USA", "size": size, "index": 0,
+            "sortType": "tradingValue", "sortDirection": "desc",
+            "includeOverMarket": "true",
+        },
+        ttl_seconds=30,
+    )
