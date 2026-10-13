@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-from backend.services.issue_briefs import _article_excerpt, build_issue_briefs
+from backend.services.issue_briefs import _article_excerpt, build_issue_briefs, central_material_brief_supported
 from backend.services.news_detail import (
     _extract_article_text_with_source,
     extract_article_text,
@@ -30,6 +30,35 @@ class CentralArticleExcerptTests(unittest.TestCase):
             "article_keywords": ["자사주소각"],
             "stock_entities": ["셀트리온"],
         }
+
+    def test_general_material_gate_drops_price_only_and_topicless_reports(self):
+        price_only = (
+            "[잠포스트] 전진홍 기자 = 13일 오후 1시29분 기준 유가증권시장에서 "
+            "두산에너빌리티는 전 거래일보다 2,400원 내린 6만9100원에 거래됐다. "
+            "등락률은 -3.36%였다. 이날 고가는 7만600원, 저가는 6만7300원으로 "
+            "장중 변동폭은 3300원이었다."
+        )
+        cleaned = _article_excerpt(price_only)
+        self.assertTrue(cleaned.startswith("13일 오후 1시29분 기준"))
+        self.assertFalse(central_material_brief_supported(cleaned))
+        self.assertFalse(central_material_brief_supported(
+            "기업 관계자들이 향후 전망을 논의했다. 추후 내용을 다시 공개할 예정이다."
+        ))
+
+    def test_business_actions_are_kept_even_with_price_reaction(self):
+        samples = (
+            "두산에너빌리티는 A사와 300억원 공급 계약을 체결했다. "
+            "오후 1시 기준 주가는 전 거래일 대비 2% 상승해 거래됐다. 등락률이 높아졌다.",
+            "삼성전자는 평택 공장을 증설한다고 발표했다. "
+            "생산라인 확장에 나설 계획이다.",
+            "애플은 신형 제품을 공개하고 다음 달 출시할 예정이다. "
+            "신제품 관련 정보가 공개됐다.",
+            "현대차는 인도에 155억 달러를 투자하기로 밝혔다. "
+            "현지 생산시설도 확대할 계획이다.",
+        )
+        for body in samples:
+            with self.subTest(body=body[:35]):
+                self.assertTrue(central_material_brief_supported(body), body)
 
     def test_celltrion_280_characters_are_kept_verbatim(self):
         self.assertEqual(len(CELLTRION_BODY), 280)
