@@ -112,8 +112,8 @@ def _is_market_gainers_question(question):
 
 def _market_ranking_request(question):
     """Recognize explicit popular/trading-value ranking questions only."""
-    compact = re.sub(r"\\s+", "", str(question or "").casefold())
-    if not re.search(r"(순위|랭킹|상위|top\\d*|\\d+위|1위|몇위|어떤종목|종목들|목록|알려|보여)", compact, re.IGNORECASE):
+    compact = re.sub(r"\s+", "", str(question or "").casefold())
+    if not re.search(r"(순위|랭킹|상위|top\d*|\d+위|1위|몇위|어떤종목|종목들|목록|알려|보여)", compact, re.IGNORECASE):
         return None
     if "거래대금" in compact:
         menu = "value"
@@ -148,7 +148,7 @@ def _market_ranking_reply(question):
     label = ("미국" if market == "us" else "국내") + (" 거래대금" if menu == "value" else " 인기")
     if not rows:
         return label + " 순위 원천 데이터를 지금 확인하지 못했어."
-    count_match = re.search(r"(?:top|상위)\\s*(\\d+)", question, re.IGNORECASE)
+    count_match = re.search(r"(?:top|상위)\s*(\d+)", question, re.IGNORECASE)
     count = max(1, min(20, int(count_match.group(1)))) if count_match else 20
     lines = [f"{label} TOP {min(count, len(rows))} (네이버 메뉴 조회 결과)"]
     for row in rows[:count]:
@@ -167,7 +167,7 @@ def _market_ranking_reply(question):
                           else f" · 거래대금 ${value:,.0f}")
         lines.append(f"{rank}위 {name}{suffix}")
     lines.append("왼쪽 순위 메뉴의 원천 결과 기준이며, 실시간 체결 순위라고 단정할 수는 없어.")
-    return "\\n".join(lines)
+    return "\n".join(lines)
 
 
 SYSTEM_PROMPT = (
