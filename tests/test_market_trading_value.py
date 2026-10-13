@@ -8,6 +8,12 @@ from backend.services import market_rankings
 
 
 class MarketTradingValueTests(unittest.TestCase):
+    def setUp(self):
+        # Ranking normalization tests should not call live industry endpoints.
+        mock = patch.object(market_rankings, "get_stock_industries", return_value={})
+        mock.start()
+        self.addCleanup(mock.stop)
+
     def test_market_raw_request_uses_naver_ranking_not_registered_tickers(self):
         class Response:
             def __enter__(self):

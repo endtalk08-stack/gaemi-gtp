@@ -20,51 +20,6 @@ install_private_access(app, FRONTEND_DIR)
 start_calendar_warmup()
 application = app
 
-# TEMPORARY ONE-SHOT INDUSTRY SOURCE SHAPE PROBE. Remove after verification.
-def _trace_naver_industry_fields():
-    import concurrent.futures
-    import json
-    import urllib.request
-    paths = {
-        "kr-detail": "/api/domestic/detail/005930/detail?codeType=KRX",
-        "kr-sosok": "/api/domestic/detail/005930/sosok",
-        "kr-related": "/api/domestic/detail/005930/stock/industry?page=1&pageSize=2&marketType=ALL",
-        "kr-profile": "/api/stockSecurity/items/v2/domestic/005930/profile",
-        "us-detail": "/api/foreign/NVDA.O/detail?codeType=ETF",
-        "us-prices": "/api/stockSecurity/items/v1/foreign/prices?itemCodes=NVDA.O",
-        "kr-upjong": "/api/domestic/market/upjong/list?startIdx=0&pageSize=3&sortType=changeRate",
-        "us-upjong": "/api/foreign/market/USA/upjong/list",
-        "kr-list": "/api/stockSecurity/individual-stocks/v3/domestic?listingType=tradingValueDesc&exchangeType=consolidated&index=0&size=1",
-        "us-list": "/api/stockSecurity/aggregate/foreignStock?type=listing&nationType=USA&size=1&index=0&sortType=tradingValue&sortDirection=desc&includeOverMarket=true",
-    }
-    def run(pair):
-        name, path = pair
-        try:
-            req = urllib.request.Request("https://stock.naver.com" + path, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-                "Referer": "https://stock.naver.com/",
-                "Accept": "application/json",
-            })
-            with urllib.request.urlopen(req, timeout=6) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
-            def preview(value, depth=0):
-                if isinstance(value, dict):
-                    return {k:preview(v, depth+1) for k,v in list(value.items())[:65] if depth < 2 or any(s in k.lower() for s in ("industry","sector","upjong","sosok","category"))}
-                if isinstance(value,list):
-                    return {"size":len(value), "first":preview(value[0],depth+1) if value and depth<3 else None}
-                if isinstance(value,str):
-                    return value[:90]
-                return value
-            return name,preview(payload)
-        except Exception as exc:
-            return name,{"error":type(exc).__name__,"message":str(exc)[:180]}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        for name, output in pool.map(run,paths.items()):
-            print("[INDUSTRY-PROBE] " + name + " " + json.dumps(output, ensure_ascii=False)[:2300],flush=True)
-import threading as _probe_threading
-_probe_threading.Thread(target=_trace_naver_industry_fields, daemon=True).start()
-# END TEMP INDUSTRY PROBE
-
 @app.get("/")
 def home():
     return send_from_directory(FRONTEND_DIR, "index.html")

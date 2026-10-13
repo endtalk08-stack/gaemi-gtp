@@ -4,6 +4,7 @@ No separate ticker-by-ticker scraping, estimated trading value, or database writ
 """
 import math
 
+from ..providers.market_industry import get_stock_industries
 from ..providers.market_price import (
     fetch_kr_trading_value_ranking_raw, fetch_us_trading_value_ranking_raw,
     fetch_kr_popular_ranking_raw, fetch_us_popular_ranking_raw,
@@ -56,6 +57,23 @@ def _industry_from_entry(entry):
     return None
 
 
+def _with_stock_industries(items, market):
+    """Join a shared Naver industry map by itemCode, across all ranking menus."""
+    if not items:
+        return items
+    known = {
+        item["symbol"]: item["industry"]
+        for item in items if item.get("industry")
+    }
+    labels = get_stock_industries(
+        market, [item["symbol"] for item in items], known=known,
+    )
+    for item in items:
+        if not item.get("industry"):
+            item["industry"] = labels.get(item["symbol"])
+    return items
+
+
 def _rank(entry, position):
     """Use the source ranking where available, preserving real rank gaps."""
     value = _field([entry], ("ranking", "rank"))
@@ -88,7 +106,7 @@ def build_kr_trading_value_result(limit=20):
     None denotes source failure; [] denotes a valid but empty source list.
     """
     raw = fetch_kr_trading_value_ranking_raw(limit=limit)
-    return _normalize_kr_stock_rows(raw, limit)
+    return _with_stock_industries(_normalize_kr_stock_rows(raw, limit), "kr")
 
 
 def _normalize_kr_stock_rows(raw, limit):
@@ -141,7 +159,7 @@ def _normalize_kr_stock_rows(raw, limit):
 def build_us_trading_value_result(limit=20):
     """Normalize USA ranking as USD rows; do not infer values from volume."""
     raw = fetch_us_trading_value_ranking_raw(limit=limit)
-    return _normalize_us_stock_rows(raw, limit)
+    return _with_stock_industries(_normalize_us_stock_rows(raw, limit), "us")
 
 
 def _normalize_us_stock_rows(raw, limit):
@@ -182,9 +200,11 @@ def _normalize_us_stock_rows(raw, limit):
 
 def build_kr_popular_result(limit=20):
     """Use the same KR normalization as trading value; ranks are source ordered."""
-    return _normalize_kr_stock_rows(fetch_kr_popular_ranking_raw(limit=limit), limit)
+    rows = _normalize_kr_stock_rows(fetch_kr_popular_ranking_raw(limit=limit), limit)
+    return _with_stock_industries(rows, "kr")
 
 
 def build_us_popular_result(limit=20):
     """Use the same USA normalization, without inferring popularity metrics."""
-    return _normalize_us_stock_rows(fetch_us_popular_ranking_raw(limit=limit), limit)
+    rows = _normalize_us_stock_rows(fetch_us_popular_ranking_raw(limit=limit), limit)
+    return _with_stock_industries(rows, "us")
