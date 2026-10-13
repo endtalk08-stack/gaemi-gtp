@@ -6,6 +6,7 @@ from unittest.mock import patch
 from backend.analysis.news.storyboard import select_keyword_storyboard_news
 from backend.services.news_result import (
     _central_direct_article,
+    _central_obvious_price_report,
     _central_stock_mentioned,
     build_stock_news_result,
 )
@@ -163,6 +164,21 @@ class CentralNewsSelectionTests(unittest.TestCase):
             keyword="사업확장",
         ))
         self.assertEqual(len(select_keyword_storyboard_news([a, b], limit=3)), 1)
+
+    def test_obvious_ticker_quotes_do_not_consume_central_candidate_slots(self):
+        quote = {
+            "title": "두산에너빌리티 오후 1시29분 현재 주가 하락",
+            "description": "13일 기준 두산에너빌리티는 전 거래일보다 2400원 내린 "
+            "69100원에 거래됐다. 등락률은 -3.36%였다. 고가 70600원, 저가 67300원.",
+        }
+        self.assertTrue(_central_obvious_price_report(quote))
+        event = dict(quote)
+        event["description"] += " 두산에너빌리티는 A사와 공급 계약을 체결했다."
+        self.assertFalse(_central_obvious_price_report(event))
+        self.assertFalse(_central_obvious_price_report({
+            "title": "삼성전자 300억원 공급 계약",
+            "description": "삼성전자와 고객사가 300억원 공급 계약을 체결했다.",
+        }))
 
     def test_market_quote_without_event_stays_in_full_feed_not_central(self):
         quote = (
