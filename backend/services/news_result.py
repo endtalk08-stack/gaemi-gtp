@@ -1,7 +1,9 @@
 """Build the shared stock-news result consumed by chat and right-panel views."""
 
+import re
 import time
 
+from backend.analysis.news.catalog import STOCK_UNIVERSE
 from backend.analysis.news import (
     build_connected_keyword_test,
     build_simple_today_news,
@@ -9,7 +11,7 @@ from backend.analysis.news import (
     select_keyword_storyboard_news,
 )
 
-from .issue_briefs import build_issue_briefs
+from .issue_briefs import _article_excerpt, build_issue_briefs
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
 
@@ -21,6 +23,59 @@ def _empty_news_result():
         "issue_briefs": [],
         "keyword_storyboard": [],
     }
+
+
+def _central_stock_mentioned(text, stock_name):
+    """Match the selected company, avoiding short-name partial-word collisions."""
+    names = [str(stock_name or "").strip()]
+    for stocks in STOCK_UNIVERSE.values():
+        if stock_name in stocks:
+            names.extend(stocks[stock_name])
+            break
+    if stock_name == "삼성전자":
+        names.append("삼전")
+
+    text = str(text or "").lower()
+    for name in names:
+        alias = str(name or "").strip().lower()
+        if not alias:
+            continue
+        if alias == "삼전":
+            pattern = r"(?<![가-힣a-z0-9])삼전(?=$|[^가-힣a-z0-9]|[은는이가의을를도와과])"
+        elif re.fullmatch(r"[a-z0-9.]+", alias):
+            pattern = rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])"
+        elif len(alias) <= 2:
+            pattern = rf"(?<![가-힣a-z0-9]){re.escape(alias)}(?=$|[^가-힣a-z0-9]|[은는이가의을를도])"
+        else:
+            pattern = re.escape(alias)
+        if re.search(pattern, text):
+            return True
+    return False
+
+
+def _central_direct_article(article, original_excerpt, stock_name):
+    """Use a verified article's opening sentences, not keyword matches alone."""
+    title = str(article.get("title") or "")
+    excerpt = str(original_excerpt or "")
+    title_has_stock = _central_stock_mentioned(title, stock_name)
+    body_has_stock = _central_stock_mentioned(excerpt, stock_name)
+
+    if title_has_stock and body_has_stock:
+        return True
+    if title_has_stock:
+        # News often names the company in the title and uses 'the company'
+        # in its first or second sentence. Do not require the name again.
+        return bool(re.search(
+            r"(?:^|[.!?]\s+|[,，]\s+)(?:이\s*)?"
+            r"(?:회사|동사|기업|업체)(?:는|가|의|측은|측이)",
+            excerpt,
+        ))
+    if body_has_stock:
+        # A generic headline is acceptable only if the selected company
+        # clearly appears as the subject at the beginning of the article.
+        opening = re.split(r"(?<=[.!?])\s+", excerpt, maxsplit=1)[0]
+        return _central_stock_mentioned(opening[:180], stock_name)
+    return False
 
 
 def build_stock_news_result(
@@ -74,19 +129,54 @@ def build_stock_news_result(
             limit=None,
             display_timezone=display_timezone,
         )
-        storyboard_news_items = select_keyword_storyboard_news(
+        # Rank more candidates without discarding similar headlines yet.
+        # A verified body decides relevance and whether two reports are one event.
+        candidate_news = select_keyword_storyboard_news(
             paired_news_items,
-            limit=storyboard_limit,
+            limit=max(9, storyboard_limit * 4),
+            candidate_pool=True,
         )
 
-        # Preserve source quality for central display. Raw article text stays
-        # local to this function and is never part of the shared API payload.
         detail_started = time.monotonic()
-        detail_records = read_selected_article_details(
-            storyboard_news_items,
-            limit=storyboard_limit,
-            with_sources=True,
-        )
+        accepted_articles = []
+        storyboard_news_items = []
+        for start in range(0, len(candidate_news), 3):
+            batch = candidate_news[start:start + 3]
+            details = read_selected_article_details(
+                batch, limit=3, with_sources=True,
+            )
+            for article, detail in zip(batch, details):
+                if detail.get("source") not in {
+                    "jsonld_article_body", "article_or_main_paragraphs"
+                }:
+                    continue
+                excerpt = _article_excerpt(detail.get("text") or "")
+                if not excerpt or not _central_direct_article(article, excerpt, stock_name):
+                    continue
+                candidate = dict(article)
+                # Only the central, body-verified copy becomes a direct candidate.
+                candidate["relation_type"] = "direct"
+                candidate["event_owner"] = stock_name
+                candidate["_central_checked_body"] = excerpt
+                candidate["_central_checked_full_text"] = detail.get("text") or ""
+                candidate["_central_checked_source"] = detail.get("source")
+                accepted_articles.append(candidate)
+            storyboard_news_items = select_keyword_storyboard_news(
+                accepted_articles, limit=storyboard_limit,
+            )
+            if len(storyboard_news_items) >= storyboard_limit:
+                break
+
+        # Keep full article bodies local to this function, not in API records.
+        detail_records = [
+            {
+                "text": article.pop("_central_checked_full_text", ""),
+                "source": article.pop("_central_checked_source", "fetch_failed"),
+            }
+            for article in storyboard_news_items
+        ]
+        for article in storyboard_news_items:
+            article.pop("_central_checked_body", None)
         detail_texts = [record.get("text") or "" for record in detail_records]
         if any(detail_texts):
             detail_inputs = []
