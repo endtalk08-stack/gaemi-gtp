@@ -113,17 +113,7 @@
           name.textContent = item.name;
           const price = document.createElement('span');
           price.className = 'font-semibold text-[13px] text-[#0f172a] gtp-dark-text text-right';
-          price.textContent = money(item.price, market) + (market === 'kr' ? '원' : '
-    bindStaticSelection('[data-info-tab-action]');
-    sidebar.dataset.marketControlsBound = 'true';
-  }
-
-  document.addEventListener('DOMContentLoaded', bindMarketControls);
-
-  window.toggleLeftSidebar = toggle;
-  window.GaemiGTPMarketSidebar = { toggle, bindMarketControls };
-}());
-);
+          price.textContent = money(item.price, market) + (market === 'kr' ? '원' : '달러');
           top.append(rank, name, price);
           const bottom = document.createElement('div');
           bottom.className = 'flex justify-between pl-8 mt-1 text-[11px] text-[#64748b] dark:text-[#a1a1aa]';
