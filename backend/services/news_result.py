@@ -79,14 +79,15 @@ def build_stock_news_result(
             limit=storyboard_limit,
         )
 
-        # Second pass: read only the already-selected central candidates.  The
-        # raw article body never leaves this function; only grounded facts are
-        # merged back into the shared result.
+        # Preserve source quality for central display. Raw article text stays
+        # local to this function and is never part of the shared API payload.
         detail_started = time.monotonic()
-        detail_texts = read_selected_article_details(
+        detail_records = read_selected_article_details(
             storyboard_news_items,
             limit=storyboard_limit,
+            with_sources=True,
         )
+        detail_texts = [record.get("text") or "" for record in detail_records]
         if any(detail_texts):
             detail_inputs = []
             for item, detail_text in zip(storyboard_news_items, detail_texts):
@@ -153,10 +154,19 @@ def build_stock_news_result(
             flush=True,
         )
 
+        # The central brief is shown only for a verified article body, never
+        # for a meta description, arbitrary page paragraphs or a failed fetch.
+        verified_body_texts = [
+            record.get("text") or ""
+            if record.get("source") in {"jsonld_article_body", "article_or_main_paragraphs"}
+            else ""
+            for record in detail_records
+        ]
         issue_briefs = build_issue_briefs(
             storyboard_news_items,
             stock_name,
             limit=storyboard_limit,
+            body_texts=verified_body_texts,
         )
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
