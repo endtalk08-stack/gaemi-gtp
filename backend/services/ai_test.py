@@ -344,6 +344,15 @@ def _context(stock, data):
         if any(token in line for token in ("현재 주가는", "고가 ", "저가 ", "20일선 ", "52주")):
             price_lines.append(_compact(line, 230))
 
+    # Reuse the existing first-analysis hashtags; do not collect or analyze again.
+    analysis_tags = []
+    for tag in list(first.get("tags") or []) + str(first.get("content") or "").split():
+        tag = str(tag).strip()
+        if tag.startswith("#") and tag not in analysis_tags:
+            analysis_tags.append(_compact(tag, 60))
+        if len(analysis_tags) >= 20:
+            break
+
     news = []
     for item in (data.get("paired_news_items") or [])[:6]:
         news.append({
@@ -373,6 +382,7 @@ def _context(stock, data):
     return {
         "stock": stock,
         "price_information": price_lines[:5],
+        "analysis_hashtags": analysis_tags,
         "price_metrics": data.get("price_snapshot") or {},
         "news": news,
         "issue_briefs": brief,
@@ -381,6 +391,8 @@ def _context(stock, data):
             "price_metrics.change_pct는 현재 표시가격의 직전 종가 대비 등락률입니다. "
             "price_metrics.previous_trading_day는 날짜가 확인된 직전 완료 거래일의 고가·종가·당일 등락률입니다. "
             "두 등락률을 혼동하지 말고 거래일 날짜를 명시하세요. "
+            "분석 해시태그는 기존 종목 분석에서 생성된 참고 신호이며 장기 추세의 확정 근거가 아닙니다. "
+            "질문과 관련된 해시태그는 활용하되, 없는 장기 이동평균이나 추세 데이터를 추측하지 마세요. "
             "시세 원천의 실시간성은 보장되지 않습니다. 누락된 값은 추측하지 마세요."
         ),
     }
