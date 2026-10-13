@@ -436,10 +436,37 @@ def _brief_text(labels, themes, issues, stock_names, fallback_stock, summary_ind
     summary = _compose_brief_summary(headline, remaining, summary_index=summary_index)
     display_headline = headline if headline.endswith("이슈") else f"{headline} 이슈"
     return display_headline, summary
-def build_issue_briefs(items, stock_name, limit=3):
+def _article_excerpt(text, limit=3):
+    """Show up to three complete source sentences without rewriting content."""
+    content = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not content:
+        return ""
+
+    sentences = re.split(r'(?<=[.!?])\s+(?=[가-힣A-Za-z0-9"“‘(])', content)
+    selected = []
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not (10 <= len(sentence) <= 600):
+            continue
+        if not re.search(r'[.!?]["”’)]?$', sentence):
+            continue
+        if sentence not in selected:
+            selected.append(sentence)
+        if len(selected) >= max(1, int(limit)):
+            break
+    return " ".join(selected)
+
+
+def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []
-    for item in items or []:
+    for index, item in enumerate(items or []):
+        article_summary = ""
+        if body_texts is not None:
+            body_text = body_texts[index] if index < len(body_texts) else ""
+            article_summary = _article_excerpt(body_text)
+            if not article_summary:
+                continue
         labels = _signal_labels(item)
         stock_names = _stock_names(item, stock_name)
         headline, summary = _brief_text(
@@ -458,13 +485,16 @@ def build_issue_briefs(items, stock_name, limit=3):
             else:
                 summary = f"{concrete_subject} 제품 공개 관련 내용을 확인했어."
 
-        structured_summary = _structured_detail_summary(
-            item,
-            labels,
-            summary_index=len(briefs),
-        )
-        if structured_summary:
-            summary = structured_summary
+        if body_texts is not None:
+            summary = article_summary
+        else:
+            structured_summary = _structured_detail_summary(
+                item,
+                labels,
+                summary_index=len(briefs),
+            )
+            if structured_summary:
+                summary = structured_summary
 
         if not headline or not summary:
             continue
