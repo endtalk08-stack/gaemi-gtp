@@ -532,6 +532,9 @@ _BODY_DISPLAY_TOPICS = (
     ("AI투자", "AI 투자",
      r"(?:AI|인공지능)(?:\s*\(AI\))?\s*(?:분야|기술|산업|생태계)?"
      r"(?:에\s*대한|에)?\s*투자"),
+    # Country-specific capital investment: grounded in the displayed body.
+    ("인도투자", "인도 투자",
+     r"인도[^.!?]{0,130}?투자|투자[^.!?]{0,90}?인도"),
     ("설비투자", "설비 투자", r"설비\s*투자|생산\s*시설.{0,10}투자"),
     ("해외투자", "해외 투자", r"해외\s*투자|해외.{0,12}투자\s*확대"),
     ("생산확대", "생산 확대", r"생산\s*(?:능력|량)?\s*(?:확대|증설)"),
@@ -565,6 +568,14 @@ def _body_title_and_tags(excerpt):
     for tag, heading, pattern in _BODY_DISPLAY_TOPICS:
         found = re.search(pattern, excerpt, flags=re.IGNORECASE)
         if found:
+            if tag == "인도투자":
+                budget = re.search(
+                    r"(?<!\d)(\d[\d,]*(?:\.\d+)?)\s*억\s*달러"
+                    r"[^.!?]{0,55}?투자",
+                    excerpt,
+                )
+                if budget:
+                    heading = f"인도 {budget.group(1)}억 달러 투자"
             if tag == "AI투자" and heading == "AI 기업 투자":
                 country = re.match(
                     r"(프랑스|미국|중국|한국|일본|영국|독일|대만)\s+",

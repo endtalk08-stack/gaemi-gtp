@@ -99,6 +99,58 @@ class CentralNewsSelectionTests(unittest.TestCase):
         b = self.with_body(self.article("2", title, "삼성전자는 B사와 공급 계약을 체결했다."))
         self.assertEqual(len(select_keyword_storyboard_news([a, b], limit=3)), 2)
 
+    def test_hyundai_three_reports_same_india_investment_are_one_story(self):
+        # Realistic publisher variants: different labels, titles, Korean money spacing.
+        rows = [
+            self.article(
+                "pressnine", "현대차그룹 정의선 회장 인도 모디 총리 면담",
+                "정의선 현대자동차그룹 회장이 13일 인도 뉴델리에서 나렌드라 모디 총리와 면담했다. "
+                "현대차그룹은 향후 7년간 약 155억 달러를 인도에 투자할 계획이다. "
+                "신공장과 연구개발 인프라를 확충한다.",
+                keyword="인도사업", score=100,
+            ),
+            self.article(
+                "another", "현대차 현지 사업 장기 성장 전략 발표",
+                "정의선 현대차그룹 회장이 나렌드라 모디 인도 총리와 만났다. "
+                "2032년까지 인도에 155억달러를 투자해 생산능력을 확충한다. "
+                "현지 공급망과 미래 모빌리티 사업도 강화한다.",
+                keyword="투자확대", score=99,
+            ),
+            self.article(
+                "third", "정의선 모디 총리 만남 7년간 대규모 투자",
+                "정의선 현대차그룹 회장이 인도에 연 140만대 생산체제를 구축하겠다고 설명했다. "
+                "나렌드라 모디 총리와 만나 올해부터 7년간 약 155억달러(약 20조8000억원) "
+                "규모의 투자를 계획한다고 밝혔다. 자동차 사업을 강화한다.",
+                keyword="생산체제", score=98,
+            ),
+        ]
+        verified = []
+        for row in rows:
+            article = self.with_body(row)
+            article["event_owner"] = "현대차"
+            verified.append(article)
+
+        self.assertEqual(
+            len(select_keyword_storyboard_news(verified, candidate_pool=True, limit=3)), 3
+        )
+        result = select_keyword_storyboard_news(verified, limit=3)
+        self.assertEqual(len(result), 1, result)
+        self.assertEqual(result[0]["event_owner"], "현대차")
+
+    def test_investments_with_different_budgets_or_countries_stay_distinct(self):
+        lead = "현대차가 인도에 155억 달러를 투자하기로 했다. 현지 설비를 늘린다."
+        other_budget = "현대차가 인도에 200억 달러를 투자하기로 했다. 현지 설비를 늘린다."
+        other_country = "현대차가 베트남에 155억 달러를 투자하기로 했다. 현지 설비를 늘린다."
+        # Deliberately identical headlines: the verified facts must win.
+        rows = [
+            self.with_body(self.article("i", "현대차 해외 투자 발표", lead, keyword="투자")),
+            self.with_body(self.article("b", "현대차 해외 투자 발표", other_budget, keyword="투자")),
+            self.with_body(self.article("c", "현대차 해외 투자 발표", other_country, keyword="투자")),
+        ]
+        for row in rows:
+            row["event_owner"] = "현대차"
+        self.assertEqual(len(select_keyword_storyboard_news(rows, limit=3)), 3)
+
     def test_verified_candidates_replace_unrelated_and_unreadable(self):
         rows = [
             self.article("unrelated", "삼성전자 새로운 계약", "영국 의회는 세금 법안을 처리했다.", score=98),
