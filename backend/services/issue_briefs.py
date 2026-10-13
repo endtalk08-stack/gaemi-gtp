@@ -470,8 +470,26 @@ def _article_excerpt(text, limit=3):
     # Strip only leading publication notes and bylines, even if notices come
     # before a reporter credit. Keep the actual article sentences unchanged.
     prefix_patterns = (
-        # Generic publisher + journalist opening, not tied to one outlet.
-        r"^\[[^\[\]]{2,30}\]\s*[가-힣]{2,4}\s*(?:기자|특파원)\s*=\s*",
+        # Publisher/author credits are display boilerplate, not article facts.
+        # Recognize their structure rather than naming individual newsrooms.
+        # The author may be *inside* a source bracket or follow it.
+        r"^(?:\[[^\[\]]{2,110}(?:기자|특파원|통신원)\s*\]"
+        r"|【[^】]{2,110}(?:기자|특파원|통신원)\s*】)\s*(?:[=:]\s*)?",
+        r"^(?:\[[^\[\]]{2,90}\]|【[^】]{2,90}】)\s*"
+        r"[가-힣]{2,5}(?:\s+[가-힣]{2,5})?\s*"
+        r"(?:기자|특파원|통신원)\s*[:=]\s*",
+        # Location/agency datelines sometimes have no author attached.
+        r"^(?:\[[가-힣]{2,14}\s*=\s*[^\[\]]{2,50}\]"
+        r"|【[가-힣]{2,14}\s*=\s*[^】]{2,50}】)\s*",
+        # Unbracketed "신문사 홍길동 기자 =" and bare reporter credits.
+        r"^(?:[가-힣A-Za-z0-9·.+-]{2,32}\s+)?"
+        r"[가-힣]{2,5}\s*(?:기자|특파원|통신원)\s*[:=]\s*",
+        # A standalone bracketed publication name without a reporter.
+        # Avoid stripping informative topic brackets such as [HBM].
+        r"^(?:\[[^\[\]]{0,40}(?:뉴스|신문|일보|경제|통신|포스트|"
+        r"프레스|투데이|타임스|비즈)[^\[\]]{0,12}\]"
+        r"|【[^】]{0,40}(?:뉴스|신문|일보|경제|통신|포스트|"
+        r"프레스|투데이|타임스|비즈)[^】]{0,12}】)\s*",
         r"^(?:AI|인공지능(?:\s*\(AI\))?)(?:가|이)?\s*자동(?:으로)?\s*"
         r"생성한\s*요약[^.!?]{0,240}[.!?]\s*",
         r"^이\s*기사는\s*(?:인공지능(?:\s*\(AI\))?|AI)\s*번역"
