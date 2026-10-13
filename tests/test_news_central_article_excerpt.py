@@ -100,6 +100,81 @@ class CentralArticleExcerptTests(unittest.TestCase):
         )
         self.assertEqual(_article_excerpt(body), body)
 
+    def test_embedded_ai_notes_byline_and_invisible_prefix_are_removed(self):
+        body = (
+            "미국의 대중국 수출 규제와 중국의 반도체 국산화 정책으로 "
+            "엔비디아의 중국 점유율이 하락했다. "
+            "중국 업체들은 자국 시장에서 공급을 확대하고 있다. "
+            "시장 경쟁은 더욱 치열해질 것으로 전망된다. "
+            "다른 내용은 다음 기사에서 다룬다."
+        )
+        extracted = (
+            "\ufeff속보. "
+            "AI가 자동 생성한 요약으로 정확하지 않을 수 있어요. "
+            "이 기사는 인공지능(AI) 번역을 바탕으로 전문 기자들의 검증과 분석을 거쳐 "
+            "생성된 콘텐츠로 원문은 10월 13일 로이터통신 기사입니다. "
+            "[시드니=뉴스핌] 권지언 특파원 = " + body
+        )
+        expected = (
+            "미국의 대중국 수출 규제와 중국의 반도체 국산화 정책으로 "
+            "엔비디아의 중국 점유율이 하락했다. "
+            "중국 업체들은 자국 시장에서 공급을 확대하고 있다. "
+            "시장 경쟁은 더욱 치열해질 것으로 전망된다."
+        )
+        self.assertEqual(_article_excerpt(extracted), expected)
+
+    def test_embedded_ai_notices_do_not_strip_factual_opening(self):
+        first = "엔비디아가 AI 칩 수요 증가에 따라 생산을 확대했다. "
+        rest = (
+            "AI가 자동 생성한 요약으로 정확하지 않을 수 있어요. "
+            "이 기사는 인공지능(AI) 번역을 바탕으로 전문 기자들의 검증과 분석을 거쳐 "
+            "생성된 콘텐츠로 원문은 10월 13일 로이터통신 기사입니다. "
+            "[시드니=뉴스핌] 권지언 특파원 = "
+            "엔비디아는 주요 고객사에 대한 공급 계획도 발표했다. "
+            "중국의 수출 규제 영향도 점검하고 있다."
+        )
+        expected = (
+            first + "엔비디아는 주요 고객사에 대한 공급 계획도 발표했다. "
+            "중국의 수출 규제 영향도 점검하고 있다."
+        )
+        self.assertEqual(_article_excerpt(first + rest), expected)
+
+    def test_french_ai_company_investment_title_and_single_tag(self):
+        body = (
+            "엔비디아가 프랑스 인공지능 기업들에 대한 투자에 나서면서 "
+            "젠슨 황 최고경영자의 사업 전략이 반도체 공급을 넘어 다양한 산업으로 확장되고 있다. "
+            "엔비디아는 프랑스 AI 스타트업 미스트랄에 투자한다고 밝혔다. "
+            "회사는 추가 협력 사업도 검토하고 있다."
+        )
+        brief = build_issue_briefs(
+            [self._source_row()], "엔비디아", body_texts=[body]
+        )[0]
+        self.assertEqual(brief["headline"], "프랑스 AI 기업 투자 이슈")
+        self.assertEqual(brief["tags"], ["AI투자"])
+        self.assertEqual(brief["summary"], body)
+
+    def test_generic_ai_investment_is_grounded(self):
+        body = (
+            "엔비디아는 AI에 투자한다고 밝혔다. "
+            "회사는 신규 사업 확대를 검토하고 있다."
+        )
+        brief = build_issue_briefs(
+            [self._source_row()], "엔비디아", body_texts=[body]
+        )[0]
+        self.assertEqual(brief["headline"], "AI 투자 이슈")
+        self.assertEqual(brief["tags"], ["AI투자"])
+
+    def test_ai_mentions_without_investment_do_not_create_ai_investment_tag(self):
+        body = (
+            "엔비디아의 인공지능 기술 개발은 여러 분야에서 주목받고 있다. "
+            "엔비디아는 신규 기술 시연 행사를 열었다."
+        )
+        brief = build_issue_briefs(
+            [self._source_row()], "엔비디아", body_texts=[body]
+        )[0]
+        self.assertNotIn("AI투자", brief["tags"])
+        self.assertNotIn("투자 이슈", brief["headline"])
+
     def test_no_article_body_means_no_central_brief(self):
         result = build_issue_briefs([self._source_row()], "셀트리온", body_texts=[""])
         self.assertEqual(result, [])
