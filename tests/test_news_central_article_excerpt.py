@@ -115,7 +115,13 @@ class CentralArticleExcerptTests(unittest.TestCase):
             "생성된 콘텐츠로 원문은 10월 13일 로이터통신 기사입니다. "
             "[시드니=뉴스핌] 권지언 특파원 = " + body
         )
-        self.assertEqual(_article_excerpt(extracted), " ".join(body.split(". ")[:3]).rstrip() + ".")
+        expected = (
+            "미국의 대중국 수출 규제와 중국의 반도체 국산화 정책으로 "
+            "엔비디아의 중국 점유율이 하락했다. "
+            "중국 업체들은 자국 시장에서 공급을 확대하고 있다. "
+            "시장 경쟁은 더욱 치열해질 것으로 전망된다."
+        )
+        self.assertEqual(_article_excerpt(extracted), expected)
 
     def test_embedded_ai_notices_do_not_strip_factual_opening(self):
         first = "엔비디아가 AI 칩 수요 증가에 따라 생산을 확대했다. "
