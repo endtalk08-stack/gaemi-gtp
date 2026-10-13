@@ -512,6 +512,18 @@ def _body_title_and_tags(excerpt):
         if found:
             matches.append((found.start(), -len(found.group()), found.end(), tag, heading))
 
+    if not matches:
+        # Reuse known display labels when their words actually occur in the
+        # excerpt; unknown upstream labels must never leak into the headline.
+        compact_excerpt = re.sub(r"\s+", "", excerpt).casefold()
+        for tag, heading in _CENTRAL_LABEL_TEXT.items():
+            phrase = re.sub(r"\s+", "", heading).casefold()
+            if len(phrase) < 4:
+                continue
+            position = compact_excerpt.find(phrase)
+            if position >= 0:
+                matches.append((position, -len(phrase), position + len(phrase), tag, heading))
+
     matches.sort()
     tags = []
     used_ranges = []
