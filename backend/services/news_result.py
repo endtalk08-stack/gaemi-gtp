@@ -158,6 +158,7 @@ def build_stock_news_result(
                 candidate["relation_type"] = "direct"
                 candidate["event_owner"] = stock_name
                 candidate["_central_checked_body"] = excerpt
+                candidate["_central_checked_full_text"] = detail.get("text") or ""
                 candidate["_central_checked_source"] = detail.get("source")
                 accepted_articles.append(candidate)
             storyboard_news_items = select_keyword_storyboard_news(
@@ -169,11 +170,13 @@ def build_stock_news_result(
         # Keep full article bodies local to this function, not in API records.
         detail_records = [
             {
-                "text": article.pop("_central_checked_body", ""),
+                "text": article.pop("_central_checked_full_text", ""),
                 "source": article.pop("_central_checked_source", "fetch_failed"),
             }
             for article in storyboard_news_items
         ]
+        for article in storyboard_news_items:
+            article.pop("_central_checked_body", None)
         detail_texts = [record.get("text") or "" for record in detail_records]
         if any(detail_texts):
             detail_inputs = []
