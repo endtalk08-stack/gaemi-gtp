@@ -1,0 +1,67 @@
+"""KR trading-value source/result regression tests (no live market calls)."""
+import json
+import unittest
+from unittest.mock import patch
+
+from backend.providers import market_price
+from backend.services import market_rankings
+
+
+class MarketTradingValueTests(unittest.TestCase):
+    def test_market_raw_request_uses_naver_ranking_not_registered_tickers(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return json.dumps({"items": []}).encode("utf-8")
+
+        with patch.object(market_price.urllib.request, "urlopen", return_value=Response()) as open_url:
+            raw = market_price.fetch_kr_trading_value_ranking_raw(limit=20)
+        self.assertEqual(raw, {"items": []})
+        url = open_url.call_args.args[0].full_url
+        self.assertIn("/individual-stocks/v3/domestic?", url)
+        self.assertIn("listingType=tradingValueDesc", url)
+        self.assertIn("size=20", url)
+        self.assertEqual(open_url.call_count, 1)
+
+    def test_nested_market_quote_keeps_observed_fields(self):
+        raw = {
+            "items": [
+                {"itemCode": "005930", "stockName": "삼성전자", "price": {
+                    "krx": {"closePrice": "85,100", "fluctuationsRatio": "+2.50",
+                            "accumulatedTradingValue": "500,000,000,000"}}},
+                {"itemCode": "000660", "stockName": "SK하이닉스",
+                 "closePrice": "190,000", "fluctuationsRatio": "-1.5",
+                 "accumulatedTradingValue": "100,000,000,000"},
+            ]
+        }
+        with patch.object(market_rankings, "fetch_kr_trading_value_ranking_raw", return_value=raw) as source:
+            rows = market_rankings.build_kr_trading_value_result(20)
+        source.assert_called_once_with(limit=20)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["symbol"], "005930")
+        self.assertEqual(rows[0]["price"], 85100.0)
+        self.assertEqual(rows[0]["change_pct"], 2.5)
+        self.assertEqual(rows[0]["trading_value"], 500000000000.0)
+        self.assertEqual(rows[1]["rank"], 2)
+        self.assertEqual(rows[1]["change_pct"], -1.5)
+
+    def test_absent_source_values_do_not_become_fake_numbers(self):
+        raw = {"items": [{"itemCode": "005930", "stockName": "삼성전자"}]}
+        with patch.object(market_rankings, "fetch_kr_trading_value_ranking_raw", return_value=raw):
+            rows = market_rankings.build_kr_trading_value_result()
+        self.assertIsNone(rows[0]["price"])
+        self.assertIsNone(rows[0]["change_pct"])
+        self.assertIsNone(rows[0]["trading_value"])
+
+    def test_unavailable_source_is_not_reported_as_empty_success(self):
+        with patch.object(market_rankings, "fetch_kr_trading_value_ranking_raw", return_value=None):
+            self.assertIsNone(market_rankings.build_kr_trading_value_result())
+
+
+if __name__ == "__main__":
+    unittest.main()
