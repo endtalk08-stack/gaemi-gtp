@@ -441,21 +441,25 @@ def _article_excerpt(text, limit=3):
     if not content:
         return ""
 
-    # Strip a publisher/location credit and reporter byline only at the start.
-    # Preserve the article's first factual sentence and all later mentions.
-    content = re.sub(
+    # Strip only leading publication notes and bylines, even if notices come
+    # before a reporter credit. Keep the actual article sentences unchanged.
+    prefix_patterns = (
+        r"^(?:AI|인공지능(?:\s*\(AI\))?)(?:가|이)?\s*자동(?:으로)?\s*"
+        r"생성한\s*요약[^.!?]{0,240}[.!?]\s*",
+        r"^이\s*기사는\s*(?:인공지능(?:\s*\(AI\))?|AI)\s*번역"
+        r"(?=[^.!?]{0,350}(?:콘텐츠|원문|전문\s*기자))[^.!?]{0,450}[.!?]\s*",
         r"^(?:\([가-힣]{2,12}\s*=\s*[^()]{2,30}\)"
         r"|\[[가-힣]{2,12}\s*=\s*[^\[\]]{2,30}\])\s*",
-        "",
-        content,
-    )
-    content = re.sub(
-        r"^(?:(?:연합뉴스|뉴시스|뉴스1)\s+)?"
+        r"^(?:(?:연합뉴스|뉴시스|뉴스1|뉴스핌)\s+)?"
         r"(?:[가-힣]{2,4}(?:[·ㆍ,]\s*[가-힣]{2,4})*\s*)?"
         r"(?:기자|특파원)\s*=\s*",
-        "",
-        content,
     )
+    for _ in range(5):
+        previous = content
+        for pattern in prefix_patterns:
+            content = re.sub(pattern, "", content, count=1, flags=re.IGNORECASE)
+        if content == previous:
+            break
 
     sentences = re.split(r'(?<=[.!?])\s+(?=[가-힣A-Za-z0-9"“‘(])', content)
     selected = []
