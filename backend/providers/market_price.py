@@ -402,18 +402,18 @@ def fetch_us_stock_quote(ticker):
 def _fetch_naver_market_ranking_raw(cache_key, path, query_params, ttl_seconds):
     """Single-flight, short-lived source cache shared by market ranking menus.
 
-    Cache only verified successful payloads. An outage never becomes a fake
-    empty result and never silently serves an unlabelled stale ranking.
+    Keep successful payloads for their menu TTL and failures for five seconds.
+    An outage never becomes a fake empty result or an unlabelled stale ranking.
     """
     now = time.monotonic()
     cached = MARKET_RANKING_CACHE.get(cache_key)
-    if cached and now - cached[0] < ttl_seconds:
+    if cached and now - cached[0] < (5 if cached[1] is None else ttl_seconds):
         return cached[1]
 
     with _get_lock(("market-ranking", cache_key)):
         now = time.monotonic()
         cached = MARKET_RANKING_CACHE.get(cache_key)
-        if cached and now - cached[0] < ttl_seconds:
+        if cached and now - cached[0] < (5 if cached[1] is None else ttl_seconds):
             return cached[1]
 
         url = "https://stock.naver.com" + path + "?" + urllib.parse.urlencode(query_params)
@@ -432,6 +432,7 @@ def _fetch_naver_market_ranking_raw(cache_key, path, query_params, ttl_seconds):
                 raise ValueError("unexpected market ranking payload")
         except Exception as exc:
             print(f"[시장 순위 원천] {cache_key} 조회 실패: {type(exc).__name__}: {exc}", flush=True)
+            MARKET_RANKING_CACHE[cache_key] = (time.monotonic(), None)
             return None
 
         MARKET_RANKING_CACHE[cache_key] = (time.monotonic(), payload)

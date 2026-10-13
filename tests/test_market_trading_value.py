@@ -143,6 +143,15 @@ class MarketTradingValueTests(unittest.TestCase):
             market_price.fetch_us_industry_ranking_raw()
         self.assertEqual(req.call_count, 2)
 
+    def test_failed_market_source_gets_short_cooldown_not_empty_success(self):
+        market_price.MARKET_RANKING_CACHE.clear()
+        with patch.object(market_price.urllib.request, "urlopen", side_effect=OSError("offline")) as request:
+            first = market_price.fetch_kr_trading_value_ranking_raw()
+            second = market_price.fetch_kr_trading_value_ranking_raw()
+        self.assertIsNone(first)
+        self.assertIsNone(second)
+        self.assertEqual(request.call_count, 1)
+
     def test_unavailable_source_is_not_reported_as_empty_success(self):
         with patch.object(market_rankings, "fetch_kr_trading_value_ranking_raw", return_value=None):
             self.assertIsNone(market_rankings.build_kr_trading_value_result())

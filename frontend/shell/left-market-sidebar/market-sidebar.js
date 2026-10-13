@@ -87,7 +87,7 @@
         return;
       }
 
-      if (subtitle) subtitle.textContent = '/ 네이버 시장 원천';
+      if (subtitle) subtitle.textContent = market === 'us' ? '/ 네이버 미국 원천' : '/ 네이버 국내 원천';
       list.replaceChildren();
       list.textContent = '순위를 불러오는 중이야.';
       try {
@@ -98,7 +98,7 @@
         if (id !== requestId) return;
         list.replaceChildren();
         if (result.ok !== true || !Array.isArray(result.items) || !result.items.length) {
-          list.textContent = '조회 가능한 거래대금 원천 데이터가 없어.';
+          list.textContent = '조회 가능한 순위 원천 데이터가 없어.';
           return;
         }
         result.items.forEach((item, index) => {
@@ -145,7 +145,7 @@
           // Preserve the existing third-row space without inventing industry
           // or rising/falling explanations that have no verified source.
           const thirdRow = document.createElement('div');
-          thirdRow.className = 'grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center';
+          thirdRow.className = 'grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center min-h-[16px]';
           thirdRow.append(
             document.createElement('span'),
             document.createElement('span'),
@@ -155,7 +155,7 @@
           list.appendChild(button);
         });
       } catch (_) {
-        if (id === requestId) list.textContent = '거래대금 원천 데이터를 가져오지 못했어.';
+        if (id === requestId) list.textContent = '순위 원천 데이터를 가져오지 못했어.';
       }
     };
 
