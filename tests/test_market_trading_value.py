@@ -104,6 +104,60 @@ class MarketTradingValueTests(unittest.TestCase):
         self.assertEqual(en[0]["symbol"], "NVDA.O")
         self.assertEqual(en[0]["change_pct"], 1.2)
 
+    def test_naver_live_kr_popular_price_object_identity_and_rank(self):
+        """Mirrors observed Naver 2026-10-13 KR popularity response fields."""
+        raw = {"type": "popular", "items": [
+            {"no": "1", "ranking": "1", "itemCode": "005930", "hitCount": "30719",
+             "price": {"itemCode": "005930", "itemName": "삼성전자",
+                       "krx": {"currentPrice": "234000", "changeRate": "-6.59",
+                               "tradingValue": "5916362000000"},
+                       "nxt": {"currentPrice": "233500", "changeRate": "-6.79"}}},
+            {"no": "2", "ranking": "4", "itemCode": "000660",
+             "price": {"itemName": "SK하이닉스",
+                       "krx": {"currentPrice": "250000", "changeRate": "+1.25"}}},
+        ]}
+        with patch.object(market_rankings, "fetch_kr_popular_ranking_raw", return_value=raw):
+            items = market_rankings.build_kr_popular_result()
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]["name"], "삼성전자")
+        self.assertEqual(items[0]["symbol"], "005930")
+        self.assertEqual(items[0]["rank"], 1)
+        self.assertEqual(items[0]["price"], 234000)
+        self.assertEqual(items[0]["change_pct"], -6.59)
+        self.assertEqual(items[1]["rank"], 4)
+        self.assertEqual(items[1]["change_pct"], 1.25)
+
+    def test_naver_live_us_popular_price_object_identity_and_rank(self):
+        """Mirrors observed Naver USA popular stock response fields."""
+        raw = {"type": "popular", "items": [
+            {"no": "1", "ranking": "1", "itemCode": "SKHY.O", "hitCount": "10200",
+             "price": {"itemCode": "SKHY.O", "itemName": "SK하이닉스 ADR",
+                       "itemNameEng": "SK hynix Inc. ADR",
+                       "currentPrice": "162.2300", "changeRate": "-4.0230",
+                       "sectorName": "반도체", "currencyType": "USD"}},
+            {"no": "2", "ranking": "3", "itemCode": "NVDA.O",
+             "price": {"itemName": "NVIDIA", "currentPrice": "190.23",
+                       "changeRate": "2.5"}},
+        ]}
+        with patch.object(market_rankings, "fetch_us_popular_ranking_raw", return_value=raw):
+            items = market_rankings.build_us_popular_result()
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]["name"], "SK하이닉스 ADR")
+        self.assertEqual(items[0]["symbol"], "SKHY.O")
+        self.assertEqual(items[0]["rank"], 1)
+        self.assertEqual(items[0]["price"], 162.23)
+        self.assertEqual(items[0]["change_pct"], -4.023)
+        self.assertEqual(items[1]["rank"], 3)
+        self.assertEqual(items[1]["name"], "NVIDIA")
+
+    def test_popular_unavailable_fields_remain_unfabricated(self):
+        raw = {"items": [{"itemCode": "000660", "price": {"itemName": "SK하이닉스"}}]}
+        with patch.object(market_rankings, "fetch_kr_popular_ranking_raw", return_value=raw):
+            items = market_rankings.build_kr_popular_result()
+        self.assertEqual(items[0]["name"], "SK하이닉스")
+        self.assertIsNone(items[0]["price"])
+        self.assertIsNone(items[0]["change_pct"])
+
     def test_popularity_is_cached_separately_from_turnover(self):
         market_price.MARKET_RANKING_CACHE.clear()
         class Response:

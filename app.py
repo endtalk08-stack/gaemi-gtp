@@ -18,29 +18,6 @@ app.register_blueprint(ai_test_bp)
 CORS(app)
 install_private_access(app, FRONTEND_DIR)
 start_calendar_warmup()
-
-# TEMPORARY: read-only public market-source shape probe. Remove after validation.
-def _trace_popular_sources_once():
-    import threading
-    import json
-    from backend.providers.market_price import fetch_kr_popular_ranking_raw, fetch_us_popular_ranking_raw
-    def probe():
-        for market, reader in (("kr", fetch_kr_popular_ranking_raw), ("us", fetch_us_popular_ranking_raw)):
-            try:
-                payload = reader(limit=2)
-                if isinstance(payload, dict):
-                    rows = payload.get("items")
-                    sample = rows[0] if isinstance(rows, list) and rows else None
-                    print("[popular-schema-probe] market=" + market + " top=" + str(list(payload)) +
-                        " rows=" + str(len(rows) if isinstance(rows,list) else "invalid") +
-                        " sample=" + json.dumps(sample, ensure_ascii=False, default=str)[:2500], flush=True)
-                else:
-                    print("[popular-schema-probe] market=" + market + " source_unavailable",flush=True)
-            except Exception as exc:
-                print("[popular-schema-probe] market=" + market + " exception=" + type(exc).__name__, flush=True)
-    threading.Thread(target=probe, daemon=True).start()
-
-_trace_popular_sources_once()
 application = app
 
 @app.get("/")

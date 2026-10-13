@@ -31,6 +31,16 @@ def _field(objects, names):
     return None
 
 
+def _rank(entry, position):
+    """Use the source ranking where available, preserving real rank gaps."""
+    value = _field([entry], ("ranking", "rank"))
+    try:
+        rank = int(value)
+        return rank if rank > 0 else position
+    except (TypeError, ValueError):
+        return position
+
+
 def _price_sources(item):
     """Naver uses both flat and nested KRX/NXT price objects across versions."""
     price = item.get("price")
@@ -65,7 +75,12 @@ def _normalize_kr_stock_rows(raw, limit):
         if not isinstance(entry, dict):
             continue
         stock = entry.get("stock")
-        identity = [entry, stock] if isinstance(stock, dict) else [entry]
+        price_object = entry.get("price")
+        identity = [entry]
+        if isinstance(stock, dict):
+            identity.append(stock)
+        if isinstance(price_object, dict):
+            identity.append(price_object)
         name = _field(identity, ("stockName", "itemName", "itemname", "name", "displayName"))
         symbol = _field(identity, ("itemCode", "itemcode", "code", "symbol"))
         if not name or not symbol:
@@ -86,7 +101,7 @@ def _normalize_kr_stock_rows(raw, limit):
         )
 
         items.append({
-            "rank": len(items) + 1,
+            "rank": _rank(entry, len(items) + 1),
             "name": str(name),
             "symbol": str(symbol),
             "price": price,
@@ -111,7 +126,12 @@ def _normalize_us_stock_rows(raw, limit):
         if not isinstance(entry, dict):
             continue
         stock = entry.get("stock")
-        identity = [entry, stock] if isinstance(stock, dict) else [entry]
+        price_object = entry.get("price")
+        identity = [entry]
+        if isinstance(stock, dict):
+            identity.append(stock)
+        if isinstance(price_object, dict):
+            identity.append(price_object)
         name = _field(identity, ("stockName", "itemName", "name", "displayName", "stockNameEng", "englishName"))
         symbol = _field(identity, ("itemCode", "reutersCode", "symbol", "code"))
         if not name or not symbol:
@@ -126,7 +146,7 @@ def _normalize_us_stock_rows(raw, limit):
                         if amount is None and isinstance(amount_raw, str) and amount_raw.strip()
                         else None)
         items.append({
-            "rank": len(items) + 1, "name": str(name), "symbol": str(symbol),
+            "rank": _rank(entry, len(items) + 1), "name": str(name), "symbol": str(symbol),
             "price": price, "change_pct": change,
             "trading_value": amount, "trading_value_text": amount_label,
         })
