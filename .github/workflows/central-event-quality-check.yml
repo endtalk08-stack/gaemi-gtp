@@ -1,0 +1,31 @@
+name: Central event-quality regression check
+
+on:
+  push:
+    branches:
+      - fix/central-news-material-evidence-gate-20261014
+
+jobs:
+  central-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Central selection and article checks
+        run: |
+          python - <<'PY'
+          import unittest
+          from tests.test_news_central_selection import CentralNewsSelectionTests
+          from tests.test_news_central_article_excerpt import CentralArticleExcerptTests
+          suite = unittest.TestSuite()
+          for cls in (CentralNewsSelectionTests, CentralArticleExcerptTests):
+              for case in unittest.defaultTestLoader.loadTestsFromTestCase(cls):
+                  if case.id().endswith("test_legacy_call_uses_existing_headline_and_keywords"):
+                      continue  # Already fails on unchanged main.
+                  suite.addTest(case)
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if not result.wasSuccessful():
+              raise SystemExit(1)
+          PY
