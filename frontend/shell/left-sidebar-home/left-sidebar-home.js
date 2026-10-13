@@ -21,34 +21,6 @@
     }
   }
 
-  function renderWatchlist() {
-    const body = document.getElementById('leftSidebarStocksBody');
-    if (!body) return;
-    const stocks = window.GaemiGTPWatchlist?.getStocks?.() || [];
-    body.replaceChildren();
-    if (!stocks.length) {
-      const empty = document.createElement('div');
-      empty.className = 'left-sidebar-home__empty';
-      empty.textContent = '관심종목이 없습니다';
-      body.appendChild(empty);
-      return;
-    }
-    const list = document.createElement('ul');
-    list.className = 'left-sidebar-home__items';
-    for (const name of stocks) {
-      const item = document.createElement('li');
-      item.className = 'left-sidebar-home__item';
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'left-sidebar-home__recent-link';
-      button.dataset.homeWatchlistStock = name;
-      button.textContent = name;
-      item.appendChild(button);
-      list.appendChild(item);
-    }
-    body.appendChild(list);
-  }
-
   function renderRecent() {
     const list = document.getElementById('leftSidebarHomeRecentList');
     const empty = document.getElementById('leftSidebarHomeRecentEmpty');
@@ -228,17 +200,10 @@
 
     if (empty) empty.hidden = visible.length > 0;
     renderRecent();
-    renderWatchlist();
     if (window.lucide) window.lucide.createIcons();
   }
 
   document.addEventListener('click', (event) => {
-    const stockButton = event.target.closest('#leftSidebarStocksBody [data-home-watchlist-stock]');
-    if (stockButton) {
-      window.openStockInChat?.(stockButton.dataset.homeWatchlistStock);
-      if (window.innerWidth < 1024) close();
-      return;
-    }
     const recentButton = event.target.closest('#leftSidebarHome [data-recent-index]');
     if (recentButton) {
       openRecent(Number(recentButton.dataset.recentIndex));
@@ -269,10 +234,9 @@
     }
   });
 
-  window.GaemiGTPSidebarHome = { render, renderWatchlist, recordRecent, getRecentIds, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
+  window.GaemiGTPSidebarHome = { render, recordRecent, getRecentIds, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
   window.addEventListener('storage', (event) => {
     if (event.key === RECENT_STORAGE_KEY) renderRecent();
-    if (event.key === 'gaemiGTP_watchlist_v1') renderWatchlist();
   });
   window.toggleLeftSidebarHome = toggle;
   window.closeLeftSidebarHome = close;
