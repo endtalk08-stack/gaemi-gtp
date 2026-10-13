@@ -108,6 +108,12 @@ class CentralNewsSelectionTests(unittest.TestCase):
             self.article("new", "삼성전자 화성 공장 증설", "삼성전자는 화성 공장을 증설했다. 연말 양산을 시작한다.", keyword="증설", score=91),
             self.article("deal", "삼성전자 100억원 공급 계약", "삼성전자는 B사와 100억원 공급 계약을 체결했다. 납품을 시작한다.", score=90),
         ]
+        duplicate_pair = [self.with_body(rows[1]), self.with_body(rows[2])]
+        self.assertEqual(
+            len(select_keyword_storyboard_news(duplicate_pair, limit=3)),
+            1,
+            "Two same-factory same-title articles must be merged",
+        )
         bodies = {row["url"]: row["description"] for row in rows}
         bodies[rows[3]["url"]] = ""
         def fetch_details(batch, limit=3, with_sources=False):
