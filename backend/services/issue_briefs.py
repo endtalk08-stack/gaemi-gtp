@@ -470,6 +470,8 @@ def _article_excerpt(text, limit=3):
     # Strip only leading publication notes and bylines, even if notices come
     # before a reporter credit. Keep the actual article sentences unchanged.
     prefix_patterns = (
+        # Generic publisher + journalist opening, not tied to one outlet.
+        r"^\[[^\[\]]{2,30}\]\s*[가-힣]{2,4}\s*(?:기자|특파원)\s*=\s*",
         r"^(?:AI|인공지능(?:\s*\(AI\))?)(?:가|이)?\s*자동(?:으로)?\s*"
         r"생성한\s*요약[^.!?]{0,240}[.!?]\s*",
         r"^이\s*기사는\s*(?:인공지능(?:\s*\(AI\))?|AI)\s*번역"
