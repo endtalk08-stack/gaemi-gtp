@@ -82,6 +82,39 @@ class CentralArticleExcerptTests(unittest.TestCase):
             with self.subTest(prefix=prefix):
                 self.assertEqual(_article_excerpt(prefix + CELLTRION_BODY), CELLTRION_BODY)
 
+    def test_generic_press_credits_are_removed_without_newsroom_exceptions(self):
+        prefixes = (
+            "[파이낸셜뉴스 뉴델리(인도)=김동호 기자] ",
+            "[잠포스트] 전진홍 기자 = ",
+            "【서울=뉴시스】김은정 기자= ",
+            "[서울(한국)=비즈워치] 정민석 특파원 : ",
+            "한국경제 홍길동 기자 = ",
+            "[매일경제] ",
+            "【연합뉴스】 ",
+            "[파이낸셜뉴스 뉴델리(인도)=김동호 기자] "
+            "【뉴시스】홍길동 기자= ",
+        )
+        for prefix in prefixes:
+            with self.subTest(prefix=prefix):
+                self.assertEqual(_article_excerpt(prefix + CELLTRION_BODY), CELLTRION_BODY)
+                brief = build_issue_briefs(
+                    [self._source_row()], "셀트리온", body_texts=[prefix + CELLTRION_BODY],
+                )[0]
+                self.assertEqual(brief["summary"], CELLTRION_BODY)
+
+    def test_article_facts_and_in_body_reporter_mentions_remain(self):
+        factual = (
+            "삼성전자는 HBM 제품의 신규 공급계약을 체결했다고 밝혔다. "
+            "이후 김영수 기자는 다른 행사에서 회사의 신제품 발표를 취재했다. "
+            "차세대 제품의 출시 일정은 다음 달 공개될 예정이다."
+        )
+        self.assertEqual(_article_excerpt("【서울=뉴스1】박영수 기자= " + factual), factual)
+        topic = (
+            "[HBM] 삼성전자는 차세대 메모리 제품의 생산을 확대했다. "
+            "회사는 올해 추가 생산라인을 구축할 계획이라고 밝혔다."
+        )
+        self.assertEqual(_article_excerpt(topic), topic)
+
     def test_news_agency_and_reporter_mentions_inside_body_are_kept(self):
         body = (
             "삼성전자는 신제품 생산을 확대하겠다고 밝혔다. "
