@@ -111,22 +111,24 @@ def _is_market_gainers_question(question):
 
 
 def _market_ranking_request(question):
-    """Recognize explicit popular/trading-value ranking questions only."""
+    """Recognize direct questions about either existing market menu."""
     compact = re.sub(r"\s+", "", str(question or "").casefold())
-    if not re.search(r"(순위|랭킹|상위|top\d*|\d+위|1위|몇위|어떤종목|종목들|목록|알려|보여)", compact, re.IGNORECASE):
+    if re.search(r"(왜|이유|원인|전망|분석|추천|매수|매도)", compact):
         return None
     if "거래대금" in compact:
         menu = "value"
-    elif re.search(r"(인기순위|인기랭킹|인기종목|인기주식|인기top|인기상위)", compact, re.IGNORECASE):
+    elif re.search(r"(인기순위|인기랭킹|인기종목|인기주식|인기top|인기상위)", compact):
         menu = "popular"
     else:
+        return None
+    if not re.search(r"(순위|랭킹|상위|top\d*|\d+위|몇위|누구|뭐야|종목|목록|알려|보여)", compact):
         return None
     market = "us" if re.search(r"(미국|미장|해외|나스닥|뉴욕증시)", compact) else "kr"
     return market, menu
 
 
 def _market_ranking_reply(question):
-    """Read the sidebar's own cached result; use its existing builder on cache miss."""
+    """Read existing sidebar rows and answer only the requested rank or range."""
     request_info = _market_ranking_request(question)
     if not request_info:
         return None
@@ -145,29 +147,63 @@ def _market_ranking_reply(question):
         }[(market, menu)]
         builder(limit=20)
         rows = get_market_menu_rows(market, menu)
-    label = ("미국" if market == "us" else "국내") + (" 거래대금" if menu == "value" else " 인기")
+    label = ("미국" if market == "us" else "국내") + (" 거래대금" if menu == "value" else " 인기순위")
     if not rows:
-        return label + " 순위 원천 데이터를 지금 확인하지 못했어."
-    count_match = re.search(r"(?:top|상위)\s*(\d+)", question, re.IGNORECASE)
-    count = max(1, min(20, int(count_match.group(1)))) if count_match else 20
-    lines = [f"{label} TOP {min(count, len(rows))} (네이버 메뉴 조회 결과)"]
-    for row in rows[:count]:
-        rank = row.get("rank") or "?"
+        return label + " 데이터를 지금 확인하지 못했어."
+    compact = re.sub(r"\s+", "", question.casefold())
+
+    def rank_of(row):
+        try:
+            return int(row.get("rank"))
+        except (TypeError, ValueError):
+            return None
+
+    def describe(row):
+        rank = rank_of(row)
         name = str(row.get("name") or "").strip()
-        if not name:
-            continue
-        suffix = ""
+        result = (str(rank) + "위 " if rank is not None else "") + name
         if menu == "value":
             amount = row.get("trading_value_text")
             if amount:
-                suffix = f" · 거래대금 {amount}"
+                result += " · 거래대금 " + str(amount)
             elif isinstance(row.get("trading_value"), (int, float)):
                 value = row["trading_value"]
-                suffix = (f" · 거래대금 {value / 1e8:,.1f}억원" if market == "kr"
-                          else f" · 거래대금 ${value:,.0f}")
-        lines.append(f"{rank}위 {name}{suffix}")
-    lines.append("왼쪽 순위 메뉴의 원천 결과 기준이며, 실시간 체결 순위라고 단정할 수는 없어.")
-    return "\n".join(lines)
+                result += (" · 거래대금 " + format(value / 1e8, ",.1f") + "억원"
+                           if market == "kr" else " · 거래대금 $" + format(value, ",.0f"))
+        return result
+
+    # A named stock's rank is different from requesting an entire list.
+    names = [row for row in rows if row.get("name") and str(row["name"]).casefold() in compact]
+    if names and re.search(r"(몇위|순위|랭킹)", compact):
+        row = max(names, key=lambda item: len(str(item["name"])))
+        return str(row["name"]) + "은(는) " + label + " " + describe(row) + "야."
+
+    between = re.search(r"(\d{1,2})위(?:부터|~|-)(\d{1,2})위", compact)
+    if between:
+        start, end = int(between.group(1)), int(between.group(2))
+        if start < 1 or end < start:
+            return "순위 범위를 다시 확인해 줘."
+    else:
+        ordinal = re.search(r"(\d{1,2})위", compact)
+        if ordinal:
+            rank = int(ordinal.group(1))
+            row = next((item for item in rows if rank_of(item) == rank), None)
+            return (label + " " + describe(row) + "야." if row else
+                    label + " " + str(rank) + "위는 현재 조회된 TOP 20에서 확인할 수 없어.")
+        count = re.search(r"(?:top|상위)(\d{1,2})", compact, re.IGNORECASE)
+        start, end = 1, int(count.group(1)) if count else 20
+
+    if end < 1:
+        return "순위는 1위부터 확인할 수 있어."
+    selected_rows = [row for row in rows if rank_of(row) is not None
+                     and start <= rank_of(row) <= min(end, 20)]
+    if re.search(r"(상승한|오른종목|상승종목|상승중|플러스)", compact):
+        selected_rows = [row for row in selected_rows
+                         if isinstance(row.get("change_pct"), (int, float)) and row["change_pct"] > 0]
+    if not selected_rows:
+        return label + " 조건에 맞는 종목이 조회 결과에 없어."
+    header = label + " " + str(start) + "~" + str(min(end, 20)) + "위야:"
+    return header + "\n" + "\n".join(describe(row) for row in selected_rows)
 
 
 SYSTEM_PROMPT = (
