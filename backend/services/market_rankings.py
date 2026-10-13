@@ -59,14 +59,14 @@ def build_kr_trading_value_result(limit=20):
             continue
         stock = entry.get("stock")
         identity = [entry, stock] if isinstance(stock, dict) else [entry]
-        name = _field(identity, ("stockName", "itemName", "name", "displayName"))
-        symbol = _field(identity, ("itemCode", "code", "symbol"))
+        name = _field(identity, ("stockName", "itemName", "itemname", "name", "displayName"))
+        symbol = _field(identity, ("itemCode", "itemcode", "code", "symbol"))
         if not name or not symbol:
             continue
 
         quote = _price_sources(entry)
-        price = _number(_field(quote, ("closePrice", "currentPrice", "tradePrice", "price")))
-        change = _number(_field(quote, ("fluctuationsRatio", "changeRate", "changePct")))
+        price = _number(_field(quote, ("closePrice", "currentPrice", "nowPrice", "tradePrice", "price")))
+        change = _number(_field(quote, ("fluctuationsRatio", "prevChangeRate", "changeRate", "changePct")))
         amount_raw = _field(
             quote,
             ("accumulatedTradingValue", "tradingValue", "tradingAmount"),
