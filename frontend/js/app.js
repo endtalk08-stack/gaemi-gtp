@@ -23,7 +23,6 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
 
     // Persist only completed conversation content; no additional AI or market requests.
     const CHAT_HISTORY_KEY = 'gaemiGTP_chat_history_v1';
-    const CHAT_HISTORY_LIMIT = 10;
     let nextConversationKey = 0;
     function newConversationKey() {
       return 'conversation:' + Date.now().toString(36) + '-' + (++nextConversationKey).toString(36) + '-' + Math.random().toString(36).slice(2, 9);
@@ -70,6 +69,9 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       if (!session) return false;
       session.recentId = recentId;
       if (saved.stock) {
+        if (window.GaemiGTPAnalysisData?.get?.()?.stockName !== saved.stock) {
+          window.GaemiGTPAnalysisData?.set?.(saved.stock, {});
+        }
         activeStock = saved.stock;
         window.GaemiGTPActiveStock = saved.stock;
       }
