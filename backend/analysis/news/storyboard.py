@@ -397,6 +397,43 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
             for a, b in zip(left_facts[1:], right_facts[1:])
         )
 
+    def _same_verified_business_event(source, previous):
+        """Merge different-headline reports sharing a concrete, verified event."""
+        first = str(source.get("_central_checked_body") or "")
+        second = str(previous.get("_central_checked_body") or "")
+        if not first or not second:
+            return False
+        left_owner = str(source.get("event_owner") or "").strip()
+        right_owner = str(previous.get("event_owner") or "").strip()
+        if left_owner and right_owner and left_owner != right_owner:
+            return False
+
+        event_actions = (
+            ("contract", r"공급\s*계약|계약\s*체결|신규\s*수주|장기\s*계약"),
+            ("factory", r"(?:공장|생산\s*시설|생산\s*라인).{0,24}(?:증설|확장|건설)"),
+            ("investment", r"(?<![가-힣])투자(?:를|금|하기로|할|에|계획|확대|를\s*결정)"),
+            ("buyback", r"자사주.{0,20}(?:소각|매입|취득)"),
+            ("product", r"(?:신제품|제품|신형\s*모델).{0,20}(?:공개|출시)"),
+        )
+        left_actions = {
+            label for label, pattern in event_actions
+            if re.search(pattern, first, flags=re.IGNORECASE)
+        }
+        right_actions = {
+            label for label, pattern in event_actions
+            if re.search(pattern, second, flags=re.IGNORECASE)
+        }
+        if not left_actions.intersection(right_actions):
+            return False
+
+        a = _body_event_facts(source)
+        b = _body_event_facts(previous)
+        # Shared strong identifying facts, not merely a shared topic,
+        # establish that different reports describe the same event.
+        if any(left and right and left.isdisjoint(right) for left, right in zip(a, b)):
+            return False
+        return any(left & right for left, right in zip(a, b))
+
     def _same_selected_event(source, keyword, previous):
         # Distinct investment budgets/destination countries are separate
         # announcements even if publishers use identical headlines.
@@ -441,6 +478,8 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
                     return False
             body_similarity = SequenceMatcher(None, body, previous_body).ratio()
             shared_fact = any(left & right for left, right in zip(source_facts, previous_facts))
+            if _same_verified_business_event(source, previous):
+                return True
             if _keywords_overlap(keyword, previous_keyword):
                 return (
                     (shared_fact and headline_similarity >= 0.55)
