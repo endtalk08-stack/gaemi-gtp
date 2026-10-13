@@ -35,6 +35,9 @@
             item.classList.toggle('bg-[#eef2f7]', active);
             item.classList.toggle('dark:bg-[#272a31]', active);
             item.classList.toggle('gtp-dark-text', active);
+            item.classList.toggle('text-[#0f172a]', active);
+            item.classList.toggle('text-[#64748b]', !active);
+            item.classList.toggle('dark:text-[#a1a1aa]', !active);
             item.setAttribute('aria-pressed', String(active));
           });
         });
