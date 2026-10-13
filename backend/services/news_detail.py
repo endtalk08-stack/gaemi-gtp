@@ -433,7 +433,9 @@ def read_selected_article_details(items, limit=3, with_sources=False):
                 continue
             if parsed.scheme not in {"http", "https"} or not parsed.netloc:
                 continue
-            jobs[pool.submit(_read_url, url, with_source=with_sources)] = index
+            job = (pool.submit(_read_url, url, with_source=True)
+                   if with_sources else pool.submit(_read_url, url))
+            jobs[job] = index
 
         for future in as_completed(jobs):
             index = jobs[future]
