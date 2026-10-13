@@ -16,6 +16,9 @@ US_QUOTE_CACHE_TTL = 15
 DAILY_HISTORY_CACHE = {}
 INTRADAY_HISTORY_CACHE = {}
 INTRADAY_HISTORY_CACHE_TTL = 60
+# Ranking feeds share a bounded, process-local cache. No DB or persistent writes.
+MARKET_RANKING_CACHE = {}
+
 
 
 def _get_lock(key):
@@ -396,34 +399,51 @@ def fetch_us_stock_quote(ticker):
         return result
 
 
-def fetch_kr_trading_value_ranking_raw(limit=20):
-    """Fetch the market-wide Korean trading-value ranking from Naver.
+def _fetch_naver_market_ranking_raw(cache_key, path, query_params, ttl_seconds):
+    """Single-flight, short-lived source cache shared by market ranking menus.
 
-    Keep collection in the existing price provider. Return the original
-    payload without storing a second copy or estimating value from volume.
+    Cache only verified successful payloads. An outage never becomes a fake
+    empty result and never silently serves an unlabelled stale ranking.
     """
-    size = max(1, min(int(limit), 20))
-    query = urllib.parse.urlencode({
-        "listingType": "tradingValueDesc",
-        "exchangeType": "consolidated",
-        "index": 0,
-        "size": size,
-    })
-    url = "https://stock.naver.com/api/stockSecurity/individual-stocks/v3/domestic?" + query
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://stock.naver.com/",
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
-            raise ValueError("unexpected trading-value ranking payload")
+    now = time.monotonic()
+    cached = MARKET_RANKING_CACHE.get(cache_key)
+    if cached and now - cached[0] < ttl_seconds:
+        return cached[1]
+
+    with _get_lock(("market-ranking", cache_key)):
+        now = time.monotonic()
+        cached = MARKET_RANKING_CACHE.get(cache_key)
+        if cached and now - cached[0] < ttl_seconds:
+            return cached[1]
+
+        url = "https://stock.naver.com" + path + "?" + urllib.parse.urlencode(query_params)
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://stock.naver.com/",
+                "Accept": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+                raise ValueError("unexpected market ranking payload")
+        except Exception as exc:
+            print(f"[시장 순위 원천] {cache_key} 조회 실패: {type(exc).__name__}: {exc}", flush=True)
+            return None
+
+        MARKET_RANKING_CACHE[cache_key] = (time.monotonic(), payload)
         return payload
-    except Exception as exc:
-        print(f"[국내 거래대금 원천] 조회 실패: {type(exc).__name__}: {exc}")
-        return None
+
+
+def fetch_kr_trading_value_ranking_raw(limit=20):
+    """Read the Korean trading-value top 20 using the existing price provider."""
+    size = max(1, min(int(limit), 20))
+    return _fetch_naver_market_ranking_raw(
+        ("kr", "trading-value", size),
+        "/api/stockSecurity/individual-stocks/v3/domestic",
+        {"listingType": "tradingValueDesc", "exchangeType": "consolidated", "index": 0, "size": size},
+        ttl_seconds=30,
+    )
