@@ -154,6 +154,18 @@ class CentralArticleExcerptTests(unittest.TestCase):
         self.assertEqual(brief["tags"], [])
         self.assertEqual(brief["summary"], body)
 
+    def test_known_label_fallback_still_requires_visible_body_evidence(self):
+        body = (
+            "회사가 차세대 AI 데이터센터를 구축할 계획이라고 설명했다. "
+            "구체적인 설치 일정은 내년에 공개할 예정이다."
+        )
+        row = dict(self._source_row(), storyboard_keywords=["원화강세"])
+        brief = build_issue_briefs([row], "삼성전자", body_texts=[body])[0]
+        self.assertEqual(brief["headline"], "AI 데이터센터 이슈")
+        self.assertEqual(brief["tags"], ["AI데이터센터"])
+        self.assertNotIn("원화강세", brief["tags"])
+        self.assertEqual(brief["summary"], body)
+
     def test_legacy_call_uses_existing_headline_and_keywords(self):
         row = dict(self._source_row(), storyboard_keywords=["자사주소각"])
         brief = build_issue_briefs([row], "셀트리온")[0]
