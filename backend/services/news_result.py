@@ -66,14 +66,14 @@ def _central_direct_article(article, original_excerpt, stock_name):
         # News often names the company in the title and uses 'the company'
         # in its first or second sentence. Do not require the name again.
         return bool(re.search(
-            r"(?:^|[.!?]\\s+|[,，]\\s+)(?:이\\s*)?"
+            r"(?:^|[.!?]\s+|[,，]\s+)(?:이\s*)?"
             r"(?:회사|동사|기업|업체)(?:는|가|의|측은|측이)",
             excerpt,
         ))
     if body_has_stock:
         # A generic headline is acceptable only if the selected company
         # clearly appears as the subject at the beginning of the article.
-        opening = re.split(r"(?<=[.!?])\\s+", excerpt, maxsplit=1)[0]
+        opening = re.split(r"(?<=[.!?])\s+", excerpt, maxsplit=1)[0]
         return _central_stock_mentioned(opening[:180], stock_name)
     return False
 
