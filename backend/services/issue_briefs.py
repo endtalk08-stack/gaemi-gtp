@@ -456,6 +456,91 @@ def _article_excerpt(text, limit=3):
     return " ".join(selected)
 
 
+
+# Display-only topics: evidence must appear in the actual central excerpt.
+# The earlier storyboard keywords still control article selection, not the title.
+_BODY_DISPLAY_TOPICS = (
+    ("한미동맹", "한미 동맹", r"한\s*[·\-]?\s*미\s*동맹"),
+    ("국익외교", "국익 외교", r"국익\s*외교"),
+    ("행정수도", "행정수도", r"행정수도|세종\s*이전"),
+    ("외교안보", "외교·안보", r"외교\s*[·/및과\s]{1,6}안보"),
+    ("AI반도체", "AI 반도체", r"(?:AI|인공지능\s*(?:\(AI\))?)\s*반도체"),
+    ("HBM4", "HBM4", r"\bHBM\s*4(?:E)?\b"),
+    ("HBM3E", "HBM3E", r"\bHBM\s*3E\b"),
+    ("HBM", "HBM", r"\bHBM\b(?!\w)|고대역폭\s*메모리"),
+    ("AI서버", "AI 서버", r"(?:AI|인공지능)\s*서버"),
+    ("기판공급부족", "기판 공급 부족", r"기판.{0,18}공급\s*부족"),
+    ("스마트폰수요둔화", "스마트폰 수요 둔화", r"스마트폰[^.!?\n]{0,80}?수요(?:는|가)?\s*(?:둔화|부진|감소)|스마트폰[^.!?\n]{0,24}?부진"),
+    ("반도체공급부족", "반도체 공급 부족", r"반도체.{0,18}공급\s*부족"),
+    ("자사주소각", "자사주 소각", r"(?:자사주|자기\s*주식).{0,10}소각"),
+    ("자사주매입", "자사주 매입", r"(?:자사주|자기\s*주식).{0,10}(?:매입|취득)"),
+    ("전환사채발행", "전환사채 발행", r"전환사채.{0,12}발행"),
+    ("공급계약", "공급 계약", r"공급\s*계약|장기\s*공급\s*계약"),
+    ("대형수주", "수주", r"(?:신규|대형)\s*수주|수주\s*계약"),
+    ("설비투자", "설비 투자", r"설비\s*투자|생산\s*시설.{0,10}투자"),
+    ("해외투자", "해외 투자", r"해외\s*투자|해외.{0,12}투자\s*확대"),
+    ("생산확대", "생산 확대", r"생산\s*(?:능력|량)?\s*(?:확대|증설)"),
+    ("양산개시", "양산 개시", r"양산\s*(?:시작|개시|출하)"),
+    ("실적발표", "실적 발표", r"(?:잠정|분기|연간)\s*실적|실적\s*(?:발표|공시)"),
+    ("매출증가", "매출 증가", r"매출.{0,15}(?:증가|성장|상승)"),
+    ("영업이익증가", "영업이익 증가", r"영업\s*이익.{0,15}(?:증가|상승|개선)"),
+    ("임상시험", "임상시험", r"임상\s*(?:시험|\d상)"),
+    ("품목허가", "품목 허가", r"품목\s*허가|FDA\s*승인"),
+    ("외국인매도", "외국인 매도", r"외국인.{0,16}(?:순\s*매도|매도세|매도)"),
+    ("외국인매수", "외국인 매수", r"외국인.{0,16}(?:순\s*매수|매수세|매수)"),
+    ("원화강세", "원화 강세", r"원화\s*강세"),
+    ("원화약세", "원화 약세", r"원화\s*약세"),
+    ("환율상승", "환율 상승", r"환율.{0,8}(?:상승|급등)"),
+    ("환율하락", "환율 하락", r"환율.{0,8}(?:하락|급락)"),
+    ("반도체규제", "반도체 규제", r"반도체.{0,18}(?:규제|수출\s*통제)"),
+    ("수출규제", "수출 규제", r"수출\s*(?:규제|통제)"),
+    ("관세", "관세", r"관세\s*(?:인상|부과|인하|유예|협상)"),
+    ("전기차판매", "전기차 판매", r"전기차.{0,16}(?:판매|인도량)"),
+    ("반도체업황", "반도체 업황", r"반도체.{0,12}(?:시장|업황|경쟁)"),
+)
+
+
+def _body_title_and_tags(excerpt):
+    """Make only display title/tags from evidenced phrases in shown sentences.
+
+    Never reuse upstream selection labels if the visible text does not support
+    them. A neutral title and no hashtags are safer than a false topic.
+    """
+    matches = []
+    for tag, heading, pattern in _BODY_DISPLAY_TOPICS:
+        found = re.search(pattern, excerpt, flags=re.IGNORECASE)
+        if found:
+            matches.append((found.start(), -len(found.group()), found.end(), tag, heading))
+
+    if not matches:
+        # Reuse known display labels when their words actually occur in the
+        # excerpt; unknown upstream labels must never leak into the headline.
+        compact_excerpt = re.sub(r"\s+", "", excerpt).casefold()
+        for tag, heading in _CENTRAL_LABEL_TEXT.items():
+            phrase = re.sub(r"\s+", "", heading).casefold()
+            if len(phrase) < 4:
+                continue
+            position = compact_excerpt.find(phrase)
+            if position >= 0:
+                matches.append((position, -len(phrase), position + len(phrase), tag, heading))
+
+    matches.sort()
+    tags = []
+    used_ranges = []
+    main_heading = ""
+    for start, _, end, tag, heading in matches:
+        # A long phrase and its substring are one topic, not two hashtags.
+        if any(start < old_end and end > old_start for old_start, old_end in used_ranges):
+            continue
+        if not main_heading:
+            main_heading = heading
+        tags.append(tag)
+        used_ranges.append((start, end))
+        if len(tags) == 3:
+            break
+    return (f"{main_heading} 이슈" if main_heading else "기사 주요 내용"), tags
+
+
 def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []
@@ -508,6 +593,11 @@ def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
         display_tags = _central_display_tags(labels)
         if concrete_subject and concrete_subject not in display_tags:
             display_tags = [concrete_subject, *display_tags][:3]
+
+        # Only the central title/hashtags switch to the already-shown excerpt.
+        # Do not modify the summary, selected article, ownership or reaction data.
+        if body_texts is not None:
+            display_headline, display_tags = _body_title_and_tags(article_summary)
 
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),

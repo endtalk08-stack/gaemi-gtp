@@ -107,5 +107,72 @@ class CentralArticleExcerptTests(unittest.TestCase):
         self.assertEqual(result, [{"text": "", "source": "fetch_failed"}])
 
 
+    def test_diplomacy_excerpt_does_not_inherit_currency_title_or_tag(self):
+        body = (
+            "한·미 동맹을 외교의 축으로 삼으면서도 주변 강국과의 관계를 "
+            "관리하겠다는 정부의 실용적 국익 외교가 논의되고 있다. "
+            "중앙행정기관의 세종 이전은 행정수도 완성의 청사진을 보여준다. "
+            "코스피는 중국발 반도체 경쟁 우려와 외국인 매도에 하락했다."
+        )
+        row = dict(self._source_row(), storyboard_keywords=["원화강세"])
+        brief = build_issue_briefs([row], "삼성전자", body_texts=[body])[0]
+        self.assertEqual(brief["summary"], body)
+        self.assertEqual(brief["headline"], "한미 동맹 이슈")
+        self.assertEqual(brief["tags"], ["한미동맹", "국익외교", "행정수도"])
+        self.assertNotIn("원화강세", brief["tags"])
+
+    def test_semiconductor_excerpt_does_not_inherit_foreign_sell_topic(self):
+        body = (
+            "인공지능(AI) 반도체 시장의 성장세가 이어지는 가운데 스마트폰 수요 둔화로 "
+            "전자부품 업계의 희비가 엇갈리고 있다. "
+            "AI 서버용 기판은 공급 부족이 지속되고 있으며 스마트폰 부품업체는 수요 부진에 직면했다. "
+            "국내 증시가 급락하며 관련 업체에도 하락 압력이 나타났다."
+        )
+        row = dict(self._source_row(), storyboard_keywords=["외국인매도"])
+        brief = build_issue_briefs([row], "삼성전자", body_texts=[body])[0]
+        self.assertEqual(brief["summary"], body)
+        self.assertEqual(brief["headline"], "AI 반도체 이슈")
+        self.assertEqual(brief["tags"], ["AI반도체", "스마트폰수요둔화", "AI서버"])
+        self.assertNotIn("외국인매도", brief["tags"])
+
+    def test_celltrion_excerpt_title_and_tags_follow_body(self):
+        row = dict(self._source_row(), storyboard_keywords=["원화강세"])
+        brief = build_issue_briefs([row], "셀트리온", body_texts=[CELLTRION_BODY])[0]
+        self.assertEqual(brief["headline"], "자사주 소각 이슈")
+        self.assertIn("자사주소각", brief["tags"])
+        self.assertNotIn("원화강세", brief["tags"])
+        self.assertEqual(brief["summary"], CELLTRION_BODY)
+
+    def test_no_supported_topic_uses_neutral_title_without_false_hashtags(self):
+        body = (
+            "관계자들이 어제 발표된 다양한 현안과 일정을 검토했다. "
+            "회의에서 논의된 내용은 추후 검토를 거쳐 다시 발표하기로 했다."
+        )
+        row = dict(self._source_row(), storyboard_keywords=["외국인매도"])
+        brief = build_issue_briefs([row], "셀트리온", body_texts=[body])[0]
+        self.assertEqual(brief["headline"], "기사 주요 내용")
+        self.assertEqual(brief["tags"], [])
+        self.assertEqual(brief["summary"], body)
+
+    def test_known_label_fallback_still_requires_visible_body_evidence(self):
+        body = (
+            "회사가 차세대 AI 데이터센터를 구축할 계획이라고 설명했다. "
+            "구체적인 설치 일정은 내년에 공개할 예정이다."
+        )
+        row = dict(self._source_row(), storyboard_keywords=["원화강세"])
+        brief = build_issue_briefs([row], "삼성전자", body_texts=[body])[0]
+        self.assertEqual(brief["headline"], "AI 데이터센터 이슈")
+        self.assertEqual(brief["tags"], ["AI데이터센터"])
+        self.assertNotIn("원화강세", brief["tags"])
+        self.assertEqual(brief["summary"], body)
+
+    def test_legacy_call_uses_existing_headline_and_keywords(self):
+        row = dict(self._source_row(), storyboard_keywords=["자사주소각"])
+        brief = build_issue_briefs([row], "셀트리온")[0]
+        self.assertEqual(brief["headline"], "자사주 소각 이슈")
+        self.assertIn("자사주소각", brief["tags"])
+
+
+
 if __name__ == "__main__":
     unittest.main()
