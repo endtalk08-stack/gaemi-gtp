@@ -409,12 +409,12 @@ def fetch_kr_trading_value_ranking_raw(limit=20):
         "index": 0,
         "size": size,
     })
-    url = "https://m.stock.naver.com/api/stockSecurity/individual-stocks/v3/domestic?" + query
+    url = "https://stock.naver.com/api/stockSecurity/individual-stocks/v3/domestic?" + query
     request = urllib.request.Request(
         url,
         headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://m.stock.naver.com/",
+            "Referer": "https://stock.naver.com/",
             "Accept": "application/json",
         },
     )
