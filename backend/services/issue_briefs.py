@@ -561,9 +561,6 @@ _BODY_DISPLAY_TOPICS = (
     ("경영진교체", "경영진 교체",
      r"(?:대표이사|최고경영자|CEO|사장|회장)[^.!?]{0,35}?"
      r"(?:선임|사임|해임|교체|퇴임|취임)"),
-    ("사업진출", "신규 사업 진출",
-     r"(?:신규|새로운|해외|글로벌)[^.!?]{0,30}?(?:시장|사업)"
-     r"[^.!?]{0,25}?(?:진출|확대)|(?:시장|사업)\s*진출(?:을|에|에\s*나선다)?"),
     ("설비투자", "설비 투자", r"설비\s*투자|생산\s*시설.{0,10}투자"),
     ("해외투자", "해외 투자", r"해외\s*투자|해외.{0,12}투자\s*확대"),
     ("생산확대", "생산 확대", r"생산\s*(?:능력|량)?\s*(?:확대|증설)"),
@@ -597,6 +594,14 @@ def _body_title_and_tags(excerpt):
     for tag, heading, pattern in _BODY_DISPLAY_TOPICS:
         found = re.search(pattern, excerpt, flags=re.IGNORECASE)
         if found:
+            # Generic investment is only a fallback. Preserve the more
+            # specific evidenced investment heading when both occur.
+            if tag == "신규투자" and any(
+                re.search(specific, excerpt, flags=re.IGNORECASE)
+                for specific_tag, _, specific in _BODY_DISPLAY_TOPICS
+                if specific_tag in {"AI투자", "인도투자", "설비투자", "해외투자"}
+            ):
+                continue
             if tag == "인도투자":
                 budget = re.search(
                     r"(?<!\d)(\d[\d,]*(?:\.\d+)?)\s*억\s*달러"
