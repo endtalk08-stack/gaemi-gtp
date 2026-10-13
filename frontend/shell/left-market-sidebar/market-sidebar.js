@@ -49,6 +49,7 @@
     // Other tabs retain their existing UI and do not start new collectors.
     const list = sidebar.querySelector('#marketRankingList');
     const title = sidebar.querySelector('#rightListTitle');
+    const changeSortButton = sidebar.querySelector('#rightListMetric');
     const subtitle = sidebar.querySelector('.market-sidebar-subtitle');
     const initialMarkup = list?.innerHTML || '';
     const backendUrl = window.location.hostname.endsWith('github.io')
@@ -56,6 +57,21 @@
     let region = '국내';
     let tab = 'popular';
     let requestId = 0;
+    let changeSorted = false;
+
+    const applyChangeSort = () => {
+      if (!list) return;
+      const rows = [...list.querySelectorAll(':scope > button[data-original-index]')];
+      rows.sort((a, b) => changeSorted
+        ? (Number(b.dataset.changePct) - Number(a.dataset.changePct)) || (Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex))
+        : Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex));
+      rows.forEach((row, index) => {
+        const rank = row.querySelector('[data-market-rank]');
+        if (rank) rank.textContent = String(changeSorted ? index + 1 : row.dataset.originalRank).padStart(2, '0');
+        list.appendChild(row);
+      });
+      changeSortButton?.setAttribute('aria-pressed', String(changeSorted));
+    };
 
     const formatMoney = (value) => {
       if (typeof value !== 'number' || !Number.isFinite(value)) return null;
@@ -103,6 +119,10 @@
         }
         result.items.forEach((item, index) => {
           const button = document.createElement('button');
+          button.dataset.originalIndex = String(index);
+          button.dataset.originalRank = String(item.rank || index + 1);
+          button.dataset.changePct = typeof item.change_pct === 'number' && Number.isFinite(item.change_pct)
+            ? String(item.change_pct) : '-Infinity';
           button.type = 'button';
           button.className = 'w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer';
           button.addEventListener('click', () => window.openStockInChat?.(item.name));
@@ -111,6 +131,7 @@
           top.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start';
           const rank = document.createElement('span');
           rank.className = 'text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]';
+          rank.dataset.marketRank = 'true';
           rank.textContent = String(item.rank || index + 1).padStart(2, '0');
           const name = document.createElement('span');
           name.className = 'font-bold text-[13px] text-[#0f172a] gtp-dark-text truncate';
@@ -143,7 +164,7 @@
           const thirdRow = document.createElement('div');
           thirdRow.className = 'grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center min-h-[16px]';
           const industry = document.createElement('span');
-          industry.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] truncate';
+          industry.className = 'text-[11px] font-semibold text-sky-500 truncate';
           industry.textContent = typeof item.industry === 'string' ? item.industry : '';
           thirdRow.append(
             document.createElement('span'),
@@ -153,10 +174,16 @@
           button.append(top, secondRow, thirdRow);
           list.appendChild(button);
         });
+        applyChangeSort();
       } catch (_) {
         if (id === requestId) list.textContent = '순위 원천 데이터를 가져오지 못했어.';
       }
     };
+
+    changeSortButton?.addEventListener('click', () => {
+      changeSorted = !changeSorted;
+      applyChangeSort();
+    });
 
     bindStaticSelection('[data-legacy-region]');
     bindStaticSelection('[data-info-tab-action]');
