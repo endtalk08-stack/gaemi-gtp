@@ -24,6 +24,10 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     // Persist only completed conversation content; no additional AI or market requests.
     const CHAT_HISTORY_KEY = 'gaemiGTP_chat_history_v1';
     const CHAT_HISTORY_LIMIT = 10;
+    let nextConversationKey = 0;
+    function newConversationKey() {
+      return 'conversation:' + Date.now().toString(36) + '-' + (++nextConversationKey).toString(36) + '-' + Math.random().toString(36).slice(2, 9);
+    }
     function readChatHistory() {
       try {
         const value = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '{}');
@@ -31,7 +35,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       } catch (_) { return {}; }
     }
     function saveChatHistory() {
-      if (!activeChatSession?.recentId) return;
+      if (!activeChatSession?.recentId || activeChatSession.restoring) return;
       const history = readChatHistory();
       const id = activeChatSession.recentId;
       history[id] = {
@@ -41,13 +45,19 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           ...(Array.isArray(sections) ? { sections: sections.map(({ id, title, content }) => ({ id, title, content })) } : {})
         }))
       };
-      const keys = Object.keys(history);
-      for (const old of keys.slice(0, Math.max(0, keys.length - CHAT_HISTORY_LIMIT))) delete history[old];
+      const recentIds = window.GaemiGTPSidebarHome?.getRecentIds?.() || [];
+      if (recentIds.length) {
+        for (const key of Object.keys(history)) {
+          if (key.startsWith('conversation:') && !recentIds.includes(key)) delete history[key];
+        }
+      }
       try { localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history)); } catch (_) { /* storage unavailable */ }
     }
     function linkRecentConversation(type, value) {
       if (!activeChatSession) return;
-      activeChatSession.recentId = window.GaemiGTPSidebarHome?.recordRecent?.(type, value) || null;
+      if (activeChatSession.recentId) return;
+      const id = newConversationKey();
+      activeChatSession.recentId = window.GaemiGTPSidebarHome?.recordRecent?.(type, value, id) || null;
       saveChatHistory();
     }
     function restoreRecentConversation(recentId) {
@@ -63,6 +73,8 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         activeStock = saved.stock;
         window.GaemiGTPActiveStock = saved.stock;
       }
+      // Restore must not write partially rebuilt messages over the saved conversation.
+      session.restoring = true;
       for (const message of saved.messages) {
         if (message.kind === 'analysis' && Array.isArray(message.sections)) {
           session.messages.push({ id: ++nextChatMessageId, role: 'assistant', kind: 'analysis', sections: message.sections });
@@ -81,6 +93,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           appendChatMessage(message.role, message.text || '', message.kind || 'answer', session.id);
         }
       }
+      session.restoring = false;
       return true;
     }
 
