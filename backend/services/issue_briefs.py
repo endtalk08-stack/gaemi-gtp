@@ -437,9 +437,35 @@ def _brief_text(labels, themes, issues, stock_names, fallback_stock, summary_ind
     return display_headline, summary
 def _article_excerpt(text, limit=3):
     """Show up to three complete source sentences without rewriting content."""
-    content = re.sub(r"\s+", " ", str(text or "")).strip()
+    content = re.sub(r"[\ufeff\u200b\u2060]", "", str(text or ""))
+    content = re.sub(r"\s+", " ", content).strip()
     if not content:
         return ""
+
+    # Publishers sometimes place a heading or other lead-in before the AI
+    # disclosure. Remove only unmistakable notices in the opening section,
+    # rather than deleting or rewriting any factual article sentence.
+    opening, remainder = content[:1200], content[1200:]
+    for notice in (
+        r"(?<![가-힣A-Za-z0-9])(?:AI|인공지능(?:\s*\(AI\))?)(?:가|이)?\s*"
+        r"자동(?:으로)?\s*생성한\s*요약[^.!?]{0,240}[.!?]",
+        r"(?<![가-힣A-Za-z0-9])이\s*기사는\s*(?:인공지능(?:\s*\(AI\))?|AI)\s*번역"
+        r"(?=[^.!?]{0,350}(?:콘텐츠|원문|전문\s*기자))[^.!?]{0,450}[.!?]",
+    ):
+        opening = re.sub(notice, " ", opening, count=1, flags=re.IGNORECASE)
+
+    # A location/agency credit may follow those notices rather than lead the
+    # extraction. Its "reporter =" marker distinguishes it from actual news.
+    opening = re.sub(
+        r"(?<![가-힣A-Za-z0-9])(?:\([가-힣]{2,12}\s*=\s*[^()]{2,30}\)"
+        r"|\[[가-힣]{2,12}\s*=\s*[^\[\]]{2,30}\])\s*"
+        r"(?:(?:[가-힣]{2,4}(?:[·ㆍ,]\s*[가-힣]{2,4})*\s*)?"
+        r"(?:기자|특파원)\s*=\s*)?",
+        " ",
+        opening,
+        count=1,
+    )
+    content = re.sub(r"\s+", " ", opening + remainder).strip()
 
     # Strip only leading publication notes and bylines, even if notices come
     # before a reporter credit. Keep the actual article sentences unchanged.
@@ -497,6 +523,15 @@ _BODY_DISPLAY_TOPICS = (
     ("전환사채발행", "전환사채 발행", r"전환사채.{0,12}발행"),
     ("공급계약", "공급 계약", r"공급\s*계약|장기\s*공급\s*계약"),
     ("대형수주", "수주", r"(?:신규|대형)\s*수주|수주\s*계약"),
+    # An AI-company investment is a concrete event, even without facility or
+    # financial-amount wording. Only match investment explicitly stated in text.
+    ("AI투자", "AI 기업 투자",
+     r"(?:(?:프랑스|미국|중국|한국|일본|영국|독일|대만)\s+)?"
+     r"(?:AI|인공지능)(?:\s*\(AI\))?\s*기업(?:들)?\s*"
+     r"(?:에\s*대한|에|의)?\s*투자"),
+    ("AI투자", "AI 투자",
+     r"(?:AI|인공지능)(?:\s*\(AI\))?\s*(?:분야|기술|산업|생태계)?"
+     r"(?:에\s*대한|에)?\s*투자"),
     ("설비투자", "설비 투자", r"설비\s*투자|생산\s*시설.{0,10}투자"),
     ("해외투자", "해외 투자", r"해외\s*투자|해외.{0,12}투자\s*확대"),
     ("생산확대", "생산 확대", r"생산\s*(?:능력|량)?\s*(?:확대|증설)"),
@@ -530,6 +565,13 @@ def _body_title_and_tags(excerpt):
     for tag, heading, pattern in _BODY_DISPLAY_TOPICS:
         found = re.search(pattern, excerpt, flags=re.IGNORECASE)
         if found:
+            if tag == "AI투자" and heading == "AI 기업 투자":
+                country = re.match(
+                    r"(프랑스|미국|중국|한국|일본|영국|독일|대만)\s+",
+                    found.group(),
+                )
+                if country:
+                    heading = f"{country.group(1)} {heading}"
             matches.append((found.start(), -len(found.group()), found.end(), tag, heading))
 
     if not matches:
@@ -551,6 +593,8 @@ def _body_title_and_tags(excerpt):
     for start, _, end, tag, heading in matches:
         # A long phrase and its substring are one topic, not two hashtags.
         if any(start < old_end and end > old_start for old_start, old_end in used_ranges):
+            continue
+        if tag in tags:
             continue
         if not main_heading:
             main_heading = heading
