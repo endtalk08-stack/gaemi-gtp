@@ -31,6 +31,31 @@ def _field(objects, names):
     return None
 
 
+def _industry_from_entry(entry):
+    """Use only industry labels already inside the same Naver ranking payload.
+
+    Never look up a symbol separately or infer an industry from other fields.
+    """
+    price = entry.get("price")
+    stock = entry.get("stock")
+    sources = [entry, stock, price]
+    if isinstance(price, dict):
+        sources.extend((price.get("krx"), price.get("nxt")))
+    sources.extend((entry.get("krx"), entry.get("nxt")))
+
+    names = ("industryName", "sectorName", "upjongName",
+             "industryNameEng", "sectorNameEng",
+             "industry", "sector", "upjong")
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for name in names:
+            label = source.get(name)
+            if isinstance(label, str) and label.strip():
+                return label.strip()
+    return None
+
+
 def _rank(entry, position):
     """Use the source ranking where available, preserving real rank gaps."""
     value = _field([entry], ("ranking", "rank"))
@@ -104,6 +129,7 @@ def _normalize_kr_stock_rows(raw, limit):
             "rank": _rank(entry, len(items) + 1),
             "name": str(name),
             "symbol": str(symbol),
+            "industry": _industry_from_entry(entry),
             "price": price,
             "change_pct": change,
             "trading_value": amount,
@@ -147,6 +173,7 @@ def _normalize_us_stock_rows(raw, limit):
                         else None)
         items.append({
             "rank": _rank(entry, len(items) + 1), "name": str(name), "symbol": str(symbol),
+            "industry": _industry_from_entry(entry),
             "price": price, "change_pct": change,
             "trading_value": amount, "trading_value_text": amount_label,
         })

@@ -138,13 +138,16 @@
             ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '';
           secondRow.append(turnover, change);
 
-          // Preserve the existing third-row space without inventing industry
-          // or rising/falling explanations that have no verified source.
+          // Reuse the industry name from the same ranking result only.
+          // Keep the original third row and its blank slots when not provided.
           const thirdRow = document.createElement('div');
           thirdRow.className = 'grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center min-h-[16px]';
+          const industry = document.createElement('span');
+          industry.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] truncate';
+          industry.textContent = typeof item.industry === 'string' ? item.industry : '';
           thirdRow.append(
             document.createElement('span'),
-            document.createElement('span'),
+            industry,
             document.createElement('span')
           );
           button.append(top, secondRow, thirdRow);

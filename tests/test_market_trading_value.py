@@ -158,6 +158,70 @@ class MarketTradingValueTests(unittest.TestCase):
         self.assertIsNone(items[0]["price"])
         self.assertIsNone(items[0]["change_pct"])
 
+    def test_kr_value_industry_reuses_same_ranking_payload(self):
+        raw = {"items": [
+            {"itemCode": "005930", "stockName": "삼성전자",
+             "industryName": "전기·전자", "closePrice": "100000"},
+            {"itemCode": "000660", "stockName": "SK하이닉스",
+             "price": {"krx": {"currentPrice": "200000",
+                               "upjongName": "반도체"}}},
+        ]}
+        with patch.object(market_rankings, "fetch_kr_trading_value_ranking_raw", return_value=raw) as fetch:
+            items = market_rankings.build_kr_trading_value_result()
+        fetch.assert_called_once_with(limit=20)
+        self.assertEqual([item["industry"] for item in items], ["전기·전자", "반도체"])
+
+    def test_kr_popular_industry_reads_nested_price_without_extra_fetch(self):
+        raw = {"items": [
+            {"itemCode": "005930", "price": {
+                "itemName": "삼성전자", "industryName": "전기·전자",
+                "krx": {"currentPrice": "234000", "changeRate": "-6.59"}}},
+            {"itemCode": "000660", "price": {
+                "itemName": "SK하이닉스", "krx": {"currentPrice": "200000"}}},
+        ]}
+        with patch.object(market_rankings, "fetch_kr_popular_ranking_raw", return_value=raw) as fetch:
+            items = market_rankings.build_kr_popular_result()
+        fetch.assert_called_once_with(limit=20)
+        self.assertEqual(items[0]["industry"], "전기·전자")
+        self.assertIsNone(items[1]["industry"])
+
+    def test_us_value_industry_reads_source_price_sector(self):
+        raw = {"items": [
+            {"itemCode": "NVDA.O", "stockName": "NVIDIA",
+             "price": {"currentPrice": "180.00", "sectorName": "반도체"}},
+            {"itemCode": "AAPL.O", "stockName": "Apple",
+             "sectorName": "기술", "price": "210.00"},
+        ]}
+        with patch.object(market_rankings, "fetch_us_trading_value_ranking_raw", return_value=raw) as fetch:
+            items = market_rankings.build_us_trading_value_result()
+        fetch.assert_called_once_with(limit=20)
+        self.assertEqual([item["industry"] for item in items], ["반도체", "기술"])
+
+    def test_us_popular_industry_matches_observed_naver_response(self):
+        raw = {"items": [
+            {"ranking": "1", "itemCode": "SKHY.O",
+             "price": {"itemName": "SK하이닉스 ADR", "currentPrice": "162.2300",
+                       "changeRate": "-4.0230", "sectorName": "반도체"}},
+            {"ranking": "2", "itemCode": "NVDA.O",
+             "price": {"itemName": "NVIDIA", "currentPrice": "190.0"}},
+        ]}
+        with patch.object(market_rankings, "fetch_us_popular_ranking_raw", return_value=raw) as fetch:
+            items = market_rankings.build_us_popular_result()
+        fetch.assert_called_once_with(limit=20)
+        self.assertEqual(items[0]["industry"], "반도체")
+        self.assertIsNone(items[1]["industry"])
+
+    def test_industry_is_not_inferred_from_market_or_invalid_payload(self):
+        raw = {"items": [
+            {"itemCode": "005930", "stockName": "삼성전자",
+             "marketType": "KOSPI", "sectorName": {"name": "추론 금지"}},
+            {"itemCode": "000660", "stockName": "SK하이닉스",
+             "price": {"industryName": "   "}},
+        ]}
+        with patch.object(market_rankings, "fetch_kr_trading_value_ranking_raw", return_value=raw):
+            items = market_rankings.build_kr_trading_value_result()
+        self.assertEqual([item["industry"] for item in items], [None, None])
+
     def test_popularity_is_cached_separately_from_turnover(self):
         market_price.MARKET_RANKING_CACHE.clear()
         class Response:
