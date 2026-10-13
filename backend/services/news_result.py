@@ -11,7 +11,7 @@ from backend.analysis.news import (
     select_keyword_storyboard_news,
 )
 
-from .issue_briefs import _article_excerpt, build_issue_briefs
+from .issue_briefs import _article_excerpt, build_issue_briefs, central_material_brief_supported
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
 
@@ -78,6 +78,36 @@ def _central_direct_article(article, original_excerpt, stock_name):
     return False
 
 
+def _central_obvious_price_report(item):
+    """Skip formulaic trading prints before they crowd out event candidates.
+
+    Conservative, central-only prefilter: the verified article check remains
+    authoritative for ambiguous or catalyst-driven price reports.
+    """
+    text = f"{item.get('title') or ''} {item.get('description') or ''}"
+    snapshot_hits = sum(bool(re.search(pattern, text, flags=re.IGNORECASE)) for pattern in (
+        r"전\s*거래일\s*(?:보다|대비)",
+        r"(?:등락률|장중\s*변동폭)",
+        r"(?:고가|최고가)[^.!?]{0,75}?(?:저가|최저가)",
+        r"(?:원|달러)에\s*거래(?:됐다|되었|되고|중)",
+        r"(?:오전|오후)?\s*\d{1,2}시\s*\d{0,2}분?\s*(?:현재|기준)",
+    ))
+    if snapshot_hits < 2:
+        return False
+    if re.search(
+        r"공급\s*계약|수주\s*계약|계약\s*체결|"
+        r"(?:공장|생산\s*시설).{0,24}(?:증설|확장|건설)|"
+        r"자사주\s*(?:매입|소각|취득)|"
+        r"(?:투자|실적|매출|영업\s*이익).{0,22}(?:발표|계획|확대|증가|감소)|"
+        r"외국인.{0,12}(?:순\s*매도|순\s*매수)|"
+        r"허가\s*승인|목표\s*주가\s*(?:상향|하향)",
+        text,
+        flags=re.IGNORECASE,
+    ):
+        return False
+    return True
+
+
 def build_stock_news_result(
     stock_name,
     *,
@@ -132,7 +162,7 @@ def build_stock_news_result(
         # Rank more candidates without discarding similar headlines yet.
         # A verified body decides relevance and whether two reports are one event.
         candidate_news = select_keyword_storyboard_news(
-            paired_news_items,
+            [row for row in paired_news_items if not _central_obvious_price_report(row)],
             limit=max(9, storyboard_limit * 4),
             candidate_pool=True,
         )
@@ -152,6 +182,10 @@ def build_stock_news_result(
                     continue
                 excerpt = _article_excerpt(detail.get("text") or "")
                 if not excerpt or not _central_direct_article(article, excerpt, stock_name):
+                    continue
+                # Only a grounded business/market event belongs in the central
+                # notable-news strip. Quote-only reports stay in the shared feed.
+                if not central_material_brief_supported(excerpt):
                     continue
                 candidate = dict(article)
                 # Only the central, body-verified copy becomes a direct candidate.
