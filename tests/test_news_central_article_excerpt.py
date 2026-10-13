@@ -41,6 +41,25 @@ class CentralArticleExcerptTests(unittest.TestCase):
         self.assertEqual(result[0]["reaction_at"], "2026-10-13T11:30:00+09:00")
         self.assertNotIn("관련 이슈가 있어", result[0]["summary"])
 
+    def test_article_byline_prefixes_are_hidden_without_changing_body(self):
+        prefixes = (
+            "(서울=연합뉴스) 박초롱 기자 = ",
+            "[서울=뉴스1] 홍길동 기자= ",
+            "연합뉴스 박초롱 기자 = ",
+            "홍길동 기자 = ",
+            "(서울=뉴시스) ",
+        )
+        for prefix in prefixes:
+            with self.subTest(prefix=prefix):
+                self.assertEqual(_article_excerpt(prefix + CELLTRION_BODY), CELLTRION_BODY)
+
+    def test_news_agency_and_reporter_mentions_inside_body_are_kept(self):
+        body = (
+            "삼성전자는 신제품 생산을 확대하겠다고 밝혔다. "
+            "연합뉴스는 후속 기사에서 박초롱 기자가 취재 내용을 설명했다고 전했다."
+        )
+        self.assertEqual(_article_excerpt(body), body)
+
     def test_no_article_body_means_no_central_brief(self):
         result = build_issue_briefs([self._source_row()], "셀트리온", body_texts=[""])
         self.assertEqual(result, [])

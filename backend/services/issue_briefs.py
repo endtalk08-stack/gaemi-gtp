@@ -441,6 +441,22 @@ def _article_excerpt(text, limit=3):
     if not content:
         return ""
 
+    # Strip a publisher/location credit and reporter byline only at the start.
+    # Preserve the article's first factual sentence and all later mentions.
+    content = re.sub(
+        r"^(?:\([가-힣]{2,12}\s*=\s*[^()]{2,30}\)"
+        r"|\[[가-힣]{2,12}\s*=\s*[^\[\]]{2,30}\])\s*",
+        "",
+        content,
+    )
+    content = re.sub(
+        r"^(?:(?:연합뉴스|뉴시스|뉴스1)\s+)?"
+        r"(?:[가-힣]{2,4}(?:[·ㆍ,]\s*[가-힣]{2,4})*\s*)?"
+        r"(?:기자|특파원)\s*=\s*",
+        "",
+        content,
+    )
+
     sentences = re.split(r'(?<=[.!?])\s+(?=[가-힣A-Za-z0-9"“‘(])', content)
     selected = []
     for sentence in sentences:
