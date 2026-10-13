@@ -102,27 +102,44 @@
           const top = document.createElement('div');
           top.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start';
           const rank = document.createElement('span');
-          rank.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa]';
+          rank.className = 'text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]';
           rank.textContent = String(item.rank || index + 1).padStart(2, '0');
           const name = document.createElement('span');
-          name.className = 'font-semibold text-[13px] text-[#0f172a] gtp-dark-text truncate';
+          name.className = 'font-bold text-[13px] text-[#0f172a] gtp-dark-text truncate';
           name.textContent = item.name;
           const price = document.createElement('span');
-          price.className = 'font-semibold text-[13px] text-[#0f172a] gtp-dark-text text-right';
-          price.textContent = typeof item.price === 'number'
-            ? item.price.toLocaleString('ko-KR') + '원' : '—';
+          price.className = 'font-black text-[13px] text-[#0f172a] gtp-dark-text text-right';
+          price.textContent = typeof item.price === 'number' && Number.isFinite(item.price)
+            ? item.price.toLocaleString('ko-KR') + '원' : '';
           top.append(rank, name, price);
 
-          const bottom = document.createElement('div');
-          bottom.className = 'flex justify-between pl-8 mt-1 text-[11px] text-[#64748b] dark:text-[#a1a1aa]';
+          // Match popular ranking's second row; display turnover in the blank
+          // cell beneath the stock name and leave the change at the right.
+          const secondRow = document.createElement('div');
+          secondRow.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5';
+          secondRow.appendChild(document.createElement('span'));
           const turnover = document.createElement('span');
-          turnover.textContent = '거래대금 ' + (formatMoney(item.trading_value) || item.trading_value_text || '—');
+          turnover.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] truncate';
+          const amount = formatMoney(item.trading_value) || item.trading_value_text;
+          turnover.textContent = amount ? '거래대금 ' + amount : '';
           const change = document.createElement('span');
           const pct = item.change_pct;
-          change.textContent = typeof pct === 'number' ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '—';
-          change.className = pct > 0 ? 'text-rose-500' : pct < 0 ? 'text-sky-500' : '';
-          bottom.append(turnover, change);
-          button.append(top, bottom);
+          change.className = 'text-[11px] font-bold text-right' +
+            (pct > 0 ? ' text-rose-500' : pct < 0 ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
+          change.textContent = typeof pct === 'number' && Number.isFinite(pct)
+            ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '';
+          secondRow.append(turnover, change);
+
+          // Preserve the existing third-row space without inventing industry
+          // or rising/falling explanations that have no verified source.
+          const thirdRow = document.createElement('div');
+          thirdRow.className = 'grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center';
+          thirdRow.append(
+            document.createElement('span'),
+            document.createElement('span'),
+            document.createElement('span')
+          );
+          button.append(top, secondRow, thirdRow);
           list.appendChild(button);
         });
       } catch (_) {
