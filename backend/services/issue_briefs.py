@@ -1,9 +1,8 @@
-"""Build original, fact-bounded issue briefs from collected news metadata.
+"""Build central issue briefs from the shared stock-news selection.
 
-The central "notable flow" never receives an article title or description.
-Those source fields are used only as evidence by the earlier classifier.  This
-module turns its structured results into a short, consistent briefing that is
-safe to render without repeating publisher wording.
+When a verified article body is supplied, the central summary uses original
+source sentences in their original order. The keyword-based legacy format is
+kept only for callers that do not supply article bodies.
 """
 
 from __future__ import annotations
