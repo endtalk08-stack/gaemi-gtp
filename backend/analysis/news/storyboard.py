@@ -345,7 +345,7 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
         if not body or "투자" not in body:
             return None
 
-        compact = re.sub(r"\\s+", "", body)
+        compact = re.sub(r"\s+", "", body)
         countries = {
             country for country in (
                 "인도네시아", "인도", "베트남", "미국", "중국", "일본",
@@ -362,8 +362,8 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
         amounts = {
             match.group()
             for match in re.finditer(
-                r"(?<![0-9])\\d[\\d,]*(?:\\.\\d+)?"
-                r"(?:조(?:\\d{1,4}억)?|억)(?:달러|원)",
+                r"(?<![0-9])\d[\d,]*(?:\.\d+)?"
+                r"(?:조(?:\d{1,4}억)?|억)(?:달러|원)",
                 compact,
             )
             if "투자" in compact[max(0, match.start() - 70):match.end() + 70]
