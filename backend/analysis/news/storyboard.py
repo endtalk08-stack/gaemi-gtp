@@ -321,20 +321,20 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
         """Distinctive event facts for articles whose full body was verified."""
         text = f"{source.get('title') or ''} {source.get('_central_checked_body') or ''}"
         amounts = set(re.findall(
-            r"(?<![0-9])\\d[\\d,]*(?:\\.\\d+)?\\s*(?:조\\s*원|억\\s*원|만\\s*원|"
-            r"조|억원|억\\s*달러|달러|원)(?![가-힣])",
+            r"(?<![0-9])\d[\d,]*(?:\.\d+)?\s*(?:조\s*원|억\s*원|만\s*원|"
+            r"조|억원|억\s*달러|달러|원)(?![가-힣])",
             text,
         ))
         places = set(re.findall(
             r"(?:평택|화성|용인|이천|기흥|수원|천안|아산|청주|광주|울산|부산|"
-            r"대구|구미|인천|파주|오스틴|테일러|애리조나)\\s*"
-            r"(?:공장|생산시설|캠퍼스|사업장|라인|반도체\\s*공장)",
+            r"대구|구미|인천|파주|오스틴|테일러|애리조나)\s*"
+            r"(?:공장|생산시설|캠퍼스|사업장|라인|반도체\s*공장)",
             text,
         ))
         partners = set(re.findall(
-            r"([A-Za-z가-힣0-9]{2,20})(?:와|과|에|향)\\s*"
-            r"(?:[A-Za-z가-힣0-9\\s]{0,18})?"
-            r"(?:공급\\s*계약|수주\\s*계약|납품\\s*계약|계약\\s*체결)",
+            r"([A-Za-z가-힣0-9]{2,20})(?:와|과|에|향)\s*"
+            r"(?:[A-Za-z가-힣0-9\s]{0,18})?"
+            r"(?:공급\s*계약|수주\s*계약|납품\s*계약|계약\s*체결)",
             text,
         ))
         return amounts, places, partners
