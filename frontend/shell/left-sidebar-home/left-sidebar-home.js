@@ -14,7 +14,8 @@
       const entries = JSON.parse(saved);
       if (!Array.isArray(entries)) return [];
       return entries.filter((entry) => entry && ['stock', 'question'].includes(entry.type)
-        && typeof entry.value === 'string' && entry.value.trim()).slice(0, RECENT_LIMIT);
+        && typeof entry.value === 'string' && entry.value.trim()
+        && typeof entry.id === 'string' && entry.id.startsWith('conversation:')).slice(0, RECENT_LIMIT);
     } catch (_) {
       return recentFallback.slice();
     }
@@ -42,14 +43,11 @@
     if (empty) empty.hidden = entries.length > 0;
   }
 
-  function recordRecent(type, value) {
-    if (type !== 'stock' && type !== 'question') return;
+  function recordRecent(type, value, id) {
+    if (!['stock', 'question'].includes(type) || !String(id || '').startsWith('conversation:')) return null;
     const text = String(value || '').trim().slice(0, type === 'stock' ? 80 : 240);
-    if (!text) return;
-    const entries = readRecent().filter((entry) => !(
-      entry.type === type && entry.value.toLocaleLowerCase() === text.toLocaleLowerCase()
-    ));
-    const id = type + ':' + text.toLocaleLowerCase();
+    if (!text) return null;
+    const entries = readRecent().filter((entry) => entry.id !== id);
     const next = [{ type, value: text, id }, ...entries].slice(0, RECENT_LIMIT);
     recentFallback = next;
     try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch (_) { /* browser storage unavailable */ }
@@ -57,11 +55,15 @@
     return id;
   }
 
+  function getRecentIds() {
+    return readRecent().map((entry) => entry.id);
+  }
+
   function openRecent(index) {
     const entry = readRecent()[index];
     if (!entry) return;
     if (window.innerWidth < 1024) close();
-    if (window.GaemiGTPApp?.restoreRecentConversation?.(entry.id || entry.type + ':' + entry.value.toLocaleLowerCase())) {
+    if (window.GaemiGTPApp?.restoreRecentConversation?.(entry.id)) {
       window.GaemiGTPCenterChatSearch?.enterChatWorkspace?.();
       applyState();
       return;
@@ -236,7 +238,7 @@
     }
   });
 
-  window.GaemiGTPSidebarHome = { render, recordRecent, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
+  window.GaemiGTPSidebarHome = { render, recordRecent, getRecentIds, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
   window.addEventListener('storage', (event) => {
     if (event.key === RECENT_STORAGE_KEY) renderRecent();
   });
