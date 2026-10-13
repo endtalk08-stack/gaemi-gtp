@@ -49,16 +49,23 @@
     const entries = readRecent().filter((entry) => !(
       entry.type === type && entry.value.toLocaleLowerCase() === text.toLocaleLowerCase()
     ));
-    const next = [{ type, value: text }, ...entries].slice(0, RECENT_LIMIT);
+    const id = type + ':' + text.toLocaleLowerCase();
+    const next = [{ type, value: text, id }, ...entries].slice(0, RECENT_LIMIT);
     recentFallback = next;
     try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch (_) { /* browser storage unavailable */ }
     renderRecent();
+    return id;
   }
 
   function openRecent(index) {
     const entry = readRecent()[index];
     if (!entry) return;
     if (window.innerWidth < 1024) close();
+    if (window.GaemiGTPApp?.restoreRecentConversation?.(entry.id || entry.type + ':' + entry.value.toLocaleLowerCase())) {
+      window.GaemiGTPCenterChatSearch?.enterChatWorkspace?.();
+      applyState();
+      return;
+    }
     if (entry.type === 'stock') {
       window.GaemiGTPCenterChatSearch?.openStockInChat?.(entry.value);
     } else {
