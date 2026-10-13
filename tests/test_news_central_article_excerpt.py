@@ -60,6 +60,46 @@ class CentralArticleExcerptTests(unittest.TestCase):
         )
         self.assertEqual(_article_excerpt(body), body)
 
+    def test_ai_notice_translation_credit_and_reporter_prefix_removed(self):
+        body = (
+            "엔비디아는 중국 데이터센터용 AI 칩 시장의 점유율이 줄었다고 밝혔다. "
+            "중국 기업들이 자체 AI 칩 공급을 확대했다. "
+            "미국 정부의 대중국 수출 규제가 시장에 영향을 줬다. "
+            "다음 분기 상황은 아직 불확실하다."
+        )
+        notice = (
+            "AI가 자동 생성한 요약으로 정확하지 않을 수 있어요. "
+            "이 기사는 인공지능(AI) 번역을 바탕으로 전문 기자들의 검증과 분석을 거쳐 "
+            "생성된 콘텐츠로 원문은 10월 13일 로이터통신 기사입니다. "
+            "[시드니=뉴스핌] 권지언 특파원 = "
+        )
+        expected = (
+            "엔비디아는 중국 데이터센터용 AI 칩 시장의 점유율이 줄었다고 밝혔다. "
+            "중국 기업들이 자체 AI 칩 공급을 확대했다. "
+            "미국 정부의 대중국 수출 규제가 시장에 영향을 줬다."
+        )
+        self.assertEqual(_article_excerpt(notice + body), expected)
+        briefs = build_issue_briefs(
+            [self._source_row()], "엔비디아", body_texts=[notice + body]
+        )
+        self.assertEqual(briefs[0]["summary"], expected)
+
+    def test_prefix_cleanup_handles_reporter_credit_before_notice(self):
+        lead = (
+            "(서울=연합뉴스) 홍길동 기자 = "
+            "AI가 자동 생성한 요약으로 정확하지 않을 수 있어요. "
+            "[시드니=뉴스핌] 권지언 특파원 = "
+        )
+        self.assertEqual(_article_excerpt(lead + CELLTRION_BODY), CELLTRION_BODY)
+
+    def test_genuine_ai_reporting_and_later_credits_are_preserved(self):
+        body = (
+            "삼성전자는 인공지능(AI) 번역 기술 투자를 확대한다고 밝혔다. "
+            "연합뉴스 박초롱 기자는 새로운 사업 계획을 보도했다. "
+            "인공지능 기술을 다른 제품에도 적용할 계획이다."
+        )
+        self.assertEqual(_article_excerpt(body), body)
+
     def test_no_article_body_means_no_central_brief(self):
         result = build_issue_briefs([self._source_row()], "셀트리온", body_texts=[""])
         self.assertEqual(result, [])
