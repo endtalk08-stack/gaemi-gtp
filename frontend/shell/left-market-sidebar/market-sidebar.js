@@ -26,8 +26,8 @@
     const sidebar = document.getElementById('leftMarketSidebar');
     if (!sidebar || sidebar.dataset.marketControlsBound === 'true') return;
 
-    function bindStaticSelection(selector) {
-      const buttons = [...sidebar.querySelectorAll(selector)];
+    function bindStaticSelection(selector, defaultIndex = 0) {
+      const buttons = [...sidebar.querySelectorAll(selector)].filter((button) => !button.disabled);
       buttons.forEach((button) => {
         button.addEventListener('click', () => {
           buttons.forEach((item) => {
@@ -42,7 +42,7 @@
           });
         });
       });
-      buttons.forEach((button, index) => button.setAttribute('aria-pressed', String(index === 0)));
+      buttons.forEach((button, index) => button.setAttribute('aria-pressed', String(index === defaultIndex)));
     }
 
     // KR and USA trading-value tabs use source-specific market-wide ranking results.
@@ -53,7 +53,7 @@
     const initialMarkup = list?.innerHTML || '';
     const backendUrl = window.location.hostname.endsWith('github.io')
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
-    let region = '전체';
+    let region = '국내';
     let tab = 'popular';
     let requestId = 0;
 
@@ -158,21 +158,25 @@
       }
     };
 
-    bindStaticSelection('[data-legacy-region]');
+    bindStaticSelection('[data-legacy-region]', 1);
     bindStaticSelection('[data-info-tab-action]');
     sidebar.querySelectorAll('[data-legacy-region]').forEach((button) => {
+      if (button.disabled) return;
       button.addEventListener('click', () => {
         region = button.textContent.trim();
         void showDomesticRanking();
       });
     });
     sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
+      if (button.disabled) return;
       button.addEventListener('click', () => {
         tab = button.dataset.infoTabAction;
         void showDomesticRanking();
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
+    // Show the live KR popularity list on the first market sidebar view.
+    void showDomesticRanking();
   }
 
   document.addEventListener('DOMContentLoaded', bindMarketControls);

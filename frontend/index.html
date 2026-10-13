@@ -152,10 +152,10 @@
       <!-- 시장 범위 : 2단계 디자인 -->
       <div class="px-4 py-3 ">
         <div class="grid grid-cols-4 text-[13px] font-bold border border-[#cbd5e1] dark:border-[#3f3f46] rounded-lg overflow-hidden text-center">
-          <button type="button" data-legacy-region="true" class="py-2.5 text-[#0f172a] gtp-dark-text bg-[#eef2f7] dark:bg-[#272a31] border-r border-[#cbd5e1] dark:border-[#3f3f46]">전체</button>
-          <button type="button" data-legacy-region="true" class="py-2.5 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text border-r border-[#cbd5e1] dark:border-[#3f3f46]">국내</button>
+          <button type="button" data-legacy-region="true" class="py-2.5 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text border-r border-[#cbd5e1] dark:border-[#3f3f46]">전체</button>
+          <button type="button" data-legacy-region="true" class="py-2.5 text-[#0f172a] gtp-dark-text bg-[#eef2f7] dark:bg-[#272a31] border-r border-[#cbd5e1] dark:border-[#3f3f46]">국내</button>
           <button type="button" data-legacy-region="true" class="py-2.5 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text border-r border-[#cbd5e1] dark:border-[#3f3f46]">해외</button>
-          <button type="button" data-legacy-region="true" class="py-2.5 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text">코인</button>
+          <button type="button" data-legacy-region="true" disabled aria-disabled="true" title="준비 중" class="py-2.5 text-[#64748b] dark:text-[#a1a1aa] opacity-50 cursor-not-allowed">코인</button>
         </div>
       </div>
 
@@ -164,8 +164,8 @@
         <div id="rightInfoTabs" class="grid grid-cols-4 text-[13px] font-bold">
           <button type="button" data-info-tab="popular" data-info-tab-action="popular" class="right-info-tab py-2 text-[#0f172a] gtp-dark-text bg-[#eef2f7] dark:bg-[#272a31] rounded-md">인기 순위</button>
           <button type="button" data-info-tab="value" data-info-tab-action="value" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">거래대금</button>
-          <button type="button" data-info-tab="industry" data-info-tab-action="industry" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">산업</button>
-          <button type="button" data-info-tab="theme" data-info-tab-action="theme" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">테마</button>
+          <button type="button" data-info-tab="industry" data-info-tab-action="industry" disabled aria-disabled="true" title="준비 중" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] opacity-50 cursor-not-allowed rounded-md">산업</button>
+          <button type="button" data-info-tab="theme" data-info-tab-action="theme" disabled aria-disabled="true" title="준비 중" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] opacity-50 cursor-not-allowed rounded-md">테마</button>
         </div>
       </div>
 
@@ -526,7 +526,7 @@
   <script src="shell/right-panel/right-panel.js?v=20260927-step7-workarea3"></script>
   <script src="shell/left-panel/left-panel-resizer.js?v=20260927-left-fixed"></script>
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260927-sidebar-home"></script>
-  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261013-ranking-stock-industry-v8"></script>
+  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261013-kr-popular-default-v9"></script>
   <script src="shell/left-earnings-calendar-sidebar/earnings-calendar-sidebar.js?v=20261008-v1"></script>
   <script src="pages/watchlist/watchlist.js?v=20261005-type-v1"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20261012-stock-sync-v1"></script>
