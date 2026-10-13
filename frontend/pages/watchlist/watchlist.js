@@ -26,7 +26,6 @@
   function removeWatchlistStock(name) {
     writeWatchlist(readWatchlist().filter((stock) => stock !== name));
     render(document.getElementById('leftContextContent'));
-    window.GaemiGTPSidebarHome?.renderWatchlist?.();
   }
 
   function render(root) {
@@ -82,7 +81,7 @@
     mount(document.getElementById('leftContextContent'));
   }
 
-  window.GaemiGTPWatchlist = { mount, initialize, refresh: initialize, getStocks: readWatchlist };
+  window.GaemiGTPWatchlist = { mount, initialize, refresh: initialize };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
