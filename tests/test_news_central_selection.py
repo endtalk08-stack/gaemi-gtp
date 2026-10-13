@@ -151,6 +151,65 @@ class CentralNewsSelectionTests(unittest.TestCase):
             row["event_owner"] = "현대차"
         self.assertEqual(len(select_keyword_storyboard_news(rows, limit=3)), 3)
 
+    def test_same_supply_event_merges_different_reporter_wording(self):
+        a = self.with_body(self.article(
+            "c1", "삼성전자 공급계약 대형 수주 발표",
+            "삼성전자는 A사와 300억원 규모의 공급계약을 체결했다. 납품을 시작한다.",
+            keyword="공급계약",
+        ))
+        b = self.with_body(self.article(
+            "c2", "삼성전자 새 거래처 사업 확장",
+            "삼성전자가 A사와 300억 원 공급 계약을 맺었다. 납품도 진행된다.",
+            keyword="사업확장",
+        ))
+        self.assertEqual(len(select_keyword_storyboard_news([a, b], limit=3)), 1)
+
+    def test_market_quote_without_event_stays_in_full_feed_not_central(self):
+        quote = (
+            "[잠포스트] 전진홍 기자 = 13일 오후 1시29분 기준 유가증권시장에서 "
+            "두산에너빌리티는 전 거래일보다 2,400원 내린 6만9100원에 거래됐다. "
+            "등락률은 -3.36%였다. 이날 고가는 7만600원, 저가는 6만7300원으로 "
+            "장중 변동폭은 3300원이었다."
+        )
+        event = (
+            "두산에너빌리티는 A사와 300억원 규모의 공급계약을 체결했다. "
+            "내년부터 제품 납품을 시작할 예정이다."
+        )
+        rows = [
+            self.article(
+                "quote", "두산에너빌리티 13일 오후 1시29분 현재 3.36% 하락",
+                quote, keyword="가격하락", score=100,
+            ),
+            self.article(
+                "event", "두산에너빌리티 A사 공급계약 체결",
+                event, keyword="공급계약", score=95,
+            ),
+        ]
+        bodies = {row["url"]: row["description"] for row in rows}
+        article_keywords = {
+            "articles": [
+                {"keywords": row["article_keywords"], "keyword_details": row["article_keyword_details"],
+                 "grounded_tags": [], "stock_entities": ["두산에너빌리티"],
+                 "event_owner": "두산에너빌리티", "relation_type": "direct"}
+                for row in rows
+            ]
+        }
+        def read_details(batch, limit=3, with_sources=False):
+            return [
+                {"text": bodies[row["url"]], "source": "jsonld_article_body"}
+                for row in batch
+            ]
+        with patch("backend.services.news_result.fetch_stock_news", return_value=rows), \
+             patch("backend.services.news_result.score_stock_news", side_effect=lambda x, stock: x), \
+             patch("backend.services.news_result.build_connected_keyword_test", return_value=article_keywords), \
+             patch("backend.services.news_result.build_simple_today_news", side_effect=lambda x, *a, **kw: x), \
+             patch("backend.services.news_result.read_selected_article_details", side_effect=read_details):
+            result = build_stock_news_result("두산에너빌리티", market="국내")
+        self.assertEqual(len(result["paired_news_items"]), 2)
+        self.assertEqual([row["url"].split("/")[-1] for row in result["storyboard_news_items"]], ["event"])
+        self.assertEqual(len(result["issue_briefs"]), 1)
+        self.assertEqual(result["issue_briefs"][0]["headline"], "공급 계약 이슈")
+
     def test_verified_candidates_replace_unrelated_and_unreadable(self):
         rows = [
             self.article("unrelated", "삼성전자 새로운 계약", "영국 의회는 세금 법안을 처리했다.", score=98),
