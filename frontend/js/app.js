@@ -37,8 +37,20 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       if (!activeChatSession?.recentId || activeChatSession.restoring) return;
       const history = readChatHistory();
       const id = activeChatSession.recentId;
+      const snapshot = window.GaemiGTPAnalysisData?.get?.();
+      // Keep the restored conversation's existing analysis data without another fetch.
+      // Only attach data for the same stock; never carry a different stock's snapshot.
+      const analysisData = snapshot?.stockName === activeChatSession.stock
+        ? {
+            sections: Object.values(snapshot.sections || {}),
+            paired_news_items: (snapshot.newsItems || []).slice(0, 20),
+            disclosures: (snapshot.disclosures || []).slice(0, 20),
+            us_filings: (snapshot.usFilings || []).slice(0, 20)
+          }
+        : history[id]?.analysisData;
       history[id] = {
         stock: activeChatSession.stock || null,
+        ...(analysisData ? { analysisData } : {}),
         messages: activeChatSession.messages.map(({ role, kind, text, sections }) => ({
           role, kind, text: String(text || ''),
           ...(Array.isArray(sections) ? { sections: sections.map(({ id, title, content }) => ({ id, title, content })) } : {})
@@ -69,9 +81,8 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       if (!session) return false;
       session.recentId = recentId;
       if (saved.stock) {
-        if (window.GaemiGTPAnalysisData?.get?.()?.stockName !== saved.stock) {
-          window.GaemiGTPAnalysisData?.set?.(saved.stock, {});
-        }
+        // Restore the original analysis snapshot when present; old history remains compatible.
+        window.GaemiGTPAnalysisData?.set?.(saved.stock, saved.analysisData || {});
         activeStock = saved.stock;
         window.GaemiGTPActiveStock = saved.stock;
       }
