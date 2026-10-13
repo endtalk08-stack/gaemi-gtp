@@ -50,15 +50,24 @@ def get_market_selection(market, menu, symbol, stock=None):
             "currency": "KRW" if market == "kr" else "USD"}
 
 
-def get_market_menu_rows(market, menu):
-    """Reuse one already processed TOP 20 menu result; do not fetch or rank."""
+def get_market_menu_rows(market, menu, sort="source"):
+    """Read previously produced rows in the same order as the sidebar."""
     if market not in ("kr", "us") or menu not in ("popular", "value"):
         return []
     with _MARKET_RESULTS_LOCK:
         stored = _MARKET_RESULTS.get((market, menu))
         if not stored or time.monotonic() - stored[0] >= _SELECTION_TTL:
             return []
-        return [dict(row) for row in stored[1]]
+        rows = [dict(row) for row in stored[1]]
+    if sort == "change_pct":
+        rows.sort(key=lambda row: -(
+            row["change_pct"] if isinstance(row.get("change_pct"), (float, int))
+            else float("-inf")
+        ))
+    for index, row in enumerate(rows):
+        row["display_rank"] = index + 1 if sort == "change_pct" else row.get("rank")
+        row["sort"] = "change_pct" if sort == "change_pct" else "source"
+    return rows
 
 
 def analysis_ticker_for_selection(selection):

@@ -140,7 +140,8 @@
             role: 'compare', stock, question, history,
             ...(marketSelection ? { market_selection: {
               market: marketSelection.market, menu: marketSelection.menu,
-              symbol: marketSelection.symbol
+              symbol: marketSelection.symbol,
+              sort: marketSelection.sort === 'change_pct' ? 'change_pct' : 'source'
             } } : {})
           })
         });

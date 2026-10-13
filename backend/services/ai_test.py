@@ -541,6 +541,16 @@ def ai_test_chat():
         selected = get_market_selection(
             choice.get("market"), choice.get("menu"), choice.get("symbol"), stock=stock,
         )
+        if selected:
+            order = "change_pct" if choice.get("sort") == "change_pct" else "source"
+            ordered_rows = get_market_menu_rows(selected["market"], selected["menu"], sort=order)
+            match = next(
+                (row for row in ordered_rows if row["symbol"] == selected["symbol"]),
+                None,
+            )
+            selected = {**selected,
+                        "sort": order,
+                        "display_rank": match["display_rank"] if match else selected.get("rank")}
 
     # Both administrator tests and central chat use Groq's native limits.
 
@@ -594,8 +604,8 @@ def ai_test_chat():
             # Include only the server's existing menu result, not client-priced data.
             context = {**context, "market_selection": {
                 key: selected.get(key) for key in (
-                    "market", "menu", "symbol", "name", "rank", "price",
-                    "change_pct", "trading_value", "trading_value_text",
+                    "market", "menu", "symbol", "name", "rank", "display_rank",
+                    "sort", "price", "change_pct", "trading_value", "trading_value_text",
                     "industry", "currency"
                 )
             }}
@@ -606,15 +616,18 @@ def ai_test_chat():
         if selected and re.search(r"인기|순위|랭킹|거래대금|상위|TOP\s*20", question, re.IGNORECASE):
             # Market-menu comparison uses the SAME cached result that built
             # the sidebar; no extra collection and no fabricated global ranks.
-            rows = get_market_menu_rows(selected["market"], selected["menu"])
+            rows = get_market_menu_rows(
+                selected["market"], selected["menu"], sort=selected["sort"],
+            )
             context["market_menu_rows"] = [
                 {key: row.get(key) for key in (
-                    "rank", "name", "symbol", "industry", "price",
+                    "rank", "display_rank", "name", "symbol", "industry", "price",
                     "change_pct", "trading_value",
                 )} for row in rows[:20]
             ]
             context["note"] += (
-                " market_menu_rows는 선택 메뉴의 TOP 20 목록이며,"
+                " market_menu_rows는 선택 메뉴의 TOP 20 목록입니다."
+                " rank는 원천 순위, display_rank는 표시된 정렬 위치입니다."
                 " 전체 시장 상승률 순위나 실시간 주가로 해석하지 마세요."
             )
         if not any((context["news"], context["official_disclosures"], context["price_information"], context["price_metrics"])):

@@ -85,6 +85,20 @@ class MarketSelectionContextTests(unittest.TestCase):
             self.assertEqual(rankings.get_market_menu_rows("kr", "popular"), [])
             fetch.assert_not_called()
 
+    def test_change_sort_matches_visible_order_and_preserves_source_rank(self):
+        rankings._remember_market_result("us", "popular", [
+            {"name": "A", "symbol": "A.O", "rank": 1, "change_pct": 1.0},
+            {"name": "B", "symbol": "B.O", "rank": 2, "change_pct": 10.0},
+            {"name": "C", "symbol": "C.O", "rank": 3, "change_pct": 10.0},
+            {"name": "D", "symbol": "D.O", "rank": 4, "change_pct": None},
+        ])
+        rows = rankings.get_market_menu_rows("us", "popular", sort="change_pct")
+        self.assertEqual([row["symbol"] for row in rows], ["B.O", "C.O", "A.O", "D.O"])
+        self.assertEqual([row["display_rank"] for row in rows], [1, 2, 3, 4])
+        self.assertEqual([row["rank"] for row in rows], [2, 3, 1, 4])
+        self.assertEqual([row["symbol"] for row in rankings.get_market_menu_rows("us", "popular")],
+                         ["A.O", "B.O", "C.O", "D.O"])
+
     def test_older_menu_result_expires_without_fetching(self):
         with patch.object(rankings.time, "monotonic", return_value=100.0):
             rankings._remember_market_result("kr", "popular", [{
