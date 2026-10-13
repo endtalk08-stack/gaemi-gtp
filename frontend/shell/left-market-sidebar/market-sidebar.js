@@ -45,8 +45,105 @@
       buttons.forEach((button, index) => button.setAttribute('aria-pressed', String(index === 0)));
     }
 
+    // Only the domestic trading-value tab uses a live, market-wide result.
+    // Other tabs retain their existing UI and do not start new collectors.
+    const list = sidebar.querySelector('#marketRankingList');
+    const title = sidebar.querySelector('#rightListTitle');
+    const subtitle = sidebar.querySelector('.market-sidebar-subtitle');
+    const initialMarkup = list?.innerHTML || '';
+    const backendUrl = window.location.hostname.endsWith('github.io')
+      ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
+    let region = '전체';
+    let tab = 'popular';
+    let requestId = 0;
+
+    const formatMoney = (value) => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      if (value >= 1e12) return (value / 1e12).toLocaleString('ko-KR', { maximumFractionDigits: 2 }) + '조원';
+      if (value >= 1e8) return (value / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 }) + '억원';
+      return value.toLocaleString('ko-KR') + '원';
+    };
+
+    const showDomesticRanking = async () => {
+      const id = ++requestId;
+      if (!list) return;
+      if (tab !== 'value') {
+        list.innerHTML = initialMarkup;
+        if (title) title.textContent = '인기 TOP 20';
+        if (subtitle) subtitle.textContent = '/ 고정 예시 데이터';
+        return;
+      }
+      if (title) title.textContent = '거래대금 TOP 20';
+      if (region !== '국내') {
+        list.replaceChildren();
+        list.textContent = '현재 국내 거래대금 순위만 원천 데이터에 연결되어 있어.';
+        return;
+      }
+
+      if (subtitle) subtitle.textContent = '/ 네이버 시장 원천';
+      list.replaceChildren();
+      list.textContent = '거래대금 순위를 불러오는 중이야.';
+      try {
+        const response = await fetch(backendUrl + '/market/trading-value');
+        if (!response.ok) throw new Error('market ranking unavailable');
+        const result = await response.json();
+        if (id !== requestId) return;
+        list.replaceChildren();
+        if (result.ok !== true || !Array.isArray(result.items) || !result.items.length) {
+          list.textContent = '조회 가능한 거래대금 원천 데이터가 없어.';
+          return;
+        }
+        result.items.forEach((item, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer';
+          button.addEventListener('click', () => window.openStockInChat?.(item.name));
+
+          const top = document.createElement('div');
+          top.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start';
+          const rank = document.createElement('span');
+          rank.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa]';
+          rank.textContent = String(item.rank || index + 1).padStart(2, '0');
+          const name = document.createElement('span');
+          name.className = 'font-semibold text-[13px] text-[#0f172a] gtp-dark-text truncate';
+          name.textContent = item.name;
+          const price = document.createElement('span');
+          price.className = 'font-semibold text-[13px] text-[#0f172a] gtp-dark-text text-right';
+          price.textContent = typeof item.price === 'number'
+            ? item.price.toLocaleString('ko-KR') + '원' : '—';
+          top.append(rank, name, price);
+
+          const bottom = document.createElement('div');
+          bottom.className = 'flex justify-between pl-8 mt-1 text-[11px] text-[#64748b] dark:text-[#a1a1aa]';
+          const turnover = document.createElement('span');
+          turnover.textContent = '거래대금 ' + (formatMoney(item.trading_value) || item.trading_value_text || '—');
+          const change = document.createElement('span');
+          const pct = item.change_pct;
+          change.textContent = typeof pct === 'number' ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '—';
+          change.className = pct > 0 ? 'text-rose-500' : pct < 0 ? 'text-sky-500' : '';
+          bottom.append(turnover, change);
+          button.append(top, bottom);
+          list.appendChild(button);
+        });
+      } catch (_) {
+        if (id === requestId) list.textContent = '거래대금 원천 데이터를 가져오지 못했어.';
+      }
+    };
+
     bindStaticSelection('[data-legacy-region]');
     bindStaticSelection('[data-info-tab-action]');
+    sidebar.querySelectorAll('[data-legacy-region]').forEach((button) => {
+      button.addEventListener('click', () => {
+        region = button.textContent.trim();
+        void showDomesticRanking();
+      });
+    });
+    sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        tab = button.dataset.infoTabAction;
+        void showDomesticRanking();
+      });
+    });
     sidebar.dataset.marketControlsBound = 'true';
   }
 
