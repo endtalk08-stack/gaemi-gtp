@@ -50,6 +50,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         : history[id]?.analysisData;
       history[id] = {
         stock: activeChatSession.stock || null,
+        ...(activeChatSession.marketSelection ? { marketSelection: activeChatSession.marketSelection } : {}),
         ...(analysisData ? { analysisData } : {}),
         messages: activeChatSession.messages.map(({ role, kind, text, sections }) => ({
           role, kind, text: String(text || ''),
@@ -80,6 +81,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       const session = beginChatSession(saved.stock || null);
       if (!session) return false;
       session.recentId = recentId;
+      if (saved.marketSelection?.name === saved.stock) session.marketSelection = saved.marketSelection;
       if (saved.stock) {
         // Restore the original analysis snapshot when present; old history remains compatible.
         window.GaemiGTPAnalysisData?.set?.(saved.stock, saved.analysisData || {});
@@ -121,7 +123,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     }
 
     // One active conversation in the existing central chat; no separate chat UI.
-    function beginChatSession(stock = null) {
+    function beginChatSession(stock = null, marketSelection = null) {
       activeQuestionController?.abort();
       activeQuestionController = null;
       pendingQuestionSessionId = null;
@@ -129,7 +131,11 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       const area = document.getElementById('chatArea');
       if (!area) return null;
       saveChatHistory();
-      activeChatSession = { id: ++nextChatSessionId, stock, messages: [] };
+      activeChatSession = {
+        id: ++nextChatSessionId, stock,
+        marketSelection: marketSelection?.name === stock ? { ...marketSelection } : null,
+        messages: []
+      };
       area.replaceChildren();
       area.scrollTop = 0;
       return activeChatSession;
@@ -182,6 +188,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       if (!activeChatSession) return null;
       return {
         id: activeChatSession.id, stock: activeChatSession.stock,
+        marketSelection: activeChatSession.marketSelection ? { ...activeChatSession.marketSelection } : null,
         messages: activeChatSession.messages.map((message) => ({
           ...message,
           ...(message.sections ? { sections: message.sections.map((section) => ({ ...section })) } : {})

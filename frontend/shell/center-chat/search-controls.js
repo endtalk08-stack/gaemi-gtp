@@ -37,18 +37,23 @@
     window.GaemiGTPWorkspaceShellState?.apply?.();
   }
 
-  function selectStock(stockName, { enterAnalysis = false } = {}) {
-    const normalizedStockName = resolveStockSearchInput(stockName);
+  function selectStock(stockName, { enterAnalysis = false, marketSelection = null } = {}) {
+    // Sidebar rows already have a source-verified name and code: do not
+    // rename them through free-text search aliases before server matching.
+    const normalizedStockName = marketSelection?.name === stockName
+      ? stockName : resolveStockSearchInput(stockName);
     if (!normalizedStockName) return;
     if (enterAnalysis) enterChatWorkspace();
     if (window.innerWidth < 1024) {
       document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
     }
     window.GaemiGTPWorkspaceShellState?.apply?.();
-    window.GaemiGTPApp?.requestStock?.(normalizedStockName);
+    window.GaemiGTPApp?.requestStock?.(normalizedStockName, marketSelection);
   }
 
-  function openStockInChat(stockName) { selectStock(stockName || '삼성전자', { enterAnalysis: true }); }
+  function openStockInChat(stockName, marketSelection = null) {
+    selectStock(stockName || '삼성전자', { enterAnalysis: true, marketSelection });
+  }
 
   function focusStockInput() {
     const hero = document.getElementById('heroStockInput');

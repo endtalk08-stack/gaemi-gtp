@@ -3,12 +3,83 @@
 No separate ticker-by-ticker scraping, estimated trading value, or database writes.
 """
 import math
+import re
+import threading
+import time
 
 from ..providers.market_industry import get_stock_industries
 from ..providers.market_price import (
     fetch_kr_trading_value_ranking_raw, fetch_us_trading_value_ranking_raw,
     fetch_kr_popular_ranking_raw, fetch_us_popular_ranking_raw,
 )
+
+
+# These are the existing processed menu results, retained for central-chat
+# selection. AI lookups never trigger Naver collection.
+_MARKET_RESULTS = {}
+_MARKET_RESULTS_LOCK = threading.Lock()
+_SELECTION_TTL = 15 * 60
+
+
+def _remember_market_result(market, menu, rows):
+    with _MARKET_RESULTS_LOCK:
+        _MARKET_RESULTS[(market, menu)] = (
+            time.monotonic(), [dict(row) for row in rows],
+        )
+
+
+def get_market_selection(market, menu, symbol, stock=None):
+    """Read one previously produced menu row by stock code, without collection."""
+    if market not in ("kr", "us") or menu not in ("popular", "value"):
+        return None
+    code = str(symbol or "").strip().upper()
+    pattern = r"[0-9]{6}" if market == "kr" else r"[A-Z0-9.^_-]{1,32}"
+    if not re.fullmatch(pattern, code):
+        return None
+    with _MARKET_RESULTS_LOCK:
+        stored = _MARKET_RESULTS.get((market, menu))
+        if not stored or time.monotonic() - stored[0] >= _SELECTION_TTL:
+            return None
+        match = next((r for r in stored[1] if r["symbol"].upper() == code), None)
+        if not match:
+            return None
+        row = dict(match)
+    if stock is not None and row["name"].casefold() != str(stock).strip().casefold():
+        return None
+    return {**row, "market": market, "menu": menu,
+            "currency": "KRW" if market == "kr" else "USD"}
+
+
+def get_market_menu_rows(market, menu):
+    """Reuse one already processed TOP 20 menu result; do not fetch or rank."""
+    if market not in ("kr", "us") or menu not in ("popular", "value"):
+        return []
+    with _MARKET_RESULTS_LOCK:
+        stored = _MARKET_RESULTS.get((market, menu))
+        if not stored or time.monotonic() - stored[0] >= _SELECTION_TTL:
+            return []
+        return [dict(row) for row in stored[1]]
+
+
+def analysis_ticker_for_selection(selection):
+    """Use a source-verified code and market to avoid name-based misrouting."""
+    if not selection:
+        return None
+    if selection["market"] == "kr":
+        code = selection["symbol"]
+        exchange = str(selection.get("market_type") or "").upper()
+        if "KOSDAQ" in exchange or exchange == "KQ":
+            return code + ".KQ"
+        if "KOSPI" in exchange or exchange == "KS":
+            return code + ".KS"
+        return None
+
+    symbol = str(selection.get("analysis_symbol") or selection["symbol"]).upper()
+    if not re.fullmatch(r"[A-Z0-9.^_-]{1,32}", symbol):
+        return None
+    if not selection.get("analysis_symbol") and symbol.endswith((".O", ".N")):
+        return symbol[:-2]
+    return symbol
 
 
 def _number(value):
@@ -57,9 +128,12 @@ def _industry_from_entry(entry):
     return None
 
 
-def _with_stock_industries(items, market):
-    """Join a shared Naver industry map by itemCode, across all ranking menus."""
+def _with_stock_industries(items, market, menu):
+    """Join the shared industry map, then retain this same menu result for chat."""
+    if items is None:
+        return None
     if not items:
+        _remember_market_result(market, menu, [])
         return items
     known = {
         item["symbol"]: item["industry"]
@@ -71,6 +145,7 @@ def _with_stock_industries(items, market):
     for item in items:
         if not item.get("industry"):
             item["industry"] = labels.get(item["symbol"])
+    _remember_market_result(market, menu, items)
     return items
 
 
@@ -106,7 +181,7 @@ def build_kr_trading_value_result(limit=20):
     None denotes source failure; [] denotes a valid but empty source list.
     """
     raw = fetch_kr_trading_value_ranking_raw(limit=limit)
-    return _with_stock_industries(_normalize_kr_stock_rows(raw, limit), "kr")
+    return _with_stock_industries(_normalize_kr_stock_rows(raw, limit), "kr", "value")
 
 
 def _normalize_kr_stock_rows(raw, limit):
@@ -147,6 +222,7 @@ def _normalize_kr_stock_rows(raw, limit):
             "rank": _rank(entry, len(items) + 1),
             "name": str(name),
             "symbol": str(symbol),
+            "market_type": str(_field(identity, ("marketType",)) or ""),
             "industry": _industry_from_entry(entry),
             "price": price,
             "change_pct": change,
@@ -159,7 +235,7 @@ def _normalize_kr_stock_rows(raw, limit):
 def build_us_trading_value_result(limit=20):
     """Normalize USA ranking as USD rows; do not infer values from volume."""
     raw = fetch_us_trading_value_ranking_raw(limit=limit)
-    return _with_stock_industries(_normalize_us_stock_rows(raw, limit), "us")
+    return _with_stock_industries(_normalize_us_stock_rows(raw, limit), "us", "value")
 
 
 def _normalize_us_stock_rows(raw, limit):
@@ -191,6 +267,7 @@ def _normalize_us_stock_rows(raw, limit):
                         else None)
         items.append({
             "rank": _rank(entry, len(items) + 1), "name": str(name), "symbol": str(symbol),
+            "analysis_symbol": str(_field(identity, ("symbolCode",)) or ""),
             "industry": _industry_from_entry(entry),
             "price": price, "change_pct": change,
             "trading_value": amount, "trading_value_text": amount_label,
@@ -201,10 +278,10 @@ def _normalize_us_stock_rows(raw, limit):
 def build_kr_popular_result(limit=20):
     """Use the same KR normalization as trading value; ranks are source ordered."""
     rows = _normalize_kr_stock_rows(fetch_kr_popular_ranking_raw(limit=limit), limit)
-    return _with_stock_industries(rows, "kr")
+    return _with_stock_industries(rows, "kr", "popular")
 
 
 def build_us_popular_result(limit=20):
     """Use the same USA normalization, without inferring popularity metrics."""
     rows = _normalize_us_stock_rows(fetch_us_popular_ranking_raw(limit=limit), limit)
-    return _with_stock_industries(rows, "us")
+    return _with_stock_industries(rows, "us", "popular")

@@ -1,9 +1,15 @@
 // gaemiGTP - 백엔드 분석 요청 전용
     window.GaemiGTPAnalysisAPI = window.GaemiGTPAnalysisAPI || {};
 
-window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, signal) {
+window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, signal, marketSelection = null) {
       try {
-        const response = await fetch(`${BACKEND_URL}/analyze?stock=${encodeURIComponent(stockName)}`, { signal });
+        const params = new URLSearchParams({ stock: stockName });
+        if (marketSelection?.market && marketSelection?.menu && marketSelection?.symbol) {
+          params.set('market', marketSelection.market);
+          params.set('menu', marketSelection.menu);
+          params.set('symbol', marketSelection.symbol);
+        }
+        const response = await fetch(`${BACKEND_URL}/analyze?${params}`, { signal });
         if (!response.ok) throw new Error('서버 에러');
         const data = await response.json();
         // 기존 뉴스/공시 수집 로직은 그대로 두고, 서버가 내려주는

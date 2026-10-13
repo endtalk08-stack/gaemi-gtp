@@ -459,7 +459,7 @@
       typeNextSection();
     }
 
-    async function requestStock(stockName) {
+    async function requestStock(stockName, marketSelection = null) {
       if (!stockName || !stockName.trim()) return;
       stockName = stockName.trim();
 
@@ -475,13 +475,34 @@
       window.GaemiGTPActiveStock = ctx.getActiveStock();
       window.GaemiGTPWorkspaceShellState?.save?.();
 
-      const session = ctx.beginChatSession(stockName);
+      const session = ctx.beginChatSession(stockName, marketSelection);
       if (!session) return;
       // 새 종목 조회 중 이전 종목의 뉴스·공시를 공유 데이터로 노출하지 않는다.
       // 새 수집 없이 기존 결과 저장소의 스냅샷만 초기화한다.
       window.GaemiGTPAnalysisData?.set?.(stockName, {});
       const chatArea = document.getElementById('chatArea');
       ctx.appendChatMessage('user', stockName, 'stock', session.id);
+      if (session.marketSelection) {
+        const selection = session.marketSelection;
+        const us = selection.market === 'us';
+        const currency = us ? '$' : '₩';
+        const price = Number.isFinite(selection.price) ? currency + selection.price.toLocaleString(us ? 'en-US' : 'ko-KR') : '';
+        const percent = Number.isFinite(selection.change_pct)
+          ? (selection.change_pct > 0 ? '+' : '') + selection.change_pct.toFixed(2) + '%' : '';
+        const value = Number.isFinite(selection.trading_value)
+          ? currency + selection.trading_value.toLocaleString(us ? 'en-US' : 'ko-KR') : selection.trading_value_text;
+        const details = [
+          '네이버 순위 조회 기준',
+          us ? '해외' : '국내',
+          selection.menu === 'value' ? '거래대금 순위' : '인기순위',
+          (selection.sort === 'change_pct' ? '등락률 정렬 ' : '') + (selection.display_rank || selection.rank) + '위',
+          selection.industry && '업종 ' + selection.industry,
+          price && '현재가 ' + price,
+          percent && '등락률 ' + percent,
+          value && '거래대금 ' + value
+        ].filter(Boolean);
+        ctx.appendChatMessage('assistant', details.join(' · '), 'market-selection', session.id);
+      }
 
       const loadingDiv = document.createElement('div');
       loadingDiv.className = 'analysis-loading-sequence';
@@ -489,7 +510,7 @@
       chatArea.appendChild(loadingDiv);
 
       const controller = ctx.getAnalysisController();
-      const fetchPromise = window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend(stockName, controller.signal);
+      const fetchPromise = window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend(stockName, controller.signal, session.marketSelection);
       ctx.setPendingAnalysis({ stock: stockName, promise: fetchPromise });
       const loadingDelayPromise = new Promise(resolve => setTimeout(resolve, 4000));
       const [result] = await Promise.all([fetchPromise, loadingDelayPromise]);

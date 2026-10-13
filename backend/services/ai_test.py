@@ -18,6 +18,7 @@ from collections import defaultdict, deque
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, jsonify, request
+from .market_rankings import get_market_selection, get_market_menu_rows, analysis_ticker_for_selection
 
 ai_test_bp = Blueprint("ai_test", __name__)
 
@@ -58,7 +59,11 @@ _GROQ_LATEST_REMAINING = {}  # Last observed Groq response headers, by model.
 
 
 
-def remember_chat_analysis(stock, result):
+def _chat_cache_key(stock, selection=None):
+    return (stock, selection["market"], selection["symbol"]) if selection else stock
+
+
+def remember_chat_analysis(stock, result, selection=None):
     from .private_access import private_enabled
     if not private_enabled() or result.get("ok") is False:
         return
@@ -67,12 +72,12 @@ def remember_chat_analysis(stock, result):
     except (TypeError, ValueError, AttributeError):
         return  # Never fail the existing /analyze route for a chat-only cache.
     with _CHAT_CONTEXT_LOCK:
-        _CHAT_CONTEXT_CACHE[str(stock).strip()] = (time.monotonic(), context)
+        _CHAT_CONTEXT_CACHE[_chat_cache_key(str(stock).strip(), selection)] = (time.monotonic(), context)
 
 
-def _cached_chat_context(stock):
+def _cached_chat_context(stock, selection=None):
     with _CHAT_CONTEXT_LOCK:
-        entry = _CHAT_CONTEXT_CACHE.get(stock)
+        entry = _CHAT_CONTEXT_CACHE.get(_chat_cache_key(stock, selection))
         if entry and time.monotonic() - entry[0] < _CHAT_CONTEXT_TTL:
             return entry[1]
     return None
@@ -530,6 +535,12 @@ def ai_test_chat():
     stock = _question_stock(question) or str(body.get("stock") or "").strip()
     if not stock or len(stock) > 50:
         return jsonify({"ok": False, "error": "invalid_input"}), 400
+    selected = None
+    choice = body.get("market_selection")
+    if private_chat and isinstance(choice, dict):
+        selected = get_market_selection(
+            choice.get("market"), choice.get("menu"), choice.get("symbol"), stock=stock,
+        )
 
     # Both administrator tests and central chat use Groq's native limits.
 
@@ -537,7 +548,7 @@ def ai_test_chat():
     # Only a new-stock question falls back to the established analysis function.
     provider_called = False
     try:
-        context = _cached_chat_context(stock) if private_chat else None
+        context = _cached_chat_context(stock, selected) if private_chat else None
 
         # A quote-only cache cannot answer later news/disclosure questions.
         if context and not ("52주" in question and ("최고가" in question or "신고가" in question)):
@@ -572,12 +583,40 @@ def ai_test_chat():
 
         if context is None:
             from backend.services.engine import analyze_stock
-            result = analyze_stock(stock)
+            ticker = analysis_ticker_for_selection(selected)
+            result = analyze_stock(stock, ticker_symbol_override=ticker) if ticker else analyze_stock(stock)
             if result.get("ok") is False:
                 return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": limits_for_request()}), 422
             context = _context(stock, result)
             if private_chat:
-                remember_chat_analysis(stock, result)
+                remember_chat_analysis(stock, result, selection=selected)
+        if selected:
+            # Include only the server's existing menu result, not client-priced data.
+            context = {**context, "market_selection": {
+                key: selected.get(key) for key in (
+                    "market", "menu", "symbol", "name", "rank", "price",
+                    "change_pct", "trading_value", "trading_value_text",
+                    "industry", "currency"
+                )
+            }}
+            context["note"] = context.get("note", "") + (
+                " market_selection은 네이버 메뉴 조회 당시 선택한 종목 정보입니다."
+                " 현재 실시간 시세나 전체 시장 순위로 일반화하지 마세요."
+            )
+        if selected and re.search(r"인기|순위|랭킹|거래대금|상위|TOP\s*20", question, re.IGNORECASE):
+            # Market-menu comparison uses the SAME cached result that built
+            # the sidebar; no extra collection and no fabricated global ranks.
+            rows = get_market_menu_rows(selected["market"], selected["menu"])
+            context["market_menu_rows"] = [
+                {key: row.get(key) for key in (
+                    "rank", "name", "symbol", "industry", "price",
+                    "change_pct", "trading_value",
+                )} for row in rows[:20]
+            ]
+            context["note"] += (
+                " market_menu_rows는 선택 메뉴의 TOP 20 목록이며,"
+                " 전체 시장 상승률 순위나 실시간 주가로 해석하지 마세요."
+            )
         if not any((context["news"], context["official_disclosures"], context["price_information"], context["price_metrics"])):
             return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": limits_for_request()}), 422
 

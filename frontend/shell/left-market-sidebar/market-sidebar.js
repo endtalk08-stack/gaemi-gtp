@@ -125,7 +125,15 @@
             ? String(item.change_pct) : '-Infinity';
           button.type = 'button';
           button.className = 'w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer';
-          button.addEventListener('click', () => window.openStockInChat?.(item.name));
+          button.addEventListener('click', () => window.openStockInChat?.(item.name, {
+            market, menu: tab, name: item.name, symbol: item.symbol,
+            rank: item.rank || index + 1,
+            display_rank: Number(rank.textContent) || item.rank || index + 1,
+            sort: changeSorted ? 'change_pct' : 'source',
+            industry: item.industry, price: item.price, change_pct: item.change_pct,
+            trading_value: item.trading_value, trading_value_text: item.trading_value_text,
+            currency: market === 'us' ? 'USD' : 'KRW', source: 'naver'
+          }));
 
           const top = document.createElement('div');
           top.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start';

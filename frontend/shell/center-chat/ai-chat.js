@@ -91,6 +91,8 @@
       ctx.setPendingQuestionSessionId(sessionId);
       const mentionedStock = window.GaemiGTPCenterChatSearch?.resolveStockMention?.(question) || '';
       const stock = mentionedStock || ctx.getSession()?.stock || '';
+      const marketSelection = !mentionedStock || mentionedStock === ctx.getSession()?.stock
+        ? ctx.getSession()?.marketSelection : null;
       const errors = {
         stock_data_unavailable: '종목 데이터를 확인하지 못했어.',
         invalid_input: '종목명을 함께 입력해 줘.',
@@ -134,7 +136,13 @@
           credentials: 'same-origin',
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'compare', stock, question, history })
+          body: JSON.stringify({
+            role: 'compare', stock, question, history,
+            ...(marketSelection ? { market_selection: {
+              market: marketSelection.market, menu: marketSelection.menu,
+              symbol: marketSelection.symbol
+            } } : {})
+          })
         });
         const result = await response.json();
         if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
@@ -149,6 +157,7 @@
           if (snapshotStock && snapshotStock !== result.stock) {
             window.GaemiGTPAnalysisData?.set?.(result.stock, {});
           }
+          if (ctx.getSession().marketSelection?.name !== result.stock) ctx.getSession().marketSelection = null;
           ctx.getSession().stock = result.stock;
           ctx.setStock(result.stock);
           window.GaemiGTPActiveStock = result.stock;
