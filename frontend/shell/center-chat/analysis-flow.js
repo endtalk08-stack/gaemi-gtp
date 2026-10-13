@@ -521,7 +521,7 @@
       }
 
       // 유효한 종목 분석이 완료된 경우에만 최근 검색에 추가한다.
-      window.GaemiGTPSidebarHome?.recordRecent?.('stock', stockName);
+      window.GaemiGTPApp?.linkRecentConversation?.('stock', stockName);
 
       // 채팅과 플러그인 위젯이 같은 분석 응답을 공유한다.
       // 위젯은 제목 문자열이 아니라 백엔드의 고정 section id를 사용한다.
@@ -533,6 +533,7 @@
         id: ctx.nextChatMessageId(), role: 'assistant', kind: 'analysis',
         sections: sections.map(({ id, title, content }) => ({ id, title, content }))
       });
+      window.GaemiGTPApp?.saveChatHistory?.();
       startTypewriterFlow(stockName, sections, result, requestId);
     }
 
