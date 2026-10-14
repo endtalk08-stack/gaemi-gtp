@@ -434,6 +434,43 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
             return False
         return any(left & right for left, right in zip(a, b))
 
+    def _same_verified_restoration_event(source, previous):
+        """Deduplicate reports of the same verified restoration site and area.
+
+        A shared 'environment' keyword or country alone is insufficient:
+        different sites or project sizes are separate events.
+        """
+        first = str(source.get("_central_checked_body") or "")
+        second = str(previous.get("_central_checked_body") or "")
+        if not first or not second:
+            return False
+        owner = str(source.get("event_owner") or "").strip()
+        previous_owner = str(previous.get("event_owner") or "").strip()
+        if owner and previous_owner and owner != previous_owner:
+            return False
+
+        def anchors(article, body):
+            text = f"{article.get('title') or ''} {body}"
+            if "맹그로브" not in text or not re.search(r"복원|조성", text):
+                return None
+            areas = {
+                float(number.replace(",", ""))
+                for number, _ in re.findall(
+                    r"(?<![0-9])(\d[\d,]*(?:\.\d+)?)\s*(헥타르|ha)",
+                    text, flags=re.IGNORECASE,
+                )
+            }
+            sites = set(re.findall(
+                r"(?<![가-힣])([가-힣]{2,9})(?:시|군|성)"
+                r"(?=(?:와|과|에서|로|의|에|\s|[,.]|$))",
+                text,
+            ))
+            return (areas, sites) if areas and sites else None
+
+        a = anchors(source, first)
+        b = anchors(previous, second)
+        return bool(a and b and a[0] & b[0] and a[1] & b[1])
+
     def _broker_research_facts(source):
         """Find the brokerage behind a research opinion, not the news publisher.
 
@@ -524,6 +561,8 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
             return False
         # Shared event facts outrank differing publisher headlines/keywords.
         if _same_verified_investment(source, previous):
+            return True
+        if _same_verified_restoration_event(source, previous):
             return True
         previous_keyword = str(previous.get("storyboard_keyword") or "").strip()
         source_fact = _financial_amount_fact(source, keyword)

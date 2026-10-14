@@ -165,6 +165,49 @@ class CentralNewsSelectionTests(unittest.TestCase):
         ))
         self.assertEqual(len(select_keyword_storyboard_news([a, b], limit=3)), 1)
 
+    def test_mangrove_restoration_syndicated_reports_become_one_issue(self):
+        a = self.with_body(self.article(
+            "can-gio-1", "베트남 맹그로브 숲 복원 사업 확대",
+            "SK이노베이션이 베트남 껀저시와 협력해 2030년까지 "
+            "200헥타르 규모의 맹그로브 숲을 조성하기로 했다. "
+            "주민 환경교육과 일자리 창출도 함께 추진한다.",
+            keyword="전략제휴",
+        ))
+        b = self.with_body(self.article(
+            "can-gio-2", "SK이노베이션 생태계 복원 활동 추진",
+            "SK이노베이션이 빈롱성에서 시작한 맹그로브 복원 사업을 "
+            "껀저시로 확장해 200헥타르 규모의 숲을 조성한다. "
+            "학생 대상 환경교육을 진행하고 복원 효과를 평가한다.",
+            keyword="생태복원",
+        ))
+        a["event_owner"] = b["event_owner"] = "SK이노베이션"
+        self.assertEqual(len(select_keyword_storyboard_news([a, b], limit=3)), 1)
+
+    def test_mangrove_restoration_different_site_or_area_stays_distinct(self):
+        rows = [
+            self.with_body(self.article(
+                "can-gio", "SK이노베이션 껀저시 맹그로브 복원 확대",
+                "SK이노베이션이 베트남 껀저시와 협력해 "
+                "200헥타르 규모의 맹그로브 숲을 복원한다.",
+                keyword="생태복원",
+            )),
+            self.with_body(self.article(
+                "da-nang", "베트남 다낭시 해안 맹그로브 신규 조성",
+                "SK이노베이션이 베트남 다낭시에서 "
+                "200헥타르 규모의 맹그로브 숲을 조성한다.",
+                keyword="생태복원",
+            )),
+            self.with_body(self.article(
+                "can-gio-400", "껀저시 맹그로브 대규모 별도 사업",
+                "SK이노베이션이 껀저시에서 별도로 "
+                "400헥타르 규모의 맹그로브 숲 복원 사업을 추진한다.",
+                keyword="생태복원",
+            )),
+        ]
+        for row in rows:
+            row["event_owner"] = "SK이노베이션"
+        self.assertEqual(len(select_keyword_storyboard_news(rows, limit=3)), 3)
+
     def test_obvious_ticker_quotes_do_not_consume_central_candidate_slots(self):
         quote = {
             "title": "두산에너빌리티 오후 1시29분 현재 주가 하락",
