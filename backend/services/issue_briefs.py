@@ -711,7 +711,10 @@ def _content_driven_title_and_tags(excerpt):
                 headline = f"증권사 목표주가 {direction} 이슈"
                 tags.append(f"목표주가{direction}")
             else:
-                headline = "증권사 투자의견 변경 이슈"
+                decision = opinion_change.group(1)
+                if decision == "고수":
+                    decision = "유지"
+                headline = f"증권사 투자의견 {decision} 이슈"
 
             # Keep the next two facts only when they are actually present in
             # the same verified excerpt, never from the earlier keyword list.
@@ -757,6 +760,7 @@ def _content_driven_title_and_tags(excerpt):
     )
     if candidate:
         topic = re.sub(r"\s+", " ", candidate.group("topic")).strip()
+        topic = re.sub(r"(?:을|를)$", "", topic)
         action = candidate.group("action")
         if len(topic) >= 6 and not re.match(r"^(?:관계자|관련|어제|여러)\b", topic):
             phrase = f"{topic} {action}"
