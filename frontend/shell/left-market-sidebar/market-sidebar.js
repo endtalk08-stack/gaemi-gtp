@@ -70,11 +70,8 @@
       const row = [...list.querySelectorAll(':scope > button[data-stock-name]')]
         .find(button => button.dataset.stockName === stock);
       if (!row) return;
-      const rate = Number(row.dataset.changePct);
-      if (!Number.isFinite(rate)) return; // Unknown quote must not look like a flat market.
-      const direction = rate > 0 ? '상승' : rate < 0 ? '하락' : '보합';
-      // Show verified event plus observed movement, not an unproven causal claim.
-      const display = `${eventTitle} · ${direction}`;
+      // Show the selected issue headline only, without a price-direction suffix.
+      const display = eventTitle;
       const marketKey = region === '국내' ? 'kr' : region === '해외' ? 'us' : '';
       if (marketKey) issueByStock.set(`${marketKey}:${stock}`, display);
       const label = row.querySelector('[data-stock-issue]');
