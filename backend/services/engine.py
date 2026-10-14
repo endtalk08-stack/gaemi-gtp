@@ -19,6 +19,7 @@ from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
 from .news_result import build_stock_news_result
+from .stock_signal_result import build_stock_signals
 from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
 from ..providers.market_price import fetch_news_price_reaction
@@ -3560,6 +3561,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
         return {
             "sections": sections,
             "price_snapshot": price_snapshot,
+            "stock_signals": build_stock_signals(raw_name, price_snapshot, news_result),
             "paired_news_items": news_result.get("paired_news_items", []),
             "storyboard_news_items": news_result.get("storyboard_news_items", []),
             "issue_briefs": news_result.get("issue_briefs", []),

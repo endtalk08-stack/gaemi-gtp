@@ -650,6 +650,7 @@
             if (secIdx === 0) {
               const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(pEl, pEl.innerText, 'first', stockName);
               appendNextAnalysisChoices(actions);
+              window.GaemiGTPStockSignals?.render?.({ anchor: actions || pEl, stockName, result });
               return;
             }
 

@@ -14,7 +14,8 @@
   let relatedDisclosureItems = [];
   let disclosuresRenderVersion = 0;
   let earningsCalendarElement = null;
-  const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '대시보드', icon: 'layout-dashboard' }, news: { label: '뉴스', icon: 'newspaper' }, disclosures: { label: '공시', icon: 'file-text' }, earnings: { label: '실적', icon: 'calendar-days' } };
+  let selectedStockSignal = null;
+  const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '대시보드', icon: 'layout-dashboard' }, news: { label: '뉴스', icon: 'newspaper' }, disclosures: { label: '공시', icon: 'file-text' }, signal: { label: '시그널', icon: 'activity' }, earnings: { label: '실적', icon: 'calendar-days' } };
 
   function normalizeLegacyPanelWorkspaceDom() {
     const legacyView = document.getElementById('rightPanelTabView-dashboard');
@@ -56,6 +57,7 @@
     const root = document.getElementById('rightPanelWorkspace'); if (!root) return;
     if (!panelWorkspaceView) { root.innerHTML = ''; return; }
     if (panelWorkspaceView === 'panel-workspace') { root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>'; if (window.GaemiGTPPanelWorkspace && typeof window.GaemiGTPPanelWorkspace.mount === 'function') window.GaemiGTPPanelWorkspace.mount(root); return; }
+    if (panelWorkspaceView === 'signal') { renderStockSignalDetail(); return; }
     if (panelWorkspaceView === 'news') { renderRelatedNewsPanel(); return; }
     if (panelWorkspaceView === 'disclosures') { renderRelatedDisclosuresPanel(); return; }
     if (panelWorkspaceView === 'earnings') { renderEarningsCalendarPanel(); return; }
@@ -66,7 +68,7 @@
       if (tab.id === 'panel-workspace') {
         const wrap = document.createElement('div'); wrap.className = 'right-panel-workspace-menu-wrap';
         const button = document.createElement('button'); button.type = 'button'; button.className = 'right-panel-tab-add'; button.dataset.panelWorkspaceMenuToggle = 'true'; button.setAttribute('aria-label', '패널 메뉴'); button.setAttribute('aria-expanded', 'false'); button.title = '패널 메뉴'; button.innerHTML = '<i data-lucide="ellipsis"></i>'; wrap.appendChild(button);
-        const menu = document.createElement('div'); menu.className = 'right-panel-tab-menu right-panel-workspace-menu'; menu.dataset.panelWorkspaceMenu = 'true'; menu.hidden = true; menu.innerHTML = `<button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="panel-workspace"><span>대시보드</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="news"><span>뉴스</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="disclosures"><span>공시</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="earnings"><span>실적</span></button>`; wrap.appendChild(menu); list.appendChild(wrap); return;
+        const menu = document.createElement('div'); menu.className = 'right-panel-tab-menu right-panel-workspace-menu'; menu.dataset.panelWorkspaceMenu = 'true'; menu.hidden = true; menu.innerHTML = `<button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="panel-workspace"><span>대시보드</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="news"><span>뉴스</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="signal"><span>시그널</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="disclosures"><span>공시</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="earnings"><span>실적</span></button>`; wrap.appendChild(menu); list.appendChild(wrap); return;
       }
       const button = document.createElement('button'); button.type = 'button'; button.className = `right-panel-tab${activeTabId === tab.id ? ' is-active' : ''}`; button.dataset.rightPanelTab = tab.id; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', activeTabId === tab.id ? 'true' : 'false'); button.title = tab.label;
       const label = document.createElement('span'); label.className = 'right-panel-tab__label'; label.textContent = tab.label; button.appendChild(label);
@@ -164,6 +166,65 @@
         hour12: false, timeZone: 'Asia/Seoul'
       }).format(new Date(value));
     } catch (_) { return String(value); }
+  }
+
+  // Signal detail reads ONLY the selected stock's already processed /analyze result.
+  function renderStockSignalDetail() {
+    const root = document.getElementById('rightPanelWorkspace');
+    if (!root) return;
+    root.replaceChildren();
+    const detail = document.createElement('section');
+    detail.className = 'gtp-stock-signal-detail';
+    detail.setAttribute('aria-label', '주가 시그널 근거');
+    const add = (tag, cls, value, parent = detail) => {
+      const el = document.createElement(tag);
+      el.className = cls;
+      el.textContent = String(value || '');
+      parent.appendChild(el);
+      return el;
+    };
+    const signal = selectedStockSignal;
+    if (!signal) {
+      add('p', 'gtp-stock-signal-detail__muted', '중앙의 종목 시그널을 선택해 줘.');
+      root.appendChild(detail);
+      return;
+    }
+    add('p', 'gtp-stock-signal-detail__muted', signal.stock + ' · 현재 표시가격 기준');
+    add('h2', 'gtp-stock-signal-detail__heading', signal.title);
+    add('p', 'gtp-stock-signal-detail__muted', '등락률은 직전 종가 대비 수치입니다. 관련 뉴스가 실제 등락 원인이라는 뜻은 아닙니다.');
+    add('h3', 'gtp-stock-signal-detail__subheading', '관련 근거');
+    const articles = Array.isArray(signal.evidence) ? signal.evidence : [];
+    if (!articles.length) {
+      add('p', 'gtp-stock-signal-detail__muted', '현재 원문으로 확인된 직접 관련 기사가 없어 변동 이유를 확정할 수 없어.');
+    }
+    articles.forEach(article => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'gtp-stock-signal-detail__article';
+      add('span', 'gtp-stock-signal-detail__title', article.headline || article.title, card);
+      if (article.summary) add('span', 'gtp-stock-signal-detail__summary', article.summary, card);
+      add('span', 'gtp-stock-signal-detail__muted', [article.source, formatNewsDate(article.published_at)].filter(Boolean).join(' · '), card);
+      if (article.url) {
+        card.addEventListener('click', () =>
+          window.GaemiGTPExternalLinkModal?.openExternalLinkModal?.({
+            title: article.title, description: article.summary || '', source: article.source,
+            published_at: article.published_at, url: article.url, link: article.url
+          })
+        );
+      } else card.disabled = true;
+      detail.appendChild(card);
+    });
+    root.appendChild(detail);
+  }
+
+  function showStockSignal(signal) {
+    if (!signal || typeof signal !== 'object') return;
+    selectedStockSignal = signal;
+    panelWorkspaceView = 'signal';
+    savePanelWorkspaceView();
+    document.body.classList.add('right-panel-open');
+    window.applySidebarState?.();
+    setActiveTab('panel-workspace', false);
   }
   function renderRelatedNewsPanel() {
     const root = document.getElementById('rightPanelWorkspace');
@@ -551,12 +612,17 @@
   function syncActiveStockPanels() {
     // 화면별 재수집 없이 기존 분석 데이터 변경을 현재 열린 메뉴에 반영한다.
     if (panelWorkspaceView === 'news') loadActiveStockNews();
+    else if (panelWorkspaceView === 'signal') {
+      const stock = window.GaemiGTPAnalysisData?.get?.()?.stockName;
+      if (selectedStockSignal && stock !== selectedStockSignal.stock) selectedStockSignal = null;
+      renderStockSignalDetail();
+    }
     else if (panelWorkspaceView === 'disclosures') {
       loadActiveStockDisclosures();
       void renderRelatedDisclosuresPanel();
     }
   }
   window.addEventListener('gaemi-analysis-data-change', syncActiveStockPanels);
-  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedDisclosures, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
+  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedDisclosures, showStockSignal, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true }); else initialize();
 })();

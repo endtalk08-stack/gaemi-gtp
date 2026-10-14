@@ -1,0 +1,43 @@
+/* Stock signals: scoped to this feature; uses shared type and theme tokens. */
+.gtp-stock-signals {
+  margin: 20px 0 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--gtp-border);
+  font-family: var(--gtp-font-family);
+}
+.gtp-stock-signals__heading,
+.gtp-stock-signal-detail__heading {
+  margin: 0 0 12px;
+  font-size: var(--gtp-type-title);
+  font-weight: var(--gtp-weight-title);
+  color: var(--gtp-text);
+}
+.gtp-stock-signals__row {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 54px;
+  padding: 10px 12px;
+  border: 1px solid var(--gtp-border);
+  border-radius: var(--gtp-radius-md);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.gtp-stock-signals__row:hover { background: var(--gtp-surface-2); }
+.gtp-stock-signals__row:focus-visible,
+.gtp-stock-signal-detail__article:focus-visible { outline: 2px solid var(--gtp-muted); outline-offset: 3px; }
+.gtp-stock-signals__title { color: var(--gtp-text); font-size: var(--gtp-type-item); font-weight: var(--gtp-weight-title); }
+.gtp-stock-signals__meta { color: var(--gtp-text-2); font-size: var(--gtp-type-meta); }
+.gtp-stock-signals__note { margin: 8px 0 0; font-size: var(--gtp-type-fine); color: var(--gtp-faint); line-height: 1.5; }
+.gtp-stock-signal-detail { padding: 18px 14px 24px; font-family: var(--gtp-font-family); }
+.gtp-stock-signal-detail__muted { display: block; margin: 4px 0 12px; color: var(--gtp-muted); font-size: var(--gtp-type-meta); line-height: 1.65; }
+.gtp-stock-signal-detail__subheading { margin: 24px 0 8px; font-size: var(--gtp-type-title); font-weight: var(--gtp-weight-title); color: var(--gtp-text); }
+.gtp-stock-signal-detail__article { display: flex; width: 100%; flex-direction: column; gap: 6px; padding: 12px 3px; border: 0; border-bottom: 1px solid var(--gtp-border); background: transparent; font-family: inherit; text-align: left; cursor: pointer; }
+.gtp-stock-signal-detail__article:hover { background: var(--gtp-surface-2); }
+.gtp-stock-signal-detail__article:disabled { cursor: default; }
+.gtp-stock-signal-detail__title { color: var(--gtp-text); font-size: var(--gtp-type-item); font-weight: var(--gtp-weight-title); line-height: 1.5; }
+.gtp-stock-signal-detail__summary { color: var(--gtp-text-2); font-size: var(--gtp-type-item); font-weight: var(--gtp-weight-body); line-height: 1.6; }
