@@ -1,0 +1,90 @@
+"""Market-wide US close brief: grounded quotes, news facts and cache."""
+import datetime
+import unittest
+from unittest.mock import patch
+
+from backend.services import us_market_close_brief as brief
+
+
+_NOW = datetime.datetime(2026, 10, 14, 7, tzinfo=datetime.timezone.utc)
+_SESSION = datetime.date(2026, 10, 13)
+_MAIN = (
+    "반도체 업종은 데이터센터 투자 확대 발표에 힘입어 강세를 보였다. "
+    "전기차 업종은 수요 둔화 우려로 하락세를 기록했다. "
+    "미국 국채금리는 발표된 지표의 영향으로 소폭 내려갔다. "
+    "연준은 이번 주 물가 지표를 주시하고 있다고 밝혔다."
+)
+
+
+class USMarketCloseBriefTests(unittest.TestCase):
+    def setUp(self):
+        brief._CACHE = None
+        brief._CACHED_AT = 0
+
+    def tearDown(self):
+        brief._CACHE = None
+        brief._CACHED_AT = 0
+
+    def test_quotes_require_exact_session_and_previous_close(self):
+        rows = [
+            {"date": "2026-10-12", "close": 100.0},
+            {"date": "2026-10-13", "close": 106.0},
+        ]
+        with patch.object(brief, "fetch_daily_price_history", return_value=rows):
+            self.assertEqual(brief._dated_index("^IXIC", _SESSION)["change_pct"], 6.0)
+            self.assertIsNone(brief._dated_index("^IXIC", datetime.date(2026, 10, 14)))
+        with patch.object(brief, "fetch_daily_price_history", return_value=[{"close": 106.0}]):
+            self.assertIsNone(brief._dated_index("^IXIC", _SESSION))
+
+    def test_news_categories_use_only_original_sentences(self):
+        stories = [{"article_body": _MAIN, "source": "신문", "url": "https://example.com/us"}]
+        categories = brief._fact_sections(stories)
+        self.assertEqual(len(categories["주도업종"]), 1)
+        self.assertIn("반도체", categories["주도업종"][0]["text"])
+        self.assertEqual(len(categories["하락업종"]), 1)
+        self.assertEqual(len(categories["원자재 · 금리 · 환율"]), 1)
+        self.assertEqual(len(categories["경제지표 · 통화정책"]), 1)
+        self.assertEqual(categories["거래대금 · 시장 강도"], [])
+
+    def test_result_uses_one_shared_news_result_and_does_not_invent_fields(self):
+        quote = [
+            {"name": "나스닥", "date": "2026-10-13", "change_pct": -1.22},
+            {"name": "S&P500", "date": "2026-10-13", "change_pct": -0.3},
+            {"name": "다우", "date": "2026-10-13", "change_pct": 0.15},
+        ]
+        article = {
+            "title": "뉴욕증시 마감",
+            "source": "신문", "url": "https://example.com/us",
+            "article_body": _MAIN,
+        }
+        with patch.object(brief, "_index_changes", return_value=quote) as prices, patch.object(
+            brief, "build_us_market_close_news_result", return_value={"ok": True, "items": [article]}
+        ) as news:
+            first = brief.build_us_market_close_brief(now=_NOW)
+            again = brief.build_us_market_close_brief(now=_NOW)
+
+        self.assertTrue(first["ok"])
+        self.assertEqual(first["session_date"], "2026-10-13")
+        indexed = next(x for x in first["sections"] if x["title"] == "주요 지수")
+        self.assertIn("나스닥  -1.22%", indexed["content"])
+        self.assertIn("다우  +0.15%", indexed["content"])
+        self.assertNotIn("필라델피아 반도체", indexed["content"])
+        self.assertTrue(any(x["title"] == "하락업종" for x in first["sections"]))
+        self.assertNotIn("원/달러 환율 1,375", str(first))
+        self.assertEqual(first, again)
+        prices.assert_called_once_with(_SESSION)
+        news.assert_called_once_with(limit=4, now=_NOW, include_body=True)
+
+    def test_missing_sources_return_explicit_absence_not_fabricated_data(self):
+        with patch.object(brief, "_index_changes", return_value=[]), patch.object(
+            brief, "build_us_market_close_news_result", return_value={"ok": True, "items": []}
+        ):
+            result = brief.build_us_market_close_brief(now=_NOW)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["indices"], [])
+        self.assertFalse(any(x["title"] == "주요 지수" for x in result["sections"]))
+        self.assertTrue(any(x["title"] == "마감시황 기사" for x in result["sections"]))
+
+
+if __name__ == "__main__":
+    unittest.main()
