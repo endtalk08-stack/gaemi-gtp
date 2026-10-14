@@ -9,6 +9,7 @@ from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.us_market_close_news import build_us_market_close_news_result
 from backend.services.us_market_close_brief import build_us_market_close_brief
+from backend.services.us_market_close_store import get_latest_us_close_brief
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -114,8 +115,15 @@ def us_market_close_news():
 
 @app.get("/api/market/us-close-brief")
 def us_market_close_brief():
-    """Central-chat market result; only server-side cached feeds are queried."""
+    """Same market result, with saved-only reads when scheduled mode is enabled."""
     try:
+        if os.getenv("US_CLOSE_READ_SAVED_ONLY", "0") == "1":
+            result = get_latest_us_close_brief()
+            if result is None:
+                return jsonify({"ok": False, "error": "saved_market_close_not_ready", "sections": []}), 503
+            return jsonify(result), 200
+        # Preserve the current working click behavior until the database and
+        # scheduled job have actually been provisioned and verified.
         result = build_us_market_close_brief()
         return jsonify(result), (200 if result["ok"] else 503)
     except Exception as exc:
