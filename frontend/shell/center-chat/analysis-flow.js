@@ -309,7 +309,7 @@
                 line.style.gap = '8px';
                 line.style.alignItems = 'center';
                 const label = document.createElement('span');
-                label.style.fontSize = 'var(--gtp-type-item)';
+                label.className = responseMessageClass;
                 label.style.fontWeight = '500';
                 const track = document.createElement('span');
                 track.style.position = 'relative';
@@ -332,8 +332,7 @@
                 bar.style.width = '0%';
                 track.append(bar, axis);
                 const rate = document.createElement('span');
-                rate.className = 'font-semibold';
-                rate.style.fontSize = 'var(--gtp-type-item)';
+                rate.className = `${responseMessageClass} font-semibold`;
                 rate.style.textAlign = 'right';
                 rate.style.fontVariantNumeric = 'tabular-nums';
                 rate.style.color = item.change_pct > 0 ? '#FF8DA1'
