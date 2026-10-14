@@ -118,9 +118,13 @@ def _fact_sections(items):
         sentence = item["text"]
         lower = sentence.casefold()
         sector = any(word in lower for word in _CORE_SECTORS)
-        if sector and any(word in lower for word in _RISING):
+        rising = any(word in lower for word in _RISING)
+        falling = any(word in lower for word in _FALLING)
+        # A sentence reporting mixed directions cannot prove which
+        # specific sector led or lagged. Keep it out of either ranking.
+        if sector and rising and not falling:
             section = "주도업종"
-        elif sector and any(word in lower for word in _FALLING):
+        elif sector and falling and not rising:
             section = "하락업종"
         elif any(word in lower for word in _OTHER_SECTORS):
             section = "그 밖에 움직인 업종 · 테마"
@@ -161,7 +165,7 @@ def build_us_market_close_brief(*, now=None):
                 for item in indices if item["name"] in {"나스닥", "S&P500", "다우"}
             )
             if overview:
-                sections.append({"title": "미국장은 어땠어? 🇺🇸", "content": f"미국장은 {overview}로 마감했어."})
+                sections.append({"title": "미국장은 어땠어? 🇺🇸", "content": f"{session:%m월 %d일} 미국장은 {overview}로 마감했어."})
             sections.append({
                 "title": "주요 지수",
                 "content": "\n".join(f'{item["name"]}  {item["change_pct"]:+.2f}%' for item in indices),
