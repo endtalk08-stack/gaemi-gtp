@@ -83,10 +83,19 @@
           </div>`;
 
         const appendUsMarketPrompt = () => {
-          if (mainContainer.querySelector('[data-us-market-prompt]')) return;
-          const prompt = makeUserPrompt('미국장 어땠어?', 'usMarketPrompt');
+          if (mainContainer.querySelector('[data-us-market-prompt]')) return null;
+          const question = '미국장은 어땠어?';
+          const prompt = makeUserPrompt(question, 'usMarketPrompt');
           choices.insertAdjacentElement('afterend', prompt);
+          const session = ctx.getSession();
+          if (session) {
+            session.messages.push({
+              id: ctx.nextChatMessageId(), role: 'user', kind: 'question', text: question
+            });
+            window.GaemiGTPApp?.saveChatHistory?.();
+          }
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return prompt;
         };
 
         const appendRemainingChoices = (after, completed = []) => {
@@ -116,6 +125,7 @@
             row.appendChild(button);
           });
           after.insertAdjacentElement('afterend', followup);
+          return followup;
         };
 
         const appendFortunePrompt = async () => {
@@ -200,6 +210,116 @@
           element.classList.remove('typing-cursor');
         };
 
+        const appendUsMarketResult = async (prompt) => {
+          if (!prompt || !prompt.isConnected) return;
+          const sessionId = ctx.getSession()?.id;
+          const isActive = () => requestId === ctx.getActiveAnalysisRequestId()
+            && ctx.getSession()?.id === sessionId && mainContainer.isConnected;
+
+          // Use the same five-second '생각중' loading as the existing why flow.
+          const loading = document.createElement('div');
+          loading.className = 'mt-5 space-y-2';
+          const loadingText = document.createElement('p');
+          loadingText.className = `${responseMessageClass} font-semibold animate-pulse`;
+          loadingText.textContent = '생각중';
+          loading.appendChild(loadingText);
+          prompt.insertAdjacentElement('afterend', loading);
+
+          // Fetch one cached market-specific result: never call AI or /analyze.
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 15000);
+          const pending = fetch(ctx.backendUrl + '/api/market/us-close-brief', {
+            signal: controller.signal,
+            credentials: 'same-origin'
+          }).then(async response => {
+            if (!response.ok) return null;
+            const body = await response.json();
+            return body?.ok && Array.isArray(body.sections) ? body : null;
+          }).catch(() => null);
+
+          let result;
+          try {
+            [result] = await Promise.all([
+              pending,
+              new Promise(resolve => setTimeout(resolve, 5000))
+            ]);
+          } finally {
+            clearTimeout(timeout);
+            loading.remove();
+          }
+          if (!isActive()) return;
+
+          const sections = result?.sections?.length
+            ? result.sections
+            : [{ title: '미국장은 어땠어? 🇺🇸', content: '마감시황 데이터를 아직 확인하지 못했어. 확인되지 않은 수치나 이유는 표시하지 않을게.' }];
+          const answer = document.createElement('section');
+          answer.dataset.usMarketResult = 'true';
+          answer.className = 'mt-5 space-y-5 animate-fade';
+          prompt.insertAdjacentElement('afterend', answer);
+
+          for (const section of sections) {
+            if (!isActive()) return;
+            const content = String(section?.content || '').trim();
+            if (!content) continue;
+            const block = document.createElement('div');
+            block.className = 'space-y-2';
+            const title = document.createElement('h4');
+            title.className = 'gtp-chat-section-title gtp-dark-text';
+            title.textContent = String(section?.title || '');
+            const body = document.createElement('p');
+            body.className = `${responseMessageClass} whitespace-pre-line`;
+            block.append(title, body);
+            answer.appendChild(block);
+            await typeText(body, content, { chunkSize: 4 });
+            if (!isActive()) return;
+
+            // The existing rise/fall palette; build safe text nodes, never
+            // interpret external news article text as HTML.
+            if (section.title === '주요 지수') {
+              const highlight = /[+-]\d+(?:\.\d+)?%/g;
+              body.replaceChildren();
+              let cursor = 0;
+              for (const match of content.matchAll(highlight)) {
+                body.append(document.createTextNode(content.slice(cursor, match.index)));
+                const rate = document.createElement('span');
+                rate.className = 'font-semibold';
+                rate.style.color = match[0].startsWith('+') ? '#FF8DA1' : '#38BDF8';
+                rate.textContent = match[0];
+                body.appendChild(rate);
+                cursor = match.index + match[0].length;
+              }
+              body.append(document.createTextNode(content.slice(cursor)));
+            }
+          }
+          if (!isActive()) return;
+
+          const fullText = sections.map(section =>
+            [section.title, section.content].filter(Boolean).join('\n')
+          ).join('\n\n');
+          ctx.getSession().messages.push({
+            id: ctx.nextChatMessageId(), role: 'assistant',
+            kind: 'market-close', text: fullText
+          });
+          window.GaemiGTPApp?.saveChatHistory?.();
+
+          // Reuse the first reply's existing actions and type the remaining
+          // hashtags exactly where the response ends.
+          const actions = window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
+            answer, fullText, 'us-market', '미국장'
+          );
+          const followup = appendRemainingChoices(actions || answer, ['us-market']);
+          if (followup) {
+            const labels = [followup.querySelector('p'), ...followup.querySelectorAll('[data-next-analysis]')]
+              .map(element => [element, element?.textContent || '']);
+            labels.forEach(([element]) => { if (element) element.textContent = ''; });
+            for (const [element, value] of labels) {
+              if (!isActive()) return;
+              await typeText(element, value, { chunkSize: 1 });
+            }
+          }
+          if (isActive()) answer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        };
+
         const appendWhy = async () => {
           return window.GaemiGTPWhyFlow.appendWhy({
             mainContainer,
@@ -226,8 +346,9 @@
             if (choiceSection && choiceSection !== choices) {
               choiceSection.replaceWith(choices);
             }
-            appendUsMarketPrompt();
+            const prompt = appendUsMarketPrompt();
             choices.remove();
+            void appendUsMarketResult(prompt);
             return;
           }
           if (button.dataset.nextAnalysis === 'why') {
