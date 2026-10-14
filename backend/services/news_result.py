@@ -1,6 +1,8 @@
 """Build the shared stock-news result consumed by chat and right-panel views."""
 
 import copy
+import json
+import os
 import re
 import threading
 import time
@@ -119,6 +121,37 @@ def build_stock_news_result(
     display_timezone="Asia/Seoul",
 ):
     """Return one shared stock-news result for every screen representation."""
+    # Temporary per-article diagnostics; defaults to the reported stock only.
+    # Override with a comma-separated GAEMIGTP_NEWS_DIAGNOSTIC_STOCKS value.
+    monitored = {
+        name.strip() for name in os.environ.get(
+            "GAEMIGTP_NEWS_DIAGNOSTIC_STOCKS", "SK하이닉스"
+        ).split(",") if name.strip()
+    }
+    tracing = stock_name in monitored
+
+    def has_cpi(item):
+        text = " ".join(str(item.get(field) or "") for field in ("title", "description", "summary"))
+        return bool(re.search(r"\bCPI\b|소비자\s*물가(?:지수)?|물가\s*우려", text, re.IGNORECASE))
+
+    def diag(stage, item=None, **details):
+        if not tracing:
+            return
+        try:
+            record = {"stock": stock_name, "stage": stage}
+            if item is not None:
+                record.update({
+                    "title": str(item.get("title") or "")[:150],
+                    "url": str(item.get("url") or item.get("link") or "").split("?", 1)[0][:220],
+                    "relation": str(item.get("relation_type") or ""),
+                    "keywords": list(item.get("storyboard_keywords") or [])[:5],
+                    "cpi": has_cpi(item),
+                })
+            record.update(details)
+            print("[news decision] " + json.dumps(record, ensure_ascii=False, default=str), flush=True)
+        except Exception:
+            pass  # Diagnostics must never change the news result.
+
     try:
         part_started = time.monotonic()
         raw_news_list = fetch_stock_news(
@@ -132,6 +165,12 @@ def build_stock_news_result(
             f"elapsed={time.monotonic() - part_started:.2f}s items={len(raw_news_list)}",
             flush=True,
         )
+
+        if tracing:
+            cpi_rows = [item for item in raw_news_list if has_cpi(item)]
+            diag("fetched_summary", total=len(raw_news_list), cpi_count=len(cpi_rows))
+            for item in cpi_rows[:12]:
+                diag("fetched_cpi", item)
 
         part_started = time.monotonic()
         scored_news = score_stock_news(raw_news_list, stock_name)
@@ -155,6 +194,12 @@ def build_stock_news_result(
             article["stock_entities"] = keyword_result.get("stock_entities", [])
             article["event_owner"] = keyword_result.get("event_owner", "")
             article["relation_type"] = keyword_result.get("relation_type", "unknown")
+
+        if tracing:
+            cpi_rows = [item for item in scored_news if has_cpi(item)]
+            diag("scored_summary", total=len(scored_news), cpi_count=len(cpi_rows))
+            for item in cpi_rows[:12]:
+                diag("scored_cpi", item)
 
         paired_news_items = build_simple_today_news(
             scored_news,
@@ -180,7 +225,20 @@ def build_stock_news_result(
             if (row.get("url") or row.get("link") or row.get("title")) not in today_keys
         ]
 
+        if tracing:
+            cpi_today = [item for item in paired_news_items if has_cpi(item)]
+            diag("today_summary", total=len(paired_news_items), cpi_count=len(cpi_today))
+            for item in paired_news_items:
+                if item.get("relation_type") == "direct" or has_cpi(item):
+                    diag("today_relevant", item)
+
         def rank_candidates(rows):
+            if tracing:
+                for row in rows:
+                    if _central_obvious_price_report(row) and (
+                        row.get("relation_type") == "direct" or has_cpi(row)
+                    ):
+                        diag("rejected_before_ranking", row, reason="price_snapshot")
             # Give different event keywords a chance before filling remaining
             # verification slots by the existing relevance score.
             pool = select_keyword_storyboard_news(
@@ -203,6 +261,25 @@ def build_stock_news_result(
         # from the existing recent news. No new collector or display path.
         candidate_news = rank_candidates(paired_news_items)
         candidate_news.extend(rank_candidates(older_news))
+        if tracing:
+            queued_keys = {
+                (str(item.get("url") or item.get("link") or ""), str(item.get("title") or ""))
+                for item in candidate_news
+            }
+            diag("queue_summary", total=len(candidate_news))
+            for item in paired_news_items:
+                if item.get("relation_type") != "direct" and not has_cpi(item):
+                    continue
+                key = (str(item.get("url") or item.get("link") or ""), str(item.get("title") or ""))
+                if key in queued_keys:
+                    diag("queued_for_body", item)
+                else:
+                    reason = (
+                        "price_snapshot" if _central_obvious_price_report(item)
+                        else "no_storyboard_keywords" if not item.get("storyboard_keywords")
+                        else "ranking_or_dedup_limit"
+                    )
+                    diag("rejected_before_body", item, reason=reason)
 
         detail_started = time.monotonic()
         accepted_articles = []
@@ -217,15 +294,26 @@ def build_stock_news_result(
                 if detail.get("source") not in {
                     "jsonld_article_body", "article_or_main_paragraphs"
                 }:
+                    diag("rejected_after_body", article, reason="unverified_article_source",
+                         source=detail.get("source"), body_chars=len(detail.get("text") or ""))
                     continue
                 verified_body_count += 1
                 excerpt = _article_excerpt(detail.get("text") or "")
-                if not excerpt or not _central_direct_article(article, excerpt, stock_name):
+                if not excerpt:
+                    diag("rejected_after_body", article, reason="empty_excerpt",
+                         source=detail.get("source"))
+                    continue
+                if not _central_direct_article(article, excerpt, stock_name):
+                    diag("rejected_after_body", article, reason="stock_not_direct_in_opening",
+                         body_cpi=has_cpi({"description": excerpt}))
                     continue
                 # Only a grounded business/market event belongs in the central
                 # notable-news strip. Quote-only reports stay in the shared feed.
                 if not central_material_brief_supported(excerpt):
+                    diag("rejected_after_body", article, reason="no_supported_material_topic",
+                         body_cpi=has_cpi({"description": excerpt}))
                     continue
+                diag("accepted_after_body", article, body_cpi=has_cpi({"description": excerpt}))
                 candidate = dict(article)
                 # Only the central, body-verified copy becomes a direct candidate.
                 candidate["relation_type"] = "direct"
@@ -239,6 +327,20 @@ def build_stock_news_result(
             )
             if len(storyboard_news_items) >= storyboard_limit:
                 break
+
+        if tracing:
+            diag("selection_summary", verified_bodies=verified_body_count,
+                 body_accepted=len(accepted_articles), selected=len(storyboard_news_items))
+            chosen = {
+                (str(item.get("url") or item.get("link") or ""), str(item.get("title") or ""))
+                for item in storyboard_news_items
+            }
+            for item in accepted_articles:
+                key = (str(item.get("url") or item.get("link") or ""), str(item.get("title") or ""))
+                if key not in chosen:
+                    diag("rejected_at_selection", item, reason="selection_keyword_or_duplicate")
+            for item in storyboard_news_items:
+                diag("selected_issue_article", item)
 
         if candidate_news and verified_body_count == 0:
             raise RuntimeError('all_candidate_article_bodies_unavailable')
