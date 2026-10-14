@@ -42,7 +42,7 @@ _TTL = 10 * 60
 def _dated_index(symbol, session):
     """Use only closes labelled with a NY exchange date, never an intraday candle."""
     rows = fetch_daily_price_history(symbol)
-    dated = []
+    dated = {}
     for row in rows:
         if not isinstance(row, dict):
             continue
@@ -52,12 +52,13 @@ def _dated_index(symbol, session):
         except (ValueError, TypeError, OverflowError):
             continue
         if day <= session and close > 0 and close < float("inf"):
-            dated.append((day, close))
-    dated.sort()
-    if len(dated) < 2 or dated[-1][0] != session:
+            dated[day] = close
+    days = sorted(dated)
+    if len(days) < 2 or days[-1] != session:
         return None
-    last_day, last = dated[-1]
-    prev = dated[-2][1]
+    last_day = days[-1]
+    last = dated[last_day]
+    prev = dated[days[-2]]
     if prev <= 0:
         return None
     return {"date": last_day.isoformat(), "change_pct": round((last / prev - 1) * 100, 2)}
