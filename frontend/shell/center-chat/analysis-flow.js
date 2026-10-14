@@ -84,7 +84,7 @@
 
         const appendUsMarketPrompt = () => {
           if (mainContainer.querySelector('[data-us-market-prompt]')) return;
-          const prompt = makeUserPrompt('미국장 어땠어?', 'usMarketPrompt');
+          const prompt = makeUserPrompt('미국장은 어땠어?', 'usMarketPrompt');
           choices.insertAdjacentElement('afterend', prompt);
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
