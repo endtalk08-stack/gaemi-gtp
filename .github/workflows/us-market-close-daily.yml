@@ -1,0 +1,40 @@
+name: US market close brief (07:00 KST)
+
+on:
+  schedule:
+    # GitHub Actions cron is UTC. Mon-Fri 22:00 = Tue-Sat 07:00 KST.
+    # Retry at 07:20/07:40 only if a ready result was not stored yet.
+    - cron: '0,20,40 22 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: us-market-close-daily
+  cancel-in-progress: false
+
+jobs:
+  prepare-close:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.GAEMI_NEON_DATABASE_URL }}
+      NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+      NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check configured secrets
+        shell: bash
+        run: |
+          if [[ -z "$DATABASE_URL" || -z "$NAVER_CLIENT_ID" || -z "$NAVER_CLIENT_SECRET" ]]; then
+            echo "::error::Missing database or Naver API secret; schedule not activated."
+            exit 1
+          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install database driver only
+        run: python -m pip install 'psycopg[binary]>=3.2,<4'
+      - name: Build and store if session is complete
+        run: python -m backend.services.us_market_close_daily
