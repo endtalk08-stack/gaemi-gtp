@@ -112,7 +112,7 @@
             if (!label || !item) return;
             const text = item.status === 'ready' && item.headline
               ? item.headline
-              : item.status === 'pending' ? '이슈 확인 중' : '확인된 이슈 없음';
+              : item.status === 'pending' ? '이슈 확인 중' : '';
             label.textContent = text;
             label.title = text;
           });
