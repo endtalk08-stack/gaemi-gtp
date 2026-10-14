@@ -115,7 +115,7 @@ def build_stock_news_result(
     *,
     market,
     limit=50,
-    storyboard_limit=5,
+    storyboard_limit=3,
     display_timezone="Asia/Seoul",
 ):
     """Return one shared stock-news result for every screen representation."""
@@ -371,7 +371,7 @@ _SHARED_NEWS_KEY_LOCKS = {}
 _SHARED_NEWS_TTL = 15 * 60
 
 
-def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=5,
+def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul"):
     key = (str(stock_name), market, int(limit), int(storyboard_limit), display_timezone)
     with _SHARED_NEWS_LOCK:
