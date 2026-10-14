@@ -466,10 +466,30 @@ def _context(stock, data):
 
     brief = []
     for item in (data.get("issue_briefs") or [])[:3]:
+        # Reuse the very same verified low/high figures shown in central chat.
+        # Exclude unavailable values rather than inventing a price reaction.
+        reactions = []
+        for reaction in (item.get("stock_reactions") or [])[:3]:
+            if not isinstance(reaction, dict):
+                continue
+            name = _compact(reaction.get("name"), 60)
+            low_pct, high_pct = reaction.get("low_pct"), reaction.get("high_pct")
+            if not name or not all(
+                isinstance(value, (int, float)) and not isinstance(value, bool)
+                and math.isfinite(value)
+                for value in (low_pct, high_pct)
+            ):
+                continue
+            reactions.append({
+                "name": name,
+                "low_pct": low_pct,
+                "high_pct": high_pct,
+            })
         brief.append({
             "headline": _compact(item.get("headline"), 120),
             "summary": _compact(item.get("summary"), 240),
             "reaction_at": _compact(item.get("reaction_at"), 60),
+            "stock_reactions": reactions,
         })
 
     disclosures = []
@@ -493,6 +513,10 @@ def _context(stock, data):
             "price_metrics.change_pct는 현재 표시가격의 직전 종가 대비 등락률입니다. "
             "price_metrics.previous_trading_day는 날짜가 확인된 직전 완료 거래일의 고가·종가·당일 등락률입니다. "
             "두 등락률을 혼동하지 말고 거래일 날짜를 명시하세요. "
+            "issue_briefs.stock_reactions의 low_pct/high_pct는 해당 뉴스 발행 시각을 기준으로 "
+            "이후 첫 거래 세션의 최저가/최고가에서 계산한 변동률(%)입니다. "
+            "이는 현재가 등락률이나 뉴스 이후 모든 거래일의 최고/최저 수익률이 아닙니다. "
+            "기준가격은 뉴스 시각 이전에 시작한 마지막 5분봉의 종가이며 시세 갱신 시각을 보장하지 않습니다. "
             "분석 해시태그는 기존 종목 분석에서 생성된 참고 신호이며 장기 추세의 확정 근거가 아닙니다. "
             "질문과 관련된 해시태그는 활용하되, 없는 장기 이동평균이나 추세 데이터를 추측하지 마세요. "
             "시세 원천의 실시간성은 보장되지 않습니다. 누락된 값은 추측하지 마세요."
