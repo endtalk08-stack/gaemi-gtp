@@ -270,6 +270,7 @@
             body.className = `${responseMessageClass} whitespace-pre-line`;
             block.append(title, body);
             answer.appendChild(block);
+            block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             await typeText(title, titleText, { chunkSize: 2 });
             if (!isActive()) return;
             await typeText(body, content, { chunkSize: 4 });
@@ -319,7 +320,7 @@
               await typeText(element, value, { chunkSize: 1 });
             }
           }
-          if (isActive()) answer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          if (isActive()) (followup || answer).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
         const appendWhy = async () => {
