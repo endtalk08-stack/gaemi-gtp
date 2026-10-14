@@ -224,6 +224,21 @@ class IssueBriefTests(unittest.TestCase):
 
 
 
+    def test_market_material_headline_one_topic_but_all_tags_preserved(self):
+        for stock in ("SK하이닉스", "테슬라"):
+            text = f"{stock}, CPI 예상 상회로 금리 인상 우려. 트럼프 발언에 시장 긴장"
+            headline, tags = market_material_title_and_tags(text)
+            self.assertEqual(headline, "CPI 예상 상회 이슈")
+            self.assertEqual(tags, ["CPI예상상회", "금리인상우려", "트럼프발언"])
+            self.assertNotIn(" · ", headline)
+
+        headline, tags = market_material_title_and_tags(
+            "SK하이닉스, CPI 예상 상회로 금리 인상 우려. 트럼프 발언에 시장 긴장",
+            limit=2,
+        )
+        self.assertEqual(headline, "CPI 예상 상회 이슈")
+        self.assertEqual(tags, ["CPI예상상회", "금리인상우려"])
+
     def test_market_materials_are_fact_grounded_not_price_guesses(self):
         cases = [
             ("SK하이닉스, CPI 예상 상회로 금리 인상 우려", ["CPI예상상회", "금리인상우려"]),

@@ -567,7 +567,7 @@ _MARKET_MATERIAL_TOPICS = (
 )
 
 
-def market_material_title_and_tags(text, limit=2):
+def market_material_title_and_tags(text, limit=None):
     """Pick the market facts explicitly present in article text."""
     source = str(text or "").strip()
     matches = []
@@ -582,11 +582,12 @@ def market_material_title_and_tags(text, limit=2):
             continue
         selected.append((tag, heading))
         used_ranges.append((start, end))
-        if len(selected) >= max(1, int(limit)):
+        if limit is not None and len(selected) >= max(1, int(limit)):
             break
     if not selected:
         return "", []
-    return " · ".join(heading for _, heading in selected) + " 이슈", [
+    # A single primary topic in the headline; preserve every matching tag.
+    return selected[0][1] + " 이슈", [
         tag for tag, _ in selected
     ]
 
