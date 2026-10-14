@@ -570,18 +570,30 @@ _MARKET_MATERIAL_TOPICS = (
 def market_material_title_and_tags(text, limit=None):
     """Pick the market facts explicitly present in article text."""
     source = str(text or "").strip()
+    # An article can discuss unrelated events in separate sentences.
+    # Never assemble one market material from words in different sentences.
     matches = []
-    for priority, (tag, heading, pattern) in enumerate(_MARKET_MATERIAL_TOPICS):
-        found = re.search(pattern, source, flags=re.IGNORECASE)
-        if found:
-            matches.append((found.start(), priority, found.end(), tag, heading))
-    matches.sort(key=lambda row: (row[0], row[1]))
-    selected, used_ranges = [], []
-    for start, _, end, tag, heading in matches:
-        if any(start < stop and end > begin for begin, stop in used_ranges):
+    clauses = re.split(r"(?<=[.!?])\s+", source)
+    for clause_index, clause in enumerate(clauses):
+        for priority, (tag, heading, pattern) in enumerate(_MARKET_MATERIAL_TOPICS):
+            found = re.search(pattern, clause, flags=re.IGNORECASE)
+            if found:
+                matches.append((
+                    clause_index, found.start(), priority, found.end(), tag, heading
+                ))
+    matches.sort(key=lambda row: (row[0], row[1], row[2]))
+    selected, used_ranges, seen_tags = [], [], set()
+    for clause_index, start, _, end, tag, heading in matches:
+        if tag in seen_tags:
+            continue
+        if any(
+            clause_index == old_clause and start < stop and end > begin
+            for old_clause, begin, stop in used_ranges
+        ):
             continue
         selected.append((tag, heading))
-        used_ranges.append((start, end))
+        seen_tags.add(tag)
+        used_ranges.append((clause_index, start, end))
         if limit is not None and len(selected) >= max(1, int(limit)):
             break
     if not selected:
@@ -592,7 +604,7 @@ def market_material_title_and_tags(text, limit=None):
     ]
 
 
-_BODY_DISPLAY_TOPICS = _MARKET_MATERIAL_TOPICS + (
+_BODY_DISPLAY_TOPICS = (
     ("한미동맹", "한미 동맹", r"한\s*[·\-]?\s*미\s*동맹"),
     ("국익외교", "국익 외교", r"국익\s*외교"),
     ("행정수도", "행정수도", r"행정수도|세종\s*이전"),

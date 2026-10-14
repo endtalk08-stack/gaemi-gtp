@@ -239,6 +239,24 @@ class IssueBriefTests(unittest.TestCase):
         self.assertEqual(headline, "CPI 예상 상회 이슈")
         self.assertEqual(tags, ["CPI예상상회", "금리인상우려"])
 
+    def test_market_material_matching_does_not_cross_sentences(self):
+        title, tags = market_material_title_and_tags(
+            "SK하이닉스 CPI 발표 예정. 예상치 상회 논란과 금리 인상 우려"
+        )
+        self.assertEqual(title, "금리 인상 우려 이슈")
+        self.assertEqual(tags, ["금리인상우려"])
+
+    def test_market_materials_are_separate_from_original_company_body_titles(self):
+        from backend.services.issue_briefs import _body_title_and_tags
+        self.assertEqual(
+            _body_title_and_tags("CPI 예상 상회와 금리 인상 우려가 확대됐다."),
+            ("기사 주요 내용", []),
+        )
+        self.assertEqual(
+            _body_title_and_tags("삼성전자가 반도체 공급 계약을 체결했다."),
+            ("공급 계약 이슈", ["공급계약"]),
+        )
+
     def test_market_materials_are_fact_grounded_not_price_guesses(self):
         cases = [
             ("SK하이닉스, CPI 예상 상회로 금리 인상 우려", ["CPI예상상회", "금리인상우려"]),

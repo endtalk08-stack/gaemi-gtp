@@ -242,17 +242,31 @@ def build_stock_news_result(
         for item in paired_news_items:
             title = str(item.get("title") or "")
             description = str(item.get("description") or "")
-            if not _central_stock_mentioned(f"{title} {description}", stock_name):
+            title_has_stock = _central_stock_mentioned(title, stock_name)
+            description_has_stock = _central_stock_mentioned(description, stock_name)
+            relation = str(item.get("relation_type") or "").strip().lower()
+            # No broad market headlines assigned to a company by incidental
+            # mention. The company must be in the title, or be a direct
+            # subject of the snippet according to the existing classifier.
+            if not title_has_stock and not (description_has_stock and relation == "direct"):
                 continue
-            headline, tags = market_material_title_and_tags(f"{title} {description}")
-            if not tags:
+            # Check title and snippet independently: never construct a signal
+            # from half a phrase in the title and the other half in the snippet.
+            title_heading, title_tags = market_material_title_and_tags(title)
+            description_heading, description_tags = market_material_title_and_tags(description)
+            if not title_tags and not description_tags:
                 continue
-            market_material_candidates.append((item, headline, tags))
-            diag("market_material_candidate", item, material_tags=tags)
+            headline = title_heading or description_heading
+            tags = list(dict.fromkeys([*title_tags, *description_tags]))
+            market_material_candidates.append((
+                item, headline, tags, bool(title_tags), title_has_stock,
+            ))
+            diag("market_material_candidate", item, material_tags=tags,
+                 headline_from="title" if title_tags else "description")
         market_material_candidates.sort(
             key=lambda entry: (
-                len(entry[2]),
-                bool(_central_stock_mentioned(entry[0].get("title"), stock_name)),
+                entry[4],  # Explicitly named stock in headline first
+                entry[3],  # Headline evidence above snippet-only evidence
                 str(entry[0].get("published_at") or ""),
             ),
             reverse=True,
@@ -466,7 +480,7 @@ def build_stock_news_result(
         # Only when the original body-verified issues are empty: trust clearly
         # stated market facts in the source title/description, not a price move.
         if not issue_briefs and market_material_candidates:
-            source, headline, tags = market_material_candidates[0]
+            source, headline, tags, _, _ = market_material_candidates[0]
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
