@@ -94,7 +94,7 @@ def _information_coverage(text):
 
     # Require sector and direction words in the same sentence. A keyword
     # anywhere in an article is not enough to count as an industry move.
-    for sentence in re.split(r"(?<=[.!?])\\s+|[\\n\\r]+", content):
+    for sentence in re.split(r"(?<=[.!?])\s+|[\n\r]+", content):
         if not any(word in sentence for word in _SECTOR_WORDS):
             continue
         if any(word in sentence for word in _RISING_WORDS):
