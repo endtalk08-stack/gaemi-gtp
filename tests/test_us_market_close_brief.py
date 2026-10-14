@@ -46,6 +46,33 @@ class USMarketCloseBriefTests(unittest.TestCase):
         self.assertEqual(len(categories["경제지표 · 통화정책"]), 1)
         self.assertEqual(categories["거래대금 · 시장 강도"], [])
 
+    def test_natural_korean_endings_keep_news_facts_and_uncertainty(self):
+        self.assertEqual(
+            brief._naturalize_fact("반도체 업종은 강세를 보였다."),
+            "반도체 업종은 강세를 보였어.",
+        )
+        self.assertEqual(
+            brief._naturalize_fact("매출은 증가할 것으로 전망된다."),
+            "매출은 증가할 것으로 전망돼.",
+        )
+        self.assertEqual(
+            brief._naturalize_fact("미국 4대 은행주가 하락했다."),
+            "미국 4대 은행주가 하락했어.",
+        )
+        same_article = [
+            {"text": "금융주가 하락했다.", "url": "https://example.com/a"},
+            {"text": "메모리 반도체주도 약세를 보였다.", "url": "https://example.com/a"},
+        ]
+        self.assertEqual(
+            brief._render_market_facts(same_article),
+            "금융주가 하락했고, 메모리 반도체주도 약세를 보였어.",
+        )
+        other_article = [same_article[0], {**same_article[1], "url": "https://example.com/b"}]
+        self.assertEqual(
+            brief._render_market_facts(other_article),
+            "금융주가 하락했어.\\n\\n메모리 반도체주도 약세를 보였어.".replace(".\\n", ".\\n"),
+        )
+
     def test_result_uses_one_shared_news_result_and_does_not_invent_fields(self):
         quote = [
             {"name": "나스닥", "date": "2026-10-13", "change_pct": -1.22},
