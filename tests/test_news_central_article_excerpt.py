@@ -102,6 +102,40 @@ class CentralArticleExcerptTests(unittest.TestCase):
                 )[0]
                 self.assertEqual(brief["summary"], CELLTRION_BODY)
 
+    def test_embedded_bracketed_reporter_credit_after_headline_is_removed(self):
+        headline = (
+            "삼성전자·SK하이닉스 두 곳 31조6225억원…전체의 51.2% "
+            "연간 120조7923억원 추산 "
+        )
+        body = (
+            "삼성전자는 자사주 소각 규모를 확대했다고 밝혔다. "
+            "SK하이닉스 역시 올해 자사주 소각을 추진할 방침이다. "
+            "양사는 관련 이사회 결정을 공시할 예정이다."
+        )
+        expected = headline + body
+        credits = (
+            "[서울경제TV=이혜준 인턴기자] ",
+            "【서울경제TV = 이혜준 인턴 기자】",
+            "[파이낸셜뉴스 뉴델리(인도)=김동호 기자] ",
+        )
+        for credit in credits:
+            with self.subTest(credit=credit):
+                source = headline + credit + body
+                self.assertEqual(_article_excerpt(source), expected)
+                brief = build_issue_briefs(
+                    [self._source_row()], "삼성전자", body_texts=[source],
+                )[0]
+                self.assertEqual(brief["summary"], expected)
+                self.assertEqual(brief["headline"], "자사주 소각 이슈")
+
+    def test_noncredit_brackets_and_reporter_mentions_stay_in_article(self):
+        body = (
+            "삼성전자는 [HBM] 신제품을 공개했다. "
+            "연합뉴스는 김영수 기자가 제품을 취재했다고 밝혔다. "
+            "발표문에는 [사내 발표=확정] 문구도 남아 있다."
+        )
+        self.assertEqual(_article_excerpt(body), body)
+
     def test_article_facts_and_in_body_reporter_mentions_remain(self):
         factual = (
             "삼성전자는 HBM 제품의 신규 공급계약을 체결했다고 밝혔다. "
