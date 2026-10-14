@@ -208,7 +208,7 @@ def _render_market_facts(facts):
             linked = _joined_first_fact(visible[0])
             if linked:
                 return linked + " " + visible[1]
-    return "\\n\\n".join(visible)
+    return "\n\n".join(visible)
 
 
 def build_us_market_close_brief(*, now=None):
