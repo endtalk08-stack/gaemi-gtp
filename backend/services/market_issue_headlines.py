@@ -24,7 +24,7 @@ def _prepare_issue(key, stock_name, market):
     try:
         result = get_shared_stock_news_result(
             stock_name, market="국내" if market == "kr" else "미국",
-            limit=50, storyboard_limit=5,
+            limit=50, storyboard_limit=3,
         )
         for brief in result.get("issue_briefs") or []:
             candidate = str(brief.get("headline") or "").strip()
