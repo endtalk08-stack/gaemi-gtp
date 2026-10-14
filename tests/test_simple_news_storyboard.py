@@ -372,5 +372,85 @@ class NotableFlowSelectionTests(unittest.TestCase):
         self.assertEqual(us_items[0]["storyboard_date"], "2026-10-08")
 
 
+    def test_separate_brokerages_keep_independent_research_reports(self):
+        def research(broker):
+            row = article(
+                keyword="목표가상향", tier=3, strength=4,
+                published_at="2026-10-13T09:00:00+00:00",
+                title="삼성SDI 목표주가 상향", relation_type="direct",
+            )
+            row["_central_checked_body"] = (
+                f"{broker}은 삼성SDI의 목표주가를 84만원에서 94만원으로 "
+                "상향했다. 전기차 배터리 업황 개선을 전망했다."
+            )
+            return row
+
+        selected = select_keyword_storyboard_news(
+            [research("신한투자증권"), research("하나증권")], limit=5,
+        )
+        self.assertEqual(len(selected), 2)
+
+    def test_same_broker_same_report_from_two_publishers_still_merges(self):
+        first = article(
+            keyword="목표가상향", tier=3, strength=4,
+            published_at="2026-10-13T09:00:00+00:00",
+            title="삼성SDI 목표주가 상향", relation_type="direct",
+        )
+        first["_central_checked_body"] = (
+            "신한투자증권은 삼성SDI의 목표주가를 94만원으로 상향했다. 실적 개선을 예상했다."
+        )
+        second = dict(first)
+        second["published_at"] = "2026-10-13T10:00:00+00:00"
+        second["source"] = "다른 언론사"
+        second["_central_checked_body"] = (
+            "신한투자증권은 삼성SDI의 목표주가를 940000원으로 상향했다. 실적 개선을 예상했다."
+        )
+        self.assertEqual(len(select_keyword_storyboard_news([first, second], limit=5)), 1)
+
+    def test_same_broker_changed_target_price_is_distinct(self):
+        def research(target):
+            row = article(
+                keyword="목표가상향", tier=3, strength=4,
+                published_at="2026-10-13T09:00:00+00:00",
+                title="삼성SDI 목표주가 상향", relation_type="direct",
+            )
+            row["_central_checked_body"] = (
+                f"신한투자증권은 삼성SDI 목표주가를 {target}으로 상향했다."
+            )
+            return row
+
+        self.assertEqual(len(select_keyword_storyboard_news(
+            [research("94만원"), research("99만원")], limit=5,
+        )), 2)
+
+    def test_unattributed_business_story_keeps_existing_deduplication(self):
+        row = article(
+            keyword="생산확대", tier=3, strength=4,
+            published_at="2026-10-13T09:00:00+00:00",
+            title="삼성SDI 미국 ESS 생산 확대", relation_type="direct",
+        )
+        row["_central_checked_body"] = "삼성SDI는 미국에서 ESS 생산을 확대했다."
+        self.assertEqual(len(select_keyword_storyboard_news(
+            [row, dict(row)], limit=5,
+        )), 1)
+
+    def test_brokerage_stock_name_is_not_the_reporting_broker(self):
+        def note(research_house):
+            row = article(
+                keyword="목표가상향", tier=3, strength=4,
+                published_at="2026-10-13T09:00:00+00:00",
+                title="삼성증권 목표주가 상향", relation_type="direct",
+            )
+            row["event_owner"] = "삼성증권"
+            row["_central_checked_body"] = (
+                f"{research_house}은 삼성증권 목표주가를 94만원으로 상향했다."
+            )
+            return row
+
+        self.assertEqual(len(select_keyword_storyboard_news(
+            [note("하나증권"), note("키움증권")], limit=5,
+        )), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
