@@ -13,6 +13,7 @@ from backend.analysis.news import (
 
 from .issue_briefs import _article_excerpt, build_issue_briefs, central_material_brief_supported
 from .news_detail import extract_structured_article_facts, read_selected_article_details
+from .news_ai_briefs import enrich_issue_briefs
 from .news_feed import fetch_stock_news
 
 
@@ -314,6 +315,10 @@ def build_stock_news_result(
             stock_name,
             limit=storyboard_limit,
             body_texts=verified_body_texts,
+        )
+        # Only the explanation text is AI-expanded; existing issue headings and tags survive.
+        issue_briefs = enrich_issue_briefs(
+            stock_name, issue_briefs, storyboard_news_items, verified_body_texts,
         )
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
