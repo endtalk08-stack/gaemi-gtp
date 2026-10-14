@@ -26,6 +26,9 @@ class USMarketCloseDailyTests(unittest.TestCase):
             first = job.run_once(now=datetime.datetime(2026, 10, 13, 22, tzinfo=UTC))
             self.assertEqual(first, {"status": "already_saved", "session_date": "2026-10-13"})
             self.assertEqual(stored.call_count, 1)
+            # A delayed GitHub dispatch is still accepted during the same morning.
+            self.assertEqual(job.run_once(now=datetime.datetime(2026, 10, 14, 1, tzinfo=UTC))["status"], "already_saved")
+            self.assertEqual(stored.call_count, 2)
             self.assertEqual(job.run_once(now=datetime.datetime(2026, 10, 13, 21, tzinfo=UTC)), {"status": "outside_schedule"})
             self.assertEqual(job.run_once(now=datetime.datetime(2026, 10, 17, 22, tzinfo=UTC)), {"status": "outside_schedule"})
 
