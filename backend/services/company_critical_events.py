@@ -7,8 +7,8 @@ company linkage and publication freshness remain handled by existing callers.
 import re
 
 _COMPANY_CRITICAL_RULES = (
-    ("신용등급상향", "신용등급 상향", "positive", r"신용\s*등급[^.!?\n]{0,14}(?:상향|상승|격상|올렸|높였)"),
-    ("신용등급하향", "신용등급 하향", "negative", r"신용\s*등급[^.!?\n]{0,14}(?:하향|강등|하락|낮췄|내렸)"),
+    ("신용등급상향", "신용등급 상향", "positive", r"신용\s*등급(?:을|이)?\s*(?:상향|상승|격상|올렸|높였)"),
+    ("신용등급하향", "신용등급 하향", "negative", r"신용\s*등급(?:을|이)?\s*(?:하향|강등|하락|낮췄|내렸)"),
     ("채무상환완료", "채무 상환 완료", "positive", r"(?:채무|차입금|회사채)[^.!?\n]{0,28}(?:전액\s*)?상환(?:을)?\s*(?:완료|마쳤|끝냈)|(?:채무|차입금|회사채)\s*전액\s*상환"),
     ("채무불이행", "채무 불이행", "negative", r"(?:채무\s*불이행|대출금\s*연체)[^.!?\n]{0,15}(?:발생|확정|공시|통보|결정)"),
     ("자본잠식해소", "자본잠식 해소", "positive", r"자본\s*잠식[^.!?\n]{0,14}(?:해소|탈피|벗어나|벗어났)"),
@@ -27,7 +27,7 @@ _COMPANY_CRITICAL_RULES = (
 )
 
 _UNCONFIRMED = re.compile(
-    r"사실무근|부인했|부인한다|부인\b|반박|루머|\b가짜뉴스\b|"
+    r"사실무근|부인했|부인한다|부인\b|반박|루머|\b가짜뉴스\b|아니다|아니라|아님|아닌|"
     r"(?:가능성|우려|검토|추진|예상|전망|관측|설|의혹|미확정|논의)"
 )
 
@@ -38,10 +38,17 @@ def company_critical_title_and_tags(text, limit=None):
     for clause_no, clause in enumerate(re.split(r"(?<=[.!?])\s+", str(text or ""))):
         if _UNCONFIRMED.search(clause):
             continue
+        # Conflicting rating actions require a separate chronology review.
+        if re.search(r"신용\s*등급[^.!?\n]{0,40}(?:상향[^.!?\n]{0,20}하향|하향[^.!?\n]{0,20}상향)", clause):
+            continue
         found = []
         for order, (tag, heading, direction, pattern) in enumerate(_COMPANY_CRITICAL_RULES):
             match = re.search(pattern, clause, flags=re.IGNORECASE)
             if match:
+                # Never promote an action explicitly canceled in its own sentence.
+                suffix = clause[match.end():match.end() + 16]
+                if re.search(r"철회|취소|번복|무효|해제|없음|않|아님|아니", suffix):
+                    continue
                 found.append((match.start(), order, match.end(), tag, heading, direction))
         found.sort()
         for start, _, end, tag, heading, direction in found:

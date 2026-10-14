@@ -36,6 +36,10 @@ class CompanyCriticalEventTests(unittest.TestCase):
             "삼성전자 유상증자 검토", "삼성전자 주가 급락",
             "삼성전자 CPI 예상 상회", "삼성전자 자본잠식 우려",
             "삼성전자 거래정지 가능성",
+            "삼성전자 상장폐지 결정 취소",
+            "삼성전자 감사의견 거절 아니다",
+            "삼성전자 신용등급 하향 철회",
+            "삼성전자 신용등급 하향 이후 상향",
         ):
             with self.subTest(article=article):
                 self.assertEqual(detect(article), ("", [], ""))
