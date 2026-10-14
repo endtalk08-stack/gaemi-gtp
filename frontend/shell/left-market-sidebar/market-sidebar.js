@@ -71,8 +71,8 @@
         .find(button => button.dataset.stockName === stock);
       if (!row) return;
       const rate = Number(row.dataset.changePct);
-      const direction = Number.isFinite(rate) && rate > 0 ? '상승'
-        : Number.isFinite(rate) && rate < 0 ? '하락' : '보합';
+      if (!Number.isFinite(rate)) return; // Unknown quote must not look like a flat market.
+      const direction = rate > 0 ? '상승' : rate < 0 ? '하락' : '보합';
       // Show verified event plus observed movement, not an unproven causal claim.
       const display = `${eventTitle} · ${direction}`;
       issueByStock.set(`${region}:${stock}`, display);
