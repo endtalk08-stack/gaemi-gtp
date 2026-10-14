@@ -280,5 +280,68 @@ class CentralNewsSelectionTests(unittest.TestCase):
         self.assertTrue(all("_central_checked_body" not in item for item in selected))
 
 
+    def test_recent_material_events_fill_missing_central_news_slots(self):
+        """Keep the daily source list; add earlier important events to central selection."""
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc)
+        rows = [
+            self.article("today", "삼성SDI 미국 ESS 생산 확대",
+                         "삼성SDI는 미국 ESS 생산 확대를 발표했다. 사업을 강화한다.",
+                         keyword="생산확대"),
+            self.article("target", "삼성SDI 목표주가 상향",
+                         "삼성SDI의 목표주가가 84만원에서 94만원으로 상향됐다. 분석 전망이 바뀌었다.",
+                         keyword="목표가상향"),
+            self.article("contract", "삼성SDI 배터리 소재 공급 계약",
+                         "삼성SDI는 포스코퓨처엠과 장기 공급 계약을 체결했다. 소재를 확보한다.",
+                         keyword="공급계약"),
+        ]
+        for row, days_old in zip(rows, (0, 3, 5)):
+            row["published_at"] = (now - datetime.timedelta(days=days_old, minutes=10)).isoformat()
+        bodies = {row["url"]: row["description"] for row in rows}
+
+        def read_details(batch, limit=3, with_sources=False):
+            return [{"text": bodies[row["url"]], "source": "jsonld_article_body"} for row in batch]
+
+        def keywords(items, stock, max_keywords=3):
+            return {"articles": [
+                {"keywords": row.get("article_keywords") or [],
+                 "keyword_details": row.get("article_keyword_details") or [],
+                 "grounded_tags": [], "stock_entities": ["삼성SDI"],
+                 "event_owner": "삼성SDI", "relation_type": "direct"}
+                for row in items
+            ]}
+
+        with patch("backend.services.news_result.fetch_stock_news", return_value=rows), \
+             patch("backend.services.news_result.score_stock_news", side_effect=lambda items, stock: items), \
+             patch("backend.services.news_result.build_connected_keyword_test", side_effect=keywords), \
+             patch("backend.services.news_result.read_selected_article_details", side_effect=read_details):
+            result = build_stock_news_result("삼성SDI", market="국내")
+
+        self.assertEqual(len(result["paired_news_items"]), 1)
+        self.assertEqual(len(result["storyboard_news_items"]), 3)
+        self.assertEqual(len(result["issue_briefs"]), 3)
+        self.assertEqual(
+            {item["url"] for item in result["storyboard_news_items"]},
+            {row["url"] for row in rows},
+        )
+
+    def test_articles_older_than_recent_window_do_not_enter_central(self):
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc)
+        old = self.article("old", "삼성SDI 장기 공급 계약",
+                           "삼성SDI는 배터리 소재 장기 공급 계약을 체결했다.",
+                           keyword="공급계약")
+        old["published_at"] = (now - datetime.timedelta(days=8)).isoformat()
+        with patch("backend.services.news_result.fetch_stock_news", return_value=[old]), \
+             patch("backend.services.news_result.score_stock_news", side_effect=lambda items, stock: items), \
+             patch("backend.services.news_result.build_connected_keyword_test", return_value={"articles": [{
+                 "keywords": ["공급계약"], "keyword_details": [], "grounded_tags": [],
+                 "stock_entities": ["삼성SDI"], "event_owner": "삼성SDI", "relation_type": "direct"
+             }]}), \
+             patch("backend.services.news_result.read_selected_article_details") as reader:
+            result = build_stock_news_result("삼성SDI", market="국내")
+        self.assertEqual(result["storyboard_news_items"], [])
+        reader.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()

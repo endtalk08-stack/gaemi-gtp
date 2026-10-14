@@ -113,7 +113,7 @@ def build_stock_news_result(
     *,
     market,
     limit=50,
-    storyboard_limit=3,
+    storyboard_limit=5,
     display_timezone="Asia/Seoul",
 ):
     """Return one shared stock-news result for every screen representation."""
@@ -159,13 +159,36 @@ def build_stock_news_result(
             limit=None,
             display_timezone=display_timezone,
         )
-        # Rank more candidates without discarding similar headlines yet.
-        # A verified body decides relevance and whether two reports are one event.
-        candidate_news = select_keyword_storyboard_news(
-            [row for row in paired_news_items if not _central_obvious_price_report(row)],
-            limit=max(9, storyboard_limit * 4),
-            candidate_pool=True,
+        # The shared full-news feed retains its 24-hour window. Only central
+        # selection considers older material events from already-fetched news.
+        recent_news = build_simple_today_news(
+            scored_news,
+            stock_name,
+            limit=None,
+            display_timezone=display_timezone,
+            max_age_hours=7 * 24,
         )
+        today_keys = {
+            row.get("url") or row.get("link") or row.get("title")
+            for row in paired_news_items
+        }
+        older_news = [
+            row for row in recent_news
+            if (row.get("url") or row.get("link") or row.get("title")) not in today_keys
+        ]
+
+        def rank_candidates(rows):
+            # Preserve event diversity before verifying selected article bodies.
+            return select_keyword_storyboard_news(
+                [row for row in rows if not _central_obvious_price_report(row)],
+                limit=max(12, storyboard_limit * 3),
+                candidate_pool=True,
+            )
+
+        # Verify today's candidates first, then fill unoccupied event slots
+        # from the existing recent news. No new collector or display path.
+        candidate_news = rank_candidates(paired_news_items)
+        candidate_news.extend(rank_candidates(older_news))
 
         detail_started = time.monotonic()
         accepted_articles = []
