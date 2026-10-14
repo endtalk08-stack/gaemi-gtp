@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from backend.providers.market_price import calculate_news_price_reaction
 from backend.services.engine import _attach_news_price_reactions
+from backend.services.ai_test import _context
 
 
 def _iso(timestamp):
@@ -149,6 +150,61 @@ class NewsPriceReactionTests(unittest.TestCase):
             },
         )
 
+
+
+    def test_ai_chat_context_receives_the_same_reaction_range_as_central(self):
+        issues = [
+            {
+                "headline": "목표주가 상향 이슈",
+                "summary": "삼성SDI 목표주가를 상향했다.",
+                "reaction_at": "2026-10-14T00:24:00+00:00",
+                "stock_reactions": [
+                    {
+                        "name": "삼성SDI", "low_pct": -0.52, "high_pct": 3.27,
+                        "close_pct": 1.5, "change_pct": 2.0,
+                    },
+                ],
+            },
+            {
+                "headline": "생산 확대 이슈",
+                "summary": "생산 계획을 발표했다.",
+                "reaction_at": "2026-10-14T23:40:00+00:00",
+                "stock_reactions": [
+                    {"name": "삼성SDI", "low_pct": 0.0, "high_pct": 7.33},
+                ],
+            },
+        ]
+        context = _context("삼성SDI", {"issue_briefs": issues})
+        self.assertEqual(context["issue_briefs"][0]["stock_reactions"], [
+            {"name": "삼성SDI", "low_pct": -0.52, "high_pct": 3.27},
+        ])
+        self.assertEqual(context["issue_briefs"][1]["stock_reactions"], [
+            {"name": "삼성SDI", "low_pct": 0.0, "high_pct": 7.33},
+        ])
+        self.assertEqual(context["issue_briefs"][0]["reaction_at"], issues[0]["reaction_at"])
+        self.assertIn("첫 거래 세션", context["note"])
+        self.assertNotIn("change_pct", context["issue_briefs"][0]["stock_reactions"][0])
+        self.assertNotIn("close_pct", context["issue_briefs"][0]["stock_reactions"][0])
+
+    def test_ai_chat_context_drops_missing_or_nonfinite_reactions(self):
+        context = _context("삼성SDI", {"issue_briefs": [
+            {
+                "headline": "이슈",
+                "summary": "내용",
+                "stock_reactions": [
+                    {"name": "삼성SDI", "low_pct": None, "high_pct": 2.0},
+                    {"name": "삼성SDI", "low_pct": -1.0, "high_pct": float("nan")},
+                    {"name": "삼성SDI", "low_pct": -1.0, "high_pct": 3.0},
+                ],
+            },
+            {
+                "headline": "두 번째 이슈", "summary": "내용",
+            },
+        ]})
+        self.assertEqual(context["issue_briefs"][0]["stock_reactions"], [
+            {"name": "삼성SDI", "low_pct": -1.0, "high_pct": 3.0},
+        ])
+        self.assertEqual(context["issue_briefs"][1]["stock_reactions"], [])
 
 if __name__ == "__main__":
     unittest.main()
