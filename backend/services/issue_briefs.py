@@ -670,6 +670,104 @@ def _body_title_and_tags(excerpt):
     return (f"{main_heading} 이슈" if main_heading else "기사 주요 내용"), tags
 
 
+def _content_driven_title_and_tags(excerpt):
+    """Prefer facts stated in the displayed article over upstream keyword labels.
+
+    The pre-existing article selector and its topic gate are intentionally left
+    unchanged. Do not infer a research recommendation from the stock price.
+    """
+    text = str(excerpt or "").strip()
+    if not text:
+        return "기사 주요 내용", []
+
+    # Research reports have an issuer, an opinion and/or a target-price action.
+    # Read the reported decision, not incidental phrases like 'third-quarter
+    # results' which can wrongly be read as an actual earnings announcement.
+    reporting_broker = re.search(
+        r"(?<![가-힣A-Za-z0-9])(?:"
+        r"[가-힣A-Za-z][가-힣A-Za-z0-9·&.]{0,24}?"
+        r"(?:투자증권|증권|금융투자)|증권사|애널리스트|리서치센터)",
+        text,
+    )
+    if reporting_broker:
+        target_action = re.search(
+            r"목표\s*(?:주가|가)[^!?\n]{0,110}?"
+            r"(하향|상향|인하|인상|낮췄|낮춘|내렸|올렸|높였)",
+            text,
+            flags=re.IGNORECASE,
+        )
+        opinion_change = re.search(
+            r"투자\s*의견[^.!?\n]{0,55}?(상향|하향|유지|고수|변경)",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if target_action or opinion_change:
+            tags = []
+            if target_action:
+                direction = (
+                    "하향" if target_action.group(1) in {"하향", "인하", "낮췄", "낮춘", "내렸"}
+                    else "상향"
+                )
+                headline = f"증권사 목표주가 {direction} 이슈"
+                tags.append(f"목표주가{direction}")
+            else:
+                decision = opinion_change.group(1)
+                if decision == "고수":
+                    decision = "유지"
+                headline = f"증권사 투자의견 {decision} 이슈"
+
+            # Keep the next two facts only when they are actually present in
+            # the same verified excerpt, never from the earlier keyword list.
+            buy_hold = re.search(
+                r"(?:투자\s*의견|매수\s*의견)"
+                r"[^.!?\n]{0,40}?(?:매수['\"‘’“”\s를]*\s*(?:유지|고수)|유지|고수)",
+                text,
+            )
+            if buy_hold and "매수" in buy_hold.group():
+                tags.append("매수의견유지")
+            elif opinion_change:
+                opinion = opinion_change.group(1)
+                if opinion in {"유지", "고수"}:
+                    tags.append("투자의견유지")
+                elif not target_action:
+                    tags.append(f"투자의견{opinion}")
+
+            forecast = re.search(
+                r"(?:[1-4]\s*분기|실적)[^.!?\n]{0,110}?"
+                r"(?:실적|예상|전망|기대치|컨센서스)[^.!?\n]{0,100}?"
+                r"(?:전망|예상|추정|기대치|컨센서스|부합)"
+                r"|실적[^.!?\n]{0,100}?(?:전망|예상|추정)",
+                text,
+            )
+            if forecast:
+                tags.append("실적전망")
+            return headline, list(dict.fromkeys(tags))[:3]
+
+    # For content outside the existing display vocabulary, preserve a
+    # concrete noun + action actually written in the article instead of
+    # manufacturing a topic from a previously selected keyword.
+    legacy_headline, legacy_tags = _body_title_and_tags(text)
+    if legacy_tags:
+        return legacy_headline, legacy_tags
+
+    sentence = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]
+    candidate = re.search(
+        r"(?P<topic>[가-힣A-Za-z0-9-]{2,}"
+        r"(?:\s+[가-힣A-Za-z0-9-]{2,}){1,4})"
+        r"(?:을|를)?\s*"
+        r"(?P<action>획득|출범|설립|도입|철수|재편|전환)",
+        sentence,
+    )
+    if candidate:
+        topic = re.sub(r"\s+", " ", candidate.group("topic")).strip()
+        topic = re.sub(r"(?:을|를)$", "", topic)
+        action = candidate.group("action")
+        if len(topic) >= 6 and not re.match(r"^(?:관계자|관련|어제|여러)\b", topic):
+            phrase = f"{topic} {action}"
+            return f"{phrase} 이슈", [re.sub(r"\s+", "", phrase)[:34]]
+    return "기사 주요 내용", []
+
+
 def central_material_brief_supported(excerpt):
     """Central-only quality gate: a stock mention or price print is not an event.
 
@@ -757,7 +855,7 @@ def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
         # Only the central title/hashtags switch to the already-shown excerpt.
         # Do not modify the summary, selected article, ownership or reaction data.
         if body_texts is not None:
-            display_headline, display_tags = _body_title_and_tags(article_summary)
+            display_headline, display_tags = _content_driven_title_and_tags(article_summary)
 
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),

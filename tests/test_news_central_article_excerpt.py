@@ -390,5 +390,53 @@ class CentralArticleExcerptTests(unittest.TestCase):
 
 
 
+    def test_broker_target_cut_with_decimal_percent_uses_report_decision(self):
+        body = (
+            "한화투자증권 연구원은 14일 보고서에서 삼성중공업의 3분기 실적이 "
+            "시장 기대치에 부합할 것으로 전망했다. "
+            "다만 상선 부문의 성장 둔화 우려를 반영해 목표주가를 기존 "
+            "4만원에서 3만5000원으로 12.5% 하향 조정했다. "
+            "부유식 데이터센터 신규 수주에 따른 성장 가능성을 긍정적으로 "
+            "평가하며 투자의견 ‘매수’를 유지했다."
+        )
+        brief = build_issue_briefs(
+            [self._source_row()], "삼성중공업", body_texts=[body]
+        )[0]
+        self.assertEqual(brief["headline"], "증권사 목표주가 하향 이슈")
+        self.assertEqual(brief["tags"], ["목표주가하향", "매수의견유지", "실적전망"])
+        self.assertEqual(brief["summary"], body)
+
+    def test_broker_target_raise_from_article_overrides_unrelated_upstream_keyword(self):
+        body = (
+            "하나증권은 삼성SDI의 목표주가를 80만원에서 94만원으로 상향 조정했다. "
+            "투자의견 '매수'는 유지했다."
+        )
+        row = dict(self._source_row(), storyboard_keywords=["공급계약", "외국인매도"])
+        brief = build_issue_briefs([row], "삼성SDI", body_texts=[body])[0]
+        self.assertEqual(brief["headline"], "증권사 목표주가 상향 이슈")
+        self.assertEqual(brief["tags"], ["목표주가상향", "매수의견유지"])
+        self.assertEqual(brief["summary"], body)
+
+    def test_new_concrete_article_subject_can_supply_unlisted_display_keyword(self):
+        body = (
+            "회사는 차세대 배터리 재활용 표준 인증을 획득했다. "
+            "관련 절차를 마무리했다고 밝혔다."
+        )
+        brief = build_issue_briefs([self._source_row()], "삼성SDI", body_texts=[body])[0]
+        self.assertEqual(brief["headline"], "차세대 배터리 재활용 표준 인증 획득 이슈")
+        self.assertEqual(brief["tags"], ["차세대배터리재활용표준인증획득"])
+        self.assertEqual(brief["summary"], body)
+
+    def test_unrelated_price_or_upstream_flow_keyword_is_not_rendered_from_article(self):
+        body = (
+            "회사 관계자들이 향후 계획에 대해 논의했다. "
+            "구체적인 일정은 아직 정해지지 않았다."
+        )
+        row = dict(self._source_row(), storyboard_keywords=["외국인매도"])
+        brief = build_issue_briefs([row], "삼성SDI", body_texts=[body])[0]
+        self.assertEqual(brief["headline"], "기사 주요 내용")
+        self.assertEqual(brief["tags"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
