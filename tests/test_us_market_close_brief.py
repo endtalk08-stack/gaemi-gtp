@@ -35,6 +35,9 @@ class USMarketCloseBriefTests(unittest.TestCase):
             self.assertIsNone(brief._dated_index("^IXIC", datetime.date(2026, 10, 14)))
         with patch.object(brief, "fetch_daily_price_history", return_value=[{"close": 106.0}]):
             self.assertIsNone(brief._dated_index("^IXIC", _SESSION))
+        repeated_session = rows + [{"date": "2026-10-13", "close": 108.0}]
+        with patch.object(brief, "fetch_daily_price_history", return_value=repeated_session):
+            self.assertEqual(brief._dated_index("^IXIC", _SESSION)["change_pct"], 8.0)
 
     def test_news_categories_use_only_original_sentences(self):
         stories = [{"article_body": _MAIN, "source": "신문", "url": "https://example.com/us"}]
@@ -83,6 +86,10 @@ class USMarketCloseBriefTests(unittest.TestCase):
             "title": "뉴욕증시 마감",
             "source": "신문", "url": "https://example.com/us",
             "article_body": _MAIN,
+            "market": "us", "news_scope": "market_close",
+            "session_date": "2026-10-13",
+            "detail_source": "jsonld_article_body",
+            "published_at": "2026-10-14T00:30:00+00:00",
         }
         with patch.object(brief, "_index_changes", return_value=quote) as prices, patch.object(
             brief, "build_us_market_close_news_result", return_value={"ok": True, "items": [article]}
@@ -97,10 +104,39 @@ class USMarketCloseBriefTests(unittest.TestCase):
         self.assertIn("다우  +0.15%", indexed["content"])
         self.assertNotIn("필라델피아 반도체", indexed["content"])
         self.assertTrue(any(x["title"] == "하락업종" for x in first["sections"]))
+        falling = next(x for x in first["sections"] if x["title"] == "하락업종")
+        self.assertTrue(falling["evidence"])
+        self.assertEqual(falling["evidence"][0]["url"], "https://example.com/us")
+        self.assertEqual(falling["evidence"][0]["session_date"], "2026-10-13")
+        self.assertIn(falling["evidence"][0]["original_text"].rstrip("."),
+                      article["article_body"])
         self.assertNotIn("원/달러 환율 1,375", str(first))
         self.assertEqual(first, again)
         prices.assert_called_once_with(_SESSION)
         news.assert_called_once_with(limit=4, now=_NOW, include_body=True)
+
+    def test_market_article_gate_rejects_wrong_session_and_unverified_bodies(self):
+        source = {
+            "market": "us", "news_scope": "market_close",
+            "session_date": "2026-10-13",
+            "detail_source": "jsonld_article_body",
+            "published_at": "2026-10-14T00:30:00+00:00",
+            "title": "뉴욕증시 마감", "description": "나스닥과 다우 마감",
+            "url": "https://example.com/us-close",
+            "article_body": _MAIN,
+        }
+        candidates = [
+            source,
+            {**source, "url": "https://example.com/wrong-session", "session_date": "2026-10-12"},
+            {**source, "url": "https://example.com/metadata", "detail_source": "meta_description"},
+            {**source, "url": "https://example.com/foreign", "market": "kr"},
+            {**source, "url": "https://example.com/preclose", "title": "뉴욕증시 장중"},
+            {**source, "url": "https://example.com/future", "published_at": "2026-10-15T00:30:00+00:00"},
+            {**source, "url": "javascript:alert(1)"},
+            dict(source),
+        ]
+        accepted = brief._verified_session_articles(candidates, _SESSION, _NOW)
+        self.assertEqual(accepted, [source])
 
     def test_missing_sources_return_explicit_absence_not_fabricated_data(self):
         with patch.object(brief, "_index_changes", return_value=[]), patch.object(
