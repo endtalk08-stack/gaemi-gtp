@@ -197,6 +197,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     }
 
     const { requestStock } = window.GaemiGTPCenterAnalysisFlow.create({
+      backendUrl: BACKEND_URL,
       getActiveAnalysisRequestId: () => activeAnalysisRequestId,
       nextAnalysisRequestId: () => ++activeAnalysisRequestId,
       getAnalysisController: () => activeAnalysisController,
