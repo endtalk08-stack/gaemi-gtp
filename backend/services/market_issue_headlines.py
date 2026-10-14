@@ -21,20 +21,24 @@ _MAX_KEYS = 80
 
 def _prepare_issue(key, stock_name, market):
     headline = ""
+    failed = False
     try:
         result = get_shared_stock_news_result(
             stock_name, market="국내" if market == "kr" else "미국",
             limit=50, storyboard_limit=3,
         )
+        failed = result.get('_news_status') == 'error'
         for brief in result.get("issue_briefs") or []:
             candidate = str(brief.get("headline") or "").strip()
             if candidate and candidate not in {"기사 주요 내용", "관련 이슈"}:
                 headline = candidate
                 break
     except Exception as exc:
+        failed = True
         print(f"[market issue] unavailable stock={stock_name} error={type(exc).__name__}", flush=True)
     with _ISSUE_LOCK:
-        _ISSUE_CACHE[key] = (time.monotonic(), headline)
+        if not failed:
+            _ISSUE_CACHE[key] = (time.monotonic(), headline)
         _ISSUE_PENDING.pop(key, None)
 
 
