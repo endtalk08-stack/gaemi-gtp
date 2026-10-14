@@ -265,11 +265,13 @@
             block.className = 'space-y-2';
             const title = document.createElement('h4');
             title.className = 'gtp-chat-section-title gtp-dark-text';
-            title.textContent = String(section?.title || '');
+            const titleText = String(section?.title || '');
             const body = document.createElement('p');
             body.className = `${responseMessageClass} whitespace-pre-line`;
             block.append(title, body);
             answer.appendChild(block);
+            await typeText(title, titleText, { chunkSize: 2 });
+            if (!isActive()) return;
             await typeText(body, content, { chunkSize: 4 });
             if (!isActive()) return;
 
@@ -362,10 +364,13 @@
             return;
           }
           if (button.dataset.nextAnalysis === 'fortune') {
-            // appendFortunePrompt는 첫 await 전에 말풍선을 실제 DOM에 붙인다.
-            // 선택지를 먼저 제거하면 detached DOM 뒤에 붙어서 화면에 안 보이므로 순서를 지킨다.
+            // Follow-up buttons must restore the original anchor before the
+            // existing fortune flow inserts its user prompt.
+            if (choiceSection && choiceSection !== choices) {
+              choiceSection.replaceWith(choices);
+            }
             const fortuneFlow = appendFortunePrompt();
-            choiceSection?.remove();
+            choices.remove();
             await fortuneFlow;
             return;
           }
