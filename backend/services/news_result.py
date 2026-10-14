@@ -125,6 +125,7 @@ def build_stock_news_result(
             stock_name,
             market=market,
             limit=limit,
+            raise_on_error=True,
         )
         print(
             f"[analyze news trace] stock={stock_name} part=fetch done "
@@ -195,6 +196,7 @@ def build_stock_news_result(
         detail_started = time.monotonic()
         accepted_articles = []
         storyboard_news_items = []
+        verified_body_count = 0
         for start in range(0, len(candidate_news), 3):
             batch = candidate_news[start:start + 3]
             details = read_selected_article_details(
@@ -205,6 +207,7 @@ def build_stock_news_result(
                     "jsonld_article_body", "article_or_main_paragraphs"
                 }:
                     continue
+                verified_body_count += 1
                 excerpt = _article_excerpt(detail.get("text") or "")
                 if not excerpt or not _central_direct_article(article, excerpt, stock_name):
                     continue
@@ -225,6 +228,9 @@ def build_stock_news_result(
             )
             if len(storyboard_news_items) >= storyboard_limit:
                 break
+
+        if candidate_news and verified_body_count == 0:
+            raise RuntimeError('all_candidate_article_bodies_unavailable')
 
         # Keep full article bodies local to this function, not in API records.
         detail_records = [
