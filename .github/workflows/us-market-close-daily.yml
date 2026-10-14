@@ -1,9 +1,8 @@
-name: US market close brief (07:00 KST)
+name: US market close cache warmup (07:00 KST)
 
 on:
   schedule:
-    # GitHub Actions cron is UTC. Mon-Fri 22:00 = Tue-Sat 07:00 KST.
-    # Retry at 07:20/07:40 only if a ready result was not stored yet.
+    # UTC Mon-Fri 22:00 = KST Tue-Sat 07:00; bounded warm-up retries.
     - cron: '0,20,40 22 * * 1-5'
   workflow_dispatch:
 
@@ -11,30 +10,76 @@ permissions:
   contents: read
 
 concurrency:
-  group: us-market-close-daily
+  group: us-market-close-warmup
   cancel-in-progress: false
 
 jobs:
-  prepare-close:
+  warm-existing-api:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     env:
-      DATABASE_URL: ${{ secrets.GAEMI_NEON_DATABASE_URL }}
-      NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-      NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+      US_CLOSE_BASE_URL: https://gaemi-gtp.onrender.com
+      US_CLOSE_SITE_PASSWORD: ${{ secrets.GAEMI_SITE_ACCESS_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Check configured secrets
-        shell: bash
-        run: |
-          if [[ -z "$DATABASE_URL" || -z "$NAVER_CLIENT_ID" || -z "$NAVER_CLIENT_SECRET" ]]; then
-            echo "::error::Missing database or Naver API secret; schedule not activated."
-            exit 1
-          fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install database driver only
-        run: python -m pip install 'psycopg[binary]>=3.2,<4'
-      - name: Build and store if session is complete
-        run: python -m backend.services.us_market_close_daily
+      - name: Warm existing US market close result in Render memory
+        shell: bash
+        run: |
+          python - <<'PY'
+          import http.cookiejar
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          base = os.environ["US_CLOSE_BASE_URL"].rstrip("/")
+          opener = urllib.request.build_opener(
+              urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+          )
+
+          def request(path, *, payload=None):
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              headers = {"Accept": "application/json"}
+              if data is not None:
+                  headers["Content-Type"] = "application/json"
+              req = urllib.request.Request(base + path, data=data, headers=headers)
+              try:
+                  with opener.open(req, timeout=110) as response:
+                      return response.status, json.load(response)
+              except urllib.error.HTTPError as exc:
+                  try:
+                      body = json.load(exc)
+                  except (ValueError, TypeError):
+                      body = {}
+                  return exc.code, body
+
+          status, result = request("/api/market/us-close-brief")
+          if status == 401:
+              password = os.environ.get("US_CLOSE_SITE_PASSWORD", "")
+              if not password:
+                  sys.exit("Private preview requires GAEMI_SITE_ACCESS_PASSWORD in GitHub Actions secrets.")
+              login_status, login = request("/dev-access/login", payload={"password": password})
+              if login_status != 200 or not login.get("ok"):
+                  sys.exit("Could not sign into existing private preview.")
+              status, result = request("/api/market/us-close-brief")
+
+          session = str(result.get("session_date") or "")
+          indices = {
+              item.get("name")
+              for item in result.get("indices", [])
+              if isinstance(item, dict) and item.get("date") == session
+          }
+          articles = result.get("article_sources") or []
+          ready = (
+              status == 200 and result.get("ok") is True
+              and {"나스닥", "S&P500", "다우"}.issubset(indices)
+              and bool(articles)
+          )
+          print(f"US close memory warmup: status={status}, session={session}, "
+                f"confirmed_indices={len(indices)}, verified_articles={len(articles)}, ready={ready}")
+          if not ready:
+              sys.exit("US close data is not ready; the following scheduled run can retry.")
+          PY
