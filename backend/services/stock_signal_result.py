@@ -39,7 +39,7 @@ def build_stock_signals(stock, price_snapshot, news_result, *, now=None):
     price = price_snapshot if isinstance(price_snapshot, dict) else {}
     move = _number(price.get("change_pct"))
     current = _number(price.get("current"))
-    if current is None or current <= 0 or move is None or abs(move) < 1.0:
+    if current is None or current <= 0 or move is None or abs(move) < 0.1:
         return []
 
     at = now or datetime.now(timezone.utc)
