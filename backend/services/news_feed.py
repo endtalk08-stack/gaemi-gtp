@@ -138,14 +138,14 @@ def _item_age_ok(item):
     return now - dt <= datetime.timedelta(days=MAX_NEWS_AGE_DAYS)
 
 
-def _fetch_query(query, display=20, start=1):
+def _fetch_query(query, display=20, start=1, *, raise_on_error=False):
     cache_key = (query, int(display), int(start))
     now = time.time()
     with _CACHE_LOCK:
         cached = _CACHE.get(cache_key)
         if cached and now - cached[0] <= _CACHE_TTL:
             return list(cached[1])
-    rows = naver_news.search_news(query, display=display, start=start)
+    rows = naver_news.search_news(query, display=display, start=start, raise_on_error=raise_on_error)
     if not isinstance(rows, list):
         rows = []
     with _CACHE_LOCK:
@@ -165,24 +165,28 @@ def _dedupe(items):
     return result
 
 
-def _fetch_queries(queries, category="전체", per_query=20):
+def _fetch_queries(queries, category="전체", per_query=20, *, raise_on_error=False):
     queries = [q for q in queries if q]
     if not queries:
         return []
     items = []
+    failures = 0
     max_workers = min(6, len(queries))
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(_fetch_query, q, per_query, 1): q for q in queries}
+        futures = {pool.submit(_fetch_query, q, per_query, 1, raise_on_error=raise_on_error): q for q in queries}
         for future in as_completed(futures):
             query = futures[future]
             try:
                 rows = future.result()
             except Exception:
+                failures += 1
                 rows = []
             for row in rows:
                 item = _build_item(row, query=query, category=category)
                 if item["title"] and _item_age_ok(item):
                     items.append(item)
+    if raise_on_error and failures == len(queries):
+        raise RuntimeError('all_naver_news_queries_failed')
     items = _dedupe(items)
     items.sort(key=lambda x: x.get("published_at") or "", reverse=True)
     return items
@@ -413,7 +417,7 @@ def _select_stock_news_with_source_reserve(relevant, limit):
     return selected
 
 
-def fetch_stock_news(stock_name, limit=20, market=None):
+def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False):
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
@@ -443,6 +447,7 @@ def fetch_stock_news(stock_name, limit=20, market=None):
             queries,
             category="종목",
             per_query=max(20, limit),
+            raise_on_error=raise_on_error,
         )
         if is_us_stock:
             jobs["official"] = pool.submit(
@@ -459,12 +464,16 @@ def fetch_stock_news(stock_name, limit=20, market=None):
             )
 
         provider_rows = {}
+        provider_failures = set()
         for name, future in jobs.items():
             try:
                 provider_rows[name] = future.result()
             except Exception:
+                provider_failures.add(name)
                 provider_rows[name] = []
 
+    if raise_on_error and 'stock' in provider_failures and not any(provider_rows.values()):
+        raise RuntimeError('stock_news_providers_failed')
     stock_items = provider_rows.get("stock") or []
     official_items = provider_rows.get("official") or []
     sec_items = provider_rows.get("sec") or []
