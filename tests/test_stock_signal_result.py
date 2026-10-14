@@ -44,9 +44,15 @@ class StockSignalTests(unittest.TestCase):
         self.assertEqual(value[0]["evidence"], [])
 
     def test_no_signal_on_small_move_or_missing_quote(self):
-        self.assertEqual(build_stock_signals("삼성전자", {"current": 10, "change_pct": 0.9}, {}, now=NOW), [])
+        self.assertEqual(build_stock_signals("삼성전자", {"current": 10, "change_pct": 0.09}, {}, now=NOW), [])
         self.assertEqual(build_stock_signals("삼성전자", {"current": 0, "change_pct": 4}, {}, now=NOW), [])
         self.assertEqual(build_stock_signals("삼성전자", {"current": 10, "change_pct": float("nan")}, {}, now=NOW), [])
+
+    def test_small_observed_move_is_visible_with_clear_evidence_limit(self):
+        value = build_stock_signals("삼성전자", {"current": 230000, "change_pct": 0.65},
+                                   {}, now=NOW)
+        self.assertEqual(len(value), 1)
+        self.assertEqual(value[0]["status"], "cause_unverified")
 
     def test_rfc2822_news_timestamp_is_accepted(self):
         item = article()
