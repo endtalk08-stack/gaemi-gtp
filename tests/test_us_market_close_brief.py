@@ -138,6 +138,42 @@ class USMarketCloseBriefTests(unittest.TestCase):
         accepted = brief._verified_session_articles(candidates, _SESSION, _NOW)
         self.assertEqual(accepted, [source])
 
+    def test_completed_session_reuses_memory_without_database_after_ttl(self):
+        indices = [
+            {"name": name, "date": "2026-10-13", "change_pct": -0.15}
+            for name in ("나스닥", "S&P500", "다우")
+        ]
+        verified = {
+            "title": "뉴욕증시 마감", "description": "다우 나스닥 마감",
+            "market": "us", "news_scope": "market_close",
+            "session_date": "2026-10-13", "detail_source": "jsonld_article_body",
+            "published_at": "2026-10-14T00:30:00+00:00",
+            "url": "https://example.com/us", "article_body": _MAIN,
+        }
+        with patch.object(brief, "_index_changes", return_value=indices) as prices, patch.object(
+            brief, "build_us_market_close_news_result",
+            return_value={"ok": True, "items": [verified]},
+        ) as news, patch.object(brief.time, "monotonic", return_value=100) as clock:
+            first = brief.build_us_market_close_brief(now=_NOW)
+            clock.return_value = 100 + 60 * 60 * 12
+            again = brief.build_us_market_close_brief(now=_NOW)
+
+        self.assertEqual(first, again)
+        prices.assert_called_once()
+        news.assert_called_once()
+
+    def test_incomplete_session_retries_after_short_cache_ttl(self):
+        with patch.object(brief, "_index_changes", return_value=[]) as prices, patch.object(
+            brief, "build_us_market_close_news_result",
+            return_value={"ok": True, "items": []},
+        ) as news, patch.object(brief.time, "monotonic", return_value=100) as clock:
+            brief.build_us_market_close_brief(now=_NOW)
+            clock.return_value = 100 + 601
+            brief.build_us_market_close_brief(now=_NOW)
+
+        self.assertEqual(prices.call_count, 2)
+        self.assertEqual(news.call_count, 2)
+
     def test_missing_sources_return_explicit_absence_not_fabricated_data(self):
         with patch.object(brief, "_index_changes", return_value=[]), patch.object(
             brief, "build_us_market_close_news_result", return_value={"ok": True, "items": []}
