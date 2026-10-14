@@ -21,12 +21,14 @@ _REQUIRED_INDICES = {"나스닥", "S&P500", "다우"}
 
 
 def run_once(*, now=None):
-    """Collect only on KST Tue-Sat at 07h, skip holidays or incomplete data."""
+    """Run after 07:00 KST Tue-Sat, tolerant of a delayed cron dispatch."""
     current = now or datetime.datetime.now(datetime.timezone.utc)
     if current.tzinfo is None:
         raise ValueError("now must have a timezone")
     local = current.astimezone(_KST)
-    if not (1 <= local.weekday() <= 5 and local.hour == 7):
+    # GitHub scheduled workflows are best-effort and can start late.
+    # Accept the same KST morning until 11:59 without changing NY session.
+    if not (1 <= local.weekday() <= 5 and 7 <= local.hour <= 11):
         return {"status": "outside_schedule"}
 
     if not is_store_configured():
