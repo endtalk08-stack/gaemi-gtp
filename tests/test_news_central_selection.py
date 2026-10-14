@@ -470,6 +470,25 @@ class CentralNewsSelectionTests(unittest.TestCase):
         self.assertEqual(result["issue_briefs"][0]["headline"], "고객사 발주 축소 이슈")
         self.assertEqual(result["issue_briefs"][0]["material_direction"], "negative")
 
+    def test_flow_material_fallback_does_not_guess_price_causes(self):
+        article = self.article("flow", "삼성전자 기관 순매도",
+                               "기관 투자자 매도 우위가 집계됐다.", keyword="기관매도")
+        keywords = {"articles": [{
+            "keywords": ["기관매도"], "keyword_details": [],
+            "grounded_tags": [], "stock_entities": ["삼성전자"],
+            "event_owner": "삼성전자", "relation_type": "direct",
+        }]}
+        with patch("backend.services.news_result.fetch_stock_news", return_value=[article]), \
+             patch("backend.services.news_result.score_stock_news", side_effect=lambda rows, stock: rows), \
+             patch("backend.services.news_result.build_connected_keyword_test", return_value=keywords), \
+             patch("backend.services.news_result.build_simple_today_news", side_effect=lambda rows, *a, **kw: rows), \
+             patch("backend.services.news_result.read_selected_article_details", return_value=[{
+                 "text": "", "source": "fetch_failed",
+             }]):
+            result = build_stock_news_result("삼성전자", market="국내")
+        self.assertEqual(result["issue_briefs"][0]["headline"], "기관 순매도 이슈")
+        self.assertEqual(result["issue_briefs"][0]["tags"], ["기관순매도"])
+
     def test_unrelated_macro_news_never_assigned_to_other_stock(self):
         article = self.article(
             "unrelated", "트럼프 대통령 관세 인상 발언",

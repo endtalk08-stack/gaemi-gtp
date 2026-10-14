@@ -21,6 +21,7 @@ from .issue_briefs import (
 )
 from .company_critical_events import company_critical_title_and_tags
 from .business_material_events import business_material_title_and_tags
+from .flow_material_events import flow_material_title_and_tags
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
 
@@ -296,6 +297,30 @@ def build_stock_news_result(
             reverse=True,
         )
 
+        # Stage 4: supplement missing, explicitly reported flow material.
+        flow_material_candidates = []
+        for item in paired_news_items:
+            title = str(item.get("title") or "")
+            description = str(item.get("description") or "")
+            if not _central_stock_mentioned(title, stock_name):
+                continue
+            title_h, title_tags, title_dir = flow_material_title_and_tags(title)
+            desc_h, desc_tags, desc_dir = flow_material_title_and_tags(description)
+            if not title_tags and not desc_tags:
+                continue
+            if not title_tags and str(item.get("relation_type") or "").lower() != "direct":
+                continue
+            flow_material_candidates.append((
+                item, title_h or desc_h,
+                list(dict.fromkeys([*title_tags, *desc_tags])),
+                title_dir if title_tags else desc_dir, bool(title_tags),
+            ))
+            diag("flow_material_candidate", item, flow_tags=title_tags or desc_tags)
+        flow_material_candidates.sort(
+            key=lambda row: (row[4], str(row[0].get("published_at") or "")),
+            reverse=True,
+        )
+
         # Same stock-specific news feed, no separate collector.
         # Recognize market material without guessing the cause of a price move.
         market_material_candidates = []
@@ -442,7 +467,7 @@ def build_stock_news_result(
             for item in storyboard_news_items:
                 diag("selected_issue_article", item)
 
-        if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates:
+        if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates and not flow_material_candidates:
             raise RuntimeError('all_candidate_article_bodies_unavailable')
 
         # Keep full article bodies local to this function, not in API records.
@@ -581,6 +606,21 @@ def build_stock_news_result(
                 "evidence_source": "news_title_description",
             }]
             diag("market_material_fallback_selected", source, material_tags=tags)
+
+        # Last fallback: explicit stock-level supply/demand disclosures.
+        if not issue_briefs and flow_material_candidates:
+            source, headline, tags, direction, _ = flow_material_candidates[0]
+            issue_briefs = [{
+                "time": str(source.get("storyboard_time") or "").strip(),
+                "reaction_at": str(source.get("published_at") or "").strip(),
+                "headline": headline,
+                "summary": str(source.get("description") or source.get("title") or "").strip()[:350],
+                "tags": tags,
+                "stock_names": [stock_name],
+                "material_direction": direction,
+                "evidence_source": "news_title_description",
+            }]
+            diag("flow_material_fallback_selected", source, flow_tags=tags)
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.

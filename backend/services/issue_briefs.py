@@ -11,6 +11,7 @@ import re
 
 from .company_critical_events import company_critical_title_and_tags
 from .business_material_events import business_material_title_and_tags
+from .flow_material_events import flow_material_title_and_tags
 
 
 _SIGNAL_BRIEFS = {
@@ -862,6 +863,9 @@ def _content_driven_title_and_tags(excerpt):
     business_headline, business_tags, _ = business_material_title_and_tags(text)
     if business_tags:
         return business_headline, business_tags
+    flow_headline, flow_tags, _ = flow_material_title_and_tags(text)
+    if flow_tags:
+        return flow_headline, flow_tags
 
     sentence = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]
     candidate = re.search(
@@ -892,6 +896,8 @@ def central_material_brief_supported(excerpt):
     if company_critical_title_and_tags(excerpt)[1]:
         return True
     if business_material_title_and_tags(excerpt)[1]:
+        return True
+    if flow_material_title_and_tags(excerpt)[1]:
         return True
     title, tags = _body_title_and_tags(str(excerpt or ""))
     if not tags or title == "기사 주요 내용":
