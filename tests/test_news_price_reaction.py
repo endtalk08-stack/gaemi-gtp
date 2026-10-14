@@ -168,7 +168,7 @@ class NewsPriceReactionTests(unittest.TestCase):
             {
                 "headline": "생산 확대 이슈",
                 "summary": "생산 계획을 발표했다.",
-                "reaction_at": "2026-10-14T23:40:00+00:00",
+                "reaction_at": "2026-10-13T23:40:00+00:00",
                 "stock_reactions": [
                     {"name": "삼성SDI", "low_pct": 0.0, "high_pct": 7.33},
                 ],
