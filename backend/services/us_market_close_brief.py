@@ -8,6 +8,7 @@ import datetime
 import re
 import threading
 import time
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from backend.providers.market_price import fetch_daily_price_history
@@ -77,8 +78,8 @@ def _index_changes(session):
             except Exception:
                 continue
     return [
-        {"name": name, **found[name]}
-        for name, _ in _INDEXES if name in found
+        {"name": name, "symbol": symbol, "source": "yahoo_daily", **found[name]}
+        for name, symbol in _INDEXES if name in found
     ]
 
 
@@ -100,6 +101,8 @@ def _factual_sentences(news_items):
                 "text": sentence,
                 "source": str(item.get("source") or ""),
                 "url": str(item.get("url") or item.get("link") or ""),
+                "article_title": str(item.get("title") or ""),
+                "published_at": str(item.get("published_at") or ""),
             })
     return sentences
 
@@ -211,6 +214,38 @@ def _render_market_facts(facts):
     return "\n\n".join(visible)
 
 
+def _verified_session_articles(items, session, now):
+    """Accept only the already-selected original articles for this NY session.
+
+    The shared market-news service already performs article selection and body
+    extraction. This final provenance gate never re-fetches or re-scores them.
+    """
+    from .us_market_close_news import _matches_market_close
+
+    accepted = []
+    seen_urls = set()
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("market") != "us" or item.get("news_scope") != "market_close":
+            continue
+        if item.get("session_date") != session.isoformat():
+            continue
+        if item.get("detail_source") not in {"jsonld_article_body", "article_or_main_paragraphs"}:
+            continue
+        if not str(item.get("article_body") or "").strip():
+            continue
+        url = str(item.get("url") or item.get("link") or "").strip()
+        parts = urllib.parse.urlsplit(url)
+        if parts.scheme not in {"http", "https"} or not parts.netloc or url in seen_urls:
+            continue
+        if not _matches_market_close(item, session, now):
+            continue
+        seen_urls.add(url)
+        accepted.append(item)
+    return accepted
+
+
 def build_us_market_close_brief(*, now=None):
     """One cached market-scoped result reused by any future renderer."""
     global _CACHE, _CACHED_AT
@@ -224,7 +259,7 @@ def build_us_market_close_brief(*, now=None):
 
         indices = _index_changes(session)
         news = build_us_market_close_news_result(limit=4, now=current, include_body=True)
-        articles = news.get("items") or []
+        articles = _verified_session_articles(news.get("items"), session, current)
         categories = _fact_sections(articles)
         sections = []
         if indices:
@@ -250,6 +285,16 @@ def build_us_market_close_brief(*, now=None):
             sections.append({
                 "title": title,
                 "content": _render_market_facts(facts),
+                "evidence": [
+                    {
+                        "source": fact["source"], "url": fact["url"],
+                        "title": fact["article_title"],
+                        "published_at": fact["published_at"],
+                        "original_text": fact["text"],
+                        "session_date": session.isoformat(),
+                    }
+                    for fact in facts
+                ],
             })
 
         if not articles:
