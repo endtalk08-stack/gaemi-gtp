@@ -70,7 +70,7 @@ class USMarketCloseBriefTests(unittest.TestCase):
         other_article = [same_article[0], {**same_article[1], "url": "https://example.com/b"}]
         self.assertEqual(
             brief._render_market_facts(other_article),
-            "금융주가 하락했어.\\n\\n메모리 반도체주도 약세를 보였어.".replace(".\\n", ".\\n"),
+            "금융주가 하락했어.\n\n메모리 반도체주도 약세를 보였어.",
         )
 
     def test_result_uses_one_shared_news_result_and_does_not_invent_fields(self):
