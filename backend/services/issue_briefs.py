@@ -465,6 +465,16 @@ def _article_excerpt(text, limit=3):
         opening,
         count=1,
     )
+    # Some articles place a bracketed publisher/reporter credit after a
+    # headline or subheading. Keep the headline and factual sentences.
+    opening = re.sub(
+        r"[\[【][^\[\]【】]{2,100}?\s*=\s*"
+        r"[가-힣]{2,5}\s*(?:(?:인턴|수습)\s*)?"
+        r"(?:기자|특파원|통신원)\s*[\]】]",
+        " ",
+        opening,
+        count=1,
+    )
     content = re.sub(r"\s+", " ", opening + remainder).strip()
 
     # Strip only leading publication notes and bylines, even if notices come
