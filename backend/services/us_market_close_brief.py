@@ -237,7 +237,10 @@ def _verified_session_articles(items, session, now):
         if not str(item.get("article_body") or "").strip():
             continue
         url = str(item.get("url") or item.get("link") or "").strip()
-        parts = urllib.parse.urlsplit(url)
+        try:
+            parts = urllib.parse.urlsplit(url)
+        except ValueError:
+            continue
         if parts.scheme not in {"http", "https"} or not parts.netloc or url in seen_urls:
             continue
         if not _matches_market_close(item, session, now):
