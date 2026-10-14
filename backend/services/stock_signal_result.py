@@ -3,7 +3,9 @@
 This is not causal attribution. Only source-verified central articles are exposed.
 No additional collection, model calls, storage or screen-specific analysis.
 """
+from collections import Counter
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from math import isfinite
 
 
@@ -16,11 +18,17 @@ def _number(value):
 
 
 def _date(value):
-    try:
-        date = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
-        return date if date.tzinfo is not None else None
-    except (TypeError, ValueError):
+    raw = str(value or "").strip()
+    if not raw:
         return None
+    try:
+        date = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            date = parsedate_to_datetime(raw)
+        except (TypeError, ValueError, IndexError):
+            return None
+    return date if date.tzinfo is not None else None
 
 
 def build_stock_signals(stock, price_snapshot, news_result, *, now=None):
@@ -41,9 +49,20 @@ def build_stock_signals(stock, price_snapshot, news_result, *, now=None):
     result = news_result if isinstance(news_result, dict) else {}
     candidates = result.get("storyboard_news_items") or []
     briefs = result.get("issue_briefs") or []
+    # A shared publication timestamp does not prove two articles are the same.
+    article_times = Counter(
+        str(item.get("published_at")) for item in candidates
+        if isinstance(item, dict) and item.get("published_at")
+    )
+    brief_times = Counter(
+        str(brief.get("reaction_at")) for brief in briefs
+        if isinstance(brief, dict) and brief.get("reaction_at")
+    )
     brief_by_time = {
         str(brief.get("reaction_at")): brief
         for brief in briefs if isinstance(brief, dict) and brief.get("reaction_at")
+        and article_times[str(brief["reaction_at"])] == 1
+        and brief_times[str(brief["reaction_at"])] == 1
     }
     evidence = []
     seen = set()
