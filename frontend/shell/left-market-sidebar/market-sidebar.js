@@ -197,7 +197,7 @@
           const issue = document.createElement('span');
           issue.dataset.stockIssue = 'true';
           issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
-          issue.style.fontSize = '12px';
+          issue.style.fontSize = '13px';
           issue.textContent = issueByStock.get(`${market}:${item.name}`) || '';
           thirdRow.append(
             document.createElement('span'),
