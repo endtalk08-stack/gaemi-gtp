@@ -199,7 +199,8 @@
           industry.textContent = typeof item.industry === 'string' ? item.industry : '';
           const issue = document.createElement('span');
           issue.dataset.stockIssue = 'true';
-          issue.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
+          issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
+          issue.style.fontSize = 'var(--gtp-type-item)';
           issue.textContent = issueByStock.get(`${market}:${item.name}`) || '';
           thirdRow.append(
             document.createElement('span'),
