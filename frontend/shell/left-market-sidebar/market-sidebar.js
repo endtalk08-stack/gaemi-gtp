@@ -58,25 +58,6 @@
     let tab = 'popular';
     let requestId = 0;
     let changeSorted = false;
-    const issueByStock = new Map();
-
-    // Reuse the selected central analysis result. The sidebar fetches no extra news.
-    const syncIssueToRow = () => {
-      if (!list) return;
-      const data = window.GaemiGTPAnalysisData?.get?.();
-      const stock = String(data?.stockName || '').trim();
-      const eventTitle = String(data?.issueBriefs?.[0]?.headline || '').trim();
-      if (!stock || !eventTitle) return;
-      const row = [...list.querySelectorAll(':scope > button[data-stock-name]')]
-        .find(button => button.dataset.stockName === stock);
-      if (!row) return;
-      // Show the selected issue headline only, without a price-direction suffix.
-      const display = eventTitle;
-      const marketKey = region === '국내' ? 'kr' : region === '해외' ? 'us' : '';
-      if (marketKey) issueByStock.set(`${marketKey}:${stock}`, display);
-      const label = row.querySelector('[data-stock-issue]');
-      if (label) label.textContent = display;
-    };
 
     const applyChangeSort = () => {
       if (!list) return;
@@ -138,7 +119,6 @@
         }
         result.items.forEach((item, index) => {
           const button = document.createElement('button');
-          button.dataset.stockName = item.name;
           button.dataset.originalIndex = String(index);
           button.dataset.originalRank = String(item.rank || index + 1);
           button.dataset.changePct = typeof item.change_pct === 'number' && Number.isFinite(item.change_pct)
@@ -194,21 +174,15 @@
           const industry = document.createElement('span');
           industry.className = 'text-[11px] font-semibold text-sky-500 truncate';
           industry.textContent = typeof item.industry === 'string' ? item.industry : '';
-          const issue = document.createElement('span');
-          issue.dataset.stockIssue = 'true';
-          issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
-          issue.style.fontSize = '13px';
-          issue.textContent = issueByStock.get(`${market}:${item.name}`) || '';
           thirdRow.append(
             document.createElement('span'),
             industry,
-            issue
+            document.createElement('span')
           );
           button.append(top, secondRow, thirdRow);
           list.appendChild(button);
         });
         applyChangeSort();
-        syncIssueToRow();
       } catch (_) {
         if (id === requestId) list.textContent = '순위 원천 데이터를 가져오지 못했어.';
       }
@@ -235,7 +209,6 @@
         void showDomesticRanking();
       });
     });
-    window.addEventListener('gaemi-analysis-data-change', syncIssueToRow);
     sidebar.dataset.marketControlsBound = 'true';
     // Show the live KR popularity list on the first market sidebar view.
     void showDomesticRanking();

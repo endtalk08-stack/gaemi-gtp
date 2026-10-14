@@ -568,11 +568,11 @@ def _previous_day_reply(question, metrics):
     return f"전 거래일({date_text}) 기준 " + ", ".join(facts) + "."
 
 
-def _groq_answer(model_id, question, context, max_completion_tokens=650, style_prompt=None, timeout_seconds=23, system_prompt=None):
+def _groq_answer(model_id, question, context, max_completion_tokens=650, style_prompt=None):
     payload = {
         "model": model_id,
         "messages": [
-            {"role": "system", "content": (system_prompt or SYSTEM_PROMPT) + ("\n\n" + style_prompt if style_prompt else "")},
+            {"role": "system", "content": SYSTEM_PROMPT + ("\n\n" + style_prompt if style_prompt else "")},
             {
                 "role": "user",
                 "content": "참고 데이터(JSON):\n"
@@ -595,7 +595,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=650, style_p
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout_seconds) as response:
+    with urllib.request.urlopen(req, timeout=23) as response:
         result = json.loads(response.read().decode("utf-8"))
         provider_headers = response.headers
     choices = result.get("choices") or []
