@@ -48,6 +48,22 @@ class StockSignalTests(unittest.TestCase):
         self.assertEqual(build_stock_signals("삼성전자", {"current": 0, "change_pct": 4}, {}, now=NOW), [])
         self.assertEqual(build_stock_signals("삼성전자", {"current": 10, "change_pct": float("nan")}, {}, now=NOW), [])
 
+    def test_rfc2822_news_timestamp_is_accepted(self):
+        item = article()
+        item["published_at"] = (NOW - timedelta(minutes=10)).strftime("%a, %d %b %Y %H:%M:%S %z")
+        value = build_stock_signals("삼성전자", {"current": 100, "change_pct": 1.5},
+                                   {"storyboard_news_items": [item]}, now=NOW)
+        self.assertEqual(len(value[0]["evidence"]), 1)
+
+    def test_same_timestamp_does_not_mix_another_article_summary(self):
+        a = article(title="사건 A")
+        b = article(title="사건 B", url="https://example.com/b")
+        value = build_stock_signals("삼성전자", {"current": 100, "change_pct": 1.5},
+                                   {"storyboard_news_items": [a, b],
+                                    "issue_briefs": [{"reaction_at": a["published_at"], "headline": "잘못된 연결", "summary": "내용 X"}]}, now=NOW)
+        self.assertEqual(len(value[0]["evidence"]), 2)
+        self.assertTrue(all(not item["summary"] for item in value[0]["evidence"]))
+
     def test_only_three_unique_article_urls(self):
         a = [article(url=f"https://example.com/{i}") for i in range(5)]
         a.append(article(url="https://example.com/1"))
