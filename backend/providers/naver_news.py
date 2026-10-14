@@ -22,8 +22,10 @@ def is_configured():
     return bool(NAVER_CLIENT_ID and NAVER_CLIENT_SECRET)
 
 
-def fetch_news(query, display=20):
+def fetch_news(query, display=20, *, raise_on_error=False):
     if not is_configured():
+        if raise_on_error:
+            raise RuntimeError('naver_news_not_configured')
         return []
 
     params = urllib.parse.urlencode({
@@ -48,6 +50,8 @@ def fetch_news(query, display=20):
             payload = json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
         print(f"[provider:naver-news] failed query={query}: {type(exc).__name__}: {exc}")
+        if raise_on_error:
+            raise
         return []
 
     rows = []
@@ -64,13 +68,13 @@ def fetch_news(query, display=20):
     return rows
 
 
-def search_news(query, display=20, start=1):
+def search_news(query, display=20, start=1, *, raise_on_error=False):
     """Compatibility adapter for the shared news feed.
 
     Keep the NAVER API call in fetch_news() unchanged while exposing the
     field names expected by the current news_feed service.
     """
-    rows = fetch_news(query, display=display)
+    rows = fetch_news(query, display=display, raise_on_error=raise_on_error)
     return [
         {
             "title": row.get("raw_title", ""),
