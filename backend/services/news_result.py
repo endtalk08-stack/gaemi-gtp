@@ -316,7 +316,7 @@ def build_stock_news_result(
             limit=storyboard_limit,
             body_texts=verified_body_texts,
         )
-        # Only the explanation text is AI-expanded; existing issue headings and tags survive.
+        # AI improves grounded issue headings and explanations; existing tags, timestamps and selection survive.
         issue_briefs = enrich_issue_briefs(
             stock_name, issue_briefs, storyboard_news_items, verified_body_texts,
         )

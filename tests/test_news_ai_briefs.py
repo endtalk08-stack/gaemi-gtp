@@ -23,12 +23,12 @@ class TestNewsAiBriefs(unittest.TestCase):
         self.body = ['LS머트리얼즈가 미국 기업과 690억원 규모 UC 공급 계약을 체결했다. '
                      '회사는 AI 데이터센터 수요에 대응한다. 납품은 2027년 4월 시작할 예정이라고 밝혔다.']
 
-    def test_preserves_headline_tags_time(self):
+    def test_ai_improves_issue_title_and_summary_without_ui_changes(self):
         stories = mod._input_stories(self.briefs, self.articles, self.body)
         self.assertEqual(len(stories), 1)
-        raw = '{"items":[{"id":1,"summary":"LS머트리얼즈가 미국 기업과 690억원 규모의 UC 공급 계약을 체결했다. 2027년 4월부터 AI 데이터센터 관련 납품을 시작할 예정이라고 밝혔다."}]}'
+        raw = '{"items":[{"id":1,"headline":"미국 UC 공급 계약 이슈","summary":"LS머트리얼즈가 미국 기업과 690억원 규모의 UC 공급 계약을 체결했다. 2027년 4월부터 AI 데이터센터 관련 납품을 시작할 예정이라고 밝혔다."}]}'
         got = mod._apply_response(self.briefs, stories, raw)
-        self.assertEqual(got[0]['headline'], '사업 제휴 이슈')
+        self.assertEqual(got[0]['headline'], '미국 UC 공급 계약 이슈')
         self.assertEqual(got[0]['tags'], ['사업제휴', 'AI투자'])
         self.assertEqual(got[0]['time'], '14:32')
         self.assertIn('690억원', got[0]['summary'])
@@ -44,6 +44,30 @@ class TestNewsAiBriefs(unittest.TestCase):
         stories = mod._input_stories(self.briefs, self.articles, self.body)
         got = mod._apply_response(self.briefs, stories, '{"items":[{"id":2,"summary":"다른 기업이 새로운 계약을 진행한다고 설명했다. 관련 내용은 추후 확인이 필요하다."}]}')
         self.assertEqual(got, self.briefs)
+
+    def test_rejects_unverified_issue_title(self):
+        stories = mod._input_stories(self.briefs, self.articles, self.body)
+        raw = '{"items":[{"id":1,"headline":"글로벌 9999억 규모 대규모 인수 이슈","summary":"LS머트리얼즈가 미국 기업과 690억원 규모의 UC 공급 계약을 체결했다. 2027년 4월부터 AI 데이터센터 관련 납품을 시작할 예정이라고 밝혔다."}]}'
+        got = mod._apply_response(self.briefs, stories, raw)
+        self.assertEqual(got[0]['headline'], '사업 제휴 이슈')
+        self.assertIn('690억원', got[0]['summary'])
+
+    def test_verified_headline_survives_bad_ai_summary(self):
+        stories = mod._input_stories(self.briefs, self.articles, self.body)
+        raw = '{"items":[{"id":1,"headline":"미국 UC 공급 계약 이슈","summary":"전혀 관련 없는 9999억원 규모라고 알려졌다. 아무 근거도 확인되지 않았다."}]}'
+        got = mod._apply_response(self.briefs, stories, raw)
+        self.assertEqual(got[0]['headline'], '미국 UC 공급 계약 이슈')
+        self.assertEqual(got[0]['summary'], '종전 기사 문장.')
+
+    def test_rejects_price_movement_title_and_wrong_format(self):
+        stories = mod._input_stories(self.briefs, self.articles, self.body)
+        self.assertFalse(mod._grounded_headline('미국 UC 계약 상승', stories[0]))
+        self.assertFalse(mod._grounded_headline('미국 UC 계약 상승 이슈', stories[0]))
+        self.assertFalse(mod._grounded_headline('오늘의 이슈', stories[0]))
+
+    def test_two_stories_do_not_share_evidence(self):
+        stories = mod._input_stories(self.briefs, self.articles, self.body)
+        self.assertFalse(mod._grounded_headline('999억 원 UC 공급 계약 이슈', stories[0]))
 
     def test_disabled_does_not_call_ai(self):
         import os

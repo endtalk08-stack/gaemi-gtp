@@ -75,7 +75,8 @@
       const direction = rate > 0 ? '상승' : rate < 0 ? '하락' : '보합';
       // Show verified event plus observed movement, not an unproven causal claim.
       const display = `${eventTitle} · ${direction}`;
-      issueByStock.set(`${region}:${stock}`, display);
+      const marketKey = region === '국내' ? 'kr' : region === '해외' ? 'us' : '';
+      if (marketKey) issueByStock.set(`${marketKey}:${stock}`, display);
       const label = row.querySelector('[data-stock-issue]');
       if (label) label.textContent = display;
     };
