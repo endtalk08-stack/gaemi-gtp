@@ -86,6 +86,54 @@
       return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 2 });
     };
 
+    // Populate every visible ranking row, without requiring a stock click.
+    // The server prepares the shared news results with bounded concurrency.
+    const fillRankingIssues = async (market, id, items) => {
+      const stocks = items.map(item => ({
+        name: String(item.name || ''),
+        symbol: String(item.symbol || ''),
+      }));
+      for (let attempt = 0; attempt < 40 && id === requestId; attempt++) {
+        let pending = false;
+        try {
+          const response = await fetch(backendUrl + '/market/issue-headlines', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ market, items: stocks }),
+          });
+          if (!response.ok) throw new Error('issue results unavailable');
+          const data = await response.json();
+          if (id !== requestId) return;
+          if (data.ok !== true || !Array.isArray(data.items)) throw new Error('invalid issue result');
+          const bySymbol = new Map(data.items.map(row => [String(row.symbol || ''), row]));
+          list.querySelectorAll(':scope > button[data-stock-symbol]').forEach(button => {
+            const label = button.querySelector('[data-stock-issue]');
+            const item = bySymbol.get(button.dataset.stockSymbol);
+            if (!label || !item) return;
+            const text = item.status === 'ready' && item.headline
+              ? item.headline
+              : item.status === 'pending' ? '이슈 확인 중' : '확인된 이슈 없음';
+            label.textContent = text;
+            label.title = text;
+          });
+          pending = Boolean(data.pending);
+          if (!pending) return;
+        } catch (_) {
+          if (id !== requestId) return;
+          // Temporary API errors must not overwrite already verified titles.
+          list.querySelectorAll('[data-stock-issue]').forEach(label => {
+            if (label.textContent === '이슈 확인 중') label.textContent = '이슈 조회 지연';
+          });
+        }
+        await new Promise(resolve => setTimeout(resolve, 2500));
+      }
+      if (id === requestId) {
+        list.querySelectorAll('[data-stock-issue]').forEach(label => {
+          if (label.textContent === '이슈 확인 중') label.textContent = '이슈 조회 지연';
+        });
+      }
+    };
+
     const showDomesticRanking = async () => {
       const id = ++requestId;
       if (!list) return;
@@ -119,6 +167,7 @@
         }
         result.items.forEach((item, index) => {
           const button = document.createElement('button');
+          button.dataset.stockSymbol = String(item.symbol || '');
           button.dataset.originalIndex = String(index);
           button.dataset.originalRank = String(item.rank || index + 1);
           button.dataset.changePct = typeof item.change_pct === 'number' && Number.isFinite(item.change_pct)
@@ -174,15 +223,21 @@
           const industry = document.createElement('span');
           industry.className = 'text-[11px] font-semibold text-sky-500 truncate';
           industry.textContent = typeof item.industry === 'string' ? item.industry : '';
+          const issue = document.createElement('span');
+          issue.dataset.stockIssue = 'true';
+          issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
+          issue.style.fontSize = '13px';
+          issue.textContent = '이슈 확인 중';
           thirdRow.append(
             document.createElement('span'),
             industry,
-            document.createElement('span')
+            issue
           );
           button.append(top, secondRow, thirdRow);
           list.appendChild(button);
         });
         applyChangeSort();
+        void fillRankingIssues(market, id, result.items);
       } catch (_) {
         if (id === requestId) list.textContent = '순위 원천 데이터를 가져오지 못했어.';
       }

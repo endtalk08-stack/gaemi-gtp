@@ -8,6 +8,7 @@ from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.us_market_close_news import build_us_market_close_news_result
+from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.us_market_close_brief import build_us_market_close_brief
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
@@ -99,6 +100,21 @@ def market_popular():
         return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
     return jsonify({"ok": True, "market": market, "source": "naver", "ranking": "popular",
                     "currency": "USD" if market == "us" else "KRW", "items": items})
+
+
+@app.post("/market/issue-headlines")
+def market_issue_headlines():
+    """Reuse verified stock-news results, one representative issue per ranking row."""
+    if (request.content_length or 0) > 4500:
+        return jsonify({"ok": False, "error": "request_too_large"}), 413
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "error": "invalid_request"}), 400
+    try:
+        result = get_market_issue_headlines(payload.get("market"), payload.get("items"))
+    except ValueError:
+        return jsonify({"ok": False, "error": "invalid_request"}), 400
+    return jsonify(result)
 
 
 @app.get("/api/market/us-close-news")

@@ -18,7 +18,7 @@ from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
-from .news_result import build_stock_news_result
+from .news_result import get_shared_stock_news_result
 from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
 from ..providers.market_price import fetch_news_price_reaction
@@ -3316,7 +3316,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
 
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=news start", flush=True)
-            news_result = build_stock_news_result(
+            news_result = get_shared_stock_news_result(
                 raw_name,
                 market="국내",
                 limit=50,
@@ -3370,7 +3370,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                 print(f"[미국 시세] fail: {type(e).__name__}: {e}")
                 volume_profile = None
 
-            news_result = build_stock_news_result(
+            news_result = get_shared_stock_news_result(
                 raw_name,
                 market="미국",
                 limit=50,

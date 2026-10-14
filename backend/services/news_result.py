@@ -1,6 +1,8 @@
 """Build the shared stock-news result consumed by chat and right-panel views."""
 
+import copy
 import re
+import threading
 import time
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE
@@ -359,3 +361,32 @@ def build_stock_news_result(
     except Exception as exc:
         print(f"[뉴스] fail: {type(exc).__name__}: {exc}")
         return _empty_news_result()
+
+
+# Reuse the exact stock-news result across central analysis and market-menu issues.
+# No independent sidebar collector or separate issue interpretation.
+_SHARED_NEWS_CACHE = {}
+_SHARED_NEWS_LOCK = threading.Lock()
+_SHARED_NEWS_KEY_LOCKS = {}
+_SHARED_NEWS_TTL = 15 * 60
+
+
+def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=5,
+                                 display_timezone="Asia/Seoul"):
+    key = (str(stock_name), market, int(limit), int(storyboard_limit), display_timezone)
+    with _SHARED_NEWS_LOCK:
+        lock = _SHARED_NEWS_KEY_LOCKS.setdefault(key, threading.Lock())
+    with lock:
+        with _SHARED_NEWS_LOCK:
+            cached = _SHARED_NEWS_CACHE.get(key)
+            if cached and time.monotonic() - cached[0] < _SHARED_NEWS_TTL:
+                return copy.deepcopy(cached[1])
+        result = build_stock_news_result(
+            stock_name, market=market, limit=limit,
+            storyboard_limit=storyboard_limit, display_timezone=display_timezone,
+        )
+        with _SHARED_NEWS_LOCK:
+            if len(_SHARED_NEWS_CACHE) >= 96:
+                _SHARED_NEWS_CACHE.clear()
+            _SHARED_NEWS_CACHE[key] = (time.monotonic(), copy.deepcopy(result))
+        return result
