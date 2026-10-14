@@ -280,6 +280,78 @@
               await typeText(title, titleText, { chunkSize: 2 });
               if (!isActive()) return;
             }
+            // The existing daily index data is the chart source. No data
+            // collection or percentage parsing from news is needed here.
+            const indexRows = section.title === '주요 지수' && Array.isArray(result?.indices)
+              ? result.indices.filter(item =>
+                  item && typeof item.name === 'string'
+                  && item.date === result.session_date
+                  && typeof item.change_pct === 'number'
+                  && Number.isFinite(item.change_pct)
+                )
+              : [];
+            if (indexRows.length) {
+              body.remove(); // Replace the text-only index view, never duplicate it.
+              const chart = document.createElement('div');
+              chart.className = 'space-y-3';
+              chart.setAttribute('role', 'img');
+              chart.setAttribute('aria-label', '주요 지수 등락률: ' + indexRows.map(item =>
+                item.name + ' ' + (item.change_pct > 0 ? '+' : '') + item.change_pct.toFixed(2) + '%'
+              ).join(', '));
+              block.appendChild(chart);
+
+              const maxMove = Math.max(0.01, ...indexRows.map(item => Math.abs(item.change_pct)));
+              for (const item of indexRows) {
+                if (!isActive()) return;
+                const line = document.createElement('div');
+                line.style.display = 'grid';
+                line.style.gridTemplateColumns = 'minmax(94px, 112px) minmax(55px, 1fr) 69px';
+                line.style.gap = '8px';
+                line.style.alignItems = 'center';
+                const label = document.createElement('span');
+                label.style.fontSize = 'var(--gtp-type-item)';
+                label.style.fontWeight = '500';
+                const track = document.createElement('span');
+                track.style.position = 'relative';
+                track.style.height = '8px';
+                track.style.borderRadius = '3px';
+                track.style.background = 'var(--gtp-surface-2)';
+                const axis = document.createElement('span');
+                axis.style.position = 'absolute';
+                axis.style.left = '50%';
+                axis.style.top = '-3px';
+                axis.style.height = '14px';
+                axis.style.borderLeft = '1px solid var(--gtp-faint)';
+                const bar = document.createElement('span');
+                bar.style.position = 'absolute';
+                bar.style.height = '8px';
+                bar.style.borderRadius = '3px';
+                bar.style.background = item.change_pct > 0 ? '#FF8DA1' : '#38BDF8';
+                const width = Math.abs(item.change_pct) / maxMove * 48;
+                bar.style.left = item.change_pct >= 0 ? '50%' : (50 - width) + '%';
+                bar.style.width = '0%';
+                track.append(bar, axis);
+                const rate = document.createElement('span');
+                rate.className = 'font-semibold';
+                rate.style.fontSize = 'var(--gtp-type-item)';
+                rate.style.textAlign = 'right';
+                rate.style.fontVariantNumeric = 'tabular-nums';
+                rate.style.color = item.change_pct > 0 ? '#FF8DA1'
+                  : item.change_pct < 0 ? '#38BDF8' : 'var(--gtp-text-2)';
+                line.append(label, track, rate);
+                chart.appendChild(line);
+                await typeText(label, item.name, { chunkSize: 3 });
+                if (!isActive()) return;
+                await typeText(rate,
+                  (item.change_pct > 0 ? '+' : '') + item.change_pct.toFixed(2) + '%',
+                  { chunkSize: 3 }
+                );
+                if (!isActive()) return;
+                bar.style.width = width + '%';
+              }
+              continue;
+            }
+
             await typeText(body, content, { chunkSize: 4 });
             if (!isActive()) return;
 
