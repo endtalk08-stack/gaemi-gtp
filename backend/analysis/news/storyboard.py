@@ -469,6 +469,14 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
 
         in_title = named_brokers(title)
         in_body = named_brokers(body)
+        # A brokerage stock in the headline is the analyzed company, not
+        # necessarily the analyst who issued a recommendation about it.
+        stock_owner = re.sub(
+            r"[^0-9a-z가-힣]", "", str(source.get("event_owner") or "").lower()
+        )
+        if stock_owner:
+            in_title.discard(stock_owner)
+            in_body.discard(stock_owner)
         broker = (
             next(iter(in_title)) if len(in_title) == 1
             else next(iter(in_body)) if not in_title and len(in_body) == 1

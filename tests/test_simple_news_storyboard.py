@@ -434,6 +434,23 @@ class NotableFlowSelectionTests(unittest.TestCase):
             [row, dict(row)], limit=5,
         )), 1)
 
+    def test_brokerage_stock_name_is_not_the_reporting_broker(self):
+        def note(research_house):
+            row = article(
+                keyword="목표가상향", tier=3, strength=4,
+                published_at="2026-10-13T09:00:00+00:00",
+                title="삼성증권 목표주가 상향", relation_type="direct",
+            )
+            row["event_owner"] = "삼성증권"
+            row["_central_checked_body"] = (
+                f"{research_house}은 삼성증권 목표주가를 94만원으로 상향했다."
+            )
+            return row
+
+        self.assertEqual(len(select_keyword_storyboard_news(
+            [note("하나증권"), note("키움증권")], limit=5,
+        )), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
