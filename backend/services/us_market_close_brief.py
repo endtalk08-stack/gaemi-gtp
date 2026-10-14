@@ -258,8 +258,20 @@ def build_us_market_close_brief(*, now=None):
         raise ValueError("now must be timezone-aware")
     session = _last_completed_session(current)
     with _CACHE_LOCK:
-        if _CACHE and _CACHE.get("session_date") == session.isoformat() and time.monotonic() - _CACHED_AT < _TTL:
-            return {**_CACHE, "sections": [dict(x) for x in _CACHE["sections"]]}
+        if _CACHE and _CACHE.get("session_date") == session.isoformat():
+            # A completed morning result stays in this worker's memory for
+            # the session. Missing/partial results retry after the normal TTL.
+            confirmed = {
+                item.get("name")
+                for item in _CACHE.get("indices", [])
+                if item.get("date") == session.isoformat()
+            }
+            ready = (
+                {"나스닥", "S&P500", "다우"}.issubset(confirmed)
+                and bool(_CACHE.get("article_sources"))
+            )
+            if ready or time.monotonic() - _CACHED_AT < _TTL:
+                return {**_CACHE, "sections": [dict(x) for x in _CACHE["sections"]]}
 
         indices = _index_changes(session)
         news = build_us_market_close_news_result(limit=4, now=current, include_body=True)
