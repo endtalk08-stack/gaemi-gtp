@@ -143,6 +143,74 @@ def _fact_sections(items):
     return categories
 
 
+
+# Keep news assertions and their subjects intact; only adjust sentence endings.
+_SPOKEN_ENDINGS = (
+    ("전망된다.", "전망돼."),
+    ("것으로 보인다.", "것으로 보여."),
+    ("예상된다.", "예상돼."),
+    ("밝혔다.", "밝혔어."),
+    ("전했다.", "전했어."),
+    ("꼽았다.", "꼽았어."),
+    ("이어졌다.", "이어졌어."),
+    ("보였다.", "보였어."),
+    ("기록했다.", "기록했어."),
+    ("나타났다.", "나타났어."),
+    ("내려갔다.", "내려갔어."),
+    ("올라갔다.", "올라갔어."),
+    ("어졌다.", "어졌어."),
+    ("했다.", "했어."),
+    ("됐다.", "됐어."),
+    ("졌다.", "졌어."),
+    ("났다.", "났어."),
+    ("였다.", "였어."),
+    ("었다.", "었어."),
+    ("았다.", "았어."),
+    ("있다.", "있어."),
+    ("없다.", "없어."),
+    ("이다.", "이야."),
+)
+
+
+def _naturalize_fact(text):
+    """Change only known factual endings, never subjects, quantities or causality."""
+    original = str(text or "").strip()
+    for ending, spoken in _SPOKEN_ENDINGS:
+        if original.endswith(ending):
+            return original[:-len(ending)] + spoken
+    return original
+
+
+def _joined_first_fact(text):
+    """Use a plain additive connector only for facts from one verified article."""
+    for ending, linked in (
+        ("했어.", "했고,"),
+        ("보였어.", "보였고,"),
+        ("됐어.", "됐고,"),
+        ("졌어.", "졌고,"),
+        ("났어.", "났고,"),
+        ("였어.", "였고,"),
+        ("었어.", "었고,"),
+        ("았어.", "았고,"),
+    ):
+        if text.endswith(ending):
+            return text[:-len(ending)] + linked
+    return ""
+
+
+def _render_market_facts(facts):
+    """Up to two supported statements, with no synthetic 'because' or inference."""
+    visible = [_naturalize_fact(item["text"]) for item in facts]
+    if len(visible) == 2:
+        first_url = str(facts[0].get("url") or "")
+        second_url = str(facts[1].get("url") or "")
+        if first_url and first_url == second_url:
+            linked = _joined_first_fact(visible[0])
+            if linked:
+                return linked + " " + visible[1]
+    return "\\n\\n".join(visible)
+
+
 def build_us_market_close_brief(*, now=None):
     """One cached market-scoped result reused by any future renderer."""
     global _CACHE, _CACHED_AT
@@ -181,7 +249,7 @@ def build_us_market_close_brief(*, now=None):
                 continue
             sections.append({
                 "title": title,
-                "content": "\n\n".join(fact["text"] for fact in facts),
+                "content": _render_market_facts(facts),
             })
 
         if not articles:
