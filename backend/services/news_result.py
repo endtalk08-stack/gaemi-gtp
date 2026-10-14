@@ -357,10 +357,11 @@ def build_stock_news_result(
             "storyboard_news_items": storyboard_news_items,
             "issue_briefs": issue_briefs,
             "keyword_storyboard": keyword_storyboard,
+            "_news_status": "ok",
         }
     except Exception as exc:
         print(f"[뉴스] fail: {type(exc).__name__}: {exc}")
-        return _empty_news_result()
+        return {**_empty_news_result(), "_news_status": "error"}
 
 
 # Reuse the exact stock-news result across central analysis and market-menu issues.
@@ -385,6 +386,8 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
             stock_name, market=market, limit=limit,
             storyboard_limit=storyboard_limit, display_timezone=display_timezone,
         )
+        if result.get("_news_status") == "error":
+            return result
         with _SHARED_NEWS_LOCK:
             if len(_SHARED_NEWS_CACHE) >= 96:
                 _SHARED_NEWS_CACHE.clear()
