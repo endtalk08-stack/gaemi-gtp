@@ -29,8 +29,8 @@ def _parse_article_datetime(value):
     return dt
 
 
-def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/Seoul"):
-    """Return article bundles published within the most recent 24 hours."""
+def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/Seoul", max_age_hours=24):
+    """Return article bundles within the requested window (24 hours by default)."""
     try:
         tz = ZoneInfo(str(display_timezone or "Asia/Seoul"))
     except Exception:
@@ -39,7 +39,7 @@ def build_simple_today_news(items, stock_name, limit=3, display_timezone="Asia/S
     source_items = [dict(item) for item in (items or [])]
 
     now_utc = datetime.datetime.now(datetime.timezone.utc)
-    cutoff_utc = now_utc - datetime.timedelta(hours=24)
+    cutoff_utc = now_utc - datetime.timedelta(hours=max(1, int(max_age_hours)))
     bundles = []
 
     for article in source_items:
