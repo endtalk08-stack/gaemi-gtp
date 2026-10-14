@@ -257,6 +257,33 @@ class IssueBriefTests(unittest.TestCase):
             ("공급 계약 이슈", ["공급계약"]),
         )
 
+    def test_market_extended_macro_and_direction(self):
+        examples = (
+            ("미국 국채금리 급등", "국채금리급등"),
+            ("미국 국채금리 급락", "국채금리급락"),
+            ("미국 GDP 3.2% 예상치 상회", "GDP예상상회"),
+            ("미국 GDP 2.2% 예상치 하회", "GDP예상하회"),
+            ("제조업 PMI 49.2 위축", "PMI위축"),
+            ("제조업 PMI 53.2 개선", "PMI개선"),
+            ("미국 고용지표 예상 하회", "고용지표악화"),
+            ("미국 고용지표 예상 상회", "고용지표개선"),
+            ("지역은행 파산", "은행파산"),
+            ("연준 양적 긴축 장기화", "연준긴축강화"),
+            ("연준 긴축 완화", "연준긴축완화"),
+            ("미국 정부 셧다운 돌입", "정부셧다운"),
+            ("정부 셧다운 해소", "셧다운해소"),
+            ("국제유가 급락", "국제유가급락"),
+            ("미중 무역 합의 발표", "무역합의"),
+            ("원달러 환율 급락", "환율급락"),
+            ("원달러 환율 급등", "환율급등"),
+        )
+        for article, expected_tag in examples:
+            with self.subTest(article=article):
+                headline, tags = market_material_title_and_tags(article)
+                self.assertEqual(tags, [expected_tag])
+                self.assertTrue(headline.endswith(" 이슈"))
+        self.assertEqual(market_material_title_and_tags("PMI 발표 예정"), ("", []))
+
     def test_market_materials_are_fact_grounded_not_price_guesses(self):
         cases = [
             ("SK하이닉스, CPI 예상 상회로 금리 인상 우려", ["CPI예상상회", "금리인상우려"]),
