@@ -249,9 +249,13 @@
           }
           if (!isActive()) return;
 
-          const sections = result?.sections?.length
+          const sections = (result?.sections?.length
             ? result.sections
-            : [{ title: '미국장은 어땠어? 🇺🇸', content: '마감시황 데이터를 아직 확인하지 못했어. 확인되지 않은 수치나 이유는 표시하지 않을게.' }];
+            : [{ title: '', content: '마감시황 데이터를 아직 확인하지 못했어. 확인되지 않은 수치나 이유는 표시하지 않을게.' }]
+          ).map(section => ({
+            ...section,
+            title: section?.title === '미국장은 어땠어? 🇺🇸' ? '' : section?.title
+          }));
           const answer = document.createElement('section');
           answer.dataset.usMarketResult = 'true';
           answer.className = 'mt-5 space-y-5 animate-fade';
@@ -268,11 +272,14 @@
             const titleText = String(section?.title || '');
             const body = document.createElement('p');
             body.className = `${responseMessageClass} whitespace-pre-line`;
-            block.append(title, body);
+            if (titleText) block.appendChild(title);
+            block.appendChild(body);
             answer.appendChild(block);
             block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            await typeText(title, titleText, { chunkSize: 2 });
-            if (!isActive()) return;
+            if (titleText) {
+              await typeText(title, titleText, { chunkSize: 2 });
+              if (!isActive()) return;
+            }
             await typeText(body, content, { chunkSize: 4 });
             if (!isActive()) return;
 
