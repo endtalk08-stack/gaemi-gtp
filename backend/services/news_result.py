@@ -181,12 +181,23 @@ def build_stock_news_result(
         ]
 
         def rank_candidates(rows):
-            # Preserve event diversity before verifying selected article bodies.
-            return select_keyword_storyboard_news(
+            # Give different event keywords a chance before filling remaining
+            # verification slots by the existing relevance score.
+            pool = select_keyword_storyboard_news(
                 [row for row in rows if not _central_obvious_price_report(row)],
-                limit=max(12, storyboard_limit * 3),
+                limit=max(1, len(rows)),
                 candidate_pool=True,
             )
+            limit = max(12, storyboard_limit * 3)
+            diverse, remaining, seen_keywords = [], [], set()
+            for item in pool:
+                keyword = str(item.get("storyboard_keyword") or "").strip()
+                if keyword and keyword not in seen_keywords:
+                    seen_keywords.add(keyword)
+                    diverse.append(item)
+                else:
+                    remaining.append(item)
+            return (diverse + remaining)[:limit]
 
         # Verify today's candidates first, then fill unoccupied event slots
         # from the existing recent news. No new collector or display path.
