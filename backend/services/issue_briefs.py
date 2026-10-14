@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import re
 
+from .company_critical_events import company_critical_title_and_tags
+
 
 _SIGNAL_BRIEFS = {
     "AI메모리": (
@@ -759,6 +761,12 @@ def _content_driven_title_and_tags(excerpt):
     if not text:
         return "기사 주요 내용", []
 
+    # Major company events are verified separately from broad market topics.
+    # This never changes the legacy title for a non-critical company event.
+    critical_headline, critical_tags, _ = company_critical_title_and_tags(text)
+    if critical_tags:
+        return critical_headline, critical_tags
+
     # Research reports have an issuer, an opinion and/or a target-price action.
     # Read the reported decision, not incidental phrases like 'third-quarter
     # results' which can wrongly be read as an actual earnings announcement.
@@ -853,6 +861,10 @@ def central_material_brief_supported(excerpt):
     Reuse the same article-grounded display topics as the central heading.
     An unsupported story stays in the full news list; it is not filler in chat.
     """
+    # An explicitly confirmed credit, audit, listing or contract event
+    # qualifies even if the original corporate display dictionary lacks it.
+    if company_critical_title_and_tags(excerpt)[1]:
+        return True
     title, tags = _body_title_and_tags(str(excerpt or ""))
     if not tags or title == "기사 주요 내용":
         return False

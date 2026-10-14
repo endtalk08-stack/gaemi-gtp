@@ -421,6 +421,34 @@ class CentralNewsSelectionTests(unittest.TestCase):
         self.assertEqual(result["issue_briefs"][0]["headline"], "CPI 예상 상회 이슈")
         self.assertIn("CPI예상상회", result["issue_briefs"][0]["tags"])
 
+    def test_company_critical_headline_fallback_and_no_rumor(self):
+        cases = [
+            ("삼성전자 신용등급 하향 확정", "회사가 신용등급 강등 통보를 받았다.",
+             "신용등급 하향 이슈", "negative"),
+            ("삼성전자 신용등급 상향 확정", "회사가 신용등급 격상 통보를 받았다.",
+             "신용등급 상향 이슈", "positive"),
+            ("삼성전자 신용등급 하향 가능성", "회사가 신용등급 하향을 검토 중이다.",
+             "", ""),
+        ]
+        for title, snippet, expected, direction in cases:
+            row = self.article("credit", title, snippet, keyword="신용등급")
+            with self.subTest(title=title), \
+                 patch("backend.services.news_result.fetch_stock_news", return_value=[row]), \
+                 patch("backend.services.news_result.score_stock_news", side_effect=lambda rows, stock: rows), \
+                 patch("backend.services.news_result.build_connected_keyword_test", return_value={"articles": [{
+                     "keywords": ["신용등급"], "keyword_details": [], "grounded_tags": [],
+                     "stock_entities": ["삼성전자"], "event_owner": "삼성전자", "relation_type": "direct",
+                 }]}), \
+                 patch("backend.services.news_result.build_simple_today_news", side_effect=lambda rows, *a, **kw: rows), \
+                 patch("backend.services.news_result.read_selected_article_details",
+                       return_value=[{"text": "", "source": "fetch_failed"}]):
+                result = build_stock_news_result("삼성전자", market="국내")
+            if expected:
+                self.assertEqual(result["issue_briefs"][0]["headline"], expected)
+                self.assertEqual(result["issue_briefs"][0]["material_direction"], direction)
+            else:
+                self.assertEqual(result["issue_briefs"], [])
+
     def test_unrelated_macro_news_never_assigned_to_other_stock(self):
         article = self.article(
             "unrelated", "트럼프 대통령 관세 인상 발언",

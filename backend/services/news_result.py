@@ -19,6 +19,7 @@ from .issue_briefs import (
     _article_excerpt, build_issue_briefs, central_material_brief_supported,
     market_material_title_and_tags,
 )
+from .company_critical_events import company_critical_title_and_tags
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
 
@@ -236,6 +237,37 @@ def build_stock_news_result(
                     diag("today_relevant", item)
 
 
+
+        # Priority 1: keep the existing verified issue results; only if there
+        # are none, allow an independently evidenced company-critical event.
+        # Require explicit company reference in the title to avoid attaching
+        # market-wide or third-party corporate events to this stock.
+        company_critical_candidates = []
+        for item in paired_news_items:
+            title = str(item.get("title") or "")
+            description = str(item.get("description") or "")
+            if not _central_stock_mentioned(title, stock_name):
+                continue
+            title_headline, title_tags, title_tone = company_critical_title_and_tags(title)
+            snippet_headline, snippet_tags, snippet_tone = company_critical_title_and_tags(description)
+            if not title_tags and not snippet_tags:
+                continue
+            # The existing relevance classifier must link description-only
+            # material to this stock directly, not via incidental mentions.
+            if not title_tags and str(item.get("relation_type") or "").lower() != "direct":
+                continue
+            headline = title_headline or snippet_headline
+            tags = list(dict.fromkeys([*title_tags, *snippet_tags]))
+            company_critical_candidates.append((
+                item, headline, tags, title_tone if title_tags else snippet_tone,
+                bool(title_tags),
+            ))
+            diag("company_critical_candidate", item, critical_tags=tags)
+        company_critical_candidates.sort(
+            key=lambda entry: (entry[4], str(entry[0].get("published_at") or "")),
+            reverse=True,
+        )
+
         # Same stock-specific news feed, no separate collector.
         # Recognize market material without guessing the cause of a price move.
         market_material_candidates = []
@@ -382,7 +414,7 @@ def build_stock_news_result(
             for item in storyboard_news_items:
                 diag("selected_issue_article", item)
 
-        if candidate_news and verified_body_count == 0 and not market_material_candidates:
+        if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates:
             raise RuntimeError('all_candidate_article_bodies_unavailable')
 
         # Keep full article bodies local to this function, not in API records.
@@ -477,8 +509,23 @@ def build_stock_news_result(
             body_texts=verified_body_texts,
         )
 
-        # Only when the original body-verified issues are empty: trust clearly
-        # stated market facts in the source title/description, not a price move.
+        # Original verified company items always win; the new classification
+        # is a strictly secondary fallback for source-grounded severe events.
+        if not issue_briefs and company_critical_candidates:
+            source, headline, tags, direction, _ = company_critical_candidates[0]
+            issue_briefs = [{
+                "time": str(source.get("storyboard_time") or "").strip(),
+                "reaction_at": str(source.get("published_at") or "").strip(),
+                "headline": headline,
+                "summary": str(source.get("description") or source.get("title") or "").strip()[:350],
+                "tags": tags,
+                "stock_names": [stock_name],
+                "material_direction": direction,
+                "evidence_source": "news_title_description",
+            }]
+            diag("company_critical_fallback_selected", source, critical_tags=tags)
+
+        # Then keep the existing market material fallback unchanged.
         if not issue_briefs and market_material_candidates:
             source, headline, tags, _, _ = market_material_candidates[0]
             issue_briefs = [{
