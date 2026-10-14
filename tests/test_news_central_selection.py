@@ -449,6 +449,27 @@ class CentralNewsSelectionTests(unittest.TestCase):
             else:
                 self.assertEqual(result["issue_briefs"], [])
 
+    def test_business_material_fallback_with_unavailable_article_body(self):
+        rows = [
+            self.article("biz", "삼성전자 고객사 발주 축소 발표",
+                         "주요 고객의 주문량 감소가 확인됐다.", keyword="발주축소"),
+        ]
+        details = {"articles": [{
+            "keywords": ["발주축소"], "keyword_details": [],
+            "grounded_tags": [], "stock_entities": ["삼성전자"],
+            "event_owner": "삼성전자", "relation_type": "direct",
+        }]}
+        with patch("backend.services.news_result.fetch_stock_news", return_value=rows), \
+             patch("backend.services.news_result.score_stock_news", side_effect=lambda rows, stock: rows), \
+             patch("backend.services.news_result.build_connected_keyword_test", return_value=details), \
+             patch("backend.services.news_result.build_simple_today_news", side_effect=lambda rows, *a, **kw: rows), \
+             patch("backend.services.news_result.read_selected_article_details", return_value=[{
+                 "text": "", "source": "fetch_failed",
+             }]):
+            result = build_stock_news_result("삼성전자", market="국내")
+        self.assertEqual(result["issue_briefs"][0]["headline"], "고객사 발주 축소 이슈")
+        self.assertEqual(result["issue_briefs"][0]["material_direction"], "negative")
+
     def test_unrelated_macro_news_never_assigned_to_other_stock(self):
         article = self.article(
             "unrelated", "트럼프 대통령 관세 인상 발언",

@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from .company_critical_events import company_critical_title_and_tags
+from .business_material_events import business_material_title_and_tags
 
 
 _SIGNAL_BRIEFS = {
@@ -830,12 +831,13 @@ def _content_driven_title_and_tags(excerpt):
                 tags.append("실적전망")
             return headline, list(dict.fromkeys(tags))[:3]
 
-    # For content outside the existing display vocabulary, preserve a
-    # concrete noun + action actually written in the article instead of
-    # manufacturing a topic from a previously selected keyword.
+    # The original company topics take priority over new business detectors.
     legacy_headline, legacy_tags = _body_title_and_tags(text)
     if legacy_tags:
         return legacy_headline, legacy_tags
+    business_headline, business_tags, _ = business_material_title_and_tags(text)
+    if business_tags:
+        return business_headline, business_tags
 
     sentence = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]
     candidate = re.search(
@@ -864,6 +866,8 @@ def central_material_brief_supported(excerpt):
     # An explicitly confirmed credit, audit, listing or contract event
     # qualifies even if the original corporate display dictionary lacks it.
     if company_critical_title_and_tags(excerpt)[1]:
+        return True
+    if business_material_title_and_tags(excerpt)[1]:
         return True
     title, tags = _body_title_and_tags(str(excerpt or ""))
     if not tags or title == "기사 주요 내용":
