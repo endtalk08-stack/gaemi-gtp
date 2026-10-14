@@ -535,7 +535,63 @@ def _article_excerpt(text, limit=3):
 
 # Display-only topics: evidence must appear in the actual central excerpt.
 # The earlier storyboard keywords still control article selection, not the title.
-_BODY_DISPLAY_TOPICS = (
+
+# Explicit market headlines, not inferred stock-price causes.
+_MARKET_MATERIAL_TOPICS = (
+    ("CPI예상상회", "CPI 예상 상회",
+     r"(?:\bCPI\b|소비자\s*물가(?:지수)?)[^!?\n]{0,65}?(?:예상(?:치)?|전망(?:치)?|기대(?:치)?)[^!?\n]{0,25}?(?:상회|웃돌|높아|넘어)|(?:예상(?:치)?|전망(?:치)?)[^!?\n]{0,20}?(?:상회|웃돌|높은)[^!?\n]{0,25}?(?:\bCPI\b|소비자\s*물가(?:지수)?)"),
+    ("CPI예상하회", "CPI 예상 하회",
+     r"(?:\bCPI\b|소비자\s*물가(?:지수)?)[^!?\n]{0,65}?(?:예상(?:치)?|전망(?:치)?|기대(?:치)?)[^!?\n]{0,20}?(?:하회|밑돌|낮아)"),
+    ("금리인상우려", "금리 인상 우려", r"금리\s*인상[^!?\n]{0,20}?(?:우려|부담|불안|경계)"),
+    ("금리인상가능성", "금리 인상 가능성", r"금리\s*인상[^!?\n]{0,25}?(?:가능성|확률|전망|관측|시사)"),
+    ("금리인하기대후퇴", "금리 인하 기대 후퇴",
+     r"금리\s*인하[^!?\n]{0,30}?(?:기대|전망)[^!?\n]{0,18}?(?:후퇴|약화|축소|낮아|줄어)"),
+    ("금리인하기대", "금리 인하 기대", r"금리\s*인하[^!?\n]{0,16}?(?:기대|가능성|전망|확률)"),
+    ("FOMC금리동결", "FOMC 금리 동결",
+     r"(?:\bFOMC\b|연준)[^!?\n]{0,60}?금리[^!?\n]{0,16}?동결|금리[^!?\n]{0,18}?동결[^!?\n]{0,55}?(?:\bFOMC\b|연준)"),
+    ("CPI상승", "CPI 상승", r"(?:\bCPI\b|소비자\s*물가(?:지수)?)[^!?\n]{0,26}?(?:상승|급등|치솟)"),
+    ("CPI둔화", "CPI 둔화", r"(?:\bCPI\b|소비자\s*물가(?:지수)?)[^!?\n]{0,26}?(?:둔화|하락|감소)"),
+    ("PPI상승", "PPI 상승", r"(?:\bPPI\b|생산자\s*물가(?:지수)?)[^!?\n]{0,24}?(?:상승|급등|예상\s*상회)"),
+    ("PCE상승", "PCE 상승", r"(?:\bPCE\b|개인\s*소비\s*지출\s*물가)[^!?\n]{0,24}?(?:상승|급등|예상\s*상회)"),
+    ("트럼프관세", "트럼프 관세", r"트럼프[^!?\n]{0,65}?관세|관세[^!?\n]{0,65}?트럼프"),
+    ("트럼프발언", "트럼프 발언", r"트럼프[^!?\n]{0,50}?(?:발언|언급|경고|주장|시사|밝혔|말했|발표|지시)"),
+    ("관세인상", "관세 인상", r"관세[^!?\n]{0,15}?(?:인상|부과|강화|추가)"),
+    ("관세완화", "관세 완화", r"관세[^!?\n]{0,15}?(?:인하|완화|유예|철회)"),
+    ("수출규제", "수출 규제", r"수출[^!?\n]{0,15}?(?:규제|통제|제한|금지)"),
+    ("고용악화", "고용 악화", r"(?:고용|일자리)[^!?\n]{0,20}?(?:악화|둔화|부진|급감)"),
+    ("경기침체우려", "경기 침체 우려", r"경기\s*침체[^!?\n]{0,18}?(?:우려|가능성|경고|위험)"),
+    ("환율급등", "환율 급등", r"(?:원.?달러\s*)?환율[^!?\n]{0,16}?(?:급등|급락)"),
+    ("달러강세", "달러 강세", r"달러(?:화)?[^!?\n]{0,10}?강세"),
+    ("유가급등", "국제유가 급등", r"(?:국제\s*유가|원유\s*가격)[^!?\n]{0,16}?(?:급등|치솟)"),
+    ("지정학리스크", "지정학 위험", r"지정학[^!?\n]{0,14}?(?:위험|리스크|긴장|우려)"),
+)
+
+
+def market_material_title_and_tags(text, limit=2):
+    """Pick the market facts explicitly present in article text."""
+    source = str(text or "").strip()
+    matches = []
+    for priority, (tag, heading, pattern) in enumerate(_MARKET_MATERIAL_TOPICS):
+        found = re.search(pattern, source, flags=re.IGNORECASE)
+        if found:
+            matches.append((found.start(), priority, found.end(), tag, heading))
+    matches.sort(key=lambda row: (row[0], row[1]))
+    selected, used_ranges = [], []
+    for start, _, end, tag, heading in matches:
+        if any(start < stop and end > begin for begin, stop in used_ranges):
+            continue
+        selected.append((tag, heading))
+        used_ranges.append((start, end))
+        if len(selected) >= max(1, int(limit)):
+            break
+    if not selected:
+        return "", []
+    return " · ".join(heading for _, heading in selected) + " 이슈", [
+        tag for tag, _ in selected
+    ]
+
+
+_BODY_DISPLAY_TOPICS = _MARKET_MATERIAL_TOPICS + (
     ("한미동맹", "한미 동맹", r"한\s*[·\-]?\s*미\s*동맹"),
     ("국익외교", "국익 외교", r"국익\s*외교"),
     ("행정수도", "행정수도", r"행정수도|세종\s*이전"),

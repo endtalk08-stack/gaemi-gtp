@@ -15,7 +15,10 @@ from backend.analysis.news import (
     select_keyword_storyboard_news,
 )
 
-from .issue_briefs import _article_excerpt, build_issue_briefs, central_material_brief_supported
+from .issue_briefs import (
+    _article_excerpt, build_issue_briefs, central_material_brief_supported,
+    market_material_title_and_tags,
+)
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
 
@@ -232,6 +235,29 @@ def build_stock_news_result(
                 if item.get("relation_type") == "direct" or has_cpi(item):
                     diag("today_relevant", item)
 
+
+        # Same stock-specific news feed, no separate collector.
+        # Recognize market material without guessing the cause of a price move.
+        market_material_candidates = []
+        for item in paired_news_items:
+            title = str(item.get("title") or "")
+            description = str(item.get("description") or "")
+            if not _central_stock_mentioned(f"{title} {description}", stock_name):
+                continue
+            headline, tags = market_material_title_and_tags(f"{title} {description}")
+            if not tags:
+                continue
+            market_material_candidates.append((item, headline, tags))
+            diag("market_material_candidate", item, material_tags=tags)
+        market_material_candidates.sort(
+            key=lambda entry: (
+                len(entry[2]),
+                bool(_central_stock_mentioned(entry[0].get("title"), stock_name)),
+                str(entry[0].get("published_at") or ""),
+            ),
+            reverse=True,
+        )
+
         def rank_candidates(rows):
             if tracing:
                 for row in rows:
@@ -342,7 +368,7 @@ def build_stock_news_result(
             for item in storyboard_news_items:
                 diag("selected_issue_article", item)
 
-        if candidate_news and verified_body_count == 0:
+        if candidate_news and verified_body_count == 0 and not market_material_candidates:
             raise RuntimeError('all_candidate_article_bodies_unavailable')
 
         # Keep full article bodies local to this function, not in API records.
@@ -436,6 +462,22 @@ def build_stock_news_result(
             limit=storyboard_limit,
             body_texts=verified_body_texts,
         )
+
+        # Only when the original body-verified issues are empty: trust clearly
+        # stated market facts in the source title/description, not a price move.
+        if not issue_briefs and market_material_candidates:
+            source, headline, tags = market_material_candidates[0]
+            issue_briefs = [{
+                "time": str(source.get("storyboard_time") or "").strip(),
+                "reaction_at": str(source.get("published_at") or "").strip(),
+                "headline": headline,
+                "summary": str(source.get("description") or source.get("title") or "").strip()[:350],
+                "tags": tags,
+                "stock_names": [stock_name],
+                "evidence_source": "news_title_description",
+            }]
+            diag("market_material_fallback_selected", source, material_tags=tags)
+
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
         central_eligible = [

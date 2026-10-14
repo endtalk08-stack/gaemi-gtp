@@ -1,6 +1,6 @@
 import unittest
 
-from backend.services.issue_briefs import build_issue_briefs
+from backend.services.issue_briefs import build_issue_briefs, market_material_title_and_tags
 
 
 class IssueBriefTests(unittest.TestCase):
@@ -222,6 +222,25 @@ class IssueBriefTests(unittest.TestCase):
             "Constellation Energy와 계약, 규모 $3.6 billion, 20-year 관련 내용을 확인했어.",
         )
 
+
+
+    def test_market_materials_are_fact_grounded_not_price_guesses(self):
+        cases = [
+            ("SK하이닉스, CPI 예상 상회로 금리 인상 우려", ["CPI예상상회", "금리인상우려"]),
+            ("SK하이닉스, 미국 CPI 3.7% 상승 예상치 웃돌아", ["CPI예상상회"]),
+            ("트럼프 대통령 관세 강화 발언에 반도체주 경계", ["트럼프관세"]),
+            ("트럼프 발언으로 미국 정책 불확실성 확대", ["트럼프발언"]),
+            ("FOMC 연준 금리 동결 발표", ["FOMC금리동결"]),
+            ("예상보다 높은 CPI, 금리 인상 확률 확대", ["CPI예상상회", "금리인상가능성"]),
+            ("원달러 환율 급등, 달러 강세", ["환율급등", "달러강세"]),
+            ("삼성전자 공급 계약 체결로 주가 상승", []),
+            ("SK하이닉스 주가 3% 하락", []),
+        ]
+        for article, expected_tags in cases:
+            with self.subTest(article=article):
+                heading, tags = market_material_title_and_tags(article)
+                self.assertEqual(tags, expected_tags)
+                self.assertEqual(bool(heading), bool(expected_tags))
 
 if __name__ == "__main__":
     unittest.main()

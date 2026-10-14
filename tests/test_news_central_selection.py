@@ -343,5 +343,54 @@ class CentralNewsSelectionTests(unittest.TestCase):
         self.assertEqual(result["storyboard_news_items"], [])
         reader.assert_not_called()
 
+
+    def test_market_catalysts_survive_inaccessible_full_article(self):
+        cases = [
+            ("SK하이닉스, CPI 예상 상회에 금리 인상 우려",
+             "CPI 예상치 상회로 금리 인상 우려가 커졌다.",
+             ["CPI예상상회", "금리인상우려"]),
+            ("SK하이닉스, 트럼프 대통령 관세 강화 발언 주목",
+             "트럼프 대통령이 관세 인상을 예고했다.",
+             ["트럼프관세"]),
+        ]
+        for title, summary, expected in cases:
+            article = self.article("market", title, summary, keyword="금리인상")
+            with self.subTest(title=title), \
+                 patch("backend.services.news_result.fetch_stock_news", return_value=[article]), \
+                 patch("backend.services.news_result.score_stock_news", side_effect=lambda rows, stock: rows), \
+                 patch("backend.services.news_result.build_connected_keyword_test", return_value={"articles": [{
+                     "keywords": ["금리인상"], "keyword_details": [],
+                     "grounded_tags": [], "stock_entities": ["SK하이닉스"],
+                     "event_owner": "SK하이닉스", "relation_type": "direct",
+                 }]}), \
+                 patch("backend.services.news_result.build_simple_today_news", side_effect=lambda rows, *a, **kw: rows), \
+                 patch("backend.services.news_result.read_selected_article_details", return_value=[{
+                     "text": "미리보기만 확보됨", "source": "meta_description",
+                 }]):
+                result = build_stock_news_result("SK하이닉스", market="국내")
+            self.assertEqual(result["_news_status"], "ok")
+            self.assertEqual(result["issue_briefs"][0]["tags"], expected)
+            self.assertEqual(result["issue_briefs"][0]["evidence_source"], "news_title_description")
+            self.assertEqual(result["storyboard_news_items"], [])
+
+    def test_unrelated_macro_news_never_assigned_to_other_stock(self):
+        article = self.article(
+            "unrelated", "트럼프 대통령 관세 인상 발언",
+            "미국 정책 관련 일반 뉴스", keyword="트럼프발언",
+        )
+        with patch("backend.services.news_result.fetch_stock_news", return_value=[article]), \
+             patch("backend.services.news_result.score_stock_news", side_effect=lambda rows, stock: rows), \
+             patch("backend.services.news_result.build_connected_keyword_test", return_value={"articles": [{
+                 "keywords": ["트럼프발언"], "keyword_details": [],
+                 "grounded_tags": [], "stock_entities": [],
+                 "event_owner": "", "relation_type": "mention_only",
+             }]}), \
+             patch("backend.services.news_result.build_simple_today_news", side_effect=lambda rows, *a, **kw: rows), \
+             patch("backend.services.news_result.read_selected_article_details", return_value=[{
+                 "text": "", "source": "fetch_failed",
+             }]):
+            result = build_stock_news_result("SK하이닉스", market="국내")
+        self.assertEqual(result["issue_briefs"], [])
+
 if __name__ == "__main__":
     unittest.main()
