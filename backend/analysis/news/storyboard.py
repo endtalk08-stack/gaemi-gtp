@@ -434,7 +434,77 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
             return False
         return any(left & right for left, right in zip(a, b))
 
+    def _broker_research_facts(source):
+        """Find the brokerage behind a research opinion, not the news publisher.
+
+        Use the existing verified central excerpt. Ambiguous attribution leaves
+        the original article-similarity duplicate logic unchanged.
+        """
+        title = str(source.get("title") or "")
+        body = str(source.get("_central_checked_body") or "")
+        evidence = f"{title} {body}"
+        if not re.search(
+            r"목표\s*(?:주가|가)|투자\s*의견|매수\s*의견|"
+            r"(?:실적|매출|영업\s*이익|순\s*이익)[^.!?\n]{0,32}(?:전망|추정|예상)|"
+            r"컨센서스",
+            evidence, flags=re.IGNORECASE,
+        ):
+            return "", None
+
+        broker_pattern = re.compile(
+            r"(?<![가-힣A-Za-z0-9])"
+            r"([가-힣A-Za-z][가-힣A-Za-z0-9·&.]{0,24}?(?:투자증권|증권|금융투자))"
+        )
+        generic_names = {
+            "국내증권", "해외증권", "주요증권", "다수증권", "대형증권",
+            "일부증권", "여러증권", "종합증권", "주식증권",
+        }
+
+        def named_brokers(text):
+            return {
+                re.sub(r"[^0-9a-z가-힣]", "", match.group(1).lower())
+                for match in broker_pattern.finditer(text)
+                if match.group(1) not in generic_names
+            }
+
+        in_title = named_brokers(title)
+        in_body = named_brokers(body)
+        broker = (
+            next(iter(in_title)) if len(in_title) == 1
+            else next(iter(in_body)) if not in_title and len(in_body) == 1
+            else ""
+        )
+        if not broker:
+            return "", None
+
+        # A changed target price from the same brokerage is a different report.
+        target_pattern = re.compile(
+            r"목표\s*(?:주가|가)[^.!?\n]{0,90}", flags=re.IGNORECASE,
+        )
+        for text in (title, body):
+            for snippet in target_pattern.findall(text):
+                prices = re.findall(
+                    r"(?<!\d)(\d[\d,]*(?:\.\d+)?)\s*(만\s*원|원|달러)",
+                    snippet,
+                )
+                if prices:
+                    raw, unit = prices[-1]
+                    amount = float(raw.replace(",", ""))
+                    if "만" in unit:
+                        amount *= 10000
+                    return broker, (round(amount, 2), "달러" if unit == "달러" else "원")
+        return broker, None
+
     def _same_selected_event(source, keyword, previous):
+        # Named research notes from separate brokerages are separate events.
+        source_broker, source_target = _broker_research_facts(source)
+        previous_broker, previous_target = _broker_research_facts(previous)
+        if source_broker and previous_broker:
+            if source_broker != previous_broker:
+                return False
+            if source_target and previous_target and source_target != previous_target:
+                return False
+
         # Distinct investment budgets/destination countries are separate
         # announcements even if publishers use identical headlines.
         investment = _verified_investment_anchor(source)
