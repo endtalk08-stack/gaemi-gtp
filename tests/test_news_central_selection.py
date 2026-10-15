@@ -394,7 +394,7 @@ class CentralNewsSelectionTests(unittest.TestCase):
 
     def test_market_news_priority_comes_from_title_not_tag_count(self):
         newer = self.article(
-            "main", "SK하이닉스, CPI 예상 상회 우려",
+            "main", "SK하이닉스, CPI 예상 상회 확정",
             "시장에 금리 인상 가능성이 거론됐다.", keyword="CPI상승",
         )
         older = self.article(

@@ -284,6 +284,43 @@ class IssueBriefTests(unittest.TestCase):
                 self.assertTrue(headline.endswith(" 이슈"))
         self.assertEqual(market_material_title_and_tags("PMI 발표 예정"), ("", []))
 
+    def test_verified_article_uses_only_evidenced_market_materials(self):
+        actual = (
+            "미국 CPI가 시장 예상을 웃돌며 금리 부담이 커진 데다, "
+            "AI 설비투자가 실제 수익으로 이어질 수 있을지에 대한 의구심이 확산했다."
+        )
+        headline, tags = market_material_title_and_tags(actual)
+        self.assertEqual(headline, "CPI 예상 상회 이슈")
+        self.assertEqual(
+            tags,
+            ["CPI예상상회", "금리부담", "AI투자수익성우려"],
+        )
+        self.assertEqual(market_material_title_and_tags(
+            "미국 CPI 예상 상회 우려"
+        ), ("CPI 예상 상회 우려 이슈", ["CPI상회우려"]))
+        self.assertEqual(market_material_title_and_tags(
+            "미국 CPI 예상 상회로 금리 인상 우려"
+        ), ("CPI 예상 상회 이슈", ["CPI예상상회", "금리인상우려"]))
+        self.assertEqual(market_material_title_and_tags(
+            "금리 부담 해소"
+        ), ("금리 부담 완화 이슈", ["금리부담완화"]))
+        self.assertEqual(market_material_title_and_tags(
+            "AI 설비투자 확대"
+        ), ("", []))
+
+    def test_market_abbreviations_with_korean_particles(self):
+        cases = (
+            ("CPI가 예상치를 상회", "CPI예상상회"),
+            ("PPI가 상승", "PPI상승"),
+            ("PCE는 상승", "PCE상승"),
+            ("GDP가 예상치 상회", "GDP예상상회"),
+            ("PMI는 위축", "PMI위축"),
+            ("FOMC에서 금리 동결", "FOMC금리동결"),
+        )
+        for article, tag in cases:
+            with self.subTest(article=article):
+                self.assertIn(tag, market_material_title_and_tags(article)[1])
+
     def test_market_materials_are_fact_grounded_not_price_guesses(self):
         cases = [
             ("SK하이닉스, CPI 예상 상회로 금리 인상 우려", ["CPI예상상회", "금리인상우려"]),
