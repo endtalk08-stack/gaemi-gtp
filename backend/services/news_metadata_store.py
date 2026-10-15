@@ -130,11 +130,14 @@ def read_cached_news(query, display, start):
                     FROM public.news_articles AS a
                     JOIN public.news_sources AS s ON s.id=a.source_id
                     WHERE s.source_key='naver'
-                      AND a.source_payload ->> 'query' = %s
+                      AND (
+                          a.source_payload ->> 'query' = %s
+                          OR COALESCE(a.source_payload -> 'queries', '[]'::jsonb) ? %s
+                      )
                       AND a.retention_expires_at > now()
                     ORDER BY a.published_at DESC NULLS LAST, a.collected_at DESC
                     LIMIT %s
-                """, (str(query), max(20, min(int(display), 100))))
+                """, (str(query), str(query), max(20, min(int(display), 100))))
                 result = cur.fetchall()
         from email.utils import format_datetime
         rows = []
@@ -272,11 +275,24 @@ def _save(rows, query, display, start):
                         )
                         ON CONFLICT (url_hash) DO UPDATE SET
                             headline=EXCLUDED.headline,excerpt=EXCLUDED.excerpt,
+                            source_payload=jsonb_set(
+                                news_articles.source_payload, '{queries}',
+                                (
+                                    SELECT jsonb_agg(DISTINCT query_text)
+                                    FROM jsonb_array_elements_text(
+                                        COALESCE(
+                                            news_articles.source_payload->'queries',
+                                            jsonb_build_array(news_articles.source_payload->>'query')
+                                        ) || EXCLUDED.source_payload->'queries'
+                                    ) AS matched(query_text)
+                                )
+                            ),
                             updated_at=now()
                     """, (
                         url, hashlib.sha256(url.encode()).hexdigest(), title,
                         _clean(row.get("description")), parsed.netloc, published,
-                        json.dumps({"provider": "naver", "query": str(query)}, ensure_ascii=False),
+                        json.dumps({"provider": "naver", "query": str(query),
+                                    "queries": [str(query)]}, ensure_ascii=False),
                         published,
                     ))
         print("[news metadata] db_saved count=" + str(len(rows)), flush=True)
