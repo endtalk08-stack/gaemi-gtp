@@ -892,12 +892,6 @@ def _content_driven_title_and_tags(excerpt):
     flow_headline, flow_tags, _ = flow_material_title_and_tags(text)
     if flow_tags:
         return flow_headline, flow_tags
-    # For body-verified market stories, use the actual macro catalyst only
-    # after all existing genuine company-event display rules.
-    macro_headline, macro_tags = market_material_title_and_tags(text)
-    if macro_tags:
-        return macro_headline, macro_tags
-
     sentence = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]
     candidate = re.search(
         r"(?P<topic>[가-힣A-Za-z0-9-]{2,}"
@@ -1015,11 +1009,8 @@ def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
         if body_texts is not None:
             display_headline, display_tags = _content_driven_title_and_tags(article_summary)
             if display_headline == "기사 주요 내용" and not display_tags:
-                # Preserve the real publisher headline for worthwhile news;
-                # leave labels empty until AI or a later rule can interpret it.
-                publisher_title = re.sub(r"\s+", " ", str(item.get("title") or "")).strip()
-                if publisher_title:
-                    display_headline = publisher_title
+                # Fall back to the pre-market-keyword topic label, not the article headline.
+                display_headline = f"{primary_display} 이슈" if primary_display else headline
 
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),
