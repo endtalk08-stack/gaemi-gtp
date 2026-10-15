@@ -18,6 +18,10 @@ _PATTERNS = tuple(re.compile(pattern, re.IGNORECASE) for pattern in (
     rf"^\s*{_BAR}\s*{_SOURCE}\s*[:=]\s*{_BYLINE}\s*{_BAR}\s*",
     # [한경=김민수 기자] / 【스마트비즈 = 김혜인 기자】
     rf"^\s*[\[【(]\s*{_SOURCE}\s*[:=]\s*{_BYLINE}\s*[\]】)]\s*(?:{_BAR}\s*)?",
+    # [뉴스1 홍길동 기자], 【매일경제 김유진 기자】
+    rf"^\s*[\[【]\s*{_SOURCE}\s+{_BYLINE}\s*[\]】]\s*(?:{_BAR}\s*)?",
+    # [한국경제] 김민수 기자 = / 【KBS】 김유진 기자 :
+    rf"^\s*[\[【]\s*{_SOURCE}\s*[\]】]\s*{_BYLINE}\s*(?:[:=]|{_BAR})\s*",
     # 스마트비즈 = 김혜인 기자 / 연합뉴스: 김민지 특파원
     rf"^\s*(?:{_BAR}\s*)?{_SOURCE}\s*[:=]\s*{_BYLINE}\s*(?:{_BAR}\s*)?",
     # 매일경제 김민수 기자 = / 전자신문 이나리 기자 |
