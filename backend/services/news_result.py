@@ -600,8 +600,9 @@ def build_stock_news_result(
                 accepted_articles, limit=storyboard_limit,
                 allow_unlabeled_verified=True,
             )
-            if len(storyboard_news_items) >= storyboard_limit:
-                break
+            # Evaluate the existing bounded candidate queue before choosing the
+            # final three. Early exit could hide a later body-verified CPI or
+            # market-impact article behind three earlier company stories.
 
         if tracing:
             diag("selection_summary", verified_bodies=verified_body_count,
