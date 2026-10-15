@@ -1,6 +1,5 @@
 import json
 import os
-import tempfile
 import unittest
 from unittest.mock import patch
 from backend.services.news_issue_ai import select_ai_issues, _validated
@@ -8,17 +7,14 @@ from backend.services.news_issue_ai import select_ai_issues, _validated
 
 class NewsIssueAITests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
         self.env = patch.dict(os.environ, {
             "NEWS_ISSUE_AI_ENABLED": "1",
-            "NEWS_ISSUE_AI_DB": self.temp.name + "/quota.sqlite3",
             "GROQ_API_KEY": "mock-key",
         })
         self.env.start()
 
     def tearDown(self):
         self.env.stop()
-        self.temp.cleanup()
 
     def candidates(self, index):
         return [{
@@ -40,16 +36,43 @@ class NewsIssueAITests(unittest.TestCase):
             "direction": "negative", "event_key": "cpi_semi_decline",
         }]}, ensure_ascii=False)
 
-    def test_three_calls_per_stock_day_and_identical_input_is_cached(self):
+    def test_reservation_backgrounds_provider_call(self):
+        fallback = [{"headline": "기존"}]
+        with patch("backend.database.news_ai_store.reserve_issue_call",
+                   return_value=("reserved", [])) as reserve:
+            with patch("backend.services.news_issue_ai.threading.Thread") as worker:
+                output = select_ai_issues(
+                    "SK하이닉스", "국내", self.candidates(0), fallback)
+        self.assertEqual(output, fallback)
+        self.assertEqual(reserve.call_count, 1)
+        worker.return_value.start.assert_called_once()
+
+    def test_daily_limit_returns_latest_without_provider_call(self):
+        cached = [{"headline": "저장된 이슈"}]
+        with patch("backend.database.news_ai_store.reserve_issue_call",
+                   return_value=("exhausted", cached)):
+            with patch("backend.services.news_issue_ai.threading.Thread") as worker:
+                self.assertEqual(select_ai_issues(
+                    "SK하이닉스", "국내", self.candidates(0), []), cached)
+                worker.assert_not_called()
+
+    def test_provider_result_is_persisted(self):
+        from backend.services.news_issue_ai import _analyze_and_save
         with patch("backend.services.ai_test._groq_answer",
                    return_value=(self.answer(), None, None)) as api:
-            for index in range(4):
-                output = select_ai_issues(
-                    "SK하이닉스", "국내", self.candidates(index), [])
-                self.assertEqual(output[0]["headline"], "반도체주 CPI 충격 이슈")
-            self.assertEqual(api.call_count, 3)
-            select_ai_issues("SK하이닉스", "국내", self.candidates(0), [])
-            self.assertEqual(api.call_count, 3)
+            with patch("backend.database.news_ai_store.complete_issue_call",
+                       return_value=True) as save:
+                _analyze_and_save(
+                    "SK하이닉스", "KR", "2026-10-15", "hash", self.candidates(0))
+        self.assertEqual(api.call_count, 1)
+        self.assertEqual(save.call_count, 1)
+        self.assertEqual(save.call_args.args[4][0]["headline"],
+                         "반도체주 CPI 충격 이슈")
+
+    def test_different_markets_use_local_clock(self):
+        from backend.services.news_issue_ai import _day
+        self.assertRegex(_day("US"), r"^\d{4}-\d{2}-\d{2}$")
+        self.assertRegex(_day("국내"), r"^\d{4}-\d{2}-\d{2}$")
 
     def test_rejects_unverified_source_and_invented_number(self):
         data = json.loads(self.answer())
