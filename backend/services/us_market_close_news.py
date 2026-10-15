@@ -15,8 +15,8 @@ from .news_feed import _fetch_queries
 
 
 _NY_TZ = ZoneInfo("America/New_York")
-_QUERIES = ("뉴욕증시 마감", "미국 증시 마감")
-_MARKET_WORDS = ("뉴욕증시", "미국증시", "미국 증시", "미 증시", "나스닥", "다우", "s&p", "월가")
+_QUERIES = ("뉴욕증시 마감", "미국 증시 마감", "뉴욕 증시", "미국 뉴욕증시")
+_MARKET_WORDS = ("뉴욕증시", "뉴욕 증시", "미국증시", "미국 증시", "美증시", "미 증시", "나스닥", "다우", "s&p", "월가")
 _CLOSE_WORDS = ("마감", "거래 마쳐", "거래를 마쳐", "장을 마쳐", "종가", "폐장")
 _NOT_CLOSED = ("개장", "장중", "선물", "마감 앞두", "마감 전", "마감 전망", "마감 예상")
 _DOMESTIC_HEADLINES = ("코스피", "코스닥", "국내증시", "한국증시", "한국 증시")
@@ -57,7 +57,7 @@ def _last_completed_session(now):
 def _matches_market_close(item, session, now):
     title = str(item.get("title") or "").casefold()
     description = str(item.get("description") or "").casefold()
-    if not any(word in title for word in _MARKET_WORDS):
+    if not any(word.casefold() in title for word in _MARKET_WORDS):
         return False
     if any(word in title for word in _DOMESTIC_HEADLINES):
         return False
@@ -152,6 +152,7 @@ def build_us_market_close_news_result(limit=3, *, now=None, include_body=False):
     base = {"market": "us", "kind": "close_news", "session_date": session, "source": "naver"}
 
     if not naver_news.is_configured():
+        print("[US close news] naver_news_not_configured", flush=True)
         return {**base, "ok": False, "error": "source_not_configured", "items": []}
 
     with _CACHE_LOCK:
@@ -169,6 +170,11 @@ def build_us_market_close_news_result(limit=3, *, now=None, include_body=False):
                 if _matches_market_close(item, datetime.date.fromisoformat(session), current)
             ]
             selected = _select_informative_articles(candidates, _MAX_ARTICLES)
+            print("[US close news] " + str({
+                "session": session, "fetched": len(items),
+                "matched_session": len(candidates), "selected": len(selected),
+                "naver_configured": True,
+            }), flush=True)
             _CACHE = {
                 **base, "ok": True,
                 "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
