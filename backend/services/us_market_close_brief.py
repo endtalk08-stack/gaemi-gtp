@@ -216,15 +216,11 @@ def _render_market_facts(facts):
 
 
 def _verified_session_articles(items, session, now):
-    """Accept only the already-selected original articles for this NY session.
-
-    The shared market-news service already performs article selection and body
-    extraction. This final provenance gate never re-fetches or re-scores them.
-    """
+    """Keep dated, correctly scoped Naver results; no full-body dependency."""
     from .us_market_close_news import _matches_market_close
-
     accepted = []
     seen_urls = set()
+    seen_titles = set()
     for item in items or []:
         if not isinstance(item, dict):
             continue
@@ -232,20 +228,21 @@ def _verified_session_articles(items, session, now):
             continue
         if item.get("session_date") != session.isoformat():
             continue
-        if item.get("detail_source") not in {"jsonld_article_body", "article_or_main_paragraphs"}:
-            continue
-        if not str(item.get("article_body") or "").strip():
-            continue
+        title = str(item.get("title") or "").strip()
         url = str(item.get("url") or item.get("link") or "").strip()
+        if not title:
+            continue
         try:
             parts = urllib.parse.urlsplit(url)
         except ValueError:
             continue
         if parts.scheme not in {"http", "https"} or not parts.netloc or url in seen_urls:
             continue
-        if not _matches_market_close(item, session, now):
+        title_key = re.sub(r"\W+", "", title).casefold()
+        if title_key in seen_titles or not _matches_market_close(item, session, now):
             continue
         seen_urls.add(url)
+        seen_titles.add(title_key)
         accepted.append(item)
     return accepted
 
@@ -276,7 +273,6 @@ def build_us_market_close_brief(*, now=None):
         indices = _index_changes(session)
         news = build_us_market_close_news_result(limit=4, now=current, include_body=True)
         articles = _verified_session_articles(news.get("items"), session, current)
-        categories = _fact_sections(articles)
         sections = []
         if indices:
             overview = ", ".join(
@@ -295,28 +291,25 @@ def build_us_market_close_brief(*, now=None):
                 "content": f"{session.isoformat()} 미국장 지수 종가를 아직 확인하지 못했어.",
             })
 
-        for title, facts in categories.items():
-            if not facts:
-                continue
+        if articles:
             sections.append({
-                "title": title,
-                "content": _render_market_facts(facts),
-                "evidence": [
-                    {
-                        "source": fact["source"], "url": fact["url"],
-                        "title": fact["article_title"],
-                        "published_at": fact["published_at"],
-                        "original_text": fact["text"],
-                        "session_date": session.isoformat(),
-                    }
-                    for fact in facts
-                ],
+                "title": "미국장 주요 뉴스",
+                "content": f"마감 관련 기사 {len(articles)}건이야.",
             })
+            for article in articles:
+                sections.append({
+                    "title": str(article.get("title") or "").strip(),
+                    "content": str(article.get("description") or "").strip()
+                               or "이 기사에는 별도 설명이 제공되지 않았어.",
+                    "source_name": str(article.get("source") or "").strip(),
+                    "article_url": str(article.get("url") or article.get("link") or "").strip(),
+                    "published_at": str(article.get("published_at") or "").strip(),
+                })
 
         if not articles:
             sections.append({
                 "title": "마감시황 기사",
-                "content": "해당 거래일의 원문이 확인된 마감시황 기사를 아직 확보하지 못했어. 확인되지 않은 상승·하락 이유는 표시하지 않을게.",
+                "content": "해당 거래일의 마감 뉴스 제목·요약을 아직 확보하지 못했어.",
             })
         result = {
             "ok": bool(indices or articles),
