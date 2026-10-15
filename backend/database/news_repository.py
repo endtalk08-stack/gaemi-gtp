@@ -20,6 +20,8 @@ _CATEGORY_MAP = {
     "실적발표": "earnings", "정책·규제": "policy",
     "반도체 업황": "semiconductor", "AI 투자": "ai",
     "유가·에너지": "energy", "공급망": "supply_chain",
+    "반도체": "semiconductor", "AI·소프트웨어": "ai",
+    "에너지": "energy", "바이오·헬스케어": "biotech",
 }
 
 def _source(row):
@@ -77,7 +79,8 @@ def _write_batch(stock, market, articles):
                         "INSERT INTO news_article_symbols(article_id,market,symbol,relevance) "
                         "VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                         (article_id, region, symbol, "direct" if int(row.get("analysis_relevance_tier") or 0) >= 3 else "related"))
-                for category in set(str(x) for x in (row.get("issues") or [])):
+                for category in set(str(x) for x in
+                                    (list(row.get("issues") or []) + list(row.get("themes") or []))):
                     category_key = _CATEGORY_MAP.get(category)
                     if category_key:
                         cur.execute(
