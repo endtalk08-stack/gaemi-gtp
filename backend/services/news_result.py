@@ -115,42 +115,6 @@ def _market_snippet_belongs_to_stock(description, stock_name, *, title_has_stock
     )
 
 
-
-# These broad cues decide whether an article deserves a read, not what tags
-# or final headline it must have. Confirmed publisher text is the evidence.
-_NEWS_MATERIAL_CUES = re.compile(
-    r"실적|매출|영업\s*이익|가이던스|수주|공급\s*계약|계약\s*(?:체결|해지|취소)|"
-    r"공시|증자|감자|배당|자사주|소각|채무|부도|신용\s*등급|상장\s*폐지|"
-    r"생산|가동|증설|감산|재고|고객사|납품|발주|인증|신제품|신기술|"
-    r"임상|허가|승인|리콜|품질|화재|사고|"
-    r"물가|금리|환율|국채|고용|경기|관세|규제|정책|보조금|"
-    r"원유|유가|전쟁|제재|무역|공급망|AI\s*부채|투자\s*수익성|"
-    r"기관\s*순매|외국인\s*순매|공매도|블록딜|보호예수|지수\s*편입|지수\s*편출|"
-    r"(?<![A-Za-z0-9])(?:CPI|PPI|PCE|GDP|PMI|FOMC)(?![A-Za-z0-9])",
-    flags=re.IGNORECASE,
-)
-
-
-def _material_news_language(text):
-    """Broad intake hint only; exact labels are a separate later decision."""
-    return bool(_NEWS_MATERIAL_CUES.search(str(text or "")))
-
-
-def _central_article_for_review(item, stock_name):
-    """Read company-relevant material even if keyword extraction found nothing."""
-    title = str(item.get("title") or "")
-    description = str(item.get("description") or "")
-    if not _fallback_owner_matches(item, stock_name):
-        return False
-    if not _central_stock_mentioned(title, stock_name):
-        if not (
-            str(item.get("relation_type") or "").strip().lower() == "direct"
-            and _central_stock_mentioned(description, stock_name)
-        ):
-            return False
-    return _material_news_language(f"{title} {description}")
-
-
 def _central_direct_article(article, original_excerpt, stock_name):
     """Use a verified article's opening sentences, not keyword matches alone."""
     title = str(article.get("title") or "")
@@ -173,33 +137,6 @@ def _central_direct_article(article, original_excerpt, stock_name):
         # clearly appears as the subject at the beginning of the article.
         opening = re.split(r"(?<=[.!?])\s+", excerpt, maxsplit=1)[0]
         return _central_stock_mentioned(opening[:180], stock_name)
-    return False
-
-
-
-def _verified_market_stock_impact(article, full_text, stock_name):
-    """Allow market-wide catalysts only when a verified article links the stock
-    to an observed move within the same paragraph. Never infer causation."""
-    title = str(article.get("title") or "")
-    text = str(full_text or "")
-    if not _material_news_language(title + " " + text):
-        return False
-    market_cue = re.compile(
-        r"(?<![A-Za-z0-9])(?:CPI|PPI|PCE|FOMC)(?![A-Za-z0-9])|"
-        r"소비자\s*물가|물가\s*(?:충격|상승|급등)|금리\s*(?:인상|급등)|"
-        r"국채\s*금리|관세\s*(?:인상|부과|강화)",
-        re.IGNORECASE,
-    )
-    movement = re.compile(
-        r"하락|급락|폭락|약세|내림세|매도세|반등|상승|급등|강세|오름세"
-    )
-    # Only evidence in one paragraph can connect a market event and a stock.
-    paragraphs = re.split(r"\n\s*\n|(?<=[.!?])\s+", text)
-    for paragraph in paragraphs:
-        if (len(paragraph) <= 900 and
-                _central_stock_mentioned(paragraph, stock_name) and
-                market_cue.search(paragraph) and movement.search(paragraph)):
-            return True
     return False
 
 
@@ -503,52 +440,29 @@ def build_stock_news_result(
         )
 
         def rank_candidates(rows):
-            # Do not conflate a stock quote with a news report explaining
-            # a material catalyst. The keyword extractor is only a hint.
-            reviewable = [
-                row for row in rows
-                if not _central_obvious_price_report(row)
-                or _central_article_for_review(row, stock_name)
-            ]
+            if tracing:
+                for row in rows:
+                    if _central_obvious_price_report(row) and (
+                        row.get("relation_type") == "direct" or has_cpi(row)
+                    ):
+                        diag("rejected_before_ranking", row, reason="price_snapshot")
+            # Give different event keywords a chance before filling remaining
+            # verification slots by the existing relevance score.
             pool = select_keyword_storyboard_news(
-                reviewable, limit=max(1, len(reviewable)), candidate_pool=True,
+                [row for row in rows if not _central_obvious_price_report(row)],
+                limit=max(1, len(rows)),
+                candidate_pool=True,
             )
             limit = max(12, storyboard_limit * 3)
-            diverse, remaining, seen_keywords, seen_article_keys = [], [], set(), set()
+            diverse, remaining, seen_keywords = [], [], set()
             for item in pool:
-                key = item.get("url") or item.get("link") or item.get("title")
-                seen_article_keys.add(key)
                 keyword = str(item.get("storyboard_keyword") or "").strip()
                 if keyword and keyword not in seen_keywords:
                     seen_keywords.add(keyword)
                     diverse.append(item)
                 else:
                     remaining.append(item)
-
-            # Reserve a few verification slots for important news that the
-            # keyword dictionary cannot yet name. Article/body verification
-            # still applies; these are not automatically accepted stories.
-            additional = [
-                row for row in reviewable
-                if (row.get("url") or row.get("link") or row.get("title"))
-                not in seen_article_keys
-                and _central_article_for_review(row, stock_name)
-            ]
-            reserve = min(len(additional), max(2, limit // 3))
-            keyed = (diverse + remaining)[:limit - reserve]
-            selected_keys = {
-                row.get("url") or row.get("link") or row.get("title")
-                for row in keyed
-            }
-            result = keyed + additional[:reserve]
-            for row in diverse + remaining:
-                key = row.get("url") or row.get("link") or row.get("title")
-                if len(result) >= limit:
-                    break
-                if key not in selected_keys:
-                    result.append(row)
-                    selected_keys.add(key)
-            return result[:limit]
+            return (diverse + remaining)[:limit]
 
         # Verify today's candidates first, then fill unoccupied event slots
         # from the existing recent news. No new collector or display path.
@@ -569,8 +483,6 @@ def build_stock_news_result(
                 else:
                     reason = (
                         "price_snapshot" if _central_obvious_price_report(item)
-                        and not _central_article_for_review(item, stock_name)
-                        else "ranking_or_verification_budget" if _central_article_for_review(item, stock_name)
                         else "no_storyboard_keywords" if not item.get("storyboard_keywords")
                         else "ranking_or_dedup_limit"
                     )
@@ -598,29 +510,16 @@ def build_stock_news_result(
                     diag("rejected_after_body", article, reason="empty_excerpt",
                          source=detail.get("source"))
                     continue
-                direct_in_opening = _central_direct_article(article, excerpt, stock_name)
-                verified_market_impact = _verified_market_stock_impact(
-                    article, detail.get("text") or "", stock_name,
-                ) if not direct_in_opening else False
-                if not direct_in_opening and not verified_market_impact:
+                if not _central_direct_article(article, excerpt, stock_name):
                     diag("rejected_after_body", article, reason="stock_not_direct_in_opening",
                          body_cpi=has_cpi({"description": excerpt}))
                     continue
-                if verified_market_impact:
-                    diag("verified_market_stock_impact", article,
-                         evidence="same_verified_paragraph")
                 # Only a grounded business/market event belongs in the central
                 # notable-news strip. Quote-only reports stay in the shared feed.
                 if not central_material_brief_supported(excerpt):
-                    # A grounded article can be useful even when no current
-                    # keyword rule names its catalyst. Keep pure quotes out.
-                    if not (
-                        _central_article_for_review(article, stock_name)
-                        and _material_news_language(excerpt)
-                    ):
-                        diag("rejected_after_body", article, reason="no_material_news_evidence",
-                             body_cpi=has_cpi({"description": excerpt}))
-                        continue
+                    diag("rejected_after_body", article, reason="no_supported_material_topic",
+                         body_cpi=has_cpi({"description": excerpt}))
+                    continue
                 diag("accepted_after_body", article, body_cpi=has_cpi({"description": excerpt}))
                 candidate = dict(article)
                 # Only the central, body-verified copy becomes a direct candidate.
@@ -632,11 +531,9 @@ def build_stock_news_result(
                 accepted_articles.append(candidate)
             storyboard_news_items = select_keyword_storyboard_news(
                 accepted_articles, limit=storyboard_limit,
-                allow_unlabeled_verified=True,
             )
-            # Evaluate the existing bounded candidate queue before choosing the
-            # final three. Early exit could hide a later body-verified CPI or
-            # market-impact article behind three earlier company stories.
+            if len(storyboard_news_items) >= storyboard_limit:
+                break
 
         if tracing:
             diag("selection_summary", verified_bodies=verified_body_count,
@@ -654,15 +551,6 @@ def build_stock_news_result(
 
         if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates and not flow_material_candidates:
             raise RuntimeError('all_candidate_article_bodies_unavailable')
-
-        # The six-item news display and the central verified strip are unchanged.
-        # For opt-in AI, favor distinct topics within the already body-verified
-        # pool before repeatedly sending articles about one material event.
-        from .news_ai_candidates import select_verified_ai_candidates
-        ai_issue_candidates = select_verified_ai_candidates(accepted_articles, limit=10)
-        if tracing:
-            diag("ai_candidate_summary", verified_pool=len(accepted_articles),
-                 ai_candidates=len(ai_issue_candidates), max_ai_candidates=10)
 
         # Keep full article bodies local to this function, not in API records.
         detail_records = [
@@ -815,21 +703,6 @@ def build_stock_news_result(
                 "evidence_source": "news_title_description",
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
-
-        # AI selection is opt-in and has an independent three-call/day budget.
-        # Validation or provider failures preserve the existing verified briefs.
-        from .news_issue_ai import select_ai_issues
-        issue_briefs = select_ai_issues(
-            stock_name, market, ai_issue_candidates, issue_briefs,
-        )
-
-        if tracing:
-            for brief in issue_briefs[:3]:
-                diag("final_issue", headline=brief.get("headline"),
-                     tags=brief.get("tags"),
-                     evidence_source=brief.get(
-                         "evidence_source", "verified_article_body"
-                     ))
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.

@@ -4,4 +4,3 @@ gunicorn
 yfinance
 google-generativeai
 upstash-redis
-psycopg[binary]>=3.2,<4

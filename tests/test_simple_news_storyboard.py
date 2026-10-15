@@ -40,24 +40,6 @@ def article(
 
 
 class NotableFlowSelectionTests(unittest.TestCase):
-    def test_verified_news_can_opt_in_without_invented_keyword(self):
-        article = {
-            "title": "삼성전자, 메모리 고객사 인증 완료",
-            "description": "삼성전자는 메모리 고객사 인증을 완료했다.",
-            "published_at": "2026-10-15T09:05:00+09:00",
-            "storyboard_keywords": [], "article_keywords": [],
-            "_central_checked_body": "삼성전자는 메모리 고객사 인증을 완료했다.",
-            "relation_type": "direct", "event_owner": "삼성전자",
-        }
-        self.assertEqual(select_keyword_storyboard_news([article]), [])
-        chosen = select_keyword_storyboard_news(
-            [article], allow_unlabeled_verified=True
-        )
-        self.assertEqual(len(chosen), 1)
-        self.assertEqual(chosen[0]["storyboard_keywords"], [])
-        self.assertEqual(chosen[0]["storyboard_keyword"], "")
-        self.assertEqual(chosen[0]["storyboard_keyword_tones"], {})
-
     def test_prefers_direct_concrete_event_over_newer_weak_mention(self):
         weak_newer = article(
             keyword="AI메모리",

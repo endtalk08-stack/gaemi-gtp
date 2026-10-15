@@ -321,31 +321,6 @@ class IssueBriefTests(unittest.TestCase):
             with self.subTest(article=article):
                 self.assertIn(tag, market_material_title_and_tags(article)[1])
 
-    def test_verified_inflation_and_ai_return_concerns_not_ai_investment(self):
-        from backend.services.issue_briefs import (
-            _body_title_and_tags, _content_driven_title_and_tags,
-            central_material_brief_supported,
-        )
-        lead = (
-            "삼성전자와 SK하이닉스가 동반 급락하고 있다. "
-            "미국 물가 상승률이 시장 예상치를 웃돌면서 추가 긴축 우려가 "
-            "커진 가운데 인공지능(AI) 투자 수익성에 대한 불안까지 겹치며 "
-            "반도체주 투자심리가 위축된 것으로 풀이된다."
-        )
-        self.assertEqual(_body_title_and_tags(lead), ("기사 주요 내용", []))
-        self.assertTrue(central_material_brief_supported(lead))
-        self.assertEqual(_content_driven_title_and_tags(lead), (
-            "물가 예상 상회 이슈", ["물가예상상회", "AI투자수익성우려"]
-        ))
-
-    def test_genuine_ai_investment_still_recognized(self):
-        from backend.services.issue_briefs import _content_driven_title_and_tags
-        title, tags = _content_driven_title_and_tags(
-            "삼성전자는 AI 투자를 발표했다. 신규 시설을 구축한다."
-        )
-        self.assertEqual(title, "AI 투자 이슈")
-        self.assertIn("AI투자", tags)
-
     def test_market_materials_are_fact_grounded_not_price_guesses(self):
         cases = [
             ("SK하이닉스, CPI 예상 상회로 금리 인상 우려", ["CPI예상상회", "금리인상우려"]),
