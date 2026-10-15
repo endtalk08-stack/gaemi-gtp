@@ -1,4 +1,4 @@
-"""Neon-only news storage regression tests; existing UI remains independent."""
+"""Neon-only 24-hour news storage regression tests; existing UI remains independent."""
 import datetime
 import json
 import os
@@ -19,25 +19,25 @@ def _item(url, pubdate):
 
 class NewsMetadataStoreTests(unittest.TestCase):
     def test_retains_existing_and_appends_new(self):
-        old = _item("https://news.example/old", "Wed, 14 Oct 2026 08:00:00 GMT")
+        old = _item("https://news.example/old", "Thu, 15 Oct 2026 07:00:00 GMT")
         new = _item("https://news.example/new", "Thu, 15 Oct 2026 08:00:00 GMT")
         result = subject._retained_news([old], [new, old], now=_NOW)
         self.assertEqual({x["link"] for x in result}, {old["link"], new["link"]})
 
-    def test_removes_only_seven_day_old_news(self):
-        old = _item("https://news.example/expired", "Wed, 07 Oct 2026 08:00:00 GMT")
-        recent = _item("https://news.example/recent", "Wed, 14 Oct 2026 08:00:00 GMT")
+    def test_removes_only_24_hour_old_news(self):
+        old = _item("https://news.example/expired", "Wed, 14 Oct 2026 08:00:00 GMT")
+        recent = _item("https://news.example/recent", "Thu, 15 Oct 2026 08:00:00 GMT")
         kept = subject._retained_news([old, recent], [], now=_NOW)
         self.assertEqual([x["link"] for x in kept], [recent["link"]])
 
     def test_undated_news_keeps_original_first_seen(self):
         old = {"title": "미국 증시 소식", "link": "https://news.example/unknown",
-               "_news_first_seen": "2026-10-14T09:00:00+00:00"}
+               "_news_first_seen": "2026-10-15T08:00:00+00:00"}
         newer = {"title": "미국 증시 소식", "link": "https://news.example/unknown"}
         kept = subject._retained_news([old], [newer], now=_NOW)
         self.assertEqual(kept[0]["_news_first_seen"], old["_news_first_seen"])
         expired = subject._retained_news([old], [],
-                  now=_NOW + datetime.timedelta(days=7))
+                  now=_NOW + datetime.timedelta(days=1, minutes=1))
         self.assertEqual(expired, [])
 
     def test_neon_only_returns_empty_without_db_configuration(self):
@@ -110,6 +110,7 @@ class NewsMetadataStoreTests(unittest.TestCase):
             rows = subject.read_cached_news("테스트", 20, 1)
         self.assertEqual(rows[0]["title"], "테스트 기사")
         self.assertIn("retention_expires_at > now()", calls[0][0])
+        self.assertIn("COALESCE(a.published_at, a.collected_at) > now() - interval '24 hours'", calls[0][0])
         self.assertEqual(calls[0][1][0], "테스트")
 
     def test_existing_news_feed_reads_storage_before_provider(self):
@@ -142,6 +143,21 @@ class NewsMetadataStoreTests(unittest.TestCase):
         )
         save.assert_called_once()
 
+    def test_expiry_removes_legacy_rows_after_24_hours(self):
+        statements = []
+        class Cursor:
+            def execute(self, statement):
+                statements.append(statement)
+        with patch.object(subject, "_last_cleanup", 0.0):
+            subject._expire(Cursor())
+        self.assertEqual(len(statements), 1)
+        self.assertIn("source_key = 'naver'", statements[0])
+        self.assertIn("retention_expires_at <= now()", statements[0])
+        self.assertIn(
+            "COALESCE(published_at, collected_at) <= now() - interval '24 hours'",
+            statements[0],
+        )
+
     def test_db_retention_uses_original_published_date_not_refresh_time(self):
         calls = []
         class Cursor:
@@ -154,7 +170,7 @@ class NewsMetadataStoreTests(unittest.TestCase):
             def __exit__(self, *args): return False
 
         fake = types.SimpleNamespace(connect=lambda *a, **kw: Conn())
-        row = _item("https://news.example/one", "Wed, 14 Oct 2026 08:00:00 GMT")
+        row = _item("https://news.example/one", datetime.datetime.now(datetime.timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT"))
         with patch.dict(sys.modules, {"psycopg": fake}), patch.dict(
             os.environ, {"NEWS_DATABASE_URL": "postgresql://placeholder/db",
                          "UPSTASH_REDIS_REST_URL": ""},
@@ -163,10 +179,11 @@ class NewsMetadataStoreTests(unittest.TestCase):
         statements = [(sql, params) for sql, params in calls
                       if "INSERT INTO public.news_articles" in sql]
         self.assertEqual(len(statements), 1)
-        self.assertIn("COALESCE(%s::timestamptz, now()) + interval '7 days'", statements[0][0])
+        self.assertIn("COALESCE(%s::timestamptz, now()) + interval '24 hours'", statements[0][0])
         self.assertEqual(statements[0][1][-1], subject._timestamp(row["pubDate"]))
         self.assertIn("ON CONFLICT (url_hash)", statements[0][0])
         self.assertNotIn("licensed_body", statements[0][0])
+        self.assertIn("news_articles.headline IS DISTINCT FROM EXCLUDED.headline", statements[0][0])
         self.assertNotIn("nextval(", statements[0][0])
         self.assertIn("(source_id, canonical_url, url_hash", statements[0][0])
         source_statements = [sql for sql, _ in calls

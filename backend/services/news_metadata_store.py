@@ -13,7 +13,7 @@ from email.utils import parsedate_to_datetime
 
 _POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="news-metadata-save")
 _PENDING = threading.BoundedSemaphore(4)
-_RETENTION_DAYS = 7
+_RETENTION_HOURS = 24
 _CLEANUP_INTERVAL_SECONDS = 3600
 _last_cleanup = 0.0
 _cleanup_lock = threading.Lock()
@@ -37,9 +37,9 @@ def _timestamp(value):
 
 
 def _retained_news(existing, incoming, *, now=None):
-    """Keep previous news and merge new news; drop items older than 7 days."""
+    """Keep previous news and merge new news; drop items older than 24 hours."""
     current = now or datetime.datetime.now(datetime.timezone.utc)
-    cutoff = current - datetime.timedelta(days=_RETENTION_DAYS)
+    cutoff = current - datetime.timedelta(hours=_RETENTION_HOURS)
     combined = {}
     for row in list(existing or []) + list(incoming or []):
         if not isinstance(row, dict):
@@ -112,6 +112,7 @@ def read_cached_news(query, display, start):
                           OR COALESCE(a.source_payload -> 'queries', '[]'::jsonb) ? %s
                       )
                       AND a.retention_expires_at > now()
+                      AND COALESCE(a.published_at, a.collected_at) > now() - interval '24 hours'
                     ORDER BY a.published_at DESC NULLS LAST, a.collected_at DESC
                     LIMIT %s
                 """, (str(query), str(query), max(20, min(int(display), 100))))
@@ -144,7 +145,10 @@ def _expire(cur):
         cur.execute("""
             DELETE FROM public.news_articles
             WHERE source_id IN (SELECT id FROM public.news_sources WHERE source_key = 'naver')
-              AND retention_expires_at <= now()
+              AND (
+                  retention_expires_at <= now()
+                  OR COALESCE(published_at, collected_at) <= now() - interval '24 hours'
+              )
         """)
         _last_cleanup = now
 
@@ -210,7 +214,7 @@ def _save(rows, query, display, start):
                     published = _timestamp(row.get("pubDate"))
                     if published and (
                         published < datetime.datetime.now(datetime.timezone.utc)
-                        - datetime.timedelta(days=_RETENTION_DAYS)
+                        - datetime.timedelta(hours=_RETENTION_HOURS)
                     ):
                         continue
                     cur.execute("""
@@ -221,7 +225,7 @@ def _save(rows, query, display, start):
                         VALUES (
                             (SELECT id FROM public.news_sources WHERE source_key='naver'),
                             %s,%s,%s,%s,'ko',%s,%s,%s::jsonb,'metadata_only','pending',
-                            COALESCE(%s::timestamptz, now()) + interval '7 days'
+                            COALESCE(%s::timestamptz, now()) + interval '24 hours'
                         )
                         ON CONFLICT (url_hash) DO UPDATE SET
                             headline=EXCLUDED.headline,excerpt=EXCLUDED.excerpt,
@@ -238,6 +242,12 @@ def _save(rows, query, display, start):
                                 )
                             ),
                             updated_at=now()
+                        WHERE news_articles.headline IS DISTINCT FROM EXCLUDED.headline
+                           OR news_articles.excerpt IS DISTINCT FROM EXCLUDED.excerpt
+                           OR NOT (
+                               COALESCE(news_articles.source_payload->'queries', '[]'::jsonb)
+                                   ? (EXCLUDED.source_payload->>'query')
+                           )
                     """, (
                         url, hashlib.sha256(url.encode()).hexdigest(), title,
                         _clean(row.get("description")), parsed.netloc, published,
