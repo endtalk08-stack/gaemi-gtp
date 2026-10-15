@@ -655,6 +655,16 @@ def build_stock_news_result(
         if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates and not flow_material_candidates:
             raise RuntimeError('all_candidate_article_bodies_unavailable')
 
+        # Reuse only already body-verified candidates for the optional AI stage.
+        # Capture them before article bodies are removed from API-facing rows.
+        ai_issue_candidates = [{
+            "title": article.get("title") or "",
+            "body": article.get("_central_checked_full_text") or "",
+            "url": article.get("url") or article.get("link") or "",
+            "time": article.get("storyboard_time") or "",
+            "reaction_at": article.get("published_at") or "",
+        } for article in accepted_articles[:10]]
+
         # Keep full article bodies local to this function, not in API records.
         detail_records = [
             {
@@ -806,6 +816,13 @@ def build_stock_news_result(
                 "evidence_source": "news_title_description",
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
+
+        # AI selection is opt-in and has an independent three-call/day budget.
+        # Validation or provider failures preserve the existing verified briefs.
+        from .news_issue_ai import select_ai_issues
+        issue_briefs = select_ai_issues(
+            stock_name, market, ai_issue_candidates, issue_briefs,
+        )
 
         if tracing:
             for brief in issue_briefs[:3]:
