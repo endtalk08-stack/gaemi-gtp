@@ -407,11 +407,20 @@ def build_stock_news_result(
             # Match market facts independently: a shared CPI article may name
             # multiple stocks, unlike a one-company credit or contract event.
             title_heading, title_tags = market_material_title_and_tags(title)
-            description_heading, description_tags = ("", [])
-            if _market_snippet_belongs_to_stock(
-                description, stock_name, title_has_stock=title_has_stock, item=item
-            ):
-                description_heading, description_tags = market_material_title_and_tags(description)
+            description_heading, description_tags = "", []
+            # An incidental mention elsewhere in a long snippet must not
+            # validate an event belonging to another named company.
+            for clause in re.split(r"(?<=[.!?])\s+", description):
+                if not _market_snippet_belongs_to_stock(
+                    clause, stock_name, title_has_stock=title_has_stock, item=item
+                ):
+                    continue
+                clause_heading, clause_tags = market_material_title_and_tags(clause)
+                if clause_tags and not description_heading:
+                    description_heading = clause_heading
+                description_tags.extend(
+                    tag for tag in clause_tags if tag not in description_tags
+                )
             if not title_tags and not description_tags:
                 continue
             headline = title_heading or description_heading

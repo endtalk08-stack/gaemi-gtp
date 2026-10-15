@@ -528,6 +528,22 @@ class CentralNewsSelectionTests(unittest.TestCase):
         self.assertEqual(tags, ["신용등급상향"])
         self.assertEqual(direction, "positive")
 
+    def test_market_material_excludes_other_company_sentence(self):
+        from backend.services.news_result import _market_snippet_belongs_to_stock
+        from backend.services.issue_briefs import market_material_title_and_tags
+        description = (
+            "SK하이닉스 관련 소식은 별도로 전해졌다. "
+            "삼성전자는 트럼프 관세 인상에 대비하고 있다."
+        )
+        selected = []
+        for clause in description.split(". "):
+            if _market_snippet_belongs_to_stock(
+                clause, "SK하이닉스", title_has_stock=True,
+                item={"relation_type": "direct"},
+            ):
+                selected.extend(market_material_title_and_tags(clause)[1])
+        self.assertEqual(selected, [])
+
     def test_market_only_snippet_cannot_be_another_company_event(self):
         from backend.services.news_result import _market_snippet_belongs_to_stock
         self.assertFalse(_market_snippet_belongs_to_stock(
