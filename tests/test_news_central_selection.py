@@ -226,6 +226,58 @@ class CentralNewsSelectionTests(unittest.TestCase):
         self.assertEqual(len(result["issue_briefs"]), 1)
         self.assertEqual(result["issue_briefs"][0]["headline"], "공급 계약 이슈")
 
+    def test_important_article_without_known_keyword_is_still_selected(self):
+        import datetime
+        row = self.article(
+            "certification", "삼성전자, 신규 메모리 고객사 인증 완료",
+            "삼성전자는 새로운 메모리의 고객사 인증을 마쳤다. 고객 공급을 준비한다.",
+            keyword="",
+        )
+        row["published_at"] = (datetime.datetime.now(
+            datetime.timezone.utc
+        ) - datetime.timedelta(minutes=15)).isoformat()
+        parsed = {"articles": [{
+            "keywords": [], "keyword_details": [], "grounded_tags": [],
+            "stock_entities": ["삼성전자"], "event_owner": "삼성전자",
+            "relation_type": "direct",
+        }]}
+        with patch("backend.services.news_result.fetch_stock_news", return_value=[row]), \
+             patch("backend.services.news_result.score_stock_news", side_effect=lambda x, stock: x), \
+             patch("backend.services.news_result.build_connected_keyword_test", return_value=parsed), \
+             patch("backend.services.news_result.read_selected_article_details",
+                   return_value=[{"text": row["description"], "source": "jsonld_article_body"}]):
+            result = build_stock_news_result("삼성전자", market="국내")
+        self.assertEqual(result["_news_status"], "ok")
+        self.assertEqual(len(result["storyboard_news_items"]), 1)
+        self.assertEqual(result["storyboard_news_items"][0]["storyboard_keywords"], [])
+        self.assertEqual(len(result["issue_briefs"]), 1)
+        self.assertEqual(result["issue_briefs"][0]["headline"],
+                         "삼성전자, 신규 메모리 고객사 인증 완료")
+        self.assertEqual(result["issue_briefs"][0]["tags"], [])
+
+    def test_price_only_article_without_keywords_stays_out(self):
+        import datetime
+        row = self.article(
+            "quote-unlabeled", "삼성전자 오전 10시 현재 주가 3% 하락",
+            "삼성전자는 전 거래일보다 3% 내린 65000원에 거래됐다. "
+            "등락률 -3%, 최고가와 최저가가 보고됐다.", keyword="",
+        )
+        row["published_at"] = (datetime.datetime.now(
+            datetime.timezone.utc
+        ) - datetime.timedelta(minutes=15)).isoformat()
+        parsed = {"articles": [{
+            "keywords": [], "keyword_details": [], "grounded_tags": [],
+            "stock_entities": ["삼성전자"], "event_owner": "삼성전자",
+            "relation_type": "direct",
+        }]}
+        with patch("backend.services.news_result.fetch_stock_news", return_value=[row]), \
+             patch("backend.services.news_result.score_stock_news", side_effect=lambda x, stock: x), \
+             patch("backend.services.news_result.build_connected_keyword_test", return_value=parsed), \
+             patch("backend.services.news_result.read_selected_article_details") as reader:
+            result = build_stock_news_result("삼성전자", market="국내")
+        self.assertEqual(result["issue_briefs"], [])
+        reader.assert_not_called()
+
     def test_verified_candidates_replace_unrelated_and_unreadable(self):
         rows = [
             self.article("unrelated", "삼성전자 새로운 계약", "영국 의회는 세금 법안을 처리했다.", score=98),

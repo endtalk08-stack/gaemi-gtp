@@ -233,7 +233,9 @@ def _merge_central_labels(target_source, target_labels, source, source_labels):
     return merged
 
 
-def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
+def select_keyword_storyboard_news(
+    items, limit=3, candidate_pool=False, allow_unlabeled_verified=False,
+):
     """Pick at most limit notable, distinct events for the central flow.
 
     The source list is already restricted to today's stock-relevant articles.
@@ -241,6 +243,7 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
     concrete event is more useful than a newer but weak mention. It also keeps
     the selection deliberately sparse; if no article has a grounded event
     keyword, the caller receives an empty list rather than filler.
+    An explicit opt-in allows body-verified material articles with no keywords.
     """
     selected = []
 
@@ -619,7 +622,9 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
             if str(value).strip()
         ]
         if not keywords:
-            continue
+            if not (allow_unlabeled_verified and source.get("_central_checked_body")):
+                continue
+            keywords = [""]  # Internal comparison value, never a displayed tag.
 
         article = dict(source)
         article["article_keywords"] = _merge_central_labels(
@@ -629,6 +634,10 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
             source.get("article_keywords") or [],
         )
         keywords = _merge_central_labels(article, [], source, keywords)
+        if not keywords and allow_unlabeled_verified and source.get("_central_checked_body"):
+            # The merge helper deliberately filters empty strings; retain a
+            # local selector sentinel without adding a visible keyword.
+            keywords = [""]
         candidates.append((article, keywords))
 
     candidates.sort(
@@ -641,7 +650,7 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
 
     for source, keywords in candidates:
         duplicate = None
-        keyword = ""
+        keyword = None
 
         for value in keywords:
             matched = next(
@@ -657,7 +666,7 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
             keyword = value
             break
 
-        if not keyword:
+        if keyword is None:
             if duplicate is not None:
                 _merge_duplicate(duplicate, source, str(keywords[0] or ""))
             continue
@@ -680,10 +689,12 @@ def select_keyword_storyboard_news(items, limit=3, candidate_pool=False):
 
         tones = dict(source.get("storyboard_keyword_tones") or {})
         article = dict(source)
-        article["storyboard_keywords"] = [keyword]
-        article["storyboard_keyword"] = keyword
-        article["storyboard_keyword_tones"] = {keyword: tones.get(keyword, "neutral")}
-        article["storyboard_keyword_tone"] = tones.get(keyword, "neutral")
+        article["storyboard_keywords"] = [keyword] if keyword else []
+        article["storyboard_keyword"] = keyword or ""
+        article["storyboard_keyword_tones"] = (
+            {keyword: tones.get(keyword, "neutral")} if keyword else {}
+        )
+        article["storyboard_keyword_tone"] = tones.get(keyword, "neutral") if keyword else "neutral"
         article["storyboard_selection_score"] = round(_selection_score(source), 1)
         selected.append(article)
 

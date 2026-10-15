@@ -549,6 +549,11 @@ _MARKET_MATERIAL_TOPICS = (
      r"(?:(?<![A-Za-z0-9])CPI(?![A-Za-z0-9])|소비자\s*물가(?:지수)?)[^!?\n]{0,65}?(?:예상(?:치)?|전망(?:치)?|기대(?:치)?)[^!?\n]{0,25}?(?:상회|웃돌|높아|넘어)|(?:예상(?:치)?|전망(?:치)?)[^!?\n]{0,20}?(?:상회|웃돌|높은)[^!?\n]{0,25}?(?:(?<![A-Za-z0-9])CPI(?![A-Za-z0-9])|소비자\s*물가(?:지수)?)"),
     ("CPI예상하회", "CPI 예상 하회",
      r"(?:(?<![A-Za-z0-9])CPI(?![A-Za-z0-9])|소비자\s*물가(?:지수)?)[^!?\n]{0,65}?(?:예상(?:치)?|전망(?:치)?|기대(?:치)?)[^!?\n]{0,20}?(?:하회|밑돌|낮아)"),
+    # Do not equate generic inflation-surprise reporting with CPI specifically.
+    ("물가예상상회", "물가 예상 상회",
+     r"(?:미국\s*)?물가\s*상승률[^.!?\n]{0,35}?(?:시장\s*)?(?:예상(?:치)?|전망(?:치)?)[^.!?\n]{0,20}?(?:상회|웃돌|넘어|높아)"),
+    ("물가예상하회", "물가 예상 하회",
+     r"(?:미국\s*)?물가\s*상승률[^.!?\n]{0,35}?(?:시장\s*)?(?:예상(?:치)?|전망(?:치)?)[^.!?\n]{0,20}?(?:하회|밑돌|낮아)"),
     ("금리인상우려", "금리 인상 우려", r"금리\s*인상[^!?\n]{0,20}?(?:우려|불안|경계)"),
     ("금리인상부담", "금리 인상 부담",
      r"금리\s*인상[^!?\n]{0,20}?부담(?!\s*(?:해소|완화|경감|줄|낮아|없음|부인|추정))"),
@@ -603,7 +608,7 @@ _MARKET_MATERIAL_TOPICS = (
     ("금리부담", "금리 부담",
      r"(?:국채\s*금리|금리)[^!?\n]{0,12}?(?:부담|압박)(?!\s*(?:해소|완화|경감|부인|추정|없음))"),
     ("AI투자수익성우려", "AI 투자 수익성 우려",
-     r"(?:(?<![A-Za-z0-9])AI(?![A-Za-z0-9])|인공지능)[^!?\n]{0,32}?(?:투자|인프라|설비)[^!?\n]{0,44}?(?:수익성|수익|투자\s*회수)[^!?\n]{0,24}?(?:우려|의구심|불확실|논란)"),
+     r"(?:(?<![A-Za-z0-9])AI(?![A-Za-z0-9])|인공지능)[^!?\n]{0,32}?(?:투자|인프라|설비)[^!?\n]{0,44}?(?:수익성|수익|투자\s*회수)[^!?\n]{0,24}?(?:우려|불안|의구심|불확실|논란)"),
 )
 
 
@@ -733,6 +738,15 @@ def _body_title_and_tags(excerpt):
     for tag, heading, pattern in _BODY_DISPLAY_TOPICS:
         found = re.search(pattern, excerpt, flags=re.IGNORECASE)
         if found:
+            # A concern about returns on AI investment is not an announcement
+            # of new investment. Keep genuine capital-investment reports.
+            if tag == "AI투자" and re.match(
+                r"\s*(?:수익(?:성)?|투자\s*수익(?:성)?)[^.!?\n]{0,32}"
+                r"(?:불안|우려|의구심|불확실|논란)",
+                excerpt[found.end():found.end() + 70],
+                flags=re.IGNORECASE,
+            ):
+                continue
             # Generic investment is only a fallback. Preserve the more
             # specific evidenced investment heading when both occur.
             if tag == "신규투자" and any(
@@ -878,6 +892,11 @@ def _content_driven_title_and_tags(excerpt):
     flow_headline, flow_tags, _ = flow_material_title_and_tags(text)
     if flow_tags:
         return flow_headline, flow_tags
+    # For body-verified market stories, use the actual macro catalyst only
+    # after all existing genuine company-event display rules.
+    macro_headline, macro_tags = market_material_title_and_tags(text)
+    if macro_tags:
+        return macro_headline, macro_tags
 
     sentence = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]
     candidate = re.search(
@@ -910,6 +929,8 @@ def central_material_brief_supported(excerpt):
     if business_material_title_and_tags(excerpt)[1]:
         return True
     if flow_material_title_and_tags(excerpt)[1]:
+        return True
+    if market_material_title_and_tags(excerpt)[1]:
         return True
     title, tags = _body_title_and_tags(str(excerpt or ""))
     if not tags or title == "기사 주요 내용":
@@ -993,6 +1014,12 @@ def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
         # Do not modify the summary, selected article, ownership or reaction data.
         if body_texts is not None:
             display_headline, display_tags = _content_driven_title_and_tags(article_summary)
+            if display_headline == "기사 주요 내용" and not display_tags:
+                # Preserve the real publisher headline for worthwhile news;
+                # leave labels empty until AI or a later rule can interpret it.
+                publisher_title = re.sub(r"\s+", " ", str(item.get("title") or "")).strip()
+                if publisher_title:
+                    display_headline = publisher_title
 
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),
