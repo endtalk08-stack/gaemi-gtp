@@ -7,10 +7,8 @@ import re
 import threading
 from zoneinfo import ZoneInfo
 
-_LOCK = threading.Lock()
-
 def _day(market):
-    tz = "America/New_York" if market in ("미국", "us") else "Asia/Seoul"
+    tz = "America/New_York" if market in ("미국", "us", "US") else "Asia/Seoul"
     return datetime.datetime.now(ZoneInfo(tz)).date().isoformat()
 
 def _validated(text, articles, stock):
