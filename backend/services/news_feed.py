@@ -520,5 +520,9 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
         ),
         reverse=True,
     )
-    return _select_stock_news_with_source_reserve(relevant, limit)
+    selected_news = _select_stock_news_with_source_reserve(relevant, limit)
+    # Non-blocking shared-source metadata persistence; disabled unless configured.
+    from backend.database.news_repository import enqueue_news_metadata
+    enqueue_news_metadata(stock_name, market, selected_news)
+    return selected_news
 
