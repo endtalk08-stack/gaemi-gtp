@@ -74,7 +74,7 @@ class USMarketCloseNewsTests(unittest.TestCase):
         self.assertEqual(internal["items"], result["items"])
         self.assertEqual(result["items"][0]["detail_source"], "naver_news_metadata")
         self.assertNotIn("article_body", result["items"][0])
-        fetch.assert_called_once_with(subject._QUERIES, category="미국장 마감", per_query=10)
+        fetch.assert_called_once_with(subject._QUERIES, category="미국장 마감", per_query=25)
         read_body.assert_not_called()
 
     def test_deduplicates_headlines_and_skips_unsafe_links(self):
