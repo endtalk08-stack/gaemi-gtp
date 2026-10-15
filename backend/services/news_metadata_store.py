@@ -13,7 +13,7 @@ from email.utils import parsedate_to_datetime
 
 _POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="news-metadata-save")
 _PENDING = threading.BoundedSemaphore(4)
-_CACHE_SECONDS = 120
+_CACHE_SECONDS = 7 * 24 * 60 * 60
 _RETENTION_DAYS = 7
 _CLEANUP_INTERVAL_SECONDS = 3600
 _last_cleanup = 0.0
@@ -39,6 +39,50 @@ def _cache_key(query, display, start):
     return "gaemi:news:naver:v1:" + hashlib.sha256(value.encode()).hexdigest()
 
 
+
+def _retained_news(existing, incoming, *, now=None):
+    """Keep previous news and merge new news; drop items older than 7 days."""
+    current = now or datetime.datetime.now(datetime.timezone.utc)
+    cutoff = current - datetime.timedelta(days=_RETENTION_DAYS)
+    combined = {}
+    for row in list(existing or []) + list(incoming or []):
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("originallink") or row.get("link") or "").strip()
+        try:
+            parts = urllib.parse.urlsplit(url)
+        except ValueError:
+            continue
+        if parts.scheme not in {"https", "http"} or not parts.netloc:
+            continue
+        if not _clean(row.get("title")):
+            continue
+        published = _timestamp(row.get("pubDate"))
+        first_seen = row.get("_news_first_seen")
+        if not published and first_seen:
+            try:
+                published = datetime.datetime.fromisoformat(str(first_seen))
+            except (TypeError, ValueError):
+                published = None
+        if published and published < cutoff:
+            continue
+        if published and published > current:
+            continue
+        previous = combined.get(url)
+        first_seen_at = (
+            (previous or {}).get("_news_first_seen")
+            or first_seen
+            or current.isoformat()
+        )
+        combined[url] = {**row, "_news_first_seen": first_seen_at}
+    return sorted(
+        combined.values(),
+        key=lambda row: str(row.get("pubDate") or row.get("_news_first_seen") or ""),
+        reverse=True,
+    )[:300]
+
+
+
 def _expire(cur):
     """Permanently delete only expired Naver articles, never other news."""
     global _last_cleanup
@@ -62,11 +106,16 @@ def _save(rows, query, display, start):
     if redis_url and redis_token:
         try:
             from upstash_redis import Redis
-            Redis(url=redis_url, token=redis_token).set(
-                _cache_key(query, display, start),
-                json.dumps(rows, ensure_ascii=False),
-                ex=_CACHE_SECONDS,
-            )
+            client = Redis(url=redis_url, token=redis_token)
+            key = _cache_key(query, display, start)
+            existing = client.get(key)
+            if isinstance(existing, str):
+                try:
+                    existing = json.loads(existing)
+                except (TypeError, ValueError):
+                    existing = []
+            merged = _retained_news(existing if isinstance(existing, list) else [], rows)
+            client.set(key, json.dumps(merged, ensure_ascii=False), ex=_CACHE_SECONDS)
         except Exception as exc:
             print("[news metadata] redis_write_failed type=" + type(exc).__name__, flush=True)
 
@@ -94,6 +143,11 @@ def _save(rows, query, display, start):
                     if not title or parsed.scheme not in ("http", "https") or not parsed.netloc:
                         continue
                     published = _timestamp(row.get("pubDate"))
+                    if published and (
+                        published < datetime.datetime.now(datetime.timezone.utc)
+                        - datetime.timedelta(days=_RETENTION_DAYS)
+                    ):
+                        continue
                     cur.execute("""
                         INSERT INTO public.news_articles
                             (id, source_id, canonical_url, url_hash, headline, excerpt,
@@ -103,7 +157,7 @@ def _save(rows, query, display, start):
                             nextval('public.news_articles_id_seq'),
                             (SELECT id FROM public.news_sources WHERE source_key='naver'),
                             %s,%s,%s,%s,'ko',%s,%s,%s::jsonb,'metadata_only','pending',
-                            now() + interval '7 days'
+                            COALESCE(%s::timestamptz, now()) + interval '7 days'
                         )
                         ON CONFLICT (url_hash) DO UPDATE SET
                             headline=EXCLUDED.headline,excerpt=EXCLUDED.excerpt,
@@ -112,6 +166,7 @@ def _save(rows, query, display, start):
                         url, hashlib.sha256(url.encode()).hexdigest(), title,
                         _clean(row.get("description")), parsed.netloc, published,
                         json.dumps({"provider": "naver", "query": str(query)}, ensure_ascii=False),
+                        published,
                     ))
         print("[news metadata] db_saved count=" + str(len(rows)), flush=True)
     except Exception as exc:
