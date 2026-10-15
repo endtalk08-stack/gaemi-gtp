@@ -1,0 +1,32 @@
+name: News storage and AI quota checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/database/**"
+      - "backend/services/news_issue_ai.py"
+      - "backend/services/news_feed.py"
+      - "tests/test_news_issue_ai.py"
+      - "tests/test_news_repository.py"
+      - "requirements.txt"
+      - ".github/workflows/news-storage-checks.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install existing Python dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compile news modules
+        run: python -m compileall -q backend/database backend/services/news_issue_ai.py backend/services/news_feed.py
+      - name: Run isolated news tests
+        run: |
+          python -m unittest discover -s tests -p 'test_news_issue_ai.py' -v
+          python -m unittest discover -s tests -p 'test_news_repository.py' -v
