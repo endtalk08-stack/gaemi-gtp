@@ -107,6 +107,14 @@ def complete_issue_call(market, stock, exchange_day, fingerprint, issues):
                         digest = _url_hash(url)
                         if not digest:
                             continue
+                        # Durable issue evidence survives source staging cleanup.
+                        from .news_url import canonical_news_url
+                        canonical = canonical_news_url(url)
+                        cur.execute(
+                            "INSERT INTO news_issue_evidence(issue_id,url_hash,canonical_url) "
+                            "VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
+                            (issue_id, digest, canonical),
+                        )
                         cur.execute(
                             "INSERT INTO news_ai_issue_sources(issue_id,article_id) "
                             "SELECT %s,id FROM news_articles WHERE url_hash=%s "
@@ -118,6 +126,15 @@ def complete_issue_call(market, stock, exchange_day, fingerprint, issues):
                             "SELECT %s,id FROM news_articles WHERE url_hash=%s "
                             "ON CONFLICT DO NOTHING",
                             (event_id, digest),
+                        )
+                        # Mark ONLY articles that have an independently
+                        # persisted issue AND durable source URL evidence.
+                        cur.execute(
+                            "UPDATE news_articles SET processing_status='processed', "
+                            "processed_at=now() WHERE url_hash=%s AND EXISTS "
+                            "(SELECT 1 FROM news_issue_evidence "
+                            "WHERE issue_id=%s AND url_hash=%s)",
+                            (digest, issue_id, digest),
                         )
         return True
     except Exception as exc:
