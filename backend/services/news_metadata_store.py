@@ -1,4 +1,4 @@
-"""Passive news metadata persistence. Never changes the calling news response."""
+"""Neon-only temporary news metadata storage, independent of the UI."""
 import datetime
 import hashlib
 import html
@@ -13,7 +13,6 @@ from email.utils import parsedate_to_datetime
 
 _POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="news-metadata-save")
 _PENDING = threading.BoundedSemaphore(4)
-_CACHE_SECONDS = 7 * 24 * 60 * 60
 _RETENTION_DAYS = 7
 _CLEANUP_INTERVAL_SECONDS = 3600
 _last_cleanup = 0.0
@@ -34,11 +33,6 @@ def _timestamp(value):
         return dt.astimezone(datetime.timezone.utc)
     except (ValueError, TypeError, IndexError):
         return None
-
-
-def _cache_key(query, display, start):
-    value = json.dumps([str(query), int(display), int(start)], ensure_ascii=False)
-    return "gaemi:news:naver:v1:" + hashlib.sha256(value.encode()).hexdigest()
 
 
 
@@ -93,35 +87,18 @@ def _retained_news(existing, incoming, *, now=None):
 
 
 def read_cached_news(query, display, start):
-    """Read previously collected news without asking the original provider.
+    """Read previously collected Naver news directly from Neon.
 
-    Redis is the fast path; Neon is the fallback. Both retain articles rather
-    than replacing the visible list each time a fresh batch is collected.
-    Returns [] when no storage is configured or no matching data exists.
+    No Redis requests. The caller retains its existing in-process cache and
+    uses the original news provider when this database has no rows.
     """
-    key = _cache_key(query, display, start)
-    redis_url = os.getenv("UPSTASH_REDIS_REST_URL", "").strip()
-    redis_token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "").strip()
-    redis_client = None
-    if redis_url and redis_token:
-        try:
-            from upstash_redis import Redis
-            redis_client = Redis(url=redis_url, token=redis_token)
-            data = redis_client.get(key)
-            if isinstance(data, str):
-                data = json.loads(data)
-            if isinstance(data, list):
-                kept = _retained_news(data, [])
-                if kept:
-                    return kept[:max(20, min(int(display), 100))]
-        except Exception as exc:
-            print("[news metadata] redis_read_failed type=" + type(exc).__name__, flush=True)
-
     database_url = os.getenv("NEWS_DATABASE_URL", "").strip()
     if not database_url:
         return []
     try:
         import psycopg
+        from email.utils import format_datetime
+
         with psycopg.connect(database_url, connect_timeout=3) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -138,10 +115,9 @@ def read_cached_news(query, display, start):
                     ORDER BY a.published_at DESC NULLS LAST, a.collected_at DESC
                     LIMIT %s
                 """, (str(query), str(query), max(20, min(int(display), 100))))
-                result = cur.fetchall()
-        from email.utils import format_datetime
+                records = cur.fetchall()
         rows = []
-        for title, excerpt, url, published, collected in result:
+        for title, excerpt, url, published, collected in records:
             published_str = (
                 format_datetime(published.astimezone(datetime.timezone.utc), usegmt=True)
                 if published else ""
@@ -152,17 +128,10 @@ def read_cached_news(query, display, start):
                 "_news_first_seen": collected.astimezone(datetime.timezone.utc).isoformat()
                 if collected else "",
             })
-        kept = _retained_news(rows, [])
-        if kept and redis_client is not None:
-            try:
-                redis_client.set(key, json.dumps(kept, ensure_ascii=False), ex=_CACHE_SECONDS)
-            except Exception as exc:
-                print("[news metadata] redis_fill_failed type=" + type(exc).__name__, flush=True)
-        return kept
+        return _retained_news(rows, [])[:max(20, min(int(display), 100))]
     except Exception as exc:
         print("[news metadata] db_read_failed type=" + type(exc).__name__, flush=True)
         return []
-
 
 
 def _expire(cur):
@@ -215,24 +184,6 @@ def _start_cleanup_worker():
 def _save(rows, query, display, start):
     if not rows:
         return
-    redis_url = os.getenv("UPSTASH_REDIS_REST_URL", "").strip()
-    redis_token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "").strip()
-    if redis_url and redis_token:
-        try:
-            from upstash_redis import Redis
-            client = Redis(url=redis_url, token=redis_token)
-            key = _cache_key(query, display, start)
-            existing = client.get(key)
-            if isinstance(existing, str):
-                try:
-                    existing = json.loads(existing)
-                except (TypeError, ValueError):
-                    existing = []
-            merged = _retained_news(existing if isinstance(existing, list) else [], rows)
-            client.set(key, json.dumps(merged, ensure_ascii=False), ex=_CACHE_SECONDS)
-        except Exception as exc:
-            print("[news metadata] redis_write_failed type=" + type(exc).__name__, flush=True)
-
     database_url = os.getenv("NEWS_DATABASE_URL", "").strip()
     if not database_url:
         print("[news metadata] db_not_configured", flush=True)
@@ -302,7 +253,7 @@ def _save(rows, query, display, start):
 
 def save_async(rows, query, display, start):
     """Nonblocking and bounded. Dropped jobs never affect live news display."""
-    if not rows or not (os.getenv("NEWS_DATABASE_URL") or os.getenv("UPSTASH_REDIS_REST_URL")):
+    if not rows or not os.getenv("NEWS_DATABASE_URL"):
         return
     _start_cleanup_worker()
     if not _PENDING.acquire(blocking=False):
