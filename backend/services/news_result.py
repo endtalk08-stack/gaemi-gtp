@@ -186,15 +186,15 @@ def _verified_market_stock_impact(article, full_text, stock_name):
         return False
     market_cue = re.compile(
         r"(?<![A-Za-z0-9])(?:CPI|PPI|PCE|FOMC)(?![A-Za-z0-9])|"
-        r"소비자\\s*물가|물가\\s*(?:충격|상승|급등)|금리\\s*(?:인상|급등)|"
-        r"국채\\s*금리|관세\\s*(?:인상|부과|강화)",
+        r"소비자\s*물가|물가\s*(?:충격|상승|급등)|금리\s*(?:인상|급등)|"
+        r"국채\s*금리|관세\s*(?:인상|부과|강화)",
         re.IGNORECASE,
     )
     movement = re.compile(
         r"하락|급락|폭락|약세|내림세|매도세|반등|상승|급등|강세|오름세"
     )
     # Only evidence in one paragraph can connect a market event and a stock.
-    paragraphs = re.split(r"\\n\\s*\\n|(?<=[.!?])\\s+", text)
+    paragraphs = re.split(r"\n\s*\n|(?<=[.!?])\s+", text)
     for paragraph in paragraphs:
         if (len(paragraph) <= 900 and
                 _central_stock_mentioned(paragraph, stock_name) and
