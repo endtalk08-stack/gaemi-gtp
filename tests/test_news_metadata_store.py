@@ -167,6 +167,13 @@ class NewsMetadataStoreTests(unittest.TestCase):
         self.assertEqual(statements[0][1][-1], subject._timestamp(row["pubDate"]))
         self.assertIn("ON CONFLICT (url_hash)", statements[0][0])
         self.assertNotIn("licensed_body", statements[0][0])
+        self.assertNotIn("nextval(", statements[0][0])
+        self.assertIn("(source_id, canonical_url, url_hash", statements[0][0])
+        source_statements = [sql for sql, _ in calls
+                             if "INSERT INTO public.news_sources" in sql]
+        self.assertEqual(len(source_statements), 1)
+        self.assertNotIn("nextval(", source_statements[0])
+        self.assertIn("(source_key,display_name,source_type)", source_statements[0])
 
 if __name__ == "__main__":
     unittest.main()
