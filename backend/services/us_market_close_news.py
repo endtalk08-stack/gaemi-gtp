@@ -25,8 +25,8 @@ _CACHE = None
 _CACHED_AT = 0.0
 _SUCCESS_TTL = 10 * 60
 _EMPTY_TTL = 45
-# Bound external work: at most 20 metadata hits and 6 body reads.
-_PER_QUERY = 10
+# Four Naver metadata searches; no article-body requests.
+_PER_QUERY = 25
 _MAX_BODY_READS = 6
 _MAX_ARTICLES = 4
 _SECTOR_WORDS = (
