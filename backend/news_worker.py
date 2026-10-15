@@ -42,11 +42,13 @@ def process_stock(market, stock_name):
                   storyboard_limit=STORYBOARD_LIMIT, display_timezone=TIMEZONE)
     raw = fetch_stock_news(stock_name, market=market, limit=RESULT_LIMIT,
                            raise_on_error=True)
+    if not raw:
+        raise RuntimeError("empty news source; keep previous known-good snapshot")
     fingerprint = store.source_fingerprint(raw)
     if store.read_signature(stock_name, **params) == fingerprint:
         store.mark_checked(stock_name, **params)
         return "unchanged"
-    result = build_stock_news_result(stock_name, **params)
+    result = build_stock_news_result(stock_name, raw_news_list=raw, **params)
     if result.get("_news_status") != "ok":
         raise RuntimeError("analysis failed; previous good result preserved")
     store.save_snapshot(stock_name, fingerprint=fingerprint, result=result, **params)

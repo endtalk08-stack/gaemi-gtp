@@ -177,6 +177,7 @@ def build_stock_news_result(
     limit=50,
     storyboard_limit=3,
     display_timezone="Asia/Seoul",
+    raw_news_list=None,
 ):
     """Return one shared stock-news result for every screen representation."""
     # Temporary per-article diagnostics; defaults to the reported stock only.
@@ -212,12 +213,16 @@ def build_stock_news_result(
 
     try:
         part_started = time.monotonic()
-        raw_news_list = fetch_stock_news(
-            stock_name,
-            market=market,
-            limit=limit,
-            raise_on_error=True,
-        )
+        if raw_news_list is None:
+            raw_news_list = fetch_stock_news(
+                stock_name,
+                market=market,
+                limit=limit,
+                raise_on_error=True,
+            )
+        else:
+            # Reuse the exact validated collection used for the worker digest.
+            raw_news_list = [dict(row) for row in raw_news_list]
         print(
             f"[analyze news trace] stock={stock_name} part=fetch done "
             f"elapsed={time.monotonic() - part_started:.2f}s items={len(raw_news_list)}",

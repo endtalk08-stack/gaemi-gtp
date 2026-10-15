@@ -33,10 +33,32 @@ class TestNewsWorkerSeparation(unittest.TestCase):
         save.assert_not_called()
         checked.assert_called_once()
 
+    @patch("backend.news_worker.store.read_signature", return_value=None)
+    @patch("backend.news_worker.store.save_snapshot")
+    @patch("backend.news_worker.build_stock_news_result", return_value={"_news_status": "ok"})
+    @patch("backend.news_worker.fetch_stock_news", return_value=[])
+    def test_empty_collection_preserves_previous_result(self, fetch, analyze, save, signature):
+        with self.assertRaises(RuntimeError):
+            process_stock("국내", "삼성전자")
+        save.assert_not_called()
+        analyze.assert_not_called()
+
+    @patch("backend.news_worker.store.read_signature", return_value=None)
+    @patch("backend.news_worker.store.save_snapshot")
+    @patch("backend.news_worker.build_stock_news_result", return_value={"_news_status": "ok"})
+    @patch("backend.news_worker.fetch_stock_news")
+    def test_worker_reuses_one_collection(self, fetch, analyze, save, signature):
+        rows = [{"title": "sample", "link": "url"}]
+        fetch.return_value = rows
+        self.assertEqual(process_stock("국내", "삼성전자"), "updated")
+        fetch.assert_called_once()
+        assert analyze.call_args.kwargs["raw_news_list"] is rows
+        self.assertEqual(save.call_args.kwargs["fingerprint"], source_fingerprint(rows))
+
     @patch("backend.news_worker.store.read_signature",return_value=None)
     @patch("backend.news_worker.store.save_snapshot")
     @patch("backend.news_worker.build_stock_news_result",return_value={"_news_status":"error"})
-    @patch("backend.news_worker.fetch_stock_news",return_value=[])
+    @patch("backend.news_worker.fetch_stock_news",return_value=[{"title":"sample","link":"url"}])
     def test_failed_analysis_does_not_replace_good_data(self, fetch, analyze, save, signature):
         with self.assertRaises(RuntimeError):
             process_stock("국내","삼성전자")
