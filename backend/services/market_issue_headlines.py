@@ -1,105 +1,53 @@
-"""Market-menu issue titles from the existing Neon news and 24h processed-result store.
+"""Market sidebar displays titles from the same news issue briefs shown in chat.
 
-Only source-grounded titles are produced. This path never re-fetches articles,
-opens article bodies, or invokes the full central stock-news analysis.
+The processed-news store holds the full visible brief for 24h. The sidebar reads
+only its first headline; missing briefs use the existing shared news processor,
+not a separate headline algorithm or collector.
 """
 import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from .business_material_events import business_material_title_and_tags
-from .company_critical_events import company_critical_title_and_tags
-from .flow_material_events import flow_material_title_and_tags
-from .issue_briefs import market_material_title_and_tags
-from .news_processed_results_store import (
-    read_issue_headlines, read_news_metadata_for_stocks, save_issue_headlines,
-)
-from .news_result import _central_stock_mentioned, _mentions_competing_stock, _stock_owned_material
+from .news_processed_results_store import _key, read_issue_briefs_batch
+from .news_result import get_shared_stock_news_result
 
 _ISSUE_CACHE = {}
 _ISSUE_PENDING = {}
 _ISSUE_LOCK = threading.Lock()
-_ISSUE_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="market-issues")
+_ISSUE_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="market-issues")
 _ISSUE_TTL = 15 * 60
-_EMPTY_TTL = 3 * 60
+_EMPTY_TTL = 2 * 60
 _MAX_ITEMS = 20
 _MAX_KEYS = 80
 
 
-def _issue_from_metadata(stock_name, articles):
-    """Use the same validated company/market event extractors as central news.
-
-    An explicit company mention in the article title is required. Reject
-    mixed-company titles to avoid claiming another company's event.
-    """
-    for article in (articles or [])[:100]:
-        title = str(article.get("title") or "")
-        description = str(article.get("description") or "")
-        if not _central_stock_mentioned(title, stock_name):
-            continue
-        if _mentions_competing_stock(title, stock_name):
-            continue
-
-        for extractor in (
-            company_critical_title_and_tags,
-            business_material_title_and_tags,
-            flow_material_title_and_tags,
-        ):
-            headline, tags, _direction = _stock_owned_material(title, stock_name, extractor)
-            if not tags:
-                headline, tags, _direction = _stock_owned_material(
-                    description, stock_name, extractor,
-                )
-            if headline and tags:
-                return {
-                    "headline": headline, "tags": list(dict.fromkeys(tags))[:6],
-                    "stock_name": stock_name, "source_url": article.get("url") or "",
-                    "source_published_at": article.get("published_at") or "",
-                    "evidence_source": "news_title_description",
-                }
-
-        headline, tags = market_material_title_and_tags(title)
-        if headline and tags:
-            return {
-                "headline": headline, "tags": list(dict.fromkeys(tags))[:6],
-                "stock_name": stock_name, "source_url": article.get("url") or "",
-                "source_published_at": article.get("published_at") or "",
-                "evidence_source": "news_title_description",
-            }
-    return None
+def _first_headline(briefs):
+    for brief in briefs or []:
+        headline = str(brief.get("headline") or "").strip() if isinstance(brief, dict) else ""
+        if headline and headline not in {"기사 주요 내용", "관련 이슈"}:
+            return headline
+    return ""
 
 
-def _prepare_batch(market, rows):
-    """One source query and one processed-result write for the missing stocks."""
-    completed = {}
-    entries = []
+def _prepare_issue(key, stock_name, market):
+    headline = ""
+    failed = False
     try:
-        stock_news = read_news_metadata_for_stocks(rows)
-        if stock_news is None:
-            raise RuntimeError("news_metadata_unavailable")
-        for row in rows:
-            evidence = _issue_from_metadata(row["name"], stock_news.get(row["symbol"], []))
-            headline = str((evidence or {}).get("headline") or "").strip()
-            key = (market, row["symbol"], row["name"])
-            completed[key] = (time.monotonic(), headline)
-            if headline:
-                entries.append((row, {**evidence, "symbol": row["symbol"], "market": market}))
+        result = get_shared_stock_news_result(
+            stock_name, market="국내" if market == "kr" else "미국",
+            limit=50, storyboard_limit=3,
+        )
+        failed = result.get("_news_status") == "error"
+        if not failed:
+            headline = _first_headline(result.get("issue_briefs"))
     except Exception as exc:
-        print(f"[market issue] batch unavailable: {type(exc).__name__}", flush=True)
-        completed = {
-            (market, row["symbol"], row["name"]): (time.monotonic(), "")
-            for row in rows
-        }
-    finally:
-        # Release browser polling immediately. A slow DB write must not hold
-        # the displayed title hostage after the news has been processed.
-        with _ISSUE_LOCK:
-            _ISSUE_CACHE.update(completed)
-            for row in rows:
-                _ISSUE_PENDING.pop((market, row["symbol"], row["name"]), None)
-    if entries:
-        save_issue_headlines(market, entries)
+        failed = True
+        print(f"[market issue] unavailable stock={stock_name} error={type(exc).__name__}", flush=True)
+    with _ISSUE_LOCK:
+        if not failed:
+            _ISSUE_CACHE[key] = (time.monotonic(), headline)
+        _ISSUE_PENDING.pop(key, None)
 
 
 def _valid_row(market, item):
@@ -114,74 +62,69 @@ def _valid_row(market, item):
 
 
 def get_market_issue_headlines(market, items):
-    """Serve cached headings at once; batch-load and prepare missing stocks."""
     if market not in ("kr", "us") or not isinstance(items, list) or not 1 <= len(items) <= _MAX_ITEMS:
         raise ValueError("invalid_market_issue_request")
     rows = [_valid_row(market, item) for item in items]
     if any(row is None for row in rows):
         raise ValueError("invalid_stock_rows")
 
-    now = time.monotonic()
-    with _ISSUE_LOCK:
-        missed = [
-            row for row in rows
-            if (market, row["symbol"], row["name"]) not in _ISSUE_PENDING
-            and (
-                (market, row["symbol"], row["name"]) not in _ISSUE_CACHE
-                or now - _ISSUE_CACHE[(market, row["symbol"], row["name"])][0]
-                >= (_ISSUE_TTL if _ISSUE_CACHE[(market, row["symbol"], row["name"])][1] else _EMPTY_TTL)
-            )
-        ]
+    def row_key(row):
+        return (market, row["symbol"], row["name"])
 
-    # Read many cached results with one DB call; no second per-stock query.
-    if missed:
-        persisted = read_issue_headlines(market, missed)
+    # A single query reads all already-processed briefs for the ranking list.
+    with _ISSUE_LOCK:
+        now = time.monotonic()
+        missing = [
+            row for row in rows if row_key(row) not in _ISSUE_PENDING
+            and (row_key(row) not in _ISSUE_CACHE
+                 or now - _ISSUE_CACHE[row_key(row)][0]
+                 >= (_ISSUE_TTL if _ISSUE_CACHE[row_key(row)][1] else _EMPTY_TTL))
+        ]
+    if missing:
+        existing = read_issue_briefs_batch(market, missing)
         with _ISSUE_LOCK:
-            for row in missed:
-                key = (market, row["symbol"], row["name"])
-                headline = persisted.get(_persisted_key(market, row))
+            for row in missing:
+                key = row_key(row)
+                headline = _first_headline(existing.get(_key(market, row["name"])))
                 if headline and key not in _ISSUE_PENDING:
                     _ISSUE_CACHE[key] = (time.monotonic(), headline)
 
-    results = []
     with _ISSUE_LOCK:
-        queued = []
         now = time.monotonic()
+        needs_processing = []
         for row in rows:
-            key = (market, row["symbol"], row["name"])
+            key = row_key(row)
             cached = _ISSUE_CACHE.get(key)
             ttl = _ISSUE_TTL if cached and cached[1] else _EMPTY_TTL
-            fresh = cached and now - cached[0] < ttl
-            if not fresh and key not in _ISSUE_PENDING:
-                queued.append(row)
-        if queued:
-            active = {(market, row["symbol"], row["name"]) for row in rows}
-            for old_key in sorted(_ISSUE_CACHE, key=lambda k: _ISSUE_CACHE[k][0]):
-                if len(_ISSUE_CACHE) + len(_ISSUE_PENDING) + len(queued) <= _MAX_KEYS:
-                    break
-                if old_key not in active:
-                    _ISSUE_CACHE.pop(old_key, None)
-            if len(_ISSUE_CACHE) + len(_ISSUE_PENDING) + len(queued) <= _MAX_KEYS:
-                future = _ISSUE_EXECUTOR.submit(_prepare_batch, market, queued)
-                for row in queued:
-                    _ISSUE_PENDING[(market, row["symbol"], row["name"])] = future
+            if key not in _ISSUE_PENDING and (not cached or now - cached[0] >= ttl):
+                needs_processing.append(row)
+
+        active = {row_key(row) for row in rows}
+        for old_key in sorted(_ISSUE_CACHE, key=lambda key: _ISSUE_CACHE[key][0]):
+            if len(_ISSUE_CACHE) + len(_ISSUE_PENDING) + len(needs_processing) <= _MAX_KEYS:
+                break
+            if old_key not in active:
+                _ISSUE_CACHE.pop(old_key, None)
+
+        for row in needs_processing:
+            if len(_ISSUE_CACHE) + len(_ISSUE_PENDING) >= _MAX_KEYS:
+                break
+            key = row_key(row)
+            _ISSUE_PENDING[key] = _ISSUE_EXECUTOR.submit(
+                _prepare_issue, key, row["name"], market,
+            )
+
+        results = []
         for row in rows:
-            key = (market, row["symbol"], row["name"])
+            key = row_key(row)
             cached = _ISSUE_CACHE.get(key)
             if key in _ISSUE_PENDING:
                 status, headline = "pending", ""
             elif cached:
-                status, headline = ("ready", cached[1]) if cached[1] else ("unavailable", "")
+                status, headline = (("ready", cached[1]) if cached[1]
+                                    else ("unavailable", ""))
             else:
                 status, headline = "unavailable", ""
             results.append({**row, "status": status, "headline": headline})
-    return {
-        "ok": True, "market": market, "items": results,
-        "pending": any(row["status"] == "pending" for row in results),
-    }
-
-
-def _persisted_key(market, row):
-    # Keep the DB key format shared with the processed-results store.
-    from .news_processed_results_store import _key
-    return _key(market, row)
+    return {"ok": True, "market": market, "items": results,
+            "pending": any(row["status"] == "pending" for row in results)}
