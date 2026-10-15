@@ -590,7 +590,13 @@ def _detail_phrase_parts(phrase):
     return tuple(part for part in str(phrase or "").strip().lower().split() if part)
 
 
-def _detail_phrase_matches(text, phrase, words=None, word_variants=None):
+@lru_cache(maxsize=2048)
+def _detail_expected_variants(phrase):
+    """Precompute static phrase token variants once across all articles."""
+    return tuple(_detail_token_variants(part) for part in _detail_phrase_parts(phrase))
+
+
+def _detail_phrase_matches(text, phrase, words=None, word_variants=None, available_variants=None):
     """Match phrase tokens in order, reusing article tokenization across the shared dictionary."""
     haystack = str(text or "").lower()
     needle = str(phrase or "").strip().lower()
@@ -607,7 +613,14 @@ def _detail_phrase_matches(text, phrase, words=None, word_variants=None):
         words = tuple(part for part in haystack.split() if part)
     if word_variants is None:
         word_variants = tuple(_detail_token_variants(part) for part in words)
-    expected_variants = tuple(_detail_token_variants(part) for part in expected)
+    expected_variants = _detail_expected_variants(needle)
+    # Exact-preserving negative shortcut: if an expected token does not occur
+    # anywhere in this article, an ordered phrase match is impossible.
+    if available_variants is not None and any(
+        not any(part in available_variants for part in variants)
+        for variants in expected_variants
+    ):
+        return False
     for start in range(len(words)):
         word_index = start
         matched = True
@@ -652,9 +665,14 @@ def _refine_movement_signals(item):
     # paying the same split/particle-normalization cost again for every phrase.
     detail_words = tuple(part for part in text.split() if part)
     detail_word_variants = tuple(_detail_token_variants(part) for part in detail_words)
+    detail_available_variants = frozenset(
+        part for variants in detail_word_variants for part in variants
+    )
     for label, tone, phrases in DETAIL_KEYWORD_RULES:
         if label not in seen and any(
-            _detail_phrase_matches(text, phrase, detail_words, detail_word_variants)
+            _detail_phrase_matches(
+                text, phrase, detail_words, detail_word_variants, detail_available_variants,
+            )
             for phrase in phrases
         ):
             refined.append({"label": label, "tone": tone})
