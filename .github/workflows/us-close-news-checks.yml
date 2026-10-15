@@ -1,0 +1,31 @@
+name: US close news checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/services/us_market_close_news.py"
+      - "backend/services/us_market_close_brief.py"
+      - "frontend/shell/center-chat/analysis-flow.js"
+      - "frontend/index.html"
+      - "tests/test_us_market_close_news.py"
+      - "tests/test_us_market_close_brief.py"
+      - ".github/workflows/us-close-news-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify US-close metadata and session rules
+        run: python -m unittest discover -s tests -p "test_us_market_close_*.py" -v
+      - name: Check existing browser script syntax
+        run: node --check frontend/shell/center-chat/analysis-flow.js
