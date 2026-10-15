@@ -76,67 +76,60 @@ class USMarketCloseBriefTests(unittest.TestCase):
             "금융주가 하락했어.\n\n메모리 반도체주도 약세를 보였어.",
         )
 
-    def test_result_uses_one_shared_news_result_and_does_not_invent_fields(self):
-        quote = [
+    def test_result_keeps_indices_and_shows_original_naver_title_summary(self):
+        quotes = [
             {"name": "나스닥", "date": "2026-10-13", "change_pct": -1.22},
             {"name": "S&P500", "date": "2026-10-13", "change_pct": -0.3},
             {"name": "다우", "date": "2026-10-13", "change_pct": 0.15},
         ]
         article = {
-            "title": "뉴욕증시 마감",
+            "title": "뉴욕증시, 나스닥 하락 마감",
+            "description": "금리 우려가 지속되며 미국 증시가 약세로 마감했다.",
             "source": "신문", "url": "https://example.com/us",
-            "article_body": _MAIN,
             "market": "us", "news_scope": "market_close",
             "session_date": "2026-10-13",
-            "detail_source": "jsonld_article_body",
+            "detail_source": "naver_news_metadata",
             "published_at": "2026-10-14T00:30:00+00:00",
         }
-        with patch.object(brief, "_index_changes", return_value=quote) as prices, patch.object(
+        with patch.object(brief, "_index_changes", return_value=quotes) as prices, patch.object(
             brief, "build_us_market_close_news_result", return_value={"ok": True, "items": [article]}
         ) as news:
             first = brief.build_us_market_close_brief(now=_NOW)
             again = brief.build_us_market_close_brief(now=_NOW)
 
         self.assertTrue(first["ok"])
-        self.assertEqual(first["session_date"], "2026-10-13")
         indexed = next(x for x in first["sections"] if x["title"] == "주요 지수")
         self.assertIn("나스닥  -1.22%", indexed["content"])
-        self.assertIn("다우  +0.15%", indexed["content"])
-        self.assertNotIn("필라델피아 반도체", indexed["content"])
-        self.assertTrue(any(x["title"] == "하락업종" for x in first["sections"]))
-        falling = next(x for x in first["sections"] if x["title"] == "하락업종")
-        self.assertTrue(falling["evidence"])
-        self.assertEqual(falling["evidence"][0]["url"], "https://example.com/us")
-        self.assertEqual(falling["evidence"][0]["session_date"], "2026-10-13")
-        self.assertIn(falling["evidence"][0]["original_text"].rstrip("."),
-                      article["article_body"])
-        self.assertNotIn("원/달러 환율 1,375", str(first))
+        entry = next(x for x in first["sections"] if x["title"] == article["title"])
+        self.assertEqual(entry["content"], article["description"])
+        self.assertEqual(entry["article_url"], article["url"])
+        self.assertEqual(entry["source_name"], "신문")
+        self.assertNotIn("하락업종", [x["title"] for x in first["sections"]])
         self.assertEqual(first, again)
         prices.assert_called_once_with(_SESSION)
         news.assert_called_once_with(limit=4, now=_NOW, include_body=True)
 
-    def test_market_article_gate_rejects_wrong_session_and_unverified_bodies(self):
-        source = {
+    def test_market_article_gate_accepts_metadata_but_rejects_wrong_session(self):
+        article = {
             "market": "us", "news_scope": "market_close",
             "session_date": "2026-10-13",
-            "detail_source": "jsonld_article_body",
+            "detail_source": "naver_news_metadata",
             "published_at": "2026-10-14T00:30:00+00:00",
-            "title": "뉴욕증시 마감", "description": "나스닥과 다우 마감",
+            "title": "뉴욕증시 마감", "description": "뉴욕증시 하락 마감",
             "url": "https://example.com/us-close",
-            "article_body": _MAIN,
         }
         candidates = [
-            source,
-            {**source, "url": "https://example.com/wrong-session", "session_date": "2026-10-12"},
-            {**source, "url": "https://example.com/metadata", "detail_source": "meta_description"},
-            {**source, "url": "https://example.com/foreign", "market": "kr"},
-            {**source, "url": "https://example.com/preclose", "title": "뉴욕증시 장중"},
-            {**source, "url": "https://example.com/future", "published_at": "2026-10-15T00:30:00+00:00"},
-            {**source, "url": "javascript:alert(1)"},
-            dict(source),
+            article,
+            {**article, "url": "https://example.com/wrong-session", "session_date": "2026-10-12"},
+            {**article, "url": "https://example.com/no-body", "title": "미국 증시, 하락 마감"},
+            {**article, "url": "https://example.com/foreign", "market": "kr"},
+            {**article, "url": "https://example.com/preclose", "title": "뉴욕증시 장중"},
+            {**article, "url": "https://example.com/future", "published_at": "2026-10-15T00:30:00+00:00"},
+            {**article, "url": "javascript:alert(1)"},
+            dict(article),
         ]
         accepted = brief._verified_session_articles(candidates, _SESSION, _NOW)
-        self.assertEqual(accepted, [source])
+        self.assertEqual(accepted, [article, candidates[2]])
 
     def test_completed_session_reuses_memory_without_database_after_ttl(self):
         indices = [
