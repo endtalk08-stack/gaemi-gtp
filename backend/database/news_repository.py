@@ -3,7 +3,6 @@
 No news scraping, article-body storage, or API exposure happens here.
 The existing news UI must not wait for database writes.
 """
-import hashlib
 import logging
 import os
 import queue
@@ -50,11 +49,11 @@ def _write_batch(stock, market, articles):
                 title = str(row.get("title") or "").strip()
                 if not url.startswith(("https://", "http://")) or not title:
                     continue
-                parsed = urllib.parse.urlsplit(url)
-                # Ignore marketing/tracking query strings in exact-URL dedupe.
-                canonical = urllib.parse.urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(),
-                                                      parsed.path.rstrip("/") or "/", "", ""))
-                digest = hashlib.sha256(canonical.encode()).hexdigest()
+                from .news_url import canonical_news_url, news_url_hash
+                canonical = canonical_news_url(url)
+                digest = news_url_hash(url)
+                if not digest:
+                    continue
                 key, display, kind = _source(row)
                 cur.execute(
                     "INSERT INTO news_sources(source_key,display_name,source_type) VALUES (%s,%s,%s) "
