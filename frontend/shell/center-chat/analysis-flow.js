@@ -354,6 +354,22 @@
             await typeText(body, content, { chunkSize: 4 });
             if (!isActive()) return;
 
+            // Market-close articles carry their own source URL, never HTML from news.
+            if (section.article_url) {
+              try {
+                const sourceUrl = new URL(section.article_url);
+                if (['http:', 'https:'].includes(sourceUrl.protocol)) {
+                  const sourceLink = document.createElement('a');
+                  sourceLink.href = sourceUrl.href;
+                  sourceLink.target = '_blank';
+                  sourceLink.rel = 'noopener noreferrer';
+                  sourceLink.className = 'gtp-chat-copy text-[#7aa2e3] hover:underline';
+                  sourceLink.textContent = (section.source_name || '기사') + ' · 원문 보기';
+                  block.appendChild(sourceLink);
+                }
+              } catch (_) { /* Invalid source links are never rendered. */ }
+            }
+
             // The existing rise/fall palette; build safe text nodes, never
             // interpret external news article text as HTML.
             if (section.title === '주요 지수') {
