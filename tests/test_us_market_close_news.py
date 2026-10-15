@@ -28,6 +28,20 @@ class USMarketCloseNewsTests(unittest.TestCase):
             ).isoformat(), "2026-10-16"
         )
 
+    def test_spaced_ny_market_headline_is_accepted_after_close(self):
+        item = _item(
+            "뉴욕 증시, 기술주 하락 마감",
+            "2026-10-14T00:30:00+00:00",
+            "https://example.com/ny-close",
+        )
+        self.assertTrue(subject._matches_market_close(
+            item, datetime.date(2026, 10, 13), _NOW
+        ))
+        self.assertFalse(subject._matches_market_close(
+            {**item, "title": "뉴욕 증시 장중 약세"},
+            datetime.date(2026, 10, 13), _NOW
+        ))
+
     def test_uses_naver_summary_without_full_article_fetch(self):
         items = [
             _item("뉴욕증시, 나스닥 다우 하락 마감", "2026-10-13T20:20:00+00:00",
