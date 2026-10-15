@@ -77,11 +77,17 @@ def _retained_news(existing, incoming, *, now=None):
             or current.isoformat()
         )
         combined[url] = {**row, "_news_first_seen": first_seen_at}
-    return sorted(
-        combined.values(),
-        key=lambda row: str(row.get("pubDate") or row.get("_news_first_seen") or ""),
-        reverse=True,
-    )[:300]
+    def sort_time(row):
+        published = _timestamp(row.get("pubDate"))
+        if published:
+            return published
+        try:
+            value = datetime.datetime.fromisoformat(str(row.get("_news_first_seen") or ""))
+            return value.astimezone(datetime.timezone.utc)
+        except (ValueError, TypeError):
+            return datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+
+    return sorted(combined.values(), key=sort_time, reverse=True)[:300]
 
 
 
