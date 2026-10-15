@@ -10,6 +10,15 @@ class NewsRepositoryTests(unittest.TestCase):
                 store.enqueue_news_metadata("SK하이닉스", "국내", [{"title": "test"}])
                 enqueue.assert_not_called()
 
+    def test_article_id_query_is_not_lost_when_tracking_removed(self):
+        from backend.database.news_url import canonical_news_url, news_url_hash
+        one = "https://news.naver.com/main/read.naver?oid=001&aid=111&utm_source=feed"
+        two = "https://news.naver.com/main/read.naver?aid=222&oid=001"
+        one_without_tracking = "https://news.naver.com/main/read.naver?aid=111&oid=001"
+        self.assertEqual(news_url_hash(one), news_url_hash(one_without_tracking))
+        self.assertNotEqual(news_url_hash(one), news_url_hash(two))
+        self.assertIn("aid=111", canonical_news_url(one))
+
     def test_source_types_are_separate(self):
         self.assertEqual(store._source({"url": "https://example.com/a"})[2], "news")
         self.assertEqual(store._source({"url": "https://example.com/a", "source_type": "sec_filing"})[2], "filing")
