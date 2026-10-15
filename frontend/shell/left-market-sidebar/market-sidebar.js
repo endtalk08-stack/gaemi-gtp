@@ -125,7 +125,7 @@
             if (label.textContent === '이슈 확인 중') label.textContent = '이슈 조회 지연';
           });
         }
-        await new Promise(resolve => setTimeout(resolve, 2500));
+        await new Promise(resolve => setTimeout(resolve, attempt < 10 ? 2500 : 5000));
       }
       if (id === requestId) {
         list.querySelectorAll('[data-stock-issue]').forEach(label => {
