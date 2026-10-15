@@ -196,7 +196,6 @@ def _save(rows, query, display, start):
         import psycopg
         with psycopg.connect(database_url, connect_timeout=4) as conn:
             with conn.cursor() as cur:
-                _expire(cur)
                 cur.execute("""
                     INSERT INTO public.news_sources (source_key,display_name,source_type)
                     VALUES ('naver','네이버 뉴스 검색','news')
@@ -229,17 +228,20 @@ def _save(rows, query, display, start):
                         )
                         ON CONFLICT (url_hash) DO UPDATE SET
                             headline=EXCLUDED.headline,excerpt=EXCLUDED.excerpt,
-                            source_payload=jsonb_set(
-                                news_articles.source_payload, '{queries}',
-                                (
-                                    SELECT jsonb_agg(DISTINCT query_text)
-                                    FROM jsonb_array_elements_text(
-                                        COALESCE(
-                                            news_articles.source_payload->'queries',
-                                            jsonb_build_array(news_articles.source_payload->>'query')
-                                        ) || EXCLUDED.source_payload->'queries'
-                                    ) AS matched(query_text)
-                                )
+                            source_payload=COALESCE(
+                                jsonb_set(
+                                    news_articles.source_payload, '{queries}',
+                                    (
+                                        SELECT jsonb_agg(DISTINCT query_text)
+                                        FROM jsonb_array_elements_text(
+                                            COALESCE(
+                                                news_articles.source_payload->'queries',
+                                                jsonb_build_array(news_articles.source_payload->>'query')
+                                            ) || EXCLUDED.source_payload->'queries'
+                                        ) AS matched(query_text)
+                                    )
+                                ),
+                                news_articles.source_payload
                             ),
                             updated_at=now()
                         WHERE news_articles.headline IS DISTINCT FROM EXCLUDED.headline
@@ -255,9 +257,20 @@ def _save(rows, query, display, start):
                                     "queries": [str(query)]}, ensure_ascii=False),
                         published,
                     ))
+                # Run cleanup only after all inserts have succeeded, so a failed
+                # news upsert cannot silently roll back a successful cleanup.
+                _expire(cur)
         print("[news metadata] db_saved count=" + str(len(rows)), flush=True)
     except Exception as exc:
-        print("[news metadata] db_write_failed type=" + type(exc).__name__, flush=True)
+        diagnostic = getattr(exc, "diag", None)
+        column = getattr(diagnostic, "column_name", None) if diagnostic else None
+        table = getattr(diagnostic, "table_name", None) if diagnostic else None
+        print(
+            "[news metadata] db_write_failed type=" + type(exc).__name__
+            + (" table=" + str(table) if table else "")
+            + (" column=" + str(column) if column else ""),
+            flush=True,
+        )
 
 
 def save_async(rows, query, display, start):
