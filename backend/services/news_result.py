@@ -761,6 +761,18 @@ _SHARED_NEWS_TTL = 15 * 60
 
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul"):
+    # Prefer completed DigitalOcean results when present; otherwise preserve
+    # the original live Render news path for all other stocks or worker outages.
+    if os.environ.get("NEWS_PROCESSED_READ_MODE", "off").strip().lower() == "prefer":
+        from .news_processed_store import read_snapshot
+        snapshot = read_snapshot(
+            stock_name, market=market, limit=limit,
+            storyboard_limit=storyboard_limit,
+            display_timezone=display_timezone,
+        )
+        if snapshot is not None and snapshot.get("_news_status") == "ok":
+            return copy.deepcopy(snapshot)
+
     key = (str(stock_name), market, int(limit), int(storyboard_limit), display_timezone)
     with _SHARED_NEWS_LOCK:
         lock = _SHARED_NEWS_KEY_LOCKS.setdefault(key, threading.Lock())
