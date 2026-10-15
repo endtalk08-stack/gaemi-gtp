@@ -7,9 +7,7 @@ from flask_cors import CORS
 from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
-from backend.services.us_market_close_news import build_us_market_close_news_result
 from backend.services.market_issue_headlines import get_market_issue_headlines
-from backend.services.us_market_close_brief import build_us_market_close_brief
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -115,28 +113,6 @@ def market_issue_headlines():
     except ValueError:
         return jsonify({"ok": False, "error": "invalid_request"}), 400
     return jsonify(result)
-
-
-@app.get("/api/market/us-close-news")
-def us_market_close_news():
-    """Inspect the backend-only US close news result; no UI or stock-analysis call."""
-    try:
-        limit = int(request.args.get("limit", "12"))
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "invalid_limit"}), 400
-    result = build_us_market_close_news_result(limit=limit)
-    return jsonify(result), (200 if result["ok"] else 503)
-
-
-@app.get("/api/market/us-close-brief")
-def us_market_close_brief():
-    """Existing market result, reused by the 07:00 memory warm-up."""
-    try:
-        result = build_us_market_close_brief()
-        return jsonify(result), (200 if result["ok"] else 503)
-    except Exception as exc:
-        print(f"[US close brief] {type(exc).__name__}: {exc}", flush=True)
-        return jsonify({"ok": False, "error": "market_data_unavailable", "sections": []}), 503
 
 
 @app.get("/analyze")
