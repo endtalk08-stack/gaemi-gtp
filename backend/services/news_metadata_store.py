@@ -18,6 +18,8 @@ _RETENTION_DAYS = 7
 _CLEANUP_INTERVAL_SECONDS = 3600
 _last_cleanup = 0.0
 _cleanup_lock = threading.Lock()
+_cleanup_worker_lock = threading.Lock()
+_cleanup_worker_started = False
 
 
 def _clean(value):
@@ -96,6 +98,38 @@ def _expire(cur):
               AND retention_expires_at <= now()
         """)
         _last_cleanup = now
+
+
+
+def _cleanup_loop():
+    """Remove expired news hourly while the server worker is running."""
+    while True:
+        time.sleep(_CLEANUP_INTERVAL_SECONDS)
+        database_url = os.getenv("NEWS_DATABASE_URL", "").strip()
+        if not database_url:
+            continue
+        try:
+            import psycopg
+            with psycopg.connect(database_url, connect_timeout=4) as conn:
+                with conn.cursor() as cur:
+                    _expire(cur)
+        except Exception as exc:
+            print("[news metadata] cleanup_failed type=" + type(exc).__name__, flush=True)
+
+
+def _start_cleanup_worker():
+    global _cleanup_worker_started
+    if not os.getenv("NEWS_DATABASE_URL", "").strip():
+        return
+    with _cleanup_worker_lock:
+        if _cleanup_worker_started:
+            return
+        thread = threading.Thread(
+            target=_cleanup_loop, name="news-expiry-cleanup", daemon=True,
+        )
+        thread.start()
+        _cleanup_worker_started = True
+
 
 
 def _save(rows, query, display, start):
@@ -177,6 +211,7 @@ def save_async(rows, query, display, start):
     """Nonblocking and bounded. Dropped jobs never affect live news display."""
     if not rows or not (os.getenv("NEWS_DATABASE_URL") or os.getenv("UPSTASH_REDIS_REST_URL")):
         return
+    _start_cleanup_worker()
     if not _PENDING.acquire(blocking=False):
         return
     snapshot = [dict(row) for row in rows if isinstance(row, dict)][:100]
