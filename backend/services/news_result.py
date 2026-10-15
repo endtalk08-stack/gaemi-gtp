@@ -15,6 +15,7 @@ from backend.analysis.news import (
     select_keyword_storyboard_news,
 )
 
+from .news_byline import strip_leading_news_credit
 from .issue_briefs import (
     _article_excerpt, build_issue_briefs, central_material_brief_supported,
     market_material_title_and_tags,
@@ -759,6 +760,16 @@ _SHARED_NEWS_KEY_LOCKS = {}
 _SHARED_NEWS_TTL = 15 * 60
 
 
+def _sanitize_news_display_briefs(result):
+    """Remove only byline boilerplate from visible summaries, not the source data."""
+    if not isinstance(result, dict):
+        return result
+    for brief in result.get("issue_briefs") or []:
+        if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
+            brief["summary"] = strip_leading_news_credit(brief["summary"])
+    return result
+
+
 # Pilot: reuse news analyzed by DigitalOcean, but only for the two verified
 # Korean stocks. The existing news path stays untouched as a fallback.
 _WORKER_SNAPSHOT_CACHE = {}
@@ -788,6 +799,8 @@ def _get_worker_snapshot(stock_name, market, limit, storyboard_limit, display_ti
         )
         if not isinstance(snapshot, dict) or snapshot.get("_news_status") != "ok":
             snapshot = None
+        else:
+            snapshot = _sanitize_news_display_briefs(snapshot)
     except Exception as exc:
         print(f"[news snapshot pilot] fallback reason={type(exc).__name__}", flush=True)
     with _WORKER_SNAPSHOT_LOCK:
@@ -817,6 +830,7 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         )
         if result.get("_news_status") == "error":
             return result
+        _sanitize_news_display_briefs(result)
         with _SHARED_NEWS_LOCK:
             if len(_SHARED_NEWS_CACHE) >= 96:
                 _SHARED_NEWS_CACHE.clear()
