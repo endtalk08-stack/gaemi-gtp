@@ -85,6 +85,77 @@ def _retained_news(existing, incoming, *, now=None):
 
 
 
+
+def read_cached_news(query, display, start):
+    """Read previously collected news without asking the original provider.
+
+    Redis is the fast path; Neon is the fallback. Both retain articles rather
+    than replacing the visible list each time a fresh batch is collected.
+    Returns [] when no storage is configured or no matching data exists.
+    """
+    key = _cache_key(query, display, start)
+    redis_url = os.getenv("UPSTASH_REDIS_REST_URL", "").strip()
+    redis_token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "").strip()
+    redis_client = None
+    if redis_url and redis_token:
+        try:
+            from upstash_redis import Redis
+            redis_client = Redis(url=redis_url, token=redis_token)
+            data = redis_client.get(key)
+            if isinstance(data, str):
+                data = json.loads(data)
+            if isinstance(data, list):
+                kept = _retained_news(data, [])
+                if kept:
+                    return kept[:max(20, min(int(display), 100))]
+        except Exception as exc:
+            print("[news metadata] redis_read_failed type=" + type(exc).__name__, flush=True)
+
+    database_url = os.getenv("NEWS_DATABASE_URL", "").strip()
+    if not database_url:
+        return []
+    try:
+        import psycopg
+        with psycopg.connect(database_url, connect_timeout=3) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT a.headline, a.excerpt, a.canonical_url, a.published_at,
+                           a.collected_at
+                    FROM public.news_articles AS a
+                    JOIN public.news_sources AS s ON s.id=a.source_id
+                    WHERE s.source_key='naver'
+                      AND a.source_payload ->> 'query' = %s
+                      AND a.retention_expires_at > now()
+                    ORDER BY a.published_at DESC NULLS LAST, a.collected_at DESC
+                    LIMIT %s
+                """, (str(query), max(20, min(int(display), 100))))
+                result = cur.fetchall()
+        from email.utils import format_datetime
+        rows = []
+        for title, excerpt, url, published, collected in result:
+            published_str = (
+                format_datetime(published.astimezone(datetime.timezone.utc), usegmt=True)
+                if published else ""
+            )
+            rows.append({
+                "title": title, "description": excerpt or "", "link": url,
+                "originallink": url, "pubDate": published_str,
+                "_news_first_seen": collected.astimezone(datetime.timezone.utc).isoformat()
+                if collected else "",
+            })
+        kept = _retained_news(rows, [])
+        if kept and redis_client is not None:
+            try:
+                redis_client.set(key, json.dumps(kept, ensure_ascii=False), ex=_CACHE_SECONDS)
+            except Exception as exc:
+                print("[news metadata] redis_fill_failed type=" + type(exc).__name__, flush=True)
+        return kept
+    except Exception as exc:
+        print("[news metadata] db_read_failed type=" + type(exc).__name__, flush=True)
+        return []
+
+
+
 def _expire(cur):
     """Permanently delete only expired Naver articles, never other news."""
     global _last_cleanup
