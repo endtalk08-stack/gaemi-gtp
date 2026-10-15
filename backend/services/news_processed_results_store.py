@@ -63,6 +63,7 @@ def read_issue_headlines(market, rows):
                     FROM public.news_processed_results_24h
                     WHERE result_type = %s AND result_key = ANY(%s)
                       AND expires_at > now()
+                      AND created_at > now() - interval '15 minutes'
                 """, (_RESULT_TYPE, keys))
                 found = cur.fetchall()
         return {
