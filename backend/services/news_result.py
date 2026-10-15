@@ -787,6 +787,14 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         if result.get("_news_status") == "error":
             return result
         _sanitize_news_display_briefs(result)
+        # Persist only the already-generated, visible news issue briefs.
+        # The full stock analysis, article bodies and other menu data are not stored.
+        if int(limit) == 50 and int(storyboard_limit) == 3 and display_timezone == "Asia/Seoul":
+            try:
+                from .news_processed_results_store import save_issue_briefs
+                save_issue_briefs(stock_name, market, result.get("issue_briefs") or [])
+            except Exception as exc:
+                print(f"[processed news] issue brief save unavailable: {type(exc).__name__}", flush=True)
         with _SHARED_NEWS_LOCK:
             if len(_SHARED_NEWS_CACHE) >= 96:
                 _SHARED_NEWS_CACHE.clear()
