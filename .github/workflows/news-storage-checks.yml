@@ -10,6 +10,7 @@ on:
       - "tests/test_news_issue_ai.py"
       - "tests/test_news_repository.py"
       - "tests/test_news_retention.py"
+      - "tests/test_news_ai_failure_diagnostics.py"
       - "requirements.txt"
       - ".github/workflows/news-storage-checks.yml"
   workflow_dispatch:
@@ -32,3 +33,4 @@ jobs:
           python -m unittest discover -s tests -p 'test_news_issue_ai.py' -v
           python -m unittest discover -s tests -p 'test_news_repository.py' -v
           python -m unittest discover -s tests -p 'test_news_retention.py' -v
+          python -m unittest discover -s tests -p 'test_news_ai_failure_diagnostics.py' -v
