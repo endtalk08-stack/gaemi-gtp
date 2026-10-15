@@ -1,0 +1,72 @@
+import json
+import os
+import tempfile
+import unittest
+from unittest.mock import patch
+from backend.services.news_issue_ai import select_ai_issues, _validated
+
+
+class NewsIssueAITests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.env = patch.dict(os.environ, {
+            "NEWS_ISSUE_AI_ENABLED": "1",
+            "NEWS_ISSUE_AI_DB": self.temp.name + "/quota.sqlite3",
+            "GROQ_API_KEY": "mock-key",
+        })
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.temp.cleanup()
+
+    def candidates(self, index):
+        return [{
+            "title": "SK하이닉스 CPI 충격 속 반도체주 하락",
+            "body": "미국 CPI 발표 이후 반도체주 하락이 나타났다. "
+                    "SK하이닉스 주가도 하락했으나 직접 원인은 확인되지 않았다. "
+                    + "추가 정보 " * (index + 3),
+            "url": "https://news.example/" + str(index),
+            "time": "11:30",
+            "reaction_at": "2026-10-15T11:30:00+09:00",
+        }]
+
+    def answer(self):
+        return json.dumps({"issues": [{
+            "source_ids": [1], "headline": "반도체주 CPI 충격 이슈",
+            "summary": "미국 CPI 발표 이후 반도체주 하락이 나타났다. "
+                       "SK하이닉스 주가도 하락했지만 직접 원인은 확인되지 않았다.",
+            "tags": ["CPI충격", "반도체주하락"], "category": "market",
+            "direction": "negative", "event_key": "cpi_semi_decline",
+        }]}, ensure_ascii=False)
+
+    def test_three_calls_per_stock_day_and_identical_input_is_cached(self):
+        with patch("backend.services.ai_test._groq_answer",
+                   return_value=(self.answer(), None, None)) as api:
+            for index in range(4):
+                output = select_ai_issues(
+                    "SK하이닉스", "국내", self.candidates(index), [])
+                self.assertEqual(output[0]["headline"], "반도체주 CPI 충격 이슈")
+            self.assertEqual(api.call_count, 3)
+            select_ai_issues("SK하이닉스", "국내", self.candidates(0), [])
+            self.assertEqual(api.call_count, 3)
+
+    def test_rejects_unverified_source_and_invented_number(self):
+        data = json.loads(self.answer())
+        data["issues"][0]["source_ids"] = [2]
+        self.assertEqual(_validated(json.dumps(data), self.candidates(0), "SK하이닉스"), [])
+        data["issues"][0]["source_ids"] = [1]
+        data["issues"][0]["headline"] = "CPI 9999% 상승 이슈"
+        self.assertEqual(_validated(json.dumps(data), self.candidates(0), "SK하이닉스"), [])
+
+    def test_disabled_never_calls_provider(self):
+        os.environ["NEWS_ISSUE_AI_ENABLED"] = "0"
+        with patch("backend.services.ai_test._groq_answer") as api:
+            self.assertEqual(select_ai_issues(
+                "SK하이닉스", "국내", self.candidates(0), [{"headline": "기존"}]),
+                [{"headline": "기존"}])
+            api.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
