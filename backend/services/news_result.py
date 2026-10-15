@@ -655,15 +655,14 @@ def build_stock_news_result(
         if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates and not flow_material_candidates:
             raise RuntimeError('all_candidate_article_bodies_unavailable')
 
-        # Reuse only already body-verified candidates for the optional AI stage.
-        # Capture them before article bodies are removed from API-facing rows.
-        ai_issue_candidates = [{
-            "title": article.get("title") or "",
-            "body": article.get("_central_checked_full_text") or "",
-            "url": article.get("url") or article.get("link") or "",
-            "time": article.get("storyboard_time") or "",
-            "reaction_at": article.get("published_at") or "",
-        } for article in accepted_articles[:10]]
+        # The six-item news display and the central verified strip are unchanged.
+        # For opt-in AI, favor distinct topics within the already body-verified
+        # pool before repeatedly sending articles about one material event.
+        from .news_ai_candidates import select_verified_ai_candidates
+        ai_issue_candidates = select_verified_ai_candidates(accepted_articles, limit=10)
+        if tracing:
+            diag("ai_candidate_summary", verified_pool=len(accepted_articles),
+                 ai_candidates=len(ai_issue_candidates), max_ai_candidates=10)
 
         # Keep full article bodies local to this function, not in API records.
         detail_records = [
