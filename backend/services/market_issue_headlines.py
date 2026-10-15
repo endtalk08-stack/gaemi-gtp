@@ -154,16 +154,17 @@ def get_market_issue_headlines(market, items):
             fresh = cached and now - cached[0] < ttl
             if not fresh and key not in _ISSUE_PENDING:
                 queued.append(row)
-        if queued and len(_ISSUE_CACHE) + len(_ISSUE_PENDING) + len(queued) <= _MAX_KEYS:
-            future = _ISSUE_EXECUTOR.submit(_prepare_batch, market, queued)
-            for row in queued:
-                _ISSUE_PENDING[(market, row["symbol"], row["name"])] = future
-        elif queued and len(_ISSUE_CACHE) >= _MAX_KEYS:
-            for row in queued:
-                _ISSUE_CACHE.pop((market, row["symbol"], row["name"]), None)
-            future = _ISSUE_EXECUTOR.submit(_prepare_batch, market, queued)
-            for row in queued:
-                _ISSUE_PENDING[(market, row["symbol"], row["name"])] = future
+        if queued:
+            active = {(market, row["symbol"], row["name"]) for row in rows}
+            for old_key in sorted(_ISSUE_CACHE, key=lambda k: _ISSUE_CACHE[k][0]):
+                if len(_ISSUE_CACHE) + len(_ISSUE_PENDING) + len(queued) <= _MAX_KEYS:
+                    break
+                if old_key not in active:
+                    _ISSUE_CACHE.pop(old_key, None)
+            if len(_ISSUE_CACHE) + len(_ISSUE_PENDING) + len(queued) <= _MAX_KEYS:
+                future = _ISSUE_EXECUTOR.submit(_prepare_batch, market, queued)
+                for row in queued:
+                    _ISSUE_PENDING[(market, row["symbol"], row["name"])] = future
         for row in rows:
             key = (market, row["symbol"], row["name"])
             cached = _ISSUE_CACHE.get(key)
