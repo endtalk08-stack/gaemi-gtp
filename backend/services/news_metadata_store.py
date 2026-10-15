@@ -194,8 +194,8 @@ def _save(rows, query, display, start):
             with conn.cursor() as cur:
                 _expire(cur)
                 cur.execute("""
-                    INSERT INTO public.news_sources (id,source_key,display_name,source_type)
-                    VALUES (nextval('public.news_sources_id_seq'),'naver','네이버 뉴스 검색','news')
+                    INSERT INTO public.news_sources (source_key,display_name,source_type)
+                    VALUES ('naver','네이버 뉴스 검색','news')
                     ON CONFLICT (source_key) DO NOTHING
                 """)
                 for row in rows:
@@ -215,11 +215,10 @@ def _save(rows, query, display, start):
                         continue
                     cur.execute("""
                         INSERT INTO public.news_articles
-                            (id, source_id, canonical_url, url_hash, headline, excerpt,
+                            (source_id, canonical_url, url_hash, headline, excerpt,
                              language, publisher, published_at, source_payload,
                              body_storage_policy, processing_status, retention_expires_at)
                         VALUES (
-                            nextval('public.news_articles_id_seq'),
                             (SELECT id FROM public.news_sources WHERE source_key='naver'),
                             %s,%s,%s,%s,'ko',%s,%s,%s::jsonb,'metadata_only','pending',
                             COALESCE(%s::timestamptz, now()) + interval '7 days'
