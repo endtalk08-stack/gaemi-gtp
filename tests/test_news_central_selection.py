@@ -489,6 +489,80 @@ class CentralNewsSelectionTests(unittest.TestCase):
         self.assertEqual(result["issue_briefs"][0]["headline"], "기관 순매도 이슈")
         self.assertEqual(result["issue_briefs"][0]["tags"], ["기관순매도"])
 
+    def test_other_company_events_not_attached_by_incidental_stock_mentions(self):
+        from backend.services.news_result import _stock_owned_material, _fallback_owner_matches
+        from backend.services.company_critical_events import company_critical_title_and_tags
+        from backend.services.business_material_events import business_material_title_and_tags
+        from backend.services.flow_material_events import flow_material_title_and_tags
+
+        cases = (
+            ("SK하이닉스 참고, 삼성전자 신용등급 하향 확정", company_critical_title_and_tags),
+            ("SK하이닉스 참고, 삼성전자 고객사 발주 축소 발표", business_material_title_and_tags),
+            ("SK하이닉스 참고, 삼성전자 기관 순매도", flow_material_title_and_tags),
+        )
+        for sentence, detector in cases:
+            with self.subTest(sentence=sentence):
+                self.assertEqual(
+                    _stock_owned_material(sentence, "SK하이닉스", detector),
+                    ("", [], "neutral"),
+                )
+        self.assertFalse(_fallback_owner_matches(
+            {"event_owner": "삼성전자", "relation_type": "indirect"}, "SK하이닉스"
+        ))
+        self.assertFalse(_fallback_owner_matches(
+            {"event_owner": "삼성전자", "relation_type": "direct"}, "SK하이닉스"
+        ))
+        self.assertFalse(_fallback_owner_matches(
+            {"event_owner": "", "relation_type": "mention_only"}, "SK하이닉스"
+        ))
+
+    def test_stock_owned_event_in_its_own_sentence_remains_eligible(self):
+        from backend.services.news_result import _stock_owned_material
+        from backend.services.company_critical_events import company_critical_title_and_tags
+
+        headline, tags, direction = _stock_owned_material(
+            "삼성전자 신용등급 하향 확정. SK하이닉스 신용등급 상향 확정",
+            "SK하이닉스", company_critical_title_and_tags,
+        )
+        self.assertEqual(headline, "신용등급 상향 이슈")
+        self.assertEqual(tags, ["신용등급상향"])
+        self.assertEqual(direction, "positive")
+
+    def test_market_only_snippet_cannot_be_another_company_event(self):
+        from backend.services.news_result import _market_snippet_belongs_to_stock
+        self.assertFalse(_market_snippet_belongs_to_stock(
+            "삼성전자, 트럼프 관세 인상 영향으로 하락", "SK하이닉스",
+            title_has_stock=True, item={"relation_type": "direct"},
+        ))
+        self.assertTrue(_market_snippet_belongs_to_stock(
+            "CPI가 예상치를 상회하면서 반도체주가 약세를 보였다", "SK하이닉스",
+            title_has_stock=True, item={"relation_type": "direct"},
+        ))
+        self.assertFalse(_market_snippet_belongs_to_stock(
+            "CPI가 예상치를 상회했다", "SK하이닉스",
+            title_has_stock=True, item={"relation_type": "mention_only"},
+        ))
+
+    def test_multi_company_article_does_not_supply_another_stocks_fallback(self):
+        # Verify integration: the other stock appears in the same headline,
+        # but the reported material belongs to 삼성전자.
+        headline = "SK하이닉스도 거론됐지만 삼성전자 신용등급 하향 확정"
+        item = self.article("multi-owner", headline,
+                            "삼성전자 신용등급 하향을 확정했다.", keyword="신용등급")
+        keywords = {"articles": [{
+            "keywords": ["신용등급"], "keyword_details": [], "grounded_tags": [],
+            "stock_entities": ["SK하이닉스", "삼성전자"],
+            "event_owner": "삼성전자", "relation_type": "indirect",
+        }]}
+        with patch("backend.services.news_result.fetch_stock_news", return_value=[item]), \
+             patch("backend.services.news_result.score_stock_news", side_effect=lambda x, stock: x), \
+             patch("backend.services.news_result.build_connected_keyword_test", return_value=keywords), \
+             patch("backend.services.news_result.build_simple_today_news", side_effect=lambda x, *a, **kw: x), \
+             patch("backend.services.news_result.read_selected_article_details",
+                   return_value=[{"text": "", "source": "fetch_failed"}]):
+            result = build_stock_news_result("SK하이닉스", market="국내")
+        self.assertEqual(result["issue_briefs"], [])
+
     def test_unrelated_macro_news_never_assigned_to_other_stock(self):
         article = self.article(
             "unrelated", "트럼프 대통령 관세 인상 발언",

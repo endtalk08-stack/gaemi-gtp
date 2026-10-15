@@ -63,6 +63,58 @@ def _central_stock_mentioned(text, stock_name):
     return False
 
 
+
+def _fallback_owner_matches(item, stock_name):
+    """Fallbacks must not override the existing direct/indirect ownership classifier."""
+    relation = str(item.get("relation_type") or "").strip().lower()
+    if relation in {"indirect", "mention_only"}:
+        return False
+    owner = str(item.get("event_owner") or "").strip()
+    if owner and not _central_stock_mentioned(owner, stock_name):
+        return False
+    return True
+
+
+def _mentions_competing_stock(text, stock_name):
+    """Be conservative where a company-specific event has multiple possible owners."""
+    for market_stocks in STOCK_UNIVERSE.values():
+        for named_stock in market_stocks:
+            if named_stock != stock_name and _central_stock_mentioned(text, named_stock):
+                return True
+    return False
+
+
+def _stock_owned_material(text, stock_name, extractor):
+    """Collect only events whose own sentence has one identifiable company."""
+    found_heading, found_tags, tones = "", [], set()
+    for clause in re.split(r"(?<=[.!?])\s+", str(text or "")):
+        if not _central_stock_mentioned(clause, stock_name):
+            continue
+        if _mentions_competing_stock(clause, stock_name):
+            continue
+        heading, tags, tone = extractor(clause)
+        if not tags:
+            continue
+        if not found_heading:
+            found_heading = heading
+        found_tags.extend(tag for tag in tags if tag not in found_tags)
+        if tone and tone != "neutral":
+            tones.add(tone)
+    direction = next(iter(tones)) if len(tones) == 1 else "mixed" if tones else "neutral"
+    return found_heading, found_tags, direction
+
+
+def _market_snippet_belongs_to_stock(description, stock_name, *, title_has_stock, item):
+    """Stock-free macro snippets need a direct headline; never use another firm's news."""
+    if _central_stock_mentioned(description, stock_name):
+        return True
+    return (
+        title_has_stock
+        and str(item.get("relation_type") or "").strip().lower() == "direct"
+        and not _mentions_competing_stock(description, stock_name)
+    )
+
+
 def _central_direct_article(article, original_excerpt, stock_name):
     """Use a verified article's opening sentences, not keyword matches alone."""
     title = str(article.get("title") or "")
@@ -248,10 +300,16 @@ def build_stock_news_result(
         for item in paired_news_items:
             title = str(item.get("title") or "")
             description = str(item.get("description") or "")
+            if not _fallback_owner_matches(item, stock_name):
+                continue
             if not _central_stock_mentioned(title, stock_name):
                 continue
-            title_headline, title_tags, title_tone = company_critical_title_and_tags(title)
-            snippet_headline, snippet_tags, snippet_tone = company_critical_title_and_tags(description)
+            title_headline, title_tags, title_tone = _stock_owned_material(
+                title, stock_name, company_critical_title_and_tags
+            )
+            snippet_headline, snippet_tags, snippet_tone = _stock_owned_material(
+                description, stock_name, company_critical_title_and_tags
+            )
             if not title_tags and not snippet_tags:
                 continue
             # The existing relevance classifier must link description-only
@@ -277,10 +335,16 @@ def build_stock_news_result(
         for item in paired_news_items:
             title = str(item.get("title") or "")
             description = str(item.get("description") or "")
+            if not _fallback_owner_matches(item, stock_name):
+                continue
             if not _central_stock_mentioned(title, stock_name):
                 continue
-            title_h, title_tags, title_dir = business_material_title_and_tags(title)
-            desc_h, desc_tags, desc_dir = business_material_title_and_tags(description)
+            title_h, title_tags, title_dir = _stock_owned_material(
+                title, stock_name, business_material_title_and_tags
+            )
+            desc_h, desc_tags, desc_dir = _stock_owned_material(
+                description, stock_name, business_material_title_and_tags
+            )
             if not title_tags and not desc_tags:
                 continue
             if not title_tags and str(item.get("relation_type") or "").lower() != "direct":
@@ -302,10 +366,16 @@ def build_stock_news_result(
         for item in paired_news_items:
             title = str(item.get("title") or "")
             description = str(item.get("description") or "")
+            if not _fallback_owner_matches(item, stock_name):
+                continue
             if not _central_stock_mentioned(title, stock_name):
                 continue
-            title_h, title_tags, title_dir = flow_material_title_and_tags(title)
-            desc_h, desc_tags, desc_dir = flow_material_title_and_tags(description)
+            title_h, title_tags, title_dir = _stock_owned_material(
+                title, stock_name, flow_material_title_and_tags
+            )
+            desc_h, desc_tags, desc_dir = _stock_owned_material(
+                description, stock_name, flow_material_title_and_tags
+            )
             if not title_tags and not desc_tags:
                 continue
             if not title_tags and str(item.get("relation_type") or "").lower() != "direct":
@@ -327,18 +397,21 @@ def build_stock_news_result(
         for item in paired_news_items:
             title = str(item.get("title") or "")
             description = str(item.get("description") or "")
+            if not _fallback_owner_matches(item, stock_name):
+                continue
             title_has_stock = _central_stock_mentioned(title, stock_name)
             description_has_stock = _central_stock_mentioned(description, stock_name)
             relation = str(item.get("relation_type") or "").strip().lower()
-            # No broad market headlines assigned to a company by incidental
-            # mention. The company must be in the title, or be a direct
-            # subject of the snippet according to the existing classifier.
             if not title_has_stock and not (description_has_stock and relation == "direct"):
                 continue
-            # Check title and snippet independently: never construct a signal
-            # from half a phrase in the title and the other half in the snippet.
+            # Match market facts independently: a shared CPI article may name
+            # multiple stocks, unlike a one-company credit or contract event.
             title_heading, title_tags = market_material_title_and_tags(title)
-            description_heading, description_tags = market_material_title_and_tags(description)
+            description_heading, description_tags = ("", [])
+            if _market_snippet_belongs_to_stock(
+                description, stock_name, title_has_stock=title_has_stock, item=item
+            ):
+                description_heading, description_tags = market_material_title_and_tags(description)
             if not title_tags and not description_tags:
                 continue
             headline = title_heading or description_heading
