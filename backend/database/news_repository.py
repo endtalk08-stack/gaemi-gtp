@@ -92,6 +92,10 @@ def _worker():
         stock, market, articles = _QUEUE.get()
         try:
             _write_batch(stock, market, articles)
+            # Cleanup is independent of ingestion and runs only for
+            # expired sources with durable, verified processing evidence.
+            from .news_retention import cleanup_once_per_day
+            cleanup_once_per_day()
         except Exception as exc:
             _LOG.warning("news metadata persistence skipped: %s", type(exc).__name__)
         finally:
