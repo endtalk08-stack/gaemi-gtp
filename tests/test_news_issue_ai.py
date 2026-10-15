@@ -69,6 +69,61 @@ class NewsIssueAITests(unittest.TestCase):
         self.assertEqual(save.call_args.args[4][0]["headline"],
                          "반도체주 CPI 충격 이슈")
 
+    def test_invalid_json_records_safe_failure(self):
+        from backend.services.news_issue_ai import _analyze_and_save
+        with patch("backend.services.ai_test._groq_answer",
+                   return_value=("not json", None, None)):
+            with patch("backend.database.news_ai_store.fail_issue_call") as fail:
+                _analyze_and_save(
+                    "SK하이닉스", "KR", "2026-10-15", "test-json", self.candidates(0))
+        self.assertEqual(fail.call_args.args[-2:], ("json_error", "invalid_json"))
+
+    def test_invalid_summary_records_precise_rule(self):
+        from backend.services.news_issue_ai import _analyze_and_save
+        invalid = json.loads(self.answer())
+        invalid["issues"][0]["summary"] = "짧음"
+        with patch("backend.services.ai_test._groq_answer",
+                   return_value=(json.dumps(invalid), None, None)):
+            with patch("backend.database.news_ai_store.fail_issue_call") as fail:
+                _analyze_and_save(
+                    "SK하이닉스", "KR", "2026-10-15", "test-rule", self.candidates(0))
+        self.assertEqual(fail.call_args.args[-2:],
+                         ("validation_error", "invalid_summary"))
+
+    def test_wrong_source_id_is_recorded_without_leaking_response(self):
+        from backend.services.news_issue_ai import _analyze_and_save
+        bad = json.loads(self.answer())
+        bad["issues"][0]["source_ids"] = [55]
+        with patch("backend.services.ai_test._groq_answer",
+                   return_value=(json.dumps(bad), None, None)):
+            with patch("backend.database.news_ai_store.fail_issue_call") as fail:
+                _analyze_and_save(
+                    "SK하이닉스", "KR", "2026-10-15", "test-source", self.candidates(0))
+        self.assertEqual(fail.call_args.args[-2:],
+                         ("validation_error", "invalid_source_ids"))
+
+    def test_provider_http_error_is_classified(self):
+        from urllib.error import HTTPError
+        from backend.services.news_issue_ai import _analyze_and_save
+        with patch("backend.services.ai_test._groq_answer",
+                   side_effect=HTTPError("https://example.invalid", 429,
+                                         "sensitive", None, None)):
+            with patch("backend.database.news_ai_store.fail_issue_call") as fail:
+                _analyze_and_save(
+                    "SK하이닉스", "KR", "2026-10-15", "test-http", self.candidates(0))
+        self.assertEqual(fail.call_args.args[-2:], ("api_error", "http_429"))
+
+    def test_db_save_failure_is_classified(self):
+        from backend.services.news_issue_ai import _analyze_and_save
+        with patch("backend.services.ai_test._groq_answer",
+                   return_value=(self.answer(), None, None)):
+            with patch("backend.database.news_ai_store.complete_issue_call",
+                       return_value=False):
+                with patch("backend.database.news_ai_store.fail_issue_call") as fail:
+                    _analyze_and_save(
+                        "SK하이닉스", "KR", "2026-10-15", "test-db", self.candidates(0))
+        self.assertEqual(fail.call_args.args[-2:], ("db_error", "save_failed"))
+
     def test_different_markets_use_local_clock(self):
         from backend.services.news_issue_ai import _day
         self.assertRegex(_day("US"), r"^\d{4}-\d{2}-\d{2}$")
