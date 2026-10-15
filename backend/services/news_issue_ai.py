@@ -11,36 +11,74 @@ def _day(market):
     tz = "America/New_York" if market in ("미국", "us", "US") else "Asia/Seoul"
     return datetime.datetime.now(ZoneInfo(tz)).date().isoformat()
 
-def _validated(text, articles, stock):
+def _validated(text, articles, stock, failure_reasons=None):
+    """Validate an AI answer without recording the underlying article or answer.
+
+    Optional diagnostic codes distinguish bad JSON from individual field
+    rejection; the returned issue list retains the previous public contract.
+    """
+    def reject(code):
+        if failure_reasons is not None:
+            failure_reasons.append(code)
+
     try:
         data = json.loads(text)
-        entries = data.get("issues", [])
-    except (ValueError, AttributeError, TypeError):
+    except (ValueError, TypeError):
+        reject("invalid_json")
         return []
+    if not isinstance(data, dict):
+        reject("invalid_schema")
+        return []
+    entries = data.get("issues", [])
     if not isinstance(entries, list):
+        reject("invalid_schema")
         return []
+    if not entries:
+        reject("empty_issues")
+        return []
+
     result, seen = [], set()
     sources = {str(i + 1): article for i, article in enumerate(articles)}
     number = re.compile(r"(?<![A-Za-z가-힣\d])\d[\d,]*(?:\.\d+)?")
     for entry in entries:
         if not isinstance(entry, dict):
+            reject("invalid_entry")
             continue
         ids = entry.get("source_ids")
         title, summary, tags = entry.get("headline"), entry.get("summary"), entry.get("tags")
         kind, tone = entry.get("category"), entry.get("direction")
         event_key = str(entry.get("event_key") or "").strip().lower()[:70]
+
         if (not isinstance(ids, list) or not 1 <= len(ids) <= 5
-                or any(str(x) not in sources for x in ids)
-                or not isinstance(title, str) or not 7 <= len(title) <= 44
-                or not isinstance(summary, str) or not 20 <= len(summary) <= 450
-                or not isinstance(tags, list) or not 1 <= len(tags) <= 4
-                or any(not isinstance(x, str) or not 2 <= len(x) <= 24 for x in tags)
-                or kind not in ("company", "market")
-                or tone not in ("positive", "negative", "neutral", "mixed")
-                or not event_key or event_key in seen):
+                or any(str(x) not in sources for x in ids)):
+            reject("invalid_source_ids")
             continue
+        if not isinstance(title, str) or not 7 <= len(title) <= 44:
+            reject("invalid_headline")
+            continue
+        if not isinstance(summary, str) or not 20 <= len(summary) <= 450:
+            reject("invalid_summary")
+            continue
+        if (not isinstance(tags, list) or not 1 <= len(tags) <= 4
+                or any(not isinstance(x, str) or not 2 <= len(x) <= 24 for x in tags)):
+            reject("invalid_tags")
+            continue
+        if kind not in ("company", "market"):
+            reject("invalid_category")
+            continue
+        if tone not in ("positive", "negative", "neutral", "mixed"):
+            reject("invalid_direction")
+            continue
+        if not event_key:
+            reject("invalid_event_key")
+            continue
+        if event_key in seen:
+            reject("duplicate_event_key")
+            continue
+
         evidence = " ".join(sources[str(i)]["body"] + " " + sources[str(i)]["title"] for i in ids)
         if not set(number.findall(title + " " + summary)).issubset(set(number.findall(evidence))):
+            reject("unsupported_numbers")
             continue
         seen.add(event_key)
         first = sources[str(ids[0])]
@@ -56,6 +94,17 @@ def _validated(text, articles, stock):
         if len(result) == 3:
             break
     return result
+
+
+def _provider_failure(exc):
+    """Return safe diagnostic codes; never persist HTTP body or API tokens."""
+    from urllib.error import HTTPError, URLError
+    if isinstance(exc, HTTPError):
+        return "api_error", "http_" + str(exc.code) if 400 <= exc.code <= 599 else "http_error"
+    if isinstance(exc, (TimeoutError,)) or isinstance(exc, URLError):
+        return "api_error", "timeout_or_connection"
+    return "api_error", "provider_exception"
+
 
 def _analyze_and_save(stock, code, day, fingerprint, candidates):
     from backend.database.news_ai_store import complete_issue_call, fail_issue_call
@@ -77,15 +126,26 @@ def _analyze_and_save(stock, code, day, fingerprint, candidates):
                 {"id": i + 1, "title": x["title"], "body": x["body"]}
                 for i, x in enumerate(candidates)]},
             max_completion_tokens=1100)
-        selected = _validated(answer, candidates, stock)
-        if selected:
-            if not complete_issue_call(code, stock, day, fingerprint, selected):
-                fail_issue_call(code, stock, day, fingerprint)
-        else:
-            fail_issue_call(code, stock, day, fingerprint)
     except Exception as exc:
-        print("[news issue AI] analysis failed: " + type(exc).__name__, flush=True)
-        fail_issue_call(code, stock, day, fingerprint)
+        category, reason = _provider_failure(exc)
+        fail_issue_call(code, stock, day, fingerprint, category, reason)
+        return
+
+    diagnostics = []
+    try:
+        selected = _validated(answer, candidates, stock, diagnostics)
+    except Exception:
+        fail_issue_call(code, stock, day, fingerprint,
+                        "validation_error", "validator_exception")
+        return
+    if not selected:
+        category = ("json_error" if diagnostics and diagnostics[0] == "invalid_json"
+                    else "validation_error")
+        reason = diagnostics[0] if diagnostics else "no_accepted_issues"
+        fail_issue_call(code, stock, day, fingerprint, category, reason)
+        return
+    if not complete_issue_call(code, stock, day, fingerprint, selected):
+        fail_issue_call(code, stock, day, fingerprint, "db_error", "save_failed")
 
 
 def select_ai_issues(stock, market, articles, fallback):
@@ -121,5 +181,6 @@ def select_ai_issues(stock, market, articles, fallback):
                 name="news-issue-ai", daemon=True,
             ).start()
         except Exception:
-            fail_issue_call(code, stock, day, fingerprint)
+            fail_issue_call(code, stock, day, fingerprint,
+                            "worker_error", "thread_start_failed")
     return cached if cached else fallback
