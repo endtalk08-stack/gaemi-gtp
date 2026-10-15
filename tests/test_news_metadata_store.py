@@ -1,4 +1,4 @@
-"""News storage is additive, 7-day limited, and disconnected from existing UI."""
+"""Neon-only news storage regression tests; existing UI remains independent."""
 import datetime
 import json
 import os
@@ -40,41 +40,50 @@ class NewsMetadataStoreTests(unittest.TestCase):
                   now=_NOW + datetime.timedelta(days=7))
         self.assertEqual(expired, [])
 
-    def test_redis_merges_instead_of_replacing_and_uses_seven_day_ttl(self):
-        values = {}
-        class Redis:
-            def __init__(self, **_): pass
-            def get(self, key): return values.get(key)
-            def set(self, key, value, ex=None):
-                self.expiry = ex
-                values[key] = value
-                self.__class__.last_expiry = ex
-
-        fake = types.SimpleNamespace(Redis=Redis)
-        env = {"UPSTASH_REDIS_REST_URL": "https://example.test",
-               "UPSTASH_REDIS_REST_TOKEN": "test", "NEWS_DATABASE_URL": ""}
-        with patch.dict(os.environ, env), patch.dict(sys.modules, {"upstash_redis": fake}):
-            subject._save([_item("https://news.example/one", "Wed, 14 Oct 2026 08:00:00 GMT")], "미국", 10, 1)
-            subject._save([_item("https://news.example/two", "Wed, 15 Oct 2026 08:00:00 GMT")], "미국", 10, 1)
-        merged = json.loads(values[subject._cache_key("미국", 10, 1)])
-        self.assertEqual(len(merged), 2)
-        self.assertEqual(Redis.last_expiry, 7 * 24 * 60 * 60)
-
-    def test_read_cached_news_uses_redis_without_live_api(self):
-        now = datetime.datetime.now(datetime.timezone.utc)
-        article = _item("https://news.example/cache-hit",
-                        now.strftime("%a, %d %b %Y %H:%M:%S GMT"))
-        class Redis:
-            def __init__(self, **_): pass
-            def get(self, key): return json.dumps([article])
-        fake = types.SimpleNamespace(Redis=Redis)
+    def test_neon_only_returns_empty_without_db_configuration(self):
+        class ForbiddenRedis:
+            def __init__(self, **kwargs):
+                raise AssertionError("Redis must never be used for news")
+        fake = types.SimpleNamespace(Redis=ForbiddenRedis)
         with patch.dict(sys.modules, {"upstash_redis": fake}), patch.dict(
-            os.environ, {"UPSTASH_REDIS_REST_URL": "https://example.test",
-                         "UPSTASH_REDIS_REST_TOKEN": "test",
-                         "NEWS_DATABASE_URL": ""},
+            os.environ, {
+                "NEWS_DATABASE_URL": "",
+                "UPSTASH_REDIS_REST_URL": "https://unused.example",
+                "UPSTASH_REDIS_REST_TOKEN": "unused-token",
+            },
         ):
+            self.assertEqual(subject.read_cached_news("테스트", 20, 1), [])
+            self.assertIsNone(subject._save([
+                _item("https://news.example/unused", "Wed, 14 Oct 2026 08:00:00 GMT")
+            ], "테스트", 20, 1))
+
+    def test_neon_only_ignores_existing_redis_credentials(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        calls = []
+        class Cursor:
+            def execute(self, sql, params=None): calls.append(sql)
+            def fetchall(self):
+                return [("테스트 기사", "요약", "https://news.example/db", now, now)]
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+        class Conn:
+            def cursor(self): return Cursor()
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+        class ForbiddenRedis:
+            def __init__(self, **kwargs):
+                raise AssertionError("Redis must never be used for news")
+        with patch.dict(sys.modules, {
+            "psycopg": types.SimpleNamespace(connect=lambda *a, **kw: Conn()),
+            "upstash_redis": types.SimpleNamespace(Redis=ForbiddenRedis),
+        }), patch.dict(os.environ, {
+            "NEWS_DATABASE_URL": "postgresql://placeholder/db",
+            "UPSTASH_REDIS_REST_URL": "https://unused.example",
+            "UPSTASH_REDIS_REST_TOKEN": "unused-token",
+        }):
             rows = subject.read_cached_news("테스트", 20, 1)
-        self.assertEqual([r["link"] for r in rows], [article["link"]])
+        self.assertEqual(rows[0]["title"], "테스트 기사")
+        self.assertTrue(any("public.news_articles" in query for query in calls))
 
     def test_read_cached_news_falls_back_to_neon(self):
         from backend.services import news_feed
