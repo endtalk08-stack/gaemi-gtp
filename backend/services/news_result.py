@@ -761,6 +761,20 @@ _SHARED_NEWS_TTL = 15 * 60
 
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul"):
+    # Opt-in only: Render remains unchanged until worker, Neon and UI verify.
+    read_mode = os.environ.get("NEWS_PROCESSED_READ_MODE", "off").strip().lower()
+    if read_mode in ("prefer", "only"):
+        from .news_processed_store import read_snapshot
+        snapshot = read_snapshot(
+            stock_name, market=market, limit=limit,
+            storyboard_limit=storyboard_limit,
+            display_timezone=display_timezone,
+        )
+        if snapshot is not None:
+            return copy.deepcopy(snapshot)
+        if read_mode == "only":
+            return {**_empty_news_result(), "_news_status": "error"}
+
     key = (str(stock_name), market, int(limit), int(storyboard_limit), display_timezone)
     with _SHARED_NEWS_LOCK:
         lock = _SHARED_NEWS_KEY_LOCKS.setdefault(key, threading.Lock())
