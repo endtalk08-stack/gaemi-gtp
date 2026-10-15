@@ -438,6 +438,8 @@ def build_stock_news_result(
             title_has_stock = _central_stock_mentioned(title, stock_name)
             description_has_stock = _central_stock_mentioned(description, stock_name)
             relation = str(item.get("relation_type") or "").strip().lower()
+            if not title_has_stock and not (description_has_stock and relation == "direct"):
+                continue
             # Match market facts independently: a shared CPI article may name
             # multiple stocks, unlike a one-company credit or contract event.
             title_heading, title_tags = market_material_title_and_tags(title)
