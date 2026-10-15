@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+from .news_byline import strip_leading_news_credit
 from .company_critical_events import company_critical_title_and_tags
 from .business_material_events import business_material_title_and_tags
 from .flow_material_events import flow_material_title_and_tags
@@ -443,6 +444,7 @@ def _article_excerpt(text, limit=3):
     """Show up to three complete source sentences without rewriting content."""
     content = re.sub(r"[\ufeff\u200b\u2060]", "", str(text or ""))
     content = re.sub(r"\s+", " ", content).strip()
+    content = strip_leading_news_credit(content)
     if not content:
         return ""
 
@@ -521,6 +523,8 @@ def _article_excerpt(text, limit=3):
         if content == previous:
             break
 
+    # Apply the same structural credit filter after legacy dateline removal.
+    content = strip_leading_news_credit(content)
     sentences = re.split(r'(?<=[.!?])\s+(?=[가-힣A-Za-z0-9"“‘(])', content)
     selected = []
     for sentence in sentences:
