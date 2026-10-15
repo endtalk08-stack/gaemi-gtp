@@ -38,7 +38,9 @@ def _write_batch(stock, market, articles):
     import psycopg
     from psycopg.types.json import Jsonb
     dsn = os.environ["NEWS_DATABASE_URL"]
-    region = "US" if str(market).lower() in ("us", "미국") else "KR"
+    from backend.analysis.news.catalog import STOCK_UNIVERSE
+    region = ("US" if str(market).lower() in ("us", "미국") or
+              (not market and stock in STOCK_UNIVERSE.get("미국", {})) else "KR")
     with psycopg.connect(dsn, connect_timeout=5) as conn:
         with conn.cursor() as cur:
             for row in articles:
@@ -67,7 +69,9 @@ def _write_batch(stock, market, articles):
                      display, row.get("published_at") or None,
                      Jsonb({"origin": kind, "source_type": str(row.get("source_type") or "")})))
                 article_id = cur.fetchone()[0]
-                symbol = str(row.get("symbol") or stock).strip()
+                aliases = STOCK_UNIVERSE.get("미국", {}).get(stock, []) if region == "US" else []
+                canonical_us = next((x for x in aliases if x.isascii() and x.upper() == x and len(x) <= 8), "")
+                symbol = str(row.get("symbol") or canonical_us or stock).strip()
                 if symbol:
                     cur.execute(
                         "INSERT INTO news_article_symbols(article_id,market,symbol,relevance) "
