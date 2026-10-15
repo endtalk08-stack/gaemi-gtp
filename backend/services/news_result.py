@@ -759,8 +759,50 @@ _SHARED_NEWS_KEY_LOCKS = {}
 _SHARED_NEWS_TTL = 15 * 60
 
 
+# Pilot: reuse news analyzed by DigitalOcean, but only for the two verified
+# Korean stocks. The existing news path stays untouched as a fallback.
+_WORKER_SNAPSHOT_CACHE = {}
+_WORKER_SNAPSHOT_LOCK = threading.Lock()
+_WORKER_SNAPSHOT_TTL = 90
+
+
+def _get_worker_snapshot(stock_name, market, limit, storyboard_limit, display_timezone):
+    if os.environ.get("NEWS_SNAPSHOT_PILOT_MODE", "off").strip().lower() != "prefer":
+        return None
+    if market != "국내" or str(stock_name) not in {"삼성전자", "SK하이닉스"}:
+        return None
+    if int(limit) != 50 or int(storyboard_limit) != 3 or display_timezone != "Asia/Seoul":
+        return None
+    key = (market, stock_name, limit, storyboard_limit, display_timezone)
+    now = time.monotonic()
+    with _WORKER_SNAPSHOT_LOCK:
+        cached = _WORKER_SNAPSHOT_CACHE.get(key)
+        if cached is not None and now - cached[0] < _WORKER_SNAPSHOT_TTL:
+            return copy.deepcopy(cached[1])
+    snapshot = None
+    try:
+        from .news_processed_store import read_snapshot
+        snapshot = read_snapshot(
+            stock_name, market=market, limit=limit,
+            storyboard_limit=storyboard_limit, display_timezone=display_timezone,
+        )
+        if not isinstance(snapshot, dict) or snapshot.get("_news_status") != "ok":
+            snapshot = None
+    except Exception as exc:
+        print(f"[news snapshot pilot] fallback reason={type(exc).__name__}", flush=True)
+    with _WORKER_SNAPSHOT_LOCK:
+        _WORKER_SNAPSHOT_CACHE[key] = (time.monotonic(), copy.deepcopy(snapshot))
+    return snapshot
+
+
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul"):
+    worker_snapshot = _get_worker_snapshot(
+        stock_name, market, limit, storyboard_limit, display_timezone,
+    )
+    if worker_snapshot is not None:
+        return worker_snapshot
+
     key = (str(stock_name), market, int(limit), int(storyboard_limit), display_timezone)
     with _SHARED_NEWS_LOCK:
         lock = _SHARED_NEWS_KEY_LOCKS.setdefault(key, threading.Lock())
