@@ -142,16 +142,41 @@ def complete_issue_call(market, stock, exchange_day, fingerprint, issues):
         return False
 
 
-def fail_issue_call(market, stock, exchange_day, fingerprint):
-    """Preserve the spent provider-call slot, even when the AI fails."""
+_FAILURE_CATEGORIES = {
+    "api_error", "json_error", "validation_error", "db_error", "worker_error", "unknown"
+}
+_FAILURE_REASONS = {
+    "invalid_json", "invalid_schema", "empty_issues", "invalid_entry",
+    "invalid_source_ids", "invalid_headline", "invalid_summary",
+    "invalid_tags", "invalid_category", "invalid_direction",
+    "invalid_event_key", "duplicate_event_key", "unsupported_numbers",
+    "no_accepted_issues", "validator_exception", "save_failed",
+    "provider_exception", "timeout_or_connection", "http_error",
+    "thread_start_failed", "unspecified"
+}
+
+
+def fail_issue_call(market, stock, exchange_day, fingerprint,
+                    category="unknown", reason="unspecified"):
+    """Spend the reserved slot and store *only* known-safe failure codes."""
+    category = category if category in _FAILURE_CATEGORIES else "unknown"
+    reason = str(reason or "unspecified")
+    if reason not in _FAILURE_REASONS and not (
+        reason.startswith("http_") and len(reason) == 8
+        and reason[5:].isdigit() and reason[5] in ("4", "5")
+    ):
+        reason = "unspecified"
+    status = "invalid" if category in ("json_error", "validation_error") else "failed"
     try:
         import psycopg
         with psycopg.connect(os.environ["NEWS_DATABASE_URL"], connect_timeout=5) as conn:
             conn.execute(
-                "UPDATE news_ai_call_ledger SET status='failed',completed_at=now() "
+                "UPDATE news_ai_call_ledger SET status=%s, "
+                "failure_category=%s,failure_reason=%s,completed_at=now() "
                 "WHERE market=%s AND symbol=%s AND exchange_day=%s "
                 "AND request_hash=%s AND status='reserved'",
-                (market, stock, exchange_day, fingerprint),
+                (status, category, reason, market, stock, exchange_day, fingerprint),
             )
     except Exception as exc:
-        _LOG.warning("AI failure marker unavailable: %s", type(exc).__name__)
+        _LOG.warning("AI failure diagnostic persistence unavailable: %s",
+                     type(exc).__name__)
