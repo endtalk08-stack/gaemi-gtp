@@ -4,24 +4,15 @@ Call reservations are serialized per stock / exchange-local date with a
 transaction advisory lock. A failed or timed-out provider request still uses
 one slot, so retries and worker restarts cannot exceed the daily budget.
 """
-import hashlib
 import logging
 import os
-import urllib.parse
 
 _LOG = logging.getLogger(__name__)
 
 
 def _url_hash(url):
-    parsed = urllib.parse.urlsplit(str(url or "").strip())
-    if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
-        return None
-    canonical = urllib.parse.urlunsplit((
-        parsed.scheme.lower(), parsed.netloc.lower(),
-        parsed.path.rstrip("/") or "/", "", ""
-    ))
-    return hashlib.sha256(canonical.encode()).hexdigest()
-
+    from .news_url import news_url_hash
+    return news_url_hash(url)
 
 def reserve_issue_call(market, stock, exchange_day, fingerprint):
     """Return (state, reusable_issues).
