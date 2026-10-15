@@ -6,6 +6,7 @@ import json
 import os
 import re
 import threading
+import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
@@ -13,6 +14,10 @@ from email.utils import parsedate_to_datetime
 _POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="news-metadata-save")
 _PENDING = threading.BoundedSemaphore(4)
 _CACHE_SECONDS = 120
+_RETENTION_DAYS = 7
+_CLEANUP_INTERVAL_SECONDS = 3600
+_last_cleanup = 0.0
+_cleanup_lock = threading.Lock()
 
 
 def _clean(value):
@@ -32,6 +37,21 @@ def _timestamp(value):
 def _cache_key(query, display, start):
     value = json.dumps([str(query), int(display), int(start)], ensure_ascii=False)
     return "gaemi:news:naver:v1:" + hashlib.sha256(value.encode()).hexdigest()
+
+
+def _expire(cur):
+    """Permanently delete only expired Naver articles, never other news."""
+    global _last_cleanup
+    now = time.monotonic()
+    with _cleanup_lock:
+        if now - _last_cleanup < _CLEANUP_INTERVAL_SECONDS:
+            return
+        cur.execute("""
+            DELETE FROM public.news_articles
+            WHERE source_id IN (SELECT id FROM public.news_sources WHERE source_key = 'naver')
+              AND retention_expires_at <= now()
+        """)
+        _last_cleanup = now
 
 
 def _save(rows, query, display, start):
@@ -58,6 +78,7 @@ def _save(rows, query, display, start):
         import psycopg
         with psycopg.connect(database_url, connect_timeout=4) as conn:
             with conn.cursor() as cur:
+                _expire(cur)
                 cur.execute("""
                     INSERT INTO public.news_sources (id,source_key,display_name,source_type)
                     VALUES (nextval('public.news_sources_id_seq'),'naver','네이버 뉴스 검색','news')
@@ -77,11 +98,12 @@ def _save(rows, query, display, start):
                         INSERT INTO public.news_articles
                             (id, source_id, canonical_url, url_hash, headline, excerpt,
                              language, publisher, published_at, source_payload,
-                             body_storage_policy, processing_status)
+                             body_storage_policy, processing_status, retention_expires_at)
                         VALUES (
                             nextval('public.news_articles_id_seq'),
                             (SELECT id FROM public.news_sources WHERE source_key='naver'),
-                            %s,%s,%s,%s,'ko',%s,%s,%s::jsonb,'metadata_only','pending'
+                            %s,%s,%s,%s,'ko',%s,%s,%s::jsonb,'metadata_only','pending',
+                            now() + interval '7 days'
                         )
                         ON CONFLICT (url_hash) DO UPDATE SET
                             headline=EXCLUDED.headline,excerpt=EXCLUDED.excerpt,
