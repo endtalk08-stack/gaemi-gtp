@@ -140,7 +140,7 @@ def _expire(cur):
     global _last_cleanup
     now = time.monotonic()
     with _cleanup_lock:
-        if now - _last_cleanup < _CLEANUP_INTERVAL_SECONDS:
+        if _last_cleanup and now - _last_cleanup < _CLEANUP_INTERVAL_SECONDS:
             return
         cur.execute("""
             DELETE FROM public.news_articles

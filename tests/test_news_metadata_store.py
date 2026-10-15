@@ -130,7 +130,7 @@ class NewsMetadataStoreTests(unittest.TestCase):
         from backend.services import news_feed
         now = datetime.datetime.now(datetime.timezone.utc)
         old = _item("https://news.example/old",
-                    (now - datetime.timedelta(days=1)).strftime("%a, %d %b %Y %H:%M:%S GMT"))
+                    (now - datetime.timedelta(hours=12)).strftime("%a, %d %b %Y %H:%M:%S GMT"))
         new = _item("https://news.example/new",
                     now.strftime("%a, %d %b %Y %H:%M:%S GMT"))
         key = ("cache-refresh-test-unique-4872", 20, 1)
