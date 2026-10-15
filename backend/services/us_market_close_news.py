@@ -5,6 +5,7 @@ when explicitly requested; /analyze and the central chat are not changed.
 """
 import datetime
 import re
+import urllib.parse
 import threading
 import time
 from zoneinfo import ZoneInfo
@@ -76,7 +77,7 @@ def _matches_market_close(item, session, now):
     # Reports published from 16:00 ET through 10:00 ET the following day.
     # Never include upcoming/pre-close articles or a different US session.
     start = datetime.datetime.combine(session, datetime.time(16), tzinfo=_NY_TZ)
-    end = start + datetime.timedelta(hours=18)
+    end = start + datetime.timedelta(days=1)
     local_time = published.astimezone(_NY_TZ)
     return start <= local_time <= end and published <= now
 
@@ -106,56 +107,32 @@ def _information_coverage(text):
     return coverage
 
 
+
 def _select_informative_articles(candidates, size):
-    """Read a few candidate originals, keep only verified, complementary bodies."""
-    from .news_detail import read_selected_article_details
-
-    ranked = sorted(
-        candidates,
-        key=lambda item: (
-            len(_information_coverage(
-                str(item.get("title") or "") + " " + str(item.get("description") or "")
-            )),
-            str(item.get("published_at") or ""),
-        ),
-        reverse=True,
-    )[:_MAX_BODY_READS]
-    if not ranked:
-        return []
-
-    details = read_selected_article_details(ranked, limit=len(ranked), with_sources=True)
-    verified = []
-    for article, detail in zip(ranked, details):
-        if detail.get("source") not in {"jsonld_article_body", "article_or_main_paragraphs"}:
-            continue
-        body = str(detail.get("text") or "").strip()
-        if len(body) < 160:
-            continue
-        coverage = _information_coverage(body)
-        if len(coverage) < 2:
-            continue
-        verified.append({
-            **article, "article_body": body, "detail_source": detail["source"],
-            "information_coverage": sorted(coverage),
-        })
-
-    verified.sort(
-        key=lambda article: (
-            len(article["information_coverage"]),
-            len(article["article_body"]),
-            article.get("published_at") or "",
-        ),
-        reverse=True,
-    )
+    """Use Naver's title/description directly, without downloading article bodies."""
     chosen = []
-    covered = set()
-    for article in verified:
-        new_information = set(article["information_coverage"]) - covered
-        if not new_information:
+    seen_urls = set()
+    seen_titles = set()
+    for item in sorted(candidates, key=lambda row: row.get("published_at") or "", reverse=True):
+        title = str(item.get("title") or "").strip()
+        url = str(item.get("url") or item.get("link") or "").strip()
+        try:
+            parts = urllib.parse.urlsplit(url)
+        except ValueError:
             continue
-        chosen.append(article)
-        covered.update(new_information)
-        if len(chosen) >= size or len(covered) == 4:
+        if not title or parts.scheme not in {"http", "https"} or not parts.netloc:
+            continue
+        title_key = re.sub(r"\W+", "", title).casefold()
+        if url in seen_urls or title_key in seen_titles:
+            continue
+        seen_urls.add(url)
+        seen_titles.add(title_key)
+        chosen.append({
+            **item, "title": title,
+            "description": str(item.get("description") or "").strip(),
+            "detail_source": "naver_news_metadata",
+        })
+        if len(chosen) >= size:
             break
     return chosen
 
@@ -163,9 +140,8 @@ def _select_informative_articles(candidates, size):
 def build_us_market_close_news_result(limit=3, *, now=None, include_body=False):
     """Select a few fact-bearing NY close articles from the existing Naver feed.
 
-    A per-worker lock coalesces concurrent calls. Raw article text remains in
-    the internal result cache; the inspection API never returns full bodies.
-    No background work, /analyze changes, or AI calls.
+    A per-worker lock coalesces requests. No full-body downloads or AI calls.
+    The inspection API returns source-provided metadata only.
     """
     global _CACHE, _CACHED_AT
     current = now or datetime.datetime.now(datetime.timezone.utc)
