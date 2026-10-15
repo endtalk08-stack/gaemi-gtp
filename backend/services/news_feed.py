@@ -150,6 +150,13 @@ def _fetch_query(query, display=20, start=1, *, raise_on_error=False):
         rows = []
     with _CACHE_LOCK:
         _CACHE[cache_key] = (now, list(rows))
+    # Passive storage only: response data and UI remain unchanged.
+    if rows:
+        try:
+            from .news_metadata_store import save_async
+            save_async(rows, query, display, start)
+        except Exception:
+            pass
     return rows
 
 
