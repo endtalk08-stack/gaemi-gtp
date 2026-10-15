@@ -7,9 +7,7 @@ ALTER TABLE news_articles
   ADD COLUMN IF NOT EXISTS processing_status TEXT NOT NULL DEFAULT 'pending';
 ALTER TABLE news_articles
   ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
-ALTER TABLE news_articles
-  ADD CONSTRAINT news_articles_processing_status_check
-  CHECK (processing_status IN ('pending','processed'));
+-- Processing state is controlled by the application; no extra blocking changes to old rows.
 CREATE INDEX IF NOT EXISTS news_articles_safe_retention_idx
   ON news_articles (retention_expires_at, id)
   WHERE processing_status = 'processed' AND processed_at IS NOT NULL;
