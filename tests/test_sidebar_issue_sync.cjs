@@ -15,6 +15,7 @@ class Element {
     this.children = [];
     this.listeners = {};
     this.classList = { toggle() {} };
+    this.style = {};
     this.textContent = '';
     this.innerHTML = '';
   }
