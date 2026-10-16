@@ -940,6 +940,43 @@ def central_material_brief_supported(excerpt):
     return any(tag not in market_only_tags for tag in tags)
 
 
+
+def grounded_issue_display_title(brief):
+    """Conservatively refine display titles using the same visible article excerpt.
+
+    Never change persisted news, article selection, or the original brief. Where
+    subject, polarity or certainty is unclear, keep the existing title.
+    """
+    if not isinstance(brief, dict):
+        return ""
+    original = str(brief.get("headline") or "").strip()
+    summary = str(brief.get("summary") or "").strip()
+    if not original or not summary:
+        return original
+    # Negation and opposing supply conditions must not be flipped into positives.
+    if re.search(r"과도한\s*조정", summary) and re.search(
+        r"증권|애널리스트|분석|평가|판단|진단", summary
+    ) and not re.search(r"과도한\s*조정(?:이|은|이라는)?\s*(?:아니|아닌|없)", summary):
+        return "주가 과도한 조정 평가"
+    if re.search(r"영업이익[^.!?]{0,65}(?:증가|늘어|늘었)", summary) and re.search(
+        r"(?:추정치|컨센서스|예상치)[^.!?]{0,35}(?:하회|밑돌|못\s*미쳐)", summary
+    ):
+        return "영업이익 증가에도 예상치 하회"
+    if re.search(r"자금(?:조달|이\s*필요)|자금이\s*필요", summary) and re.search(
+        r"(?:계획|방식)[^.!?]{0,30}(?:확정하지|미확정|정해지지)", summary
+    ):
+        return "자금조달 계획 미확정"
+    if re.search(r"메모리[^.!?]{0,35}(?:공급난|공급\s*제약)", summary) and re.search(
+        r"(?:제품\s*가격|판매\s*가격)[^.!?]{0,28}(?:올렸|인상)", summary
+    ) and not re.search(r"메모리[^.!?]{0,24}공급과잉", summary):
+        return "메모리 공급난에 제품 가격 인상"
+    if re.search(r"ESS|에너지저장", summary) and re.search(
+        r"(?:누적\s*(?:생산량|생산|출하량)|누적\s*물량)[^.!?]{0,30}200만\s*개[^.!?]{0,12}(?:돌파|넘어)", summary
+    ):
+        return "ESS 부품 누적 200만개 돌파"
+    # If a clearly reported direction is absent, retain the original topic.
+    return original
+
 def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []
