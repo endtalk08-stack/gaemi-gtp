@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   function create(ctx) {
-    function startTypewriterFlow(stockName, sections, result, requestId) {
+    function startTypewriterFlow(stockName, sections, result, requestId, marketSelection = null) {
       if (requestId !== ctx.getActiveAnalysisRequestId()) return;
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -460,7 +460,7 @@
               } else {
                 // Reuse the same 24-hour Neon brief endpoint as the sidebar.
                 // The central screen does not collect news or invoke AI.
-                const symbol = String(window.GaemiGTPCurrentStockSelection?.symbol || '').trim();
+                const symbol = String(marketSelection?.symbol || '').trim();
                 const stock = String(stockName || '').trim();
                 if (stock && symbol && requestId === ctx.getActiveAnalysisRequestId()) {
                   const market = /^[0-9]{6}$/.test(symbol) ? 'kr' : 'us';
@@ -570,7 +570,7 @@
         sections: sections.map(({ id, title, content }) => ({ id, title, content }))
       });
       window.GaemiGTPApp?.saveChatHistory?.();
-      startTypewriterFlow(stockName, sections, result, requestId);
+      startTypewriterFlow(stockName, sections, result, requestId, session.marketSelection);
     }
 
 
