@@ -3464,7 +3464,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
             summary_text = str(headline_brief.get("summary") or "").strip()
             first_content_parts.append(
                 "핵심 이슈: " + headline_text
-                + (("\\n" + summary_text) if summary_text else "")
+                + (("\n" + summary_text) if summary_text else "")
             )
         first_content_parts.append(tags_str)
 
