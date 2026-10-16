@@ -673,7 +673,7 @@ def ai_test_chat():
         return jsonify({"ok": False, "error": "invalid_json"}), 400
     role = str(body.get("role") or "news")
     question = str(body.get("question") or "").strip()
-    if role not in MODELS or (private_chat and role == "cloudflare"):
+    if role not in MODELS:
         return jsonify({"ok": False, "error": "unsupported_model"}), 400
     if not question or len(question) > 800:
         return jsonify({"ok": False, "error": "invalid_input"}), 400
