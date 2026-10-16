@@ -6,11 +6,8 @@ analysis and permanent market events are deliberately out of scope.
 """
 import json
 import os
-import threading
 
 _RESULT_TYPE = "stock_news_issue_briefs_v1"
-_cleanup_lock = threading.Lock()
-_cleanup_started = False
 
 
 def _url():
@@ -51,41 +48,10 @@ def _briefs_for_storage(briefs):
     return selected
 
 
-def _start_cleanup():
-    global _cleanup_started
-    if not _url():
-        return
-    with _cleanup_lock:
-        if _cleanup_started:
-            return
-        worker = threading.Thread(target=_cleanup_loop, daemon=True,
-                                  name="processed-news-expiry")
-        worker.start()
-        _cleanup_started = True
-
-
-def _cleanup_loop():
-    """Delete only expired processed-news records, hourly, while Render is up."""
-    import time
-    while True:
-        try:
-            import psycopg
-            with psycopg.connect(_url(), connect_timeout=3) as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "DELETE FROM public.news_processed_results_24h "
-                        "WHERE expires_at <= now()"
-                    )
-        except Exception as exc:
-            print(f"[processed news] cleanup failed: {type(exc).__name__}", flush=True)
-        time.sleep(60 * 60)
-
-
 def read_issue_briefs_batch(market, rows):
     """One DB roundtrip to fetch 20 existing central-news results."""
     if not rows or not _url() or not _market_code(market):
         return {}
-    _start_cleanup()
     keys = [_key(market, row["name"]) for row in rows]
     try:
         import psycopg
@@ -118,7 +84,6 @@ def save_issue_briefs(stock_name, market, briefs):
     selected = _briefs_for_storage(briefs)
     if not selected:
         return False
-    _start_cleanup()
     payload = json.dumps({"issue_briefs": selected}, ensure_ascii=False)
     try:
         import psycopg
