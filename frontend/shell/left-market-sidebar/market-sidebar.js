@@ -86,48 +86,33 @@
       return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 2 });
     };
 
-    // Populate every visible ranking row, without requiring a stock click.
-    // The server prepares the shared news results with bounded concurrency.
+    // Read the already-processed issue headlines once; sidebar never triggers analysis.
     const fillRankingIssues = async (market, id, items) => {
       const stocks = items.map(item => ({
         name: String(item.name || ''),
         symbol: String(item.symbol || ''),
       }));
-      for (let attempt = 0; attempt < 40 && id === requestId; attempt++) {
-        let pending = false;
-        try {
-          const response = await fetch(backendUrl + '/market/issue-headlines', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ market, items: stocks }),
-          });
-          if (!response.ok) throw new Error('issue results unavailable');
-          const data = await response.json();
-          if (id !== requestId) return;
-          if (data.ok !== true || !Array.isArray(data.items)) throw new Error('invalid issue result');
-          const bySymbol = new Map(data.items.map(row => [String(row.symbol || ''), row]));
-          list.querySelectorAll(':scope > button[data-stock-symbol]').forEach(button => {
-            const label = button.querySelector('[data-stock-issue]');
-            const item = bySymbol.get(button.dataset.stockSymbol);
-            if (!label || !item) return;
-            const text = item.status === 'ready' && item.headline
-              ? item.headline
-              : item.status === 'pending' ? '이슈 확인 중' : '';
-            label.textContent = text;
-            label.title = text;
-          });
-          pending = Boolean(data.pending);
-          if (!pending) return;
-        } catch (_) {
-          if (id !== requestId) return;
-          // Temporary API errors must not overwrite already verified titles.
-          list.querySelectorAll('[data-stock-issue]').forEach(label => {
-            if (label.textContent === '이슈 확인 중') label.textContent = '이슈 조회 지연';
-          });
-        }
-        await new Promise(resolve => setTimeout(resolve, attempt < 10 ? 2500 : 5000));
-      }
-      if (id === requestId) {
+      try {
+        const response = await fetch(backendUrl + '/market/issue-headlines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market, items: stocks }),
+        });
+        if (!response.ok) throw new Error('issue results unavailable');
+        const data = await response.json();
+        if (id !== requestId) return;
+        if (data.ok !== true || !Array.isArray(data.items)) throw new Error('invalid issue result');
+        const bySymbol = new Map(data.items.map(row => [String(row.symbol || ''), row]));
+        list.querySelectorAll(':scope > button[data-stock-symbol]').forEach(button => {
+          const label = button.querySelector('[data-stock-issue]');
+          const item = bySymbol.get(button.dataset.stockSymbol);
+          if (!label || !item) return;
+          const text = item.status === 'ready' && item.headline ? item.headline : '';
+          label.textContent = text;
+          label.title = text;
+        });
+      } catch (_) {
+        if (id !== requestId) return;
         list.querySelectorAll('[data-stock-issue]').forEach(label => {
           if (label.textContent === '이슈 확인 중') label.textContent = '이슈 조회 지연';
         });
