@@ -117,7 +117,7 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import os,json,urllib.request,urllib.parse,datetime
+          import os,json,urllib.request,urllib.parse,urllib.error,datetime
           from datetime import timezone,timedelta
           key=os.environ["WABBLE_API_KEY"]
           now=datetime.datetime.now(timezone.utc)
@@ -128,8 +128,13 @@ jobs:
               args={"categories":"stocks","q":term,"limit":100,"from":begin.isoformat(),"to":now.isoformat()}
               url="https://wabble.news/v1/news?"+urllib.parse.urlencode(args)
               req=urllib.request.Request(url,headers={"Authorization":"Bearer "+key,"User-Agent":"gaemi-isolated-news-test/1","Accept":"application/json"})
-              with urllib.request.urlopen(req,timeout=30) as resp:
-                  data=json.load(resp)
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as resp:
+                      data=json.load(resp)
+              except urllib.error.HTTPError as exc:
+                  print("NVDA_SEARCH_HTTP_ERROR",term,exc.code)
+                  counts[term]="http_"+str(exc.code)
+                  continue
               rows=data.get("data") or []
               counts[term]=len(rows)
               for row in rows:
