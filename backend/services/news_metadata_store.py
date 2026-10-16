@@ -95,6 +95,8 @@ def read_cached_news(query, display, start):
     database_url = os.getenv("NEWS_DATABASE_URL", "").strip()
     if not database_url:
         return []
+    # Start the independent expiry worker on reads too, not only on new saves.
+    _start_cleanup_worker()
     try:
         import psycopg
         from email.utils import format_datetime
@@ -157,17 +159,16 @@ def _expire(cur):
 def _cleanup_loop():
     """Remove expired news hourly while the server worker is running."""
     while True:
-        time.sleep(_CLEANUP_INTERVAL_SECONDS)
         database_url = os.getenv("NEWS_DATABASE_URL", "").strip()
-        if not database_url:
-            continue
-        try:
-            import psycopg
-            with psycopg.connect(database_url, connect_timeout=4) as conn:
-                with conn.cursor() as cur:
-                    _expire(cur)
-        except Exception as exc:
-            print("[news metadata] cleanup_failed type=" + type(exc).__name__, flush=True)
+        if database_url:
+            try:
+                import psycopg
+                with psycopg.connect(database_url, connect_timeout=4) as conn:
+                    with conn.cursor() as cur:
+                        _expire(cur)
+            except Exception as exc:
+                print("[news metadata] cleanup_failed type=" + type(exc).__name__, flush=True)
+        time.sleep(_CLEANUP_INTERVAL_SECONDS)
 
 
 def _start_cleanup_worker():
