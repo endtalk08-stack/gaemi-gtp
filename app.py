@@ -8,7 +8,6 @@ from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
-from backend.services.ranking_news_preparation import schedule_ranking_news_preparation
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -84,7 +83,6 @@ def market_trading_value():
     items = builder(limit=20)
     if items is None:
         return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
-    schedule_ranking_news_preparation(market, items)
     return jsonify({"ok": True, "market": market, "source": "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
 
 
@@ -98,7 +96,6 @@ def market_popular():
     items = builder(limit=20)
     if items is None:
         return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
-    schedule_ranking_news_preparation(market, items)
     return jsonify({"ok": True, "market": market, "source": "naver", "ranking": "popular",
                     "currency": "USD" if market == "us" else "KRW", "items": items})
 
