@@ -460,18 +460,17 @@
               } else {
                 // Reuse the same 24-hour Neon brief endpoint as the sidebar.
                 // The central screen does not collect news or invoke AI.
-                const symbol = String(marketSelection?.symbol || '').trim();
                 const stock = String(stockName || '').trim();
-                if (stock && symbol && requestId === ctx.getActiveAnalysisRequestId()) {
-                  const market = /^[0-9]{6}$/.test(symbol) ? 'kr' : 'us';
-                  fetch('/market/issue-headlines', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ market, items: [{ name: stock, symbol }] })
-                  }).then((response) => response.ok ? response.json() : null)
+                if (stock && requestId === ctx.getActiveAnalysisRequestId()) {
+                  const market = marketSelection?.market === 'kr' || marketSelection?.market === 'us'
+                    ? marketSelection.market : '';
+                  const params = new URLSearchParams({ stock });
+                  if (market) params.set('market', market);
+                  fetch('/market/stock-issue?' + params.toString())
+                    .then((response) => response.ok ? response.json() : null)
                     .then((data) => {
                       if (requestId !== ctx.getActiveAnalysisRequestId() || !pEl.isConnected) return;
-                      const headline = data?.items?.[0]?.headline;
+                      const headline = data?.headline;
                       if (typeof headline === 'string' && headline.trim()) {
                         issueLine.textContent = '핵심 이슈: ' + headline.trim();
                         pEl.insertAdjacentElement('afterend', issueLine);
