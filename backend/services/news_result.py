@@ -770,6 +770,42 @@ def _sanitize_news_display_briefs(result):
     return result
 
 
+def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, display_timezone):
+    """Read the DigitalOcean worker's valid 24h output before doing web/API work."""
+    database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
+    if not database_url:
+        return None
+    try:
+        import psycopg
+        with psycopg.connect(database_url, connect_timeout=3) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT result_payload
+                    FROM public.news_processed_snapshots
+                    WHERE market=%s AND stock_name=%s
+                      AND result_limit=%s AND storyboard_limit=%s
+                      AND display_timezone=%s AND expires_at>now()
+                    LIMIT 1
+                    """,
+                    (market, str(stock_name), int(limit), int(storyboard_limit),
+                     display_timezone),
+                )
+                row = cur.fetchone()
+        result = row[0] if row else None
+        if isinstance(result, str):
+            result = json.loads(result)
+        if not isinstance(result, dict) or result.get("_news_status") == "error":
+            return None
+        if not isinstance(result.get("issue_briefs"), list):
+            return None
+        return result
+    except Exception as exc:
+        print("[processed news] worker snapshot unavailable: "
+              + type(exc).__name__, flush=True)
+        return None
+
+
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul"):
     key = (str(stock_name), market, int(limit), int(storyboard_limit), display_timezone)
@@ -780,6 +816,20 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
             cached = _SHARED_NEWS_CACHE.get(key)
             if cached and time.monotonic() - cached[0] < _SHARED_NEWS_TTL:
                 return copy.deepcopy(cached[1])
+        # Prefer the worker-computed full payload, avoiding Render-side news
+        # collection and processing whenever an unexpired snapshot exists.
+        worker_result = _read_worker_news_snapshot(
+            stock_name, market=market, limit=limit,
+            storyboard_limit=storyboard_limit,
+            display_timezone=display_timezone,
+        )
+        if worker_result is not None:
+            result = _sanitize_news_display_briefs(copy.deepcopy(worker_result))
+            with _SHARED_NEWS_LOCK:
+                if len(_SHARED_NEWS_CACHE) >= 96:
+                    _SHARED_NEWS_CACHE.clear()
+                _SHARED_NEWS_CACHE[key] = (time.monotonic(), copy.deepcopy(result))
+            return result
         # This is the same existing 24-hour processed result that the fast
         # sidebar reads. Treat it as authoritative for the central issue block.
         standard_brief = int(limit) == 50 and int(storyboard_limit) == 3 and display_timezone == "Asia/Seoul"
