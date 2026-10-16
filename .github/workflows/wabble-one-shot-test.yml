@@ -87,7 +87,13 @@ jobs:
           for i,item in enumerate(rows[:10]):
               if not isinstance(item,dict): continue
               report["samples"].append({"headline":str(item.get("headline") or item.get("title") or "")[:180],"excerpt_length":len(str(item.get("excerpt") or "")),"fields":sorted(item.keys()),"enrichment_present":bool(item.get("enrichment"))})
-              print("ROW:",json.dumps(report["samples"][-1],ensure_ascii=False))
+              enrichment=item.get("enrichment")
+              if isinstance(enrichment,dict):
+                  report["samples"][-1]["enrichment"]=enrichment
+              elif isinstance(enrichment,list):
+                  report["samples"][-1]["enrichment"]=enrichment[:10]
+              print("ENRICHMENT_SAMPLE:",json.dumps({"headline":report["samples"][-1]["headline"],"enrichment":report["samples"][-1].get("enrichment")},ensure_ascii=False,default=str)[:1600])
+              print("ROW:",json.dumps(report["samples"][-1],ensure_ascii=False)[:2000])
           first=next((item for item in rows if isinstance(item,dict) and item.get("id")),None)
           if not first:
               report["detail_status"]="no_story_ids"
