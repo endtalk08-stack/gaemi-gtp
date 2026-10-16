@@ -609,7 +609,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=650, style_p
     return answer.strip()[:4000], (usage if isinstance(usage, dict) else None), provider_headers
 
 
-def _cloudflare_answer(question, context, max_completion_tokens=650):
+def _cloudflare_answer(question, context, max_completion_tokens=650, style_prompt=None):
     """Cloudflare Workers AI is available only for administrator model 4 tests."""
     account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
     api_token = (os.environ.get("CLOUDFLARE_API_TOKEN") or
@@ -620,7 +620,7 @@ def _cloudflare_answer(question, context, max_completion_tokens=650):
     payload = {
         "model": "@cf/openai/gpt-oss-20b",
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT + ("\n\n" + style_prompt if style_prompt else "")},
             {"role": "user", "content": "참고 데이터(JSON):\\n"
              + json.dumps(context, ensure_ascii=False) + "\\n\\n질문: " + question},
         ],
@@ -830,13 +830,9 @@ def ai_test_chat():
         if dialogue:
             prompt = "이전 대화:\n" + "\n".join(dialogue) + "\n\n현재 질문: " + question
         provider_called = True
-        answer, usage, provider_headers = (_cloudflare_answer(prompt, context) if role == "cloudflare" else _groq_answer(
+        answer, usage, provider_headers = (_cloudflare_answer(prompt, context, style_prompt=("친구처럼 반말로 답변해" if private_chat else None)) if role == "cloudflare" else _groq_answer(
             MODELS[role]["id"], prompt, context,
-            style_prompt=(
-                "모든 문장을 자연스러운 한국어 반말(해체)로 작성해. "
-                "합니다, 입니다, 습니다, 합니다체, 해요체 같은 존댓말 종결을 쓰지 마. "
-                "근거가 없는 숫자는 말하지 말고, 내부 JSON 필드명은 노출하지 마."
-            ) if private_chat else None,
+            style_prompt="친구처럼 반말로 답변해" if private_chat else None,
         ))
         if admin_test:
             if role != "cloudflare":
