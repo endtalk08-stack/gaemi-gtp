@@ -1,0 +1,26 @@
+name: DigitalOcean US issue audit checks
+
+on:
+  pull_request:
+    paths:
+      - 'ops/news-worker/audit-us-issue-dropout.py'
+      - 'tests/test_us_issue_dropout_audit.py'
+      - '.github/workflows/us-issue-audit-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-audit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check diagnostic Python syntax
+        run: python -m py_compile ops/news-worker/audit-us-issue-dropout.py
+      - name: Check audit categories and safety
+        run: python -m unittest discover -s tests -p 'test_us_issue_dropout_audit.py' -v
