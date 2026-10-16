@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from email.utils import parsedate_to_datetime
 
-from backend.analysis.news.catalog import STOCK_UNIVERSE
+from backend.analysis.news.catalog import STOCK_UNIVERSE, canonical_us_news_name
 from backend.providers import naver_news, official_company_news, sec_filings
 from .news_metadata_store import read_cached_news, save_async, _retained_news
 
@@ -484,6 +484,10 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
+    # Naver US listing names sometimes differ from the news catalog name.
+    # Resolve before expanding aliases, official feeds, or SEC company ticker.
+    if market in ("미국", "us", None):
+        stock_name = canonical_us_news_name(stock_name)
 
     queries = [stock_name]
     stock_region = ""
