@@ -449,14 +449,35 @@
               const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(pEl, pEl.innerText, 'first', stockName);
               // Display the verified issue already included in this stock's analysis.
               // No extra news collection, analysis, AI request, or DB write.
-              const firstIssue = (Array.isArray(result.issue_briefs) ? result.issue_briefs : [])
+              const initialIssue = (Array.isArray(result.issue_briefs) ? result.issue_briefs : [])
                 .find((item) => item && typeof item.headline === 'string' && item.headline.trim());
-              if (firstIssue) {
-                const issueLine = document.createElement('p');
-                issueLine.className = responseMessageClass + ' mt-3';
-                issueLine.dataset.centralStockIssue = 'true';
-                issueLine.textContent = '핵심 이슈: ' + firstIssue.headline.trim();
+              const issueLine = document.createElement('p');
+              issueLine.className = responseMessageClass + ' mt-3';
+              issueLine.dataset.centralStockIssue = 'true';
+              if (initialIssue) {
+                issueLine.textContent = '핵심 이슈: ' + initialIssue.headline.trim();
                 pEl.insertAdjacentElement('afterend', issueLine);
+              } else {
+                // Reuse the same 24-hour Neon brief endpoint as the sidebar.
+                // The central screen does not collect news or invoke AI.
+                const symbol = String(window.GaemiGTPCurrentStockSelection?.symbol || '').trim();
+                const stock = String(stockName || '').trim();
+                if (stock && symbol && requestId === ctx.getActiveAnalysisRequestId()) {
+                  const market = /^[0-9]{6}$/.test(symbol) ? 'kr' : 'us';
+                  fetch('/market/issue-headlines', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ market, items: [{ name: stock, symbol }] })
+                  }).then((response) => response.ok ? response.json() : null)
+                    .then((data) => {
+                      if (requestId !== ctx.getActiveAnalysisRequestId() || !pEl.isConnected) return;
+                      const headline = data?.items?.[0]?.headline;
+                      if (typeof headline === 'string' && headline.trim()) {
+                        issueLine.textContent = '핵심 이슈: ' + headline.trim();
+                        pEl.insertAdjacentElement('afterend', issueLine);
+                      }
+                    }).catch(() => {});
+                }
               }
               appendNextAnalysisChoices(actions);
               return;
