@@ -824,6 +824,18 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
             display_timezone=display_timezone,
         )
         if worker_result is not None:
+            # The sidebar first reads the existing 24h issue-brief store.
+            # Mirror that precedence in the central body, even when the
+            # worker snapshot has no selected issue (or a different one).
+            try:
+                from .news_processed_results_store import _key, read_issue_briefs_batch
+                stored = read_issue_briefs_batch(market, [{"name": str(stock_name)}])
+                sidebar_briefs = stored.get(_key(market, stock_name)) or []
+                if sidebar_briefs:
+                    worker_result["issue_briefs"] = copy.deepcopy(sidebar_briefs)
+            except Exception as exc:
+                print("[processed news] sidebar brief match unavailable: "
+                      + type(exc).__name__, flush=True)
             result = _sanitize_news_display_briefs(copy.deepcopy(worker_result))
             with _SHARED_NEWS_LOCK:
                 if len(_SHARED_NEWS_CACHE) >= 96:
