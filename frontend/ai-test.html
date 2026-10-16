@@ -117,6 +117,10 @@
     if (info.limit_source === "groq") {
       const lines = ["한도 관리: Groq (gaemiGTP 자체 테스트 횟수 제한 없음)"];
       for (const item of Object.values(info.models)) {
+        if (item.model_id === "@cf/openai/gpt-oss-20b") {
+          lines.push(modelName(item.model_id) + ": Cloudflare Workers AI 별도 무료 한도 적용");
+          continue;
+        }
         const ref = item.reference_limits || {};
         lines.push(modelName(item.model_id) + ": 분당 " + ref.requests_per_minute + "회 / 하루 "
           + ref.requests_per_day + "회 / 분당 " + ref.tokens_per_minute
@@ -138,7 +142,7 @@
         const values = daily[role] || {};
         const ref = item.reference_limits || {};
         const observedAll = Number(values.successful_calls || 0) === Number(values.metered_calls || 0);
-        const estimatedLeft = observedAll && Number.isInteger(ref.tokens_per_day)
+        const estimatedLeft = item.model_id === "@cf/openai/gpt-oss-20b" ? "Cloudflare 대시보드에서 확인" : observedAll && Number.isInteger(ref.tokens_per_day)
           && Number.isInteger(values.total_tokens)
           ? tokenLabel(Math.max(0, ref.tokens_per_day - values.total_tokens)) + "토큰"
           : "미확인 (토큰 기록 누락)";
