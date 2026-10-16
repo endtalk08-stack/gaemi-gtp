@@ -26,6 +26,7 @@ MODELS = {
     "news": {"id": "openai/gpt-oss-20b", "limit": 10, "label": "뉴스·일반"},
     "deep": {"id": "openai/gpt-oss-120b", "limit": 5, "label": "공시·심층"},
     "compare": {"id": "qwen/qwen3.8-27b", "limit": 5, "label": "비교 테스트"},
+    "cloudflare": {"id": "@cf/openai/gpt-oss-20b", "limit": 0, "label": "Cloudflare 뉴스 분석"},
 }
 MAX_TOTAL_PER_DAY = 20
 MAX_CALLS_PER_MINUTE = 2
@@ -608,6 +609,45 @@ def _groq_answer(model_id, question, context, max_completion_tokens=650, style_p
     return answer.strip()[:4000], (usage if isinstance(usage, dict) else None), provider_headers
 
 
+def _cloudflare_answer(question, context, max_completion_tokens=650):
+    """Cloudflare Workers AI is available only for administrator model 4 tests."""
+    account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
+    api_token = (os.environ.get("CLOUDFLARE_API_TOKEN") or
+                 os.environ.get("CLOUDFLARE_API_KEY") or
+                 os.environ.get("CLOUDFLARE_AUTH_TOKEN") or "").strip()
+    if not account_id or not api_token:
+        raise ValueError("cloudflare_not_configured")
+    payload = {
+        "model": "@cf/openai/gpt-oss-20b",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": "참고 데이터(JSON):\\n"
+             + json.dumps(context, ensure_ascii=False) + "\\n\\n질문: " + question},
+        ],
+        "max_tokens": max_completion_tokens,
+        "temperature": 0.2,
+        "stream": False,
+    }
+    url = ("https://api.cloudflare.com/client/v4/accounts/" +
+           account_id + "/ai/v1/chat/completions")
+    req = urllib.request.Request(
+        url, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": "Bearer " + api_token,
+                 "Content-Type": "application/json",
+                 "User-Agent": "gaemiGTP-ai-test/1.0"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=23) as response:
+        result = json.loads(response.read().decode("utf-8"))
+        provider_headers = response.headers
+    choices = result.get("choices") or []
+    answer = (choices[0].get("message") or {}).get("content") if choices else ""
+    if not isinstance(answer, str) or not answer.strip():
+        raise ValueError("empty_response")
+    usage = result.get("usage")
+    return answer.strip()[:4000], usage if isinstance(usage, dict) else None, provider_headers
+
+
 @ai_test_bp.get("/api/ai-test/status")
 def ai_test_status():
     if not _authorized():
@@ -633,7 +673,7 @@ def ai_test_chat():
         return jsonify({"ok": False, "error": "invalid_json"}), 400
     role = str(body.get("role") or "news")
     question = str(body.get("question") or "").strip()
-    if role not in MODELS:
+    if role not in MODELS or (private_chat and role == "cloudflare"):
         return jsonify({"ok": False, "error": "unsupported_model"}), 400
     if not question or len(question) > 800:
         return jsonify({"ok": False, "error": "invalid_input"}), 400
@@ -790,15 +830,15 @@ def ai_test_chat():
         if dialogue:
             prompt = "이전 대화:\n" + "\n".join(dialogue) + "\n\n현재 질문: " + question
         provider_called = True
-        answer, usage, provider_headers = _groq_answer(
+        answer, usage, provider_headers = (_cloudflare_answer(prompt, context) if role == "cloudflare" else _groq_answer(
             MODELS[role]["id"], prompt, context,
             style_prompt=(
                 "모든 문장을 자연스러운 한국어 반말(해체)로 작성해. "
                 "합니다, 입니다, 습니다, 합니다체, 해요체 같은 존댓말 종결을 쓰지 마. "
                 "근거가 없는 숫자는 말하지 말고, 내부 JSON 필드명은 노출하지 마."
             ) if private_chat else None,
-        )
-        if admin_test:
+        ))
+        if admin_test and role != "cloudflare":
             _remember_groq_remaining(role, provider_headers)
             _record_groq_call(role, "success", usage=usage)
         print("[Groq AI test success] " + json.dumps({
@@ -819,8 +859,12 @@ def ai_test_chat():
             response_data["usage"] = _usage_numbers(usage)
         return jsonify(response_data)
     except urllib.error.HTTPError as exc:
-        if admin_test and provider_called:
+        if admin_test and provider_called and role != "cloudflare":
             _remember_groq_remaining(role, exc.headers)
+        if exc.code == 429 and role == "cloudflare":
+            if admin_test and provider_called:
+                _record_groq_call(role, "rate_limit", http_status=429)
+            return jsonify({"ok": False, "error": "cloudflare_rate_limit", "limits": limits_for_request()}), 429
         if exc.code == 429:
             event = _record_groq_rate_limit(role, MODELS[role]["id"], exc)
             if admin_test and provider_called:
@@ -836,7 +880,7 @@ def ai_test_chat():
             _record_groq_call(role, "provider_error", http_status=exc.code)
         print(f"[Groq AI test provider error] role={role} model={MODELS[role]['id']} status={exc.code}", flush=True)
         return jsonify({
-            "ok": False, "error": "groq_request_failed",
+            "ok": False, "error": "cloudflare_request_failed" if role == "cloudflare" else "groq_request_failed",
             "limits": limits_for_request(),
         }), 502
     except Exception as exc:
