@@ -7,6 +7,7 @@ returned to the frontend.
 """
 
 import html
+import os
 import json
 import re
 import threading
@@ -20,6 +21,16 @@ from backend.analysis.news.catalog import STOCK_UNIVERSE
 
 
 REQUEST_TIMEOUT = 1.6
+NEWS_WORKER_REQUEST_TIMEOUT = 3.0  # Only the DigitalOcean worker; Render stays at 1.6s.
+
+
+def _article_request_timeout():
+    # Bounded increase for the dedicated news worker, without changing
+    # HTTPS validation, retrying 403 responses, or slowing the Render frontend.
+    return (NEWS_WORKER_REQUEST_TIMEOUT
+            if os.environ.get("GAEMIGTP_NEWS_WORKER") == "1"
+            else REQUEST_TIMEOUT)
+
 MAX_RESPONSE_BYTES = 350_000
 MAX_DETAIL_TEXT_CHARS = 5_000
 _CACHE_TTL = 300
@@ -175,7 +186,7 @@ def _read_url(url, with_source=False):
     )
     text, kind = "", "fetch_failed"
     try:
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+        with urllib.request.urlopen(request, timeout=_article_request_timeout()) as response:
             content_type = str(response.headers.get("Content-Type") or "").lower()
             if "html" not in content_type and "xhtml" not in content_type:
                 return {"text": "", "source": "fetch_failed"} if with_source else ""
