@@ -1,14 +1,13 @@
-"""Read-only sidebar headlines from the shared 24-hour processed-news store.
+"""Read-only sidebar headlines from DigitalOcean's 24-hour processed snapshots.
 
-The sidebar must never start news collection or analysis. Missing processed
-briefs remain unavailable until the existing central-news workflow saves them.
+The sidebar must never collect, process, or save news. No alternate Render
+issue store is queried when DigitalOcean has no matching processed brief.
 """
 import os
 import re
 import time
 
 from backend.analysis.news.catalog import canonical_us_news_name
-from .news_processed_results_store import _key, read_issue_briefs_batch
 from .issue_briefs import grounded_issue_display_title
 
 _MAX_ITEMS = 20
@@ -83,21 +82,13 @@ def get_market_issue_headlines(market, items):
         for row in rows
     ]
     all_names = list(dict.fromkeys(name for names in names_per_row for name in names))
-    existing = read_issue_briefs_batch(
-        market, [{"name": name} for name in all_names])
-    missing = list(dict.fromkeys(
-        name for names in names_per_row
-        if not any(_first_headline(existing.get(_key(market, n))) for n in names)
-        for name in names
-    ))
-    worker_briefs = _read_worker_briefs(market, missing) if missing else {}
+    worker_briefs = _read_worker_briefs(market, all_names)
     results = []
     for row, names in zip(rows, names_per_row):
-        headline = (
-            next((_first_headline(existing.get(_key(market, n)))
-                  for n in names if _first_headline(existing.get(_key(market, n)))), "")
-            or next((_first_headline(worker_briefs.get(n))
-                     for n in names if _first_headline(worker_briefs.get(n))), "")
+        headline = next(
+            (_first_headline(worker_briefs.get(name))
+             for name in names if _first_headline(worker_briefs.get(name))),
+            "",
         )
         results.append({
             **row, "status": "ready" if headline else "unavailable",
