@@ -780,16 +780,32 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
             cached = _SHARED_NEWS_CACHE.get(key)
             if cached and time.monotonic() - cached[0] < _SHARED_NEWS_TTL:
                 return copy.deepcopy(cached[1])
+        # This is the same existing 24-hour processed result that the fast
+        # sidebar reads. Treat it as authoritative for the central issue block.
+        standard_brief = int(limit) == 50 and int(storyboard_limit) == 3 and display_timezone == "Asia/Seoul"
+        stored_briefs = []
+        if standard_brief:
+            try:
+                from .news_processed_results_store import _key, read_issue_briefs_batch
+                rows = read_issue_briefs_batch(market, [{"name": str(stock_name)}])
+                stored_briefs = rows.get(_key(market, stock_name)) or []
+            except Exception as exc:
+                print(f"[processed news] shared brief read unavailable: {type(exc).__name__}", flush=True)
+
         result = build_stock_news_result(
             stock_name, market=market, limit=limit,
             storyboard_limit=storyboard_limit, display_timezone=display_timezone,
         )
-        if result.get("_news_status") == "error":
+        if stored_briefs:
+            # Do not replace a still-valid processed result with a differing
+            # freshly generated result, including an empty/error result.
+            result["issue_briefs"] = copy.deepcopy(stored_briefs)
+        if result.get("_news_status") == "error" and not stored_briefs:
             return result
         _sanitize_news_display_briefs(result)
-        # Persist only the already-generated, visible news issue briefs.
-        # The full stock analysis, article bodies and other menu data are not stored.
-        if int(limit) == 50 and int(storyboard_limit) == 3 and display_timezone == "Asia/Seoul":
+        # Only newly produced briefs are persisted when no valid shared result
+        # exists; never refresh a record's 24-hour expiry merely by reading it.
+        if standard_brief and not stored_briefs and result.get("_news_status") != "error":
             try:
                 from .news_processed_results_store import save_issue_briefs
                 save_issue_briefs(stock_name, market, result.get("issue_briefs") or [])
