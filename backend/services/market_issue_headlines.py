@@ -15,9 +15,9 @@ from .news_result import get_shared_stock_news_result
 _ISSUE_CACHE = {}
 _ISSUE_PENDING = {}
 _ISSUE_LOCK = threading.Lock()
-_ISSUE_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="market-issues")
+_ISSUE_EXECUTOR = ThreadPoolExecutor(max_workers=3, thread_name_prefix="market-issues")
 _ISSUE_TTL = 15 * 60
-_EMPTY_TTL = 2 * 60
+_EMPTY_TTL = 15 * 60
 _MAX_ITEMS = 20
 _MAX_KEYS = 80
 
