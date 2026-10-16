@@ -3441,31 +3441,6 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
         price_metrics_text = str(price_result.get("first_reply_metrics_text") or "").strip()
         if price_metrics_text:
             first_content_parts.append(price_metrics_text)
-        # Show the same verified news issue that the sidebar already displays.
-        # Only read the 24-hour processed store when this analysis has no brief.
-        display_briefs = news_result.get("issue_briefs") or []
-        if not display_briefs:
-            try:
-                from .news_processed_results_store import read_issue_briefs_batch, _key
-                issue_market = "kr" if is_krw else "us"
-                saved = read_issue_briefs_batch(issue_market, [{"name": raw_name}])
-                display_briefs = saved.get(_key(issue_market, raw_name)) or []
-                if display_briefs:
-                    news_result["issue_briefs"] = display_briefs
-            except Exception as exc:
-                print(f"[central issues] read unavailable: {type(exc).__name__}", flush=True)
-        headline_brief = next(
-            (brief for brief in display_briefs
-             if isinstance(brief, dict) and str(brief.get("headline") or "").strip()),
-            None,
-        )
-        if headline_brief:
-            headline_text = str(headline_brief["headline"]).strip()
-            summary_text = str(headline_brief.get("summary") or "").strip()
-            first_content_parts.append(
-                "핵심 이슈: " + headline_text
-                + (("\n" + summary_text) if summary_text else "")
-            )
         first_content_parts.append(tags_str)
 
         sections = [
