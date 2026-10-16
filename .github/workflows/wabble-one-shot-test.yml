@@ -58,7 +58,7 @@ jobs:
           key=os.getenv("WABBLE_API_KEY","").strip()
           if not key: raise SystemExit("MISSING_WABBLE_API_KEY_SECRET")
           def get(path):
-              req=urllib.request.Request("https://wabble.news"+path,headers={"Authorization":"Bearer "+key,"Accept":"application/json"})
+              req=urllib.request.Request("https://wabble.news"+path,headers={"Authorization":"Bearer "+key,"Accept":"application/json","User-Agent":"gaemi-isolated-news-test/1"})
               try:
                   with urllib.request.urlopen(req,timeout=25) as response:
                       return response.status,json.load(response)
