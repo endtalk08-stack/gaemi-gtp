@@ -119,6 +119,7 @@
         }
         result.items.forEach((item, index) => {
           const button = document.createElement('button');
+          button.dataset.stockName = String(item.name || '');
           button.dataset.stockSymbol = String(item.symbol || '');
           button.dataset.originalIndex = String(index);
           button.dataset.originalRank = String(item.rank || index + 1);
@@ -193,6 +194,40 @@
         if (id === requestId) list.textContent = '순위 원천 데이터를 가져오지 못했어.';
       }
     };
+
+    // Only refresh the analyzed stock's existing DB-backed issue title.
+    // Never recollect news, rerank stocks, or replace the displayed list.
+    const refreshAnalyzedIssue = async (event) => {
+      const detail = event.detail || {};
+      const name = String(detail.name || '').trim();
+      const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
+      if (!name || !market || (tab !== 'popular' && tab !== 'value')) return;
+      if (detail.market && detail.market !== market) return;
+      const button = [...list.querySelectorAll(':scope > button[data-original-index]')]
+        .find((row) => row.dataset.stockName === name &&
+          (!detail.symbol || row.dataset.stockSymbol === String(detail.symbol)));
+      if (!button) return;
+      const currentRequestId = requestId;
+      try {
+        const response = await fetch(backendUrl + '/market/issue-headlines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market, items: [{ name, symbol: button.dataset.stockSymbol }] })
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (currentRequestId !== requestId || !list.contains(button)) return;
+        const updated = data.ok === true && Array.isArray(data.items) ? data.items[0] : null;
+        if (!updated || updated.name !== name || updated.symbol !== button.dataset.stockSymbol) return;
+        const issue = button.querySelector('[data-stock-issue]');
+        if (issue) issue.textContent = typeof updated.headline === 'string' ? updated.headline : '';
+      } catch (_) {
+        // Keep the previous headline on transient read failures.
+      }
+    };
+    window.addEventListener('gaemi:analysis-issues-ready', (event) => {
+      void refreshAnalyzedIssue(event);
+    });
 
     changeSortButton?.addEventListener('click', () => {
       changeSorted = !changeSorted;
