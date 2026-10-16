@@ -779,25 +779,19 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
         return None
     try:
         import psycopg
-        market_code = {"국내": "kr", "미국": "us", "kr": "kr", "us": "us"}.get(market, "")
         with psycopg.connect(database_url, connect_timeout=3) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT s.result_payload,
-                           (prev.created_at IS NULL OR s.processed_at >= prev.created_at)
-                    FROM public.news_processed_snapshots s
-                    LEFT JOIN public.news_processed_results_24h prev
-                      ON prev.result_type='stock_news_issue_briefs_v1'
-                     AND prev.result_key=to_json(ARRAY[%s, s.stock_name])::text
-                     AND prev.expires_at>now()
-                    WHERE s.market=%s AND s.stock_name=%s
-                      AND s.result_limit=%s AND s.storyboard_limit=%s
-                      AND s.display_timezone=%s AND s.expires_at>now()
+                    SELECT result_payload
+                    FROM public.news_processed_snapshots
+                    WHERE market=%s AND stock_name=%s
+                      AND result_limit=%s AND storyboard_limit=%s
+                      AND display_timezone=%s AND expires_at>now()
                     LIMIT 1
                     """,
-                    (market_code, market, str(stock_name), int(limit),
-                     int(storyboard_limit), display_timezone),
+                    (market, str(stock_name), int(limit), int(storyboard_limit),
+                     display_timezone),
                 )
                 row = cur.fetchone()
         result = row[0] if row else None
@@ -807,7 +801,7 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
             return None
         if not isinstance(result.get("issue_briefs"), list):
             return None
-        return result, bool(row[1])
+        return result
     except Exception as exc:
         print("[processed news] worker snapshot unavailable: "
               + type(exc).__name__, flush=True)
@@ -836,17 +830,14 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
 
         # Always read the fresh DigitalOcean snapshot before consulting the
         # fallback-only cache. A new snapshot must never wait 15 minutes.
-        worker_snapshot = _read_worker_news_snapshot(
+        worker_result = _read_worker_news_snapshot(
             stock_name, market=market, limit=limit,
             storyboard_limit=storyboard_limit,
             display_timezone=display_timezone,
         )
-        if worker_snapshot is not None:
-            worker_result, worker_is_newer = worker_snapshot
+        if worker_result is not None:
             result = copy.deepcopy(worker_result)
-            # Match the sidebar: prefer the freshest nonempty stored issue.
-            # A newer empty DO result must not erase a valid central brief.
-            if stored_briefs and (not result.get("issue_briefs") or not worker_is_newer):
+            if stored_briefs:
                 result["issue_briefs"] = copy.deepcopy(stored_briefs)
             return _sanitize_news_display_briefs(result)
 

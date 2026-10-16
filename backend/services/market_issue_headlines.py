@@ -33,7 +33,7 @@ def _valid_row(market, item):
 
 
 def _read_worker_briefs(market, names):
-    """Use DO titles when at least as fresh as stored central briefs, without news processing."""
+    """Fill missing requested ranking titles from DO worker, without processing news."""
     market_name = {"kr": "국내", "us": "미국"}.get(market)
     database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
     if not market_name or not database_url or not names:
@@ -44,18 +44,13 @@ def _read_worker_briefs(market, names):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT s.stock_name, s.result_payload->'issue_briefs'
-                    FROM public.news_processed_snapshots s
-                    LEFT JOIN public.news_processed_results_24h prev
-                      ON prev.result_type='stock_news_issue_briefs_v1'
-                     AND prev.result_key=to_json(ARRAY[%s, s.stock_name])::text
-                     AND prev.expires_at>now()
-                    WHERE s.market=%s AND s.stock_name = ANY(%s)
-                      AND s.result_limit=50 AND s.storyboard_limit=3
-                      AND s.display_timezone='Asia/Seoul' AND s.expires_at>now()
-                      AND (prev.created_at IS NULL OR s.processed_at >= prev.created_at)
+                    SELECT stock_name, result_payload->'issue_briefs'
+                    FROM public.news_processed_snapshots
+                    WHERE market=%s AND stock_name = ANY(%s)
+                      AND result_limit=50 AND storyboard_limit=3
+                      AND display_timezone='Asia/Seoul' AND expires_at>now()
                     """,
-                    (market, market_name, names),
+                    (market_name, names),
                 )
                 records = cur.fetchall()
         return {
@@ -78,14 +73,13 @@ def get_market_issue_headlines(market, items):
 
     # One database read for the entire ranking; never create background work.
     existing = read_issue_briefs_batch(market, rows)
-    # Prefer a newer DO result when it has a grounded headline.
-    # The SQL excludes DO snapshots older than the saved central-news brief.
-    # Empty DO issues must not erase an existing valid 24-hour issue.
-    worker_briefs = _read_worker_briefs(market, [row["name"] for row in rows])
+    missing = [row["name"] for row in rows
+               if not _first_headline(existing.get(_key(market, row["name"])))]
+    worker_briefs = _read_worker_briefs(market, missing) if missing else {}
     results = []
     for row in rows:
-        headline = (_first_headline(worker_briefs.get(row["name"]))
-                    or _first_headline(existing.get(_key(market, row["name"]))))
+        headline = (_first_headline(existing.get(_key(market, row["name"])))
+                    or _first_headline(worker_briefs.get(row["name"])))
         results.append({
             **row, "status": "ready" if headline else "unavailable",
             "headline": headline,
