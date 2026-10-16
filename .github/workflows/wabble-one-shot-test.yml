@@ -113,12 +113,41 @@ jobs:
           os.makedirs("deploy/status",exist_ok=True)
           with open("deploy/status/wabble-test.json","w",encoding="utf-8") as out: json.dump(report,out,ensure_ascii=False,indent=2)
           PY
+      - name: Count Nvidia stock news in the last 24 hours
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,urllib.parse,datetime
+          from datetime import timezone,timedelta
+          key=os.environ["WABBLE_API_KEY"]
+          now=datetime.datetime.now(timezone.utc)
+          begin=now-timedelta(hours=24)
+          found={}
+          counts={}
+          for term in ("Nvidia","NVDA"):
+              args={"categories":"stocks","q":term,"limit":100,"from":begin.isoformat(),"to":now.isoformat()}
+              url="https://wabble.news/v1/news?"+urllib.parse.urlencode(args)
+              req=urllib.request.Request(url,headers={"Authorization":"Bearer "+key,"User-Agent":"gaemi-isolated-news-test/1","Accept":"application/json"})
+              with urllib.request.urlopen(req,timeout=30) as resp:
+                  data=json.load(resp)
+              rows=data.get("data") or []
+              counts[term]=len(rows)
+              for row in rows:
+                  if isinstance(row,dict) and row.get("id"):
+                      found[row["id"]]={"headline":row.get("headline"),"publishedAt":row.get("publishedAt"),"excerptLength":len(row.get("excerpt") or "")}
+              print("SEARCH",term,"COUNT",len(rows),"MORE_PAGES",bool(data.get("next_cursor")))
+          report={"window_start":begin.isoformat(),"window_end":now.isoformat(),"queries":counts,"unique_count":len(found),"items":list(found.values())}
+          os.makedirs("deploy/status",exist_ok=True)
+          with open("deploy/status/wabble-nvda-24h.json","w") as fp:json.dump(report,fp,ensure_ascii=False,indent=2)
+          print("NVDA_24H_UNIQUE_COUNT",len(found))
+          for item in list(found.values())[:30]:print("NVDA_NEWS_TITLE",item["headline"])
+          PY
       - name: Save sanitized results for verification
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deploy/status/wabble-test.json
+          git add deploy/status/wabble-test.json deploy/status/wabble-nvda-24h.json
           if ! git diff --cached --quiet; then
             git commit -m "Record isolated Wabble API test summary"
             git push
