@@ -36,6 +36,14 @@ jobs:
           print("RESPONSE_FIELDS:",",".join(sorted(data.keys())))
           print("ITEM_COUNT:",len(records) if isinstance(records,list) else "unknown")
           if isinstance(records,list):
+              for row in records[:10]:
+                  if not isinstance(row,dict): continue
+                  print("STORY_FIELDS:",",".join(sorted(row.keys())))
+                  print("TEXT_FIELD_LENGTHS:",json.dumps({k:len(v) for k,v in row.items() if isinstance(v,str) and k not in ("id","imageUrl")},ensure_ascii=False))
+          else:
+              print("UNEXPECTED_DATA_SHAPE:",str(type(records).__name__))
+
+          if isinstance(records,list):
               for row in records[:20]:
                   if not isinstance(row,dict): continue
                   print("NEWS_SAMPLE:",json.dumps({k:str(row.get(k,""))[:350] for k in ("title","headline","excerpt","summary","published_at","categories","importance") if row.get(k) is not None},ensure_ascii=False))
