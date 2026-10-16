@@ -3396,43 +3396,28 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야\n개미들아! 오늘 축제야? 수익 달달하겠다 나까지 심장이 다 뛰네 ㅋㅋㅋ"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #가즈아   #불기둥"
+            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야"
         elif 0.5 <= change_pct < 5.0:
             status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야\n개미들아! 분위기 나쁘지 않은데? 이대로만 가자"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #우상향   #야금야금"
+            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야"
         elif -0.5 < change_pct < 0.5:
             status_emoji, title_word = '⚖️', '보합일까'
-            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네\n개미들아! 폭풍 전야처럼 조용한데?"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #눈치싸움   #방향탐색"
+            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네"
         elif -5.0 < change_pct <= -0.5:
             status_emoji, title_word = '❄️', '숨고르기일까'
-            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다\n개미들아! 물 한잔 마시고 차분하게 보자"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #숨고르기   #버터보자"
+            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다"
         else:
             status_emoji, title_word = '❄️', '빠질까'
-            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네\n개미들아! 멘탈 꽉 잡아 지금 공포에 투매 동참하면 세력한테 바닥에서 물량 털리는 거야 ㅠㅠ"
-            tags_str = f"#{raw_name}   #{change_pct:+.2f}%   #투매금지   #멘탈관리"
+            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네"
 
 
         # 첫 화면은 현재 주가를 가장 위에 배치한다.
-        # 그 아래에는 기존의 친근한 말투를 다시 살리고,
         # 그 다음 자리에 향후 AI 분석 영역이 들어간다.
         # 뉴스와 공시는 기존처럼 한 칸(빈 줄) 간격을 유지한다.
-        friendly_ment = (
-            intro_ment.split("\n", 1)[1]
-            if "\n" in intro_ment
-            else intro_ment
-        )
-
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
-        legacy_mood_tags = "   ".join(tags_str.split()[2:])
         price_tags = list(price_result.get("price_tags") or [])
         tags_str = "   ".join(price_tags)
-        if legacy_mood_tags:
-            tags_str = f"{tags_str}   {legacy_mood_tags}" if tags_str else legacy_mood_tags
 
         first_content_parts = [
             intro_ment,
