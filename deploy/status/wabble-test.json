@@ -1,6 +1,156 @@
 {
-  "status": 403,
-  "count": 0,
-  "samples": [],
-  "detail_status": "no_story_ids"
+  "status": 200,
+  "count": 6,
+  "samples": [
+    {
+      "headline": "A Trump administration official reportedly ordered regulators to withdraw an insider trading referral involving billions in oil and stock bets ahead of President Trump’s I",
+      "excerpt_length": 212,
+      "fields": [
+        "availableAt",
+        "category",
+        "detectedAt",
+        "enrichment",
+        "excerpt",
+        "headline",
+        "id",
+        "imageRights",
+        "imageUrl",
+        "importance",
+        "important",
+        "provenance",
+        "publishedAt",
+        "sourcePublishedAt",
+        "updatedAt"
+      ],
+      "enrichment_present": true
+    },
+    {
+      "headline": "Winklevoss files for a Zcash ETF with the SEC under Nasdaq-listed ticker $ZCSH.",
+      "excerpt_length": 0,
+      "fields": [
+        "availableAt",
+        "category",
+        "detectedAt",
+        "enrichment",
+        "excerpt",
+        "headline",
+        "id",
+        "imageRights",
+        "imageUrl",
+        "importance",
+        "important",
+        "provenance",
+        "publishedAt",
+        "sourcePublishedAt",
+        "updatedAt"
+      ],
+      "enrichment_present": true
+    },
+    {
+      "headline": "Nvidia announces a $150b share buyback authorization boost. $NVDA",
+      "excerpt_length": 0,
+      "fields": [
+        "availableAt",
+        "category",
+        "detectedAt",
+        "enrichment",
+        "excerpt",
+        "headline",
+        "id",
+        "imageRights",
+        "imageUrl",
+        "importance",
+        "important",
+        "provenance",
+        "publishedAt",
+        "sourcePublishedAt",
+        "updatedAt"
+      ],
+      "enrichment_present": true
+    },
+    {
+      "headline": "NVIDIA CEO Jensen Huang says we're entering a \"low IQ era\" where children won't need to learn basic math.",
+      "excerpt_length": 0,
+      "fields": [
+        "availableAt",
+        "category",
+        "detectedAt",
+        "enrichment",
+        "excerpt",
+        "headline",
+        "id",
+        "imageRights",
+        "imageUrl",
+        "importance",
+        "important",
+        "provenance",
+        "publishedAt",
+        "sourcePublishedAt",
+        "updatedAt"
+      ],
+      "enrichment_present": true
+    },
+    {
+      "headline": "DELL is up 150% since President Trump said to buy the stock on May 8.",
+      "excerpt_length": 0,
+      "fields": [
+        "availableAt",
+        "category",
+        "detectedAt",
+        "enrichment",
+        "excerpt",
+        "headline",
+        "id",
+        "imageRights",
+        "imageUrl",
+        "importance",
+        "important",
+        "provenance",
+        "publishedAt",
+        "sourcePublishedAt",
+        "updatedAt"
+      ],
+      "enrichment_present": true
+    },
+    {
+      "headline": "BlackRock plans to build customizable 401k funds for firms, according to the Wall Street Journal.",
+      "excerpt_length": 0,
+      "fields": [
+        "availableAt",
+        "category",
+        "detectedAt",
+        "enrichment",
+        "excerpt",
+        "headline",
+        "id",
+        "imageRights",
+        "imageUrl",
+        "importance",
+        "important",
+        "provenance",
+        "publishedAt",
+        "sourcePublishedAt",
+        "updatedAt"
+      ],
+      "enrichment_present": true
+    }
+  ],
+  "detail_status": 200,
+  "detail_fields": [
+    "availableAt",
+    "category",
+    "detectedAt",
+    "excerpt",
+    "headline",
+    "id",
+    "imageRights",
+    "imageUrl",
+    "importance",
+    "important",
+    "provenance",
+    "publishedAt",
+    "sourcePublishedAt",
+    "updatedAt"
+  ],
+  "detail_excerpt_length": 212
 }
