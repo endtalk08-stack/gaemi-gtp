@@ -7,7 +7,7 @@ import re
 import threading
 import time
 
-from backend.analysis.news.catalog import STOCK_UNIVERSE
+from backend.analysis.news.catalog import STOCK_UNIVERSE, canonical_us_news_name
 from backend.analysis.news import (
     build_connected_keyword_test,
     build_simple_today_news,
@@ -181,6 +181,10 @@ def build_stock_news_result(
     display_timezone="Asia/Seoul",
 ):
     """Return one shared stock-news result for every screen representation."""
+    # The DO snapshot remains keyed by the requested listing name, but all
+    # US article/entity checks use its verified catalog company identity.
+    if market in ("미국", "us"):
+        stock_name = canonical_us_news_name(stock_name)
     # Temporary per-article diagnostics; defaults to the reported stock only.
     # Override with a comma-separated GAEMIGTP_NEWS_DIAGNOSTIC_STOCKS value.
     monitored = {
@@ -813,6 +817,8 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
     key = (str(stock_name), market, int(limit), int(storyboard_limit), display_timezone)
     standard_brief = (int(limit) == 50 and int(storyboard_limit) == 3
                       and display_timezone == "Asia/Seoul")
+    news_name = canonical_us_news_name(stock_name) if market in ("미국", "us") else str(stock_name)
+    lookup_names = list(dict.fromkeys([str(stock_name), news_name]))
     with _SHARED_NEWS_LOCK:
         lock = _SHARED_NEWS_KEY_LOCKS.setdefault(key, threading.Lock())
     with lock:
@@ -822,8 +828,11 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         if standard_brief:
             try:
                 from .news_processed_results_store import _key, read_issue_briefs_batch
-                rows = read_issue_briefs_batch(market, [{"name": str(stock_name)}])
-                stored_briefs = rows.get(_key(market, stock_name)) or []
+                rows = read_issue_briefs_batch(
+                    market, [{"name": name} for name in lookup_names])
+                stored_briefs = next(
+                    (rows.get(_key(market, name)) for name in lookup_names
+                     if rows.get(_key(market, name))), [])
             except Exception as exc:
                 print("[processed news] shared brief read unavailable: "
                       + type(exc).__name__, flush=True)
@@ -835,6 +844,12 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
             storyboard_limit=storyboard_limit,
             display_timezone=display_timezone,
         )
+        if worker_result is None and news_name != str(stock_name):
+            worker_result = _read_worker_news_snapshot(
+                news_name, market=market, limit=limit,
+                storyboard_limit=storyboard_limit,
+                display_timezone=display_timezone,
+            )
         if worker_result is not None:
             result = copy.deepcopy(worker_result)
             if stored_briefs:

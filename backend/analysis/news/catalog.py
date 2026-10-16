@@ -48,3 +48,36 @@ STOCK_UNIVERSE = {
         "샌디스크": ["SNDK", "샌디스크", "SanDisk", "sandisk corporation"],
     },
 }
+
+
+# Exact Naver US listing labels observed alongside the news catalog names.
+# Only these verified spelling variants are mapped. Unknown companies and KR
+# names retain their original identity. A supplied ticker must match as well.
+_US_NEWS_LISTING_NAMES = {
+    "알파벳 Class A": ("알파벳", "GOOGL"),
+    "아마존닷컴": ("아마존", "AMZN"),
+    "팔란티어 테크놀로지스": ("팔란티어", "PLTR"),
+    "NVIDIA": ("엔비디아", "NVDA"),
+    "Apple": ("애플", "AAPL"),
+    "Microsoft": ("마이크로소프트", "MSFT"),
+}
+
+
+def canonical_us_news_name(name, *, symbol=None):
+    """Identify a known US listing's news-company name without altering UI labels.
+
+    A ranking symbol may have Naver's exchange suffix (.O/.N). If it conflicts
+    with a known company ticker, return the original name: never cross-join.
+    """
+    value = str(name or "").strip()
+    match = _US_NEWS_LISTING_NAMES.get(value)
+    if not match:
+        return value
+    canonical, expected_ticker = match
+    if symbol:
+        ticker = str(symbol).strip().upper()
+        if ticker.endswith((".O", ".N")):
+            ticker = ticker[:-2]
+        if ticker != expected_ticker:
+            return value
+    return canonical

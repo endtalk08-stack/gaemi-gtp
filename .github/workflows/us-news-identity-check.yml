@@ -1,0 +1,37 @@
+name: US news stock identity checks
+
+on:
+  pull_request:
+    paths:
+      - 'backend/analysis/news/catalog.py'
+      - 'backend/services/news_feed.py'
+      - 'backend/services/news_result.py'
+      - 'backend/services/market_issue_headlines.py'
+      - 'tests/test_us_stock_news_identity.py'
+      - '.github/workflows/us-news-identity-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile changed Python
+        run: python -m py_compile backend/analysis/news/catalog.py backend/services/news_feed.py backend/services/news_result.py backend/services/market_issue_headlines.py tests/test_us_stock_news_identity.py
+      - name: Focused US identity regressions
+        run: python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v
+      - name: Existing stock news queries
+        run: python -m unittest discover -s tests -p 'test_news_feed_queries.py' -v
+      - name: Existing US/KR ranking name normalization (isolated)
+        run: |
+          python -m unittest -v \
+            tests.test_market_trading_value.MarketTradingValueTests.test_naver_live_kr_popular_price_object_identity_and_rank \
+            tests.test_market_trading_value.MarketTradingValueTests.test_naver_live_us_popular_price_object_identity_and_rank \
+            tests.test_market_trading_value.MarketTradingValueTests.test_popular_ranking_reuses_kr_and_us_stock_normalization
