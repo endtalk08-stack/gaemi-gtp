@@ -551,10 +551,7 @@ def build_stock_news_result(
                 diag("selected_issue_article", item)
 
         if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates and not flow_material_candidates:
-            # Keep the already-validated news list instead of discarding the
-            # entire shared result when external article bodies are blocked.
-            # No unverified issue brief is created.
-            print(f"[analyze news] no verified issue bodies stock={stock_name}; keeping news feed", flush=True)
+            raise RuntimeError('all_candidate_article_bodies_unavailable')
 
         # Keep full article bodies local to this function, not in API records.
         detail_records = [
