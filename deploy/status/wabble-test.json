@@ -22,7 +22,37 @@
         "sourcePublishedAt",
         "updatedAt"
       ],
-      "enrichment_present": true
+      "enrichment_present": true,
+      "enrichment": {
+        "method": "text_rules_v1",
+        "assets": [
+          {
+            "symbol": "OIL",
+            "name": "Crude oil",
+            "type": "energy",
+            "match": "text_mention",
+            "mentions": [
+              {
+                "field": "headline",
+                "text": "oil",
+                "start": 124,
+                "end": 127
+              },
+              {
+                "field": "excerpt",
+                "text": "oil",
+                "start": 124,
+                "end": 127
+              }
+            ]
+          }
+        ],
+        "countries": [
+          "IR"
+        ],
+        "eventType": "news",
+        "contentFingerprint": "5d6016708a20f5432831418f"
+      }
     },
     {
       "headline": "Winklevoss files for a Zcash ETF with the SEC under Nasdaq-listed ticker $ZCSH.",
@@ -44,7 +74,14 @@
         "sourcePublishedAt",
         "updatedAt"
       ],
-      "enrichment_present": true
+      "enrichment_present": true,
+      "enrichment": {
+        "method": "text_rules_v1",
+        "assets": [],
+        "countries": [],
+        "eventType": "regulation",
+        "contentFingerprint": "8d5c3f3211a54d76b001010f"
+      }
     },
     {
       "headline": "Nvidia announces a $150b share buyback authorization boost. $NVDA",
@@ -66,7 +103,35 @@
         "sourcePublishedAt",
         "updatedAt"
       ],
-      "enrichment_present": true
+      "enrichment_present": true,
+      "enrichment": {
+        "method": "text_rules_v1",
+        "assets": [
+          {
+            "symbol": "NVDA",
+            "name": "Nvidia",
+            "type": "stock",
+            "match": "text_mention",
+            "mentions": [
+              {
+                "field": "headline",
+                "text": "Nvidia",
+                "start": 0,
+                "end": 6
+              },
+              {
+                "field": "headline",
+                "text": "NVDA",
+                "start": 61,
+                "end": 65
+              }
+            ]
+          }
+        ],
+        "countries": [],
+        "eventType": "news",
+        "contentFingerprint": "d0581aab45fddc9cb4b5c087"
+      }
     },
     {
       "headline": "NVIDIA CEO Jensen Huang says we're entering a \"low IQ era\" where children won't need to learn basic math.",
@@ -88,7 +153,29 @@
         "sourcePublishedAt",
         "updatedAt"
       ],
-      "enrichment_present": true
+      "enrichment_present": true,
+      "enrichment": {
+        "method": "text_rules_v1",
+        "assets": [
+          {
+            "symbol": "NVDA",
+            "name": "Nvidia",
+            "type": "stock",
+            "match": "text_mention",
+            "mentions": [
+              {
+                "field": "headline",
+                "text": "NVIDIA",
+                "start": 0,
+                "end": 6
+              }
+            ]
+          }
+        ],
+        "countries": [],
+        "eventType": "news",
+        "contentFingerprint": "b3f52e25ea357bfdc49269f9"
+      }
     },
     {
       "headline": "DELL is up 150% since President Trump said to buy the stock on May 8.",
@@ -110,7 +197,29 @@
         "sourcePublishedAt",
         "updatedAt"
       ],
-      "enrichment_present": true
+      "enrichment_present": true,
+      "enrichment": {
+        "method": "text_rules_v1",
+        "assets": [
+          {
+            "symbol": "DELL",
+            "name": "Dell",
+            "type": "stock",
+            "match": "text_mention",
+            "mentions": [
+              {
+                "field": "headline",
+                "text": "DELL",
+                "start": 0,
+                "end": 4
+              }
+            ]
+          }
+        ],
+        "countries": [],
+        "eventType": "news",
+        "contentFingerprint": "74d65af9e1bc283849143bad"
+      }
     },
     {
       "headline": "BlackRock plans to build customizable 401k funds for firms, according to the Wall Street Journal.",
@@ -132,7 +241,14 @@
         "sourcePublishedAt",
         "updatedAt"
       ],
-      "enrichment_present": true
+      "enrichment_present": true,
+      "enrichment": {
+        "method": "text_rules_v1",
+        "assets": [],
+        "countries": [],
+        "eventType": "news",
+        "contentFingerprint": "e833ae17bc72b5c10fa9af05"
+      }
     }
   ],
   "detail_status": 200,
