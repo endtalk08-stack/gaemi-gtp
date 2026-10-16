@@ -784,7 +784,20 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
             stock_name, market=market, limit=limit,
             storyboard_limit=storyboard_limit, display_timezone=display_timezone,
         )
-        if result.get("_news_status") == "error":
+        # The sidebar already reads the shared 24-hour processed issue.
+        # If a fresh article-body check yields no brief, retain that same
+        # existing brief for the central "notable flow" instead of erasing it.
+        # No new collection, AI call, route, or database write is needed.
+        if not result.get("issue_briefs"):
+            try:
+                from .news_processed_results_store import _key, read_issue_briefs_batch
+                saved = read_issue_briefs_batch(market, [{"name": str(stock_name)}])
+                previous_briefs = saved.get(_key(market, stock_name)) or []
+                if previous_briefs:
+                    result["issue_briefs"] = copy.deepcopy(previous_briefs[:int(storyboard_limit)])
+            except Exception as exc:
+                print(f"[processed news] existing brief read unavailable: {type(exc).__name__}", flush=True)
+        if result.get("_news_status") == "error" and not result.get("issue_briefs"):
             return result
         _sanitize_news_display_briefs(result)
         # Persist only the already-generated, visible news issue briefs.
