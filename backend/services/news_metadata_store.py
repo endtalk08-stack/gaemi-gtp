@@ -95,8 +95,9 @@ def read_cached_news(query, display, start):
     database_url = os.getenv("NEWS_DATABASE_URL", "").strip()
     if not database_url:
         return []
-    # Start the independent expiry worker on reads too, not only on new saves.
-    _start_cleanup_worker()
+    # Render reads only. DigitalOcean owns expiry cleanup.
+    if os.getenv('GAEMIGTP_NEWS_WORKER') == '1':
+        _start_cleanup_worker()
     try:
         import psycopg
         from email.utils import format_datetime
@@ -276,6 +277,8 @@ def _save(rows, query, display, start):
 
 def save_async(rows, query, display, start):
     """Nonblocking and bounded. Dropped jobs never affect live news display."""
+    if os.getenv('GAEMIGTP_NEWS_WORKER') != '1':
+        return
     if not rows or not os.getenv("NEWS_DATABASE_URL"):
         return
     _start_cleanup_worker()
