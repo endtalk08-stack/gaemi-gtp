@@ -100,6 +100,11 @@ def get_market_issue_headlines(market, items):
                 needs_processing.append(row)
 
         active = {row_key(row) for row in rows}
+        # Drop queued work for rankings no longer on screen. Running work is
+        # never interrupted; the shared news pipeline remains unchanged.
+        for old_key, future in list(_ISSUE_PENDING.items()):
+            if old_key not in active and future.cancel():
+                _ISSUE_PENDING.pop(old_key, None)
         for old_key in sorted(_ISSUE_CACHE, key=lambda key: _ISSUE_CACHE[key][0]):
             if len(_ISSUE_CACHE) + len(_ISSUE_PENDING) + len(needs_processing) <= _MAX_KEYS:
                 break
