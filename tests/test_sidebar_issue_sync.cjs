@@ -165,7 +165,7 @@ test('stale lookup must not write to a rebuilt sidebar', async () => {
 });
 
 test('central analysis announces only completed and populated briefs', () => {
-  assert.match(analysisSource, /Array\\.isArray\\(result\\.issue_briefs\\) && result\\.issue_briefs\\.length > 0/);
+  assert.match(analysisSource, /Array\.isArray\(result\.issue_briefs\) && result\.issue_briefs\.length > 0/);
   assert.match(analysisSource, /gaemi:analysis-issues-ready/);
-  assert.match(analysisSource, /session\\.marketSelection\\?\\.symbol/);
+  assert.match(analysisSource, /session\.marketSelection\?\.symbol/);
 });
