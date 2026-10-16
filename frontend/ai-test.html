@@ -42,6 +42,7 @@
       <option value="news">GPT-OSS 20B - 1모델</option>
       <option value="deep">GPT-OSS 120B - 2모델</option>
       <option value="compare">Qwen3.8 27B - 3모델</option>
+      <option value="cloudflare">Cloudflare GPT-OSS 20B - 4모델</option>
     </select>
     <label for="question">질문</label>
     <textarea id="question" maxlength="800">삼성전자 최근 뉴스와 공시에서 확인되는 핵심 재료를 3가지 이내로 설명해 줘. 부족한 데이터도 알려 줘.</textarea>
@@ -79,6 +80,8 @@
   const errors = {
     admin_test_disabled_or_unauthorized: "접근 불가: Render의 AI_TEST_ENABLED, AI_TEST_TOKEN, GROQ_API_KEY 설정 및 비밀번호를 확인하세요.",
     model_daily_limit: "선택한 모델의 오늘 테스트 횟수를 모두 사용했습니다.",
+    cloudflare_rate_limit: "Cloudflare Workers AI 무료 한도 또는 속도 제한에 도달했습니다.",
+    cloudflare_request_failed: "Cloudflare Workers AI 요청에 실패했습니다.",
     total_daily_limit: "전체 AI 하루 테스트 횟수를 모두 사용했습니다.",
     minute_limit: "분당 최대 2회입니다. 잠시 후 다시 시도하세요.",
     groq_rate_limit: "Groq 무료 요금제 자체 제한에 걸렸습니다.",
@@ -97,7 +100,8 @@
   const modelNames = {
     "openai/gpt-oss-20b": "GPT-OSS 20B - 1모델",
     "openai/gpt-oss-120b": "GPT-OSS 120B - 2모델",
-    "qwen/qwen3.8-27b": "Qwen3.8 27B - 3모델"
+    "qwen/qwen3.8-27b": "Qwen3.8 27B - 3모델",
+    "@cf/openai/gpt-oss-20b": "Cloudflare GPT-OSS 20B - 4모델"
   };
   function modelName(modelId) {
     return modelNames[modelId] || modelId || "미확인";
@@ -215,7 +219,8 @@
     }
   });
   askBtn.addEventListener("click", async function () {
-    if (!window.confirm("선택한 모델에 Groq 무료 한도 내에서 요청합니다. 계속할까요?")) return;
+    const provider = document.getElementById("role").value === "cloudflare" ? "Cloudflare Workers AI" : "Groq";
+    if (!window.confirm("선택한 모델에 " + provider + " API 요청을 보냅니다. 계속할까요?")) return;
     feedback.textContent = "기존 뉴스·공시·시세 조회 및 AI 분석 중...";
     askBtn.disabled = true;
     answer.textContent = "분석 중...";
