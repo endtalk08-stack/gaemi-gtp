@@ -29,5 +29,9 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v
       - name: Existing stock news queries
         run: python -m unittest discover -s tests -p 'test_news_feed_queries.py' -v
-      - name: Existing US/KR ranking normalization
-        run: python -m unittest discover -s tests -p 'test_market_trading_value.py' -v
+      - name: Existing US/KR ranking name normalization (isolated)
+        run: |
+          python -m unittest -v \
+            tests.test_market_trading_value.MarketTradingValueTests.test_naver_live_kr_popular_price_object_identity_and_rank \
+            tests.test_market_trading_value.MarketTradingValueTests.test_naver_live_us_popular_price_object_identity_and_rank \
+            tests.test_market_trading_value.MarketTradingValueTests.test_popular_ranking_reuses_kr_and_us_stock_normalization
