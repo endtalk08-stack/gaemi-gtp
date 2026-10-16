@@ -86,39 +86,6 @@
       return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 2 });
     };
 
-    // Read the already-processed issue headlines once; sidebar never triggers analysis.
-    const fillRankingIssues = async (market, id, items) => {
-      const stocks = items.map(item => ({
-        name: String(item.name || ''),
-        symbol: String(item.symbol || ''),
-      }));
-      try {
-        const response = await fetch(backendUrl + '/market/issue-headlines', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ market, items: stocks }),
-        });
-        if (!response.ok) throw new Error('issue results unavailable');
-        const data = await response.json();
-        if (id !== requestId) return;
-        if (data.ok !== true || !Array.isArray(data.items)) throw new Error('invalid issue result');
-        const bySymbol = new Map(data.items.map(row => [String(row.symbol || ''), row]));
-        list.querySelectorAll(':scope > button[data-stock-symbol]').forEach(button => {
-          const label = button.querySelector('[data-stock-issue]');
-          const item = bySymbol.get(button.dataset.stockSymbol);
-          if (!label || !item) return;
-          const text = item.status === 'ready' && item.headline ? item.headline : '';
-          label.textContent = text;
-          label.title = text;
-        });
-      } catch (_) {
-        if (id !== requestId) return;
-        list.querySelectorAll('[data-stock-issue]').forEach(label => {
-          if (label.textContent === '이슈 확인 중') label.textContent = '이슈 조회 지연';
-        });
-      }
-    };
-
     const showDomesticRanking = async () => {
       const id = ++requestId;
       if (!list) return;
@@ -212,7 +179,7 @@
           issue.dataset.stockIssue = 'true';
           issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
           issue.style.fontSize = '13px';
-          issue.textContent = '이슈 확인 중';
+          issue.textContent = typeof item.issue_headline === 'string' ? item.issue_headline : '';
           thirdRow.append(
             document.createElement('span'),
             industry,
@@ -222,7 +189,6 @@
           list.appendChild(button);
         });
         applyChangeSort();
-        void fillRankingIssues(market, id, result.items);
       } catch (_) {
         if (id === requestId) list.textContent = '순위 원천 데이터를 가져오지 못했어.';
       }
