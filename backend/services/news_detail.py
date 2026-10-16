@@ -161,7 +161,7 @@ def _read_url(url, with_source=False):
     now = time.time()
     with _CACHE_LOCK:
         cached = _CACHE.get(url)
-        if cached and now - cached[0] <= _CACHE_TTL:
+        if cached and now - cached[0] <= (_CACHE_TTL if cached[1] else 30):
             text = cached[1]
             kind = cached[2] if len(cached) > 2 else "unknown"
             return {"text": text, "source": kind} if with_source else text
@@ -169,8 +169,9 @@ def _read_url(url, with_source=False):
     request = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "gaemiGTP/1.0",
-            "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
         },
     )
     text, kind = "", "fetch_failed"
