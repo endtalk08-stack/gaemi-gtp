@@ -621,8 +621,8 @@ def _cloudflare_answer(question, context, max_completion_tokens=650, style_promp
         "model": "@cf/openai/gpt-oss-20b",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT + ("\n\n" + style_prompt if style_prompt else "")},
-            {"role": "user", "content": "참고 데이터(JSON):\\n"
-             + json.dumps(context, ensure_ascii=False) + "\\n\\n질문: " + question},
+            {"role": "user", "content": "참고 데이터(JSON):\n"
+             + json.dumps(context, ensure_ascii=False) + "\n\n질문: " + question},
         ],
         "max_tokens": max_completion_tokens,
         "temperature": 0.2,
