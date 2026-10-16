@@ -33,9 +33,31 @@ _PATTERNS = tuple(re.compile(pattern, re.IGNORECASE) for pattern in (
 ))
 
 
+def _strip_leading_stock_quote_widget(text: str) -> str:
+    """Remove a scraped quote/navigation widget only when its markers are explicit."""
+    content = str(text or "").strip()
+    # Some stock pages prepend a quote table before the actual report.
+    # Require several strong page chrome markers, and cap removal at the
+    # explicit '전 종목 시세 보기' boundary to avoid deleting article facts.
+    leading = content[:750]
+    boundary = re.search(r"전\s*종목\s*시세\s*보기", leading)
+    if not boundary:
+        return content
+    prefix = leading[:boundary.start()]
+    markers = (
+        r"증권정보\s*\d{5,6}",
+        r"KOSDAQ|KOSPI",
+        r"현재가\s*[\d,]+",
+        r"전일대비\s*[\d,]+",
+        r"등락률\s*[-+]?\d",
+    )
+    if sum(bool(re.search(pattern, prefix, re.IGNORECASE)) for pattern in markers) < 3:
+        return content
+    return content[boundary.end():].lstrip(" \t\r\n:|-")
+
 def strip_leading_news_credit(text: str) -> str:
     """Remove well-formed opening credits only; leave actual prose intact."""
-    content = str(text or "").strip()
+    content = _strip_leading_stock_quote_widget(text)
     for _ in range(4):
         for pattern in _PATTERNS:
             match = pattern.match(content)
