@@ -43,14 +43,15 @@
       const style = document.createElement('style');
       style.id = 'gaemi-ai-reply-format-css';
       style.textContent = [
-        '.gaemi-ai-reply-format { white-space: normal; overflow-wrap: anywhere; }',
-        '.gaemi-ai-reply-format .ai-reply-block { margin: 0 0 0.7em; line-height: 1.7; white-space: pre-wrap; }',
-        '.gaemi-ai-reply-format .ai-reply-block:last-of-type { margin-bottom: 0; }',
-        '.gaemi-ai-reply-format .ai-reply-heading { font-size: 1.05em; font-weight: 700; line-height: 1.5; margin-top: 0.95em; }',
-        '.gaemi-ai-reply-format .ai-reply-heading:first-child { margin-top: 0; }',
-        '.gaemi-ai-reply-format .ai-reply-list { padding-left: 1.4em; margin: 0 0 0.7em; white-space: normal; }',
-        '.gaemi-ai-reply-format .ai-reply-list li { margin: 0.2em 0; line-height: 1.65; white-space: pre-wrap; }',
-        '.gaemi-ai-reply-format strong { font-weight: 700; }'
+        '.gaemi-ai-reply-format { white-space: normal; overflow-wrap: break-word; }',
+        '.gaemi-ai-reply-format .ai-reply-block { margin: 0 0 0.8em; line-height: 1.76; white-space: pre-wrap; font-size: 1em; font-weight: 400; }',
+        '.gaemi-ai-reply-format .ai-reply-heading { display: block; font-size: 1.06em; font-weight: 750; line-height: 1.5; letter-spacing: -0.015em; margin: 1.2em 0 0.48em; padding: 0; white-space: normal; }',
+        '.gaemi-ai-reply-format > .ai-reply-heading:first-child { margin-top: 0; }',
+        '.gaemi-ai-reply-format .ai-reply-list { padding-left: 1.35em; margin: 0 0 0.85em; white-space: normal; }',
+        '.gaemi-ai-reply-format .ai-reply-list li { margin: 0.32em 0; line-height: 1.72; white-space: pre-wrap; }',
+        '.gaemi-ai-reply-format strong { font-weight: 730; }',
+        '.gaemi-ai-reply-format .ai-reply-heading + .ai-reply-block { margin-top: 0; }',
+        '.gaemi-ai-reply-format > .ai-reply-block:last-child, .gaemi-ai-reply-format > .ai-reply-list:last-child { margin-bottom: 0; }'
       ].join('\n');
       document.head.appendChild(style);
     }
@@ -74,12 +75,13 @@
           flushList();
           continue;
         }
-        const heading = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+        const markdownHeading = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+        const boldHeading = line.match(/^\s*\*\*(.{2,65}?)\*\*\s*[:：]?\s*$/);
         const item = line.match(/^\s{0,3}([-*+]|\d+[.)])\s+(.+)$/);
-        if (heading) {
+        if (markdownHeading || boldHeading) {
           flushParagraph();
           flushList();
-          blocks.push({ type: 'heading', text: heading[1] });
+          blocks.push({ type: 'heading', text: markdownHeading ? markdownHeading[1] : boldHeading[1] });
         } else if (item) {
           flushParagraph();
           const ordered = /^\d/.test(item[1]);
