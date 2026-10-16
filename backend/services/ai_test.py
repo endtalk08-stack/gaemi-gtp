@@ -371,7 +371,7 @@ def _provider_info():
             role: {
                 "label": model["label"],
                 "model_id": model["id"],
-                "reference_limits": dict(_GROQ_REFERENCE_LIMITS),
+                "reference_limits": ({} if role == "cloudflare" else dict(_GROQ_REFERENCE_LIMITS)),
             }
             for role, model in MODELS.items()
         },
@@ -838,10 +838,11 @@ def ai_test_chat():
                 "근거가 없는 숫자는 말하지 말고, 내부 JSON 필드명은 노출하지 마."
             ) if private_chat else None,
         ))
-        if admin_test and role != "cloudflare":
-            _remember_groq_remaining(role, provider_headers)
+        if admin_test:
+            if role != "cloudflare":
+                _remember_groq_remaining(role, provider_headers)
             _record_groq_call(role, "success", usage=usage)
-        print("[Groq AI test success] " + json.dumps({
+        print("[AI test success] " + json.dumps({
             "timestamp_kst": datetime.datetime.now(ZoneInfo("Asia/Seoul")).isoformat(timespec="seconds"),
             "role": role, "model_id": MODELS[role]["id"],
         }, ensure_ascii=False), flush=True)
@@ -878,7 +879,7 @@ def ai_test_chat():
             }), 429
         if admin_test and provider_called:
             _record_groq_call(role, "provider_error", http_status=exc.code)
-        print(f"[Groq AI test provider error] role={role} model={MODELS[role]['id']} status={exc.code}", flush=True)
+        print(f"[AI test provider error] role={role} model={MODELS[role]['id']} status={exc.code}", flush=True)
         return jsonify({
             "ok": False, "error": "cloudflare_request_failed" if role == "cloudflare" else "groq_request_failed",
             "limits": limits_for_request(),
