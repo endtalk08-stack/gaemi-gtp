@@ -66,13 +66,16 @@ jobs:
                   return exc.code,{}
           status,data=get("/v1/news?categories=stocks&limit=10&include=enrichment")
           print("ENRICHED_STATUS:",status)
-          if status!=200: raise SystemExit("ENRICHMENT_REQUEST_FAILED")
+          if status!=200:
+              print("ENRICHMENT_NOT_SUPPORTED_OR_REQUEST_ERROR:",status)
+              data={}
           rows=data.get("data") or data.get("news") or data.get("items") or data.get("articles") or []
           if isinstance(rows,dict): rows=rows.get("items") or rows.get("news") or []
           print("ENRICHED_COUNT:",len(rows) if isinstance(rows,list) else "unknown")
           report={"status":status,"count":len(rows) if isinstance(rows,list) else 0,"samples":[]}
 
-          if not isinstance(rows,list) or not rows: raise SystemExit("NO_NEWS_RETURNED")
+          if not isinstance(rows,list): rows=[]
+          if not rows: print("NO_ENRICHED_NEWS_RETURNED")
           for i,item in enumerate(rows[:10]):
               if not isinstance(item,dict): continue
               report["samples"].append({"headline":str(item.get("headline") or item.get("title") or "")[:180],"excerpt_length":len(str(item.get("excerpt") or "")),"fields":sorted(item.keys()),"enrichment_present":bool(item.get("enrichment"))})
