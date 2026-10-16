@@ -7,6 +7,7 @@ import os
 import re
 import time
 
+from backend.analysis.news.catalog import canonical_us_news_name
 from .news_processed_results_store import _key, read_issue_briefs_batch
 from .issue_briefs import grounded_issue_display_title
 
@@ -71,15 +72,33 @@ def get_market_issue_headlines(market, items):
     if any(row is None for row in rows):
         raise ValueError("invalid_stock_rows")
 
-    # One database read for the entire ranking; never create background work.
-    existing = read_issue_briefs_batch(market, rows)
-    missing = [row["name"] for row in rows
-               if not _first_headline(existing.get(_key(market, row["name"])))]
+    # Match only verified US ticker/name variants; keep source ranking labels.
+    # KR uses exactly its original keys and request path.
+    names_per_row = [
+        list(dict.fromkeys([
+            row["name"],
+            canonical_us_news_name(row["name"], symbol=row["symbol"])
+            if market == "us" else row["name"],
+        ]))
+        for row in rows
+    ]
+    all_names = list(dict.fromkeys(name for names in names_per_row for name in names))
+    existing = read_issue_briefs_batch(
+        market, [{"name": name} for name in all_names])
+    missing = list(dict.fromkeys(
+        name for names in names_per_row
+        if not any(_first_headline(existing.get(_key(market, n))) for n in names)
+        for name in names
+    ))
     worker_briefs = _read_worker_briefs(market, missing) if missing else {}
     results = []
-    for row in rows:
-        headline = (_first_headline(existing.get(_key(market, row["name"])))
-                    or _first_headline(worker_briefs.get(row["name"])))
+    for row, names in zip(rows, names_per_row):
+        headline = (
+            next((_first_headline(existing.get(_key(market, n)))
+                  for n in names if _first_headline(existing.get(_key(market, n)))), "")
+            or next((_first_headline(worker_briefs.get(n))
+                     for n in names if _first_headline(worker_briefs.get(n))), "")
+        )
         results.append({
             **row, "status": "ready" if headline else "unavailable",
             "headline": headline,
