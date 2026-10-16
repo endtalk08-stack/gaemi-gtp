@@ -23,7 +23,8 @@
       return true;
     }
 
-    // Parse complete bold markers before typing so their ** delimiters never flash.
+    // Keep the original AI text for history/actions, but render safe structured DOM.
+    // No HTML from a model response is ever evaluated.
     function getChatBoldSegments(text) {
       const segments = [];
       const boldPattern = /\*\*([^*\n]+)\*\*/g;
@@ -37,6 +38,105 @@
       return segments;
     }
 
+    function ensureReplyStyles() {
+      if (document.getElementById('gaemi-ai-reply-format-css')) return;
+      const style = document.createElement('style');
+      style.id = 'gaemi-ai-reply-format-css';
+      style.textContent = [
+        '.gaemi-ai-reply-format { white-space: normal; overflow-wrap: anywhere; }',
+        '.gaemi-ai-reply-format .ai-reply-block { margin: 0 0 0.7em; line-height: 1.7; white-space: pre-wrap; }',
+        '.gaemi-ai-reply-format .ai-reply-block:last-of-type { margin-bottom: 0; }',
+        '.gaemi-ai-reply-format .ai-reply-heading { font-size: 1.05em; font-weight: 700; line-height: 1.5; margin-top: 0.95em; }',
+        '.gaemi-ai-reply-format .ai-reply-heading:first-child { margin-top: 0; }',
+        '.gaemi-ai-reply-format .ai-reply-list { padding-left: 1.4em; margin: 0 0 0.7em; white-space: normal; }',
+        '.gaemi-ai-reply-format .ai-reply-list li { margin: 0.2em 0; line-height: 1.65; white-space: pre-wrap; }',
+        '.gaemi-ai-reply-format strong { font-weight: 700; }'
+      ].join('\n');
+      document.head.appendChild(style);
+    }
+
+    function parseReplyBlocks(text) {
+      const lines = text.replace(/\r\n?/g, '\n').split('\n');
+      const blocks = [];
+      let paragraph = [];
+      let list = null;
+      const flushParagraph = () => {
+        if (paragraph.length) blocks.push({ type: 'paragraph', text: paragraph.join('\n') });
+        paragraph = [];
+      };
+      const flushList = () => {
+        if (list) blocks.push(list);
+        list = null;
+      };
+      for (const line of lines) {
+        if (!line.trim()) {
+          flushParagraph();
+          flushList();
+          continue;
+        }
+        const heading = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+        const item = line.match(/^\s{0,3}([-*+]|\d+[.)])\s+(.+)$/);
+        if (heading) {
+          flushParagraph();
+          flushList();
+          blocks.push({ type: 'heading', text: heading[1] });
+        } else if (item) {
+          flushParagraph();
+          const ordered = /^\d/.test(item[1]);
+          if (!list || list.ordered !== ordered) {
+            flushList();
+            list = { type: 'list', ordered, start: ordered ? Number.parseInt(item[1], 10) : 1, items: [] };
+          }
+          list.items.push(item[2]);
+        } else {
+          flushList();
+          paragraph.push(line);
+        }
+      }
+      flushParagraph();
+      flushList();
+      return blocks;
+    }
+
+    async function typeReplyText(node, text, row, sessionId) {
+      for (const segment of getChatBoldSegments(text)) {
+        const target = segment.bold ? document.createElement('strong') : document.createTextNode('');
+        node.appendChild(target);
+        for (let index = 0; index < segment.text.length; index += 3) {
+          if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
+          target.textContent += segment.text.slice(index, index + 3);
+          row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          await new Promise((resolve) => setTimeout(resolve, 40));
+        }
+      }
+      return true;
+    }
+
+    async function typeStructuredReply(row, text, sessionId) {
+      ensureReplyStyles();
+      row.classList.add('gaemi-ai-reply-format');
+      for (const block of parseReplyBlocks(text)) {
+        if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
+        if (block.type === 'list') {
+          const listNode = document.createElement(block.ordered ? 'ol' : 'ul');
+          listNode.className = 'ai-reply-list';
+          if (block.ordered && block.start > 1) listNode.start = block.start;
+          row.appendChild(listNode);
+          for (const item of block.items) {
+            const li = document.createElement('li');
+            listNode.appendChild(li);
+            if (!await typeReplyText(li, item, row, sessionId)) return false;
+          }
+        } else {
+          const node = document.createElement(block.type === 'heading' ? 'div' : 'p');
+          node.className = 'ai-reply-block' + (block.type === 'heading' ? ' ai-reply-heading' : '');
+          row.appendChild(node);
+          if (!await typeReplyText(node, block.text, row, sessionId)) return false;
+        }
+      }
+      return true;
+    }
+
     // The five existing response actions are attached only after typing ends.
     async function appendChatReply(answer, sessionId) {
       const text = String(answer || '').trim();
@@ -45,16 +145,7 @@
       if (!row) return false;
       row.textContent = '';
       row.classList.add('typing-cursor');
-      for (const segment of getChatBoldSegments(text)) {
-        const node = segment.bold ? document.createElement('strong') : document.createTextNode('');
-        row.appendChild(node);
-        for (let index = 0; index < segment.text.length; index += 3) {
-          if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
-          node.textContent += segment.text.slice(index, index + 3);
-          row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          await new Promise((resolve) => setTimeout(resolve, 40));
-        }
-      }
+      if (!await typeStructuredReply(row, text, sessionId)) return false;
       row.classList.remove('typing-cursor');
       if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
       const actions = window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
