@@ -1,9 +1,15 @@
 {
-  "window_start": "2026-10-15T05:46:35.096964+00:00",
-  "window_end": "2026-10-16T05:46:35.096964+00:00",
+  "window_start": "2026-10-15T05:47:13.966596+00:00",
+  "window_end": "2026-10-16T05:47:13.966596+00:00",
   "queries": {
-    "Nvidia": 0,
-    "NVDA": 0
+    "Nvidia": {
+      "returned": 2,
+      "next_cursor": false
+    },
+    "NVDA": {
+      "returned": 1,
+      "next_cursor": false
+    }
   },
   "unique_count": 0,
   "items": []
