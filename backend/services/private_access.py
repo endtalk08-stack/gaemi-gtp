@@ -83,6 +83,15 @@ def install_private_access(app, frontend_dir):
             return None
         if request.path == "/health" or request.path.startswith("/dev-access/"):
             return None
+        # The news worker may read only the two existing ranking GET routes.
+        # This is not a login session and never grants access to other paths.
+        if (request.method == "GET"
+                and request.path in ("/market/trading-value", "/market/popular")):
+            shared_token = os.getenv("NEWS_WORKER_RANKING_TOKEN", "").strip()
+            supplied_token = request.headers.get("X-Gaemi-News-Worker-Token", "")
+            if (len(shared_token) >= 32 and len(supplied_token) <= 512
+                    and hmac.compare_digest(supplied_token, shared_token)):
+                return None
         if _authorized():
             return None
         if request.path in {"/", "/index.html"}:
