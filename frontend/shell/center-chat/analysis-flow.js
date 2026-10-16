@@ -447,6 +447,17 @@
             // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
             if (secIdx === 0) {
               const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(pEl, pEl.innerText, 'first', stockName);
+              // Display the verified issue already included in this stock's analysis.
+              // No extra news collection, analysis, AI request, or DB write.
+              const firstIssue = (Array.isArray(result.issue_briefs) ? result.issue_briefs : [])
+                .find((item) => item && typeof item.headline === 'string' && item.headline.trim());
+              if (firstIssue) {
+                const issueLine = document.createElement('p');
+                issueLine.className = responseMessageClass + ' mt-3';
+                issueLine.dataset.centralStockIssue = 'true';
+                issueLine.textContent = '핵심 이슈: ' + firstIssue.headline.trim();
+                pEl.insertAdjacentElement('afterend', issueLine);
+              }
               appendNextAnalysisChoices(actions);
               return;
             }
