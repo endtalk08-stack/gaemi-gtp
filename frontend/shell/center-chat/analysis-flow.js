@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   function create(ctx) {
-    function startTypewriterFlow(stockName, sections, result, requestId, marketSelection = null) {
+    function startTypewriterFlow(stockName, sections, result, requestId) {
       if (requestId !== ctx.getActiveAnalysisRequestId()) return;
       const chatArea = document.getElementById('chatArea');
       const wrapperId = 'stream-' + Date.now();
@@ -447,37 +447,6 @@
             // 본문 안의 📰/📌 텍스트 파싱은 더 이상 사용하지 않는다.
             if (secIdx === 0) {
               const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(pEl, pEl.innerText, 'first', stockName);
-              // Display the verified issue already included in this stock's analysis.
-              // No extra news collection, analysis, AI request, or DB write.
-              const initialIssue = (Array.isArray(result.issue_briefs) ? result.issue_briefs : [])
-                .find((item) => item && typeof item.headline === 'string' && item.headline.trim());
-              const issueLine = document.createElement('p');
-              issueLine.className = responseMessageClass + ' mt-3';
-              issueLine.dataset.centralStockIssue = 'true';
-              if (initialIssue) {
-                issueLine.textContent = '핵심 이슈: ' + initialIssue.headline.trim();
-                pEl.insertAdjacentElement('afterend', issueLine);
-              } else {
-                // Reuse the same 24-hour Neon brief endpoint as the sidebar.
-                // The central screen does not collect news or invoke AI.
-                const stock = String(stockName || '').trim();
-                if (stock && requestId === ctx.getActiveAnalysisRequestId()) {
-                  const market = marketSelection?.market === 'kr' || marketSelection?.market === 'us'
-                    ? marketSelection.market : '';
-                  const params = new URLSearchParams({ stock });
-                  if (market) params.set('market', market);
-                  fetch('/market/stock-issue?' + params.toString())
-                    .then((response) => response.ok ? response.json() : null)
-                    .then((data) => {
-                      if (requestId !== ctx.getActiveAnalysisRequestId() || !pEl.isConnected) return;
-                      const headline = data?.headline;
-                      if (typeof headline === 'string' && headline.trim()) {
-                        issueLine.textContent = '핵심 이슈: ' + headline.trim();
-                        pEl.insertAdjacentElement('afterend', issueLine);
-                      }
-                    }).catch(() => {});
-                }
-              }
               appendNextAnalysisChoices(actions);
               return;
             }
@@ -569,7 +538,7 @@
         sections: sections.map(({ id, title, content }) => ({ id, title, content }))
       });
       window.GaemiGTPApp?.saveChatHistory?.();
-      startTypewriterFlow(stockName, sections, result, requestId, session.marketSelection);
+      startTypewriterFlow(stockName, sections, result, requestId);
     }
 
 
