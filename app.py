@@ -114,6 +114,26 @@ def market_popular():
                     "currency": "USD" if market == "us" else "KRW", "items": items})
 
 
+@app.get("/market/stock-issue")
+def market_stock_issue():
+    """Read one saved 24-hour news headline for central display; never analyze."""
+    import re
+    from backend.services.news_processed_results_store import _key, read_issue_briefs_batch
+    stock = str(request.args.get("stock") or "").strip()
+    market = str(request.args.get("market") or "").strip().lower()
+    if not stock or len(stock) > 60 or not re.fullmatch(r"[\w .&+()\-]{1,60}", stock):
+        return jsonify({"ok": False, "headline": "", "error": "invalid_stock"}), 400
+    markets = (market,) if market in ("kr", "us") else ("kr", "us")
+    for selected_market in markets:
+        results = read_issue_briefs_batch(selected_market, [{"name": stock}])
+        briefs = results.get(_key(selected_market, stock)) or []
+        for brief in briefs:
+            headline = str(brief.get("headline") or "").strip()
+            if headline and headline not in ("기사 주요 내용", "관련 이슈"):
+                return jsonify({"ok": True, "headline": headline, "market": selected_market})
+    return jsonify({"ok": True, "headline": ""})
+
+
 @app.post("/market/issue-headlines")
 def market_issue_headlines():
     """Reuse verified stock-news results, one representative issue per ranking row."""
