@@ -1,14 +1,30 @@
 {
-  "window_start": "2026-10-15T05:47:13.966596+00:00",
-  "window_end": "2026-10-16T05:47:13.966596+00:00",
+  "window_start": "2026-10-15T05:47:43.276068+00:00",
+  "window_end": "2026-10-16T05:47:43.276068+00:00",
   "queries": {
     "Nvidia": {
       "returned": 2,
-      "next_cursor": false
+      "next_cursor": false,
+      "publication_samples": [
+        {
+          "title": "Nvidia announces a $150b share buyback authorization boost. $NVDA",
+          "publishedAt": 1790593340000
+        },
+        {
+          "title": "NVIDIA CEO Jensen Huang says we're entering a \"low IQ era\" where children won't need to learn basic ",
+          "publishedAt": 1790349047000
+        }
+      ]
     },
     "NVDA": {
       "returned": 1,
-      "next_cursor": false
+      "next_cursor": false,
+      "publication_samples": [
+        {
+          "title": "Nvidia announces a $150b share buyback authorization boost. $NVDA",
+          "publishedAt": 1790593340000
+        }
+      ]
     }
   },
   "unique_count": 0,
