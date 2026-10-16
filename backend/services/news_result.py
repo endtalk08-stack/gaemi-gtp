@@ -809,42 +809,13 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul"):
     key = (str(stock_name), market, int(limit), int(storyboard_limit), display_timezone)
+    standard_brief = (int(limit) == 50 and int(storyboard_limit) == 3
+                      and display_timezone == "Asia/Seoul")
     with _SHARED_NEWS_LOCK:
         lock = _SHARED_NEWS_KEY_LOCKS.setdefault(key, threading.Lock())
     with lock:
-        with _SHARED_NEWS_LOCK:
-            cached = _SHARED_NEWS_CACHE.get(key)
-            if cached and time.monotonic() - cached[0] < _SHARED_NEWS_TTL:
-                return copy.deepcopy(cached[1])
-        # Prefer the worker-computed full payload, avoiding Render-side news
-        # collection and processing whenever an unexpired snapshot exists.
-        worker_result = _read_worker_news_snapshot(
-            stock_name, market=market, limit=limit,
-            storyboard_limit=storyboard_limit,
-            display_timezone=display_timezone,
-        )
-        if worker_result is not None:
-            # The sidebar first reads the existing 24h issue-brief store.
-            # Mirror that precedence in the central body, even when the
-            # worker snapshot has no selected issue (or a different one).
-            try:
-                from .news_processed_results_store import _key, read_issue_briefs_batch
-                stored = read_issue_briefs_batch(market, [{"name": str(stock_name)}])
-                sidebar_briefs = stored.get(_key(market, stock_name)) or []
-                if sidebar_briefs:
-                    worker_result["issue_briefs"] = copy.deepcopy(sidebar_briefs)
-            except Exception as exc:
-                print("[processed news] sidebar brief match unavailable: "
-                      + type(exc).__name__, flush=True)
-            result = _sanitize_news_display_briefs(copy.deepcopy(worker_result))
-            with _SHARED_NEWS_LOCK:
-                if len(_SHARED_NEWS_CACHE) >= 96:
-                    _SHARED_NEWS_CACHE.clear()
-                _SHARED_NEWS_CACHE[key] = (time.monotonic(), copy.deepcopy(result))
-            return result
-        # This is the same existing 24-hour processed result that the fast
-        # sidebar reads. Treat it as authoritative for the central issue block.
-        standard_brief = int(limit) == 50 and int(storyboard_limit) == 3 and display_timezone == "Asia/Seoul"
+        # Recheck the same authoritative brief store as the sidebar on every
+        # request; the expensive news fallback alone remains in the 15m cache.
         stored_briefs = []
         if standard_brief:
             try:
@@ -852,29 +823,52 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
                 rows = read_issue_briefs_batch(market, [{"name": str(stock_name)}])
                 stored_briefs = rows.get(_key(market, stock_name)) or []
             except Exception as exc:
-                print(f"[processed news] shared brief read unavailable: {type(exc).__name__}", flush=True)
+                print("[processed news] shared brief read unavailable: "
+                      + type(exc).__name__, flush=True)
 
-        result = build_stock_news_result(
+        # Always read the fresh DigitalOcean snapshot before consulting the
+        # fallback-only cache. A new snapshot must never wait 15 minutes.
+        worker_result = _read_worker_news_snapshot(
             stock_name, market=market, limit=limit,
-            storyboard_limit=storyboard_limit, display_timezone=display_timezone,
+            storyboard_limit=storyboard_limit,
+            display_timezone=display_timezone,
         )
-        if stored_briefs:
-            # Do not replace a still-valid processed result with a differing
-            # freshly generated result, including an empty/error result.
-            result["issue_briefs"] = copy.deepcopy(stored_briefs)
-        if result.get("_news_status") == "error" and not stored_briefs:
-            return result
-        _sanitize_news_display_briefs(result)
-        # Only newly produced briefs are persisted when no valid shared result
-        # exists; never refresh a record's 24-hour expiry merely by reading it.
-        if standard_brief and not stored_briefs and result.get("_news_status") != "error":
-            try:
-                from .news_processed_results_store import save_issue_briefs
-                save_issue_briefs(stock_name, market, result.get("issue_briefs") or [])
-            except Exception as exc:
-                print(f"[processed news] issue brief save unavailable: {type(exc).__name__}", flush=True)
+        if worker_result is not None:
+            result = copy.deepcopy(worker_result)
+            if stored_briefs:
+                result["issue_briefs"] = copy.deepcopy(stored_briefs)
+            return _sanitize_news_display_briefs(result)
+
         with _SHARED_NEWS_LOCK:
-            if len(_SHARED_NEWS_CACHE) >= 96:
-                _SHARED_NEWS_CACHE.clear()
-            _SHARED_NEWS_CACHE[key] = (time.monotonic(), copy.deepcopy(result))
-        return result
+            cached = _SHARED_NEWS_CACHE.get(key)
+            fallback_result = (copy.deepcopy(cached[1])
+                               if cached and time.monotonic() - cached[0] < _SHARED_NEWS_TTL
+                               else None)
+        if fallback_result is None:
+            # Render processes news only for stocks without a valid DO result.
+            fallback_result = build_stock_news_result(
+                stock_name, market=market, limit=limit,
+                storyboard_limit=storyboard_limit,
+                display_timezone=display_timezone,
+            )
+            # Cache only the unmodified fallback payload. Never cache an
+            # override from the 24h store: it could expire or be updated.
+            if fallback_result.get("_news_status") != "error":
+                with _SHARED_NEWS_LOCK:
+                    if len(_SHARED_NEWS_CACHE) >= 96:
+                        _SHARED_NEWS_CACHE.clear()
+                    _SHARED_NEWS_CACHE[key] = (
+                        time.monotonic(), copy.deepcopy(fallback_result))
+                if standard_brief and not stored_briefs:
+                    try:
+                        from .news_processed_results_store import save_issue_briefs
+                        save_issue_briefs(stock_name, market,
+                                          fallback_result.get("issue_briefs") or [])
+                    except Exception as exc:
+                        print("[processed news] issue brief save unavailable: "
+                              + type(exc).__name__, flush=True)
+
+        result = copy.deepcopy(fallback_result)
+        if stored_briefs:
+            result["issue_briefs"] = copy.deepcopy(stored_briefs)
+        return _sanitize_news_display_briefs(result)
