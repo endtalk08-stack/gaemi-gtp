@@ -569,7 +569,7 @@ def _previous_day_reply(question, metrics):
     return f"전 거래일({date_text}) 기준 " + ", ".join(facts) + "."
 
 
-def _groq_answer(model_id, question, context, max_completion_tokens=650, style_prompt=None):
+def _groq_answer(model_id, question, context, max_completion_tokens=1500, style_prompt=None):
     payload = {
         "model": model_id,
         "messages": [
@@ -609,7 +609,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=650, style_p
     return answer.strip()[:4000], (usage if isinstance(usage, dict) else None), provider_headers
 
 
-def _cloudflare_answer(question, context, max_completion_tokens=650, style_prompt=None):
+def _cloudflare_answer(question, context, max_completion_tokens=1500, style_prompt=None):
     """Cloudflare Workers AI is available only for administrator model 4 tests."""
     account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
     api_token = (os.environ.get("CLOUDFLARE_API_TOKEN") or
