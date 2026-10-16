@@ -31,6 +31,7 @@ def _first_headline(briefs):
 
 
 def _prepare_issue(key, stock_name, market):
+    started = time.monotonic()
     headline = ""
     failed = False
     try:
@@ -48,6 +49,7 @@ def _prepare_issue(key, stock_name, market):
         if not failed:
             _ISSUE_CACHE[key] = (time.monotonic(), headline)
         _ISSUE_PENDING.pop(key, None)
+    print(f"[market issue timing] stage=process market={market} elapsed={time.monotonic()-started:.2f}s status={'error' if failed else 'ready' if headline else 'empty'}", flush=True)
 
 
 def _valid_row(market, item):
@@ -62,6 +64,7 @@ def _valid_row(market, item):
 
 
 def get_market_issue_headlines(market, items):
+    started = time.monotonic()
     if market not in ("kr", "us") or not isinstance(items, list) or not 1 <= len(items) <= _MAX_ITEMS:
         raise ValueError("invalid_market_issue_request")
     rows = [_valid_row(market, item) for item in items]
@@ -81,7 +84,9 @@ def get_market_issue_headlines(market, items):
                  >= (_ISSUE_TTL if _ISSUE_CACHE[row_key(row)][1] else _EMPTY_TTL))
         ]
     if missing:
+        db_started = time.monotonic()
         existing = read_issue_briefs_batch(market, missing)
+        print(f"[market issue timing] stage=db market={market} rows={len(missing)} hits={len(existing)} elapsed={time.monotonic()-db_started:.2f}s", flush=True)
         with _ISSUE_LOCK:
             for row in missing:
                 key = row_key(row)
@@ -131,5 +136,6 @@ def get_market_issue_headlines(market, items):
             else:
                 status, headline = "unavailable", ""
             results.append({**row, "status": status, "headline": headline})
+    print(f"[market issue timing] stage=response market={market} rows={len(rows)} ready={sum(row['status']=='ready' for row in results)} pending={sum(row['status']=='pending' for row in results)} elapsed={time.monotonic()-started:.2f}s", flush=True)
     return {"ok": True, "market": market, "items": results,
             "pending": any(row["status"] == "pending" for row in results)}
