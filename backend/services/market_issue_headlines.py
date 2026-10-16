@@ -8,13 +8,14 @@ import re
 import time
 
 from .news_processed_results_store import _key, read_issue_briefs_batch
+from .issue_briefs import grounded_issue_display_title
 
 _MAX_ITEMS = 20
 
 
 def _first_headline(briefs):
     for brief in briefs or []:
-        headline = str(brief.get("headline") or "").strip() if isinstance(brief, dict) else ""
+        headline = grounded_issue_display_title(brief)
         if headline and headline not in {"기사 주요 내용", "관련 이슈"}:
             return headline
     return ""
