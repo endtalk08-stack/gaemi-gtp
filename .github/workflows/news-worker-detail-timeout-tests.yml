@@ -1,0 +1,26 @@
+name: News worker article timeout tests
+
+on:
+  pull_request:
+    paths:
+      - 'backend/services/news_detail.py'
+      - 'tests/test_news_worker_detail_timeout.py'
+      - '.github/workflows/news-worker-detail-timeout-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-reader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Existing article extraction checks
+        run: python -m unittest discover -s tests -p 'test_news_detail.py' -v
+      - name: Timeout and HTTP 403 safety checks
+        run: python -m unittest discover -s tests -p 'test_news_worker_detail_timeout.py' -v
