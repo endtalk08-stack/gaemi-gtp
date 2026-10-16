@@ -228,7 +228,7 @@
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            role: 'cloudflare', stock, question, history,
+            role: 'compare', stock, question, history,
             ...(marketSelection ? { market_selection: {
               market: marketSelection.market, menu: marketSelection.menu,
               symbol: marketSelection.symbol,
