@@ -729,6 +729,21 @@ def ai_test_chat():
             context = _context(stock, result)
             if private_chat:
                 remember_chat_analysis(stock, result, selection=selected)
+        # Reuse the same verified Neon issue briefs already visible in the sidebar.
+        if private_chat and not context.get("issue_briefs"):
+            try:
+                from .news_processed_results_store import read_issue_briefs_batch, _key
+                from .engine import TICKERS
+                ticker_for_issue = TICKERS.get(stock, "")
+                issue_market = selected["market"] if selected else (
+                    "kr" if ticker_for_issue.endswith((".KS", ".KQ")) else "us"
+                )
+                saved = read_issue_briefs_batch(issue_market, [{"name": stock}])
+                existing = saved.get(_key(issue_market, stock)) or []
+                if existing:
+                    context = {**context, "issue_briefs": existing}
+            except Exception as exc:
+                print(f"[chat issues] read unavailable: {type(exc).__name__}", flush=True)
         if selected:
             # Include only the server's existing menu result, not client-priced data.
             context = {**context, "market_selection": {
