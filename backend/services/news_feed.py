@@ -181,9 +181,8 @@ def _schedule_refresh(cache_key, query, display, start, stored):
 
 
 def _fetch_query(query, display=20, start=1, *, raise_on_error=False):
-    # Render only reads collected news; DigitalOcean is the sole collector/writer.
-    if os.getenv("GAEMIGTP_NEWS_WORKER") != "1":
-        return read_cached_news(query, display, start)
+    # Use Neon first; preserve provider fallback when the requested news is absent.
+    # Render DB writes remain blocked in news_metadata_store.save_async.
     cache_key = (query, int(display), int(start))
     now = time.time()
     with _CACHE_LOCK:
