@@ -17,6 +17,7 @@ from backend.analysis.news import (
 
 from .news_byline import strip_leading_news_credit
 from .issue_briefs import (
+    grounded_issue_display_title,
     _article_excerpt, build_issue_briefs, central_material_brief_supported,
     market_material_title_and_tags,
 )
@@ -767,6 +768,7 @@ def _sanitize_news_display_briefs(result):
     for brief in result.get("issue_briefs") or []:
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
             brief["summary"] = strip_leading_news_credit(brief["summary"])
+            brief["headline"] = grounded_issue_display_title(brief)
     return result
 
 
