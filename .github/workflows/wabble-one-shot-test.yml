@@ -48,3 +48,41 @@ jobs:
                   if not isinstance(row,dict): continue
                   print("NEWS_SAMPLE:",json.dumps({k:str(row.get(k,""))[:350] for k in ("title","headline","excerpt","summary","published_at","categories","importance") if row.get(k) is not None},ensure_ascii=False))
           PY
+
+      - name: Compare enrichment and individual story safely
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error,urllib.parse
+          key=os.getenv("WABBLE_API_KEY","").strip()
+          if not key: raise SystemExit("MISSING_WABBLE_API_KEY_SECRET")
+          def get(path):
+              req=urllib.request.Request("https://wabble.news"+path,headers={"Authorization":"Bearer "+key,"Accept":"application/json"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as response:
+                      return response.status,json.load(response)
+              except urllib.error.HTTPError as exc:
+                  return exc.code,{}
+          status,data=get("/v1/news?categories=stocks&limit=10&include=enrichment")
+          print("ENRICHED_STATUS:",status)
+          if status!=200: raise SystemExit("ENRICHMENT_REQUEST_FAILED")
+          rows=data.get("data") or data.get("news") or data.get("items") or data.get("articles") or []
+          if isinstance(rows,dict): rows=rows.get("items") or rows.get("news") or []
+          print("ENRICHED_COUNT:",len(rows) if isinstance(rows,list) else "unknown")
+          if not isinstance(rows,list) or not rows: raise SystemExit("NO_NEWS_RETURNED")
+          for i,item in enumerate(rows[:10]):
+              if not isinstance(item,dict): continue
+              print("ROW:",json.dumps({"index":i,"headline":str(item.get("headline") or item.get("title") or "")[:180],"excerpt_length":len(str(item.get("excerpt") or "")),"fields":sorted(item.keys()),"enrichment":item.get("enrichment")},ensure_ascii=False,default=str)[:1600])
+          first=next((item for item in rows if isinstance(item,dict) and item.get("id")),None)
+          if not first:
+              print("NO_STORY_IDS")
+          else:
+              status,detail=get("/v1/news/"+urllib.parse.quote(str(first["id"]),safe=""))
+              story=detail.get("data") or detail.get("news") or detail.get("story") or detail
+              if isinstance(story,list): story=story[0] if story else {}
+              if not isinstance(story,dict): story={}
+              print("DETAIL_STATUS:",status)
+              print("DETAIL_FIELDS:",sorted(story.keys()))
+              print("DETAIL_TEXT_LENGTHS:",json.dumps({k:len(v) for k,v in story.items() if isinstance(v,str) and k not in ("id","imageUrl")},ensure_ascii=False))
+              print("DETAIL_ENRICHMENT:",json.dumps(story.get("enrichment"),ensure_ascii=False,default=str)[:1200])
+          PY
