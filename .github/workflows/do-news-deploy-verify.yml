@@ -1,0 +1,36 @@
+name: Verify DigitalOcean deploy SSH
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-deploy-verify.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Verify dedicated deploy identity and write access
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST"
+          test -n "$SSH_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" '
+            set -eu
+            test "$(id -un)" = gaemi-deploy
+            test -w /opt/gaemigtp-news/app/backend/news_worker.py
+            test -w /opt/gaemigtp-news/app/backend
+            echo "DEPLOY_SSH_OK"
+            echo "APP_WRITE_OK"
+          '
+# Verification only. No deploy, restart, or AI API calls.
