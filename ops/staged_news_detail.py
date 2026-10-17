@@ -78,10 +78,11 @@ class _ArticleHTMLParser(HTMLParser):
         tag = str(tag or "").lower()
         attrs_dict = {str(key or "").lower(): value for key, value in attrs}
         if tag == "div":
-            if str(attrs_dict.get("id") or "").lower() == "divnewscontent":
-                self.news_content_depth = 1
-            elif self.news_content_depth:
+            if self.news_content_depth:
                 self.news_content_depth += 1
+            elif (str(attrs_dict.get("id") or "").lower() == "divnewscontent"
+                  or str(attrs_dict.get("itemprop") or "").lower() == "articlebody"):
+                self.news_content_depth = 1
         if tag == "article":
             self.article_depth += 1
         elif tag == "main":
