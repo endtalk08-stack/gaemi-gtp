@@ -27,3 +27,51 @@ def parse_issues(response_text):
         if not isinstance(tags, list) or len(tags) > 3 or any(not isinstance(t, str) or not t.startswith("#") for t in tags):
             raise ValueError("Invalid tags")
     return issues
+
+
+def analyze_news(stock_name, articles):
+    """One Groq request for one stock. Caller handles once-daily scheduling."""
+    import os
+    import urllib.request
+
+    if not articles:
+        return []
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("Groq key is not configured on the news worker")
+
+    news = []
+    for article in articles:
+        if not isinstance(article, dict):
+            continue
+        news.append({
+            "title": str(article.get("title") or "")[:300],
+            "content": str(article.get("body") or article.get("description") or "")[:2400],
+            "published_at": str(article.get("pubDate") or article.get("published_at") or "")[:80],
+        })
+    if not news:
+        return []
+
+    data = json.dumps({
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": PROMPT},
+            {"role": "user", "content": json.dumps(
+                {"stock": stock_name, "news": news[:20]}, ensure_ascii=False)},
+        ],
+        "temperature": 0.2,
+        "max_completion_tokens": 900,
+        "response_format": {"type": "json_object"},
+    }, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=data,
+        headers={
+            "Authorization": "Bearer " + api_key,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=35) as response:
+        result = json.load(response)
+    return parse_issues(result["choices"][0]["message"]["content"])
