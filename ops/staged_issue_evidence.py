@@ -30,8 +30,10 @@ def persist_issue_evidence(conn, issue_id, article_ids):
             (article_ids,),
         )
         articles = cur.fetchall()
-        if len(articles) != len(article_ids):
-            raise ValueError("One or more article IDs do not exist")
+        if (len(articles) != len(article_ids)
+                or any(type(row[0]) is not int for row in articles)
+                or {row[0] for row in articles} != set(article_ids)):
+            raise ValueError("Collected article rows do not match requested IDs")
         for article_id, url_hash, canonical_url, headline, publisher in articles:
             parsed = urlsplit(canonical_url)
             if (parsed.scheme not in ("http", "https") or not parsed.hostname
