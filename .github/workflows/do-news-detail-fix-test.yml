@@ -1,0 +1,38 @@
+name: Test DigitalOcean publisher article extraction
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-detail-fix-test.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify body, original link and material
+        run: |
+          python -m py_compile ops/staged_news_detail.py
+          python - <<'PY'
+          import importlib.util
+          from backend.services.news_result import _central_direct_article
+          from backend.services.issue_briefs import _article_excerpt,central_material_brief_supported
+          spec=importlib.util.spec_from_file_location('staged', 'ops/staged_news_detail.py')
+          mod=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          original='http://www.wowtv.co.kr/NewsCenter/News/Read?articleId=A202610160059&t=NN'
+          details=mod.read_selected_article_details([{'url':original}],limit=1,with_sources=True)
+          item=details[0]
+          txt=_article_excerpt(item['text'])
+          print('SOURCE',item['source'],'CHARACTERS',len(txt))
+          print('BODY_PREVIEW',txt[:300])
+          print('DIRECT',_central_direct_article({'title':'"中생산 늘린다고?"…SK하이닉스가 펄쩍 뛰며 부인한 까닭은'},txt,'SK하이닉스'))
+          print('MATERIAL',central_material_brief_supported(txt))
+          assert item['source']=='article_or_main_paragraphs',item['source']
+          assert len(txt)>=350,len(txt)
+          assert 'SK하이닉스' in txt,txt[:300]
+          print('DO_ARTICLE_BODY_FIX_PASSED')
+          PY
