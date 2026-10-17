@@ -31,7 +31,11 @@ jobs:
           python - <<'PY'
           import runpy
           from datetime import datetime, timedelta, timezone
-          fn = runpy.run_path("ops/staged_news_processed_store.py")["_recent_existing_issue_briefs"]
+          module = runpy.run_path("ops/staged_news_processed_store.py")
+          fn = module["_recent_existing_issue_briefs"]
+          own = module["_same_stock_issue_briefs"]
+          assert own([{"stock_names":["셀트리온"]},{"stock_names":["현대차"]}], "셀트리온")==[{"stock_names":["셀트리온"]}]
+          assert own([{"stock_names":["현대차"]}], "셀트리온")==[]
           now = datetime.now(timezone.utc)
           def issue(hours, stock="삼성전자"):
               return {"headline":"test", "reaction_at":(now-timedelta(hours=hours)).isoformat(), "stock_names":[stock]}
