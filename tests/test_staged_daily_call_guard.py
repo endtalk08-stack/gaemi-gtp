@@ -29,10 +29,10 @@ class FakeCursor:
         elif query.lstrip().startswith("SELECT 1"):
             self.identity = tuple(params)
         elif query.lstrip().startswith("UPDATE"):
-            self.rowcount = 1 if tuple(params[3:6]) in self.database else 0
+            self.rowcount = int(self.database.get(tuple(params[3:6])) == params[6])
         elif query.lstrip().startswith("INSERT"):
             assert self.locked
-            self.database.add(tuple(params[:3]))
+            self.database[tuple(params[:3])] = params[3]
         else:
             raise AssertionError(query)
 
@@ -50,7 +50,7 @@ class FakeConnection:
 
 class DailyCallGuardTests(unittest.TestCase):
     def setUp(self):
-        self.database = set()
+        self.database = {}
         self.conn = FakeConnection(self.database)
         self.day = date(2026, 10, 17)
 
@@ -113,6 +113,17 @@ class DailyCallGuardTests(unittest.TestCase):
             self.conn, market="US", symbol="NVDA", exchange_day=self.day,
             request_hash="missing", status="failed"
         ))
+
+    def test_wrong_request_hash_cannot_finish(self):
+        self.assertTrue(self.reserve())
+        self.assertFalse(guard.finish_reservation(
+            self.conn, market="US", symbol="NVDA", exchange_day=self.day,
+            request_hash="wrong-hash", status="completed", result={"issues": []}
+        ))
+
+    def test_second_completion_is_rejected_by_db_status(self):
+        # The production SQL only updates rows whose status remains 'reserved'.
+        self.assertIn("status='reserved'", guard.finish_reservation.__code__.co_consts[-1])
 
     def test_bad_identity_rejected(self):
         with self.assertRaises(ValueError):
