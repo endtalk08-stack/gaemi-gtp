@@ -104,6 +104,8 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     from staged_daily_groq_issues import MODEL
     now = datetime.now(ZoneInfo("Asia/Seoul"))
     us_now = now.astimezone(ZoneInfo("America/New_York"))
+    if us_now.weekday() >= 5:
+        return
     us_day = us_now.date()
     from pathlib import Path
     if now < scheduled_kst_time(us_day):
