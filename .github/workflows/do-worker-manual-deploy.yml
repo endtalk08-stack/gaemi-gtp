@@ -22,13 +22,13 @@ concurrency:
 
 jobs:
   register-manual-workflow:
-    if: github.event_name == 'push' && github.event.head_commit.message != 'RUN_DO_ISSUE_STORE_DEPLOY_20261017'
+    if: github.event_name == 'push' && github.event.head_commit.message != 'RUN_DO_ISSUE_OWNERSHIP_DEPLOY_20261017'
     runs-on: ubuntu-latest
     steps:
       - run: echo "Registration only; no changes to DigitalOcean."
 
   deploy-issue-store:
-    if: github.ref == 'refs/heads/ops/do-ssh-deploy-setup-20261017' && ((github.event_name == 'workflow_dispatch' && inputs.confirm_deploy == 'DEPLOY') || (github.event_name == 'push' && github.event.head_commit.message == 'RUN_DO_ISSUE_STORE_DEPLOY_20261017'))
+    if: github.ref == 'refs/heads/ops/do-ssh-deploy-setup-20261017' && ((github.event_name == 'workflow_dispatch' && inputs.confirm_deploy == 'DEPLOY') || (github.event_name == 'push' && github.event.head_commit.message == 'RUN_DO_ISSUE_OWNERSHIP_DEPLOY_20261017'))
     environment: digitalocean-news-worker
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -39,7 +39,7 @@ jobs:
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
       SOURCE: ops/staged_news_processed_store.py
       TARGET: /opt/gaemigtp-news/app/backend/services/news_processed_store.py
-      EXPECTED_SHA256: e100d7b5e915fba19d41564b6bab9c1daae1801c35a7420b6915e6f9d0d7fda3
+      EXPECTED_SHA256: b0bace69cfcf18f9c7b9ead758d83b873c2daafec3b52bad910b39460523b5a9
     steps:
       - uses: actions/checkout@v4
         with:
