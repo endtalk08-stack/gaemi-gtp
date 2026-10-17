@@ -45,6 +45,7 @@ jobs:
                   article={'title':next((title for key,title in titles.items() if key in url),'')}
                   check_stock='테슬라' if 'gpkorea' in url else 'SK하이닉스'
                   print('GATES',url.split('/')[2], 'direct=',_central_direct_article(article,excerpt,check_stock),'material=',central_material_brief_supported(excerpt),'body_has_stock=',check_stock.lower() in excerpt.lower(),'title=',article['title'],'excerpt=',excerpt[:160])
+                  print('DETAIL_TAIL',url.split('/')[2], 'last=',excerpt[-450:])
                   print('ARTICLE_CHECK',url.split('/')[2], 'source=',result.get('source'),
                         'body_chars=',len(result.get('text','')), 'seconds=',round(time.monotonic()-t,2))
               except Exception as exc:
