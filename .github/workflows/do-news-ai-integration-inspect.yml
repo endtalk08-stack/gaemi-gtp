@@ -116,5 +116,9 @@ jobs:
           rm -f /opt/gaemigtp-news/app/ops/.groq_run_now_20261017
           echo AI_WORKER_HOOK_ACTIVE
           REMOTE
+      - name: Live Groq API test on one approved US stock
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'cd /opt/gaemigtp-news/app && /opt/gaemigtp-news/venv/bin/python ops/staged_daily_groq_issues.py --help'
 # Existing news collection remains unchanged. AI failures do not block news snapshots.
 # Redeploy current branch head to verify latest unchanged-news AI hook.
