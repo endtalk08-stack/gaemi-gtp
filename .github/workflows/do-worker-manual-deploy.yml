@@ -22,13 +22,13 @@ concurrency:
 
 jobs:
   register-manual-workflow:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.event.head_commit.message != 'RUN_DO_ISSUE_STORE_DEPLOY_20261017'
     runs-on: ubuntu-latest
     steps:
       - run: echo "Registration only; no changes to DigitalOcean."
 
   deploy-issue-store:
-    if: github.event_name == 'workflow_dispatch' && inputs.confirm_deploy == 'DEPLOY' && github.ref == 'refs/heads/ops/do-ssh-deploy-setup-20261017'
+    if: github.ref == 'refs/heads/ops/do-ssh-deploy-setup-20261017' && ((github.event_name == 'workflow_dispatch' && inputs.confirm_deploy == 'DEPLOY') || (github.event_name == 'push' && github.event.head_commit.message == 'RUN_DO_ISSUE_STORE_DEPLOY_20261017'))
     environment: digitalocean-news-worker
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -48,7 +48,11 @@ jobs:
         run: |
           set -euo pipefail
           test "${GITHUB_REF}" = "refs/heads/ops/do-ssh-deploy-setup-20261017"
-          test "${{ inputs.confirm_deploy }}" = "DEPLOY"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "${{ inputs.confirm_deploy }}" = "DEPLOY"
+          else
+            test "$GITHUB_EVENT_NAME" = "push"
+          fi
           test "$DO_HOST" = "168.144.131.211"
           test "$SSH_USER" = "gaemi-news-check"
           test -n "$SSH_KEY"
