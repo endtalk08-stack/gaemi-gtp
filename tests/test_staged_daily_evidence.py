@@ -61,6 +61,12 @@ class IssueEvidenceTests(unittest.TestCase):
             evidence.persist_issue_evidence(self.conn, 99, [1, 404])
         self.assertEqual(self.conn.last.writes, [])
 
+    def test_mismatched_returned_article_id_rejected(self):
+        self.conn.db[1] = (999, "hash1", "https://publisher.example/news/1", "Original headline", "Example News")
+        with self.assertRaisesRegex(ValueError, "do not match"):
+            evidence.persist_issue_evidence(self.conn, 99, [1])
+        self.assertEqual(self.conn.last.writes, [])
+
     def test_duplicate_article_is_saved_once(self):
         self.assertEqual(evidence.persist_issue_evidence(self.conn, 99, [1, 1]), 1)
 
