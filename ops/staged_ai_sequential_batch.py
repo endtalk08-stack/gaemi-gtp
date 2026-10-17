@@ -73,15 +73,10 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         return
     if market_code != "US":
         return
-    # Reuse the worker's explicit stock selection; never include ranking extras.
-    configured = os.environ.get("NEWS_WORKER_STOCKS", "")
-    selected_us = {
-        item.partition(":")[2].strip()
-        for item in configured.split(",")
-        if item.strip().startswith("미국:")
-    }
-    if stock_name not in selected_us:
-        print("[news-ai] skipped reason=outside_worker_us_selection stock=%s" % stock_name, flush=True)
+    # Frozen to the 21 US stocks verified in Neon; no automatic expansion.
+    approved_us = {"TSMC ADR","네비우스 그룹","마이크로소프트","마이크론 테크놀로지","메타","모더나","브로드컴","샌디스크","스페이스X","아마존닷컴","아이렌","아이온큐","알파벳 Class A","애플","엔비디아","오라클","인텔","일라이 릴리","코어위브","테슬라","팔란티어 테크놀로지스"}
+    if stock_name not in approved_us:
+        print("[news-ai] skipped reason=outside_approved_21 stock=%s" % stock_name, flush=True)
         return
     if not isinstance(result, dict) or not result.get("issue_briefs"):
         print("[news-ai] skipped reason=no_selected_issue stock=%s" % stock_name, flush=True)
