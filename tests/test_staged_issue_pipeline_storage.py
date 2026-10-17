@@ -23,6 +23,8 @@ class Cursor:
         if sql.lstrip().startswith("SELECT"):
             self.rows = [self.conn.articles[k] for k in params[0] if k in self.conn.articles]
         elif sql.lstrip().startswith("INSERT"):
+            if params[0] == self.conn.fail_on_issue:
+                raise RuntimeError("Simulated database insert failure")
             self.conn.saved.append(params)
         else:
             raise AssertionError(sql)
@@ -38,6 +40,7 @@ class Connection:
             12: (12, "h12", "https://example.org/12", "Original 12", "Publisher B"),
         }
         self.saved = []
+        self.fail_on_issue = None
 
     def cursor(self):
         return Cursor(self)
@@ -69,6 +72,13 @@ class StorageFlowTests(unittest.TestCase):
         del self.conn.articles[12]
         with self.assertRaises(ValueError):
             save_verified_evidence(self.conn, ['first', 'second'],
+                                   {0: [11], 1: [12]}, [11, 12], [101, 102])
+        self.assertEqual(self.conn.saved, [])
+
+    def test_database_insert_failure_rolls_back_previous_issue(self):
+        self.conn.fail_on_issue = 102
+        with self.assertRaisesRegex(RuntimeError, "Simulated database insert failure"):
+            save_verified_evidence(self.conn, ["first", "second"],
                                    {0: [11], 1: [12]}, [11, 12], [101, 102])
         self.assertEqual(self.conn.saved, [])
 
