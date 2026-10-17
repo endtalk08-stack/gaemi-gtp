@@ -65,6 +65,7 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     import os
     from datetime import datetime
     from zoneinfo import ZoneInfo
+    from staged_daily_issue_schedule import scheduled_kst_time
     if not os.environ.get("GROQ_API_KEY", "").strip():
         print("[news-ai] skipped reason=missing_groq_key", flush=True)
         return
@@ -84,12 +85,17 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     from staged_ai_snapshot_integration import with_ai_issue_briefs
     from staged_daily_groq_issues import MODEL
     now = datetime.now(ZoneInfo("Asia/Seoul"))
+    us_now = now.astimezone(ZoneInfo("America/New_York"))
+    us_day = us_now.date()
+    if now < scheduled_kst_time(us_day):
+        print("[news-ai] skipped reason=before_scheduled_time stock=%s" % stock_name, flush=True)
+        return
     # Do not change the original news result or run a second news collection.
     import psycopg
     with psycopg.connect(store.database_url(), connect_timeout=10, autocommit=True) as conn:
         batch = run_stock_batch(conn, [{
             "market": market_code, "symbol": stock_name,
-            "name": stock_name, "exchange_day": now.date(),
+            "name": stock_name, "exchange_day": us_day,
             "articles": raw,
         }])
         outcome = batch[0]
