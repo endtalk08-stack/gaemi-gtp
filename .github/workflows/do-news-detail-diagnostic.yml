@@ -30,6 +30,19 @@ jobs:
             'https://www.gpkorea.com/news/articleView.html?idxno=147671',
             'https://www.wowtv.co.kr/NewsCenter/News/Read?articleId=A202610160059&t=NN',
           ]
+          import urllib.request, re
+          site='https://www.wowtv.co.kr/NewsCenter/News/Read?articleId=A202610160059&t=NN'
+          try:
+              req=urllib.request.Request(site,headers={'User-Agent':'gaemiGTP/1.0'})
+              with urllib.request.urlopen(req,timeout=5) as resp:
+                  raw=resp.read(350000).decode('utf-8','replace')
+              for term in ['SK하이닉스','中생산','articleBody','view_content','article_content','news_content']:
+                  match=re.search(re.escape(term),raw,re.IGNORECASE)
+                  if match:
+                      p=match.start()
+                      print('HTML_CONTEXT',term,re.sub(r'\\s+',' ',raw[max(0,p-250):p+300])[:550])
+          except Exception as exc:
+              print('HTML_CONTEXT_FAILED',type(exc).__name__)
           for url in urls:
               t=time.monotonic()
               try:
