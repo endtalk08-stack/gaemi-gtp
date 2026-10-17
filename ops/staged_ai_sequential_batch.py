@@ -58,3 +58,43 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
             results.append({"market": market, "symbol": symbol, "status": "error",
                             "error_type": type(exc).__name__})
     return results
+
+
+def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, params):
+    """Run at most one AI analysis per stock/day after original snapshot is saved."""
+    import os
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    if not os.environ.get("GROQ_API_KEY", "").strip():
+        print("[news-ai] skipped reason=missing_groq_key", flush=True)
+        return
+    market_code = "US" if market in ("미국", "US") else "KR" if market in ("국내", "KR") else None
+    if market_code is None:
+        return
+    from staged_ai_snapshot_integration import with_ai_issue_briefs
+    from staged_daily_groq_issues import MODEL
+    now = datetime.now(ZoneInfo("Asia/Seoul"))
+    # Do not change the original news result or run a second news collection.
+    import psycopg
+    with psycopg.connect(store.database_url(), connect_timeout=10, autocommit=True) as conn:
+        batch = run_stock_batch(conn, [{
+            "market": market_code, "symbol": stock_name,
+            "name": stock_name, "exchange_day": now.date(),
+            "articles": raw,
+        }])
+        outcome = batch[0]
+        print("[news-ai] stock=%s status=%s count=%s" % (
+            stock_name, outcome["status"], outcome.get("issue_count", 0)), flush=True)
+        if outcome["status"] != "ok" or not outcome.get("ids"):
+            return
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT headline, summary, tags FROM public.news_ai_issues WHERE id=ANY(%s) ORDER BY id",
+                (outcome["ids"],))
+            issues = [{"headline": row[0], "summary": row[1], "tags": row[2]} for row in cur.fetchall()]
+        updated = with_ai_issue_briefs(
+            result, issues, display_time=now.strftime("%Y-%m-%d %H:%M"),
+            stock_names=[stock_name])
+        store.save_snapshot(stock_name, fingerprint=fingerprint, result=updated, **params)
+        print("[news-ai] snapshot_updated stock=%s count=%s model=%s" % (
+            stock_name, len(issues), MODEL), flush=True)
