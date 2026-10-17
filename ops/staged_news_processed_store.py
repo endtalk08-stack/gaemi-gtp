@@ -141,10 +141,20 @@ def mark_checked(stock_name, *, market, limit, storyboard_limit, display_timezon
 
 
 def _same_stock_issue_briefs(briefs, stock_name):
+    """Accept only the same verified company, not a similarly named competitor."""
+    from backend.analysis.news.catalog import canonical_us_news_name
+    canonical = canonical_us_news_name(stock_name)
     return [
         brief for brief in (briefs or [])
         if isinstance(brief, dict)
-        and stock_name in (brief.get("stock_names") or [])
+        and (
+            stock_name in (brief.get("stock_names") or [])
+            or (canonical != stock_name and any(
+                canonical_us_news_name(name) == canonical
+                for name in (brief.get("stock_names") or [])
+                if isinstance(name, str)
+            ))
+        )
     ]
 
 
@@ -158,7 +168,7 @@ def _recent_existing_issue_briefs(previous, stock_name):
     for item in previous.get("issue_briefs") or []:
         if not isinstance(item, dict):
             continue
-        if stock_name not in (item.get("stock_names") or []):
+        if not _same_stock_issue_briefs([item], stock_name):
             continue
         stamp = str(item.get("reaction_at") or "").strip()
         try:

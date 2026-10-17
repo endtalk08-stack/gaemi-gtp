@@ -63,6 +63,22 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(found["paired_news_items"][0]["title"],"기사")
         self.assertIn("알파벳 Class A",[x.args[0] for x in query.call_args_list])
 
+    def test_snapshot_store_accepts_only_verified_same_company(self):
+        import pathlib
+        import sys
+        ops_path = str(pathlib.Path(__file__).resolve().parents[1] / "ops")
+        if ops_path not in sys.path:
+            sys.path.insert(0, ops_path)
+        from staged_news_processed_store import _same_stock_issue_briefs
+        briefs = [
+            {"headline": "알파벳", "stock_names": ["알파벳"]},
+            {"headline": "구글", "stock_names": ["구글"]},
+            {"headline": "엔비디아", "stock_names": ["엔비디아"]},
+        ]
+        retained = _same_stock_issue_briefs(briefs, "알파벳 Class A")
+        self.assertEqual([b["headline"] for b in retained], ["알파벳", "구글"])
+        self.assertEqual(_same_stock_issue_briefs(briefs, "TSMC ADR"), [])
+
     def test_registration_does_not_run_without_connection(self):
         with patch.dict("os.environ", {"NEWS_DATABASE_URL": ""}):
             self.assertEqual(register_us_ranking_instruments(

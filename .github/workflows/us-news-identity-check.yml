@@ -8,6 +8,7 @@ on:
       - 'backend/analysis/news/catalog.py'
       - 'backend/services/stock_identity_store.py'
       - 'backend/services/market_rankings.py'
+      - 'ops/staged_news_processed_store.py'
       - 'backend/services/news_result.py'
       - 'backend/services/market_issue_headlines.py'
       - 'tests/test_dynamic_stock_identity.py'
@@ -35,7 +36,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Compile changed Python
-        run: python -m py_compile backend/analysis/news/catalog.py backend/analysis/news/stock_identity.py backend/services/stock_identity_store.py backend/services/market_rankings.py backend/services/news_feed.py backend/services/news_result.py backend/services/market_issue_headlines.py tests/test_dynamic_stock_identity.py tests/test_us_stock_news_identity.py
+        run: python -m py_compile backend/analysis/news/catalog.py backend/analysis/news/stock_identity.py backend/services/stock_identity_store.py backend/services/market_rankings.py backend/services/news_feed.py backend/services/news_result.py backend/services/market_issue_headlines.py ops/staged_news_processed_store.py tests/test_dynamic_stock_identity.py tests/test_us_stock_news_identity.py
       - name: Dynamic company identity checks
         run: python -m unittest discover -s tests -p 'test_dynamic_stock_identity.py' -v
       - name: Focused US identity regressions
