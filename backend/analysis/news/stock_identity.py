@@ -16,6 +16,10 @@ _VERIFIED = {
     "MRVL": ("US:MRVL", "마벨 테크놀로지 그룹", ("마벨 테크놀로지 그룹", "마벨", "Marvell Technology", "Marvell")),
     "AMD": ("US:AMD", "AMD", ("AMD(어드밴스드 마이크로 디바이시스)", "AMD", "Advanced Micro Devices")),
     "NBIS": ("US:NBIS", "네비우스 그룹", ("네비우스 그룹", "네비우스", "Nebius Group")),
+    # Official SK hynix Nasdaq ADR listing (SKHY); preserve separate US news label.
+    "SKHY": ("US:SKHYNIX", "SK하이닉스 ADR", ("SK하이닉스 ADR", "SK hynix ADR")),
+    # SpaceX investor relations confirms its Nasdaq-listed ticker SPCX.
+    "SPCX": ("US:SPCX", "스페이스X", ("스페이스X", "스페이스엑스", "SpaceX")),
     "NVDA": ("US:NVDA", "엔비디아", ("엔비디아", "NVIDIA")),
     "AAPL": ("US:AAPL", "애플", ("애플", "Apple")),
     "MSFT": ("US:MSFT", "마이크로소프트", ("마이크로소프트", "Microsoft")),

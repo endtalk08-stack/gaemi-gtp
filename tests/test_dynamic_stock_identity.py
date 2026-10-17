@@ -32,6 +32,8 @@ class IdentityTests(unittest.TestCase):
             ("네비우스 그룹", "NBIS.O", "네비우스 그룹"),
             ("아이온큐", "IONQ.K", "아이온큐"),
             ("오라클", "ORCL.K", "오라클"),
+            ("SK하이닉스 ADR", "SKHY.O", "SK하이닉스 ADR"),
+            ("스페이스X", "SPCX.O", "스페이스X"),
         ]
         for name, ticker, expected in cases:
             with self.subTest(ticker=ticker):
@@ -45,11 +47,18 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(a["status"], "pending")
         self.assertEqual(a["news_name"], "알파벳 Class A")
         self.assertEqual(news_snapshot_names("알파벳 Class A", "AAPL.O"), ["알파벳 Class A"])
-        for name, code in [("다른 회사", "ORCL.K"), ("다른 회사", "IONQ.K")]:
+        for name, code in [("다른 회사", "ORCL.K"), ("다른 회사", "IONQ.K"),
+                           ("다른 회사", "SKHY.O"), ("다른 회사", "SPCX.O")]:
             self.assertEqual(resolve_us_identity(name, code)["status"], "pending")
         unknown = resolve_us_identity("새로운 종목", "NEW.O")
         self.assertEqual(unknown["company_key"], "US:NEW")
         self.assertEqual(unknown["status"], "pending")
+
+    def test_adr_and_space_news_do_not_cross_into_other_tickers(self):
+        self.assertEqual(news_snapshot_names("SK하이닉스 ADR", "SKHY.O"), ["SK하이닉스 ADR"])
+        self.assertEqual(news_snapshot_names("스페이스X", "SPCX.O"), ["스페이스X"])
+        self.assertEqual(resolve_us_identity("SK하이닉스 ADR", "SPCX.O")["status"], "pending")
+        self.assertEqual(resolve_us_identity("스페이스X", "SKHY.O")["status"], "pending")
 
     def test_sidebar_can_read_same_company_briefs_once(self):
         with patch.object(market_issue_headlines, "_read_worker_briefs",
