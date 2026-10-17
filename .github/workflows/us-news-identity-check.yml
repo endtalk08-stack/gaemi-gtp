@@ -40,7 +40,21 @@ jobs:
       - name: Dynamic company identity checks
         run: python -m unittest discover -s tests -p 'test_dynamic_stock_identity.py' -v
       - name: Focused US identity regressions
-        run: python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v
+        run: |
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            # Render main intentionally has no removed legacy news-result store.
+            # Exercise the real company identity and read-only sync paths only.
+            python -m unittest -v \
+              tests.test_us_stock_news_identity.UsListingNewsIdentityTests.test_verified_naver_names_and_ticker_suffixes \
+              tests.test_us_stock_news_identity.UsListingNewsIdentityTests.test_provider_queries_for_naver_alphabet \
+              tests.test_us_stock_news_identity.UsListingNewsIdentityTests.test_provider_queries_for_amazon_and_palantir \
+              tests.test_us_stock_news_identity.UsListingNewsIdentityTests.test_sidebar_reads_existing_us_alias_without_renaming_row \
+              tests.test_us_stock_news_identity.UsListingNewsIdentityTests.test_sidebar_rejects_mismatched_ticker \
+              tests.test_us_stock_news_identity.UsListingNewsIdentityTests.test_sidebar_kr_uses_only_original_name \
+              tests.test_us_stock_news_identity.UsListingNewsIdentityTests.test_central_reader_uses_existing_us_snapshot_alias_when_exact_missing
+          else
+            python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v
+          fi
       - name: Existing stock news queries
         run: python -m unittest discover -s tests -p 'test_news_feed_queries.py' -v
       - name: Existing US/KR ranking name normalization (isolated)
