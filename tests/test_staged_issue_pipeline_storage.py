@@ -2,6 +2,7 @@
 import pathlib
 import sys
 import unittest
+from contextlib import contextmanager
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "ops"))
 from staged_issue_pipeline import save_verified_evidence
@@ -41,6 +42,15 @@ class Connection:
     def cursor(self):
         return Cursor(self)
 
+    @contextmanager
+    def transaction(self):
+        previous = list(self.saved)
+        try:
+            yield
+        except Exception:
+            self.saved[:] = previous
+            raise
+
 
 class StorageFlowTests(unittest.TestCase):
     def setUp(self):
@@ -54,6 +64,13 @@ class StorageFlowTests(unittest.TestCase):
         self.assertEqual(len(self.conn.saved), 3)
         self.assertEqual(self.conn.saved[0], (101, "h11", "https://example.org/11", "Original 11", "Publisher A"))
         self.assertEqual(self.conn.saved[2], (102, "h12", "https://example.org/12", "Original 12", "Publisher B"))
+
+    def test_second_issue_failure_rolls_back_first(self):
+        del self.conn.articles[12]
+        with self.assertRaises(ValueError):
+            save_verified_evidence(self.conn, ['first', 'second'],
+                                   {0: [11], 1: [12]}, [11, 12], [101, 102])
+        self.assertEqual(self.conn.saved, [])
 
     def test_unknown_article_cannot_write(self):
         with self.assertRaises(ValueError):
