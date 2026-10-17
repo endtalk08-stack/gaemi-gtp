@@ -36,6 +36,11 @@ jobs:
               req=urllib.request.Request(site,headers={'User-Agent':'gaemiGTP/1.0'})
               with urllib.request.urlopen(req,timeout=5) as resp:
                   raw=resp.read(350000).decode('utf-8','replace')
+              hits=list(re.finditer('솔리다임|다롄|SK하이닉스',raw,re.IGNORECASE))
+              print('BODY_HIT_COUNT',len(hits))
+              for match in hits[-5:]:
+                  p=match.start()
+                  print('BODY_HIT',re.sub(r'\\s+',' ',raw[max(0,p-160):p+280])[:450])
               for term in ['SK하이닉스','中생산','articleBody','view_content','article_content','news_content']:
                   match=re.search(re.escape(term),raw,re.IGNORECASE)
                   if match:
