@@ -15,6 +15,7 @@ class FakeCursor:
         self.database = database
         self.identity = None
         self.locked = False
+        self.rowcount = 0
 
     def __enter__(self):
         return self
@@ -27,6 +28,8 @@ class FakeCursor:
             self.locked = True
         elif query.lstrip().startswith("SELECT 1"):
             self.identity = tuple(params)
+        elif query.lstrip().startswith("UPDATE"):
+            self.rowcount = 1 if tuple(params[3:7]) in self.database else 0
         elif query.lstrip().startswith("INSERT"):
             assert self.locked
             self.database.add(tuple(params[:3]))
@@ -73,6 +76,43 @@ class DailyCallGuardTests(unittest.TestCase):
     def test_different_stock_allowed(self):
         self.assertTrue(self.reserve())
         self.assertTrue(self.reserve(symbol="AMD"))
+
+    def test_failure_status_keeps_daily_reservation(self):
+        self.assertTrue(self.reserve())
+        self.assertTrue(guard.finish_reservation(
+            self.conn, market="US", symbol="NVDA", exchange_day=self.day,
+            request_hash="hash-a", status="failed", failure_category="network"
+        ))
+        self.assertFalse(self.reserve(hash_value="different-news"))
+
+    def test_invalid_response_keeps_daily_reservation(self):
+        self.assertTrue(self.reserve())
+        self.assertTrue(guard.finish_reservation(
+            self.conn, market="US", symbol="NVDA", exchange_day=self.day,
+            request_hash="hash-a", status="invalid", failure_category="bad_json"
+        ))
+        self.assertFalse(self.reserve())
+
+    def test_completed_zero_issues_keeps_daily_reservation(self):
+        self.assertTrue(self.reserve())
+        self.assertTrue(guard.finish_reservation(
+            self.conn, market="US", symbol="NVDA", exchange_day=self.day,
+            request_hash="hash-a", status="completed", result={"issues": []}
+        ))
+        self.assertFalse(self.reserve())
+
+    def test_invalid_terminal_status_rejected(self):
+        with self.assertRaises(ValueError):
+            guard.finish_reservation(
+                self.conn, market="US", symbol="NVDA", exchange_day=self.day,
+                request_hash="hash-a", status="reserved"
+            )
+
+    def test_missing_reservation_cannot_be_completed(self):
+        self.assertFalse(guard.finish_reservation(
+            self.conn, market="US", symbol="NVDA", exchange_day=self.day,
+            request_hash="missing", status="failed"
+        ))
 
     def test_bad_identity_rejected(self):
         with self.assertRaises(ValueError):
