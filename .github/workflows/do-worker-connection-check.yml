@@ -107,3 +107,13 @@ jobs:
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
             "${DO_SSH_USER}@${DO_HOST}" \
             'python3 -c '"'"'from pathlib import Path; import base64; p=Path("/opt/gaemigtp-news/app/backend/services/news_processed_store.py"); print("LIVE_STORE_B64_START"); print(base64.b64encode(p.read_bytes()).decode()); print("LIVE_STORE_B64_END")'"'"''
+
+      - name: Inspect recent stock selection diagnostics (read only)
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "${DO_SSH_USER}@${DO_HOST}" \
+            'set -eu; echo "SELECTION_DIAGNOSTICS"; if sudo -n /usr/bin/journalctl -u gaemigtp-news.service --since "90 minutes ago" -o cat --no-pager >/tmp/gaemi-diagnostics-readonly.log 2>/dev/null; then grep -E "news funnel|selection_summary|all_candidate_article_bodies_unavailable|rejected_after_body|selected_issue_article|stock=삼성전자|stock=SK하이닉스|stock=테슬라" /tmp/gaemi-diagnostics-readonly.log | tail -80 || true; rm -f /tmp/gaemi-diagnostics-readonly.log; else echo "WORKER_JOURNAL_NOT_AUTHORIZED"; fi'
