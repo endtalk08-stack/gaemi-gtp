@@ -5,6 +5,7 @@ commits before making a paid request. A reservation is deliberately not retried
 automatically after a crash: avoiding duplicate billable calls takes priority.
 """
 import hashlib
+import json
 
 
 def reserve_once(conn, *, market, symbol, exchange_day, request_hash,
@@ -48,9 +49,10 @@ def finish_reservation(conn, *, market, symbol, exchange_day, request_hash,
     with conn.cursor() as cur:
         cur.execute(
             """UPDATE public.news_ai_call_ledger
-               SET status=%s, result=%s, failure_category=%s, completed_at=now()
+               SET status=%s, result=%s::jsonb, failure_category=%s, completed_at=now()
                WHERE market=%s AND symbol=%s AND exchange_day=%s
                  AND request_hash=%s AND status='reserved'""",
-            (status, result, failure_category, market, symbol, exchange_day, request_hash),
+            (status, json.dumps(result, ensure_ascii=False) if result is not None else None,
+             failure_category, market, symbol, exchange_day, request_hash),
         )
         return cur.rowcount == 1
