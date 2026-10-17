@@ -1,10 +1,10 @@
-name: Deploy DigitalOcean news worker (manual)
+name: Deploy DigitalOcean issue-store fix (manual)
 
 on:
   workflow_dispatch:
     inputs:
       confirm_deploy:
-        description: Type DEPLOY to replace only the two staged news worker files
+        description: Type DEPLOY to update only the verified issue store
         required: true
         type: string
   push:
@@ -25,87 +25,79 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm push cannot deploy
-        run: echo "Manual deployment only; this push performed no server changes."
+      - run: echo "Registration only; no changes to DigitalOcean."
 
-  deploy-news-worker:
+  deploy-issue-store:
     if: github.event_name == 'workflow_dispatch' && inputs.confirm_deploy == 'DEPLOY' && github.ref == 'refs/heads/ops/do-ssh-deploy-setup-20261017'
-    environment:
-      name: digitalocean-news-worker
+    environment: digitalocean-news-worker
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       DO_HOST: ${{ secrets.DO_HOST }}
-      NEWS_SSH_KEY: ${{ secrets.NEWS_SSH_KEY }}
-      NEWS_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
-      NEWS_SSH_USER: ${{ vars.NEWS_SSH_USER }}
-      TARGET_DIR: /opt/gaemigtp-news/app/backend
+      SSH_USER: ${{ vars.NEWS_SSH_USER }}
+      SSH_KEY: ${{ secrets.NEWS_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+      SOURCE: ops/staged_news_processed_store.py
+      TARGET: /opt/gaemigtp-news/app/backend/services/news_processed_store.py
+      EXPECTED_SHA256: e100d7b5e915fba19d41564b6bab9c1daae1801c35a7420b6915e6f9d0d7fda3
     steps:
-      - name: Check out the staged worker source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: setup/digitalocean-news-deploy
           persist-credentials: false
-
-      - name: Validate deployment confirmation, source, and SSH
-        shell: bash
+      - name: Preflight exact staged code and remote SSH
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = "refs/heads/ops/do-ssh-deploy-setup-20261017"
+          test "${GITHUB_REF}" = "refs/heads/ops/do-ssh-deploy-setup-20261017"
           test "${{ inputs.confirm_deploy }}" = "DEPLOY"
           test "$DO_HOST" = "168.144.131.211"
-          test "$NEWS_SSH_USER" = "gaemi-news-check"
-          test -n "$NEWS_SSH_KEY"
-          test -n "$NEWS_SSH_KNOWN_HOSTS"
-          test -s deploy/news_worker.py
-          test -s deploy/news_processed_store.py
-          python -m py_compile deploy/news_worker.py deploy/news_processed_store.py
+          test "$SSH_USER" = "gaemi-news-check"
+          test -n "$SSH_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+          test -s "$SOURCE"
+          python -m py_compile "$SOURCE"
           install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$NEWS_SSH_KEY" > "$HOME/.ssh/news_deploy_key"
-          printf '%s\n' "$NEWS_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/news_deploy_key" "$HOME/.ssh/known_hosts"
-
-      - name: Verify the target and back up current files
-        shell: bash
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+      - name: Back up live file; abort if it changed since inspection
         run: |
           set -euo pipefail
-          SSH=(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/news_deploy_key")
-          TARGET="$NEWS_SSH_USER@$DO_HOST"
-          "${SSH[@]}" "$TARGET" 'test -w "$HOME/news-deploy" && test -s /opt/gaemigtp-news/app/backend/news_worker.py && test -s /opt/gaemigtp-news/app/backend/services/news_processed_store.py && systemctl is-active --quiet gaemigtp-news.service && sudo -n -l >/dev/null'
-          "${SSH[@]}" "$TARGET" 'cat /opt/gaemigtp-news/app/backend/news_worker.py' > "$RUNNER_TEMP/old_news_worker.py"
-          "${SSH[@]}" "$TARGET" 'cat /opt/gaemigtp-news/app/backend/services/news_processed_store.py' > "$RUNNER_TEMP/old_news_processed_store.py"
-          test -s "$RUNNER_TEMP/old_news_worker.py"
-          test -s "$RUNNER_TEMP/old_news_processed_store.py"
-
-      - name: Install only the two staged worker files and roll back on failure
-        shell: bash
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" \
+            'sha256sum /opt/gaemigtp-news/app/backend/services/news_processed_store.py' \
+            > "$RUNNER_TEMP/live.sha"
+          LIVE_SHA=$(cut -d ' ' -f1 < "$RUNNER_TEMP/live.sha")
+          test "$LIVE_SHA" = "$EXPECTED_SHA256" || {
+            echo "::error::Live code changed since review; refusing deployment."
+            exit 1
+          }
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" \
+            'cat /opt/gaemigtp-news/app/backend/services/news_processed_store.py' > "$RUNNER_TEMP/backup.py"
+          test -s "$RUNNER_TEMP/backup.py"
+          test "$(sha256sum "$RUNNER_TEMP/backup.py" | cut -d ' ' -f1)" = "$EXPECTED_SHA256"
+      - name: Deploy only news_processed_store.py with rollback
         run: |
           set -euo pipefail
-          SSH=(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/news_deploy_key")
-          SCP=(scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/news_deploy_key")
-          TARGET="$NEWS_SSH_USER@$DO_HOST"
+          REMOTE="$SSH_USER@$DO_HOST"
           rollback() {
-            local rc=$?
+            rc=$?
             trap - ERR
             set +e
-            echo "::warning::Restoring the previous two news worker files"
-            "${SCP[@]}" "$RUNNER_TEMP/old_news_worker.py" "$TARGET:news-deploy/news_worker.py"
-            "${SCP[@]}" "$RUNNER_TEMP/old_news_processed_store.py" "$TARGET:news-deploy/news_processed_store.py"
-            "${SSH[@]}" "$TARGET" 'sudo -n /usr/bin/install -m 644 /home/gaemi-news-check/news-deploy/news_worker.py /opt/gaemigtp-news/app/backend/news_worker.py && sudo -n /usr/bin/install -m 644 /home/gaemi-news-check/news-deploy/news_processed_store.py /opt/gaemigtp-news/app/backend/services/news_processed_store.py && sudo -n /usr/bin/systemctl restart gaemigtp-news && systemctl is-active --quiet gaemigtp-news.service'
+            echo "::warning::Attempting restore of original worker store"
+            scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+              "$RUNNER_TEMP/backup.py" "$REMOTE:news-deploy/news_processed_store.py"
+            ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" \
+              'sudo -n /usr/bin/install -m 644 /home/gaemi-news-check/news-deploy/news_processed_store.py /opt/gaemigtp-news/app/backend/services/news_processed_store.py && sudo -n /usr/bin/systemctl restart gaemigtp-news'
             exit "$rc"
           }
           trap rollback ERR
-          "${SCP[@]}" deploy/news_worker.py "$TARGET:news-deploy/news_worker.py"
-          "${SCP[@]}" deploy/news_processed_store.py "$TARGET:news-deploy/news_processed_store.py"
-          "${SSH[@]}" "$TARGET" 'sudo -n /usr/bin/install -m 644 /home/gaemi-news-check/news-deploy/news_worker.py /opt/gaemigtp-news/app/backend/news_worker.py && sudo -n /usr/bin/install -m 644 /home/gaemi-news-check/news-deploy/news_processed_store.py /opt/gaemigtp-news/app/backend/services/news_processed_store.py && sudo -n /usr/bin/systemctl restart gaemigtp-news && systemctl is-active --quiet gaemigtp-news.service'
-          trap - ERR
-          LOCAL_WORKER_SHA=$(sha256sum deploy/news_worker.py | cut -d ' ' -f1)
-          REMOTE_WORKER_SHA=$("${SSH[@]}" "$TARGET" 'sha256sum /opt/gaemigtp-news/app/backend/news_worker.py | cut -d " " -f1')
-          LOCAL_STORE_SHA=$(sha256sum deploy/news_processed_store.py | cut -d ' ' -f1)
-          REMOTE_STORE_SHA=$("${SSH[@]}" "$TARGET" 'sha256sum /opt/gaemigtp-news/app/backend/services/news_processed_store.py | cut -d " " -f1')
-          test "$LOCAL_WORKER_SHA" = "$REMOTE_WORKER_SHA"
-          test "$LOCAL_STORE_SHA" = "$REMOTE_STORE_SHA"
-          echo "NEWS_WORKER_DEPLOY_VERIFIED"
-          systemctl_status=$("${SSH[@]}" "$TARGET" 'systemctl is-active gaemigtp-news.service')
-          test "$systemctl_status" = "active"
-          echo "NEWS_WORKER_SERVICE_ACTIVE"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" \
+            'test -w "$HOME/news-deploy" && systemctl is-active --quiet gaemigtp-news.service'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$SOURCE" "$REMOTE:news-deploy/news_processed_store.py"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" \
+            'sudo -n /usr/bin/install -m 644 /home/gaemi-news-check/news-deploy/news_processed_store.py /opt/gaemigtp-news/app/backend/services/news_processed_store.py && sudo -n /usr/bin/systemctl restart gaemigtp-news && systemctl is-active --quiet gaemigtp-news.service'
+          LOCAL_SHA=$(sha256sum "$SOURCE" | cut -d ' ' -f1)
+          REMOTE_SHA=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" \
+            'sha256sum /opt/gaemigtp-news/app/backend/services/news_processed_store.py | cut -d " " -f1')
+          test "$LOCAL_SHA" = "$REMOTE_SHA"
+          echo "DIGITALOCEAN_ISSUE_STORE_DEPLOY_VERIFIED"
