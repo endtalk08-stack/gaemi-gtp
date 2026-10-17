@@ -1,84 +1,39 @@
-"""Sidebar titles must exactly reuse the central news issue briefs stored for 24h."""
+"""Render sidebar reads existing DigitalOcean snapshots only."""
 import unittest
 from unittest.mock import patch
 
 from backend.services import market_issue_headlines as subject
-from backend.services import news_processed_results_store as store
 
 
 class MarketIssueHeadlineTests(unittest.TestCase):
-    def setUp(self):
-        with subject._ISSUE_LOCK:
-            jobs = list(set(subject._ISSUE_PENDING.values()))
-        for future in jobs:
-            future.result(timeout=5)
-        with subject._ISSUE_LOCK:
-            subject._ISSUE_CACHE.clear()
-            subject._ISSUE_PENDING.clear()
-
-    def _await_jobs(self):
-        with subject._ISSUE_LOCK:
-            jobs = set(subject._ISSUE_PENDING.values())
-        for job in jobs:
-            job.result(timeout=5)
-
-    def test_cached_central_brief_title_displays_without_analysis(self):
+    def test_existing_worker_brief_is_displayed_without_news_processing(self):
         items = [{"name": "삼성전자", "symbol": "005930"}]
-        summary = "삼성전자와 SK하이닉스가 AI 반도체 수요에 대응한다."
-        payload = [{"headline": "AI 반도체 이슈", "summary": summary,
-                    "tags": ["AI반도체", "공장증설"]}]
-        with patch.object(subject, "read_issue_briefs_batch", return_value={
-            store._key("kr", "삼성전자"): payload
-        }) as reader, patch.object(subject, "get_shared_stock_news_result") as generator:
+        briefs = [{"headline": "AI 반도체 이슈", "summary": "확인된 뉴스",
+                   "stock_names": ["삼성전자"], "tags": ["AI반도체"]}]
+        with patch.object(subject, "_read_worker_briefs",
+                          return_value={"삼성전자": briefs}) as reader:
             result = subject.get_market_issue_headlines("kr", items)
-        self.assertEqual(result["items"][0]["headline"], payload[0]["headline"])
         self.assertEqual(result["items"][0]["status"], "ready")
+        self.assertEqual(result["items"][0]["headline"], "AI 반도체 이슈")
         self.assertFalse(result["pending"])
-        reader.assert_called_once()
-        generator.assert_not_called()
+        reader.assert_called_once_with("kr", ["삼성전자"])
 
-    def test_twenty_stocks_use_existing_shared_analysis_when_missing(self):
-        items = [{"name": f"종목{i}", "symbol": f"{i:06d}"} for i in range(20)]
-
-        def build(name, **kwargs):
-            return {"_news_status": "ok", "issue_briefs": [
-                {"headline": f"{name} AI 반도체 이슈", "summary": "뉴스 근거 설명"}
-            ]}
-
-        with patch.object(subject, "read_issue_briefs_batch", return_value={}) as reader, \
-             patch.object(subject, "get_shared_stock_news_result", side_effect=build) as builder:
-            initial = subject.get_market_issue_headlines("kr", items)
-            self.assertTrue(initial["pending"])
-            self._await_jobs()
-            ready = subject.get_market_issue_headlines("kr", items)
-            self.assertFalse(ready["pending"])
-            self.assertEqual(len([x for x in ready["items"] if x["status"] == "ready"]), 20)
-            self.assertEqual(builder.call_count, 20)
-            reader.assert_called_once()
-
-    def test_missing_verified_issue_is_not_fabricated(self):
+    def test_missing_worker_brief_is_not_generated_or_saved(self):
         items = [{"name": "삼성SDI", "symbol": "006400"}]
-        with patch.object(subject, "read_issue_briefs_batch", return_value={}), \
-             patch.object(subject, "get_shared_stock_news_result",
-                          return_value={"_news_status": "ok", "issue_briefs": []}):
-            subject.get_market_issue_headlines("kr", items)
-            self._await_jobs()
+        with patch.object(subject, "_read_worker_briefs", return_value={}) as reader:
             result = subject.get_market_issue_headlines("kr", items)
         self.assertEqual(result["items"][0]["status"], "unavailable")
         self.assertEqual(result["items"][0]["headline"], "")
+        self.assertFalse(result["pending"])
+        reader.assert_called_once()
 
-    def test_saved_content_is_only_the_displayed_brief(self):
-        original = [{"headline": "AI 반도체 이슈",
-                     "summary": "기사에서 검증한 설명입니다.",
-                     "tags": ["반도체", "수요증가"],
-                     "stock_names": ["삼성전자"],
-                     "time": "06:04",
-                     "full_article_body": "DO NOT STORE"}]
-        selected = store._briefs_for_storage(original)
-        self.assertEqual(selected[0]["headline"], "AI 반도체 이슈")
-        self.assertEqual(selected[0]["summary"], "기사에서 검증한 설명입니다.")
-        self.assertEqual(selected[0]["tags"], ["반도체", "수요증가"])
-        self.assertNotIn("full_article_body", selected[0])
+    def test_twenty_rows_have_one_worker_snapshot_read(self):
+        items = [{"name": f"종목{i}", "symbol": f"{i:06d}"} for i in range(20)]
+        with patch.object(subject, "_read_worker_briefs", return_value={}) as reader:
+            result = subject.get_market_issue_headlines("kr", items)
+        self.assertEqual(len(result["items"]), 20)
+        self.assertTrue(all(row["status"] == "unavailable" for row in result["items"]))
+        reader.assert_called_once()
 
     def test_bad_symbol_and_oversized_list_rejected(self):
         with self.assertRaises(ValueError):
@@ -87,3 +42,7 @@ class MarketIssueHeadlineTests(unittest.TestCase):
             subject.get_market_issue_headlines(
                 "kr", [{"name": "x", "symbol": "005930"}] * 21,
             )
+
+
+if __name__ == "__main__":
+    unittest.main()
