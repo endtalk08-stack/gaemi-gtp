@@ -46,14 +46,15 @@ class FakeConn:
 class IssueEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.conn = FakeConn({
-            1: (1, "hash1", "https://publisher.example/news/1", "Original headline"),
-            2: (2, "hash2", "https://publisher.example/news/2", "Other headline"),
+            1: (1, "hash1", "https://publisher.example/news/1", "Original headline", "Example News"),
+            2: (2, "hash2", "https://publisher.example/news/2", "Other headline", "Another News"),
         })
 
     def test_snapshots_only_collected_urls(self):
         self.assertEqual(evidence.persist_issue_evidence(self.conn, 99, [1, 2]), 2)
         self.assertEqual(len(self.conn.last.writes), 2)
         self.assertEqual(self.conn.last.writes[0][2], "https://publisher.example/news/1")
+        self.assertEqual(self.conn.last.writes[0][4], "Example News")
 
     def test_missing_article_refuses_partial_snapshot(self):
         with self.assertRaises(ValueError):
@@ -67,7 +68,7 @@ class IssueEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence.persist_issue_evidence(self.conn, 99, []), 0)
 
     def test_bad_url_is_rejected(self):
-        self.conn.db[1] = (1, "hash1", "javascript:alert(1)", "Bad URL")
+        self.conn.db[1] = (1, "hash1", "javascript:alert(1)", "Bad URL", "Example News")
         with self.assertRaises(ValueError):
             evidence.persist_issue_evidence(self.conn, 99, [1])
         self.assertEqual(self.conn.last.writes, [])
