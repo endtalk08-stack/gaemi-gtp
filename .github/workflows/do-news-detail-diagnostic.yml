@@ -28,6 +28,7 @@ jobs:
             'http://www.wowtv.co.kr/NewsCenter/News/Read?articleId=A202610160059&t=NN',
             'https://www.venturesquare.net/1120582/',
             'https://www.gpkorea.com/news/articleView.html?idxno=147671',
+            'https://www.wowtv.co.kr/NewsCenter/News/Read?articleId=A202610160059&t=NN',
           ]
           for url in urls:
               t=time.monotonic()
