@@ -1,0 +1,96 @@
+name: Deploy verified stock identity to existing DigitalOcean news worker
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - .github/workflows/do-stock-identity-deploy.yml
+      - backend/analysis/news/catalog.py
+      - backend/analysis/news/stock_identity.py
+      - ops/staged_news_processed_store.py
+permissions:
+  contents: read
+concurrency:
+  group: digitalocean-stock-identity-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run identity regression checks without network requests
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/analysis/news/catalog.py backend/analysis/news/stock_identity.py ops/staged_news_processed_store.py
+          python -m unittest discover -s tests -p 'test_dynamic_stock_identity.py' -v
+          python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v
+      - name: Deploy only identity modules and verified stock-news ownership with rollback
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          opts=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          remote="gaemi-deploy@$DO_HOST"
+          # Refuse overwriting a live file that has drifted from inspected baseline.
+          inspected=e125596ff06a0b2ef66fcb0464b586a97149b257
+          old_catalog="$(git show "$inspected:backend/analysis/news/catalog.py" | sha256sum | cut -d' ' -f1)"
+          old_store="$(git show "$inspected:ops/staged_news_processed_store.py" | sha256sum | cut -d' ' -f1)"
+          ssh "${opts[@]}" "$remote" "bash -s" <<REMOTE
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(printf '%s' "$old_catalog")" = "\$(sha256sum backend/analysis/news/catalog.py | cut -d' ' -f1)"
+          test "$(printf '%s' "$old_store")" = "\$(sha256sum backend/services/news_processed_store.py | cut -d' ' -f1)"
+          test -w backend/analysis/news/catalog.py
+          test -w backend/analysis/news/
+          test -w backend/services/news_processed_store.py
+          echo STOCK_IDENTITY_BASELINE_VERIFIED
+          REMOTE
+          scp "${opts[@]}" backend/analysis/news/catalog.py "$remote:/opt/gaemigtp-news/app/ops/.identity-catalog.next"
+          scp "${opts[@]}" backend/analysis/news/stock_identity.py "$remote:/opt/gaemigtp-news/app/ops/.identity-resolver.next"
+          scp "${opts[@]}" ops/staged_news_processed_store.py "$remote:/opt/gaemigtp-news/app/ops/.identity-store.next"
+          ssh "${opts[@]}" "$remote" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          folder="$(mktemp -d ./ops/.identity-backup.XXXXXX)"
+          cp backend/analysis/news/catalog.py "$folder/catalog.py"
+          cp backend/services/news_processed_store.py "$folder/store.py"
+          resolver_existed=0
+          if test -f backend/analysis/news/stock_identity.py; then
+            cp backend/analysis/news/stock_identity.py "$folder/resolver.py"
+            resolver_existed=1
+          fi
+          rollback() {
+            set +e
+            cp "$folder/catalog.py" backend/analysis/news/catalog.py
+            cp "$folder/store.py" backend/services/news_processed_store.py
+            if test "$resolver_existed" = 1; then
+              cp "$folder/resolver.py" backend/analysis/news/stock_identity.py
+            else
+              rm -f backend/analysis/news/stock_identity.py
+            fi
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+            echo STOCK_IDENTITY_ROLLED_BACK
+          }
+          trap rollback ERR
+          install -m 644 ops/.identity-catalog.next backend/analysis/news/catalog.py
+          install -m 644 ops/.identity-resolver.next backend/analysis/news/stock_identity.py
+          install -m 644 ops/.identity-store.next backend/services/news_processed_store.py
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/analysis/news/catalog.py backend/analysis/news/stock_identity.py backend/services/news_processed_store.py
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          trap - ERR
+          echo STOCK_IDENTITY_DEPLOYED
+          echo "SERVICE_MAINPID=$(systemctl show gaemigtp-news.service -p MainPID --value)"
+          REMOTE
