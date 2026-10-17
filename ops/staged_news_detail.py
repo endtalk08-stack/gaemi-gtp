@@ -63,6 +63,8 @@ class _ArticleHTMLParser(HTMLParser):
         self.article_depth = 0
         self.main_depth = 0
         self.news_content_depth = 0
+        self.news_content_chunks = []
+        self.news_content_script = False
         self.current_paragraph = None
         self.current_preferred = False
         self.preferred_paragraphs = []
@@ -88,16 +90,22 @@ class _ArticleHTMLParser(HTMLParser):
             name = str(attrs_dict.get("name") or attrs_dict.get("property") or "").lower()
             if name in {"description", "og:description", "twitter:description"} and not self.meta_description:
                 self.meta_description = _clean_text(attrs_dict.get("content"))
+        elif tag == "br" and self.news_content_depth:
+            self.news_content_chunks.append(" ")
         elif tag == "p":
             self.current_paragraph = []
             self.current_preferred = bool(self.article_depth or self.main_depth or self.news_content_depth)
         elif tag == "script":
+            if self.news_content_depth:
+                self.news_content_script = True
             script_type = str(attrs_dict.get("type") or "").lower()
             self.in_jsonld = script_type == "application/ld+json"
             if self.in_jsonld:
                 self.jsonld_chunks = []
 
     def handle_data(self, data):
+        if self.news_content_depth and not self.news_content_script:
+            self.news_content_chunks.append(str(data or ""))
         if self.current_paragraph is not None:
             self.current_paragraph.append(str(data or ""))
         if self.in_jsonld:
@@ -113,7 +121,9 @@ class _ArticleHTMLParser(HTMLParser):
                     self.preferred_paragraphs.append(paragraph)
             self.current_paragraph = None
             self.current_preferred = False
-        elif tag == "script" and self.in_jsonld:
+        elif tag == "script" and self.news_content_script:
+            self.news_content_script = False
+        if tag == "script" and self.in_jsonld:
             raw = "".join(self.jsonld_chunks).strip()
             if raw and not self.json_article_body:
                 try:
@@ -149,6 +159,7 @@ def _extract_article_text_with_source(payload, charset="utf-8"):
     candidates = (
         ("jsonld_article_body", parser.json_article_body),
         ("article_or_main_paragraphs", " ".join(parser.preferred_paragraphs)),
+        ("article_or_main_paragraphs", " ".join(parser.news_content_chunks)),
         ("all_page_paragraphs", " ".join(parser.all_paragraphs)),
         ("meta_description", parser.meta_description),
     )
