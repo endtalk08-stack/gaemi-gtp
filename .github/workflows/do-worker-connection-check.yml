@@ -19,8 +19,8 @@ jobs:
         env:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_SSH_USER: ${{ secrets.DO_SSH_USER }}
-          DO_SSH_PRIVATE_KEY: ${{ secrets.DO_SSH_PRIVATE_KEY }}
-          DO_SSH_KNOWN_HOSTS: ${{ secrets.DO_SSH_KNOWN_HOSTS }}
+          DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_SSH_KEY }}
+          DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           for name in DO_HOST DO_SSH_USER DO_SSH_PRIVATE_KEY DO_SSH_KNOWN_HOSTS; do
@@ -32,8 +32,8 @@ jobs:
 
       - name: Prepare SSH (no host key bypass)
         env:
-          DO_SSH_PRIVATE_KEY: ${{ secrets.DO_SSH_PRIVATE_KEY }}
-          DO_SSH_KNOWN_HOSTS: ${{ secrets.DO_SSH_KNOWN_HOSTS }}
+          DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_SSH_KEY }}
+          DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           umask 077
