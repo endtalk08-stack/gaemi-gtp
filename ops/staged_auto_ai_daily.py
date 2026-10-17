@@ -88,11 +88,9 @@ ai AS (
       'reaction_at', '',
       'time', CASE
           WHEN COALESCE(i->'source_articles'->0->>'published_at','') <> ''
-          THEN '기사 발행 ' ||
-               to_char((i->'source_articles'->0->>'published_at')::timestamptz AT TIME ZONE 'Asia/Seoul',
-                        'MM.DD HH24:MI')
-               || ' · AI 분석 ' || to_char(r.completed_at AT TIME ZONE 'Asia/Seoul','HH24:MI')
-          ELSE 'AI 분석 ' || to_char(r.completed_at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI')
+          THEN to_char((i->'source_articles'->0->>'published_at')::timestamptz AT TIME ZONE 'Asia/Seoul',
+                        'HH24:MI')
+          ELSE to_char(r.completed_at AT TIME ZONE 'Asia/Seoul','HH24:MI')
       END,
       'source_articles', (
          SELECT COALESCE(jsonb_agg(jsonb_build_object(

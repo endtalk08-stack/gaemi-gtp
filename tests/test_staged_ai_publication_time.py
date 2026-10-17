@@ -34,8 +34,9 @@ class PublicationTimeTests(unittest.TestCase):
             display_time="2026-10-18 04:48", stock_names=["브로드컴"],
             sources_by_issue=sources)
         brief = updated["issue_briefs"][0]
-        self.assertIn("기사 발행 10.18 03:16", brief["time"])
-        self.assertIn("AI 분석 04:48", brief["time"])
+        self.assertEqual(brief["time"], "03:16")
+        self.assertNotIn("기사 발행", brief["time"])
+        self.assertNotIn("AI 분석", brief["time"])
         self.assertNotIn("g-enews.com", brief["time"])
         self.assertEqual(brief["source_articles"][0]["source"], "g-enews.com")
         self.assertEqual(brief["source_articles"][0]["url"], "https://example.org/one")
@@ -46,7 +47,7 @@ class PublicationTimeTests(unittest.TestCase):
         issue = [{"headline":"소식", "summary":"내용", "tags":[]}]
         updated = with_ai_issue_briefs({}, issue, display_time="04:48",
                                       stock_names=["메타"], sources_by_issue=[[]])
-        self.assertEqual(updated["issue_briefs"][0]["time"], "AI 분석 04:48")
+        self.assertEqual(updated["issue_briefs"][0]["time"], "04:48")
 
     def test_invalid_indices_never_lookup_unrelated_article(self):
         issue = [{"headline":"소식", "summary":"내용", "tags":[], "source_ids":[999]}]
