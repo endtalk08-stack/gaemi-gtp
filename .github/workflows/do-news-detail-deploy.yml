@@ -1,0 +1,73 @@
+name: Deploy DigitalOcean article body parser fix
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-detail-deploy.yml]
+permissions:
+  contents: read
+concurrency:
+  group: digitalocean-news-worker-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/ops/do-ssh-deploy-setup-20261017' && github.event.head_commit.message == 'RUN_DO_DETAIL_FIX_20261017'
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_USER: ${{ vars.NEWS_SSH_USER }}
+      SSH_KEY: ${{ secrets.NEWS_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+      SOURCE: ops/staged_news_detail.py
+      TARGET: /opt/gaemigtp-news/app/backend/services/news_detail.py
+      EXPECTED_SHA256: de15cf0e90ef7e78d2765583efbc0086fda8f9f85f2ef8795cde40c20064a56f
+      STAGED_SHA256: 67ac683ca356a13d35fb17220587a7273b1a7843694cd18c2fae057d0714fb93
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify staged code, target and SSH
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/ops/do-ssh-deploy-setup-20261017"
+          test "$DO_HOST" = "168.144.131.211"
+          test "$SSH_USER" = "gaemi-news-check"
+          test -n "$SSH_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+          test -s "$SOURCE"
+          test "$(sha256sum "$SOURCE" | cut -d ' ' -f1)" = "$STAGED_SHA256"
+          python -m py_compile "$SOURCE"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+      - name: Verify live source and take exact backup
+        run: |
+          set -euo pipefail
+          REMOTE="$SSH_USER@$DO_HOST"
+          LIVE_SHA=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" "sha256sum $TARGET" | cut -d ' ' -f1)
+          test "$LIVE_SHA" = "$EXPECTED_SHA256" || { echo "::error::Live source changed; stopping"; exit 1; }
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" "cat $TARGET" > "$RUNNER_TEMP/news_detail_backup.py"
+          test "$(sha256sum "$RUNNER_TEMP/news_detail_backup.py" | cut -d ' ' -f1)" = "$EXPECTED_SHA256"
+      - name: Install and verify only the original article reader
+        run: |
+          set -euo pipefail
+          REMOTE="$SSH_USER@$DO_HOST"
+          rollback() {
+            rc=$?
+            trap - ERR
+            set +e
+            echo "::warning::Restoring previous news_detail.py"
+            scp -o BatchMode=yes -o StrictHostKeyChecking=yes "$RUNNER_TEMP/news_detail_backup.py" "$REMOTE:news-deploy/news_detail.py"
+            ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" 'sudo -n /usr/bin/install -m 644 /home/gaemi-news-check/news-deploy/news_detail.py /opt/gaemigtp-news/app/backend/services/news_detail.py && sudo -n /usr/bin/systemctl restart gaemigtp-news'
+            exit "$rc"
+          }
+          trap rollback ERR
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" 'test -w "$HOME/news-deploy" && systemctl is-active --quiet gaemigtp-news.service'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes "$SOURCE" "$REMOTE:news-deploy/news_detail.py"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" 'sudo -n /usr/bin/install -m 644 /home/gaemi-news-check/news-deploy/news_detail.py /opt/gaemigtp-news/app/backend/services/news_detail.py && sudo -n /usr/bin/systemctl restart gaemigtp-news && systemctl is-active --quiet gaemigtp-news.service'
+          REMOTE_SHA=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$REMOTE" "sha256sum $TARGET" | cut -d ' ' -f1)
+          test "$REMOTE_SHA" = "$STAGED_SHA256"
+          echo "DIGITALOCEAN_ARTICLE_READER_DEPLOY_VERIFIED"
+          trap - ERR
