@@ -45,6 +45,97 @@ def _load_key():
     return True
 
 
+# A completed, already paid Groq response may be persisted to the ledger but
+# miss the display snapshot if an exception occurs afterward.  Reconcile using
+# the verified, 24-hour issue/source bundle; NEVER call Groq again.
+_RECONCILE_DISPLAY_SQL = """
+WITH source_rows AS (
+  SELECT s.stock_name, l.completed_at, l.exchange_day,
+         b.result_payload->'issues' AS stored_issues,
+         l.result->'issue_ids' AS ledger_ids
+  FROM public.news_processed_snapshots s
+  JOIN public.news_ai_call_ledger l
+    ON l.market='US' AND l.symbol=s.stock_name
+   AND l.exchange_day=%s AND l.status='completed'
+  JOIN public.news_processed_results_24h b
+    ON b.result_type='stock_ai_issue_sources_v1'
+   AND b.result_payload->>'symbol'=s.stock_name
+   AND b.result_payload->>'exchange_day'=l.exchange_day::text
+   AND b.expires_at>now()
+  WHERE s.market='미국' AND s.stock_name=ANY(%s)
+    AND s.expires_at>now()
+    AND jsonb_typeof(b.result_payload->'issues')='array'
+    AND jsonb_array_length(b.result_payload->'issues') = jsonb_array_length(l.result->'issue_ids')
+    AND NOT (s.result_payload ? '_ai_issue_briefs')
+    AND NOT EXISTS (
+       SELECT 1
+       FROM jsonb_array_elements(
+           CASE WHEN jsonb_typeof(s.result_payload->'issue_briefs')='array'
+           THEN s.result_payload->'issue_briefs' ELSE '[]'::jsonb END
+       ) visible
+       JOIN public.news_ai_issues a ON a.market='US'
+          AND a.symbol=s.stock_name AND a.exchange_day=l.exchange_day
+          AND a.headline=visible->>'headline'
+    )
+),
+ai AS (
+  SELECT r.stock_name, r.exchange_day,
+    jsonb_agg(jsonb_build_object(
+      'headline', i->>'headline',
+      'summary', i->>'summary',
+      'tags', i->'tags',
+      'stock_names', jsonb_build_array(r.stock_name),
+      'reaction_at', '',
+      'time', CASE
+          WHEN COALESCE(i->'source_articles'->0->>'published_at','') <> ''
+          THEN '기사 발행 ' ||
+               to_char((i->'source_articles'->0->>'published_at')::timestamptz AT TIME ZONE 'Asia/Seoul',
+                        'MM.DD HH24:MI')
+               || ' · AI 분석 ' || to_char(r.completed_at AT TIME ZONE 'Asia/Seoul','HH24:MI')
+          ELSE 'AI 분석 ' || to_char(r.completed_at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI')
+      END,
+      'source_articles', (
+         SELECT COALESCE(jsonb_agg(jsonb_build_object(
+           'title',a->>'title','published_at',a->>'published_at',
+           'source',a->>'source','url',a->>'url'
+         )), '[]'::jsonb)
+         FROM jsonb_array_elements(COALESCE(i->'source_articles','[]'::jsonb)) a
+      )
+    ) ORDER BY (i->>'issue_id')::bigint) AS ai_briefs,
+    count(*) AS records
+  FROM source_rows r
+  CROSS JOIN LATERAL jsonb_array_elements(r.stored_issues) i
+  WHERE (i->'source_articles') IS NOT NULL
+    AND (i->>'issue_id')::bigint IN (
+        SELECT value::bigint FROM jsonb_array_elements_text(r.ledger_ids)
+    )
+  GROUP BY r.stock_name,r.exchange_day
+)
+UPDATE public.news_processed_snapshots s
+SET result_payload =
+   jsonb_set(
+     jsonb_set(
+       jsonb_set(s.result_payload, '{_code_issue_briefs}',
+                 COALESCE(s.result_payload->'_code_issue_briefs',
+                          s.result_payload->'issue_briefs','[]'::jsonb),true),
+       '{_ai_issue_briefs}',ai.ai_briefs,true),
+     '{issue_briefs}',ai.ai_briefs,true)
+   || jsonb_build_object('_ai_exchange_day',ai.exchange_day::text)
+FROM ai
+WHERE s.market='미국' AND s.stock_name=ai.stock_name
+  AND s.expires_at>now() AND ai.records>0
+  AND NOT (s.result_payload ? '_ai_issue_briefs')
+RETURNING s.stock_name
+"""
+
+
+def reconcile_completed_ai_snapshots(conn, day):
+    """Restore missing AI display strictly from already completed paid calls."""
+    with conn.cursor() as cur:
+        cur.execute(_RECONCILE_DISPLAY_SQL, (day, list(APPROVED_US)))
+        return [row[0] for row in cur.fetchall()]
+
+
 def process_due_ai_snapshots():
     """Poll eligible same-day snapshots after US 10:30; persist then display.
 
@@ -65,6 +156,13 @@ def process_due_ai_snapshots():
     import psycopg
     start_of_day = datetime.combine(day, time.min, tzinfo=NEW_YORK)
     with psycopg.connect(db_url, connect_timeout=10, autocommit=True) as conn:
+        try:
+            restored = reconcile_completed_ai_snapshots(conn, day)
+            if restored:
+                print("[news-ai] restored_completed_snapshots count=%s" % len(restored), flush=True)
+        except Exception as exc:
+            # Recovery is independent of today's candidate selection.
+            print("[news-ai] reconcile_failed category=%s" % type(exc).__name__, flush=True)
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT s.stock_name, s.result_limit, s.storyboard_limit,

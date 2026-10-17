@@ -21,6 +21,15 @@ class AIPrimaryTests(unittest.TestCase):
         self.assertFalse(has_eligible_ai_news([{"title": "Only title"}]))
         self.assertFalse(has_eligible_ai_news([{"title": "Text", "description": "No source date"}]))
 
+    def test_recovery_reuses_ledger_and_source_bundle_without_new_ai_call(self):
+        from staged_auto_ai_daily import _RECONCILE_DISPLAY_SQL
+        self.assertIn("status='completed'", _RECONCILE_DISPLAY_SQL)
+        self.assertIn("stock_ai_issue_sources_v1", _RECONCILE_DISPLAY_SQL)
+        self.assertIn("'{_code_issue_briefs}'", _RECONCILE_DISPLAY_SQL)
+        self.assertIn("'{_ai_issue_briefs}'", _RECONCILE_DISPLAY_SQL)
+        self.assertIn("expires_at>now()", _RECONCILE_DISPLAY_SQL)
+        self.assertNotIn("INSERT INTO public.news_ai_call_ledger", _RECONCILE_DISPLAY_SQL)
+
     def test_code_issues_kept_when_ai_is_displayed(self):
         before = {"_news_status": "ok", "paired_news_items": [{"title": "SpaceX"}],
                   "issue_briefs": [{"headline": "코드", "stock_names": ["스페이스X"]}]}
