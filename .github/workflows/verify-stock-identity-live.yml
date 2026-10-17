@@ -1,0 +1,27 @@
+name: Verify live ticker registry without AI requests
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/verify-stock-identity-live.yml]
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Request one existing public US ranking endpoint
+        run: |
+          python - <<'PY'
+          import json, urllib.request, urllib.error
+          endpoint="https://gaemi-gtp.onrender.com/market/trading-value?market=us"
+          request=urllib.request.Request(endpoint,headers={"User-Agent":"gaemi-identity-one-shot-smoke/1"})
+          with urllib.request.urlopen(request,timeout=40) as response:
+              data=json.load(response)
+              status=response.status
+          print("STATUS="+str(status),"SUCCESS="+str(data.get("ok")),"COUNT="+str(len(data.get("items") or [])),flush=True)
+          for item in (data.get("items") or [])[:20]:
+              print("STOCK_CODE",json.dumps({"name":item.get("name"),"symbol":item.get("symbol"),"analysis_symbol":item.get("analysis_symbol")},ensure_ascii=False),flush=True)
+          if status!=200 or data.get("ok") is not True:
+              raise SystemExit("ranking endpoint unavailable")
+          PY
