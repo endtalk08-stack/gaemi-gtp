@@ -164,6 +164,20 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
     if result.get("_news_status") != "ok":
         raise ValueError("refusing to save failed analysis")
     normalized = json.loads(json.dumps(result, ensure_ascii=False, default=str))
+    # Issue ownership is enforced at the storage boundary. A brief assigned to
+    # a different ticker must never appear in this stock's headline/sidebar.
+    submitted = normalized.get("issue_briefs") or []
+    valid = [
+        brief for brief in submitted
+        if isinstance(brief, dict)
+        and stock_name in (brief.get("stock_names") or [])
+    ]
+    if len(valid) != len(submitted):
+        print(
+            f"[news-worker] unrelated_issues_rejected stock={stock_name} count={len(submitted)-len(valid)}",
+            flush=True,
+        )
+    normalized["issue_briefs"] = valid
     with _connect() as conn:
         with conn.cursor() as cur:
             # A temporary zero-result verification pass must not erase a
