@@ -2,7 +2,7 @@ name: Deploy staged Groq AI modules to DigitalOcean
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
-    paths: [.github/workflows/do-news-ai-integration-inspect.yml, ops/staged_ai_sequential_batch.py, ops/staged_daily_groq_issues.py]
+    paths: [.github/workflows/do-news-ai-integration-inspect.yml, ops/staged_ai_sequential_batch.py, ops/staged_auto_ai_daily.py, ops/staged_daily_groq_issues.py]
 permissions:
   contents: read
 jobs:
@@ -25,7 +25,7 @@ jobs:
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           SSH_OPTS=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
-          files=(ops/staged_daily_groq_issues.py ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_ai_snapshot_integration.py ops/staged_daily_call_guard.py ops/staged_ai_sequential_batch.py ops/staged_daily_issue_schedule.py)
+          files=(ops/staged_daily_groq_issues.py ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_ai_snapshot_integration.py ops/staged_daily_call_guard.py ops/staged_ai_sequential_batch.py ops/staged_daily_issue_schedule.py ops/staged_auto_ai_daily.py)
           python3 -m py_compile "${files[@]}"
           ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'mkdir -p /opt/gaemigtp-news/app/ops && test -w /opt/gaemigtp-news/app/ops'
           scp "${SSH_OPTS[@]}" "${files[@]}" gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/ops/
@@ -39,7 +39,120 @@ jobs:
           trap 'rm -f "$keyfile"' EXIT
           printf '%s' "$GROQ_API_KEY" > "$keyfile"
           scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "$keyfile" gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/ops/.groq_api_key
-          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'chmod 600 /opt/gaemigtp-news/app/ops/.groq_api_key && test -s /opt/gaemigtp-news/app/ops/.groq_api_key && echo GROQ_KEY_INSTALLED'
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'chmod 600 /opt/gaemigtp-news/app/ops/.groq_api_key && setfacl -m u:gaemigtp-news:r-- /opt/gaemigtp-news/app/ops/.groq_api_key && getfacl -cp /opt/gaemigtp-news/app/ops/.groq_api_key | grep -q '^user:gaemigtp-news:r--'
+      - name: Verify worker runtime permissions and Groq configuration without exposing secrets
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          echo "DEPLOY_ACCOUNT=$(id -un)"
+          if test -r /etc/gaemigtp/news-worker.env; then
+            echo WORKER_ENV_READABLE=yes
+            if grep -q '^GROQ_API_KEY=' /etc/gaemigtp/news-worker.env; then echo GROQ_KEY_CONFIGURED=yes; else echo GROQ_KEY_CONFIGURED=no; fi
+            if grep -q '^NEWS_DATABASE_URL=' /etc/gaemigtp/news-worker.env; then echo NEON_URL_CONFIGURED=yes; else echo NEON_URL_CONFIGURED=no; fi
+          else
+            echo WORKER_ENV_READABLE=no
+          fi
+          if sudo -n -l >/dev/null 2>&1; then echo SUDO_AVAILABLE=yes; else echo SUDO_AVAILABLE=no; fi
+          if test -w /opt/gaemigtp-news/app/backend/news_worker.py; then echo WORKER_CODE_WRITABLE=yes; else echo WORKER_CODE_WRITABLE=no; fi
+          systemctl is-active gaemigtp-news.service || true
+          REMOTE
+      - name: Connect AI to original worker with rollback and restart
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test -w backend/news_worker.py
+          sudo -n /usr/bin/systemctl is-active gaemigtp-news.service >/dev/null
+          /opt/gaemigtp-news/venv/bin/python -m compileall -q ops/staged_*.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import datetime
+          p=Path("backend/news_worker.py")
+          source=p.read_text()
+          marker="    store.save_snapshot(stock_name, fingerprint=fingerprint, result=result, **params)\n"
+          injection = "    try:\n        import sys\n        from pathlib import Path\n        ops_dir = str(Path(__file__).resolve().parents[1] / \"ops\")\n        if ops_dir not in sys.path:\n            sys.path.insert(0, ops_dir)\n        from staged_ai_sequential_batch import apply_worker_ai\n        apply_worker_ai(store=store, market=market, stock_name=stock_name,\n                        raw=raw, fingerprint=fingerprint, result=result, params=params)\n    except Exception as ai_exc:\n        print(f\"[news-ai] stock={stock_name} error={type(ai_exc).__name__}\", flush=True)\n"
+          unchanged_marker = '        store.mark_checked(stock_name, **params)\n        return "unchanged"\n'
+          unchanged_hook = '        try:\n            from staged_ai_sequential_batch import apply_unchanged_worker_ai\n            apply_unchanged_worker_ai(store=store, market=market, stock_name=stock_name,\n                                      raw=raw, fingerprint=fingerprint, params=params)\n        except Exception as ai_exc:\n            print(f"[news-ai] stock={stock_name} error={type(ai_exc).__name__}", flush=True)\n'
+          if unchanged_hook in source:
+              corrected_hook = unchanged_hook.replace("        try:\n", "        try:\n            import sys\n            from pathlib import Path\n            ops_dir = str(Path(__file__).resolve().parents[1] / \"ops\")\n            if ops_dir not in sys.path:\n                sys.path.insert(0, ops_dir)\n", 1)
+              source = source.replace(unchanged_hook, corrected_hook, 1)
+              p.write_text(source)
+              print("AI_UNCHANGED_HOOK_PATH_FIXED")
+          if "from staged_ai_sequential_batch import apply_unchanged_worker_ai" not in source:
+              if source.count(unchanged_marker) != 1:
+                  raise SystemExit("Unchanged-news return location changed; refusing modification")
+              source = source.replace(unchanged_marker, unchanged_hook + unchanged_marker, 1)
+              p.write_text(source)
+              print("AI_UNCHANGED_HOOK_INSTALLED")
+          else:
+              print("AI_UNCHANGED_HOOK_ALREADY_PRESENT")
+          if "from staged_ai_sequential_batch import apply_worker_ai" in source:
+              print("AI_HOOK_ALREADY_PRESENT")
+          else:
+              if source.count(marker)!=1:
+                  raise SystemExit("Original save_snapshot location changed; refusing modification")
+              backup=Path("backend/news_worker.py.pre_groq_ai_20261017.bak")
+              if not backup.exists():
+                  backup.write_text(source)
+              p.write_text(source.replace(marker,marker+injection,1))
+              print("AI_HOOK_INSTALLED")
+          schedule_marker = "    try:\n        store.purge_expired()\n"
+          schedule_hook = "    try:\n        import sys\n        from pathlib import Path\n        ops_dir = str(Path(__file__).resolve().parents[1] / \"ops\")\n        if ops_dir not in sys.path:\n            sys.path.insert(0, ops_dir)\n        from staged_auto_ai_daily import process_due_ai_snapshots\n        ai_count = process_due_ai_snapshots()\n        if ai_count:\n            print(\"[news-ai] scheduled processed=%s\" % ai_count, flush=True)\n    except Exception as ai_exc:\n        print(\"[news-ai] scheduled error=%s\" % type(ai_exc).__name__, flush=True)\n"
+          if "from staged_auto_ai_daily import process_due_ai_snapshots" not in source:
+              if source.count(schedule_marker) != 1:
+                  raise SystemExit("News worker cleanup location changed; refusing scheduler injection")
+              source = source.replace(schedule_marker, schedule_hook + schedule_marker, 1)
+              p.write_text(source)
+              print("AI_DAILY_SCHEDULER_INSTALLED")
+          else:
+              print("AI_DAILY_SCHEDULER_ALREADY_PRESENT")
+          import py_compile
+          py_compile.compile(str(p),doraise=True)
+          PY
+          if ! sudo -n /usr/bin/systemctl restart gaemigtp-news.service; then
+            cp backend/news_worker.py.pre_groq_ai_20261017.bak backend/news_worker.py
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+            echo WORKER_RESTART_FAILED_ROLLED_BACK
+            exit 1
+          fi
+          if ! sudo -n /usr/bin/systemctl is-active gaemigtp-news.service; then
+            cp backend/news_worker.py.pre_groq_ai_20261017.bak backend/news_worker.py
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+            echo WORKER_INACTIVE_ROLLED_BACK
+            exit 1
+          fi
+          rm -f /opt/gaemigtp-news/app/ops/.groq_run_now_20261017
+          echo AI_WORKER_HOOK_ACTIVE
+          REMOTE
+      - name: Diagnose Neon worker integration
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          cd /opt/gaemigtp-news/app
+          echo SERVICE_USER="$(systemctl show gaemigtp-news.service -p User --value)"
+          echo SERVICE_MAINPID="$(systemctl show gaemigtp-news.service -p MainPID --value)"
+          grep -nE '^(class |def |    def |from .*store|import .*store)' backend/news_worker.py | head -55 || true
+          grep -nE 'apply_unchanged_worker_ai|apply_worker_ai|ops_dir|news-ai' backend/news_worker.py | head -35 || true
+          echo WORKER_MAIN_LOOP_CONTEXT
+          sed -n '108,235p' backend/news_worker.py
+          echo GROQ_SERVICE_KEY_ACCESS
+          stat -c 'KEY_OWNER=%U KEY_GROUP=%G KEY_PERMISSIONS=%a' ops/.groq_api_key
+          id -nG gaemi-deploy
+          id -nG gaemigtp-news
+          if command -v setfacl >/dev/null 2>&1; then echo SETFACL_AVAILABLE=yes; else echo SETFACL_AVAILABLE=no; fi
+          echo WORKER_STORE_DB_DEFINITIONS
+          grep -nE 'def .*connect|def .*database|NEWS_DATABASE_URL|DATABASE_URL|psycopg' backend/services/news_processed_store.py | head -40 || true
+          echo SERVICE_CONFIG_SOURCE
+          systemctl show gaemigtp-news.service -p EnvironmentFiles --value
+          echo JOURNAL_READABILITY
+          journalctl -u gaemigtp-news.service --since '30 minutes ago' --no-pager -o cat | grep -E '\[news-ai\]' | tail -15 || true
+          sudo -n /usr/bin/journalctl -u gaemigtp-news.service --since '15 minutes ago' --no-pager -o cat | grep -E '\[news-ai\]' | tail -20 || true
+          REMOTE
+# Routine deployment does not make a paid Groq request.
+ && test -s /opt/gaemigtp-news/app/ops/.groq_api_key && echo GROQ_KEY_READABLE_BY_SERVICE_ONLY'
       - name: Verify worker runtime permissions and Groq configuration without exposing secrets
         run: |
           set -euo pipefail
