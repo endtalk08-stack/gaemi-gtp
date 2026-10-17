@@ -17,8 +17,14 @@ jobs:
           endpoint="https://gaemi-gtp.onrender.com/market/trading-value?market=us"
           request=urllib.request.Request(endpoint,headers={"User-Agent":"gaemi-identity-one-shot-smoke/1"})
           with urllib.request.urlopen(request,timeout=40) as response:
-              data=json.load(response)
+              raw=response.read()
               status=response.status
+              print("HTTP",status,"URL",response.url,"CONTENT_TYPE",response.headers.get("Content-Type"),"BYTES",len(raw),flush=True)
+          try:
+              data=json.loads(raw)
+          except (ValueError,UnicodeDecodeError):
+              print("NON_JSON_RESPONSE",repr(raw[:450]),flush=True)
+              raise SystemExit("endpoint responded with unexpected format")
           print("STATUS="+str(status),"SUCCESS="+str(data.get("ok")),"COUNT="+str(len(data.get("items") or [])),flush=True)
           for item in (data.get("items") or [])[:20]:
               print("STOCK_CODE",json.dumps({"name":item.get("name"),"symbol":item.get("symbol"),"analysis_symbol":item.get("analysis_symbol")},ensure_ascii=False),flush=True)
