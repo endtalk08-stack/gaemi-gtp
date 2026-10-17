@@ -116,6 +116,10 @@ jobs:
           rm -f /opt/gaemigtp-news/app/ops/.groq_run_now_20261017
           echo AI_WORKER_HOOK_ACTIVE
           REMOTE
+      - name: Verify AI persistence and snapshot rendering
+        run: |
+          echo "AI end-to-end verification step pending"
+
       - name: Diagnose Neon worker integration
         run: |
           set -euo pipefail
