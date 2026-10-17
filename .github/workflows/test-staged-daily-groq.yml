@@ -3,6 +3,7 @@ on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
     paths:
+      - ops/staged_ai_snapshot_integration.py
       - ops/staged_ai_issue_store.py
       - ops/staged_ai_issue_display_adapter.py
       - ops/staged_daily_groq_issues.py
@@ -11,6 +12,7 @@ on:
       - ops/staged_issue_evidence.py
       - ops/staged_issue_links.py
       - ops/staged_issue_pipeline.py
+      - tests/test_staged_ai_snapshot_integration.py
       - tests/test_staged_ai_issue_store.py
       - tests/test_staged_ai_issue_display_adapter.py
       - tests/test_staged_daily_groq_issues.py
@@ -32,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile and test without calling any API
         run: |
-          python -m py_compile ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_daily_groq_issues.py ops/staged_daily_issue_schedule.py ops/staged_daily_call_guard.py ops/staged_issue_evidence.py ops/staged_issue_links.py ops/staged_issue_pipeline.py
+          python -m py_compile ops/staged_ai_snapshot_integration.py ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_daily_groq_issues.py ops/staged_daily_issue_schedule.py ops/staged_daily_call_guard.py ops/staged_issue_evidence.py ops/staged_issue_links.py ops/staged_issue_pipeline.py
           python -m unittest discover -s tests -p 'test_staged_ai_*.py' -v
           python -m unittest discover -s tests -p 'test_staged_daily_*.py' -v
           python -m unittest discover -s tests -p 'test_staged_issue_*.py' -v
