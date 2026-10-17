@@ -36,6 +36,8 @@ jobs:
               req=urllib.request.Request(site,headers={'User-Agent':'gaemiGTP/1.0'})
               with urllib.request.urlopen(req,timeout=5) as resp:
                   raw=resp.read(350000).decode('utf-8','replace')
+              tags=re.findall(r'<[^>]{0,350}(?:articlebody|divnewscontent)[^>]*>',raw,re.IGNORECASE)
+              print('ARTICLE_CONTAINER_TAGS',tags[:8])
               hits=list(re.finditer('솔리다임|다롄|SK하이닉스',raw,re.IGNORECASE))
               print('BODY_HIT_COUNT',len(hits))
               for match in hits[-5:]:
