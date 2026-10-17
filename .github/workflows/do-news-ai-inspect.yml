@@ -17,15 +17,12 @@ jobs:
       SSH_KEY: ${{ secrets.NEWS_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
-      - name: Inspect live news worker paths and function names (no configuration values)
+      - name: Inspect scheduling, issue integration and secret presence (read only)
         run: |
           set -euo pipefail
-          test "$DO_HOST" = "168.144.131.211"
           test "$SSH_USER" = "gaemi-news-check"
           umask 077
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'cd /opt/gaemigtp-news/app && echo WORKER_FILES && find . -maxdepth 3 -type f -name "*.py" | grep -E "news|worker|issue|brief|ai" | head -80 && echo SERVICE_DECLARATION && systemctl cat gaemigtp-news.service | grep -E "^ExecStart=|^WorkingDirectory=" && echo AI_REFERENCES && grep -R -n -E "GROQ|groq|news_processed_snapshots|build_stock_news_result|save_snapshot|issue_briefs" --include="*.py" backend 2>/dev/null | cut -c1-200 | head -90'
-
-# Read-only inventory run; no DigitalOcean files modified.
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'cd /opt/gaemigtp-news/app && python -c '\''import ast,pathlib; files=["backend/news_worker.py","backend/services/news_result.py","backend/services/issue_briefs.py"]; keys=("main","run","process","build_stock_news_result","build_issue_briefs","save_snapshot"); [(print("FILE",p),print("FUNCTIONS",[(n.name,n.lineno) for n in ast.parse(pathlib.Path(p).read_text()).body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))]),print("KEY_LINES"),[(print(str(i)+": "+line[:180])) for i,line in enumerate(pathlib.Path(p).read_text().splitlines(),1) if any(k in line for k in ("build_stock_news_result(", "build_issue_briefs(", "save_snapshot(", "sleep(", "time.sleep", "result_payload", "issue_briefs ="))]) for p in files]; print("CONFIG_KEY_PRESENT",__import__("os").path.exists("/opt/gaemigtp-news/app/.env"))'\'' && echo SERVICE_ENV_NAMES && systemctl cat gaemigtp-news.service | grep "^EnvironmentFile=" | sed -E "s|=.*|=[configured file path omitted]|" || true'
