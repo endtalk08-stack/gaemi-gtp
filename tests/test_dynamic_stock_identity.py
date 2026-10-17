@@ -69,6 +69,8 @@ class IdentityTests(unittest.TestCase):
         ops_path = str(pathlib.Path(__file__).resolve().parents[1] / "ops")
         if ops_path not in sys.path:
             sys.path.insert(0, ops_path)
+        if not pathlib.Path(ops_path, "staged_news_processed_store.py").exists():
+            self.skipTest("DigitalOcean-only staged store; absent from Render source")
         from staged_news_processed_store import _same_stock_issue_briefs
         briefs = [
             {"headline": "알파벳", "stock_names": ["알파벳"]},
