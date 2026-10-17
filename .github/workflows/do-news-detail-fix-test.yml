@@ -31,6 +31,17 @@ jobs:
           print('BODY_PREVIEW',txt[:300])
           print('DIRECT',_central_direct_article({'title':'"中생산 늘린다고?"…SK하이닉스가 펄쩍 뛰며 부인한 까닭은'},txt,'SK하이닉스'))
           print('MATERIAL',central_material_brief_supported(txt))
+          import urllib.request
+          req=urllib.request.Request(original.replace('http://','https://',1),headers={'User-Agent':'gaemiGTP/1.0'})
+          with urllib.request.urlopen(req,timeout=5) as resp:
+              raw=resp.read(350000)
+          parser=mod._ArticleHTMLParser()
+          parser.feed(raw.decode('utf-8','replace'))
+          print('PREFERRED_COUNT',len(parser.preferred_paragraphs),'ALL_COUNT',len(parser.all_paragraphs))
+          print('PREFERRED_PREVIEW',parser.preferred_paragraphs[:1])
+          rawtext=raw.decode('utf-8','replace')
+          ix=rawtext.find('id="divNewsContent"')
+          print('BODY_CONTAINER_START',rawtext[ix:ix+450] if ix>=0 else 'not found')
           assert item['source']=='article_or_main_paragraphs',item['source']
           assert len(txt)>=350,len(txt)
           assert 'SK하이닉스' in txt,txt[:300]
