@@ -768,6 +768,20 @@ def _sanitize_news_display_briefs(result):
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
             brief["summary"] = strip_leading_news_credit(brief["summary"])
             brief["headline"] = grounded_issue_display_title(brief)
+            # Earlier AI worker versions added unrequested publication/AI labels.
+            # Show only the existing concise HH:MM; leave persisted evidence untouched.
+            timestamp = brief.get("time")
+            if isinstance(timestamp, str):
+                publication = re.fullmatch(
+                    r"기사 발행 \d{2}\.\d{2} (\d{2}:\d{2})(?: · AI 분석 \d{2}:\d{2})?",
+                    timestamp.strip(),
+                )
+                ai_time = re.fullmatch(
+                    r"AI 분석 (?:\d{4}-\d{2}-\d{2} )?(\d{2}:\d{2})",
+                    timestamp.strip(),
+                )
+                if publication or ai_time:
+                    brief["time"] = (publication or ai_time).group(1)
     return result
 
 
