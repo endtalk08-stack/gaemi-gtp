@@ -132,6 +132,14 @@ def mark_checked(stock_name, *, market, limit, storyboard_limit, display_timezon
             """, (market, stock_name, limit, storyboard_limit, display_timezone))
 
 
+def _same_stock_issue_briefs(briefs, stock_name):
+    return [
+        brief for brief in (briefs or [])
+        if isinstance(brief, dict)
+        and stock_name in (brief.get("stock_names") or [])
+    ]
+
+
 def _recent_existing_issue_briefs(previous, stock_name):
     """Keep only the same stock's genuinely recent event briefs."""
     from datetime import datetime, timezone, timedelta
@@ -167,11 +175,7 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
     # Issue ownership is enforced at the storage boundary. A brief assigned to
     # a different ticker must never appear in this stock's headline/sidebar.
     submitted = normalized.get("issue_briefs") or []
-    valid = [
-        brief for brief in submitted
-        if isinstance(brief, dict)
-        and stock_name in (brief.get("stock_names") or [])
-    ]
+    valid = _same_stock_issue_briefs(submitted, stock_name)
     if len(valid) != len(submitted):
         print(
             f"[news-worker] unrelated_issues_rejected stock={stock_name} count={len(submitted)-len(valid)}",
