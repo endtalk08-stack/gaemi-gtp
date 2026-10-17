@@ -26,3 +26,4 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'systemctl show gaemigtp-news.service -p ActiveState -p SubState; /opt/gaemigtp-news/venv/bin/python -c '\''import pathlib; p=pathlib.Path("/opt/gaemigtp-news/app/backend/news_worker.py"); t=p.read_text(); print("WORKER_PRESENT",p.exists()); print("WORKER_LINES",len(t.splitlines())); print("WORKER_NEON_SAVE", "save_snapshot(" in t)'\'''
 # Read-only inspection trigger; no deployment or AI calls.
+# Recheck actual worker file and systemd service before staging integration.
