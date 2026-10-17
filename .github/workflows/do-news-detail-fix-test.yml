@@ -29,6 +29,7 @@ jobs:
           txt=_article_excerpt(item['text'])
           print('SOURCE',item['source'],'CHARACTERS',len(txt))
           print('BODY_PREVIEW',txt[:300])
+          print('BODY_FIX_VERSION','br-content-parser-v2')
           print('DIRECT',_central_direct_article({'title':'"中생산 늘린다고?"…SK하이닉스가 펄쩍 뛰며 부인한 까닭은'},txt,'SK하이닉스'))
           print('MATERIAL',central_material_brief_supported(txt))
           import urllib.request
