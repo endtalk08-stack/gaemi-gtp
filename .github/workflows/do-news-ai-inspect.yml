@@ -24,7 +24,7 @@ jobs:
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'sed -n "143,228p" /opt/gaemigtp-news/app/backend/services/news_processed_store.py | cut -c 1-185; echo ACCESS_CHECK; id; test -w /opt/gaemigtp-news/app/backend/news_worker.py && echo WORKER_WRITABLE=yes || echo WORKER_WRITABLE=no; test -w /opt/gaemigtp-news/app/backend && echo BACKEND_WRITABLE=yes || echo BACKEND_WRITABLE=no'
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'echo SSH_IDENTITY; id; echo WORKER_FILE_WRITE; if test -w /opt/gaemigtp-news/app/backend/news_worker.py; then echo YES; else echo NO; fi; echo BACKEND_DIR_WRITE; if test -w /opt/gaemigtp-news/app/backend; then echo YES; else echo NO; fi; echo OPS_DIR_WRITE; if test -w /opt/gaemigtp-news/app/ops; then echo YES; else echo NO; fi; echo SUDO_NONINTERACTIVE; if sudo -n true 2>/dev/null; then echo YES; else echo NO; fi; echo GIT_CHECKOUT; git -C /opt/gaemigtp-news/app rev-parse --is-inside-work-tree 2>/dev/null || true'
 # Read-only inspection trigger; no deployment or AI calls.
 # Recheck actual worker file and systemd service before staging integration.
 # SSH connection preflight rerun 2026-10-17; no deployment, no Groq calls.
@@ -35,3 +35,5 @@ jobs:
 # Read-only inspect Neon store connection API; do not print credentials.
 
 # Read-only inspect snapshot preservation and SSH user deployment permissions.
+
+# Explicit SSH deployment permission test: no file changes, no secrets.
