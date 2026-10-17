@@ -20,6 +20,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Checkout staged fix for local tests
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check staged issue-preservation logic without deployment
+        run: |
+          set -euo pipefail
+          python -m py_compile ops/staged_news_processed_store.py
+          python - <<'PY'
+          import runpy
+          from datetime import datetime, timedelta, timezone
+          fn = runpy.run_path("ops/staged_news_processed_store.py")["_recent_existing_issue_briefs"]
+          now = datetime.now(timezone.utc)
+          def issue(hours, stock="삼성전자"):
+              return {"headline":"test", "reaction_at":(now-timedelta(hours=hours)).isoformat(), "stock_names":[stock]}
+          previous={"issue_briefs":[issue(1), issue(25), issue(1,"테슬라"), {"headline":"bad","reaction_at":"bad","stock_names":["삼성전자"]}]}
+          kept=fn(previous, "삼성전자")
+          assert len(kept)==1, kept
+          assert fn(previous, "SK하이닉스")==[]
+          assert fn({"issue_briefs": []}, "삼성전자")==[]
+          print("ISSUE_GUARD_TEST_PASSED")
+          PY
       - name: Validate required GitHub Actions secrets
         env:
           DO_HOST: ${{ secrets.DO_HOST }}
