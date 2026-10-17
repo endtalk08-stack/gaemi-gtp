@@ -29,4 +29,21 @@ jobs:
           ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'mkdir -p /opt/gaemigtp-news/app/ops && test -w /opt/gaemigtp-news/app/ops'
           scp "${SSH_OPTS[@]}" "${files[@]}" gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/ops/
           ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'cd /opt/gaemigtp-news/app && /opt/gaemigtp-news/venv/bin/python -m compileall -q ops/staged_*.py && echo STAGED_AI_MODULES_DEPLOYED'
-# Staged modules only; existing worker, news collection, Groq prompt and Render remain unchanged.
+      - name: Verify worker runtime permissions and Groq configuration without exposing secrets
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          echo "DEPLOY_ACCOUNT=$(id -un)"
+          if test -r /etc/gaemigtp/news-worker.env; then
+            echo WORKER_ENV_READABLE=yes
+            if grep -q '^GROQ_API_KEY=' /etc/gaemigtp/news-worker.env; then echo GROQ_KEY_CONFIGURED=yes; else echo GROQ_KEY_CONFIGURED=no; fi
+            if grep -q '^NEWS_DATABASE_URL=' /etc/gaemigtp/news-worker.env; then echo NEON_URL_CONFIGURED=yes; else echo NEON_URL_CONFIGURED=no; fi
+          else
+            echo WORKER_ENV_READABLE=no
+          fi
+          if sudo -n -l >/dev/null 2>&1; then echo SUDO_AVAILABLE=yes; else echo SUDO_AVAILABLE=no; fi
+          if test -w /opt/gaemigtp-news/app/backend/news_worker.py; then echo WORKER_CODE_WRITABLE=yes; else echo WORKER_CODE_WRITABLE=no; fi
+          systemctl is-active gaemigtp-news.service || true
+          REMOTE
+# Preflight only. No worker restart, paid AI call, or Render changes.
