@@ -55,6 +55,41 @@ class SequentialBatchTests(unittest.TestCase):
         self.assertEqual([r["status"] for r in results], ["error", "ok"])
         self.assertEqual(results[0]["error_type"], "RuntimeError")
 
+    def test_duplicate_reservation_skips_paid_call(self):
+        from contextlib import nullcontext
+        conn = type("Conn", (), {"transaction": lambda self: nullcontext()})()
+        stock = {"name": "엔비디아", "articles": [{"title": "뉴스"}],
+                 "market": "US", "symbol": "NVDA", "exchange_day": date(2026, 10, 17)}
+        analyze, save, finish = Mock(), Mock(), Mock()
+        results = module.run_stock_batch(
+            conn, [stock], analyze=analyze, save=save,
+            reserve=lambda *a, **k: False, finish=finish)
+        self.assertEqual(results[0]["status"], "already_reserved")
+        analyze.assert_not_called()
+        save.assert_not_called()
+        finish.assert_not_called()
+
+    def test_reservation_happens_before_ai_call(self):
+        from contextlib import nullcontext
+        conn = type("Conn", (), {"transaction": lambda self: nullcontext()})()
+        stock = {"name": "엔비디아", "articles": [{"title": "뉴스"}],
+                 "market": "US", "symbol": "NVDA", "exchange_day": date(2026, 10, 17)}
+        calls = []
+        def reserve(*a, **k):
+            calls.append("reserve")
+            return True
+        def analyze(*a):
+            calls.append("analyze")
+            return []
+        def finish(*a, **k):
+            calls.append("finish")
+            return True
+        result = module.run_stock_batch(
+            conn, [stock], analyze=analyze, save=Mock(),
+            reserve=reserve, finish=finish)
+        self.assertEqual(calls, ["reserve", "analyze", "finish"])
+        self.assertEqual(result[0]["status"], "ok")
+
     def test_no_articles_does_not_call_groq_or_save(self):
         stock = {"name": "A", "articles": [], "market": "US", "symbol": "A",
                  "exchange_day": date(2026, 10, 17)}
