@@ -130,6 +130,12 @@ jobs:
           echo SERVICE_MAINPID="$(systemctl show gaemigtp-news.service -p MainPID --value)"
           grep -nE '^(class |def |    def |from .*store|import .*store)' backend/news_worker.py | head -55 || true
           grep -nE 'apply_unchanged_worker_ai|apply_worker_ai|ops_dir|news-ai' backend/news_worker.py | head -35 || true
+          echo WORKER_STORE_DB_DEFINITIONS
+          grep -nE 'def .*connect|def .*database|NEWS_DATABASE_URL|DATABASE_URL|psycopg' backend/services/news_processed_store.py | head -40 || true
+          echo SERVICE_CONFIG_SOURCE
+          systemctl show gaemigtp-news.service -p EnvironmentFiles --value
+          echo JOURNAL_READABILITY
+          journalctl -u gaemigtp-news.service --since '30 minutes ago' --no-pager -o cat | grep -E '\[news-ai\]' | tail -15 || true
           sudo -n /usr/bin/journalctl -u gaemigtp-news.service --since '15 minutes ago' --no-pager -o cat | grep -E '\[news-ai\]' | tail -20 || true
           REMOTE
       - name: Live Groq API test and report provider response
