@@ -82,3 +82,33 @@ def analyze_news(stock_name, articles):
     with urllib.request.urlopen(request, timeout=35) as response:
         result = json.load(response)
     return parse_issues(result["choices"][0]["message"]["content"])
+
+
+
+def issue_records(issues, *, market, symbol, exchange_day):
+    """Map validated AI issues to existing news_ai_issues columns.
+
+    The database supplies generated_at; article publication times remain separate.
+    No article-level evidence or invented timestamps are added.
+    """
+    from datetime import date
+
+    if market not in ("US", "KR") or not isinstance(symbol, str) or not symbol.strip():
+        raise ValueError("Invalid market or symbol")
+    if not isinstance(exchange_day, date) or hasattr(exchange_day, "hour"):
+        raise ValueError("Invalid exchange day")
+    if not isinstance(issues, list):
+        raise ValueError("Invalid issues")
+    validated = parse_issues(json.dumps({"issues": issues}, ensure_ascii=False))
+    return [
+        {
+            "market": market,
+            "symbol": symbol,
+            "exchange_day": exchange_day,
+            "headline": item["headline"],
+            "summary": item["summary"],
+            "tags": item["tags"],
+            "model_id": MODEL,
+        }
+        for item in validated
+    ]
