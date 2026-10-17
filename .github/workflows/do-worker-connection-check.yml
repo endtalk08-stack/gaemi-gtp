@@ -36,6 +36,18 @@ jobs:
           own = module["_same_stock_issue_briefs"]
           assert own([{"stock_names":["셀트리온"]},{"stock_names":["현대차"]}], "셀트리온")==[{"stock_names":["셀트리온"]}]
           assert own([{"stock_names":["현대차"]}], "셀트리온")==[]
+          class Dummy:
+              def __init__(self, record): self.record=record
+              def __enter__(self): return self
+              def __exit__(self,*args): return False
+              def cursor(self): return self
+              def execute(self,*args): pass
+              def fetchone(self): return self.record
+          sig = module["read_signature"]
+          sig.__globals__["_connect"] = lambda: Dummy(("fp", {"issue_briefs":[{"stock_names":["현대차"]}]}))
+          assert sig("셀트리온","국내",50,3,"Asia/Seoul") is None
+          sig.__globals__["_connect"] = lambda: Dummy(("fp", {"issue_briefs":[{"stock_names":["셀트리온"]}]}))
+          assert sig("셀트리온","국내",50,3,"Asia/Seoul") == "fp"
           now = datetime.now(timezone.utc)
           def issue(hours, stock="삼성전자"):
               return {"headline":"test", "reaction_at":(now-timedelta(hours=hours)).isoformat(), "stock_names":[stock]}
