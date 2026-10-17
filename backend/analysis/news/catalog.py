@@ -50,6 +50,9 @@ STOCK_UNIVERSE = {
 }
 
 
+from .stock_identity import resolve_us_identity, news_snapshot_names
+
+
 # Exact Naver US listing labels observed alongside the news catalog names.
 # Only these verified spelling variants are mapped. Unknown companies and KR
 # names retain their original identity. A supplied ticker must match as well.
@@ -70,6 +73,9 @@ def canonical_us_news_name(name, *, symbol=None):
     with a known company ticker, return the original name: never cross-join.
     """
     value = str(name or "").strip()
+    resolved = resolve_us_identity(value, symbol)
+    if resolved["status"] == "verified":
+        return resolved["news_name"]
     match = _US_NEWS_LISTING_NAMES.get(value)
     if not match:
         return value

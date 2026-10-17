@@ -7,7 +7,7 @@ import os
 import re
 import time
 
-from backend.analysis.news.catalog import canonical_us_news_name
+from backend.analysis.news.stock_identity import news_snapshot_names
 from .issue_briefs import grounded_issue_display_title
 
 _MAX_ITEMS = 20
@@ -74,11 +74,8 @@ def get_market_issue_headlines(market, items):
     # Match only verified US ticker/name variants; keep source ranking labels.
     # KR uses exactly its original keys and request path.
     names_per_row = [
-        list(dict.fromkeys([
-            row["name"],
-            canonical_us_news_name(row["name"], symbol=row["symbol"])
-            if market == "us" else row["name"],
-        ]))
+        news_snapshot_names(row["name"], symbol=row["symbol"])
+        if market == "us" else [row["name"]]
         for row in rows
     ]
     all_names = list(dict.fromkeys(name for names in names_per_row for name in names))
