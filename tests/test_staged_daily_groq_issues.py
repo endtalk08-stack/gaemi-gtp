@@ -48,7 +48,7 @@ class GroqIssueTests(unittest.TestCase):
         class FakeResponse:
             def __enter__(self):
                 return io.BytesIO(json.dumps({"choices": [{"message": {"content":
-                    '{"issues":[{"headline":"테스트","summary":"내용","tags":["#뉴스"]}]}'}}]}).encode())
+                    '{"issues":[{"headline":"테스트","summary":"내용","tags":["#뉴스"],"source_ids":[1]}]}'}}]}).encode())
             def __exit__(self, *args):
                 return False
         def fake_urlopen(request, timeout):
@@ -58,7 +58,7 @@ class GroqIssueTests(unittest.TestCase):
         with patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}), patch(
             "urllib.request.urlopen", side_effect=fake_urlopen
         ):
-            result = module.analyze_news("NVDA", [{"title": "기사", "description": "내용"}])
+            result = module.analyze_news("NVDA", [{"title": "기사", "description": "내용", "published_at": "2026-10-17T18:16:00+00:00"}])
         self.assertEqual(len(result), 1)
         self.assertEqual(captured["request"]["model"], module.MODEL)
         self.assertEqual(captured["request"]["messages"][0]["content"], module.PROMPT)

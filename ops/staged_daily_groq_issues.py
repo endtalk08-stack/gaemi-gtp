@@ -1,5 +1,7 @@
 """Staged Groq issue response validator; not connected to the worker."""
 import json
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 
 MODEL = "openai/gpt-oss-20b"
 PROMPT = """주가에 영향을 줄 핵심 이슈를 0-3개 선정해.
@@ -8,7 +10,9 @@ PROMPT = """주가에 영향을 줄 핵심 이슈를 0-3개 선정해.
 
 한국어 JSON만 반환해:
 
-각 이슈에 실제 참고한 기사 번호 source_ids를 1~3개 넣어. 입력된 source_id 번호만 사용해.
+각 이슈의 source_ids는 반드시 넣어. 해당 이슈를 실제로 뒷받침하는 원문 뉴스의 source_id 정수 1~3개를 입력해.
+번호가 없거나 발행시간이 없는 기사, 주장을 뒷받침하지 않는 기사 번호는 사용하지 마.
+근거 뉴스가 없으면 이슈를 만들지 말고 {"issues":[]} 로 반환해. 발행시간과 출처를 임의로 지어내지 마.
 
 {"issues":[{"headline":"제목","summary":"내용","tags":["#핵심어"],"source_ids":[1]}]}"""
 
@@ -77,6 +81,40 @@ def issue_source_metadata(issues, articles):
     ][:3] for issue in issues]
 
 
+def _has_verifiable_published_at(value):
+    """Article timestamps need an explicit timezone to be displayed as KST."""
+    stamp = str(value or "").strip()
+    if not stamp:
+        return False
+    try:
+        dt = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            dt = parsedate_to_datetime(stamp)
+        except (TypeError, ValueError, IndexError):
+            return False
+    return dt.tzinfo is not None and dt.utcoffset() is not None
+
+
+def _keep_sourced_issues(issues, news):
+    """One failed AI citation never becomes a fabricated article timestamp."""
+    valid = {
+        item["source_id"] for item in news
+        if _has_verifiable_published_at(item.get("published_at"))
+    }
+    verified = []
+    for issue in issues:
+        source_ids = issue.get("source_ids")
+        if (isinstance(source_ids, list) and 1 <= len(source_ids) <= 3
+            and all(type(i) is int and i in valid for i in source_ids)
+            and len(set(source_ids)) == len(source_ids)):
+            verified.append(issue)
+    if len(verified) != len(issues):
+        print("[news-ai] missing_article_source dropped=%s" %
+              (len(issues) - len(verified)), flush=True)
+    return verified
+
+
 def analyze_news(stock_name, articles):
     """One Groq request for one stock. Caller handles once-daily scheduling."""
     import os
@@ -115,7 +153,8 @@ def analyze_news(stock_name, articles):
     )
     with urllib.request.urlopen(request, timeout=35) as response:
         result = json.load(response)
-    return parse_issues(result["choices"][0]["message"]["content"])
+    issues = parse_issues(result["choices"][0]["message"]["content"])
+    return _keep_sourced_issues(issues, news)
 
 
 

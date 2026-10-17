@@ -56,6 +56,50 @@ class PublicationTimeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 parse_issues('{"issues":[{"headline":"x","summary":"y","tags":[],"source_ids":['+bad+']}]}')
 
+    def test_source_ids_are_required_in_actual_model_response(self):
+        from unittest.mock import patch
+        import io
+        import json
+
+        def model_response(issue):
+            payload = {"choices": [{"message": {"content": json.dumps(
+                {"issues": [issue]}, ensure_ascii=False)}}]}
+            return io.BytesIO(json.dumps(payload).encode("utf-8"))
+
+        base = {"headline": "뉴스 이슈", "summary": "검증",
+                "tags": ["#AI"]}
+        cases = [
+            ({**base}, 0),
+            ({**base, "source_ids": [99]}, 0),
+            ({**base, "source_ids": [1]}, 1),
+            ({**base, "source_ids": [2]}, 1),
+        ]
+        for response_issue, expected_count in cases:
+            with self.subTest(response=response_issue):
+                with patch.dict("os.environ", {"GROQ_API_KEY": "mock-only"}), patch(
+                    "urllib.request.urlopen",
+                    return_value=model_response(response_issue)
+                ) as api:
+                    from staged_daily_groq_issues import analyze_news
+                    output = analyze_news("브로드컴", self.articles)
+                    self.assertEqual(len(output), expected_count)
+                    api.assert_called_once()
+
+    def test_source_date_requires_explicit_timezone(self):
+        from staged_daily_groq_issues import _has_verifiable_published_at
+        self.assertTrue(_has_verifiable_published_at("2026-10-17T18:16:00+00:00"))
+        self.assertTrue(_has_verifiable_published_at("Sat, 17 Oct 2026 09:00:00 +0900"))
+        self.assertFalse(_has_verifiable_published_at(""))
+        self.assertFalse(_has_verifiable_published_at("2026-10-17 18:16:00"))
+        self.assertFalse(_has_verifiable_published_at("not-a-date"))
+
+    def test_news_without_pubtime_does_not_get_article_time(self):
+        from staged_daily_groq_issues import _keep_sourced_issues, build_model_news
+        news, _ = build_model_news([{"title":"뉴스", "description":"본문"}])
+        issue = {"headline":"AI", "summary":"본문", "tags":[],
+                 "source_ids":[1]}
+        self.assertEqual(_keep_sourced_issues([issue], news), [])
+
     def test_ledger_receives_article_metadata(self):
         data=[]
         class Tx:
