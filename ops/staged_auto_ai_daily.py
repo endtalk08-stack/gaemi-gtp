@@ -27,7 +27,7 @@ APPROVED_US = (
 def due_exchange_day(now=None):
     now = now or datetime.now(NEW_YORK)
     local = now.astimezone(NEW_YORK)
-    if local.weekday() >= 5 or local.time() < time(10, 30):
+    if local.time() < time(10, 30):
         return None
     return local.date()
 
