@@ -134,5 +134,36 @@ class GroqIssueTests(unittest.TestCase):
             self.assertEqual(module.analyze_news("NVDA", [{"title": "제목", "description": ""}]), [])
             api.assert_not_called()
 
+
+    def test_issue_records_for_screen_storage(self):
+        from datetime import date
+        ai_issues = [
+            {"headline": "수요 증가", "summary": "메모리 수요 확대", "tags": ["#수요증가"]},
+            {"headline": "매출 증가", "summary": "매출 성장 기대", "tags": ["#매출증가"]},
+        ]
+        rows = module.issue_records(
+            ai_issues, market="KR", symbol="005930", exchange_day=date(2026, 10, 17)
+        )
+        self.assertEqual(len(rows), 2)
+        self.assertEqual([r["headline"] for r in rows], ["수요 증가", "매출 증가"])
+        self.assertEqual(rows[0]["tags"], ["#수요증가"])
+        self.assertEqual(rows[0]["model_id"], module.MODEL)
+        self.assertNotIn("published_at", rows[0])
+        self.assertNotIn("generated_at", rows[0])
+        self.assertNotIn("article_id", rows[0])
+
+    def test_zero_issues_produces_no_rows(self):
+        from datetime import date
+        self.assertEqual(
+            module.issue_records([], market="US", symbol="NVDA", exchange_day=date(2026, 10, 17)),
+            [],
+        )
+
+    def test_invalid_four_issues_produces_no_rows(self):
+        from datetime import date
+        ai_issues = [{"headline": "제목", "summary": "내용", "tags": []} for _ in range(4)]
+        with self.assertRaises(ValueError):
+            module.issue_records(ai_issues, market="US", symbol="NVDA", exchange_day=date(2026, 10, 17))
+
 if __name__ == "__main__":
     unittest.main()
