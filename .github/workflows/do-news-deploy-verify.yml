@@ -34,3 +34,5 @@ jobs:
             echo "APP_WRITE_OK"
           '
 # Verification only. No deploy, restart, or AI API calls.
+
+# Rerun after deploy SSH secret correction 2026-10-17.
