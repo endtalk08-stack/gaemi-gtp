@@ -12,9 +12,11 @@ def persist_issue_evidence(conn, issue_id, article_ids):
     The caller must have independently verified each article supports the issue.
     An empty article list writes no evidence. Return inserted/updated row count.
     """
-    if not isinstance(issue_id, int) or issue_id <= 0:
+    if type(issue_id) is not int or issue_id <= 0:
         raise ValueError("Invalid issue ID")
-    if any(not isinstance(article_id, int) or article_id <= 0 for article_id in article_ids):
+    if not isinstance(article_ids, (list, tuple)):
+        raise ValueError("Invalid article ID list")
+    if any(type(article_id) is not int or article_id <= 0 for article_id in article_ids):
         raise ValueError("Invalid article ID")
     article_ids = list(dict.fromkeys(article_ids))
     if not article_ids:
@@ -32,7 +34,9 @@ def persist_issue_evidence(conn, issue_id, article_ids):
             raise ValueError("One or more article IDs do not exist")
         for article_id, url_hash, canonical_url, headline, publisher in articles:
             parsed = urlsplit(canonical_url)
-            if parsed.scheme not in ("http", "https") or not parsed.netloc or not url_hash:
+            if (parsed.scheme not in ("http", "https") or not parsed.hostname
+                    or parsed.username is not None or parsed.password is not None
+                    or not url_hash):
                 raise ValueError("Invalid collected article URL")
         for article_id, url_hash, canonical_url, headline, publisher in articles:
             cur.execute(
