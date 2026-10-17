@@ -27,3 +27,5 @@ jobs:
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'cd /opt/gaemigtp-news/app && echo WORKER_FILES && find . -maxdepth 3 -type f -name "*.py" | grep -E "news|worker|issue|brief|ai" | head -80 && echo SERVICE_DECLARATION && systemctl cat gaemigtp-news.service | grep -E "^ExecStart=|^WorkingDirectory=" && echo AI_REFERENCES && grep -R -n -E "GROQ|groq|news_processed_snapshots|build_stock_news_result|save_snapshot|issue_briefs" --include="*.py" backend 2>/dev/null | cut -c1-200 | head -90'
+
+# Read-only inventory run; no DigitalOcean files modified.
