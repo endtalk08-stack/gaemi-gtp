@@ -5,7 +5,7 @@ Uses existing Neon connection and reserves before any paid Groq request.
 import hashlib
 import json
 from staged_daily_groq_issues import analyze_news, issue_source_metadata
-from staged_ai_issue_store import save_ai_issues
+from staged_ai_issue_store import save_ai_issues, read_issue_sources
 from staged_daily_call_guard import reserve_once, finish_reservation
 
 
@@ -40,12 +40,11 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
             issues = analyze(stock["name"], articles)
             sources = issue_source_metadata(issues, articles)
             ids = save(conn, issues, market=market, symbol=symbol,
-                       exchange_day=day) if issues else []
+                       exchange_day=day, sources_by_issue=sources) if issues else []
             with conn.transaction():
                 finish(conn, market=market, symbol=symbol, exchange_day=day,
                        request_hash=request_hash, status="completed",
-                       result={"issue_ids": ids, "issue_count": len(issues),
-                               "issue_sources": sources})
+                       result={"issue_ids": ids, "issue_count": len(issues)})
             results.append({"market": market, "symbol": symbol, "status": "ok",
                             "issue_count": len(issues), "ids": ids,
                             "issue_sources": sources})
@@ -134,7 +133,10 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
                     (market_code, stock_name, us_day))
                 row = cur.fetchone()
                 ids = row[0] if row and row[0] else []
-                sources = row[1] if row and row[1] else []
+                sources = read_issue_sources(
+                    conn, market=market_code, symbol=stock_name,
+                    exchange_day=us_day, issue_ids=ids
+                ) or (row[1] if row and row[1] else [])
         if not ids:
             return
         with conn.cursor() as cur:

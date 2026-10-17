@@ -32,6 +32,7 @@ class SequentialBatchTests(unittest.TestCase):
             return [{"headline": name, "summary": "본문", "tags": []}]
         def save(c, issues, **kwargs):
             self.assertIs(c, conn)
+            self.assertIn("sources_by_issue", kwargs)
             calls.append(("save", kwargs["symbol"]))
             return [len(calls)]
         results = module.run_stock_batch(conn, stocks, analyze=analyze, save=save,

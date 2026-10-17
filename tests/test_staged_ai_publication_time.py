@@ -100,24 +100,30 @@ class PublicationTimeTests(unittest.TestCase):
                  "source_ids":[1]}
         self.assertEqual(_keep_sourced_issues([issue], news), [])
 
-    def test_ledger_receives_article_metadata(self):
+    def test_article_metadata_is_passed_for_atomic_storage(self):
         data=[]
         class Tx:
             def __enter__(self): return self
             def __exit__(self, *args): return False
         class Conn:
             def transaction(self): return Tx()
+        captured=[]
+        def save(*args, **kwargs):
+            captured.extend(kwargs["sources_by_issue"])
+            return [88]
         result=run_stock_batch(Conn(), [{
             "name":"브로드컴", "articles":self.articles, "market":"US",
             "symbol":"브로드컴", "exchange_day":date(2026,10,17)
         }], analyze=lambda *args:self.issues,
-            save=lambda *args,**kwargs:[88],
+            save=save,
             reserve=lambda *args,**kwargs:True,
             finish=lambda *args,**kwargs:data.append(kwargs["result"]))[0]
         self.assertEqual(result["status"], "ok")
         self.assertEqual(data[0]["issue_ids"], [88])
-        self.assertEqual(data[0]["issue_sources"][0][0]["published_at"],
+        self.assertEqual(captured[0][0]["published_at"],
                          "2026-10-17T18:16:00+00:00")
+        self.assertEqual(captured[0][0]["description"], "채권 부담")
+        self.assertNotIn("issue_sources", data[0])
 
 
 if __name__ == "__main__":

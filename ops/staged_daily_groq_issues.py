@@ -63,7 +63,9 @@ def build_model_news(articles):
         })
         link = str(article.get("url") or article.get("link") or "").strip()
         sources.append({
+            "source_id": len(news),
             "title": title,
+            "description": str(article.get("description") or "")[:1200],
             "published_at": published_at,
             "source": str(article.get("source") or "")[:120],
             "url": link if link.startswith(("https://", "http://")) else "",
