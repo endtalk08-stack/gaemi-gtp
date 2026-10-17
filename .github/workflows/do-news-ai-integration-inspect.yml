@@ -61,18 +61,7 @@ jobs:
           p=Path("backend/news_worker.py")
           source=p.read_text()
           marker="    store.save_snapshot(stock_name, fingerprint=fingerprint, result=result, **params)\n"
-          injection="""    try:
-        import sys
-        from pathlib import Path
-        ops_dir = str(Path(__file__).resolve().parents[1] / "ops")
-        if ops_dir not in sys.path:
-            sys.path.insert(0, ops_dir)
-        from staged_ai_sequential_batch import apply_worker_ai
-        apply_worker_ai(store=store, market=market, stock_name=stock_name,
-                        raw=raw, fingerprint=fingerprint, result=result, params=params)
-    except Exception as ai_exc:
-        print(f"[news-ai] stock={stock_name} error={type(ai_exc).__name__}", flush=True)
-"""
+          injection = "    try:\n        import sys\n        from pathlib import Path\n        ops_dir = str(Path(__file__).resolve().parents[1] / \"ops\")\n        if ops_dir not in sys.path:\n            sys.path.insert(0, ops_dir)\n        from staged_ai_sequential_batch import apply_worker_ai\n        apply_worker_ai(store=store, market=market, stock_name=stock_name,\n                        raw=raw, fingerprint=fingerprint, result=result, params=params)\n    except Exception as ai_exc:\n        print(f\"[news-ai] stock={stock_name} error={type(ai_exc).__name__}\", flush=True)\n"
           if "from staged_ai_sequential_batch import apply_worker_ai" in source:
               print("AI_HOOK_ALREADY_PRESENT")
           else:
