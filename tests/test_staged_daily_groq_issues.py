@@ -35,5 +35,43 @@ class GroqIssueTests(unittest.TestCase):
         self.assertEqual(module.analyze_news("NVDA", []), [])
 
 
+    def test_bad_json_and_empty_fields(self):
+        for payload in ("not-json", '{"issues":[{"headline":"","summary":"ok","tags":[]}]}',
+                        '{"issues":[{"headline":"ok","summary":"ok","tags":null}]}'):
+            with self.subTest(payload=payload), self.assertRaises((ValueError, json.JSONDecodeError)):
+                module.parse_issues(payload)
+
+    def test_groq_request_mocked(self):
+        from unittest.mock import patch
+        import io
+        captured = {}
+        class FakeResponse:
+            def __enter__(self):
+                return io.BytesIO(json.dumps({"choices": [{"message": {"content":
+                    '{"issues":[{"headline":"테스트","summary":"내용","tags":["#뉴스"]}]}'}}]}).encode())
+            def __exit__(self, *args):
+                return False
+        def fake_urlopen(request, timeout):
+            captured["request"] = json.loads(request.data.decode())
+            captured["timeout"] = timeout
+            return FakeResponse()
+        with patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}), patch(
+            "urllib.request.urlopen", side_effect=fake_urlopen
+        ):
+            result = module.analyze_news("NVDA", [{"title": "기사", "description": "내용"}])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(captured["request"]["model"], module.MODEL)
+        self.assertEqual(captured["request"]["messages"][0]["content"], module.PROMPT)
+        self.assertEqual(captured["request"]["response_format"]["type"], "json_object")
+
+    def test_no_api_key_refuses_call(self):
+        from unittest.mock import patch
+        with patch.dict("os.environ", {"GROQ_API_KEY": ""}), patch(
+            "urllib.request.urlopen"
+        ) as fake:
+            with self.assertRaises(RuntimeError):
+                module.analyze_news("NVDA", [{"title": "기사"}])
+            fake.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()
