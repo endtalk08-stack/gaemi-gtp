@@ -87,7 +87,10 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     now = datetime.now(ZoneInfo("Asia/Seoul"))
     us_now = now.astimezone(ZoneInfo("America/New_York"))
     us_day = us_now.date()
-    if now < scheduled_kst_time(us_day):
+    from pathlib import Path
+    force_marker = Path(__file__).with_name(".groq_run_now_20261017")
+    force_now = force_marker.exists() and 0 <= (now.timestamp() - force_marker.stat().st_mtime) < 3600
+    if not force_now and now < scheduled_kst_time(us_day):
         print("[news-ai] skipped reason=before_scheduled_time stock=%s" % stock_name, flush=True)
         return
     # Do not change the original news result or run a second news collection.
