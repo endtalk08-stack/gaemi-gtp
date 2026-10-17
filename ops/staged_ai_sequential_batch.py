@@ -101,16 +101,49 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         outcome = batch[0]
         print("[news-ai] stock=%s status=%s count=%s" % (
             stock_name, outcome["status"], outcome.get("issue_count", 0)), flush=True)
-        if outcome["status"] != "ok" or not outcome.get("ids"):
+        ids = outcome.get("ids") or []
+        if outcome["status"] == "already_reserved":
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT result->'issue_ids' FROM public.news_ai_call_ledger
+                       WHERE market=%s AND symbol=%s AND exchange_day=%s
+                         AND status='completed' LIMIT 1""",
+                    (market_code, stock_name, us_day))
+                row = cur.fetchone()
+                ids = row[0] if row and row[0] else []
+        if not ids:
             return
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT headline, summary, tags FROM public.news_ai_issues WHERE id=ANY(%s) ORDER BY id",
-                (outcome["ids"],))
+                (ids,))
             issues = [{"headline": row[0], "summary": row[1], "tags": row[2]} for row in cur.fetchall()]
+        if not issues:
+            return
         updated = with_ai_issue_briefs(
             result, issues, display_time=now.strftime("%Y-%m-%d %H:%M"),
             stock_names=[stock_name])
         store.save_snapshot(stock_name, fingerprint=fingerprint, result=updated, **params)
         print("[news-ai] snapshot_updated stock=%s count=%s model=%s" % (
             stock_name, len(issues), MODEL), flush=True)
+
+
+def apply_unchanged_worker_ai(*, store, market, stock_name, raw, fingerprint, params):
+    """Use the existing Neon snapshot when news is unchanged; no extra collection."""
+    if market not in ("미국", "US"):
+        return
+    import psycopg
+    with psycopg.connect(store.database_url(), connect_timeout=10, autocommit=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT result_payload FROM public.news_processed_snapshots
+                   WHERE market=%s AND stock_name=%s AND result_limit=%s
+                     AND storyboard_limit=%s AND display_timezone=%s
+                     AND source_fingerprint=%s AND expires_at > now()
+                   LIMIT 1""",
+                (market, stock_name, params["limit"], params["storyboard_limit"],
+                 params["display_timezone"], fingerprint))
+            row = cur.fetchone()
+    if row and isinstance(row[0], dict):
+        apply_worker_ai(store=store, market=market, stock_name=stock_name,
+                        raw=raw, fingerprint=fingerprint, result=row[0], params=params)
