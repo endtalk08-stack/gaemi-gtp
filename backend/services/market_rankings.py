@@ -155,6 +155,10 @@ def _with_stock_industries(items, market, menu):
         if not item.get("industry"):
             item["industry"] = labels.get(item["symbol"])
     _remember_market_result(market, menu, items)
+    if market == "us":
+        # Register only the rows already fetched; do not change ranking or quotes.
+        from .stock_identity_store import register_us_ranking_instruments
+        register_us_ranking_instruments(items)
     return items
 
 

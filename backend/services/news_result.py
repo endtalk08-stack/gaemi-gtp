@@ -8,6 +8,7 @@ import threading
 import time
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE, canonical_us_news_name
+from backend.analysis.news.stock_identity import news_snapshot_names
 from backend.analysis.news import (
     build_connected_keyword_test,
     build_simple_today_news,
@@ -809,18 +810,16 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul"):
     """Read the existing DigitalOcean snapshot only; never collect or save news."""
-    news_name = canonical_us_news_name(stock_name) if market in ("미국", "us") else str(stock_name)
-    worker_result = _read_worker_news_snapshot(
-        stock_name, market=market, limit=limit,
-        storyboard_limit=storyboard_limit,
-        display_timezone=display_timezone,
-    )
-    if worker_result is None and news_name != str(stock_name):
+    names = news_snapshot_names(stock_name) if market in ("미국", "us") else [str(stock_name)]
+    worker_result = None
+    for candidate_name in names:
         worker_result = _read_worker_news_snapshot(
-            news_name, market=market, limit=limit,
+            candidate_name, market=market, limit=limit,
             storyboard_limit=storyboard_limit,
             display_timezone=display_timezone,
         )
+        if worker_result is not None:
+            break
     if worker_result is None:
         return {**_empty_news_result(), "_news_status": "unavailable"}
     return _sanitize_news_display_briefs(copy.deepcopy(worker_result))
