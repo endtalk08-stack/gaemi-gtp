@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/ops/do-ssh-deploy-setup-20261017' && github.event.head_commit.message == 'RUN_DO_DETAIL_FIX_20261017'
+    if: github.ref == 'refs/heads/ops/do-ssh-deploy-setup-20261017' && github.event.head_commit.message == 'RUN_DO_DETAIL_FIX_RETRY_20261017'
     environment: digitalocean-news-worker
     runs-on: ubuntu-latest
     timeout-minutes: 10
