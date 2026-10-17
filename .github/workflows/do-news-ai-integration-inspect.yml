@@ -62,6 +62,16 @@ jobs:
           source=p.read_text()
           marker="    store.save_snapshot(stock_name, fingerprint=fingerprint, result=result, **params)\n"
           injection = "    try:\n        import sys\n        from pathlib import Path\n        ops_dir = str(Path(__file__).resolve().parents[1] / \"ops\")\n        if ops_dir not in sys.path:\n            sys.path.insert(0, ops_dir)\n        from staged_ai_sequential_batch import apply_worker_ai\n        apply_worker_ai(store=store, market=market, stock_name=stock_name,\n                        raw=raw, fingerprint=fingerprint, result=result, params=params)\n    except Exception as ai_exc:\n        print(f\"[news-ai] stock={stock_name} error={type(ai_exc).__name__}\", flush=True)\n"
+          unchanged_marker = '        store.mark_checked(stock_name, **params)\n        return "unchanged"\n'
+          unchanged_hook = '        try:\n            from staged_ai_sequential_batch import apply_unchanged_worker_ai\n            apply_unchanged_worker_ai(store=store, market=market, stock_name=stock_name,\n                                      raw=raw, fingerprint=fingerprint, params=params)\n        except Exception as ai_exc:\n            print(f"[news-ai] stock={stock_name} error={type(ai_exc).__name__}", flush=True)\n'
+          if "from staged_ai_sequential_batch import apply_unchanged_worker_ai" not in source:
+              if source.count(unchanged_marker) != 1:
+                  raise SystemExit("Unchanged-news return location changed; refusing modification")
+              source = source.replace(unchanged_marker, unchanged_hook + unchanged_marker, 1)
+              p.write_text(source)
+              print("AI_UNCHANGED_HOOK_INSTALLED")
+          else:
+              print("AI_UNCHANGED_HOOK_ALREADY_PRESENT")
           if "from staged_ai_sequential_batch import apply_worker_ai" in source:
               print("AI_HOOK_ALREADY_PRESENT")
           else:
