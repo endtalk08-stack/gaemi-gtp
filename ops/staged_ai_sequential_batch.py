@@ -60,6 +60,17 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
     return results
 
 
+def _worker_database_url(store):
+    """Use the worker's configured Neon URL without assuming a store method."""
+    import os
+    value = os.environ.get("NEWS_DATABASE_URL", "").strip()
+    if value:
+        return value
+    getter = getattr(store, "database_url", None)
+    if callable(getter):
+        return getter()
+    raise RuntimeError("NEWS_DATABASE_URL is not configured for AI worker")
+
 def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, params):
     """Run at most one AI analysis per stock/day after original snapshot is saved."""
     import os
@@ -100,7 +111,7 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         return
     # Do not change the original news result or run a second news collection.
     import psycopg
-    with psycopg.connect(store.database_url(), connect_timeout=10, autocommit=True) as conn:
+    with psycopg.connect(_worker_database_url(store), connect_timeout=10, autocommit=True) as conn:
         batch = run_stock_batch(conn, [{
             "market": market_code, "symbol": stock_name,
             "name": stock_name, "exchange_day": us_day,
@@ -141,7 +152,7 @@ def apply_unchanged_worker_ai(*, store, market, stock_name, raw, fingerprint, pa
     if market not in ("미국", "US"):
         return
     import psycopg
-    with psycopg.connect(store.database_url(), connect_timeout=10, autocommit=True) as conn:
+    with psycopg.connect(_worker_database_url(store), connect_timeout=10, autocommit=True) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT result_payload FROM public.news_processed_snapshots
