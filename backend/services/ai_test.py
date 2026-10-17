@@ -207,7 +207,7 @@ def _market_ranking_reply(question):
     return header + "\n" + "\n".join(describe(row) for row in selected_rows)
 
 
-SYSTEM_PROMPT = "쉽게 설명 핵심만 짧게 반말로 대답해"
+SYSTEM_PROMPT = "쉽게 설명 반말로 대답해"
 
 
 def _settings_ready():
