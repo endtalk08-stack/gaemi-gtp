@@ -24,10 +24,12 @@ jobs:
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'sed -n "1,170p" /opt/gaemigtp-news/app/backend/news_worker.py | cut -c 1-190'
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'grep -nE "^(def |class |from |import )|^    (def |with |return )|psycopg|database_url|connect\(|save_snapshot\(|read_signature\(" /opt/gaemigtp-news/app/backend/services/news_processed_store.py | cut -c 1-185 | head -135; echo WORKER_ENV_KEY_NAMES; systemctl show gaemigtp-news.service -p EnvironmentFiles -p WorkingDirectory; echo SOURCE_FILES; ls -l /opt/gaemigtp-news/app/backend/services/news_processed_store.py /opt/gaemigtp-news/app/backend/news_worker.py'
 # Read-only inspection trigger; no deployment or AI calls.
 # Recheck actual worker file and systemd service before staging integration.
 # SSH connection preflight rerun 2026-10-17; no deployment, no Groq calls.
 # Next read-only inspection: worker function names, systemd unit and source wiring.
 
 # Read-only inspect worker processing flow for safe AI insertion point.
+
+# Read-only inspect Neon store connection API; do not print credentials.
