@@ -1,0 +1,55 @@
+name: Read-only DigitalOcean news AI diagnosis
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-ai-readonly-diagnosis.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Inspect only existing service and news AI execution path
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          opts=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          ssh "${opts[@]}" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -uo pipefail
+          cd /opt/gaemigtp-news/app || exit 1
+          echo DIAG_SERVICE_BEGIN
+          systemctl is-active gaemigtp-news.service || true
+          systemctl show gaemigtp-news.service -p MainPID -p ActiveEnterTimestamp --no-pager || true
+          echo DIAG_CODE_BEGIN
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,re
+          items=['ops/staged_auto_ai_daily.py','ops/staged_ai_sequential_batch.py','ops/staged_daily_groq_issues.py','backend/services/news_processed_store.py','backend/analysis/news/stock_identity.py']
+          for p in items:
+              f=Path(p)
+              if not f.is_file():
+                  print('FILE_MISSING',p)
+                  continue
+              text=f.read_text()
+              print('FILE_SHA256',p,hashlib.sha256(text.encode()).hexdigest()[:24])
+              for i,line in enumerate(text.splitlines(),1):
+                  if (p.endswith('staged_auto_ai_daily.py') and re.search(r'issue_briefs|processed_at|LIMIT 2|NOT EXISTS|APPROVED_US|due_exchange_day|process_due_ai_snapshots',line)) or (p.endswith('staged_ai_sequential_batch.py') and re.search(r'no_selected_issue|run_stock_batch|apply_worker_ai|already_reserved|HTTPError',line)):
+                      print('CODE_LINE',p,i,line[:190].strip())
+          PY
+          echo DIAG_CALL_SITES_BEGIN
+          grep -R -nE 'process_due_ai_snapshots\(|apply_worker_ai\(' backend ops --include='*.py' 2>/dev/null | head -n 35 || true
+          echo DIAG_JOURNAL_BEGIN
+          journalctl -u gaemigtp-news.service --since '2026-10-17 18:00:00 UTC' --no-pager -o cat 2>&1 | grep -Ei '\[news-ai\]|groq|httperror|rate.limit|429|401|403|ai_daily' | tail -n 125 || true
+          echo DIAG_JOURNAL_END
+          REMOTE
