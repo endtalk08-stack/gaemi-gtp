@@ -73,5 +73,39 @@ class GroqIssueTests(unittest.TestCase):
                 module.analyze_news("NVDA", [{"title": "기사"}])
             fake.assert_not_called()
 
+
+    def test_rejects_missing_article_contents_without_network(self):
+        from unittest.mock import patch
+        with patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}), patch(
+            "urllib.request.urlopen"
+        ) as fake:
+            self.assertEqual(module.analyze_news("NVDA", [{"title": "제목"}, {"description": "내용"}, None]), [])
+            fake.assert_not_called()
+
+    def test_news_payload_has_size_limit(self):
+        from unittest.mock import patch
+        import io
+        captured = {}
+        def fake_urlopen(request, timeout):
+            captured["payload"] = json.loads(request.data)
+            return io.BytesIO(b'{"choices":[{"message":{"content":"{\\"issues\\":[]}"}}]}')
+        articles = [{"title": f"article {i}", "description": "가" * 2400} for i in range(30)]
+        with patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}), patch(
+            "urllib.request.urlopen", side_effect=fake_urlopen
+        ):
+            self.assertEqual(module.analyze_news("NVDA", articles), [])
+        body = json.loads(captured["payload"]["messages"][1]["content"])
+        self.assertLessEqual(sum(len(x["content"]) for x in body["news"]), 9000)
+        self.assertLessEqual(len(body["news"]), 20)
+
+    def test_network_failure_propagates_for_caller_to_handle(self):
+        from unittest.mock import patch
+        import urllib.error
+        with patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}), patch(
+            "urllib.request.urlopen", side_effect=urllib.error.URLError("offline")
+        ):
+            with self.assertRaises(urllib.error.URLError):
+                module.analyze_news("NVDA", [{"title": "기사", "description": "본문"}])
+
 if __name__ == "__main__":
     unittest.main()
