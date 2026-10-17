@@ -2,7 +2,7 @@ name: Deploy staged Groq AI modules to DigitalOcean
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
-    paths: [.github/workflows/do-news-ai-integration-inspect.yml]
+    paths: [.github/workflows/do-news-ai-integration-inspect.yml, ops/staged_ai_sequential_batch.py]
 permissions:
   contents: read
 jobs:
