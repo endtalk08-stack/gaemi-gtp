@@ -12,7 +12,12 @@ def save_verified_evidence(conn, issues, links, collected_ids, issue_ids):
     if len(set(issue_ids)) != len(issue_ids):
         raise ValueError('Duplicate issue IDs')
     mapped = validate_links(len(issues), links, collected_ids)
-    counts = []
-    for issue_id, article_ids in zip(issue_ids, mapped):
-        counts.append(persist_issue_evidence(conn, issue_id, article_ids))
-    return counts
+    if not mapped:
+        return []
+    # psycopg3 nested transactions use savepoints. If any issue fails,
+    # rollback all evidence writes from this call, not just the last issue.
+    if conn is None or not callable(getattr(conn, 'transaction', None)):
+        raise ValueError('Transactional connection required')
+    with conn.transaction():
+        return [persist_issue_evidence(conn, issue_id, article_ids)
+                for issue_id, article_ids in zip(issue_ids, mapped)]
