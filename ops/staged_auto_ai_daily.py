@@ -6,7 +6,7 @@ Uses the existing, unexpired same-day news snapshots; does not re-collect news.
 """
 import json
 import os
-from datetime import datetime, time, timezone
+from datetime import datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -74,10 +74,10 @@ def process_due_ai_snapshots():
                      AND s.stock_name=ANY(%s)
                      AND s.expires_at > now()
                      AND s.processed_at >= %s
-                     AND jsonb_typeof(s.result_payload->'paired_news_items')='array'
-                     AND jsonb_array_length(s.result_payload->'paired_news_items') > 0
-                     AND jsonb_typeof(s.result_payload->'issue_briefs')='array'
-                     AND jsonb_array_length(s.result_payload->'issue_briefs') > 0
+                     AND CASE WHEN jsonb_typeof(s.result_payload->'paired_news_items')='array'
+                              THEN jsonb_array_length(s.result_payload->'paired_news_items') ELSE 0 END > 0
+                     AND CASE WHEN jsonb_typeof(s.result_payload->'issue_briefs')='array'
+                              THEN jsonb_array_length(s.result_payload->'issue_briefs') ELSE 0 END > 0
                      AND NOT EXISTS (
                          SELECT 1 FROM public.news_ai_call_ledger l
                          WHERE l.market='US' AND l.symbol=s.stock_name
