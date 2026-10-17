@@ -128,6 +128,11 @@ jobs:
           grep -nE 'apply_unchanged_worker_ai|apply_worker_ai|ops_dir|news-ai' backend/news_worker.py | head -35 || true
           echo WORKER_MAIN_LOOP_CONTEXT
           sed -n '108,235p' backend/news_worker.py
+          echo GROQ_SERVICE_KEY_ACCESS
+          stat -c 'KEY_OWNER=%U KEY_GROUP=%G KEY_PERMISSIONS=%a' ops/.groq_api_key
+          id -nG gaemi-deploy
+          id -nG gaemigtp-news
+          if command -v setfacl >/dev/null 2>&1; then echo SETFACL_AVAILABLE=yes; else echo SETFACL_AVAILABLE=no; fi
           echo WORKER_STORE_DB_DEFINITIONS
           grep -nE 'def .*connect|def .*database|NEWS_DATABASE_URL|DATABASE_URL|psycopg' backend/services/news_processed_store.py | head -40 || true
           echo SERVICE_CONFIG_SOURCE
