@@ -76,6 +76,7 @@ def analyze_news(stock_name, articles):
         headers={
             "Authorization": "Bearer " + api_key,
             "Content-Type": "application/json",
+            "User-Agent": "gaemiGTP-ai-test/1.0",
         },
         method="POST",
     )
