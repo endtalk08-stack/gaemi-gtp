@@ -7,6 +7,7 @@ on:
       - ops/staged_daily_issue_schedule.py
       - tests/test_staged_daily_groq_issues.py
       - tests/test_staged_daily_issue_schedule.py
+      - tests/test_staged_daily_safety.py
       - .github/workflows/test-staged-daily-groq.yml
 permissions:
   contents: read
