@@ -71,6 +71,8 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     market_code = "US" if market in ("미국", "US") else "KR" if market in ("국내", "KR") else None
     if market_code is None:
         return
+    if market_code != "US":
+        return
     from staged_ai_snapshot_integration import with_ai_issue_briefs
     from staged_daily_groq_issues import MODEL
     now = datetime.now(ZoneInfo("Asia/Seoul"))
