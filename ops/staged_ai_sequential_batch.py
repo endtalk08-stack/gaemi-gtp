@@ -67,8 +67,17 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     from zoneinfo import ZoneInfo
     from staged_daily_issue_schedule import scheduled_kst_time
     if not os.environ.get("GROQ_API_KEY", "").strip():
-        print("[news-ai] skipped reason=missing_groq_key", flush=True)
-        return
+        from pathlib import Path
+        key_file = Path(__file__).with_name(".groq_api_key")
+        try:
+            key = key_file.read_text().strip()
+        except (OSError, UnicodeError):
+            key = ""
+        if key:
+            os.environ["GROQ_API_KEY"] = key
+        else:
+            print("[news-ai] skipped reason=missing_groq_key", flush=True)
+            return
     market_code = "US" if market in ("미국", "US") else "KR" if market in ("국내", "KR") else None
     if market_code is None:
         return
