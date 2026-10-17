@@ -91,13 +91,21 @@ def read_signature(stock_name, market, limit, storyboard_limit, display_timezone
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT source_fingerprint FROM public.news_processed_snapshots
+                SELECT source_fingerprint, result_payload FROM public.news_processed_snapshots
                 WHERE market=%s AND stock_name=%s AND result_limit=%s
                 AND storyboard_limit=%s AND display_timezone=%s
                 AND expires_at>now() LIMIT 1
             """, (market, stock_name, limit, storyboard_limit, display_timezone))
             row = cur.fetchone()
-            return row[0] if row else None
+            if not row:
+                return None
+            payload = row[1] if isinstance(row[1], dict) else {}
+            briefs = payload.get("issue_briefs") or []
+            if len(_same_stock_issue_briefs(briefs, stock_name)) != len(briefs):
+                # Re-evaluate legacy mismatched issues one time; save_snapshot
+                # sanitizes the replacement even when source news is unchanged.
+                return None
+            return row[0]
 
 def read_snapshot(stock_name, *, market, limit=50, storyboard_limit=3,
                   display_timezone="Asia/Seoul"):
