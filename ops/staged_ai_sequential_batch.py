@@ -73,6 +73,11 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         return
     if market_code != "US":
         return
+    # Fail closed: no paid calls without an explicit per-stock allowlist.
+    allowed = {item.strip().upper() for item in os.environ.get("GROQ_US_ALLOWED_STOCKS", "").split(",") if item.strip()}
+    if stock_name.strip().upper() not in allowed:
+        print("[news-ai] skipped reason=not_allowlisted stock=%s" % stock_name, flush=True)
+        return
     if not isinstance(result, dict) or not result.get("issue_briefs"):
         print("[news-ai] skipped reason=no_selected_issue stock=%s" % stock_name, flush=True)
         return
