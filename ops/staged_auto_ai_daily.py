@@ -1,0 +1,135 @@
+"""Scheduled US news AI processing within the existing DigitalOcean news worker.
+
+Runs at most two eligible stocks per worker cycle after 10:30 New York time.
+Neon call ledger guarantees at most one paid Groq attempt per stock/day.
+Uses the existing, unexpired same-day news snapshots; does not re-collect news.
+"""
+import json
+import os
+from datetime import datetime, time, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from staged_ai_sequential_batch import run_stock_batch
+from staged_ai_snapshot_integration import with_ai_issue_briefs
+
+NEW_YORK = ZoneInfo("America/New_York")
+SEOUL = ZoneInfo("Asia/Seoul")
+APPROVED_US = (
+    "TSMC ADR", "네비우스 그룹", "마이크로소프트", "마이크론 테크놀로지",
+    "메타", "모더나", "브로드컴", "샌디스크", "스페이스X", "아마존닷컴",
+    "아이렌", "아이온큐", "알파벳 Class A", "애플", "엔비디아",
+    "오라클", "인텔", "일라이 릴리", "코어위브", "테슬라",
+    "팔란티어 테크놀로지스",
+)
+
+
+def due_exchange_day(now=None):
+    now = now or datetime.now(NEW_YORK)
+    local = now.astimezone(NEW_YORK)
+    if local.weekday() >= 5 or local.time() < time(10, 30):
+        return None
+    return local.date()
+
+
+def _load_key():
+    if os.environ.get("GROQ_API_KEY", "").strip():
+        return True
+    try:
+        key = Path(__file__).with_name(".groq_api_key").read_text().strip()
+    except (OSError, UnicodeError):
+        return False
+    if not key:
+        return False
+    os.environ["GROQ_API_KEY"] = key
+    return True
+
+
+def process_due_ai_snapshots():
+    """Poll eligible same-day snapshots after US 10:30; persist then display.
+
+    Returns the number of stocks actually analyzed in this pass.
+    The caller owns error isolation; no extra worker or timer is created.
+    """
+    day = due_exchange_day()
+    if day is None:
+        return 0
+    if not _load_key():
+        print("[news-ai] scheduled skipped reason=missing_groq_key", flush=True)
+        return 0
+    db_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
+    if not db_url:
+        print("[news-ai] scheduled skipped reason=missing_neon_url", flush=True)
+        return 0
+
+    import psycopg
+    start_of_day = datetime.combine(day, time.min, tzinfo=NEW_YORK)
+    with psycopg.connect(db_url, connect_timeout=10, autocommit=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT s.stock_name, s.result_limit, s.storyboard_limit,
+                          s.display_timezone, s.source_fingerprint, s.result_payload
+                   FROM public.news_processed_snapshots s
+                   WHERE s.market='미국'
+                     AND s.stock_name=ANY(%s)
+                     AND s.expires_at > now()
+                     AND s.processed_at >= %s
+                     AND jsonb_typeof(s.result_payload->'paired_news_items')='array'
+                     AND jsonb_array_length(s.result_payload->'paired_news_items') > 0
+                     AND jsonb_typeof(s.result_payload->'issue_briefs')='array'
+                     AND jsonb_array_length(s.result_payload->'issue_briefs') > 0
+                     AND NOT EXISTS (
+                         SELECT 1 FROM public.news_ai_call_ledger l
+                         WHERE l.market='US' AND l.symbol=s.stock_name
+                           AND l.exchange_day=%s
+                     )
+                   ORDER BY s.processed_at DESC
+                   LIMIT 2""",
+                (list(APPROVED_US), start_of_day, day),
+            )
+            candidates = cur.fetchall()
+        done = 0
+        for stock_name, result_limit, storyboard_limit, tz, fingerprint, payload in candidates:
+            articles = payload.get("paired_news_items") or []
+            if not articles:
+                continue
+            outcome = run_stock_batch(conn, [{
+                "market": "US", "symbol": stock_name, "name": stock_name,
+                "exchange_day": day, "articles": articles,
+            }])[0]
+            print("[news-ai] scheduled stock=%s status=%s count=%s" % (
+                stock_name, outcome["status"], outcome.get("issue_count", 0)), flush=True)
+            if outcome["status"] != "ok":
+                continue
+            done += 1
+            ids = outcome.get("ids") or []
+            if not ids:
+                continue
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT headline, summary, tags
+                       FROM public.news_ai_issues WHERE id=ANY(%s) ORDER BY id""",
+                    (ids,),
+                )
+                issues = [{"headline": h, "summary": s, "tags": tags}
+                          for h, s, tags in cur.fetchall()]
+            if not issues:
+                continue
+            display_time = datetime.now(SEOUL).strftime("%Y-%m-%d %H:%M")
+            updated = with_ai_issue_briefs(
+                payload, issues, display_time=display_time, stock_names=[stock_name])
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE public.news_processed_snapshots
+                       SET result_payload=%s::jsonb
+                       WHERE market='미국' AND stock_name=%s
+                         AND result_limit=%s AND storyboard_limit=%s
+                         AND display_timezone=%s AND source_fingerprint=%s
+                         AND expires_at>now()""",
+                    (json.dumps(updated, ensure_ascii=False), stock_name,
+                     result_limit, storyboard_limit, tz, fingerprint),
+                )
+                updated_rows = cur.rowcount
+            print("[news-ai] scheduled snapshot_updated stock=%s rows=%s" % (
+                stock_name, updated_rows), flush=True)
+        return done
