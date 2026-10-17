@@ -19,6 +19,18 @@ class PipelineTests(unittest.TestCase):
                 pipeline.save_verified_evidence(None, ['issue'], {0: [99]}, [1], [51])
             save.assert_not_called()
 
+    def test_invalid_issue_id_rejected(self):
+        with patch.object(pipeline, 'persist_issue_evidence') as save:
+            with self.assertRaises(ValueError):
+                pipeline.save_verified_evidence(None, ['issue'], {0: [1]}, [1], [True])
+            save.assert_not_called()
+
+    def test_duplicate_issue_ids_rejected(self):
+        with patch.object(pipeline, 'persist_issue_evidence') as save:
+            with self.assertRaises(ValueError):
+                pipeline.save_verified_evidence(None, ['one', 'two'], {0: [1], 1: [2]}, [1, 2], [51, 51])
+            save.assert_not_called()
+
     def test_empty_issues(self):
         with patch.object(pipeline, 'persist_issue_evidence') as save:
             self.assertEqual(pipeline.save_verified_evidence(None, [], {}, [], []), [])
