@@ -10,7 +10,7 @@ from datetime import datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from staged_ai_sequential_batch import run_stock_batch
+from staged_ai_sequential_batch import run_stock_batch, has_eligible_ai_news
 from staged_ai_snapshot_integration import with_ai_issue_briefs
 
 NEW_YORK = ZoneInfo("America/New_York")
@@ -76,8 +76,13 @@ def process_due_ai_snapshots():
                      AND s.processed_at >= %s
                      AND CASE WHEN jsonb_typeof(s.result_payload->'paired_news_items')='array'
                               THEN jsonb_array_length(s.result_payload->'paired_news_items') ELSE 0 END > 0
-                     AND CASE WHEN jsonb_typeof(s.result_payload->'issue_briefs')='array'
-                              THEN jsonb_array_length(s.result_payload->'issue_briefs') ELSE 0 END > 0
+                     AND EXISTS (
+                         SELECT 1
+                         FROM jsonb_array_elements(s.result_payload->'paired_news_items') a
+                         WHERE length(btrim(COALESCE(a->>'title',''))) > 0
+                           AND length(btrim(COALESCE(a->>'description', a->>'body',''))) > 0
+                           AND length(btrim(COALESCE(a->>'published_at', a->>'pubDate',''))) > 0
+                     )
                      AND NOT EXISTS (
                          SELECT 1 FROM public.news_ai_call_ledger l
                          WHERE l.market='US' AND l.symbol=s.stock_name
@@ -91,7 +96,8 @@ def process_due_ai_snapshots():
         done = 0
         for stock_name, result_limit, storyboard_limit, tz, fingerprint, payload in candidates:
             articles = payload.get("paired_news_items") or []
-            if not articles:
+            if not has_eligible_ai_news(articles):
+                print("[news-ai] scheduled skipped reason=no_dated_usable_article stock=%s" % stock_name, flush=True)
                 continue
             outcome = run_stock_batch(conn, [{
                 "market": "US", "symbol": stock_name, "name": stock_name,
@@ -119,17 +125,28 @@ def process_due_ai_snapshots():
             display_time = datetime.now(SEOUL).strftime("%Y-%m-%d %H:%M")
             updated = with_ai_issue_briefs(
                 payload, issues, display_time=display_time, stock_names=[stock_name],
-                sources_by_issue=sources)
+                sources_by_issue=sources, exchange_day=day)
+            # Patch only AI and preserved-code fields.  Never replace newer
+            # articles with an older snapshot if news refreshes during Groq.
+            ai_json = json.dumps(updated["_ai_issue_briefs"], ensure_ascii=False)
             with conn.cursor() as cur:
                 cur.execute(
                     """UPDATE public.news_processed_snapshots
-                       SET result_payload=%s::jsonb
+                       SET result_payload = jsonb_set(
+                           jsonb_set(
+                               jsonb_set(result_payload,
+                                   '{_code_issue_briefs}',
+                                   COALESCE(result_payload->'_code_issue_briefs',
+                                            result_payload->'issue_briefs','[]'::jsonb),true),
+                               '{_ai_issue_briefs}',%s::jsonb,true),
+                           '{issue_briefs}',%s::jsonb,true)
+                           || jsonb_build_object('_ai_exchange_day',%s)
                        WHERE market='미국' AND stock_name=%s
                          AND result_limit=%s AND storyboard_limit=%s
-                         AND display_timezone=%s AND source_fingerprint=%s
+                         AND display_timezone=%s
                          AND expires_at>now()""",
-                    (json.dumps(updated, ensure_ascii=False), stock_name,
-                     result_limit, storyboard_limit, tz, fingerprint),
+                    (ai_json, ai_json, day.isoformat(), stock_name,
+                     result_limit, storyboard_limit, tz),
                 )
                 updated_rows = cur.rowcount
             print("[news-ai] scheduled snapshot_updated stock=%s rows=%s" % (

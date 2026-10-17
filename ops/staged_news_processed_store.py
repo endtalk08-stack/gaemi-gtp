@@ -183,6 +183,35 @@ def _recent_existing_issue_briefs(previous, stock_name):
     return retained
 
 
+def _prefer_same_day_ai(coming, previous, stock_name, us_day):
+    """Keep code issues for a future menu; keep today's AI visible on refresh.
+
+    Only exact stock-owned prior AI and the same US day may be carried over.
+    Yesterday's or another company's AI must not leak into a new snapshot.
+    """
+    code = _same_stock_issue_briefs(
+        coming.get("_code_issue_briefs", coming.get("issue_briefs") or []), stock_name)
+    coming["_code_issue_briefs"] = code
+    incoming_ai = coming.get("_ai_issue_briefs") or []
+    if incoming_ai:
+        valid = _same_stock_issue_briefs(incoming_ai, stock_name)
+        if len(valid) == len(incoming_ai) and coming.get("_ai_exchange_day") == us_day:
+            coming["_ai_issue_briefs"] = valid
+            coming["issue_briefs"] = valid
+            return coming
+        coming.pop("_ai_issue_briefs", None)
+        coming.pop("_ai_exchange_day", None)
+        coming["issue_briefs"] = code
+    if isinstance(previous, dict) and previous.get("_ai_exchange_day") == us_day:
+        prior_ai = previous.get("_ai_issue_briefs") or []
+        valid = _same_stock_issue_briefs(prior_ai, stock_name)
+        if valid and len(valid) == len(prior_ai):
+            coming["_ai_issue_briefs"] = valid
+            coming["_ai_exchange_day"] = us_day
+            coming["issue_briefs"] = valid
+    return coming
+
+
 def save_snapshot(stock_name, *, market, limit, storyboard_limit,
                   display_timezone, fingerprint, result):
     """Atomic upsert; never write unsuccessful analysis."""
@@ -202,10 +231,10 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
     normalized["issue_briefs"] = valid
     with _connect() as conn:
         with conn.cursor() as cur:
-            # A temporary zero-result verification pass must not erase a
-            # still-valid, already selected issue. This does NOT keep expired,
-            # unrelated, or unverified older issue briefs.
-            if not normalized.get("issue_briefs"):
+            # Keep AI and deterministic issue channels separate without
+            # altering news collection, retention, or existing read APIs.
+            previous_payload = None
+            if market in ("미국", "US") or not normalized.get("issue_briefs"):
                 cur.execute("""
                     SELECT result_payload FROM public.news_processed_snapshots
                     WHERE market=%s AND stock_name=%s AND result_limit=%s
@@ -214,11 +243,20 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
                     FOR UPDATE
                 """, (market, stock_name, limit, storyboard_limit, display_timezone))
                 previous = cur.fetchone()
-                preserved = _recent_existing_issue_briefs(
-                    previous[0] if previous else None, stock_name
-                )
+                previous_payload = previous[0] if previous else None
+            if market in ("미국", "US"):
+                from datetime import datetime
+                from zoneinfo import ZoneInfo
+                day = datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+                normalized = _prefer_same_day_ai(normalized, previous_payload,
+                                                  stock_name, day)
+            # Existing short-lived same-stock code fallback stays intact.
+            if not normalized.get("issue_briefs"):
+                preserved = _recent_existing_issue_briefs(previous_payload, stock_name)
                 if preserved:
                     normalized["issue_briefs"] = preserved
+                    if market in ("미국", "US"):
+                        normalized["_code_issue_briefs"] = preserved
                     print(
                         f"[news-worker] preserved_recent_issues stock={stock_name} count={len(preserved)}",
                         flush=True,

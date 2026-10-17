@@ -4,7 +4,17 @@ Uses existing Neon connection and reserves before any paid Groq request.
 """
 import hashlib
 import json
-from staged_daily_groq_issues import analyze_news, issue_source_metadata
+from staged_daily_groq_issues import (analyze_news, build_model_news,
+                                      _has_verifiable_published_at, issue_source_metadata)
+
+
+def has_eligible_ai_news(articles):
+    """Require grounded, dated article text before reserving a paid request.
+
+    Existing deterministic issue selection is NOT a prerequisite.
+    """
+    news, _ = build_model_news(articles or [])
+    return any(_has_verifiable_published_at(row.get("published_at")) for row in news)
 from staged_ai_issue_store import save_ai_issues, read_issue_sources
 from staged_daily_call_guard import reserve_once, finish_reservation
 
@@ -99,8 +109,8 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     if stock_name not in approved_us:
         print("[news-ai] skipped reason=outside_approved_21 stock=%s" % stock_name, flush=True)
         return
-    if not isinstance(result, dict) or not result.get("issue_briefs"):
-        print("[news-ai] skipped reason=no_selected_issue stock=%s" % stock_name, flush=True)
+    if not isinstance(result, dict) or not has_eligible_ai_news(raw):
+        print("[news-ai] skipped reason=no_dated_usable_article stock=%s" % stock_name, flush=True)
         return
     from staged_ai_snapshot_integration import with_ai_issue_briefs
     from staged_daily_groq_issues import MODEL
@@ -148,7 +158,8 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
             return
         updated = with_ai_issue_briefs(
             result, issues, display_time=now.strftime("%Y-%m-%d %H:%M"),
-            stock_names=[stock_name], sources_by_issue=sources)
+            stock_names=[stock_name], sources_by_issue=sources,
+            exchange_day=us_day)
         store.save_snapshot(stock_name, fingerprint=fingerprint, result=updated, **params)
         print("[news-ai] snapshot_updated stock=%s count=%s model=%s" % (
             stock_name, len(issues), MODEL), flush=True)
