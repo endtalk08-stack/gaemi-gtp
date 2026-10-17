@@ -1,7 +1,4 @@
-"""Daily US stock issue analysis schedule, staging only.
-
-No worker is wired to call this module yet.
-"""
+"""KST-visible daily US stock issue schedule. Staged, not activated."""
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -9,16 +6,24 @@ KST = ZoneInfo("Asia/Seoul")
 NEW_YORK = ZoneInfo("America/New_York")
 
 
-def scheduled_kst_time(day):
-    """US market-open + 60 minutes, converted to Korean local time."""
-    eastern = datetime(day.year, day.month, day.day, 10, 30, tzinfo=NEW_YORK)
+def scheduled_kst_time(us_calendar_date):
+    """US calendar date at 10:30 AM New York (one hour after regular open)."""
+    eastern = datetime(us_calendar_date.year, us_calendar_date.month,
+                       us_calendar_date.day, 10, 30, tzinfo=NEW_YORK)
     return eastern.astimezone(KST)
 
 
-def should_run(now, last_success_date):
-    """A successful daily run prevents another call on its KST run date."""
-    local = now.astimezone(KST)
-    current_slot = scheduled_kst_time(local.date())
-    if local < current_slot:
-        return False
-    return last_success_date != local.date().isoformat()
+def due_run(now, completed_us_dates):
+    """Return US calendar date to run once, or None.
+
+    Check both today and yesterday in Korea so midnight winter runs are correct.
+    Completed dates must be stored durably by production caller.
+    """
+    now_kst = now.astimezone(KST)
+    completed = set(completed_us_dates)
+    for offset in (1, 0):
+        us_day = now_kst.date() - timedelta(days=offset)
+        slot = scheduled_kst_time(us_day)
+        if slot <= now_kst < slot + timedelta(minutes=30) and us_day.isoformat() not in completed:
+            return us_day.isoformat()
+    return None
