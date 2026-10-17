@@ -2,7 +2,7 @@ name: Deploy staged Groq AI modules to DigitalOcean
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
-    paths: [.github/workflows/do-news-ai-integration-inspect.yml, ops/staged_ai_sequential_batch.py]
+    paths: [.github/workflows/do-news-ai-integration-inspect.yml, ops/staged_ai_sequential_batch.py, ops/staged_daily_groq_issues.py]
 permissions:
   contents: read
 jobs:
@@ -128,7 +128,6 @@ jobs:
           sys.path.insert(0, "ops")
           from staged_daily_groq_issues import analyze_news
           key = Path("ops/.groq_api_key").read_text().strip()
-          print("GROQ_KEY_SUFFIX=" + key[-4:], flush=True)
           os.environ["GROQ_API_KEY"] = key
           try:
               result = analyze_news("엔비디아", [{"title": "엔비디아 AI 반도체 수요", "description": "엔비디아 AI 반도체 관련 연결 진단 테스트"}])
@@ -140,4 +139,4 @@ jobs:
               raise SystemExit(1)
           PY
           REMOTE
-# Report only the API key's last four characters and the provider's HTTP error body.
+# Report the provider's HTTP error status and response body, never credentials.
