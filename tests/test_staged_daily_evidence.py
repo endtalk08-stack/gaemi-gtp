@@ -73,6 +73,20 @@ class IssueEvidenceTests(unittest.TestCase):
             evidence.persist_issue_evidence(self.conn, 99, [1])
         self.assertEqual(self.conn.last.writes, [])
 
+    def test_boolean_issue_id_rejected(self):
+        with self.assertRaises(ValueError):
+            evidence.persist_issue_evidence(self.conn, True, [1])
+
+    def test_boolean_article_id_rejected(self):
+        with self.assertRaises(ValueError):
+            evidence.persist_issue_evidence(self.conn, 99, [True])
+
+    def test_url_with_credentials_rejected(self):
+        self.conn.db[1] = (1, "hash1", "https://user:pass@publisher.example/story", "Title", "Publisher")
+        with self.assertRaises(ValueError):
+            evidence.persist_issue_evidence(self.conn, 99, [1])
+        self.assertEqual(self.conn.last.writes, [])
+
     def test_invalid_issue_id_rejected(self):
         with self.assertRaises(ValueError):
             evidence.persist_issue_evidence(self.conn, 0, [1])
