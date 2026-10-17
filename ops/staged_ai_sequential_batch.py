@@ -61,7 +61,7 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
 
 
 def _worker_database_url(store):
-    """Use the worker's configured Neon URL without assuming a store method."""
+    """Use either configured Neon URL or the existing store connection method."""
     import os
     value = (os.environ.get("NEWS_DATABASE_URL") or os.environ.get("DATABASE_URL") or "").strip()
     if value:
