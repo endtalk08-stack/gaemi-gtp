@@ -73,6 +73,9 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         return
     if market_code != "US":
         return
+    if not isinstance(result, dict) or not result.get("issue_briefs"):
+        print("[news-ai] skipped reason=no_selected_issue stock=%s" % stock_name, flush=True)
+        return
     from staged_ai_snapshot_integration import with_ai_issue_briefs
     from staged_daily_groq_issues import MODEL
     now = datetime.now(ZoneInfo("Asia/Seoul"))
