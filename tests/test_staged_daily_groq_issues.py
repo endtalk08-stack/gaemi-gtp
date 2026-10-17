@@ -107,5 +107,32 @@ class GroqIssueTests(unittest.TestCase):
             with self.assertRaises(urllib.error.URLError):
                 module.analyze_news("NVDA", [{"title": "기사", "description": "본문"}])
 
+    def test_naver_api_title_description_to_ai_payload(self):
+        """Naver API field names should reach AI without Neon column renaming."""
+        from unittest.mock import patch
+        import io
+        captured = {}
+        def fake_urlopen(request, timeout):
+            captured["request"] = json.loads(request.data.decode("utf-8"))
+            return io.BytesIO(b'{"choices":[{"message":{"content":"{\\"issues\\":[]}"}}]}')
+        articles = [{"title": "네이버 뉴스 제목", "description": "네이버 뉴스 내용",
+                     "pubDate": "Sat, 17 Oct 2026 09:00:00 +0900"}]
+        with patch.dict("os.environ", {"GROQ_API_KEY": "offline-only"}), patch(
+            "urllib.request.urlopen", side_effect=fake_urlopen
+        ):
+            self.assertEqual(module.analyze_news("NVDA", articles), [])
+        payload = json.loads(captured["request"]["messages"][1]["content"])
+        self.assertEqual(payload["news"][0]["title"], articles[0]["title"])
+        self.assertEqual(payload["news"][0]["content"], articles[0]["description"])
+        self.assertEqual(payload["news"][0]["published_at"], articles[0]["pubDate"])
+
+    def test_naver_api_missing_description_does_not_call_ai(self):
+        from unittest.mock import patch
+        with patch.dict("os.environ", {"GROQ_API_KEY": "offline-only"}), patch(
+            "urllib.request.urlopen"
+        ) as api:
+            self.assertEqual(module.analyze_news("NVDA", [{"title": "제목", "description": ""}]), [])
+            api.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()
