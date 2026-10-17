@@ -100,3 +100,4 @@ jobs:
           echo AI_WORKER_HOOK_ACTIVE
           REMOTE
 # Existing news collection remains unchanged. AI failures do not block news snapshots.
+# Redeploy current branch head to verify latest unchanged-news AI hook.
