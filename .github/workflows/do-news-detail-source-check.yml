@@ -33,3 +33,8 @@ jobs:
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'systemctl is-active gaemigtp-news.service'
           echo 'STAGED_FIX_SOURCE_SHA'
           sha256sum ops/staged_news_detail.py
+
+          echo 'DEPLOY_ACCOUNT_SUDO_PERMISSIONS'
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'sudo -n -l 2>&1 | head -35 || true'
+          echo 'NEWS_DETAIL_PATH_PERMISSIONS'
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'ls -ld /opt/gaemigtp-news/app/backend/services; ls -l /opt/gaemigtp-news/app/backend/services/news_detail.py; ls -ld "$HOME/news-deploy"'
