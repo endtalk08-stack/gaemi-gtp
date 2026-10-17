@@ -34,3 +34,23 @@ def reserve_once(conn, *, market, symbol, exchange_day, request_hash,
             (market, symbol, exchange_day, request_hash, provider, model_id),
         )
         return True
+
+
+def finish_reservation(conn, *, market, symbol, exchange_day, request_hash,
+                       status, result=None, failure_category=None):
+    """Record outcome without clearing the daily reservation.
+
+    A failed/invalid response is not retried automatically, preventing
+    repeated billable requests. Caller must commit the outcome transaction.
+    """
+    if status not in ("completed", "invalid", "failed"):
+        raise ValueError("Invalid terminal status")
+    with conn.cursor() as cur:
+        cur.execute(
+            """UPDATE public.news_ai_call_ledger
+               SET status=%s, result=%s, failure_category=%s, completed_at=now()
+               WHERE market=%s AND symbol=%s AND exchange_day=%s
+                 AND request_hash=%s AND status='reserved'""",
+            (status, result, failure_category, market, symbol, exchange_day, request_hash),
+        )
+        return cur.rowcount == 1
