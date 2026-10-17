@@ -24,8 +24,10 @@ jobs:
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'systemctl show gaemigtp-news.service -p ActiveState -p SubState -p ExecStart; test -f /opt/gaemigtp-news/app/backend/news_worker.py && grep -nE "^(async )?def |^class |^from backend|^import backend" /opt/gaemigtp-news/app/backend/news_worker.py | head -100; grep -nE "save_snapshot\(|news_processed_snapshots|news_ai_issues|run_stock_batch|GROQ_API_KEY" /opt/gaemigtp-news/app/backend/news_worker.py | cut -c 1-180 | head -65'
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'sed -n "1,170p" /opt/gaemigtp-news/app/backend/news_worker.py | cut -c 1-190'
 # Read-only inspection trigger; no deployment or AI calls.
 # Recheck actual worker file and systemd service before staging integration.
 # SSH connection preflight rerun 2026-10-17; no deployment, no Groq calls.
 # Next read-only inspection: worker function names, systemd unit and source wiring.
+
+# Read-only inspect worker processing flow for safe AI insertion point.
