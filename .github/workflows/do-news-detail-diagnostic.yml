@@ -17,6 +17,8 @@ jobs:
         run: |
           python - <<'PY'
           import importlib.util, time
+          from backend.services.news_result import _central_direct_article
+          from backend.services.issue_briefs import central_material_brief_supported, _article_excerpt
           p='backend/services/news_detail.py'
           spec=importlib.util.spec_from_file_location('detail_check',p)
           mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
@@ -31,6 +33,10 @@ jobs:
               t=time.monotonic()
               try:
                   result=mod._read_url(url,with_source=True)
+                  excerpt=_article_excerpt(result.get('text') or '')
+                  article={'title': 'SK하이닉스 AI 메모리 기술 협력' if 'venturesquare' in url else ('SK하이닉스 반도체 투자' if 'hankyung' in url or 'wowtv' in url else '테슬라 모델Y')}
+                  check_stock='테슬라' if 'gpkorea' in url else 'SK하이닉스'
+                  print('GATES',url.split('/')[2], 'direct=',_central_direct_article(article,excerpt,check_stock),'material=',central_material_brief_supported(excerpt),'excerpt=',excerpt[:160])
                   print('ARTICLE_CHECK',url.split('/')[2], 'source=',result.get('source'),
                         'body_chars=',len(result.get('text','')), 'seconds=',round(time.monotonic()-t,2))
               except Exception as exc:
