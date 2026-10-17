@@ -14,6 +14,7 @@ jobs:
       DO_HOST: ${{ secrets.DO_HOST }}
       SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Upload and validate staged AI modules without restarting worker
