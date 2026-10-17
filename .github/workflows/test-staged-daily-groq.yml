@@ -4,7 +4,9 @@ on:
     branches: [ops/do-ssh-deploy-setup-20261017]
     paths:
       - ops/staged_daily_groq_issues.py
+      - ops/staged_daily_issue_schedule.py
       - tests/test_staged_daily_groq_issues.py
+      - tests/test_staged_daily_issue_schedule.py
       - .github/workflows/test-staged-daily-groq.yml
 permissions:
   contents: read
@@ -15,5 +17,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile and test without calling any API
         run: |
-          python -m py_compile ops/staged_daily_groq_issues.py
-          python -m unittest discover -s tests -p test_staged_daily_groq_issues.py -v
+          python -m py_compile ops/staged_daily_groq_issues.py ops/staged_daily_issue_schedule.py
+          python -m unittest discover -s tests -p 'test_staged_daily_*.py' -v
