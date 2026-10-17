@@ -65,3 +65,13 @@ jobs:
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
             "${DO_SSH_USER}@${DO_HOST}" \
             'set -eu; echo "LIVE_FILE_HASHES"; sha256sum /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/backend/services/news_processed_store.py; echo "LAST_ISSUE_LOGS"; journalctl -u gaemigtp-news.service --since "45 minutes ago" --no-pager -o cat 2>/dev/null | grep -E "selection_summary|all_candidate_article_bodies_unavailable|error=|news-worker|processed news" | tail -45 || true'
+
+      - name: Read live worker decision and snapshot save logic
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "${DO_SSH_USER}@${DO_HOST}" \
+            'set -eu; cd /opt/gaemigtp-news/app/backend; echo "WORKER_STOCK_PROCESS"; sed -n "100,175p" news_worker.py; echo "STORE_SNAPSHOT"; grep -n -A55 "^def save_snapshot" services/news_processed_store.py; echo "STORE_CHECK"; grep -n -A22 "^def read_signature" services/news_processed_store.py'
