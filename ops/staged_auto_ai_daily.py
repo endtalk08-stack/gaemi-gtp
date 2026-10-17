@@ -103,6 +103,7 @@ def process_due_ai_snapshots():
                 continue
             done += 1
             ids = outcome.get("ids") or []
+            sources = outcome.get("issue_sources") or []
             if not ids:
                 continue
             with conn.cursor() as cur:
@@ -117,7 +118,8 @@ def process_due_ai_snapshots():
                 continue
             display_time = datetime.now(SEOUL).strftime("%Y-%m-%d %H:%M")
             updated = with_ai_issue_briefs(
-                payload, issues, display_time=display_time, stock_names=[stock_name])
+                payload, issues, display_time=display_time, stock_names=[stock_name],
+                sources_by_issue=sources)
             with conn.cursor() as cur:
                 cur.execute(
                     """UPDATE public.news_processed_snapshots

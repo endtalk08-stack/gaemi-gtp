@@ -4,7 +4,7 @@ Uses existing Neon connection and reserves before any paid Groq request.
 """
 import hashlib
 import json
-from staged_daily_groq_issues import analyze_news
+from staged_daily_groq_issues import analyze_news, issue_source_metadata
 from staged_ai_issue_store import save_ai_issues
 from staged_daily_call_guard import reserve_once, finish_reservation
 
@@ -38,14 +38,17 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
                                 "status": "already_reserved", "issue_count": 0, "ids": []})
                 continue
             issues = analyze(stock["name"], articles)
+            sources = issue_source_metadata(issues, articles)
             ids = save(conn, issues, market=market, symbol=symbol,
                        exchange_day=day) if issues else []
             with conn.transaction():
                 finish(conn, market=market, symbol=symbol, exchange_day=day,
                        request_hash=request_hash, status="completed",
-                       result={"issue_ids": ids, "issue_count": len(issues)})
+                       result={"issue_ids": ids, "issue_count": len(issues),
+                               "issue_sources": sources})
             results.append({"market": market, "symbol": symbol, "status": "ok",
-                            "issue_count": len(issues), "ids": ids})
+                            "issue_count": len(issues), "ids": ids,
+                            "issue_sources": sources})
         except Exception as exc:
             if reserved:
                 try:
@@ -121,15 +124,17 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         print("[news-ai] stock=%s status=%s count=%s" % (
             stock_name, outcome["status"], outcome.get("issue_count", 0)), flush=True)
         ids = outcome.get("ids") or []
+        sources = outcome.get("issue_sources") or []
         if outcome["status"] == "already_reserved":
             with conn.cursor() as cur:
                 cur.execute(
-                    """SELECT result->'issue_ids' FROM public.news_ai_call_ledger
+                    """SELECT result->'issue_ids', result->'issue_sources' FROM public.news_ai_call_ledger
                        WHERE market=%s AND symbol=%s AND exchange_day=%s
                          AND status='completed' LIMIT 1""",
                     (market_code, stock_name, us_day))
                 row = cur.fetchone()
                 ids = row[0] if row and row[0] else []
+                sources = row[1] if row and row[1] else []
         if not ids:
             return
         with conn.cursor() as cur:
@@ -141,7 +146,7 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
             return
         updated = with_ai_issue_briefs(
             result, issues, display_time=now.strftime("%Y-%m-%d %H:%M"),
-            stock_names=[stock_name])
+            stock_names=[stock_name], sources_by_issue=sources)
         store.save_snapshot(stock_name, fingerprint=fingerprint, result=updated, **params)
         print("[news-ai] snapshot_updated stock=%s count=%s model=%s" % (
             stock_name, len(issues), MODEL), flush=True)

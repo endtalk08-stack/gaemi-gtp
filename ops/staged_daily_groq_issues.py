@@ -8,7 +8,9 @@ PROMPT = """주가에 영향을 줄 핵심 이슈를 0-3개 선정해.
 
 한국어 JSON만 반환해:
 
-{"issues":[{"headline":"제목","summary":"내용","tags":["#핵심어"]}]}"""
+각 이슈에 실제 참고한 기사 번호 source_ids를 1~3개 넣어. 입력된 source_id 번호만 사용해.
+
+{"issues":[{"headline":"제목","summary":"내용","tags":["#핵심어"],"source_ids":[1]}]}"""
 
 
 def parse_issues(response_text):
@@ -19,14 +21,60 @@ def parse_issues(response_text):
     if not isinstance(issues, list) or len(issues) > 3:
         raise ValueError("Expected 0-3 issues")
     for item in issues:
-        if not isinstance(item, dict) or set(item) != {"headline", "summary", "tags"}:
+        if not isinstance(item, dict) or not {"headline", "summary", "tags"} <= set(item) or set(item) - {"headline", "summary", "tags", "source_ids"}:
             raise ValueError("Invalid fields")
         if any(not isinstance(item[k], str) or not item[k].strip() for k in ("headline", "summary")):
             raise ValueError("Invalid text")
         tags = item["tags"]
         if not isinstance(tags, list) or len(tags) > 3 or any(not isinstance(t, str) or not t.startswith("#") for t in tags):
             raise ValueError("Invalid tags")
+        if "source_ids" in item:
+            ids = item["source_ids"]
+            if not isinstance(ids, list) or not 1 <= len(ids) <= 3 or any(
+                type(source_id) is not int or source_id < 1 for source_id in ids
+            ) or len(set(ids)) != len(ids):
+                raise ValueError("Invalid article source IDs")
     return issues
+
+
+def build_model_news(articles):
+    """Number only usable articles; share the exact mapping with storage."""
+    news, sources = [], []
+    char_budget = 9000
+    for article in articles:
+        if not isinstance(article, dict) or len(news) >= 20 or char_budget <= 0:
+            continue
+        title = str(article.get("title") or "")[:300]
+        content = str(article.get("body") or article.get("description") or "")
+        if not title.strip() or not content.strip():
+            continue
+        content = content[:min(2400, char_budget)]
+        char_budget -= len(content)
+        published_at = str(article.get("pubDate") or article.get("published_at") or "")[:80]
+        news.append({
+            "source_id": len(news) + 1,
+            "title": title,
+            "content": content,
+            "published_at": published_at,
+        })
+        link = str(article.get("url") or article.get("link") or "").strip()
+        sources.append({
+            "title": title,
+            "published_at": published_at,
+            "source": str(article.get("source") or "")[:120],
+            "url": link if link.startswith(("https://", "http://")) else "",
+        })
+    return news, sources
+
+
+def issue_source_metadata(issues, articles):
+    """Resolve model-chosen IDs against originals; never invent an article URL/date."""
+    _, source_records = build_model_news(articles)
+    return [[
+        source_records[source_id - 1]
+        for source_id in issue.get("source_ids", [])
+        if type(source_id) is int and 1 <= source_id <= len(source_records)
+    ][:3] for issue in issues]
 
 
 def analyze_news(stock_name, articles):
@@ -40,22 +88,7 @@ def analyze_news(stock_name, articles):
     if not api_key:
         raise RuntimeError("Groq key is not configured on the news worker")
 
-    news = []
-    char_budget = 9000
-    for article in articles:
-        if not isinstance(article, dict) or len(news) >= 20 or char_budget <= 0:
-            continue
-        title = str(article.get("title") or "")[:300]
-        content = str(article.get("body") or article.get("description") or "")
-        if not title.strip() or not content.strip():
-            continue
-        content = content[:min(2400, char_budget)]
-        char_budget -= len(content)
-        news.append({
-            "title": title,
-            "content": content,
-            "published_at": str(article.get("pubDate") or article.get("published_at") or "")[:80],
-        })
+    news, _ = build_model_news(articles)
     if not news:
         return []
 
