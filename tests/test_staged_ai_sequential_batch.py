@@ -16,7 +16,11 @@ spec.loader.exec_module(module)
 class SequentialBatchTests(unittest.TestCase):
     def test_one_stock_at_a_time_and_existing_connection(self):
         calls = []
-        conn = object()
+        class Conn:
+            def transaction(self):
+                from contextlib import nullcontext
+                return nullcontext()
+        conn = Conn()
         stocks = [
             {"name": "엔비디아", "articles": [{"title": "a"}], "market": "US",
              "symbol": "NVDA", "exchange_day": date(2026, 10, 17)},
@@ -30,7 +34,9 @@ class SequentialBatchTests(unittest.TestCase):
             self.assertIs(c, conn)
             calls.append(("save", kwargs["symbol"]))
             return [len(calls)]
-        results = module.run_stock_batch(conn, stocks, analyze=analyze, save=save)
+        results = module.run_stock_batch(conn, stocks, analyze=analyze, save=save,
+                                         reserve=lambda *a, **k: True,
+                                         finish=lambda *a, **k: True)
         self.assertEqual(calls, [("analyze", "엔비디아"), ("save", "NVDA"),
                                  ("analyze", "테슬라"), ("save", "TSLA")])
         self.assertEqual([r["issue_count"] for r in results], [1, 1])
@@ -45,7 +51,7 @@ class SequentialBatchTests(unittest.TestCase):
             if name == "A":
                 raise RuntimeError("offline")
             return []
-        results = module.run_stock_batch(object(), stocks, analyze=analyze, save=Mock())
+        results = module.run_stock_batch(type('Conn', (), {'transaction': lambda self: __import__('contextlib').nullcontext()})(), stocks, analyze=analyze, save=Mock(), reserve=lambda *a, **k: True, finish=lambda *a, **k: True)
         self.assertEqual([r["status"] for r in results], ["error", "ok"])
         self.assertEqual(results[0]["error_type"], "RuntimeError")
 
