@@ -1,0 +1,39 @@
+name: Read-only DO stock news coverage diagnosis
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-coverage-readonly.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Inspect worker selection and stock errors without executing news requests
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -u
+          cd /opt/gaemigtp-news/app || exit 1
+          echo SECTION_WORKER_SOURCE
+          sed -n '1,115p' backend/news_worker.py
+          sed -n '145,245p' backend/news_worker.py
+          echo SECTION_WORKER_STATUS
+          systemctl is-active gaemigtp-news.service || true
+          echo SECTION_RELATED_LOGS
+          journalctl -u gaemigtp-news.service --since '2026-10-17 00:00:00 UTC' --no-pager -o cat 2>&1 | grep -Ei 'news-worker.*(네비우스|마벨|어드밴스드|AMD|TSMC|샌디스크|코어위브)|analyze news (trace|funnel).*stock=(네비우스|마벨|AMD|TSMC|샌디스크|코어위브)|news-ai.*(샌디스크|TSMC|네비우스|마벨|AMD)' | tail -n 100 || true
+          echo SECTION_FILES
+          sha256sum backend/services/news_feed.py backend/analysis/news/catalog.py backend/analysis/news/storyboard.py backend/services/news_result.py || true
+          REMOTE
