@@ -1,4 +1,4 @@
-name: Inspect DigitalOcean AI integration points
+name: Deploy staged Groq AI modules to DigitalOcean
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -6,36 +6,27 @@ on:
 permissions:
   contents: read
 jobs:
-  inspect:
+  deploy:
     environment: digitalocean-news-worker
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 7
     env:
       DO_HOST: ${{ secrets.DO_HOST }}
       SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
-      - name: Read integration points without changing server
+      - uses: actions/checkout@v4
+      - name: Upload and validate staged AI modules without restarting worker
         run: |
           set -euo pipefail
           umask 077
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'python3 -' <<'PY'
-          from pathlib import Path
-          import os
-          root=Path("/opt/gaemigtp-news/app")
-          for rel in ["backend/news_worker.py","backend/services/news_processed_store.py"]:
-              p=root/rel
-              print("===== "+rel+" =====")
-              lines=p.read_text().splitlines()
-              for i,line in enumerate(lines,1):
-                  if i<=265:
-                      print(f"{i:03d} {line}")
-          print("===== SERVICE STATE =====")
-          print("groq_key_in_process_env", bool(os.getenv("GROQ_API_KEY")))
-          print("===== SOURCE DIR =====")
-          print("ops_dir_exists", (root/"ops").is_dir())
-          PY
-# Read-only code inspection. No deploy, restart, or API calls.
+          SSH_OPTS=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          files=(ops/staged_daily_groq_issues.py ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_ai_snapshot_integration.py ops/staged_daily_call_guard.py ops/staged_ai_sequential_batch.py ops/staged_daily_issue_schedule.py)
+          python3 -m py_compile "${files[@]}"
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'mkdir -p /opt/gaemigtp-news/app/ops && test -w /opt/gaemigtp-news/app/ops'
+          scp "${SSH_OPTS[@]}" "${files[@]}" gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/ops/
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'cd /opt/gaemigtp-news/app && /opt/gaemigtp-news/venv/bin/python -m compileall -q ops/staged_*.py && echo STAGED_AI_MODULES_DEPLOYED'
+# Staged modules only; existing worker, news collection, Groq prompt and Render remain unchanged.
