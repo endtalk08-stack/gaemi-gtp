@@ -22,7 +22,7 @@ def persist_issue_evidence(conn, issue_id, article_ids):
 
     with conn.cursor() as cur:
         cur.execute(
-            """SELECT id, url_hash, canonical_url, headline
+            """SELECT id, url_hash, canonical_url, headline, publisher
                FROM public.news_articles
                WHERE id = ANY(%s)""",
             (article_ids,),
@@ -30,18 +30,19 @@ def persist_issue_evidence(conn, issue_id, article_ids):
         articles = cur.fetchall()
         if len(articles) != len(article_ids):
             raise ValueError("One or more article IDs do not exist")
-        for article_id, url_hash, canonical_url, headline in articles:
+        for article_id, url_hash, canonical_url, headline, publisher in articles:
             parsed = urlsplit(canonical_url)
             if parsed.scheme not in ("http", "https") or not parsed.netloc or not url_hash:
                 raise ValueError("Invalid collected article URL")
-        for article_id, url_hash, canonical_url, headline in articles:
+        for article_id, url_hash, canonical_url, headline, publisher in articles:
             cur.execute(
                 """INSERT INTO public.news_issue_evidence
-                   (issue_id, url_hash, canonical_url, source_headline)
-                   VALUES (%s, %s, %s, %s)
+                   (issue_id, url_hash, canonical_url, source_headline, source_publisher)
+                   VALUES (%s, %s, %s, %s, %s)
                    ON CONFLICT (issue_id, url_hash) DO UPDATE SET
                    canonical_url=EXCLUDED.canonical_url,
-                   source_headline=EXCLUDED.source_headline""",
-                (issue_id, url_hash, canonical_url, headline),
+                   source_headline=EXCLUDED.source_headline,
+                   source_publisher=EXCLUDED.source_publisher""",
+                (issue_id, url_hash, canonical_url, headline, publisher),
             )
     return len(articles)
