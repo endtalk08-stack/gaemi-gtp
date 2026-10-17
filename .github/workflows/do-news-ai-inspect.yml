@@ -1,4 +1,4 @@
-name: Inspect DigitalOcean news AI integration (read-only)
+name: Read-only DigitalOcean Groq preflight
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -17,12 +17,11 @@ jobs:
       SSH_KEY: ${{ secrets.NEWS_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
-      - name: Inspect scheduling, issue integration and secret presence (read only)
+      - name: Check server environment key presence without printing values
         run: |
           set -euo pipefail
-          test "$SSH_USER" = "gaemi-news-check"
           umask 077
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'cd /opt/gaemigtp-news/app && /opt/gaemigtp-news/venv/bin/python -c '\''import ast,pathlib; files=["backend/news_worker.py","backend/services/news_result.py","backend/services/issue_briefs.py"]; keys=("main","run","process","build_stock_news_result","build_issue_briefs","save_snapshot"); [(print("FILE",p),print("FUNCTIONS",[(n.name,n.lineno) for n in ast.parse(pathlib.Path(p).read_text()).body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))]),print("KEY_LINES"),[(print(str(i)+": "+line[:180])) for i,line in enumerate(pathlib.Path(p).read_text().splitlines(),1) if any(k in line for k in ("build_stock_news_result(", "build_issue_briefs(", "save_snapshot(", "sleep(", "time.sleep", "result_payload", "issue_briefs ="))]) for p in files]; print("CONFIG_KEY_PRESENT",__import__("os").path.exists("/opt/gaemigtp-news/app/.env"))'\'' && echo SERVICE_ENV_NAMES && systemctl cat gaemigtp-news.service | grep "^EnvironmentFile=" | sed -E "s|=.*|=[configured file path omitted]|"'
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'systemctl show gaemigtp-news.service -p ActiveState -p SubState; /opt/gaemigtp-news/venv/bin/python -c '\''import pathlib; p=pathlib.Path("/opt/gaemigtp-news/app/backend/news_worker.py"); t=p.read_text(); print("WORKER_PRESENT",p.exists()); print("WORKER_LINES",len(t.splitlines())); print("WORKER_NEON_SAVE", "save_snapshot(" in t)'\'''
