@@ -1,5 +1,6 @@
 """Offline fake-database tests; never connects to Neon or Groq."""
 import importlib.util
+import json
 import pathlib
 import unittest
 from datetime import date
@@ -29,10 +30,15 @@ class FakeCursor:
         elif query.lstrip().startswith("SELECT 1"):
             self.identity = tuple(params)
         elif query.lstrip().startswith("UPDATE"):
-            self.rowcount = int(self.database.get(tuple(params[3:6])) == params[6])
+            key = tuple(params[3:6])
+            record = self.database.get(key)
+            self.rowcount = int(record is not None and record['hash'] == params[6] and record['status'] == 'reserved')
+            if self.rowcount:
+                record['status'] = params[0]
+                record['result'] = params[1]
         elif query.lstrip().startswith("INSERT"):
             assert self.locked
-            self.database[tuple(params[:3])] = params[3]
+            self.database[tuple(params[:3])] = {'hash': params[3], 'status': 'reserved'}
         else:
             raise AssertionError(query)
 
@@ -122,9 +128,12 @@ class DailyCallGuardTests(unittest.TestCase):
         ))
 
     def test_second_completion_is_rejected_by_db_status(self):
-        # The production SQL only updates rows whose status remains 'reserved'.
-        import inspect
-        self.assertIn("status=\x27reserved\x27", inspect.getsource(guard.finish_reservation))
+        self.assertTrue(self.reserve())
+        self.assertTrue(guard.finish_reservation(self.conn, market="US", symbol="NVDA",
+            exchange_day=self.day, request_hash="hash-a", status="completed", result={"issues": []}))
+        self.assertFalse(guard.finish_reservation(self.conn, market="US", symbol="NVDA",
+            exchange_day=self.day, request_hash="hash-a", status="completed", result={"issues": []}))
+        self.assertEqual(json.loads(self.database[("US", "NVDA", self.day)]["result"]), {"issues": []})
 
     def test_bad_identity_rejected(self):
         with self.assertRaises(ValueError):
