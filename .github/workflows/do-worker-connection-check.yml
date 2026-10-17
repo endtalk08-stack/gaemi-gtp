@@ -54,4 +54,4 @@ jobs:
           set -euo pipefail
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
             "${DO_SSH_USER}@${DO_HOST}" \
-            'test -d /opt/gaemigtp-news/app/backend && systemctl is-active gaemigtp-news.service && printf "DO worker connection verified\n"'
+            'set -eu; cd /opt/gaemigtp-news/app/backend; test -s news_worker.py; test -s services/news_processed_store.py; printf "NEWS_WORKER_FILES:\\n"; find . -maxdepth 2 -type f -name "*.py" -printf "%P\\n" | sort | head -60; printf "NEWS_WORKER_SOURCE_BYTES="; wc -c < news_worker.py; printf "\\nNEWS_PROCESSED_STORE_SOURCE_BYTES="; wc -c < services/news_processed_store.py; printf "\\nSERVICE_STATE:\\n"; systemctl is-active gaemigtp-news.service; systemctl show -p ActiveState,SubState,MainPID gaemigtp-news.service; printf "DO worker inspection verified\\n"'
