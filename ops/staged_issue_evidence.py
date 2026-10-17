@@ -35,6 +35,8 @@ def persist_issue_evidence(conn, issue_id, article_ids):
                 or {row[0] for row in articles} != set(article_ids)):
             raise ValueError("Collected article rows do not match requested IDs")
         for article_id, url_hash, canonical_url, headline, publisher in articles:
+            if not isinstance(canonical_url, str):
+                raise ValueError("Invalid collected article URL")
             parsed = urlsplit(canonical_url)
             if (parsed.scheme not in ("http", "https") or not parsed.hostname
                     or parsed.username is not None or parsed.password is not None
