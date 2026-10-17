@@ -49,9 +49,10 @@ jobs:
           old_store="$(git show "$inspected:ops/staged_news_processed_store.py" | sha256sum | cut -d' ' -f1)"
           git show "$inspected:backend/analysis/news/catalog.py" > "$RUNNER_TEMP/expected-catalog.py"
           ssh "${opts[@]}" "$remote" 'cat /opt/gaemigtp-news/app/backend/analysis/news/catalog.py' > "$RUNNER_TEMP/live-catalog.py"
-          echo CATALOG_LIVE_DRIFT_START
-          diff -u "$RUNNER_TEMP/expected-catalog.py" "$RUNNER_TEMP/live-catalog.py" | head -100 || true
-          echo CATALOG_LIVE_DRIFT_END
+          # Existing DO catalog is the precise older STOCK_UNIVERSE-only prefix;
+          # verify it byte-for-byte before adding the reviewed resolver.
+          python -c 'import pathlib,sys; expected=pathlib.Path(sys.argv[1]).read_text(); live=pathlib.Path(sys.argv[2]).read_text(); assert live.rstrip() == expected.split("# Exact Naver US listing labels observed alongside the news catalog names.")[0].rstrip(), "Unexpected live catalog divergence"; print("CATALOG_LEGACY_PREFIX_VERIFIED")' "$RUNNER_TEMP/expected-catalog.py" "$RUNNER_TEMP/live-catalog.py"
+          live_catalog_sha="$(sha256sum "$RUNNER_TEMP/live-catalog.py" | cut -d' ' -f1)"
           ssh "${opts[@]}" "$remote" "bash -s" <<REMOTE
           set -euo pipefail
           cd /opt/gaemigtp-news/app
@@ -62,7 +63,8 @@ jobs:
           echo "CATALOG_WRITABLE=\$(test -w backend/analysis/news/catalog.py && echo yes || echo no)"
           echo "NEWS_DIRECTORY_WRITABLE=\$(test -w backend/analysis/news/ && echo yes || echo no)"
           echo "STORE_WRITABLE=\$(test -w backend/services/news_processed_store.py && echo yes || echo no)"
-          test "$old_catalog" = "\$current_catalog"
+          # Re-verify unchanged bytes after the runner's exact-prefix approval.
+          test "$live_catalog_sha" = "\$current_catalog"
           test "$old_store" = "\$current_store"
           test -w backend/analysis/news/catalog.py
           test -w backend/analysis/news/
