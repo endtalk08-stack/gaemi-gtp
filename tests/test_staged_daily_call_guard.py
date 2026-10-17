@@ -29,7 +29,7 @@ class FakeCursor:
         elif query.lstrip().startswith("SELECT 1"):
             self.identity = tuple(params)
         elif query.lstrip().startswith("UPDATE"):
-            self.rowcount = 1 if tuple(params[3:7]) in self.database else 0
+            self.rowcount = 1 if tuple(params[3:6]) in self.database else 0
         elif query.lstrip().startswith("INSERT"):
             assert self.locked
             self.database.add(tuple(params[:3]))
