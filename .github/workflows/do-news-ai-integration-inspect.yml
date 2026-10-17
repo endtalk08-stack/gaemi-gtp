@@ -76,7 +76,8 @@ jobs:
           unchanged_marker = '        store.mark_checked(stock_name, **params)\n        return "unchanged"\n'
           unchanged_hook = '        try:\n            from staged_ai_sequential_batch import apply_unchanged_worker_ai\n            apply_unchanged_worker_ai(store=store, market=market, stock_name=stock_name,\n                                      raw=raw, fingerprint=fingerprint, params=params)\n        except Exception as ai_exc:\n            print(f"[news-ai] stock={stock_name} error={type(ai_exc).__name__}", flush=True)\n'
           if unchanged_hook in source:
-              source = source.replace(unchanged_hook, unchanged_hook.replace("        try:\n", "        try:\n            import sys\n            from pathlib import Path\n            ops_dir = str(Path(__file__).resolve().parents[1] / \"ops\")\n            if ops_dir not in sys.path:\n                sys.path.insert(0, ops_dir)\n", 1), 1)
+              corrected_hook = unchanged_hook.replace("        try:\n", "        try:\n            import sys\n            from pathlib import Path\n            ops_dir = str(Path(__file__).resolve().parents[1] / \"ops\")\n            if ops_dir not in sys.path:\n                sys.path.insert(0, ops_dir)\n", 1)
+              source = source.replace(unchanged_hook, corrected_hook, 1)
               p.write_text(source)
               print("AI_UNCHANGED_HOOK_PATH_FIXED")
           if "from staged_ai_sequential_batch import apply_unchanged_worker_ai" not in source:
