@@ -42,9 +42,13 @@ _NEWS_SNAPSHOT_LABELS = {
 
 
 def normalize_us_ticker(symbol):
-    """Remove only verified Naver Reuters market suffixes, preserving share class."""
+    """Remove observed Naver Reuters exchange suffixes, preserving share class.
+
+    Even when the suffix matches, a company mapping still needs exact
+    ticker AND display-name verification in resolve_us_identity.
+    """
     symbol = str(symbol or "").strip().upper()
-    if symbol.endswith((".O", ".N")):
+    if symbol.endswith((".O", ".N", ".K")):
         symbol = symbol[:-2]
     return symbol if re.fullmatch(r"[A-Z0-9]+(?:\.[A-Z])?", symbol) else ""
 

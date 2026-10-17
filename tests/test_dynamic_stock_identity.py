@@ -30,17 +30,23 @@ class IdentityTests(unittest.TestCase):
             ("마벨 테크놀로지 그룹", "MRVL.O", "마벨 테크놀로지 그룹"),
             ("AMD(어드밴스드 마이크로 디바이시스)", "AMD.O", "AMD"),
             ("네비우스 그룹", "NBIS.O", "네비우스 그룹"),
+            ("아이온큐", "IONQ.K", "아이온큐"),
+            ("오라클", "ORCL.K", "오라클"),
         ]
         for name, ticker, expected in cases:
             with self.subTest(ticker=ticker):
                 self.assertEqual(resolve_us_identity(name,ticker)["news_name"], expected)
         self.assertEqual(normalize_us_ticker("BRK.B"), "BRK.B")
+        self.assertEqual(normalize_us_ticker("ORCL.K"), "ORCL")
+        self.assertEqual(normalize_us_ticker("IONQ.K"), "IONQ")
 
     def test_unknown_ticker_never_steals_another_company(self):
         a = resolve_us_identity("알파벳 Class A", "AAPL.O")
         self.assertEqual(a["status"], "pending")
         self.assertEqual(a["news_name"], "알파벳 Class A")
         self.assertEqual(news_snapshot_names("알파벳 Class A", "AAPL.O"), ["알파벳 Class A"])
+        for name, code in [("다른 회사", "ORCL.K"), ("다른 회사", "IONQ.K")]:
+            self.assertEqual(resolve_us_identity(name, code)["status"], "pending")
         unknown = resolve_us_identity("새로운 종목", "NEW.O")
         self.assertEqual(unknown["company_key"], "US:NEW")
         self.assertEqual(unknown["status"], "pending")
