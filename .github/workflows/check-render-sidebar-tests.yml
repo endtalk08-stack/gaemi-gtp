@@ -21,3 +21,5 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_market_issue_headlines.py' -v
           python -m py_compile backend/services/market_issue_headlines.py
+          test ! -e backend/services/news_processed_results_store.py
+          echo RENDER_DUPLICATE_ISSUE_STORE_REMOVED
