@@ -4,7 +4,9 @@ from staged_issue_evidence import persist_issue_evidence
 
 
 def save_verified_evidence(conn, issues, links, collected_ids, issue_ids):
-    """Only persist independently verified mappings; no automatic guessing."""
+    """Caller supplies reviewed mappings; membership checks do not prove factual support."""
+    if not isinstance(issues, list) or not isinstance(issue_ids, (list, tuple)):
+        raise ValueError('Invalid issue input')
     if len(issue_ids) != len(issues) or any(type(x) is not int or x <= 0 for x in issue_ids):
         raise ValueError('Issue IDs must correspond to issues')
     if len(set(issue_ids)) != len(issue_ids):
