@@ -66,6 +66,9 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     from datetime import datetime
     from zoneinfo import ZoneInfo
     from staged_daily_issue_schedule import scheduled_kst_time
+    if market not in ("미국", "US"):
+        return
+    market_code = "US"
     if not os.environ.get("GROQ_API_KEY", "").strip():
         from pathlib import Path
         key_file = Path(__file__).with_name(".groq_api_key")
@@ -78,11 +81,6 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         else:
             print("[news-ai] skipped reason=missing_groq_key", flush=True)
             return
-    market_code = "US" if market in ("미국", "US") else "KR" if market in ("국내", "KR") else None
-    if market_code is None:
-        return
-    if market_code != "US":
-        return
     # Frozen to the 21 US stocks verified in Neon; no automatic expansion.
     approved_us = {"TSMC ADR","네비우스 그룹","마이크로소프트","마이크론 테크놀로지","메타","모더나","브로드컴","샌디스크","스페이스X","아마존닷컴","아이렌","아이온큐","알파벳 Class A","애플","엔비디아","오라클","인텔","일라이 릴리","코어위브","테슬라","팔란티어 테크놀로지스"}
     if stock_name not in approved_us:
