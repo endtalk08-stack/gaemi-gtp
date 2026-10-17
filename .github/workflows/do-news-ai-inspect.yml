@@ -1,0 +1,29 @@
+name: Inspect DigitalOcean news AI integration (read-only)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-ai-inspect.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.event.head_commit.message == 'RUN_DO_NEWS_AI_INSPECT_20261017'
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_USER: ${{ vars.NEWS_SSH_USER }}
+      SSH_KEY: ${{ secrets.NEWS_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Inspect live news worker paths and function names (no configuration values)
+        run: |
+          set -euo pipefail
+          test "$DO_HOST" = "168.144.131.211"
+          test "$SSH_USER" = "gaemi-news-check"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'cd /opt/gaemigtp-news/app && echo WORKER_FILES && find . -maxdepth 3 -type f -name "*.py" | grep -E "news|worker|issue|brief|ai" | head -80 && echo SERVICE_DECLARATION && systemctl cat gaemigtp-news.service | grep -E "^ExecStart=|^WorkingDirectory=" && echo AI_REFERENCES && grep -R -n -E "GROQ|groq|news_processed_snapshots|build_stock_news_result|save_snapshot|issue_briefs" --include="*.py" backend 2>/dev/null | cut -c1-200 | head -90'
