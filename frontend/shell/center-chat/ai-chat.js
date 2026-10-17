@@ -47,7 +47,7 @@
         '.gaemi-ai-reply-format .ai-reply-block { margin: 0 0 0.8em; line-height: 1.76; white-space: pre-wrap; font-size: 1em; font-weight: 400; }',
         '.gaemi-ai-reply-format .ai-reply-heading { display: block; font-size: 1.06em; font-weight: 750; line-height: 1.5; letter-spacing: -0.015em; margin: 1.2em 0 0.48em; padding: 0; white-space: normal; }',
         '.gaemi-ai-reply-format > .ai-reply-heading:first-child { margin-top: 0; }',
-        '.gaemi-ai-reply-format .ai-reply-list { padding-left: 1.35em; margin: 0 0 0.85em; white-space: normal; }',
+        '.gaemi-ai-reply-format .ai-reply-list { padding-left: 0; margin: 0 0 0.85em; list-style-position: inside; white-space: normal; }',
         '.gaemi-ai-reply-format .ai-reply-list li { margin: 0.32em 0; line-height: 1.72; white-space: pre-wrap; }',
         '.gaemi-ai-reply-format strong { font-weight: 730; }',
         '.gaemi-ai-reply-format .ai-reply-heading + .ai-reply-block { margin-top: 0; }',
