@@ -1,0 +1,38 @@
+name: Diagnose original article verification (read only)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-detail-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  article-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Diagnose directly relevant recent article extraction
+        run: |
+          python - <<'PY'
+          import importlib.util, time
+          p='backend/services/news_detail.py'
+          spec=importlib.util.spec_from_file_location('detail_check',p)
+          mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+          urls=[
+            'https://www.hankyung.com/article/2026101667266',
+            'https://www.hankyung.com/article/202610166229g',
+            'http://www.wowtv.co.kr/NewsCenter/News/Read?articleId=A202610160059&t=NN',
+            'https://www.venturesquare.net/1120582/',
+            'https://www.gpkorea.com/news/articleView.html?idxno=147671',
+          ]
+          for url in urls:
+              t=time.monotonic()
+              try:
+                  result=mod._read_url(url,with_source=True)
+                  print('ARTICLE_CHECK',url.split('/')[2], 'source=',result.get('source'),
+                        'body_chars=',len(result.get('text','')), 'seconds=',round(time.monotonic()-t,2))
+              except Exception as exc:
+                  print('ARTICLE_ERROR',url.split('/')[2],type(exc).__name__)
+          PY
