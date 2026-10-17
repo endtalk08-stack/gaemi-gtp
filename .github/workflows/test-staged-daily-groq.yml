@@ -14,6 +14,7 @@ on:
       - tests/test_staged_daily_call_guard.py
       - tests/test_staged_daily_evidence.py
       - tests/test_staged_issue_links.py
+      - tests/test_staged_issue_integration.py
       - .github/workflows/test-staged-daily-groq.yml
 permissions:
   contents: read
@@ -26,4 +27,4 @@ jobs:
         run: |
           python -m py_compile ops/staged_daily_groq_issues.py ops/staged_daily_issue_schedule.py ops/staged_daily_call_guard.py ops/staged_issue_evidence.py ops/staged_issue_links.py
           python -m unittest discover -s tests -p 'test_staged_daily_*.py' -v
-          python -m unittest discover -s tests -p 'test_staged_issue_links.py' -v
+          python -m unittest discover -s tests -p 'test_staged_issue_*.py' -v
