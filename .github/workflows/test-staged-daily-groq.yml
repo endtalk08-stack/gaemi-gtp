@@ -17,6 +17,7 @@ on:
       - tests/test_staged_issue_links.py
       - tests/test_staged_issue_integration.py
       - tests/test_staged_issue_pipeline.py
+      - tests/test_staged_issue_pipeline_storage.py
       - .github/workflows/test-staged-daily-groq.yml
 permissions:
   contents: read
