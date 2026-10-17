@@ -61,10 +61,8 @@ def to_issue_briefs(issues, display_time, stock_names, sources_by_issue=None):
             time_text = "기사 발행 " + published.strftime("%m.%d %H:%M")
             if display_time:
                 time_text += " · AI 분석 " + display_time.rsplit(" ", 1)[-1]
-            if publisher:
-                time_text += " · " + publisher
-            if len(sources) > 1:
-                time_text += " 외 " + str(len(sources) - 1) + "건"
+            # Publisher names and citation links are stored for future UI,
+            # but must not be displayed until explicitly enabled.
         else:
             time_text = "AI 분석 " + display_time if display_time else ""
         result.append({

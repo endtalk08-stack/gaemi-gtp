@@ -36,7 +36,8 @@ class PublicationTimeTests(unittest.TestCase):
         brief = updated["issue_briefs"][0]
         self.assertIn("기사 발행 10.18 03:16", brief["time"])
         self.assertIn("AI 분석 04:48", brief["time"])
-        self.assertIn("g-enews.com", brief["time"])
+        self.assertNotIn("g-enews.com", brief["time"])
+        self.assertEqual(brief["source_articles"][0]["source"], "g-enews.com")
         self.assertEqual(brief["source_articles"][0]["url"], "https://example.org/one")
         self.assertEqual(len(brief["source_articles"]), 2)
         self.assertEqual(updated["paired_news_items"], self.articles)
