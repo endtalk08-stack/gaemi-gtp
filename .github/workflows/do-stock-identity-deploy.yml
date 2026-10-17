@@ -47,6 +47,11 @@ jobs:
           inspected=e125596ff06a0b2ef66fcb0464b586a97149b257
           old_catalog="$(git show "$inspected:backend/analysis/news/catalog.py" | sha256sum | cut -d' ' -f1)"
           old_store="$(git show "$inspected:ops/staged_news_processed_store.py" | sha256sum | cut -d' ' -f1)"
+          git show "$inspected:backend/analysis/news/catalog.py" > "$RUNNER_TEMP/expected-catalog.py"
+          ssh "${opts[@]}" "$remote" 'cat /opt/gaemigtp-news/app/backend/analysis/news/catalog.py' > "$RUNNER_TEMP/live-catalog.py"
+          echo CATALOG_LIVE_DRIFT_START
+          diff -u "$RUNNER_TEMP/expected-catalog.py" "$RUNNER_TEMP/live-catalog.py" | head -100 || true
+          echo CATALOG_LIVE_DRIFT_END
           ssh "${opts[@]}" "$remote" "bash -s" <<REMOTE
           set -euo pipefail
           cd /opt/gaemigtp-news/app
