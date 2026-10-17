@@ -29,5 +29,7 @@ jobs:
           sha256sum backend/services/news_detail.py
           echo 'DIGITALOCEAN_LIVE_SOURCE_SHA'
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'sha256sum /opt/gaemigtp-news/app/backend/services/news_detail.py'
+          echo 'DIGITALOCEAN_WORKER_SERVICE_STATE'
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'systemctl is-active gaemigtp-news.service'
           echo 'STAGED_FIX_SOURCE_SHA'
           sha256sum ops/staged_news_detail.py
