@@ -116,9 +116,28 @@ jobs:
           rm -f /opt/gaemigtp-news/app/ops/.groq_run_now_20261017
           echo AI_WORKER_HOOK_ACTIVE
           REMOTE
-      - name: Live Groq API test on one approved US stock
+      - name: Live Groq API test and report provider response
         run: |
           set -euo pipefail
-          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'cd /opt/gaemigtp-news/app && /opt/gaemigtp-news/venv/bin/python -c '"'"'import os,sys; from pathlib import Path; sys.path.insert(0,"ops"); from staged_daily_groq_issues import analyze_news; os.environ["GROQ_API_KEY"]=Path("ops/.groq_api_key").read_text().strip(); result=analyze_news("엔비디아",[{"title":"엔비디아 AI 반도체 수요","description":"엔비디아의 AI 반도체 수요 및 데이터센터 투자에 대한 테스트 기사입니다."}]); print("GROQ_LIVE_CALL_OK issues="+str(len(result)))'"'"''
-# Existing news collection remains unchanged. AI failures do not block news snapshots.
-# Redeploy current branch head to verify latest unchanged-news AI hook.
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          import os, sys, urllib.error
+          from pathlib import Path
+          sys.path.insert(0, "ops")
+          from staged_daily_groq_issues import analyze_news
+          key = Path("ops/.groq_api_key").read_text().strip()
+          print("GROQ_KEY_SUFFIX=" + key[-4:], flush=True)
+          os.environ["GROQ_API_KEY"] = key
+          try:
+              result = analyze_news("엔비디아", [{"title": "엔비디아 AI 반도체 수요", "description": "엔비디아 AI 반도체 관련 연결 진단 테스트"}])
+              print("GROQ_LIVE_CALL_OK issues=" + str(len(result)), flush=True)
+          except urllib.error.HTTPError as exc:
+              body = exc.read().decode("utf-8", "replace")
+              print("GROQ_HTTP_ERROR_STATUS=" + str(exc.code), flush=True)
+              print("GROQ_HTTP_ERROR_BODY=" + body[:1200], flush=True)
+              raise SystemExit(1)
+          PY
+          REMOTE
+# Report only the API key's last four characters and the provider's HTTP error body.
