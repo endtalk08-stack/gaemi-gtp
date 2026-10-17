@@ -97,8 +97,7 @@ jobs:
             echo WORKER_INACTIVE_ROLLED_BACK
             exit 1
           fi
-          touch /opt/gaemigtp-news/app/ops/.groq_run_now_20261017
-          echo GROQ_IMMEDIATE_WINDOW_ENABLED
+          rm -f /opt/gaemigtp-news/app/ops/.groq_run_now_20261017
           echo AI_WORKER_HOOK_ACTIVE
           REMOTE
 # Existing news collection remains unchanged. AI failures do not block news snapshots.
