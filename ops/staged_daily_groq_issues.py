@@ -41,12 +41,19 @@ def analyze_news(stock_name, articles):
         raise RuntimeError("Groq key is not configured on the news worker")
 
     news = []
+    char_budget = 9000
     for article in articles:
-        if not isinstance(article, dict):
+        if not isinstance(article, dict) or len(news) >= 20 or char_budget <= 0:
             continue
+        title = str(article.get("title") or "")[:300]
+        content = str(article.get("body") or article.get("description") or "")
+        if not title.strip() or not content.strip():
+            continue
+        content = content[:min(2400, char_budget)]
+        char_budget -= len(content)
         news.append({
-            "title": str(article.get("title") or "")[:300],
-            "content": str(article.get("body") or article.get("description") or "")[:2400],
+            "title": title,
+            "content": content,
             "published_at": str(article.get("pubDate") or article.get("published_at") or "")[:80],
         })
     if not news:
