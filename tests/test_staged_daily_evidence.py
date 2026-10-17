@@ -79,6 +79,12 @@ class IssueEvidenceTests(unittest.TestCase):
             evidence.persist_issue_evidence(self.conn, 99, [1])
         self.assertEqual(self.conn.last.writes, [])
 
+    def test_null_url_rejected_without_partial_write(self):
+        self.conn.db[2] = (2, "hash2", None, "Other headline", "Another News")
+        with self.assertRaisesRegex(ValueError, "Invalid collected article URL"):
+            evidence.persist_issue_evidence(self.conn, 99, [1, 2])
+        self.assertEqual(self.conn.last.writes, [])
+
     def test_boolean_issue_id_rejected(self):
         with self.assertRaises(ValueError):
             evidence.persist_issue_evidence(self.conn, True, [1])
