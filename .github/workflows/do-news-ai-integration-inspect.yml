@@ -46,4 +46,58 @@ jobs:
           if test -w /opt/gaemigtp-news/app/backend/news_worker.py; then echo WORKER_CODE_WRITABLE=yes; else echo WORKER_CODE_WRITABLE=no; fi
           systemctl is-active gaemigtp-news.service || true
           REMOTE
-# Preflight only. No worker restart, paid AI call, or Render changes.
+      - name: Connect AI to original worker with rollback and restart
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test -w backend/news_worker.py
+          sudo -n /usr/bin/systemctl is-active gaemigtp-news.service >/dev/null
+          /opt/gaemigtp-news/venv/bin/python -m compileall -q ops/staged_*.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import datetime
+          p=Path("backend/news_worker.py")
+          source=p.read_text()
+          marker="    store.save_snapshot(stock_name, fingerprint=fingerprint, result=result, **params)\n"
+          injection="""    try:
+        import sys
+        from pathlib import Path
+        ops_dir = str(Path(__file__).resolve().parents[1] / "ops")
+        if ops_dir not in sys.path:
+            sys.path.insert(0, ops_dir)
+        from staged_ai_sequential_batch import apply_worker_ai
+        apply_worker_ai(store=store, market=market, stock_name=stock_name,
+                        raw=raw, fingerprint=fingerprint, result=result, params=params)
+    except Exception as ai_exc:
+        print(f"[news-ai] stock={stock_name} error={type(ai_exc).__name__}", flush=True)
+"""
+          if "from staged_ai_sequential_batch import apply_worker_ai" in source:
+              print("AI_HOOK_ALREADY_PRESENT")
+          else:
+              if source.count(marker)!=1:
+                  raise SystemExit("Original save_snapshot location changed; refusing modification")
+              backup=Path("backend/news_worker.py.pre_groq_ai_20261017.bak")
+              if not backup.exists():
+                  backup.write_text(source)
+              p.write_text(source.replace(marker,marker+injection,1))
+              print("AI_HOOK_INSTALLED")
+          import py_compile
+          py_compile.compile(str(p),doraise=True)
+          PY
+          if ! sudo -n /usr/bin/systemctl restart gaemigtp-news.service; then
+            cp backend/news_worker.py.pre_groq_ai_20261017.bak backend/news_worker.py
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+            echo WORKER_RESTART_FAILED_ROLLED_BACK
+            exit 1
+          fi
+          if ! sudo -n /usr/bin/systemctl is-active gaemigtp-news.service; then
+            cp backend/news_worker.py.pre_groq_ai_20261017.bak backend/news_worker.py
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+            echo WORKER_INACTIVE_ROLLED_BACK
+            exit 1
+          fi
+          echo AI_WORKER_HOOK_ACTIVE
+          REMOTE
+# Existing news collection remains unchanged. AI failures do not block news snapshots.
