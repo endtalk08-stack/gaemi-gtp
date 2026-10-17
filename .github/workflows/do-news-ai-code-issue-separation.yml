@@ -1,0 +1,91 @@
+name: Apply AI primary issue display and preserve code issues on DigitalOcean
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-ai-code-issue-separation.yml]
+permissions:
+  contents: read
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'RUN_AI_CODE_ISSUE_FIX_20261018'
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run offline AI issue priority and existing regression tests
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ops/staged_auto_ai_daily.py ops/staged_ai_sequential_batch.py ops/staged_ai_snapshot_integration.py ops/staged_news_processed_store.py
+          python3 -m unittest discover -s tests -p 'test_ai_issue_priority_no_code_gate.py' -v
+          python3 -m unittest discover -s tests -p 'test_staged_ai_snapshot_integration.py' -v
+          python3 -m unittest discover -s tests -p 'test_staged_ai_sequential_batch.py' -v
+          python3 -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v
+      - name: Verify live worker baseline before replacing storage module
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          # Baseline taken before changes to issue-preference / AI gate.
+          base=2f59afcc418a87bc39ec3a401fdf84d8b4a16b35
+          git show "$base:ops/staged_news_processed_store.py" > "$RUNNER_TEMP/expected_store.py"
+          expected="$(sha256sum "$RUNNER_TEMP/expected_store.py" | cut -d' ' -f1)"
+          remote="gaemi-deploy@$DO_HOST"
+          opts=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          ssh "${opts[@]}" "$remote" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test -w backend/services/news_processed_store.py
+          test -w ops/
+          REMOTE
+          live="$(ssh "${opts[@]}" "$remote" 'sha256sum /opt/gaemigtp-news/app/backend/services/news_processed_store.py' | cut -d' ' -f1)"
+          test "$live" = "$expected" || { echo "::error::News storage source has drifted; refusing update"; exit 1; }
+          # AI candidate and display changes must have been staged by the
+          # previously successful, existing Groq deployment workflow.
+          for file in staged_auto_ai_daily.py staged_ai_sequential_batch.py staged_ai_snapshot_integration.py; do
+            source="$(sha256sum "ops/$file" | cut -d' ' -f1)"
+            active="$(ssh "${opts[@]}" "$remote" "sha256sum /opt/gaemigtp-news/app/ops/$file" | cut -d' ' -f1)"
+            test "$source" = "$active" || { echo "::error::AI staged module mismatch $file"; exit 1; }
+          done
+          echo "AI_PRIMARY_AND_STORE_BASELINES_VERIFIED"
+      - name: Install exact store module with automatic rollback on failure
+        run: |
+          set -euo pipefail
+          umask 077
+          opts=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          remote="gaemi-deploy@$DO_HOST"
+          scp "${opts[@]}" ops/staged_news_processed_store.py "$remote:/opt/gaemigtp-news/app/ops/.ai-primary-store.next"
+          ssh "${opts[@]}" "$remote" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          backup="$(mktemp ./ops/.ai-primary-store-backup.XXXXXX)"
+          cp backend/services/news_processed_store.py "$backup"
+          rollback() {
+            set +e
+            cp "$backup" backend/services/news_processed_store.py
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+            echo AI_PRIMARY_STORE_ROLLED_BACK
+          }
+          trap rollback ERR
+          /opt/gaemigtp-news/venv/bin/python -m py_compile ops/.ai-primary-store.next
+          install -m 644 ops/.ai-primary-store.next backend/services/news_processed_store.py
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_processed_store.py
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum backend/services/news_processed_store.py | cut -d' ' -f1)" = "$(sha256sum ops/.ai-primary-store.next | cut -d' ' -f1)"
+          trap - ERR
+          echo AI_PRIMARY_ISSUE_STORE_DEPLOYED
+          echo "SERVICE_MAINPID=$(systemctl show gaemigtp-news.service -p MainPID --value)"
+          REMOTE
