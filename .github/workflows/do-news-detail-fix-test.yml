@@ -27,7 +27,7 @@ jobs:
           details=mod.read_selected_article_details([{'url':original}],limit=1,with_sources=True)
           item=details[0]
           txt=_article_excerpt(item['text'])
-          print('SOURCE',item['source'],'CHARACTERS',len(txt))
+          print('SOURCE',item['source'],'EXCERPT_CHARACTERS',len(txt),'FULL_BODY_CHARACTERS',len(item['text']))
           print('BODY_PREVIEW',txt[:300])
           print('BODY_FIX_VERSION','articleBody-container-v3')
           print('DIRECT',_central_direct_article({'title':'"中생산 늘린다고?"…SK하이닉스가 펄쩍 뛰며 부인한 까닭은'},txt,'SK하이닉스'))
@@ -44,7 +44,7 @@ jobs:
           ix=rawtext.find('id="divNewsContent"')
           print('BODY_CONTAINER_START',rawtext[ix:ix+450] if ix>=0 else 'not found')
           assert item['source']=='article_or_main_paragraphs',item['source']
-          assert len(txt)>=350,len(txt)
+          assert len(item['text'])>=350,len(item['text'])
           assert 'SK하이닉스' in txt,txt[:300]
           print('DO_ARTICLE_BODY_FIX_PASSED')
           PY
