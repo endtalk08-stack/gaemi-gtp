@@ -1,0 +1,33 @@
+name: Compare live news-detail code without changes
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-detail-source-check.yml]
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check exact deployed source hash over existing SSH
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          SSH_USER: ${{ vars.NEWS_SSH_USER }}
+          SSH_KEY: ${{ secrets.NEWS_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          echo 'GITHUB_BASE_SOURCE_SHA'
+          sha256sum backend/services/news_detail.py
+          echo 'DIGITALOCEAN_LIVE_SOURCE_SHA'
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'sha256sum /opt/gaemigtp-news/app/backend/services/news_detail.py'
+          echo 'STAGED_FIX_SOURCE_SHA'
+          sha256sum ops/staged_news_detail.py
