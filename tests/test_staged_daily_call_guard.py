@@ -123,7 +123,8 @@ class DailyCallGuardTests(unittest.TestCase):
 
     def test_second_completion_is_rejected_by_db_status(self):
         # The production SQL only updates rows whose status remains 'reserved'.
-        self.assertIn("status='reserved'", guard.finish_reservation.__code__.co_consts[-1])
+        import inspect
+        self.assertIn("status=\x27reserved\x27", inspect.getsource(guard.finish_reservation))
 
     def test_bad_identity_rejected(self):
         with self.assertRaises(ValueError):
