@@ -3,7 +3,9 @@
 def validate_links(issue_count, links, collected_ids):
     if type(issue_count) is not int or not 0 <= issue_count <= 3:
         raise ValueError('Invalid issue count')
-    if not isinstance(links, dict) or set(links) != set(range(issue_count)):
+    if (not isinstance(links, dict)
+            or any(type(key) is not int for key in links)
+            or set(links) != set(range(issue_count))):
         raise ValueError('Missing issue links')
     if not isinstance(collected_ids, (list, tuple, set)):
         raise ValueError('Invalid collected articles')
