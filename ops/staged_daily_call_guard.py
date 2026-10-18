@@ -38,7 +38,7 @@ def reserve_once(conn, *, market, symbol, exchange_day, request_hash,
 
 
 def finish_reservation(conn, *, market, symbol, exchange_day, request_hash,
-                       status, result=None, failure_category=None):
+                       status, result=None, failure_category=None, failure_reason=None):
     """Record outcome without clearing the daily reservation.
 
     A failed/invalid response is not retried automatically, preventing
@@ -46,13 +46,21 @@ def finish_reservation(conn, *, market, symbol, exchange_day, request_hash,
     """
     if status not in ("completed", "invalid", "failed"):
         raise ValueError("Invalid terminal status")
+    # A controlled diagnostic code, not provider text, can use the existing field.
+    if failure_reason is not None and (
+        not isinstance(failure_reason, str) or not failure_reason.isascii()
+        or not failure_reason.replace("_", "").isalnum()
+        or len(failure_reason) > 48
+    ):
+        raise ValueError("Invalid diagnostic code")
     with conn.cursor() as cur:
         cur.execute(
             """UPDATE public.news_ai_call_ledger
-               SET status=%s, result=%s::jsonb, failure_category=%s, completed_at=now()
+               SET status=%s, result=%s::jsonb, failure_category=%s,
+                   failure_reason=%s, completed_at=now()
                WHERE market=%s AND symbol=%s AND exchange_day=%s
                  AND request_hash=%s AND status='reserved'""",
             (status, json.dumps(result, ensure_ascii=False) if result is not None else None,
-             failure_category, market, symbol, exchange_day, request_hash),
+             failure_category, failure_reason, market, symbol, exchange_day, request_hash),
         )
         return cur.rowcount == 1

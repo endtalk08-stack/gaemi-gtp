@@ -27,6 +27,13 @@ on:
       - tests/test_staged_issue_pipeline.py
       - tests/test_staged_issue_pipeline_storage.py
       - .github/workflows/test-staged-daily-groq.yml
+  pull_request:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - 'ops/staged_*.py'
+      - 'tests/test_staged_*.py'
+      - 'tests/test_ai_issue_priority_no_code_gate.py'
+      - '.github/workflows/test-staged-daily-groq.yml'
 permissions:
   contents: read
 jobs:
@@ -36,7 +43,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile and test without calling any API
         run: |
-          python -m py_compile ops/staged_ai_sequential_batch.py ops/staged_ai_snapshot_integration.py ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_daily_groq_issues.py ops/staged_daily_issue_schedule.py ops/staged_daily_call_guard.py ops/staged_issue_evidence.py ops/staged_issue_links.py ops/staged_issue_pipeline.py
+          python -m py_compile ops/staged_auto_ai_daily.py ops/staged_ai_sequential_batch.py ops/staged_ai_snapshot_integration.py ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_daily_groq_issues.py ops/staged_daily_issue_schedule.py ops/staged_daily_call_guard.py ops/staged_issue_evidence.py ops/staged_issue_links.py ops/staged_issue_pipeline.py
           python -m unittest discover -s tests -p 'test_staged_ai_*.py' -v
+          python -m unittest discover -s tests -p 'test_ai_issue_priority_no_code_gate.py' -v
           python -m unittest discover -s tests -p 'test_staged_daily_*.py' -v
           python -m unittest discover -s tests -p 'test_staged_issue_*.py' -v

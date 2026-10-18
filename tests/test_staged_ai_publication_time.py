@@ -47,7 +47,7 @@ class PublicationTimeTests(unittest.TestCase):
         issue = [{"headline":"소식", "summary":"내용", "tags":[]}]
         updated = with_ai_issue_briefs({}, issue, display_time="04:48",
                                       stock_names=["메타"], sources_by_issue=[[]])
-        self.assertEqual(updated["issue_briefs"][0]["time"], "04:48")
+        self.assertEqual(updated["issue_briefs"][0]["time"], "")
 
     def test_invalid_indices_never_lookup_unrelated_article(self):
         issue = [{"headline":"소식", "summary":"내용", "tags":[], "source_ids":[999]}]

@@ -64,7 +64,7 @@ def to_issue_briefs(issues, display_time, stock_names, sources_by_issue=None):
             # Publisher names and citation links are stored for future UI,
             # but must not be displayed until explicitly enabled.
         else:
-            time_text = display_time.rsplit(" ", 1)[-1] if display_time else ""
+            time_text = ""  # Never substitute AI execution time for article time.
         result.append({
             "time": time_text,
             "reaction_at": "",

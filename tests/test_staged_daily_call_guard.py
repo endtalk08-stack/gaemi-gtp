@@ -30,12 +30,13 @@ class FakeCursor:
         elif query.lstrip().startswith("SELECT 1"):
             self.identity = tuple(params)
         elif query.lstrip().startswith("UPDATE"):
-            key = tuple(params[3:6])
+            key = tuple(params[4:7])
             record = self.database.get(key)
-            self.rowcount = int(record is not None and record['hash'] == params[6] and record['status'] == 'reserved')
+            self.rowcount = int(record is not None and record['hash'] == params[7] and record['status'] == 'reserved')
             if self.rowcount:
                 record['status'] = params[0]
                 record['result'] = params[1]
+                record['failure_reason'] = params[3]
         elif query.lstrip().startswith("INSERT"):
             assert self.locked
             self.database[tuple(params[:3])] = {'hash': params[3], 'status': 'reserved'}
@@ -87,8 +88,10 @@ class DailyCallGuardTests(unittest.TestCase):
         self.assertTrue(self.reserve())
         self.assertTrue(guard.finish_reservation(
             self.conn, market="US", symbol="NVDA", exchange_day=self.day,
-            request_hash="hash-a", status="failed", failure_category="network"
+            request_hash="hash-a", status="failed", failure_category="HTTPError",
+            failure_reason="http_429"
         ))
+        self.assertEqual(self.database[("US", "NVDA", self.day)]["failure_reason"], "http_429")
         self.assertFalse(self.reserve(hash_value="different-news"))
 
     def test_invalid_response_keeps_daily_reservation(self):
@@ -138,6 +141,16 @@ class DailyCallGuardTests(unittest.TestCase):
     def test_bad_identity_rejected(self):
         with self.assertRaises(ValueError):
             guard.reserve_once(self.conn, market="US", symbol="", exchange_day=self.day, request_hash="x")
+
+
+    def test_untrusted_failure_reason_is_not_written(self):
+        self.assertTrue(self.reserve())
+        with self.assertRaises(ValueError):
+            guard.finish_reservation(
+                self.conn, market="US", symbol="NVDA", exchange_day=self.day,
+                request_hash="hash-a", status="failed",
+                failure_reason="Authorization: private key")
+        self.assertEqual(self.database[("US", "NVDA", self.day)]["status"], "reserved")
 
 
 if __name__ == "__main__":
