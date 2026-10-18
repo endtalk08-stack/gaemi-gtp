@@ -10,7 +10,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     window.GaemiGTPAppState = {
       getActiveStock: () => activeStock,
       getCurrentAppMode: () => currentAppMode,
-      setCurrentAppMode: (mode) => { currentAppMode = mode; },
+      setCurrentAppMode: (mode) => switchChatMode(mode),
       setActiveStock: (stock) => { activeStock = stock; }
     };
 
@@ -23,6 +23,24 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
 
     // Persist only completed conversation content; no additional AI or market requests.
     const CHAT_HISTORY_KEY = 'gaemiGTP_chat_history_v1';
+    const MODE_RECENTS_KEY = 'gaemiGTP_mode_last_conversation_v1';
+    const CHAT_MODES = ['gaemi', 'info', 'pro'];
+    // Each mode owns its live session and its DOM without a second chat UI.
+    const sessionsByMode = { gaemi: null, info: null, pro: null };
+    const viewsByMode = { gaemi: null, info: null, pro: null };
+    function readModeRecents() {
+      try {
+        const value = JSON.parse(localStorage.getItem(MODE_RECENTS_KEY) || '{}');
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      } catch (_) { return {}; }
+    }
+    function rememberModeRecent(mode, recentId) {
+      if (!CHAT_MODES.includes(mode)) return;
+      const entries = readModeRecents();
+      if (recentId) entries[mode] = recentId;
+      else delete entries[mode];
+      try { localStorage.setItem(MODE_RECENTS_KEY, JSON.stringify(entries)); } catch (_) { /* storage unavailable */ }
+    }
     let nextConversationKey = 0;
     function newConversationKey() {
       return 'conversation:' + Date.now().toString(36) + '-' + (++nextConversationKey).toString(36) + '-' + Math.random().toString(36).slice(2, 9);
@@ -49,6 +67,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           }
         : history[id]?.analysisData;
       history[id] = {
+        mode: activeChatSession.mode || currentAppMode,
         stock: activeChatSession.stock || null,
         ...(activeChatSession.marketSelection ? { marketSelection: activeChatSession.marketSelection } : {}),
         ...(analysisData ? { analysisData } : {}),
@@ -69,18 +88,26 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       if (!activeChatSession) return;
       if (activeChatSession.recentId) return;
       const id = newConversationKey();
-      activeChatSession.recentId = window.GaemiGTPSidebarHome?.recordRecent?.(type, value, id) || null;
+      activeChatSession.recentId = window.GaemiGTPSidebarHome?.recordRecent?.(type, value, id, activeChatSession.mode) || null;
+      if (activeChatSession.recentId) rememberModeRecent(activeChatSession.mode, activeChatSession.recentId);
       saveChatHistory();
     }
     function restoreRecentConversation(recentId) {
       const saved = readChatHistory()[recentId];
       if (!saved || !Array.isArray(saved.messages)) return false;
+      // Saved conversations reopen in the mode that originally created them;
+      // older mode-less history remains available in the selected mode.
+      if (CHAT_MODES.includes(saved.mode) && saved.mode !== currentAppMode) {
+        window.GaemiGTPCenterChatSearch?.selectAppMode?.(saved.mode);
+        if (currentAppMode !== saved.mode) switchChatMode(saved.mode);
+      }
       activeAnalysisController?.abort();
       activeAnalysisController = null;
       ++activeAnalysisRequestId;
       const session = beginChatSession(saved.stock || null);
       if (!session) return false;
       session.recentId = recentId;
+      rememberModeRecent(currentAppMode, recentId);
       if (saved.marketSelection?.name === saved.stock) session.marketSelection = saved.marketSelection;
       if (saved.stock) {
         // Restore the original analysis snapshot when present; old history remains compatible.
@@ -122,7 +149,59 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       return true;
     }
 
-    // One active conversation in the existing central chat; no separate chat UI.
+    // Switch the single visible chat surface between three isolated transcripts.
+    function switchChatMode(mode) {
+      if (!CHAT_MODES.includes(mode)) return false;
+      if (mode === currentAppMode && activeChatSession) return true;
+      const area = document.getElementById('chatArea');
+      if (!area) { currentAppMode = mode; return true; }
+      if (activeChatSession && mode !== currentAppMode) {
+        saveChatHistory();
+        activeQuestionController?.abort();
+        activeQuestionController = null;
+        pendingQuestionSessionId = null;
+        activeAnalysisController?.abort();
+        activeAnalysisController = null;
+        ++activeAnalysisRequestId;
+        pendingAnalysis = null;
+        // Do not leave a half-typed reply or spinner in the previous mode.
+        for (const row of area.querySelectorAll('.gaemi-ai-reply-format')) {
+          if (!row.querySelector('.typing-cursor')) continue;
+          const original = activeChatSession.messages.find(
+            message => String(message.id) === row.dataset.chatMessageId
+          );
+          if (original) row.textContent = original.text;
+          row.classList.remove('gaemi-ai-reply-format');
+        }
+        for (const loading of area.querySelectorAll('.analysis-loading-sequence')) loading.remove();
+        // Invalidate in-flight callbacks even if the user returns immediately.
+        activeChatSession.id = ++nextChatSessionId;
+        sessionsByMode[currentAppMode] = activeChatSession;
+        const fragment = document.createDocumentFragment();
+        while (area.firstChild) fragment.appendChild(area.firstChild);
+        viewsByMode[currentAppMode] = fragment;
+      }
+      currentAppMode = mode;
+      window.GaemiGTPSidebarHome?.renderRecent?.();
+      if (sessionsByMode[mode]) {
+        activeChatSession = sessionsByMode[mode];
+        area.replaceChildren();
+        if (viewsByMode[mode]) area.appendChild(viewsByMode[mode]);
+        area.scrollTop = 0;
+        return true;
+      }
+      activeChatSession = null;
+      area.replaceChildren();
+      const lastId = readModeRecents()[mode];
+      const saved = lastId && readChatHistory()[lastId];
+      if (saved && (!saved.mode || saved.mode === mode) &&
+          restoreRecentConversation(lastId)) return true;
+      if (lastId) rememberModeRecent(mode, null);
+      area.scrollTop = 0;
+      return true;
+    }
+
+    // Beginning a new conversation replaces only the current mode's session.
     function beginChatSession(stock = null, marketSelection = null) {
       activeQuestionController?.abort();
       activeQuestionController = null;
@@ -132,10 +211,13 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       if (!area) return null;
       saveChatHistory();
       activeChatSession = {
-        id: ++nextChatSessionId, stock,
+        id: ++nextChatSessionId, stock, mode: currentAppMode,
         marketSelection: marketSelection?.name === stock ? { ...marketSelection } : null,
         messages: []
       };
+      sessionsByMode[currentAppMode] = activeChatSession;
+      viewsByMode[currentAppMode] = null;
+      rememberModeRecent(currentAppMode, null);
       area.replaceChildren();
       area.scrollTop = 0;
       return activeChatSession;
@@ -187,7 +269,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     function getChatState() {
       if (!activeChatSession) return null;
       return {
-        id: activeChatSession.id, stock: activeChatSession.stock,
+        id: activeChatSession.id, mode: activeChatSession.mode, stock: activeChatSession.stock,
         marketSelection: activeChatSession.marketSelection ? { ...activeChatSession.marketSelection } : null,
         messages: activeChatSession.messages.map((message) => ({
           ...message,
@@ -226,7 +308,7 @@ window.addEventListener('resize', () => {
   window.GaemiGTPWorkspaceShellState?.apply?.();
 });
 
-window.GaemiGTPApp = { requestStock, submitQuestion, appendChatReply, getChatState, linkRecentConversation, restoreRecentConversation, saveChatHistory };
+window.GaemiGTPApp = { requestStock, submitQuestion, appendChatReply, getChatState, linkRecentConversation, restoreRecentConversation, saveChatHistory, switchChatMode };
 
 document.addEventListener("DOMContentLoaded", () => {
   try {

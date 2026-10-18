@@ -15,17 +15,23 @@
       if (!Array.isArray(entries)) return [];
       return entries.filter((entry) => entry && ['stock', 'question'].includes(entry.type)
         && typeof entry.value === 'string' && entry.value.trim()
-        && typeof entry.id === 'string' && entry.id.startsWith('conversation:')).slice(0, RECENT_LIMIT);
+        && typeof entry.id === 'string' && entry.id.startsWith('conversation:')).slice(0, RECENT_LIMIT * 4);
     } catch (_) {
       return recentFallback.slice();
     }
+  }
+
+  function visibleRecent() {
+    const mode = window.GaemiGTPAppState?.getCurrentAppMode?.() || 'gaemi';
+    // Old entries had no mode metadata; keep them discoverable in all modes.
+    return readRecent().filter(entry => !['gaemi', 'info', 'pro'].includes(entry.mode) || entry.mode === mode);
   }
 
   function renderRecent() {
     const list = document.getElementById('leftSidebarHomeRecentList');
     const empty = document.getElementById('leftSidebarHomeRecentEmpty');
     if (!list) return;
-    const entries = readRecent();
+    const entries = visibleRecent();
     list.replaceChildren();
     entries.forEach((entry, index) => {
       const row = document.createElement('li');
@@ -43,12 +49,19 @@
     if (empty) empty.hidden = entries.length > 0;
   }
 
-  function recordRecent(type, value, id) {
+  function recordRecent(type, value, id, mode = null) {
     if (!['stock', 'question'].includes(type) || !String(id || '').startsWith('conversation:')) return null;
     const text = String(value || '').trim().slice(0, type === 'stock' ? 80 : 240);
     if (!text) return null;
     const entries = readRecent().filter((entry) => entry.id !== id);
-    const next = [{ type, value: text, id }, ...entries].slice(0, RECENT_LIMIT);
+    const selectedMode = ['gaemi', 'info', 'pro'].includes(mode) ? mode : window.GaemiGTPAppState?.getCurrentAppMode?.() || 'gaemi';
+    const seenByMode = {};
+    const next = [{ type, value: text, id, mode: selectedMode }, ...entries]
+      .filter(entry => {
+        const key = ['gaemi', 'info', 'pro'].includes(entry.mode) ? entry.mode : 'legacy';
+        seenByMode[key] = (seenByMode[key] || 0) + 1;
+        return seenByMode[key] <= RECENT_LIMIT;
+      });
     recentFallback = next;
     try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch (_) { /* browser storage unavailable */ }
     renderRecent();
@@ -60,7 +73,7 @@
   }
 
   function openRecent(index) {
-    const entry = readRecent()[index];
+    const entry = visibleRecent()[index];
     if (!entry) return;
     if (window.innerWidth < 1024) close();
     if (window.GaemiGTPApp?.restoreRecentConversation?.(entry.id)) {
@@ -234,7 +247,7 @@
     }
   });
 
-  window.GaemiGTPSidebarHome = { render, recordRecent, getRecentIds, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
+  window.GaemiGTPSidebarHome = { render, renderRecent, recordRecent, getRecentIds, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
   window.addEventListener('storage', (event) => {
     if (event.key === RECENT_STORAGE_KEY) renderRecent();
   });

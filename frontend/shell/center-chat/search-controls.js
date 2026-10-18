@@ -110,6 +110,7 @@
   }
 
   function selectAppMode(mode) {
+    if (!['gaemi', 'info', 'pro'].includes(mode)) return;
     window.GaemiGTPAppState?.setCurrentAppMode?.(mode);
     const heroLabel = document.getElementById('heroModeLabel');
     const bottomLabel = document.getElementById('bottomModeLabel');
