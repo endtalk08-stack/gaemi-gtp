@@ -1,4 +1,4 @@
-name: DigitalOcean worker connection check
+name: DigitalOcean worker SSH connection check
 
 on:
   workflow_dispatch:
@@ -18,118 +18,33 @@ concurrency:
 jobs:
   inspect-only:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    environment: digitalocean-news-worker
+    timeout-minutes: 3
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      DO_SSH_USER: gaemi-deploy
+      DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
-      - name: Checkout staged fix for local tests
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Check staged issue-preservation logic without deployment
-        run: |
-          set -euo pipefail
-          python -m py_compile ops/staged_news_processed_store.py
-          python - <<'PY'
-          import runpy
-          from datetime import datetime, timedelta, timezone
-          module = runpy.run_path("ops/staged_news_processed_store.py")
-          fn = module["_recent_existing_issue_briefs"]
-          own = module["_same_stock_issue_briefs"]
-          assert own([{"stock_names":["셀트리온"]},{"stock_names":["현대차"]}], "셀트리온")==[{"stock_names":["셀트리온"]}]
-          assert own([{"stock_names":["현대차"]}], "셀트리온")==[]
-          class Dummy:
-              def __init__(self, record): self.record=record
-              def __enter__(self): return self
-              def __exit__(self,*args): return False
-              def cursor(self): return self
-              def execute(self,*args): pass
-              def fetchone(self): return self.record
-          sig = module["read_signature"]
-          sig.__globals__["_connect"] = lambda: Dummy(("fp", {"issue_briefs":[{"stock_names":["현대차"]}]}))
-          assert sig("셀트리온","국내",50,3,"Asia/Seoul") is None
-          sig.__globals__["_connect"] = lambda: Dummy(("fp", {"issue_briefs":[{"stock_names":["셀트리온"]}]}))
-          assert sig("셀트리온","국내",50,3,"Asia/Seoul") == "fp"
-          now = datetime.now(timezone.utc)
-          def issue(hours, stock="삼성전자"):
-              return {"headline":"test", "reaction_at":(now-timedelta(hours=hours)).isoformat(), "stock_names":[stock]}
-          previous={"issue_briefs":[issue(1), issue(25), issue(1,"테슬라"), {"headline":"bad","reaction_at":"bad","stock_names":["삼성전자"]}]}
-          kept=fn(previous, "삼성전자")
-          assert len(kept)==1, kept
-          assert fn(previous, "SK하이닉스")==[]
-          assert fn({"issue_briefs": []}, "삼성전자")==[]
-          print("ISSUE_GUARD_TEST_PASSED")
-          PY
-      - name: Validate required GitHub Actions secrets
-        env:
-          DO_HOST: ${{ secrets.DO_HOST }}
-          DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
-          DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_SSH_KEY }}
-          DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+      - name: Validate SSH settings
         run: |
           set -euo pipefail
           for name in DO_HOST DO_SSH_USER DO_SSH_PRIVATE_KEY DO_SSH_KNOWN_HOSTS; do
             if [ -z "${!name}" ]; then
-              echo "::error::Missing GitHub Actions secret: ${name}"
+              echo "::error::Missing required SSH setting: ${name}"
               exit 1
             fi
           done
-
-      - name: Prepare SSH (no host key bypass)
-        env:
-          DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_SSH_KEY }}
-          DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+      - name: Prepare strict SSH client
         run: |
           set -euo pipefail
           umask 077
           mkdir -p ~/.ssh
-          printf '%s\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-
-      - name: Inspect worker without changes
-        env:
-          DO_HOST: ${{ secrets.DO_HOST }}
-          DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
+          printf '%s\\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Verify SSH access and worker service without changing the server
         run: |
           set -euo pipefail
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
-            "${DO_SSH_USER}@${DO_HOST}" \
-            'set -eu; cd /opt/gaemigtp-news/app/backend; test -s news_worker.py; test -s services/news_processed_store.py; printf "NEWS_WORKER_FILES:\\n"; find . -maxdepth 2 -type f -name "*.py" -printf "%P\\n" | sort | head -60; printf "NEWS_WORKER_SOURCE_BYTES="; wc -c < news_worker.py; printf "\\nNEWS_PROCESSED_STORE_SOURCE_BYTES="; wc -c < services/news_processed_store.py; printf "\\nSERVICE_STATE:\\n"; systemctl is-active gaemigtp-news.service; systemctl show -p ActiveState,SubState,MainPID gaemigtp-news.service; printf "DO worker inspection verified\\n"'
-
-      - name: Inspect issue selection warnings (read only)
-        env:
-          DO_HOST: ${{ secrets.DO_HOST }}
-          DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
-            "${DO_SSH_USER}@${DO_HOST}" \
-            'set -eu; echo "LIVE_FILE_HASHES"; sha256sum /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/backend/services/news_processed_store.py; echo "LAST_ISSUE_LOGS"; journalctl -u gaemigtp-news.service --since "45 minutes ago" --no-pager -o cat 2>/dev/null | grep -E "selection_summary|all_candidate_article_bodies_unavailable|error=|news-worker|processed news" | tail -45 || true'
-
-      - name: Read live worker decision and snapshot save logic
-        env:
-          DO_HOST: ${{ secrets.DO_HOST }}
-          DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
-            "${DO_SSH_USER}@${DO_HOST}" \
-            'set -eu; cd /opt/gaemigtp-news/app/backend; echo "WORKER_STOCK_PROCESS"; sed -n "100,175p" news_worker.py; echo "STORE_SNAPSHOT"; grep -n -A55 "^def save_snapshot" services/news_processed_store.py; echo "STORE_CHECK"; grep -n -A22 "^def read_signature" services/news_processed_store.py'
-
-      - name: Read complete live snapshot store for safe patching
-        env:
-          DO_HOST: ${{ secrets.DO_HOST }}
-          DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
-            "${DO_SSH_USER}@${DO_HOST}" \
-            'python3 -c '"'"'from pathlib import Path; import base64; p=Path("/opt/gaemigtp-news/app/backend/services/news_processed_store.py"); print("LIVE_STORE_B64_START"); print(base64.b64encode(p.read_bytes()).decode()); print("LIVE_STORE_B64_END")'"'"''
-
-      - name: Inspect recent stock selection diagnostics (read only)
-        env:
-          DO_HOST: ${{ secrets.DO_HOST }}
-          DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
-            "${DO_SSH_USER}@${DO_HOST}" \
-            'set -eu; echo "SELECTION_DIAGNOSTICS"; if sudo -n /usr/bin/journalctl -u gaemigtp-news.service --since "90 minutes ago" -o cat --no-pager >/tmp/gaemi-diagnostics-readonly.log 2>/dev/null; then grep -E "news funnel|selection_summary|all_candidate_article_bodies_unavailable|rejected_after_body|selected_issue_article|stock=삼성전자|stock=SK하이닉스|stock=테슬라" /tmp/gaemi-diagnostics-readonly.log | tail -80 || true; rm -f /tmp/gaemi-diagnostics-readonly.log; else echo "WORKER_JOURNAL_NOT_AUTHORIZED"; fi'
+            "$DO_SSH_USER@$DO_HOST" \
+            'set -eu; test -d /opt/gaemigtp-news/app/backend; printf "SSH_CONNECTION_OK user="; id -un; printf "WORKER_SERVICE="; systemctl is-active gaemigtp-news.service'
