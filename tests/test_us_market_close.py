@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 import unittest
 from unittest.mock import patch
 
@@ -63,6 +64,31 @@ class UsMarketCloseTests(unittest.TestCase):
         self.assertIn("미국장은 어땠어?", prompt)
         self.assertIn("분야를 억지로 채우지 마", prompt)
         self.assertNotIn("source_ids", prompt)
+
+    def test_market_close_uses_120b_only_even_with_legacy_env_override(self):
+        self.assertEqual(close.MODEL, "openai/gpt-oss-120b")
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps({"choices": [{"message": {"content": "검증된 마감시황 " * 15}}]}).encode()
+
+        article = [{"title": "뉴욕증시 마감", "published_at": "2026-10-16T17:00-04:00",
+                    "body": "검증된 마감 기사 본문"}]
+        with patch.dict(close.os.environ, {
+            "GROQ_API_KEY": "offline-test-placeholder",
+            "US_CLOSE_GROQ_MODEL": "openai/gpt-oss-20b",
+        }), patch.object(close.urllib.request, "urlopen", return_value=FakeResponse()) as mocked:
+            answer = close._generate(article, self.session)
+        self.assertIn("검증된 마감시황", answer)
+        request = mocked.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(payload["model"], "openai/gpt-oss-120b")
 
     def test_insufficient_articles_never_calls_database_or_ai(self):
         with patch.object(close, "collect_articles", return_value=[{"body": "abc"}]), \
