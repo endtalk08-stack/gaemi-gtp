@@ -1,0 +1,49 @@
+name: Restore previous healthy DigitalOcean news worker
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-coverage-emergency-rollback.yml]
+permissions:
+  contents: read
+jobs:
+  restore:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Restore three files from the exact pre-deployment backups
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          echo BEFORE_ROLLBACK
+          systemctl show gaemigtp-news.service -p ActiveState -p SubState -p NRestarts -p ExecMainStatus --no-pager || true
+          echo IMPORT_CHECK_BEFORE
+          /opt/gaemigtp-news/venv/bin/python -c 'import backend.news_worker; print("WORKER_IMPORT_OK")' 2>&1 | tail -n 18 || true
+          backup="$(ls -dt ./ops/.news-coverage-backup.* 2>/dev/null | head -n 1)"
+          test -n "$backup" && test -f "$backup/catalog.py" && test -f "$backup/news_result.py" && test -f "$backup/news_worker.py"
+          test "$(sha256sum "$backup/catalog.py" | cut -d' ' -f1)" = 27eca973c92c98fbee0b13d3c448fd705a1c371fb73bf0f8fec2ec656eea428e
+          test "$(sha256sum "$backup/news_result.py" | cut -d' ' -f1)" = 10ef9f4f45325664457a959873296e223fc04027f676fed6d62b4c436f0be9ff
+          cp "$backup/catalog.py" backend/analysis/news/catalog.py
+          cp "$backup/news_result.py" backend/services/news_result.py
+          cp "$backup/news_worker.py" backend/news_worker.py
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/news_worker.py backend/analysis/news/catalog.py backend/services/news_result.py
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          sleep 15
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          echo AFTER_ROLLBACK
+          systemctl show gaemigtp-news.service -p ActiveState -p SubState -p NRestarts -p ExecMainStatus -p MainPID --no-pager
+          echo IMPORT_CHECK_AFTER
+          /opt/gaemigtp-news/venv/bin/python -c 'import backend.news_worker; print("WORKER_IMPORT_OK")'
+          echo COVERAGE_ROLLBACK_COMPLETE
+          REMOTE
