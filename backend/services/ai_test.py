@@ -589,7 +589,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=1500, style_
         ],
         "max_completion_tokens": max_completion_tokens,
         "temperature": 0.2,
-        "reasoning_effort": "none" if model_id.startswith("qwen/") else "low",
+        "reasoning_effort": "low",
         "stream": False,
     }
     req = urllib.request.Request(
@@ -632,6 +632,7 @@ def _cloudflare_answer(question, context, max_completion_tokens=1500, style_prom
         ],
         "max_tokens": max_completion_tokens,
         "temperature": 0.2,
+        "reasoning_effort": "low",
         "stream": False,
     }
     url = ("https://api.cloudflare.com/client/v4/accounts/" +
