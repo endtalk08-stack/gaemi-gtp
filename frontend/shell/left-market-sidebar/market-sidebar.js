@@ -58,6 +58,9 @@
     let tab = 'popular';
     let requestId = 0;
     let changeSorted = false;
+    // Keep the last known title for the same stock through temporary read failures.
+    const lastIssueByStock = new Map();
+    const issueKey = (market, item) => [market, item.symbol || '', item.name || ''].join('|');
 
     const applyChangeSort = () => {
       if (!list) return;
@@ -180,7 +183,10 @@
           issue.dataset.stockIssue = 'true';
           issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
           issue.style.fontSize = '13px';
-          issue.textContent = typeof item.issue_headline === 'string' ? item.issue_headline : '';
+          const key = issueKey(market, item);
+          const incoming = typeof item.issue_headline === 'string' ? item.issue_headline.trim() : '';
+          if (incoming) lastIssueByStock.set(key, incoming);
+          issue.textContent = incoming || lastIssueByStock.get(key) || '';
           thirdRow.append(
             document.createElement('span'),
             industry,
@@ -220,7 +226,11 @@
         const updated = data.ok === true && Array.isArray(data.items) ? data.items[0] : null;
         if (!updated || updated.name !== name || updated.symbol !== button.dataset.stockSymbol) return;
         const issue = button.querySelector('[data-stock-issue]');
-        if (issue) issue.textContent = typeof updated.headline === 'string' ? updated.headline : '';
+        const headline = typeof updated.headline === 'string' ? updated.headline.trim() : '';
+        if (issue && headline) {
+          issue.textContent = headline;
+          lastIssueByStock.set(issueKey(market, updated), headline);
+        }
       } catch (_) {
         // Keep the previous headline on transient read failures.
       }
