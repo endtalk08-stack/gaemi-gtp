@@ -20,7 +20,7 @@ from backend.services.news_detail import read_selected_article_details
 NY = ZoneInfo("America/New_York")
 UTC = datetime.timezone.utc
 QUERY = "뉴욕증시 마감"
-MODEL = "openai/gpt-oss-20b"
+MODEL = "openai/gpt-oss-120b"
 PUBLISHERS = (
     "yna.co.kr", "hankyung.com", "mk.co.kr", "sedaily.com",
     "edaily.co.kr", "mt.co.kr", "newsis.com", "fnnews.com",
@@ -135,13 +135,12 @@ def _prompt(articles, session_date):
     )
 
 
-def _generate(articles, session_date, model=MODEL):
-    model = os.environ.get("US_CLOSE_GROQ_MODEL", model).strip() or MODEL
+def _generate(articles, session_date):
     key = os.environ.get("GROQ_API_KEY", "").strip()
     if not key:
         raise RuntimeError("groq_key_missing")
     payload = {
-        "model": model,
+        "model": MODEL,
         "messages": [
             {"role": "system", "content": "너는 gaemiGTP 미국 증시 마감시황 편집자야. 근거 없는 내용을 추가하지 마."},
             {"role": "user", "content": _prompt(articles, session_date)},
@@ -217,7 +216,7 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
                 (session_date, json.dumps([
                     {key: a[key] for key in ("title", "url", "published_at", "publisher")}
                     for a in articles
-                ], ensure_ascii=False), os.environ.get("US_CLOSE_GROQ_MODEL", MODEL)),
+                ], ensure_ascii=False), MODEL),
             )
             claimed = cur.fetchone() is not None
     if not claimed:
