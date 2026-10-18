@@ -748,6 +748,10 @@ def build_stock_news_result(
         ]
         return {
             "paired_news_items": paired_news_items,
+            # Presentation-only: include the already-fetched, dated company news
+            # from the existing 7-day provider window. AI/issue evidence keeps
+            # using the untouched 24-hour paired_news_items. Snapshot TTL is 24h.
+            "panel_news_items": recent_news[:20],
             "storyboard_news_items": storyboard_news_items,
             "issue_briefs": issue_briefs,
             "keyword_storyboard": keyword_storyboard,

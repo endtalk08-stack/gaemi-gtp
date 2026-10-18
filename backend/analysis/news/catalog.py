@@ -46,6 +46,10 @@ STOCK_UNIVERSE = {
         "엑슨모빌": ["XOM", "엑슨모빌", "엑슨 모빌", "exxonmobil", "exxon mobil"],
         "스페이스X": ["SPCX", "스페이스X", "스페이스엑스", "SpaceX", "space exploration technologies"],
         "샌디스크": ["SNDK", "샌디스크", "SanDisk", "sandisk corporation"],
+        # Use only verified Naver-listed NBIS/MRVL identities. Their English
+        # company names must be recognized in headlines and news queries.
+        "네비우스 그룹": ["NBIS", "네비우스", "Nebius", "Nebius Group"],
+        "마벨 테크놀로지 그룹": ["MRVL", "마벨", "Marvell", "Marvell Technology"],
     },
 }
 

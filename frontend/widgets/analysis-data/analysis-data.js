@@ -34,7 +34,8 @@
     snapshot = {
       stockName: String(stockName || ''),
       sections,
-      newsItems: Array.isArray(result?.paired_news_items) ? result.paired_news_items : [],
+      newsItems: Array.isArray(result?.panel_news_items) ? result.panel_news_items
+        : Array.isArray(result?.paired_news_items) ? result.paired_news_items : [],
       disclosures: Array.isArray(result?.disclosures) ? result.disclosures : [],
       usFilings: Array.isArray(result?.us_filings) ? result.us_filings : [],
     };
