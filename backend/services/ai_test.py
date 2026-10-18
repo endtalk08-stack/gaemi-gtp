@@ -591,7 +591,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=1500, style_
         ],
         "max_completion_tokens": max_completion_tokens,
         "temperature": 0.2,
-        "reasoning_effort": "low",
+        "reasoning_effort": "none" if model_id.startswith("qwen/") else "low",
         "stream": False,
     }
     req = urllib.request.Request(
