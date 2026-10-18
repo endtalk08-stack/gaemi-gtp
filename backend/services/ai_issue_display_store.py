@@ -4,7 +4,11 @@ from datetime import datetime, timezone
 
 
 def read_ai_issue_briefs(market, names, *, max_per_stock=3):
-    """Return the latest 24-hour AI issues keyed by the exact stored stock name."""
+    """Read the latest successful AI issue batch for each stock from Neon.
+
+    This display read is independent of the 24-hour raw-news snapshot TTL.
+    Older issues remain until the next successful AI generation replaces them.
+    """
     if market not in ("us", "미국") or not names:
         return {}
     names = list(dict.fromkeys(str(name).strip() for name in names if str(name).strip()))
@@ -17,12 +21,18 @@ def read_ai_issue_briefs(market, names, *, max_per_stock=3):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT symbol, headline, summary, tags, generated_at
-                    FROM public.news_ai_issues
-                    WHERE market='US' AND symbol = ANY(%s)
-                      AND generated_at > now() - interval '24 hours'
-                      AND generated_at <= now()
-                    ORDER BY generated_at DESC, id DESC
+                    WITH latest AS (
+                        SELECT symbol, MAX(exchange_day) AS exchange_day
+                        FROM public.news_ai_issues
+                        WHERE market='US' AND symbol = ANY(%s) AND generated_at <= now()
+                        GROUP BY symbol
+                    )
+                    SELECT i.symbol, i.headline, i.summary, i.tags, i.generated_at
+                    FROM public.news_ai_issues AS i
+                    JOIN latest ON latest.symbol = i.symbol
+                               AND latest.exchange_day = i.exchange_day
+                    WHERE i.market='US' AND i.generated_at <= now()
+                    ORDER BY i.generated_at DESC, i.id DESC
                     """,
                     (names,),
                 )
@@ -42,8 +52,9 @@ def read_ai_issue_briefs(market, names, *, max_per_stock=3):
                 "time": stamp,
                 "stock_names": [symbol],
                 "source": "ai_issue",
+                "generated_at": generated_at.isoformat() if isinstance(generated_at, datetime) else "",
             })
         return result
     except Exception as exc:
         print("[AI issues] database read unavailable: " + type(exc).__name__, flush=True)
-        return {}
+        return None
