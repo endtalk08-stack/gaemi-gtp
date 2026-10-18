@@ -31,7 +31,7 @@
     const list = document.getElementById('leftSidebarHomeRecentList');
     const empty = document.getElementById('leftSidebarHomeRecentEmpty');
     if (!list) return;
-    const entries = readRecent();
+    const entries = visibleRecent();
     list.replaceChildren();
     entries.forEach((entry, index) => {
       const row = document.createElement('li');
@@ -54,7 +54,8 @@
     const text = String(value || '').trim().slice(0, type === 'stock' ? 80 : 240);
     if (!text) return null;
     const entries = readRecent().filter((entry) => entry.id !== id);
-    const next = [{ type, value: text, id }, ...entries].slice(0, RECENT_LIMIT);
+    const selectedMode = ['gaemi', 'info', 'pro'].includes(mode) ? mode : window.GaemiGTPAppState?.getCurrentAppMode?.() || 'gaemi';
+    const next = [{ type, value: text, id, mode: selectedMode }, ...entries].slice(0, RECENT_LIMIT);
     recentFallback = next;
     try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch (_) { /* browser storage unavailable */ }
     renderRecent();
