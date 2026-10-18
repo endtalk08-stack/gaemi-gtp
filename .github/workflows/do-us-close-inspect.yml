@@ -1,0 +1,39 @@
+name: DigitalOcean US close prerequisites (read only)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-us-close-inspect.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_USER: ${{ vars.NEWS_SSH_USER }}
+      SSH_KEY: ${{ secrets.NEWS_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Connect with pinned SSH host
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST"; test -n "$SSH_USER"; test -n "$SSH_KEY"; test -n "$SSH_KNOWN_HOSTS"
+          mkdir -p -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Inspect worker path and scheduler availability without changing anything
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" 'set -eu
+            echo US_CLOSE_INSPECT_BEGIN
+            systemctl is-active gaemigtp-news.service
+            systemctl show gaemigtp-news.service -p User -p WorkingDirectory -p EnvironmentFiles -p ExecStart
+            echo DIRS
+            ls -ld /opt/gaemigtp-news/app /opt/gaemigtp-news/app/backend /opt/gaemigtp-news/app/backend/services
+            echo PYTHON
+            command -v python3
+            cd /opt/gaemigtp-news/app
+            python3 -c "import importlib.util; print(\"PSYCOPG_OK=\" + str(importlib.util.find_spec(\"psycopg\") is not None)); print(\"NAVER_PROVIDER=\"+str(importlib.util.find_spec(\"backend.providers.naver_news\") is not None)); print(\"NEWS_DETAIL=\"+str(importlib.util.find_spec(\"backend.services.news_detail\") is not None))"
+            echo US_CLOSE_INSPECT_END'
