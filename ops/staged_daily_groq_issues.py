@@ -154,7 +154,7 @@ def analyze_news(stock_name, articles):
         ],
         "temperature": 0.2,
         "reasoning_effort": "low",
-        "max_completion_tokens": 1600,
+        "max_completion_tokens": 1000,
         "response_format": {"type": "json_object"},
     }, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
