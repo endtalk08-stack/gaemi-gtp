@@ -26,9 +26,15 @@ jobs:
           ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
           set -u
           cd /opt/gaemigtp-news/app || exit 1
-          echo SERVICE_STATUS="$(systemctl is-active gaemigtp-news.service)"
-          echo RANK_QUEUE_PRESENT="$(grep -Fqc 'state.setdefault("ranked_by_feed", {})' backend/news_worker.py || true)"
+          echo SERVICE_STATUS="$(systemctl is-active gaemigtp-news.service || true)"
+          systemctl show gaemigtp-news.service -p ActiveState -p SubState -p Result -p MainPID -p NRestarts -p ExecMainStatus -p ActiveEnterTimestamp --no-pager || true
+          echo RANK_QUEUE_COUNT="$(grep -Fc 'state.setdefault("ranked_by_feed", {})' backend/news_worker.py || true)"
           echo SECTION_NEWS_LOGS
-          # No credentials or provider responses are printed.
-          sudo -n /usr/bin/journalctl -u gaemigtp-news.service --since '2026-10-18 00:03:00 UTC' --no-pager -o cat 2>&1 | grep -E '(^\[news-worker\]|^\[news-ai\]|^\[provider:naver-news\]|^\[analyze news trace\])' | tail -n 150 || true
+          # No environment values; print only service errors/stock coverage events.
+          if sudo -n /usr/bin/journalctl -u gaemigtp-news.service --since '2026-10-18 00:03:00 UTC' --no-pager -o cat >/tmp/gaemigtp-coverage-check.$ 2>/dev/null; then
+            grep -Ei 'news-worker|news-ai|provider:naver-news|Traceback|Error|Exception|ModuleNotFound|failed|exit-code|Main process' /tmp/gaemigtp-coverage-check.$ | tail -n 85 || true
+            rm -f /tmp/gaemigtp-coverage-check.$
+          else
+            echo JOURNAL_NOT_ACCESSIBLE
+          fi
           REMOTE
