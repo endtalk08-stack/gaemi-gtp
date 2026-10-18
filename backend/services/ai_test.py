@@ -745,7 +745,7 @@ def ai_test_chat():
                           "price_metrics": {}} if private_chat else None))
 
         # A quote-only cache cannot answer later news/disclosure questions.
-        if context and not ("52주" in question and ("최고가" in question or "신고가" in question)):
+        if context and stock and not ("52주" in question and ("최고가" in question or "신고가" in question)):
             if not any((context["news"], context["official_disclosures"], context["issue_briefs"], context["price_information"])):
                 context = None
 
