@@ -40,4 +40,11 @@ jobs:
             /opt/gaemigtp-news/venv/bin/python -c "import inspect,psycopg; from backend.providers import naver_news; from backend.services.news_detail import read_selected_article_details; print(\"VENV_PYTHON_READY\"); print(\"NAVER_FETCH_NEWS=\"+str(hasattr(naver_news,\"fetch_news\"))); print(\"DETAIL_READER_SIG=\" + str(inspect.signature(read_selected_article_details)))"
             echo SUDO_PERMISSIONS
             sudo -n -l 2>&1 | tail -25 || true
+            echo ACCESS_CHECK
+            id
+            test -r /etc/gaemigtp/news-worker.env && echo NEWS_ENV_READABLE=yes || echo NEWS_ENV_READABLE=no
+            test -w /opt/gaemigtp-news/app/backend && echo APP_BACKEND_WRITABLE=yes || echo APP_BACKEND_WRITABLE=no
+            test -w /opt/gaemigtp-news/app/backend/services && echo APP_SERVICES_WRITABLE=yes || echo APP_SERVICES_WRITABLE=no
+            test -w /home/gaemi-news-check/news-deploy && echo HOME_STAGE_WRITABLE=yes || echo HOME_STAGE_WRITABLE=no
+            if command -v crontab >/dev/null; then echo CRONTAB_EXISTS=yes; crontab -l 2>&1 | head -12 || true; else echo CRONTAB_EXISTS=no; fi
             echo US_CLOSE_INSPECT_END'
