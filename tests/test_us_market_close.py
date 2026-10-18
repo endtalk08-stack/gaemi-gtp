@@ -32,6 +32,30 @@ class UsMarketCloseTests(unittest.TestCase):
         result = close.select_close_articles(articles, self.session, self.now)
         self.assertEqual([item["publisher"] for item in result], ["yna.co.kr"])
 
+    def test_real_naver_provider_raw_fields_are_selected(self):
+        # backend.providers.naver_news.fetch_news returns raw_* keys, not
+        # title/originallink/pubDate. This must work without changing it.
+        rows = [
+            {
+                "raw_title": "<b>뉴욕증시</b> 마감…기술주 상승",
+                "raw_original_link": "https://www.yna.co.kr/economy/closing",
+                "raw_link": "https://n.news.naver.com/article/001/1",
+                "raw_pub_date": dt.datetime(2026, 10, 16, 17,
+                                            tzinfo=close.NY).strftime("%a, %d %b %Y %H:%M:%S %z"),
+            },
+            {
+                "raw_title": "뉴욕증시 마감…경제지표",
+                "raw_original_link": "https://www.hankyung.com/economy/closing",
+                "raw_pub_date": dt.datetime(2026, 10, 16, 17,
+                                            tzinfo=close.NY).strftime("%a, %d %b %Y %H:%M:%S %z"),
+            },
+        ]
+        chosen = close.select_close_articles(rows, self.session, self.now)
+        self.assertEqual(len(chosen), 2)
+        self.assertEqual(chosen[0]["title"], "뉴욕증시 마감…기술주 상승")
+        self.assertEqual(chosen[0]["publisher"], "yna.co.kr")
+        self.assertTrue(chosen[0]["url"].startswith("https://www.yna.co.kr/"))
+
     def test_one_publisher_and_one_headline_only(self):
         news = [
             row("뉴욕증시 마감…주요 흐름", "yna.co.kr"),
