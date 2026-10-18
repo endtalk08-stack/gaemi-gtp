@@ -102,7 +102,12 @@ def collect_articles(session_date, now_utc=None, search=None, reader=None):
         # Avoid sending short search snippets or generic HTML metadata to AI.
         if source not in {"jsonld_article_body", "article_or_main_paragraphs", "all_page_paragraphs"} or len(body) < 450:
             continue
-        verified.append({**article, "body": body[:2700], "body_source": source})
+        # Preserve the actual extracted article text, not just a search snippet.
+        # Bound only the combined provider request budget; prefer two complete
+        # articles to three heavily truncated articles.
+        if len(verified) >= 2 and sum(len(a["body"]) for a in verified) + len(body) > 11000:
+            continue
+        verified.append({**article, "body": body, "body_source": source})
         if len(verified) == 3:
             break
     return verified
@@ -131,6 +136,7 @@ def _prompt(articles, session_date):
 
 
 def _generate(articles, session_date, model=MODEL):
+    model = os.environ.get("US_CLOSE_GROQ_MODEL", model).strip() or MODEL
     key = os.environ.get("GROQ_API_KEY", "").strip()
     if not key:
         raise RuntimeError("groq_key_missing")
