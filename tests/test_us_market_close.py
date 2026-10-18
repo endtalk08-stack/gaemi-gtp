@@ -96,6 +96,59 @@ class UsMarketCloseTests(unittest.TestCase):
             result = close.publish_once(now_utc=self.now)
         self.assertEqual(result["status"], "insufficient_full_articles")
 
+    def test_duplicate_session_never_calls_120b_again(self):
+        class DuplicateConnection:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def cursor(self): return self
+            def execute(self, *args): return None
+            def fetchone(self): return None
+
+        articles = [
+            {"title": "뉴욕증시 마감", "published_at": "2026-10-16T17:00-04:00",
+             "url": "https://yna.co.kr/market/a", "publisher": "yna.co.kr",
+             "body": "검증된 본문" * 100},
+            {"title": "뉴욕증시 마감", "published_at": "2026-10-16T17:20-04:00",
+             "url": "https://hankyung.com/market/b", "publisher": "hankyung.com",
+             "body": "추가 본문" * 100},
+        ]
+        with patch.object(close, "collect_articles", return_value=articles), \
+             patch.object(close, "_connection", return_value=DuplicateConnection()):
+            outcome = close.publish_once(
+                now_utc=self.now,
+                generator=lambda *_: self.fail("Unexpected repeated AI call")
+            )
+        self.assertEqual(outcome["status"], "already_attempted")
+
+    def test_publishes_only_edited_content_not_source_body(self):
+        executed = []
+        class MemoryConnection:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def cursor(self): return self
+            def execute(self, sql, args=None): executed.append((sql, args))
+            def fetchone(self): return (self_date,)
+
+        self_date = self.session
+        articles = [
+            {"title": "뉴욕증시 마감", "published_at": "2026-10-16T17:00-04:00",
+             "url": "https://yna.co.kr/market/a", "publisher": "yna.co.kr",
+             "body": "DO_NOT_STORE_SOURCE_BODY_A" * 30},
+            {"title": "뉴욕증시 마감", "published_at": "2026-10-16T17:20-04:00",
+             "url": "https://hankyung.com/market/b", "publisher": "hankyung.com",
+             "body": "DO_NOT_STORE_SOURCE_BODY_B" * 30},
+        ]
+        with patch.object(close, "collect_articles", return_value=articles), \
+             patch.object(close, "_connection", return_value=MemoryConnection()):
+            result = close.publish_once(now_utc=self.now,
+                                        generator=lambda *_: "가공된 마감 분석 문장" * 10)
+        self.assertEqual(result["status"], "published")
+        written = " ".join(str(params) for _sql, params in executed)
+        self.assertNotIn("DO_NOT_STORE_SOURCE_BODY_A", written)
+        self.assertNotIn("DO_NOT_STORE_SOURCE_BODY_B", written)
+        self.assertIn("가공된 마감 분석 문장", written)
+        self.assertIn(close.MODEL, written)
+
     def test_weekend_does_not_search_or_call_ai(self):
         weekend = dt.datetime(2026, 10, 17, 22, tzinfo=close.UTC)
         result = close.publish_once(now_utc=weekend, search=lambda *a, **kw: self.fail("searched"))
