@@ -208,6 +208,7 @@ def _market_ranking_reply(question):
 
 
 SYSTEM_PROMPT = "쉽게 설명 반말로 대답해"
+INFO_STYLE_PROMPT = "답변은 간결하게 작성하고, 불필요한 표와 코드블록은 사용하지 마."
 
 
 def _settings_ready():
@@ -625,7 +626,7 @@ def _cloudflare_answer(question, context, max_completion_tokens=1500, style_prom
     payload = {
         "model": "@cf/openai/gpt-oss-20b",
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT + ("\\n" + style_prompt if style_prompt else "")},
             {"role": "user", "content": "참고 데이터(JSON):\n"
              + json.dumps(context, ensure_ascii=False) + "\n\n질문: " + question},
         ],
@@ -869,7 +870,7 @@ def ai_test_chat():
         if dialogue:
             prompt = "이전 대화:\n" + "\n".join(dialogue) + "\n\n현재 질문: " + question
         provider_called = True
-        answer, usage, provider_headers = (_cloudflare_answer(prompt, context, style_prompt=None) if role == "cloudflare" else _groq_answer(
+        answer, usage, provider_headers = (_cloudflare_answer(prompt, context, style_prompt=INFO_STYLE_PROMPT if private_chat and app_mode == "info" else None) if role == "cloudflare" else _groq_answer(
             MODELS[role]["id"], prompt, context,
             style_prompt=None,
         ))
