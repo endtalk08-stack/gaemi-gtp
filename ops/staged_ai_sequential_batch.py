@@ -4,6 +4,7 @@ Uses existing Neon connection and reserves before any paid Groq request.
 """
 import hashlib
 import json
+import urllib.error
 from staged_daily_groq_issues import (analyze_news, build_model_news,
                                       _has_verifiable_published_at, issue_source_metadata)
 
@@ -17,6 +18,33 @@ def has_eligible_ai_news(articles):
     return any(_has_verifiable_published_at(row.get("published_at")) for row in news)
 from staged_ai_issue_store import save_ai_issues, read_issue_sources
 from staged_daily_call_guard import reserve_once, finish_reservation
+
+
+def _safe_failure_reason(exc):
+    """Log a bounded error code only: never provider body, article or credentials."""
+    if isinstance(exc, urllib.error.HTTPError):
+        status = getattr(exc, "code", None)
+        return f"http_{status}" if type(status) is int and 100 <= status <= 599 else "http_unknown"
+    if isinstance(exc, urllib.error.URLError):
+        return "http_connection"
+    if isinstance(exc, json.JSONDecodeError):
+        return "invalid_json"
+    if isinstance(exc, ValueError):
+        return {
+            "model_response_truncated": "model_truncated",
+            "model_response_empty": "model_empty",
+            "Invalid issue response": "invalid_json_shape",
+            "Expected 0-3 issues": "invalid_issue_count",
+            "Invalid fields": "invalid_issue_fields",
+            "Invalid text": "invalid_issue_text",
+            "Invalid tags": "invalid_issue_tags",
+            "Invalid article source IDs": "invalid_source_ids",
+            "Each AI issue requires its own real source articles": "missing_source_evidence",
+            "Missing source title or publication timestamp": "invalid_source_metadata",
+        }.get(str(exc), "validation_error")
+    if isinstance(exc, (KeyError, IndexError, TypeError)):
+        return "invalid_api_response"
+    return "processing_error"
 
 
 def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
@@ -59,16 +87,21 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
                             "issue_count": len(issues), "ids": ids,
                             "issue_sources": sources})
         except Exception as exc:
+            reason = _safe_failure_reason(exc)
+            # Existing one-call-per-day reservation is preserved even on failure.
+            print("[news-ai] failed stock=%s category=%s reason=%s" %
+                  (symbol, type(exc).__name__, reason), flush=True)
             if reserved:
                 try:
                     with conn.transaction():
                         finish(conn, market=market, symbol=symbol, exchange_day=day,
                                request_hash=request_hash, status="failed",
-                               failure_category=type(exc).__name__)
+                               failure_category=type(exc).__name__,
+                               failure_reason=reason)
                 except Exception:
                     pass
             results.append({"market": market, "symbol": symbol, "status": "error",
-                            "error_type": type(exc).__name__})
+                            "error_type": type(exc).__name__, "error_code": reason})
     return results
 
 

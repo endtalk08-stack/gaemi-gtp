@@ -29,6 +29,7 @@ class AIPrimaryTests(unittest.TestCase):
         self.assertIn("'{_ai_issue_briefs}'", _RECONCILE_DISPLAY_SQL)
         self.assertIn("expires_at>now()", _RECONCILE_DISPLAY_SQL)
         self.assertNotIn("INSERT INTO public.news_ai_call_ledger", _RECONCILE_DISPLAY_SQL)
+        self.assertNotIn("ELSE to_char(r.completed_at", _RECONCILE_DISPLAY_SQL)
 
     def test_code_issues_kept_when_ai_is_displayed(self):
         before = {"_news_status": "ok", "paired_news_items": [{"title": "SpaceX"}],

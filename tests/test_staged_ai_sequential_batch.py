@@ -55,6 +55,7 @@ class SequentialBatchTests(unittest.TestCase):
         results = module.run_stock_batch(type('Conn', (), {'transaction': lambda self: __import__('contextlib').nullcontext()})(), stocks, analyze=analyze, save=Mock(), reserve=lambda *a, **k: True, finish=lambda *a, **k: True)
         self.assertEqual([r["status"] for r in results], ["error", "ok"])
         self.assertEqual(results[0]["error_type"], "RuntimeError")
+        self.assertEqual(results[0]["error_code"], "processing_error")
 
     def test_duplicate_reservation_skips_paid_call(self):
         from contextlib import nullcontext
@@ -99,6 +100,32 @@ class SequentialBatchTests(unittest.TestCase):
         analyze.assert_not_called()
         save.assert_not_called()
         self.assertEqual(results[0]["issue_count"], 0)
+
+
+    def test_provider_error_records_only_http_status_and_preserves_guard(self):
+        import urllib.error
+        from contextlib import nullcontext
+        connection = type("Conn", (), {"transaction": lambda self: nullcontext()})()
+        finished = []
+        def fake_analyze(*args):
+            raise urllib.error.HTTPError(
+                "https://redacted.example", 429, "Sensitive response", {}, None)
+        result = module.run_stock_batch(connection, [{
+            "name": "스페이스X", "symbol": "스페이스X",
+            "market": "US", "exchange_day": date(2026, 10, 18),
+            "articles": [{"title": "article"}],
+        }], analyze=fake_analyze, save=Mock(),
+            reserve=lambda *a, **k: True,
+            finish=lambda *a, **kwargs: finished.append(kwargs) or True)[0]
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error_code"], "http_429")
+        self.assertEqual(finished[0]["failure_reason"], "http_429")
+        self.assertEqual(finished[0]["failure_category"], "HTTPError")
+
+    def test_invalid_response_reason_is_bounded(self):
+        self.assertEqual(module._safe_failure_reason(ValueError("Invalid tags")), "invalid_issue_tags")
+        self.assertEqual(module._safe_failure_reason(ValueError("secret provider text")), "validation_error")
+        self.assertEqual(module._safe_failure_reason(ValueError("model_response_truncated")), "model_truncated")
 
 
 if __name__ == "__main__":

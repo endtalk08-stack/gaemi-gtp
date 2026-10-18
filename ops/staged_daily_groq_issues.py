@@ -4,13 +4,13 @@ from datetime import datetime
 from email.utils import parsedate_to_datetime
 
 MODEL = "openai/gpt-oss-20b"
-PROMPT = """주가에 영향을 줄 핵심 이슈를 0-3개 선정해.
-
-제목은 핵심 짧게, 내용은 쉽게 설명 , 해시태그는 각각 최대 3개. 반말로 답변해
-
-한국어 JSON만 반환해:
-
-{"issues":[{"headline":"제목","summary":"내용","tags":["#핵심어"],"source_ids":[1]}]}"""
+PROMPT = """제공된 기사만 근거로 주가에 중요한 이슈를 0~3개 선정해.
+기사 사이의 관계와 투자 의미를 쉽게 설명해. 기사에 없는 사실은 만들지 마.
+각 제목은 짧게, 요약은 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
+각 이슈의 source_ids는 반드시 포함해. 입력 뉴스의 실제 source_id 번호에서
+해당 내용을 뒷받침하는 기사 1~3개의 번호만 적어. 근거가 없으면 issues는 [].
+한국어 JSON 객체만 반환해:
+{"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
 
 
 def parse_issues(response_text):
@@ -169,7 +169,14 @@ def analyze_news(stock_name, articles):
     )
     with urllib.request.urlopen(request, timeout=35) as response:
         result = json.load(response)
-    issues = parse_issues(result["choices"][0]["message"]["content"])
+    choice = result["choices"][0]
+    if choice.get("finish_reason") == "length":
+        # A partial JSON response must never be marked as a successful AI issue.
+        raise ValueError("model_response_truncated")
+    content = choice["message"].get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("model_response_empty")
+    issues = parse_issues(content)
     return _keep_sourced_issues(issues, news)
 
 

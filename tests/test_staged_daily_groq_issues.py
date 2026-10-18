@@ -165,5 +165,42 @@ class GroqIssueTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.issue_records(ai_issues, market="US", symbol="NVDA", exchange_day=date(2026, 10, 17))
 
+    def test_prompt_requires_original_news_source_ids(self):
+        self.assertIn("source_ids는 반드시 포함", module.PROMPT)
+        self.assertIn("근거가 없으면", module.PROMPT)
+
+    def test_truncated_response_fails_without_retry_or_fabrication(self):
+        import io
+        from unittest.mock import patch
+        from unittest.mock import Mock
+        payload = {"choices": [{"finish_reason": "length",
+                                "message": {"content": '{"issues":['}}]}
+        api = Mock(return_value=io.BytesIO(json.dumps(payload).encode()))
+        with patch.dict("os.environ", {"GROQ_API_KEY": "mock"}), patch(
+            "urllib.request.urlopen", api
+        ):
+            with self.assertRaisesRegex(ValueError, "model_response_truncated"):
+                module.analyze_news("NVDA", [
+                    {"title": "News", "description": "Evidence",
+                     "published_at": "2026-10-18T10:00:00+00:00"}
+                ])
+        api.assert_called_once()
+
+    def test_empty_model_response_does_not_count_as_no_issues(self):
+        import io
+        from unittest.mock import patch
+        payload = {"choices": [{"finish_reason": "stop",
+                                "message": {"content": ""}}]}
+        with patch.dict("os.environ", {"GROQ_API_KEY": "mock"}), patch(
+            "urllib.request.urlopen",
+            return_value=io.BytesIO(json.dumps(payload).encode())
+        ):
+            with self.assertRaisesRegex(ValueError, "model_response_empty"):
+                module.analyze_news("NVDA", [
+                    {"title": "News", "description": "Evidence",
+                     "published_at": "2026-10-18T10:00:00+00:00"}
+                ])
+
+
 if __name__ == "__main__":
     unittest.main()

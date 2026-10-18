@@ -90,7 +90,7 @@ ai AS (
           WHEN COALESCE(i->'source_articles'->0->>'published_at','') <> ''
           THEN to_char((i->'source_articles'->0->>'published_at')::timestamptz AT TIME ZONE 'Asia/Seoul',
                         'HH24:MI')
-          ELSE to_char(r.completed_at AT TIME ZONE 'Asia/Seoul','HH24:MI')
+          ELSE ''
       END,
       'source_articles', (
          SELECT COALESCE(jsonb_agg(jsonb_build_object(

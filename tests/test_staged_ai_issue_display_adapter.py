@@ -22,7 +22,7 @@ class DisplayAdapterTests(unittest.TestCase):
         self.assertEqual([row["headline"] for row in result], ["수요 증가", "투자 확대"])
         self.assertEqual(result[0]["summary"], "수요 확대")
         self.assertEqual(result[0]["tags"], ["#수요"])
-        self.assertEqual(result[0]["time"], "17:13")
+        self.assertEqual(result[0]["time"], "")
         self.assertEqual(result[0]["stock_names"], ["삼성전자"])
         self.assertEqual(result[0]["reaction_at"], "")
 
