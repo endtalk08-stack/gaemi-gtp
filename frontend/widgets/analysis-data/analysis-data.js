@@ -14,7 +14,6 @@
     stockName: '',
     sections: {},
     newsItems: [],
-    issueBriefs: [],
     disclosures: [],
     usFilings: [],
   };
@@ -37,7 +36,6 @@
       sections,
       newsItems: Array.isArray(result?.panel_news_items) ? result.panel_news_items
         : Array.isArray(result?.paired_news_items) ? result.paired_news_items : [],
-      issueBriefs: Array.isArray(result?.issue_briefs) ? result.issue_briefs : [],
       disclosures: Array.isArray(result?.disclosures) ? result.disclosures : [],
       usFilings: Array.isArray(result?.us_filings) ? result.us_filings : [],
     };
@@ -49,7 +47,6 @@
       ...snapshot,
       sections: { ...snapshot.sections },
       newsItems: [...snapshot.newsItems],
-      issueBriefs: [...snapshot.issueBriefs],
       disclosures: [...snapshot.disclosures],
       usFilings: [...snapshot.usFilings],
     };
