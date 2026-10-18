@@ -772,7 +772,8 @@ def _sanitize_news_display_briefs(result):
     for brief in result.get("issue_briefs") or []:
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
             brief["summary"] = strip_leading_news_credit(brief["summary"])
-            brief["headline"] = grounded_issue_display_title(brief)
+            if brief.get("source") != "ai_issue":
+                brief["headline"] = grounded_issue_display_title(brief)
             # Earlier AI worker versions added unrequested publication/AI labels.
             # Show only the existing concise HH:MM; leave persisted evidence untouched.
             timestamp = brief.get("time")
@@ -840,8 +841,9 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         if worker_result is not None:
             break
     if worker_result is None:
-        return {**_empty_news_result(), "_news_status": "unavailable"}
-    result = copy.deepcopy(worker_result)
+        result = {**_empty_news_result(), "_news_status": "unavailable"}
+    else:
+        result = copy.deepcopy(worker_result)
     if market in ("미국", "us"):
         # AI issues are authoritative for the issue panel. Keep DO snapshot
         # articles intact, but never substitute keyword-generated issue briefs.
