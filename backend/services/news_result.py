@@ -17,6 +17,7 @@ from backend.analysis.news import (
 )
 
 from .news_byline import strip_leading_news_credit
+from .news_freshness import clean_us_snapshot
 from .issue_briefs import (
     grounded_issue_display_title,
     _article_excerpt, build_issue_briefs, central_material_brief_supported,
@@ -840,4 +841,7 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
             break
     if worker_result is None:
         return {**_empty_news_result(), "_news_status": "unavailable"}
-    return _sanitize_news_display_briefs(copy.deepcopy(worker_result))
+    worker_result = copy.deepcopy(worker_result)
+    if market in ("미국", "us"):
+        worker_result = clean_us_snapshot(worker_result)
+    return _sanitize_news_display_briefs(worker_result)

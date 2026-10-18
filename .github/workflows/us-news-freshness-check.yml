@@ -1,0 +1,37 @@
+name: Verify US source-date 24h display
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - backend/services/news_freshness.py
+      - backend/services/news_result.py
+      - backend/services/market_issue_headlines.py
+      - tests/test_us_news_freshness.py
+      - .github/workflows/us-news-freshness-check.yml
+  push:
+    branches: [main]
+    paths:
+      - backend/services/news_freshness.py
+      - backend/services/news_result.py
+      - backend/services/market_issue_headlines.py
+      - tests/test_us_news_freshness.py
+      - .github/workflows/us-news-freshness-check.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile and verify read-only news expiry
+        run: |
+          python -m py_compile backend/services/news_freshness.py backend/services/news_result.py backend/services/market_issue_headlines.py
+          python -m unittest -v tests.test_us_news_freshness tests.test_market_issue_headlines
+          node --test tests/test_sidebar_issue_sync.cjs
