@@ -1,0 +1,28 @@
+name: Chat typing caret regression
+on:
+  push:
+    branches: [fix/chat-typing-caret-inline-20261018]
+    paths:
+      - 'frontend/shell/center-chat/ai-chat.js'
+      - 'frontend/index.html'
+      - 'tests/test_inline_typing_caret.js'
+      - '.github/workflows/typing-caret-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify JavaScript syntax
+        run: |
+          node --check frontend/shell/center-chat/ai-chat.js
+          node --check frontend/shell/center-chat/search-controls.js
+          node --check tests/test_inline_typing_caret.js
+      - name: Test caret follows typed inline text and is removed on stop
+        run: node tests/test_inline_typing_caret.js
