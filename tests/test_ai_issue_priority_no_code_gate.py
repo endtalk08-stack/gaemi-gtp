@@ -51,7 +51,9 @@ class AIPrimaryTests(unittest.TestCase):
         fresh = {"issue_briefs": [{"headline": "새 코드", "stock_names": ["스페이스X"]}],
                  "paired_news_items": [{"title": "새 기사"}]}
         merged = _prefer_same_day_ai(fresh, old, "스페이스X", "2026-10-17")
-        self.assertEqual(merged["issue_briefs"], [ai_brief])
+        self.assertEqual([item["headline"] for item in merged["issue_briefs"]], ["AI 핵심"])
+        self.assertTrue(merged["issue_briefs"][0]["time"])
+        self.assertEqual(merged["issue_briefs"][0]["source_articles"][0]["url"], "https://example.com/article")
         self.assertEqual(merged["_code_issue_briefs"][0]["headline"], "새 코드")
         self.assertEqual(merged["paired_news_items"][0]["title"], "새 기사")
 
