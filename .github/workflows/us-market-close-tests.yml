@@ -1,0 +1,36 @@
+name: US close editorial isolated checks
+on:
+  push:
+    branches: [feat/us-market-close-content-20261018]
+    paths:
+      - 'backend/services/us_market_close.py'
+      - 'tests/test_us_market_close.py'
+      - 'frontend/shell/center-chat/ai-chat.js'
+      - 'frontend/shell/center-chat/analysis-flow.js'
+      - 'app.py'
+      - '.github/workflows/us-market-close-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile isolated modules
+        run: python -m py_compile app.py backend/services/us_market_close.py tests/test_us_market_close.py
+      - name: Run offline tests (no news, DB or AI calls)
+        run: python -m unittest -v tests.test_us_market_close
+      - name: Check existing UI JavaScript syntax
+        run: |
+          node --check frontend/shell/center-chat/ai-chat.js
+          node --check frontend/shell/center-chat/analysis-flow.js
