@@ -218,6 +218,18 @@ def _settings_ready():
     )
 
 
+def _private_provider_ready(role):
+    """Preview chat is authorized by its private session, not admin test flags."""
+    if role == "cloudflare":
+        return bool(
+            os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
+            and (os.environ.get("CLOUDFLARE_API_TOKEN")
+                 or os.environ.get("CLOUDFLARE_API_KEY")
+                 or os.environ.get("CLOUDFLARE_AUTH_TOKEN") or "").strip()
+        )
+    return bool(os.environ.get("GROQ_API_KEY", "").strip())
+
+
 def _authorized():
     if not _settings_ready():
         return False
@@ -603,7 +615,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=1500, style_
 
 
 def _cloudflare_answer(question, context, max_completion_tokens=1500, style_prompt=None):
-    """Cloudflare Workers AI is available only for administrator model 4 tests."""
+    """Cloudflare Workers AI serves private info chat and admin model 4 tests."""
     account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
     api_token = (os.environ.get("CLOUDFLARE_API_TOKEN") or
                  os.environ.get("CLOUDFLARE_API_KEY") or
@@ -672,7 +684,10 @@ def ai_test_chat():
         app_mode = str(body.get("app_mode") or "gaemi").strip().lower()
         if app_mode not in ("gaemi", "info", "pro"):
             return jsonify({"ok": False, "error": "unsupported_mode"}), 400
-        role = {"gaemi": None, "info": "news", "pro": "deep"}[app_mode]
+        # News editorial keeps model 1 (20B) and model 2 (120B).
+        # Chat uses the existing independent model 4 (Cloudflare) and
+        # model 3 (Groq Qwen) without touching the editorial workers.
+        role = {"gaemi": None, "info": "cloudflare", "pro": "compare"}[app_mode]
     else:
         app_mode = None
         role = str(body.get("role") or "news")
@@ -835,13 +850,12 @@ def ai_test_chat():
             # through to Groq when the UI is in gaemi mode.
             if app_mode == "gaemi":
                 return jsonify({"ok": False, "error": "ai_mode_disabled"}), 403
-            if not _settings_ready():
+            if not _private_provider_ready(role):
                 return jsonify({"ok": False, "error": "ai_test_not_configured"}), 503
-            # Limit site-wide consumption BEFORE the provider call. Admin
-            # /ai-test bearer-token experiments retain their existing behavior.
-            blocked = _take_slot(role)
-            if blocked:
-                return jsonify({"ok": False, "error": blocked}), 429
+            # Private single-admin preview: rely on each provider's real
+            # account/project quotas. Do not fabricate local daily/minute
+            # limits, which would also reset on a Render redeployment.
+            # Production memberships require a separate shared quota policy.
 
         history = body.get("history") or []
         dialogue = []
