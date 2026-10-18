@@ -180,7 +180,7 @@
 
     // The daily US market-close question is served from Neon without a new AI call.
     function isUsMarketCloseQuestion(question) {
-      const compact = String(question || '').replace(/\\s+/g, '');
+      const compact = String(question || '').replace(/\s+/g, '');
       return compact.length <= 35 &&
         /^(미국장|미장|미국증시|뉴욕증시)/.test(compact) &&
         /(어땠|마감|시황|요약|정리)/.test(compact);
