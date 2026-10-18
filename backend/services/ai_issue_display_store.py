@@ -62,7 +62,7 @@ def read_ai_issue_briefs(market, names, *, max_per_stock=3):
             # The UI time is the source article's publication time, NOT the
             # time our AI wrote its issue. The two can be hours or days apart.
             stamp = str(article_clock or "").strip()
-            if not re.fullmatch(r"(?:[01]\\d|2[0-3]):[0-5]\\d", stamp):
+            if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", stamp):
                 stamp = ""
             if not stamp and article_published_at:
                 try:
