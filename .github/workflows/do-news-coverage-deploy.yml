@@ -1,0 +1,87 @@
+name: Apply scoped stock news coverage fix to DigitalOcean
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-coverage-deploy.yml]
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: digitalocean-news-worker
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify isolated changes offline without news or AI API calls
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_news_feed_queries.py' -q
+          python -m unittest discover -s tests -p 'test_news_panel_window.py' -q
+          python -m unittest discover -s tests -p 'test_news_rank_queue_patch.py' -q
+          python -m py_compile backend/analysis/news/catalog.py backend/services/news_result.py ops/staged_news_rank_queue_patch.py
+      - name: Stage three verified files on existing worker
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          opts=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          remote="gaemi-deploy@$DO_HOST"
+          ssh "${opts[@]}" "$remote" 'test -w /opt/gaemigtp-news/app/backend/analysis/news/catalog.py && test -w /opt/gaemigtp-news/app/backend/services/news_result.py && test -w /opt/gaemigtp-news/app/backend/news_worker.py && test "$(systemctl is-active gaemigtp-news.service)" = active'
+          scp "${opts[@]}" backend/analysis/news/catalog.py "$remote:/opt/gaemigtp-news/app/ops/.news-coverage-catalog.next"
+          scp "${opts[@]}" backend/services/news_result.py "$remote:/opt/gaemigtp-news/app/ops/.news-coverage-result.next"
+          scp "${opts[@]}" ops/staged_news_rank_queue_patch.py "$remote:/opt/gaemigtp-news/app/ops/.news-coverage-rank-patch.next"
+      - name: Back up, deploy with baseline guard, verify and restart
+        run: |
+          set -euo pipefail
+          opts=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          ssh "${opts[@]}" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          old_catalog="$(sha256sum backend/analysis/news/catalog.py | cut -d' ' -f1)"
+          old_result="$(sha256sum backend/services/news_result.py | cut -d' ' -f1)"
+          new_catalog="$(sha256sum ops/.news-coverage-catalog.next | cut -d' ' -f1)"
+          new_result="$(sha256sum ops/.news-coverage-result.next | cut -d' ' -f1)"
+          # Read-only inspection established these exact baseline hashes.
+          case "$old_catalog" in
+            27eca973c92c98fbee0b13d3c448fd705a1c371fb73bf0f8fec2ec656eea428e|"$new_catalog") ;;
+            *) echo COVERAGE_CATALOG_BASELINE_MISMATCH; exit 10 ;;
+          esac
+          case "$old_result" in
+            10ef9f4f45325664457a959873296e223fc04027f676fed6d62b4c436f0be9ff|"$new_result") ;;
+            *) echo COVERAGE_RESULT_BASELINE_MISMATCH; exit 11 ;;
+          esac
+          /opt/gaemigtp-news/venv/bin/python -m py_compile ops/.news-coverage-catalog.next ops/.news-coverage-result.next ops/.news-coverage-rank-patch.next
+          backup="$(mktemp -d ./ops/.news-coverage-backup.XXXXXX)"
+          cp -p backend/analysis/news/catalog.py "$backup/catalog.py"
+          cp -p backend/services/news_result.py "$backup/news_result.py"
+          cp -p backend/news_worker.py "$backup/news_worker.py"
+          restore() {
+            echo COVERAGE_RESTORING_PREVIOUS_CODE
+            cp "$backup/catalog.py" backend/analysis/news/catalog.py
+            cp "$backup/news_result.py" backend/services/news_result.py
+            cp "$backup/news_worker.py" backend/news_worker.py
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+          }
+          trap restore ERR
+          install -m 644 ops/.news-coverage-catalog.next backend/analysis/news/catalog.py
+          install -m 644 ops/.news-coverage-result.next backend/services/news_result.py
+          install -m 644 ops/.news-coverage-rank-patch.next ops/staged_news_rank_queue_patch.py
+          /opt/gaemigtp-news/venv/bin/python ops/staged_news_rank_queue_patch.py backend/news_worker.py
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/analysis/news/catalog.py backend/services/news_result.py backend/news_worker.py
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum backend/analysis/news/catalog.py | cut -d' ' -f1)" = "$new_catalog"
+          test "$(sha256sum backend/services/news_result.py | cut -d' ' -f1)" = "$new_result"
+          grep -Fq 'state.setdefault("ranked_by_feed", {})' backend/news_worker.py
+          trap - ERR
+          echo COVERAGE_DEPLOY_OK
+          echo "SERVICE_MAINPID=$(systemctl show gaemigtp-news.service -p MainPID --value)"
+          REMOTE
