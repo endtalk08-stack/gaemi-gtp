@@ -299,6 +299,9 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 disclosureFollowups.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
               }
             });
+            if (isActive() && storyboard.length) {
+              window.GaemiGTPApp?.recordIssueBriefs?.(stockName, storyboard);
+            }
             if (window.lucide) window.lucide.createIcons();
             followups.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };

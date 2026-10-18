@@ -80,7 +80,7 @@ def get_market_issue_headlines(market, items):
         for row in rows
     ]
     all_names = list(dict.fromkeys(name for names in names_per_row for name in names))
-    ai_briefs = read_ai_issue_briefs(market, all_names)
+    ai_briefs = read_ai_issue_briefs(market, all_names) or {}
     worker_briefs = _read_worker_briefs(market, all_names) if market != 'us' else {}
     results = []
     for row, names in zip(rows, names_per_row):

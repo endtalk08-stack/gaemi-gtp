@@ -62,6 +62,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         ? {
             sections: Object.values(snapshot.sections || {}),
             paired_news_items: (snapshot.newsItems || []).slice(0, 20),
+            issue_briefs: (snapshot.issueBriefs || []).slice(0, 3),
             disclosures: (snapshot.disclosures || []).slice(0, 20),
             us_filings: (snapshot.usFilings || []).slice(0, 20)
           }
@@ -71,9 +72,10 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         stock: activeChatSession.stock || null,
         ...(activeChatSession.marketSelection ? { marketSelection: activeChatSession.marketSelection } : {}),
         ...(analysisData ? { analysisData } : {}),
-        messages: activeChatSession.messages.map(({ role, kind, text, sections }) => ({
+        messages: activeChatSession.messages.map(({ role, kind, text, sections, issue_briefs }) => ({
           role, kind, text: String(text || ''),
-          ...(Array.isArray(sections) ? { sections: sections.map(({ id, title, content }) => ({ id, title, content })) } : {})
+          ...(Array.isArray(sections) ? { sections: sections.map(({ id, title, content }) => ({ id, title, content })) } : {}),
+          ...(Array.isArray(issue_briefs) ? { issue_briefs: issue_briefs.slice(0, 3) } : {})
         }))
       };
       const recentIds = window.GaemiGTPSidebarHome?.getRecentIds?.() || [];
@@ -90,6 +92,106 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       const id = newConversationKey();
       activeChatSession.recentId = window.GaemiGTPSidebarHome?.recordRecent?.(type, value, id, activeChatSession.mode) || null;
       if (activeChatSession.recentId) rememberModeRecent(activeChatSession.mode, activeChatSession.recentId);
+      saveChatHistory();
+    }
+
+    // Preserve only display fields. Neon remains the authoritative issue source.
+    function cleanIssueBriefs(items) {
+      return (Array.isArray(items) ? items : []).filter(item => item && String(item.headline || '').trim())
+        .slice(0, 3).map(item => ({
+          headline: String(item.headline || ''), summary: String(item.summary || ''),
+          tags: Array.isArray(item.tags) ? item.tags.slice(0, 3) : [],
+          time: String(item.time || ''), generated_at: String(item.generated_at || ''),
+          stock_names: Array.isArray(item.stock_names) ? item.stock_names.slice(0, 3) : [],
+          stock_reactions: Array.isArray(item.stock_reactions) ? item.stock_reactions.slice(0, 3) : []
+        }));
+    }
+
+    function renderStoredIssueBriefs(target, items) {
+      target.replaceChildren();
+      target.className = 'mt-5 space-y-5';
+      target.dataset.restoredAiIssues = 'true';
+      const heading = document.createElement('p');
+      heading.className = 'gtp-chat-copy font-semibold';
+      heading.textContent = '오늘 눈에 띄는 흐름 👀';
+      target.appendChild(heading);
+      for (const item of cleanIssueBriefs(items)) {
+        const article = document.createElement('article');
+        article.className = 'space-y-2';
+        const title = document.createElement('p');
+        title.className = 'gtp-chat-copy font-semibold';
+        if (item.time) {
+          const time = document.createElement('span');
+          time.className = 'mr-2 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
+          time.textContent = item.time;
+          title.appendChild(time);
+        }
+        const headline = document.createElement('span');
+        headline.textContent = item.headline;
+        title.appendChild(headline);
+        article.appendChild(title);
+        if (item.summary) {
+          const summary = document.createElement('p');
+          summary.className = 'gtp-chat-copy whitespace-pre-line';
+          summary.textContent = item.summary;
+          article.appendChild(summary);
+        }
+        if (item.tags.length) {
+          const tags = document.createElement('p');
+          tags.className = 'analysis-hashtag gtp-chat-copy font-semibold';
+          tags.textContent = item.tags.map(tag => '#' + String(tag).replace(/^#/, '')).join('  ');
+          article.appendChild(tags);
+        }
+        target.appendChild(article);
+      }
+    }
+
+    function recordIssueBriefs(stockName, items) {
+      if (!activeChatSession || activeChatSession.restoring || activeChatSession.stock !== stockName) return;
+      const briefs = cleanIssueBriefs(items);
+      if (!briefs.length) return;
+      const previous = activeChatSession.messages.find(message => message.kind === 'ai_issues');
+      if (previous) previous.issue_briefs = briefs;
+      else activeChatSession.messages.push({
+        id: ++nextChatMessageId, role: 'assistant', kind: 'ai_issues', issue_briefs: briefs
+      });
+      saveChatHistory();
+    }
+
+    // Restoring a saved conversation reads Neon without running analysis or AI.
+    // A temporary read error never clears the previously visible issue text.
+    async function refreshRestoredIssues(session, stock, cached, existingTarget) {
+      let latest = [];
+      try {
+        const response = await fetch(BACKEND_URL + '/api/stock/ai-issues?stock=' + encodeURIComponent(stock));
+        if (response.ok) {
+          const data = await response.json();
+          if (data.ok === true) latest = cleanIssueBriefs(data.items);
+        }
+      } catch (_) { /* retain cached issues */ }
+      if (activeChatSession !== session || session.restoring) return;
+      const area = document.getElementById('chatArea');
+      if (!area) return;
+      const oldIssues = cleanIssueBriefs(cached);
+      if (latest.length && oldIssues.length) {
+        latest = latest.map(issue => {
+          const old = oldIssues.find(c => c.headline === issue.headline && c.generated_at === issue.generated_at);
+          return old ? { ...issue, stock_reactions: old.stock_reactions } : issue;
+        });
+      }
+      const chosen = latest.length ? latest : oldIssues;
+      if (!chosen.length) return;
+      let target = existingTarget;
+      if (!target || !target.isConnected) {
+        target = document.createElement('section');
+        area.appendChild(target);
+      }
+      renderStoredIssueBriefs(target, chosen);
+      const previous = session.messages.find(message => message.kind === 'ai_issues');
+      if (previous) previous.issue_briefs = chosen;
+      else session.messages.push({
+        id: ++nextChatMessageId, role: 'assistant', kind: 'ai_issues', issue_briefs: chosen
+      });
       saveChatHistory();
     }
     function restoreRecentConversation(recentId) {
@@ -117,6 +219,8 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
       }
       // Restore must not write partially rebuilt messages over the saved conversation.
       session.restoring = true;
+      let restoredIssueTarget = null;
+      let restoredIssueCache = [];
       for (const message of saved.messages) {
         if (message.kind === 'analysis' && Array.isArray(message.sections)) {
           session.messages.push({ id: ++nextChatMessageId, role: 'assistant', kind: 'analysis', sections: message.sections });
@@ -141,11 +245,32 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
             row.appendChild(body);
             area.appendChild(row);
           }
+        } else if (message.kind === 'ai_issues' && Array.isArray(message.issue_briefs)) {
+          restoredIssueCache = cleanIssueBriefs(message.issue_briefs);
+          if (restoredIssueCache.length) {
+            restoredIssueTarget = document.createElement('section');
+            document.getElementById('chatArea')?.appendChild(restoredIssueTarget);
+            renderStoredIssueBriefs(restoredIssueTarget, restoredIssueCache);
+          }
+          session.messages.push({
+            id: ++nextChatMessageId, role: 'assistant', kind: 'ai_issues',
+            issue_briefs: restoredIssueCache
+          });
         } else if (['user', 'assistant'].includes(message.role)) {
           appendChatMessage(message.role, message.text || '', message.kind || 'answer', session.id);
         }
       }
       session.restoring = false;
+      if (saved.stock) {
+        const initial = restoredIssueCache.length ? restoredIssueCache
+          : cleanIssueBriefs(saved.analysisData?.issue_briefs);
+        if (initial.length && !restoredIssueTarget) {
+          restoredIssueTarget = document.createElement('section');
+          document.getElementById('chatArea')?.appendChild(restoredIssueTarget);
+          renderStoredIssueBriefs(restoredIssueTarget, initial);
+        }
+        void refreshRestoredIssues(session, saved.stock, initial, restoredIssueTarget);
+      }
       return true;
     }
 
@@ -308,7 +433,7 @@ window.addEventListener('resize', () => {
   window.GaemiGTPWorkspaceShellState?.apply?.();
 });
 
-window.GaemiGTPApp = { requestStock, submitQuestion, appendChatReply, getChatState, linkRecentConversation, restoreRecentConversation, saveChatHistory, switchChatMode };
+window.GaemiGTPApp = { requestStock, submitQuestion, appendChatReply, getChatState, linkRecentConversation, restoreRecentConversation, recordIssueBriefs, saveChatHistory, switchChatMode };
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
