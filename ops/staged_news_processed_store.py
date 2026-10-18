@@ -183,32 +183,75 @@ def _recent_existing_issue_briefs(previous, stock_name):
     return retained
 
 
-def _prefer_same_day_ai(coming, previous, stock_name, us_day):
-    """Keep code issues for a future menu; keep today's AI visible on refresh.
+def _fresh_ai_briefs(briefs, *, now=None):
+    """Display only AI issues with genuine source links published within 24h."""
+    from datetime import datetime, timezone, timedelta
+    from email.utils import parsedate_to_datetime
+    from urllib.parse import urlparse
+    from zoneinfo import ZoneInfo
 
-    Only exact stock-owned prior AI and the same US day may be carried over.
-    Yesterday's or another company's AI must not leak into a new snapshot.
-    """
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=24)
+    valid = []
+    for brief in briefs or []:
+        if not isinstance(brief, dict):
+            continue
+        recent_sources = []
+        for source in (brief.get("source_articles") or []):
+            if not isinstance(source, dict):
+                continue
+            url = str(source.get("url") or "").strip()
+            if not url.startswith(("https://", "http://")):
+                continue
+            stamp = str(source.get("published_at") or "").strip()
+            try:
+                published = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+            except ValueError:
+                try:
+                    published = parsedate_to_datetime(stamp)
+                except (TypeError, ValueError, IndexError):
+                    continue
+            if published.tzinfo is None or not cutoff <= published.astimezone(timezone.utc) <= now:
+                continue
+            publisher = str(source.get("source") or "").strip()
+            if not publisher:
+                publisher = urlparse(url).hostname or ""
+            if not publisher:
+                continue
+            recent_sources.append((published, {**source, "source": publisher}))
+        if recent_sources:
+            latest = max(recent_sources, key=lambda pair: pair[0])[0]
+            valid.append({
+                **brief,
+                "time": latest.astimezone(ZoneInfo("Asia/Seoul")).strftime("%H:%M"),
+                "reaction_at": "",
+                "source_articles": [item for _, item in recent_sources],
+            })
+    return valid
+
+
+def _prefer_same_day_ai(coming, previous, stock_name, us_day):
+    """Preserve current, sourced AI only. No deterministic US issue fallback."""
     code = _same_stock_issue_briefs(
         coming.get("_code_issue_briefs", coming.get("issue_briefs") or []), stock_name)
     coming["_code_issue_briefs"] = code
-    incoming_ai = coming.get("_ai_issue_briefs") or []
-    if incoming_ai:
-        valid = _same_stock_issue_briefs(incoming_ai, stock_name)
-        if len(valid) == len(incoming_ai) and coming.get("_ai_exchange_day") == us_day:
-            coming["_ai_issue_briefs"] = valid
-            coming["issue_briefs"] = valid
-            return coming
+    candidate = []
+    if coming.get("_ai_exchange_day") == us_day:
+        incoming = coming.get("_ai_issue_briefs") or []
+        candidate = _fresh_ai_briefs(_same_stock_issue_briefs(incoming, stock_name))
+        if len(candidate) != len(incoming):
+            candidate = []
+    if not candidate and isinstance(previous, dict) and previous.get("_ai_exchange_day") == us_day:
+        prior = previous.get("_ai_issue_briefs") or []
+        candidate = _fresh_ai_briefs(_same_stock_issue_briefs(prior, stock_name))
+    if candidate:
+        coming["_ai_issue_briefs"] = candidate
+        coming["_ai_exchange_day"] = us_day
+        coming["issue_briefs"] = candidate
+    else:
         coming.pop("_ai_issue_briefs", None)
         coming.pop("_ai_exchange_day", None)
-        coming["issue_briefs"] = code
-    if isinstance(previous, dict) and previous.get("_ai_exchange_day") == us_day:
-        prior_ai = previous.get("_ai_issue_briefs") or []
-        valid = _same_stock_issue_briefs(prior_ai, stock_name)
-        if valid and len(valid) == len(prior_ai):
-            coming["_ai_issue_briefs"] = valid
-            coming["_ai_exchange_day"] = us_day
-            coming["issue_briefs"] = valid
+        coming["issue_briefs"] = []
     return coming
 
 
@@ -250,8 +293,8 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
                 day = datetime.now(ZoneInfo("America/New_York")).date().isoformat()
                 normalized = _prefer_same_day_ai(normalized, previous_payload,
                                                   stock_name, day)
-            # Existing short-lived same-stock code fallback stays intact.
-            if not normalized.get("issue_briefs"):
+            # US display is AI-only; never resurrect legacy code headlines.
+            if market not in ("미국", "US") and not normalized.get("issue_briefs"):
                 preserved = _recent_existing_issue_briefs(previous_payload, stock_name)
                 if preserved:
                     normalized["issue_briefs"] = preserved
