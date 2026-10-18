@@ -1,0 +1,43 @@
+name: Neon AI issue persistence checks
+
+on:
+  pull_request:
+    paths:
+      - 'backend/services/ai_issue_display_store.py'
+      - 'backend/services/news_result.py'
+      - 'frontend/js/app.js'
+      - 'frontend/js/why-flow.js'
+      - 'frontend/widgets/analysis-data/analysis-data.js'
+      - 'frontend/shell/left-market-sidebar/market-sidebar.js'
+      - 'tests/test_ai_issue_display_persistence.py'
+      - '.github/workflows/ai-issue-persistence-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse changed application modules
+        run: |
+          python -m py_compile app.py backend/services/ai_issue_display_store.py backend/services/news_result.py backend/services/market_issue_headlines.py tests/test_ai_issue_display_persistence.py
+          node --check frontend/js/app.js
+          node --check frontend/js/why-flow.js
+          node --check frontend/widgets/analysis-data/analysis-data.js
+          node --check frontend/shell/left-market-sidebar/market-sidebar.js
+      - name: AI issue retention tests (no AI calls)
+        run: python -m unittest -v tests.test_ai_issue_display_persistence
+      - name: Existing UI regression checks
+        run: |
+          node tests/test_mode_chat_isolation.js
+          node --test tests/test_sidebar_issue_sync.cjs
