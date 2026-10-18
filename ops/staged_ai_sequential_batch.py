@@ -5,7 +5,7 @@ Uses existing Neon connection and reserves before any paid Groq request.
 import hashlib
 import json
 import urllib.error
-from staged_daily_groq_issues import (analyze_news, build_model_news,
+from staged_daily_groq_issues import (analyze_news, build_model_news, recent_ai_articles,
                                       _has_verifiable_published_at, issue_source_metadata)
 
 
@@ -14,7 +14,7 @@ def has_eligible_ai_news(articles):
 
     Existing deterministic issue selection is NOT a prerequisite.
     """
-    news, _ = build_model_news(articles or [])
+    news, _ = build_model_news(recent_ai_articles(articles or []))
     return any(_has_verifiable_published_at(row.get("published_at")) for row in news)
 from staged_ai_issue_store import save_ai_issues, read_issue_sources
 from staged_daily_call_guard import reserve_once, finish_reservation
@@ -59,6 +59,11 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
         market, symbol = stock["market"], stock["symbol"]
         day = stock["exchange_day"]
         articles = stock.get("articles") or []
+        # Production Groq receives only articles published in the last 24 hours.
+        # Keep injected offline analyzers compatible with existing unit tests.
+        if analyze is analyze_news:
+            articles = recent_ai_articles(articles)
+        usage = {}
         if not articles:
             results.append({"market": market, "symbol": symbol, "status": "no_articles",
                             "issue_count": 0, "ids": []})
@@ -75,14 +80,18 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
                 results.append({"market": market, "symbol": symbol,
                                 "status": "already_reserved", "issue_count": 0, "ids": []})
                 continue
-            issues = analyze(stock["name"], articles)
+            if analyze is analyze_news:
+                issues = analyze(stock["name"], articles, usage_callback=usage.update)
+            else:
+                issues = analyze(stock["name"], articles)
             sources = issue_source_metadata(issues, articles)
             ids = save(conn, issues, market=market, symbol=symbol,
                        exchange_day=day, sources_by_issue=sources) if issues else []
             with conn.transaction():
                 finish(conn, market=market, symbol=symbol, exchange_day=day,
                        request_hash=request_hash, status="completed",
-                       result={"issue_ids": ids, "issue_count": len(issues)})
+                       result={"issue_ids": ids, "issue_count": len(issues),
+                               **({"usage": usage} if usage else {})})
             results.append({"market": market, "symbol": symbol, "status": "ok",
                             "issue_count": len(issues), "ids": ids,
                             "issue_sources": sources})
@@ -97,7 +106,8 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
                         finish(conn, market=market, symbol=symbol, exchange_day=day,
                                request_hash=request_hash, status="failed",
                                failure_category=type(exc).__name__,
-                               failure_reason=reason)
+                               failure_reason=reason,
+                               result={"usage": usage} if usage else None)
                 except Exception:
                     pass
             results.append({"market": market, "symbol": symbol, "status": "error",

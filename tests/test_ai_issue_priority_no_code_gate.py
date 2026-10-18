@@ -5,7 +5,7 @@ No external network, Neon connections, or paid AI invocations.
 import sys
 import pathlib
 import unittest
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ops"))
 from staged_ai_sequential_batch import has_eligible_ai_news
@@ -16,7 +16,7 @@ from staged_news_processed_store import _prefer_same_day_ai
 class AIPrimaryTests(unittest.TestCase):
     def test_relevant_dated_news_even_with_zero_code_issues(self):
         rows = [{"title": "SpaceX launches new rocket", "description": "Detailed verified report",
-                 "published_at": "2026-10-17T19:10:00+00:00"}]
+                 "published_at": (datetime.now(timezone.utc)-timedelta(minutes=5)).isoformat()}]
         self.assertTrue(has_eligible_ai_news(rows))
         self.assertFalse(has_eligible_ai_news([{"title": "Only title"}]))
         self.assertFalse(has_eligible_ai_news([{"title": "Text", "description": "No source date"}]))
@@ -44,12 +44,16 @@ class AIPrimaryTests(unittest.TestCase):
         self.assertEqual(before["issue_briefs"][0]["headline"], "코드")
 
     def test_refresh_keeps_ai_and_new_code_separately(self):
-        ai_brief = {"headline": "AI 핵심", "stock_names": ["스페이스X"]}
+        ai_brief = {"headline": "AI 핵심", "stock_names": ["스페이스X"],
+                    "source_articles": [{"published_at": (datetime.now(timezone.utc)-timedelta(minutes=5)).isoformat(),
+                                         "url": "https://example.com/article", "source": "example.com"}]}
         old = {"_ai_exchange_day": "2026-10-17", "_ai_issue_briefs": [ai_brief]}
         fresh = {"issue_briefs": [{"headline": "새 코드", "stock_names": ["스페이스X"]}],
                  "paired_news_items": [{"title": "새 기사"}]}
         merged = _prefer_same_day_ai(fresh, old, "스페이스X", "2026-10-17")
-        self.assertEqual(merged["issue_briefs"], [ai_brief])
+        self.assertEqual([item["headline"] for item in merged["issue_briefs"]], ["AI 핵심"])
+        self.assertTrue(merged["issue_briefs"][0]["time"])
+        self.assertEqual(merged["issue_briefs"][0]["source_articles"][0]["url"], "https://example.com/article")
         self.assertEqual(merged["_code_issue_briefs"][0]["headline"], "새 코드")
         self.assertEqual(merged["paired_news_items"][0]["title"], "새 기사")
 
@@ -58,13 +62,13 @@ class AIPrimaryTests(unittest.TestCase):
                "_ai_issue_briefs": [{"headline": "타사 AI", "stock_names": ["테슬라"]}]}
         original = {"issue_briefs": [{"headline": "코드", "stock_names": ["스페이스X"]}]}
         today = _prefer_same_day_ai(dict(original), old, "스페이스X", "2026-10-17")
-        self.assertEqual(today["issue_briefs"][0]["headline"], "코드")
+        self.assertEqual(today["issue_briefs"], [])
         old[" _unused"] = 1
         yesterday = _prefer_same_day_ai(dict(original),
             {"_ai_exchange_day": "2026-10-16", "_ai_issue_briefs": [{
                 "headline":"옛 AI","stock_names":["스페이스X"]}]},
             "스페이스X", "2026-10-17")
-        self.assertEqual(yesterday["issue_briefs"][0]["headline"], "코드")
+        self.assertEqual(yesterday["issue_briefs"], [])
 
 
 if __name__ == "__main__":

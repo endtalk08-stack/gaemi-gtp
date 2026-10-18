@@ -1,6 +1,6 @@
 """Staged Groq issue response validator; not connected to the worker."""
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
 MODEL = "openai/gpt-oss-20b"
@@ -50,6 +50,35 @@ def _article_published_epoch(article):
         except (TypeError, ValueError, IndexError):
             return float("-inf")
     return timestamp.timestamp() if timestamp.tzinfo is not None else float("-inf")
+
+
+def recent_ai_articles(articles, *, now=None):
+    """Use genuine publication time, not snapshot processing time, for AI eligibility."""
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        raise ValueError("Expected timezone-aware now")
+    now_epoch = now.timestamp()
+    cutoff = now_epoch - timedelta(hours=24).total_seconds()
+    return [
+        article for article in (articles or [])
+        if isinstance(article, dict)
+        and cutoff <= _article_published_epoch(article) <= now_epoch
+    ]
+
+
+def _safe_token_usage(response):
+    """Use Groq's reported counters only; do not estimate or log content."""
+    raw = response.get("usage") if isinstance(response, dict) else None
+    if not isinstance(raw, dict):
+        return {}
+    result = {
+        key: raw[key] for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+        if type(raw.get(key)) is int and 0 <= raw[key] <= 100000000
+    }
+    details = raw.get("completion_tokens_details")
+    if isinstance(details, dict) and type(details.get("reasoning_tokens")) is int:
+        result["reasoning_tokens"] = details["reasoning_tokens"]
+    return result
 
 
 def build_model_news(articles):
@@ -130,7 +159,7 @@ def _keep_sourced_issues(issues, news):
     return verified
 
 
-def analyze_news(stock_name, articles):
+def analyze_news(stock_name, articles, *, usage_callback=None):
     """One Groq request for one stock. Caller handles once-daily scheduling."""
     import os
     import urllib.request
@@ -169,6 +198,9 @@ def analyze_news(stock_name, articles):
     )
     with urllib.request.urlopen(request, timeout=35) as response:
         result = json.load(response)
+    usage = _safe_token_usage(result)
+    if usage and callable(usage_callback):
+        usage_callback(usage)
     choice = result["choices"][0]
     if choice.get("finish_reason") == "length":
         # A partial JSON response must never be marked as a successful AI issue.

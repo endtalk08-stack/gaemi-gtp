@@ -2,7 +2,7 @@ name: Deploy staged Groq AI modules to DigitalOcean
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
-    paths: [.github/workflows/do-news-ai-integration-inspect.yml, ops/staged_ai_sequential_batch.py, ops/staged_auto_ai_daily.py, ops/staged_daily_groq_issues.py, ops/staged_ai_issue_store.py, ops/staged_ai_issue_display_adapter.py, ops/staged_ai_snapshot_integration.py]
+    paths: [.github/workflows/do-news-ai-integration-inspect.yml, ops/staged_ai_sequential_batch.py, ops/staged_auto_ai_daily.py, ops/staged_daily_groq_issues.py, ops/staged_ai_issue_store.py, ops/staged_ai_issue_display_adapter.py, ops/staged_ai_snapshot_integration.py, ops/staged_news_processed_store.py]
 permissions:
   contents: read
 jobs:
@@ -25,7 +25,7 @@ jobs:
           printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           SSH_OPTS=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
-          files=(ops/staged_daily_groq_issues.py ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_ai_snapshot_integration.py ops/staged_daily_call_guard.py ops/staged_ai_sequential_batch.py ops/staged_daily_issue_schedule.py ops/staged_auto_ai_daily.py)
+          files=(ops/staged_daily_groq_issues.py ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_ai_snapshot_integration.py ops/staged_daily_call_guard.py ops/staged_ai_sequential_batch.py ops/staged_daily_issue_schedule.py ops/staged_auto_ai_daily.py ops/staged_news_processed_store.py)
           python3 -m py_compile "${files[@]}"
           ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'mkdir -p /opt/gaemigtp-news/app/ops && test -w /opt/gaemigtp-news/app/ops'
           scp "${SSH_OPTS[@]}" "${files[@]}" gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/ops/
@@ -119,19 +119,34 @@ jobs:
           import py_compile
           py_compile.compile(str(p),doraise=True)
           PY
+          # Backup and install the verified source-date guard without touching news collection.
+          store_backup="$(mktemp ./ops/.news-store-before-ai.XXXXXX)"
+          cp backend/services/news_processed_store.py "$store_backup"
+          restore_store() {
+            cp "$store_backup" backend/services/news_processed_store.py
+          }
+          trap restore_store ERR
+          install -m 644 ops/staged_news_processed_store.py backend/services/news_processed_store.py
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_processed_store.py
           if ! sudo -n /usr/bin/systemctl restart gaemigtp-news.service; then
+            restore_store
             cp backend/news_worker.py.pre_groq_ai_20261017.bak backend/news_worker.py
             sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
             echo WORKER_RESTART_FAILED_ROLLED_BACK
             exit 1
           fi
           if ! sudo -n /usr/bin/systemctl is-active gaemigtp-news.service; then
+            restore_store
             cp backend/news_worker.py.pre_groq_ai_20261017.bak backend/news_worker.py
             sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
             echo WORKER_INACTIVE_ROLLED_BACK
             exit 1
           fi
           rm -f /opt/gaemigtp-news/app/ops/.groq_run_now_20261017
+          test "$(sha256sum backend/services/news_processed_store.py | cut -d' ' -f1)" = "$(sha256sum ops/staged_news_processed_store.py | cut -d' ' -f1)"
+          trap - ERR
+          rm -f "$store_backup"
+          echo FRESH_NEWS_STORE_DEPLOYED
           echo AI_WORKER_HOOK_ACTIVE
           REMOTE
       - name: Diagnose Neon worker integration
