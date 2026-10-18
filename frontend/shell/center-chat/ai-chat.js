@@ -102,7 +102,12 @@
 
     async function typeReplyText(node, text, row, sessionId) {
       for (const segment of getChatBoldSegments(text)) {
-        const target = segment.bold ? document.createElement('strong') : document.createTextNode('');
+        // Put the blinking caret on the currently typed inline text, not on
+        // the outer response row (which places it after all block elements).
+        const previousCaret = row.querySelector('.typing-cursor');
+        previousCaret?.classList.remove('typing-cursor');
+        const target = document.createElement(segment.bold ? 'strong' : 'span');
+        target.classList.add('typing-cursor');
         node.appendChild(target);
         for (let index = 0; index < segment.text.length; index += 3) {
           if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
@@ -146,9 +151,10 @@
       const row = ctx.appendChatMessage('assistant', text, 'answer', sessionId);
       if (!row) return false;
       row.textContent = '';
-      row.classList.add('typing-cursor');
-      if (!await typeStructuredReply(row, text, sessionId)) return false;
-      row.classList.remove('typing-cursor');
+      const typed = await typeStructuredReply(row, text, sessionId);
+      // Cleanup on both completed and interrupted responses.
+      row.querySelector('.typing-cursor')?.classList.remove('typing-cursor');
+      if (!typed) return false;
       if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
       const actions = window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
         row, text, 'ai-' + row.dataset.chatMessageId, ctx.getSession().stock || ''
