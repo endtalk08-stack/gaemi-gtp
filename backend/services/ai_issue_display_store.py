@@ -1,6 +1,8 @@
 """Read stored AI issues from Neon for display; never generate or write issues on Render."""
 import os
-from datetime import datetime, timezone
+import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 def read_ai_issue_briefs(market, names, *, max_per_stock=3):
@@ -27,10 +29,23 @@ def read_ai_issue_briefs(market, names, *, max_per_stock=3):
                         WHERE market='US' AND symbol = ANY(%s) AND generated_at <= now()
                         GROUP BY symbol
                     )
-                    SELECT i.symbol, i.headline, i.summary, i.tags, i.generated_at
+                    SELECT i.symbol, i.headline, i.summary, i.tags, i.generated_at,
+                           article.brief->>'time' AS article_clock,
+                           article.brief->'source_articles'->0->>'published_at' AS article_published_at
                     FROM public.news_ai_issues AS i
                     JOIN latest ON latest.symbol = i.symbol
                                AND latest.exchange_day = i.exchange_day
+                    LEFT JOIN LATERAL (
+                        SELECT b.brief
+                        FROM public.news_processed_snapshots AS snapshot
+                        CROSS JOIN LATERAL jsonb_array_elements(
+                            COALESCE(snapshot.result_payload->'issue_briefs', '[]'::jsonb)
+                        ) AS b(brief)
+                        WHERE snapshot.market='미국' AND snapshot.stock_name=i.symbol
+                          AND snapshot.expires_at>now()
+                          AND b.brief->>'headline'=i.headline
+                        ORDER BY snapshot.expires_at DESC LIMIT 1
+                    ) AS article ON TRUE
                     WHERE i.market='US' AND i.generated_at <= now()
                     ORDER BY i.generated_at DESC, i.id DESC
                     """,
@@ -38,13 +53,27 @@ def read_ai_issue_briefs(market, names, *, max_per_stock=3):
                 )
                 rows = cur.fetchall()
         result = {}
-        for symbol, headline, summary, tags, generated_at in rows:
+        for symbol, headline, summary, tags, generated_at, article_clock, article_published_at in rows:
             if not str(headline or "").strip():
                 continue
             briefs = result.setdefault(symbol, [])
             if len(briefs) >= max_per_stock:
                 continue
-            stamp = generated_at.astimezone(timezone.utc).strftime("%H:%M") if isinstance(generated_at, datetime) else ""
+            # The UI time is the source article's publication time, NOT the
+            # time our AI wrote its issue. The two can be hours or days apart.
+            stamp = str(article_clock or "").strip()
+            if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", stamp):
+                stamp = ""
+            if not stamp and article_published_at:
+                try:
+                    published = datetime.fromisoformat(str(article_published_at).replace("Z", "+00:00"))
+                    if published.tzinfo is not None:
+                        stamp = published.astimezone(ZoneInfo("Asia/Seoul")).strftime("%H:%M")
+                except (ValueError, TypeError):
+                    pass
+            # Without a source timestamp, never mislabel AI generation as article publication.
+            if not stamp:
+                stamp = "기사시각 미확인"
             briefs.append({
                 "headline": str(headline).strip(),
                 "summary": str(summary or "").strip(),
@@ -53,6 +82,7 @@ def read_ai_issue_briefs(market, names, *, max_per_stock=3):
                 "stock_names": [symbol],
                 "source": "ai_issue",
                 "generated_at": generated_at.isoformat() if isinstance(generated_at, datetime) else "",
+                "published_at": str(article_published_at or ""),
             })
         return result
     except Exception as exc:
