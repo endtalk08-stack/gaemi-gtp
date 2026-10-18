@@ -61,7 +61,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         def worker(market, names):
             captured["worker_names"] = names
             return {"엔비디아": [{"headline": "확인된 뉴스 이슈", "summary": "원문 근거"}]}
-        with patch.object(market_issue_headlines, "_read_worker_briefs", side_effect=worker):
+        with patch.object(market_issue_headlines, "read_ai_issue_briefs", side_effect=worker):
             result = market_issue_headlines.get_market_issue_headlines("us", [
                 {"name": "NVIDIA", "symbol": "NVDA.O"},
                 {"name": "알파벳 Class A", "symbol": "GOOGL.O"},
@@ -74,7 +74,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         self.assertIn("알파벳", captured["worker_names"])
 
     def test_sidebar_rejects_mismatched_ticker(self):
-        with patch.object(market_issue_headlines, "_read_worker_briefs", return_value={"엔비디아": [{"headline": "타종목 제목"}]}) as worker:
+        with patch.object(market_issue_headlines, "read_ai_issue_briefs", return_value={"엔비디아": [{"headline": "타종목 제목"}]}) as worker:
             out = market_issue_headlines.get_market_issue_headlines(
                 "us", [{"name": "NVIDIA", "symbol": "AAPL.O"}])
         self.assertEqual(out["items"][0]["headline"], "")
@@ -94,10 +94,11 @@ class UsListingNewsIdentityTests(unittest.TestCase):
             if name == "엔비디아":
                 return {"issue_briefs": [{"headline": "서버의 기존 이슈", "summary": "확인된 내용"}]}
             return None
-        with patch.object(news_result, "_read_worker_news_snapshot", side_effect=worker):
+        with patch.object(news_result, "_read_worker_news_snapshot", side_effect=worker), \
+             patch.object(news_result, "read_ai_issue_briefs", return_value={"엔비디아": [{"headline": "AI 이슈", "summary": "AI 분석", "source": "ai_issue"}]}):
             result = news_result.get_shared_stock_news_result("NVIDIA", market="미국", limit=50)
         self.assertEqual(found, ["NVIDIA", "엔비디아"])
-        self.assertEqual(result["issue_briefs"][0]["headline"], "서버의 기존 이슈")
+        self.assertEqual(result["issue_briefs"][0]["headline"], "AI 이슈")
 
     def test_no_worker_result_does_not_run_render_collection_or_write(self):
         """Missing worker output must never start Render news or reuse its old store."""
@@ -105,8 +106,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
             with self.subTest(stock=stock), \
                  patch.object(news_result, "_read_worker_news_snapshot", return_value=None) as snapshot, \
                  patch.object(news_result, "build_stock_news_result", side_effect=AssertionError("Render collected news")), \
-                 patch("backend.services.news_processed_results_store.read_issue_briefs_batch", side_effect=AssertionError("Legacy store read")), \
-                 patch("backend.services.news_processed_results_store.save_issue_briefs", side_effect=AssertionError("Render wrote news")):
+                 patch.object(news_result, "read_ai_issue_briefs", return_value={}):
                 result = news_result.get_shared_stock_news_result(stock, market=market)
             self.assertEqual(snapshot.call_count, 1)
             self.assertEqual(result["issue_briefs"], [])
@@ -120,16 +120,14 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         }
         with patch.object(news_result, "_read_worker_news_snapshot", return_value=worker_result), \
              patch.object(news_result, "build_stock_news_result", side_effect=AssertionError("Render collected news")), \
-             patch("backend.services.news_processed_results_store.read_issue_briefs_batch", side_effect=AssertionError("Legacy store read")), \
-             patch("backend.services.news_processed_results_store.save_issue_briefs", side_effect=AssertionError("Render wrote news")):
+             patch.object(news_result, "read_ai_issue_briefs", return_value={}):
             result = news_result.get_shared_stock_news_result("삼성전자", market="국내")
         self.assertEqual(result["issue_briefs"][0]["headline"], "DigitalOcean 이슈")
 
     def test_sidebar_only_reads_worker_and_never_render_legacy_store(self):
         with patch.object(market_issue_headlines, "_read_worker_briefs", return_value={
             "삼성전자": [{"headline": "DigitalOcean 이슈", "summary": "기사 근거"}],
-        }) as read_worker, \
-             patch("backend.services.news_processed_results_store.read_issue_briefs_batch", side_effect=AssertionError("Legacy store read")):
+        }) as read_worker:
             result = market_issue_headlines.get_market_issue_headlines(
                 "kr", [{"name": "삼성전자", "symbol": "005930"}])
         self.assertEqual(read_worker.call_args.args, ("kr", ["삼성전자"]))
