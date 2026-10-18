@@ -626,7 +626,7 @@ def _cloudflare_answer(question, context, max_completion_tokens=1500, style_prom
     payload = {
         "model": "@cf/openai/gpt-oss-20b",
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT + ("\\n" + style_prompt if style_prompt else "")},
+            {"role": "system", "content": SYSTEM_PROMPT + ("\n" + style_prompt if style_prompt else "")},
             {"role": "user", "content": "참고 데이터(JSON):\n"
              + json.dumps(context, ensure_ascii=False) + "\n\n질문: " + question},
         ],
