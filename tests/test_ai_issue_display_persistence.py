@@ -41,7 +41,7 @@ class AiIssueDisplayPersistenceTests(unittest.TestCase):
         conn = MagicMock()
         cur = conn.__enter__.return_value.cursor.return_value.__enter__.return_value
         cur.fetchall.return_value = [("테슬라", "제목", "본문", [], now, None, None)]
-        with patch.dict(os.environ, {"NEWS_DATABASE_URL": "postgresql://test"}), \\
+        with patch.dict(os.environ, {"NEWS_DATABASE_URL": "postgresql://test"}), \
              patch.dict(sys.modules, {"psycopg": types.SimpleNamespace(connect=lambda *args, **kw: conn)}):
             issues = ai_issue_display_store.read_ai_issue_briefs("us", ["테슬라"])
         self.assertEqual(issues["테슬라"][0]["time"], "기사시각 미확인")
@@ -52,7 +52,7 @@ class AiIssueDisplayPersistenceTests(unittest.TestCase):
         conn = MagicMock()
         cur = conn.__enter__.return_value.cursor.return_value.__enter__.return_value
         cur.fetchall.return_value = [("테슬라", "제목", "본문", [], now, "", "2026-10-18T12:00:00+00:00")]
-        with patch.dict(os.environ, {"NEWS_DATABASE_URL": "postgresql://test"}), \\
+        with patch.dict(os.environ, {"NEWS_DATABASE_URL": "postgresql://test"}), \
              patch.dict(sys.modules, {"psycopg": types.SimpleNamespace(connect=lambda *args, **kw: conn)}):
             issues = ai_issue_display_store.read_ai_issue_briefs("us", ["테슬라"])
         self.assertEqual(issues["테슬라"][0]["time"], "21:00")
