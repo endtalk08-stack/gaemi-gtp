@@ -37,7 +37,7 @@ jobs:
             cd /opt/gaemigtp-news/app
             python3 -c "import importlib.util; print(\"PSYCOPG_OK=\" + str(importlib.util.find_spec(\"psycopg\") is not None)); print(\"NAVER_PROVIDER=\"+str(importlib.util.find_spec(\"backend.providers.naver_news\") is not None)); print(\"NEWS_DETAIL=\"+str(importlib.util.find_spec(\"backend.services.news_detail\") is not None))"
             echo VENV_PYTHON
-            /opt/gaemigtp-news/venv/bin/python -c "import inspect,psycopg; from backend.providers import naver_news; from backend.services.news_detail import read_selected_article_details; print("VENV_PYTHON_READY"); print("NAVER_FETCH_NEWS="+str(hasattr(naver_news,"fetch_news"))); print("DETAIL_READER_SIG=" + str(inspect.signature(read_selected_article_details)))"
+            /opt/gaemigtp-news/venv/bin/python -c "import inspect,psycopg; from backend.providers import naver_news; from backend.services.news_detail import read_selected_article_details; print(\"VENV_PYTHON_READY\"); print(\"NAVER_FETCH_NEWS=\"+str(hasattr(naver_news,\"fetch_news\"))); print(\"DETAIL_READER_SIG=\" + str(inspect.signature(read_selected_article_details)))"
             echo SUDO_PERMISSIONS
             sudo -n -l 2>&1 | tail -25 || true
             echo US_CLOSE_INSPECT_END'
