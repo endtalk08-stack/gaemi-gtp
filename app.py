@@ -8,8 +8,6 @@ from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
-from backend.services.ai_issue_display_store import read_ai_issue_briefs
-from backend.analysis.news.stock_identity import news_snapshot_names
 from backend.services.us_market_close import read_brief
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
@@ -141,20 +139,6 @@ def market_issue_headlines():
     except ValueError:
         return jsonify({"ok": False, "error": "invalid_request"}), 400
     return jsonify(result)
-
-
-@app.get("/api/stock/ai-issues")
-def stock_ai_issues():
-    """Read existing Neon AI issues for restoring chat; never run AI or news collection."""
-    stock = str(request.args.get("stock", "") or "").strip()
-    if not stock or len(stock) > 60:
-        return jsonify({"ok": False, "items": [], "error": "invalid_stock"}), 400
-    names = news_snapshot_names(stock)
-    briefs = read_ai_issue_briefs("us", names)
-    if briefs is None:
-        return jsonify({"ok": False, "items": [], "error": "database_unavailable"}), 503
-    items = next((briefs[name] for name in names if briefs.get(name)), [])
-    return jsonify({"ok": True, "stock": stock, "items": items})
 
 
 @app.get("/analyze")

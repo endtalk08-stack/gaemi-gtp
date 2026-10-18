@@ -9,14 +9,13 @@ import time
 
 from backend.analysis.news.stock_identity import news_snapshot_names
 from .issue_briefs import grounded_issue_display_title
-from .ai_issue_display_store import read_ai_issue_briefs
 
 _MAX_ITEMS = 20
 
 
 def _first_headline(briefs):
     for brief in briefs or []:
-        headline = str(brief.get("headline") or "").strip() if brief.get("source") == "ai_issue" else grounded_issue_display_title(brief)
+        headline = grounded_issue_display_title(brief)
         if headline and headline not in {"기사 주요 내용", "관련 이슈"}:
             return headline
     return ""
@@ -80,13 +79,12 @@ def get_market_issue_headlines(market, items):
         for row in rows
     ]
     all_names = list(dict.fromkeys(name for names in names_per_row for name in names))
-    ai_briefs = read_ai_issue_briefs(market, all_names) or {}
-    worker_briefs = _read_worker_briefs(market, all_names) if market != 'us' else {}
+    worker_briefs = _read_worker_briefs(market, all_names)
     results = []
     for row, names in zip(rows, names_per_row):
         headline = next(
-            (_first_headline(ai_briefs.get(name) or worker_briefs.get(name))
-             for name in names if _first_headline(ai_briefs.get(name) or worker_briefs.get(name))),
+            (_first_headline(worker_briefs.get(name))
+             for name in names if _first_headline(worker_briefs.get(name))),
             "",
         )
         results.append({

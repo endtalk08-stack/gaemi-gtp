@@ -61,7 +61,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         def worker(market, names):
             captured["worker_names"] = names
             return {"엔비디아": [{"headline": "확인된 뉴스 이슈", "summary": "원문 근거"}]}
-        with patch.object(market_issue_headlines, "read_ai_issue_briefs", side_effect=worker):
+        with patch.object(market_issue_headlines, "_read_worker_briefs", side_effect=worker):
             result = market_issue_headlines.get_market_issue_headlines("us", [
                 {"name": "NVIDIA", "symbol": "NVDA.O"},
                 {"name": "알파벳 Class A", "symbol": "GOOGL.O"},
@@ -74,7 +74,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         self.assertIn("알파벳", captured["worker_names"])
 
     def test_sidebar_rejects_mismatched_ticker(self):
-        with patch.object(market_issue_headlines, "read_ai_issue_briefs", return_value={"엔비디아": [{"headline": "타종목 제목"}]}) as worker:
+        with patch.object(market_issue_headlines, "_read_worker_briefs", return_value={"엔비디아": [{"headline": "타종목 제목"}]}) as worker:
             out = market_issue_headlines.get_market_issue_headlines(
                 "us", [{"name": "NVIDIA", "symbol": "AAPL.O"}])
         self.assertEqual(out["items"][0]["headline"], "")
@@ -92,21 +92,21 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         def worker(name, **kwargs):
             found.append(name)
             if name == "엔비디아":
-                return {"issue_briefs": [{"headline": "서버의 기존 이슈", "summary": "확인된 내용"}]}
+                return {"issue_briefs": [{"headline": "서버의 기존 이슈", "summary": "확인된 내용", "time": "16:42", "source_articles": [{"published_at": "2026-10-18T07:42:00+00:00"}]}]}
             return None
-        with patch.object(news_result, "_read_worker_news_snapshot", side_effect=worker), \
-             patch.object(news_result, "read_ai_issue_briefs", return_value={"엔비디아": [{"headline": "AI 이슈", "summary": "AI 분석", "source": "ai_issue"}]}):
+        with patch.object(news_result, "_read_worker_news_snapshot", side_effect=worker):
             result = news_result.get_shared_stock_news_result("NVIDIA", market="미국", limit=50)
         self.assertEqual(found, ["NVIDIA", "엔비디아"])
-        self.assertEqual(result["issue_briefs"][0]["headline"], "AI 이슈")
+        self.assertEqual(result["issue_briefs"][0]["headline"], "서버의 기존 이슈")
+        self.assertEqual(result["issue_briefs"][0]["time"], "16:42")
+        self.assertEqual(result["issue_briefs"][0]["source_articles"][0]["published_at"], "2026-10-18T07:42:00+00:00")
 
     def test_no_worker_result_does_not_run_render_collection_or_write(self):
         """Missing worker output must never start Render news or reuse its old store."""
         for stock, market in [("삼성전자", "국내"), ("테슬라", "미국")]:
             with self.subTest(stock=stock), \
                  patch.object(news_result, "_read_worker_news_snapshot", return_value=None) as snapshot, \
-                 patch.object(news_result, "build_stock_news_result", side_effect=AssertionError("Render collected news")), \
-                 patch.object(news_result, "read_ai_issue_briefs", return_value={}):
+                 patch.object(news_result, "build_stock_news_result", side_effect=AssertionError("Render collected news")):
                 result = news_result.get_shared_stock_news_result(stock, market=market)
             self.assertEqual(snapshot.call_count, 1)
             self.assertEqual(result["issue_briefs"], [])
@@ -119,8 +119,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
             "paired_news_items": [], "storyboard_news_items": [], "keyword_storyboard": [],
         }
         with patch.object(news_result, "_read_worker_news_snapshot", return_value=worker_result), \
-             patch.object(news_result, "build_stock_news_result", side_effect=AssertionError("Render collected news")), \
-             patch.object(news_result, "read_ai_issue_briefs", return_value={}):
+             patch.object(news_result, "build_stock_news_result", side_effect=AssertionError("Render collected news")):
             result = news_result.get_shared_stock_news_result("삼성전자", market="국내")
         self.assertEqual(result["issue_briefs"][0]["headline"], "DigitalOcean 이슈")
 
