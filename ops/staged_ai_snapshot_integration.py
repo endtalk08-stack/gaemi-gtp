@@ -11,7 +11,7 @@ def with_ai_issue_briefs(result_payload, issues, *, display_time, stock_names,
     """AI is primary for 'why moved'; original code issues remain separately saved.
 
     No provider calls, new collections, or changes to raw article/quote content.
-    An empty valid AI result falls back to the code issues, never erases them.
+    An empty AI result stays empty on US issue displays; code remains internal.
     """
     if not isinstance(result_payload, dict):
         raise ValueError("Expected existing snapshot JSON object")
@@ -22,5 +22,5 @@ def with_ai_issue_briefs(result_payload, issues, *, display_time, stock_names,
     updated["_ai_issue_briefs"] = briefs
     if exchange_day is not None:
         updated["_ai_exchange_day"] = exchange_day.isoformat()
-    updated["issue_briefs"] = briefs or deepcopy(code_briefs)
+    updated["issue_briefs"] = briefs
     return updated
