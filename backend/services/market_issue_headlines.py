@@ -9,6 +9,7 @@ import time
 
 from backend.analysis.news.stock_identity import news_snapshot_names
 from .issue_briefs import grounded_issue_display_title
+from .news_freshness import clean_us_snapshot
 
 _MAX_ITEMS = 20
 
@@ -44,7 +45,7 @@ def _read_worker_briefs(market, names):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT stock_name, result_payload->'issue_briefs'
+                    SELECT stock_name, result_payload
                     FROM public.news_processed_snapshots
                     WHERE market=%s AND stock_name = ANY(%s)
                       AND result_limit=50 AND storyboard_limit=3
@@ -54,8 +55,9 @@ def _read_worker_briefs(market, names):
                 )
                 records = cur.fetchall()
         return {
-            name: briefs for name, briefs in records
-            if isinstance(briefs, list)
+            name: (clean_us_snapshot(payload).get("issue_briefs", [])
+                   if market == "us" else payload.get("issue_briefs", []))
+            for name, payload in records if isinstance(payload, dict)
         }
     except Exception as exc:
         print("[market issue] worker snapshot read unavailable: "
