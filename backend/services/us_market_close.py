@@ -47,7 +47,7 @@ def _publisher(url):
 
 def _published(row):
     try:
-        parsed = parsedate_to_datetime(str(row.get("pubDate") or ""))
+        parsed = parsedate_to_datetime(str(row.get("pubDate") or row.get("raw_pub_date") or ""))
         if parsed.tzinfo is None:
             return None
         return parsed.astimezone(NY)
@@ -60,8 +60,13 @@ def select_close_articles(rows, session_date, now_utc=None):
     now = now_utc or datetime.datetime.now(UTC)
     selected, seen_publishers, seen_titles, seen_urls = [], set(), set(), set()
     for row in sorted(rows or [], key=lambda r: _published(r) or datetime.datetime.min.replace(tzinfo=NY), reverse=True):
-        title = _clean(row.get("title"))
-        url = str(row.get("originallink") or row.get("link") or "").strip()
+        # Native NAVER provider rows use raw_*; keep compatibility with
+        # already-normalized rows used by other sources/tests.
+        title = _clean(row.get("title") or row.get("raw_title"))
+        url = str(
+            row.get("originallink") or row.get("raw_original_link")
+            or row.get("link") or row.get("raw_link") or ""
+        ).strip()
         publisher = _publisher(url)
         published = _published(row)
         normalized = re.sub(r"[^가-힣a-z0-9]", "", title.casefold())
