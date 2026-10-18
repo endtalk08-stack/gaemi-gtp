@@ -74,6 +74,33 @@ class StockNewsQueryTests(unittest.TestCase):
             {item["source"] for item in result}, {"Reuters", "CNBC"},
         )
         fetch_queries.assert_called_once()
+ 
+    @patch("backend.services.news_feed._fetch_queries", return_value=[])
+    def test_nebius_queries_use_verified_english_and_korean_aliases(self, fetch_queries):
+        fetch_stock_news("네비우스 그룹", market="미국", limit=20)
+        queries = fetch_queries.call_args.args[0]
+        self.assertEqual(queries, ["네비우스 그룹", "NBIS", "네비우스", "Nebius", "Nebius Group"])
+        self.assertEqual(self.sec_fetch.call_args.args[1], "NBIS")
+
+    @patch("backend.services.news_feed._fetch_queries", return_value=[])
+    def test_marvell_queries_use_verified_company_aliases(self, fetch_queries):
+        fetch_stock_news("마벨 테크놀로지 그룹", market="미국", limit=20)
+        queries = fetch_queries.call_args.args[0]
+        self.assertEqual(queries, ["마벨 테크놀로지 그룹", "MRVL", "마벨", "Marvell", "Marvell Technology"])
+        self.assertEqual(self.sec_fetch.call_args.args[1], "MRVL")
+
+    @patch("backend.services.news_feed._fetch_queries")
+    def test_nebius_real_headline_is_retained_without_keyword_fabrication(self, fetch_queries):
+        fetch_queries.return_value = [{
+            "title": "Nebius announces new data center investment",
+            "description": "Nebius announces expansion and spending for new capacity.",
+            "url": "https://example.org/nebius-announcement",
+            "published_at": "",
+            "source": "Example",
+        }]
+        news = fetch_stock_news("네비우스 그룹", market="미국", limit=20)
+        self.assertEqual(len(news), 1)
+        self.assertEqual(news[0]["title"], "Nebius announces new data center investment")
 
 
 if __name__ == "__main__":
