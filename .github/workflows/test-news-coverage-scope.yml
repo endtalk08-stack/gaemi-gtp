@@ -1,0 +1,29 @@
+name: Validate scoped news coverage corrections
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - backend/analysis/news/catalog.py
+      - backend/services/news_result.py
+      - backend/services/engine.py
+      - frontend/widgets/analysis-data/analysis-data.js
+      - tests/test_news_feed_queries.py
+      - tests/test_news_panel_window.py
+      - tests/test_news_rank_queue_patch.py
+      - ops/staged_news_rank_queue_patch.py
+      - .github/workflows/test-news-coverage-scope.yml
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check syntax, imports, news aliases, panel window, and worker patch
+        run: |
+          python -m py_compile backend/analysis/news/catalog.py backend/services/news_result.py backend/services/engine.py ops/staged_news_rank_queue_patch.py
+          python -m unittest discover -s tests -p 'test_news_feed_queries.py' -v
+          python -m unittest discover -s tests -p 'test_news_panel_window.py' -v
+          python -m unittest discover -s tests -p 'test_news_rank_queue_patch.py' -v
+          python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v
