@@ -151,7 +151,7 @@ def _generate(articles, session_date):
             {"role": "user", "content": _prompt(articles, session_date)},
         ],
         "temperature": 0.2,
-        "max_completion_tokens": 1150,
+        "max_completion_tokens": 1600,
         "reasoning_effort": "low",
         "stream": False,
     }
