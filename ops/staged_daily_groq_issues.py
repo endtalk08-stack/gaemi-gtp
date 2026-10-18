@@ -37,12 +37,29 @@ def parse_issues(response_text):
     return issues
 
 
+def _article_published_epoch(article):
+    """Sort both ISO and RFC news timestamps newest-first; undated last."""
+    if not isinstance(article, dict):
+        return float("-inf")
+    value = str(article.get("published_at") or article.get("pubDate") or "").strip()
+    try:
+        timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            timestamp = parsedate_to_datetime(value)
+        except (TypeError, ValueError, IndexError):
+            return float("-inf")
+    return timestamp.timestamp() if timestamp.tzinfo is not None else float("-inf")
+
+
 def build_model_news(articles):
-    """Number only usable articles; share the exact mapping with storage."""
+    """Number only the 10 latest usable articles; share IDs with storage."""
     news, sources = [], []
     char_budget = 9000
-    for article in articles:
-        if not isinstance(article, dict) or len(news) >= 20 or char_budget <= 0:
+    for article in sorted(articles, key=_article_published_epoch, reverse=True):
+        if len(news) >= 10:
+            break
+        if not isinstance(article, dict) or char_budget <= 0:
             continue
         title = str(article.get("title") or "")[:300]
         content = str(article.get("body") or article.get("description") or "")
@@ -133,7 +150,7 @@ def analyze_news(stock_name, articles):
         "messages": [
             {"role": "system", "content": PROMPT},
             {"role": "user", "content": json.dumps(
-                {"stock": stock_name, "news": news[:20]}, ensure_ascii=False)},
+                {"stock": stock_name, "news": news[:10]}, ensure_ascii=False)},
         ],
         "temperature": 0.2,
         "max_completion_tokens": 900,
