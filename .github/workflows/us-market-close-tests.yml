@@ -1,0 +1,49 @@
+name: US close editorial isolated checks
+on:
+  push:
+    branches: [feat/us-market-close-content-20261018]
+    paths:
+      - 'backend/services/us_market_close.py'
+      - 'tests/test_us_market_close.py'
+      - 'frontend/shell/center-chat/ai-chat.js'
+      - 'frontend/shell/center-chat/analysis-flow.js'
+      - 'app.py'
+      - '.github/workflows/us-market-close-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile isolated modules
+        run: python -m py_compile app.py backend/services/us_market_close.py tests/test_us_market_close.py
+      - name: Run offline tests (no news, DB or AI calls)
+        run: python -m unittest -v tests.test_us_market_close
+      - name: Validate independent 07:00 Asia/Seoul schedule
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          timer = Path("ops/systemd/gaemigtp-us-market-close.timer").read_text()
+          service = Path("ops/systemd/gaemigtp-us-market-close.service").read_text()
+          assert "OnCalendar=*-*-* 07:00:00 Asia/Seoul" in timer
+          assert "Persistent=false" in timer
+          assert "ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.us_market_close_job" in service
+          assert "gaemigtp-news.service" not in service
+          print("US_CLOSE_SCHEDULE_ISOLATED")
+          PY
+          systemd-analyze calendar '*-*-* 07:00:00 Asia/Seoul'
+      - name: Check existing UI JavaScript syntax
+        run: |
+          node --check frontend/shell/center-chat/ai-chat.js
+          node --check frontend/shell/center-chat/analysis-flow.js

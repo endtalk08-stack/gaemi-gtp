@@ -82,11 +82,33 @@
             <button type="button" class="text-sm font-semibold text-[#8f7aa8] transition hover:text-[#9d87b8] dark:text-[#a995bd] dark:hover:text-[#b7a4c9]" data-next-analysis="fortune"></button>
           </div>`;
 
-        const appendUsMarketPrompt = () => {
+        const appendUsMarketPrompt = async () => {
           if (mainContainer.querySelector('[data-us-market-prompt]')) return;
           const prompt = makeUserPrompt('미국장 어땠어?', 'usMarketPrompt');
           choices.insertAdjacentElement('afterend', prompt);
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+          const answer = document.createElement('div');
+          answer.className = responseMessageClass + ' whitespace-pre-line mt-4';
+          answer.setAttribute('role', 'status');
+          answer.textContent = '마감시황을 불러오는 중';
+          prompt.insertAdjacentElement('afterend', answer);
+          try {
+            const response = await fetch(ctx.backendUrl + '/api/market/us-close', {
+              method: 'GET', credentials: 'same-origin'
+            });
+            const result = await response.json();
+            if (requestId !== ctx.getActiveAnalysisRequestId() || !answer.isConnected) return;
+            answer.textContent = (!response.ok || !result.ok)
+              ? '미국장 마감시황을 불러오지 못했어.'
+              : result.available && result.content
+                ? result.content
+                : '해당 거래일의 미국장 마감시황이 아직 준비되지 않았어.';
+          } catch (error) {
+            if (requestId === ctx.getActiveAnalysisRequestId() && answer.isConnected) {
+              answer.textContent = '미국장 마감시황을 불러오지 못했어.';
+            }
+          }
         };
 
         const appendRemainingChoices = (after, completed = []) => {

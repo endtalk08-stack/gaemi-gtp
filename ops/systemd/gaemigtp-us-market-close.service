@@ -1,0 +1,16 @@
+[Unit]
+Description=gaemiGTP independent US market-close editorial
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gaemigtp-news
+Group=gaemigtp-news
+WorkingDirectory=/opt/gaemigtp-news/app
+EnvironmentFile=/etc/gaemigtp/news-worker.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.us_market_close_job
+TimeoutStartSec=125
+NoNewPrivileges=true
+PrivateTmp=true

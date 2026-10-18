@@ -8,6 +8,7 @@ from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
+from backend.services.us_market_close import read_brief
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -71,6 +72,17 @@ def debug_sec_form4():
         "items": [item for item in filings if str(item.get("form") or "").upper() == "4"],
     })
 
+
+
+@app.get("/api/market/us-close")
+def market_us_close():
+    """Only read a completed 24h US close brief; never collect or invoke AI."""
+    try:
+        brief = read_brief()
+    except Exception as exc:
+        print("[us market close] db read failed: " + type(exc).__name__, flush=True)
+        return jsonify({"ok": False, "error": "market_close_unavailable"}), 503
+    return jsonify({"ok": True, "available": bool(brief), **(brief or {})})
 
 
 @app.get("/market/trading-value")

@@ -1,0 +1,79 @@
+name: Stage US close files for one-time root install
+on:
+  push:
+    branches: [feat/us-market-close-content-20261018]
+    paths:
+      - 'ops/install-us-market-close-once.sh'
+      - 'ops/upgrade-us-market-close-collector.sh'
+      - 'backend/services/us_market_close.py'
+      - '.github/workflows/us-close-stage-root-install.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_USER: ${{ vars.NEWS_SSH_USER }}
+      SSH_KEY: ${{ secrets.NEWS_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify reviewed sources without provider calls
+        run: |
+          set -euo pipefail
+          python -m unittest -v tests.test_us_market_close
+          python -m py_compile backend/us_market_close_job.py backend/services/us_market_close.py
+          bash -n ops/install-us-market-close-once.sh
+          bash -n ops/upgrade-us-market-close-collector.sh
+          systemd-analyze calendar '*-*-* 07:00:00 Asia/Seoul'
+          test "$(git hash-object backend/services/us_market_close.py)" = f42cae9e1a728433bf07432f54e0833cc8b15e39
+          test "$(git hash-object backend/us_market_close_job.py)" = e75ce97a0ccbfac125b39c81078a227100dc222f
+          test "$(git hash-object ops/systemd/gaemigtp-us-market-close.service)" = 953afcb6d1ba781f76601e8b5ab85df6f8f45556
+          test "$(git hash-object ops/systemd/gaemigtp-us-market-close.timer)" = 6352e697fbea501694bb83033dc6a6158662409c
+      - name: Configure pinned SSH
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST"; test -n "$SSH_USER"; test -n "$SSH_KEY"; test -n "$SSH_KNOWN_HOSTS"
+          test "$SSH_USER" = "gaemi-news-check"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Stage only in deploy user's home directory (never install or restart)
+        run: |
+          set -euo pipefail
+          stage='/home/gaemi-news-check/news-deploy/us-market-close-pr32'
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" \
+            'umask 077; mkdir -p /home/gaemi-news-check/news-deploy/us-market-close-pr32'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            backend/services/us_market_close.py \
+            "$SSH_USER@$DO_HOST:$stage/us_market_close.py"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            backend/us_market_close_job.py \
+            "$SSH_USER@$DO_HOST:$stage/us_market_close_job.py"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            ops/systemd/gaemigtp-us-market-close.service \
+            "$SSH_USER@$DO_HOST:$stage/gaemigtp-us-market-close.service"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            ops/systemd/gaemigtp-us-market-close.timer \
+            "$SSH_USER@$DO_HOST:$stage/gaemigtp-us-market-close.timer"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            ops/install-us-market-close-once.sh \
+            "$SSH_USER@$DO_HOST:$stage/install.sh"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            ops/upgrade-us-market-close-collector.sh \
+            "$SSH_USER@$DO_HOST:$stage/upgrade.sh"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_USER@$DO_HOST" \
+            'chmod 600 /home/gaemi-news-check/news-deploy/us-market-close-pr32/*; test -s /home/gaemi-news-check/news-deploy/us-market-close-pr32/upgrade.sh; systemctl is-active gaemigtp-news.service'
+          echo 'ROOT_INSTALL_SCRIPT_SHA256_BEGIN'
+          sha256sum ops/install-us-market-close-once.sh
+          echo 'ROOT_INSTALL_SCRIPT_SHA256_END'
+          echo 'ROOT_UPGRADE_SCRIPT_SHA256_BEGIN'
+          sha256sum ops/upgrade-us-market-close-collector.sh
+          echo 'ROOT_UPGRADE_SCRIPT_SHA256_END'
+          echo 'US_CLOSE_STAGED_ONLY_EXISTING_WORKER_UNCHANGED'
