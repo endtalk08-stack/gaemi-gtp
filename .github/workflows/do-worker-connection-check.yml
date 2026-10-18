@@ -40,8 +40,8 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -p ~/.ssh
-          printf '%s\\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          printf '%s\\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
       - name: Verify SSH access and worker service without changing the server
         run: |
           set -euo pipefail
