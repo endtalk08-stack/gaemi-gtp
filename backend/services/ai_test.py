@@ -664,10 +664,20 @@ def ai_test_chat():
     body = request.get_json(silent=True) or {}
     if not isinstance(body, dict):
         return jsonify({"ok": False, "error": "invalid_json"}), 400
-    role = str(body.get("role") or "news")
     question = str(body.get("question") or "").strip()
-    if role not in MODELS:
-        return jsonify({"ok": False, "error": "unsupported_model"}), 400
+    if private_chat:
+        # Client mode is a request, not a membership entitlement. Never accept
+        # an arbitrary model role from a site visitor. Future membership policy
+        # belongs here, on the server, before enabling paid tiers.
+        app_mode = str(body.get("app_mode") or "gaemi").strip().lower()
+        if app_mode not in ("gaemi", "info", "pro"):
+            return jsonify({"ok": False, "error": "unsupported_mode"}), 400
+        role = {"gaemi": None, "info": "news", "pro": "deep"}[app_mode]
+    else:
+        app_mode = None
+        role = str(body.get("role") or "news")
+        if role not in MODELS:
+            return jsonify({"ok": False, "error": "unsupported_model"}), 400
     if not question or len(question) > 800:
         return jsonify({"ok": False, "error": "invalid_input"}), 400
 
@@ -694,8 +704,15 @@ def ai_test_chat():
                 "model": "market-menu-result", "limits": limits_for_request(),
             })
 
+    # gaemi may use the existing deterministic read paths above and the
+    # stock-analysis UI. It never accesses a text-generation provider.
+    deterministic_quote = ("52주" in question or
+                           any(word in question for word in ("전일", "어제", "전 거래일", "지난 거래일")))
+    if private_chat and app_mode == "gaemi" and not deterministic_quote:
+        return jsonify({"ok": False, "error": "ai_mode_disabled"}), 403
+
     stock = _question_stock(question) or str(body.get("stock") or "").strip()
-    if not stock or len(stock) > 50:
+    if len(stock) > 50 or (not stock and not (private_chat and app_mode in ("info", "pro"))):
         return jsonify({"ok": False, "error": "invalid_input"}), 400
     selected = None
     choice = body.get("market_selection")
@@ -720,7 +737,12 @@ def ai_test_chat():
     # Only a new-stock question falls back to the established analysis function.
     provider_called = False
     try:
-        context = _cached_chat_context(stock, selected) if private_chat else None
+        # General info/pro questions without a stock should not require
+        # unrelated /analyze calls. Stock questions still reuse existing data.
+        context = (_cached_chat_context(stock, selected) if private_chat and stock
+                   else ({"stock": "", "news": [], "official_disclosures": [],
+                          "issue_briefs": [], "price_information": [],
+                          "price_metrics": {}} if private_chat else None))
 
         # A quote-only cache cannot answer later news/disclosure questions.
         if context and not ("52주" in question and ("최고가" in question or "신고가" in question)):
@@ -792,7 +814,8 @@ def ai_test_chat():
                 " rank는 원천 순위, display_rank는 표시된 정렬 위치입니다."
                 " 전체 시장 상승률 순위나 실시간 주가로 해석하지 마세요."
             )
-        if not any((context["news"], context["official_disclosures"], context["price_information"], context["price_metrics"])):
+        if stock and not any((context["news"], context["official_disclosures"],
+                              context["price_information"], context["price_metrics"])):
             return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": limits_for_request()}), 422
 
         # The same shared quote supports exact arithmetic in the general chat.
@@ -808,8 +831,17 @@ def ai_test_chat():
                 return jsonify({"ok": True, "stock": stock, "answer": answer, "model": "calculation"})
 
         if private_chat:
+            # Final server-side guard: even special quote paths must never fall
+            # through to Groq when the UI is in gaemi mode.
+            if app_mode == "gaemi":
+                return jsonify({"ok": False, "error": "ai_mode_disabled"}), 403
             if not _settings_ready():
                 return jsonify({"ok": False, "error": "ai_test_not_configured"}), 503
+            # Limit site-wide consumption BEFORE the provider call. Admin
+            # /ai-test bearer-token experiments retain their existing behavior.
+            blocked = _take_slot(role)
+            if blocked:
+                return jsonify({"ok": False, "error": blocked}), 429
 
         history = body.get("history") or []
         dialogue = []
