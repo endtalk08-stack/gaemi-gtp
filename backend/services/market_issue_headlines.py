@@ -16,7 +16,7 @@ _MAX_ITEMS = 20
 
 def _first_headline(briefs):
     for brief in briefs or []:
-        headline = grounded_issue_display_title(brief)
+        headline = str(brief.get("headline") or "").strip() if brief.get("source") == "ai_issue" else grounded_issue_display_title(brief)
         if headline and headline not in {"기사 주요 내용", "관련 이슈"}:
             return headline
     return ""
