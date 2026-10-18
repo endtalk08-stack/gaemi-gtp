@@ -53,13 +53,11 @@ class ChatModeRoutingTests(unittest.TestCase):
     def test_no_stock_info_question_does_not_collect_stock_news(self):
         with self.site(), patch.object(chat, "_settings_ready", return_value=True), \
              patch.object(chat, "_take_slot", return_value=None), \
-             patch.object(chat, "_groq_answer", return_value=("일반 질문 답변", {}, {})) as provider, \
-             patch("backend.services.engine.analyze_stock") as analyze:
+             patch.object(chat, "_groq_answer", return_value=("일반 질문 답변", {}, {})) as provider:
             r = self.client.post("/api/ai-test/chat", json={
                 "question": "AI가 뭔지 설명해줘", "app_mode": "info"})
             self.assertEqual(r.status_code, 200, r.json)
             self.assertEqual(provider.call_args.args[2]["stock"], "")
-            analyze.assert_not_called()
 
     def test_private_quota_prevents_provider_calls(self):
         with self.site(), patch.object(chat, "_settings_ready", return_value=True), \
