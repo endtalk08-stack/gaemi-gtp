@@ -209,6 +209,8 @@ def _market_ranking_reply(question):
 
 SYSTEM_PROMPT = "쉽게 설명 반말로 대답해"
 INFO_STYLE_PROMPT = "답변은 간결하게 작성하고, 불필요한 표와 코드블록은 사용하지 마."
+PRIVATE_CHAT_MAX_ANSWER_CHARS = 1500
+PRIVATE_CHAT_LENGTH_PROMPT = "답변은 1500자 이내로 작성하고 문장을 완결해."
 
 
 def _settings_ready():
@@ -579,7 +581,7 @@ def _groq_answer(model_id, question, context, max_completion_tokens=1500, style_
     payload = {
         "model": model_id,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT + ("\n" + style_prompt if style_prompt else "")},
             {
                 "role": "user",
                 "content": "참고 데이터(JSON):\n"
@@ -871,10 +873,12 @@ def ai_test_chat():
         if dialogue:
             prompt = "이전 대화:\n" + "\n".join(dialogue) + "\n\n현재 질문: " + question
         provider_called = True
-        answer, usage, provider_headers = (_cloudflare_answer(prompt, context, style_prompt=INFO_STYLE_PROMPT if private_chat and app_mode == "info" else None) if role == "cloudflare" else _groq_answer(
+        answer, usage, provider_headers = (_cloudflare_answer(prompt, context, style_prompt=(INFO_STYLE_PROMPT + "\n" + PRIVATE_CHAT_LENGTH_PROMPT) if private_chat and app_mode == "info" else None) if role == "cloudflare" else _groq_answer(
             MODELS[role]["id"], prompt, context,
-            style_prompt=None,
+            style_prompt=PRIVATE_CHAT_LENGTH_PROMPT if private_chat and app_mode == "pro" else None,
         ))
+        if private_chat and app_mode in ("info", "pro"):
+            answer = answer[:PRIVATE_CHAT_MAX_ANSWER_CHARS]
         if admin_test:
             if role != "cloudflare":
                 _remember_groq_remaining(role, provider_headers)
