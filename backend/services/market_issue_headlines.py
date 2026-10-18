@@ -45,7 +45,10 @@ def _read_worker_briefs(market, names):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT stock_name, result_payload
+                    SELECT stock_name, jsonb_build_object(
+                        'issue_briefs', result_payload->'issue_briefs',
+                        '_ai_issue_briefs', result_payload->'_ai_issue_briefs'
+                    )
                     FROM public.news_processed_snapshots
                     WHERE market=%s AND stock_name = ANY(%s)
                       AND result_limit=50 AND storyboard_limit=3
