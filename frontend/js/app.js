@@ -182,6 +182,7 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
         viewsByMode[currentAppMode] = fragment;
       }
       currentAppMode = mode;
+      window.GaemiGTPSidebarHome?.renderRecent?.();
       if (sessionsByMode[mode]) {
         activeChatSession = sessionsByMode[mode];
         area.replaceChildren();
