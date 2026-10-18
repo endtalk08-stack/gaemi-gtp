@@ -77,9 +77,7 @@ class RenderFreshnessTests(unittest.TestCase):
                    "issue_briefs": [brief("stale", 49)]}
         with patch.object(news_result, "news_snapshot_names", return_value=["테슬라"]), patch.object(
             news_result, "_read_worker_news_snapshot", return_value=payload):
-            with patch("backend.services.news_freshness.datetime") as mock_dt:
-                mock_dt.now.return_value = NOW
-                result = news_result.get_shared_stock_news_result("테슬라", market="미국")
+            result = news_result.get_shared_stock_news_result("테슬라", market="미국")
         self.assertEqual(result["issue_briefs"], [])
 
 
