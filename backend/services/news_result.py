@@ -848,7 +848,15 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         # AI issues are authoritative for the issue panel. Keep DO snapshot
         # articles intact, but never substitute keyword-generated issue briefs.
         ai_by_name = read_ai_issue_briefs(market, names)
-        result["issue_briefs"] = next(
-            (ai_by_name[name] for name in names if ai_by_name.get(name)), []
-        )
+        if ai_by_name is None:
+            # A temporary Neon read error must not erase AI issues already
+            # present in the worker snapshot. Never substitute heuristic briefs.
+            result["issue_briefs"] = [
+                brief for brief in result.get("issue_briefs", [])
+                if isinstance(brief, dict) and brief.get("source") == "ai_issue"
+            ]
+        else:
+            result["issue_briefs"] = next(
+                (ai_by_name[name] for name in names if ai_by_name.get(name)), []
+            )
     return _sanitize_news_display_briefs(result)
