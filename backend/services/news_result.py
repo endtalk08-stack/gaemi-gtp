@@ -9,6 +9,7 @@ import time
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE, canonical_us_news_name
 from backend.analysis.news.stock_identity import news_snapshot_names
+from .ai_issue_display_store import read_ai_issue_briefs
 from backend.analysis.news import (
     build_connected_keyword_test,
     build_simple_today_news,
@@ -840,4 +841,12 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
             break
     if worker_result is None:
         return {**_empty_news_result(), "_news_status": "unavailable"}
-    return _sanitize_news_display_briefs(copy.deepcopy(worker_result))
+    result = copy.deepcopy(worker_result)
+    if market in ("미국", "us"):
+        # AI issues are authoritative for the issue panel. Keep DO snapshot
+        # articles intact, but never substitute keyword-generated issue briefs.
+        ai_by_name = read_ai_issue_briefs(market, names)
+        result["issue_briefs"] = next(
+            (ai_by_name[name] for name in names if ai_by_name.get(name)), []
+        )
+    return _sanitize_news_display_briefs(result)
