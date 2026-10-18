@@ -185,16 +185,20 @@ def process_due_ai_snapshots():
                            AND l.exchange_day=%s
                      )
                    ORDER BY s.processed_at DESC
-                   LIMIT 2""",
+                   LIMIT 21""", 
                 (list(APPROVED_US), start_of_day, day),
             )
             candidates = cur.fetchall()
         done = 0
+        attempts = 0
         for stock_name, result_limit, storyboard_limit, tz, fingerprint, payload in candidates:
+            if attempts >= 2:
+                break
             articles = payload.get("paired_news_items") or []
             if not has_eligible_ai_news(articles):
                 print("[news-ai] scheduled skipped reason=no_dated_usable_article stock=%s" % stock_name, flush=True)
                 continue
+            attempts += 1
             outcome = run_stock_batch(conn, [{
                 "market": "US", "symbol": stock_name, "name": stock_name,
                 "exchange_day": day, "articles": articles,
