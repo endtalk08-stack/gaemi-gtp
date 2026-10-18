@@ -1,0 +1,23 @@
+name: DigitalOcean SSH workflow security policy
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/do-worker-connection-check.yml'
+      - '.github/workflows/do-ssh-policy-check.yml'
+      - 'tests/test_do_ssh_workflow_policy.py'
+      - 'docs/digitalocean-ssh-access.md'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate SSH workflow policy without SSH access or Secrets
+        run: python -m unittest -v tests.test_do_ssh_workflow_policy
