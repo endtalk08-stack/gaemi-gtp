@@ -1,0 +1,85 @@
+name: Deploy minimal compatible news coverage patch to existing worker
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-coverage-minimal-deploy.yml]
+permissions:
+  contents: read
+jobs:
+  deploy:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate only selected catalog and queue patch
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_news_feed_queries.py' -q
+          python -m unittest discover -s tests -p 'test_news_rank_queue_patch.py' -q
+      - name: Apply compatible in-place modifications, import test, restart and monitor
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          opts=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          remote="gaemi-deploy@$DO_HOST"
+          scp "${opts[@]}" backend/analysis/news/catalog.py "$remote:/opt/gaemigtp-news/app/ops/.news-coverage-catalog-minimal.next"
+          scp "${opts[@]}" ops/staged_news_rank_queue_patch.py "$remote:/opt/gaemigtp-news/app/ops/.news-coverage-queue-minimal.next"
+          ssh "${opts[@]}" "$remote" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum backend/analysis/news/catalog.py | cut -d' ' -f1)" = 27eca973c92c98fbee0b13d3c448fd705a1c371fb73bf0f8fec2ec656eea428e
+          test "$(sha256sum backend/services/news_result.py | cut -d' ' -f1)" = 10ef9f4f45325664457a959873296e223fc04027f676fed6d62b4c436f0be9ff
+          /opt/gaemigtp-news/venv/bin/python -c 'import backend.news_worker; print("WORKER_IMPORT_BEFORE_OK")'
+          backup="$(mktemp -d ./ops/.news-coverage-minimal-backup.XXXXXX)"
+          cp -p backend/analysis/news/catalog.py "$backup/catalog.py"
+          cp -p backend/services/news_result.py "$backup/news_result.py"
+          cp -p backend/news_worker.py "$backup/news_worker.py"
+          restore() {
+            echo MINIMAL_COVERAGE_ROLLBACK
+            cp "$backup/catalog.py" backend/analysis/news/catalog.py
+            cp "$backup/news_result.py" backend/services/news_result.py
+            cp "$backup/news_worker.py" backend/news_worker.py
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+          }
+          trap restore ERR
+          install -m 644 ops/.news-coverage-catalog-minimal.next backend/analysis/news/catalog.py
+          install -m 644 ops/.news-coverage-queue-minimal.next ops/staged_news_rank_queue_patch.py
+          /opt/gaemigtp-news/venv/bin/python ops/staged_news_rank_queue_patch.py backend/news_worker.py
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from pathlib import Path
+          import ast
+          p=Path('backend/services/news_result.py')
+          src=p.read_text()
+          needle='            "paired_news_items": paired_news_items,\n'
+          if src.count(needle)!=1 or 'recent_news = build_simple_today_news(' not in src:
+              raise ValueError('Live news result differs from expected baseline')
+          if '"panel_news_items"' in src:
+              raise ValueError('Panel news already added; refusing duplicate')
+          update=src.replace(needle,needle+'            "panel_news_items": recent_news[:20],\n',1)
+          ast.parse(update)
+          p.write_text(update)
+          print('PANEL_NEWS_FIELD_PATCHED')
+          PY
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_result.py backend/analysis/news/catalog.py backend/news_worker.py
+          # This preflight catches missing runtime dependencies that py_compile cannot.
+          /opt/gaemigtp-news/venv/bin/python -c 'import backend.news_worker; print("WORKER_IMPORT_AFTER_OK")'
+          before="$(systemctl show gaemigtp-news.service -p NRestarts --value)"
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          sleep 20
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          after="$(systemctl show gaemigtp-news.service -p NRestarts --value)"
+          test "$after" = "$before"
+          trap - ERR
+          echo MINIMAL_COVERAGE_DEPLOY_OK
+          systemctl show gaemigtp-news.service -p ActiveState -p SubState -p MainPID -p NRestarts --no-pager
+          REMOTE
