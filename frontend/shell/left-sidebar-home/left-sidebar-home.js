@@ -21,6 +21,12 @@
     }
   }
 
+  function visibleRecent() {
+    const mode = window.GaemiGTPAppState?.getCurrentAppMode?.() || 'gaemi';
+    // Old entries had no mode metadata; keep them discoverable in all modes.
+    return readRecent().filter(entry => !['gaemi', 'info', 'pro'].includes(entry.mode) || entry.mode === mode);
+  }
+
   function renderRecent() {
     const list = document.getElementById('leftSidebarHomeRecentList');
     const empty = document.getElementById('leftSidebarHomeRecentEmpty');
@@ -43,7 +49,7 @@
     if (empty) empty.hidden = entries.length > 0;
   }
 
-  function recordRecent(type, value, id) {
+  function recordRecent(type, value, id, mode = null) {
     if (!['stock', 'question'].includes(type) || !String(id || '').startsWith('conversation:')) return null;
     const text = String(value || '').trim().slice(0, type === 'stock' ? 80 : 240);
     if (!text) return null;
@@ -60,7 +66,7 @@
   }
 
   function openRecent(index) {
-    const entry = readRecent()[index];
+    const entry = visibleRecent()[index];
     if (!entry) return;
     if (window.innerWidth < 1024) close();
     if (window.GaemiGTPApp?.restoreRecentConversation?.(entry.id)) {
