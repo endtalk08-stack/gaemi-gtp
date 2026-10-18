@@ -1,0 +1,73 @@
+name: Isolate compatible company aliases and panel news only
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-coverage-isolate-panel.yml]
+permissions:
+  contents: read
+jobs:
+  deploy:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply only two news-file changes, validate live runtime and rollback if needed
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          opts=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          remote="gaemi-deploy@$DO_HOST"
+          scp "${opts[@]}" backend/analysis/news/catalog.py "$remote:/opt/gaemigtp-news/app/ops/.news-coverage-catalog-isolated.next"
+          ssh "${opts[@]}" "$remote" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum backend/analysis/news/catalog.py | cut -d' ' -f1)" = 27eca973c92c98fbee0b13d3c448fd705a1c371fb73bf0f8fec2ec656eea428e
+          test "$(sha256sum backend/services/news_result.py | cut -d' ' -f1)" = 10ef9f4f45325664457a959873296e223fc04027f676fed6d62b4c436f0be9ff
+          /opt/gaemigtp-news/venv/bin/python -c 'import backend.news_worker; print("BASELINE_IMPORT_OK")'
+          backup="$(mktemp -d ./ops/.news-coverage-isolated-backup.XXXXXX)"
+          cp -p backend/analysis/news/catalog.py "$backup/catalog.py"
+          cp -p backend/services/news_result.py "$backup/news_result.py"
+          restore() {
+            echo ISOLATED_COVERAGE_ROLLBACK
+            cp "$backup/catalog.py" backend/analysis/news/catalog.py
+            cp "$backup/news_result.py" backend/services/news_result.py
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+          }
+          trap restore ERR
+          install -m 644 ops/.news-coverage-catalog-isolated.next backend/analysis/news/catalog.py
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from pathlib import Path
+          import ast
+          p=Path("backend/services/news_result.py")
+          src=p.read_text()
+          needle='            "paired_news_items": paired_news_items,\n'
+          assert src.count(needle)==1
+          assert 'recent_news = build_simple_today_news(' in src
+          assert '"panel_news_items"' not in src
+          edited=src.replace(needle,needle+'            "panel_news_items": recent_news[:20],\n',1)
+          ast.parse(edited)
+          p.write_text(edited)
+          print("ISOLATED_PANEL_FIELD_READY")
+          PY
+          /opt/gaemigtp-news/venv/bin/python -c 'import backend.news_worker; print("ISOLATED_IMPORT_OK")'
+          restarts_before="$(systemctl show gaemigtp-news.service -p NRestarts --value)"
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          sleep 30
+          echo CHECK_STATE="$(systemctl is-active gaemigtp-news.service || true)"
+          systemctl show gaemigtp-news.service -p ActiveState -p SubState -p NRestarts -p MainPID -p ExecMainStatus --no-pager
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          restarts_after="$(systemctl show gaemigtp-news.service -p NRestarts --value)"
+          test "$restarts_after" = "$restarts_before"
+          trap - ERR
+          echo ISOLATED_COVERAGE_DEPLOY_OK
+          REMOTE
