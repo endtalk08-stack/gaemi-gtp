@@ -3,7 +3,10 @@
 - **Source**: Existing NAVER provider query "뉴욕증시 마감".
 - **Selection**: Search up to 20 metadata rows, pick up to 8 recent closing articles
   from distinct, explicitly supported publishers, read up to 3 genuine article bodies.
-- **AI**: Groq configured in the DO environment, at most **one request per NY session**.
+- **AI**: Dedicated Groq model `openai/gpt-oss-120b` for US market-close editorial,
+  at most **one request per NY session**. Existing stock issue AI (`openai/gpt-oss-20b`)
+  is unchanged. This model cannot be overridden by shared AI environment settings.
+  Both models may still share the same Groq account/organization quota.
   If fewer than 2 full bodies are accessible, skip generation rather than guessing.
 - **Storage**: Neon, migration \`003_us_market_close_editorial.sql\`, one row per US
   market session with 24-hour expiry. Source article **metadata only** is retained
