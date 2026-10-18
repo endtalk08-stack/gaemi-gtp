@@ -62,6 +62,57 @@ class ChatModeRoutingTests(unittest.TestCase):
                         self.assertEqual(groq.call_args.args[0], expected)
                         cf.assert_not_called()
 
+    def test_info_prompt_is_opt_in_and_pro_remains_unchanged(self):
+        with self.site(), patch.object(chat, "_private_provider_ready", return_value=True), \
+             patch.object(chat, "_cloudflare_answer", return_value=("성공", {}, {})) as cf, \
+             patch.object(chat, "_groq_answer", return_value=("성공", {}, {})) as groq:
+            info = self.client.post("/api/ai-test/chat", json={
+                "question": "설명해 줘", "app_mode": "info",
+            })
+            self.assertEqual(info.status_code, 200)
+            self.assertEqual(
+                cf.call_args.kwargs["style_prompt"], chat.INFO_STYLE_PROMPT
+            )
+            self.assertEqual(
+                chat.INFO_STYLE_PROMPT,
+                "답변은 간결하게 작성하고, 불필요한 표와 코드블록은 사용하지 마."
+            )
+            pro = self.client.post("/api/ai-test/chat", json={
+                "question": "설명해 줘", "app_mode": "pro",
+            })
+            self.assertEqual(pro.status_code, 200)
+            self.assertIsNone(groq.call_args.kwargs["style_prompt"])
+
+    def test_cloudflare_prompt_appends_only_when_requested(self):
+        import json
+        import os
+        from unittest.mock import MagicMock
+
+        requests = []
+
+        def stub_urlopen(request, timeout):
+            requests.append(json.loads(request.data.decode("utf-8")))
+            response = MagicMock()
+            response.read.return_value = json.dumps({
+                "choices": [{"message": {"content": "정상 답변"}}]
+            }).encode("utf-8")
+            response.headers = {}
+            response.__enter__.return_value = response
+            return response
+
+        with patch.dict(os.environ, {
+            "CLOUDFLARE_ACCOUNT_ID": "test-account",
+            "CLOUDFLARE_API_TOKEN": "test-token",
+        }), patch.object(chat.urllib.request, "urlopen", side_effect=stub_urlopen):
+            chat._cloudflare_answer("질문", {"stock": ""}, style_prompt=chat.INFO_STYLE_PROMPT)
+            chat._cloudflare_answer("질문", {"stock": ""}, style_prompt=None)
+        self.assertEqual(
+            requests[0]["messages"][0]["content"],
+            chat.SYSTEM_PROMPT + "\n" + chat.INFO_STYLE_PROMPT,
+        )
+        self.assertEqual(requests[1]["messages"][0]["content"], chat.SYSTEM_PROMPT)
+        self.assertEqual(requests[0]["model"], requests[1]["model"])
+
     def test_no_stock_info_question_does_not_collect_stock_news(self):
         with self.site(), patch.object(chat, "_private_provider_ready", return_value=True), \
              patch.object(chat, "_take_slot") as artificial_cap, \
