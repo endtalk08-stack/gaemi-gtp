@@ -1,0 +1,34 @@
+name: Read-only news coverage post-deploy log check
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-news-coverage-postcheck.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Read service post-deploy status and sanitized news collector errors
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -u
+          cd /opt/gaemigtp-news/app || exit 1
+          echo SERVICE_STATUS="$(systemctl is-active gaemigtp-news.service)"
+          echo RANK_QUEUE_PRESENT="$(grep -Fqc 'state.setdefault("ranked_by_feed", {})' backend/news_worker.py || true)"
+          echo SECTION_NEWS_LOGS
+          # No credentials or provider responses are printed.
+          sudo -n /usr/bin/journalctl -u gaemigtp-news.service --since '2026-10-18 00:03:00 UTC' --no-pager -o cat 2>&1 | grep -E '(^\[news-worker\]|^\[news-ai\]|^\[provider:naver-news\]|^\[analyze news trace\])' | tail -n 150 || true
+          REMOTE
