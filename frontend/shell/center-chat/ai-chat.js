@@ -187,6 +187,11 @@
     }
 
     async function requestChatAnswer(question, sessionId, history) {
+      // Freeze mode at the moment the question was sent, not after
+      // asynchronous stock analysis or a later mode dropdown change.
+      const appMode = ['gaemi', 'info', 'pro'].includes(
+        window.GaemiGTPAppState?.getCurrentAppMode?.()
+      ) ? window.GaemiGTPAppState.getCurrentAppMode() : 'gaemi';
       const controller = new AbortController();
       ctx.setActiveQuestionController(controller);
       ctx.setPendingQuestionSessionId(sessionId);
@@ -201,7 +206,10 @@
         model_daily_limit: '오늘은 더 답변하기 어려워.',
         total_daily_limit: '오늘은 더 답변하기 어려워.',
         private_access_required: '로그인이 필요해.',
-        ai_test_not_configured: '아직 답변을 준비하지 못했어.'
+        ai_test_not_configured: '아직 답변을 준비하지 못했어.',
+        ai_mode_disabled: 'gaemi는 AI 질문을 사용하지 않아. info 또는 pro를 선택해 줘.',
+        unsupported_mode: '분석 모드를 다시 선택해 줘.',
+        groq_rate_limit: 'AI 제공사 사용량 한도에 도달했어. 잠시 뒤에 다시 시도해 줘.'
       };
       // 기존 중앙 채팅 로딩 스타일을 그대로 사용한다. 별도 AI 아이콘은 표시하지 않는다.
       const loading = document.createElement('div');
@@ -254,7 +262,7 @@
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            role: 'compare', stock, question, history,
+            app_mode: appMode, stock, question, history,
             ...(marketSelection ? { market_selection: {
               market: marketSelection.market, menu: marketSelection.menu,
               symbol: marketSelection.symbol,
