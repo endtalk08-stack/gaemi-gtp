@@ -61,11 +61,11 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(resolve_us_identity("스페이스X", "SKHY.O")["status"], "pending")
 
     def test_sidebar_can_read_same_company_briefs_once(self):
-        with patch.object(market_issue_headlines, "_read_worker_briefs",
-                          return_value={"알파벳 Class A": [{"headline":"뉴스"}]}) as read:
+        with patch.object(market_issue_headlines, "read_ai_issue_briefs",
+                          return_value={"알파벳 Class A": [{"headline":"AI 뉴스", "source":"ai_issue"}]}) as read:
             value=market_issue_headlines.get_market_issue_headlines(
                 "us", [{"name":"알파벳 Class C", "symbol":"GOOG.O"}])
-        self.assertEqual(value["items"][0]["headline"],"뉴스")
+        self.assertEqual(value["items"][0]["headline"],"AI 뉴스")
         self.assertEqual(value["items"][0]["name"],"알파벳 Class C")
         self.assertIn("알파벳 Class A", read.call_args.args[1])
 
