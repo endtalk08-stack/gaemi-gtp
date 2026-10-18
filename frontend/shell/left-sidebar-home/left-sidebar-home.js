@@ -15,7 +15,7 @@
       if (!Array.isArray(entries)) return [];
       return entries.filter((entry) => entry && ['stock', 'question'].includes(entry.type)
         && typeof entry.value === 'string' && entry.value.trim()
-        && typeof entry.id === 'string' && entry.id.startsWith('conversation:')).slice(0, RECENT_LIMIT);
+        && typeof entry.id === 'string' && entry.id.startsWith('conversation:')).slice(0, RECENT_LIMIT * 4);
     } catch (_) {
       return recentFallback.slice();
     }
@@ -55,7 +55,13 @@
     if (!text) return null;
     const entries = readRecent().filter((entry) => entry.id !== id);
     const selectedMode = ['gaemi', 'info', 'pro'].includes(mode) ? mode : window.GaemiGTPAppState?.getCurrentAppMode?.() || 'gaemi';
-    const next = [{ type, value: text, id, mode: selectedMode }, ...entries].slice(0, RECENT_LIMIT);
+    const seenByMode = {};
+    const next = [{ type, value: text, id, mode: selectedMode }, ...entries]
+      .filter(entry => {
+        const key = ['gaemi', 'info', 'pro'].includes(entry.mode) ? entry.mode : 'legacy';
+        seenByMode[key] = (seenByMode[key] || 0) + 1;
+        return seenByMode[key] <= RECENT_LIMIT;
+      });
     recentFallback = next;
     try { localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next)); } catch (_) { /* browser storage unavailable */ }
     renderRecent();
@@ -241,7 +247,7 @@
     }
   });
 
-  window.GaemiGTPSidebarHome = { render, recordRecent, getRecentIds, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
+  window.GaemiGTPSidebarHome = { render, renderRecent, recordRecent, getRecentIds, setActiveNav, toggle, bindToggleControls, close, toggleMenu, showSection };
   window.addEventListener('storage', (event) => {
     if (event.key === RECENT_STORAGE_KEY) renderRecent();
   });
