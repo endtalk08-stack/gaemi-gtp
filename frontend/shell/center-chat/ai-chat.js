@@ -178,6 +178,14 @@
       row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
+    // The daily US market-close question is served from Neon without a new AI call.
+    function isUsMarketCloseQuestion(question) {
+      const compact = String(question || '').replace(/\\s+/g, '');
+      return compact.length <= 35 &&
+        /^(미국장|미장|미국증시|뉴욕증시)/.test(compact) &&
+        /(어땠|마감|시황|요약|정리)/.test(compact);
+    }
+
     async function requestChatAnswer(question, sessionId, history) {
       const controller = new AbortController();
       ctx.setActiveQuestionController(controller);
@@ -224,6 +232,22 @@
         // server-side result instead of collecting the same data twice.
         if (ctx.getPendingAnalysis()?.stock === stock) await ctx.getPendingAnalysis().promise;
         if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
+        if (!mentionedStock && isUsMarketCloseQuestion(question)) {
+          const response = await fetch(ctx.backendUrl + '/api/market/us-close', {
+            method: 'GET', credentials: 'same-origin', signal: controller.signal
+          });
+          const result = await response.json();
+          if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
+          stopThinking();
+          if (!response.ok || !result.ok) {
+            appendChatError('미국장 마감시황을 불러오지 못했어.', sessionId);
+          } else if (!result.available || !result.content) {
+            appendChatReply('해당 거래일의 미국장 마감시황이 아직 준비되지 않았어.', sessionId);
+          } else {
+            await appendChatReply(result.content, sessionId);
+          }
+          return;
+        }
         const response = await fetch(ctx.backendUrl + '/api/ai-test/chat', {
           method: 'POST',
           credentials: 'same-origin',
