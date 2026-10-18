@@ -1,0 +1,32 @@
+name: Independent chat mode regression
+on:
+  push:
+    branches:
+      - feat/independent-gaemi-info-pro-chats-20261018
+    paths:
+      - 'frontend/js/app.js'
+      - 'frontend/shell/center-chat/search-controls.js'
+      - 'frontend/shell/left-sidebar-home/left-sidebar-home.js'
+      - 'frontend/index.html'
+      - 'tests/test_mode_chat_isolation.js'
+      - '.github/workflows/chat-mode-isolation-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: |
+          node --check frontend/js/app.js
+          node --check frontend/shell/center-chat/search-controls.js
+          node --check frontend/shell/left-sidebar-home/left-sidebar-home.js
+          node --check tests/test_mode_chat_isolation.js
+      - name: Verify independent session storage and sidebar
+        run: node tests/test_mode_chat_isolation.js
