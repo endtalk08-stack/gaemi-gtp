@@ -19,7 +19,7 @@ jobs:
   inspect-only:
     runs-on: ubuntu-latest
     environment: digitalocean-news-worker
-    timeout-minutes: 3
+    timeout-minutes: 14
     env:
       DO_HOST: ${{ secrets.DO_HOST }}
       DO_SSH_USER: gaemi-deploy
@@ -274,7 +274,7 @@ jobs:
       - name: Stage validated disclosure-only source into deploy home
         uses: actions/checkout@v4
         with:
-          ref: dc604d44ea5e4b5223cc972457d367bba2d00fdc
+          ref: 5cea89dfa9a9a6d179293496879feb1dd0da0e26
           persist-credentials: false
 
       - name: Copy disclosure-only files without deploying or handling credentials
@@ -287,6 +287,7 @@ jobs:
             'backend/services/engine.py:engine.py' \
             'backend/providers/sec_filings.py:sec_filings.py' \
             'backend/services/disclosure_transfer.py:disclosure_transfer.py' \
+            'backend/services/disclosure_ranked_universe.py:disclosure_ranked_universe.py' \
             'deploy/disclosures/run_disclosures.py:run_disclosures.py'; do
             source_path="${entry%%:*}"
             target_name="${entry#*:}"
@@ -326,4 +327,8 @@ jobs:
           timeout 180s /opt/gaemigtp-news/venv/bin/python             "$HOME/.gaemi-disclosures/stage/run_disclosures.py" --smoke
           test "$(systemctl is-active gaemigtp-news.service)" = active
           echo DO_ONE_DAY_DISCLOSURE_SMOKE_SUCCESS
+          timeout 540s /opt/gaemigtp-news/venv/bin/python \
+            "$HOME/.gaemi-disclosures/stage/run_disclosures.py" --no-ranked
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          echo DO_MAPPED_ONE_DAY_DISCLOSURES_VALIDATED
           REMOTE
