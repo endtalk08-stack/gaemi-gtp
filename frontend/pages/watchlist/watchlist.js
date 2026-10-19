@@ -1,91 +1,136 @@
-/* Left context sidebar: browser-local watchlist. */
+/* Fixed 40-company watchlist: names + already-stored AI issue titles only.
+   Never fetch quotes, prices, rankings or start news/AI/disclosure collectors. */
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'gaemiGTP_watchlist_v1';
+  const endpoint = (location.hostname.endsWith('github.io')
+    ? 'https://gaemi-gtp.onrender.com' : location.origin) + '/api/fixed-stocks';
+  let stocks = [];
+  let inFlight = null;
 
-  function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, (character) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-    }[character]));
+  function element(tag, text, className) {
+    const el = document.createElement(tag);
+    if (text !== undefined && text !== null) el.textContent = String(text);
+    if (className) el.className = className;
+    return el;
   }
 
-  function readWatchlist() {
-    try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      return Array.isArray(stored) ? stored.filter(Boolean) : [];
-    } catch (_) {
-      return [];
+  function issuesFor(row) {
+    return Array.isArray(row.issues) ? row.issues.filter((item) =>
+      item && typeof item.headline === 'string' && typeof item.summary === 'string'
+    ).slice(0, 3) : [];
+  }
+
+  function openIssueBody(row, issueIndex = -1) {
+    const chat = document.getElementById('chatArea');
+    if (!chat) return;
+    window.GaemiGTPCenterChatSearch?.enterChatWorkspace?.();
+    let panel = document.getElementById('fixedStockIssuePanel');
+    if (!panel) {
+      panel = element('section', null, 'mx-auto my-5 max-w-3xl space-y-5 rounded-xl border border-[#cbd5e1] p-5 dark:border-[#3f3f46]');
+      panel.id = 'fixedStockIssuePanel';
+      chat.insertAdjacentElement('beforebegin', panel);
     }
+    panel.replaceChildren();
+    chat.style.display = 'none';
+    const close = element('button', '← 대화로 돌아가기', 'text-sm text-[#64748b] dark:text-[#a1a1aa]');
+    close.type = 'button';
+    close.addEventListener('click', () => {
+      panel.hidden = true;
+      chat.style.display = '';
+    });
+    panel.appendChild(close);
+    panel.appendChild(element('h2', row.name + ' · AI 뉴스 이슈',
+      'text-lg font-semibold text-[#0f172a] dark:text-white'));
+    const saved = issuesFor(row);
+    const selected = issueIndex >= 0 ? saved.slice(issueIndex, issueIndex + 1) : saved;
+    if (!selected.length) {
+      panel.appendChild(element('p', '저장된 AI 뉴스 이슈가 없습니다.',
+        'text-sm text-[#64748b] dark:text-[#a1a1aa]'));
+    }
+    selected.forEach((issue) => {
+      const block = element('article', null, 'space-y-2 border-t border-[#e2e8f0] py-3 dark:border-[#3f3f46]');
+      block.appendChild(element('h3', issue.headline,
+        'font-semibold text-[#0f172a] dark:text-white'));
+      block.appendChild(element('p', issue.summary,
+        'whitespace-pre-wrap text-[14px] leading-7 text-[#334155] dark:text-[#d4d4d8]'));
+      panel.appendChild(block);
+    });
+    panel.hidden = false;
+    panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
-  function writeWatchlist(stocks) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stocks));
-  }
-
-  function removeWatchlistStock(name) {
-    writeWatchlist(readWatchlist().filter((stock) => stock !== name));
-    render(document.getElementById('leftContextContent'));
-  }
-
-  function render(root) {
+  function renderList(root, { heading = true } = {}) {
     if (!root) return;
-    const stocks = readWatchlist();
-    const stockList = stocks.length
-      ? `<div class="mt-1 space-y-1">${stocks.map((name) => `
-          <div class="flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] font-semibold text-[#475569] dark:text-[#d4d4d8]">
-            <i data-lucide="star" class="h-4 w-4 shrink-0 fill-current text-[#db2777] dark:text-[#e889aa]"></i>
-            <button type="button" class="min-w-0 flex-1 truncate text-left" data-watchlist-stock="${escapeHtml(name)}">${escapeHtml(name)}</button>
-            <button type="button" class="shrink-0 rounded p-1 text-[#94a3b8] transition hover:text-[#475569] dark:text-[#71717a] dark:hover:text-white" data-watchlist-remove="${escapeHtml(name)}" aria-label="${escapeHtml(name)} 관심종목 삭제" title="관심종목 삭제">
-              <i data-lucide="x" class="h-3.5 w-3.5"></i>
-            </button>
-          </div>`).join('')}</div>`
-      : `
-        <div class="context-sidebar-empty">
-          <div class="context-sidebar-empty-icon"><i data-lucide="star" class="w-5 h-5"></i></div>
-          <div class="context-sidebar-empty-title">관심종목을 추가하세요</div>
-          <div class="context-sidebar-empty-copy">관련 종목의 별 아이콘을 누르면 이곳에 저장됩니다.</div>
-        </div>`;
-
-    root.innerHTML = `
-      <section class="context-sidebar-section" aria-label="관심종목">
-        <div class="context-sidebar-section-head">
-          <div class="context-sidebar-section-title">관심종목</div>
-          <button type="button" class="context-sidebar-section-action" onclick="focusStockInput()" title="종목 검색으로 추가">+ 추가</button>
-        </div>
-        ${stockList}
-      </section>
-    `;
-
-    root.querySelectorAll('[data-watchlist-stock]').forEach((button) => {
-      button.addEventListener('click', () => {
-        if (typeof window.openStockInChat === 'function') {
-          window.openStockInChat(button.dataset.watchlistStock);
-        }
+    root.replaceChildren();
+    if (heading) root.appendChild(element('h2', '관심종목 · 시가총액 기준 40개',
+      'px-2 py-2 text-[13px] font-bold text-[#334155] dark:text-[#d4d4d8]'));
+    if (!stocks.length) {
+      root.appendChild(element('p', '등록 종목을 불러오는 중',
+        'px-2 py-4 text-[12px] text-[#64748b]'));
+      return;
+    }
+    [['KR', '국내 20종목'], ['US', '미국 20종목']].forEach(([market, title]) => {
+      root.appendChild(element('h3', title, 'px-2 pt-4 pb-2 text-[12px] font-semibold text-[#64748b] dark:text-[#a1a1aa]'));
+      stocks.filter((row) => row.market === market).forEach((row) => {
+        const entry = element('div', null, 'px-2 py-2 text-[13px] text-[#475569] dark:text-[#d4d4d8]');
+        const stock = element('button', row.name, 'block w-full truncate text-left font-semibold');
+        stock.type = 'button';
+        stock.addEventListener('click', () => openIssueBody(row));
+        entry.appendChild(stock);
+        issuesFor(row).forEach((issue, index) => {
+          const news = element('button', issue.headline,
+            'mt-1 block w-full truncate text-left text-[12px] text-[#64748b] dark:text-[#a1a1aa]');
+          news.type = 'button';
+          news.title = issue.headline;
+          news.addEventListener('click', () => openIssueBody(row, index));
+          entry.appendChild(news);
+        });
+        root.appendChild(entry);
       });
     });
-
-    root.querySelectorAll('[data-watchlist-remove]').forEach((button) => {
-      button.addEventListener('click', () => removeWatchlistStock(button.dataset.watchlistRemove));
-    });
-
-    root.dataset.watchlistMounted = 'true';
-    if (window.lucide) window.lucide.createIcons();
   }
 
-  function mount(root) {
-    render(root);
+  function refreshDisplay() {
+    renderList(document.getElementById('leftContextContent'));
+    renderList(document.getElementById('leftSidebarStocksBody'), { heading: false });
   }
 
   function initialize() {
-    mount(document.getElementById('leftContextContent'));
+    refreshDisplay();
+    if (inFlight) return inFlight;
+    inFlight = fetch(endpoint, { method: 'GET', credentials: 'same-origin' })
+      .then((res) => {
+        if (!res.ok) throw new Error('stocks_unavailable');
+        return res.json();
+      })
+      .then((json) => {
+        if (!json.ok || !Array.isArray(json.items) || json.items.length !== 40) {
+          throw new Error('fixed_universe_incomplete');
+        }
+        const keys = new Set(json.items.map(r => r.market + ':' + r.symbol));
+        if (keys.size !== 40) throw new Error('duplicate_universe_identity');
+        stocks = json.items.map((r) => ({
+          market: r.market, symbol: r.symbol, name: r.name, issues: r.issues
+        }));
+        refreshDisplay();
+      })
+      .catch(() => {
+        for (const id of ['leftContextContent', 'leftSidebarStocksBody']) {
+          const root = document.getElementById(id);
+          if (root) root.replaceChildren(element('p', '관심종목 데이터를 불러오지 못했습니다.',
+            'px-2 py-3 text-sm text-[#64748b]'));
+        }
+      })
+      .finally(() => { inFlight = null; });
+    return inFlight;
   }
 
-  window.GaemiGTPWatchlist = { mount, initialize, refresh: initialize };
-
+  window.GaemiGTPWatchlist = {
+    initialize, refresh: initialize, mount: initialize,
+    getStocks: () => stocks.map(({ market, symbol, name }) => ({ market, symbol, name }))
+  };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
-  } else {
-    initialize();
-  }
+  } else initialize();
 }());
