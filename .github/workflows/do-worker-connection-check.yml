@@ -48,3 +48,45 @@ jobs:
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
             "$DO_SSH_USER@$DO_HOST" \
             'set -eu; test -d /opt/gaemigtp-news/app/backend; printf "SSH_CONNECTION_OK user="; id -un; printf "WORKER_SERVICE="; systemctl is-active gaemigtp-news.service'
+
+      - name: Inspect installed disclosure components read-only
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          cd /opt/gaemigtp-news/app
+          printf 'WORKER_SERVICE='
+          systemctl is-active gaemigtp-news.service
+          for path in \
+            backend/news_worker.py \
+            backend/providers/sec_filings.py \
+            backend/services/engine.py \
+            backend/services/disclosure_scoring.py \
+            backend/services/news_processed_store.py; do
+            if test -f "$path"; then
+              echo "COMPONENT_PRESENT=$path"
+            else
+              echo "COMPONENT_ABSENT=$path"
+            fi
+          done
+          if test -r /etc/gaemigtp/news-worker.env; then
+            echo WORKER_CONFIG_READABLE=yes
+            for name in OPENDART_API_KEY DART_API_KEY SEC_USER_AGENT NEWS_DATABASE_URL DATABASE_URL; do
+              if grep -Eq "^[$]{name}=" /etc/gaemigtp/news-worker.env; then
+                echo "CONFIG_NAME_PRESENT=$name"
+              else
+                echo "CONFIG_NAME_ABSENT=$name"
+              fi
+            done
+          else
+            echo WORKER_CONFIG_READABLE=no
+          fi
+          if test -d .git; then
+            printf 'DO_SOURCE_REVISION='
+            git rev-parse --short HEAD || true
+          else
+            echo DO_SOURCE_REVISION=not-git-checkout
+          fi
+          echo DISCLOSURE_COMPONENT_READONLY_CHECK_DONE
+          REMOTE
