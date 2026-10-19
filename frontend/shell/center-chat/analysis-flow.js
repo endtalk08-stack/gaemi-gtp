@@ -553,17 +553,16 @@
       // 위젯은 제목 문자열이 아니라 백엔드의 고정 section id를 사용한다.
       window.GaemiGTPAnalysisData?.set?.(stockName, result);
 
-      // The backend has finished saving new issue briefs. Refresh only the
-      // matching sidebar title from the same stored source, without recollection.
-      if (Array.isArray(result.issue_briefs) && result.issue_briefs.length > 0) {
-        window.dispatchEvent(new CustomEvent('gaemi:analysis-issues-ready', {
-          detail: {
-            name: session.marketSelection?.name || stockName,
-            market: session.marketSelection?.market || null,
-            symbol: session.marketSelection?.symbol || null
-          }
-        }));
-      }
+      // Optional one-stock invalidation after a successful read, including zero
+      // AI briefs. The sidebar also refreshes independently on reopening;
+      // neither UI waits for the other and no Groq/new news collection is run.
+      window.dispatchEvent(new CustomEvent('gaemi:analysis-issues-ready', {
+        detail: {
+          name: session.marketSelection?.name || stockName,
+          market: session.marketSelection?.market || null,
+          symbol: session.marketSelection?.symbol || null
+        }
+      }));
 
       chatArea.scrollTop = 0;
       if (requestId !== ctx.getActiveAnalysisRequestId() || ctx.getSession()?.id !== session.id) return;
