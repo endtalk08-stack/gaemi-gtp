@@ -114,6 +114,7 @@
           market: r.market, symbol: r.symbol, name: r.name, issues: r.issues
         }));
         refreshDisplay();
+        window.GaemiGTPSidebarHome?.renderRecent?.();
       })
       .catch(() => {
         for (const id of ['leftContextContent', 'leftSidebarStocksBody']) {
