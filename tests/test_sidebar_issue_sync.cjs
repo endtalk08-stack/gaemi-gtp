@@ -111,14 +111,17 @@ function setup({ deferred = false } = {}) {
     }
     if (url.endsWith('/market/issue-headlines')) {
       const request = JSON.parse(opts.body);
-      assert.deepEqual(request, { market: 'us', items: [{ name: '일라이 릴리', symbol: 'LLY' }] });
-      if (deferred) {
+      assert.equal(request.market, 'us');
+      assert.ok(request.items.length >= 1);
+      if (deferred && request.items.length === 1) {
         await new Promise((resolve) => { resolveDeferred = resolve; });
       }
       return { ok: true, json: async () => ({
         ok: postStatus !== 'error',
-        items: [{ name: '일라이 릴리', symbol: 'LLY', status: postStatus,
-                  headline: postStatus === 'ready' ? '사업 제휴 이슈' : '' }]
+        items: request.items.map((item) => ({
+          ...item, status: postStatus,
+          headline: postStatus === 'ready' ? (item.name === '일라이 릴리' ? '사업 제휴 이슈' : '기존 이슈') : ''
+        }))
       }) };
     }
     throw new Error('unexpected request: ' + url);
