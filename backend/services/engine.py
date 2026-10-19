@@ -1328,7 +1328,7 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
             DART_DISCLOSURE_CACHE[cache_key] = (now_ts, [])
             return []
 
-        # 30일 전체 조회는 DART 목록 페이지를 모두 수집한다. 상세 문서는 여기서 조회하지 않는다.
+        # 지정된 조회 기간 전체는 DART 목록 페이지를 모두 수집한다. 상세 문서는 여기서 조회하지 않는다.
         list_items = list(data.get("list", []) or [])
         if max_results == 0:
             total_pages = int(data.get("total_page") or 1)
@@ -1913,7 +1913,7 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
         enriched_count = 0
 
         for i, form in enumerate(forms):
-            # 오른쪽 패널의 30일 전체 목록은 문서 종류로 누락시키지 않는다.
+            # 오른쪽 패널의 24시간 공시 목록은 문서 종류로 누락시키지 않는다.
             if not complete_window and form not in US_MATERIAL_FORMS:
                 continue
             try:
@@ -1958,7 +1958,7 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
                 "cik": str(cik),
             }
 
-            # 30일 전체 목록은 가볍게 수집하고 원문 상세 보강은 이전처럼 최신 max_results건에만 수행한다.
+            # 지정된 조회 기간 전체 목록은 가볍게 수집하고 원문 상세 보강은 최신 max_results건에만 수행한다.
             enrich_latest = (not complete_window or enriched_count < max_results)
             if form in ("4", "4/A") and filing_url and enrich_latest:
                 filing["_needs_form4_enrichment"] = True
@@ -2004,7 +2004,7 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
                         print(f"[미국 공시] {ticker_symbol} 8-K 병렬 보강 실패: {type(enrich_err).__name__}: {enrich_err}")
                     filing.pop("_needs_8k_enrichment", None)
 
-        # 30일 목록에서는 원문 실패/기존 중요도 기준 때문에 8-K를 숨기지 않는다.
+        # 전체 목록에서는 원문 실패/기존 중요도 기준 때문에 8-K를 숨기지 않는다.
         if not complete_window:
             results = [
                 filing for filing in results
