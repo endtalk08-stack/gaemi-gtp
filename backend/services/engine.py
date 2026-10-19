@@ -1402,11 +1402,13 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
 
 def fetch_kr_official_disclosures(stock_code, days=7, max_results=3):
     """DART 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
-    if days == 30 and max_results == 0 and os.getenv("DISCLOSURE_NEON_READ") == "1":
+    if days == 1 and max_results == 0 and os.getenv("DISCLOSURE_NEON_READ") == "1":
         from .disclosure_transfer import read_snapshot
         snapshot = read_snapshot("KR", stock_code)
         if snapshot is not None:
             return snapshot
+        if os.getenv("DISCLOSURE_NEON_ONLY") == "1":
+            return []
     if not OPENDART_API_KEY or not stock_code:
         return []
     stock_code = str(stock_code).strip()
@@ -2021,12 +2023,14 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
 def fetch_us_official_filings(ticker_symbol, days=7, max_results=3, complete_window=False):
     """SEC 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
     ticker_symbol = str(ticker_symbol or "").upper().strip()
-    if (days == 30 and max_results == 30 and complete_window
+    if (days == 1 and max_results == 30 and complete_window
             and os.getenv("DISCLOSURE_NEON_READ") == "1"):
         from .disclosure_transfer import read_snapshot
         snapshot = read_snapshot("US", ticker_symbol)
         if snapshot is not None:
             return snapshot
+        if os.getenv("DISCLOSURE_NEON_ONLY") == "1":
+            return []
     if not ticker_symbol or ticker_symbol not in US_CIKS:
         return []
     cache_key = (ticker_symbol, days, max_results, complete_window)
@@ -3264,7 +3268,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=dart start", flush=True)
             try:
-                kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=30, max_results=0)
+                kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=1, max_results=0)
                 # DART 임원·주요주주 상세(elestock)도 외부 API 호출이라 지연 시
                 # /analyze 전체 worker를 막을 수 있다. 핵심 응답에서는 공시 목록을
                 # 우선 반환하고 상세 조회는 공시 전용 경로에서 처리한다.
@@ -3315,7 +3319,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
             news_result = _attach_news_price_reactions(news_result)
 
             try:
-                us_filings_raw = fetch_us_official_filings(ticker_symbol, days=30, max_results=30, complete_window=True)
+                us_filings_raw = fetch_us_official_filings(ticker_symbol, days=1, max_results=30, complete_window=True)
             except Exception as e:
                 print(f"[미국 공시] fail: {type(e).__name__}: {e}")
                 us_filings_raw = []
@@ -3429,6 +3433,13 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "shareholding_change": item.get("shareholding_change", ""),
                     "shareholding_delta": item.get("shareholding_delta"),
                     "major_shareholder_change": item.get("major_shareholder_change", {}),
+                    "earnings_detail": item.get("earnings_detail", {}),
+                    "supply_contract_detail": item.get("supply_contract_detail", {}),
+                    "financing_detail": item.get("financing_detail", {}),
+                    "treasury_stock_detail": item.get("treasury_stock_detail", {}),
+                    "dividend_detail": item.get("dividend_detail", {}),
+                    "corporate_action_detail": item.get("corporate_action_detail", {}),
+                    "detail_preloaded": item.get("detail_preloaded", False),
                 })
         us_filings = []
         if not is_krw and ticker_symbol:
