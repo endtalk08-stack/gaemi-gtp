@@ -107,3 +107,28 @@ test('domestic remains selectable but never restores KR rows or requests data', 
 test('central issue event stays in analysis flow for future US row integration', () => {
   assert.match(analysisSource, /gaemi:analysis-issues-ready/);
 });
+
+
+test('right panel keeps the complete last-30-days list without the duplicate SEC dropdown', () => {
+  const panel = fs.readFileSync('frontend/shell/right-panel/right-panel-tabs.js', 'utf8');
+  const engine = fs.readFileSync('backend/services/engine.py', 'utf8');
+  const app = fs.readFileSync('app.py', 'utf8');
+  assert.match(engine, /fetch_us_official_filings\(ticker_symbol, days=30, max_results=30, complete_window=True\)/);
+  assert.match(engine, /fetch_kr_official_disclosures\(clean_code, days=30, max_results=0\)/);
+  assert.match(engine, /if not complete_window and len\(results\) >= max_results:/);
+  assert.match(engine, /if not complete_window:\s+results = \[/);
+  assert.match(engine, /for page_no in range\(2, total_pages \+ 1\)/);
+  assert.match(panel, /panelWorkspaceView === 'disclosures'/);
+  assert.doesNotMatch(panel, /\.slice\(0, 30\)/);
+  assert.doesNotMatch(panel, /GaemiGTPUSSecRightPanel|공시 상세보기 ▾/);
+  assert.doesNotMatch(app, /\/disclosures\/sec\/detail|\/disclosures\/sec\/today/);
+  assert.doesNotMatch(indexHtml, /us-sec-detail\.js|sec-chat\.js/);
+  for (const artifact of [
+    'frontend/shell/right-panel/us-sec-detail.js',
+    'backend/services/us_sec_disclosures.py',
+    'tests/test_us_sec_display.py',
+    '.github/workflows/us-sec-chat-display-check.yml'
+  ]) {
+    assert.equal(fs.existsSync(artifact), false, 'redundant file still exists: ' + artifact);
+  }
+});
