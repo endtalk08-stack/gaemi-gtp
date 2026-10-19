@@ -206,7 +206,7 @@
     if (!root) return;
     const renderVersion = ++disclosuresRenderVersion;
     const items = relatedDisclosureItems;
-    const secDetailQueue = [];
+    const missingSecRows = [];
     root.innerHTML = '';
     if (window.GaemiGTPDisclosures?.hydrateDartDetails) {
       // Keep the original detail budget while showing every filing from the 30-day window.
@@ -225,7 +225,7 @@
 
       const title = document.createElement('div');
       title.className = 'right-panel-disclosures__line right-panel-disclosures__title';
-      title.textContent = item.title || '공시 제목 확인 필요';
+      title.textContent = window.GaemiGTPDisclosures?.secFilingTitle?.(item) || item.title || '공시 제목 확인 필요';
 
       const meta = document.createElement('div');
       meta.className = 'right-panel-disclosures__line';
@@ -239,14 +239,8 @@
 
       row.append(title, meta);
 
-      if (['8-K', '8-K/A'].includes(String(item.form || '').toUpperCase())) {
+      if (String(item.form || '').toUpperCase() === '8-K') {
         const keyPoints = Array.isArray(item.key_points_ko) ? item.key_points_ko.filter(Boolean).slice(0, 3) : [];
-        if (!keyPoints.length && item.sec_items) {
-          const eventLine = document.createElement('div');
-          eventLine.className = 'right-panel-disclosures__line';
-          eventLine.textContent = '공식 제출 항목 · ' + String(item.sec_items);
-          row.appendChild(eventLine);
-        }
         keyPoints.forEach((point) => {
           const pointText = String(point).trim();
           const pointLine = document.createElement('div');
@@ -518,12 +512,6 @@
         }
         if (keywordLine.textContent) personLine.appendChild(keywordLine);
         if (personLine.textContent) row.appendChild(personLine);
-        if (String(item.form || '').toUpperCase() === '4/A' && !transactions.length) {
-          const amendmentNote = document.createElement('div');
-          amendmentNote.className = 'right-panel-disclosures__line';
-          amendmentNote.textContent = '정정 공시 · 거래 세부값 확인 필요';
-          row.appendChild(amendmentNote);
-        }
       } else if (!holdings.length && keywordLine.textContent) {
         const keywordOnlyLine = document.createElement('div');
         keywordOnlyLine.className = 'right-panel-disclosures__line';
@@ -533,148 +521,23 @@
         keywordOnlyLine.appendChild(keywordLine);
         row.appendChild(keywordOnlyLine);
       }
-      // Enrich only forms that currently lack numeric fields. The 30-day list
-      // and the existing Form 4 / DART rendering above remain untouched.
-      const form = String(item.form || '').toUpperCase();
-      if (String(item.source || '').toUpperCase() === 'SEC') {
-        if (!['4', '4/A', '8-K', '8-K/A', '144', '10-Q', '10-K'].includes(form)) {
-          const description = String(item.description || '').trim();
-          if (description && description !== item.title && description !== 'SEC 공식 공시') {
-            const descriptionLine = document.createElement('div');
-            descriptionLine.className = 'right-panel-disclosures__line';
-            descriptionLine.textContent = description;
-            row.appendChild(descriptionLine);
-          }
-        }
-        if (['144', '10-Q', '10-K'].includes(form) && item.ticker && item.accession) {
-          const factLines = document.createElement('div');
-          factLines.className = 'right-panel-sec-facts';
-          row.appendChild(factLines);
-          secDetailQueue.push({ item, target: factLines });
-        }
+      if (String(item.source || '').toUpperCase() === 'SEC' &&
+          ['144', '10-Q', '10-K'].includes(String(item.form || '').toUpperCase()) &&
+          item.link) {
+        const extra = document.createElement('div');
+        row.appendChild(extra);
+        missingSecRows.push({ item, target: extra });
       }
       list.appendChild(row);
     });
     section.appendChild(list);
     root.appendChild(section);
-    void hydrateMissingSecDetails(secDetailQueue, renderVersion);
-  }
-
-  async function hydrateMissingSecDetails(queue, renderVersion) {
-    if (!queue.length) return;
-    let index = 0;
-    const apiBase = window.location.hostname.endsWith('github.io')
-      ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
-    await Promise.all(Array.from({ length: Math.min(2, queue.length) }, async () => {
-      while (index < queue.length) {
-        if (renderVersion !== disclosuresRenderVersion || panelWorkspaceView !== 'disclosures') return;
-        const { item, target } = queue[index++];
-        try {
-          const query = new URLSearchParams({ stock: item.ticker, accession: item.accession });
-          const response = await fetch(apiBase + '/disclosures/sec/detail?' + query.toString());
-          if (!response.ok) continue;
-          const payload = await response.json();
-          if (!payload.ok || !payload.detail || !target.isConnected) continue;
-          if (renderVersion !== disclosuresRenderVersion || panelWorkspaceView !== 'disclosures') return;
-          const detail = payload.detail;
-          const lines = [];
-          for (const field of (detail.fields || []).slice(0, 12)) {
-            const label = String(field.label || '').trim();
-            const value = String(field.value || '').trim();
-            if (label && value) lines.push(label + ' · ' + value);
-          }
-          for (const metric of (detail.metrics || []).slice(0, 4)) {
-            const val = Number(metric.value);
-            if (!Number.isFinite(val)) continue;
-            const unit = String(metric.unit || '');
-            const formatted = unit === 'USD/shares'
-              ? ' {
-    relatedDisclosureItems = Array.isArray(items) ? items : [];
-    panelWorkspaceView = 'disclosures';
-    savePanelWorkspaceView();
-    document.body.classList.add('right-panel-open');
-    window.applySidebarState?.();
-    if (activeTabId !== 'panel-workspace') {
-      setActiveTab('panel-workspace', false);
-      return;
+    if (missingSecRows.length) {
+      void window.GaemiGTPDisclosures?.hydrateMissingSecDetails?.(
+        missingSecRows,
+        () => renderVersion === disclosuresRenderVersion && panelWorkspaceView === 'disclosures'
+      );
     }
-    renderRelatedDisclosuresPanel();
-  }
-  function setActiveTab(id, persist = true) { if (!tabs.some(t => t.id === id)) return; activeTabId = id; tabs.forEach(tab => { if (tab.id !== 'panel-workspace' && !getView(tab.id)) makePlaceholderView(tab); }); document.querySelectorAll('[data-tab-view]').forEach(view => { const active = view.dataset.tabView === activeTabId; view.hidden = !active; view.setAttribute('aria-hidden', active ? 'false' : 'true'); }); renderTabs(); if (activeTabId === 'panel-workspace') renderPanelWorkspaceView(); if (persist) saveState(); }
-  function nextCustomLabel() { let n = 1; const existing = new Set(tabs.map(t => t.label)); while (existing.has(`분석 #${n}`)) n += 1; return `분석 #${n}`; }
-  function addTab() { const id = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; const tab = { id, label: nextCustomLabel(), icon: 'square-chart-gantt', closable: true }; tabs.push(tab); makePlaceholderView(tab); setActiveTab(id); }
-  function removeTab(id) { const index = tabs.findIndex(t => t.id === id); if (index === -1 || tabs[index].closable === false || tabs.length <= 1) return; const wasActive = activeTabId === id; tabs.splice(index, 1); const view = getView(id); if (view) view.remove(); if (wasActive) activeTabId = (tabs[Math.max(0, index - 1)] || tabs[0]).id; setActiveTab(activeTabId); }
-  function initialize() {
-    normalizeLegacyPanelWorkspaceDom();
-    if (!getTabList() || !getContentRoot() || getTabList().dataset.bound === 'true') return;
-    const stored = readState(); tabs = stored?.tabs?.length ? stored.tabs : DEFAULT_TABS.map(t => ({ ...t })); activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'panel-workspace'; panelWorkspaceView = ''; savePanelWorkspaceView();
-    tabs.forEach(tab => { if (tab.id !== 'panel-workspace') makePlaceholderView(tab); });
-    getTabList().addEventListener('click', event => { const toggle = event.target.closest('[data-panel-workspace-menu-toggle]'); if (toggle) { event.stopPropagation(); togglePanelWorkspaceMenu(); return; } const viewButton = event.target.closest('[data-panel-workspace-view]'); if (viewButton) { event.stopPropagation(); selectPanelWorkspaceView(viewButton.dataset.panelWorkspaceView); return; } const close = event.target.closest('[data-close-tab-id]'); if (close) { event.stopPropagation(); removeTab(close.dataset.closeTabId); return; } const tab = event.target.closest('[data-right-panel-tab]'); if (tab) { togglePanelWorkspaceMenu(false); setActiveTab(tab.dataset.rightPanelTab); } });
-    document.addEventListener('click', event => { if (!event.target.closest('#rightPanelTabs')) togglePanelWorkspaceMenu(false); }); getTabList().dataset.bound = 'true'; setActiveTab(activeTabId, false); saveState();
-  }
-  function syncActiveStockPanels() {
-    // 화면별 재수집 없이 기존 분석 데이터 변경을 현재 열린 메뉴에 반영한다.
-    if (panelWorkspaceView === 'news') loadActiveStockNews();
-    else if (panelWorkspaceView === 'disclosures') {
-      loadActiveStockDisclosures();
-      void renderRelatedDisclosuresPanel();
-    }
-  }
-  window.addEventListener('gaemi-analysis-data-change', syncActiveStockPanels);
-  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedDisclosures, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true }); else initialize();
-})();
- + val.toLocaleString('en-US', { maximumFractionDigits: 2 })
-              : ' {
-    relatedDisclosureItems = Array.isArray(items) ? items : [];
-    panelWorkspaceView = 'disclosures';
-    savePanelWorkspaceView();
-    document.body.classList.add('right-panel-open');
-    window.applySidebarState?.();
-    if (activeTabId !== 'panel-workspace') {
-      setActiveTab('panel-workspace', false);
-      return;
-    }
-    renderRelatedDisclosuresPanel();
-  }
-  function setActiveTab(id, persist = true) { if (!tabs.some(t => t.id === id)) return; activeTabId = id; tabs.forEach(tab => { if (tab.id !== 'panel-workspace' && !getView(tab.id)) makePlaceholderView(tab); }); document.querySelectorAll('[data-tab-view]').forEach(view => { const active = view.dataset.tabView === activeTabId; view.hidden = !active; view.setAttribute('aria-hidden', active ? 'false' : 'true'); }); renderTabs(); if (activeTabId === 'panel-workspace') renderPanelWorkspaceView(); if (persist) saveState(); }
-  function nextCustomLabel() { let n = 1; const existing = new Set(tabs.map(t => t.label)); while (existing.has(`분석 #${n}`)) n += 1; return `분석 #${n}`; }
-  function addTab() { const id = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; const tab = { id, label: nextCustomLabel(), icon: 'square-chart-gantt', closable: true }; tabs.push(tab); makePlaceholderView(tab); setActiveTab(id); }
-  function removeTab(id) { const index = tabs.findIndex(t => t.id === id); if (index === -1 || tabs[index].closable === false || tabs.length <= 1) return; const wasActive = activeTabId === id; tabs.splice(index, 1); const view = getView(id); if (view) view.remove(); if (wasActive) activeTabId = (tabs[Math.max(0, index - 1)] || tabs[0]).id; setActiveTab(activeTabId); }
-  function initialize() {
-    normalizeLegacyPanelWorkspaceDom();
-    if (!getTabList() || !getContentRoot() || getTabList().dataset.bound === 'true') return;
-    const stored = readState(); tabs = stored?.tabs?.length ? stored.tabs : DEFAULT_TABS.map(t => ({ ...t })); activeTabId = tabs.some(t => t.id === stored?.activeTabId) ? stored.activeTabId : 'panel-workspace'; panelWorkspaceView = ''; savePanelWorkspaceView();
-    tabs.forEach(tab => { if (tab.id !== 'panel-workspace') makePlaceholderView(tab); });
-    getTabList().addEventListener('click', event => { const toggle = event.target.closest('[data-panel-workspace-menu-toggle]'); if (toggle) { event.stopPropagation(); togglePanelWorkspaceMenu(); return; } const viewButton = event.target.closest('[data-panel-workspace-view]'); if (viewButton) { event.stopPropagation(); selectPanelWorkspaceView(viewButton.dataset.panelWorkspaceView); return; } const close = event.target.closest('[data-close-tab-id]'); if (close) { event.stopPropagation(); removeTab(close.dataset.closeTabId); return; } const tab = event.target.closest('[data-right-panel-tab]'); if (tab) { togglePanelWorkspaceMenu(false); setActiveTab(tab.dataset.rightPanelTab); } });
-    document.addEventListener('click', event => { if (!event.target.closest('#rightPanelTabs')) togglePanelWorkspaceMenu(false); }); getTabList().dataset.bound = 'true'; setActiveTab(activeTabId, false); saveState();
-  }
-  function syncActiveStockPanels() {
-    // 화면별 재수집 없이 기존 분석 데이터 변경을 현재 열린 메뉴에 반영한다.
-    if (panelWorkspaceView === 'news') loadActiveStockNews();
-    else if (panelWorkspaceView === 'disclosures') {
-      loadActiveStockDisclosures();
-      void renderRelatedDisclosuresPanel();
-    }
-  }
-  window.addEventListener('gaemi-analysis-data-change', syncActiveStockPanels);
-  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedDisclosures, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true }); else initialize();
-})();
- + val.toLocaleString('en-US', { maximumFractionDigits: 0 });
-            lines.push([metric.label, formatted, metric.period_end].filter(Boolean).join(' · '));
-          }
-          lines.forEach(value => {
-            const line = document.createElement('div');
-            line.className = 'right-panel-disclosures__line';
-            line.textContent = value;
-            target.appendChild(line);
-          });
-        } catch (error) {
-          console.warn('[오른쪽 SEC 공시 상세] 조회 실패:', error);
-        }
-      }
-    }));
   }
   function showRelatedDisclosures(items) {
     relatedDisclosureItems = Array.isArray(items) ? items : [];
