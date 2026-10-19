@@ -89,7 +89,7 @@
       Array.isArray(snapshot?.disclosures) && snapshot.disclosures.length
         ? snapshot.disclosures
         : (Array.isArray(snapshot?.usFilings) ? snapshot.usFilings : [])
-    );
+    ).slice(0, 30);
   }
   function selectRelatedNewsItems(items, limit = 20, officialReserve = 4) {
     const source = Array.isArray(items) ? [...items] : [];
@@ -208,8 +208,7 @@
     const items = relatedDisclosureItems;
     root.innerHTML = '';
     if (window.GaemiGTPDisclosures?.hydrateDartDetails) {
-      // Keep the original detail budget while showing every filing from the 30-day window.
-      await window.GaemiGTPDisclosures.hydrateDartDetails(items, 30);
+      await window.GaemiGTPDisclosures.hydrateDartDetails(items);
     }
     // 다른 종목이나 메뉴를 선택하는 동안 완료된 이전 상세 요청은 무시한다.
     if (renderVersion !== disclosuresRenderVersion || panelWorkspaceView !== 'disclosures') return;
@@ -526,7 +525,7 @@
     root.appendChild(section);
   }
   function showRelatedDisclosures(items) {
-    relatedDisclosureItems = Array.isArray(items) ? items : [];
+    relatedDisclosureItems = Array.isArray(items) ? items.slice(0, 30) : [];
     panelWorkspaceView = 'disclosures';
     savePanelWorkspaceView();
     document.body.classList.add('right-panel-open');

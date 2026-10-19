@@ -54,8 +54,8 @@
     const initialMarkup = list?.innerHTML || '';
     const backendUrl = window.location.hostname.endsWith('github.io')
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
-    let region = '해외';
-    let tab = 'cap';
+    let region = '국내';
+    let tab = 'popular';
     let requestId = 0;
     let changeSorted = false;
 
@@ -86,77 +86,9 @@
       return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 2 });
     };
 
-    // Keep the original ranking-row UI. Only US-cap uses the stored stock names
-    // and AI issue headlines; existing KR/US popularity and trading-value stay intact.
-    const showCapRanking = async (id) => {
-      if (title) title.textContent = region === '해외'
-        ? '미국 시가총액 TOP 20' : '시가총액 TOP 20';
-      if (subtitle) subtitle.textContent = region === '해외' ? '/ 해외' : '/ 국내';
-      list.replaceChildren();
-      if (region !== '해외') {
-        list.textContent = '국내 시가총액 종목 목록은 아직 연결되지 않았습니다.';
-        return;
-      }
-      list.textContent = '종목을 불러오는 중이야.';
-      try {
-        const response = await fetch(backendUrl + '/api/market/us-cap-headlines');
-        if (!response.ok) throw new Error('stored_cap_unavailable');
-        const data = await response.json();
-        if (id !== requestId) return;
-        if (!data.ok || !Array.isArray(data.items) || data.items.length !== 20) {
-          throw new Error('stored_cap_invalid');
-        }
-        list.replaceChildren();
-        data.items.forEach((stock, index) => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer';
-          button.addEventListener('click', () => window.openStockInChat?.(stock.name));
-
-          const top = document.createElement('div');
-          top.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start';
-          const rank = document.createElement('span');
-          rank.className = 'text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]';
-          rank.textContent = String(index + 1).padStart(2, '0');
-          const name = document.createElement('span');
-          name.className = 'font-bold text-[13px] text-[#0f172a] gtp-dark-text truncate';
-          name.textContent = String(stock.name || '');
-          top.append(rank, name, document.createElement('span'));
-
-          const thirdRow = document.createElement('div');
-          thirdRow.className = 'grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center min-h-[16px]';
-          const headlines = document.createElement('div');
-          headlines.className = 'text-right text-[12px] text-[#64748b] dark:text-[#a1a1aa]';
-          (Array.isArray(stock.headlines) ? stock.headlines : []).forEach((headline) => {
-            const issue = document.createElement('div');
-            issue.className = 'font-semibold leading-5';
-            issue.textContent = String(headline);
-            headlines.appendChild(issue);
-          });
-          thirdRow.append(document.createElement('span'), document.createElement('span'), headlines);
-          button.append(top, thirdRow);
-          list.appendChild(button);
-        });
-      } catch (_) {
-        if (id === requestId) list.textContent = '저장된 종목 목록을 읽지 못했어.';
-      }
-    };
-
     const showDomesticRanking = async () => {
       const id = ++requestId;
       if (!list) return;
-      if (tab === 'cap') {
-        if (changeSortButton) {
-          changeSortButton.disabled = true;
-          changeSortButton.setAttribute('aria-disabled', 'true');
-        }
-        await showCapRanking(id);
-        return;
-      }
-      if (changeSortButton) {
-        changeSortButton.disabled = false;
-        changeSortButton.setAttribute('aria-disabled', 'false');
-      }
       const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
       if ((tab !== 'value' && tab !== 'popular') || (tab === 'popular' && !market)) {
         list.innerHTML = initialMarkup;
@@ -298,13 +230,12 @@
     });
 
     changeSortButton?.addEventListener('click', () => {
-      if (tab === 'cap') return;
       changeSorted = !changeSorted;
       applyChangeSort();
     });
 
-    bindStaticSelection('[data-legacy-region]', 1);
-    bindStaticSelection('[data-info-tab-action]', 0);
+    bindStaticSelection('[data-legacy-region]');
+    bindStaticSelection('[data-info-tab-action]');
     sidebar.querySelectorAll('[data-legacy-region]').forEach((button) => {
       if (button.disabled) return;
       button.addEventListener('click', () => {
@@ -320,7 +251,7 @@
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
-    // Default to US cap, while preserving the original KR/US ranking tabs.
+    // Show the live KR popularity list on the first market sidebar view.
     void showDomesticRanking();
   }
 
