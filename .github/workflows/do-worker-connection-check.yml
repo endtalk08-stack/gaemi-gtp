@@ -238,10 +238,15 @@ jobs:
           print('DO_LOGIN_DART_CONFIG=' + str(bool(os.getenv('OPENDART_API_KEY') or os.getenv('DART_API_KEY'))).lower(), flush=True)
           try:
               from backend.services.engine import fetch_us_official_filings
+              import inspect
+              print('DO_SEC_SUPPORTED_PARAMS=' + ','.join(inspect.signature(fetch_us_official_filings).parameters), flush=True)
               start = time.monotonic()
-              # max_results=0 intentionally avoids Form 4/8-K individual downloads;
-              # this checks only the official SEC JSON list for one stock.
-              rows = fetch_us_official_filings('AAPL', days=30, max_results=0, complete_window=True)
+              # Avoid entire filing enrichment fan-out during server baseline.
+              parameters = inspect.signature(fetch_us_official_filings).parameters
+              args = {'days': 30, 'max_results': 0}
+              if 'complete_window' in parameters:
+                  args['complete_window'] = True
+              rows = fetch_us_official_filings('AAPL', **args)
               print('DO_SEC_LIST_LENGTH=' + str(len(rows)), flush=True)
               print('DO_SEC_LIST_HAS_ACCESSION=' + str(bool(rows and rows[0].get('accession'))).lower(), flush=True)
               print('DO_SEC_LIST_SECONDS=' + str(round(time.monotonic()-start, 2)), flush=True)
