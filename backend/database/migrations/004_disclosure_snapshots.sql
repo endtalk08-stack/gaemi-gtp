@@ -1,4 +1,7 @@
--- Temporary disclosure snapshot only (24h TTL; refreshed rolling 30-day filings).\n-- The reader ignores records after 24h and the DigitalOcean collector prunes\n-- expired snapshots after each successful collection. No long-term history table.\n-- No changes to news tables.
+-- Temporary disclosure snapshot only: last 24h filings and 24h TTL.
+-- DigitalOcean refreshes each stock, and a separate sweep may delete expired rows.
+-- Reader always ignores rows older than 24 hours; no long-term disclosure archive.
+-- No changes to news tables.
 CREATE TABLE IF NOT EXISTS public.disclosure_snapshots (
     market text NOT NULL CHECK (market IN ('KR', 'US')),
     symbol text NOT NULL,
