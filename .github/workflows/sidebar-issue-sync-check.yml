@@ -92,6 +92,21 @@ jobs:
           assert sum(int(t['shares']) for t in enriched['derivative_transactions']) == 131938
           assert '파생증권 2건' in enriched['transaction_summary']
           assert '내부자 매도 1건' in enriched['transaction_summary']
+          # A derivative-only September filing must not masquerade as a cash sale.
+          only_rsu = rsu_xml.split('<nonDerivativeTable>')[0] + \
+              rsu_xml.split('</nonDerivativeTable>')[1]
+          rsu_only_rows = _panel_form4_from_xml(only_rsu)['transactions']
+          assert len(rsu_only_rows) == 2
+          assert all(row['derivative'] for row in rsu_only_rows)
+          assert sum(int(row['shares']) for row in rsu_only_rows) == 131938
+          from backend.providers.sec_filings import fetch_company_submissions, _CACHE
+          import json
+          _CACHE.clear()
+          with patch('backend.providers.sec_filings.urllib.request.urlopen',
+                     side_effect=lambda *a, **k: BytesIO(json.dumps({'filings': {'recent': {'form': []}}}).encode())) as request:
+              assert fetch_company_submissions(320193)['filings']['recent']['form'] == []
+              assert fetch_company_submissions(320193)['filings']['recent']['form'] == []
+              assert request.call_count == 1  # Shared JSON cache, no duplicate SEC hit.
           print('SEC_FORM4_DERIVATIVES_DEDUP_OK')
           print('SEC_EXISTING_PROVIDER_DETAILS_OK')
           PY
