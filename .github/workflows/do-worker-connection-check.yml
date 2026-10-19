@@ -274,7 +274,7 @@ jobs:
       - name: Stage validated disclosure-only source into deploy home
         uses: actions/checkout@v4
         with:
-          ref: c251abb8f8059ca19b8805667df794b84e96e13e
+          ref: dc604d44ea5e4b5223cc972457d367bba2d00fdc
           persist-credentials: false
 
       - name: Copy disclosure-only files without deploying or handling credentials
@@ -296,3 +296,34 @@ jobs:
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
             "$DO_SSH_USER@$DO_HOST" \
             'set -eu; chmod 600 "$HOME/.gaemi-disclosures/stage/"*.py; /opt/gaemigtp-news/venv/bin/python -m py_compile "$HOME/.gaemi-disclosures/stage/"*.py; test "$(systemctl is-active gaemigtp-news.service)" = active; echo DISCLOSURES_STAGED_SYNTAX_OK_NO_DEPLOY'
+
+
+      - name: One-off 24-hour DART and SEC Neon snapshot smoke test
+        env:
+          TRANSFER_DB_URL: ${{ secrets.NEWS_DATABASE_URL }}
+          TRANSFER_DART_KEY: ${{ secrets.OPENDART_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$TRANSFER_DB_URL"
+          test -n "$TRANSFER_DART_KEY"
+          umask 077
+          local_dir="$(mktemp -d)"
+          trap 'rm -rf "$local_dir"' EXIT
+          python3 - "$local_dir/credentials.json" <<'PY'
+          import json, os, sys
+          with open(sys.argv[1], "w", encoding="utf-8") as handle:
+              json.dump({
+                  "NEWS_DATABASE_URL": os.environ["TRANSFER_DB_URL"],
+                  "OPENDART_API_KEY": os.environ["TRANSFER_DART_KEY"],
+              }, handle)
+          PY
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12             "$DO_SSH_USER@$DO_HOST"             'set -eu; test ! -e "$HOME/.gaemi-disclosures/credentials.json"; test -f "$HOME/.gaemi-disclosures/stage/run_disclosures.py"; test "$(systemctl is-active gaemigtp-news.service)" = active'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12             "$local_dir/credentials.json"             "$DO_SSH_USER@$DO_HOST:.gaemi-disclosures/credentials.json"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12             "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          trap 'rm -f "$HOME/.gaemi-disclosures/credentials.json"' EXIT
+          chmod 600 "$HOME/.gaemi-disclosures/credentials.json"
+          timeout 180s /opt/gaemigtp-news/venv/bin/python             "$HOME/.gaemi-disclosures/stage/run_disclosures.py" --smoke
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          echo DO_ONE_DAY_DISCLOSURE_SMOKE_SUCCESS
+          REMOTE
