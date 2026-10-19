@@ -3,7 +3,7 @@ window.GaemiGTPDisclosures = window.GaemiGTPDisclosures || {};
 
 window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = null) {
   const candidates = (Array.isArray(items) ? items : [])
-    .filter((item) => String(item?.source || '').toUpperCase() === 'DART' && item?.receipt_no && item?.stock_code);
+    .filter((item) => String(item?.source || '').toUpperCase() === 'DART' && item?.receipt_no && item?.stock_code && !item?.snapshot_only);
   const targets = Number.isFinite(limit) ? candidates.slice(0, Math.max(0, limit)) : candidates;
   if (!targets.length) return items;
 
@@ -60,12 +60,16 @@ window.GaemiGTPDisclosures.hydrateMissingSecDetails = async function (rows, isCu
       const { item, target } = rows[next++];
       if (!item?.link || !target) continue;
       try {
-        const url = apiBase + '/disclosures/sec/detail?' +
-          new URLSearchParams({ url: item.link }).toString();
-        const response = await fetch(url);
-        if (!response.ok) continue;
-        const payload = await response.json();
-        const detail = payload?.ok ? payload.detail : null;
+        let detail = item.panel_extra_detail && typeof item.panel_extra_detail === 'object'
+          ? item.panel_extra_detail : null;
+        if (!detail && !item.snapshot_only) {
+          const url = apiBase + '/disclosures/sec/detail?' +
+            new URLSearchParams({ url: item.link }).toString();
+          const response = await fetch(url);
+          if (!response.ok) continue;
+          const payload = await response.json();
+          detail = payload?.ok ? payload.detail : null;
+        }
         if (!detail || !isCurrent() || !target.isConnected) continue;
         const texts = [];
         (Array.isArray(detail.fields) ? detail.fields : []).slice(0, 12).forEach(field => {
@@ -131,7 +135,7 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
               (item) => String(item?.source || '').toUpperCase() === 'DART'
             );
             // Only the central domestic disclosure uses the compact card. The right panel
-            // continues rendering its complete independent list.
+            // continues rendering its independent one-day list.
             const centralDomestic = domesticItems.length > 0;
             const centralCard = Array.isArray(disclosures) && disclosures.length > 0;
             const centralItems = centralCard ? disclosures.slice(0, 1) : disclosures;
