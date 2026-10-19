@@ -20,6 +20,7 @@ def main(argv=None):
     parser.add_argument("--market", choices=("KR", "US", "all"), default="all")
     parser.add_argument("--smoke", action="store_true", help="One KR and one US stock only")
     parser.add_argument("--cleanup-only", action="store_true", help="Remove expired 24-hour rows only")
+    parser.add_argument("--no-ranked", action="store_true", help="Verify mapped stock universe without refreshing rankings")
     args = parser.parse_args(argv)
 
     if not APP.is_dir() or not STAGE.is_dir():
@@ -56,7 +57,7 @@ def main(argv=None):
         "KR": sorted(engine.DART_STOCK_CORP_CODES),
         "US": sorted(engine.US_CIKS),
     }
-    if not args.smoke:
+    if not args.smoke and not args.no_ranked:
         from backend.services.disclosure_ranked_universe import resolve_universe
         registered = resolve_universe(engine)
     chosen = {
