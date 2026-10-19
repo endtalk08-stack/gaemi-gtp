@@ -1536,7 +1536,7 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
         # Form 4 derivative transactions (options, warrants) are separate XML
         # blocks. Keep their type so exercise/awards are not labeled as cash buys.
         derivative_blocks = re.findall(
-            r"<(?:[A-Za-z0-9_.-]+:)?derivativeTransaction\\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?derivativeTransaction>",
+            r"<(?:[A-Za-z0-9_.-]+:)?derivativeTransaction\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?derivativeTransaction>",
             submission_text, flags=re.I | re.S,
         )
         for block in derivative_blocks:
