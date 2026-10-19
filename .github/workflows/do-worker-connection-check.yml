@@ -274,3 +274,73 @@ jobs:
           fi
           test -n "$CHECK_DB_SECRET" && test -n "$CHECK_DART_SECRET"
           echo DISCLOSURE_BOTH_SECRETS_READY
+      - name: Run one-time SEC and DART snapshot sync into Neon
+        env:
+          TRANSFER_DB_URL: ${{ secrets.NEWS_DATABASE_URL }}
+          TRANSFER_DART_KEY: ${{ secrets.OPENDART_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$TRANSFER_DB_URL" && test -n "$TRANSFER_DART_KEY"
+          local_dir="$(mktemp -d)"
+          remote_dir=/home/gaemi-deploy/disclosures-migration-staging
+          cleanup() { rm -rf "$local_dir"; }
+          trap cleanup EXIT
+          umask 077
+          python - "$local_dir/.disclosure-credentials.json" <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          Path(sys.argv[1]).write_text(json.dumps({
+              "NEWS_DATABASE_URL": os.environ["TRANSFER_DB_URL"],
+              "OPENDART_API_KEY": os.environ["TRANSFER_DART_KEY"],
+          }))
+          PY
+          chmod 600 "$local_dir/.disclosure-credentials.json"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" 'test -f /home/gaemi-deploy/disclosures-migration-staging/engine.py && test -f /home/gaemi-deploy/disclosures-migration-staging/disclosure_transfer.py && systemctl is-active gaemigtp-news.service'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$local_dir/.disclosure-credentials.json" \
+            "$DO_SSH_USER@$DO_HOST":"$remote_dir"/.disclosure-credentials.json
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          folder=/home/gaemi-deploy/disclosures-migration-staging
+          trap 'rm -f "$folder/.disclosure-credentials.json"' EXIT
+          cd /opt/gaemigtp-news/app
+          timeout 145s /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from pathlib import Path
+          import json, os, sys
+          credential=Path('/home/gaemi-deploy/disclosures-migration-staging/.disclosure-credentials.json')
+          credentials=json.loads(credential.read_text())
+          credential.unlink()
+          for key,value in credentials.items():
+              os.environ[key]=value
+          import psycopg
+          with psycopg.connect(os.environ['NEWS_DATABASE_URL'],connect_timeout=5) as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='disclosure_snapshots')")
+                  ready=bool(cur.fetchone()[0])
+          print("DO_DISCLOSURE_NEON_TABLE_ACCESS="+str(ready).lower(),flush=True)
+          if not ready:
+              sys.exit(2)
+          import backend.services
+          backend.services.__path__.insert(0,'/home/gaemi-deploy/disclosures-migration-staging')
+          from backend.services.disclosure_transfer import collect_once
+          from backend.services import engine
+          is_staged=Path(engine.__file__).resolve()==Path('/home/gaemi-deploy/disclosures-migration-staging/engine.py')
+          print("DO_DISCLOSURE_STAGED_ENGINE="+str(is_staged).lower(),flush=True)
+          if not is_staged:
+              sys.exit(3)
+          failures=[]
+          for market,symbol in [('KR','005930'),('US','AAPL')]:
+              try:
+                  result=collect_once(market,symbol)
+                  print("DO_DISCLOSURE_SYNC_OK="+market+":"+symbol+":"+str(result['filing_count']),flush=True)
+              except Exception as exc:
+                  print("DO_DISCLOSURE_SYNC_FAIL="+market+":"+symbol+":"+type(exc).__name__,flush=True)
+                  failures.append(market)
+          if failures:
+              sys.exit(4)
+          print('DO_DISCLOSURE_BOTH_MARKETS_STORED',flush=True)
+          PY
+          echo "DO_NEWS_WORKER_AFTER_SYNC=$(systemctl is-active gaemigtp-news.service)"
+          REMOTE
