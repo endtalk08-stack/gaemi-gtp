@@ -162,8 +162,6 @@ US_CIKS = {
 US_FILING_CACHE = {}
 US_FORM4_DETAIL_CACHE = {}
 US_FORM4_DETAIL_CACHE_TTL = 3600
-US_SEC_DETAIL_CACHE = {}
-US_SEC_FACTS_CACHE = {}
 US_8K_DETAIL_CACHE = {}
 US_8K_DETAIL_CACHE_TTL = 3600
 
@@ -1528,14 +1526,8 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
             f"{int(cik)}/{clean_accession}/{accession}.txt"
         )
         txt_req = urllib.request.Request(submission_txt_url, headers=sec_headers)
-        try:
-            with urllib.request.urlopen(txt_req, timeout=5) as txt_resp:
-                submission_text = txt_resp.read(2_000_000).decode("utf-8", errors="ignore")
-        except (OSError, urllib.error.HTTPError):
-            # Form 4/A may not expose the SGML document; reuse the primary XML.
-            primary_req = urllib.request.Request(filing_url, headers=sec_headers)
-            with urllib.request.urlopen(primary_req, timeout=5) as primary_resp:
-                submission_text = primary_resp.read(2_000_000).decode("utf-8", errors="ignore")
+        with urllib.request.urlopen(txt_req, timeout=5) as txt_resp:
+            submission_text = txt_resp.read().decode("utf-8", errors="ignore")
 
         filing["person"] = _tag_value(submission_text, "rptOwnerName")
         filing["officer_title"] = _tag_value(submission_text, "officerTitle")
@@ -2011,7 +2003,6 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
         docs = recent.get("primaryDocument", [])
         descriptions = recent.get("primaryDocDescription", [])
         acceptance_datetimes = recent.get("acceptanceDateTime", [])
-        sec_item_numbers = recent.get("items", [])
 
         today = datetime.datetime.now(ZoneInfo("America/New_York")).date()
         results = []
@@ -2053,8 +2044,7 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
             filing = {
                 "date": dates[i],
                 "form": form,
-                "description": description or f"SEC {form} 공시",
-                "sec_items": str(sec_item_numbers[i] if i < len(sec_item_numbers) else ""),
+                "description": description or "SEC 공식 공시",
                 "time": filing_time,
                 "acceptance_datetime": acceptance_datetime,
                 "url": filing_page_url,
@@ -2142,113 +2132,6 @@ def fetch_us_official_filings(ticker_symbol, days=7, max_results=3, complete_win
         if cached and now_ts - cached[0] < 300:
             return cached[1]
         return _fetch_us_official_filings_uncached(ticker_symbol, days, max_results, complete_window)
-
-
-
-def fetch_us_sec_missing_detail(ticker_symbol, accession):
-    """Right-panel only: verified SEC details for forms missing existing inline facts.
-
-    The original 30-day list and Form 4/8-K renderers remain authoritative.
-    SEC metadata constrains the accession and document URL; this is read-only.
-    """
-    ticker = str(TICKERS.get(str(ticker_symbol or "").strip(), ticker_symbol or "")).upper().strip()
-    accession = str(accession or "").strip()
-    if ticker not in US_CIKS or not re.fullmatch(r"\d{10}-\d{2}-\d{6}", accession):
-        raise ValueError("invalid_sec_identifier")
-    filings = fetch_us_official_filings(ticker, days=30, max_results=30, complete_window=True)
-    filing = next((row for row in filings if row.get("accession") == accession), None)
-    if filing is None:
-        raise ValueError("sec_filing_not_in_recent_window")
-    form = str(filing.get("form") or "").upper()
-    if form not in {"144", "10-Q", "10-K"}:
-        return {"form": form, "fields": [], "metrics": [], "status": "existing_renderer"}
-    now = time.time()
-    cache_key = (ticker, accession)
-    cached = US_SEC_DETAIL_CACHE.get(cache_key)
-    if cached and now - cached[0] < 900:
-        return cached[1]
-
-    result = {"form": form, "fields": [], "metrics": [], "status": "partial"}
-    try:
-        headers = {"User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
-                   "Accept": "application/json,text/xml,application/xml,*/*"}
-        if form == "144":
-            source_url = str(filing.get("original_document_url") or "")
-            if not source_url.startswith("https://www.sec.gov/Archives/edgar/data/"):
-                raise ValueError("invalid_sec_document_url")
-            request = urllib.request.Request(source_url, headers=headers)
-            with urllib.request.urlopen(request, timeout=7) as response:
-                raw = response.read(1_500_000).decode("utf-8", errors="ignore")
-            person = _tag_value(raw, "nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold")
-            if person:
-                result["fields"].append({"label": "매도 예정자", "value": person})
-            # Each securitiesInformation block represents a separate proposed sale.
-            blocks = re.findall(
-                r"<(?:[A-Za-z0-9_.-]+:)?securitiesInformation\b[^>]*>(.*?)"
-                r"</(?:[A-Za-z0-9_.-]+:)?securitiesInformation>",
-                raw, flags=re.I | re.S,
-            )
-            for block in blocks[:8]:
-                for label, tag in (
-                    ("증권 종류", "securitiesClassTitle"),
-                    ("매도 예정 주식 수", "numberOfUnitsToBeSold"),
-                    ("예정 시장가치(USD)", "aggregateMarketValue"),
-                    ("매도 예정일", "approxSaleDate"),
-                ):
-                    value = _tag_value(block, tag)
-                    if value:
-                        result["fields"].append({"label": label, "value": value})
-        else:
-            cik = int(US_CIKS[ticker])
-            companyfacts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
-            company_cached = US_SEC_FACTS_CACHE.get(ticker)
-            if company_cached and now - company_cached[0] < 900:
-                companyfacts = company_cached[1]
-            else:
-                request = urllib.request.Request(companyfacts_url, headers=headers)
-                with urllib.request.urlopen(request, timeout=10) as response:
-                    companyfacts = json.loads(response.read(12_000_000).decode("utf-8"))
-                US_SEC_FACTS_CACHE[ticker] = (time.time(), companyfacts)
-            us_gaap = (companyfacts.get("facts") or {}).get("us-gaap") or {}
-            duration_min, duration_max = (60, 120) if form == "10-Q" else (280, 400)
-            metric_tags = (
-                ("매출", ("RevenueFromContractWithCustomerExcludingAssessedTax",
-                         "RevenueFromContractWithCustomerIncludingAssessedTax",
-                         "Revenues", "SalesRevenueNet"), "USD"),
-                ("영업이익", ("OperatingIncomeLoss",), "USD"),
-                ("순이익", ("NetIncomeLoss", "ProfitLoss"), "USD"),
-                ("희석 EPS", ("EarningsPerShareDiluted",), "USD/shares"),
-            )
-            for label, tags, unit in metric_tags:
-                for tag in tags:
-                    facts = (us_gaap.get(tag) or {}).get("units") or {}
-                    values = list(facts.get(unit) or [])
-                    candidates = []
-                    for fact in values:
-                        if fact.get("accn") != accession or fact.get("form") != form:
-                            continue
-                        try:
-                            days = (datetime.date.fromisoformat(fact["end"]) -
-                                    datetime.date.fromisoformat(fact["start"])).days
-                        except (KeyError, TypeError, ValueError):
-                            continue
-                        if duration_min <= days <= duration_max and isinstance(fact.get("val"), (int, float)):
-                            candidates.append(fact)
-                    if not candidates:
-                        continue
-                    current = max(candidates, key=lambda fact: (fact["end"], fact["start"]))
-                    result["metrics"].append({
-                        "label": label, "unit": unit, "value": current["val"],
-                        "period_end": current["end"]
-                    })
-                    break
-        if result["fields"] or result["metrics"]:
-            result["status"] = "ready"
-    except (OSError, ValueError, KeyError, TypeError) as exc:
-        print(f"[미국 공시 상세] {ticker} {form} 실패: {type(exc).__name__}: {exc}")
-        result["status"] = "unavailable"
-    US_SEC_DETAIL_CACHE[cache_key] = (time.time(), result)
-    return result
 
 
 def format_us_official_filings(ticker_symbol, filings=None):
@@ -3647,18 +3530,9 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                         or item.get("transaction_kind")
                         or "내부자 거래"
                     ) if str(item.get("form", "")).upper() == "4" else (
-                        item.get("transaction_summary") if item.get("transactions") else "내부자 거래 정정 공시"
-                    ) if str(item.get("form", "")).upper() == "4/A" else (
                         item.get("event_title")
-                        or ({"144": "증권 매도 예정 신고", "10-Q": "분기 실적보고서",
-                             "10-K": "연간 실적보고서", "6-K": "외국기업 수시보고서",
-                             "20-F": "외국기업 연차보고서",
-                             "SC 13D": "5% 이상 지분 보유 신고",
-                             "SC 13G": "5% 이상 지분 보유 신고",
-                             "S-1": "증권 등록신고서", "S-3": "간이 증권 등록신고서",
-                             "424B5": "증권 발행 투자설명서"}.get(str(item.get("form", "")).upper()))
                         or item.get("description")
-                        or ("SEC " + str(item.get("form") or "공시"))
+                        or "SEC 공시"
                     ),
                     "source": "SEC",
                     "date": item.get("date", ""),
@@ -3668,10 +3542,6 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "link": item.get("url", ""),
                     "keywords": item.get("keywords", []),
                     "form": item.get("form", ""),
-                    "ticker": ticker_symbol,
-                    "accession": item.get("accession", ""),
-                    "sec_items": item.get("sec_items", ""),
-                    "description": item.get("description", ""),
                     "item": item.get("item", ""),
                     "items": item.get("items", []),
                     "event_title": item.get("event_title", ""),
