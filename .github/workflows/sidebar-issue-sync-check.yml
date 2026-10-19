@@ -9,6 +9,9 @@ on:
       - 'frontend/shell/right-panel/right-panel-tabs.js'
       - 'backend/services/engine.py'
       - 'app.py'
+      - 'backend/providers/sec_filings.py'
+      - 'frontend/js/disclosures.js'
+      - 'tests/test_news_feed_queries.py'
       - 'tests/test_sidebar_issue_sync.cjs'
       - '.github/workflows/sidebar-issue-sync-check.yml'
   workflow_dispatch:
@@ -30,6 +33,28 @@ jobs:
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
           node --check frontend/shell/center-chat/analysis-flow.js
           node --check frontend/shell/right-panel/right-panel-tabs.js
-          python -m py_compile backend/services/engine.py app.py
+          node --check frontend/js/disclosures.js
+          python -m py_compile backend/services/engine.py backend/providers/sec_filings.py app.py
       - name: Sidebar synchronization regression tests
         run: node --test tests/test_sidebar_issue_sync.cjs
+      - name: SEC provider detail regression (offline)
+        run: |
+          python - <<'PY'
+          from backend.providers.sec_filings import _panel_form144_fields, _panel_filing_metrics, _panel_submission
+          xml = '<securitiesInformation><noOfUnitsSold>6500</noOfUnitsSold><aggregateMarketValue>1400250</aggregateMarketValue><approxSaleDate>10/19/2026</approxSaleDate></securitiesInformation>'
+          values = {i['label']:i['value'] for i in _panel_form144_fields(xml)}
+          assert values['매도 예정 주식 수'] == '6500'
+          assert values['예상 시장가치(USD)'] == '1400250'
+          accn = '0001045810-26-000011'
+          facts = {'facts':{'us-gaap':{'NetIncomeLoss':{'units':{'USD':[
+            {'accn':accn,'form':'10-Q','start':'2026-01-01','end':'2026-06-30','val':999},
+            {'accn':accn,'form':'10-Q','start':'2026-04-01','end':'2026-06-30','val':123}]}}}}}
+          assert _panel_filing_metrics(facts,accn,'10-Q')[0]['value'] == 123
+          try:
+              _panel_submission('https://attacker.example/not-a-sec-document')
+              raise AssertionError('must reject non-SEC archive link')
+          except ValueError:
+              pass
+          print('SEC_EXISTING_PROVIDER_DETAILS_OK')
+          PY
+
