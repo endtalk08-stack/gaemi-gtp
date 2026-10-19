@@ -256,3 +256,17 @@ jobs:
           echo DO_SEC_READONLY_SMOKE_COMPLETE
           REMOTE
 
+
+      - name: Inspect disclosure scheduler prerequisites without changing host
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          if command -v crontab >/dev/null; then echo DO_CRONTAB_AVAILABLE=yes; else echo DO_CRONTAB_AVAILABLE=no; fi
+          if command -v flock >/dev/null; then echo DO_FLOCK_AVAILABLE=yes; else echo DO_FLOCK_AVAILABLE=no; fi
+          if test -f "$HOME/.gaemi-disclosures/stage/run_disclosures.py"; then echo DO_DISCLOSURE_RUNNER_PRESENT=yes; else echo DO_DISCLOSURE_RUNNER_PRESENT=no; fi
+          if test -f "$HOME/.gaemi-disclosures/credentials.json"; then echo DO_DISCLOSURE_CREDENTIALS_PRESENT=yes; else echo DO_DISCLOSURE_CREDENTIALS_PRESENT=no; fi
+          if (crontab -l 2>/dev/null || true) | grep -q 'GAEMIGTP_DISCLOSURE_SYNC_V1'; then echo DO_DISCLOSURE_CRON_PRESENT=yes; else echo DO_DISCLOSURE_CRON_PRESENT=no; fi
+          echo DO_SCHEDULER_INSPECTION_DONE
+          REMOTE
