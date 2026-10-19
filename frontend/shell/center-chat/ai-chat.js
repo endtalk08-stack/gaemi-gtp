@@ -262,6 +262,36 @@
           }
           return;
         }
+        // SEC questions are answered from the official filing list, not AI inference.
+        // Each detail is fetched only when its card is opened; nothing is saved.
+        const compact = question.replace(/\s+/g, '');
+        if (stock && compact.length <= 100 && /공시/.test(compact) &&
+            /(오늘|당일|있|나왔|보여|알려|몇건|목록|확인)/.test(compact)) {
+          const secUrl = ctx.backendUrl + '/disclosures/sec/today?' +
+            new URLSearchParams({ stock }).toString();
+          const secResponse = await fetch(secUrl, {
+            method: 'GET', credentials: 'same-origin', signal: controller.signal
+          });
+          const secResult = await secResponse.json();
+          if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
+          // Korean stocks continue through their existing chat route.
+          if (secResponse.status !== 400 || secResult.error !== 'unsupported_stock') {
+            stopThinking();
+            if (!secResponse.ok || !secResult.ok) {
+              appendChatError('SEC에서 공시 목록을 조회하지 못했어. 공시가 없다는 뜻은 아니야.', sessionId);
+            } else {
+              const count = Array.isArray(secResult.items) ? secResult.items.length : 0;
+              const msg = secResult.ticker + ' · 미국 공시일(ET) ' + secResult.filing_date +
+                ' 기준 공시 ' + count + '건' +
+                (count ? '이 있어. 아래 공시를 누르면 상세정보를 확인할 수 있어.' : '이 없어.');
+              const reply = ctx.appendChatMessage('assistant', msg, 'answer', sessionId);
+              if (reply && count && window.GaemiGTPSecChat) {
+                window.GaemiGTPSecChat.renderList(secResult.items, reply, secResult.filing_date);
+              }
+            }
+            return;
+          }
+        }
         const response = await fetch(ctx.backendUrl + '/api/ai-test/chat', {
           method: 'POST',
           credentials: 'same-origin',
