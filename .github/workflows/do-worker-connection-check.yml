@@ -256,3 +256,41 @@ jobs:
           echo DO_SEC_READONLY_SMOKE_COMPLETE
           REMOTE
 
+      - name: Smoke-check staged 30-day SEC list without touching worker
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          cd /opt/gaemigtp-news/app
+          timeout 35s /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          import importlib.util, os, pathlib
+          from backend.services import engine as running_engine
+          source = pathlib.Path('/home/gaemi-deploy/disclosures-migration-staging/engine.py')
+          print('STAGED_ENGINE_EXISTS='+str(source.is_file()).lower(),flush=True)
+          if not source.is_file():
+              raise SystemExit(1)
+          spec=importlib.util.spec_from_file_location('backend.services._staged_disclosure_engine',source)
+          stage=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(stage)
+          print('DO_STAGE_WINDOW_PARAM='+str('complete_window' in stage.fetch_us_official_filings.__code__.co_varnames).lower(),flush=True)
+          print('DO_DART_ENV_ACCESSIBLE='+str(bool(stage.OPENDART_API_KEY)).lower(),flush=True)
+          items=stage.fetch_us_official_filings('AAPL',days=30,max_results=0,complete_window=True)
+          print('DO_STAGE_SEC_30DAY_COUNT='+str(len(items)),flush=True)
+          print('DO_STAGE_SEC_30DAY_VALID='+str(bool(items and all(item.get('accession') for item in items))).lower(),flush=True)
+          print('DO_STAGE_SEC_30DAY_FORMS='+','.join(sorted({str(x.get('form','')) for x in items}))[:180],flush=True)
+          print('DO_RUNNING_ENGINE_UNCHANGED='+str(not hasattr(running_engine.fetch_us_official_filings,'_staged_marker')).lower(),flush=True)
+          PY
+          echo DO_DISCLOSURE_STAGE_SEC_SMOKE_DONE
+          REMOTE
+      - name: Inspect deployment job credentials without exposing values
+        env:
+          NEON_DB_URI: ${{ secrets.NEWS_DATABASE_URL }}
+          NEON_DB_URI_ALT: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if test -n "$NEON_DB_URI" || test -n "$NEON_DB_URI_ALT"; then
+            echo DO_DEPLOY_DB_CREDENTIAL_AVAILABLE=yes
+          else
+            echo DO_DEPLOY_DB_CREDENTIAL_AVAILABLE=no
+          fi
