@@ -121,7 +121,8 @@ test('right panel keeps the complete last-30-days list without the duplicate SEC
   assert.match(panel, /panelWorkspaceView === 'disclosures'/);
   assert.doesNotMatch(panel, /\.slice\(0, 30\)/);
   assert.doesNotMatch(panel, /GaemiGTPUSSecRightPanel|공시 상세보기 ▾/);
-  assert.doesNotMatch(app, /\/disclosures\/sec\/detail|\/disclosures\/sec\/today/);
+  assert.doesNotMatch(app, /\/disclosures\/sec\/today/);
+  assert.match(app, /\/disclosures\/sec\/detail/);
   assert.doesNotMatch(indexHtml, /us-sec-detail\.js|sec-chat\.js/);
   for (const artifact of [
     'frontend/shell/right-panel/us-sec-detail.js',
@@ -131,4 +132,25 @@ test('right panel keeps the complete last-30-days list without the duplicate SEC
   ]) {
     assert.equal(fs.existsSync(artifact), false, 'redundant file still exists: ' + artifact);
   }
+});
+
+
+test('SEC missing fields reuse existing panel without a second dropdown or chat integration', () => {
+  const panel = fs.readFileSync('frontend/shell/right-panel/right-panel-tabs.js', 'utf8');
+  const engine = fs.readFileSync('backend/services/engine.py', 'utf8');
+  const ai = fs.readFileSync('frontend/shell/center-chat/ai-chat.js', 'utf8');
+  assert.match(engine, /if form in \("4", "4\/A"\) and filing_url/);
+  assert.match(engine, /fetch_us_sec_missing_detail\(ticker_symbol, accession\)/);
+  assert.match(engine, /"securitiesInformation"/);
+  assert.match(engine, /"RevenueFromContractWithCustomerExcludingAssessedTax"/);
+  assert.match(engine, /"EarningsPerShareDiluted"/);
+  assert.match(engine, /"ticker": ticker_symbol/);
+  assert.match(engine, /"accession": item.get\("accession", ""\)/);
+  assert.match(panel, /\['4', '4\/A'\]/);
+  assert.match(panel, /secDetailQueue\.push\(\{ item, target: factLines \}\)/);
+  assert.match(panel, /async function hydrateMissingSecDetails/);
+  assert.match(panel, /if \(!response\.ok\) continue/);
+  assert.match(panel, /target\.appendChild\(line\)/);
+  assert.doesNotMatch(panel, /공시 상세보기 ▾|GaemiGTPUSSecRightPanel/);
+  assert.doesNotMatch(ai, /disclosures\/sec\/detail|disclosures\/sec\/today/);
 });
