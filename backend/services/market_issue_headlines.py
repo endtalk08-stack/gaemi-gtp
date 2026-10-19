@@ -14,10 +14,10 @@ from .news_freshness import clean_us_snapshot
 _MAX_ITEMS = 20
 
 
-def _first_headline(briefs):
+def _first_headline(briefs, *, us_ai=False):
     for brief in briefs or []:
         headline = grounded_issue_display_title(brief)
-        if headline and headline not in {"기사 주요 내용", "관련 이슈"}:
+        if headline and (us_ai or headline not in {"기사 주요 내용", "관련 이슈"}):
             return headline
     return ""
 
@@ -37,7 +37,9 @@ def _read_worker_briefs(market, names):
     """Fill missing requested ranking titles from DO worker, without processing news."""
     market_name = {"kr": "국내", "us": "미국"}.get(market)
     database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
-    if not market_name or not database_url or not names:
+    if not market_name or not database_url:
+        return None  # Configuration unavailable is not an empty AI issue list.
+    if not names:
         return {}
     try:
         import psycopg
@@ -65,7 +67,7 @@ def _read_worker_briefs(market, names):
     except Exception as exc:
         print("[market issue] worker snapshot read unavailable: "
               + type(exc).__name__, flush=True)
-        return {}
+        return None  # Preserve existing displayed titles on Neon errors.
 
 
 def get_market_issue_headlines(market, items):
@@ -85,11 +87,15 @@ def get_market_issue_headlines(market, items):
     ]
     all_names = list(dict.fromkeys(name for names in names_per_row for name in names))
     worker_briefs = _read_worker_briefs(market, all_names)
+    if worker_briefs is None:
+        return {"ok": False, "market": market, "items": [
+            {**row, "status": "error", "headline": ""} for row in rows
+        ], "pending": False, "error": "news_snapshot_unavailable"}
     results = []
     for row, names in zip(rows, names_per_row):
         headline = next(
-            (_first_headline(worker_briefs.get(name))
-             for name in names if _first_headline(worker_briefs.get(name))),
+            (_first_headline(worker_briefs.get(name), us_ai=(market == "us"))
+             for name in names if _first_headline(worker_briefs.get(name), us_ai=(market == "us"))),
             "",
         )
         results.append({
