@@ -22,6 +22,7 @@ from .news_result import get_shared_stock_news_result
 from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
 from ..providers.market_price import fetch_news_price_reaction
+from ..providers import sec_filings
 
 from .market_levels import (
     calculate_volume_profile_levels,
@@ -160,8 +161,6 @@ US_CIKS = {
 }
 
 US_FILING_CACHE = {}
-US_FORM4_DETAIL_CACHE = {}
-US_FORM4_DETAIL_CACHE_TTL = 3600
 US_8K_DETAIL_CACHE = {}
 US_8K_DETAIL_CACHE_TTL = 3600
 
@@ -1502,106 +1501,9 @@ def _has_tag_value(text, tag_name):
 
 
 def _enrich_us_form4_from_submission(filing, ticker_symbol):
-    """SEC Form 4 1건을 공식 제출 TXT에서 보강한다. 네트워크 I/O는 호출측에서 병렬화한다."""
-    filing_url = str(filing.get("original_document_url") or "").strip()
-    accession = str(filing.get("accession") or "").strip()
-    if not filing_url or not accession:
-        return filing
+    """Existing 30-day caller, using one SEC parser in backend.providers.sec_filings."""
+    return sec_filings.enrich_form4_filing(filing, ticker_symbol)
 
-    now_ts = datetime.datetime.now().timestamp()
-    cached = US_FORM4_DETAIL_CACHE.get(accession)
-    if cached and now_ts - cached[0] < US_FORM4_DETAIL_CACHE_TTL:
-        filing.update(cached[1])
-        return filing
-
-    try:
-        sec_headers = {
-            "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
-            "Accept": "text/html,application/xml,text/xml,*/*",
-        }
-        clean_accession = accession.replace("-", "")
-        cik = str(filing.get("cik") or "").strip()
-        submission_txt_url = (
-            f"https://www.sec.gov/Archives/edgar/data/"
-            f"{int(cik)}/{clean_accession}/{accession}.txt"
-        )
-        txt_req = urllib.request.Request(submission_txt_url, headers=sec_headers)
-        with urllib.request.urlopen(txt_req, timeout=5) as txt_resp:
-            submission_text = txt_resp.read().decode("utf-8", errors="ignore")
-
-        filing["person"] = _tag_value(submission_text, "rptOwnerName")
-        filing["officer_title"] = _tag_value(submission_text, "officerTitle")
-        if not filing["officer_title"]:
-            if _has_tag_value(submission_text, "isDirector"):
-                filing["officer_title"] = "Director"
-            elif _has_tag_value(submission_text, "isOfficer"):
-                filing["officer_title"] = "Officer"
-            elif _has_tag_value(submission_text, "isTenPercentOwner"):
-                filing["officer_title"] = "10% Owner"
-            elif _has_tag_value(submission_text, "isOther"):
-                filing["officer_title"] = _tag_value(submission_text, "otherText")
-
-        transactions = []
-        txn_blocks = re.findall(
-            r"<(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction>",
-            submission_text, flags=re.I | re.S,
-        )
-        for block in txn_blocks:
-            code = _tag_value(block, "transactionCode").upper()
-            shares = _tag_value(block, "transactionShares")
-            price = _tag_value(block, "transactionPricePerShare")
-            acquired_disposed = _tag_value(block, "transactionAcquiredDisposedCode").upper()
-            if code or shares:
-                transactions.append({"code": code, "shares": shares, "price": price, "acquired_disposed": acquired_disposed})
-
-        filing["transactions"] = transactions
-        if transactions:
-            filing["transaction_code"] = transactions[0]["code"]
-            filing["shares"] = transactions[0]["shares"]
-            filing["price"] = transactions[0]["price"]
-            code_labels = {
-                "P": "내부자 매수", "S": "내부자 매도", "A": "내부자 취득",
-                "D": "회사로 반환", "F": "세금·행사가격 지급", "M": "옵션·파생상품 행사",
-                "G": "주식 증여", "V": "자발적 신고", "J": "기타 거래",
-            }
-            code_counts = {}
-            for tx in transactions:
-                tx_code = str(tx.get("code") or "").upper().strip()
-                if tx_code:
-                    code_counts[tx_code] = code_counts.get(tx_code, 0) + 1
-            priority = ["P", "S", "A", "G", "F", "M", "D", "C", "J", "V"]
-            ordered_codes = sorted(code_counts, key=lambda c: priority.index(c) if c in priority else len(priority))
-            if len(ordered_codes) == 1:
-                c = ordered_codes[0]
-                filing["transaction_kind"] = code_labels.get(c, "내부자 거래")
-                filing["transaction_summary"] = f"{filing['transaction_kind']} · {code_counts[c]}건"
-            elif ordered_codes:
-                filing["transaction_kind"] = code_labels.get(ordered_codes[0], "내부자 거래")
-                filing["transaction_summary"] = " · ".join(f"{code_labels.get(c, '내부자 거래')} {code_counts[c]}건" for c in ordered_codes)
-            else:
-                filing["transaction_kind"] = "내부자 거래"
-                filing["transaction_summary"] = "내부자 거래"
-            filing["transaction_count"] = len(transactions)
-            filing["price_range"] = ""
-        else:
-            filing["transaction_kind"] = "내부자 거래"
-            filing["transaction_summary"] = "내부자 거래"
-            filing["transaction_count"] = 0
-            filing["price_range"] = ""
-        detail_fields = {
-            key: filing.get(key)
-            for key in (
-                "person", "officer_title", "transactions", "transaction_code",
-                "shares", "price", "transaction_kind", "transaction_summary",
-                "transaction_count", "price_range",
-            )
-            if key in filing
-        }
-        US_FORM4_DETAIL_CACHE[accession] = (datetime.datetime.now().timestamp(), detail_fields)
-        return filing
-    except Exception as detail_err:
-        print(f"[미국 공시] {ticker_symbol} Form 4 원문 보강 실패: {type(detail_err).__name__}: {detail_err}")
-        return filing
 
 
 SEC_8K_DISPLAY_ITEMS = {
