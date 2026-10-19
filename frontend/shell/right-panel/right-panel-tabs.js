@@ -86,9 +86,9 @@
   function loadActiveStockDisclosures() {
     const snapshot = window.GaemiGTPAnalysisData?.get?.();
     relatedDisclosureItems = (
-      Array.isArray(snapshot?.disclosures) && snapshot.disclosures.length
-        ? snapshot.disclosures
-        : (Array.isArray(snapshot?.usFilings) ? snapshot.usFilings : [])
+      Array.isArray(snapshot?.panelDisclosures) && snapshot.panelDisclosures.length
+        ? snapshot.panelDisclosures
+        : (Array.isArray(snapshot?.panelUsFilings) ? snapshot.panelUsFilings : [])
     );
   }
   function selectRelatedNewsItems(items, limit = 20, officialReserve = 4) {
@@ -209,7 +209,7 @@
     const missingSecRows = [];
     root.innerHTML = '';
     if (window.GaemiGTPDisclosures?.hydrateDartDetails) {
-      // Keep the original detail budget while showing every filing from the 30-day window.
+      // Keep the original detail budget while showing only the rolling 24-hour window.
       await window.GaemiGTPDisclosures.hydrateDartDetails(items, 30);
     }
     // 다른 종목이나 메뉴를 선택하는 동안 완료된 이전 상세 요청은 무시한다.
