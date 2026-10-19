@@ -1905,6 +1905,7 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
         docs = recent.get("primaryDocument", [])
         descriptions = recent.get("primaryDocDescription", [])
         acceptance_datetimes = recent.get("acceptanceDateTime", [])
+        sec_item_numbers = recent.get("items", [])
 
         today = datetime.datetime.now(ZoneInfo("America/New_York")).date()
         results = []
@@ -1947,6 +1948,7 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
                 "date": dates[i],
                 "form": form,
                 "description": description or "SEC 공식 공시",
+                "sec_items": str(sec_item_numbers[i] if i < len(sec_item_numbers) else ""),
                 "time": filing_time,
                 "acceptance_datetime": acceptance_datetime,
                 "url": filing_page_url,
@@ -3444,6 +3446,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "link": item.get("url", ""),
                     "keywords": item.get("keywords", []),
                     "form": item.get("form", ""),
+                    "sec_items": item.get("sec_items", ""),
                     "item": item.get("item", ""),
                     "items": item.get("items", []),
                     "event_title": item.get("event_title", ""),
