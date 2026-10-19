@@ -1310,7 +1310,7 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
             "bgn_de": begin_date.strftime("%Y%m%d"),
             "end_de": end_date.strftime("%Y%m%d"),
             "page_no": 1,
-            "page_count": 30,
+            "page_count": 100 if max_results == 0 else 30,
         })
         url = f"https://opendart.fss.or.kr/api/list.json?{params}"
         req = urllib.request.Request(
@@ -1329,11 +1329,31 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
             DART_DISCLOSURE_CACHE[cache_key] = (now_ts, [])
             return []
 
-        # 먼저 목록 API의 가벼운 데이터만으로 상위 3건을 고른다.
-        # 접수시간을 얻기 위해 모든 공시의 원문 페이지를 조회하면 최대 30회의
-        # 추가 HTTP 요청이 발생하므로, 실제 화면에 보여줄 3건에 대해서만 원문을 읽는다.
+        # 30일 전체 조회는 DART 목록 페이지를 모두 수집한다. 상세 문서는 여기서 조회하지 않는다.
+        list_items = list(data.get("list", []) or [])
+        if max_results == 0:
+            total_pages = int(data.get("total_page") or 1)
+            for page_no in range(2, total_pages + 1):
+                page_params = urllib.parse.urlencode({
+                    "crtfc_key": OPENDART_API_KEY,
+                    "corp_code": corp_code,
+                    "bgn_de": begin_date.strftime("%Y%m%d"),
+                    "end_de": end_date.strftime("%Y%m%d"),
+                    "page_no": page_no,
+                    "page_count": 100,
+                })
+                page_req = urllib.request.Request(
+                    f"https://opendart.fss.or.kr/api/list.json?{page_params}",
+                    headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+                )
+                with urllib.request.urlopen(page_req, timeout=10) as page_resp:
+                    page_data = json.loads(page_resp.read().decode("utf-8"))
+                if str(page_data.get("status", "")) not in ("000", ""):
+                    raise ValueError("DART page fetch failed")
+                list_items.extend(page_data.get("list", []) or [])
+
         results = []
-        for item in data.get("list", []) or []:
+        for item in list_items:
             report_name = str(item.get("report_nm", "")).strip()
             receipt_date = str(item.get("rcept_dt", "")).strip()
             receipt_no = str(item.get("rcept_no", "")).strip()
@@ -1360,7 +1380,8 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
             key=lambda x: (x["receipt_datetime"], x["receipt_no"]),
             reverse=True,
         )
-        results = results[:max_results]
+        if max_results > 0:
+            results = results[:max_results]
 
         # /analyze 핵심 응답에서는 DART 목록 API의 결과만 사용한다.
         # 접수시간 보강은 각 공시 원문 HTML을 다시 조회해야 하며, 표시용 메타데이터 때문에
@@ -1532,25 +1553,6 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
             acquired_disposed = _tag_value(block, "transactionAcquiredDisposedCode").upper()
             if code or shares:
                 transactions.append({"code": code, "shares": shares, "price": price, "acquired_disposed": acquired_disposed})
-
-        # Form 4 derivative transactions (options, warrants) are separate XML
-        # blocks. Keep their type so exercise/awards are not labeled as cash buys.
-        derivative_blocks = re.findall(
-            r"<(?:[A-Za-z0-9_.-]+:)?derivativeTransaction\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?derivativeTransaction>",
-            submission_text, flags=re.I | re.S,
-        )
-        for block in derivative_blocks:
-            code = _tag_value(block, "transactionCode").upper()
-            shares = _tag_value(block, "transactionShares")
-            price = _tag_value(block, "transactionPricePerShare")
-            acquired_disposed = _tag_value(block, "transactionAcquiredDisposedCode").upper()
-            security = _tag_value(block, "securityTitle")
-            if code or shares:
-                transactions.append({
-                    "code": code, "shares": shares, "price": price,
-                    "acquired_disposed": acquired_disposed,
-                    "derivative": True, "security": security,
-                })
 
         filing["transactions"] = transactions
         if transactions:
@@ -1971,11 +1973,11 @@ def _enrich_us_8k_from_submission(filing, ticker_symbol):
     return filing
 
 
-def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
+def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, complete_window=False):
     """SEC 공식 제출자료 중 최근 주요 공시를 수집한다. AI/웹검색 없이 코드로만 수집."""
     ticker_symbol = ticker_symbol.upper()
     cik = US_CIKS.get(ticker_symbol)
-    cache_key = (ticker_symbol, days, max_results)
+    cache_key = (ticker_symbol, days, max_results, complete_window)
     cached = US_FILING_CACHE.get(cache_key)
     if cached and (datetime.datetime.now().timestamp() - cached[0] < 300):
         return cached[1]
@@ -2002,17 +2004,19 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
         descriptions = recent.get("primaryDocDescription", [])
         acceptance_datetimes = recent.get("acceptanceDateTime", [])
 
-        today = datetime.date.today()
+        today = datetime.datetime.now(ZoneInfo("America/New_York")).date()
         results = []
+        enriched_count = 0
 
         for i, form in enumerate(forms):
-            if form not in US_MATERIAL_FORMS:
+            # 오른쪽 패널의 30일 전체 목록은 문서 종류로 누락시키지 않는다.
+            if not complete_window and form not in US_MATERIAL_FORMS:
                 continue
             try:
                 filing_date = datetime.datetime.strptime(dates[i], "%Y-%m-%d").date()
             except Exception:
                 continue
-            if (today - filing_date).days > days:
+            if filing_date > today or (today - filing_date).days > days:
                 continue
 
             accession = accessions[i] if i < len(accessions) else ""
@@ -2049,15 +2053,18 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
                 "cik": str(cik),
             }
 
-            # Form 4와 8-K 원문 보강은 서로 독립적으로 처리한다.
-            if form == "4" and filing_url:
+            # 30일 전체 목록은 가볍게 수집하고 원문 상세 보강은 이전처럼 최신 max_results건에만 수행한다.
+            enrich_latest = (not complete_window or enriched_count < max_results)
+            if form in ("4", "4/A") and filing_url and enrich_latest:
                 filing["_needs_form4_enrichment"] = True
-            elif form == "8-K" and filing_url:
+                enriched_count += 1
+            elif form in ("8-K", "8-K/A") and filing_url and enrich_latest:
                 filing["_needs_8k_enrichment"] = True
+                enriched_count += 1
 
             results.append(filing)
 
-            if len(results) >= max_results:
+            if not complete_window and len(results) >= max_results:
                 break
 
         # 조회한 기간 안의 Form 4는 기존 방식 그대로 상세 보강한다.
@@ -2092,10 +2099,12 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
                         print(f"[미국 공시] {ticker_symbol} 8-K 병렬 보강 실패: {type(enrich_err).__name__}: {enrich_err}")
                     filing.pop("_needs_8k_enrichment", None)
 
-        results = [
-            filing for filing in results
-            if str(filing.get("form", "")).upper() != "8-K" or filing.get("display_8k")
-        ]
+        # 30일 목록에서는 원문 실패/기존 중요도 기준 때문에 8-K를 숨기지 않는다.
+        if not complete_window:
+            results = [
+                filing for filing in results
+                if str(filing.get("form", "")).upper() != "8-K" or filing.get("display_8k")
+            ]
 
         US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), results)
         return results
@@ -2106,12 +2115,12 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3):
     US_FILING_CACHE[cache_key] = (datetime.datetime.now().timestamp(), [])
     return []
 
-def fetch_us_official_filings(ticker_symbol, days=7, max_results=3):
+def fetch_us_official_filings(ticker_symbol, days=7, max_results=3, complete_window=False):
     """SEC 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
     ticker_symbol = str(ticker_symbol or "").upper().strip()
     if not ticker_symbol or ticker_symbol not in US_CIKS:
         return []
-    cache_key = (ticker_symbol, days, max_results)
+    cache_key = (ticker_symbol, days, max_results, complete_window)
     now_ts = datetime.datetime.now().timestamp()
     cached = US_FILING_CACHE.get(cache_key)
     if cached and now_ts - cached[0] < 300:
@@ -2122,7 +2131,7 @@ def fetch_us_official_filings(ticker_symbol, days=7, max_results=3):
         cached = US_FILING_CACHE.get(cache_key)
         if cached and now_ts - cached[0] < 300:
             return cached[1]
-        return _fetch_us_official_filings_uncached(ticker_symbol, days, max_results)
+        return _fetch_us_official_filings_uncached(ticker_symbol, days, max_results, complete_window)
 
 
 def format_us_official_filings(ticker_symbol, filings=None):
@@ -3346,7 +3355,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=dart start", flush=True)
             try:
-                kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=30, max_results=30)
+                kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=30, max_results=0)
                 # DART 임원·주요주주 상세(elestock)도 외부 API 호출이라 지연 시
                 # /analyze 전체 worker를 막을 수 있다. 핵심 응답에서는 공시 목록을
                 # 우선 반환하고 상세 조회는 공시 전용 경로에서 처리한다.
@@ -3397,7 +3406,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
             news_result = _attach_news_price_reactions(news_result)
 
             try:
-                us_filings_raw = fetch_us_official_filings(ticker_symbol, days=30, max_results=30)
+                us_filings_raw = fetch_us_official_filings(ticker_symbol, days=30, max_results=30, complete_window=True)
             except Exception as e:
                 print(f"[미국 공시] fail: {type(e).__name__}: {e}")
                 us_filings_raw = []
@@ -3533,8 +3542,6 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "link": item.get("url", ""),
                     "keywords": item.get("keywords", []),
                     "form": item.get("form", ""),
-                    "ticker": ticker_symbol,
-                    "accession": item.get("accession", ""),
                     "item": item.get("item", ""),
                     "items": item.get("items", []),
                     "event_title": item.get("event_title", ""),
