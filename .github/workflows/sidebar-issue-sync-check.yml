@@ -55,6 +55,44 @@ jobs:
               raise AssertionError('must reject non-SEC archive link')
           except ValueError:
               pass
+          from backend.providers.sec_filings import _panel_form4_from_xml, enrich_form4_filing
+          from unittest.mock import patch
+          from io import BytesIO
+          rsu_xml = """
+          <ownershipDocument><reportingOwner><reportingOwnerId><rptOwnerName>COOK TIMOTHY D</rptOwnerName></reportingOwnerId>
+          <reportingOwnerRelationship><officerTitle>Executive Chair</officerTitle></reportingOwnerRelationship></reportingOwner>
+          <nonDerivativeTable>
+          <nonDerivativeTransaction><transactionCoding><transactionCode>S</transactionCode></transactionCoding>
+          <transactionAmounts><transactionShares><value>100</value></transactionShares>
+          <transactionPricePerShare><value>200</value></transactionPricePerShare></transactionAmounts></nonDerivativeTransaction>
+          </nonDerivativeTable>
+          <derivativeTable>
+          <derivativeTransaction><securityTitle><value>Restricted Stock Unit</value></securityTitle>
+          <transactionCoding><transactionCode>A</transactionCode></transactionCoding>
+          <transactionAmounts><transactionShares><value>65969</value></transactionShares>
+          <transactionPricePerShare><value>0</value></transactionPricePerShare></transactionAmounts></derivativeTransaction>
+          <derivativeTransaction><securityTitle><value>Restricted Stock Unit</value></securityTitle>
+          <transactionCoding><transactionCode>A</transactionCode></transactionCoding>
+          <transactionAmounts><transactionShares><value>65969</value></transactionShares>
+          <transactionPricePerShare><value>0</value></transactionPricePerShare></transactionAmounts></derivativeTransaction>
+          </derivativeTable></ownershipDocument>
+          """
+          parsed = _panel_form4_from_xml(rsu_xml)
+          assert len(parsed['transactions']) == 3
+          assert len([t for t in parsed['transactions'] if t['derivative']]) == 2
+          assert all(t['security'] == 'Restricted Stock Unit' for t in parsed['transactions'][1:])
+          filing = {"cik": "320193", "accession": "0001140361-26-038021",
+                    "original_document_url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126038021/form4.xml"}
+          with patch('backend.providers.sec_filings.urllib.request.urlopen', return_value=BytesIO(rsu_xml.encode())) as request:
+              enriched = enrich_form4_filing(filing, "AAPL")
+              assert request.call_count == 1
+          assert len(enriched['transactions']) == 1  # Common stock, no RSU double-count
+          assert enriched['transactions'][0]['shares'] == '100'
+          assert len(enriched['derivative_transactions']) == 2
+          assert sum(int(t['shares']) for t in enriched['derivative_transactions']) == 131938
+          assert '파생증권 2건' in enriched['transaction_summary']
+          assert '내부자 매도 1건' in enriched['transaction_summary']
+          print('SEC_FORM4_DERIVATIVES_DEDUP_OK')
           print('SEC_EXISTING_PROVIDER_DETAILS_OK')
           PY
 
