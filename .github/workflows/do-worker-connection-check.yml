@@ -270,3 +270,29 @@ jobs:
           if (crontab -l 2>/dev/null || true) | grep -q 'GAEMIGTP_DISCLOSURE_SYNC_V1'; then echo DO_DISCLOSURE_CRON_PRESENT=yes; else echo DO_DISCLOSURE_CRON_PRESENT=no; fi
           echo DO_SCHEDULER_INSPECTION_DONE
           REMOTE
+
+      - name: Stage validated disclosure-only source into deploy home
+        uses: actions/checkout@v4
+        with:
+          ref: c251abb8f8059ca19b8805667df794b84e96e13e
+          persist-credentials: false
+
+      - name: Copy disclosure-only files without deploying or handling credentials
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" \
+            'set -eu; umask 077; mkdir -p "$HOME/.gaemi-disclosures/stage"; chmod 700 "$HOME/.gaemi-disclosures" "$HOME/.gaemi-disclosures/stage"; test "$(systemctl is-active gaemigtp-news.service)" = active'
+          for entry in \
+            'backend/services/engine.py:engine.py' \
+            'backend/providers/sec_filings.py:sec_filings.py' \
+            'backend/services/disclosure_transfer.py:disclosure_transfer.py' \
+            'deploy/disclosures/run_disclosures.py:run_disclosures.py'; do
+            source_path="${entry%%:*}"
+            target_name="${entry#*:}"
+            scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+              "$source_path" "$DO_SSH_USER@$DO_HOST:.gaemi-disclosures/stage/$target_name"
+          done
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" \
+            'set -eu; chmod 600 "$HOME/.gaemi-disclosures/stage/"*.py; /opt/gaemigtp-news/venv/bin/python -m py_compile "$HOME/.gaemi-disclosures/stage/"*.py; test "$(systemctl is-active gaemigtp-news.service)" = active; echo DISCLOSURES_STAGED_SYNTAX_OK_NO_DEPLOY'
