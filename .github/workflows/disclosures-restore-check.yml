@@ -9,6 +9,8 @@ on:
       - 'backend/services/disclosure_transfer.py'
       - 'backend/database/migrations/004_disclosure_snapshots.sql'
       - 'frontend/js/disclosures.js'
+      - 'frontend/js/source-lists.js'
+      - 'deploy/disclosures/run_disclosures.py'
       - 'frontend/shell/right-panel/right-panel-tabs.js'
       - 'frontend/index.html'
       - 'tests/test_disclosure_transfer.py'
@@ -33,10 +35,11 @@ jobs:
       - name: Disclosure JS syntax
         run: |
           node --check frontend/js/disclosures.js
+          node --check frontend/js/source-lists.js
           node --check frontend/shell/right-panel/right-panel-tabs.js
       - name: Disclosure Python syntax
         run: |
-          python -m py_compile app.py backend/services/engine.py backend/providers/sec_filings.py backend/services/disclosure_transfer.py
+          python -m py_compile app.py backend/services/engine.py backend/providers/sec_filings.py backend/services/disclosure_transfer.py deploy/disclosures/run_disclosures.py
       - name: Disclosure transfer offline regression
         run: python -m unittest -v tests.test_disclosure_transfer
       - name: SEC Form 4 ordinary shares and derivatives stay separate
