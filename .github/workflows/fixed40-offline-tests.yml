@@ -1,0 +1,32 @@
+name: Fixed40 stock issues and sidebar offline checks
+on:
+  push:
+    branches: [feat/fixed40-issues-watchlist-20261019]
+    paths: [.github/workflows/fixed40-offline-tests.yml]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Python without DB or network
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q backend/services/stock_scope.py backend/services/stock_ai_issue_view.py backend/services/disclosure_universe.py app.py
+          PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_fixed40_news_issues.py' -v
+      - name: Validate sidebar JS without price connections
+        run: |
+          set -euo pipefail
+          node --check frontend/pages/watchlist/watchlist.js
+          python3 - <<'PY'
+          from pathlib import Path
+          page=Path("frontend/pages/watchlist/watchlist.js").read_text()
+          assert "/api/fixed-stocks" in page
+          assert "/market/" not in page
+          assert "fetchStockPrice" not in page
+          print("FIXED40_SIDEBAR_NO_QUOTES=PASS")
+          PY
