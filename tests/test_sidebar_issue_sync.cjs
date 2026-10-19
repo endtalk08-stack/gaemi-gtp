@@ -185,9 +185,9 @@ test('stale lookup must not write to a rebuilt sidebar', async () => {
 });
 
 test('completed central analysis permits sidebar invalidation even with no issue briefs', () => {
-  assert.doesNotMatch(analysisSource, /Array\\.isArray\\(result\\.issue_briefs\\) && result\\.issue_briefs\\.length > 0/);
-  assert.match(analysisSource, /gaemi:analysis-issues-ready/);
-  assert.match(analysisSource, /session\\.marketSelection\\?\\.symbol/);
+  assert.ok(!analysisSource.includes('if (Array.isArray(result.issue_briefs) && result.issue_briefs.length > 0)'));
+  assert.ok(analysisSource.includes('gaemi:analysis-issues-ready'));
+  assert.ok(analysisSource.includes('session.marketSelection?.symbol'));
 });
 
 test('confirmed no-issue clears the old title, Neon error preserves it', async () => {
