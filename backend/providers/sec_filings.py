@@ -29,6 +29,8 @@ _CACHE_LOCK = threading.Lock()
 _TICKER_TTL = 86400
 _SUBMISSIONS_TTL = 180
 _PANEL_SEC_FACTS_TTL = 900
+_FORM4_CACHE_TTL = 3600
+_FORM4_CACHE = {}
 _SEC_INDEX_RE = re.compile(
     r"https://www\.sec\.gov/Archives/edgar/data/(?P<cik>\d{1,10})/"
     r"(?P<folder>\d{18})/(?P<accn>\d{10}-\d{2}-\d{6})-index\.htm"
@@ -194,6 +196,123 @@ def _panel_xml_value(xml, tag):
     if not match:
         return ""
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]*>", " ", match.group(1)))).strip()
+
+
+
+def _panel_form4_from_xml(xml):
+    """Extract each SEC Form 4 transaction exactly once from its XML table.
+
+    Table I shares are actual common-stock transactions. Table II derivatives
+    (including RSU awards) are distinct rights, not a second cash share sale.
+    """
+    person = _panel_xml_value(xml, "rptOwnerName")
+    position = _panel_xml_value(xml, "officerTitle")
+    if not position:
+        for tag, label in (("isDirector", "Director"), ("isOfficer", "Officer"),
+                           ("isTenPercentOwner", "10% Owner")):
+            if _panel_xml_value(xml, tag).lower() in ("1", "true"):
+                position = label
+                break
+    transactions = []
+    for table_tag, derivative in (("nonDerivativeTransaction", False),
+                                  ("derivativeTransaction", True)):
+        matches = re.findall(
+            rf"<(?:[A-Za-z0-9_.-]+:)?{table_tag}\b[^>]*>(.*?)"
+            rf"</(?:[A-Za-z0-9_.-]+:)?{table_tag}>", xml, flags=re.I | re.S)
+        for block in matches:
+            code = _panel_xml_value(block, "transactionCode").upper()
+            shares = _panel_xml_value(block, "transactionShares")
+            if not (code or shares):
+                continue
+            transactions.append({
+                "code": code,
+                "shares": shares,
+                "price": _panel_xml_value(block, "transactionPricePerShare"),
+                "acquired_disposed": _panel_xml_value(block, "transactionAcquiredDisposedCode").upper(),
+                "derivative": derivative,
+                "security": _panel_xml_value(block, "securityTitle"),
+            })
+    return {"person": person, "officer_title": position, "transactions": transactions}
+
+
+def enrich_form4_filing(filing, ticker_symbol):
+    """One existing-provider Form 4/4A parser shared by the engine right panel.
+
+    Returns original filing on network failure; never fabricates a trade.
+    """
+    accession = str(filing.get("accession") or "").strip()
+    cik = str(filing.get("cik") or "").strip()
+    original_url = str(filing.get("original_document_url") or "").strip()
+    if not re.fullmatch(r"\d{10}-\d{2}-\d{6}", accession) or not cik.isdigit():
+        return filing
+    cache_key = (int(cik), accession)
+    now = time.time()
+    with _CACHE_LOCK:
+        cached = _FORM4_CACHE.get(cache_key)
+    if cached and now - cached[0] < _FORM4_CACHE_TTL:
+        filing.update(cached[1])
+        return filing
+
+    sec_root = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession.replace('-', '')}/"
+    candidates = [sec_root + accession + ".txt"]
+    if original_url.startswith(sec_root) and re.fullmatch(
+        r"[A-Za-z0-9_.-]{1,180}", original_url[len(sec_root):]):
+        candidates.append(original_url)
+    headers = {"User-Agent": SEC_USER_AGENT or os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
+               "Accept": "text/xml,application/xml,text/plain,*/*"}
+    parsed = {}
+    for url in candidates:
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=6) as response:
+                raw = response.read(2_000_000).decode("utf-8", errors="ignore")
+            parsed = _panel_form4_from_xml(raw)
+            # The submission TXT often carries both tables; keep it authoritative.
+            if parsed["transactions"]:
+                break
+        except (OSError, urllib.error.HTTPError, ValueError) as exc:
+            print(f"[provider:sec] Form 4 document fallback: {ticker_symbol} {type(exc).__name__}")
+    if not parsed.get("person") and not parsed.get("transactions"):
+        return filing
+
+    transactions = parsed.get("transactions") or []
+    code_labels = {
+        "P": "내부자 매수", "S": "내부자 매도", "A": "내부자 취득",
+        "D": "회사로 반환", "F": "세금·행사가격 지급",
+        "M": "옵션·파생상품 행사", "G": "주식 증여",
+        "V": "자발적 신고", "J": "기타 거래",
+    }
+    ordinary = [tx for tx in transactions if not tx["derivative"]]
+    derivative = [tx for tx in transactions if tx["derivative"]]
+    counters = {}
+    for tx in ordinary:
+        code = tx["code"]
+        if code:
+            counters[code] = counters.get(code, 0) + 1
+    priority = ("P", "S", "A", "G", "F", "M", "D", "C", "J", "V")
+    ordered = sorted(counters, key=lambda code: priority.index(code) if code in priority else len(priority))
+    summary_parts = [f"{code_labels.get(code, '내부자 거래')} {counters[code]}건" for code in ordered]
+    if derivative:
+        summary_parts.append(f"RSU·옵션 등 파생증권 {len(derivative)}건")
+    summary = " · ".join(summary_parts) or "내부자 거래"
+    detail = {
+        "person": parsed.get("person") or filing.get("person", ""),
+        "officer_title": parsed.get("officer_title") or filing.get("officer_title", ""),
+        "transactions": transactions,
+        "transaction_kind": code_labels.get(ordered[0], "파생증권 변동" if derivative else "내부자 거래") if ordered else ("파생증권 변동" if derivative else "내부자 거래"),
+        "transaction_summary": summary,
+        "transaction_count": len(transactions),
+        "price_range": "",
+    }
+    if transactions:
+        detail["transaction_code"] = transactions[0]["code"]
+        detail["shares"] = transactions[0]["shares"]
+        detail["price"] = transactions[0]["price"]
+    filing.update(detail)
+    with _CACHE_LOCK:
+        _FORM4_CACHE[cache_key] = (time.time(), detail)
+    return filing
+
 
 
 def _panel_form144_fields(xml):
