@@ -239,8 +239,14 @@
 
       row.append(title, meta);
 
-      if (String(item.form || '').toUpperCase() === '8-K') {
+      if (['8-K', '8-K/A'].includes(String(item.form || '').toUpperCase())) {
         const keyPoints = Array.isArray(item.key_points_ko) ? item.key_points_ko.filter(Boolean).slice(0, 3) : [];
+        if (!keyPoints.length && String(item.sec_items || '').trim()) {
+          const itemLine = document.createElement('div');
+          itemLine.className = 'right-panel-disclosures__line';
+          itemLine.textContent = 'SEC 공시 항목 · ' + String(item.sec_items).trim();
+          row.appendChild(itemLine);
+        }
         keyPoints.forEach((point) => {
           const pointText = String(point).trim();
           const pointLine = document.createElement('div');
