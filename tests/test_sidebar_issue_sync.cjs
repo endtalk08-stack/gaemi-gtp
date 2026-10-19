@@ -145,6 +145,13 @@ test('missing SEC details stay inside existing provider and disclosure panel', (
   assert.match(provider, /def _panel_form144_fields\(xml\):/);
   assert.match(provider, /def _panel_filing_metrics\(facts, accession, form\):/);
   assert.doesNotMatch(engine, /def fetch_us_sec_missing_detail/);
+  assert.match(engine, /return sec_filings\.enrich_form4_filing\(filing, ticker_symbol\)/);
+  assert.doesNotMatch(engine, /nonDerivativeTransaction\\b/);
+  assert.match(provider, /def _panel_form4_from_xml\(xml\):/);
+  assert.match(provider, /def enrich_form4_filing\(filing, ticker_symbol\):/);
+  assert.match(panel, /derivativeGroups\.forEach/);
+  assert.match(panel, /derivative_transactions/);
+  assert.match(engine, /"derivative_transactions": item\.get\("derivative_transactions", \[\]\)/);
   assert.match(panel, /\['4', '4\/A'\]/);
   assert.match(panel, /missingSecRows\.push\(\{ item, target: extra \}\)/);
   assert.match(details, /hydrateMissingSecDetails/);
