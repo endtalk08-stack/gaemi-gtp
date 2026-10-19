@@ -9,7 +9,6 @@ from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.us_market_close import read_brief
-from backend.services.stock_ai_issue_view import build_watchlist_result
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -30,15 +29,6 @@ def home():
 @app.get("/ai-test")
 def ai_test_page():
     return send_from_directory(FRONTEND_DIR, "ai-test.html")
-
-@app.get("/api/fixed-stocks")
-def fixed_stocks():
-    """Read-only fixed KR20/US20 company names and existing AI issue titles/bodies."""
-    registered = build_watchlist_result()
-    if registered is None:
-        return jsonify({"ok": False, "items": [], "error": "fixed40_neon_unavailable"}), 503
-    return jsonify({"ok": True, "items": registered})
-
 
 @app.get("/health")
 def health():
