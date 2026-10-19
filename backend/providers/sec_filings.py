@@ -397,16 +397,24 @@ def fetch_panel_missing_detail(index_url):
         # SEC supplies the primary document name in its verified submission feed.
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}", document or ""):
             return result
-        url = (f"https://www.sec.gov/Archives/edgar/data/"
-               f"{cik}/{accession.replace('-', '')}/{document}")
-        req = urllib.request.Request(
-            url, headers={"User-Agent": SEC_USER_AGENT, "Accept": "text/xml,application/xml,*/*"})
-        try:
-            with urllib.request.urlopen(req, timeout=7) as resp:
-                xml = resp.read(1_500_000).decode("utf-8", errors="ignore")
-            result["fields"] = _panel_form144_fields(xml)
-        except (OSError, urllib.error.HTTPError) as exc:
-            print(f"[provider:sec] Form 144 detail unavailable: {type(exc).__name__}")
+        base_url = (f"https://www.sec.gov/Archives/edgar/data/"
+                    f"{cik}/{accession.replace('-', '')}/")
+        # Some SEC feeds name the transformed HTML as primary document,
+        # while the same Form 144's raw data lives in its matching .xml.
+        candidates = ([document[:-5] + ".xml", document]
+                      if document.lower().endswith(".html") else [document])
+        for candidate in dict.fromkeys(candidates):
+            req = urllib.request.Request(
+                base_url + candidate,
+                headers={"User-Agent": SEC_USER_AGENT, "Accept": "text/xml,application/xml,*/*"})
+            try:
+                with urllib.request.urlopen(req, timeout=7) as resp:
+                    xml = resp.read(1_500_000).decode("utf-8", errors="ignore")
+                result["fields"] = _panel_form144_fields(xml)
+                if result["fields"]:
+                    break
+            except (OSError, urllib.error.HTTPError) as exc:
+                print(f"[provider:sec] Form 144 document unavailable: {type(exc).__name__}")
     else:
         # Reuse the existing SEC JSON request/cache layer, not another collector.
         url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
