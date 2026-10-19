@@ -19,6 +19,8 @@
 
     document.body.classList.toggle('left-market-open', !isOpen);
     applyState();
+    // No timer or continuous Neon polling; read only on a deliberate reopen.
+    if (!isOpen) void window.GaemiGTPMarketSidebar?.refreshIssueTitles?.();
   }
 
   // The restored market list is a fixed layout sample, not a live ranking feed.
@@ -58,6 +60,40 @@
     let tab = 'popular';
     let requestId = 0;
     let changeSorted = false;
+    const rankingRequests = new Map();
+    const RANKING_REUSE_MS = 15000;
+    const ISSUE_RECHECK_MS = 60000;
+    let lastIssueReadAt = 0;
+    let bulkIssueRead = null;
+    let issueRevision = 0;
+
+    const getRanking = async (path) => {
+      const existing = rankingRequests.get(path);
+      if (existing?.pending) return existing.pending;
+      if (existing?.result && Date.now() - existing.at < RANKING_REUSE_MS) return existing.result;
+      const pending = (async () => {
+        const response = await fetch(backendUrl + path);
+        if (!response.ok) throw new Error('market ranking unavailable');
+        const result = await response.json();
+        if (result.ok !== true || !Array.isArray(result.items)) throw new Error('invalid ranking');
+        rankingRequests.set(path, { result, at: Date.now() });
+        return result;
+      })();
+      rankingRequests.set(path, { pending });
+      try { return await pending; }
+      catch (error) {
+        if (rankingRequests.get(path)?.pending === pending) rankingRequests.delete(path);
+        throw error;
+      }
+    };
+    const updateRankingCacheTitle = (market, name, symbol, headline) => {
+      for (const [key, entry] of rankingRequests) {
+        if (!key.endsWith('?market=' + market) || !entry?.result?.items) continue;
+        for (const item of entry.result.items) {
+          if (item.name === name && item.symbol === symbol) item.issue_headline = headline;
+        }
+      }
+    };
 
     const applyChangeSort = () => {
       if (!list) return;
@@ -107,10 +143,8 @@
       list.replaceChildren();
       list.textContent = '순위를 불러오는 중이야.';
       try {
-        const path = tab === 'value' ? '/market/trading-value' : '/market/popular';
-        const response = await fetch(backendUrl + path + '?market=' + market);
-        if (!response.ok) throw new Error('market ranking unavailable');
-        const result = await response.json();
+        const path = (tab === 'value' ? '/market/trading-value' : '/market/popular') + '?market=' + market;
+        const result = await getRanking(path);
         if (id !== requestId) return;
         list.replaceChildren();
         if (result.ok !== true || !Array.isArray(result.items) || !result.items.length) {
@@ -190,6 +224,7 @@
           list.appendChild(button);
         });
         applyChangeSort();
+        lastIssueReadAt = Date.now(); // The ranking response already read Neon titles.
       } catch (_) {
         if (id === requestId) list.textContent = '순위 원천 데이터를 가져오지 못했어.';
       }
