@@ -35,6 +35,21 @@ def _history_ttl(ticker):
     return 600 if symbol.endswith((".KS", ".KQ")) else 15
 
 
+def _kr_quote_number(value, *, positive=False):
+    """Parse one Naver quote field without discarding other valid fields."""
+    import math
+
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(str(value).strip().replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or (positive and number <= 0):
+        return None
+    return number
+
+
 def fetch_kr_stock_quote(code_six):
     code_six = str(code_six or "").strip()
     now = time.time()
@@ -59,17 +74,22 @@ def fetch_kr_stock_quote(code_six):
             with urllib.request.urlopen(req, timeout=3) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             rows = data.get("datas", [])
-            if rows:
+            if rows and isinstance(rows[0], dict):
                 item = rows[0]
-                result = (
-                    float(str(item.get("closePrice", 0)).replace(",", "")),
-                    float(str(item.get("compareToPreviousClosePrice", 0)).replace(",", "")),
-                    float(str(item.get("fluctuationsRatio", 0)).replace(",", "")),
-                    float(str(item.get("highPrice", 0)).replace(",", "")),
-                    float(str(item.get("lowPrice", 0)).replace(",", "")),
-                )
-                KR_QUOTE_CACHE[code_six] = (now, result)
-                return result
+                # Naver can return "-" for an optional quote value before or
+                # during a market-data update. Preserve a verified current price
+                # even if change, high, or low is temporarily unavailable.
+                current = _kr_quote_number(item.get("closePrice"), positive=True)
+                if current is not None:
+                    result = (
+                        current,
+                        _kr_quote_number(item.get("compareToPreviousClosePrice")),
+                        _kr_quote_number(item.get("fluctuationsRatio")),
+                        _kr_quote_number(item.get("highPrice"), positive=True),
+                        _kr_quote_number(item.get("lowPrice"), positive=True),
+                    )
+                    KR_QUOTE_CACHE[code_six] = (now, result)
+                    return result
         except Exception as exc:
             print("네이버 실시간 시세 조회 예외:", exc)
 
