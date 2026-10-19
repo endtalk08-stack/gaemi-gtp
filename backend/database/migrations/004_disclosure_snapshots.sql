@@ -1,4 +1,4 @@
--- Separate 30-day disclosure read model; no changes to news tables.
+-- Temporary disclosure snapshot only (24h TTL; refreshed rolling 30-day filings).\n-- The reader ignores records after 24h and the DigitalOcean collector prunes\n-- expired snapshots after each successful collection. No long-term history table.\n-- No changes to news tables.
 CREATE TABLE IF NOT EXISTS public.disclosure_snapshots (
     market text NOT NULL CHECK (market IN ('KR', 'US')),
     symbol text NOT NULL,
