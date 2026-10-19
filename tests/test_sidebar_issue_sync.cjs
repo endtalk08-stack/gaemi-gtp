@@ -75,6 +75,7 @@ test('old market tabs, KR/US controls, and stock-row layout are restored', () =>
   assert.deepEqual([...html.matchAll(/data-info-tab-action="([^"]+)"/g)].map(x => x[1]),
     ['cap', 'popular', 'value', 'industry', 'theme']);
   assert.match(html, /rightListMetric/);
+  assert.match(html, /data-legacy-region="true" class="[^"]*bg-\[#eef2f7\][^"]*">해외<\/button>/);
   assert.match(html, /marketRankingList/);
   assert.doesNotMatch(html, /onclick="openStockInChat|257,500원/);
 });
