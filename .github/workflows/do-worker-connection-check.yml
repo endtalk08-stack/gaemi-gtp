@@ -129,3 +129,51 @@ jobs:
           PY
           echo DISCLOSURE_SOURCE_INSPECTION_COMPLETE
           REMOTE
+
+      - name: Check DO disclosure runtime boundaries safely
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          cd /opt/gaemigtp-news/app
+          printf 'SERVICE_ACCOUNT='
+          systemctl show gaemigtp-news.service -p User --value
+          printf 'SERVICE_ENV_PATH_CONFIGURED='
+          if test -n "$(systemctl show gaemigtp-news.service -p EnvironmentFiles --value)"; then echo yes; else echo no; fi
+          echo SERVICE_ACTIVE="$(systemctl is-active gaemigtp-news.service)"
+          echo "TCP_LISTEN_PORTS_BEGIN"
+          ss -tlnH | awk '{print $4}' | sed -E 's/.*:([0-9]+)$/\\1/' | sort -nu | head -15
+          echo "TCP_LISTEN_PORTS_END"
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from pathlib import Path
+          import ast
+          base = Path('/opt/gaemigtp-news/app')
+          py = ['backend/news_worker.py','backend/services/engine.py',
+                'backend/providers/sec_filings.py','backend/services/disclosure_scoring.py']
+          for name in py:
+              path = base / name
+              if not path.exists():
+                  continue
+              source = path.read_text()
+              try:
+                  compile(source, str(path), 'exec')
+                  print('CODE_SYNTAX_OK=' + name)
+              except (SyntaxError, ValueError, TypeError) as exc:
+                  print('CODE_SYNTAX_ERROR=' + name + ':' + type(exc).__name__)
+              if name == 'backend/news_worker.py':
+                  t = ast.parse(source)
+                  names = {n.id for n in ast.walk(t) if isinstance(n, ast.Name)}
+                  print('WORKER_REFERENCES_ANALYZE_STOCK=' + str('analyze_stock' in names).lower())
+                  print('WORKER_REFERENCES_SEC_FILINGS=' + str('fetch_us_official_filings' in names).lower())
+                  print('WORKER_REFERENCES_DART=' + str('fetch_kr_official_disclosures' in names).lower())
+          for name in ('flask','gunicorn','psycopg','requests'):
+              from importlib.util import find_spec
+              try:
+                  ok = bool(find_spec(name))
+              except (ImportError, AttributeError, ValueError):
+                  ok = False
+              print('DO_PACKAGE_' + name.upper() + '=' + str(ok).lower())
+          PY
+          echo DISCLOSURE_RUNTIME_BOUNDARY_CHECK_DONE
+          REMOTE
