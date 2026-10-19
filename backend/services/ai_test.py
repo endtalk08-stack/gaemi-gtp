@@ -750,6 +750,17 @@ def ai_test_chat():
                         "sort": order,
                         "display_rank": match["display_rank"] if match else selected.get("rank")}
 
+    # Apply the same 40-company search boundary to private/admin chat.
+    # This happens before any price, article, disclosure or paid AI invocation.
+    if stock:
+        from .stock_scope import resolve_stock
+        scope = resolve_stock(stock,
+                              market=selected.get("market") if selected else None,
+                              symbol=selected.get("symbol") if selected else None)
+        if scope is None:
+            return jsonify({"ok": False, "error": "stock_outside_fixed40"}), 400
+        stock = scope["name"]
+
     # Both administrator tests and central chat use Groq's native limits.
 
     # Use the private conversation's existing processed result when possible.
