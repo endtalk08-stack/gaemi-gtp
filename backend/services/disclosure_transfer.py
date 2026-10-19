@@ -1,7 +1,7 @@
 """Read/write 30-day SEC/DART disclosure snapshots in Neon.
 
 Collection is explicitly invoked on DigitalOcean. Render only reads cached
-snapshots when DISCLOSURE_NEON_READ=1; the old provider remains a safe fallback.
+snapshots for up to 24 hours when DISCLOSURE_NEON_READ=1; the old provider remains a safe fallback.
 This module does not manage the news worker, UI, or any other providers.
 """
 import argparse
@@ -37,7 +37,7 @@ def read_snapshot(market, symbol):
                 cur.execute("""
                     SELECT filings FROM public.disclosure_snapshots
                     WHERE market = %s AND symbol = %s
-                      AND fetched_at > now() - interval '40 minutes'
+                      AND fetched_at > now() - interval '24 hours'
                 """, (market, symbol))
                 row = cur.fetchone()
         filings = row[0] if row else None
@@ -82,6 +82,13 @@ def collect_once(market, symbol):
                 ON CONFLICT (market, symbol) DO UPDATE
                 SET filings = EXCLUDED.filings, fetched_at = EXCLUDED.fetched_at
             """, (market, symbol, Jsonb(filings)))
+            # Disclosure data is temporary, not a long-term archive.
+            # Each successful daily collection replaces the stock's 30-day list,
+            # then removes any other snapshots older than 24 hours.
+            cur.execute("""
+                DELETE FROM public.disclosure_snapshots
+                WHERE fetched_at <= now() - interval '24 hours'
+            """)
     return {"market": market, "symbol": symbol, "filing_count": len(filings),
             "collected_at": datetime.now(timezone.utc).isoformat()}
 
