@@ -69,3 +69,21 @@ jobs:
           PY
           echo PREFLIGHT_READONLY_COMPLETE
           REMOTE
+
+      - name: Inspect exact staged transfer source (no secrets)
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from pathlib import Path
+          path=Path('/home/gaemi-deploy/disclosures-migration-staging/disclosure_transfer.py')
+          print('STAGED_TRANSFER_BEGIN')
+          print(path.read_text())
+          print('STAGED_TRANSFER_END')
+          for p in ('/opt/gaemigtp-news/app/backend/services/engine.py', '/home/gaemi-deploy/disclosures-migration-staging/engine.py'):
+              import hashlib
+              f=Path(p)
+              print('ENGINE_SOURCE_SHA256='+p+':'+hashlib.sha256(f.read_bytes()).hexdigest())
+          PY
+          REMOTE
