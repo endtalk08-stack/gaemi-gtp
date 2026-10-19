@@ -10,7 +10,7 @@ from backend.services.market_rankings import (build_kr_trading_value_result, bui
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.us_market_close import read_brief
 from backend.services.stock_scope import resolve_stock
-from backend.services.stock_ai_issue_view import build_watchlist_result
+from backend.services.stock_ai_issue_view import build_watchlist_result, read_stock_ai_issues
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -170,6 +170,14 @@ def analyze():
         ticker = (scoped["symbol"] + ".KS" if scoped["market"] == "KR"
                   else scoped["symbol"])
         result = analyze_stock(scoped["name"], ticker_symbol_override=ticker)
+        # Sidebar headline and central issue body share the same saved AI rows.
+        saved_issues = read_stock_ai_issues(scoped["market"], scoped["symbol"])
+        if saved_issues:
+            result["issue_briefs"] = [
+                {"headline": issue["headline"], "summary": issue["summary"],
+                 "stock_names": [scoped["name"]], "source": "AI 저장 이슈"}
+                for issue in saved_issues
+            ]
         remember_chat_analysis(scoped["name"], result, selection=selected)
         response = jsonify(result)
         response.headers["X-Analysis-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.0f}"
