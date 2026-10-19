@@ -73,7 +73,7 @@ jobs:
           if test -r /etc/gaemigtp/news-worker.env; then
             echo WORKER_CONFIG_READABLE=yes
             for name in OPENDART_API_KEY DART_API_KEY SEC_USER_AGENT NEWS_DATABASE_URL DATABASE_URL; do
-              if grep -Eq "^[$]{name}=" /etc/gaemigtp/news-worker.env; then
+              if grep -Eq "^$name=" /etc/gaemigtp/news-worker.env; then
                 echo "CONFIG_NAME_PRESENT=$name"
               else
                 echo "CONFIG_NAME_ABSENT=$name"
