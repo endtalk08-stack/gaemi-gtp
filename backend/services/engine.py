@@ -3455,6 +3455,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "transaction_summary": item.get("transaction_summary", ""),
                     "transaction_count": item.get("transaction_count", 0),
                     "transactions": item.get("transactions", []),
+                    "derivative_transactions": item.get("derivative_transactions", []),
                     "price_range": item.get("price_range", ""),
                 })
         week_52 = (price_result.get("indicators") or {}).get("week_52") or {}
