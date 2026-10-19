@@ -3484,6 +3484,16 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "panel_extra_detail": item.get("panel_extra_detail", {}),
                     "snapshot_only": item.get("snapshot_only", False),
                 })
+        # One DO/Neon 24-hour dataset feeds two independent views:
+        # panel shows the rolling day, central chat shows local calendar today.
+        from .disclosure_transfer import today_filings
+        panel_disclosures = disclosures
+        panel_us_filings = us_filings
+        if is_krw:
+            disclosures = today_filings(panel_disclosures, "KR")
+        else:
+            us_filings = today_filings(panel_us_filings, "US")
+
         week_52 = (price_result.get("indicators") or {}).get("week_52") or {}
         current_quote = float(price_result.get("current_price") or 0)
         previous_high = float(week_52.get("high") or 0)
@@ -3509,6 +3519,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
             "keyword_storyboard": news_result.get("keyword_storyboard", []),
             "disclosures": disclosures,
             "us_filings": us_filings,
+            "panel_disclosures": panel_disclosures,
+            "panel_us_filings": panel_us_filings,
         }
 
     except Exception as e:
