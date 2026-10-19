@@ -206,3 +206,21 @@ jobs:
           fi
           echo DISCLOSURE_CONFIG_CHECK_COMPLETE
           REMOTE
+
+      - name: Check configured disclosure secret names in deployment environment
+        env:
+          SEC_AGENT_SECRET: ${{ secrets.SEC_USER_AGENT }}
+          DART_PRIMARY_SECRET: ${{ secrets.OPENDART_API_KEY }}
+          DART_COMPAT_SECRET: ${{ secrets.DART_API_KEY }}
+          DART_ENV_PRIMARY: ${{ vars.OPENDART_API_KEY }}
+          DART_ENV_COMPAT: ${{ vars.DART_API_KEY }}
+        run: |
+          set -euo pipefail
+          for name in SEC_AGENT_SECRET DART_PRIMARY_SECRET DART_COMPAT_SECRET DART_ENV_PRIMARY DART_ENV_COMPAT; do
+            if test -n "${!name}"; then
+              echo "ACTION_SETTING_${name}=present"
+            else
+              echo "ACTION_SETTING_${name}=absent"
+            fi
+          done
+          echo DISCLOSURE_DEPLOY_SETTING_CHECK_DONE
