@@ -512,6 +512,45 @@
         }
         if (keywordLine.textContent) personLine.appendChild(keywordLine);
         if (personLine.textContent) row.appendChild(personLine);
+
+        // SEC Table II represents rights (RSUs/options), NOT another executed
+        // stock sale. Show them separately, never double-count in cash shares.
+        const derivatives = Array.isArray(item.derivative_transactions)
+          ? item.derivative_transactions : [];
+        const derivativeGroups = new Map();
+        derivatives.forEach((transaction) => {
+          const security = String(transaction.security || '').trim();
+          const type = /restricted stock unit|^rsu$/i.test(security)
+            ? 'RSU' : (security || '파생증권');
+          const direction = String(transaction.acquired_disposed || '').toUpperCase() === 'D'
+            ? '처분' : '취득';
+          const code = String(transaction.code || '').toUpperCase();
+          const verb = code === 'M' ? '행사' : direction;
+          const key = [type, verb, code].join('|');
+          const rawShares = String(transaction.shares || '').replaceAll(',', '');
+          const amount = rawShares.trim() && Number.isFinite(Number(rawShares))
+            ? Number(rawShares) : null;
+          const group = derivativeGroups.get(key) || { type, verb, count: 0, units: 0, hasUnits: false };
+          group.count += 1;
+          if (amount !== null) {
+            group.units += amount;
+            group.hasUnits = true;
+          }
+          derivativeGroups.set(key, group);
+        });
+        derivativeGroups.forEach((group) => {
+          const line = document.createElement('div');
+          line.className = 'right-panel-disclosures__line';
+          const left = document.createElement('span');
+          left.textContent = group.type + ' ' + group.verb + ' · ' + group.count + '건';
+          line.appendChild(left);
+          if (group.hasUnits) {
+            const right = document.createElement('span');
+            right.textContent = Math.round(group.units).toLocaleString('ko-KR') + '단위';
+            line.appendChild(right);
+          }
+          row.appendChild(line);
+        });
       } else if (!holdings.length && keywordLine.textContent) {
         const keywordOnlyLine = document.createElement('div');
         keywordOnlyLine.className = 'right-panel-disclosures__line';
