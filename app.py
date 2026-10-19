@@ -35,7 +35,10 @@ def ai_test_page():
 @app.get("/api/fixed-stocks")
 def fixed_stocks():
     """Exactly 40 company names and saved AI news issues; no quote/price API."""
-    registered = build_watchlist_result()
+    try:
+        registered = build_watchlist_result()
+    except RuntimeError:
+        registered = None
     if registered is None:
         return jsonify({"ok": False, "items": [], "error": "fixed40_neon_unavailable"}), 503
     return jsonify({"ok": True, "items": registered})
