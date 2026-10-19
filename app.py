@@ -10,7 +10,8 @@ from backend.services.market_rankings import (build_kr_trading_value_result, bui
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.us_market_close import read_brief
 
-from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
+from backend.services.engine import analyze_stock, get_live_calendar_data, start_calendar_warmup
+from backend.services.disclosure_snapshot_reader import read_disclosure_snapshot
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -45,27 +46,38 @@ def dart_disclosure_detail():
     report_name = str(request.args.get("report", "") or "").strip()
     if not stock_code or not receipt_no:
         return jsonify({"ok": False, "detail": {}, "error": "missing_identifier"}), 400
-    try:
-        detail = fetch_dart_disclosure_detail(stock_code, receipt_no, report_name)
-        return jsonify({"ok": True, "detail": detail})
-    except Exception as exc:
-        print(f"[국내 공시 상세 API] 실패: {type(exc).__name__}: {exc}")
-        return jsonify({"ok": False, "detail": {}, "error": "detail_failed"}), 200
+    # Render never calls DART: detailed content must already exist in Neon.
+    filings = read_disclosure_snapshot("KR", stock_code)
+    if filings is None:
+        return jsonify({"ok": False, "detail": {}, "error": "disclosure_snapshot_unavailable"}), 200
+    record = next((v for v in filings if str(v.get("receipt_no")) == receipt_no), None)
+    if record is None:
+        return jsonify({"ok": False, "detail": {}, "error": "filing_not_cached"}), 200
+    detail_fields = ("executive_shareholdings", "major_shareholder_change",
+                     "earnings_detail", "supply_contract_detail", "financing_detail",
+                     "treasury_stock_detail", "dividend_detail", "corporate_action_detail",
+                     "shareholding_change", "shareholding_delta")
+    detail = {field: record[field] for field in detail_fields if field in record}
+    if not detail:
+        return jsonify({"ok": False, "detail": {}, "error": "filing_detail_not_cached"}), 200
+    detail["receipt_no"] = receipt_no
+    return jsonify({"ok": True, "detail": detail})
 
 
 @app.get("/debug/dart/elestock")
 def debug_dart_elestock():
     stock_code = str(request.args.get("stock_code", "005930") or "").strip()
     return jsonify({
-        "ok": True,
+        "ok": False,
         "stock_code": stock_code,
-        "items": fetch_dart_executive_shareholdings(stock_code),
+        "items": [],
+        "error": "direct_dart_debug_disabled_on_render",
     })
 
 @app.get("/debug/sec/form4")
 def debug_sec_form4():
     ticker = str(request.args.get("ticker", "NVDA") or "").upper().strip()
-    filings = fetch_us_official_filings(ticker, days=30, max_results=30)
+    filings = read_disclosure_snapshot("US", ticker) or []
     return jsonify({
         "ok": True,
         "ticker": ticker,
