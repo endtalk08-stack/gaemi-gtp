@@ -114,3 +114,21 @@ jobs:
                       print("STOCK_CONTROL",name,number,line.strip()[:160])
           PY
           REMOTE
+
+      - name: Read DigitalOcean worker stock selection functions without execution
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path('/opt/gaemigtp-news/app/backend/news_worker.py')
+          source=p.read_text()
+          tree=ast.parse(source)
+          for node in tree.body:
+              if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in ('configured_stocks','read_ranked_stocks','next_ranked_stock','run_once'):
+                  print('WORKER_FUNC_BEGIN='+node.name)
+                  print((ast.get_source_segment(source,node) or '')[:8200])
+                  print('WORKER_FUNC_END='+node.name)
+          PY
+          REMOTE
