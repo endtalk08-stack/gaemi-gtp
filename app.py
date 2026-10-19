@@ -9,6 +9,8 @@ from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.us_market_close import read_brief
+from backend.services.stock_scope import resolve_stock
+from backend.services.stock_ai_issue_view import build_watchlist_result
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -29,6 +31,12 @@ def home():
 @app.get("/ai-test")
 def ai_test_page():
     return send_from_directory(FRONTEND_DIR, "ai-test.html")
+
+@app.get("/api/fixed-stocks")
+def fixed_stocks():
+    """Exactly 40 company names and saved AI news issues; no quote/price API."""
+    return jsonify({"ok": True, "items": build_watchlist_result()})
+
 
 @app.get("/health")
 def health():
@@ -150,9 +158,19 @@ def analyze():
             request.args.get("market"), request.args.get("menu"),
             request.args.get("symbol"), stock=stock,
         )
-        ticker = analysis_ticker_for_selection(selected)
-        result = analyze_stock(stock, ticker_symbol_override=ticker) if ticker else analyze_stock(stock)
-        remember_chat_analysis(stock, result, selection=selected)
+        # Only the fixed 40 may enter stock analysis or disclosure search.
+        # Direct typed searches have no ranking selection, so match exact alias.
+        scoped = resolve_stock(stock,
+                               market=selected.get("market") if selected else None,
+                               symbol=selected.get("symbol") if selected else None)
+        if scoped is None:
+            return jsonify({"ok": False, "error": "stock_outside_fixed40",
+                            "sections": [], "issue_briefs": [],
+                            "disclosures": [], "us_filings": []}), 200
+        ticker = (scoped["symbol"] + ".KS" if scoped["market"] == "KR"
+                  else scoped["symbol"])
+        result = analyze_stock(scoped["name"], ticker_symbol_override=ticker)
+        remember_chat_analysis(scoped["name"], result, selection=selected)
         response = jsonify(result)
         response.headers["X-Analysis-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.0f}"
         return response
