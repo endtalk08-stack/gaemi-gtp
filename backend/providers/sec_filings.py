@@ -42,8 +42,8 @@ def is_configured():
     return bool(SEC_USER_AGENT)
 
 
-def _request_json(url, ttl, timeout=REQUEST_TIMEOUT):
-    if not is_configured():
+def _request_json(url, ttl, timeout=REQUEST_TIMEOUT, user_agent=None):
+    if not is_configured() and not user_agent:
         return {}
 
     now = time.time()
@@ -55,7 +55,7 @@ def _request_json(url, ttl, timeout=REQUEST_TIMEOUT):
     request = urllib.request.Request(
         url,
         headers={
-            "User-Agent": SEC_USER_AGENT,
+            "User-Agent": user_agent or SEC_USER_AGENT,
             "Accept": "application/json",
         },
     )
@@ -69,6 +69,15 @@ def _request_json(url, ttl, timeout=REQUEST_TIMEOUT):
     with _CACHE_LOCK:
         _CACHE[url] = (now, payload)
     return payload
+
+
+def fetch_company_submissions(cik):
+    """One cached SEC submissions request shared by 30-day panel and news."""
+    return _request_json(
+        SUBMISSIONS_URL.format(cik=int(cik)), _SUBMISSIONS_TTL,
+        timeout=6,
+        user_agent=SEC_USER_AGENT or os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
+    )
 
 
 def _ticker_directory():
@@ -176,7 +185,7 @@ def _panel_submission(index_url):
     if not match or match.group("folder") != match.group("accn").replace("-", ""):
         raise ValueError("invalid_sec_filing_url")
     cik, accession = int(match.group("cik")), match.group("accn")
-    payload = _request_json(SUBMISSIONS_URL.format(cik=cik), _SUBMISSIONS_TTL)
+    payload = fetch_company_submissions(cik)
     recent = ((payload.get("filings") or {}).get("recent") or {})
     accessions = recent.get("accessionNumber") or []
     try:
@@ -437,10 +446,7 @@ def fetch_recent_filings(stock_name, ticker, limit=10, days=7):
     if not cik:
         return []
 
-    payload = _request_json(
-        SUBMISSIONS_URL.format(cik=cik),
-        _SUBMISSIONS_TTL,
-    )
+    payload = fetch_company_submissions(cik)
     if not payload:
         return []
 
