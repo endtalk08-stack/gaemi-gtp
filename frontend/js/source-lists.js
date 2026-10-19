@@ -47,11 +47,7 @@ window.GaemiGTPSourceLists.renderSourceLists = function(result, { includeHeader 
             link.setAttribute('role', 'button');
             link.addEventListener('click', (event) => {
               event.preventDefault();
-              if (String(item.source || '').toUpperCase() === 'SEC' && item.accession) {
-                void window.GaemiGTPSecChat.expand(link, item);
-              } else {
-                window.GaemiGTPExternalLinkModal.openExternalLinkModal(item);
-              }
+              window.GaemiGTPExternalLinkModal.openExternalLinkModal(item);
             });
           } else {
             link.removeAttribute('href');
