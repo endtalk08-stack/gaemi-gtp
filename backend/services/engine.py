@@ -1403,6 +1403,13 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
 
 def fetch_kr_official_disclosures(stock_code, days=7, max_results=3):
     """DART 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
+    # Right-hand 30-day panel only; no change to today's chat disclosures.
+    # Off by default and preserves the existing provider as a safe fallback.
+    if days == 30 and max_results == 0 and os.getenv("DISCLOSURE_NEON_READ") == "1":
+        from .disclosure_transfer import read_snapshot
+        cached_disclosures = read_snapshot("KR", stock_code)
+        if cached_disclosures is not None:
+            return cached_disclosures
     if not OPENDART_API_KEY or not stock_code:
         return []
     stock_code = str(stock_code).strip()
@@ -2118,6 +2125,12 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
 def fetch_us_official_filings(ticker_symbol, days=7, max_results=3, complete_window=False):
     """SEC 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
     ticker_symbol = str(ticker_symbol or "").upper().strip()
+    if (days == 30 and max_results == 30 and complete_window
+            and os.getenv("DISCLOSURE_NEON_READ") == "1"):
+        from .disclosure_transfer import read_snapshot
+        cached_filings = read_snapshot("US", ticker_symbol)
+        if cached_filings is not None:
+            return cached_filings
     if not ticker_symbol or ticker_symbol not in US_CIKS:
         return []
     cache_key = (ticker_symbol, days, max_results, complete_window)
