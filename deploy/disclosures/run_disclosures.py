@@ -19,6 +19,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--market", choices=("KR", "US", "all"), default="all")
     parser.add_argument("--smoke", action="store_true", help="One KR and one US stock only")
+    parser.add_argument("--cleanup-only", action="store_true", help="Remove expired 24-hour rows only")
     args = parser.parse_args(argv)
 
     if not APP.is_dir() or not STAGE.is_dir():
@@ -32,7 +33,8 @@ def main(argv=None):
             if isinstance(value, str) and value.strip():
                 os.environ[name] = value
     # Read-only one-off tests may use env vars instead of writing secrets to disk.
-    for name in ("NEWS_DATABASE_URL", "OPENDART_API_KEY"):
+    required = ("NEWS_DATABASE_URL",) if args.cleanup_only else ("NEWS_DATABASE_URL", "OPENDART_API_KEY")
+    for name in required:
         if not os.environ.get(name, "").strip():
             raise RuntimeError("disclosure_credential_missing_" + name)
 
@@ -45,12 +47,18 @@ def main(argv=None):
     backend.providers.__path__.insert(0, str(STAGE))
     backend.services.__path__.insert(0, str(STAGE))
     from backend.services import engine
-    from backend.services.disclosure_transfer import collect_once
+    from backend.services.disclosure_transfer import collect_once, cleanup_expired
+    if args.cleanup_only:
+        print("DISCLOSURE_EXPIRED_DELETED", cleanup_expired(), flush=True)
+        return
 
     registered = {
         "KR": sorted(engine.DART_STOCK_CORP_CODES),
         "US": sorted(engine.US_CIKS),
     }
+    if not args.smoke:
+        from backend.services.disclosure_ranked_universe import resolve_universe
+        registered = resolve_universe(engine)
     chosen = {
         "KR": ["005930"] if args.smoke else registered["KR"],
         "US": ["AAPL"] if args.smoke else registered["US"],
