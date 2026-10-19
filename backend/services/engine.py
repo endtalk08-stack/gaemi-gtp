@@ -2006,9 +2006,11 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
 
         today = datetime.datetime.now(ZoneInfo("America/New_York")).date()
         results = []
+        enriched_count = 0
 
         for i, form in enumerate(forms):
-            if form not in US_MATERIAL_FORMS:
+            # 오른쪽 패널의 30일 전체 목록은 문서 종류로 누락시키지 않는다.
+            if not complete_window and form not in US_MATERIAL_FORMS:
                 continue
             try:
                 filing_date = datetime.datetime.strptime(dates[i], "%Y-%m-%d").date()
@@ -2052,11 +2054,13 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
             }
 
             # 30일 전체 목록은 가볍게 수집하고 원문 상세 보강은 이전처럼 최신 max_results건에만 수행한다.
-            enrich_latest = (not complete_window or len(results) < max_results)
-            if form == "4" and filing_url and enrich_latest:
+            enrich_latest = (not complete_window or enriched_count < max_results)
+            if form in ("4", "4/A") and filing_url and enrich_latest:
                 filing["_needs_form4_enrichment"] = True
-            elif form == "8-K" and filing_url and enrich_latest:
+                enriched_count += 1
+            elif form in ("8-K", "8-K/A") and filing_url and enrich_latest:
                 filing["_needs_8k_enrichment"] = True
+                enriched_count += 1
 
             results.append(filing)
 
