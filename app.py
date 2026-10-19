@@ -9,7 +9,7 @@ from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.us_market_close import read_brief
-from backend.services.us_sec_disclosures import list_today as list_us_sec_today, detail as get_us_sec_detail, SecReadError
+from backend.services.us_sec_disclosures import detail as get_us_sec_detail, SecReadError
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -62,18 +62,6 @@ def debug_dart_elestock():
         "stock_code": stock_code,
         "items": fetch_dart_executive_shareholdings(stock_code),
     })
-
-@app.get("/disclosures/sec/today")
-def us_sec_today():
-    """On-demand SEC listing in US Eastern filing-date, no database writes."""
-    try:
-        return jsonify({"ok": True, **list_us_sec_today(request.args.get("stock", ""))})
-    except ValueError:
-        return jsonify({"ok": False, "error": "unsupported_stock"}), 400
-    except SecReadError as exc:
-        print("[미국 공시 목록] SEC 조회 실패: " + str(exc), flush=True)
-        return jsonify({"ok": False, "error": "sec_unavailable"}), 502
-
 
 @app.get("/disclosures/sec/detail")
 def us_sec_detail():

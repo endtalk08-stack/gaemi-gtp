@@ -519,6 +519,35 @@
         keywordOnlyLine.appendChild(keywordLine);
         row.appendChild(keywordOnlyLine);
       }
+      // Keep the existing 30-day listing intact. Fetch expanded SEC content
+      // only on a user click, inside this right panel (not the AI/central chat).
+      if (String(item.source || '').toUpperCase() === 'SEC') {
+        if (item.accession) {
+          const expandButton = document.createElement('button');
+          expandButton.type = 'button';
+          expandButton.className = 'right-panel-disclosures__line';
+          expandButton.style.cssText = 'display:block;width:100%;text-align:left;cursor:pointer;font-weight:600;padding:6px 0;color:var(--gtp-text,#e4e4e7)';
+          expandButton.textContent = '공시 상세보기 ▾';
+          expandButton.setAttribute('aria-label', (item.title || '공시') + ' 상세보기');
+          expandButton.addEventListener('click', () => {
+            if (!window.GaemiGTPUSSecRightPanel?.expand) return;
+            void window.GaemiGTPUSSecRightPanel.expand(expandButton, item);
+          });
+          row.appendChild(expandButton);
+        } else {
+          // Old conversation snapshots may have no SEC accession yet.
+          const sourceUrl = String(item.link || item.url || '').trim();
+          if (/^https:\/\/www\.sec\.gov\//i.test(sourceUrl)) {
+            const external = document.createElement('a');
+            external.href = sourceUrl;
+            external.target = '_blank';
+            external.rel = 'noopener noreferrer';
+            external.textContent = 'SEC 공시 원문 보기 ↗';
+            external.className = 'right-panel-disclosures__line';
+            row.appendChild(external);
+          }
+        }
+      }
       list.appendChild(row);
     });
     section.appendChild(list);

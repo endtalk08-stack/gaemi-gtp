@@ -1,4 +1,4 @@
-// SEC disclosure cards in the central chat. No persistent filing storage.
+// Read-only SEC disclosure details for the existing right-hand 30-day panel only.
 (function () {
   'use strict';
 
@@ -113,7 +113,7 @@
     box.dataset.secDetail = 'true';
     box.appendChild(el('p', 'text-sm text-[#64748b] dark:text-[#a1a1aa]', 'SEC 상세정보 확인 중…'));
     anchor.insertAdjacentElement('afterend', box);
-    const stock = item.ticker || item.stock || item.symbol;
+    const stock = item.ticker || item.stock || item.symbol || window.GaemiGTPAnalysisData?.get?.()?.stockName;
     if (!stock || !item.accession) {
       box.replaceChildren(el('p', 'text-sm', '공시 상세 식별정보가 없어 원문을 확인해야 해.'));
       return;
@@ -131,24 +131,5 @@
     }
   }
 
-  function renderList(items, target, filingDate) {
-    const wrap = el('div', 'mt-3 grid gap-2');
-    if (!items.length) {
-      wrap.appendChild(el('p', 'text-sm gtp-dark-text', '미국 공시일 ' + filingDate + ' 기준 신규 접수 공시가 없어.'));
-    } else {
-      items.forEach(item => {
-        const row = el('button', 'source-list-row text-left w-full');
-        row.type = 'button';
-        row.appendChild(el('span', 'source-list-title', item.form + ' · ' + item.title));
-        const date = el('span', 'text-xs text-[#64748b] dark:text-[#a1a1aa]', item.date + ' · 상세보기');
-        row.appendChild(date);
-        row.addEventListener('click', () => void expand(row, item));
-        wrap.appendChild(row);
-      });
-    }
-    target.appendChild(wrap);
-    return wrap;
-  }
-
-  window.GaemiGTPSecChat = { renderList, expand, detailCard };
+  window.GaemiGTPUSSecRightPanel = { expand };
 })();

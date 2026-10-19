@@ -6,7 +6,7 @@ on:
       - 'backend/services/us_sec_disclosures.py'
       - 'backend/services/engine.py'
       - 'app.py'
-      - 'frontend/js/sec-chat.js'
+      - 'frontend/shell/right-panel/us-sec-detail.js'
       - 'frontend/js/source-lists.js'
       - 'frontend/shell/center-chat/ai-chat.js'
       - 'frontend/index.html'
@@ -41,9 +41,29 @@ jobs:
         run: python -m unittest -v tests.test_us_sec_display
       - name: Check chat JavaScript
         run: |
-          node --check frontend/js/sec-chat.js
+          node --check frontend/shell/right-panel/us-sec-detail.js
+          node --check frontend/shell/right-panel/right-panel-tabs.js
           node --check frontend/js/source-lists.js
           node --check frontend/shell/center-chat/ai-chat.js
+      - name: Verify old 30-day panel remains and no SEC AI chat routing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          engine = Path('backend/services/engine.py').read_text()
+          panel = Path('frontend/shell/right-panel/right-panel-tabs.js').read_text()
+          ai = Path('frontend/shell/center-chat/ai-chat.js').read_text()
+          source = Path('frontend/js/source-lists.js').read_text()
+          html = Path('frontend/index.html').read_text()
+          assert 'fetch_us_official_filings(ticker_symbol, days=30, max_results=30)' in engine
+          assert "items.slice(0, 30)" in panel
+          assert "panelWorkspaceView === 'disclosures'" in panel
+          assert 'GaemiGTPUSSecRightPanel.expand(expandButton, item)' in panel
+          assert '/disclosures/sec/today' not in ai
+          assert 'GaemiGTPSecChat' not in ai
+          assert 'GaemiGTPSecChat' not in source
+          assert 'js/sec-chat.js' not in html
+          print('SEC_PANEL_30_DAY_RESTORED_AI_UNCHANGED')
+          PY
       - name: Ensure no long-term filing store in new provider
         run: |
           python - <<'PY'
