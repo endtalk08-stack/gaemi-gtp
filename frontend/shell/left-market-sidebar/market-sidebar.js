@@ -50,12 +50,72 @@
       });
     }
 
+    // Existing Neon names and AI headlines only. No quote or ranking requests.
+    let savedUsRows = null;
+    let savedUsError = false;
+    let savedUsPending = null;
+
+    function loadUsCapRows() {
+      if (savedUsRows || savedUsPending || savedUsError) return;
+      savedUsPending = fetch('/api/market/us-cap-headlines', { credentials: 'same-origin' })
+        .then((response) => {
+          if (!response.ok) throw new Error('us_cap_read_unavailable');
+          return response.json();
+        })
+        .then((payload) => {
+          if (!payload?.ok || !Array.isArray(payload.items) || payload.items.length !== 20) {
+            throw new Error('us_cap_rows_invalid');
+          }
+          savedUsRows = payload.items.map((item) => ({
+            name: typeof item.name === 'string' ? item.name : '',
+            headlines: Array.isArray(item.headlines)
+              ? item.headlines.filter((title) => typeof title === 'string' && title.trim()).slice(0, 3)
+              : []
+          }));
+        })
+        .catch(() => { savedUsError = true; })
+        .finally(() => {
+          savedUsPending = null;
+          if (region === '해외' && tab === 'cap') showEmptyList();
+        });
+    }
+
+    function showUsCapRows() {
+      if (region !== '해외' || tab !== 'cap' || !list) return false;
+      list.replaceChildren();
+      if (!savedUsRows) {
+        loadUsCapRows();
+        const info = document.createElement('p');
+        info.className = 'py-6 text-center text-[12px] text-[#64748b] dark:text-[#a1a1aa]';
+        info.textContent = savedUsError ? '저장된 종목 목록을 읽지 못했습니다.' : '종목을 불러오는 중입니다.';
+        list.appendChild(info);
+        return true;
+      }
+      savedUsRows.forEach((row) => {
+        const item = document.createElement('div');
+        item.className = 'border-b border-[#e2e8f0] px-2 py-2 dark:border-[#3f3f46]';
+        const name = document.createElement('p');
+        name.className = 'text-[13px] font-semibold text-[#334155] dark:text-[#e4e4e7]';
+        name.textContent = row.name;
+        item.appendChild(name);
+        row.headlines.forEach((headline) => {
+          const title = document.createElement('p');
+          title.className = 'mt-1 text-[12px] leading-5 text-[#64748b] dark:text-[#a1a1aa]';
+          title.textContent = headline;
+          item.appendChild(title);
+        });
+        list.appendChild(item);
+      });
+      return true;
+    }
+
     function showEmptyList() {
       const menuLabel = tab === 'cap' ? '시가총액' : tab === 'popular' ? '인기' : '거래대금';
       if (title) title.textContent = region === '해외' && tab === 'cap'
         ? '미국 시가총액 TOP 20' : menuLabel + ' TOP 20';
       if (subtitle) subtitle.textContent = region === '해외' ? '/ 미국 20종목 준비' : '/ 준비 중';
       if (!list) return;
+      if (showUsCapRows()) return;
       list.replaceChildren();
       const message = document.createElement('p');
       message.className = 'py-6 text-center text-[12px] text-[#64748b] dark:text-[#a1a1aa]';

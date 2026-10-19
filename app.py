@@ -34,6 +34,61 @@ def ai_test_page():
 def health():
     return jsonify({"ok": True, "service": "gaemiGTP"})
 
+@app.get("/api/market/us-cap-headlines")
+def market_us_cap_headlines():
+    """Display only the registered US20 names and existing 24h AI headlines.
+
+    Neon SELECT only. No news, quote, disclosure, rankings or AI calls.
+    """
+    database_url = (os.environ.get("NEWS_DATABASE_URL")
+                    or os.environ.get("DATABASE_URL") or "").strip()
+    if not database_url:
+        return jsonify({"ok": False, "items": [], "error": "neon_not_configured"}), 503
+    sql = """
+        SELECT w.position, w.display_name AS name,
+               COALESCE(i.headlines, ARRAY[]::text[]) AS headlines
+        FROM public.fixed_watchlist_stocks AS w
+        LEFT JOIN LATERAL (
+            SELECT array_agg(z.headline ORDER BY z.generated_at DESC, z.id DESC) AS headlines
+            FROM (
+                SELECT a.id, a.headline, a.generated_at
+                FROM public.news_ai_issues AS a
+                WHERE a.market = 'US'
+                  AND a.generated_at >= now() - interval '24 hours'
+                  AND a.headline IS NOT NULL AND btrim(a.headline) <> ''
+                  AND (
+                      a.symbol IN (w.symbol, w.display_name)
+                      OR (w.symbol = 'TSM' AND a.symbol = 'TSMC ADR')
+                      OR (w.symbol = 'GOOGL'
+                          AND a.symbol IN ('알파벳 Class A', '알파벳 Class C', 'GOOG'))
+                      OR (w.symbol = 'AMZN' AND a.symbol = '아마존닷컴')
+                      OR (w.symbol = 'MU' AND a.symbol = '마이크론 테크놀로지')
+                      OR (w.symbol = 'META' AND a.symbol = '메타 플랫폼스')
+                  )
+                ORDER BY a.generated_at DESC, a.id DESC
+                LIMIT 3
+            ) AS z
+        ) AS i ON TRUE
+        WHERE w.market = 'US'
+        ORDER BY w.position ASC
+    """
+    try:
+        import psycopg
+        with psycopg.connect(database_url, connect_timeout=3) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql)
+                rows = cursor.fetchall()
+    except Exception as exc:
+        print("[us-cap-headlines] read_failed=" + type(exc).__name__, flush=True)
+        return jsonify({"ok": False, "items": [], "error": "neon_read_unavailable"}), 503
+    if len(rows) != 20 or [row[0] for row in rows] != list(range(1, 21)):
+        return jsonify({"ok": False, "items": [], "error": "us20_registry_incomplete"}), 503
+    return jsonify({"ok": True, "items": [
+        {"name": name, "headlines": headlines or []}
+        for _position, name, headlines in rows
+    ]})
+
+
 @app.get("/calendar")
 def calendar():
     return jsonify({"ok": True, "content": get_live_calendar_data("", "")})
