@@ -34,12 +34,10 @@ def read_disclosure_snapshot(market, symbol, *, now=None):
     None is deliberately different from []: a valid snapshot can legitimately
     contain no filings within the 30-day window. No external fetch fallback.
     """
-    market = str(market or "").strip().upper()
-    symbol = str(symbol or "").strip().upper()
-    if market not in _MARKETS:
-        return None
-    pattern = r"[A-Z.]{1,10}" if market == "US" else r"\d{6}"
-    if not re.fullmatch(pattern, symbol):
+    try:
+        from .disclosure_universe import disclosure_identity
+        market, symbol, _, _ = disclosure_identity(market, symbol)
+    except ValueError:
         return None
     url = os.environ.get("NEWS_DATABASE_URL", "").strip()
     if not url:
