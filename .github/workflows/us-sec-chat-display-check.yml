@@ -1,0 +1,55 @@
+name: US SEC chat display checks
+
+on:
+  pull_request:
+    paths:
+      - 'backend/services/us_sec_disclosures.py'
+      - 'backend/services/engine.py'
+      - 'app.py'
+      - 'frontend/js/sec-chat.js'
+      - 'frontend/js/source-lists.js'
+      - 'frontend/shell/center-chat/ai-chat.js'
+      - 'frontend/index.html'
+      - 'tests/test_us_sec_display.py'
+      - '.github/workflows/us-sec-chat-display-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/services/us_sec_disclosures.py'
+      - 'tests/test_us_sec_display.py'
+      - '.github/workflows/us-sec-chat-display-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile SEC server code
+        run: python -m py_compile backend/services/us_sec_disclosures.py app.py backend/services/engine.py tests/test_us_sec_display.py
+      - name: SEC tests (no live network, database, or AI)
+        run: python -m unittest -v tests.test_us_sec_display
+      - name: Check chat JavaScript
+        run: |
+          node --check frontend/js/sec-chat.js
+          node --check frontend/js/source-lists.js
+          node --check frontend/shell/center-chat/ai-chat.js
+      - name: Ensure no long-term filing store in new provider
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          code = Path('backend/services/us_sec_disclosures.py').read_text()
+          for forbidden in ('psycopg', 'neon', 'INSERT INTO', 'UPDATE ', 'DELETE FROM', 'redis'):
+              assert forbidden not in code.lower() if forbidden.islower() else forbidden not in code
+          print('SEC_READ_ONLY_VERIFIED')
+          PY

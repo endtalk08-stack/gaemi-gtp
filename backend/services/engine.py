@@ -1533,6 +1533,25 @@ def _enrich_us_form4_from_submission(filing, ticker_symbol):
             if code or shares:
                 transactions.append({"code": code, "shares": shares, "price": price, "acquired_disposed": acquired_disposed})
 
+        # Form 4 derivative transactions (options, warrants) are separate XML
+        # blocks. Keep their type so exercise/awards are not labeled as cash buys.
+        derivative_blocks = re.findall(
+            r"<(?:[A-Za-z0-9_.-]+:)?derivativeTransaction\b[^>]*>(.*?)</(?:[A-Za-z0-9_.-]+:)?derivativeTransaction>",
+            submission_text, flags=re.I | re.S,
+        )
+        for block in derivative_blocks:
+            code = _tag_value(block, "transactionCode").upper()
+            shares = _tag_value(block, "transactionShares")
+            price = _tag_value(block, "transactionPricePerShare")
+            acquired_disposed = _tag_value(block, "transactionAcquiredDisposedCode").upper()
+            security = _tag_value(block, "securityTitle")
+            if code or shares:
+                transactions.append({
+                    "code": code, "shares": shares, "price": price,
+                    "acquired_disposed": acquired_disposed,
+                    "derivative": True, "security": security,
+                })
+
         filing["transactions"] = transactions
         if transactions:
             filing["transaction_code"] = transactions[0]["code"]
@@ -3514,6 +3533,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "link": item.get("url", ""),
                     "keywords": item.get("keywords", []),
                     "form": item.get("form", ""),
+                    "ticker": ticker_symbol,
+                    "accession": item.get("accession", ""),
                     "item": item.get("item", ""),
                     "items": item.get("items", []),
                     "event_title": item.get("event_title", ""),
