@@ -230,6 +230,45 @@
       }
     };
 
+    // Independent, bounded read of the displayed rows; never poll continuously.
+    const refreshVisibleIssueTitles = async () => {
+      if (!list || bulkIssueRead || (tab !== 'popular' && tab !== 'value')) return;
+      const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
+      if (!market) return;
+      const rows = [...list.querySelectorAll(':scope > button[data-original-index]')].slice(0, 20);
+      if (!rows.length || Date.now() - lastIssueReadAt < ISSUE_RECHECK_MS) return;
+      lastIssueReadAt = Date.now();
+      const currentRequestId = requestId;
+      const currentRevision = issueRevision;
+      const items = rows.map(row => ({ name: row.dataset.stockName, symbol: row.dataset.stockSymbol }));
+      bulkIssueRead = (async () => {
+        const response = await fetch(backendUrl + '/market/issue-headlines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market, items })
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.ok !== true || !Array.isArray(data.items)) return;
+        if (currentRequestId !== requestId || currentRevision !== issueRevision) return;
+        for (let i = 0; i < rows.length; i += 1) {
+          const row = rows[i];
+          const updated = data.items[i];
+          if (!updated || updated.name !== items[i].name ||
+              updated.symbol !== items[i].symbol || !list.contains(row)) continue;
+          if (updated.status !== 'ready' && updated.status !== 'unavailable') continue;
+          const headline = updated.status === 'ready' ? String(updated.headline || '') : '';
+          const issue = row.querySelector('[data-stock-issue]');
+          if (issue) issue.textContent = headline;
+          updateRankingCacheTitle(market, updated.name, updated.symbol, headline);
+        }
+      })();
+      try { await bulkIssueRead; }
+      catch (_) { /* Retain previous titles when Neon/network is unavailable. */ }
+      finally { bulkIssueRead = null; }
+    };
+    window.GaemiGTPMarketSidebar.refreshIssueTitles = refreshVisibleIssueTitles;
+
     // Only refresh the analyzed stock's existing DB-backed issue title.
     // Never recollect news, rerank stocks, or replace the displayed list.
     const refreshAnalyzedIssue = async (event) => {
@@ -254,8 +293,12 @@
         if (currentRequestId !== requestId || !list.contains(button)) return;
         const updated = data.ok === true && Array.isArray(data.items) ? data.items[0] : null;
         if (!updated || updated.name !== name || updated.symbol !== button.dataset.stockSymbol) return;
+        if (updated.status !== 'ready' && updated.status !== 'unavailable') return;
+        const headline = updated.status === 'ready' ? String(updated.headline || '') : '';
         const issue = button.querySelector('[data-stock-issue]');
-        if (issue) issue.textContent = typeof updated.headline === 'string' ? updated.headline : '';
+        if (issue) issue.textContent = headline;
+        updateRankingCacheTitle(market, name, button.dataset.stockSymbol, headline);
+        issueRevision += 1;
       } catch (_) {
         // Keep the previous headline on transient read failures.
       }
