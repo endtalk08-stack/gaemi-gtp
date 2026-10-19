@@ -171,6 +171,19 @@ def collect_once(market, symbol):
             except Exception as exc:
                 print("[disclosure-transfer] dart_detail_unavailable=" + type(exc).__name__, flush=True)
 
+    else:
+        for item in filings:
+            if str(item.get("form") or "").upper() in {"144", "10-Q", "10-K"} and item.get("url"):
+                try:
+                    item["panel_extra_detail"] = engine.sec_filings.fetch_panel_missing_detail(item["url"])
+                except Exception as exc:
+                    print("[disclosure-transfer] sec_detail_unavailable=" + type(exc).__name__, flush=True)
+
+    # These records have been collected on DO. The browser must not request
+    # DART/SEC provider enrichment through Render for this DB-backed snapshot.
+    for item in filings:
+        item["snapshot_only"] = True
+
     import psycopg
     from psycopg.types.json import Jsonb
     with psycopg.connect(_database_url(), connect_timeout=4) as conn:
