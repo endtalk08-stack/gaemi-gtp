@@ -256,33 +256,3 @@ jobs:
           echo DO_SEC_READONLY_SMOKE_COMPLETE
           REMOTE
 
-      - uses: actions/checkout@v4
-        with:
-          ref: ops/disclosures-do-neon-transfer-20261019
-          persist-credentials: false
-      - name: Stage disclosure-only reviewed sources using existing SSH
-        run: |
-          set -euo pipefail
-          staging="$(mktemp -d)"
-          trap 'rm -rf "$staging"' EXIT
-          cp backend/services/engine.py "$staging/engine.py"
-          cp backend/services/disclosure_transfer.py "$staging/disclosure_transfer.py"
-          cp backend/database/migrations/004_disclosure_snapshots.sql "$staging/004_disclosure_snapshots.sql"
-          python -m py_compile "$staging/engine.py" "$staging/disclosure_transfer.py"
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
-            "$DO_SSH_USER@$DO_HOST" 'mkdir -p /home/gaemi-deploy/disclosures-migration-staging && chmod 700 /home/gaemi-deploy/disclosures-migration-staging'
-          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
-            "$staging/engine.py" "$staging/disclosure_transfer.py" "$staging/004_disclosure_snapshots.sql" \
-            "$DO_SSH_USER@$DO_HOST":/home/gaemi-deploy/disclosures-migration-staging/
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
-            "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
-          set -eu
-          cd /home/gaemi-deploy/disclosures-migration-staging
-          /opt/gaemigtp-news/venv/bin/python - <<'PY'
-          for filename in ("engine.py","disclosure_transfer.py"):
-              compile(open(filename, encoding="utf-8").read(),filename,"exec")
-          print("DO_DISCLOSURE_STAGING_SYNTAX_OK")
-          PY
-          echo "WORKER_STILL_ACTIVE=$(systemctl is-active gaemigtp-news.service)"
-          echo "DISCLOSURES_STAGED_NO_ACTIVATION"
-          REMOTE
