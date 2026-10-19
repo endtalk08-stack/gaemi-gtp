@@ -298,16 +298,19 @@ def enrich_form4_filing(filing, ticker_symbol):
     detail = {
         "person": parsed.get("person") or filing.get("person", ""),
         "officer_title": parsed.get("officer_title") or filing.get("officer_title", ""),
-        "transactions": transactions,
+        "transactions": ordinary,
+        "derivative_transactions": derivative,
         "transaction_kind": code_labels.get(ordered[0], "파생증권 변동" if derivative else "내부자 거래") if ordered else ("파생증권 변동" if derivative else "내부자 거래"),
         "transaction_summary": summary,
         "transaction_count": len(transactions),
         "price_range": "",
     }
-    if transactions:
-        detail["transaction_code"] = transactions[0]["code"]
-        detail["shares"] = transactions[0]["shares"]
-        detail["price"] = transactions[0]["price"]
+    representative = ordinary[0] if ordinary else (derivative[0] if derivative else None)
+    if representative:
+        detail["transaction_code"] = representative["code"]
+        if ordinary:
+            detail["shares"] = representative["shares"]
+            detail["price"] = representative["price"]
     filing.update(detail)
     with _CACHE_LOCK:
         _FORM4_CACHE[cache_key] = (time.time(), detail)
