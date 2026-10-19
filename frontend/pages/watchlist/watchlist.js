@@ -114,6 +114,7 @@
           market: r.market, symbol: r.symbol, name: r.name, issues: r.issues
         }));
         refreshDisplay();
+        window.dispatchEvent(new Event('gaemi:fixed-stocks-ready'));
         window.GaemiGTPSidebarHome?.renderRecent?.();
       })
       .catch(() => {
@@ -129,7 +130,14 @@
 
   window.GaemiGTPWatchlist = {
     initialize, refresh: initialize, mount: initialize,
-    getStocks: () => stocks.map(({ market, symbol, name }) => ({ market, symbol, name }))
+    getStocks: () => stocks.map(({ market, symbol, name }) => ({ market, symbol, name })),
+    getDisplayRows: (market) => stocks.filter(row => row.market === market)
+      .map(row => ({ market: row.market, symbol: row.symbol, name: row.name,
+        issues: issuesFor(row).map(issue => ({ headline: issue.headline })) })),
+    openSavedIssues: (market, symbol, issueIndex = -1) => {
+      const row = stocks.find(item => item.market === market && item.symbol === symbol);
+      if (row) openIssueBody(row, issueIndex);
+    }
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
