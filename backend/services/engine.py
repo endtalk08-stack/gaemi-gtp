@@ -1887,16 +1887,10 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
         return []
 
     try:
-        url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": os.environ.get("SEC_USER_AGENT", "gaemiGTP/1.0"),
-                "Accept": "application/json",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        # SEC news and the right-panel window share the same official JSON cache.
+        data = sec_filings.fetch_company_submissions(cik)
+        if not data:
+            raise ValueError("SEC submissions unavailable")
 
         recent = data.get("filings", {}).get("recent", {})
         forms = recent.get("form", [])
