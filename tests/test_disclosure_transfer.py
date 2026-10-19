@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from backend.services.disclosure_transfer import (
-    _valid_identity, collect_once, one_day_filings, read_snapshot,
+    _valid_identity, collect_once, one_day_filings, today_filings, read_snapshot,
 )
 
 
@@ -50,6 +50,17 @@ class DisclosureTransferTests(unittest.TestCase):
             {"acceptance_datetime": "2026-10-18T18:00:00", "date": "2026-10-18", "form": "8-K"},
         ]
         self.assertEqual([r["form"] for r in one_day_filings(rows, "US", now=now)], ["4"])
+
+    def test_panel_24h_and_center_today_are_independent(self):
+        now = dt.datetime(2026, 10, 20, 0, 0, tzinfo=dt.timezone.utc)
+        rows = [
+            {"receipt_datetime": "20261020", "report": "today"},
+            {"receipt_datetime": "20261019", "time": "10:00", "report": "yesterday"},
+        ]
+        panel = one_day_filings(rows, "KR", now=now)
+        center = today_filings(panel, "KR", now=now)
+        self.assertEqual([x["report"] for x in panel], ["today", "yesterday"])
+        self.assertEqual([x["report"] for x in center], ["today"])
 
     def test_temporary_only_no_30_day_query_or_archive(self):
         read_code = inspect.getsource(read_snapshot)
