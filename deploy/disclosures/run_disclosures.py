@@ -7,6 +7,8 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 APP = Path("/opt/gaemigtp-news/app")
@@ -20,8 +22,18 @@ def main(argv=None):
     parser.add_argument("--market", choices=("KR", "US", "all"), default="all")
     parser.add_argument("--smoke", action="store_true", help="One KR and one US stock only")
     parser.add_argument("--cleanup-only", action="store_true", help="Remove expired 24-hour rows only")
+    parser.add_argument("--auto", action="store_true", help="Hourly cron gate: KR at 18 KST, US at 08 KST")
     parser.add_argument("--no-ranked", action="store_true", help="Verify mapped stock universe without refreshing rankings")
     args = parser.parse_args(argv)
+    if args.auto:
+        hour = datetime.now(ZoneInfo("Asia/Seoul")).hour
+        if hour == 8:
+            args.market = "US"
+        elif hour == 18:
+            args.market = "KR"
+        else:
+            return
+        print("DISCLOSURE_DAILY_SCHEDULE", args.market, hour, "KST", flush=True)
 
     if not APP.is_dir() or not STAGE.is_dir():
         raise RuntimeError("disclosure_stage_or_app_missing")
