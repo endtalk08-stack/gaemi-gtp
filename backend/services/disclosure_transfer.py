@@ -218,6 +218,20 @@ def collect_once(market, symbol):
             "collected_at": dt.datetime.now(dt.timezone.utc).isoformat()}
 
 
+def cleanup_expired():
+    """Delete only expired temporary disclosures; callable by hourly DO sweep."""
+    if not _database_url():
+        raise RuntimeError("disclosure_db_missing")
+    import psycopg
+    with psycopg.connect(_database_url(), connect_timeout=4) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM public.disclosure_snapshots
+                WHERE fetched_at <= now() - interval '24 hours'
+            """)
+            return cur.rowcount
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="One-day SEC/DART snapshot collection")
     parser.add_argument("--market", choices=("KR", "US"), required=True)
