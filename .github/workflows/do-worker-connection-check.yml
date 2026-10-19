@@ -90,3 +90,42 @@ jobs:
           fi
           echo DISCLOSURE_COMPONENT_READONLY_CHECK_DONE
           REMOTE
+
+      - name: Verify deployed disclosure modules and active worker usage
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          cd /opt/gaemigtp-news/app
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          import ast
+          from pathlib import Path
+          checks = {
+              "backend/news_worker.py": ("main",),
+              "backend/services/engine.py": ("fetch_kr_official_disclosures", "fetch_us_official_filings", "fetch_dart_disclosure_detail"),
+              "backend/providers/sec_filings.py": ("fetch_recent_filings",),
+          }
+          for filename, wanted in checks.items():
+              path = Path(filename)
+              if not path.is_file():
+                  print("MISSING_SOURCE=" + filename)
+                  continue
+              try:
+                  content = path.read_text()
+                  tree = ast.parse(content)
+              except (SyntaxError, UnicodeError, OSError) as e:
+                  print("SOURCE_UNREADABLE=" + filename + ":" + type(e).__name__)
+                  continue
+              found = {n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+              for name in wanted:
+                  print("DO_FUNC=" + filename + ":" + name + ":" + str(name in found).lower())
+              if filename.endswith("news_worker.py"):
+                  imports = []
+                  for node in ast.walk(tree):
+                      if isinstance(node, ast.ImportFrom):
+                          imports.append(node.module or "")
+                  print("WORKER_IMPORTS_DISCLOSURE=" + str(any("disclos" in t or t.endswith("engine") or "sec_filing" in t for t in imports)).lower())
+          PY
+          echo DISCLOSURE_SOURCE_INSPECTION_COMPLETE
+          REMOTE
