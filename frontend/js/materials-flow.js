@@ -40,7 +40,13 @@ window.GaemiGTPMaterialsFlow.appendMaterials = async function ({
             }
   
             const materials = window.GaemiGTPSourceLists.renderSourceLists(result, { includeHeader: false });
-            if (!materials) return;
+            if (!materials) {
+              const noDisclosure = document.createElement('p');
+              noDisclosure.className = responseMessageClass;
+              noDisclosure.textContent = '꽝! 오늘 해당 종목의 공시는 없어.';
+              prompt.insertAdjacentElement('afterend', noDisclosure);
+              return;
+            }
             materials.dataset.materialsSection = 'true';
             prompt.insertAdjacentElement('afterend', materials);
   
