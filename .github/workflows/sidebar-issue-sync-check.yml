@@ -7,6 +7,8 @@ on:
       - 'frontend/shell/center-chat/analysis-flow.js'
       - 'frontend/index.html'
       - 'tests/test_sidebar_issue_sync.cjs'
+      - 'tests/test_market_issue_headlines.py'
+      - 'backend/services/market_issue_headlines.py'
       - '.github/workflows/sidebar-issue-sync-check.yml'
   workflow_dispatch:
 
@@ -28,3 +30,5 @@ jobs:
           node --check frontend/shell/center-chat/analysis-flow.js
       - name: Sidebar synchronization regression tests
         run: node --test tests/test_sidebar_issue_sync.cjs
+      - name: Neon sidebar result contract tests (mock only)
+        run: python3 -m unittest discover -s tests -p 'test_market_issue_headlines.py' -v
