@@ -24,7 +24,12 @@
   function visibleRecent() {
     const mode = window.GaemiGTPAppState?.getCurrentAppMode?.() || 'gaemi';
     // Old entries had no mode metadata; keep them discoverable in all modes.
-    return readRecent().filter(entry => !['gaemi', 'info', 'pro'].includes(entry.mode) || entry.mode === mode);
+    const allowedNames = new Set((window.GaemiGTPWatchlist?.getStocks?.() || [])
+      .map(stock => String(stock.name || '').trim().toLowerCase()));
+    return readRecent().filter(entry =>
+      (!['gaemi', 'info', 'pro'].includes(entry.mode) || entry.mode === mode)
+      && (entry.type !== 'stock' || allowedNames.has(entry.value.trim().toLowerCase()))
+    );
   }
 
   function renderRecent() {
