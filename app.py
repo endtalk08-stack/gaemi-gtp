@@ -10,7 +10,7 @@ from backend.services.market_rankings import (build_kr_trading_value_result, bui
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.us_market_close import read_brief
 
-from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
+from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, fetch_us_sec_missing_detail, get_live_calendar_data, start_calendar_warmup
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -37,6 +37,21 @@ def health():
 @app.get("/calendar")
 def calendar():
     return jsonify({"ok": True, "content": get_live_calendar_data("", "")})
+
+@app.get("/disclosures/sec/detail")
+def sec_missing_disclosure_detail():
+    # Used only by the existing 30-day right panel for absent SEC facts.
+    ticker = str(request.args.get("stock", "") or "").strip()
+    accession = str(request.args.get("accession", "") or "").strip()
+    try:
+        detail = fetch_us_sec_missing_detail(ticker, accession)
+        return jsonify({"ok": True, "detail": detail})
+    except ValueError:
+        return jsonify({"ok": False, "error": "invalid_sec_filing"}), 400
+    except Exception as exc:
+        print(f"[미국 공시 상세 API] 실패: {type(exc).__name__}: {exc}")
+        return jsonify({"ok": False, "error": "sec_detail_unavailable"}), 502
+
 
 @app.get("/disclosures/dart/detail")
 def dart_disclosure_detail():
