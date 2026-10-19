@@ -1,0 +1,78 @@
+name: Install isolated disclosure code on DigitalOcean (no collection or timer)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-disclosure-isolated-install.yml]
+permissions:
+  contents: read
+concurrency:
+  group: do-disclosure-isolated-install
+  cancel-in-progress: false
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    environment: digitalocean-news-worker
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Set up SSH
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Install separate disclosure-only modules, never restart worker
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          app=/opt/gaemigtp-news/app
+          stage=/home/gaemi-deploy/disclosures-migration-staging
+          dst=$app/backend/services
+          py=/opt/gaemigtp-news/venv/bin/python
+          expected_engine=1d957dec87cc5526a86d284e0a066c9eb5b2c60df10edd00dfb39a29e089da01
+          original_engine_hash="$(sha256sum "$app/backend/services/engine.py" | cut -d' ' -f1)"
+          original_worker_pid="$(systemctl show gaemigtp-news.service -p MainPID --value)"
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test -w "$dst" && test -r "$stage/engine.py" && test -r "$stage/disclosure_transfer.py"
+          test "$(sha256sum "$stage/engine.py" | cut -d' ' -f1)" = "$expected_engine"
+          export DST="$dst" STAGE="$stage"
+          "$py" - <<'PY'
+          from pathlib import Path
+          import ast, os
+          stage=Path(os.environ["STAGE"])
+          dst=Path(os.environ["DST"])
+          source=(stage/"disclosure_transfer.py").read_text()
+          assert 'from . import engine' in source
+          assert 'complete_window=True' in source
+          assert "disclosure_snapshots" in source
+          eng=stage/"engine.py"
+          assert eng.is_file()
+          assert any(isinstance(n,ast.FunctionDef) and n.name=='collect_once' for n in ast.parse(source).body)
+          patched=source.replace('from . import engine\n','from . import disclosure_collector_engine as engine\n',1)
+          assert patched != source
+          targets={"disclosure_collector_engine.py":eng.read_text(),"disclosure_transfer.py":patched}
+          for filename,code in targets.items():
+              compile(code,filename,'exec')
+              output=dst/filename
+              if output.is_file():
+                  assert output.read_text()==code, "existing_disclosure_module_changed"
+          for filename,code in targets.items():
+              path=dst/filename
+              if not path.exists():
+                  path.write_text(code)
+                  path.chmod(0o644)
+              print("DISCLOSURE_MODULE_INSTALLED="+str(path),flush=True)
+          PY
+          test "$(sha256sum "$app/backend/services/engine.py" | cut -d' ' -f1)" = "$original_engine_hash"
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(systemctl show gaemigtp-news.service -p MainPID --value)" = "$original_worker_pid"
+          echo DISCLOSURE_INSTALL_COMPLETE_NO_AUTO_COLLECTION
+          echo "NEWS_WORKER_UNCHANGED=active"
+          REMOTE
