@@ -3269,6 +3269,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
             print(f"[analyze trace] stock={raw_name} stage=dart start", flush=True)
             try:
                 kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=1, max_results=0)
+                from .disclosure_transfer import one_day_filings
+                kr_official_disclosures = one_day_filings(kr_official_disclosures, "KR")
                 # DART 임원·주요주주 상세(elestock)도 외부 API 호출이라 지연 시
                 # /analyze 전체 worker를 막을 수 있다. 핵심 응답에서는 공시 목록을
                 # 우선 반환하고 상세 조회는 공시 전용 경로에서 처리한다.
@@ -3320,6 +3322,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
 
             try:
                 us_filings_raw = fetch_us_official_filings(ticker_symbol, days=1, max_results=30, complete_window=True)
+                from .disclosure_transfer import one_day_filings
+                us_filings_raw = one_day_filings(us_filings_raw, "US")
             except Exception as e:
                 print(f"[미국 공시] fail: {type(e).__name__}: {e}")
                 us_filings_raw = []
