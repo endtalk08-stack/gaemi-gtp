@@ -31,6 +31,7 @@ _SUBMISSIONS_TTL = 180
 _PANEL_SEC_FACTS_TTL = 900
 _FORM4_CACHE_TTL = 3600
 _FORM4_CACHE = {}
+_PANEL_DETAIL_CACHE = {}
 _SEC_INDEX_RE = re.compile(
     r"https://www\.sec\.gov/Archives/edgar/data/(?P<cik>\d{1,10})/"
     r"(?P<folder>\d{18})/(?P<accn>\d{10}-\d{2}-\d{6})-index\.htm"
@@ -401,6 +402,11 @@ def fetch_panel_missing_detail(index_url):
     if form not in {"144", "10-Q", "10-K"}:
         result["status"] = "existing_renderer"
         return result
+    detail_key = (cik, accession, form)
+    with _CACHE_LOCK:
+        cached = _PANEL_DETAIL_CACHE.get(detail_key)
+    if cached and time.time() - cached[0] < _PANEL_SEC_FACTS_TTL:
+        return cached[1]
 
     if form == "144":
         # SEC supplies the primary document name in its verified submission feed.
@@ -432,6 +438,9 @@ def fetch_panel_missing_detail(index_url):
             result["metrics"] = _panel_filing_metrics(facts, accession, form)
     if result["fields"] or result["metrics"]:
         result["status"] = "ready"
+    if result["status"] == "ready":
+        with _CACHE_LOCK:
+            _PANEL_DETAIL_CACHE[detail_key] = (time.time(), result)
     return result
 
 def fetch_recent_filings(stock_name, ticker, limit=10, days=7):
