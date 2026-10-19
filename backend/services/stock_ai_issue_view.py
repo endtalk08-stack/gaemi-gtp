@@ -68,12 +68,42 @@ def read_stock_ai_issues(market, symbol):
     return read_ai_issue_map().get((stock["market"], stock["symbol"]), [])
 
 
+def _read_fixed_watchlist_registry():
+    """Read only the 40 approved company identities from independent Neon table."""
+    db = os.environ.get("NEWS_DATABASE_URL", "").strip()
+    if not db:
+        return None
+    try:
+        import psycopg
+        with psycopg.connect(db, connect_timeout=3) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT market, symbol, display_name
+                       FROM public.fixed_watchlist_stocks
+                       ORDER BY CASE market WHEN 'KR' THEN 0 ELSE 1 END,
+                                position ASC"""
+                )
+                rows = cur.fetchall()
+    except Exception as exc:
+        print("[fixed40-watchlist] neon_read_failed=" + type(exc).__name__, flush=True)
+        return None
+    if len(rows) != len(STOCKS):
+        return None
+    actual = [(m, s, n) for m, s, n in rows]
+    expected = [(r["market"], r["symbol"], r["name"]) for r in STOCKS]
+    if actual != expected:
+        print("[fixed40-watchlist] registry_not_matching_verified_list", flush=True)
+        return None
+    return [{"market": m, "symbol": s, "name": n} for m, s, n in rows]
+
+
 def build_watchlist_result():
-    """One Neon SELECT for all stocks. Sidebar includes no quotes or ranks."""
+    """Neon-approved 40 names plus saved AI issue titles/bodies, never prices."""
+    registered = _read_fixed_watchlist_registry()
+    if registered is None:
+        return None
     issues = read_ai_issue_map()
     return [{
-        "market": row["market"],
-        "symbol": row["symbol"],
-        "name": row["name"],
+        **row,
         "issues": issues[(row["market"], row["symbol"])],
-    } for row in STOCKS]
+    } for row in registered]
