@@ -3514,6 +3514,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "link": item.get("url", ""),
                     "keywords": item.get("keywords", []),
                     "form": item.get("form", ""),
+                    "ticker": ticker_symbol,
+                    "accession": item.get("accession", ""),
                     "item": item.get("item", ""),
                     "items": item.get("items", []),
                     "event_title": item.get("event_title", ""),
