@@ -1,0 +1,71 @@
+name: DigitalOcean disclosure migration preflight (read only)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-disclosure-migration-preflight.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 4
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Configure exact known-host SSH
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$DO_SSH_PRIVATE_KEY" && test -n "$DO_SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Inspect disclosure migration prerequisites without writes
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo DO_ACCOUNT="$(id -un)"
+          echo NEWS_WORKER="$(systemctl is-active gaemigtp-news.service)"
+          for path in /opt/gaemigtp-news/app/backend/services /opt/gaemigtp-news/app/ops /etc/gaemigtp /etc/systemd/system /home/gaemi-deploy/disclosures-migration-staging; do
+            if test -d "$path"; then echo "PREFLIGHT_DIR=$path"; else echo "PREFLIGHT_MISSING_DIR=$path"; fi
+            if test -w "$path"; then echo "PREFLIGHT_WRITABLE=$path"; else echo "PREFLIGHT_NOT_WRITABLE=$path"; fi
+          done
+          if sudo -n /usr/bin/true >/dev/null 2>&1; then echo "SUDO_TRUE=yes"; else echo "SUDO_TRUE=no"; fi
+          if sudo -n /usr/bin/systemctl --version >/dev/null 2>&1; then echo "SUDO_SYSTEMCTL_CMD=yes"; else echo "SUDO_SYSTEMCTL_CMD=no"; fi
+          if test -r /etc/gaemigtp/news-worker.env; then
+            echo "NEWS_ENV_EXISTS=yes"
+            for key in NEWS_DATABASE_URL OPENDART_API_KEY DART_API_KEY SEC_USER_AGENT; do
+              if grep -q "^$key=" /etc/gaemigtp/news-worker.env; then echo "NEWS_ENV_NAME_$key=yes"; else echo "NEWS_ENV_NAME_$key=no"; fi
+            done
+          else echo "NEWS_ENV_EXISTS=no"; fi
+          systemctl list-timers --all --no-pager --no-legend | grep -Ei 'gaemi|disclos|dart|sec' || true
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from pathlib import Path
+          import ast, inspect
+          for filename in ['/home/gaemi-deploy/disclosures-migration-staging/disclosure_transfer.py',
+                           '/home/gaemi-deploy/disclosures-migration-staging/engine.py',
+                           '/opt/gaemigtp-news/app/backend/services/disclosure_transfer.py']:
+              path=Path(filename)
+              print('DISCLOSURE_FILE='+str(path)+':'+str(path.is_file()).lower())
+              if not path.is_file(): continue
+              code=path.read_text()
+              tree=ast.parse(code)
+              print('DISCLOSURE_SOURCE_LENGTH='+str(len(code)))
+              for node in tree.body:
+                  if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
+                      names=','.join(arg.arg for arg in node.args.args) if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) else ''
+                      print('DISCLOSURE_DEF='+node.name+':'+names)
+              if path.name=='disclosure_transfer.py':
+                  for node in tree.body:
+                      if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in ('collect_once','_save','save_snapshot','_store','_connect'):
+                          print('DISCLOSURE_FUNCTION_SOURCE_START='+node.name)
+                          print(ast.get_source_segment(code,node)[:8500])
+                          print('DISCLOSURE_FUNCTION_SOURCE_END='+node.name)
+          PY
+          echo PREFLIGHT_READONLY_COMPLETE
+          REMOTE
