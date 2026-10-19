@@ -55,6 +55,8 @@ class Element {
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 function setup({ deferred = false } = {}) {
+  let postStatus = 'ready';
+  let clock = 1000000;
   const list = new Element('div');
   const title = new Element();
   const metric = new Element();
@@ -71,8 +73,17 @@ function setup({ deferred = false } = {}) {
   sidebar.querySelectorAll = (selector) =>
     selector === '[data-legacy-region]' ? [kr, us] : [];
   const documentListeners = {};
+  const visibleClasses = new Set();
   const document = {
-    body: { classList: { contains() { return false; }, remove() {}, toggle() {} } },
+    body: { classList: {
+      contains(key) { return visibleClasses.has(key); },
+      remove(...keys) { keys.forEach(key => visibleClasses.delete(key)); },
+      toggle(key, force) {
+        const active = force === undefined ? !visibleClasses.has(key) : !!force;
+        if (active) visibleClasses.add(key); else visibleClasses.delete(key);
+        return active;
+      }
+    } },
     getElementById(id) { return id === 'leftMarketSidebar' ? sidebar : null; },
     createElement(tagName) { return new Element(tagName); },
     addEventListener(name, fn) { documentListeners[name] = fn; }
@@ -104,17 +115,22 @@ function setup({ deferred = false } = {}) {
       if (deferred) {
         await new Promise((resolve) => { resolveDeferred = resolve; });
       }
-      return { ok: true, json: async () => ({ ok: true, items: [
-        { name: '일라이 릴리', symbol: 'LLY', headline: '사업 제휴 이슈' }
-      ] }) };
+      return { ok: true, json: async () => ({
+        ok: postStatus !== 'error',
+        items: [{ name: '일라이 릴리', symbol: 'LLY', status: postStatus,
+                  headline: postStatus === 'ready' ? '사업 제휴 이슈' : '' }]
+      }) };
     }
     throw new Error('unexpected request: ' + url);
   };
-  vm.runInNewContext(sidebarSource, { window, document, fetch, console });
+  vm.runInNewContext(sidebarSource, { window, document, fetch, console, Date: { now: () => clock } });
   documentListeners.DOMContentLoaded();
   return {
     list, us, kr, calls,
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
+    toggle() { window.GaemiGTPMarketSidebar.toggle(); },
+    advance(ms) { clock += ms; },
+    setPostStatus(status) { postStatus = status; },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
   };
 }
@@ -165,8 +181,67 @@ test('stale lookup must not write to a rebuilt sidebar', async () => {
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockName, '삼성전자');
 });
 
-test('central analysis announces only completed and populated briefs', () => {
-  assert.match(analysisSource, /Array\.isArray\(result\.issue_briefs\) && result\.issue_briefs\.length > 0/);
+test('completed central analysis permits sidebar invalidation even with no issue briefs', () => {
+  assert.doesNotMatch(analysisSource, /Array\\.isArray\\(result\\.issue_briefs\\) && result\\.issue_briefs\\.length > 0/);
   assert.match(analysisSource, /gaemi:analysis-issues-ready/);
-  assert.match(analysisSource, /session\.marketSelection\?\.symbol/);
+  assert.match(analysisSource, /session\\.marketSelection\\?\\.symbol/);
+});
+
+test('confirmed no-issue clears the old title, Neon error preserves it', async () => {
+  const app = setup();
+  await flush();
+  app.us.click();
+  await flush();
+  app.event({ name: '일라이 릴리', market: 'us', symbol: 'LLY' });
+  await flush();
+  const issue = app.list.querySelectorAll(':scope > button[data-original-index]')[0].querySelector('[data-stock-issue]');
+  assert.equal(issue.textContent, '사업 제휴 이슈');
+  app.setPostStatus('error');
+  app.event({ name: '일라이 릴리', market: 'us', symbol: 'LLY' });
+  await flush();
+  assert.equal(issue.textContent, '사업 제휴 이슈');
+  app.setPostStatus('unavailable');
+  app.event({ name: '일라이 릴리', market: 'us', symbol: 'LLY' });
+  await flush();
+  assert.equal(issue.textContent, '');
+});
+
+test('sidebar reopen is throttled and rechecks every visible stock in one call', async () => {
+  const app = setup();
+  await flush();
+  app.us.click();
+  await flush();
+  const oldCount = app.calls.length;
+  app.toggle();
+  await flush();
+  assert.equal(app.calls.length, oldCount);
+  app.toggle();
+  app.advance(60001);
+  app.toggle();
+  await flush();
+  assert.equal(app.calls.length, oldCount + 1);
+  assert.ok(app.calls.at(-1).url.endsWith('/market/issue-headlines'));
+  const items = JSON.parse(app.calls.at(-1).opts.body).items;
+  assert.equal(items.length, 2);
+  app.toggle();
+  app.toggle();
+  await flush();
+  assert.equal(app.calls.length, oldCount + 1);
+});
+
+test('fast repeated tab switches reuse bounded ranking cache', async () => {
+  const app = setup();
+  await flush();
+  app.us.click();
+  await flush();
+  const count = app.calls.length;
+  app.kr.click();
+  await flush();
+  app.us.click();
+  await flush();
+  assert.equal(app.calls.length, count);
+  app.advance(15001);
+  app.us.click();
+  await flush();
+  assert.equal(app.calls.length, count + 1);
 });
