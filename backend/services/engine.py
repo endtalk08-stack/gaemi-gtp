@@ -3444,6 +3444,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "dividend_detail": item.get("dividend_detail", {}),
                     "corporate_action_detail": item.get("corporate_action_detail", {}),
                     "detail_preloaded": item.get("detail_preloaded", False),
+                    "snapshot_only": item.get("snapshot_only", False),
                 })
         us_filings = []
         if not is_krw and ticker_symbol:
@@ -3480,6 +3481,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                     "transactions": item.get("transactions", []),
                     "derivative_transactions": item.get("derivative_transactions", []),
                     "price_range": item.get("price_range", ""),
+                    "panel_extra_detail": item.get("panel_extra_detail", {}),
+                    "snapshot_only": item.get("snapshot_only", False),
                 })
         week_52 = (price_result.get("indicators") or {}).get("week_52") or {}
         current_quote = float(price_result.get("current_price") or 0)
