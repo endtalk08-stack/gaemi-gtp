@@ -1,11 +1,12 @@
-"""Offline disclosure-only migration guardrails; no external API calls."""
+"""Offline one-day disclosure migration guardrails; no external API calls."""
+import datetime as dt
 import inspect
 import os
 import unittest
 from unittest.mock import patch
 
 from backend.services.disclosure_transfer import (
-    _valid_identity, collect_once, read_snapshot,
+    _valid_identity, collect_once, one_day_filings, read_snapshot,
 )
 
 
@@ -28,14 +29,37 @@ class DisclosureTransferTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "disclosure_db_missing"):
                 collect_once("US", "AAPL")
 
-    def test_disclosure_snapshots_are_24h_temporary_only(self):
-        # No long-term disclosure archive should be introduced.
+    def test_dart_one_day_window_uses_verified_time(self):
+        now = dt.datetime(2026, 10, 20, 0, 0, tzinfo=dt.timezone.utc)
+        rows = [
+            {"receipt_datetime": "20261020", "report": "today"},
+            {"receipt_datetime": "20261019", "time": "10:00", "report": "within24h"},
+            {"receipt_datetime": "20261019", "time": "08:00", "report": "too_old"},
+            {"receipt_datetime": "20261019", "report": "yesterday_time_unknown"},
+            {"receipt_datetime": "20260920", "report": "30_day_old"},
+        ]
+        self.assertEqual(
+            [row["report"] for row in one_day_filings(rows, "KR", now=now)],
+            ["today", "within24h"],
+        )
+
+    def test_sec_one_day_uses_eastern_acceptance_time(self):
+        now = dt.datetime(2026, 10, 20, 0, 0, tzinfo=dt.timezone.utc)
+        rows = [
+            {"acceptance_datetime": "2026-10-19T18:00:00", "date": "2026-10-19", "form": "4"},
+            {"acceptance_datetime": "2026-10-18T18:00:00", "date": "2026-10-18", "form": "8-K"},
+        ]
+        self.assertEqual([r["form"] for r in one_day_filings(rows, "US", now=now)], ["4"])
+
+    def test_temporary_only_no_30_day_query_or_archive(self):
         read_code = inspect.getsource(read_snapshot)
         collect_code = inspect.getsource(collect_once)
         self.assertIn("fetched_at > now() - interval '24 hours'", read_code)
         self.assertIn("DELETE FROM public.disclosure_snapshots", collect_code)
         self.assertIn("fetched_at <= now() - interval '24 hours'", collect_code)
         self.assertIn("ON CONFLICT (market, symbol) DO UPDATE", collect_code)
+        self.assertIn("days=1", collect_code)
+        self.assertNotIn("days=30", collect_code)
         self.assertNotIn("disclosure_history", collect_code)
         self.assertNotIn("interval '40 minutes'", read_code)
 
