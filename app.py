@@ -53,6 +53,8 @@ def dart_disclosure_detail():
     report_name = str(request.args.get("report", "") or "").strip()
     if not stock_code or not receipt_no:
         return jsonify({"ok": False, "detail": {}, "error": "missing_identifier"}), 400
+    if resolve_stock(None, market="KR", symbol=stock_code) is None:
+        return jsonify({"ok": False, "detail": {}, "error": "stock_outside_fixed40"}), 400
     try:
         detail = fetch_dart_disclosure_detail(stock_code, receipt_no, report_name)
         return jsonify({"ok": True, "detail": detail})
@@ -64,6 +66,8 @@ def dart_disclosure_detail():
 @app.get("/debug/dart/elestock")
 def debug_dart_elestock():
     stock_code = str(request.args.get("stock_code", "005930") or "").strip()
+    if resolve_stock(None, market="KR", symbol=stock_code) is None:
+        return jsonify({"ok": False, "items": [], "error": "stock_outside_fixed40"}), 400
     return jsonify({
         "ok": True,
         "stock_code": stock_code,
@@ -73,7 +77,10 @@ def debug_dart_elestock():
 @app.get("/debug/sec/form4")
 def debug_sec_form4():
     ticker = str(request.args.get("ticker", "NVDA") or "").upper().strip()
-    filings = fetch_us_official_filings(ticker, days=30, max_results=30)
+    stock = resolve_stock(None, market="US", symbol=ticker)
+    if stock is None:
+        return jsonify({"ok": False, "items": [], "error": "stock_outside_fixed40"}), 400
+    filings = fetch_us_official_filings(stock["symbol"], days=30, max_results=30)
     return jsonify({
         "ok": True,
         "ticker": ticker,
