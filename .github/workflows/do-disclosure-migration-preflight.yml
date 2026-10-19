@@ -132,3 +132,35 @@ jobs:
                   print('WORKER_FUNC_END='+node.name)
           PY
           REMOTE
+
+      - name: Read AI scheduler inputs and worker write permissions without API calls
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          for p in /opt/gaemigtp-news/app/backend /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/ops /opt/gaemigtp-news/app/ops/staged_auto_ai_daily.py; do
+            if test -e "$p"; then
+              if test -w "$p"; then echo "WORKER_PERM=$p:writable"; else echo "WORKER_PERM=$p:readonly"; fi
+            else echo "WORKER_PERM=$p:missing"; fi
+          done
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from pathlib import Path
+          import ast
+          files=("/opt/gaemigtp-news/app/backend/news_worker.py",
+                 "/opt/gaemigtp-news/app/ops/staged_auto_ai_daily.py")
+          for filename in files:
+              p=Path(filename)
+              if not p.is_file():continue
+              source=p.read_text(errors="replace")
+              tree=ast.parse(source)
+              print("SCRIPT",str(p),"size",len(source))
+              for node in tree.body:
+                  if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)):
+                      print("SCRIPT_FUNC",node.name)
+                      if node.name in ("configured_stocks","process_stock","main",
+                                       "process_due_ai_snapshots","read_due_snapshots"):
+                          print("SOURCE_BEGIN",node.name)
+                          print((ast.get_source_segment(source,node) or "")[:12500])
+                          print("SOURCE_END",node.name)
+          PY
+          REMOTE
