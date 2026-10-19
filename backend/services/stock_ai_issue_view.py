@@ -12,11 +12,13 @@ from .stock_scope import STOCKS, resolve_stock
 MAX_ISSUES_PER_STOCK = 3
 
 
-def read_ai_issue_map(database_url=None):
+def read_ai_issue_map(database_url=None, *, strict=False):
     """Fetch existing AI-issued title/body together. Failure -> empty map."""
     empty = {(r["market"], r["symbol"]): [] for r in STOCKS}
     db = database_url if database_url is not None else os.environ.get("NEWS_DATABASE_URL", "").strip()
     if not db:
+        if strict:
+            raise RuntimeError("neon_database_not_configured")
         return empty
     aliases = list(dict.fromkeys(
         alias for r in STOCKS for alias in r["aliases"]
@@ -30,6 +32,7 @@ def read_ai_issue_map(database_url=None):
                     """SELECT id, market, symbol, headline, summary, generated_at
                        FROM public.news_ai_issues
                        WHERE market = ANY(%s) AND symbol = ANY(%s)
+                         AND generated_at >= now() - interval '24 hours'
                        ORDER BY generated_at DESC, id DESC
                        LIMIT 800""",
                     (["US", "KR"], aliases),
@@ -37,6 +40,8 @@ def read_ai_issue_map(database_url=None):
                 results = cur.fetchall()
     except Exception as exc:
         print("[stock-issues] neon_read_failed=" + type(exc).__name__, flush=True)
+        if strict:
+            raise RuntimeError("stock_ai_issues_read_unavailable") from exc
         return empty
     for issue_id, market, old_symbol, headline, summary, generated_at in results:
         stock = resolve_stock(old_symbol, market=market)
@@ -102,7 +107,7 @@ def build_watchlist_result():
     registered = _read_fixed_watchlist_registry()
     if registered is None:
         return None
-    issues = read_ai_issue_map()
+    issues = read_ai_issue_map(strict=True)
     return [{
         **row,
         "issues": issues[(row["market"], row["symbol"])],
