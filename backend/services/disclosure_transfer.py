@@ -78,6 +78,22 @@ def one_day_filings(filings, market, *, now=None):
     return accepted
 
 
+def today_filings(filings, market, *, now=None):
+    """Only the selected stock's exchange-local calendar-day disclosures."""
+    market = str(market).upper()
+    now = now or dt.datetime.now(dt.timezone.utc)
+    zone = ZoneInfo("Asia/Seoul" if market == "KR" else "America/New_York")
+    today = now.astimezone(zone).date()
+    result = []
+    for item in filings or []:
+        if not isinstance(item, dict):
+            continue
+        moment = _filing_timestamp(item, market, now)
+        if moment is not None and moment.astimezone(zone).date() == today:
+            result.append(item)
+    return result
+
+
 def read_snapshot(market, symbol):
     """Read-only. None means snapshot missing, stale, or unavailable."""
     if not _database_url():
