@@ -89,7 +89,7 @@
       Array.isArray(snapshot?.disclosures) && snapshot.disclosures.length
         ? snapshot.disclosures
         : (Array.isArray(snapshot?.usFilings) ? snapshot.usFilings : [])
-    ).slice(0, 30);
+    );
   }
   function selectRelatedNewsItems(items, limit = 20, officialReserve = 4) {
     const source = Array.isArray(items) ? [...items] : [];
@@ -206,9 +206,11 @@
     if (!root) return;
     const renderVersion = ++disclosuresRenderVersion;
     const items = relatedDisclosureItems;
+    const missingSecRows = [];
     root.innerHTML = '';
     if (window.GaemiGTPDisclosures?.hydrateDartDetails) {
-      await window.GaemiGTPDisclosures.hydrateDartDetails(items);
+      // Keep the original detail budget while showing every filing from the 30-day window.
+      await window.GaemiGTPDisclosures.hydrateDartDetails(items, 30);
     }
     // 다른 종목이나 메뉴를 선택하는 동안 완료된 이전 상세 요청은 무시한다.
     if (renderVersion !== disclosuresRenderVersion || panelWorkspaceView !== 'disclosures') return;
@@ -223,7 +225,7 @@
 
       const title = document.createElement('div');
       title.className = 'right-panel-disclosures__line right-panel-disclosures__title';
-      title.textContent = item.title || '공시 제목 확인 필요';
+      title.textContent = window.GaemiGTPDisclosures?.secFilingTitle?.(item) || item.title || '공시 제목 확인 필요';
 
       const meta = document.createElement('div');
       meta.className = 'right-panel-disclosures__line';
@@ -237,8 +239,14 @@
 
       row.append(title, meta);
 
-      if (String(item.form || '').toUpperCase() === '8-K') {
+      if (['8-K', '8-K/A'].includes(String(item.form || '').toUpperCase())) {
         const keyPoints = Array.isArray(item.key_points_ko) ? item.key_points_ko.filter(Boolean).slice(0, 3) : [];
+        if (!keyPoints.length && String(item.sec_items || '').trim()) {
+          const itemLine = document.createElement('div');
+          itemLine.className = 'right-panel-disclosures__line';
+          itemLine.textContent = 'SEC 공시 항목 · ' + String(item.sec_items).trim();
+          row.appendChild(itemLine);
+        }
         keyPoints.forEach((point) => {
           const pointText = String(point).trim();
           const pointLine = document.createElement('div');
@@ -479,7 +487,7 @@
         if (personLine.textContent) row.appendChild(personLine);
       });
 
-      if (String(item.form || '').toUpperCase() === '4') {
+      if (['4', '4/A'].includes(String(item.form || '').toUpperCase())) {
         const person = String(item.person || '').trim();
         const position = String(item.officer_title || '').trim();
         const personLine = document.createElement('div');
@@ -510,6 +518,45 @@
         }
         if (keywordLine.textContent) personLine.appendChild(keywordLine);
         if (personLine.textContent) row.appendChild(personLine);
+
+        // SEC Table II represents rights (RSUs/options), NOT another executed
+        // stock sale. Show them separately, never double-count in cash shares.
+        const derivatives = Array.isArray(item.derivative_transactions)
+          ? item.derivative_transactions : [];
+        const derivativeGroups = new Map();
+        derivatives.forEach((transaction) => {
+          const security = String(transaction.security || '').trim();
+          const type = /restricted stock unit|^rsu$/i.test(security)
+            ? 'RSU' : (security || '파생증권');
+          const direction = String(transaction.acquired_disposed || '').toUpperCase() === 'D'
+            ? '처분' : '취득';
+          const code = String(transaction.code || '').toUpperCase();
+          const verb = code === 'M' ? '행사' : direction;
+          const key = [type, verb, code].join('|');
+          const rawShares = String(transaction.shares || '').replaceAll(',', '');
+          const amount = rawShares.trim() && Number.isFinite(Number(rawShares))
+            ? Number(rawShares) : null;
+          const group = derivativeGroups.get(key) || { type, verb, count: 0, units: 0, hasUnits: false };
+          group.count += 1;
+          if (amount !== null) {
+            group.units += amount;
+            group.hasUnits = true;
+          }
+          derivativeGroups.set(key, group);
+        });
+        derivativeGroups.forEach((group) => {
+          const line = document.createElement('div');
+          line.className = 'right-panel-disclosures__line';
+          const left = document.createElement('span');
+          left.textContent = group.type + ' ' + group.verb + ' · ' + group.count + '건';
+          line.appendChild(left);
+          if (group.hasUnits) {
+            const right = document.createElement('span');
+            right.textContent = Math.round(group.units).toLocaleString('ko-KR') + '단위';
+            line.appendChild(right);
+          }
+          row.appendChild(line);
+        });
       } else if (!holdings.length && keywordLine.textContent) {
         const keywordOnlyLine = document.createElement('div');
         keywordOnlyLine.className = 'right-panel-disclosures__line';
@@ -519,13 +566,26 @@
         keywordOnlyLine.appendChild(keywordLine);
         row.appendChild(keywordOnlyLine);
       }
+      if (String(item.source || '').toUpperCase() === 'SEC' &&
+          ['144', '10-Q', '10-K'].includes(String(item.form || '').toUpperCase()) &&
+          item.link) {
+        const extra = document.createElement('div');
+        row.appendChild(extra);
+        missingSecRows.push({ item, target: extra });
+      }
       list.appendChild(row);
     });
     section.appendChild(list);
     root.appendChild(section);
+    if (missingSecRows.length) {
+      void window.GaemiGTPDisclosures?.hydrateMissingSecDetails?.(
+        missingSecRows,
+        () => renderVersion === disclosuresRenderVersion && panelWorkspaceView === 'disclosures'
+      );
+    }
   }
   function showRelatedDisclosures(items) {
-    relatedDisclosureItems = Array.isArray(items) ? items.slice(0, 30) : [];
+    relatedDisclosureItems = Array.isArray(items) ? items : [];
     panelWorkspaceView = 'disclosures';
     savePanelWorkspaceView();
     document.body.classList.add('right-panel-open');
