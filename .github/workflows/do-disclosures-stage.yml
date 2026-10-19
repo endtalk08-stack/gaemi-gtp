@@ -1,0 +1,63 @@
+name: Stage disclosure migration on DigitalOcean without activation
+
+on:
+  push:
+    branches: [ops/disclosures-do-neon-transfer-20261019]
+    paths:
+      - '.github/workflows/do-disclosures-stage.yml'
+      - 'backend/services/disclosure_transfer.py'
+      - 'backend/services/engine.py'
+      - 'backend/database/migrations/004_disclosure_snapshots.sql'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: do-disclosure-stage-only
+  cancel-in-progress: false
+
+jobs:
+  stage-disclosures:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify migration sources
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/services/engine.py backend/services/disclosure_transfer.py
+          python -m unittest -v tests.test_disclosure_transfer
+      - name: Stage current DART/SEC sources away from running worker
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST"; test -n "$SSH_KEY"; test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          SSH_OPTS=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          REMOTE_DIR=/home/gaemi-deploy/disclosures-migration-staging
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" \
+            'mkdir -p /home/gaemi-deploy/disclosures-migration-staging && chmod 700 /home/gaemi-deploy/disclosures-migration-staging'
+          scp "${SSH_OPTS[@]}" backend/services/engine.py backend/services/disclosure_transfer.py \
+            backend/database/migrations/004_disclosure_snapshots.sql \
+            gaemi-deploy@"$DO_HOST":"$REMOTE_DIR"/
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /home/gaemi-deploy/disclosures-migration-staging
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          for path in ("engine.py","disclosure_transfer.py"):
+              source = open(path,encoding="utf-8").read()
+              compile(source,path,"exec")
+          print("DO_DISCLOSURE_CODE_STAGED_SYNTAX_OK")
+          PY
+          systemctl is-active gaemigtp-news.service
+          echo "DO_DISCLOSURE_STAGED_ONLY_ACTIVE_WORKER_UNCHANGED"
+          REMOTE
