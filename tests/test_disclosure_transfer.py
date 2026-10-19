@@ -1,4 +1,5 @@
 """Offline disclosure-only migration guardrails; no external API calls."""
+import inspect
 import os
 import unittest
 from unittest.mock import patch
@@ -26,6 +27,17 @@ class DisclosureTransferTests(unittest.TestCase):
         with patch.dict(os.environ, {"NEWS_DATABASE_URL": ""}):
             with self.assertRaisesRegex(RuntimeError, "disclosure_db_missing"):
                 collect_once("US", "AAPL")
+
+    def test_disclosure_snapshots_are_24h_temporary_only(self):
+        # No long-term disclosure archive should be introduced.
+        read_code = inspect.getsource(read_snapshot)
+        collect_code = inspect.getsource(collect_once)
+        self.assertIn("fetched_at > now() - interval '24 hours'", read_code)
+        self.assertIn("DELETE FROM public.disclosure_snapshots", collect_code)
+        self.assertIn("fetched_at <= now() - interval '24 hours'", collect_code)
+        self.assertIn("ON CONFLICT (market, symbol) DO UPDATE", collect_code)
+        self.assertNotIn("disclosure_history", collect_code)
+        self.assertNotIn("interval '40 minutes'", read_code)
 
 
 if __name__ == "__main__":
