@@ -177,3 +177,32 @@ jobs:
           PY
           echo DISCLOSURE_RUNTIME_BOUNDARY_CHECK_DONE
           REMOTE
+
+      - name: Verify disclosure credential-name availability without reading secrets
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          if sudo -n -u gaemigtp-news /usr/bin/env true >/dev/null 2>&1; then
+            echo DISCLOSURE_ACCOUNT_SWITCH=allowed
+            sudo -n -u gaemigtp-news /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          import os, pathlib, re
+          env_paths = (pathlib.Path('/etc/gaemigtp/news-worker.env'),)
+          required = ['OPENDART_API_KEY', 'DART_API_KEY', 'SEC_USER_AGENT', 'NEWS_DATABASE_URL', 'DATABASE_URL']
+          lines = []
+          for file in env_paths:
+              if file.is_file() and os.access(file, os.R_OK):
+                  for line in file.read_text().splitlines():
+                      if not line.startswith('#') and '=' in line:
+                          lines.append(line.split('=',1)[0].strip())
+          for key in required:
+              print('DO_CREDENTIAL_NAME_' + key + '=' + ('present' if key in lines else 'absent'))
+          print('DO_SEC_USABLE=' + str('SEC_USER_AGENT' in lines).lower())
+          print('DO_DART_USABLE=' + str(any(k in lines for k in ('OPENDART_API_KEY','DART_API_KEY'))).lower())
+          PY
+          else
+            echo DISCLOSURE_ACCOUNT_SWITCH=denied
+          fi
+          echo DISCLOSURE_CONFIG_CHECK_COMPLETE
+          REMOTE
