@@ -141,7 +141,7 @@ test('SEC missing fields reuse existing panel without a second dropdown or chat 
   const ai = fs.readFileSync('frontend/shell/center-chat/ai-chat.js', 'utf8');
   assert.match(engine, /if form in \("4", "4\/A"\) and filing_url/);
   assert.match(engine, /fetch_us_sec_missing_detail\(ticker_symbol, accession\)/);
-  assert.match(engine, /"securitiesInformation"/);
+  assert.match(engine, /securitiesInformation/);
   assert.match(engine, /"RevenueFromContractWithCustomerExcludingAssessedTax"/);
   assert.match(engine, /"EarningsPerShareDiluted"/);
   assert.match(engine, /"ticker": ticker_symbol/);
