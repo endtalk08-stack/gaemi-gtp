@@ -21,131 +21,307 @@
     applyState();
   }
 
-  // Phase 1: preserve the sidebar shell and menus, but display no old KR/US
-  // popular or trading-value stocks. A verified market-cap API is not wired yet.
+  // The restored market list is a fixed layout sample, not a live ranking feed.
   function bindMarketControls() {
     const sidebar = document.getElementById('leftMarketSidebar');
     if (!sidebar || sidebar.dataset.marketControlsBound === 'true') return;
 
+    function bindStaticSelection(selector, defaultIndex = 0) {
+      const buttons = [...sidebar.querySelectorAll(selector)].filter((button) => !button.disabled);
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+          buttons.forEach((item) => {
+            const active = item === button;
+            item.classList.toggle('bg-[#eef2f7]', active);
+            item.classList.toggle('dark:bg-[#272a31]', active);
+            item.classList.toggle('gtp-dark-text', active);
+            item.classList.toggle('text-[#0f172a]', active);
+            item.classList.toggle('text-[#64748b]', !active);
+            item.classList.toggle('dark:text-[#a1a1aa]', !active);
+            item.setAttribute('aria-pressed', String(active));
+          });
+        });
+      });
+      buttons.forEach((button, index) => button.setAttribute('aria-pressed', String(index === defaultIndex)));
+    }
+
+    // KR and USA trading-value tabs use source-specific market-wide ranking results.
+    // Other tabs retain their existing UI and do not start new collectors.
     const list = sidebar.querySelector('#marketRankingList');
     const title = sidebar.querySelector('#rightListTitle');
+    const changeSortButton = sidebar.querySelector('#rightListMetric');
     const subtitle = sidebar.querySelector('.market-sidebar-subtitle');
-    const regionButtons = [...sidebar.querySelectorAll('[data-legacy-region]')]
-      .filter((button) => !button.disabled);
-    const tabButtons = [...sidebar.querySelectorAll('[data-info-tab-action]')]
-      .filter((button) => !button.disabled);
+    const initialMarkup = list?.innerHTML || '';
+    const backendUrl = window.location.hostname.endsWith('github.io')
+      ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
     let region = '해외';
     let tab = 'cap';
+    let requestId = 0;
+    let changeSorted = false;
 
-    function selectButton(buttons, current) {
-      buttons.forEach((button) => {
-        const active = button === current;
-        button.classList.toggle('bg-[#eef2f7]', active);
-        button.classList.toggle('dark:bg-[#272a31]', active);
-        button.classList.toggle('gtp-dark-text', active);
-        button.classList.toggle('text-[#0f172a]', active);
-        button.classList.toggle('text-[#64748b]', !active);
-        button.classList.toggle('dark:text-[#a1a1aa]', !active);
-        button.setAttribute('aria-pressed', String(active));
-      });
-    }
-
-    // Existing Neon names and AI headlines only. No quote or ranking requests.
-    let savedUsRows = null;
-    let savedUsError = false;
-    let savedUsPending = null;
-
-    function loadUsCapRows() {
-      if (savedUsRows || savedUsPending || savedUsError) return;
-      savedUsPending = fetch('/api/market/us-cap-headlines', { credentials: 'same-origin' })
-        .then((response) => {
-          if (!response.ok) throw new Error('us_cap_read_unavailable');
-          return response.json();
-        })
-        .then((payload) => {
-          if (!payload?.ok || !Array.isArray(payload.items) || payload.items.length !== 20) {
-            throw new Error('us_cap_rows_invalid');
-          }
-          savedUsRows = payload.items.map((item) => ({
-            name: typeof item.name === 'string' ? item.name : '',
-            headlines: Array.isArray(item.headlines)
-              ? item.headlines.filter((title) => typeof title === 'string' && title.trim()).slice(0, 3)
-              : []
-          }));
-        })
-        .catch(() => { savedUsError = true; })
-        .finally(() => {
-          savedUsPending = null;
-          if (region === '해외' && tab === 'cap') showEmptyList();
-        });
-    }
-
-    function showUsCapRows() {
-      if (region !== '해외' || tab !== 'cap' || !list) return false;
-      list.replaceChildren();
-      if (!savedUsRows) {
-        loadUsCapRows();
-        const info = document.createElement('p');
-        info.className = 'py-6 text-center text-[12px] text-[#64748b] dark:text-[#a1a1aa]';
-        info.textContent = savedUsError ? '저장된 종목 목록을 읽지 못했습니다.' : '종목을 불러오는 중입니다.';
-        list.appendChild(info);
-        return true;
-      }
-      savedUsRows.forEach((row) => {
-        const item = document.createElement('div');
-        item.className = 'border-b border-[#e2e8f0] px-2 py-2 dark:border-[#3f3f46]';
-        const name = document.createElement('p');
-        name.className = 'text-[13px] font-semibold text-[#334155] dark:text-[#e4e4e7]';
-        name.textContent = row.name;
-        item.appendChild(name);
-        row.headlines.forEach((headline) => {
-          const title = document.createElement('p');
-          title.className = 'mt-1 text-[12px] leading-5 text-[#64748b] dark:text-[#a1a1aa]';
-          title.textContent = headline;
-          item.appendChild(title);
-        });
-        list.appendChild(item);
-      });
-      return true;
-    }
-
-    function showEmptyList() {
-      const menuLabel = tab === 'cap' ? '시가총액' : tab === 'popular' ? '인기' : '거래대금';
-      if (title) title.textContent = region === '해외' && tab === 'cap'
-        ? '미국 시가총액 TOP 20' : menuLabel + ' TOP 20';
-      if (subtitle) subtitle.textContent = region === '해외' ? '/ 미국 20종목 준비' : '/ 준비 중';
+    const applyChangeSort = () => {
       if (!list) return;
-      if (showUsCapRows()) return;
-      list.replaceChildren();
-      const message = document.createElement('p');
-      message.className = 'py-6 text-center text-[12px] text-[#64748b] dark:text-[#a1a1aa]';
-      message.textContent = region === '국내'
-        ? '국내 종목은 1차 서비스에서 제외되었습니다.'
-        : tab === 'cap'
-          ? '미국 시가총액 TOP 20 데이터 연결 전입니다.'
-          : '기존 종목 목록을 비웠습니다. 새로운 데이터 연결 전입니다.';
-      list.appendChild(message);
-    }
+      const rows = [...list.querySelectorAll(':scope > button[data-original-index]')];
+      rows.sort((a, b) => changeSorted
+        ? (Number(b.dataset.changePct) - Number(a.dataset.changePct)) || (Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex))
+        : Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex));
+      rows.forEach((row, index) => {
+        const rank = row.querySelector('[data-market-rank]');
+        if (rank) rank.textContent = String(changeSorted ? index + 1 : row.dataset.originalRank).padStart(2, '0');
+        list.appendChild(row);
+      });
+      changeSortButton?.setAttribute('aria-pressed', String(changeSorted));
+    };
 
-    regionButtons.forEach((button) => {
+    const formatMoney = (value) => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      if (value >= 1e12) return (value / 1e12).toLocaleString('ko-KR', { maximumFractionDigits: 2 }) + '조원';
+      if (value >= 1e8) return (value / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 }) + '억원';
+      return value.toLocaleString('ko-KR') + '원';
+    };
+    const formatUsd = (value) => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      if (value >= 1e9) return '$' + (value / 1e9).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'B';
+      if (value >= 1e6) return '$' + (value / 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'M';
+      return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    };
+
+    // Keep the original ranking-row UI. Only US-cap uses the stored stock names
+    // and AI issue headlines; existing KR/US popularity and trading-value stay intact.
+    const showCapRanking = async (id) => {
+      if (title) title.textContent = region === '해외'
+        ? '미국 시가총액 TOP 20' : '시가총액 TOP 20';
+      if (subtitle) subtitle.textContent = region === '해외' ? '/ 해외' : '/ 국내';
+      list.replaceChildren();
+      if (region !== '해외') {
+        list.textContent = '국내 시가총액 종목 목록은 아직 연결되지 않았습니다.';
+        return;
+      }
+      list.textContent = '종목을 불러오는 중이야.';
+      try {
+        const response = await fetch(backendUrl + '/api/market/us-cap-headlines');
+        if (!response.ok) throw new Error('stored_cap_unavailable');
+        const data = await response.json();
+        if (id !== requestId) return;
+        if (!data.ok || !Array.isArray(data.items) || data.items.length !== 20) {
+          throw new Error('stored_cap_invalid');
+        }
+        list.replaceChildren();
+        data.items.forEach((stock, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer';
+          button.addEventListener('click', () => window.openStockInChat?.(stock.name));
+
+          const top = document.createElement('div');
+          top.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start';
+          const rank = document.createElement('span');
+          rank.className = 'text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]';
+          rank.textContent = String(index + 1).padStart(2, '0');
+          const name = document.createElement('span');
+          name.className = 'font-bold text-[13px] text-[#0f172a] gtp-dark-text truncate';
+          name.textContent = String(stock.name || '');
+          top.append(rank, name, document.createElement('span'));
+
+          const thirdRow = document.createElement('div');
+          thirdRow.className = 'grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center min-h-[16px]';
+          const headlines = document.createElement('div');
+          headlines.className = 'text-right text-[12px] text-[#64748b] dark:text-[#a1a1aa]';
+          (Array.isArray(stock.headlines) ? stock.headlines : []).forEach((headline) => {
+            const issue = document.createElement('div');
+            issue.className = 'font-semibold leading-5';
+            issue.textContent = String(headline);
+            headlines.appendChild(issue);
+          });
+          thirdRow.append(document.createElement('span'), document.createElement('span'), headlines);
+          button.append(top, thirdRow);
+          list.appendChild(button);
+        });
+      } catch (_) {
+        if (id === requestId) list.textContent = '저장된 종목 목록을 읽지 못했어.';
+      }
+    };
+
+    const showDomesticRanking = async () => {
+      const id = ++requestId;
+      if (!list) return;
+      if (tab === 'cap') {
+        if (changeSortButton) {
+          changeSortButton.disabled = true;
+          changeSortButton.setAttribute('aria-disabled', 'true');
+        }
+        await showCapRanking(id);
+        return;
+      }
+      if (changeSortButton) {
+        changeSortButton.disabled = false;
+        changeSortButton.setAttribute('aria-disabled', 'false');
+      }
+      const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
+      if ((tab !== 'value' && tab !== 'popular') || (tab === 'popular' && !market)) {
+        list.innerHTML = initialMarkup;
+        if (title) title.textContent = '인기 TOP 20';
+        if (subtitle) subtitle.textContent = '/ 고정 예시 데이터';
+        return;
+      }
+      if (title) title.textContent = tab === 'value' ? '거래대금 TOP 20' : '인기 TOP 20';
+      if (!market) {
+        list.replaceChildren();
+        list.textContent = '국내 또는 해외를 선택하면 해당 순위를 볼 수 있어.';
+        return;
+      }
+
+      if (subtitle) subtitle.textContent = market === 'us' ? '/ 네이버 미국 원천' : '/ 네이버 국내 원천';
+      list.replaceChildren();
+      list.textContent = '순위를 불러오는 중이야.';
+      try {
+        const path = tab === 'value' ? '/market/trading-value' : '/market/popular';
+        const response = await fetch(backendUrl + path + '?market=' + market);
+        if (!response.ok) throw new Error('market ranking unavailable');
+        const result = await response.json();
+        if (id !== requestId) return;
+        list.replaceChildren();
+        if (result.ok !== true || !Array.isArray(result.items) || !result.items.length) {
+          list.textContent = '조회 가능한 순위 원천 데이터가 없어.';
+          return;
+        }
+        result.items.forEach((item, index) => {
+          const button = document.createElement('button');
+          button.dataset.stockName = String(item.name || '');
+          button.dataset.stockSymbol = String(item.symbol || '');
+          button.dataset.originalIndex = String(index);
+          button.dataset.originalRank = String(item.rank || index + 1);
+          button.dataset.changePct = typeof item.change_pct === 'number' && Number.isFinite(item.change_pct)
+            ? String(item.change_pct) : '-Infinity';
+          button.type = 'button';
+          button.className = 'w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer';
+          button.addEventListener('click', () => window.openStockInChat?.(item.name, {
+            market, menu: tab, name: item.name, symbol: item.symbol,
+            rank: item.rank || index + 1,
+            display_rank: Number(rank.textContent) || item.rank || index + 1,
+            sort: changeSorted ? 'change_pct' : 'source',
+            industry: item.industry, price: item.price, change_pct: item.change_pct,
+            trading_value: item.trading_value, trading_value_text: item.trading_value_text,
+            currency: market === 'us' ? 'USD' : 'KRW', source: 'naver'
+          }));
+
+          const top = document.createElement('div');
+          top.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start';
+          const rank = document.createElement('span');
+          rank.className = 'text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]';
+          rank.dataset.marketRank = 'true';
+          rank.textContent = String(item.rank || index + 1).padStart(2, '0');
+          const name = document.createElement('span');
+          name.className = 'font-bold text-[13px] text-[#0f172a] gtp-dark-text truncate';
+          name.textContent = item.name;
+          const price = document.createElement('span');
+          price.className = 'font-black text-[13px] text-[#0f172a] gtp-dark-text text-right';
+          price.textContent = typeof item.price === 'number' && Number.isFinite(item.price)
+            ? (market === 'us' ? '$' + item.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : item.price.toLocaleString('ko-KR') + '원') : '';
+          top.append(rank, name, price);
+
+          // Match popular ranking's second row; display turnover in the blank
+          // cell beneath the stock name and leave the change at the right.
+          const secondRow = document.createElement('div');
+          secondRow.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5';
+          secondRow.appendChild(document.createElement('span'));
+          const turnover = document.createElement('span');
+          turnover.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] truncate';
+          const amount = (market === 'us' ? formatUsd(item.trading_value) : formatMoney(item.trading_value)) || item.trading_value_text;
+          turnover.textContent = amount ? '거래대금 ' + amount : '';
+          const change = document.createElement('span');
+          const pct = item.change_pct;
+          change.className = 'text-[11px] font-bold text-right' +
+            (pct > 0 ? ' text-rose-500' : pct < 0 ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
+          change.textContent = typeof pct === 'number' && Number.isFinite(pct)
+            ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '';
+          secondRow.append(turnover, change);
+
+          // Reuse the industry name from the same ranking result only.
+          // Keep the original third row and its blank slots when not provided.
+          const thirdRow = document.createElement('div');
+          thirdRow.className = 'grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center min-h-[16px]';
+          const industry = document.createElement('span');
+          industry.className = 'text-[11px] font-semibold text-sky-500 truncate';
+          industry.textContent = typeof item.industry === 'string' ? item.industry : '';
+          const issue = document.createElement('span');
+          issue.dataset.stockIssue = 'true';
+          issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
+          issue.style.fontSize = '13px';
+          issue.textContent = typeof item.issue_headline === 'string' ? item.issue_headline : '';
+          thirdRow.append(
+            document.createElement('span'),
+            industry,
+            issue
+          );
+          button.append(top, secondRow, thirdRow);
+          list.appendChild(button);
+        });
+        applyChangeSort();
+      } catch (_) {
+        if (id === requestId) list.textContent = '순위 원천 데이터를 가져오지 못했어.';
+      }
+    };
+
+    // Only refresh the analyzed stock's existing DB-backed issue title.
+    // Never recollect news, rerank stocks, or replace the displayed list.
+    const refreshAnalyzedIssue = async (event) => {
+      const detail = event.detail || {};
+      const name = String(detail.name || '').trim();
+      const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
+      if (!name || !market || (tab !== 'popular' && tab !== 'value')) return;
+      if (detail.market && detail.market !== market) return;
+      const button = [...list.querySelectorAll(':scope > button[data-original-index]')]
+        .find((row) => row.dataset.stockName === name &&
+          (!detail.symbol || row.dataset.stockSymbol === String(detail.symbol)));
+      if (!button) return;
+      const currentRequestId = requestId;
+      try {
+        const response = await fetch(backendUrl + '/market/issue-headlines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market, items: [{ name, symbol: button.dataset.stockSymbol }] })
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (currentRequestId !== requestId || !list.contains(button)) return;
+        const updated = data.ok === true && Array.isArray(data.items) ? data.items[0] : null;
+        if (!updated || updated.name !== name || updated.symbol !== button.dataset.stockSymbol) return;
+        const issue = button.querySelector('[data-stock-issue]');
+        if (issue) issue.textContent = typeof updated.headline === 'string' ? updated.headline : '';
+      } catch (_) {
+        // Keep the previous headline on transient read failures.
+      }
+    };
+    window.addEventListener('gaemi:analysis-issues-ready', (event) => {
+      void refreshAnalyzedIssue(event);
+    });
+
+    changeSortButton?.addEventListener('click', () => {
+      if (tab === 'cap') return;
+      changeSorted = !changeSorted;
+      applyChangeSort();
+    });
+
+    bindStaticSelection('[data-legacy-region]', 1);
+    bindStaticSelection('[data-info-tab-action]', 0);
+    sidebar.querySelectorAll('[data-legacy-region]').forEach((button) => {
+      if (button.disabled) return;
       button.addEventListener('click', () => {
         region = button.textContent.trim();
-        selectButton(regionButtons, button);
-        showEmptyList();
+        void showDomesticRanking();
       });
     });
-    tabButtons.forEach((button) => {
+    sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
+      if (button.disabled) return;
       button.addEventListener('click', () => {
         tab = button.dataset.infoTabAction;
-        selectButton(tabButtons, button);
-        showEmptyList();
+        void showDomesticRanking();
       });
     });
-
-    selectButton(regionButtons, regionButtons.find((button) => button.textContent.trim() === region));
-    selectButton(tabButtons, tabButtons.find((button) => button.dataset.infoTabAction === tab));
-    showEmptyList();
     sidebar.dataset.marketControlsBound = 'true';
+    // Default to US cap, while preserving the original KR/US ranking tabs.
+    void showDomesticRanking();
   }
 
   document.addEventListener('DOMContentLoaded', bindMarketControls);

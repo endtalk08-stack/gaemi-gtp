@@ -67,41 +67,33 @@ function setup() {
     get fetchCalls() { return fetchCalls; } };
 }
 
-test('market sidebar retains shell and three market buttons', () => {
+test('old market tabs, KR/US controls, and stock-row layout are restored', () => {
   const html = indexHtml.split('id="leftMarketSidebar"')[1].split('<!-- 왼쪽 실적 캘린더')[0];
-  assert.match(html, /data-legacy-region="true"[^>]*>국내<\/button>/);
-  assert.match(html, /data-legacy-region="true"[^>]*>해외<\/button>/);
-  assert.match(html, /data-legacy-region="true"[^>]*>코인<\/button>/);
-  assert.doesNotMatch(html, /data-info-tab-action="industry"|data-info-tab-action="theme"/);
+  for (const section of ['전체', '국내', '해외', '코인', '시가총액', '인기 순위', '거래대금', '산업', '테마']) {
+    assert.ok(html.includes('>' + section + '</button>'), section + ' missing');
+  }
   assert.deepEqual([...html.matchAll(/data-info-tab-action="([^"]+)"/g)].map(x => x[1]),
-    ['cap', 'popular', 'value']);
-  assert.doesNotMatch(html, /onclick="openStockInChat|삼성전자|SK하이닉스/);
+    ['cap', 'popular', 'value', 'industry', 'theme']);
+  assert.match(html, /rightListMetric/);
+  assert.match(html, /data-legacy-region="true" class="[^"]*bg-\[#eef2f7\][^"]*">해외<\/button>/);
+  assert.match(html, /marketRankingList/);
+  assert.doesNotMatch(html, /onclick="openStockInChat|257,500원/);
 });
 
-test('US cap is selected first, without using old popularity or trading-value API', () => {
-  const app = setup();
-  assert.equal(app.title.textContent, '미국 시가총액 TOP 20');
-  assert.match(app.list.children[0].textContent, /데이터 연결 전/);
-  assert.equal(app.us.attributes['aria-pressed'], 'true');
-  assert.equal(app.cap.attributes['aria-pressed'], 'true');
-  assert.equal(app.fetchCalls, 0);
-  app.popular.click();
-  assert.match(app.list.children[0].textContent, /기존 종목 목록을 비웠습니다/);
-  app.value.click();
-  assert.equal(app.title.textContent, '거래대금 TOP 20');
-  assert.equal(app.fetchCalls, 0);
+test('existing KR and US popular/trading-value requests remain wired', () => {
+  assert.match(sidebarSource, /\/market\/trading-value/);
+  assert.match(sidebarSource, /\/market\/popular/);
+  assert.match(sidebarSource, /refreshAnalyzedIssue/);
+  assert.match(sidebarSource, /openStockInChat/);
+  assert.match(sidebarSource, /applyChangeSort/);
 });
 
-test('domestic remains selectable but never restores KR rows or requests data', () => {
-  const app = setup();
-  app.kr.click();
-  assert.match(app.list.children[0].textContent, /국내 종목은 1차 서비스에서 제외/);
-  app.cap.click();
-  assert.equal(app.list.children.length, 1);
-  assert.equal(app.fetchCalls, 0);
-  app.us.click();
-  assert.equal(app.title.textContent, '미국 시가총액 TOP 20');
-  assert.equal(app.fetchCalls, 0);
+test('US cap uses existing stock name and AI headline API in original row classes', () => {
+  assert.match(sidebarSource, /\/api\/market\/us-cap-headlines/);
+  assert.match(sidebarSource, /stock\.headlines/);
+  assert.match(sidebarSource, /grid-cols-\[24px_minmax\(0,1fr\)_auto\]/);
+  assert.match(sidebarSource, /showCapRanking/);
+  assert.doesNotMatch(sidebarSource, /fixedStockIssuePanel|GaemiGTPWatchlist/);
 });
 
 test('central issue event stays in analysis flow for future US row integration', () => {
