@@ -256,3 +256,21 @@ jobs:
           echo DO_SEC_READONLY_SMOKE_COMPLETE
           REMOTE
 
+      - name: Verify both newly registered disclosure secrets without exposing values
+        env:
+          CHECK_DB_SECRET: ${{ secrets.NEWS_DATABASE_URL }}
+          CHECK_DART_SECRET: ${{ secrets.OPENDART_API_KEY }}
+        run: |
+          set -euo pipefail
+          if test -n "$CHECK_DB_SECRET"; then
+            echo "DISCLOSURE_NEON_SECRET=present"
+          else
+            echo "DISCLOSURE_NEON_SECRET=missing"
+          fi
+          if test -n "$CHECK_DART_SECRET"; then
+            echo "DISCLOSURE_DART_SECRET=present"
+          else
+            echo "DISCLOSURE_DART_SECRET=missing"
+          fi
+          test -n "$CHECK_DB_SECRET" && test -n "$CHECK_DART_SECRET"
+          echo DISCLOSURE_BOTH_SECRETS_READY
