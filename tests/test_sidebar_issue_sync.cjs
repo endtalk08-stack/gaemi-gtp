@@ -135,22 +135,20 @@ test('right panel keeps the complete last-30-days list without the duplicate SEC
 });
 
 
-test('SEC missing fields reuse existing panel without a second dropdown or chat integration', () => {
-  const panel = fs.readFileSync('frontend/shell/right-panel/right-panel-tabs.js', 'utf8');
+test('missing SEC details stay inside existing provider and disclosure panel', () => {
   const engine = fs.readFileSync('backend/services/engine.py', 'utf8');
-  const ai = fs.readFileSync('frontend/shell/center-chat/ai-chat.js', 'utf8');
-  assert.match(engine, /if form in \("4", "4\/A"\) and filing_url/);
-  assert.match(engine, /fetch_us_sec_missing_detail\(ticker_symbol, accession\)/);
-  assert.match(engine, /securitiesInformation/);
-  assert.match(engine, /"RevenueFromContractWithCustomerExcludingAssessedTax"/);
-  assert.match(engine, /"EarningsPerShareDiluted"/);
-  assert.match(engine, /"ticker": ticker_symbol/);
-  assert.match(engine, /"accession": item.get\("accession", ""\)/);
+  const provider = fs.readFileSync('backend/providers/sec_filings.py', 'utf8');
+  const details = fs.readFileSync('frontend/js/disclosures.js', 'utf8');
+  const panel = fs.readFileSync('frontend/shell/right-panel/right-panel-tabs.js', 'utf8');
+  const chat = fs.readFileSync('frontend/shell/center-chat/ai-chat.js', 'utf8');
+  assert.match(provider, /def fetch_panel_missing_detail\(index_url\):/);
+  assert.match(provider, /def _panel_form144_fields\(xml\):/);
+  assert.match(provider, /def _panel_filing_metrics\(facts, accession, form\):/);
+  assert.doesNotMatch(engine, /def fetch_us_sec_missing_detail/);
   assert.match(panel, /\['4', '4\/A'\]/);
-  assert.match(panel, /secDetailQueue\.push\(\{ item, target: factLines \}\)/);
-  assert.match(panel, /async function hydrateMissingSecDetails/);
-  assert.match(panel, /if \(!response\.ok\) continue/);
-  assert.match(panel, /target\.appendChild\(line\)/);
+  assert.match(panel, /missingSecRows\.push\(\{ item, target: extra \}\)/);
+  assert.match(details, /hydrateMissingSecDetails/);
+  assert.match(details, /secFilingTitle/);
   assert.doesNotMatch(panel, /공시 상세보기 ▾|GaemiGTPUSSecRightPanel/);
-  assert.doesNotMatch(ai, /disclosures\/sec\/detail|disclosures\/sec\/today/);
+  assert.doesNotMatch(chat, /disclosures\/sec\/today|disclosures\/sec\/detail/);
 });
