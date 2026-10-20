@@ -52,7 +52,7 @@ const original = {
 const savedText='AI·반도체 반등\n\n다우존스 51,966.03 (-0.07%)\n\n나스닥 종합 26,430.89 (+1.11%)\n\nS&P 500 7,690.73 (+0.41%)\n\n10월 19일 미국증시는 혼조로 마감했어.\n\n#AI반등 #나스닥상승 #금리불안';
 
 async function scenario(failure) {
-  const registry = {inserted:[], warnings:[], actions:[], fetches:[], timers:[]};
+  const registry = {inserted:[], warnings:[], actions:[], fetches:[], timers:[], normalized:[], rendered:[]};
   const document = {createElement: tag => new Element(tag,registry)};
   const window = {GaemiGTPFirstReplyActions:{appendFirstReplyActions(...args) {
     registry.actions.push(args);
@@ -86,6 +86,17 @@ async function scenario(failure) {
     'renderer must accept actual saved-data fixture');
   assert.ok(window.GaemiGTPUSCloseReply.plainText(original).includes('나스닥 종합'),
     'renderer must format actual fixture');
+  const originalNormalize = window.GaemiGTPUSCloseReply.normalize;
+  window.GaemiGTPUSCloseReply.normalize = arg => {
+    registry.normalized.push({exists:!!arg,issueCount:arg?.issues?.length,
+      keys:arg?Object.keys(arg):[]});
+    return originalNormalize(arg);
+  };
+  const originalRender = window.GaemiGTPUSCloseReply.render;
+  window.GaemiGTPUSCloseReply.render = (...args) => {
+    registry.rendered.push(args.length);
+    return originalRender(...args);
+  };
   if (failure==='table') {
     window.GaemiGTPUSCloseReply.render=async()=>{throw new Error('simulated table error');};
   }
@@ -108,7 +119,7 @@ async function scenario(failure) {
     const issue=answer.children[0];
     assert.ok(issue && issue.children[1]?.children[0]?.tagName==='table',
       'successful render must show a real table under the headline: '+JSON.stringify({
-        warnings:registry.warnings,answerChildren:answer.children.length,
+        warnings:registry.warnings,normalized:registry.normalized,rendered:registry.rendered,answerChildren:answer.children.length,
         issueChildren:issue?.children?.length,reply:answer.textContent.slice(0,120)}));
     assert.ok(issue.children[0].textContent.includes('AI·반도체 반등'));
     assert.ok(issue.children[2].textContent.includes('10월 19일'));
