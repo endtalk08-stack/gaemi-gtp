@@ -1,11 +1,13 @@
 """Staged Groq issue response validator; not connected to the worker."""
 import json
+import re
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
 MODEL = "openai/gpt-oss-20b"
 PROMPT = """제공된 기사를 근거로 주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
 
+기사 발행일과 실제 사건 날짜는 달라. historical_event_mentions와 '지난' 같은 과거 설명을 오늘 새 발표·협력·계약으로 쓰지 마. 새 변화가 있으면 그 변화만 설명해.
 제목은 핵심만 짧게, 내용은 쉽게 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
 
 한국어 JSON 객체만 반환해:
@@ -89,6 +91,40 @@ def _safe_token_usage(response):
     return result
 
 
+_EVENT_DATE_PATTERN = re.compile(r"(?:(?:20\\d{2})년\\s*)?(?:1[0-2]|0?[1-9])월\\s*(?:3[01]|[12]\\d|0?[1-9])일")
+_PRIOR_MONTH_PATTERN = re.compile(r"지난\\s*(?:1[0-2]|0?[1-9])월")
+
+
+def _historical_event_mentions(content, published_at):
+    """Tag explicit old dates from the actual article, never infer an event date."""
+    try:
+        epoch = _article_published_epoch({"published_at": published_at})
+        if epoch == float("-inf"):
+            return []
+        publication = datetime.fromtimestamp(epoch, timezone.utc)
+    except (ValueError, OverflowError, OSError):
+        return []
+    hits = []
+    for match in _EVENT_DATE_PATTERN.finditer(content):
+        month_day = re.search(r"(\\d{1,2})월\\s*(\\d{1,2})일", match.group())
+        if not month_day:
+            continue
+        month, day = map(int, month_day.groups())
+        explicit_year = re.search(r"(20\\d{2})년", match.group())
+        year = int(explicit_year.group(1)) if explicit_year else publication.year
+        try:
+            event_day = datetime(year, month, day, tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if (publication - event_day).total_seconds() >= 7 * 86400:
+            if match.group() not in hits:
+                hits.append(match.group())
+    for match in _PRIOR_MONTH_PATTERN.finditer(content):
+        if match.group() not in hits:
+            hits.append(match.group())
+    return hits[:3]
+
+
 def build_model_news(articles):
     """Number only the 10 latest usable articles; share IDs with storage."""
     news, sources = [], []
@@ -110,6 +146,7 @@ def build_model_news(articles):
             "title": title,
             "content": content,
             "published_at": published_at,
+            "historical_event_mentions": _historical_event_mentions(content, published_at),
         })
         link = str(article.get("url") or article.get("link") or "").strip()
         sources.append({
