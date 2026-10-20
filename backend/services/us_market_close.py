@@ -125,32 +125,18 @@ def collect_articles(session_date, now_utc=None, search=None, reader=None):
 
 
 def _prompt(articles, session_date):
-    # Keep the evidence structured internally; render only original AI editorial.
-    evidence = [
-        {"headline": article["title"], "description": article["description"],
-         "published_at": article["published_at"]}
+    news = [
+        {"title": article["title"], "description": article["description"]}
         for article in articles
     ]
     return (
-        "질문: 미국장은 어땠어?\n"
-        f"미국 현지 거래일: {session_date.isoformat()}\n"
-        "너는 gaemiGTP의 미국장 마감시황을 직접 작성하는 편집자야. "
-        "여러 마감 뉴스에서 실제 확인되는 사실과 그 관계를 살펴보고, "
-        "무엇이 가장 중요한지 스스로 판단해서 하나의 독창적인 글로 작성해. "
-        "뉴스를 순서대로 요약하거나 일정한 분석 분야를 억지로 채우지 마. "
-        "문단 수, 주제, 전개 순서, 강조점은 네 판단에 맡겨. "
-        "확인되지 않은 수치·주가·실적 일정·인과관계는 만들어내지 마. "
-        "특정 원인이 확인되지 않으면 추측으로 단정하지 마. "
-        "입력은 네이버 뉴스 API의 제목과 짧은 설명이므로 기사 전문을 읽었다고 주장하지 마. "
-        "독자에게는 출처·언론사별 나열, AI가 작성했다는 설명, "
-        "'뉴스를 참고했다' 또는 '요약 기반'이라는 제작 과정 설명을 넣지 마. "
-        "사용자에게 보여줄 출력 형식은 딱 세 가지뿐이야. "
-        "첫 줄은 네가 정한 제목 하나, 그다음은 자연스러운 본문, "
-        "마지막 줄은 본문 핵심을 반영한 해시태그 정확히 3개야. "
-        "제목/내용/해시태그 같은 항목명, 추가 소제목, 번호 매기기, JSON은 쓰지 마. "
-        "읽기 편한 한국어 반말로 작성해.\n\n"
-        "확인된 기사 제목·설명 (내부 작성 자료):\n"
-        + json.dumps(evidence, ensure_ascii=False)
+        f"미국 거래일: {session_date.isoformat()}\n"
+        "다음은 네이버 뉴스 API로 받은 미국장 마감뉴스의 제목과 내용이야. "
+        "이 자료를 바탕으로 미국장 마감시황을 네가 알아서 작성해. "
+        "확인되지 않은 사실은 만들지 마.\n"
+        "출력 형식은 제목, 본문, 마지막 줄 해시태그 3개야. "
+        "분석 항목을 따로 나누거나 기사 출처·AI 작성 과정을 설명하지 마.\n\n"
+        "뉴스:\n" + json.dumps(news, ensure_ascii=False)
     )
 
 
