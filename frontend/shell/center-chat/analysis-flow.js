@@ -82,8 +82,10 @@
             <button type="button" class="text-sm font-semibold text-[#8f7aa8] transition hover:text-[#9d87b8] dark:text-[#a995bd] dark:hover:text-[#b7a4c9]" data-next-analysis="fortune"></button>
           </div>`;
 
+        const isGaemiMode = () => ctx.getSession()?.mode === 'gaemi';
         const appendUsMarketPrompt = async () => {
-          if (mainContainer.querySelector('[data-us-market-prompt]')) return;
+          // US-close is a deterministic gaemi follow-up, never an info/pro model route.
+          if (!isGaemiMode() || mainContainer.querySelector('[data-us-market-prompt]')) return;
           const prompt = makeUserPrompt('미국장 어땠어?', 'usMarketPrompt');
           prompt.classList.remove('animate-fade');
           choices.insertAdjacentElement('afterend', prompt);
@@ -97,7 +99,7 @@
           loadingLine.textContent = '생각중';
           loading.appendChild(loadingLine);
           prompt.insertAdjacentElement('afterend', loading);
-          const isActive = () => requestId === ctx.getActiveAnalysisRequestId() && prompt.isConnected;
+          const isActive = () => isGaemiMode() && requestId === ctx.getActiveAnalysisRequestId() && prompt.isConnected;
           const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
           let replyText = '';
           let presentation = null;
@@ -128,14 +130,22 @@
           const answer = document.createElement('div');
           answer.className = responseMessageClass + ' mt-4';
           prompt.insertAdjacentElement('afterend', answer);
-          if (presentation) {
-            const complete = await window.GaemiGTPUSCloseReply.render(answer, presentation, {
-              isActive: () => isActive() && answer.isConnected,
-              typeText: (element, text) => typeText(element, text, { chunkSize: 1 })
-            });
-            if (!complete) return;
-          } else {
-            await typeText(answer, replyText, { chunkSize: 1 });
+          try {
+            if (presentation) {
+              const complete = await window.GaemiGTPUSCloseReply.render(answer, presentation, {
+                isActive: () => isActive() && answer.isConnected,
+                typeText: (element, text) => typeText(element, text, { chunkSize: 1 })
+              });
+              if (!complete && isActive()) throw new Error('us_close_renderer_incomplete');
+              if (!complete) return;
+            } else {
+              await typeText(answer, replyText, { chunkSize: 1 });
+            }
+          } catch (_) {
+            // A renderer error must not silently erase the answer after '생각중'.
+            if (!isActive()) return;
+            answer.classList.remove('typing-cursor');
+            answer.textContent = replyText || '미국장 마감시황을 표시하지 못했어.';
           }
           if (!isActive() || !answer.isConnected) return;
           window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
@@ -147,7 +157,7 @@
         const appendRemainingChoices = (after, completed = []) => {
           if (!after || !after.isConnected) return;
           const remaining = [
-            { key: 'us-market', label: '#미국장', className: 'text-[#3b82f6] dark:text-[#7aa2e3]' },
+            ...(isGaemiMode() ? [{ key: 'us-market', label: '#미국장', className: 'text-[#3b82f6] dark:text-[#7aa2e3]' }] : []),
             { key: 'why', label: whyState.tag, color: whyState.color },
             { key: 'fortune', label: '#떡상운세', className: 'text-[#8f7aa8] hover:text-[#9d87b8] dark:text-[#a995bd] dark:hover:text-[#b7a4c9]' }
           ].filter((item) => !completed.includes(item.key));
@@ -277,6 +287,7 @@
           const button = event.currentTarget;
           const choiceSection = button.closest('[data-next-analysis-choices]');
           if (button.dataset.nextAnalysis === 'us-market') {
+            if (!isGaemiMode()) return;
             // 미국장 흐름도 최초 choices 객체를 기준으로 말풍선을 붙이므로
             // 운세 뒤 follow-up에서 누른 경우 원본 앵커를 현재 위치에 복원한다.
             if (choiceSection && choiceSection !== choices) {
@@ -309,6 +320,7 @@
           }
           if (button.dataset.nextAnalysis === 'materials') await appendMaterials();
         }
+        if (!isGaemiMode()) choices.querySelector('[data-next-analysis="us-market"]')?.remove();
         choices.querySelectorAll('[data-next-analysis]').forEach((button) => {
           button.addEventListener('click', handleNextAnalysisChoice);
         });
@@ -324,6 +336,7 @@
           ];
           for (const [element, text] of sequence) {
             if (requestId !== ctx.getActiveAnalysisRequestId() || !choices.isConnected) return;
+            if (!element) continue;
             await typeText(element, text, { chunkSize: 1 });
           }
         };
