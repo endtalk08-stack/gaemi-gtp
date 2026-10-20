@@ -6,6 +6,7 @@ download/extraction labels and lengths; no full publisher texts.
 import importlib.util
 import json
 import sys
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 
 from backend.services.news_detail import read_selected_article_details
 
