@@ -91,8 +91,8 @@ def _safe_token_usage(response):
     return result
 
 
-_EVENT_DATE_PATTERN = re.compile(r"(?:(?:20\\d{2})년\\s*)?(?:1[0-2]|0?[1-9])월\\s*(?:3[01]|[12]\\d|0?[1-9])일")
-_PRIOR_MONTH_PATTERN = re.compile(r"지난\\s*(?:1[0-2]|0?[1-9])월")
+_EVENT_DATE_PATTERN = re.compile(r"(?:(?:20\d{2})년\s*)?(?:1[0-2]|0?[1-9])월\s*(?:3[01]|[12]\d|0?[1-9])일")
+_PRIOR_MONTH_PATTERN = re.compile(r"지난\s*(?:1[0-2]|0?[1-9])월")
 
 
 def _historical_event_mentions(content, published_at):
@@ -106,11 +106,11 @@ def _historical_event_mentions(content, published_at):
         return []
     hits = []
     for match in _EVENT_DATE_PATTERN.finditer(content):
-        month_day = re.search(r"(\\d{1,2})월\\s*(\\d{1,2})일", match.group())
+        month_day = re.search(r"(\d{1,2})월\s*(\d{1,2})일", match.group())
         if not month_day:
             continue
         month, day = map(int, month_day.groups())
-        explicit_year = re.search(r"(20\\d{2})년", match.group())
+        explicit_year = re.search(r"(20\d{2})년", match.group())
         year = int(explicit_year.group(1)) if explicit_year else publication.year
         try:
             event_day = datetime(year, month, day, tzinfo=timezone.utc)
