@@ -14,7 +14,12 @@ for i, a in enumerate(articles, 1):
     print(f"TEST_SOURCE_{i}_CHARS={a['body_chars']} PUBLISHER={a['publisher']}", flush=True)
 if len(articles) != 3:
     raise SystemExit("STOP_NO_THREE_VERIFIED_ARTICLES_NO_AI_CALL")
-prompt = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해
+prompt = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해.
+
+여러 기사의 내용을 종합해서 중요한 시장 변화와 그 원인, 투자자가 주목할 만한 내용을 스스로 판단해 작성해.
+
+중요한 사실과 구체적인 정보는 지나치게 압축하거나 생략하지 마. 확인되지 않은 사실은 만들어내지 마.
+
 제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해."""
 news = "\n\n".join(f"[기사 {i}]\n제목: {a['title']}\n본문: {a['description']}" for i, a in enumerate(articles, 1))
 key = os.environ.get("GROQ_API_KEY", "").strip()
