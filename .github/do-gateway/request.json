@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/us_close_render_readonly_ping_once.py",
-  "request_id": "render_us_close_live_check_20261020_v1",
-  "timeout": 90
+  "path": "ops/do-gateway/us_close_0700_availability_once.py",
+  "request_id": "us_close_0700_readiness_20261020_v1",
+  "timeout": 150
 }
