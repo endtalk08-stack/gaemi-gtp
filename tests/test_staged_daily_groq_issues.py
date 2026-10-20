@@ -198,13 +198,12 @@ class GroqIssueTests(unittest.TestCase):
         self.assertEqual(issues[0]["source_ids"], [])
 
     def test_prompt_matches_user_requested_exact_text(self):
-        expected = """제공된 기사를 근거로 주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
+        expected = """주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
 
-기사 발행일과 실제 사건 날짜는 달라. historical_event_mentions와 '지난' 같은 과거 설명을 오늘 새 발표·협력·계약으로 쓰지 마. 새 변화가 있으면 그 변화만 설명해.
-제목은 핵심만 짧게, 내용은 쉽게 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
+제목은 핵심만 짧게, 내용은 쉽게 구체적으로, 해시태그는 최대 3개. 친구처럼 반말로 답변해.
 
 한국어 JSON 객체만 반환해:
-{"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
+{"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
         self.assertEqual(module.PROMPT, expected)
 
     def test_old_event_dates_are_tagged_using_article_publication_time(self):
