@@ -21,7 +21,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: 8ca38916ce7a0261ba95d6738e0ba05bb6fdef37
+          ref: 9cf1ee6e7c11c87336e9e7f91e5598f75b82619e
           path: scoped-helper
           persist-credentials: false
       - name: Validate exact approved standalone module
@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git hash-object backend/services/us_market_close.py)" = 6407e8137f4cde96b491aa47e2544a6a1a7214c9
-          test "$(git -C scoped-helper hash-object ops/us-close-refresh-once-20261020.sh)" = 4419a21d977d219624a64158c02c5e549310d4c3
+          test "$(git -C scoped-helper hash-object ops/us-close-refresh-once-20261020.sh)" = 012b8f21b1539a55b0732404716ebd3f42a14e19
           bash -n scoped-helper/ops/us-close-refresh-once-20261020.sh
           python -m py_compile backend/services/us_market_close.py
           python - <<'PY'
@@ -52,4 +52,4 @@ jobs:
           ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'set -eu; umask 077; mkdir -p "$HOME/.gaemi-us-close-20261020"; chmod 700 "$HOME/.gaemi-us-close-20261020"; test "$(systemctl is-active gaemigtp-news.service)" = active'
           scp "${SSH_OPTS[@]}" backend/services/us_market_close.py gaemi-deploy@"$DO_HOST":.gaemi-us-close-20261020/us_market_close.py
           scp "${SSH_OPTS[@]}" scoped-helper/ops/us-close-refresh-once-20261020.sh gaemi-deploy@"$DO_HOST":.gaemi-us-close-20261020/refresh-once.sh
-          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'set -eu; chmod 600 "$HOME/.gaemi-us-close-20261020/us_market_close.py" "$HOME/.gaemi-us-close-20261020/refresh-once.sh"; test "$(git hash-object "$HOME/.gaemi-us-close-20261020/us_market_close.py")" = 6407e8137f4cde96b491aa47e2544a6a1a7214c9; test "$(git hash-object "$HOME/.gaemi-us-close-20261020/refresh-once.sh")" = 4419a21d977d219624a64158c02c5e549310d4c3; echo "US_CLOSE_SOURCE_STAGED_VERIFIED"; test "$(systemctl is-active gaemigtp-news.service)" = active; echo "ORIGINAL_WORKER_STILL_ACTIVE"'
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'set -eu; chmod 600 "$HOME/.gaemi-us-close-20261020/us_market_close.py" "$HOME/.gaemi-us-close-20261020/refresh-once.sh"; test "$(git hash-object "$HOME/.gaemi-us-close-20261020/us_market_close.py")" = 6407e8137f4cde96b491aa47e2544a6a1a7214c9; test "$(git hash-object "$HOME/.gaemi-us-close-20261020/refresh-once.sh")" = 012b8f21b1539a55b0732404716ebd3f42a14e19; echo "US_CLOSE_SOURCE_STAGED_VERIFIED"; test "$(systemctl is-active gaemigtp-news.service)" = active; echo "ORIGINAL_WORKER_STILL_ACTIVE"'
