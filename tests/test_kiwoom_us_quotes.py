@@ -1,5 +1,7 @@
 """No-network tests for isolated Kiwoom US market read-only adapter."""
 import datetime as dt
+import io
+import urllib.error
 import json
 import os
 import unittest
@@ -76,6 +78,37 @@ class KiwoomReadOnlyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             kiwoom.fetch_us_close(
                 "../../bad", "ND", dt.date(2026, 10, 19), token="MOCK_TOKEN")
+
+    def test_oauth_http_error_metadata_only(self):
+        response_text = b"<html><body>Sample blocked response with internal details</body></html>"
+        fake = urllib.error.HTTPError(
+            "https://api.kiwoom.com/oauth2/token", 400, "Bad request",
+            {"Content-Type": "text/html; charset=UTF-8"},
+            io.BytesIO(response_text),
+        )
+        with patch.object(kiwoom.urllib.request, "urlopen", side_effect=fake):
+            with self.assertRaises(kiwoom.KiwoomReadOnlyError) as caught:
+                kiwoom._request("/oauth2/token", {})
+        error_text = str(caught.exception)
+        self.assertEqual(
+            error_text,
+            "kiwoom_http_400_content_type_text_html_body_html_like_bytes_" +
+            str(len(response_text))
+        )
+        self.assertNotIn("Sample blocked", error_text)
+
+    def test_oauth_http_error_empty(self):
+        fake = urllib.error.HTTPError(
+            "https://api.kiwoom.com/oauth2/token", 400, "Bad request",
+            {"Content-Type": "text/plain"}, io.BytesIO(b""),
+        )
+        with patch.object(kiwoom.urllib.request, "urlopen", side_effect=fake):
+            with self.assertRaises(kiwoom.KiwoomReadOnlyError) as caught:
+                kiwoom._request("/oauth2/token", {})
+        self.assertEqual(
+            str(caught.exception),
+            "kiwoom_http_400_content_type_text_plain_body_empty_bytes_0"
+        )
 
     def test_missing_credentials(self):
         with patch.dict(os.environ, {"GAEMI_KIWOOM_APP_KEY": "",
