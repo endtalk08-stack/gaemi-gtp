@@ -171,7 +171,7 @@
         const appendRemainingChoices = (after, completed = []) => {
           if (!after || !after.isConnected) return;
           const remaining = [
-            ...(isGaemiMode() ? [{ key: 'us-market', label: '#미국장_어땠어?', className: 'text-[#3b82f6] dark:text-[#7aa2e3]' }] : []),
+            { key: 'us-market', label: '#미국장_어땠어?', className: 'text-[#3b82f6] dark:text-[#7aa2e3]' },
             { key: 'why', label: whyState.tag, color: whyState.color },
             { key: 'fortune', label: '#떡상운세', className: 'text-[#8f7aa8] hover:text-[#9d87b8] dark:text-[#a995bd] dark:hover:text-[#b7a4c9]' }
           ].filter((item) => !completed.includes(item.key));
@@ -301,7 +301,12 @@
           const button = event.currentTarget;
           const choiceSection = button.closest('[data-next-analysis-choices]');
           if (button.dataset.nextAnalysis === 'us-market') {
-            if (!isGaemiMode()) return;
+            if (!isGaemiMode()) {
+              // Restore original info/pro routing to their independent AI chat models.
+              window.GaemiGTPApp?.submitQuestion?.('미국장 어땠어?');
+              choiceSection?.remove();
+              return;
+            }
             // 미국장 흐름도 최초 choices 객체를 기준으로 말풍선을 붙이므로
             // 운세 뒤 follow-up에서 누른 경우 원본 앵커를 현재 위치에 복원한다.
             if (choiceSection && choiceSection !== choices) {
@@ -334,7 +339,6 @@
           }
           if (button.dataset.nextAnalysis === 'materials') await appendMaterials();
         }
-        if (!isGaemiMode()) choices.querySelector('[data-next-analysis="us-market"]')?.remove();
         choices.querySelectorAll('[data-next-analysis]').forEach((button) => {
           button.addEventListener('click', handleNextAnalysisChoice);
         });
