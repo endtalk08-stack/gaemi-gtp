@@ -1,7 +1,7 @@
 """US close editorial: three date-verified NAVER indices and three verified original articles.
 
 The existing DigitalOcean timer writes one Neon result; Render reads only.
-The user-approved Groq 120B prompt remains byte-for-byte unchanged.
+The approved plain-language editorial is parsed into the unchanged Neon schema.
 """
 import datetime as datetime
 import html
@@ -76,12 +76,7 @@ def collect_articles(session_date, now_utc=None, search=None, reader=None):
     """Only three genuinely extracted US-close articles; never snippets."""
     return verified_originals(session_date, now_utc=now_utc, search=search, reader=reader)
 
-US_CLOSE_PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해
-
-제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
-
-한국어 JSON 객체만 반환해:
-{"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
+US_CLOSE_PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해\n제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해."""
 
 
 def _prompt(articles, session_date, indices=None):
@@ -125,6 +120,35 @@ def _generate(articles, session_date, indices=None):
     if len(text) < 100:
         raise RuntimeError("insufficient_ai_answer")
     return text[:3600]
+
+
+def _parse_editorial(answer):
+    """Parse plain model output without summarizing or removing body sections."""
+    if not isinstance(answer, str):
+        raise RuntimeError("us_close_ai_invalid_text")
+    text = answer.strip()
+    if len(text) < 100 or len(text) > 3600:
+        raise RuntimeError("us_close_ai_invalid_text_length")
+    lines = text.splitlines()
+    nonempty = [i for i, line in enumerate(lines) if line.strip()]
+    if len(nonempty) < 3:
+        raise RuntimeError("us_close_ai_missing_sections")
+    first, last = nonempty[0], nonempty[-1]
+    def unbold(value):
+        value = value.strip()
+        return value[2:-2].strip() if value.startswith("**") and value.endswith("**") else value
+    title = unbold(lines[first]).lstrip("# ").strip()
+    # Accept only a trailing hashtag-only line, never remove inline body hashtags.
+    tag_line = lines[last].strip()
+    tags = tag_line.split()
+    if not 1 <= len(tags) <= 3 or any(not re.fullmatch(r"#[^#\s]+", t) for t in tags):
+        raise RuntimeError("us_close_ai_missing_final_tags")
+    body = "\n".join(lines[first+1:last]).strip()
+    if not title or len(title) > 200 or len(body) < 50 or len(body) > 2600:
+        raise RuntimeError("us_close_ai_invalid_editorial_fields")
+    if re.search(r"코스피|코스닥|국내증시", title + body):
+        raise RuntimeError("us_close_ai_non_us_editorial")
+    return {"headline": title, "summary": body, "tags": tags, "source_ids": []}
 
 
 def _connection():
@@ -270,28 +294,7 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
             answer = generator(articles, session_date, indices)
         else:
             answer = _generate(articles, session_date, indices=indices)
-        try:
-            result = json.loads(answer)
-        except (TypeError, ValueError) as exc:
-            raise RuntimeError("us_close_ai_invalid_json") from exc
-        if not isinstance(result, dict) or not isinstance(result.get("issues"), list) or not result["issues"]:
-            raise RuntimeError("us_close_ai_missing_issues")
-        issues = []
-        for entry in result["issues"][:3]:
-            if not isinstance(entry, dict):
-                continue
-            title = str(entry.get("headline") or "").strip()
-            summary = str(entry.get("summary") or "").strip()
-            if not title or not summary or re.search(r"코스피|코스닥|국내증시", title + summary):
-                continue
-            source_ids = [i for i in (entry.get("source_ids") or []) if isinstance(i, int) and 1 <= i <= 3]
-            issues.append({
-                "headline": title[:200], "summary": summary[:2600],
-                "tags": [str(t)[:48] for t in (entry.get("tags") or [])[:3]],
-                "source_ids": source_ids,
-            })
-        if not issues:
-            raise RuntimeError("us_close_ai_no_usable_us_market_analysis")
+        issues = [_parse_editorial(answer)]
         # Persist only AI editorial and verified numeric market facts, not
         # copyrighted publisher original bodies or NAVER snippet texts.
         content = json.dumps({
