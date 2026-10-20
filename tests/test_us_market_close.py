@@ -83,7 +83,7 @@ class UsMarketCloseTests(unittest.TestCase):
              "tags": ["#반도체", "#AI", "#증시", "#초과"], "source_ids": [1, 2]}
         ]}, ensure_ascii=False)
         visible = close._display_brief_content(stored)
-        self.assertEqual(visible, "미국장 기술주 반등\\n\\n주요 기술주가 상승했어.\\n\\n#반도체 #AI #증시".replace("\\\\n", "\\n"))
+        self.assertEqual(visible, "\n\n".join(["미국장 기술주 반등", "주요 기술주가 상승했어.", "#반도체 #AI #증시"]))
         self.assertNotIn("source_ids", visible)
         self.assertIn("source_ids", stored)
         self.assertEqual(close._display_brief_content("기존 본문"), "기존 본문")
