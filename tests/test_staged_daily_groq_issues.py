@@ -200,11 +200,59 @@ class GroqIssueTests(unittest.TestCase):
     def test_prompt_matches_user_requested_exact_text(self):
         expected = """제공된 기사를 근거로 주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
 
+기사 발행일과 실제 사건 날짜는 달라. historical_event_mentions와 '지난' 같은 과거 설명을 오늘 새 발표·협력·계약으로 쓰지 마. 새 변화가 있으면 그 변화만 설명해.
 제목은 핵심만 짧게, 내용은 쉽게 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
 
 한국어 JSON 객체만 반환해:
 {"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
         self.assertEqual(module.PROMPT, expected)
+
+    def test_old_event_dates_are_tagged_using_article_publication_time(self):
+        article = {
+            "title": "마이크론, 로봇용 메모리 개발",
+            "description": "SK하이닉스는 6월 8일 엔비디아와 장기 협력을 발표했다. 지난 8월 다른 공급 협력도 체결했다.",
+            "published_at": "2026-10-19T18:40:00+00:00",
+        }
+        news, sources = module.build_model_news([article])
+        self.assertEqual(news[0]["historical_event_mentions"], ["6월 8일", "지난 8월"])
+        self.assertEqual(news[0]["source_id"], sources[0]["source_id"])
+        self.assertEqual(news[0]["published_at"], article["published_at"])
+
+    def test_current_event_is_not_mislabeled_as_historical(self):
+        articles = [{
+            "title": "실적 발표", "description": "10월 19일 3분기 실적을 발표했다.",
+            "published_at": "2026-10-19T18:40:00+00:00",
+        }, {
+            "title": "신제품 공개", "description": "10월 18일 신규 제품을 공개했다.",
+            "published_at": "2026-10-19T18:40:00+00:00",
+        }]
+        news, _ = module.build_model_news(articles)
+        self.assertEqual([r["historical_event_mentions"] for r in news], [[], []])
+
+    def test_prior_year_explicit_and_impossible_dates(self):
+        text = "2025년 12월 3일 투자 발표. 2026년 2월 30일은 유효한 날짜가 아니다."
+        self.assertEqual(module._historical_event_mentions(text, "2026-10-19T18:40:00+00:00"), ["2025년 12월 3일"])
+        self.assertEqual(module._historical_event_mentions("6월 8일 발표", ""), [])
+
+    def test_model_request_sends_historical_hints_without_second_ai_call(self):
+        import io
+        from unittest.mock import patch
+        captured = {}
+        article = {"title": "마이크론 로봇용 메모리 개발",
+                   "description": "SK하이닉스는 6월 8일 엔비디아와 장기 협력을 발표했다.",
+                   "published_at": "2026-10-19T18:40:00+00:00"}
+        def mock_urlopen(request, timeout):
+            captured["payload"] = json.loads(request.data.decode("utf-8"))
+            return io.BytesIO(b'{"choices":[{"message":{"content":"{\\"issues\\":[]}"}}]}')
+        with patch.dict("os.environ", {"GROQ_API_KEY": "mock-only"}), patch(
+            "urllib.request.urlopen", side_effect=mock_urlopen
+        ) as provider:
+            self.assertEqual(module.analyze_news("엔비디아", [article]), [])
+        self.assertEqual(provider.call_count, 1)
+        self.assertIn("사건 날짜", captured["payload"]["messages"][0]["content"])
+        model_news = json.loads(captured["payload"]["messages"][1]["content"])["news"]
+        self.assertEqual(model_news[0]["historical_event_mentions"], ["6월 8일"])
+        self.assertEqual(model_news[0]["source_id"], 1)
 
     def test_truncated_response_fails_without_retry_or_fabrication(self):
         import io
