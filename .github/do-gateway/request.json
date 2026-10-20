@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/us_close_0700_availability_once.py",
-  "request_id": "us_close_0700_readiness_20261020_v1",
-  "timeout": 150
+  "operation": "deploy",
+  "path": "backend/services/us_market_close.py",
+  "target": "backend/services/us_market_close.py"
 }
