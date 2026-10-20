@@ -9,9 +9,12 @@
 
   function normalize(input) {
     if (!input || typeof input !== 'object') return null;
-    const sessionDate = String(input.session_date_et || '');
+    // normalize() is deliberately idempotent. Both the gaemi follow-up and
+    // the shared chat renderer validate first, then call plainText/render,
+    // which must accept that already-normalized object too.
+    const sessionDate = String(input.session_date_et || input.sessionDate || '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(sessionDate)) return null;
-    const indices = input.market_indices;
+    const indices = input.market_indices || input.indices;
     const issues = input.issues;
     if (!Array.isArray(indices) || indices.length !== 3 || !Array.isArray(issues) || !issues.length) return null;
     const cleanIndices = [];
@@ -19,7 +22,7 @@
       const item = indices[i];
       if (item?.name !== INDEX_NAMES[i]) return null;
       const close = Number(item.close);
-      const pct = Number(item.change_pct);
+      const pct = Number(item.change_pct ?? item.pct);
       if (!Number.isFinite(close) || close <= 0 || !Number.isFinite(pct) || Math.abs(pct) > 40) return null;
       cleanIndices.push({ name: INDEX_NAMES[i], close, pct });
     }
