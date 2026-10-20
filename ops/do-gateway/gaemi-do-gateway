@@ -47,6 +47,7 @@ case "$action" in
     valid_sha "$2" || fail "invalid_sha"
     # Paths must be inside the project tree or gaemigtp-specific systemd files.
     [[ "$dest" =~ ^(backend|frontend)/[A-Za-z0-9_./-]{1,210}$ || "$dest" == "app.py" ||
+       "$dest" == "ops/staged_daily_groq_issues.py" ||
        "$dest" =~ ^ops/systemd/gaemigtp-[A-Za-z0-9_.@-]{1,90}\.(service|timer)$ ]] || fail "invalid_destination"
     [[ "$dest" != *".."* && "$dest" != *"//"* ]] || fail "path_traversal"
     [[ -f "$inbox" && ! -L "$inbox" ]] || fail "payload_missing"
