@@ -1,0 +1,105 @@
+name: Apply exact approved AI issue prompt (one file)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-ai-prompt-exact-user-20261021.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-ai-exact-prompt-one-file
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'APPLY_EXACT_USER_AI_PROMPT_20261021'
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 9
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+      OLD_BLOB: 1d01ccfe1dda7dc8f0493288654f6a3cd6ac68d1
+      NEW_BLOB: 4e542291127f374dcf7a52d708a27db08561fc55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm exact approved prompt and run all offline AI tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object ops/staged_daily_groq_issues.py)" = "$NEW_BLOB"
+          python3 -m py_compile ops/staged_daily_groq_issues.py
+          python3 -m unittest discover -s tests -p 'test_staged_ai_*.py' -q
+          python3 -m unittest discover -s tests -p 'test_ai_issue_priority_no_code_gate.py' -q
+          python3 -m unittest discover -s tests -p 'test_staged_daily_*.py' -q
+          python3 -m unittest discover -s tests -p 'test_staged_issue_*.py' -q
+          echo EXACT_PROMPT_TESTS_PASSED
+      - name: Secure copy to temporary location and verify production source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          remote="gaemi-deploy@$DO_HOST"
+          ssh "${opts[@]}" "$remote" 'install -d -m 700 "$HOME/.gaemi-ai-exactprompt-20261021"'
+          scp "${opts[@]}" ops/staged_daily_groq_issues.py "$remote":.gaemi-ai-exactprompt-20261021/new-analyzer.py
+          ssh "${opts[@]}" "$remote" "OLD_BLOB=$OLD_BLOB NEW_BLOB=$NEW_BLOB bash -s" <<'REMOTE'
+          set -euo pipefail
+          source_file="$HOME/.gaemi-ai-exactprompt-20261021/new-analyzer.py"
+          target=/opt/gaemigtp-news/app/ops/staged_daily_groq_issues.py
+          test -f "$target" && test ! -L "$target" && test -w "$target"
+          test "$(git hash-object -- "$source_file")" = "$NEW_BLOB"
+          test "$(git hash-object -- "$target")" = "$OLD_BLOB" || { echo OLD_SOURCE_CHANGED_REFUSE; exit 1; }
+          test "$(stat -c %u "$target")" = "$(id -u)" || { echo FILE_OWNER_CHANGED_REFUSE; exit 1; }
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          /opt/gaemigtp-news/venv/bin/python -m py_compile "$source_file"
+          echo EXACT_PROMPT_PRECHECK_PASSED
+          REMOTE
+      - name: Update only analyzer with rollback and restart original news service
+        shell: bash
+        run: |
+          set -euo pipefail
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          ssh "${opts[@]}" "gaemi-deploy@$DO_HOST" "OLD_BLOB=$OLD_BLOB NEW_BLOB=$NEW_BLOB bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+          source_file="$HOME/.gaemi-ai-exactprompt-20261021/new-analyzer.py"
+          target=/opt/gaemigtp-news/app/ops/staged_daily_groq_issues.py
+          work="$HOME/.gaemi-ai-exactprompt-20261021"
+          test -f "$target" && test ! -L "$target" && test -w "$target"
+          test "$(git hash-object -- "$target")" = "$OLD_BLOB" || { echo OLD_SOURCE_DRIFT_REFUSE; exit 1; }
+          test "$(git hash-object -- "$source_file")" = "$NEW_BLOB"
+          test "$(stat -c %u "$target")" = "$(id -u)"
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          mode="$(stat -c %a "$target")"
+          backup="$(mktemp "$work/original-analyzer.XXXXXXXX.py")"
+          cp -p "$target" "$backup"
+          test "$(git hash-object -- "$backup")" = "$OLD_BLOB"
+          rollback() {
+            rc=$?
+            trap - ERR
+            echo EXACT_PROMPT_ROLLBACK_START
+            cp -p "$backup" "$target" || true
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+            echo EXACT_PROMPT_ROLLBACK_DONE
+            exit "$rc"
+          }
+          trap rollback ERR
+          install -m "$mode" "$source_file" "$target"
+          test "$(git hash-object -- "$target")" = "$NEW_BLOB"
+          /opt/gaemigtp-news/venv/bin/python -m py_compile "$target"
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          sleep 3
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(git hash-object -- "$target")" = "$NEW_BLOB"
+          trap - ERR
+          echo EXACT_USER_PROMPT_INSTALLED
+          echo ORIGINAL_SOURCE_BACKED_UP
+          echo EXISTING_NEWS_WORKER_ACTIVE
+          REMOTE
