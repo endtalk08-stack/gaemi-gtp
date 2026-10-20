@@ -1,0 +1,48 @@
+name: Read-only DO 7am US-close timer check
+
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/read-only-us-close-timer-check.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-only:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 4
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Connect securely (no remote changes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          echo "US_CLOSE_CHECK_DATE_KST=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S')"
+          for name in gaemigtp-news.service gaemigtp-us-market-close.timer gaemigtp-us-market-close.service; do
+            echo "UNIT=$name"
+            systemctl show "$name" -p LoadState -p ActiveState -p SubState -p UnitFileState -p FragmentPath --no-pager 2>&1 || true
+          done
+          for file in /opt/gaemigtp-news/app/backend/services/us_market_close.py /opt/gaemigtp-news/app/backend/us_market_close_job.py /etc/systemd/system/gaemigtp-us-market-close.timer /etc/systemd/system/gaemigtp-us-market-close.service; do
+            if test -f "$file"; then
+              echo "US_CLOSE_FILE_PRESENT $file"
+            else
+              echo "US_CLOSE_FILE_MISSING $file"
+            fi
+          done
+          echo "US_CLOSE_JOURNAL_SUMMARY"
+          journalctl --no-pager --quiet -u gaemigtp-us-market-close.service --since '2026-10-20 06:30:00 Asia/Seoul' 2>/dev/null | grep -E 'us_market_close_failed|insufficient_full_articles|already_attempted|published|market_not_closed|Failed|Started|Starting' | tail -25 || true
+          echo "US_CLOSE_READONLY_DIAGNOSTIC_COMPLETE"
+          REMOTE
