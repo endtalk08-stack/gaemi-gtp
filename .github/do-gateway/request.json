@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/us_close_indices_and_news_3_once.py",
-  "request_id": "us_close_indices_3_originals_20261020_v1",
-  "timeout": 145
+  "operation": "status"
 }
