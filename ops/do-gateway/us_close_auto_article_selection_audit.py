@@ -1,6 +1,6 @@
 """Isolated, read-only US-close automatic article-selection + ORIGINAL BODY quality audit.
 
-Exactly three NAVER search GETs; read max 15 publisher links once each.
+Exactly three NAVER search GETs; read max 36 publisher links once each.
 US session: 2026-10-19; publish window: 2026-10-20 05:00-10:00 KST.
 Existing backend.services.news_detail reader; no AI calls / DB / writes / deployments.
 Print bounded audit results, selected source IDs + what AI input WOULD contain.
@@ -109,7 +109,7 @@ def fetch_candidates():
     print("US_SELECTOR_SCAN="+json.dumps({**stats,"unique_us_headlines":len(found),
         "window_start_kst":CLOSE.isoformat(timespec="minutes"),
         "window_end_kst":CUTOFF.isoformat(timespec="minutes")},ensure_ascii=False),flush=True)
-    return sorted(found.values(),key=lambda x:(-x["headline_score"],x["published_kst"]))[:15]
+    return sorted(found.values(),key=lambda x:(-x["headline_score"],x["published_kst"]))[:36]
 
 def classify(a, body, source):
     if source not in ("jsonld_article_body","article_or_main_paragraphs"):
@@ -132,12 +132,12 @@ def classify(a, body, source):
 
 def category(a,body):
     text=a["title"]+" "+body[:500]
-    if re.search(r"금리|국채|유가|중동|프랑스",text):return "rates_oil"
-    if re.search(r"반도체|AI|인공지능|기술주",text,re.I):return "technology"
+    if re.search(r"금리|국채|유가|중동|프랑스",a["title"]):return "rates_oil"
+    if re.search(r"반도체|AI|인공지능|기술주",a["title"],re.I):return "technology"
     return "market"
 
 def main():
-    print("US_SELECTOR_SCOPE=3_NAVER_GET_15_publisher_GET_max_no_AI_no_db_no_ui",flush=True)
+    print("US_SELECTOR_SCOPE=3_NAVER_GET_36_publisher_GET_max_no_AI_no_db_no_ui",flush=True)
     candidate=fetch_candidates()
     print("US_SELECTOR_TOP_TO_READ="+str(len(candidate)),flush=True)
     if not candidate:
@@ -163,7 +163,7 @@ def main():
     # Reject duplicate page bodies; require different publishers and subject variety.
     by_subject={"market":[],"technology":[],"rates_oil":[]}
     dedup=[]
-    for a in accepted:
+    for a in sorted(accepted,key=lambda x:(len(x["body"]),x["headline_score"]),reverse=True):
         if any(a["publisher"]==p["publisher"] or
                SequenceMatcher(None,a["body"][:1200],p["body"][:1200]).ratio()>=0.78 or
                SequenceMatcher(None,a["title"],p["title"]).ratio()>=0.82
@@ -176,7 +176,7 @@ def main():
     for topic in ("market","rates_oil","technology"):
         options=[a for a in by_subject[topic] if a not in final]
         if options:
-            final.append(max(options,key=lambda a:(a["headline_score"],len(a["body"]))))
+            final.append(max(options,key=lambda a:(len(a["body"]),a["headline_score"])))
     for a in dedup:
         if len(final)>=3:break
         if a not in final:final.append(a)
