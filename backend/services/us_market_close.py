@@ -81,7 +81,7 @@ US_CLOSE_PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 �
 제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
 
 한국어 JSON 객체만 반환해:
-{"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#핵심어"]}]}"""
+{"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#해시태그"]}]}"""
 
 
 def _prompt(articles, session_date, indices=None):
