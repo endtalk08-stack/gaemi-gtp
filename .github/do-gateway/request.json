@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/test_us_close_groq_120b_no_numbers_20261021.py",
-  "request_id": "live-us-close-no-numbers-20261021-e",
-  "timeout": 170
+  "path": "ops/do-gateway/audit_production_us_close_prompt_20261021.py",
+  "request_id": "read-registered-prod-us-close-prompt-20261021",
+  "timeout": 90
 }
