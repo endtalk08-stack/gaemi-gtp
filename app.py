@@ -130,10 +130,15 @@ def market_trading_value():
         return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
     issue_rows = [{"name": item.get("name"), "symbol": item.get("symbol")} for item in items]
     try:
-        issue_results = get_market_issue_headlines(market, issue_rows)["items"]
-        for item, issue in zip(items, issue_results):
-            item["issue_headline"] = issue["headline"]
-    except (ValueError, Exception) as exc:
+        # The ranking list is already source-normalized, but one bad identity
+        # must not discard the valid stocks' existing Neon issue headlines.
+        if issue_rows:
+            issue_results = get_market_issue_headlines(
+                market, issue_rows, skip_invalid=True,
+            )["items"]
+            for item, issue in zip(items, issue_results):
+                item["issue_headline"] = issue["headline"]
+    except Exception as exc:
         print(f"[market ranking issues] lookup failed: {type(exc).__name__}", flush=True)
     return jsonify({"ok": True, "market": market, "source": "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
 
@@ -150,10 +155,15 @@ def market_popular():
         return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
     issue_rows = [{"name": item.get("name"), "symbol": item.get("symbol")} for item in items]
     try:
-        issue_results = get_market_issue_headlines(market, issue_rows)["items"]
-        for item, issue in zip(items, issue_results):
-            item["issue_headline"] = issue["headline"]
-    except (ValueError, Exception) as exc:
+        # The ranking list is already source-normalized, but one bad identity
+        # must not discard the valid stocks' existing Neon issue headlines.
+        if issue_rows:
+            issue_results = get_market_issue_headlines(
+                market, issue_rows, skip_invalid=True,
+            )["items"]
+            for item, issue in zip(items, issue_results):
+                item["issue_headline"] = issue["headline"]
+    except Exception as exc:
         print(f"[market ranking issues] lookup failed: {type(exc).__name__}", flush=True)
     return jsonify({"ok": True, "market": market, "source": "naver", "ranking": "popular",
                     "currency": "USD" if market == "us" else "KRW", "items": items})
