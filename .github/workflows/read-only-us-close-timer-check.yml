@@ -42,6 +42,24 @@ jobs:
               echo "US_CLOSE_FILE_MISSING $file"
             fi
           done
+          echo "US_CLOSE_DEPLOYED_CODE_BLOB_SHA"
+          /usr/bin/python3 - <<'PY'
+          import hashlib, pathlib
+          for name in [
+              "/opt/gaemigtp-news/app/backend/services/us_market_close.py",
+              "/opt/gaemigtp-news/app/backend/us_market_close_job.py"
+          ]:
+              p = pathlib.Path(name)
+              if not p.is_file():
+                  print("US_CLOSE_CODE_MISSING", name)
+                  continue
+              b = p.read_bytes()
+              print("US_CLOSE_CODE_BLOB", name, hashlib.sha1(b"blob "+str(len(b)).encode()+b"\\x00"+b).hexdigest())
+          PY
+          echo "US_CLOSE_SERVICE_STATUS"
+          systemctl status gaemigtp-us-market-close.service --no-pager -l 2>&1 | tail -n 28 || true
+          echo "US_CLOSE_JOURNAL_RAW"
+          (TZ=Asia/Seoul journalctl --no-pager -u gaemigtp-us-market-close.service --since '2026-10-20 06:30:00' -o cat 2>&1 || true) | tail -n 24
           echo "US_CLOSE_TIMER_TRIGGER_DETAILS"
           systemctl show gaemigtp-us-market-close.timer -p LastTriggerUSec -p NextElapseUSecRealtime -p ActiveEnterTimestamp -p Result --no-pager || true
           echo "US_CLOSE_SERVICE_EXEC_DETAILS"
