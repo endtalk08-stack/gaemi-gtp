@@ -1,3 +1,5 @@
 {
-  "operation": "kiwoom-verify"
+  "operation": "deploy",
+  "path": "backend/alpaca_probe.py",
+  "target": "backend/alpaca_probe.py"
 }
