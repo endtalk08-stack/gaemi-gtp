@@ -12,6 +12,7 @@ CHECKS={
  "ops/staged_ai_sequential_batch.py":("run_stock_batch","apply_worker_ai","apply_unchanged_worker_ai"),
  "ops/staged_auto_ai_daily.py":("reconcile_completed_ai_snapshots","process_due_ai_snapshots"),
  "ops/staged_ai_snapshot_integration.py":("with_ai_issue_briefs",),
+ "ops/staged_news_processed_store.py":("save_snapshot",),
  "backend/services/news_processed_store.py":("save_snapshot",),
 }
 for rel, names in CHECKS.items():
