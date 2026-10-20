@@ -1,6 +1,6 @@
 {
   "operation": "run",
   "path": "ops/do-gateway/audit_ai_live_sync_readonly_20261020.py",
-  "request_id": "us-ai-pipeline-audit-20261020-v1",
+  "request_id": "us-ai-permission-audit-20261020-v2",
   "timeout": 90
 }
