@@ -9,12 +9,7 @@ from backend.services import us_market_close_runtime as source
 
 DAY = dt.date(2026, 10, 19)
 NOW = dt.datetime(2026, 10, 19, 22, tzinfo=dt.timezone.utc)
-PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해
-
-제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
-
-한국어 JSON 객체만 반환해:
-{"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
+PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해\n제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해."""
 
 INDICES = [
     {"symbol":".DJI","name":"다우존스","session_date_et":"2026-10-19","close":51966.03,"change":-36.38,"change_pct":-0.07},
@@ -163,8 +158,7 @@ class TestUSClose(unittest.TestCase):
             def cursor(self):return self
             def execute(self,sql,params=None):calls.append((sql,params))
             def fetchone(self):return returned.pop(0) if returned else None
-        output=json.dumps({"issues":[{"headline":"미국 기술주 반등",
-          "summary":"나스닥이 1.11% 상승했어.","tags":["#미국장"],"source_ids":[1,2,3]}]},ensure_ascii=False)
+        output="**미국 기술주 반등**\\n\\n나스닥이 1.11% 상승했어. 시장은 혼조를 보였고 반도체주에 매수세가 유입됐어.\\n\\n#미국장"
         with patch.object(close,"verified_indices",return_value=INDICES),\
              patch.object(close,"collect_articles",return_value=NEWS),\
              patch.object(close,"_connection",return_value=Conn()):
@@ -174,6 +168,30 @@ class TestUSClose(unittest.TestCase):
         self.assertIn("26430.89",stored)
         self.assertNotIn(NEWS[0]["description"],stored)
         self.assertIn("미국 기술주 반등",stored)
+
+    def test_parses_real_plain_answer_without_truncation(self):
+        output = ("**미국 증시, AI·반도체 주도 반등했지만 혼조 마감**  \\n\\n"
+                  "19일 뉴욕증시는 다우는 0.07% 떨어지고 나스닥은 1.1% 올랐어.  \\n\\n"
+                  "**핵심 포인트**  \\n"
+                  "- AI·반도체 저가 매수세가 나스닥을 끌어올림  \\n"
+                  "- 금리·유가 상승이 상승 폭을 제한  \\n\\n"
+                  "#AI반등 #금리불안 #빅테크실적")
+        issue = close._parse_editorial(output)
+        self.assertEqual(issue["headline"], "미국 증시, AI·반도체 주도 반등했지만 혼조 마감")
+        self.assertIn("**핵심 포인트**", issue["summary"])
+        self.assertIn("- AI·반도체", issue["summary"])
+        self.assertEqual(issue["tags"], ["#AI반등", "#금리불안", "#빅테크실적"])
+        self.assertEqual(issue["source_ids"], [])
+        packed = json.dumps({"session_date_et": DAY.isoformat(), "market_indices": INDICES,
+                             "issues": [issue]}, ensure_ascii=False)
+        self.assertEqual(close._structured_brief(packed)["issues"][0]["summary"], issue["summary"])
+        self.assertIn("나스닥 종합", close._display_brief_content(packed))
+
+    def test_rejects_missing_final_tags_and_long_body(self):
+        with self.assertRaises(RuntimeError):
+            close._parse_editorial("제목\\n\\n" + "내용 " * 30)
+        with self.assertRaises(RuntimeError):
+            close._parse_editorial("제목\\n\\n" + "긴 내용 " * 600 + "\\n\\n#미국장")
 
     def test_second_schedule_skips_existing_session_without_provider_calls(self):
         class Published:
