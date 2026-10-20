@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/check_kiwoom_config.py",
+  "request_id": "kiwoom-config-20261020-first",
+  "timeout": 60
 }
