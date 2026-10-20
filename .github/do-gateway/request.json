@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-news.service",
-  "lines": 300
+  "operation": "run",
+  "path": "ops/do-gateway/audit_missing_us_ai_readonly_20261021.py",
+  "request_id": "audit-us-ai-missing-20261021-a",
+  "timeout": 90
 }
