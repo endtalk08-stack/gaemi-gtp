@@ -42,6 +42,12 @@ jobs:
               echo "US_CLOSE_FILE_MISSING $file"
             fi
           done
+          echo "US_CLOSE_TIMER_TRIGGER_DETAILS"
+          systemctl show gaemigtp-us-market-close.timer -p LastTriggerUSec -p NextElapseUSecRealtime -p ActiveEnterTimestamp -p Result --no-pager || true
+          echo "US_CLOSE_SERVICE_EXEC_DETAILS"
+          systemctl show gaemigtp-us-market-close.service -p Result -p ExecMainStatus -p ExecMainCode -p ExecMainStartTimestamp -p ExecMainExitTimestamp -p StateChangeTimestamp -p InvocationID --no-pager || true
+          echo "US_CLOSE_JOURNAL_ACCESS"
+          (TZ=Asia/Seoul journalctl --no-pager --quiet -u gaemigtp-us-market-close.service --since '2026-10-20 06:30:00' 2>&1 || true) | grep -E 'No journal|not seeing|Permission|us_market_close_failed|insufficient_full_articles|already_attempted|published|market_not_closed|Failed|Started|Starting|No entries|status' | tail -25 || true
           echo "US_CLOSE_JOURNAL_SUMMARY"
           journalctl --no-pager --quiet -u gaemigtp-us-market-close.service --since '2026-10-20 06:30:00 Asia/Seoul' 2>/dev/null | grep -E 'us_market_close_failed|insufficient_full_articles|already_attempted|published|market_not_closed|Failed|Started|Starting' | tail -25 || true
           echo "US_CLOSE_READONLY_DIAGNOSTIC_COMPLETE"
