@@ -81,6 +81,20 @@ case "$action" in
     fi
     echo "GAEMI_DEPLOY_OK=$dest"
     ;;
+  upgrade)
+    [[ $# == 1 ]] || fail "upgrade_requires_sha"
+    valid_sha "$1" || fail "invalid_sha"
+    [[ -f "$inbox" && ! -L "$inbox" ]] || fail "payload_missing"
+    [[ "$(blob_sha "$inbox")" == "$1" ]] || fail "payload_sha_mismatch"
+    bash -n "$inbox" || fail "upgrade_syntax_invalid"
+    tmp=$(mktemp /usr/local/sbin/.gaemi-do-gateway.XXXXXXXX)
+    trap 'rm -f "$tmp"' EXIT
+    install -o root -g root -m 0750 -- "$inbox" "$tmp"
+    [[ "$(blob_sha "$tmp")" == "$1" ]] || fail "upgrade_sha_mismatch"
+    mv -f "$tmp" /usr/local/sbin/gaemi-do-gateway
+    trap - EXIT
+    echo "GAEMI_GATEWAY_UPGRADED=$1"
+    ;;
   run)
     [[ $# == 3 ]] || fail "run_requires_request_id_sha_timeout"
     valid_req "$1" || fail "invalid_request"
@@ -97,7 +111,7 @@ case "$action" in
     [[ ! -e "$record" ]] || fail "duplicate_run_request"
     # Record before external API calls, preventing accidental paid retries.
     printf '%s\n' "$(date -u +%FT%TZ) $2" > "$record"
-    install -d -o root -g root -m 0700 /run/gaemi-gateway
+    install -d -o gaemigtp-news -g gaemigtp-news -m 0700 /run/gaemi-gateway
     job="/run/gaemi-gateway/job-$1.py"
     install -o gaemigtp-news -g gaemigtp-news -m 0500 -- "$inbox" "$job"
     trap 'rm -f "$job"' EXIT
