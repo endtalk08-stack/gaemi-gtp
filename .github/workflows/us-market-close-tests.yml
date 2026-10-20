@@ -1,11 +1,15 @@
 name: US close editorial isolated checks
 on:
   push:
-    branches: [feat/us-market-close-content-20261018]
+    branches: [main, feat/us-market-close-content-20261018]
     paths:
       - 'backend/services/us_market_close.py'
       - 'tests/test_us_market_close.py'
       - 'frontend/shell/center-chat/ai-chat.js'
+      - 'frontend/shell/center-chat/us-close-reply.js'
+      - 'frontend/index.html'
+      - 'frontend/css/app.css'
+      - 'tests/test_us_close_ui.js'
       - 'frontend/shell/center-chat/analysis-flow.js'
       - 'app.py'
       - '.github/workflows/us-market-close-tests.yml'
@@ -52,3 +56,5 @@ jobs:
         run: |
           node --check frontend/shell/center-chat/ai-chat.js
           node --check frontend/shell/center-chat/analysis-flow.js
+          node --check frontend/shell/center-chat/us-close-reply.js
+          node tests/test_us_close_ui.js

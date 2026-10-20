@@ -935,3 +935,76 @@ body.left-context-open #gaemiWorkspace {
   from { background-position: 120% 0; }
   to { background-position: -120% 0; }
 }
+
+
+/* US close: headline -> verified 3-index table -> original-article AI brief -> tags.
+   Reuses existing gtp-chat-copy, typing-cursor and reply action components. */
+.gaemi-us-close-reply {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.gaemi-us-close-issue + .gaemi-us-close-issue { margin-top: 24px; }
+.gaemi-us-close-title {
+  margin: 0 0 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--gtp-text);
+}
+.gaemi-us-close-table-wrap {
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 0 18px;
+  border: 1px solid var(--gtp-border-strong);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.gaemi-us-close-index-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: .94em;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+.gaemi-us-close-index-table th,
+.gaemi-us-close-index-table td {
+  padding: 8px 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+.gaemi-us-close-index-table th:first-child {
+  text-align: left;
+  white-space: normal;
+}
+.gaemi-us-close-index-table thead {
+  background: rgba(127, 127, 127, .07);
+  color: var(--gtp-text-2);
+}
+.gaemi-us-close-index-table tbody tr + tr {
+  border-top: 1px solid var(--gtp-border);
+}
+.gaemi-us-close-index-table tbody th {
+  color: var(--gtp-text);
+  font-weight: 550;
+}
+.gaemi-us-close-index-table td {
+  color: var(--gtp-text);
+}
+.gaemi-us-close-index-table td.gaemi-us-close-up { color: #dd525b; }
+.gaemi-us-close-index-table td.gaemi-us-close-down { color: #4a91dc; }
+.gaemi-us-close-summary {
+  margin: 0 0 14px;
+  white-space: pre-wrap;
+}
+.gaemi-us-close-tags {
+  margin: 0;
+  color: var(--gtp-text-2);
+}
+@media (max-width: 430px) {
+  .gaemi-us-close-index-table { font-size: .87em; }
+  .gaemi-us-close-index-table th,
+  .gaemi-us-close-index-table td { padding: 8px 5px; }
+  .gaemi-us-close-index-table th:first-child { padding-left: 9px; }
+  .gaemi-us-close-index-table td:last-child { padding-right: 9px; }
+}

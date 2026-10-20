@@ -85,30 +85,63 @@
         const appendUsMarketPrompt = async () => {
           if (mainContainer.querySelector('[data-us-market-prompt]')) return;
           const prompt = makeUserPrompt('미국장 어땠어?', 'usMarketPrompt');
+          prompt.classList.remove('animate-fade');
           choices.insertAdjacentElement('afterend', prompt);
           prompt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-          const answer = document.createElement('div');
-          answer.className = responseMessageClass + ' whitespace-pre-line mt-4';
-          answer.setAttribute('role', 'status');
-          answer.textContent = '마감시황을 불러오는 중';
-          prompt.insertAdjacentElement('afterend', answer);
+          // Exactly the '왜 올랐어?' five-second loading / typewriter flow.
+          const loading = document.createElement('div');
+          loading.className = 'mt-5 space-y-2';
+          const loadingLine = document.createElement('p');
+          loadingLine.className = responseMessageClass + ' font-semibold animate-pulse';
+          loadingLine.textContent = '생각중';
+          loading.appendChild(loadingLine);
+          prompt.insertAdjacentElement('afterend', loading);
+          const isActive = () => requestId === ctx.getActiveAnalysisRequestId() && prompt.isConnected;
+          const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+          let replyText = '';
+          let presentation = null;
           try {
-            const response = await fetch(ctx.backendUrl + '/api/market/us-close', {
-              method: 'GET', credentials: 'same-origin'
-            });
-            const result = await response.json();
-            if (requestId !== ctx.getActiveAnalysisRequestId() || !answer.isConnected) return;
-            answer.textContent = (!response.ok || !result.ok)
-              ? '미국장 마감시황을 불러오지 못했어.'
-              : result.available && result.content
-                ? result.content
-                : '해당 거래일의 미국장 마감시황이 아직 준비되지 않았어.';
-          } catch (error) {
-            if (requestId === ctx.getActiveAnalysisRequestId() && answer.isConnected) {
-              answer.textContent = '미국장 마감시황을 불러오지 못했어.';
+            const [{ response, result }] = await Promise.all([
+              fetch(ctx.backendUrl + '/api/market/us-close', {
+                method: 'GET', credentials: 'same-origin'
+              }).then(async response => ({ response, result: await response.json() })),
+              wait(5000)
+            ]);
+            if (!isActive()) return;
+            if (!response.ok || !result.ok) {
+              replyText = '미국장 마감시황을 불러오지 못했어.';
+            } else if (!result.available || !result.content) {
+              replyText = '해당 거래일의 미국장 마감시황이 아직 준비되지 않았어.';
+            } else {
+              presentation = window.GaemiGTPUSCloseReply?.normalize?.(result.presentation) || null;
+              replyText = presentation
+                ? window.GaemiGTPUSCloseReply.plainText(presentation) : result.content;
             }
+          } catch (_) {
+            if (!isActive()) return;
+            replyText = '미국장 마감시황을 불러오지 못했어.';
+          } finally {
+            loading.remove();
           }
+          if (!isActive()) return;
+          const answer = document.createElement('div');
+          answer.className = responseMessageClass + ' mt-4';
+          prompt.insertAdjacentElement('afterend', answer);
+          if (presentation) {
+            const complete = await window.GaemiGTPUSCloseReply.render(answer, presentation, {
+              isActive: () => isActive() && answer.isConnected,
+              typeText: (element, text) => typeText(element, text, { chunkSize: 1 })
+            });
+            if (!complete) return;
+          } else {
+            await typeText(answer, replyText, { chunkSize: 1 });
+          }
+          if (!isActive() || !answer.isConnected) return;
+          window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
+            answer, replyText, 'us-market-followup', stockName
+          );
+          answer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
 
         const appendRemainingChoices = (after, completed = []) => {

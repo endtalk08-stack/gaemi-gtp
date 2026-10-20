@@ -145,13 +145,19 @@
     }
 
     // The five existing response actions are attached only after typing ends.
-    async function appendChatReply(answer, sessionId) {
-      const text = String(answer || '').trim();
+    async function appendChatReply(answer, sessionId, presentation = null) {
+      const structured = window.GaemiGTPUSCloseReply?.normalize?.(presentation) || null;
+      const text = structured ? window.GaemiGTPUSCloseReply.plainText(structured) : String(answer || '').trim();
       if (!text || ctx.getSession()?.id !== sessionId) return false;
       const row = ctx.appendChatMessage('assistant', text, 'answer', sessionId);
       if (!row) return false;
       row.textContent = '';
-      const typed = await typeStructuredReply(row, text, sessionId);
+      const typed = structured
+        ? await window.GaemiGTPUSCloseReply.render(row, structured, {
+            isActive: () => ctx.getSession()?.id === sessionId && row.isConnected,
+            typeText: (element, value) => typeReplyText(element, value, row, sessionId)
+          })
+        : await typeStructuredReply(row, text, sessionId);
       // Cleanup on both completed and interrupted responses.
       row.querySelector('.typing-cursor')?.classList.remove('typing-cursor');
       if (!typed) return false;
@@ -218,6 +224,7 @@
         groq_rate_limit: 'AI 제공사 사용량 한도에 도달했어. 잠시 뒤에 다시 시도해 줘.'
       };
       // 기존 중앙 채팅 로딩 스타일을 그대로 사용한다. 별도 AI 아이콘은 표시하지 않는다.
+      const thinkingStartedAt = Date.now();
       const loading = document.createElement('div');
       loading.className = 'analysis-loading-sequence animate-fade';
       loading.setAttribute('role', 'status');
@@ -247,18 +254,23 @@
         if (ctx.getPendingAnalysis()?.stock === stock) await ctx.getPendingAnalysis().promise;
         if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
         if (!mentionedStock && isUsMarketCloseQuestion(question)) {
+          // Reuse the '왜 올랐어?' 5-second thinking rhythm; fetch in parallel.
+          loadingText.textContent = '생각중';
+          loadingText.classList.add('animate-pulse');
           const response = await fetch(ctx.backendUrl + '/api/market/us-close', {
             method: 'GET', credentials: 'same-origin', signal: controller.signal
           });
           const result = await response.json();
+          const remaining = 5000 - (Date.now() - thinkingStartedAt);
+          if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
           if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
           stopThinking();
           if (!response.ok || !result.ok) {
             appendChatError('미국장 마감시황을 불러오지 못했어.', sessionId);
           } else if (!result.available || !result.content) {
-            appendChatReply('해당 거래일의 미국장 마감시황이 아직 준비되지 않았어.', sessionId);
+            await appendChatReply('해당 거래일의 미국장 마감시황이 아직 준비되지 않았어.', sessionId);
           } else {
-            await appendChatReply(result.content, sessionId);
+            await appendChatReply(result.content, sessionId, result.presentation);
           }
           return;
         }

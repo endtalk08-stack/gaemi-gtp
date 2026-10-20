@@ -84,20 +84,36 @@ class TestUSClose(unittest.TestCase):
         self.assertEqual(result,NEWS)
         fn.assert_called_once()
 
-    def test_renders_exact_numeric_closes_before_ai(self):
+    def test_renders_title_indices_summary_tags_in_order(self):
         payload=json.dumps({
             "session_date_et":DAY.isoformat(),"market_indices":INDICES,
             "issues":[{"headline":"기술주 반등","summary":"미국 증시는 혼조였어.",
                        "tags":["#나스닥","#반도체"],"source_ids":[1,2]}]
         },ensure_ascii=False)
         rendered=close._display_brief_content(payload)
-        self.assertIn("2026-10-19",rendered)
         self.assertIn("다우존스 51,966.03 (-0.07%)",rendered)
         self.assertIn("나스닥 종합 26,430.89 (+1.11%)",rendered)
         self.assertIn("S&P 500 7,690.73 (+0.41%)",rendered)
-        self.assertIn("기술주 반등",rendered)
+        self.assertTrue(rendered.index("기술주 반등") < rendered.index("다우존스")
+                        < rendered.index("나스닥 종합") < rendered.index("S&P 500")
+                        < rendered.index("미국 증시는 혼조였어.")
+                        < rendered.index("#나스닥 #반도체"))
+        self.assertNotIn("미국장 마감 ·",rendered)
         self.assertNotIn("source_ids",rendered)
+        structured=close._structured_brief(payload)
+        self.assertEqual(structured["session_date_et"],DAY.isoformat())
+        self.assertEqual(len(structured["market_indices"]),3)
+        self.assertEqual(structured["issues"][0]["headline"],"기술주 반등")
+        self.assertNotIn("source_ids",structured["issues"][0])
         self.assertEqual(close._display_brief_content("legacy"),"legacy")
+
+    def test_invalid_or_stale_index_presentation_is_not_used(self):
+        payload={"session_date_et":DAY.isoformat(),"market_indices":INDICES[:2],
+                 "issues":[{"headline":"기술주 반등","summary":"미국 증시는 혼조였어."}]}
+        self.assertIsNone(close._structured_brief(json.dumps(payload,ensure_ascii=False)))
+        payload["market_indices"]=INDICES
+        payload["session_date_et"]="2026-10-16"
+        self.assertIsNone(close._structured_brief(json.dumps(payload,ensure_ascii=False)))
 
     def test_no_ai_when_fewer_than_three_originals(self):
         class Blank:
