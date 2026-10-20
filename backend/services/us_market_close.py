@@ -124,20 +124,20 @@ def collect_articles(session_date, now_utc=None, search=None, reader=None):
     return selected
 
 
+US_CLOSE_PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해
+
+제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
+
+한국어 JSON 객체만 반환해:
+{"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
+
+
 def _prompt(articles, session_date):
     news = [
-        {"title": article["title"], "description": article["description"]}
-        for article in articles
+        {"source_id": index + 1, "title": article["title"], "description": article["description"]}
+        for index, article in enumerate(articles)
     ]
-    return (
-        f"미국 거래일: {session_date.isoformat()}\n"
-        "다음은 네이버 뉴스 API로 받은 미국장 마감뉴스의 제목과 내용이야. "
-        "이 자료를 바탕으로 미국장 마감시황을 네가 알아서 작성해. "
-        "확인되지 않은 사실은 만들지 마.\n"
-        "출력 형식은 제목, 본문, 마지막 줄 해시태그 3개야. "
-        "분석 항목을 따로 나누거나 기사 출처·AI 작성 과정을 설명하지 마.\n\n"
-        "뉴스:\n" + json.dumps(news, ensure_ascii=False)
-    )
+    return json.dumps(news, ensure_ascii=False)
 
 
 def _generate(articles, session_date):
@@ -147,7 +147,7 @@ def _generate(articles, session_date):
     payload = {
         "model": MODEL,
         "messages": [
-            {"role": "system", "content": "너는 gaemiGTP 미국 증시 마감시황 편집자야. 근거 없는 내용을 추가하지 마."},
+            {"role": "system", "content": US_CLOSE_PROMPT},
             {"role": "user", "content": _prompt(articles, session_date)},
         ],
         "temperature": 0.2,
