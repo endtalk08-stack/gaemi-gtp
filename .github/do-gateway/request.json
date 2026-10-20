@@ -1,5 +1,5 @@
 {
   "operation": "deploy",
-  "path": "backend/providers/kiwoom_us_quotes.py",
-  "target": "backend/providers/kiwoom_us_quotes.py"
+  "path": "backend/kiwoom_probe.py",
+  "target": "backend/kiwoom_probe.py"
 }
