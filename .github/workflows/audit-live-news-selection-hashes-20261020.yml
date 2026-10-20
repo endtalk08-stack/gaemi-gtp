@@ -1,0 +1,52 @@
+name: Audit live news selection hashes only
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/audit-live-news-selection-hashes-20261020.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect-only:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 4
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      HOST_KEYS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Read hashes and service state only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$HOST_KEYS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          python3 - <<'PY'
+          import hashlib,pathlib
+          base=pathlib.Path('/opt/gaemigtp-news/app')
+          files=[
+            'backend/analysis/news/storyboard.py',
+            'backend/services/news_result.py',
+            'backend/services/issue_briefs.py',
+            'backend/services/news_feed.py',
+            'backend/services/news_processed_store.py',
+            'backend/news_worker.py',
+          ]
+          for f in files:
+            p=base/f
+            if p.exists() and p.is_file():
+              b=p.read_bytes()
+              h=hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()
+              print('LIVE_NEWS_FILE',f,h,'bytes',len(b),flush=True)
+            else:
+              print('LIVE_NEWS_FILE',f,'missing',flush=True)
+          PY
+          systemctl is-active gaemigtp-news.service
+          echo LIVE_NEWS_SELECTION_AUDIT_DONE
+          REMOTE
