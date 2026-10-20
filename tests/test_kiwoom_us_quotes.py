@@ -93,7 +93,7 @@ class KiwoomReadOnlyTests(unittest.TestCase):
         self.assertEqual(
             error_text,
             "kiwoom_http_400_content_type_text_html_body_html_like_bytes_" +
-            str(len(response_text))
+            str(len(response_text)) + "_page_unknown_server_none_gateway_no"
         )
         self.assertNotIn("Sample blocked", error_text)
 
@@ -107,8 +107,25 @@ class KiwoomReadOnlyTests(unittest.TestCase):
                 kiwoom._request("/oauth2/token", {})
         self.assertEqual(
             str(caught.exception),
-            "kiwoom_http_400_content_type_text_plain_body_empty_bytes_0"
+            "kiwoom_http_400_content_type_text_plain_body_empty_bytes_0_page_unknown_server_none_gateway_no"
         )
+
+    def test_oauth_html_proxy_fingerprint_allowlisted(self):
+        html = b"<html><head><title>400 Bad Request</title></head></html>"
+        fake = urllib.error.HTTPError(
+            "https://api.kiwoom.com/oauth2/token", 400, "Bad request",
+            {"Content-Type": "text/html", "Server": "nginx/1.26.0",
+             "Via": "private proxy data"},
+            io.BytesIO(html),
+        )
+        with patch.object(kiwoom.urllib.request, "urlopen", side_effect=fake):
+            with self.assertRaises(kiwoom.KiwoomReadOnlyError) as caught:
+                kiwoom._request("/oauth2/token", {})
+        error = str(caught.exception)
+        self.assertTrue(error.endswith(
+            "_page_bad_request_400_server_nginx_gateway_yes"))
+        self.assertNotIn("1.26", error)
+        self.assertNotIn("private proxy data", error)
 
     def test_missing_credentials(self):
         with patch.dict(os.environ, {"GAEMI_KIWOOM_APP_KEY": "",
