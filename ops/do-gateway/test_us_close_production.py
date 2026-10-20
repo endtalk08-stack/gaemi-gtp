@@ -1,6 +1,8 @@
 """Offline regression contract for production US-close 3-index + 3-original editorial."""
 import datetime as dt
 import json
+import sys
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 import unittest
 from unittest.mock import patch
 
