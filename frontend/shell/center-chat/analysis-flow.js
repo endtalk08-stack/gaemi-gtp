@@ -102,6 +102,7 @@
           const isActive = () => isGaemiMode() && requestId === ctx.getActiveAnalysisRequestId() && prompt.isConnected;
           const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
           let replyText = '';
+          let verifiedContent = '';
           let presentation = null;
           try {
             const [{ response, result }] = await Promise.all([
@@ -111,18 +112,29 @@
               wait(5000)
             ]);
             if (!isActive()) return;
-            if (!response.ok || !result.ok) {
+            if (!response.ok || !result?.ok) {
               replyText = '미국장 마감시황을 불러오지 못했어.';
             } else if (!result.available || !result.content) {
               replyText = '해당 거래일의 미국장 마감시황이 아직 준비되지 않았어.';
             } else {
-              presentation = window.GaemiGTPUSCloseReply?.normalize?.(result.presentation) || null;
-              replyText = presentation
-                ? window.GaemiGTPUSCloseReply.plainText(presentation) : result.content;
+              // Never discard the verified Neon editorial when optional
+              // index-table formatting or client typewriting fails.
+              verifiedContent = String(result.content).trim();
+              replyText = verifiedContent;
+              const structured = window.GaemiGTPUSCloseReply?.normalize?.(result.presentation);
+              if (structured) {
+                const formattedText = window.GaemiGTPUSCloseReply?.plainText?.(structured);
+                if (typeof formattedText === 'string' && formattedText.trim()) {
+                  presentation = structured;
+                  replyText = formattedText;
+                }
+              }
             }
-          } catch (_) {
+          } catch (error) {
             if (!isActive()) return;
-            replyText = '미국장 마감시황을 불러오지 못했어.';
+            console.warn('[gaemi us-close] request/format failed:', error?.name || 'unknown');
+            presentation = null;
+            replyText = verifiedContent || '미국장 마감시황을 불러오지 못했어.';
           } finally {
             loading.remove();
           }
@@ -141,11 +153,13 @@
             } else {
               await typeText(answer, replyText, { chunkSize: 1 });
             }
-          } catch (_) {
-            // A renderer error must not silently erase the answer after '생각중'.
+          } catch (error) {
+            // Recovery must show the actual saved editorial, not a generic
+            // 'could not display' message after the five-second wait.
             if (!isActive()) return;
+            console.warn('[gaemi us-close] presentation failed:', error?.name || 'unknown');
             answer.classList.remove('typing-cursor');
-            answer.textContent = replyText || '미국장 마감시황을 표시하지 못했어.';
+            answer.textContent = verifiedContent || replyText || '미국장 마감시황을 불러오지 못했어.';
           }
           if (!isActive() || !answer.isConnected) return;
           window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
