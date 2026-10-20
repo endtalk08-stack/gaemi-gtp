@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feat/independent-gaemi-info-pro-chats-20261018
+      - main
     paths:
       - 'frontend/js/app.js'
       - 'frontend/shell/center-chat/search-controls.js'
