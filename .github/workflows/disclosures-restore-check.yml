@@ -1,0 +1,71 @@
+name: Disclosure recovery regression
+
+on:
+  pull_request:
+    paths:
+      - 'app.py'
+      - 'backend/providers/sec_filings.py'
+      - 'backend/services/engine.py'
+      - 'backend/services/disclosure_transfer.py'
+      - 'backend/services/disclosure_ranked_universe.py'
+      - 'backend/database/migrations/004_disclosure_snapshots.sql'
+      - 'frontend/js/disclosures.js'
+      - 'frontend/js/source-lists.js'
+      - 'frontend/js/materials-flow.js'
+      - 'frontend/widgets/analysis-data/analysis-data.js'
+      - 'deploy/disclosures/run_disclosures.py'
+      - 'frontend/shell/right-panel/right-panel-tabs.js'
+      - 'frontend/index.html'
+      - 'tests/test_disclosure_transfer.py'
+      - 'tests/test_disclosure_ranked_universe.py'
+      - 'tests/test_disclosure_view_contract.cjs'
+      - '.github/workflows/disclosures-restore-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disclosure-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Disclosure JS syntax
+        run: |
+          node --check frontend/js/disclosures.js
+          node --check frontend/js/source-lists.js
+          node --check frontend/js/materials-flow.js
+          node --check frontend/widgets/analysis-data/analysis-data.js
+          node --check frontend/shell/right-panel/right-panel-tabs.js
+      - name: Separate right-panel and center view contract
+        run: node --test tests/test_disclosure_view_contract.cjs
+      - name: Disclosure Python syntax
+        run: |
+          python -m py_compile app.py backend/services/engine.py backend/providers/sec_filings.py backend/services/disclosure_transfer.py backend/services/disclosure_ranked_universe.py deploy/disclosures/run_disclosures.py
+      - name: Disclosure transfer offline regression
+        run: python -m unittest -v tests.test_disclosure_transfer tests.test_disclosure_ranked_universe
+      - name: SEC Form 4 ordinary shares and derivatives stay separate
+        run: |
+          python - <<'PY'
+          from backend.providers.sec_filings import _panel_form4_from_xml
+          xml = """<ownershipDocument><reportingOwner><reportingOwnerId><rptOwnerName>Test Person</rptOwnerName></reportingOwnerId></reportingOwner>
+          <nonDerivativeTable><nonDerivativeTransaction><transactionCoding><transactionCode>S</transactionCode></transactionCoding>
+          <transactionAmounts><transactionShares><value>100</value></transactionShares>
+          <transactionPricePerShare><value>200</value></transactionPricePerShare></transactionAmounts>
+          </nonDerivativeTransaction></nonDerivativeTable>
+          <derivativeTable><derivativeTransaction><securityTitle><value>Restricted Stock Unit</value></securityTitle>
+          <transactionCoding><transactionCode>A</transactionCode></transactionCoding>
+          <transactionAmounts><transactionShares><value>65969</value></transactionShares>
+          </transactionAmounts></derivativeTransaction></derivativeTable></ownershipDocument>"""
+          rows = _panel_form4_from_xml(xml)
+          assert len(rows['transactions']) == 2, rows
+          assert sum(bool(t.get('derivative')) for t in rows['transactions']) == 1
+          assert sum(not bool(t.get('derivative')) for t in rows['transactions']) == 1
+          PY

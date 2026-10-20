@@ -103,5 +103,53 @@ class StockNewsQueryTests(unittest.TestCase):
         self.assertEqual(news[0]["title"], "Nebius announces new data center investment")
 
 
+
+class SecMissingDisclosureDetailsTests(unittest.TestCase):
+    """Pure SEC provider checks: no network, no new test module."""
+
+    def test_form144_extracts_real_proposed_sale_fields(self):
+        from backend.providers.sec_filings import _panel_form144_fields
+        xml = """
+        <edgarSubmission><formData><nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>
+        Director A</nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>
+        <securitiesInformation><securitiesClassTitle>Common Stock</securitiesClassTitle>
+        <noOfUnitsSold>6500</noOfUnitsSold>
+        <aggregateMarketValue>1200450.50</aggregateMarketValue>
+        <approxSaleDate>10/19/2026</approxSaleDate></securitiesInformation>
+        </formData></edgarSubmission>
+        """
+        fields = _panel_form144_fields(xml)
+        values = {row["label"]: row["value"] for row in fields}
+        self.assertEqual(values["매도 예정 주식 수"], "6500")
+        self.assertEqual(values["예상 시장가치(USD)"], "1200450.50")
+        self.assertEqual(values["매도 예정일"], "10/19/2026")
+
+    def test_companyfacts_does_not_use_unrelated_or_ytd_quarter_values(self):
+        from backend.providers.sec_filings import _panel_filing_metrics
+        accession = "0001045810-26-000011"
+        facts = {"facts": {"us-gaap": {
+            "NetIncomeLoss": {"units": {"USD": [
+                {"accn": accession, "form": "10-Q", "start": "2026-01-01",
+                 "end": "2026-06-30", "val": 999},
+                {"accn": "0001045810-26-000099", "form": "10-Q",
+                 "start": "2026-04-01", "end": "2026-06-30", "val": 777},
+                {"accn": accession, "form": "10-Q",
+                 "start": "2026-04-01", "end": "2026-06-30", "val": 123},
+            ]}}
+        }}}
+        rows = _panel_filing_metrics(facts, accession, "10-Q")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["value"], 123)
+
+    def test_non_sec_or_malformed_archive_url_rejected_before_request(self):
+        from backend.providers.sec_filings import _panel_submission
+        for url in (
+            "https://attacker.example/Archives/edgar/data/1045810/000104581026000011/0001045810-26-000011-index.htm",
+            "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000012/0001045810-26-000011-index.htm",
+        ):
+            with self.subTest(url=url):
+                with self.assertRaises(ValueError):
+                    _panel_submission(url)
+
 if __name__ == "__main__":
     unittest.main()

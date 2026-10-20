@@ -9,6 +9,7 @@ from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.us_market_close import read_brief
+from backend.providers.sec_filings import fetch_panel_missing_detail
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
@@ -37,6 +38,20 @@ def health():
 @app.get("/calendar")
 def calendar():
     return jsonify({"ok": True, "content": get_live_calendar_data("", "")})
+
+@app.get("/disclosures/sec/detail")
+def sec_right_panel_detail():
+    # Only additional SEC facts for existing 30-day right-panel rows.
+    index_url = str(request.args.get("url", "") or "").strip()
+    try:
+        detail = fetch_panel_missing_detail(index_url)
+        return jsonify({"ok": True, "detail": detail})
+    except ValueError:
+        return jsonify({"ok": False, "error": "invalid_sec_filing"}), 400
+    except Exception as exc:
+        print(f"[미국 공시 상세 API] 실패: {type(exc).__name__}: {exc}")
+        return jsonify({"ok": False, "error": "sec_detail_unavailable"}), 502
+
 
 @app.get("/disclosures/dart/detail")
 def dart_disclosure_detail():

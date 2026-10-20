@@ -3,7 +3,7 @@ window.GaemiGTPDisclosures = window.GaemiGTPDisclosures || {};
 
 window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = null) {
   const candidates = (Array.isArray(items) ? items : [])
-    .filter((item) => String(item?.source || '').toUpperCase() === 'DART' && item?.receipt_no && item?.stock_code);
+    .filter((item) => String(item?.source || '').toUpperCase() === 'DART' && item?.receipt_no && item?.stock_code && !item?.snapshot_only);
   const targets = Number.isFinite(limit) ? candidates.slice(0, Math.max(0, limit)) : candidates;
   if (!targets.length) return items;
 
@@ -47,6 +47,81 @@ window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = n
   return items;
 };
 
+
+window.GaemiGTPDisclosures.hydrateMissingSecDetails = async function (rows, isCurrent) {
+  // Fill missing Form 144/10-Q/10-K values inside existing right-panel rows only.
+  if (!Array.isArray(rows) || !rows.length) return;
+  let next = 0;
+  const apiBase = window.location.hostname.endsWith('github.io')
+    ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
+  await Promise.all(Array.from({ length: Math.min(2, rows.length) }, async () => {
+    while (next < rows.length) {
+      if (!isCurrent()) return;
+      const { item, target } = rows[next++];
+      if (!item?.link || !target) continue;
+      try {
+        let detail = item.panel_extra_detail && typeof item.panel_extra_detail === 'object'
+          ? item.panel_extra_detail : null;
+        if (!detail && !item.snapshot_only) {
+          const url = apiBase + '/disclosures/sec/detail?' +
+            new URLSearchParams({ url: item.link }).toString();
+          const response = await fetch(url);
+          if (!response.ok) continue;
+          const payload = await response.json();
+          detail = payload?.ok ? payload.detail : null;
+        }
+        if (!detail || !isCurrent() || !target.isConnected) continue;
+        const texts = [];
+        (Array.isArray(detail.fields) ? detail.fields : []).slice(0, 12).forEach(field => {
+          const label = String(field.label || '').trim();
+          const value = String(field.value || '').trim();
+          if (label && value) texts.push(label + ' · ' + value);
+        });
+        (Array.isArray(detail.metrics) ? detail.metrics : []).slice(0, 4).forEach(metric => {
+          const value = Number(metric.value);
+          if (!Number.isFinite(value)) return;
+          const amount = '$' + value.toLocaleString('en-US', {
+            maximumFractionDigits: metric.unit === 'USD/shares' ? 2 : 0
+          });
+          texts.push([metric.label, amount, metric.period_end].filter(Boolean).join(' · '));
+        });
+        for (const text of texts) {
+          const line = document.createElement('div');
+          line.className = 'right-panel-disclosures__line';
+          line.textContent = text;
+          target.appendChild(line);
+        }
+      } catch (error) {
+        console.warn('[SEC 상세] 오른쪽 패널 조회 실패:', error);
+      }
+    }
+  }));
+};
+
+window.GaemiGTPDisclosures.secFilingTitle = function (item) {
+  if (String(item?.source || '').toUpperCase() !== 'SEC') return item?.title || '공시 제목 확인 필요';
+  const original = String(item.title || '').trim();
+  const form = String(item.form || '').toUpperCase();
+  const generic = !original || original === 'SEC 공식 공시' ||
+    /^SEC\s+(?:144|10-Q|10-K|4\/A)\s*공시$/i.test(original) ||
+    /^FORM\s+4\/A$/i.test(original);
+  if (!generic) return original;
+  const titles = {
+    '4/A': '내부자 거래 정정 공시',
+    '144': '증권 매도 예정 신고',
+    '10-Q': '분기 실적보고서',
+    '10-K': '연간 실적보고서',
+    '6-K': '외국기업 수시보고서',
+    '20-F': '외국기업 연차보고서',
+    'SC 13D': '대량 지분 보유 신고',
+    'SC 13G': '대량 지분 보유 신고',
+    'S-1': '증권 등록신고서',
+    'S-3': '증권 등록신고서',
+    '424B5': '증권 발행 투자설명서'
+  };
+  return titles[form] || original || 'SEC ' + form + ' 공시';
+};
+
 window.GaemiGTPDisclosures.renderDisclosures = async function ({
   disclosures,
   allDisclosures,
@@ -60,7 +135,7 @@ window.GaemiGTPDisclosures.renderDisclosures = async function ({
               (item) => String(item?.source || '').toUpperCase() === 'DART'
             );
             // Only the central domestic disclosure uses the compact card. The right panel
-            // continues rendering its complete independent list.
+            // continues rendering its independent one-day list.
             const centralDomestic = domesticItems.length > 0;
             const centralCard = Array.isArray(disclosures) && disclosures.length > 0;
             const centralItems = centralCard ? disclosures.slice(0, 1) : disclosures;

@@ -16,6 +16,8 @@
     newsItems: [],
     disclosures: [],
     usFilings: [],
+    panelDisclosures: [],
+    panelUsFilings: [],
   };
 
   function sectionId(section) {
@@ -38,6 +40,8 @@
         : Array.isArray(result?.paired_news_items) ? result.paired_news_items : [],
       disclosures: Array.isArray(result?.disclosures) ? result.disclosures : [],
       usFilings: Array.isArray(result?.us_filings) ? result.us_filings : [],
+      panelDisclosures: Array.isArray(result?.panel_disclosures) ? result.panel_disclosures : (result?.disclosures || []),
+      panelUsFilings: Array.isArray(result?.panel_us_filings) ? result.panel_us_filings : (result?.us_filings || []),
     };
     window.dispatchEvent(new CustomEvent('gaemi-analysis-data-change'));
   }
@@ -49,6 +53,8 @@
       newsItems: [...snapshot.newsItems],
       disclosures: [...snapshot.disclosures],
       usFilings: [...snapshot.usFilings],
+      panelDisclosures: [...snapshot.panelDisclosures],
+      panelUsFilings: [...snapshot.panelUsFilings],
     };
   }
 
