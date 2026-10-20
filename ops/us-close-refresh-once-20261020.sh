@@ -4,6 +4,8 @@
 set -Eeuo pipefail
 
 [[ $EUID -eq 0 ]] || { echo 'US_CLOSE_ROOT_REQUIRED'; exit 1; }
+# Revoke the narrowly scoped temporary sudo grant after this one execution.
+trap 'rm -f /etc/sudoers.d/gaemi-us-close-once /usr/local/sbin/gaemi-us-close-refresh-20261020' EXIT
 
 source_file=/home/gaemi-deploy/.gaemi-us-close-20261020/us_market_close.py
 target=/opt/gaemigtp-news/app/backend/services/us_market_close.py
