@@ -52,6 +52,59 @@ class FreshIssueTokenTests(unittest.TestCase):
         self.assertEqual(result["_code_issue_briefs"][0]["headline"], "CODE")
         self.assertNotIn("_ai_issue_briefs", result)
 
+    def test_yesterday_ai_remains_visible_while_cited_news_is_fresh(self):
+        prior = {"_ai_exchange_day": "2026-10-20",
+                 "_ai_issue_briefs": [{"headline": "YESTERDAY",
+                    "stock_names": ["엔비디아"],
+                    "source_articles": [{"published_at": published(2),
+                        "source": "newsroom", "url": "https://example.org/nvda"}]}]}
+        current = {"issue_briefs": [{"headline": "CODE",
+                                   "stock_names": ["엔비디아"]}]}
+        out = _prefer_same_day_ai(current, prior, "엔비디아", "2026-10-21")
+        self.assertEqual([x["headline"] for x in out["issue_briefs"]], ["YESTERDAY"])
+        self.assertEqual(out["_ai_exchange_day"], "2026-10-20")
+        self.assertEqual(out["_code_issue_briefs"][0]["headline"], "CODE")
+
+    def test_yesterday_ai_expired_source_does_not_reappear(self):
+        prior = {"_ai_exchange_day": "2026-10-20",
+                 "_ai_issue_briefs": [{"headline": "OLD", "stock_names": ["엔비디아"],
+                    "source_articles": [{"published_at": published(25),
+                        "source": "newsroom", "url": "https://example.org/old"}]}]}
+        out = _prefer_same_day_ai({"issue_briefs": []}, prior, "엔비디아", "2026-10-21")
+        self.assertEqual(out["issue_briefs"], [])
+        self.assertNotIn("_ai_issue_briefs", out)
+        self.assertNotIn("_ai_exchange_day", out)
+
+    def test_other_company_ai_never_preserved(self):
+        prior = {"_ai_exchange_day": "2026-10-20",
+                 "_ai_issue_briefs": [{"headline": "TESLA", "stock_names": ["테슬라"],
+                    "source_articles": [{"published_at": published(1),
+                        "source": "newsroom", "url": "https://example.org/tesla"}]}]}
+        out = _prefer_same_day_ai({"issue_briefs": []}, prior, "엔비디아", "2026-10-21")
+        self.assertEqual(out["issue_briefs"], [])
+        self.assertNotIn("_ai_issue_briefs", out)
+
+    def test_today_new_verified_ai_supersedes_yesterday(self):
+        def issue(headline):
+            return {"headline": headline, "stock_names": ["엔비디아"],
+                    "source_articles": [{"published_at": published(1),
+                        "source": "newsroom", "url": "https://example.org/" + headline}]}
+        prior = {"_ai_exchange_day": "2026-10-20",
+                 "_ai_issue_briefs": [issue("YESTERDAY")]}
+        incoming = {"_ai_exchange_day": "2026-10-21",
+                    "_ai_issue_briefs": [issue("TODAY")], "issue_briefs": []}
+        out = _prefer_same_day_ai(incoming, prior, "엔비디아", "2026-10-21")
+        self.assertEqual([x["headline"] for x in out["issue_briefs"]], ["TODAY"])
+        self.assertEqual(out["_ai_exchange_day"], "2026-10-21")
+
+    def test_future_dated_ai_day_is_not_replayed(self):
+        prior = {"_ai_exchange_day": "2026-10-22",
+                 "_ai_issue_briefs": [{"headline": "FUTURE", "stock_names": ["엔비디아"],
+                    "source_articles": [{"published_at": published(1),
+                        "source": "newsroom", "url": "https://example.org/future"}]}]}
+        out = _prefer_same_day_ai({"issue_briefs": []}, prior, "엔비디아", "2026-10-21")
+        self.assertEqual(out["issue_briefs"], [])
+
     def test_provider_usage_safe_and_not_estimated(self):
         self.assertEqual(_safe_token_usage({"usage": {"prompt_tokens": 321,
                         "completion_tokens": 789, "total_tokens": 1110,
