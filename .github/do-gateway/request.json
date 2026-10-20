@@ -1,5 +1,6 @@
 {
-  "operation": "deploy",
-  "path": "backend/services/us_market_close.py",
-  "target": "backend/services/us_market_close.py"
+  "operation": "run",
+  "path": "ops/do-gateway/test_us_close_production.py",
+  "request_id": "us_close_production_unit_20261020_v2",
+  "timeout": 110
 }
