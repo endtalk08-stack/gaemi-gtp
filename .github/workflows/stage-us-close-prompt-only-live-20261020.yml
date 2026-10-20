@@ -1,0 +1,64 @@
+name: Stage prompt-only US-close module from live version
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/stage-us-close-prompt-only-live-20261020.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stage-prompt:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      HOST_KEYS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: e926f538454a237340774f0b32754604ae9d9843
+          persist-credentials: false
+      - name: Verify only approved prompt is staged
+        run: |
+          set -euo pipefail
+          test "$(git hash-object ops/us_market_close_prompt_only_from_live_20261020.py)" = 6d7cad79e0c981710cfcf2cf3f8e128cbf59eca0
+          python -m py_compile ops/us_market_close_prompt_only_from_live_20261020.py
+          python - <<'PY'
+          import importlib.util,json
+          p="ops/us_market_close_prompt_only_from_live_20261020.py"
+          spec=importlib.util.spec_from_file_location("approved_us_close",p)
+          module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+          assert "제공된 기사를 근거로 미국장은 어땠어? 를 작성해" in module.US_CLOSE_PROMPT
+          assert len(json.loads(module._prompt([{"title":"원문 제목","body":"기사 본문"}],None)))==1
+          assert json.loads(module._prompt([{"title":"원문 제목","body":"기사 본문"}],None))[0]["source_id"]==1
+          print("US_CLOSE_PROMPT_ONLY_OFFLINE_OK")
+          PY
+      - name: Stage exact prompt-only file in deploy user's home without installing
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$HOST_KEYS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'mkdir -p "$HOME/.gaemi-ai-prompt-20261020" && chmod 700 "$HOME/.gaemi-ai-prompt-20261020"'
+          scp "${SSH_OPTS[@]}" ops/us_market_close_prompt_only_from_live_20261020.py gaemi-deploy@"$DO_HOST":.gaemi-ai-prompt-20261020/us_market_close_prompt_only.py
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          file="$HOME/.gaemi-ai-prompt-20261020/us_market_close_prompt_only.py"
+          chmod 600 "$file"
+          /opt/gaemigtp-news/venv/bin/python -m py_compile "$file"
+          /usr/bin/python3 - "$file" <<'PY'
+          import hashlib, pathlib, sys
+          b=pathlib.Path(sys.argv[1]).read_bytes()
+          sha=hashlib.sha1(b"blob "+str(len(b)).encode()+b"\0"+b).hexdigest()
+          print("US_CLOSE_APPROVED_STAGE_BLOB="+sha)
+          assert sha=="6d7cad79e0c981710cfcf2cf3f8e128cbf59eca0"
+          PY
+          test "$(systemctl is-active gaemigtp-us-market-close.timer)" = active
+          echo US_CLOSE_PROMPT_ONLY_STAGED_NOT_INSTALLED
+          REMOTE
