@@ -1,5 +1,4 @@
 {
-  "operation": "deploy",
-  "path": "backend/alpaca_probe.py",
-  "target": "backend/alpaca_probe.py"
+  "operation": "upgrade",
+  "path": "ops/do-gateway/gaemi-do-gateway"
 }
