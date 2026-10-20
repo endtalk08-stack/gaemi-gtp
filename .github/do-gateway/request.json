@@ -1,6 +1,6 @@
 {
   "operation": "run",
   "path": "ops/do-gateway/audit_existing_news_originals_once.py",
-  "request_id": "naver_originals_audit_20261020_v1",
+  "request_id": "naver_originals_audit_20261020_v2",
   "timeout": 90
 }
