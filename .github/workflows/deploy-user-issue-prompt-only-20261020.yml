@@ -1,0 +1,73 @@
+name: Deploy only approved issue AI prompt on DO
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/deploy-user-issue-prompt-only-20261020.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prompt-only:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 6
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      HOST_KEYS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a665092e8f958641545b719b743cf02cb93f5a59
+          persist-credentials: false
+      - name: Check exact issue AI prompt and syntax; no provider calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object ops/staged_daily_groq_issues.py)" = a5004afa8b9a1759b21c19a3ebb9d69fa57f4576
+          python -m py_compile ops/staged_daily_groq_issues.py
+          python -m unittest -q tests.test_staged_daily_groq_issues
+      - name: Scoped issue-prompt swap and service restart with rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$HOST_KEYS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          path=/opt/gaemigtp-news/app/ops/staged_daily_groq_issues.py
+          staged="$HOME/.gaemi-ai-prompt-20261020/staged_daily_groq_issues.py"
+          backup="$HOME/.gaemi-ai-prompt-20261020/issue-prompt-before-change.py"
+          expected_before=63a8e5b06595fee27ec5e65a3b6ac8261aafe860
+          expected_after=a5004afa8b9a1759b21c19a3ebb9d69fa57f4576
+          digest () {
+            python3 - "$1" <<'PY'
+          import hashlib,pathlib,sys
+          p=pathlib.Path(sys.argv[1]); b=p.read_bytes()
+          print(hashlib.sha1(b"blob "+str(len(b)).encode()+b"\0"+b).hexdigest())
+          PY
+          }
+          test "$(digest "$path")" = "$expected_before" || { echo PRODUCTION_SOURCE_CHANGED_ABORT; exit 1; }
+          test "$(digest "$staged")" = "$expected_after" || { echo STAGED_SOURCE_MISMATCH_ABORT; exit 1; }
+          test -w "$path" || { echo PRODUCTION_PROMPT_NOT_WRITABLE_ABORT; exit 1; }
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          cp -p "$path" "$backup"
+          mode="$(stat -c %a "$path")"
+          cp "$staged" "$path"
+          chmod "$mode" "$path"
+          rollback () {
+            cp -p "$backup" "$path"
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+          }
+          trap rollback ERR
+          test "$(digest "$path")" = "$expected_after"
+          /opt/gaemigtp-news/venv/bin/python -m py_compile "$path"
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(digest "$path")" = "$expected_after"
+          trap - ERR
+          echo ISSUE_AI_EXACT_PROMPT_DEPLOYED
+          REMOTE
