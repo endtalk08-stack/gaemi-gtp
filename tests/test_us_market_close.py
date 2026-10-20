@@ -62,21 +62,20 @@ class UsMarketCloseTests(unittest.TestCase):
         self.assertEqual(len(set(x["title"] for x in result)), 10)
         self.assertTrue(all("description" in x for x in result))
 
-    def test_ai_decides_editorial_and_receives_only_naver_title_description(self):
-        prompt = close._prompt(close.select_close_articles([
-            row(1), row(2, domain="mk.co.kr")
-        ], self.session, self.now), self.session)
-        self.assertIn("네이버 뉴스 API", prompt)
-        self.assertIn("네가 알아서 작성해", prompt)
-        self.assertIn("제목, 본문, 마지막 줄 해시태그 3개", prompt)
-        self.assertIn("기사 출처·AI 작성 과정을 설명하지 마", prompt)
-        self.assertIn("확인되지 않은 사실은 만들지 마", prompt)
-        self.assertIn('"title":', prompt)
-        self.assertIn('"description":', prompt)
-        self.assertNotIn('"article_text"', prompt)
-        self.assertNotIn('"body"', prompt)
-        self.assertNotIn('"publisher"', prompt)
-        self.assertNotIn('"published_at"', prompt)
+    def test_us_close_prompt_matches_exact_user_text_and_numbered_news(self):
+        expected = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해
+
+제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
+
+한국어 JSON 객체만 반환해:
+{"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
+        self.assertEqual(close.US_CLOSE_PROMPT, expected)
+        news = close.select_close_articles([
+            row(1), row(2, domain="mk.co.kr"),
+        ], self.session, self.now)
+        sent = json.loads(close._prompt(news, self.session))
+        self.assertEqual([x["source_id"] for x in sent], [1, 2])
+        self.assertEqual(set(sent[0]), {"source_id", "title", "description"})
 
     def test_120b_is_fixed_and_only_one_provider_call(self):
         self.assertEqual(close.MODEL, "openai/gpt-oss-120b")
