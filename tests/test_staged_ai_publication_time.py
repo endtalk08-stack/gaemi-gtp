@@ -54,9 +54,18 @@ class PublicationTimeTests(unittest.TestCase):
         self.assertEqual(issue_source_metadata(issue, self.articles), [[]])
 
     def test_validate_article_references(self):
+        from staged_daily_groq_issues import _keep_sourced_issues
+        # Bad model citation numbers do not abort the stock, but are never
+        # treated as links to a real article.
+        dated_news = [{"source_id": 1, "published_at": "2026-10-17T18:16:00+00:00"}]
         for bad in ("true", "0", "-1"):
-            with self.assertRaises(ValueError):
-                parse_issues('{"issues":[{"headline":"x","summary":"y","tags":[],"source_ids":['+bad+']}]}')
+            with self.subTest(bad=bad):
+                issues = parse_issues('{"issues":[{"headline":"x","summary":"y","tags":[],"source_ids":[' + bad + ']}]}')
+                self.assertEqual(issues[0]["source_ids"], [])
+                self.assertEqual(_keep_sourced_issues(issues, dated_news), [])
+        # A valid reference survives alongside invalid model references.
+        mixed = parse_issues('{"issues":[{"headline":"x","summary":"y","tags":[],"source_ids":[1,999]}]}')
+        self.assertEqual(_keep_sourced_issues(mixed, dated_news)[0]["source_ids"], [1])
 
     def test_source_ids_are_required_in_actual_model_response(self):
         from unittest.mock import patch
