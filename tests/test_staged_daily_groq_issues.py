@@ -165,9 +165,14 @@ class GroqIssueTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.issue_records(ai_issues, market="US", symbol="NVDA", exchange_day=date(2026, 10, 17))
 
-    def test_prompt_requires_original_news_source_ids(self):
-        self.assertIn("source_ids는 반드시 포함", module.PROMPT)
-        self.assertIn("근거가 없으면", module.PROMPT)
+    def test_prompt_matches_user_requested_exact_text(self):
+        expected = """제공된 기사를 근거로 주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
+
+제목은 핵심만 짧게, 내용은 쉽게 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
+
+한국어 JSON 객체만 반환해:
+{"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
+        self.assertEqual(module.PROMPT, expected)
 
     def test_truncated_response_fails_without_retry_or_fabrication(self):
         import io
