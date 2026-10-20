@@ -171,7 +171,7 @@
         const appendRemainingChoices = (after, completed = []) => {
           if (!after || !after.isConnected) return;
           const remaining = [
-            ...(isGaemiMode() ? [{ key: 'us-market', label: '#미국장', className: 'text-[#3b82f6] dark:text-[#7aa2e3]' }] : []),
+            ...(isGaemiMode() ? [{ key: 'us-market', label: '#미국장_어땠어?', className: 'text-[#3b82f6] dark:text-[#7aa2e3]' }] : []),
             { key: 'why', label: whyState.tag, color: whyState.color },
             { key: 'fortune', label: '#떡상운세', className: 'text-[#8f7aa8] hover:text-[#9d87b8] dark:text-[#a995bd] dark:hover:text-[#b7a4c9]' }
           ].filter((item) => !completed.includes(item.key));
@@ -344,7 +344,7 @@
         const typeInitialChoices = async () => {
           const sequence = [
             [choices.querySelector('p'), '뭐가 궁금해?'],
-            [choices.querySelector('[data-next-analysis="us-market"]'), '#미국장'],
+            [choices.querySelector('[data-next-analysis="us-market"]'), '#미국장_어땠어?'],
             [choices.querySelector('[data-next-analysis="why"]'), whyState.tag],
             [choices.querySelector('[data-next-analysis="fortune"]'), '#떡상운세']
           ];
