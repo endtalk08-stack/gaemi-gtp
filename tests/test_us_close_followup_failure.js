@@ -82,6 +82,10 @@ async function scenario(failure) {
     }
   };
   vm.runInNewContext(presenter,context);
+  assert.ok(window.GaemiGTPUSCloseReply.normalize(original),
+    'renderer must accept actual saved-data fixture');
+  assert.ok(window.GaemiGTPUSCloseReply.plainText(original).includes('나스닥 종합'),
+    'renderer must format actual fixture');
   if (failure==='table') {
     window.GaemiGTPUSCloseReply.render=async()=>{throw new Error('simulated table error');};
   }
