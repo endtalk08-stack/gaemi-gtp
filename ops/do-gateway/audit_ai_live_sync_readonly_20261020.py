@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import subprocess
 from pathlib import Path
+import os
 
 ROOT=Path("/opt/gaemigtp-news/app")
 CHECKS={
@@ -16,6 +17,8 @@ CHECKS={
 for rel, names in CHECKS.items():
     p=ROOT/rel
     print("SOURCE",rel,"present",p.is_file(),flush=True)
+    if p.is_file():
+        print("SOURCE_OWNER_UID",rel,p.stat().st_uid,"MODE",oct(p.stat().st_mode & 0o777),"CAN_WRITE",os.access(p,os.W_OK),flush=True)
     if not p.is_file():continue
     h=subprocess.run(["git","hash-object","--",str(p)],capture_output=True,text=True,check=True)
     print("SOURCE_BLOB_SHA",rel,h.stdout.strip(),flush=True)
@@ -42,4 +45,7 @@ for rel, names in CHECKS.items():
 for prop in ("ActiveState","SubState","MainPID","ExecMainStartTimestamp"):
     output=subprocess.run(["systemctl","show","gaemigtp-news.service","-p",prop,"--value"],capture_output=True,text=True)
     print("SERVICE",prop,output.stdout.strip()[:100],flush=True)
+for folder in ("ops","backend","backend/services"):
+    p=ROOT/folder
+    print("DIR_WRITE",folder,os.access(p,os.W_OK),flush=True)
 print("READONLY_AI_AUDIT_COMPLETE",flush=True)
