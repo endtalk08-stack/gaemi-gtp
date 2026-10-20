@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/audit_us_ai_details_readonly_20261020.py",
-  "request_id": "us-ai-details-20261020-v1",
-  "timeout": 90
+  "operation": "logs",
+  "unit": "gaemigtp-news.service",
+  "lines": 250
 }
