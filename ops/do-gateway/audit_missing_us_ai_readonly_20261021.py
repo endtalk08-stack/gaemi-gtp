@@ -15,6 +15,11 @@ if worker.is_file():
     matches=[(i+1,line.strip()[:160]) for i,line in enumerate(lines)
              if any(token in line for token in hints)]
     print("WORKER_FLOW_LINES",repr(matches[:45]),flush=True)
+    print("WORKER_TARGET_ROUTING_BEGIN",flush=True)
+    for index in list(range(55,110))+list(range(149,175)):
+        if index < len(lines):
+            print("WORKER_ROUTING",index+1,lines[index][:210],flush=True)
+    print("WORKER_TARGET_ROUTING_END",flush=True)
 
 command=["journalctl","-u","gaemigtp-news.service","--since",
          "2026-10-19 12:00:00 UTC","--no-pager","-o","cat",
