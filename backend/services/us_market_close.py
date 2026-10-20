@@ -1,8 +1,7 @@
-"""US market close editorial: 2-3 original articles -> one AI briefing -> Neon.
+"""US market close editorial: NAVER headlines/snippets -> one AI -> Neon.
 
-Independent of existing stock news filters and live chat AI calls. Only the
-DigitalOcean scheduled worker calls publish_once(); Render calls read_brief().
-Article bodies are never persisted, and no source text is sent to the browser.
+Runs only on the independent DigitalOcean close worker. No article-page fetches,
+stock-news processing, or AI calls from Render. One generated brief per session.
 """
 import datetime as datetime
 import html
@@ -15,7 +14,6 @@ from email.utils import parsedate_to_datetime
 from zoneinfo import ZoneInfo
 
 from backend.providers import naver_news
-from backend.services.news_detail import read_selected_article_details
 
 NY = ZoneInfo("America/New_York")
 UTC = datetime.timezone.utc
@@ -56,87 +54,100 @@ def _published(row):
 
 
 def select_close_articles(rows, session_date, now_utc=None):
-    """Only time/title/publisher filters; AI decides which topics matter."""
+    """Take up to ten dated post-close NAVER headline/description pairs.
+
+    Search API results can include incomplete or duplicate records. Never use
+    article-page requests to promote a short snippet to a supposed full body.
+    """
     now = now_utc or datetime.datetime.now(UTC)
-    selected, seen_publishers, seen_titles, seen_urls = [], set(), set(), set()
-    for row in sorted(rows or [], key=lambda r: _published(r) or datetime.datetime.min.replace(tzinfo=NY), reverse=True):
-        # Native NAVER provider rows use raw_*; keep compatibility with
-        # already-normalized rows used by other sources/tests.
-        title = _clean(row.get("title") or row.get("raw_title"))
+    selected, seen_titles, seen_urls, seen_descriptions = [], set(), set(), set()
+    source_counts = {}
+    for row in sorted(
+        (r for r in (rows or []) if isinstance(r, dict)),
+        key=lambda r: _published(r) or datetime.datetime.min.replace(tzinfo=NY),
+        reverse=True,
+    ):
+        title = _clean(row.get("raw_title") or row.get("title"))
+        description = _clean(row.get("raw_description") or row.get("description"))
         url = str(
-            row.get("originallink") or row.get("raw_original_link")
-            or row.get("link") or row.get("raw_link") or ""
+            row.get("raw_original_link") or row.get("originallink")
+            or row.get("raw_link") or row.get("link") or ""
         ).strip()
-        publisher = _publisher(url)
         published = _published(row)
-        normalized = re.sub(r"[^가-힣a-z0-9]", "", title.casefold())
-        if not (title and publisher and published):
+        if not title or len(description) < 25 or not published:
             continue
-        if not any(word in title for word in CLOSE_NAMES) or not any(word in title for word in FINISH_WORDS):
+        if not any(word in title for word in CLOSE_NAMES):
             continue
-        if published.date() != session_date or published.hour < 13:
+        # A US-session closing article must be issued after 16:00 New York time.
+        if published.date() != session_date or published.hour < 16:
             continue
         if published.astimezone(UTC) > now + datetime.timedelta(minutes=2):
             continue
-        if publisher in seen_publishers or normalized in seen_titles or url in seen_urls:
+        try:
+            parts = urllib.parse.urlsplit(url)
+            if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+                continue
+            host = parts.hostname.lower()
+        except ValueError:
             continue
-        selected.append({"title": title, "url": url, "published_at": published.isoformat(), "publisher": publisher})
-        seen_publishers.add(publisher)
-        seen_titles.add(normalized)
+        title_key = re.sub(r"[^가-힣a-z0-9]", "", title.casefold())
+        description_key = re.sub(r"[^가-힣a-z0-9]", "", description.casefold())
+        if title_key in seen_titles or description_key in seen_descriptions or url in seen_urls:
+            continue
+        publisher = _publisher(url) or host
+        if source_counts.get(publisher, 0) >= 2:
+            continue
+        selected.append({
+            "title": title[:200], "description": description[:320],
+            "url": url, "published_at": published.isoformat(),
+            "publisher": publisher,
+        })
+        source_counts[publisher] = source_counts.get(publisher, 0) + 1
+        seen_titles.add(title_key)
+        seen_descriptions.add(description_key)
         seen_urls.add(url)
-        if len(selected) >= 8:
+        if len(selected) >= 10:
             break
     return selected
 
 
 def collect_articles(session_date, now_utc=None, search=None, reader=None):
-    """Read up to eight candidates, keep two or three genuinely readable bodies."""
+    """Use NAVER API snippets only. Never fetch a publisher article page."""
     fetch = search or naver_news.fetch_news
-    rows = fetch(QUERY, display=20, raise_on_error=True)
-    candidates = select_close_articles(rows, session_date, now_utc=now_utc)
-    if not candidates:
-        return []
-    read = reader or read_selected_article_details
-    details = read(candidates, limit=len(candidates), with_sources=True)
-    verified = []
-    for article, detail in zip(candidates, details):
-        if not isinstance(detail, dict):
-            continue
-        body = _clean(detail.get("text"))
-        source = detail.get("source")
-        # Avoid sending short search snippets or generic HTML metadata to AI.
-        if source not in {"jsonld_article_body", "article_or_main_paragraphs", "all_page_paragraphs"} or len(body) < 450:
-            continue
-        # Preserve the actual extracted article text, not just a search snippet.
-        # Bound only the combined provider request budget; prefer two complete
-        # articles to three heavily truncated articles.
-        if len(verified) >= 2 and sum(len(a["body"]) for a in verified) + len(body) > 11000:
-            continue
-        verified.append({**article, "body": body, "body_source": source})
-        if len(verified) == 3:
-            break
-    return verified
+    rows = fetch(QUERY, display=50, raise_on_error=True)
+    selected = select_close_articles(rows, session_date, now_utc=now_utc)
+    print(
+        f"[us-close] naver_search={len(rows or [])} snippets_selected={len(selected)} "
+        f"session={session_date.isoformat()}",
+        flush=True,
+    )
+    return selected
 
 
 def _prompt(articles, session_date):
     evidence = [
-        {"headline": article["title"], "published_at": article["published_at"],
-         "article_text": article["body"]}
+        {"headline": article["title"], "description": article["description"],
+         "published_at": article["published_at"]}
         for article in articles
     ]
     return (
-        "질문: 미국장은 어땠어?\n"
-        f"미국 현지 거래일: {session_date.isoformat()}\n"
-        "다음은 그날 장 마감 후 발표된 뉴욕증시 종합기사야. "
-        "2~3개 기사를 종합하여 gaemiGTP 자체 편집 마감시황을 작성해. "
-        "뉴스들을 항목별로 그대로 나열하거나 복제하지 마.\n"
-        "시장 전체 분위기와 왜 움직였는지, 핵심 재료, 강세·약세 업종, "
-        "다음 한국장에 영향을 줄 수 있는 확인된 재료를 중요도순으로 설명해. "
-        "6개 분야를 억지로 채우지 마. 읽은 기사에 없는 수치와 사실을 만들지 마. "
-        "장 마감 뒤 발생한 사건은 당일 주가의 원인이라고 단정하지 마. "
+        "질문: 미국장은 어땠어?\\n"
+        f"미국 현지 거래일: {session_date.isoformat()}\\n"
+        "아래는 네이버 뉴스 검색 API가 제공하는 기사 제목과 짧은 소개 문구야. "
+        "기사 전문이 아니므로 출처에서 확인되지 않은 사실은 단정하면 안 돼. "
+        "반복된 보도의 공통 사실만 연결해서 gaemiGTP 자체 미국장 마감시황을 작성해. "
+        "시장 흐름, 확인 가능한 상승·하락 배경과 업종, 한국장에 영향을 줄 수 있는 "
+        "검증된 재료를 중요도 순서로 설명해. 기사를 순서대로 요약해 나열하지 마. "
+        "다만 인과관계가 확인되지 않으면 '원인은 확인되지 않았어'라고 명시해. "
+        "기사에 없는 지수·종목 가격, 상승률, 경제 지표, 전망, 인과관계를 지어내지 마. "
+        "실제 마감 지수 수치를 별도로 확인하지 않았으므로 추정 숫자를 절대 쓰지 마. "
+        "장 마감 후 발생한 사건을 그날 주가 변동 원인으로 소급하지 마. "
+        "충분한 정보가 없는 업종은 억지로 채우지 마. "
+        "자료가 네이버 기사 제목과 소개 문구에 한정된 뉴스 기반 분석임을 "
+        "끝에 한 문장으로 자연스럽게 밝혀. "
         "제목과 본문을 쉽고 자연스러운 한국어 반말로 작성해. "
-        "본문에는 언론사별 출처 링크를 나열하지 마.\n\n"
-        "읽은 기사:\n" + json.dumps(evidence, ensure_ascii=False)
+        "언론사별 URL이나 원문을 복제해서 나열하지 마.\\n\\n"
+        "검증 가능한 자료(제목과 소개):\\n" + json.dumps(evidence, ensure_ascii=False)
     )
 
 
@@ -151,7 +162,7 @@ def _generate(articles, session_date):
             {"role": "user", "content": _prompt(articles, session_date)},
         ],
         "temperature": 0.2,
-        "max_completion_tokens": 1500,
+        "max_completion_tokens": 1800,
         "reasoning_effort": "low",
         "stream": False,
     }
@@ -196,7 +207,7 @@ def read_brief():
 
 
 def publish_once(now_utc=None, search=None, reader=None, generator=None):
-    """One claim per NY trading date; no automatic retry on AI failures.
+    """One claim per NY trading date; no automatic repeat of a paid AI call.
 
     Run only on the DO worker after US close. The claim is saved BEFORE the
     provider call, preventing duplicate spending from a retried job.
@@ -208,7 +219,7 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
         return {"status": "market_not_closed", "session_date": session_date.isoformat()}
     articles = collect_articles(session_date, now_utc=now, search=search, reader=reader)
     if len(articles) < 2:
-        return {"status": "insufficient_full_articles", "session_date": session_date.isoformat(),
+        return {"status": "insufficient_news_snippets", "session_date": session_date.isoformat(),
                 "count": len(articles)}
     with _connection() as conn:
         with conn.cursor() as cur:
