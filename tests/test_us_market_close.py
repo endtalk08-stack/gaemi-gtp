@@ -81,7 +81,7 @@ class UsMarketCloseTests(unittest.TestCase):
                 return json.dumps({"choices":[{"message":{"content":"증시 분석 내용 " * 25}}]}).encode()
         with patch.dict(close.os.environ, {"GROQ_API_KEY":"offline-test","US_CLOSE_GROQ_MODEL":"wrong"}), \
             patch.object(close.urllib.request,"urlopen",return_value=FakeResponse()) as api:
-            answer=close._generate([row(1) | {"title":"뉴욕증시 마감","description":"뉴스 설명"}],self.session)
+            answer=close._generate([{"title":"뉴욕증시 마감","description":"뉴스 설명","published_at":"2026-10-19T17:00:00-04:00"}],self.session)
         self.assertIn("증시 분석",answer)
         self.assertEqual(api.call_count,1)
         req=api.call_args.args[0]
@@ -100,7 +100,7 @@ class UsMarketCloseTests(unittest.TestCase):
             def cursor(self):return self
             def execute(self,*args):pass
             def fetchone(self):return None
-        with patch.object(close,"collect_articles",return_value=[row(1),row(2)]), \
+        with patch.object(close,"collect_articles",return_value=close.select_close_articles([row(1),row(2,domain="hankyung.com")], self.session, self.now)), \
             patch.object(close,"_connection",return_value=Duplicate()):
             result=close.publish_once(now_utc=self.now,generator=lambda *_: self.fail("duplicate AI"))
         self.assertEqual(result["status"],"already_attempted")
