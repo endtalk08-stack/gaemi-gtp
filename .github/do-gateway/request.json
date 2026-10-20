@@ -1,3 +1,5 @@
 {
-  "operation": "status"
+  "operation": "deploy",
+  "path": "backend/services/us_market_close_runtime.py",
+  "target": "backend/services/us_market_close_runtime.py"
 }
