@@ -77,6 +77,17 @@ class UsMarketCloseTests(unittest.TestCase):
         self.assertEqual([x["source_id"] for x in sent], [1, 2])
         self.assertEqual(set(sent[0]), {"source_id", "title", "description"})
 
+    def test_json_output_display_is_read_only_and_human_friendly(self):
+        stored = json.dumps({"issues": [
+            {"headline": "미국장 기술주 반등", "summary": "주요 기술주가 상승했어.",
+             "tags": ["#반도체", "#AI", "#증시", "#초과"], "source_ids": [1, 2]}
+        ]}, ensure_ascii=False)
+        visible = close._display_brief_content(stored)
+        self.assertEqual(visible, "미국장 기술주 반등\\n\\n주요 기술주가 상승했어.\\n\\n#반도체 #AI #증시".replace("\\\\n", "\\n"))
+        self.assertNotIn("source_ids", visible)
+        self.assertIn("source_ids", stored)
+        self.assertEqual(close._display_brief_content("기존 본문"), "기존 본문")
+
     def test_120b_is_fixed_and_only_one_provider_call(self):
         self.assertEqual(close.MODEL, "openai/gpt-oss-120b")
         class FakeResponse:
