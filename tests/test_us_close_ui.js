@@ -45,7 +45,11 @@ const valid = {
 
 async function main() {
   const api = win.GaemiGTPUSCloseReply;
-  assert.ok(api.normalize(valid));
+  const normalized = api.normalize(valid);
+  assert.ok(normalized);
+  assert.ok(api.normalize(normalized), 'second normalization must preserve the validated format');
+  assert.equal(api.plainText(normalized), api.plainText(valid),
+    'plainText must accept pre-normalized data from the real UI handler');
   const answer = api.plainText(valid);
   for (const token of ['기술주 주도 혼조 마감', '다우존스 51,966.03 (-0.07%)',
     '나스닥 종합 26,430.89 (+1.11%)', 'S&P 500 7,690.73 (+0.41%)',
