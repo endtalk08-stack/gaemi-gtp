@@ -51,6 +51,11 @@ def main(argv=None):
         if not os.environ.get(name, "").strip():
             raise RuntimeError("disclosure_credential_missing_" + name)
 
+    # The SEC submissions provider supplies this safe identifier fallback.
+    # Also set it before importing SEC so the ranked-ticker CIK directory
+    # does not silently return {} when no dedicated agent is configured.
+    os.environ.setdefault("SEC_USER_AGENT", "gaemiGTP/1.0")
+
     os.environ.pop("DISCLOSURE_NEON_READ", None)
     os.environ.pop("DISCLOSURE_NEON_ONLY", None)
     os.chdir(APP)
