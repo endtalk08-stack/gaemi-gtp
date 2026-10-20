@@ -96,7 +96,7 @@ async function main() {
   assert.match(flow,/const isGaemiMode = \(\) => ctx\.getSession\(\)\?\.mode === 'gaemi'/);
   assert.match(flow,/if \(!isGaemiMode\(\)\) choices\.querySelector/);
   assert.match(flow,/if \(!isGaemiMode\(\) \|\| mainContainer\.querySelector/);
-  assert.match(flow,/answer\.textContent = replyText \|\| '미국장 마감시황을 표시하지 못했어\.'/);
+  assert.match(flow,/answer\.textContent = verifiedContent \|\| replyText \|\| '미국장 마감시황을 불러오지 못했어\.'/);
   console.log('US_CLOSE_GAEMI_ONLY_INFO_PRO_MODEL_ROUTES_PASS');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
