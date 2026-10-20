@@ -26,8 +26,8 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -p "$HOME/.ssh"
-          printf '%s\\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
-          printf '%s\\n' "$HOST_KEYS" > "$HOME/.ssh/known_hosts"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$HOST_KEYS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
           mkdir -p /tmp/live-audit
           scp -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/backend/services/news_result.py /tmp/live-audit/news_result.py
