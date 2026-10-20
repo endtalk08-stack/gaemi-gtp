@@ -18,6 +18,7 @@ on:
       - 'frontend/index.html'
       - 'tests/test_disclosure_transfer.py'
       - 'tests/test_disclosure_ranked_universe.py'
+      - 'tests/test_disclosure_view_contract.cjs'
       - '.github/workflows/disclosures-restore-check.yml'
   workflow_dispatch:
 
@@ -43,6 +44,8 @@ jobs:
           node --check frontend/js/materials-flow.js
           node --check frontend/widgets/analysis-data/analysis-data.js
           node --check frontend/shell/right-panel/right-panel-tabs.js
+      - name: Separate right-panel and center view contract
+        run: node --test tests/test_disclosure_view_contract.cjs
       - name: Disclosure Python syntax
         run: |
           python -m py_compile app.py backend/services/engine.py backend/providers/sec_filings.py backend/services/disclosure_transfer.py backend/services/disclosure_ranked_universe.py deploy/disclosures/run_disclosures.py
