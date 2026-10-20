@@ -248,7 +248,7 @@ class GroqIssueTests(unittest.TestCase):
         ) as provider:
             self.assertEqual(module.analyze_news("엔비디아", [article]), [])
         self.assertEqual(provider.call_count, 1)
-        self.assertIn("사건 날짜", captured["payload"]["messages"][0]["content"])
+        self.assertEqual(captured["payload"]["messages"][0]["content"], module.PROMPT)
         model_news = json.loads(captured["payload"]["messages"][1]["content"])["news"]
         self.assertEqual(model_news[0]["historical_event_mentions"], ["6월 8일"])
         self.assertEqual(model_news[0]["source_id"], 1)
