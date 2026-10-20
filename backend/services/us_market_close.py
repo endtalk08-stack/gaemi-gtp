@@ -16,29 +16,17 @@ from zoneinfo import ZoneInfo
 from backend.providers import naver_news
 
 NY = ZoneInfo("America/New_York")
+KST = ZoneInfo("Asia/Seoul")
 UTC = datetime.timezone.utc
 QUERY = "뉴욕증시 마감"
 MODEL = "openai/gpt-oss-120b"
-PUBLISHERS = (
-    "yna.co.kr", "hankyung.com", "mk.co.kr", "sedaily.com",
-    "edaily.co.kr", "mt.co.kr", "newsis.com", "fnnews.com",
-    "heraldcorp.com", "biz.chosun.com", "chosun.com",
-)
-CLOSE_NAMES = ("뉴욕증시", "뉴욕 증시", "미국증시", "미국 증시")
-FINISH_WORDS = ("마감", "장 마쳐", "거래 마쳐", "장 마감")
-
-
 def _clean(value):
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]*>", "", str(value or "")))).strip()
 
 
 def _publisher(url):
     try:
-        parts = urllib.parse.urlsplit(str(url or ""))
-        host = (parts.hostname or "").lower()
-        if parts.scheme != "https" or parts.username or parts.password:
-            return ""
-        return next((name for name in PUBLISHERS if host == name or host.endswith("." + name)), "")
+        return urllib.parse.urlsplit(str(url or "")).hostname or ""
     except ValueError:
         return ""
 
@@ -48,64 +36,36 @@ def _published(row):
         parsed = parsedate_to_datetime(str(row.get("pubDate") or row.get("raw_pub_date") or ""))
         if parsed.tzinfo is None:
             return None
-        return parsed.astimezone(NY)
+        return parsed.astimezone(KST)
     except (TypeError, ValueError, IndexError):
         return None
 
 
 def select_close_articles(rows, session_date, now_utc=None):
-    """Take up to ten dated post-close NAVER headline/description pairs.
-
-    Search API results can include incomplete or duplicate records. Never use
-    article-page requests to promote a short snippet to a supposed full body.
-    """
-    now = now_utc or datetime.datetime.now(UTC)
-    selected, seen_titles, seen_urls, seen_descriptions = [], set(), set(), set()
-    source_counts = {}
+    """Latest 10 NAVER results published after the US market close, in Korean time."""
+    market_close_kst = datetime.datetime.combine(
+        session_date, datetime.time(16), tzinfo=NY
+    ).astimezone(KST)
+    selected = []
     for row in sorted(
         (r for r in (rows or []) if isinstance(r, dict)),
-        key=lambda r: _published(r) or datetime.datetime.min.replace(tzinfo=NY),
+        key=lambda r: _published(r) or datetime.datetime.min.replace(tzinfo=KST),
         reverse=True,
     ):
-        title = _clean(row.get("raw_title") or row.get("title"))
-        description = _clean(row.get("raw_description") or row.get("description"))
+        published = _published(row)
+        if published is None or published < market_close_kst:
+            continue
         url = str(
             row.get("raw_original_link") or row.get("originallink")
             or row.get("raw_link") or row.get("link") or ""
         ).strip()
-        published = _published(row)
-        if not title or len(description) < 25 or not published:
-            continue
-        if not any(word in title for word in CLOSE_NAMES):
-            continue
-        # A US-session closing article must be issued after 16:00 New York time.
-        if published.date() != session_date or published.hour < 16:
-            continue
-        if published.astimezone(UTC) > now + datetime.timedelta(minutes=2):
-            continue
-        try:
-            parts = urllib.parse.urlsplit(url)
-            if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
-                continue
-            host = parts.hostname.lower()
-        except ValueError:
-            continue
-        title_key = re.sub(r"[^가-힣a-z0-9]", "", title.casefold())
-        description_key = re.sub(r"[^가-힣a-z0-9]", "", description.casefold())
-        if title_key in seen_titles or description_key in seen_descriptions or url in seen_urls:
-            continue
-        publisher = _publisher(url) or host
-        if source_counts.get(publisher, 0) >= 2:
-            continue
         selected.append({
-            "title": title[:200], "description": description[:320],
-            "url": url, "published_at": published.isoformat(),
-            "publisher": publisher,
+            "title": _clean(row.get("raw_title") or row.get("title")),
+            "description": _clean(row.get("raw_description") or row.get("description")),
+            "url": url,
+            "published_at": published.isoformat(),
+            "publisher": _publisher(url),
         })
-        source_counts[publisher] = source_counts.get(publisher, 0) + 1
-        seen_titles.add(title_key)
-        seen_descriptions.add(description_key)
-        seen_urls.add(url)
         if len(selected) >= 10:
             break
     return selected
@@ -114,7 +74,7 @@ def select_close_articles(rows, session_date, now_utc=None):
 def collect_articles(session_date, now_utc=None, search=None, reader=None):
     """Use NAVER API snippets only. Never fetch a publisher article page."""
     fetch = search or naver_news.fetch_news
-    rows = fetch(QUERY, display=50, raise_on_error=True)
+    rows = fetch(QUERY, display=10, raise_on_error=True)
     selected = select_close_articles(rows, session_date, now_utc=now_utc)
     print(
         f"[us-close] naver_search={len(rows or [])} snippets_selected={len(selected)} "
@@ -233,7 +193,7 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
     if market_time.hour < 16 or market_time.weekday() >= 5:
         return {"status": "market_not_closed", "session_date": session_date.isoformat()}
     articles = collect_articles(session_date, now_utc=now, search=search, reader=reader)
-    if len(articles) < 2:
+    if not articles:
         return {"status": "insufficient_news_snippets", "session_date": session_date.isoformat(),
                 "count": len(articles)}
     with _connection() as conn:
