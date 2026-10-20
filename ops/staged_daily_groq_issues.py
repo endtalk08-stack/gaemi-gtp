@@ -4,11 +4,10 @@ from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
 MODEL = "openai/gpt-oss-20b"
-PROMPT = """제공된 기사만 근거로 주가에 중요한 이슈를 0~3개 선정해.
-기사 사이의 관계와 투자 의미를 쉽게 설명해. 기사에 없는 사실은 만들지 마.
-각 제목은 짧게, 요약은 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
-각 이슈의 source_ids는 반드시 포함해. 입력 뉴스의 실제 source_id 번호에서
-해당 내용을 뒷받침하는 기사 1~3개의 번호만 적어. 근거가 없으면 issues는 [].
+PROMPT = """제공된 기사를 근거로 주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
+
+제목은 핵심만 짧게, 내용은 쉽게 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
+
 한국어 JSON 객체만 반환해:
 {"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
 
