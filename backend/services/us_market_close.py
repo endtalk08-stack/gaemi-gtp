@@ -202,6 +202,17 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
     session_date = market_time.date()
     if market_time.hour < 16 or market_time.weekday() >= 5:
         return {"status": "market_not_closed", "session_date": session_date.isoformat()}
+    # The 08:40 KST fallback must never repeat Naver article fetching or
+    # spend a second AI call after the 07:00 run already claimed this session.
+    with _connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT status FROM public.us_market_close_briefs WHERE session_date=%s",
+                (session_date,),
+            )
+            prior = cur.fetchone()
+    if prior is not None:
+        return {"status": "already_attempted", "session_date": session_date.isoformat()}
     # All three indices and news must agree with the completed NY trading day.
     # Fail before any database claim/AI usage if one is missing or stale.
     indices = verified_indices(session_date)
