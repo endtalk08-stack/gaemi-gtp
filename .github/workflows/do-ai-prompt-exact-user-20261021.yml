@@ -18,8 +18,8 @@ jobs:
       DO_HOST: ${{ secrets.DO_HOST }}
       SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
-      OLD_BLOB: 1d01ccfe1dda7dc8f0493288654f6a3cd6ac68d1
-      NEW_BLOB: 4e542291127f374dcf7a52d708a27db08561fc55
+      OLD_BLOB: 4e542291127f374dcf7a52d708a27db08561fc55
+      NEW_BLOB: c3faba130811b4e36d175c8e90920d4b8ce587c8
     steps:
       - uses: actions/checkout@v4
         with:
