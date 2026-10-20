@@ -102,8 +102,10 @@ async function scenario(failure) {
   assert.equal(registry.actions.length,1,'existing copy/share/like controls must be kept');
   if (!failure) {
     const issue=answer.children[0];
-    assert.ok(issue && issue.children[1].children[0].tagName==='table',
-      'successful render must show a real table under the headline');
+    assert.ok(issue && issue.children[1]?.children[0]?.tagName==='table',
+      'successful render must show a real table under the headline: '+JSON.stringify({
+        warnings:registry.warnings,answerChildren:answer.children.length,
+        issueChildren:issue?.children?.length,reply:answer.textContent.slice(0,120)}));
     assert.ok(issue.children[0].textContent.includes('AI·반도체 반등'));
     assert.ok(issue.children[2].textContent.includes('10월 19일'));
   } else {
