@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/test_us_close_groq_120b_no_sourceids_20261021.py",
-  "request_id": "live-us-close-3articles-120b-20261021-a",
+  "path": "ops/do-gateway/test_us_close_groq_120b_compare_all_20261021.py",
+  "request_id": "live-us-close-3articles-120b-20261021-b",
   "timeout": 170
 }
