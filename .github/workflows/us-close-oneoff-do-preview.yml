@@ -1,0 +1,65 @@
+name: US close preview retry from DigitalOcean (once)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/us-close-oneoff-do-preview.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: us-close-preview-technical-retry-2026-10-19
+  cancel-in-progress: false
+jobs:
+  try-once:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      NEWS_DATABASE_URL: ${{ secrets.NEWS_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fdbf5e212e33ce839a55900a4c2829a388df8df5
+          persist-credentials: false
+      - name: Check one-off preview syntax
+        run: python -m py_compile ops/us_close_oneoff_preview_20261019.py
+      - name: Execute one isolated retry with temporary credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_HOSTS"
+          test -n "$GROQ_API_KEY" && test -n "$NEWS_DATABASE_URL"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_HOSTS" > "$HOME/.ssh/known_hosts"
+          tempdir="$(mktemp -d)"
+          trap 'rm -rf "$tempdir"' EXIT
+          python3 - "$tempdir/creds.json" <<'PY'
+          import json,os,sys
+          with open(sys.argv[1],"w",encoding="utf-8") as stream:
+              json.dump({"GROQ_API_KEY":os.environ["GROQ_API_KEY"],"NEWS_DATABASE_URL":os.environ["NEWS_DATABASE_URL"]},stream)
+          PY
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST"             'umask 077; mkdir -p "$HOME/.gaemi-us-close-snippet-test"'
+          scp -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12             ops/us_close_oneoff_preview_20261019.py gaemi-deploy@"$DO_HOST":.gaemi-us-close-snippet-test/preview.py
+          scp -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12             "$tempdir/creds.json" gaemi-deploy@"$DO_HOST":.gaemi-us-close-snippet-test/temporary-creds.json
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          path="$HOME/.gaemi-us-close-snippet-test"
+          trap 'rm -f "$path/temporary-creds.json"' EXIT
+          chmod 600 "$path/preview.py" "$path/temporary-creds.json"
+          timeout 110s /opt/gaemigtp-news/venv/bin/python "$path/preview.py" "$path/temporary-creds.json"
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          echo US_CLOSE_DO_PREVIEW_COMPLETE
+          REMOTE
+      - name: Remove temporary credentials even after failure
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "$DO_HOST" ] && [ -f "$HOME/.ssh/id_ed25519" ]; then
+            ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST"               'rm -f "$HOME/.gaemi-us-close-snippet-test/temporary-creds.json"' || true
+          fi
