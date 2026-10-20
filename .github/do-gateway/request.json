@@ -1,3 +1,6 @@
 {
-  "operation": "alpaca-news-verify"
+  "operation": "run",
+  "path": "ops/do-gateway/verify_naver_nvda_extended.py",
+  "request_id": "naver_nvda_extended_20261020_v1",
+  "timeout": 90
 }
