@@ -141,9 +141,9 @@ def _parse_editorial(answer):
     # Accept only a trailing hashtag-only line, never remove inline body hashtags.
     tag_line = lines[last].strip()
     tags = tag_line.split()
-    if not 1 <= len(tags) <= 3 or any(not re.fullmatch(r"#[^#\\s]+", t) for t in tags):
+    if not 1 <= len(tags) <= 3 or any(not re.fullmatch(r"#[^#\s]+", t) for t in tags):
         raise RuntimeError("us_close_ai_missing_final_tags")
-    body = "\\n".join(lines[first+1:last]).strip()
+    body = "\n".join(lines[first+1:last]).strip()
     if not title or len(title) > 200 or len(body) < 50 or len(body) > 2600:
         raise RuntimeError("us_close_ai_invalid_editorial_fields")
     if re.search(r"코스피|코스닥|국내증시", title + body):
