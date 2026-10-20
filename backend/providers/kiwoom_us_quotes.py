@@ -37,20 +37,28 @@ def _request(path, body, headers=None):
         with urllib.request.urlopen(req, timeout=8) as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        # Only the numeric API error code may enter logs; never the raw
-        # response body, return_msg, credential, token, or request URL.
+        # Kiwoom sometimes embeds the specific numeric code in return_msg
+        # while return_code is generic (see official kiwoom/core/errors.py).
+        # Do not print the message, raw response, token or credentials.
         api_code = None
+        payload_kind = "unstructured"
         try:
             payload = json.loads(exc.read(4096).decode("utf-8"))
             if isinstance(payload, dict):
-                v = payload.get("return_code")
-                if isinstance(v, int) and not isinstance(v, bool):
-                    api_code = v
-                elif isinstance(v, str) and re.fullmatch(r"-?[0-9]{1,9}", v):
-                    api_code = int(v)
+                payload_kind = "json"
+                val = payload.get("return_code")
+                if isinstance(val, int) and not isinstance(val, bool):
+                    api_code = val
+                elif isinstance(val, str) and re.fullmatch(r"-?[0-9]{1,9}", val):
+                    api_code = int(val)
+                message = payload.get("return_msg")
+                # Match official embedded codes, without exposing the text.
+                match = re.search(r"\\[([0-9]{3,5}):|CODE=([0-9]{3,5})", str(message or ""))
+                if match:
+                    api_code = int(match.group(1) or match.group(2))
         except (ValueError, UnicodeError, OSError):
             pass
-        status = "kiwoom_http_" + str(exc.code)
+        status = "kiwoom_http_" + str(exc.code) + "_body_" + payload_kind
         if api_code is not None:
             status += "_return_code_" + str(api_code)
         raise KiwoomReadOnlyError(status) from None
