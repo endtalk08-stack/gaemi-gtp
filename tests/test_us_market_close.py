@@ -62,19 +62,21 @@ class UsMarketCloseTests(unittest.TestCase):
         self.assertEqual(len(set(x["title"] for x in result)), 10)
         self.assertTrue(all("description" in x for x in result))
 
-    def test_prompt_explicitly_disallows_invented_market_data(self):
+    def test_ai_decides_editorial_and_receives_only_naver_title_description(self):
         prompt = close._prompt(close.select_close_articles([
-            row(1),row(2,domain="mk.co.kr")
-        ],self.session,self.now),self.session)
-        self.assertIn("미국장은 어땠어?",prompt)
-        self.assertIn("네가 정한 제목 하나", prompt)
-        self.assertIn("해시태그 정확히 3개", prompt)
-        self.assertIn("문단 수, 주제, 전개 순서, 강조점은 네 판단에 맡겨", prompt)
-        self.assertIn("제작 과정 설명을 넣지 마", prompt)
-        self.assertIn("확인되지 않은 수치", prompt)
-        self.assertNotIn("자료가 네이버 기사 제목과 소개 문구에 한정된", prompt)
+            row(1), row(2, domain="mk.co.kr")
+        ], self.session, self.now), self.session)
+        self.assertIn("네이버 뉴스 API", prompt)
+        self.assertIn("네가 알아서 작성해", prompt)
+        self.assertIn("제목, 본문, 마지막 줄 해시태그 3개", prompt)
+        self.assertIn("기사 출처·AI 작성 과정을 설명하지 마", prompt)
+        self.assertIn("확인되지 않은 사실은 만들지 마", prompt)
+        self.assertIn('"title":', prompt)
+        self.assertIn('"description":', prompt)
         self.assertNotIn('"article_text"', prompt)
         self.assertNotIn('"body"', prompt)
+        self.assertNotIn('"publisher"', prompt)
+        self.assertNotIn('"published_at"', prompt)
 
     def test_120b_is_fixed_and_only_one_provider_call(self):
         self.assertEqual(close.MODEL, "openai/gpt-oss-120b")
