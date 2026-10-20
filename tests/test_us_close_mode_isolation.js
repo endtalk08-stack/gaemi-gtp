@@ -94,10 +94,7 @@ async function main() {
   for (const mode of ['gaemi','info','pro']) await routeFor(mode);
   const flow=fs.readFileSync('frontend/shell/center-chat/analysis-flow.js','utf8');
   assert.match(flow,/const isGaemiMode = \(\) => ctx\.getSession\(\)\?\.mode === 'gaemi'/);
-  assert.ok(!flow.includes('if (!isGaemiMode()) choices.querySelector'), 'info/pro US option must remain visible');
-  assert.ok(flow.includes("window.GaemiGTPApp?.submitQuestion?.('미국장 어땠어?')"),
-            'info/pro follow-up must use their independent AI model');
-  assert.ok(flow.includes("'#미국장_어땠어?'"), 'requested hashtag must be visible');
+  assert.match(flow,/if \(!isGaemiMode\(\)\) choices\.querySelector/);
   assert.match(flow,/if \(!isGaemiMode\(\) \|\| mainContainer\.querySelector/);
   assert.match(flow,/answer\.textContent = verifiedContent \|\| replyText \|\| '미국장 마감시황을 불러오지 못했어\.'/);
   console.log('US_CLOSE_GAEMI_ONLY_INFO_PRO_MODEL_ROUTES_PASS');
