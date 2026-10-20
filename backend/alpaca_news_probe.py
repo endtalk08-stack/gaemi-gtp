@@ -33,8 +33,8 @@ def clean(value):
 def search(key, secret, symbols, label):
     params = {
         "start": "2026-10-19T20:00:00Z",
-        "end": "2026-10-20T09:00:00Z",
-        "sort": "asc", "limit": 50,
+        "end": "2026-10-19T23:00:00Z",
+        "sort": "desc", "limit": 50,
         "include_content": "true",
         "exclude_contentless": "true",
     }
@@ -71,11 +71,11 @@ def main():
     if not key or not secret:
         print("US_CLOSE_NEWS_ERROR=missing_credentials", flush=True)
         return 2
-    print("US_CLOSE_NEWS_SCOPE=Oct_19_post_close_to_Oct_20_0900UTC_two_readonly_gets",flush=True)
+    print("US_CLOSE_NEWS_SCOPE=Oct_19_2000_to_2300UTC_one_readonly_get",flush=True)
     count=0
     match=re.compile(r"\b(?:Wall Street|U\.S\.\s+stocks|US stocks|U\.S\.\s+equities|S&P\s*500|Nasdaq|Dow Jones|Dow\s+futures|Stock market|market close|closing bell|stocks closed|stocks finish|stocks end|stocks fall|stocks rise|equities close|stocks rally|stocks slide|market selloff|market rebound|market recap)\b",re.I)
     seen=set()
-    for label,symbols in [("etf_symbols","SPY,QQQ,DIA"),("general_news","")]:
+    for label,symbols in [("close_window_general","")]:
         items=search(key,secret,symbols,label)
         if items is None: continue
         local=0
