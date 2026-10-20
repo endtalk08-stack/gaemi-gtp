@@ -10,6 +10,7 @@ on:
       - 'frontend/index.html'
       - 'frontend/css/app.css'
       - 'tests/test_us_close_ui.js'
+      - 'tests/test_us_close_mode_isolation.js'
       - 'frontend/shell/center-chat/analysis-flow.js'
       - 'app.py'
       - '.github/workflows/us-market-close-tests.yml'
@@ -58,3 +59,4 @@ jobs:
           node --check frontend/shell/center-chat/analysis-flow.js
           node --check frontend/shell/center-chat/us-close-reply.js
           node tests/test_us_close_ui.js
+          node tests/test_us_close_mode_isolation.js
