@@ -1,0 +1,54 @@
+name: Check US-close DigitalOcean execution permissions
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/us-close-do-check-20261020.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+      HAS_NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID != '' }}
+      HAS_NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET != '' }}
+      HAS_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY != '' }}
+      HAS_NEON_DB: ${{ secrets.NEWS_DATABASE_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read-only remote execution preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          echo "GH_KEY_NAVER_ID=$HAS_NAVER_CLIENT_ID"
+          echo "GH_KEY_NAVER_SECRET=$HAS_NAVER_CLIENT_SECRET"
+          echo "GH_KEY_GROQ=$HAS_GROQ_API_KEY"
+          echo "GH_KEY_NEON=$HAS_NEON_DB"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          echo "NEWS_WORKER_ACTIVE"
+          if test -f /opt/gaemigtp-news/app/backend/services/us_market_close.py; then
+            echo "US_CLOSE_CODE_PRESENT"
+            stat -c "US_CLOSE_OWNER=%U:%G MODE=%a" /opt/gaemigtp-news/app/backend/services/us_market_close.py
+            if test -w /opt/gaemigtp-news/app/backend/services/us_market_close.py; then echo "US_CLOSE_FILE_WRITABLE"; else echo "US_CLOSE_FILE_NOT_WRITABLE"; fi
+          else
+            echo "US_CLOSE_CODE_ABSENT"
+          fi
+          if systemctl cat gaemigtp-us-market-close.service >/dev/null 2>&1; then echo "US_CLOSE_SERVICE_PRESENT"; else echo "US_CLOSE_SERVICE_ABSENT"; fi
+          if test -r /etc/gaemigtp/news-worker.env; then echo "WORKER_ENV_READABLE"; else echo "WORKER_ENV_NOT_READABLE"; fi
+          echo "SUDO_RULES_START"
+          sudo -n -l 2>&1 || true
+          echo "SUDO_RULES_END"
+          REMOTE
