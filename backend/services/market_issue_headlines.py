@@ -68,25 +68,38 @@ def _read_worker_briefs(market, names):
         return {}
 
 
-def get_market_issue_headlines(market, items):
+def get_market_issue_headlines(market, items, *, skip_invalid=False):
     started = time.monotonic()
     if market not in ("kr", "us") or not isinstance(items, list) or not 1 <= len(items) <= _MAX_ITEMS:
         raise ValueError("invalid_market_issue_request")
     rows = [_valid_row(market, item) for item in items]
-    if any(row is None for row in rows):
+    if not skip_invalid and any(row is None for row in rows):
+        # Keep explicit /market/issue-headlines requests strictly validated.
         raise ValueError("invalid_stock_rows")
 
-    # Match only verified US ticker/name variants; keep source ranking labels.
-    # KR uses exactly its original keys and request path.
+    # Rank feeds can occasionally contain a malformed symbol. Read only the
+    # valid rows from Neon, then return a result for every original position.
+    # This prevents one invalid stock from blanking all 20 sidebar headlines.
     names_per_row = [
-        news_snapshot_names(row["name"], symbol=row["symbol"])
-        if market == "us" else [row["name"]]
+        (news_snapshot_names(row["name"], symbol=row["symbol"])
+         if market == "us" else [row["name"]])
+        if row is not None else []
         for row in rows
     ]
     all_names = list(dict.fromkeys(name for names in names_per_row for name in names))
-    worker_briefs = _read_worker_briefs(market, all_names)
+    worker_briefs = _read_worker_briefs(market, all_names) if all_names else {}
     results = []
-    for row, names in zip(rows, names_per_row):
+    for original, row, names in zip(items, rows, names_per_row):
+        if row is None:
+            # Preserve the ranking position without guessing a stock identity.
+            source = original if isinstance(original, dict) else {}
+            results.append({
+                "name": str(source.get("name") or "").strip(),
+                "symbol": str(source.get("symbol") or "").strip().upper(),
+                "status": "invalid",
+                "headline": "",
+            })
+            continue
         headline = next(
             (_first_headline(worker_briefs.get(name))
              for name in names if _first_headline(worker_briefs.get(name))),
@@ -96,9 +109,11 @@ def get_market_issue_headlines(market, items):
             **row, "status": "ready" if headline else "unavailable",
             "headline": headline,
         })
+    invalid_count = sum(row is None for row in rows)
     print(
         f"[market issue timing] stage=response market={market} rows={len(rows)} "
         f"ready={sum(bool(row['headline']) for row in results)} "
+        f"invalid={invalid_count} "
         f"elapsed={time.monotonic()-started:.2f}s",
         flush=True,
     )
