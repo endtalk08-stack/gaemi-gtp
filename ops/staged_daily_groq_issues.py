@@ -7,15 +7,13 @@ from email.utils import parsedate_to_datetime
 
 MODEL = "openai/gpt-oss-20b"
 PROMPT = """주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
-
 제목은 핵심만 짧게, 내용은 쉽게 구체적으로, 해시태그는 최대 3개. 친구처럼 반말로 답변해.
-
 한국어 JSON 객체만 반환해:
-{"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
+{"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#해시태그"],"source_ids":[1]}]}"""
 
 
 # User-approved prompt lock. Changes need explicit approval and a reviewed hash update.
-APPROVED_PROMPT_SHA256 = "18d236868ad0b806e63e827ea82ab01cac4c03051fe0967ea8caf28fa7d93409"
+APPROVED_PROMPT_SHA256 = "a6870eed901add445f62dd4314599813d9321ff3afc1907496981d78afd4c407"
 
 
 def _verify_user_approved_prompt():
