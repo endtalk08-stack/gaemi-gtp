@@ -954,7 +954,7 @@ body.left-context-open #gaemiWorkspace {
 }
 .gaemi-us-close-table-wrap {
   width: 100%;
-  max-width: 34rem;
+  max-width: 100%;
   margin: 0 0 18px;
   border: 1px solid var(--gtp-border-strong);
   border-radius: 12px;
