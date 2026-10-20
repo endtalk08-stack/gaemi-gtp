@@ -23,6 +23,24 @@ install_private_access(app, FRONTEND_DIR)
 start_calendar_warmup()
 application = app
 
+# One-time, read-only startup gate for verifying the DO -> Neon -> Render path.
+# Does not call SEC/DART or alter news, prices, database rows, or UI responses.
+if os.getenv("DISCLOSURE_NEON_READ") == "1":
+    try:
+        from backend.services.disclosure_transfer import read_snapshot
+        for _market, _symbol in (("KR", "005930"), ("US", "AAPL")):
+            _filings = read_snapshot(_market, _symbol)
+            print(
+                f"[disclosure-neon-readiness] market={_market} symbol={_symbol} "
+                f"ready={_filings is not None} filings={len(_filings) if _filings is not None else 'unavailable'}",
+                flush=True,
+            )
+    except Exception as _exc:
+        print(
+            f"[disclosure-neon-readiness] unavailable={type(_exc).__name__}",
+            flush=True,
+        )
+
 @app.get("/")
 def home():
     return send_from_directory(FRONTEND_DIR, "index.html")
