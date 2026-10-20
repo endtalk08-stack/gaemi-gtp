@@ -37,7 +37,23 @@ def _request(path, body, headers=None):
         with urllib.request.urlopen(req, timeout=8) as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        raise KiwoomReadOnlyError("kiwoom_http_" + str(exc.code)) from None
+        # Only the numeric API error code may enter logs; never the raw
+        # response body, return_msg, credential, token, or request URL.
+        api_code = None
+        try:
+            payload = json.loads(exc.read(4096).decode("utf-8"))
+            if isinstance(payload, dict):
+                v = payload.get("return_code")
+                if isinstance(v, int) and not isinstance(v, bool):
+                    api_code = v
+                elif isinstance(v, str) and re.fullmatch(r"-?[0-9]{1,9}", v):
+                    api_code = int(v)
+        except (ValueError, UnicodeError, OSError):
+            pass
+        status = "kiwoom_http_" + str(exc.code)
+        if api_code is not None:
+            status += "_return_code_" + str(api_code)
+        raise KiwoomReadOnlyError(status) from None
     except (urllib.error.URLError, TimeoutError, ValueError, OSError):
         raise KiwoomReadOnlyError("kiwoom_request_failed") from None
     if not isinstance(result, dict):
