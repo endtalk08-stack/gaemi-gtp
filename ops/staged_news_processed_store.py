@@ -231,22 +231,32 @@ def _fresh_ai_briefs(briefs, *, now=None):
 
 
 def _prefer_same_day_ai(coming, previous, stock_name, us_day):
-    """Preserve current, sourced AI only. No deterministic US issue fallback."""
+    """Keep same-stock, source-fresh AI across US day boundaries, until 24h expiry."""
     code = _same_stock_issue_briefs(
         coming.get("_code_issue_briefs", coming.get("issue_briefs") or []), stock_name)
     coming["_code_issue_briefs"] = code
     candidate = []
+    candidate_day = None
     if coming.get("_ai_exchange_day") == us_day:
         incoming = coming.get("_ai_issue_briefs") or []
         candidate = _fresh_ai_briefs(_same_stock_issue_briefs(incoming, stock_name))
         if len(candidate) != len(incoming):
             candidate = []
-    if not candidate and isinstance(previous, dict) and previous.get("_ai_exchange_day") == us_day:
-        prior = previous.get("_ai_issue_briefs") or []
-        candidate = _fresh_ai_briefs(_same_stock_issue_briefs(prior, stock_name))
+        if candidate:
+            candidate_day = us_day
+    # A news refresh can happen after NY midnight, while yesterday's article
+    # is still less than 24 hours old. Preserve that verified analysis without
+    # relabeling it as a new AI call today.
+    if not candidate and isinstance(previous, dict):
+        previous_day = previous.get("_ai_exchange_day")
+        if isinstance(previous_day, str) and previous_day <= us_day:
+            prior = previous.get("_ai_issue_briefs") or []
+            candidate = _fresh_ai_briefs(_same_stock_issue_briefs(prior, stock_name))
+            if candidate:
+                candidate_day = previous_day
     if candidate:
         coming["_ai_issue_briefs"] = candidate
-        coming["_ai_exchange_day"] = us_day
+        coming["_ai_exchange_day"] = candidate_day
         coming["issue_briefs"] = candidate
     else:
         coming.pop("_ai_issue_briefs", None)
