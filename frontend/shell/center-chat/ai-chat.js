@@ -246,7 +246,7 @@
         // server-side result instead of collecting the same data twice.
         if (ctx.getPendingAnalysis()?.stock === stock) await ctx.getPendingAnalysis().promise;
         if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
-        if (appMode === 'gaemi' && !mentionedStock && isUsMarketCloseQuestion(question)) {
+        if (!mentionedStock && isUsMarketCloseQuestion(question)) {
           const response = await fetch(ctx.backendUrl + '/api/market/us-close', {
             method: 'GET', credentials: 'same-origin', signal: controller.signal
           });
