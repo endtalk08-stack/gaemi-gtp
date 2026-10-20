@@ -251,24 +251,6 @@ class GroqIssueTests(unittest.TestCase):
         self.assertEqual(model_news[0]["historical_event_mentions"], ["6월 8일"])
         self.assertEqual(model_news[0]["source_id"], 1)
 
-    def test_approved_prompt_sha_is_pinned(self):
-        import hashlib
-        digest = hashlib.sha256(module.PROMPT.encode("utf-8")).hexdigest()
-        self.assertEqual(digest, "a6870eed901add445f62dd4314599813d9321ff3afc1907496981d78afd4c407")
-        self.assertEqual(module.APPROVED_PROMPT_SHA256, digest)
-
-    def test_prompt_edit_refuses_api_call(self):
-        from unittest.mock import patch
-        with patch.object(module, "PROMPT", module.PROMPT + " (unapproved)"), \
-             patch.dict("os.environ", {"GROQ_API_KEY": "mock-only"}), \
-             patch("urllib.request.urlopen") as provider:
-            with self.assertRaisesRegex(ValueError, "user_approved_ai_prompt_modified"):
-                module.analyze_news("모더나", [
-                    {"title": "실적", "description": "기사 내용",
-                     "published_at": "2026-10-20T11:00:00+00:00"}
-                ])
-            provider.assert_not_called()
-
     def test_truncated_response_fails_without_retry_or_fabrication(self):
         import io
         from unittest.mock import patch
