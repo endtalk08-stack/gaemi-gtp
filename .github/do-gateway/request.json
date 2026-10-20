@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/verify_naver_nvda_extended.py",
-  "request_id": "naver_nvda_extended_20261020_v1",
-  "timeout": 90
+  "path": "ops/do-gateway/test_us_close_naver_once.py",
+  "request_id": "naver_us_close_ai_20261020_v1",
+  "timeout": 120
 }
