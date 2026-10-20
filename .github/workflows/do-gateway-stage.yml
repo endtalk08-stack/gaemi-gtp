@@ -26,7 +26,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object ops/do-gateway/gaemi-do-gateway)" = 9c9043cf71bd12db9726df0f7d737455ca29fe8a
+          test "$(git hash-object ops/do-gateway/gaemi-do-gateway)" = 638c54982fa58fddefb3ead8e241544cd9c096b2
           bash -n ops/do-gateway/gaemi-do-gateway
           test "$(git hash-object ops/do-gateway/install-once.sh)" = 26c7473f9fa74922706deb3ec78ca6ee785d85ad
           bash -n ops/do-gateway/install-once.sh
@@ -48,4 +48,4 @@ jobs:
           scp "${SSH_OPTS[@]}" ops/do-gateway/gaemi-do-gateway gaemi-deploy@"$DO_HOST":.gaemi-gateway/bootstrap/gaemi-do-gateway
           scp "${SSH_OPTS[@]}" ops/do-gateway/install-once.sh gaemi-deploy@"$DO_HOST":.gaemi-gateway/bootstrap/install-once.sh
           scp "${SSH_OPTS[@]}" ops/do-gateway/kiwoom-credentials-once.sh gaemi-deploy@"$DO_HOST":.gaemi-gateway/bootstrap/kiwoom-credentials-once.sh
-          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'set -e; chmod 0600 "$HOME/.gaemi-gateway/bootstrap/kiwoom-credentials-once.sh"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/kiwoom-credentials-once.sh")" = 7cd2b286fd147fd13887ec3f67abc458eaf06e62; bash -n "$HOME/.gaemi-gateway/bootstrap/kiwoom-credentials-once.sh"; echo GAEMI_KIWOOM_INPUT_SCRIPT_STAGED; chmod 0600 "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway" "$HOME/.gaemi-gateway/bootstrap/install-once.sh"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/install-once.sh")" = 26c7473f9fa74922706deb3ec78ca6ee785d85ad; bash -n "$HOME/.gaemi-gateway/bootstrap/install-once.sh"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway")" = 9c9043cf71bd12db9726df0f7d737455ca29fe8a; bash -n "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway"; echo GAEMI_GATEWAY_STAGED_VERIFIED; test "$(systemctl is-active gaemigtp-news.service)" = active; echo ORIGINAL_NEWS_WORKER_ACTIVE'
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'set -e; chmod 0600 "$HOME/.gaemi-gateway/bootstrap/kiwoom-credentials-once.sh"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/kiwoom-credentials-once.sh")" = 7cd2b286fd147fd13887ec3f67abc458eaf06e62; bash -n "$HOME/.gaemi-gateway/bootstrap/kiwoom-credentials-once.sh"; echo GAEMI_KIWOOM_INPUT_SCRIPT_STAGED; chmod 0600 "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway" "$HOME/.gaemi-gateway/bootstrap/install-once.sh"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/install-once.sh")" = 26c7473f9fa74922706deb3ec78ca6ee785d85ad; bash -n "$HOME/.gaemi-gateway/bootstrap/install-once.sh"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway")" = 638c54982fa58fddefb3ead8e241544cd9c096b2; bash -n "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway"; echo GAEMI_GATEWAY_STAGED_VERIFIED; test "$(systemctl is-active gaemigtp-news.service)" = active; echo ORIGINAL_NEWS_WORKER_ACTIVE'
