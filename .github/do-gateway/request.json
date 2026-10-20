@@ -1,5 +1,4 @@
 {
-  "operation": "deploy",
-  "path": "ops/systemd/gaemigtp-us-market-close.timer",
-  "target": "ops/systemd/gaemigtp-us-market-close.timer"
+  "operation": "restart",
+  "unit": "gaemigtp-us-market-close.timer"
 }
