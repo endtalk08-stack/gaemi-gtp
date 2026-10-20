@@ -53,7 +53,7 @@ def _request(path, body, headers=None):
                     api_code = int(val)
                 message = payload.get("return_msg")
                 # Match official embedded codes, without exposing the text.
-                match = re.search(r"\\[([0-9]{3,5}):|CODE=([0-9]{3,5})", str(message or ""))
+                match = re.search(r"\[([0-9]{3,5}):|CODE=([0-9]{3,5})", str(message or ""))
                 if match:
                     api_code = int(match.group(1) or match.group(2))
         except (ValueError, UnicodeError, OSError):
