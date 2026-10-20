@@ -1,0 +1,50 @@
+name: Read-only Render disclosure display smoke
+
+on:
+  push:
+    branches:
+      - ops/do-ssh-deploy-setup-20261017
+    paths:
+      - .github/workflows/render-disclosure-readonly-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-render-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Verify public health and auth gate
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error
+          root = "https://gaemi-gtp.onrender.com"
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers={"User-Agent":"gaemi-disclosure-smoke/1.0"}),timeout=30) as r:
+                  return r.status, json.load(r)
+          status, health = get(root+"/health")
+          print("RENDER_HEALTH_OK",status,health.get("ok"))
+          status, access = get(root+"/dev-access/status")
+          print("RENDER_PRIVATE_GATE",access.get("private"),"AUTHENTICATED",access.get("authenticated"))
+          if access.get("private"):
+              print("RENDER_DISCLOSURE_ANALYZE_SMOKE_SKIPPED_PRIVATE_GATE")
+          else:
+              from urllib.parse import urlencode
+              for stock in ["애플","삼성전자"]:
+                  url=root+"/analyze?"+urlencode({"stock":stock})
+                  try:
+                      status, result=get(url)
+                      print("RENDER_DISCLOSURE_RESULT",
+                            stock,"status",status,"ok",result.get("ok"),
+                            "panelKR",len(result.get("panel_disclosures") or []),
+                            "panelUS",len(result.get("panel_us_filings") or []),
+                            "centerKR",len(result.get("disclosures") or []),
+                            "centerUS",len(result.get("us_filings") or []))
+                      if not isinstance(result.get("panel_disclosures"), list) or not isinstance(result.get("panel_us_filings"),list):
+                          raise SystemExit("new_disclosure_panels_missing")
+                  except urllib.error.HTTPError as exc:
+                      print("RENDER_DISCLOSURE_REQUEST_UNAVAILABLE",stock,exc.code)
+                      raise
+          PY
