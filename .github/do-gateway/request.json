@@ -1,1 +1,4 @@
-{"operation":"deploy","path":"backend/kiwoom_probe.py","target":"backend/kiwoom_probe.py"}
+{
+  "operation": "upgrade",
+  "path": "ops/do-gateway/gaemi-do-gateway"
+}
