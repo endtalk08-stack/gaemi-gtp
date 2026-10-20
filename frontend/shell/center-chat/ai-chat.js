@@ -253,7 +253,7 @@
         // server-side result instead of collecting the same data twice.
         if (ctx.getPendingAnalysis()?.stock === stock) await ctx.getPendingAnalysis().promise;
         if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
-        if (!mentionedStock && isUsMarketCloseQuestion(question)) {
+        if (appMode === 'gaemi' && !mentionedStock && isUsMarketCloseQuestion(question)) {
           // Reuse the '왜 올랐어?' 5-second thinking rhythm; fetch in parallel.
           loadingText.textContent = '생각중';
           loadingText.classList.add('animate-pulse');
