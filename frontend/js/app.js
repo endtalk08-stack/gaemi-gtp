@@ -174,29 +174,18 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
           row.classList.remove('gaemi-ai-reply-format');
         }
         for (const loading of area.querySelectorAll('.analysis-loading-sequence')) loading.remove();
-        // Invalidate in-flight callbacks even if the user returns immediately.
+        // Save the old mode before leaving it, but never carry its chat into
+        // another mode or auto-open a prior conversation upon mode selection.
         activeChatSession.id = ++nextChatSessionId;
-        sessionsByMode[currentAppMode] = activeChatSession;
-        const fragment = document.createDocumentFragment();
-        while (area.firstChild) fragment.appendChild(area.firstChild);
-        viewsByMode[currentAppMode] = fragment;
+        sessionsByMode[currentAppMode] = null;
+        viewsByMode[currentAppMode] = null;
       }
       currentAppMode = mode;
-      window.GaemiGTPSidebarHome?.renderRecent?.();
-      if (sessionsByMode[mode]) {
-        activeChatSession = sessionsByMode[mode];
-        area.replaceChildren();
-        if (viewsByMode[mode]) area.appendChild(viewsByMode[mode]);
-        area.scrollTop = 0;
-        return true;
-      }
       activeChatSession = null;
+      sessionsByMode[mode] = null;
+      viewsByMode[mode] = null;
       area.replaceChildren();
-      const lastId = readModeRecents()[mode];
-      const saved = lastId && readChatHistory()[lastId];
-      if (saved && (!saved.mode || saved.mode === mode) &&
-          restoreRecentConversation(lastId)) return true;
-      if (lastId) rememberModeRecent(mode, null);
+      window.GaemiGTPSidebarHome?.renderRecent?.();
       area.scrollTop = 0;
       return true;
     }
