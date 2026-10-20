@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_kiwoom_config.py",
-  "request_id": "kiwoom-config-20261020-first",
-  "timeout": 60
+  "operation": "deploy",
+  "path": "backend/providers/kiwoom_us_quotes.py",
+  "target": "backend/providers/kiwoom_us_quotes.py"
 }
