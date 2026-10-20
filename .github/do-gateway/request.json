@@ -1,4 +1,3 @@
 {
-  "operation": "upgrade",
-  "path": "ops/do-gateway/gaemi-do-gateway"
+  "operation": "alpaca-verify"
 }
