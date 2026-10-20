@@ -31,11 +31,12 @@ jobs:
           import json, os, pathlib, re, subprocess
           req=json.loads(pathlib.Path('.github/do-gateway/request.json').read_text())
           op=req.get("operation")
-          if op not in ("status","logs","restart","deploy","run","upgrade","kiwoom-verify"):
+          if op not in ("status","logs","restart","deploy","run","upgrade","kiwoom-verify","alpaca-verify"):
               raise ValueError("invalid operation")
           allowed={
               "status":{"operation"},
               "kiwoom-verify":{"operation"},
+              "alpaca-verify":{"operation"},
               "logs":{"operation","unit","lines"},
               "restart":{"operation","unit"},
               "deploy":{"operation","path","target"},
