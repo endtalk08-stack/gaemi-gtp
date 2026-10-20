@@ -1,0 +1,83 @@
+name: Stage user-approved AI prompts only (no production writes)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/stage-approved-ai-prompts-only-20261020.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stage-only:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 6
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      HOST_KEYS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 42952d4cd5b40ce390f1b4589db35b46f3706d74
+          path: ussrc
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: a665092e8f958641545b719b743cf02cb93f5a59
+          path: issuesrc
+          persist-credentials: false
+      - name: Verify reviewed exact source contents with syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C ussrc hash-object backend/services/us_market_close.py)" = bbf21ca780e386b9faf6f443d04b88ebba0d3808
+          test "$(git -C issuesrc hash-object ops/staged_daily_groq_issues.py)" = a5004afa8b9a1759b21c19a3ebb9d69fa57f4576
+          python -m py_compile ussrc/backend/services/us_market_close.py issuesrc/ops/staged_daily_groq_issues.py
+          (cd ussrc && python -m unittest -q tests.test_us_market_close)
+          (cd issuesrc && python -m unittest -q tests.test_staged_daily_groq_issues)
+      - name: Stage only under SSH account home; inspect hashes without modification
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$HOST_KEYS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'umask 077; mkdir -p "$HOME/.gaemi-ai-prompt-20261020"; chmod 700 "$HOME/.gaemi-ai-prompt-20261020"'
+          scp "${SSH_OPTS[@]}" ussrc/backend/services/us_market_close.py gaemi-deploy@"$DO_HOST":.gaemi-ai-prompt-20261020/us_market_close.py
+          scp "${SSH_OPTS[@]}" issuesrc/ops/staged_daily_groq_issues.py gaemi-deploy@"$DO_HOST":.gaemi-ai-prompt-20261020/staged_daily_groq_issues.py
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          target="$HOME/.gaemi-ai-prompt-20261020"
+          chmod 600 "$target/us_market_close.py" "$target/staged_daily_groq_issues.py"
+          /opt/gaemigtp-news/venv/bin/python -m py_compile "$target/us_market_close.py" "$target/staged_daily_groq_issues.py"
+          /usr/bin/python3 - "$target" <<'PY'
+          import hashlib, pathlib, sys
+          base=pathlib.Path(sys.argv[1])
+          for f, expected in (
+            ("us_market_close.py","bbf21ca780e386b9faf6f443d04b88ebba0d3808"),
+            ("staged_daily_groq_issues.py","a5004afa8b9a1759b21c19a3ebb9d69fa57f4576"),
+          ):
+            data=(base/f).read_bytes()
+            sha=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
+            print("PROMPT_STAGE_HASH "+f+" "+sha)
+            assert sha==expected
+          PY
+          for f in /opt/gaemigtp-news/app/backend/services/us_market_close.py /opt/gaemigtp-news/app/ops/staged_daily_groq_issues.py; do
+            if test -f "$f"; then
+              /usr/bin/python3 - "$f" <<'PY'
+          import hashlib, pathlib, sys
+          path=pathlib.Path(sys.argv[1]); data=path.read_bytes()
+          sha=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
+          print("PRODUCTION_HASH "+str(path)+" "+sha)
+          PY
+            else
+              echo "PRODUCTION_MISSING $f"
+            fi
+          done
+          systemctl is-active gaemigtp-news.service
+          systemctl is-active gaemigtp-us-market-close.timer
+          echo USER_APPROVED_PROMPTS_STAGED_ONLY
+          REMOTE
