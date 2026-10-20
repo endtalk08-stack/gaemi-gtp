@@ -62,15 +62,21 @@ class UsMarketCloseTests(unittest.TestCase):
         self.assertEqual(len(set(x["title"] for x in result)), 10)
         self.assertTrue(all("description" in x for x in result))
 
-    def test_prompt_explicitly_disallows_invented_market_data(self):
+    def test_ai_decides_editorial_and_receives_only_naver_title_description(self):
         prompt = close._prompt(close.select_close_articles([
-            row(1),row(2,domain="mk.co.kr")
-        ],self.session,self.now),self.session)
-        self.assertIn("미국장은 어땠어?",prompt)
-        self.assertIn("제목과 짧은 소개",prompt)
-        self.assertIn("추정 숫자를 절대 쓰지 마",prompt)
-        self.assertNotIn('"article_text"',prompt)
-        self.assertNotIn('"body"',prompt)
+            row(1), row(2, domain="mk.co.kr")
+        ], self.session, self.now), self.session)
+        self.assertIn("네이버 뉴스 API", prompt)
+        self.assertIn("네가 알아서 작성해", prompt)
+        self.assertIn("제목, 본문, 마지막 줄 해시태그 3개", prompt)
+        self.assertIn("기사 출처·AI 작성 과정을 설명하지 마", prompt)
+        self.assertIn("확인되지 않은 사실은 만들지 마", prompt)
+        self.assertIn('"title":', prompt)
+        self.assertIn('"description":', prompt)
+        self.assertNotIn('"article_text"', prompt)
+        self.assertNotIn('"body"', prompt)
+        self.assertNotIn('"publisher"', prompt)
+        self.assertNotIn('"published_at"', prompt)
 
     def test_120b_is_fixed_and_only_one_provider_call(self):
         self.assertEqual(close.MODEL, "openai/gpt-oss-120b")
@@ -78,11 +84,11 @@ class UsMarketCloseTests(unittest.TestCase):
             def __enter__(self): return self
             def __exit__(self,*args): return False
             def read(self):
-                return json.dumps({"choices":[{"message":{"content":"증시 분석 내용 " * 25}}]}).encode()
+                return json.dumps({"choices":[{"message":{"content":"미국장 반등의 온도차\\n\\n주요 기술주가 강세를 보였지만 시장 전체 움직임에는 차이가 있었어. " * 5 + "\\n\\n#미국장 #반도체 #기술주"}}]}).encode()
         with patch.dict(close.os.environ, {"GROQ_API_KEY":"offline-test","US_CLOSE_GROQ_MODEL":"wrong"}), \
             patch.object(close.urllib.request,"urlopen",return_value=FakeResponse()) as api:
             answer=close._generate([{"title":"뉴욕증시 마감","description":"뉴스 설명","published_at":"2026-10-19T17:00:00-04:00"}],self.session)
-        self.assertIn("증시 분석",answer)
+        self.assertIn("#미국장 #반도체 #기술주", answer)
         self.assertEqual(api.call_count,1)
         req=api.call_args.args[0]
         self.assertEqual(json.loads(req.data)["model"],"openai/gpt-oss-120b")

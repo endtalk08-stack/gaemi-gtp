@@ -125,29 +125,18 @@ def collect_articles(session_date, now_utc=None, search=None, reader=None):
 
 
 def _prompt(articles, session_date):
-    evidence = [
-        {"headline": article["title"], "description": article["description"],
-         "published_at": article["published_at"]}
+    news = [
+        {"title": article["title"], "description": article["description"]}
         for article in articles
     ]
     return (
-        "질문: 미국장은 어땠어?\\n"
-        f"미국 현지 거래일: {session_date.isoformat()}\\n"
-        "아래는 네이버 뉴스 검색 API가 제공하는 기사 제목과 짧은 소개 문구야. "
-        "기사 전문이 아니므로 출처에서 확인되지 않은 사실은 단정하면 안 돼. "
-        "반복된 보도의 공통 사실만 연결해서 gaemiGTP 자체 미국장 마감시황을 작성해. "
-        "시장 흐름, 확인 가능한 상승·하락 배경과 업종, 한국장에 영향을 줄 수 있는 "
-        "검증된 재료를 중요도 순서로 설명해. 기사를 순서대로 요약해 나열하지 마. "
-        "다만 인과관계가 확인되지 않으면 '원인은 확인되지 않았어'라고 명시해. "
-        "기사에 없는 지수·종목 가격, 상승률, 경제 지표, 전망, 인과관계를 지어내지 마. "
-        "실제 마감 지수 수치를 별도로 확인하지 않았으므로 추정 숫자를 절대 쓰지 마. "
-        "장 마감 후 발생한 사건을 그날 주가 변동 원인으로 소급하지 마. "
-        "충분한 정보가 없는 업종은 억지로 채우지 마. "
-        "자료가 네이버 기사 제목과 소개 문구에 한정된 뉴스 기반 분석임을 "
-        "끝에 한 문장으로 자연스럽게 밝혀. "
-        "제목과 본문을 쉽고 자연스러운 한국어 반말로 작성해. "
-        "언론사별 URL이나 원문을 복제해서 나열하지 마.\\n\\n"
-        "검증 가능한 자료(제목과 소개):\\n" + json.dumps(evidence, ensure_ascii=False)
+        f"미국 거래일: {session_date.isoformat()}\n"
+        "다음은 네이버 뉴스 API로 받은 미국장 마감뉴스의 제목과 내용이야. "
+        "이 자료를 바탕으로 미국장 마감시황을 네가 알아서 작성해. "
+        "확인되지 않은 사실은 만들지 마.\n"
+        "출력 형식은 제목, 본문, 마지막 줄 해시태그 3개야. "
+        "분석 항목을 따로 나누거나 기사 출처·AI 작성 과정을 설명하지 마.\n\n"
+        "뉴스:\n" + json.dumps(news, ensure_ascii=False)
     )
 
 
