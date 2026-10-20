@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/audit_ai_live_sync_readonly_20261020.py",
+  "request_id": "ai-production-verify-20261020-v3",
+  "timeout": 90
 }
