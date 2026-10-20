@@ -22,9 +22,9 @@ US_CLOSE_PROMPT="""제공된 기사를 근거로 미국장은 어땠어? 를 작
 {"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
 
 NEWS=[
-    {"id":1,"source":"한국경제","published_kst":"2026-10-20 07:09",
-     "title":"저가매수 유입에 반도체·AI주 상승…나스닥 1.11%↑ [뉴욕증시 브리핑]",
-     "url":"https://www.hankyung.com/article/2026102019676"},
+    {"id":1,"source":"글로벌이코노믹","published_kst":"2026-10-20 07:20",
+     "title":"뉴욕증시, AI 반등 속 유럽 금리·유가 급등에 매물 소화",
+     "url":"https://www.globale.co.kr/news/articleView.html?idxno=41110"},
     {"id":2,"source":"서울파이낸스","published_kst":"2026-10-20 06:59",
      "title":"[뉴욕증시] AI·반도체주 '불안한 반등'…국채↓·유가↑",
      "url":"https://www.seoulfn.com/news/articleView.html?idxno=640458"},
