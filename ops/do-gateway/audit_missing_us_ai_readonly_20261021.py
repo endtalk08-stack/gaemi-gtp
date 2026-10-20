@@ -5,6 +5,12 @@ import re
 import subprocess
 
 print("AUDIT_UTC", datetime.now(timezone.utc).isoformat(), flush=True)
+import os
+spec=os.environ.get("NEWS_WORKER_STOCKS","")
+fixed=[i.strip() for i in spec.split(",") if i.strip().startswith("미국:")]
+print("US_CONFIGURED_FIXED_STOCK_NAMES",repr(fixed),flush=True)
+print("FIXED_TOTAL_COUNTS",len([i for i in spec.split(",") if i.strip()]),flush=True)
+print("NEWS_WORKER_INTERVAL_SECONDS",os.environ.get("NEWS_WORKER_INTERVAL_SECONDS","default_300"),flush=True)
 worker=Path("/opt/gaemigtp-news/app/backend/news_worker.py")
 print("WORKER_PRESENT",worker.is_file(),flush=True)
 if worker.is_file():
