@@ -1,0 +1,43 @@
+name: Stage reusable DigitalOcean gateway for one-time install
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - '.github/workflows/do-gateway-stage.yml'
+      - 'ops/do-gateway/gaemi-do-gateway'
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact gateway and shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object ops/do-gateway/gaemi-do-gateway)" = dd1f50231f2ab1d36756b6bb24c2aca5b1035c42
+          bash -n ops/do-gateway/gaemi-do-gateway
+          echo GAEMI_GATEWAY_CODE_VERIFIED
+      - name: Stage gateway for root install without invoking it
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'install -d -m 0700 "$HOME/.gaemi-gateway/bootstrap"; test "$(systemctl is-active gaemigtp-news.service)" = active'
+          scp "${SSH_OPTS[@]}" ops/do-gateway/gaemi-do-gateway gaemi-deploy@"$DO_HOST":.gaemi-gateway/bootstrap/gaemi-do-gateway
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'set -e; chmod 0600 "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway")" = dd1f50231f2ab1d36756b6bb24c2aca5b1035c42; bash -n "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway"; echo GAEMI_GATEWAY_STAGED_VERIFIED; test "$(systemctl is-active gaemigtp-news.service)" = active; echo ORIGINAL_NEWS_WORKER_ACTIVE'
