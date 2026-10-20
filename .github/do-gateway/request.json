@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/audit_ai_live_sync_readonly_20261020.py",
-  "request_id": "exact-prompt-preflight-20261021",
-  "timeout": 90
+  "operation": "logs",
+  "unit": "gaemigtp-news.service",
+  "lines": 300
 }
