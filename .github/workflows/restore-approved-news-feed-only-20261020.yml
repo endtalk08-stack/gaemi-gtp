@@ -1,0 +1,86 @@
+name: Restore approved DigitalOcean news feed only (guarded)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/restore-approved-news-feed-only-20261020.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  restore-news-feed:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 07585be514ab8262d2d23d37ea286621b4075952
+          persist-credentials: false
+      - name: Verify approved news feed only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object backend/services/news_feed.py)" = 1e58f0abaf595d8fc6b5d6248c440bd3a38bfdfc
+          python -m py_compile backend/services/news_feed.py
+          python - <<'PY'
+          from backend.services import news_feed
+          assert callable(news_feed.fetch_stock_news)
+          assert callable(news_feed._fetch_query)
+          assert not hasattr(news_feed,"_schedule_refresh")
+          print("APPROVED_ORIGINAL_NEWS_FEED_OK")
+          PY
+      - name: Replace live news feed alone with backup, rollback and service checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          scp "${SSH_OPTS[@]}" backend/services/news_feed.py gaemi-deploy@"$DO_HOST":.gaemi-ai-prompt-20261020/news_feed_original_07585be.py
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          live=backend/services/news_feed.py
+          source="$HOME/.gaemi-ai-prompt-20261020/news_feed_original_07585be.py"
+          backup="$HOME/.gaemi-ai-prompt-20261020/news_feed_before_restore_20261020.py"
+          previous=9b2547775b32250a32f235fef1e5e0c4461e33f9
+          original=1e58f0abaf595d8fc6b5d6248c440bd3a38bfdfc
+          blob_sha () {
+            python3 - "$1" <<'PY'
+          import hashlib,pathlib,sys
+          raw=pathlib.Path(sys.argv[1]).read_bytes()
+          print(hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest())
+          PY
+          }
+          test "$(blob_sha "$live")" = "$previous" || { echo CURRENT_NEWS_FILE_CHANGED_ABORT; exit 1; }
+          test "$(blob_sha "$source")" = "$original" || { echo APPROVED_NEWS_FILE_MISMATCH_ABORT; exit 1; }
+          test -w "$live" || { echo NEWS_FILE_NOT_WRITABLE_ABORT; exit 1; }
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          cp -p "$live" "$backup"
+          restore () {
+            cp -p "$backup" "$live"
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+          }
+          trap restore ERR
+          cp "$source" "$live"
+          test "$(blob_sha "$live")" = "$original"
+          /opt/gaemigtp-news/venv/bin/python -m py_compile "$live"
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from backend.services import news_feed
+          assert callable(news_feed.fetch_stock_news)
+          assert not hasattr(news_feed,"_schedule_refresh")
+          print("RESTORED_NEWS_IMPORT_OK")
+          PY
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(blob_sha "$live")" = "$original"
+          trap - ERR
+          echo APPROVED_NEWS_FEED_RESTORED_ONLY
+          REMOTE
