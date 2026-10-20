@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/do-gateway-stage.yml'
       - 'ops/do-gateway/gaemi-do-gateway'
+      - 'ops/do-gateway/install-once.sh'
 permissions:
   contents: read
 jobs:
@@ -26,6 +27,8 @@ jobs:
           set -euo pipefail
           test "$(git hash-object ops/do-gateway/gaemi-do-gateway)" = dd1f50231f2ab1d36756b6bb24c2aca5b1035c42
           bash -n ops/do-gateway/gaemi-do-gateway
+          test "$(git hash-object ops/do-gateway/install-once.sh)" = 26c7473f9fa74922706deb3ec78ca6ee785d85ad
+          bash -n ops/do-gateway/install-once.sh
           echo GAEMI_GATEWAY_CODE_VERIFIED
       - name: Stage gateway for root install without invoking it
         shell: bash
@@ -40,4 +43,5 @@ jobs:
           SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
           ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'install -d -m 0700 "$HOME/.gaemi-gateway/bootstrap"; test "$(systemctl is-active gaemigtp-news.service)" = active'
           scp "${SSH_OPTS[@]}" ops/do-gateway/gaemi-do-gateway gaemi-deploy@"$DO_HOST":.gaemi-gateway/bootstrap/gaemi-do-gateway
-          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'set -e; chmod 0600 "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway")" = dd1f50231f2ab1d36756b6bb24c2aca5b1035c42; bash -n "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway"; echo GAEMI_GATEWAY_STAGED_VERIFIED; test "$(systemctl is-active gaemigtp-news.service)" = active; echo ORIGINAL_NEWS_WORKER_ACTIVE'
+          scp "${SSH_OPTS[@]}" ops/do-gateway/install-once.sh gaemi-deploy@"$DO_HOST":.gaemi-gateway/bootstrap/install-once.sh
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'set -e; chmod 0600 "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway" "$HOME/.gaemi-gateway/bootstrap/install-once.sh"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/install-once.sh")" = 26c7473f9fa74922706deb3ec78ca6ee785d85ad; bash -n "$HOME/.gaemi-gateway/bootstrap/install-once.sh"; test "$(git hash-object "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway")" = dd1f50231f2ab1d36756b6bb24c2aca5b1035c42; bash -n "$HOME/.gaemi-gateway/bootstrap/gaemi-do-gateway"; echo GAEMI_GATEWAY_STAGED_VERIFIED; test "$(systemctl is-active gaemigtp-news.service)" = active; echo ORIGINAL_NEWS_WORKER_ACTIVE'
