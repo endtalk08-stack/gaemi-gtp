@@ -65,10 +65,47 @@ def _request(path, body, headers=None):
                 body_type = "binary_like"
         # Fixed-character, bounded output: safe to emit into CI logs.
         suffix = "_truncated" if truncated else ""
+        # Fixed, allowlisted WAF/proxy signatures only. No free-form title,
+        # raw HTML, response header value, or URL ever reaches a log.
+        lowercase_html = sample[:65536].lower()
+        if b"request blocked" in lowercase_html:
+            page_code = "request_blocked"
+        elif b"request rejected" in lowercase_html:
+            page_code = "request_rejected"
+        elif b"access denied" in lowercase_html:
+            page_code = "access_denied"
+        elif b"400 bad request" in lowercase_html:
+            page_code = "bad_request_400"
+        elif b"403 forbidden" in lowercase_html:
+            page_code = "forbidden_403"
+        elif b"captcha" in lowercase_html:
+            page_code = "captcha"
+        else:
+            page_code = "unknown"
+        raw_server = str(exc.headers.get("Server") or "").lower()
+        if "nginx" in raw_server:
+            server = "nginx"
+        elif "openresty" in raw_server:
+            server = "openresty"
+        elif "cloudflare" in raw_server:
+            server = "cloudflare"
+        elif "akamai" in raw_server:
+            server = "akamai"
+        elif "envoy" in raw_server:
+            server = "envoy"
+        elif raw_server:
+            server = "other"
+        else:
+            server = "none"
+        gateway = "yes" if any(exc.headers.get(x) for x in (
+            "Via", "X-Cache", "CF-Ray", "X-Akamai-Request-ID",
+            "X-Served-By", "X-Amz-Cf-Id"
+        )) else "no"
         raise KiwoomReadOnlyError(
             "kiwoom_http_" + str(int(exc.code)) +
             "_content_type_" + kind.replace("/", "_").replace("+", "_") +
-            "_body_" + body_type + "_bytes_" + str(length) + suffix
+            "_body_" + body_type + "_bytes_" + str(length) + suffix +
+            "_page_" + page_code + "_server_" + server + "_gateway_" + gateway
         ) from None
     except (urllib.error.URLError, TimeoutError, ValueError, OSError):
         raise KiwoomReadOnlyError("kiwoom_request_failed") from None
