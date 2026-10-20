@@ -1,0 +1,113 @@
+name: DigitalOcean project management gateway
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - '.github/do-gateway/request.json'
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-gateway
+  cancel-in-progress: false
+jobs:
+  command:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 20
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exact request and commit-owned payload
+        id: request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess
+          req=json.loads(pathlib.Path('.github/do-gateway/request.json').read_text())
+          op=req.get("operation")
+          if op not in ("status","logs","restart","deploy","run","upgrade"):
+              raise ValueError("invalid operation")
+          allowed={
+              "status":{"operation"},
+              "logs":{"operation","unit","lines"},
+              "restart":{"operation","unit"},
+              "deploy":{"operation","path","target"},
+              "run":{"operation","path","request_id","timeout"},
+              "upgrade":{"operation","path"},
+          }[op]
+          if set(req)!=allowed:
+              raise ValueError("unexpected or missing request fields")
+          out={"operation":op,"arg1":"","arg2":"","arg3":"","source":""}
+          if op in ("logs","restart"):
+              u=req["unit"]
+              if not isinstance(u,str) or not re.fullmatch(r'gaemigtp-[A-Za-z0-9_.@-]{1,100}\\.(service|timer)',u):
+                  raise ValueError("invalid unit")
+              out["arg1"]=u
+          if op=="logs":
+              n=req["lines"]
+              if type(n)!=int or not 1<=n<=300:
+                  raise ValueError("invalid lines")
+              out["arg2"]=str(n)
+          if op in ("deploy","run","upgrade"):
+              path=req["path"]
+              if (not isinstance(path,str) or not re.fullmatch(r'[A-Za-z0-9_./-]{1,220}',path)
+                  or '..' in path or '//' in path or path.startswith('/')):
+                  raise ValueError("invalid source path")
+              p=pathlib.Path(path)
+              if not p.is_file() or p.is_symlink() or p.stat().st_size>256000:
+                  raise ValueError("source file missing or too large")
+              sha=subprocess.check_output(["git","hash-object","--",path],text=True).strip()
+              out["source"]=path
+              if op=="deploy":
+                  target=req["target"]
+                  if not isinstance(target,str) or not re.fullmatch(r'[A-Za-z0-9_./-]{1,230}',target):
+                      raise ValueError("invalid deployment path")
+                  out.update(arg1=target,arg2=sha)
+              if op=="upgrade": out["arg1"]=sha
+              if op=="run":
+                  if not path.endswith('.py'):
+                      raise ValueError("only python jobs")
+                  key=req["request_id"]
+                  timeout=req["timeout"]
+                  if not isinstance(key,str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,55}',key):
+                      raise ValueError("invalid request id")
+                  if type(timeout)!=int or not 30<=timeout<=900:
+                      raise ValueError("invalid timeout")
+                  out.update(arg1=key,arg2=sha,arg3=str(timeout))
+          with open(os.environ["GITHUB_OUTPUT"],"a") as f:
+              for k,v in out.items():
+                  f.write(k+'='+v+'\\n')
+          print('GAEMI_REQUEST_VALIDATED operation='+op)
+          PY
+      - name: Configure locked SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Stage content if needed and execute project gateway
+        shell: bash
+        env:
+          ACTION: ${{ steps.request.outputs.operation }}
+          ARG1: ${{ steps.request.outputs.arg1 }}
+          ARG2: ${{ steps.request.outputs.arg2 }}
+          ARG3: ${{ steps.request.outputs.arg3 }}
+          SOURCE: ${{ steps.request.outputs.source }}
+        run: |
+          set -euo pipefail
+          SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          if [[ -n "$SOURCE" ]]; then
+            ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'install -d -m 0700 "$HOME/.gaemi-gateway"'
+            scp "${SSH_OPTS[@]}" "$SOURCE" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
+          fi
+          ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway "$ACTION" ${ARG1:+"$ARG1"} ${ARG2:+"$ARG2"} ${ARG3:+"$ARG3"}
