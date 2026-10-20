@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/us_close_plain_prompt_compare_once_20261020.py",
-  "request_id": "jsonsummary-20261020-v1",
-  "timeout": 240
+  "operation": "deploy",
+  "path": "backend/services/us_market_close.py",
+  "target": "backend/services/us_market_close.py"
 }
