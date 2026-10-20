@@ -16,6 +16,32 @@ jobs:
       SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
       HOST_KEYS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 07585be514ab8262d2d23d37ea286621b4075952
+          persist-credentials: false
+      - name: Read-only diff live result adapter against approved version
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\\n' "$HOST_KEYS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          mkdir -p /tmp/live-audit
+          scp -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/backend/services/news_result.py /tmp/live-audit/news_result.py
+          scp -i "$HOME/.ssh/id_ed25519" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/backend/services/news_feed.py /tmp/live-audit/news_feed.py
+          python - <<'PY'
+          import difflib,pathlib
+          for name in ('news_result.py','news_feed.py'):
+            old=(pathlib.Path('backend/services')/name).read_text().splitlines()
+            new=(pathlib.Path('/tmp/live-audit')/name).read_text().splitlines()
+            diff=list(difflib.unified_diff(old,new,fromfile='approved/'+name,tofile='live/'+name,n=2))
+            print('NEWS_LIVE_DIFF',name,'approved_lines',len(old),'live_lines',len(new),'diff_lines',len(diff))
+            for line in diff[:260]:
+              print(line[:300])
+          PY
       - name: Read hashes and service state only
         shell: bash
         run: |
