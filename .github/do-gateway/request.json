@@ -1,6 +1,6 @@
 {
   "operation": "run",
   "path": "ops/do-gateway/us_close_plain_prompt_compare_once_20261020.py",
-  "request_id": "plainprompt-20261020-v2",
+  "request_id": "richprompt-20261020-v1",
   "timeout": 240
 }
