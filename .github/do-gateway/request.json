@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/test_us_close_production.py",
-  "request_id": "us_close_production_unit_20261020_v1",
-  "timeout": 100
+  "path": "ops/do-gateway/us_close_refresh_existing_20261019_once.py",
+  "request_id": "us_close_20261019_publish_new_v1",
+  "timeout": 175
 }
