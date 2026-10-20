@@ -7,6 +7,9 @@ on:
       - 'frontend/shell/center-chat/analysis-flow.js'
       - 'frontend/index.html'
       - 'tests/test_sidebar_issue_sync.cjs'
+      - 'backend/services/market_issue_headlines.py'
+      - 'tests/test_market_issue_headlines.py'
+      - 'app.py'
       - '.github/workflows/sidebar-issue-sync-check.yml'
   workflow_dispatch:
 
@@ -19,6 +22,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -26,5 +32,9 @@ jobs:
         run: |
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
           node --check frontend/shell/center-chat/analysis-flow.js
+      - name: Server syntax and 20-row partial failure regression
+        run: |
+          python -m py_compile app.py backend/services/market_issue_headlines.py
+          python -m unittest -v tests.test_market_issue_headlines
       - name: Sidebar synchronization regression tests
         run: node --test tests/test_sidebar_issue_sync.cjs
