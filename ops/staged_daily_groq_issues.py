@@ -28,11 +28,20 @@ def parse_issues(response_text):
         if not isinstance(tags, list) or len(tags) > 3 or any(not isinstance(t, str) or not t.startswith("#") for t in tags):
             raise ValueError("Invalid tags")
         if "source_ids" in item:
+            # Citation IDs are model output, not trusted application metadata.
+            # A malformed ID must not fail the entire stock analysis.
             ids = item["source_ids"]
-            if not isinstance(ids, list) or not 1 <= len(ids) <= 3 or any(
-                type(source_id) is not int or source_id < 1 for source_id in ids
-            ) or len(set(ids)) != len(ids):
-                raise ValueError("Invalid article source IDs")
+            cleaned = []
+            for raw_id in ids if isinstance(ids, list) else []:
+                if type(raw_id) is int:
+                    source_id = raw_id
+                elif isinstance(raw_id, str) and raw_id.strip().isdecimal():
+                    source_id = int(raw_id.strip())
+                else:
+                    continue
+                if source_id > 0 and source_id not in cleaned:
+                    cleaned.append(source_id)
+            item["source_ids"] = cleaned[:3]
     return issues
 
 
@@ -147,11 +156,14 @@ def _keep_sourced_issues(issues, news):
     }
     verified = []
     for issue in issues:
-        source_ids = issue.get("source_ids")
-        if (isinstance(source_ids, list) and 1 <= len(source_ids) <= 3
-            and all(type(i) is int and i in valid for i in source_ids)
-            and len(set(source_ids)) == len(source_ids)):
-            verified.append(issue)
+        # Retain genuinely sourced issues even when another citation is wrong.
+        # Never invent IDs or keep an issue lacking any real dated source.
+        matched = []
+        for source_id in issue.get("source_ids") or []:
+            if type(source_id) is int and source_id in valid and source_id not in matched:
+                matched.append(source_id)
+        if matched:
+            verified.append({**issue, "source_ids": matched[:3]})
     if len(verified) != len(issues):
         print("[news-ai] missing_article_source dropped=%s" %
               (len(issues) - len(verified)), flush=True)
