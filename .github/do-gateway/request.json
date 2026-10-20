@@ -1,3 +1,6 @@
 {
-  "operation": "kiwoom-verify"
+  "operation": "run",
+  "path": "ops/do-gateway/check_kiwoom_egress.py",
+  "request_id": "kiwoom-egress-20261020-check",
+  "timeout": 45
 }
