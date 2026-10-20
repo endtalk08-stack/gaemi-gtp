@@ -16,7 +16,7 @@ if worker.is_file():
              if any(token in line for token in hints)]
     print("WORKER_FLOW_LINES",repr(matches[:45]),flush=True)
     print("WORKER_TARGET_ROUTING_BEGIN",flush=True)
-    for index in list(range(55,110))+list(range(149,175)):
+    for index in list(range(0,110))+list(range(149,197)):
         if index < len(lines):
             print("WORKER_ROUTING",index+1,lines[index][:210],flush=True)
     print("WORKER_TARGET_ROUTING_END",flush=True)
