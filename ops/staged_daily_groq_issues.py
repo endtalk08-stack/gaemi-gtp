@@ -1,4 +1,5 @@
 """Staged Groq issue response validator; not connected to the worker."""
+import hashlib
 import json
 import re
 from datetime import datetime, timezone, timedelta
@@ -11,6 +12,15 @@ PROMPT = """주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
 
 한국어 JSON 객체만 반환해:
 {"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
+
+
+# User-approved prompt lock. Changes need explicit approval and a reviewed hash update.
+APPROVED_PROMPT_SHA256 = "18d236868ad0b806e63e827ea82ab01cac4c03051fe0967ea8caf28fa7d93409"
+
+
+def _verify_user_approved_prompt():
+    if hashlib.sha256(PROMPT.encode("utf-8")).hexdigest() != APPROVED_PROMPT_SHA256:
+        raise ValueError("user_approved_ai_prompt_modified")
 
 
 def parse_issues(response_text):
@@ -213,6 +223,7 @@ def analyze_news(stock_name, articles, *, usage_callback=None):
 
     if not articles:
         return []
+    _verify_user_approved_prompt()
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("Groq key is not configured on the news worker")
