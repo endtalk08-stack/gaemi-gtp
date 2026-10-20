@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/test_us_close_naver_once.py",
-  "request_id": "naver_us_close_ai_20261020_v1",
-  "timeout": 120
+  "path": "ops/do-gateway/audit_existing_news_originals_once.py",
+  "request_id": "naver_originals_audit_20261020_v1",
+  "timeout": 90
 }
