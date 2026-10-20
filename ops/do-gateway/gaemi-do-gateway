@@ -120,6 +120,25 @@ case "$action" in
     systemctl is-active --quiet gaemigtp-news.service || fail "original_worker_changed"
     echo ALPACA_VERIFY_PASS
     ;;
+  alpaca-news-verify)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    [[ -f /etc/gaemigtp/alpaca.env && ! -L /etc/gaemigtp/alpaca.env ]] || fail "alpaca_credentials_not_installed"
+    [[ "$(stat -c %U:%G /etc/gaemigtp/alpaca.env)" == "root:root" ]] || fail "alpaca_credentials_wrong_owner"
+    [[ "$(stat -c %a /etc/gaemigtp/alpaca.env)" == "600" ]] || fail "alpaca_credentials_wrong_permissions"
+    [[ -f "$app/backend/alpaca_news_probe.py" && ! -L "$app/backend/alpaca_news_probe.py" ]] || fail "alpaca_news_probe_missing"
+    systemctl is-active --quiet gaemigtp-news.service || fail "original_news_worker_inactive"
+    exec 9>/run/lock/gaemi-alpaca-news-verify.lock
+    flock -n 9 || fail "alpaca_news_verify_already_running"
+    systemd-run --quiet --wait --pipe --collect \
+      --unit="gaemi-alpaca-news-verify-$(date -u +%s)" \
+      -p User=gaemigtp-news -p Group=gaemigtp-news \
+      -p WorkingDirectory="$app" \
+      -p EnvironmentFile=/etc/gaemigtp/alpaca.env \
+      -p TimeoutStartSec=45 \
+      /opt/gaemigtp-news/venv/bin/python -m backend.alpaca_news_probe
+    systemctl is-active --quiet gaemigtp-news.service || fail "original_worker_changed"
+    echo ALPACA_NEWS_VERIFY_PASS
+    ;;
   upgrade)
     [[ $# == 1 ]] || fail "upgrade_requires_sha"
     valid_sha "$1" || fail "invalid_sha"
