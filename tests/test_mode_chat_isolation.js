@@ -119,28 +119,26 @@ const mode = w.GaemiGTPAppState;
 const app = w.GaemiGTPApp;
 assert.equal(mode.getCurrentAppMode(), 'gaemi');
 assert.equal(app.submitQuestion('개미 전용 질문', {newConversation:true}), true);
-const gaemiId = app.getChatState().id;
 assert.deepEqual(texts(r.chatArea), ['개미 전용 질문']);
 mode.setCurrentAppMode('info');
 assert.deepEqual(texts(r.chatArea), [], 'info must not contain gaemi messages');
 assert.equal(app.submitQuestion('인포 전용 질문'), true);
-const infoId = app.getChatState().id;
 assert.equal(app.getChatState().mode, 'info');
 assert.deepEqual(texts(r.chatArea), ['인포 전용 질문']);
 mode.setCurrentAppMode('pro');
 assert.deepEqual(texts(r.chatArea), [], 'pro must not contain info messages');
 assert.equal(app.submitQuestion('프로 전용 질문'), true);
-const proId = app.getChatState().id;
 assert.equal(app.getChatState().mode, 'pro');
+// Re-entering any mode opens a fresh blank chat, not its saved conversation.
 mode.setCurrentAppMode('info');
-assert.deepEqual(texts(r.chatArea), ['인포 전용 질문']);
-assert.notEqual(app.getChatState().id, infoId, 'return should invalidate old callbacks');
+assert.deepEqual(texts(r.chatArea), [], 'info must open a blank chat even with history');
+assert.equal(app.getChatState(), null);
 mode.setCurrentAppMode('gaemi');
-assert.deepEqual(texts(r.chatArea), ['개미 전용 질문']);
-assert.notEqual(app.getChatState().id, gaemiId);
+assert.deepEqual(texts(r.chatArea), [], 'gaemi must open a blank chat even with history');
+assert.equal(app.getChatState(), null);
 mode.setCurrentAppMode('pro');
-assert.deepEqual(texts(r.chatArea), ['프로 전용 질문']);
-assert.notEqual(app.getChatState().id, proId);
+assert.deepEqual(texts(r.chatArea), [], 'pro must open a blank chat even with history');
+assert.equal(app.getChatState(), null);
 const saved = JSON.parse(store.get(HISTORY_KEY));
 assert.equal(Object.values(saved).filter(v=>v.mode==='gaemi').length, 1);
 assert.equal(Object.values(saved).filter(v=>v.mode==='info').length, 1);
@@ -152,22 +150,27 @@ w.GaemiGTPSidebarHome.renderRecent();
 assert.deepEqual(r.leftSidebarHomeRecentList.children.map(li=>li.textContent), ['프로 전용 질문']);
 mode.setCurrentAppMode('info');
 assert.deepEqual(r.leftSidebarHomeRecentList.children.map(li=>li.textContent), ['인포 전용 질문']);
+assert.deepEqual(texts(r.chatArea), [], 'switching to info does not auto-restore recent');
 
-// New current-mode thread must not replace the other two.
+// New current-mode thread must not delete the prior saved conversations.
 assert.equal(app.submitQuestion('인포 새 질문', {newConversation:true}), true);
 mode.setCurrentAppMode('gaemi');
-assert.deepEqual(texts(r.chatArea), ['개미 전용 질문']);
+assert.deepEqual(texts(r.chatArea), []);
 mode.setCurrentAppMode('info');
-assert.deepEqual(texts(r.chatArea), ['인포 새 질문']);
+assert.deepEqual(texts(r.chatArea), []);
+assert.ok(Object.values(JSON.parse(store.get(HISTORY_KEY))).some(
+  conversation => conversation.mode === 'info' &&
+    conversation.messages.some(message => message.text === '인포 새 질문')
+), 'info prior conversation must remain saved');
 
-// Page reload should rehydrate the last conversation for each mode.
+// Page reload also starts a blank chat on selecting each mode.
 ({window:w,root:r} = boot(store));
 w.GaemiGTPAppState.setCurrentAppMode('info');
-assert.deepEqual(texts(r.chatArea), ['인포 새 질문']);
+assert.deepEqual(texts(r.chatArea), []);
 w.GaemiGTPAppState.setCurrentAppMode('pro');
-assert.deepEqual(texts(r.chatArea), ['프로 전용 질문']);
+assert.deepEqual(texts(r.chatArea), []);
 w.GaemiGTPAppState.setCurrentAppMode('gaemi');
-assert.deepEqual(texts(r.chatArea), ['개미 전용 질문']);
+assert.deepEqual(texts(r.chatArea), []);
 
 // Clicking saved info thread from gaemi must switch the selected mode.
 const savedInfo = JSON.parse(store.get(RECENT_KEY)).find(item=>item.mode==='info');
