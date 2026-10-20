@@ -46,7 +46,7 @@ jobs:
           out={"operation":op,"arg1":"","arg2":"","arg3":"","source":""}
           if op in ("logs","restart"):
               u=req["unit"]
-              if not isinstance(u,str) or not re.fullmatch(r'gaemigtp-[A-Za-z0-9_.@-]{1,100}\\.(service|timer)',u):
+              if not isinstance(u,str) or not re.fullmatch(r'gaemigtp-[A-Za-z0-9_.@-]{1,100}\.(service|timer)',u):
                   raise ValueError("invalid unit")
               out["arg1"]=u
           if op=="logs":
@@ -82,7 +82,7 @@ jobs:
                   out.update(arg1=key,arg2=sha,arg3=str(timeout))
           with open(os.environ["GITHUB_OUTPUT"],"a") as f:
               for k,v in out.items():
-                  f.write(k+'='+v+'\\n')
+                  f.write(k+'='+v+'\n')
           print('GAEMI_REQUEST_VALIDATED operation='+op)
           PY
       - name: Configure locked SSH
@@ -92,8 +92,8 @@ jobs:
           test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
           umask 077
           mkdir -p ~/.ssh
-          printf '%s\\n' "$SSH_KEY" > ~/.ssh/id_ed25519
-          printf '%s\\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
       - name: Stage content if needed and execute project gateway
         shell: bash
