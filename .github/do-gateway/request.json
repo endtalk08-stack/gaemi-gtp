@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/audit_production_us_close_prompt_20261021.py",
-  "request_id": "read-registered-prod-us-close-prompt-20261021",
+  "path": "ops/do-gateway/patch_us_close_hashtag_only_20261021.py",
+  "request_id": "apply-us-close-hashtag-only-20261021-b",
   "timeout": 90
 }
