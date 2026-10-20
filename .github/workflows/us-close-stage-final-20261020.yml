@@ -1,0 +1,56 @@
+name: Stage final requested US-close AI format on DO (no install)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/us-close-stage-final-20261020.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stage-only:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 4e8304298ed10248669985f73550200c45b2f924
+          persist-credentials: false
+      - name: Verify exact reviewed file and tests without any API calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object backend/services/us_market_close.py)" = 5af25eaac6e86e96fce19518635f9ede44386d5a
+          python -m py_compile backend/services/us_market_close.py
+          python -m unittest -q tests.test_us_market_close
+      - name: Copy pinned US-close module to user staging, not active app
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST" \
+            'umask 077; mkdir -p "$HOME/.gaemi-us-close-snippet-test"; chmod 700 "$HOME/.gaemi-us-close-snippet-test"'
+          scp -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 \
+            backend/services/us_market_close.py gaemi-deploy@"$DO_HOST":.gaemi-us-close-snippet-test/us_market_close_final.py
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          file="$HOME/.gaemi-us-close-snippet-test/us_market_close_final.py"
+          chmod 600 "$file"
+          /opt/gaemigtp-news/venv/bin/python -m py_compile "$file"
+          /usr/bin/python3 - "$file" <<'PY'
+          import hashlib, pathlib, sys
+          body=pathlib.Path(sys.argv[1]).read_bytes()
+          sha=hashlib.sha1(b"blob "+str(len(body)).encode()+bytes([0])+body).hexdigest()
+          print("US_CLOSE_FINAL_STAGE_BLOB="+sha, flush=True)
+          assert sha=="5af25eaac6e86e96fce19518635f9ede44386d5a"
+          PY
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          echo US_CLOSE_FINAL_STAGED_NOT_INSTALLED
+          REMOTE
