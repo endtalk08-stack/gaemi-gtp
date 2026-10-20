@@ -34,7 +34,7 @@ jobs:
       - name: Read pinned disclosure-only source
         uses: actions/checkout@v4
         with:
-          ref: 52de7c3ce94f3cde4dd4cd73b234725116e9cd12
+          ref: 6d5832da8b32cb69f997cc4df80051eef38c9fcf
           persist-credentials: false
 
       - name: Prepare strict SSH connection
