@@ -99,17 +99,29 @@ class TestUSClose(unittest.TestCase):
         self.assertNotIn("source_ids",rendered)
         self.assertEqual(close._display_brief_content("legacy"),"legacy")
 
-    def test_no_ai_or_db_when_fewer_than_three_originals(self):
+    def test_no_ai_when_fewer_than_three_originals(self):
+        class Blank:
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+            def cursor(self):return self
+            def execute(self,*args):pass
+            def fetchone(self):return None
         with patch.object(close,"verified_indices",return_value=INDICES),\
              patch.object(close,"collect_articles",return_value=NEWS[:2]),\
-             patch.object(close,"_connection",side_effect=AssertionError("never query DB")):
+             patch.object(close,"_connection",return_value=Blank()):
             result=close.publish_once(now_utc=NOW)
         self.assertEqual(result["status"],"insufficient_verified_originals")
 
-    def test_wrong_session_indices_block_before_db(self):
+    def test_wrong_session_indices_block_before_article_collection(self):
+        class Blank:
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+            def cursor(self):return self
+            def execute(self,*args):pass
+            def fetchone(self):return None
         with patch.object(close,"verified_indices",side_effect=ValueError("wrong date")) ,\
              patch.object(close,"collect_articles",side_effect=AssertionError("no article fetch")) ,\
-             patch.object(close,"_connection",side_effect=AssertionError("no database")):
+             patch.object(close,"_connection",return_value=Blank()):
             with self.assertRaisesRegex(ValueError,"wrong date"):
                 close.publish_once(now_utc=NOW)
 
@@ -128,12 +140,13 @@ class TestUSClose(unittest.TestCase):
 
     def test_publishes_only_ai_editorial_and_index_facts(self):
         calls=[]
+        returned=[None,(DAY,)]
         class Conn:
             def __enter__(self):return self
             def __exit__(self,*args):return False
             def cursor(self):return self
             def execute(self,sql,params=None):calls.append((sql,params))
-            def fetchone(self):return (DAY,)
+            def fetchone(self):return returned.pop(0) if returned else None
         output=json.dumps({"issues":[{"headline":"미국 기술주 반등",
           "summary":"나스닥이 1.11% 상승했어.","tags":["#미국장"],"source_ids":[1,2,3]}]},ensure_ascii=False)
         with patch.object(close,"verified_indices",return_value=INDICES),\
@@ -145,6 +158,19 @@ class TestUSClose(unittest.TestCase):
         self.assertIn("26430.89",stored)
         self.assertNotIn(NEWS[0]["description"],stored)
         self.assertIn("미국 기술주 반등",stored)
+
+    def test_second_schedule_skips_existing_session_without_provider_calls(self):
+        class Published:
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+            def cursor(self):return self
+            def execute(self,*args):pass
+            def fetchone(self):return ("published",)
+        with patch.object(close,"_connection",return_value=Published()),\
+             patch.object(close,"verified_indices",side_effect=AssertionError("no repeat quotes")),\
+             patch.object(close,"collect_articles",side_effect=AssertionError("no repeat news")):
+            result=close.publish_once(now_utc=NOW)
+        self.assertEqual(result["status"],"already_attempted")
 
     def test_weekend_skips_calls(self):
         saturday=dt.datetime(2026,10,17,22,tzinfo=dt.timezone.utc)
