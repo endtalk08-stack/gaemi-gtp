@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/us_close_naver_3_indices_once.py",
-  "request_id": "us_close_naver_three_indices_20261020_v1",
-  "timeout": 110
+  "path": "ops/do-gateway/us_close_indices_and_news_3_once.py",
+  "request_id": "us_close_indices_3_originals_20261020_v1",
+  "timeout": 145
 }
