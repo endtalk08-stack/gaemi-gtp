@@ -165,6 +165,38 @@ class GroqIssueTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.issue_records(ai_issues, market="US", symbol="NVDA", exchange_day=date(2026, 10, 17))
 
+    def test_invalid_citation_ids_do_not_abort_other_valid_sources(self):
+        candidate = {"headline": "테슬라 생산 발표", "summary": "공장 증설 발표", "tags": [],
+                     "source_ids": ["1", 1, "oops", 999, 2, 2]}
+        issues = module.parse_issues(json.dumps({"issues": [candidate]}))
+        self.assertEqual(issues[0]["source_ids"], [1, 999, 2])
+        news = [
+            {"source_id": 1, "published_at": "2026-10-20T12:00:00+00:00"},
+            {"source_id": 2, "published_at": "2026-10-20T12:05:00+00:00"},
+        ]
+        checked = module._keep_sourced_issues(issues, news)
+        self.assertEqual(len(checked), 1)
+        self.assertEqual(checked[0]["source_ids"], [1, 2])
+
+    def test_unverifiable_citation_does_not_create_fake_evidence(self):
+        candidate = {"headline": "확인되지 않은 주장", "summary": "근거 없음", "tags": [],
+                     "source_ids": [999, "invalid"]}
+        issues = module.parse_issues(json.dumps({"issues": [candidate]}))
+        news = [{"source_id": 1, "published_at": "2026-10-20T12:00:00+00:00"}]
+        self.assertEqual(module._keep_sourced_issues(issues, news), [])
+
+    def test_missing_source_ids_remain_unverified(self):
+        candidate = {"headline": "출처 번호 누락", "summary": "근거 불명", "tags": []}
+        issues = module.parse_issues(json.dumps({"issues": [candidate]}))
+        news = [{"source_id": 1, "published_at": "2026-10-20T12:00:00+00:00"}]
+        self.assertEqual(module._keep_sourced_issues(issues, news), [])
+
+    def test_malformed_nonlist_source_ids_do_not_abort_batch(self):
+        candidate = {"headline": "숫자형 오류", "summary": "구조 오류", "tags": [],
+                     "source_ids": {"bad": True}}
+        issues = module.parse_issues(json.dumps({"issues": [candidate]}))
+        self.assertEqual(issues[0]["source_ids"], [])
+
     def test_prompt_matches_user_requested_exact_text(self):
         expected = """제공된 기사를 근거로 주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
 
