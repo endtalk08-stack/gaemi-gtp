@@ -26,13 +26,13 @@ def _window(now):
     day = local.date()
     latest = min(
         local - dt.timedelta(minutes=20),
-        dt.datetime.combine(day, PRE_END, NY),
+        dt.datetime.combine(day, dt.time(9, 29), NY),
     )
     if latest.date() < day or latest.time() <= PRE_START or day.weekday() >= 5:
         day -= dt.timedelta(days=1)
         while day.weekday() >= 5:
             day -= dt.timedelta(days=1)
-        latest = dt.datetime.combine(day, PRE_END, NY)
+        latest = dt.datetime.combine(day, dt.time(9, 29), NY)
     return day, dt.datetime.combine(day, PRE_START, NY), latest
 
 
