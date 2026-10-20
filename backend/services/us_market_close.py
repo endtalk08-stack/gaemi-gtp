@@ -179,6 +179,32 @@ def _connection():
     return psycopg.connect(db_url, connect_timeout=5)
 
 
+def _display_brief_content(raw_content):
+    """Display stored AI JSON as title, summary and hashtags; retain source JSON in Neon."""
+    try:
+        result = json.loads(raw_content)
+    except (TypeError, ValueError):
+        return raw_content
+    if not isinstance(result, dict) or not isinstance(result.get("issues"), list):
+        return raw_content
+    sections = []
+    for issue in result["issues"]:
+        if not isinstance(issue, dict):
+            continue
+        title = str(issue.get("headline") or "").strip()
+        summary = str(issue.get("summary") or "").strip()
+        if not title or not summary:
+            continue
+        tags = issue.get("tags")
+        tags = tags if isinstance(tags, list) else []
+        hashtags = " ".join(
+            "#" + str(tag).strip().lstrip("#")
+            for tag in tags[:3] if str(tag).strip().lstrip("#")
+        )
+        sections.append("\n\n".join(part for part in (title, summary, hashtags) if part))
+    return "\n\n".join(sections) if sections else raw_content
+
+
 def read_brief():
     """Read-only Render path. Never initiate AI, news collection or article fetch."""
     with _connection() as conn:
@@ -191,7 +217,7 @@ def read_brief():
             row = cur.fetchone()
     if not row:
         return None
-    return {"session_date": row[0].isoformat(), "content": row[1],
+    return {"session_date": row[0].isoformat(), "content": _display_brief_content(row[1]),
             "published_at": row[2].isoformat()}
 
 
