@@ -3,6 +3,8 @@ import datetime as dt
 import json
 import os
 import urllib.request
+import sys
+sys.path.insert(0, '/opt/gaemigtp-news/app')
 from backend.services.us_market_close_runtime import verified_originals
 
 session = dt.date(2026, 10, 19)
