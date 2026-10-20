@@ -1,0 +1,12 @@
+[Unit]
+Description=Generate US market-close editorial at 07:00 KST; retry at 08:40 only when 3 originals not yet available
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 Asia/Seoul
+OnCalendar=*-*-* 08:40:00 Asia/Seoul
+Unit=gaemigtp-us-market-close.service
+Persistent=false
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
