@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/inspect_stock_issue_pipeline_readonly_20261020.py",
-  "request_id": "issue-funnel-audit-20261020-v1",
+  "path": "ops/do-gateway/audit_us_ai_vs_legacy_readonly_20261020.py",
+  "request_id": "us-ai-only-audit-20261020-v1",
   "timeout": 90
 }
