@@ -1,0 +1,98 @@
+name: DigitalOcean disclosures 24h refresh
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ops/do-ssh-deploy-setup-20261017
+    paths:
+      - .github/workflows/do-disclosures-refresh.yml
+  schedule:
+    # 08:20 KST and 18:20 KST, after respective market sessions.
+    - cron: '20 9,23 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: do-disclosures-only-daily-refresh
+  cancel-in-progress: false
+
+jobs:
+  update-disclosures-only:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 18
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      DO_SSH_USER: gaemi-deploy
+      DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+      DISCLOSURE_DB_URL: ${{ secrets.NEWS_DATABASE_URL }}
+      DISCLOSURE_DART_KEY: ${{ secrets.OPENDART_API_KEY }}
+    steps:
+      - name: Read pinned disclosure-only source
+        uses: actions/checkout@v4
+        with:
+          ref: 52de7c3ce94f3cde4dd4cd73b234725116e9cd12
+          persist-credentials: false
+
+      - name: Prepare strict SSH connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in DO_HOST DO_SSH_PRIVATE_KEY DO_SSH_KNOWN_HOSTS DISCLOSURE_DB_URL DISCLOSURE_DART_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required setup: $name"
+              exit 1
+            fi
+          done
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Stage isolated collection code on DigitalOcean
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12             "$DO_SSH_USER@$DO_HOST"             'set -eu; umask 077; mkdir -p "$HOME/.gaemi-disclosures/stage"; chmod 700 "$HOME/.gaemi-disclosures" "$HOME/.gaemi-disclosures/stage"; test "$(systemctl is-active gaemigtp-news.service)" = active'
+          for entry in             backend/services/engine.py:engine.py             backend/providers/sec_filings.py:sec_filings.py             backend/services/disclosure_transfer.py:disclosure_transfer.py             backend/services/disclosure_ranked_universe.py:disclosure_ranked_universe.py             deploy/disclosures/run_disclosures.py:run_disclosures.py; do
+            from="${entry%%:*}"
+            to="${entry#*:}"
+            scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12               "$from" "$DO_SSH_USER@$DO_HOST:.gaemi-disclosures/stage/$to"
+          done
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12             "$DO_SSH_USER@$DO_HOST"             'set -eu; chmod 600 "$HOME/.gaemi-disclosures/stage/"*.py; /opt/gaemigtp-news/venv/bin/python -m py_compile "$HOME/.gaemi-disclosures/stage/"*.py; test "$(systemctl is-active gaemigtp-news.service)" = active'
+
+      - name: Run daily all-market collection with one-use credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          credential_file="$(mktemp)"
+          trap 'rm -f "$credential_file"' EXIT
+          python3 - "$credential_file" <<'PY'
+          import json, os, sys
+          with open(sys.argv[1], "w", encoding="utf-8") as stream:
+              json.dump({
+                  "NEWS_DATABASE_URL": os.environ["DISCLOSURE_DB_URL"],
+                  "OPENDART_API_KEY": os.environ["DISCLOSURE_DART_KEY"],
+              }, stream)
+          PY
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12             "$credential_file" "$DO_SSH_USER@$DO_HOST:.gaemi-disclosures/credentials.json"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12             "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          trap 'rm -f "$HOME/.gaemi-disclosures/credentials.json"' EXIT
+          chmod 600 "$HOME/.gaemi-disclosures/credentials.json"
+          timeout 750s /opt/gaemigtp-news/venv/bin/python             "$HOME/.gaemi-disclosures/stage/run_disclosures.py" --market all
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          echo DISCLOSURES_DO_NEON_REFRESH_COMPLETE
+          REMOTE
+
+      - name: Ensure no disclosure credentials remain on DigitalOcean
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$HOME/.ssh/id_ed25519" ]; then
+            ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12               "$DO_SSH_USER@$DO_HOST"               'rm -f "$HOME/.gaemi-disclosures/credentials.json"' || true
+          fi
