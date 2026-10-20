@@ -17,6 +17,7 @@ on:
       - tests/test_staged_ai_snapshot_integration.py
       - tests/test_staged_ai_issue_store.py
       - tests/test_staged_ai_issue_display_adapter.py
+      - tests/test_staged_ai_publication_time.py
       - tests/test_staged_daily_groq_issues.py
       - tests/test_staged_daily_issue_schedule.py
       - tests/test_staged_daily_safety.py
