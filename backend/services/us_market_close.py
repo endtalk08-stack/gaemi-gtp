@@ -1,7 +1,7 @@
-"""US market close editorial: NAVER headlines/snippets -> one AI -> Neon.
+"""US close editorial: three date-verified NAVER indices and three verified original articles.
 
-Runs only on the independent DigitalOcean close worker. No article-page fetches,
-stock-news processing, or AI calls from Render. One generated brief per session.
+The existing DigitalOcean timer writes one Neon result; Render reads only.
+The user-approved Groq 120B prompt remains byte-for-byte unchanged.
 """
 import datetime as datetime
 import html
@@ -14,6 +14,7 @@ from email.utils import parsedate_to_datetime
 from zoneinfo import ZoneInfo
 
 from backend.providers import naver_news
+from backend.services.us_market_close_runtime import verified_originals, verified_indices
 
 NY = ZoneInfo("America/New_York")
 KST = ZoneInfo("Asia/Seoul")
@@ -72,17 +73,8 @@ def select_close_articles(rows, session_date, now_utc=None):
 
 
 def collect_articles(session_date, now_utc=None, search=None, reader=None):
-    """Use NAVER API snippets only. Never fetch a publisher article page."""
-    fetch = search or naver_news.fetch_news
-    rows = fetch(QUERY, display=10, raise_on_error=True)
-    selected = select_close_articles(rows, session_date, now_utc=now_utc)
-    print(
-        f"[us-close] naver_search={len(rows or [])} snippets_selected={len(selected)} "
-        f"session={session_date.isoformat()}",
-        flush=True,
-    )
-    return selected
-
+    """Only three genuinely extracted US-close articles; never snippets."""
+    return verified_originals(session_date, now_utc=now_utc, search=search, reader=reader)
 
 US_CLOSE_PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해
 
@@ -92,15 +84,19 @@ US_CLOSE_PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 �
 {"issues":[{"headline":"제목","summary":"기사에 근거한 내용","tags":["#핵심어"],"source_ids":[1]}]}"""
 
 
-def _prompt(articles, session_date):
+def _prompt(articles, session_date, indices=None):
+    """Pass original bodies, NY session and exact NAVER index closes."""
     news = [
         {"source_id": index + 1, "title": article["title"], "description": article["description"]}
         for index, article in enumerate(articles)
     ]
-    return json.dumps(news, ensure_ascii=False)
+    return json.dumps({
+        "session_date_et": session_date.isoformat(),
+        "market_indices": indices if indices is not None else [],
+        "news": news,
+    }, ensure_ascii=False)
 
-
-def _generate(articles, session_date):
+def _generate(articles, session_date, indices=None):
     key = os.environ.get("GROQ_API_KEY", "").strip()
     if not key:
         raise RuntimeError("groq_key_missing")
@@ -108,7 +104,7 @@ def _generate(articles, session_date):
         "model": MODEL,
         "messages": [
             {"role": "system", "content": US_CLOSE_PROMPT},
-            {"role": "user", "content": _prompt(articles, session_date)},
+            {"role": "user", "content": _prompt(articles, session_date, indices=indices)},
         ],
         "temperature": 0.2,
         "max_completion_tokens": 1800,
@@ -140,7 +136,7 @@ def _connection():
 
 
 def _display_brief_content(raw_content):
-    """Display stored AI JSON as title, summary and hashtags; retain source JSON in Neon."""
+    """Always show verified 3-index facts before user-approved AI prose."""
     try:
         result = json.loads(raw_content)
     except (TypeError, ValueError):
@@ -148,6 +144,21 @@ def _display_brief_content(raw_content):
     if not isinstance(result, dict) or not isinstance(result.get("issues"), list):
         return raw_content
     sections = []
+    session = result.get("session_date_et")
+    indices = result.get("market_indices")
+    if session and isinstance(indices, list) and len(indices) == 3:
+        header = [f"미국장 마감 · {session} (미국 현지 거래일)"]
+        for index in indices:
+            try:
+                name = str(index["name"])
+                price = float(index["close"])
+                pct = float(index["change_pct"])
+                header.append(f"{name} {price:,.2f} ({pct:+.2f}%)")
+            except (KeyError, TypeError, ValueError):
+                header = []
+                break
+        if header:
+            sections.append("\n".join(header))
     for issue in result["issues"]:
         if not isinstance(issue, dict):
             continue
@@ -163,7 +174,6 @@ def _display_brief_content(raw_content):
         )
         sections.append("\n\n".join(part for part in (title, summary, hashtags) if part))
     return "\n\n".join(sections) if sections else raw_content
-
 
 def read_brief():
     """Read-only Render path. Never initiate AI, news collection or article fetch."""
@@ -192,9 +202,12 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
     session_date = market_time.date()
     if market_time.hour < 16 or market_time.weekday() >= 5:
         return {"status": "market_not_closed", "session_date": session_date.isoformat()}
+    # All three indices and news must agree with the completed NY trading day.
+    # Fail before any database claim/AI usage if one is missing or stale.
+    indices = verified_indices(session_date)
     articles = collect_articles(session_date, now_utc=now, search=search, reader=reader)
-    if not articles:
-        return {"status": "insufficient_news_snippets", "session_date": session_date.isoformat(),
+    if len(articles) != 3:
+        return {"status": "insufficient_verified_originals", "session_date": session_date.isoformat(),
                 "count": len(articles)}
     with _connection() as conn:
         with conn.cursor() as cur:
@@ -213,16 +226,45 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
     if not claimed:
         return {"status": "already_attempted", "session_date": session_date.isoformat()}
     try:
-        answer = (generator or _generate)(
-            articles, session_date,
-        )
+        if generator:
+            answer = generator(articles, session_date, indices)
+        else:
+            answer = _generate(articles, session_date, indices=indices)
+        try:
+            result = json.loads(answer)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("us_close_ai_invalid_json") from exc
+        if not isinstance(result, dict) or not isinstance(result.get("issues"), list) or not result["issues"]:
+            raise RuntimeError("us_close_ai_missing_issues")
+        issues = []
+        for entry in result["issues"][:3]:
+            if not isinstance(entry, dict):
+                continue
+            title = str(entry.get("headline") or "").strip()
+            summary = str(entry.get("summary") or "").strip()
+            if not title or not summary or re.search(r"코스피|코스닥|국내증시", title + summary):
+                continue
+            source_ids = [i for i in (entry.get("source_ids") or []) if isinstance(i, int) and 1 <= i <= 3]
+            issues.append({
+                "headline": title[:200], "summary": summary[:2600],
+                "tags": [str(t)[:48] for t in (entry.get("tags") or [])[:3]],
+                "source_ids": source_ids,
+            })
+        if not issues:
+            raise RuntimeError("us_close_ai_no_usable_us_market_analysis")
+        # Persist only AI editorial and verified numeric market facts, not
+        # copyrighted publisher original bodies or NAVER snippet texts.
+        content = json.dumps({
+            "session_date_et": session_date.isoformat(),
+            "market_indices": indices, "issues": issues,
+        }, ensure_ascii=False)
         with _connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """UPDATE public.us_market_close_briefs SET status='published',
                     content=%s,published_at=now(),expires_at=now()+interval '24 hours'
                     WHERE session_date=%s AND status='processing'""",
-                    (answer, session_date),
+                    (content, session_date),
                 )
         return {"status": "published", "session_date": session_date.isoformat(),
                 "article_count": len(articles)}
