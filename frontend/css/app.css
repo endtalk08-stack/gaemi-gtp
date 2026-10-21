@@ -997,6 +997,23 @@ body.left-context-open #gaemiWorkspace {
   margin: 0 0 14px;
   white-space: pre-wrap;
 }
+/* Only newly generated model-2 free-text editorials get this model-3-style
+   paragraph/list/heading layout; legacy US-close rows remain unchanged. */
+.gaemi-us-close-body { margin: 0 0 14px; overflow-wrap: break-word; }
+.gaemi-us-close-paragraph { margin: 0 0 .8em; line-height: 1.76; white-space: pre-wrap; }
+.gaemi-us-close-subheading {
+  margin: 1.2em 0 .48em;
+  font-weight: 750;
+  font-size: 1.06em;
+  line-height: 1.5;
+}
+.gaemi-us-close-body > :first-child { margin-top: 0; }
+.gaemi-us-close-list {
+  padding-left: 0;
+  margin: 0 0 .85em;
+  list-style-position: inside;
+}
+.gaemi-us-close-list li { margin: .32em 0; line-height: 1.72; white-space: pre-wrap; }
 .gaemi-us-close-tags {
   margin: 0;
   color: var(--gtp-text-2);

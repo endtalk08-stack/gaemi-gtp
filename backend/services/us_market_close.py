@@ -1,7 +1,7 @@
 """US close editorial: three date-verified NAVER indices and three verified original articles.
 
 The existing DigitalOcean timer writes one Neon result; Render reads only.
-The user-approved Groq 120B prompt remains byte-for-byte unchanged.
+Model 2 uses the same free-text chat prompt as model 3. Chart tags are generated in code.
 """
 import datetime as datetime
 import html
@@ -76,12 +76,9 @@ def collect_articles(session_date, now_utc=None, search=None, reader=None):
     """Only three genuinely extracted US-close articles; never snippets."""
     return verified_originals(session_date, now_utc=now_utc, search=search, reader=reader)
 
-US_CLOSE_PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해
-
-제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
-
-한국어 JSON 객체만 반환해:
-{"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#해시태그"]}]}"""
+US_CLOSE_PROMPT = "쉽게 설명 반말로 대답해"
+US_CLOSE_QUESTION = "미국장은 어땠어?"
+FREE_TEXT_FORMAT = "free_text_v1"
 
 
 def _prompt(articles, session_date, indices=None):
@@ -104,10 +101,12 @@ def _generate(articles, session_date, indices=None):
         "model": MODEL,
         "messages": [
             {"role": "system", "content": US_CLOSE_PROMPT},
-            {"role": "user", "content": _prompt(articles, session_date, indices=indices)},
+            {"role": "user", "content": "참고 데이터(JSON):\n"
+             + _prompt(articles, session_date, indices=indices)
+             + "\n\n질문: " + US_CLOSE_QUESTION},
         ],
         "temperature": 0.2,
-        "max_completion_tokens": 1800,
+        "max_completion_tokens": 1500,
         "reasoning_effort": "low",
         "stream": False,
     }
@@ -125,6 +124,32 @@ def _generate(articles, session_date, indices=None):
     if len(text) < 100:
         raise RuntimeError("insufficient_ai_answer")
     return text[:3600]
+
+
+def _code_chart_tags(answer, indices):
+    """Exactly three deterministic tags: verified Nasdaq/Dow direction + an answer topic.
+
+    Never ask the AI to fit tags into its analysis and never call another model.
+    Index-direction tags come ONLY from verified numeric inputs. The topic tag
+    labels the generated answer rather than claiming independent verification.
+    """
+    movements = []
+    for idx, label in ((1, "나스닥"), (0, "다우"), (2, "S&P500")):
+        change = float(indices[idx]["change_pct"])
+        direction = "상승" if change > 0.1 else "하락" if change < -0.1 else "보합"
+        movements.append("#" + label + direction)
+
+    text = re.sub(r"\s+", " ", answer)
+    theme_rules = (
+        ("#빅테크약세", r"(?:빅테크|기술주|AI(?:·|\s+)?관련\s*주)[^.!?]{0,100}(?:약세|하락|부진)"),
+        ("#반도체약세", r"반도체[^.!?]{0,80}(?:약세|하락|부진)"),
+        ("#기술주강세", r"(?:빅테크|기술주|반도체)[^.!?]{0,80}(?:강세|상승|반등)"),
+        ("#실적호조", r"실적\s*(?:호조|개선|개선세|상회)|호실적"),
+        ("#유가하락", r"유가[^.!?]{0,50}(?:하락|내렸|떨어졌)"),
+        ("#금리하락", r"금리[^.!?]{0,50}(?:하락|내렸|떨어졌)"),
+    )
+    theme = next((tag for tag, pat in theme_rules if re.search(pat, text, re.I)), None)
+    return [movements[0], movements[1], theme or movements[2]]
 
 
 def _connection():
@@ -176,13 +201,16 @@ def _structured_brief(raw_content):
         if not headline or not summary:
             continue
         clean_issues.append({
-            "headline": headline[:200], "summary": summary[:2600],
+            "headline": headline[:200], "summary": summary[:3600],
             "tags": [str(tag).strip()[:48] for tag in
                      (tags if isinstance(tags, list) else [])[:3] if str(tag).strip()],
         })
     if not clean_issues:
         return None
-    return {"session_date_et": date, "market_indices": clean_indices, "issues": clean_issues}
+    presentation = {"session_date_et": date, "market_indices": clean_indices, "issues": clean_issues}
+    if document.get("response_format") == FREE_TEXT_FORMAT:
+        presentation["response_format"] = FREE_TEXT_FORMAT
+    return presentation
 
 
 def _display_brief_content(raw_content):
@@ -270,33 +298,24 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
             answer = generator(articles, session_date, indices)
         else:
             answer = _generate(articles, session_date, indices=indices)
-        try:
-            result = json.loads(answer)
-        except (TypeError, ValueError) as exc:
-            raise RuntimeError("us_close_ai_invalid_json") from exc
-        if not isinstance(result, dict) or not isinstance(result.get("issues"), list) or not result["issues"]:
-            raise RuntimeError("us_close_ai_missing_issues")
-        issues = []
-        for entry in result["issues"][:3]:
-            if not isinstance(entry, dict):
-                continue
-            title = str(entry.get("headline") or "").strip()
-            summary = str(entry.get("summary") or "").strip()
-            if not title or not summary or re.search(r"코스피|코스닥|국내증시", title + summary):
-                continue
-            source_ids = [i for i in (entry.get("source_ids") or []) if isinstance(i, int) and 1 <= i <= 3]
-            issues.append({
-                "headline": title[:200], "summary": summary[:2600],
-                "tags": [str(t)[:48] for t in (entry.get("tags") or [])[:3]],
-                "source_ids": source_ids,
-            })
-        if not issues:
+        # Free-form model-2 editorial is stored in the existing structured
+        # wrapper. Do not require JSON, headings, or hashtags from the model.
+        if not isinstance(answer, str) or len(answer.strip()) < 100:
             raise RuntimeError("us_close_ai_no_usable_us_market_analysis")
+        if re.search(r"코스피|코스닥|국내증시", answer):
+            raise RuntimeError("us_close_ai_non_us_market_analysis")
+        issues = [{
+            "headline": "미국장 마감",
+            "summary": answer.strip()[:3600],
+            "tags": _code_chart_tags(answer, indices),
+            "source_ids": [],
+        }]
         # Persist only AI editorial and verified numeric market facts, not
         # copyrighted publisher original bodies or NAVER snippet texts.
         content = json.dumps({
             "session_date_et": session_date.isoformat(),
-            "market_indices": indices, "issues": issues,
+            "market_indices": indices, "response_format": FREE_TEXT_FORMAT,
+            "issues": issues,
         }, ensure_ascii=False)
         with _connection() as conn:
             with conn.cursor() as cur:

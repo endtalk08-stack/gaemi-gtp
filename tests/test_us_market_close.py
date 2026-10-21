@@ -9,12 +9,7 @@ from backend.services import us_market_close_runtime as source
 
 DAY = dt.date(2026, 10, 19)
 NOW = dt.datetime(2026, 10, 19, 22, tzinfo=dt.timezone.utc)
-PROMPT = """제공된 기사를 근거로 미국장은 어땠어? 를 작성해
-
-제목은 핵심만 짧게, 내용은 쉽고 구체적으로, 해시태그는 최대 3개. 반말로 답변해.
-
-한국어 JSON 객체만 반환해:
-{"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#해시태그"]}]}"""
+PROMPT = "쉽게 설명 반말로 대답해"
 
 INDICES = [
     {"symbol":".DJI","name":"다우존스","session_date_et":"2026-10-19","close":51966.03,"change":-36.38,"change_pct":-0.07},
@@ -39,9 +34,41 @@ class FakeResponse:
 
 
 class TestUSClose(unittest.TestCase):
-    def test_approved_prompt_is_unchanged(self):
+    def test_model_2_uses_model_3_basic_prompt_with_no_answer_format_constraint(self):
         self.assertEqual(close.US_CLOSE_PROMPT, PROMPT)
+        self.assertEqual(close.US_CLOSE_QUESTION, "미국장은 어땠어?")
         self.assertEqual(close.MODEL, "openai/gpt-oss-120b")
+
+    def test_generate_sends_data_and_short_question_without_json_output_requirement(self):
+        calls=[]
+        answer="미국 증시는 대체로 상승했어. " * 12
+        def fake_open(req, timeout):
+            calls.append(json.loads(req.data.decode("utf-8")))
+            return FakeResponse({"choices":[{"message":{"content":answer}}]})
+        with patch.dict(close.os.environ, {"GROQ_API_KEY":"test-key"}), \
+             patch.object(close.urllib.request, "urlopen", side_effect=fake_open):
+            actual=close._generate(NEWS, DAY, INDICES)
+        self.assertEqual(actual, answer.strip())
+        payload=calls[0]
+        self.assertEqual(payload["model"], "openai/gpt-oss-120b")
+        self.assertEqual(payload["max_completion_tokens"], 1500)
+        self.assertEqual(payload["messages"][0]["content"], PROMPT)
+        self.assertIn("질문: 미국장은 어땠어?",payload["messages"][1]["content"])
+        self.assertIn("참고 데이터(JSON):",payload["messages"][1]["content"])
+        self.assertNotIn("해시태그",payload["messages"][0]["content"])
+
+    def test_code_chart_tags_are_three_and_use_verified_indices(self):
+        ai="기업 실적 호조가 시장을 올렸지만 빅테크·AI 관련 주는 수익성 우려로 약세였어."
+        self.assertEqual(close._code_chart_tags(ai, INDICES),
+                         ["#나스닥상승", "#다우보합", "#빅테크약세"])
+        changed=[dict(x) for x in INDICES]
+        changed[1]["change_pct"]=-0.02
+        changed[0]["change_pct"]=1.02
+        self.assertEqual(close._code_chart_tags("기업들의 실적 호조가 있었어.", changed),
+                         ["#나스닥보합", "#다우상승", "#실적호조"])
+        self.assertEqual(close._code_chart_tags("별다른 뉴스가 없어.",changed),
+                         ["#나스닥보합", "#다우상승", "#S&P500상승"])
+
 
     def test_input_contains_three_originals_and_three_factual_indices(self):
         data=json.loads(close._prompt(NEWS, DAY, indices=INDICES))
@@ -163,8 +190,7 @@ class TestUSClose(unittest.TestCase):
             def cursor(self):return self
             def execute(self,sql,params=None):calls.append((sql,params))
             def fetchone(self):return returned.pop(0) if returned else None
-        output=json.dumps({"issues":[{"headline":"미국 기술주 반등",
-          "summary":"나스닥이 1.11% 상승했어.","tags":["#미국장"],"source_ids":[1,2,3]}]},ensure_ascii=False)
+        output="나스닥이 1.11% 상승했어. 기업들의 실적 호조가 시장을 이끌었어.\n\n" + ("반도체 투자와 금리 흐름을 확인해야 해. " * 5)
         with patch.object(close,"verified_indices",return_value=INDICES),\
              patch.object(close,"collect_articles",return_value=NEWS),\
              patch.object(close,"_connection",return_value=Conn()):
@@ -173,7 +199,18 @@ class TestUSClose(unittest.TestCase):
         stored=str(calls)
         self.assertIn("26430.89",stored)
         self.assertNotIn(NEWS[0]["description"],stored)
-        self.assertIn("미국 기술주 반등",stored)
+        self.assertIn("나스닥이 1.11% 상승했어.",stored)
+        updated=[json.loads(params[0]) for sql,params in calls
+                 if "status='published'" in sql and params and isinstance(params[0],str)]
+        self.assertEqual(len(updated),1)
+        saved=updated[0]
+        self.assertEqual(saved["response_format"],close.FREE_TEXT_FORMAT)
+        self.assertEqual(saved["issues"][0]["summary"],output.strip())
+        self.assertEqual(saved["issues"][0]["headline"],"미국장 마감")
+        self.assertEqual(saved["issues"][0]["tags"],["#나스닥상승","#다우보합","#실적호조"])
+        presentation=close._structured_brief(json.dumps(saved,ensure_ascii=False))
+        self.assertEqual(presentation["response_format"],close.FREE_TEXT_FORMAT)
+        self.assertEqual(len(presentation["issues"][0]["tags"]),3)
 
     def test_second_schedule_skips_existing_session_without_provider_calls(self):
         class Published:
