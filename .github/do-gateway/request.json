@@ -1,1 +1,6 @@
-{"operation":"status"}
+{
+  "operation": "run",
+  "path": "ops/do-gateway/verify_us_close_before_release_20261021.py",
+  "request_id": "usclose-before-release-20261021",
+  "timeout": 90
+}
