@@ -28,7 +28,7 @@ dt { color:#b2bdcb; } dd { margin:0; overflow-wrap:anywhere; white-space:pre-wra
 <body>
 <main>
 <h1>기사 원문 → 이슈 제목 · 4번 모델 격리 테스트</h1>
-<p class="note">기존 뉴스·공시 분석, Neon 저장, 실제 화면을 변경하지 않습니다. 관리자 본인이 확인한 원문만 입력하세요. <strong>실행 버튼을 눌렀을 때만</strong> Cloudflare 4번 모델을 한 번 호출합니다. 결과는 후보이며 자동 적용되지 않습니다.</p>
+<p class="note">기존 뉴스·공시 분석, Neon 저장, 실제 화면을 변경하지 않습니다. <strong>관리자 비밀번호 입력 → 기사 원문 자동 불러오기 → 4번 AI 테스트</strong> 순서로 진행하세요. 원문이 확인되지 않으면 AI를 호출하지 않습니다.</p>
 <section>
 <h2>원문 입력</h2>
 <label for="token">관리자 테스트 비밀번호 (AI_TEST_TOKEN)</label>
@@ -39,12 +39,13 @@ dt { color:#b2bdcb; } dd { margin:0; overflow-wrap:anywhere; white-space:pre-wra
 <input id="current" maxlength="120" value="HBM 이슈">
 <label for="title">기사 원제목</label>
 <input id="title" maxlength="250" value="'영업익 77조' 전망에도 좁혀진 점유율 격차… SK하이닉스, HBM4 시험대">
-<label for="source">실제 기사 주소 (서버에서는 접속하지 않음)</label>
-<input id="source" maxlength="1500" value="https://www.thepublic.kr/news/articleView.html?idxno=323135">
-<label for="article">직접 확인한 기사 원문 전체 (450~24,000자 · 요약본 불가)</label>
-<textarea id="article" maxlength="24000" placeholder="기사 본문 전체를 여기에 붙여넣으세요. 기사 제목이나 검색 요약만으로는 테스트하지 않습니다."></textarea>
-<p class="note" id="counter">원문 0자</p>
-<button id="run" type="button">4번 AI 원문 제목 1회 테스트</button>
+<label for="source">검증 대상 기사 주소 (고정 샘플)</label>
+<input id="source" maxlength="1500" value="https://www.thepublic.kr/news/articleView.html?idxno=323135" readonly>
+<label for="article">기사 원문 자동 추출 결과 (450~24,000자 · 요약본 불가)</label>
+<textarea id="article" maxlength="24000" readonly placeholder="관리자 비밀번호 입력 후 아래의 ‘기사 원문 자동 불러오기’를 누르면 여기에 표시됩니다."></textarea>
+<p class="note" id="counter">원문 미확인 · AI 호출 불가</p>
+<button id="load" type="button">기사 원문 자동 불러오기 (AI 호출 없음)</button>
+<button id="run" type="button" disabled>4번 AI 원문 제목 1회 테스트</button>
 <p id="feedback" role="status"></p>
 </section>
 <section>
@@ -69,6 +70,59 @@ dt { color:#b2bdcb; } dd { margin:0; overflow-wrap:anywhere; white-space:pre-wra
   original.addEventListener("input", function () {
     byId("counter").textContent = "원문 " + original.value.length.toLocaleString("ko-KR") + "자";
   });
+  byId("load").addEventListener("click", async function () {
+    const token = byId("token").value;
+    if (!token) {
+      byId("feedback").textContent = "먼저 기존 관리자 테스트 비밀번호를 입력해.";
+      return;
+    }
+    const run = byId("run");
+    run.disabled = true;
+    original.value = "";
+    byId("counter").textContent = "원문 확인 중...";
+    byId("feedback").textContent = "기존 기사 추출 방식으로 언론사 원문을 조회하는 중... (AI 호출 없음)";
+    this.disabled = true;
+    try {
+      const res = await fetch("/api/ai-test/issue-title/source", {
+        method: "GET",
+        headers: {"Authorization": "Bearer " + token},
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        const errors = {
+          admin_test_disabled_or_unauthorized: "관리자 테스트 인증 실패 또는 비활성화",
+          verified_article_body_unavailable: "원문 추출 실패: 메타 설명 또는 기사 일부만 읽혀 테스트를 중단했어",
+          publisher_article_unavailable: "언론사 원문 서버에 접근할 수 없어 테스트를 중단했어",
+          non_html_source: "기사 HTML이 아니라 테스트를 중단했어",
+          article_too_long: "원문이 24,000자를 넘어서 테스트를 중단했어",
+          source_html_too_large: "언론사 페이지가 너무 커서 추출을 중단했어",
+        };
+        throw new Error(errors[data.error] || "원문 조회 실패: " + (data.error || res.status));
+      }
+      if (data.stock !== "SK하이닉스" ||
+          data.source_url !== "https://www.thepublic.kr/news/articleView.html?idxno=323135" ||
+          typeof data.article_body !== "string" ||
+          data.article_body.length < 450 ||
+          data.article_body.length > 24000) {
+        throw new Error("원문이 검증 조건에 맞지 않아 AI 호출을 차단했어.");
+      }
+      byId("stock").value = data.stock;
+      byId("title").value = data.article_title;
+      byId("source").value = data.source_url;
+      original.value = data.article_body;
+      byId("counter").textContent = "검증된 원문 " +
+        data.article_body.length.toLocaleString("ko-KR") + "자 · " + (data.source_kind || "");
+      run.disabled = false;
+      byId("feedback").textContent = "원문 불러오기 성공. 내용을 확인한 뒤 4번 AI 테스트를 실행할 수 있어.";
+    } catch (err) {
+      byId("feedback").textContent = err.message || "원문 조회 실패";
+      byId("counter").textContent = "원문 미확인 · AI 호출 불가";
+      run.disabled = true;
+    } finally {
+      this.disabled = false;
+    }
+  });
   byId("run").addEventListener("click", async function () {
     const article_body = original.value.trim();
     const stock = byId("stock").value.trim();
@@ -77,7 +131,7 @@ dt { color:#b2bdcb; } dd { margin:0; overflow-wrap:anywhere; white-space:pre-wra
     const token = byId("token").value;
     if (!token || !stock || !article_title || !source_url ||
         article_body.length < 450 || article_body.length > 24000) {
-      byId("feedback").textContent = "관리자 비밀번호와 원문 전체(450~24,000자)를 확인해.";
+      byId("feedback").textContent = "먼저 기사 원문 자동 불러오기를 성공시켜야 해.";
       return;
     }
     if (!window.confirm("입력한 원문을 4번 Cloudflare AI에 보내 1회 분석합니다. 진행할까요?")) return;

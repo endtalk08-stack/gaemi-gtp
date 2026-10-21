@@ -11,11 +11,13 @@ import re
 import threading
 import time
 import urllib.error
+import urllib.request
 from urllib.parse import urlsplit
 
 from flask import Blueprint, jsonify, request
 
 from .ai_test import _cloudflare_answer
+from .news_detail import _ArticleHTMLParser, _clean_text
 
 issue_title_test_bp = Blueprint("issue_title_test", __name__)
 
@@ -27,6 +29,13 @@ _CACHE = {}
 _LOCK = threading.Lock()
 _CACHE_TTL_SECONDS = 3600
 MAX_CACHE_ENTRIES = 12
+
+# This first, isolated evaluation is intentionally pinned to one known publisher
+# URL. Never allow an arbitrary user-supplied URL to be fetched by the server.
+SAMPLE_STOCK = "SK하이닉스"
+SAMPLE_TITLE = "'영업익 77조' 전망에도 좁혀진 점유율 격차… SK하이닉스, HBM4 시험대"
+SAMPLE_URL = "https://www.thepublic.kr/news/articleView.html?idxno=323135"
+MAX_HTML_BYTES = 600000
 
 # Untrusted publisher text is reference material, never model instructions.
 _TITLE_SYSTEM_PROMPT = (
@@ -124,6 +133,74 @@ def _decode_model_answer(answer, original):
         "evidence_quote": quote, "quote_found": True,
         "review_required": True,
     }, None
+
+
+def _load_sample_article():
+    """Extract publisher article text, never metadata or random page paragraphs.
+
+    This is deliberately separate from the normal 5,000-character worker
+    extractor: AI accuracy evaluation must not silently truncate originals.
+    """
+    req = urllib.request.Request(
+        SAMPLE_URL,
+        headers={"User-Agent": "gaemiGTP/1.0",
+                 "Accept": "text/html,application/xhtml+xml"},
+    )
+    with urllib.request.urlopen(req, timeout=8) as response:
+        content_type = str(response.headers.get("Content-Type") or "").lower()
+        if "html" not in content_type:
+            raise ValueError("non_html_source")
+        charset = response.headers.get_content_charset() or "utf-8"
+        payload = response.read(MAX_HTML_BYTES + 1)
+    if len(payload) > MAX_HTML_BYTES:
+        raise ValueError("source_html_too_large")
+    html_text = payload.decode(charset, errors="replace")
+    parser = _ArticleHTMLParser()
+    parser.feed(html_text)
+    parser.close()
+    # Do not treat og:description or generic page paragraphs as article text.
+    candidates = (
+        ("jsonld_article_body", parser.json_article_body),
+        ("article_or_main_paragraphs", " ".join(parser.preferred_paragraphs)),
+    )
+    for kind, candidate in candidates:
+        body = _clean_text(candidate)
+        if not body:
+            continue
+        if len(body) > MAX_BODY_CHARS:
+            raise ValueError("article_too_long")
+        if len(body) < MIN_BODY_CHARS:
+            continue
+        if "SK하이닉스" not in body[:1500] or "HBM" not in body:
+            continue
+        return {"stock": SAMPLE_STOCK, "article_title": SAMPLE_TITLE,
+                "source_url": SAMPLE_URL, "article_body": body,
+                "article_chars": len(body), "source_kind": kind}
+    raise ValueError("verified_article_body_unavailable")
+
+
+@issue_title_test_bp.get("/api/ai-test/issue-title/source")
+def issue_title_source():
+    """Admin-only explicit retrieval of the fixed SK hynix test article."""
+    if not _admin_authorized():
+        return jsonify({"ok": False,
+                        "error": "admin_test_disabled_or_unauthorized"}), 403
+    try:
+        article = _load_sample_article()
+    except ValueError as exc:
+        error = str(exc)
+        if error not in {
+            "article_too_long", "verified_article_body_unavailable",
+            "source_html_too_large", "non_html_source"
+        }:
+            error = "verified_article_body_unavailable"
+        return jsonify({"ok": False, "error": error}), 422
+    except Exception:
+        return jsonify({"ok": False,
+                        "error": "publisher_article_unavailable"}), 502
+    response = jsonify({"ok": True, **article})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @issue_title_test_bp.post("/api/ai-test/issue-title")

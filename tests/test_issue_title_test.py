@@ -118,6 +118,78 @@ class IssueTitleIsolationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["status"], "withheld")
 
+    def _publisher_response(self, html_text):
+        from unittest.mock import MagicMock
+        response = MagicMock()
+        response.headers.get.return_value = "text/html; charset=utf-8"
+        response.headers.get_content_charset.return_value = "utf-8"
+        response.read.return_value = html_text.encode("utf-8")
+        response.__enter__.return_value = response
+        return response
+
+    def test_source_requires_admin_before_network(self):
+        with patch("backend.services.issue_title_test.urllib.request.urlopen") as network:
+            response = self.client.get("/api/ai-test/issue-title/source")
+        self.assertEqual(response.status_code, 403)
+        network.assert_not_called()
+
+    def test_source_auto_loads_verified_article_without_ai_call(self):
+        paragraph = "SK하이닉스의 HBM4 경쟁과 실적 전망을 설명하는 기사다. " * 14
+        html_text = ("<html><head><meta name='description' content='검색 요약입니다.'></head>"
+                     "<body><article><p>" + paragraph + "</p>"
+                     "<p>SK하이닉스와 삼성전자의 점유율 격차가 줄어드는 것으로 분석된다.</p>"
+                     "</article></body></html>")
+        response_mock = self._publisher_response(html_text)
+        with (patch("backend.services.issue_title_test.urllib.request.urlopen",
+                    return_value=response_mock) as network,
+              patch("backend.services.issue_title_test._cloudflare_answer") as ai):
+            response = self.client.get("/api/ai-test/issue-title/source",
+                                       headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        content = response.get_json()
+        self.assertEqual(content["stock"], "SK하이닉스")
+        self.assertEqual(content["source_kind"], "article_or_main_paragraphs")
+        self.assertIn("실적 전망", content["article_body"])
+        self.assertEqual(content["article_chars"], len(content["article_body"]))
+        self.assertGreater(len(content["article_body"]), 450)
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        self.assertEqual(network.call_count, 1)
+        self.assertEqual(network.call_args.args[0].full_url,
+                         "https://www.thepublic.kr/news/articleView.html?idxno=323135")
+        ai.assert_not_called()
+
+    def test_source_rejects_metadata_only(self):
+        html_text = ("<html><head><meta name='description' content='" +
+                     ("SK하이닉스 HBM 관련 검색 요약입니다. " * 30) +
+                     "'></head><body><p>SK하이닉스 HBM 요약.</p></body></html>")
+        with (patch("backend.services.issue_title_test.urllib.request.urlopen",
+                    return_value=self._publisher_response(html_text)),
+              patch("backend.services.issue_title_test._cloudflare_answer") as ai):
+            response = self.client.get("/api/ai-test/issue-title/source",
+                                       headers=self.headers)
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.get_json()["error"],
+                         "verified_article_body_unavailable")
+        ai.assert_not_called()
+
+    def test_source_rejects_overlong_body_without_silent_truncation(self):
+        html_text = "<html><body><article><p>" + ("SK하이닉스 HBM4 공급 경쟁. " * 1500) + "</p></article></body></html>"
+        with patch("backend.services.issue_title_test.urllib.request.urlopen",
+                   return_value=self._publisher_response(html_text)):
+            response = self.client.get("/api/ai-test/issue-title/source",
+                                       headers=self.headers)
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.get_json()["error"], "article_too_long")
+
+    def test_source_handles_publisher_network_error(self):
+        with patch("backend.services.issue_title_test.urllib.request.urlopen",
+                   side_effect=OSError("publisher unavailable")):
+            response = self.client.get("/api/ai-test/issue-title/source",
+                                       headers=self.headers)
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.get_json()["error"],
+                         "publisher_article_unavailable")
+
     def test_no_network_fetch_or_database_calls(self):
         data = {**self.data, "source_url": "https://example.org/news"}
         with patch("backend.services.issue_title_test._cloudflare_answer",

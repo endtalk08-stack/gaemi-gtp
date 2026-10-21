@@ -26,3 +26,12 @@ jobs:
         run: python -m py_compile backend/services/issue_title_test.py tests/test_issue_title_test.py
       - name: Test auth, full body, evidence, cache, no AI network
         run: python -m unittest -v tests.test_issue_title_test
+      - name: Check isolated test-page JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          content = Path('frontend/issue-title-test.html').read_text(encoding='utf-8')
+          assert '<script>' in content and '</script>' in content
+          Path('/tmp/gaemi-issue-title-page.js').write_text(content.split('<script>',1)[1].split('</script>',1)[0], encoding='utf-8')
+          PY
+          node --check /tmp/gaemi-issue-title-page.js
