@@ -141,3 +141,58 @@
 }
 .central-widget-card__sparkline--up { color: #ff4d67; }
 .central-widget-card__sparkline--down { color: #3b82f6; }
+
+
+/* Nasdaq plugin chart: independent from the existing KOSPI placeholder. */
+.central-widget-card--nasdaq {
+  grid-column: 1 / -1;
+  padding: 13px 15px;
+  min-height: 250px;
+}
+.central-widget-card--nasdaq .central-widget-card__name {
+  font-size: 13px;
+}
+.nasdaq-chart__mount { min-width: 0; }
+.nasdaq-chart__quote {
+  margin: 10px 0 3px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  color: var(--gtp-text);
+}
+.nasdaq-chart__quote strong { font-size: 20px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.nasdaq-chart__quote span { font-size: 13px; font-weight: 700; }
+.nasdaq-chart__up { color: #dd525b; }
+.nasdaq-chart__down { color: #4a91dc; }
+.nasdaq-chart__svg {
+  display: block;
+  width: 100%;
+  height: 154px;
+  overflow: visible;
+  color: var(--gtp-text);
+}
+.nasdaq-chart__baseline { fill: none; stroke: var(--gtp-border); stroke-width: 1; }
+.nasdaq-chart__line { fill: none; stroke: #4b91cd; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.nasdaq-chart__guide { fill: none; stroke: #d28d3f; stroke-width: 1.5; stroke-dasharray: 5 5; }
+.nasdaq-chart__marker { fill: #e5a04f; stroke: var(--gtp-surface); stroke-width: 2; }
+.nasdaq-chart__marker-label { fill: var(--gtp-text); font-size: 14px; font-weight: 700; }
+.nasdaq-chart__dates {
+  display: flex;
+  justify-content: space-between;
+  color: var(--gtp-faint);
+  font-size: 10px;
+  margin: -3px 0 10px;
+}
+.nasdaq-chart__tags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.nasdaq-chart__date { color: var(--gtp-faint); font-size: 10px; margin-right: 4px; }
+.nasdaq-chart__tag {
+  border: 1px solid var(--gtp-border-strong);
+  padding: 4px 7px;
+  border-radius: 7px;
+  background: var(--gtp-surface);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gtp-text);
+}
+.nasdaq-chart__pending { color: var(--gtp-faint); margin: 14px 0 3px; font-size: 11px; line-height: 1.5; }
