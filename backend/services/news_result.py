@@ -180,6 +180,7 @@ def build_stock_news_result(
     limit=50,
     storyboard_limit=3,
     display_timezone="Asia/Seoul",
+    raw_news_list=None,
 ):
     """Return one shared stock-news result for every screen representation."""
     # The DO snapshot remains keyed by the requested listing name, but all
@@ -219,12 +220,13 @@ def build_stock_news_result(
 
     try:
         part_started = time.monotonic()
-        raw_news_list = fetch_stock_news(
-            stock_name,
-            market=market,
-            limit=limit,
-            raise_on_error=True,
-        )
+        if raw_news_list is None:
+            raw_news_list = fetch_stock_news(
+                stock_name,
+                market=market,
+                limit=limit,
+                raise_on_error=True,
+            )
         print(
             f"[analyze news trace] stock={stock_name} part=fetch done "
             f"elapsed={time.monotonic() - part_started:.2f}s items={len(raw_news_list)}",
