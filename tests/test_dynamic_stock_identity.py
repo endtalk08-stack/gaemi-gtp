@@ -1,5 +1,6 @@
 """No paid AI calls, no Naver calls, no Neon writes in these regression tests."""
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import patch
 from backend.analysis.news.stock_identity import (
     resolve_us_identity, news_snapshot_names, normalize_us_ticker,
@@ -71,7 +72,7 @@ class IdentityTests(unittest.TestCase):
 
     def test_central_news_reads_canonical_when_no_row_is_present(self):
         def finder(name,**kwargs):
-            return ({"issue_briefs":[],"paired_news_items":[{"title":"기사"}]}
+            return ({"issue_briefs":[],"paired_news_items":[{"title":"기사", "published_at":datetime.now(timezone.utc).isoformat()}]}
                     if name=="알파벳 Class A" else None)
         with patch.object(news_result,"_read_worker_news_snapshot",side_effect=finder) as query:
             found=news_result.get_shared_stock_news_result("알파벳 Class C",market="미국")
