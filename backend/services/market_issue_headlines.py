@@ -7,7 +7,7 @@ import os
 import re
 import time
 
-from backend.analysis.news.stock_identity import news_snapshot_names
+from .news_identity_registry import resolve_us_news_identity
 from .issue_briefs import grounded_issue_display_title
 from .news_freshness import clean_us_snapshot
 
@@ -81,7 +81,7 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False):
     # valid rows from Neon, then return a result for every original position.
     # This prevents one invalid stock from blanking all 20 sidebar headlines.
     names_per_row = [
-        (news_snapshot_names(row["name"], symbol=row["symbol"])
+        (resolve_us_news_identity(row["name"], symbol=row["symbol"])["snapshot_names"]
          if market == "us" else [row["name"]])
         if row is not None else []
         for row in rows

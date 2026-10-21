@@ -18,6 +18,7 @@ from backend.analysis.news import (
 
 from .news_byline import strip_leading_news_credit
 from .news_freshness import clean_us_snapshot
+from .news_identity_registry import resolve_us_news_identity
 from .issue_briefs import (
     grounded_issue_display_title,
     _article_excerpt, build_issue_briefs, central_material_brief_supported,
@@ -827,9 +828,10 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
 
 
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
-                                 display_timezone="Asia/Seoul"):
+                                 display_timezone="Asia/Seoul", symbol=None):
     """Read the existing DigitalOcean snapshot only; never collect or save news."""
-    names = news_snapshot_names(stock_name) if market in ("미국", "us") else [str(stock_name)]
+    names = (resolve_us_news_identity(stock_name, symbol=symbol)["snapshot_names"]
+             if market in ("미국", "us") else [str(stock_name)])
     worker_result = None
     for candidate_name in names:
         worker_result = _read_worker_news_snapshot(

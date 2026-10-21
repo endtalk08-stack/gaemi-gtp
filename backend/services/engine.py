@@ -3317,6 +3317,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                 raw_name,
                 market="미국",
                 limit=50,
+                symbol=ticker_symbol,
             )
             news_result = _attach_news_price_reactions(news_result)
 
