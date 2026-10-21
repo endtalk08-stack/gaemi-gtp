@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/inspect_worker_error_signature_readonly_20261022.py","request_id":"worker-error-sig-20261022","timeout":120}
