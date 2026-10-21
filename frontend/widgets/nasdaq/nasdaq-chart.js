@@ -27,7 +27,7 @@
       for (const point of result.points.slice(-60)) {
         const date = String(point?.date || '');
         const close = Number(point?.close);
-        if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)
           || date <= previousDate || !Number.isFinite(close) || close <= 0) {
           throw new Error('nasdaq_chart_point_invalid');
         }
@@ -40,7 +40,7 @@
         && points.some(p => p.date === source.session_date_et)
         && Array.isArray(source.tags) && source.tags.length === 3
         && source.tags.every(tag => typeof tag === 'string'
-          && /^#[^#\\s]{1,47}$/.test(tag))) {
+          && /^#[^#\s]{1,47}$/.test(tag))) {
         annotation = {
           date: source.session_date_et,
           tags: source.tags.slice(0, 3)
