@@ -14,7 +14,7 @@ def compact_issue_title(extracted, article_title):
     first=clauses[0]
     # A leading named subject before a comma is unnecessary on a stock-specific panel.
     first=re.sub(r"^[^,，]{2,28}[,，]\s*","",first)
-    first=re.sub(r"\b\d+\s*(?:일|주|달|개월)\s*앞당겨\s*","",first)
+    first=re.sub(r"\b(?:\d+|한|두|세|네)\s*(?:일|주|달|개월)\s*앞당겨\s*","",first)
     if len(clauses)>1 and len(first)<=23:
         second=clauses[1]
         if len(second)<=13 and re.search(r"(?:완료|예정|확정|검토|추진)",second):
