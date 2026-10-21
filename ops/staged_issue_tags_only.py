@@ -44,6 +44,7 @@ HEADLINE_TOPIC = (
 def norm(value):
  return re.sub(r"\s+"," ",html.unescape(re.sub(r"<[^>]*>"," ",str(value or "")))).strip()
 def owner_match(stock,title):
+ if stock=="SK":return bool(re.search(r"(?<![A-Za-z0-9])SK(?![A-Za-z0-9]|하이닉스|스퀘어|이노베이션|텔레콤|바이오)",title))
  if stock in title:return True
  # Never assume bare '삼성', 'SK', industry/ETF/group mentions identify a corporation.
  return False
