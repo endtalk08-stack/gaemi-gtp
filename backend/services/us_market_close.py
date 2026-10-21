@@ -244,8 +244,23 @@ def read_brief():
     if not row:
         return None
     presentation = _structured_brief(row[1])
+    # Export a chart-ready marker for the confirmed Nasdaq close session.
+    # Existing historical/legacy saved items remain untouched.
+    annotation = None
+    if presentation and presentation.get("response_format") == FREE_TEXT_FORMAT:
+        nasdaq = presentation["market_indices"][1]
+        tags = presentation["issues"][0]["tags"][:3]
+        if nasdaq["name"] == "나스닥 종합" and len(tags) == 3:
+            annotation = {
+                "symbol": ".IXIC",
+                "session_date_et": presentation["session_date_et"],
+                "close": nasdaq["close"],
+                "change_pct": nasdaq["change_pct"],
+                "tags": tags,
+            }
     return {"session_date": row[0].isoformat(), "content": _display_brief_content(row[1]),
-            "presentation": presentation, "published_at": row[2].isoformat()}
+            "presentation": presentation, "nasdaq_chart_annotation": annotation,
+            "published_at": row[2].isoformat()}
 
 
 def publish_once(now_utc=None, search=None, reader=None, generator=None):
