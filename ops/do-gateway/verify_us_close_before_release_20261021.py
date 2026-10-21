@@ -14,7 +14,7 @@ for n in tree.body:
             if isinstance(target,ast.Name) and target.id in ("US_CLOSE_PROMPT","MODEL"):
                 try: names[target.id]=ast.literal_eval(n.value)
                 except ValueError: pass
-print("US_CLOSE_EXISTING_BLOB="+hashlib.sha1(b"blob "+str(len(b)).encode()+b"\\0"+b).hexdigest())
+print("US_CLOSE_EXISTING_BLOB="+hashlib.sha1(b"blob "+str(len(b)).encode()+b"\0"+b).hexdigest())
 print("US_CLOSE_EXISTING_MODEL="+str(names.get("MODEL")))
 print("US_CLOSE_EXISTING_PROMPT="+repr(names.get("US_CLOSE_PROMPT")))
 for service in ("gaemigtp-news.service","gaemigtp-us-market-close.timer"):
