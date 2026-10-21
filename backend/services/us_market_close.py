@@ -244,25 +244,8 @@ def read_brief():
     if not row:
         return None
     presentation = _structured_brief(row[1])
-    # Export a chart-ready marker for the verified Nasdaq close session.
-    # Existing saved three-tag briefs may be plotted too (read-only): no
-    # migration/re-generation. New free_text_v1 tags still come from code.
-    annotation = None
-    if presentation and row[0].isoformat() == presentation["session_date_et"]:
-        nasdaq = presentation["market_indices"][1]
-        tags = presentation["issues"][0]["tags"][:3]
-        if (nasdaq["name"] == "나스닥 종합" and len(tags) == 3
-                and all(re.fullmatch(r"#[^#\s]{1,47}", tag) for tag in tags)):
-            annotation = {
-                "symbol": ".IXIC",
-                "session_date_et": presentation["session_date_et"],
-                "close": nasdaq["close"],
-                "change_pct": nasdaq["change_pct"],
-                "tags": tags,
-            }
     return {"session_date": row[0].isoformat(), "content": _display_brief_content(row[1]),
-            "presentation": presentation, "nasdaq_chart_annotation": annotation,
-            "published_at": row[2].isoformat()}
+            "presentation": presentation, "published_at": row[2].isoformat()}
 
 
 def publish_once(now_utc=None, search=None, reader=None, generator=None):
