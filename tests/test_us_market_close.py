@@ -190,7 +190,7 @@ class TestUSClose(unittest.TestCase):
             def cursor(self):return self
             def execute(self,sql,params=None):calls.append((sql,params))
             def fetchone(self):return returned.pop(0) if returned else None
-        output="나스닥이 1.11% 상승했어. 기업들의 실적 호조가 시장을 이끌었어.\\n\\n" + ("반도체 투자와 금리 흐름을 확인해야 해. " * 5)
+        output="나스닥이 1.11% 상승했어. 기업들의 실적 호조가 시장을 이끌었어.\n\n" + ("반도체 투자와 금리 흐름을 확인해야 해. " * 5)
         with patch.object(close,"verified_indices",return_value=INDICES),\
              patch.object(close,"collect_articles",return_value=NEWS),\
              patch.object(close,"_connection",return_value=Conn()):
