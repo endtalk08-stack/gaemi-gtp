@@ -12,7 +12,7 @@ sys.path.insert(0, "/opt/gaemigtp-news/app")
 import psycopg
 from backend.services.news_detail import read_selected_article_details
 
-QUESTION = "쉽게 설명 반말로 대답해 미국장은 어땠어?"
+QUESTION = "미국장은 어땠어?\n\n제목은 핵심만 짧게, 내용은 쉽고 구체적으로,\n해시태그는 최대 3개 반말로 답변해."
 SESSION = "2026-10-20"
 DB_URL = os.environ.get("NEWS_DATABASE_URL", "").strip()
 KEY = os.environ.get("GROQ_API_KEY", "").strip()
