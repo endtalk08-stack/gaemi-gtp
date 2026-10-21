@@ -134,6 +134,36 @@ class TestUSClose(unittest.TestCase):
         self.assertNotIn("source_ids",structured["issues"][0])
         self.assertEqual(close._display_brief_content("legacy"),"legacy")
 
+    def test_nasdaq_chart_annotation_uses_only_saved_verified_session_and_three_tags(self):
+        class Conn:
+            def __init__(self, row): self.row = row
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def cursor(self): return self
+            def execute(self, *_): pass
+            def fetchone(self): return self.row
+        content = json.dumps({
+            "response_format": close.FREE_TEXT_FORMAT,
+            "session_date_et": DAY.isoformat(), "market_indices": INDICES,
+            "issues": [{"headline": "미국장 마감", "summary": "미국장은 상승했어. " * 9,
+                        "tags": ["#나스닥상승", "#다우보합", "#실적호조"]}]
+        }, ensure_ascii=False)
+        with patch.object(close, "_connection",
+                          return_value=Conn((DAY, content, NOW))):
+            result = close.read_brief()
+        annotation = result["nasdaq_chart_annotation"]
+        self.assertEqual(annotation, {
+            "symbol": ".IXIC", "session_date_et": DAY.isoformat(),
+            "close": 26430.89, "change_pct": 1.11,
+            "tags": ["#나스닥상승", "#다우보합", "#실적호조"]
+        })
+        self.assertIn("미국장은 상승했어.", result["content"])
+        old = json.loads(content)
+        old.pop("response_format")
+        with patch.object(close, "_connection",
+                          return_value=Conn((DAY, json.dumps(old,ensure_ascii=False), NOW))):
+            self.assertIsNone(close.read_brief()["nasdaq_chart_annotation"])
+
     def test_invalid_or_stale_index_presentation_is_not_used(self):
         payload={"session_date_et":DAY.isoformat(),"market_indices":INDICES[:2],
                  "issues":[{"headline":"기술주 반등","summary":"미국 증시는 혼조였어."}]}
