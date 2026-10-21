@@ -82,6 +82,32 @@ async function main() {
   assert.equal(table.children[1].children.length, 3);
   assert.equal(table.children[1].children[0].children[0].textContent, '다우존스');
 
+  // New model-2 output keeps the same storage shape but receives model-3-style
+  // paragraph / heading / list spacing, and exactly three code-generated tags.
+  const free = {
+    ...valid,
+    response_format: 'free_text_v1',
+    issues: [{
+      headline: '미국장 마감',
+      summary: '미국장은 대체로 상승했어.\\n\\n**업종별 흐름**\\n- 기술주 약세\\n- 산업주 강세\\n\\n다우가 올랐어.',
+      tags: ['#나스닥상승', '#다우보합', '#실적호조']
+    }]
+  };
+  const normalizedFree = api.normalize(free);
+  assert.ok(normalizedFree);
+  assert.equal(api.normalize(normalizedFree).responseFormat, 'free_text_v1');
+  assert.ok(api.plainText(free).includes('#나스닥상승 #다우보합 #실적호조'));
+  const structured = makeNode('div');
+  assert.equal(await api.render(structured, free, {
+    isActive: () => true,
+    typeText: async (element, value) => { element.textContent = value; return true; }
+  }), true);
+  const sections = structured.children[0].children;
+  assert.equal(sections[2].tagName, 'div');
+  assert.deepEqual(sections[2].children.map(n => n.tagName), ['p', 'div', 'ul', 'p']);
+  assert.equal(sections[2].children[2].children.length, 2);
+  assert.equal(sections[3].textContent, '#나스닥상승 #다우보합 #실적호조');
+
   // Fail closed: no random AI text, missing indices or stale numeric values.
   assert.equal(api.normalize({ ...valid, market_indices: valid.market_indices.slice(0, 2) }), null);
   assert.equal(api.normalize({ ...valid, market_indices: [
