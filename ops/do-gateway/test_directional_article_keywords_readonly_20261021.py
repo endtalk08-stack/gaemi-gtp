@@ -77,7 +77,13 @@ def normalize(s):
     return re.sub(r"\s+", " ", str(s or "")).strip()
 
 def stock_anchor(s, stock):
-    return [(m.start(), m.end()) for m in re.finditer(re.escape(stock), s, flags=re.I)]
+    # A short Latin ticker is NOT a prefix for another listed legal entity.
+    # HLB vs HLB이노베이션, QZ vs QZX, etc.
+    if re.fullmatch(r"[A-Za-z0-9.]{2,5}",stock):
+        pattern=rf"(?<![A-Za-z0-9]){re.escape(stock)}(?![A-Za-z0-9]|[가-힣]{{2,}})"
+    else:
+        pattern=re.escape(stock)
+    return [(m.start(), m.end()) for m in re.finditer(pattern,s,flags=re.I)]
 
 def compact_object(segment):
     segment = re.split(r"(?:바탕으로|통해|관련해|따라|그러나|한편|이에|중인|예정인)",segment)[-1]
@@ -112,7 +118,7 @@ def make_key(sentence, stock, match):
         if raw not in {"투자주의","투자경고"}:return None
     if re.search(r"이미지\s*확대|사진\s*확대|\[사진",sentence):
         return None
-    if re.search(r"지난해|작년|지난\s*8월|지난\s*9월|10월\s*6일",sentence):
+    if re.search(r"지난해|작년|지난\s*8월|지난\s*9월|10월\s*6일|올해\s*[1-6]월|인수\s*이후.{0,50}성장|성과를\s*보여주는",sentence):
         if raw not in {"투자주의","투자경고"}:return None
     if raw in {"부진","적자"} and re.search(r"(?:1위|회복|반등|성장|넘어섰)",sentence):
         return None
@@ -235,8 +241,10 @@ for stock in targets:
                 all_events.append(event)
                 if sign!=event["direction"]:continue
                 # Do not duplicate same story wording across publishers.
-                key=(event["direction"],event["event_kind"],
-                    event["keyword"].replace(" ","")[:15])
+                idea=event["keyword"].replace(" ","")
+                if all(part in idea for part in ("로봇","부품","확대")):
+                    idea="로봇부품사업확대"
+                key=(event["direction"],event["event_kind"],idea[:22])
                 if key in seen:continue
                 seen.add(key)
                 accepted.append(event)
@@ -277,7 +285,10 @@ for stock in targets:
         print("SAMSUNG_CONDITIONAL_DIVIDEND_FALSE_POSITIVES="+str(len(bad)),flush=True)
     if stock=="HLB":
         bad=[x for x in all_events if "이미지확대" in x["keyword"]]
+        other_company=[x for x in all_events if "기업 공시" in x["article_title"]
+                       and ("공사수주" in x["keyword"] or "계약" in x["keyword"])]
         print("HLB_PHOTO_CAPTION_FALSE_POSITIVES="+str(len(bad)),flush=True)
+        print("HLB_OTHER_COMPANY_CONTRACT_FALSE_POSITIVES="+str(len(other_company)),flush=True)
     if stock=="삼성전자":
         negative_india=[x for x in all_events if "인도" in x["keyword"] and "부진" in x["keyword"]]
         print("SAMSUNG_HISTORICAL_INDIA_NEGATIVE_FALSE_POSITIVES="+str(len(negative_india)),flush=True)
