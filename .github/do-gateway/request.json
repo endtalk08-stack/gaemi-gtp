@@ -1,6 +1,1 @@
-{
-  "operation": "run",
-  "path": "ops/do-gateway/us_close_question_only_isolated_20261021.py",
-  "request_id": "usclose-m2-m3style-20261021",
-  "timeout": 150
-}
+{"operation":"status"}
