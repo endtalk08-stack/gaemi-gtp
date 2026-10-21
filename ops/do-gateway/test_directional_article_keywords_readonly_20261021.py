@@ -106,6 +106,16 @@ def nearest_owner(sentence, stock, pos):
 
 def make_key(sentence, stock, match):
     raw=match.group(0).replace(" ","")
+    # Conditional plans, retired actions and photo/caption UI controls cannot
+    # be promoted to today's completed directional events.
+    if re.search(r"(?:할|했을)\s*경우|(?:할|될)\s*수\s*있|가능성|예상|검토",sentence):
+        if raw not in {"투자주의","투자경고"}:return None
+    if re.search(r"이미지\s*확대|사진\s*확대|\[사진",sentence):
+        return None
+    if re.search(r"지난해|작년|지난\s*8월|지난\s*9월|10월\s*6일",sentence):
+        if raw not in {"투자주의","투자경고"}:return None
+    if raw in {"부진","적자"} and re.search(r"(?:1위|회복|반등|성장|넘어섰)",sentence):
+        return None
     left=sentence[max(0,match.start()-100):match.start()]
     right=sentence[match.end():match.end()+30]
     if "자사주" in sentence and re.search(r"매입|취득",sentence):
@@ -148,6 +158,10 @@ def extract(text, stock):
     candidates=[]
     for sentence in sentences:
         if not stock_anchor(sentence,stock):continue
+        # Retrospective company background, stock-quote-only paragraphs and
+        # hypothetical events must never be selected as real stock catalysts.
+        if re.search(r"과거|지난해|작년|매입을\s*완료한\s*데\s*이어",sentence):
+            continue
         if NEGATION.search(sentence):continue
         for match in ACTION_RX.finditer(sentence):
             if not nearest_owner(sentence,stock,match.start()):continue
@@ -257,4 +271,14 @@ for stock in targets:
     if stock=="삼성전자":
         misleading=[x for x in accepted if x["keyword"]=="자사주매입"]
         print("SAMSUNG_OLD_BUYBACK_POSITIVE_FALSE_POSITIVES="+str(len(misleading)),flush=True)
+    if stock=="삼성전자":
+        bad=[x for x in accepted if "배당" in x["keyword"] and
+             ("경우" in x["evidence"] or "가능성" in x["evidence"])]
+        print("SAMSUNG_CONDITIONAL_DIVIDEND_FALSE_POSITIVES="+str(len(bad)),flush=True)
+    if stock=="HLB":
+        bad=[x for x in all_events if "이미지확대" in x["keyword"]]
+        print("HLB_PHOTO_CAPTION_FALSE_POSITIVES="+str(len(bad)),flush=True)
+    if stock=="삼성전자":
+        negative_india=[x for x in all_events if "인도" in x["keyword"] and "부진" in x["keyword"]]
+        print("SAMSUNG_HISTORICAL_INDIA_NEGATIVE_FALSE_POSITIVES="+str(len(negative_india)),flush=True)
 print("READ_ONLY_DIRECTION_KEYWORD_TEST_FINISHED",flush=True)
