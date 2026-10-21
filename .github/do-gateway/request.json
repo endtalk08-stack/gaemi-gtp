@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_dynamic_stock_owner_readonly_20261021.py","request_id":"stock-owner-verify-readonly-20261021-v2","timeout":90}
+{"operation":"run","path":"ops/do-gateway/probe_directional_original_news_readonly_20261021.py","request_id":"direction-original-test-20261021-v1","timeout":100}
