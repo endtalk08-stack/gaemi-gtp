@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect_live_news_ai_selection_readonly_20261021.py","request_id":"kr-us-ai-scope-inspect-20261021-v3","timeout":120}
+{"operation":"deploy","path":"backend/analysis/news/scoring.py","target":"backend/analysis/news/scoring.py"}
