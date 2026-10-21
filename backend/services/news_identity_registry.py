@@ -78,6 +78,10 @@ def resolve_us_news_identity(name, symbol=None):
         matches and len({r["key"] for r in matches}) == 1
     ) else None
     basic = resolve_us_identity(name, ticker or None)
+    if ticker and basic["status"] != "verified" and resolve_us_identity(name)["status"] == "verified":
+        # A mismatched known ticker must never steal another firm's news.
+        return dict(company_key=basic["company_key"], ticker="", news_name=name,
+                    status="pending", search_terms=[name], snapshot_names=[name])
     if row and (row["label"].casefold() != name.casefold()
                 and row["news"].casefold() != name.casefold()
                 and not (row["status"] == "verified"
@@ -101,6 +105,11 @@ def resolve_us_news_identity(name, symbol=None):
         elif not ticker and name.casefold() in {str(t).casefold() for t in terms}:
             matching_catalog.append(label)
     entry = matching_catalog[0] if len(set(matching_catalog)) == 1 else None
+    if not ticker:
+        exact_codes = [code for code, (_key, _label, known_names) in _VERIFIED.items()
+                       if name.casefold() in {n.casefold() for n in known_names}]
+        if len(exact_codes) == 1:
+            ticker = exact_codes[0]
     if entry and not ticker:
         ticker = next((_ticker(t) for t in catalog[entry] if _ticker(t)), "")
     if entry and not verified and (row is None or row["status"] != "verified"):
@@ -121,7 +130,9 @@ def resolve_us_news_identity(name, symbol=None):
             terms.extend((sibling["label"], sibling["news"]))
     saved_names = [name]
     if verified:
-        saved_names.extend(news_snapshot_names(name, ticker or None))
+        # Snapshot fallback must use the user's ticker, not an inferred
+        # alternate share-class ticker (GOOG vs GOOGL).
+        saved_names.extend(news_snapshot_names(name, _ticker(symbol) or None))
         saved_names.extend([canonical])
         for sibling in siblings:
             saved_names.extend((sibling["label"], sibling["news"]))
