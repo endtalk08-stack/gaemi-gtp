@@ -1,6 +1,8 @@
 """One stock smoke of existing worker save path, no extra AI or other changes."""
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import sys
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 from backend.news_worker import process_stock
 from ops.staged_daily_issue_schedule import scheduled_kst_time
 import os
