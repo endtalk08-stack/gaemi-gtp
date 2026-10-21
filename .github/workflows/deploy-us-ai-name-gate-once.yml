@@ -1,0 +1,174 @@
+name: Deploy US AI dynamic names only
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/deploy-us-ai-name-gate-once.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-us-ai-name-gate
+  cancel-in-progress: false
+jobs:
+  targeted-deploy:
+    if: github.event.head_commit.message == 'RUN_US_AI_NAME_GATE_ONLY_20261021'
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Confirm exactly two existing Python modules changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=6f45a76be7648ab808c39d7aa708d81d0edc8bc6
+          diff_files="$(git diff --name-only "$BASE" HEAD | sort)"
+          expected="$(printf '%s\n' '.github/workflows/deploy-us-ai-name-gate-once.yml' 'ops/staged_ai_sequential_batch.py' 'ops/staged_auto_ai_daily.py' | sort)"
+          test "$diff_files" = "$expected"
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast,subprocess
+          base='6f45a76be7648ab808c39d7aa708d81d0edc8bc6'
+          ai=Path('ops/staged_ai_sequential_batch.py').read_text()
+          old_ai=subprocess.check_output(['git','show',base+':ops/staged_ai_sequential_batch.py'],text=True)
+          gate=old_ai[old_ai.index('    # Frozen to the 21 US stocks'):old_ai.index('    if not isinstance(result, dict)',old_ai.index('    # Frozen to the 21 US stocks'))]
+          assert ai==old_ai.replace(gate,'',1)
+          recovery=Path('ops/staged_auto_ai_daily.py').read_text()
+          old_recovery=subprocess.check_output(['git','show',base+':ops/staged_auto_ai_daily.py'],text=True)
+          approved=old_recovery[old_recovery.index('APPROVED_US = ('):old_recovery.index('\n\n\ndef due_exchange_day')]
+          expected=(old_recovery.replace(approved+'\n\n\n','')
+                    .replace("WHERE s.market='미국' AND s.stock_name=ANY(%s)\n    AND s.expires_at>now()",
+                             "WHERE s.market='미국'\n    AND s.expires_at>now()")
+                    .replace('cur.execute(_RECONCILE_DISPLAY_SQL, (day, list(APPROVED_US)))',
+                             'cur.execute(_RECONCILE_DISPLAY_SQL, (day,))'))
+          assert recovery==expected
+          for path in ('ops/staged_ai_sequential_batch.py','ops/staged_auto_ai_daily.py'):
+              ast.parse(Path(path).read_text())
+          assert 'reserve=reserve_once' in ai
+          assert 'if market not in ("미국", "US"):' in ai
+          assert 'recent_ai_articles(articles)' in ai
+          assert recovery.count('%s')>=1
+          assert 'APPROVED_US' not in recovery
+          print('US_NAME_GATE_ONLY_DIFF_VERIFIED')
+          PY
+          python3 -m unittest discover -s tests -p 'test_staged_ai_sequential_batch.py' -v
+          python3 -m unittest discover -s tests -p 'test_staged_ai_single_entry.py' -v
+          python3 -m unittest discover -s tests -p 'test_staged_daily_call_guard.py' -v
+          python3 -m unittest discover -s tests -p 'test_ai_issue_priority_no_code_gate.py' -v
+      - name: Verify no total call cap with 30 mock US stocks (no API)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          from contextlib import nullcontext
+          from datetime import date
+          sys.path.insert(0,'ops')
+          from staged_ai_sequential_batch import run_stock_batch
+          class Fake:
+              def transaction(self): return nullcontext()
+          stocks=[{'market':'US','symbol':f'NEW{i:03d}','name':f'미국 신규종목{i}',
+                   'exchange_day':date(2026,10,21),
+                   'articles':[{'title':'신규 뉴스','description':'본문','published_at':'2026-10-21T09:00:00+00:00'}]}
+                  for i in range(30)]
+          results=run_stock_batch(Fake(),stocks,
+                  analyze=lambda name,articles: [{'headline':name,'summary':'본문','tags':[],'source_ids':[1]}],
+                  save=lambda *a,**k:[1], reserve=lambda *a,**k:True,
+                  finish=lambda *a,**k:True)
+          assert len(results)==30 and all(r['status']=='ok' for r in results)
+          print('THIRTY_STOCKS_NO_ARTIFICIAL_CAP=PASS')
+          PY
+      - name: Configure secured SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+      - name: Abort on any DigitalOcean source drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=6f45a76be7648ab808c39d7aa708d81d0edc8bc6
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          ai_old="$(git show "$BASE:ops/staged_ai_sequential_batch.py" | sha256sum | cut -d' ' -f1)"
+          daily_old="$(git show "$BASE:ops/staged_auto_ai_daily.py" | sha256sum | cut -d' ' -f1)"
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" bash -s -- "$ai_old" "$daily_old" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum ops/staged_ai_sequential_batch.py | cut -d' ' -f1)" = "$1"
+          test "$(sha256sum ops/staged_auto_ai_daily.py | cut -d' ' -f1)" = "$2"
+          test -w ops/staged_ai_sequential_batch.py && test -w ops/staged_auto_ai_daily.py
+          echo US_AI_LIVE_BASELINE_MATCH
+          REMOTE
+      - name: Transfer only changed US AI gate and recovery modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          scp "${opts[@]}" ops/staged_ai_sequential_batch.py gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/ops/.us-ai-gate-sequential.next
+          scp "${opts[@]}" ops/staged_auto_ai_daily.py gaemi-deploy@"$DO_HOST":/opt/gaemigtp-news/app/ops/.us-ai-gate-recovery.next
+      - name: Verify, activate and roll back on error
+        shell: bash
+        run: |
+          set -euo pipefail
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          ai_sha="$(sha256sum ops/staged_ai_sequential_batch.py | cut -d' ' -f1)"
+          daily_sha="$(sha256sum ops/staged_auto_ai_daily.py | cut -d' ' -f1)"
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" bash -s -- "$ai_sha" "$daily_sha" <<'REMOTE'
+          set -Eeuo pipefail
+          cd /opt/gaemigtp-news/app
+          seq=ops/staged_ai_sequential_batch.py
+          daily=ops/staged_auto_ai_daily.py
+          next_seq=ops/.us-ai-gate-sequential.next
+          next_daily=ops/.us-ai-gate-recovery.next
+          test "$(sha256sum "$next_seq" | cut -d' ' -f1)" = "$1"
+          test "$(sha256sum "$next_daily" | cut -d' ' -f1)" = "$2"
+          /opt/gaemigtp-news/venv/bin/python -m py_compile "$next_seq" "$next_daily"
+          old_seq="$(mktemp ./ops/.us-ai-gate-backup-sequential.XXXXXXXX)"
+          old_daily="$(mktemp ./ops/.us-ai-gate-backup-recovery.XXXXXXXX)"
+          cp "$seq" "$old_seq"
+          cp "$daily" "$old_daily"
+          rollback() {
+            rc=$?
+            trap - ERR
+            cp "$old_seq" "$seq"
+            cp "$old_daily" "$daily"
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+            echo US_AI_NAME_GATE_ROLLED_BACK
+            exit "$rc"
+          }
+          trap rollback ERR
+          install -m 644 "$next_seq" "$seq"
+          install -m 644 "$next_daily" "$daily"
+          /opt/gaemigtp-news/venv/bin/python -m py_compile "$seq" "$daily"
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum "$seq" | cut -d' ' -f1)" = "$1"
+          test "$(sha256sum "$daily" | cut -d' ' -f1)" = "$2"
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          import pathlib,sys,inspect
+          sys.path.insert(0,str(pathlib.Path('ops').resolve()))
+          from staged_ai_sequential_batch import apply_worker_ai,run_stock_batch
+          from staged_auto_ai_daily import _RECONCILE_DISPLAY_SQL
+          body=inspect.getsource(apply_worker_ai)
+          assert 'outside_approved_21' not in body
+          assert 'if market not in ("미국", "US")' in body
+          assert 'has_eligible_ai_news(raw)' in body
+          assert 's.stock_name=ANY' not in _RECONCILE_DISPLAY_SQL
+          print('US_AI_GATE_RUNTIME_SMOKE_PASS')
+          PY
+          trap - ERR
+          rm -f "$old_seq" "$old_daily" "$next_seq" "$next_daily"
+          echo US_AI_NAME_GATE_DEPLOY_VERIFIED
+          REMOTE
