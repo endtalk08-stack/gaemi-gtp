@@ -7,13 +7,13 @@ from copy import deepcopy
 
 VERB = re.compile(r"매입|취득|완료|종료|첨단화|증설|확충|신설|출범|설립|체결|협력|공급|수주|투자|확대|강화|상향|하향|출시|양산|지정|예고|소각|전환|개발|진출|철수|중단|감산|인수|합병")
 ACTIONS = (
- ("자사주매입완료",r"자사주.{0,30}(?:매입|취득).{0,40}(?:완료|종료|마무리|끝냈|끝나)|자사주.{0,30}(?:매입|취득)\\s*조기\\s*완료"),
+ ("자사주매입완료",r"자사주.{0,30}(?:매입|취득).{0,40}(?:완료|종료|마무리|끝냈|끝나)|자사주.{0,30}(?:매입|취득)\s*조기\s*완료"),
  ("자사주매입계획",r"자사주.{0,30}(?:매입|취득).{0,20}(?:계획|추진|예정|결정)"),
  ("투자경고지정예고",r"투자경고.{0,25}(?:지정예고|지정.{0,9}예고|가능성)"),
  ("투자주의지정예고",r"투자주의.{0,20}(?:예고|지정 예정|지정예고)"),
  ("목표주가상향",r"목표(?:주가|가).{0,35}(?:상향|올렸|높였)"),
  ("목표주가하향",r"목표(?:주가|가).{0,35}(?:하향|내렸|낮췄)"),
- ("공급계약체결",r"공급\\s*계약.{0,30}(?:체결|맺|수주)"),
+ ("공급계약체결",r"공급\s*계약.{0,30}(?:체결|맺|수주)"),
  ("협약체결",r"(?:업무협약|MOU|파트너십).{0,45}(?:체결|맺)|(?:체결|맺).{0,35}(?:업무협약|MOU)"),
  ("생산라인증설",r"(?:생산라인|생산시설|전용라인|공장|팹).{0,30}(?:증설|확충|구축)"),
  ("공장첨단화추진",r"(?:공장|생산시설|생산공정|낸드).{0,35}(?:첨단화|첨단 공정 전환)"),
@@ -42,7 +42,7 @@ HEADLINE_TOPIC = (
  ("투자경고", ("투자경고지정예고",)),
 )
 def norm(value):
- return re.sub(r"\\s+"," ",html.unescape(re.sub(r"<[^>]*>"," ",str(value or "")))).strip()
+ return re.sub(r"\s+"," ",html.unescape(re.sub(r"<[^>]*>"," ",str(value or "")))).strip()
 def owner_match(stock,title):
  if stock in title:return True
  # Never assume bare '삼성', 'SK', industry/ETF/group mentions identify a corporation.
@@ -68,8 +68,8 @@ def choose_tag(label,title,desc):
   if "엔비디아" in t and "기판" in t:return "엔비디아AI기판협력"
   if "LIG" in t and "유도무기" in t:return "LIG유도무기엔진협력"
  if label=="자사주매입완료":
-  m=re.search(r"(\\d+(?:[.,]\\d+)?\\s*조\\s*원?)",title)
-  if m:return re.sub(r"\\s+","",m.group(1))+"자사주매입완료"
+  m=re.search(r"(\d+(?:[.,]\d+)?\s*조\s*원?)",title)
+  if m:return re.sub(r"\s+","",m.group(1))+"자사주매입완료"
  return label
 def tags_only(payload,stock):
  if not isinstance(payload,dict):return payload,0
