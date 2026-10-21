@@ -230,7 +230,7 @@ def _fresh_ai_briefs(briefs, *, now=None):
     return valid
 
 
-def _prefer_same_day_ai(coming, previous, stock_name, us_day, *, keep_code_if_no_ai=False):
+def _prefer_same_day_ai(coming, previous, stock_name, us_day):
     """Keep same-stock, source-fresh AI across US day boundaries, until 24h expiry."""
     code = _same_stock_issue_briefs(
         coming.get("_code_issue_briefs", coming.get("issue_briefs") or []), stock_name)
@@ -261,7 +261,7 @@ def _prefer_same_day_ai(coming, previous, stock_name, us_day, *, keep_code_if_no
     else:
         coming.pop("_ai_issue_briefs", None)
         coming.pop("_ai_exchange_day", None)
-        coming["issue_briefs"] = code if keep_code_if_no_ai else []
+        coming["issue_briefs"] = []
     return coming
 
 
@@ -287,7 +287,7 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
             # Keep AI and deterministic issue channels separate without
             # altering news collection, retention, or existing read APIs.
             previous_payload = None
-            if market in ("미국", "US", "국내", "KR"):
+            if market in ("미국", "US") or not normalized.get("issue_briefs"):
                 cur.execute("""
                     SELECT result_payload FROM public.news_processed_snapshots
                     WHERE market=%s AND stock_name=%s AND result_limit=%s
@@ -297,28 +297,23 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
                 """, (market, stock_name, limit, storyboard_limit, display_timezone))
                 previous = cur.fetchone()
                 previous_payload = previous[0] if previous else None
-            if market in ("미국", "US", "국내", "KR"):
+            if market in ("미국", "US"):
                 from datetime import datetime
                 from zoneinfo import ZoneInfo
-                is_kr = market in ("국내", "KR")
-                day = datetime.now(ZoneInfo(
-                    "Asia/Seoul" if is_kr else "America/New_York"
-                )).date().isoformat()
-                normalized = _prefer_same_day_ai(
-                    normalized, previous_payload, stock_name, day,
-                    keep_code_if_no_ai=is_kr,
-                )
-                # KR retains the existing rule-based brief when AI has no
-                # sourced issue or no daily AI slot; US remains AI-only.
-                if is_kr and not normalized.get("issue_briefs"):
-                    preserved = _recent_existing_issue_briefs(previous_payload, stock_name)
-                    if preserved:
-                        normalized["issue_briefs"] = preserved
+                day = datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+                normalized = _prefer_same_day_ai(normalized, previous_payload,
+                                                  stock_name, day)
+            # US display is AI-only; never resurrect legacy code headlines.
+            if market not in ("미국", "US") and not normalized.get("issue_briefs"):
+                preserved = _recent_existing_issue_briefs(previous_payload, stock_name)
+                if preserved:
+                    normalized["issue_briefs"] = preserved
+                    if market in ("미국", "US"):
                         normalized["_code_issue_briefs"] = preserved
-                        print(
-                            f"[news-worker] preserved_recent_issues stock={stock_name} count={len(preserved)}",
-                            flush=True,
-                        )
+                    print(
+                        f"[news-worker] preserved_recent_issues stock={stock_name} count={len(preserved)}",
+                        flush=True,
+                    )
             cur.execute("""
                 INSERT INTO public.news_processed_snapshots
                     (market,stock_name,result_limit,storyboard_limit,display_timezone,

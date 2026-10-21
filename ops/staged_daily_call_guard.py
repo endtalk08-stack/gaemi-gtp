@@ -1,4 +1,4 @@
-"""Staged, opt-in once-per-stock/day reservation using the existing Neon ledger.
+"""Staged, opt-in once-per-US-day reservation using the existing Neon ledger.
 
 Not imported by the production worker. Caller supplies a psycopg connection and
 commits before making a paid request. A reservation is deliberately not retried
@@ -64,45 +64,3 @@ def finish_reservation(conn, *, market, symbol, exchange_day, request_hash,
              failure_category, failure_reason, market, symbol, exchange_day, request_hash),
         )
         return cur.rowcount == 1
-
-# Existing US coverage was bounded to 21 names. Keep that TOTAL daily budget
-# for US+KR together (10 KR / 11 US) while allowing any worker-ranked name.
-MAX_AI_CALLS_KST_DAY = 21
-MARKET_AI_CALLS_KST_DAY = {"KR": 10, "US": 11}
-
-
-def reserve_with_daily_budget(conn, *, market, symbol, exchange_day, request_hash,
-                              provider="groq", model_id="openai/gpt-oss-20b"):
-    """Atomically check global/market cost limits and preserve once/stock/day.
-
-    This is called inside the caller's transaction, before the paid API call.
-    Transaction advisory lock prevents two workers from overrunning the limit.
-    Both markets share a Korean-calendar-day counter to avoid day-boundary gaps.
-    """
-    from datetime import datetime, timedelta
-    from zoneinfo import ZoneInfo
-    if market not in MARKET_AI_CALLS_KST_DAY:
-        raise ValueError("Invalid AI market")
-    kst_today = datetime.now(ZoneInfo("Asia/Seoul")).date()
-    start = datetime.combine(kst_today, datetime.min.time(), ZoneInfo("Asia/Seoul"))
-    stop = start + timedelta(days=1)
-    lock_key = f"gaemigtp:ai:daily:{kst_today.isoformat()}"
-    lock_id = int.from_bytes(hashlib.sha256(lock_key.encode()).digest()[:8],
-                             "big", signed=True)
-    with conn.cursor() as cur:
-        cur.execute("SELECT pg_advisory_xact_lock(%s)", (lock_id,))
-        cur.execute(
-            """SELECT COUNT(*) FILTER (WHERE market=%s), COUNT(*)
-               FROM public.news_ai_call_ledger
-               WHERE created_at >= %s AND created_at < %s""",
-            (market, start, stop),
-        )
-        own_count, total_count = cur.fetchone()
-    if (own_count >= MARKET_AI_CALLS_KST_DAY[market]
-            or total_count >= MAX_AI_CALLS_KST_DAY):
-        print("[news-ai] skipped reason=daily_budget_reached market=%s" % market,
-              flush=True)
-        return False
-    return reserve_once(conn, market=market, symbol=symbol,
-                        exchange_day=exchange_day, request_hash=request_hash,
-                        provider=provider, model_id=model_id)
