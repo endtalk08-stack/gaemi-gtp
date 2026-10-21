@@ -67,59 +67,41 @@ def search(key, secret, symbols, label):
     return items
 
 def main():
-    import datetime as dt
-    start=dt.datetime.now(dt.timezone.utc)-dt.timedelta(hours=24)
-    end=dt.datetime.now(dt.timezone.utc)
-    iso=lambda t:t.isoformat(timespec="seconds").replace("+00:00","Z")
-    key=os.getenv("APCA_API_KEY_ID","").strip()
-    secret=os.getenv("APCA_API_SECRET_KEY","").strip()
+    key,secret=os.getenv("APCA_API_KEY_ID","").strip(),os.getenv("APCA_API_SECRET_KEY","").strip()
     if not key or not secret:
-        print("ALPACA_24H_ERROR=missing_credentials",flush=True)
+        print("US_CLOSE_NEWS_ERROR=missing_credentials", flush=True)
         return 2
-    print("ALPACA_24H_WINDOW="+iso(start)+".."+iso(end),flush=True)
-    all_ok=True
-    for sym in ("NVDA","SPCX","AAPL"):
-        page_token=None
-        seen=set()
-        pages=0
-        issue=None
-        for _ in range(40):
-            params={"symbols":sym,"start":iso(start),"end":iso(end),
-                    "sort":"asc","limit":50}
-            if page_token:params["page_token"]=page_token
-            request=urllib.request.Request(
-                "https://data.alpaca.markets/v1beta1/news?"+urllib.parse.urlencode(params),
-                headers={"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret,
-                         "Accept":"application/json"},
-                method="GET")
-            try:
-                with urllib.request.urlopen(request,timeout=15) as response:
-                    data=json.load(response)
-            except urllib.error.HTTPError as exc:
-                issue="http_"+str(exc.code)
-                break
-            except (TimeoutError,urllib.error.URLError,OSError,ValueError):
-                issue="transport_or_json"
-                break
-            if not isinstance(data,dict) or not isinstance(data.get("news"),list):
-                issue="invalid_schema"
-                break
-            pages+=1
-            for item in data["news"]:
-                if isinstance(item,dict):
-                    identity=str(item.get("id") or item.get("url") or
-                                 item.get("headline") or "")
-                    if identity:seen.add(identity)
-            page_token=data.get("next_page_token")
-            if not page_token:break
-        if page_token and issue is None:issue="page_limit_reached"
-        if issue:all_ok=False
-        print("ALPACA_24H_SYMBOL="+json.dumps(
-            {"symbol":sym,"count":len(seen),"pages":pages,
-             "complete":issue is None,"error":issue},
-            ensure_ascii=False,sort_keys=True),flush=True)
-    print("ALPACA_24H_AUDIT_DONE",flush=True)
-    return 0 if all_ok else 5
+    print("US_CLOSE_NEWS_SCOPE=Oct_19_2000_to_2300UTC_one_readonly_get",flush=True)
+    count=0
+    match=re.compile(r"\b(?:Wall Street|U\.S\.\s+stocks|US stocks|U\.S\.\s+equities|S&P\s*500|Nasdaq|Dow Jones|Dow\s+futures|Stock market|market close|closing bell|stocks closed|stocks finish|stocks end|stocks fall|stocks rise|equities close|stocks rally|stocks slide|market selloff|market rebound|market recap)\b",re.I)
+    seen=set()
+    for label,symbols in [("close_window_general","")]:
+        items=search(key,secret,symbols,label)
+        if items is None: continue
+        local=0
+        for article in items:
+            if not isinstance(article,dict):continue
+            title=clean(article.get("headline"))
+            body=clean(article.get("content"))
+            if not title or not match.search(title) or len(body)<500:continue
+            u=str(article.get("url") or "").strip()
+            if u in seen:continue
+            seen.add(u)
+            local+=1
+            if local>7:continue
+            print("US_CLOSE_NEWS_CANDIDATE="+json.dumps({
+                "group":label,"published_utc":str(article.get("created_at") or "")[:32],
+                "source":str(article.get("source") or "")[:35],
+                "headline":title[:200],
+                "symbols":(article.get("symbols") or [])[:12],
+                "body_chars":len(body),"body_words":len(body.split()),
+                "preview":body[:165],"url":u[:350],
+            },ensure_ascii=False),flush=True)
+        print("US_CLOSE_NEWS_RELEVANT="+label+":"+str(local),flush=True)
+        count+=local
+    print("US_CLOSE_NEWS_TOTAL_RELEVANT="+str(count),flush=True)
+    print("US_CLOSE_NEWS_AUDIT_COMPLETE",flush=True)
+    return 0 if count else 5
 
 if __name__ == "__main__":
     sys.exit(main())
