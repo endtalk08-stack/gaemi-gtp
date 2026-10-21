@@ -3195,14 +3195,19 @@ def _attach_news_price_reactions(news_result):
     return news_result
 
 
-def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
+def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_market_override=False):
     raw_name = str(raw_name or 'SK하이닉스').strip()
     ticker_symbol = ticker_symbol_override or TICKERS.get(raw_name)
     clean_code = None
 
     try:
         if ticker_symbol:
-            clean_code = ''.join(filter(str.isdigit, ticker_symbol))
+            if kr_market_override or ticker_symbol.endswith((".KS", ".KQ")):
+                # Keep Naver's complete six-character domestic code, including
+                # letters used in newly listed stocks (e.g. 0158S0).
+                clean_code = ticker_symbol[:-3] if ticker_symbol.endswith((".KS", ".KQ")) else ticker_symbol
+            else:
+                clean_code = ''.join(filter(str.isdigit, ticker_symbol))
         elif re.match(r'^\d{6}$', raw_name):
             clean_code = raw_name
             ticker_symbol = f"{clean_code}.KS"
@@ -3229,7 +3234,9 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                 "ok": False,
             }
 
-        is_krw = ('-' not in ticker_symbol and ticker_symbol.endswith(('.KS', '.KQ'))) or (clean_code and len(clean_code) == 6)
+        is_krw = (('-' not in ticker_symbol and ticker_symbol.endswith(('.KS', '.KQ')))
+                  or (bool(clean_code) and len(clean_code) == 6
+                      and (kr_market_override or clean_code.isdigit())))
 
         current_price = 0.0
         change_pct = 0.0

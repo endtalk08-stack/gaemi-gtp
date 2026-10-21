@@ -59,6 +59,48 @@ class MarketSelectionContextTests(unittest.TestCase):
         selected = rankings.get_market_selection("kr", "popular", "247540", "에코프로비엠")
         self.assertEqual(rankings.analysis_ticker_for_selection(selected), "247540.KQ")
 
+
+    def test_alphanumeric_kr_stock_symbol_is_preserved_for_quote(self):
+        kr = {"items": [{"itemCode": "0158S0", "price": {
+            "itemName": "엘리스", "marketType": "KOSDAQ",
+            "krx": {"currentPrice": "79900"}
+        }}]}
+        with patch.object(rankings, "get_stock_industries", return_value={}), patch.object(
+            rankings, "fetch_kr_popular_ranking_raw", return_value=kr,
+        ):
+            rows = rankings.build_kr_popular_result()
+        self.assertEqual(rows[0]["symbol"], "0158S0")
+        self.assertEqual(rows[0]["price"], 79900)
+        selected = rankings.get_market_selection("kr", "popular", "0158S0", "엘리스")
+        self.assertIsNotNone(selected)
+        self.assertEqual(rankings.analysis_ticker_for_selection(selected), "0158S0.KQ")
+        self.assertIsNone(rankings.get_market_selection("kr", "popular", "0158S1", "엘리스"))
+
+    def test_alphanumeric_kr_without_exchange_does_not_guess_yahoo_suffix(self):
+        rankings._remember_market_result("kr", "popular", [
+            {"name": "엘리스", "symbol": "0158S0", "market_type": ""},
+        ])
+        selected = rankings.get_market_selection("kr", "popular", "0158S0", "엘리스")
+        self.assertEqual(rankings.analysis_ticker_for_selection(selected), "0158S0")
+        self.assertIsNone(rankings.get_market_selection("kr", "popular", "0158S0", "다른회사"))
+
+    def test_alphanumeric_kr_uses_complete_code_in_existing_quote_provider(self):
+        from backend.services import engine
+        with patch.object(engine, "fetch_stock_price_result",
+                          side_effect=RuntimeError("stop_after_quote_routing")) as quote:
+            engine.analyze_stock("엘리스", ticker_symbol_override="0158S0.KQ",
+                                 kr_market_override=True)
+        quote.assert_called_once_with(
+            is_krw=True, ticker_symbol="0158S0.KQ", clean_code="0158S0",
+        )
+        with patch.object(engine, "fetch_stock_price_result",
+                          side_effect=RuntimeError("stop_after_quote_routing")) as quote:
+            engine.analyze_stock("엘리스", ticker_symbol_override="0158S0",
+                                 kr_market_override=True)
+        quote.assert_called_once_with(
+            is_krw=True, ticker_symbol="0158S0", clean_code="0158S0",
+        )
+
     def test_wrong_market_menu_stock_code_or_name_is_rejected(self):
         rankings._remember_market_result("us", "popular", [{
             "name": "엔비디아", "symbol": "NVDA.O", "price": 200.0,

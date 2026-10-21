@@ -33,7 +33,7 @@ def get_market_selection(market, menu, symbol, stock=None):
     if market not in ("kr", "us") or menu not in ("popular", "value"):
         return None
     code = str(symbol or "").strip().upper()
-    pattern = r"[0-9]{6}" if market == "kr" else r"[A-Z0-9.^_-]{1,32}"
+    pattern = r"[A-Z0-9]{6}" if market == "kr" else r"[A-Z0-9.^_-]{1,32}
     if not re.fullmatch(pattern, code):
         return None
     with _MARKET_RESULTS_LOCK:
@@ -81,6 +81,11 @@ def analysis_ticker_for_selection(selection):
             return code + ".KQ"
         if "KOSPI" in exchange or exchange == "KS":
             return code + ".KS"
+        # A verified Naver domestic ranking code can be used for the existing
+        # Naver realtime quote even when its exchange suffix is not provided.
+        # Do not guess a KOSPI/KOSDAQ suffix for Yahoo history.
+        if re.fullmatch(r"[A-Z0-9]{6}", code) and not code.isdigit():
+            return code
         return None
 
     symbol = str(selection.get("analysis_symbol") or selection["symbol"]).upper()

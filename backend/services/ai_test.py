@@ -797,7 +797,10 @@ def ai_test_chat():
         if context is None:
             from backend.services.engine import analyze_stock
             ticker = analysis_ticker_for_selection(selected)
-            result = analyze_stock(stock, ticker_symbol_override=ticker) if ticker else analyze_stock(stock)
+            result = (analyze_stock(
+                stock, ticker_symbol_override=ticker,
+                kr_market_override=bool(selected and selected["market"] == "kr"),
+            ) if ticker else analyze_stock(stock))
             if result.get("ok") is False:
                 return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": limits_for_request()}), 422
             context = _context(stock, result)

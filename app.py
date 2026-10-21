@@ -196,7 +196,10 @@ def analyze():
             request.args.get("symbol"), stock=stock,
         )
         ticker = analysis_ticker_for_selection(selected)
-        result = analyze_stock(stock, ticker_symbol_override=ticker) if ticker else analyze_stock(stock)
+        result = (analyze_stock(
+            stock, ticker_symbol_override=ticker,
+            kr_market_override=bool(selected and selected["market"] == "kr"),
+        ) if ticker else analyze_stock(stock))
         remember_chat_analysis(stock, result, selection=selected)
         response = jsonify(result)
         response.headers["X-Analysis-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.0f}"
