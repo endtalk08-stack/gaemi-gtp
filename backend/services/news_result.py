@@ -773,8 +773,7 @@ def _sanitize_news_display_briefs(result, *, market=None):
     for brief in result.get("issue_briefs") or []:
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
             brief["summary"] = strip_leading_news_credit(brief["summary"])
-            if market not in ("국내", "kr"):
-                brief["headline"] = grounded_issue_display_title(brief)
+            brief["headline"] = grounded_issue_display_title(brief)
             # Earlier AI worker versions added unrequested publication/AI labels.
             # Show only the existing concise HH:MM; leave persisted evidence untouched.
             timestamp = brief.get("time")
