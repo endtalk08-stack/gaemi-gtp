@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/alpaca_news_24h_three_count_20261021.py",
+  "request_id": "alpaca-three-news24-20261021",
+  "timeout": 130
 }
