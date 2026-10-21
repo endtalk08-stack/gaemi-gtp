@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/preview_ranked_directional_strict_readonly_20261021.py","request_id":"ranked-strict-retest-20261021-v2","timeout":240}
+{"operation":"run","path":"ops/do-gateway/test_title_description_issue_readonly_20261021.py","request_id":"title-desc-events-20261021-v1","timeout":240}
