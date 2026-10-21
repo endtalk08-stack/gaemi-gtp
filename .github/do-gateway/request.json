@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/us_news_initial50_receipts_readonly_20261021.py","request_id":"us-news50-initial-20261021-a1","timeout":180}
