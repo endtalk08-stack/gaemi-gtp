@@ -438,6 +438,13 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
 
     is_us_stock = stock_region == "미국" or market == "미국"
     ticker = _primary_us_ticker(stock_name) if is_us_stock else ""
+    provider_name = stock_name
+    if is_us_stock:
+        from backend.services.news_identity_registry import resolve_us_news_identity
+        identity = resolve_us_news_identity(stock_name)
+        queries = identity["search_terms"]
+        ticker = identity["ticker"] or ticker
+        provider_name = identity["news_name"]
 
     # Keep independent providers concurrent so adding official/SEC sources does
     # not serialize extra network latency onto the existing NAVER hot path.
@@ -454,12 +461,12 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
         if is_us_stock:
             jobs["official"] = pool.submit(
                 official_company_news.fetch_company_news,
-                stock_name,
+                provider_name,
                 min(max(6, int(limit)), 15),
             )
             jobs["sec"] = pool.submit(
                 sec_filings.fetch_recent_filings,
-                stock_name,
+                provider_name,
                 ticker,
                 min(max(4, int(limit)), 10),
                 MAX_NEWS_AGE_DAYS,
