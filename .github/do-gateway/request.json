@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-news.service","lines":95}
+{"operation":"run","path":"ops/do-gateway/verify_live_domestic_title_readonly_20261022.py","request_id":"live-kr-us-title-final-20261022","timeout":120}
