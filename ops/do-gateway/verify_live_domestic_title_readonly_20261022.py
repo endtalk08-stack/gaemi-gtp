@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0,'/opt/gaemigtp-news/app')
 import os,json,psycopg,hashlib
 from backend.services.shared_v1_issue_titles import extract
 from backend.services.news_result import get_shared_stock_news_result
