@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/services/news_feed.py","target":"backend/services/news_feed.py"}
+{"operation":"run","path":"ops/do-gateway/verify_identity_auto_no_network_20261021.py","request_id":"auto-identity-readonly-20261021","timeout":120}
