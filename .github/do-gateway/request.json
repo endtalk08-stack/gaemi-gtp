@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_shared_us_news_extractor_fixed_20261022.py","request_id":"us-shared-fixed-20261022-v1","timeout":120}
+{"operation":"run","path":"ops/do-gateway/test_ht_robotics_shared_extractor_20261022.py","request_id":"ht-shared-20261022-v1","timeout":120}
