@@ -28,7 +28,7 @@
     }
     const cleanIssues = issues.slice(0, 3).map(item => ({
       headline: String(item?.headline || '').trim().slice(0, 200),
-      summary: String(item?.summary || '').trim().slice(0, 2600),
+      summary: String(item?.summary || '').trim().slice(0, 3600),
       tags: (Array.isArray(item?.tags) ? item.tags : [])
         .map(tag => String(tag || '').trim().replace(/^#+/, ''))
         .filter(Boolean).slice(0, 3)
