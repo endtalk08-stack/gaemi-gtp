@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0,'/opt/gaemigtp-news/app')
 from pathlib import Path
 import re
 p=Path("/opt/gaemigtp-news/app/backend/news_worker.py")
