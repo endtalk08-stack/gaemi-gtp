@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/audit_rollback_cleanup_20261022.py","request_id":"cleanup-audit-20261022","timeout":120}
