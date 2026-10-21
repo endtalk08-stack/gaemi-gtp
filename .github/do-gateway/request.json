@@ -1,5 +1,3 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-news.service",
-  "lines": 300
+  "operation": "status"
 }
