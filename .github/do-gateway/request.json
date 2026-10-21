@@ -1,5 +1,1 @@
-{
-  "operation": "deploy",
-  "path": "backend/alpaca_news_probe.py",
-  "target": "backend/alpaca_news_probe.py"
-}
+{"operation":"alpaca-news-verify"}
