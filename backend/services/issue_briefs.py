@@ -1035,13 +1035,6 @@ def build_issue_briefs(items, stock_name, limit=3, body_texts=None, market=None)
         if body_texts is not None:
             display_headline, display_tags = _content_driven_title_and_tags(article_summary)
 
-        if market in ("국내", "kr"):
-            from .shared_v1_issue_titles import extract
-            extracted_titles = extract(str(item.get("title") or ""), str(item.get("description") or ""))
-            if extracted_titles:
-                from .compact_issue_titles import compact_issue_title
-                display_headline = compact_issue_title(extracted_titles[0], str(item.get("title") or ""))
-
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),
             "reaction_at": str(item.get("published_at") or "").strip(),
