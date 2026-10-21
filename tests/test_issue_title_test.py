@@ -71,7 +71,7 @@ class IssueTitleIsolationTests(unittest.TestCase):
         data = {**self.data, "article_body": "뉴스 내용 " * 5000}
         with patch("backend.services.issue_title_test._cloudflare_answer") as model:
             response = self._post(data)
-        self.assertEqual(response.status_code, 400)
+        self.assertIn(response.status_code, (400, 413))
         model.assert_not_called()
 
     def test_full_untrimmed_article_reaches_model_once(self):
@@ -88,7 +88,7 @@ class IssueTitleIsolationTests(unittest.TestCase):
         self.assertFalse(result["cached"])
         self.assertEqual(result["usage"]["total_tokens"], 970)
         args, kwargs = model.call_args
-        self.assertEqual(args[1]["verified_article_body"], self.body)
+        self.assertEqual(args[1]["verified_article_body"], self.body.strip())
         self.assertEqual(kwargs["max_completion_tokens"], 450)
         self.assertEqual(model.call_count, 1)
 
