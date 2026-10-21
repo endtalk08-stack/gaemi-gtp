@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_directional_verified_keyword_experiment_readonly_20261021.py","request_id":"direction-evidence-prototype-20261021-v1","timeout":100}
+{"operation":"run","path":"ops/do-gateway/verify_directional_keywords_readonly_20261021.py","request_id":"direction-keyword-readonly-20261021-v1","timeout":120}
