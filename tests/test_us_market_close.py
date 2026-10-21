@@ -205,7 +205,7 @@ class TestUSClose(unittest.TestCase):
         self.assertEqual(len(updated),1)
         saved=updated[0]
         self.assertEqual(saved["response_format"],close.FREE_TEXT_FORMAT)
-        self.assertEqual(saved["issues"][0]["summary"],output)
+        self.assertEqual(saved["issues"][0]["summary"],output.strip())
         self.assertEqual(saved["issues"][0]["headline"],"미국장 마감")
         self.assertEqual(saved["issues"][0]["tags"],["#나스닥상승","#다우보합","#실적호조"])
         presentation=close._structured_brief(json.dumps(saved,ensure_ascii=False))
