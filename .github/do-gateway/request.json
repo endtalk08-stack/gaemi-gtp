@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_kr_title_integration_staged_20261022.py","request_id":"kr-title-routing-check-20261022","timeout":120}
+{"operation":"deploy","path":"backend/services/shared_v1_issue_titles.py","target":"backend/services/shared_v1_issue_titles.py"}
