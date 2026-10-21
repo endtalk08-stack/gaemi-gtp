@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect_kr_popular_queue_readonly_20261021.py","request_id":"kr-popular-queue-readonly-20261021-v1","timeout":120}
+{"operation":"run","path":"ops/do-gateway/inspect_news_worker_cadence_readonly_20261021.py","request_id":"kr-rank-worker-cadence-20261021-v1","timeout":90}
