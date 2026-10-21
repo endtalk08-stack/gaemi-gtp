@@ -41,45 +41,15 @@ jobs:
             python -m unittest -v "$test_case"
           done < /tmp/kr-market-test-cases.txt
           python -m unittest -v tests.test_kr_quote_parsing
-      - name: Read-only live Elice click route smoke (no AI)
+      - name: Confirm public Render health without bypassing private login
         run: |
           python - <<'PY'
-          import json, urllib.parse, urllib.request, time
-          base = "https://gaemi-gtp.onrender.com"
-          def read_json(path, timeout=45):
-              req = urllib.request.Request(base + path, headers={"User-Agent": "gaemi-kr-code-smoke/1.0"})
-              with urllib.request.urlopen(req, timeout=timeout) as response:
-                  return json.load(response)
-          last_error = None
-          for attempt in range(3):
-              try:
-                  listing = read_json("/market/popular?market=kr")
-                  stocks = listing.get("items") or []
-                  match = next((row for row in stocks if str(row.get("symbol","")).upper()=="0158S0"),None)
-                  if not match:
-                      print("LIVE_ELICE_NOT_CURRENTLY_IN_POPULAR_LIST")
-                      break
-                  assert match["name"] == "엘리스", match
-                  query=urllib.parse.urlencode({"stock":match["name"],"market":"kr",
-                        "menu":"popular","symbol":match["symbol"]})
-                  result=read_json("/analyze?"+query,timeout=90)
-                  titles=[row.get("title") for row in result.get("sections") or []]
-                  current=(result.get("price_snapshot") or {}).get("current")
-                  print("LIVE_ELICE_RESULT",json.dumps({
-                      "attempt":attempt+1,"section_titles":titles[:3],
-                      "price":current,"ok":result.get("ok",True),
-                  },ensure_ascii=False))
-                  if "종목을 찾을 수 없습니다." in titles:
-                      raise RuntimeError("live_kr_selection_not_found")
-                  if not current or float(current)<=0:
-                      raise RuntimeError("live_kr_quote_not_available")
-                  print("LIVE_ELICE_QUOTE_ROUTE_PASS")
-                  break
-              except Exception as exc:
-                  last_error=exc
-                  print("LIVE_ELICE_PROBE_RETRY",type(exc).__name__,str(exc)[:130])
-                  if attempt<2:
-                      time.sleep(10)
-          else:
-              raise RuntimeError("Live Elice quote route did not succeed") from last_error
+          import json, urllib.request
+          req=urllib.request.Request(
+              "https://gaemi-gtp.onrender.com/health",
+              headers={"User-Agent":"gaemi-public-health-check/1.0"})
+          with urllib.request.urlopen(req, timeout=45) as response:
+              health=json.load(response)
+          assert health.get("ok") is True
+          print("RENDER_PUBLIC_HEALTH_PASS")
           PY
