@@ -10,15 +10,6 @@ from zoneinfo import ZoneInfo
 
 NEW_YORK = ZoneInfo("America/New_York")
 SEOUL = ZoneInfo("Asia/Seoul")
-APPROVED_US = (
-    "TSMC ADR", "네비우스 그룹", "마이크로소프트", "마이크론 테크놀로지",
-    "메타", "모더나", "브로드컴", "샌디스크", "스페이스X", "아마존닷컴",
-    "아이렌", "아이온큐", "알파벳 Class A", "애플", "엔비디아",
-    "오라클", "인텔", "일라이 릴리", "코어위브", "테슬라",
-    "팔란티어 테크놀로지스",
-)
-
-
 def due_exchange_day(now=None):
     now = now or datetime.now(NEW_YORK)
     local = now.astimezone(NEW_YORK)
@@ -44,7 +35,7 @@ WITH source_rows AS (
    AND b.result_payload->>'symbol'=s.stock_name
    AND b.result_payload->>'exchange_day'=l.exchange_day::text
    AND b.expires_at>now()
-  WHERE s.market='미국' AND s.stock_name=ANY(%s)
+  WHERE s.market='미국'
     AND s.expires_at>now()
     AND jsonb_typeof(b.result_payload->'issues')='array'
     AND jsonb_array_length(b.result_payload->'issues') = jsonb_array_length(l.result->'issue_ids')
@@ -112,7 +103,7 @@ RETURNING s.stock_name
 def reconcile_completed_ai_snapshots(conn, day):
     """Restore missing AI display strictly from already completed paid calls."""
     with conn.cursor() as cur:
-        cur.execute(_RECONCILE_DISPLAY_SQL, (day, list(APPROVED_US)))
+        cur.execute(_RECONCILE_DISPLAY_SQL, (day,))
         return [row[0] for row in cur.fetchall()]
 
 
