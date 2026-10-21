@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect_live_news_ai_selection_readonly_20261021.py","request_id":"us-news-selection-read-20261021-v1","timeout":90}
+{"operation":"run","path":"ops/do-gateway/dump_live_news_selection_readonly_20261021.py","request_id":"news-selection-dump-20261021-v1","timeout":90}
