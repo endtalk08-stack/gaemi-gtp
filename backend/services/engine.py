@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 from .news_result import get_shared_stock_news_result
 from .disclosure_scoring import score_disclosures
 from .stock_analysis import fetch_stock_price_result
-from ..providers.market_price import fetch_news_price_reaction
+from ..providers.market_price import fetch_daily_price_history, fetch_news_price_reaction
 from ..providers import sec_filings
 
 from .market_levels import (
@@ -233,8 +233,6 @@ def _get_singleflight_lock(lock_map, key):
 # 캐시는 정확도를 떨어뜨리는 것이 아니라 같은 순간의 중복 외부 호출을 줄이는 용도다.
 KR_VOLUME_PROFILE_CACHE = {}
 KR_VOLUME_PROFILE_CACHE_TTL = 600
-US_YAHOO_CACHE = {}
-US_YAHOO_CACHE_TTL = 15
 KR_SEARCH_CACHE = {}
 KR_SEARCH_CACHE_TTL = 3600
 _ANALYSIS_CACHE_LOCKS = {}
@@ -2266,88 +2264,38 @@ def fetch_kr_historical_volume_profile(ticker_symbol, current_price=None):
             KR_VOLUME_PROFILE_CACHE[symbol] = (now, None)
             return None
 
-def fetch_yahoo_direct_v8(ticker_str):
-    key = str(ticker_str or "").strip().upper()
-    now = time.time()
-    cached = US_YAHOO_CACHE.get(key)
-    if cached and now - cached[0] < US_YAHOO_CACHE_TTL:
-        return cached[1]
+def _us_volume_profile_from_shared_history(ticker_symbol):
+    """Reuse the existing daily price cache for the original US volume profile."""
+    key = str(ticker_symbol or "").strip().upper()
+    if not key:
+        return None
 
-    lock = _get_singleflight_lock(_ANALYSIS_CACHE_LOCKS, ("us-yahoo", key))
-    with lock:
-        now = time.time()
-        cached = US_YAHOO_CACHE.get(key)
-        if cached and now - cached[0] < US_YAHOO_CACHE_TTL:
-            return cached[1]
+    # Keep the legacy filter and last-bar exclusion exactly as before.
+    rows = []
+    for candle in fetch_daily_price_history(key):
         try:
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(key)}?range=6mo&interval=1d"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                              'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36'
-            }
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
+            close = float(candle["close"])
+            high = float(candle["high"])
+            low = float(candle["low"])
+            volume = float(candle["volume"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        if all(math.isfinite(x) for x in (close, high, low, volume)) and close > 0 and volume > 0:
+            rows.append((close, high, low, volume))
 
-            res = data.get('chart', {}).get('result', [])
-            if not res:
-                return None, None, None, None, None
+    if len(rows) < 2:
+        return None
 
-            quotes = res[0].get('indicators', {}).get('quote', [{}])[0]
-            raw_closes = quotes.get('close', [])
-            raw_highs = quotes.get('high', [])
-            raw_lows = quotes.get('low', [])
-            raw_volumes = quotes.get('volume', [])
-
-            rows = []
-            for c, h, l, v in zip(raw_closes, raw_highs, raw_lows, raw_volumes):
-                if c is None or h is None or l is None or v is None:
-                    continue
-                try:
-                    c, h, l, v = float(c), float(h), float(l), float(v)
-                    if all(math.isfinite(x) for x in (c, h, l, v)) and c > 0 and v > 0:
-                        rows.append((c, h, l, v))
-                except Exception:
-                    continue
-
-            if len(rows) < 2:
-                return None, None, None, None, None
-
-            closes = [r[0] for r in rows]
-            highs = [r[1] for r in rows]
-            lows = [r[2] for r in rows]
-            volumes = [r[3] for r in rows]
-
-            cur_p = closes[-1]
-            prev_p = closes[-2]
-            ma20 = sum(closes[-20:]) / min(20, len(closes))
-
-            profile_highs = highs[:-1] if len(highs) > 1 else highs
-            profile_lows = lows[:-1] if len(lows) > 1 else lows
-            profile_closes = closes[:-1] if len(closes) > 1 else closes
-            profile_volumes = volumes[:-1] if len(volumes) > 1 else volumes
-            volume_profile = calculate_volume_profile_levels(
-                profile_highs, profile_lows, profile_closes, profile_volumes, bins=24,
-                current_price=cur_p, state_key=key
-            )
-
-            res_p = (
-                volume_profile["above"]["center"]
-                if volume_profile and volume_profile.get("above")
-                else 0.0
-            )
-
-            result = (cur_p, prev_p, ma20, res_p, volume_profile)
-            US_YAHOO_CACHE[key] = (now, result)
-            return result
-
-        except Exception as e:
-            print("미국 야후 v8 예외:", e)
-            result = (None, None, None, None, None)
-            US_YAHOO_CACHE[key] = (now, result)
-            return result
-
-
+    completed = rows[:-1]
+    return calculate_volume_profile_levels(
+        [row[1] for row in completed],
+        [row[2] for row in completed],
+        [row[0] for row in completed],
+        [row[3] for row in completed],
+        bins=24,
+        current_price=rows[-1][0],
+        state_key=key,
+    )
 
 
 
@@ -3315,7 +3263,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
             cur_p = price_result["current_price"]
 
             try:
-                _, _, _, _, volume_profile = fetch_yahoo_direct_v8(ticker_symbol)
+                volume_profile = _us_volume_profile_from_shared_history(ticker_symbol)
             except Exception as e:
                 print(f"[미국 시세] fail: {type(e).__name__}: {e}")
                 volume_profile = None
