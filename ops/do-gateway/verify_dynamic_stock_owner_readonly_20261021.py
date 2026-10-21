@@ -1,6 +1,8 @@
 """Read-only DigitalOcean deployed stock-event identity smoke. No APIs or DB writes."""
 import hashlib
+import sys
 from pathlib import Path
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 from backend.analysis.news.scoring import build_connected_keyword_test
 
 live = Path("/opt/gaemigtp-news/app/backend/analysis/news/scoring.py").read_bytes()
