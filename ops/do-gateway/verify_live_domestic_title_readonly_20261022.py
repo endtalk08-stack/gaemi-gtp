@@ -2,7 +2,9 @@ import sys
 sys.path.insert(0,'/opt/gaemigtp-news/app')
 import os,json,psycopg,hashlib
 from backend.services.shared_v1_issue_titles import extract
-from backend.services.news_result import get_shared_stock_news_result
+import pathlib
+base=pathlib.Path('/opt/gaemigtp-news/app/backend/services')
+print('SERVER_MODULES '+json.dumps({x:(base/x).exists() for x in ['news_result.py','news_byline.py','issue_briefs.py','shared_v1_issue_titles.py']},ensure_ascii=False),flush=True)
 print("EXTRACTOR_SHA256="+hashlib.sha256(extract.__code__.co_code).hexdigest(),flush=True)
 db=os.getenv("NEWS_DATABASE_URL") or os.getenv("DATABASE_URL")
 with psycopg.connect(db,connect_timeout=10) as c:
@@ -19,7 +21,4 @@ with psycopg.connect(db,connect_timeout=10) as c:
    for i,b in enumerate(briefs[:5]):
     matching=extract(str(news[i].get("title") or ""),str(news[i].get("description") or "")) if i<len(news) else []
     print("ISSUE "+json.dumps({"stock":stock,"headline":b.get("headline"),"extract":matching[:1],"summary_chars":len(str(b.get("summary") or "")),"tags":b.get("tags"),"headline_matches":bool(matching and b.get("headline")==matching[0])},ensure_ascii=False),flush=True)
-   try:
-    result=get_shared_stock_news_result(stock,market=market)
-    print("READ_API "+json.dumps({"stock":stock,"status":result.get("_news_status"),"issue_count":len(result.get("issue_briefs") or []),"first_headline":(result.get("issue_briefs") or [{}])[0].get("headline")},ensure_ascii=False),flush=True)
-   except Exception as exc:print("READ_API_ERROR="+stock+" "+type(exc).__name__,flush=True)
+
