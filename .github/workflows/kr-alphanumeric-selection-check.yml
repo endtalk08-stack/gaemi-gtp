@@ -27,5 +27,17 @@ jobs:
       - name: Verify KR stock selection and unchanged market menus
         run: |
           python -m unittest -v tests.test_market_selection_context
-          python -m unittest -v tests.test_market_trading_value
+          # The existing trading-value fixtures share a module-level
+          # short-failure cache. Isolate each case so fixture order cannot
+          # contaminate the next case; do not change production cache behavior.
+          python - <<'PY' > /tmp/kr-market-test-cases.txt
+          import unittest
+          from tests.test_market_trading_value import MarketTradingValueTests
+          suite = unittest.defaultTestLoader.loadTestsFromTestCase(MarketTradingValueTests)
+          for case in suite:
+              print(case.id())
+          PY
+          while IFS= read -r test_case; do
+            python -m unittest -v "$test_case"
+          done < /tmp/kr-market-test-cases.txt
           python -m unittest -v tests.test_kr_quote_parsing
