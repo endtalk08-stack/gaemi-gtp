@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_compact_titles_readonly_20261022.py","request_id":"kr-compact-title-test-v3-20261022","timeout":120}
+{"operation":"deploy","path":"backend/services/compact_issue_titles.py","target":"backend/services/compact_issue_titles.py"}
