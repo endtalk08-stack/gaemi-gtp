@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-news.service","lines":120}
+{"operation":"deploy","path":"backend/services/news_byline.py","target":"backend/services/news_byline.py"}
