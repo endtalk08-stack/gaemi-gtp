@@ -1039,7 +1039,8 @@ def build_issue_briefs(items, stock_name, limit=3, body_texts=None, market=None)
             from .shared_v1_issue_titles import extract
             extracted_titles = extract(str(item.get("title") or ""), str(item.get("description") or ""))
             if extracted_titles:
-                display_headline = extracted_titles[0]
+                from .compact_issue_titles import compact_issue_title
+                display_headline = compact_issue_title(extracted_titles[0], str(item.get("title") or ""))
 
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),
