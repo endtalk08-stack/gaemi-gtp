@@ -57,7 +57,7 @@ class DynamicSelectedStockOwnerTests(unittest.TestCase):
     def test_short_unknown_symbol_requires_token_boundary(self):
         row = self._first(
             "QZ", "QZX suppliers sign agreement",
-            "QZX announced a supply agreement, not QZ.",
+            "QZX announced a supply agreement for its customers.",
         )
         self.assertEqual(row["event_owner"], "")
         self.assertEqual(row["relation_type"], "mention_only")
