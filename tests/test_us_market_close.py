@@ -158,8 +158,24 @@ class TestUSClose(unittest.TestCase):
             "tags": ["#나스닥상승", "#다우보합", "#실적호조"]
         })
         self.assertIn("미국장은 상승했어.", result["content"])
+        # The latest published legacy brief already has three valid tags:
+        # show them on the same verified Nasdaq date, without altering Neon.
         old = json.loads(content)
         old.pop("response_format")
+        with patch.object(close, "_connection",
+                          return_value=Conn((DAY, json.dumps(old,ensure_ascii=False), NOW))):
+            self.assertEqual(close.read_brief()["nasdaq_chart_annotation"]["tags"],
+                             ["#나스닥상승", "#다우보합", "#실적호조"])
+
+        # Never label a different saved session or an incomplete/invalid set.
+        with patch.object(close, "_connection",
+                          return_value=Conn((DAY - dt.timedelta(days=1), content, NOW))):
+            self.assertIsNone(close.read_brief()["nasdaq_chart_annotation"])
+        old["issues"][0]["tags"] = ["#나스닥상승", "#다우보합"]
+        with patch.object(close, "_connection",
+                          return_value=Conn((DAY, json.dumps(old,ensure_ascii=False), NOW))):
+            self.assertIsNone(close.read_brief()["nasdaq_chart_annotation"])
+        old["issues"][0]["tags"] = ["#나스닥상승", "#다우보합", "#잘못 된태그"]
         with patch.object(close, "_connection",
                           return_value=Conn((DAY, json.dumps(old,ensure_ascii=False), NOW))):
             self.assertIsNone(close.read_brief()["nasdaq_chart_annotation"])
