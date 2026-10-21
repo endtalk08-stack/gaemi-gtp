@@ -1,26 +1,20 @@
 """Shared news feed normalization for the panel and central chat."""
 
 import datetime
-import os
 import html
 import re
 import threading
 import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
 from email.utils import parsedate_to_datetime
 
-from backend.analysis.news.catalog import STOCK_UNIVERSE, canonical_us_news_name
+from backend.analysis.news.catalog import STOCK_UNIVERSE
 from backend.providers import naver_news, official_company_news, sec_filings
-from .news_metadata_store import read_cached_news, save_async, _retained_news
 
 _CACHE = {}
 _CACHE_TTL = 120
 _CACHE_LOCK = threading.Lock()
-_REFRESH_LOCK = threading.Lock()
-_REFRESH_PENDING = set()
-_REFRESH_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="news-cache-refresh")
 MAX_NEWS_AGE_DAYS = 7
 
 THEME_RULES = {
@@ -144,79 +138,18 @@ def _item_age_ok(item):
     return now - dt <= datetime.timedelta(days=MAX_NEWS_AGE_DAYS)
 
 
-def _refresh_query(cache_key, query, display, start, previously_stored):
-    """Refresh a storage-backed news query without delaying the current viewer."""
-    try:
-        fresh = naver_news.search_news(
-            query, display=display, start=start, raise_on_error=False,
-        )
-        if not isinstance(fresh, list) or not fresh:
-            return
-        merged = _retained_news(previously_stored, fresh)
-        if merged:
-            with _CACHE_LOCK:
-                _CACHE[cache_key] = (
-                    time.time(), merged[:max(20, min(int(display), 100))],
-                )
-        save_async(fresh, query, display, start)
-    except Exception as exc:
-        print("[news cache] refresh_failed type=" + type(exc).__name__, flush=True)
-    finally:
-        with _REFRESH_LOCK:
-            _REFRESH_PENDING.discard(cache_key)
-
-
-def _schedule_refresh(cache_key, query, display, start, stored):
-    with _REFRESH_LOCK:
-        if cache_key in _REFRESH_PENDING:
-            return
-        _REFRESH_PENDING.add(cache_key)
-    try:
-        _REFRESH_POOL.submit(
-            _refresh_query, cache_key, query, display, start, list(stored),
-        )
-    except RuntimeError:
-        with _REFRESH_LOCK:
-            _REFRESH_PENDING.discard(cache_key)
-
-
 def _fetch_query(query, display=20, start=1, *, raise_on_error=False):
-    # Render only reads news already held in Neon; collection runs on DO.
-    if os.getenv('GAEMIGTP_NEWS_WORKER') != '1':
-        return read_cached_news(query, display, start)
     cache_key = (query, int(display), int(start))
     now = time.time()
     with _CACHE_LOCK:
         cached = _CACHE.get(cache_key)
         if cached and now - cached[0] <= _CACHE_TTL:
             return list(cached[1])
-
-    # Shared storage is read before the original provider. No changes to
-    # the UI or AI caller; they still receive the same provider-shaped rows.
-    try:
-        stored = read_cached_news(query, display, start)
-    except Exception as exc:
-        print("[news cache] storage_read_failed type=" + type(exc).__name__, flush=True)
-        stored = []
-    if stored:
-        with _CACHE_LOCK:
-            _CACHE[cache_key] = (now, list(stored))
-        _schedule_refresh(cache_key, query, display, start, stored)
-        return list(stored)
-
-    # First request, or unconfigured storage: preserve the existing behavior.
-    rows = naver_news.search_news(
-        query, display=display, start=start, raise_on_error=raise_on_error,
-    )
+    rows = naver_news.search_news(query, display=display, start=start, raise_on_error=raise_on_error)
     if not isinstance(rows, list):
         rows = []
     with _CACHE_LOCK:
         _CACHE[cache_key] = (now, list(rows))
-    if rows:
-        try:
-            save_async(rows, query, display, start)
-        except Exception:
-            pass
     return rows
 
 
@@ -232,7 +165,7 @@ def _dedupe(items):
     return result
 
 
-def _fetch_queries(queries, category="전체", per_query=20, *, raise_on_error=False):
+def _fetch_queries(queries, category="전체", per_query=20, *, raise_on_error=False, unfiltered=False):
     queries = [q for q in queries if q]
     if not queries:
         return []
@@ -250,11 +183,12 @@ def _fetch_queries(queries, category="전체", per_query=20, *, raise_on_error=F
                 rows = []
             for row in rows:
                 item = _build_item(row, query=query, category=category)
-                if item["title"] and _item_age_ok(item):
+                if item["title"] and (unfiltered or _item_age_ok(item)):
                     items.append(item)
     if raise_on_error and failures == len(queries):
         raise RuntimeError('all_naver_news_queries_failed')
-    items = _dedupe(items)
+    if not unfiltered:
+        items = _dedupe(items)
     items.sort(key=lambda x: x.get("published_at") or "", reverse=True)
     return items
 
@@ -488,10 +422,6 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     stock_name = _clean_text(stock_name)
     if not stock_name:
         return []
-    # Naver US listing names sometimes differ from the news catalog name.
-    # Resolve before expanding aliases, official feeds, or SEC company ticker.
-    if market in ("미국", "us", None):
-        stock_name = canonical_us_news_name(stock_name)
 
     queries = [stock_name]
     stock_region = ""
@@ -519,6 +449,7 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
             category="종목",
             per_query=max(20, limit),
             raise_on_error=raise_on_error,
+            unfiltered=is_us_stock,
         )
         if is_us_stock:
             jobs["official"] = pool.submit(
@@ -548,6 +479,13 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     stock_items = provider_rows.get("stock") or []
     official_items = provider_rows.get("official") or []
     sec_items = provider_rows.get("sec") or []
+
+    # US only: sort the collected articles by newest publication time.
+    # Do not remove duplicates or apply date/relevance filters before AI.
+    if is_us_stock:
+        items = [_enrich_item(item) for item in stock_items + official_items + sec_items]
+        items.sort(key=lambda item: item.get("published_at") or "", reverse=True)
+        return items[:max(1, int(limit))]
 
     items = [
         _enrich_item(x)

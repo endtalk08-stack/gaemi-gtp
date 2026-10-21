@@ -60,17 +60,13 @@ def _article_published_epoch(article):
 
 
 def recent_ai_articles(articles, *, now=None):
-    """Use genuine publication time, not snapshot processing time, for AI eligibility."""
-    now = now or datetime.now(timezone.utc)
-    if now.tzinfo is None:
+    """Keep collected articles, newest first, without an intermediate 24h filter."""
+    if now is not None and now.tzinfo is None:
         raise ValueError("Expected timezone-aware now")
-    now_epoch = now.timestamp()
-    cutoff = now_epoch - timedelta(hours=24).total_seconds()
-    return [
-        article for article in (articles or [])
-        if isinstance(article, dict)
-        and cutoff <= _article_published_epoch(article) <= now_epoch
-    ]
+    return sorted(
+        (article for article in (articles or []) if isinstance(article, dict)),
+        key=_article_published_epoch, reverse=True,
+    )
 
 
 def _safe_token_usage(response):
