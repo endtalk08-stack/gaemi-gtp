@@ -1,0 +1,28 @@
+name: Issue-title isolated admin test
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/services/issue_title_test.py'
+      - 'tests/test_issue_title_test.py'
+      - 'frontend/issue-title-test.html'
+      - 'app.py'
+      - '.github/workflows/issue-title-isolation-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Flask for offline route tests
+        run: pip install flask
+      - name: Compile isolated code
+        run: python -m py_compile backend/services/issue_title_test.py tests/test_issue_title_test.py
+      - name: Test auth, full body, evidence, cache, no AI network
+        run: python -m unittest -v tests.test_issue_title_test
