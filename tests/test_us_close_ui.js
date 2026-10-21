@@ -89,7 +89,7 @@ async function main() {
     response_format: 'free_text_v1',
     issues: [{
       headline: '미국장 마감',
-      summary: '미국장은 대체로 상승했어.\\n\\n**업종별 흐름**\\n- 기술주 약세\\n- 산업주 강세\\n\\n다우가 올랐어.',
+      summary: '미국장은 대체로 상승했어.\n\n**업종별 흐름**\n- 기술주 약세\n- 산업주 강세\n\n다우가 올랐어.',
       tags: ['#나스닥상승', '#다우보합', '#실적호조']
     }]
   };
