@@ -9,6 +9,7 @@ from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.us_market_close import read_brief
+from backend.services.nasdaq_chart import build_nasdaq_chart
 from backend.providers.sec_filings import fetch_panel_missing_detail
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
@@ -116,6 +117,18 @@ def market_us_close():
         print("[us market close] db read failed: " + type(exc).__name__, flush=True)
         return jsonify({"ok": False, "error": "market_close_unavailable"}), 503
     return jsonify({"ok": True, "available": bool(brief), **(brief or {})})
+
+@app.get("/api/market/nasdaq-chart")
+def market_nasdaq_chart():
+    """One read-only market-data lookup and optional matching Neon marker."""
+    try:
+        result = build_nasdaq_chart()
+    except Exception as exc:
+        print("[nasdaq chart] data unavailable: " + type(exc).__name__, flush=True)
+        result = None
+    if result is None:
+        return jsonify({"ok": False, "error": "nasdaq_history_unavailable"}), 503
+    return jsonify({"ok": True, **result})
 
 
 @app.get("/market/trading-value")
