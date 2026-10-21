@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/services/compact_issue_titles.py","target":"backend/services/compact_issue_titles.py"}
+{"operation":"deploy","path":"backend/services/issue_briefs.py","target":"backend/services/issue_briefs.py"}
