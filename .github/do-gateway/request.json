@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_samsung_all_titles_shared_v1_20261022.py","request_id":"samsung-all-headings-20261022","timeout":120}
+{"operation":"run","path":"ops/do-gateway/verify_kr_title_integration_staged_20261022.py","request_id":"kr-title-routing-check-20261022","timeout":120}
