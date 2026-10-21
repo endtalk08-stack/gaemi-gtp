@@ -649,6 +649,7 @@ def build_stock_news_result(
             stock_name,
             limit=storyboard_limit,
             body_texts=verified_body_texts,
+            market=market,
         )
 
         # Original verified company items always win; the new classification
@@ -764,14 +765,15 @@ def build_stock_news_result(
 
 # Render reads DigitalOcean-processed news; it does not start its own news processing.
 
-def _sanitize_news_display_briefs(result):
+def _sanitize_news_display_briefs(result, *, market=None):
     """Remove only byline boilerplate from visible summaries, not the source data."""
     if not isinstance(result, dict):
         return result
     for brief in result.get("issue_briefs") or []:
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
             brief["summary"] = strip_leading_news_credit(brief["summary"])
-            brief["headline"] = grounded_issue_display_title(brief)
+            if market not in ("국내", "kr"):
+                brief["headline"] = grounded_issue_display_title(brief)
             # Earlier AI worker versions added unrequested publication/AI labels.
             # Show only the existing concise HH:MM; leave persisted evidence untouched.
             timestamp = brief.get("time")
@@ -840,4 +842,4 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
             break
     if worker_result is None:
         return {**_empty_news_result(), "_news_status": "unavailable"}
-    return _sanitize_news_display_briefs(copy.deepcopy(worker_result))
+    return _sanitize_news_display_briefs(copy.deepcopy(worker_result), market=market)
