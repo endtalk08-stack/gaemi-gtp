@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect_news_worker_cadence_readonly_20261021.py","request_id":"kr-rank-worker-cadence-20261021-v1","timeout":90}
+{"operation":"run","path":"ops/do-gateway/preview_ranked_directional_blank_readonly_20261021.py","request_id":"ranked-direction-preview-20261021-v1","timeout":360}
