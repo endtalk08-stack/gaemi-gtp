@@ -33,7 +33,7 @@ def get_market_selection(market, menu, symbol, stock=None):
     if market not in ("kr", "us") or menu not in ("popular", "value"):
         return None
     code = str(symbol or "").strip().upper()
-    pattern = r"[A-Z0-9]{6}" if market == "kr" else r"[A-Z0-9.^_-]{1,32}
+    pattern = r"[A-Z0-9]{6}" if market == "kr" else r"[A-Z0-9.^_-]{1,32}"
     if not re.fullmatch(pattern, code):
         return None
     with _MARKET_RESULTS_LOCK:
