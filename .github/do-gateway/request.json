@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_directional_article_keywords_readonly_20261021.py","request_id":"directional-keyword-poc-20261021-v3","timeout":240}
+{"operation":"run","path":"ops/do-gateway/inspect_kr_popular_queue_readonly_20261021.py","request_id":"kr-popular-queue-readonly-20261021-v1","timeout":120}
