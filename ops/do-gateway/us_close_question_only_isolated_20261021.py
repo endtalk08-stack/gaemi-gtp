@@ -1,4 +1,4 @@
-"""One isolated Groq GPT-OSS 120B comparison: question-only system prompt.
+"""One isolated Groq GPT-OSS 120B comparison: model-3-like prompt and answer format.
 Uses the already published 2026-10-20 US-close indices and the exact three
 publisher article URLs (re-read live from the publishers); no DB writes.
 Do not change production prompt, worker, app, or service.
@@ -12,7 +12,8 @@ sys.path.insert(0, "/opt/gaemigtp-news/app")
 import psycopg
 from backend.services.news_detail import read_selected_article_details
 
-QUESTION = "미국장은 어땠어?\n\n제목은 핵심만 짧게, 내용은 쉽고 구체적으로,\n해시태그는 최대 3개 반말로 답변해."
+SYSTEM_PROMPT = "쉽게 설명 반말로 대답해"
+QUESTION = "미국장은 어땠어?"
 SESSION = "2026-10-20"
 DB_URL = os.environ.get("NEWS_DATABASE_URL", "").strip()
 KEY = os.environ.get("GROQ_API_KEY", "").strip()
@@ -47,12 +48,14 @@ for k,(ref,info) in enumerate(zip(manifest,originals),1):
         raise SystemExit("TEST_STOP=article_body_unavailable_"+str(k))
     articles.append({"source_id":k,"title":ref["title"],"description":body[:5000]})
 input_json=json.dumps({"session_date_et":SESSION,"market_indices":idx,"news":articles},ensure_ascii=False)
-print("TEST_PROMPT="+QUESTION,flush=True)
+print("TEST_SYSTEM_PROMPT="+SYSTEM_PROMPT,flush=True)
+print("TEST_QUESTION="+QUESTION,flush=True)
+print("TEST_ANSWER_FORMAT=free_text_no_json_headline_hashtag_constraints",flush=True)
 print("TEST_INPUT_JSON_CHARS="+str(len(input_json)),flush=True)
 payload={"model":"openai/gpt-oss-120b",
-         "messages":[{"role":"system","content":QUESTION},
-                     {"role":"user","content":input_json}],
-         "temperature":0.2,"max_completion_tokens":1800,
+         "messages":[{"role":"system","content":SYSTEM_PROMPT},
+                     {"role":"user","content":"참고 데이터(JSON):\\n"+input_json+"\\n\\n질문: "+QUESTION}],
+         "temperature":0.2,"max_completion_tokens":1500,
          "reasoning_effort":"low","stream":False}
 req=urllib.request.Request("https://api.groq.com/openai/v1/chat/completions",
     data=json.dumps(payload,ensure_ascii=False).encode("utf-8"),
