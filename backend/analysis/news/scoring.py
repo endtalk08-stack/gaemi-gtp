@@ -1211,7 +1211,12 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         Short Latin symbols keep the same token-boundary rule as the catalog.
         """
         name = str(stock_name or "").strip()
-        if not name or _stock_region(name):
+        if not name or _stock_region(name) or any(
+            name.casefold() == str(alias).strip().casefold()
+            for catalog in STOCK_UNIVERSE.values()
+            for canonical, variants in catalog.items()
+            for alias in (canonical, *(variants or []))
+        ):
             return []
         token = name.lower()
         if re.fullmatch(r"[a-z0-9.]+", token) and len(token.replace(".", "")) <= 5:

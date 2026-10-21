@@ -4,7 +4,7 @@ on:
     branches: [main, ops/do-ssh-deploy-setup-20261017]
     paths:
       - backend/analysis/news/scoring.py
-      - tests/test_news_keyword_extraction.py
+      - tests/test_dynamic_stock_event_owner.py
       - .github/workflows/dynamic-active-stock-issue-check.yml
 permissions:
   contents: read
@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Syntax check and existing keyword/ownership regressions
+      - name: Syntax and dedicated stock-owner tests
         run: |
-          python -m py_compile backend/analysis/news/scoring.py tests/test_news_keyword_extraction.py
-          python -m unittest -v tests.test_news_keyword_extraction tests.test_news_scoring_language
+          python -m py_compile backend/analysis/news/scoring.py tests/test_dynamic_stock_event_owner.py
+          python -m unittest -v tests.test_dynamic_stock_event_owner tests.test_news_scoring_language
