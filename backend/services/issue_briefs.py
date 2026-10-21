@@ -977,7 +977,7 @@ def grounded_issue_display_title(brief):
     # If a clearly reported direction is absent, retain the original topic.
     return original
 
-def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
+def build_issue_briefs(items, stock_name, limit=3, body_texts=None, market=None):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []
     for index, item in enumerate(items or []):
@@ -1034,6 +1034,12 @@ def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
         # Do not modify the summary, selected article, ownership or reaction data.
         if body_texts is not None:
             display_headline, display_tags = _content_driven_title_and_tags(article_summary)
+
+        if market in ("국내", "kr"):
+            from .shared_v1_issue_titles import extract
+            extracted_titles = extract(str(item.get("title") or ""), str(item.get("description") or ""))
+            if extracted_titles:
+                display_headline = extracted_titles[0]
 
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),
