@@ -35,6 +35,15 @@
     if (!dock || !bodyEl) return;
     bodyEl.innerHTML = activeIds.map(id => {
       const meta = catalog()[id];
+      if (id === 'nasdaq') {
+        return `<article class="central-widget-card central-widget-card--nasdaq" data-central-widget-id="nasdaq">
+          <div class="central-widget-card__top">
+            <div class="central-widget-card__name">나스닥 종합</div>
+            <button type="button" class="central-widget-card__close" data-central-widget-remove="nasdaq" aria-label="나스닥 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
+          </div>
+          <div class="nasdaq-chart__mount" data-nasdaq-chart-mount="true"></div>
+        </article>`;
+      }
       if (id === 'kospi' || id === 'night-futures') {
         const title = id === 'kospi' ? '코스피' : '코스피200 야간선물';
         const detail = id === 'kospi'
