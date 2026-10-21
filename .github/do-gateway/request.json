@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/verify_us_close_before_release_20261021.py",
-  "request_id": "usclose-before-release-20261021",
-  "timeout": 90
+  "operation": "deploy",
+  "path": "ops/do-gateway/us_market_close_m2_free_20261021.py",
+  "target": "backend/services/us_market_close.py"
 }
