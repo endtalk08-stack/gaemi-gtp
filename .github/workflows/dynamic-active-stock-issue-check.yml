@@ -1,0 +1,23 @@
+name: Dynamic active stock issue ownership checks
+on:
+  push:
+    branches: [main, ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - backend/analysis/news/scoring.py
+      - tests/test_news_keyword_extraction.py
+      - .github/workflows/dynamic-active-stock-issue-check.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Syntax check and existing keyword/ownership regressions
+        run: |
+          python -m py_compile backend/analysis/news/scoring.py tests/test_news_keyword_extraction.py
+          python -m unittest -v tests.test_news_keyword_extraction tests.test_news_scoring_language

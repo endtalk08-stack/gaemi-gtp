@@ -382,5 +382,54 @@ class ConnectedKeywordExtractionTests(unittest.TestCase):
         self.assertEqual(article["keywords"].count("허가승인"), 1)
 
 
+
+    def test_uncatalogued_korean_stock_owns_its_explicit_event(self):
+        result = build_connected_keyword_test([{
+            "title": "HT로보틱스, ESS 양산 개시 및 생산 확대",
+            "description": "HT로보틱스가 로봇 부품 양산을 시작했다.",
+        }], "HT로보틱스")
+        article = result["articles"][0]
+        self.assertTrue(article["keywords"])
+        self.assertEqual(article["event_owner"], "HT로보틱스")
+        self.assertEqual(article["relation_type"], "direct")
+
+    def test_uncatalogued_stock_merely_mentioned_is_not_an_issue(self):
+        result = build_connected_keyword_test([{
+            "title": "경북 피지컬AI 특구 추진",
+            "description": "HT로보틱스가 참여 기업으로 소개됐다.",
+        }], "HT로보틱스")
+        article = result["articles"][0]
+        self.assertEqual(article["keywords"], [])
+        self.assertEqual(article["relation_type"], "mention_only")
+
+    def test_uncatalogued_stock_does_not_own_other_company_event(self):
+        result = build_connected_keyword_test([{
+            "title": "삼성전자 매출 확대, HT로보틱스는 동향 점검",
+            "description": "삼성전자가 매출 증가를 발표했다. HT로보틱스는 별도 소식이 없었다.",
+        }], "HT로보틱스")
+        article = result["articles"][0]
+        self.assertTrue(article["keywords"])
+        self.assertEqual(article["event_owner"], "삼성전자")
+        self.assertEqual(article["relation_type"], "indirect")
+
+    def test_uncatalogued_us_stock_owns_explicit_contract(self):
+        result = build_connected_keyword_test([{
+            "title": "Orion Quantum signs supply agreement",
+            "description": "Orion Quantum signed a supply contract with a customer.",
+        }], "Orion Quantum")
+        article = result["articles"][0]
+        self.assertIn("공급계약", article["keywords"])
+        self.assertEqual(article["event_owner"], "Orion Quantum")
+        self.assertEqual(article["relation_type"], "direct")
+
+    def test_uncatalogued_short_us_symbol_does_not_match_inside_word(self):
+        result = build_connected_keyword_test([{
+            "title": "META revenue rises",
+            "description": "Metadata industry headlines from another firm.",
+        }], "META")
+        article = result["articles"][0]
+        self.assertEqual(article["event_owner"], "메타")
+        self.assertEqual(article["relation_type"], "direct")
+
 if __name__ == "__main__":
     unittest.main()
