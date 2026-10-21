@@ -96,26 +96,26 @@
   // This only affects the new free-text US-close entries; legacy entries
   // keep their existing title / one-paragraph / tag presentation.
   function parseAnswerBlocks(text) {
-    const lines = String(text || '').replace(/\\r\\n?/g, '\\n').split('\\n');
+    const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
     const blocks = [];
     let paragraph = [];
     let list = null;
     const flushParagraph = () => {
-      if (paragraph.length) blocks.push({ type: 'paragraph', text: paragraph.join('\\n') });
+      if (paragraph.length) blocks.push({ type: 'paragraph', text: paragraph.join('\n') });
       paragraph = [];
     };
     const flushList = () => { if (list) blocks.push(list); list = null; };
     for (const line of lines) {
       if (!line.trim()) { flushParagraph(); flushList(); continue; }
-      const markdownHeading = line.match(/^\\s{0,3}#{1,6}\\s+(.+?)\\s*#*\\s*$/);
-      const boldHeading = line.match(/^\\s*\\*\\*(.{2,65}?)\\*\\*\\s*[:：]?\\s*$/);
-      const item = line.match(/^\\s{0,3}([-*+]|\\d+[.)])\\s+(.+)$/);
+      const markdownHeading = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+      const boldHeading = line.match(/^\s*\*\*(.{2,65}?)\*\*\s*[:：]?\s*$/);
+      const item = line.match(/^\s{0,3}([-*+]|\d+[.)])\s+(.+)$/);
       if (markdownHeading || boldHeading) {
         flushParagraph(); flushList();
         blocks.push({ type: 'heading', text: markdownHeading ? markdownHeading[1] : boldHeading[1] });
       } else if (item) {
         flushParagraph();
-        const ordered = /^\\d/.test(item[1]);
+        const ordered = /^\d/.test(item[1]);
         if (!list || list.ordered !== ordered) {
           flushList();
           list = { type: 'list', ordered, start: ordered ? Number.parseInt(item[1], 10) : 1, items: [] };
