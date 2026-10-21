@@ -1,0 +1,31 @@
+name: KR alphanumeric stock selection checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/services/market_rankings.py
+      - backend/services/engine.py
+      - backend/services/ai_test.py
+      - app.py
+      - tests/test_market_selection_context.py
+      - .github/workflows/kr-alphanumeric-selection-check.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install existing application dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check only changed Python modules
+        run: python -m py_compile backend/services/market_rankings.py backend/services/engine.py backend/services/ai_test.py app.py tests/test_market_selection_context.py
+      - name: Verify KR stock selection and unchanged market menus
+        run: |
+          python -m unittest -v tests.test_market_selection_context
+          python -m unittest -v tests.test_market_trading_value
+          python -m unittest -v tests.test_kr_quote_parsing
