@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_us_newest_neon_once_20261021.py","request_id":"us-news-neon-newest-20261021-v2","timeout":240}
+{"operation":"deploy","path":"backend/services/news_identity_registry.py","target":"backend/services/news_identity_registry.py"}
