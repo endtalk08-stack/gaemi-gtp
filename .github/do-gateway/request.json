@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/services/issue_briefs.py","target":"backend/services/issue_briefs.py"}
+{"operation":"restart","unit":"gaemigtp-news.service"}
