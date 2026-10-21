@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_spacex_independent_news_keywords_20261022.py","request_id":"spacex-independent-20261022-v1","timeout":120}
+{"operation":"run","path":"ops/do-gateway/test_shared_us_news_extractor_fixed_20261022.py","request_id":"us-shared-fixed-20261022-v1","timeout":120}
