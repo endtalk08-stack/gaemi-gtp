@@ -67,6 +67,9 @@
     document.querySelectorAll('[data-central-widget-mount]').forEach(node => {
       window.GaemiGTPAnalysisWidgets?.mount?.(node.dataset.centralWidgetMount, node);
     });
+    document.querySelectorAll('[data-nasdaq-chart-mount]').forEach(node => {
+      window.GaemiGTPNasdaqWidget?.mount?.(node);
+    });
     if (window.lucide) window.lucide.createIcons();
   }
   function add(id) {
