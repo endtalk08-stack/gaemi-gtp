@@ -20,7 +20,7 @@ def tags_only(payload,stock):
   if not isinstance(issue,dict):continue
   if stock not in (issue.get("stock_names") or []):continue
   headline=str(issue.get("headline") or "")
-  articles=issue.get("source_articles") or []
+  articles=issue.get("source_articles") or out.get("paired_news_items") or []
   # Only use the issue's own publisher sources, never arbitrary news from the stock feed.
   if not articles:continue
   for label,regex,anchor in RULES:
@@ -32,7 +32,7 @@ def tags_only(payload,stock):
     if not title or not re.search(regex,title,re.I):continue
     # Explicitly skip unrelated-company titles; a title that names the target
     # company must not be led by another issuer or merely mention the stock.
-    if stock not in title and not (stock=="삼성전자" and re.search(r"삼성[·\\s]",title)):
+    if stock not in title:
      continue
     if label=="자사주매입완료" and re.search(r"종료 임박|완료 예정|마무리 전망",title):continue
     matches.append(title)
@@ -41,7 +41,7 @@ def tags_only(payload,stock):
    old=[str(t).lstrip("#") for t in old if isinstance(t,str) and str(t).strip()]
    new=[label]+[t for t in old if t!=label and (anchor in t or t in ("외국인매도","수급부담"))]
    new=["#"+t for t in list(dict.fromkeys(new))[:3]]
-   if new!=old and new!=issue.get("tags"):
+   if new!=issue.get("tags"):
     issue["tags"]=new;changed+=1
    break
  return out,changed
