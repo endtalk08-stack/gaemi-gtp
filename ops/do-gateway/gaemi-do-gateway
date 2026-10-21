@@ -140,6 +140,35 @@ case "$action" in
     systemctl is-active --quiet gaemigtp-news.service || fail "original_worker_changed"
     echo ALPACA_NEWS_VERIFY_PASS
     ;;
+  cleanup-domestic-title-experiment)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    dir="$app/backend/services"
+    [[ -d "$dir" && ! -L "$dir" ]] || fail "invalid_services_directory"
+    for name in issue_briefs.py news_result.py; do
+      [[ -f "$dir/$name" && ! -L "$dir/$name" ]] || fail "invalid_active_module"
+      if grep -Eq 'shared_v1_issue_titles|compact_issue_titles' "$dir/$name"; then
+        fail "experimental_module_still_referenced_in_$name"
+      fi
+    done
+    [[ "$(systemctl is-active gaemigtp-news.service)" == active ]] || fail "news_service_not_active"
+    for name in shared_v1_issue_titles.py compact_issue_titles.py; do
+      path="$dir/$name"
+      [[ ! -L "$path" ]] || fail "experimental_module_symlink"
+      if [[ -f "$path" ]]; then
+        [[ "$(stat -c %U:%G "$path")" == "root:root" ]] || fail "unexpected_file_owner"
+        rm -- "$path"
+        echo "REMOVED_DORMANT_EXPERIMENT=$name"
+      elif [[ ! -e "$path" ]]; then
+        echo "EXPERIMENT_ALREADY_ABSENT=$name"
+      else
+        fail "unexpected_file_type_$name"
+      fi
+      find "$dir/__pycache__" -maxdepth 1 -type f -name "${name%.py}.*.pyc" -delete 2>/dev/null || true
+      [[ ! -e "$path" ]] || fail "cleanup_failed_$name"
+    done
+    systemctl is-active --quiet gaemigtp-news.service || fail "service_not_active_after_cleanup"
+    echo DOMESTIC_TITLE_EXPERIMENT_CLEANUP_PASS
+    ;;
   upgrade)
     [[ $# == 1 ]] || fail "upgrade_requires_sha"
     valid_sha "$1" || fail "invalid_sha"
