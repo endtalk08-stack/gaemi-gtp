@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-news.service"}
+{"operation":"run","path":"ops/do-gateway/verify_live_domestic_title_readonly_20261022.py","request_id":"kr-compact-prod-verify-20261022","timeout":120}
