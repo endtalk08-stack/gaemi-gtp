@@ -10,13 +10,7 @@ from zoneinfo import ZoneInfo
 
 NEW_YORK = ZoneInfo("America/New_York")
 SEOUL = ZoneInfo("Asia/Seoul")
-APPROVED_US = (
-    "TSMC ADR", "네비우스 그룹", "마이크로소프트", "마이크론 테크놀로지",
-    "메타", "모더나", "브로드컴", "샌디스크", "스페이스X", "아마존닷컴",
-    "아이렌", "아이온큐", "알파벳 Class A", "애플", "엔비디아",
-    "오라클", "인텔", "일라이 릴리", "코어위브", "테슬라",
-    "팔란티어 테크놀로지스",
-)
+# Replay reads all completed ledger entries; never gate by a static stock list.
 
 
 def due_exchange_day(now=None):
@@ -37,14 +31,17 @@ WITH source_rows AS (
          l.result->'issue_ids' AS ledger_ids
   FROM public.news_processed_snapshots s
   JOIN public.news_ai_call_ledger l
-    ON l.market='US' AND l.symbol=s.stock_name
-   AND l.exchange_day=%s AND l.status='completed'
+    ON l.market=CASE WHEN s.market='국내' THEN 'KR' ELSE 'US' END
+   AND l.symbol=s.stock_name
+   AND ((s.market='미국' AND l.exchange_day=%s)
+     OR (s.market='국내' AND l.exchange_day=%s))
+   AND l.status='completed'
   JOIN public.news_processed_results_24h b
     ON b.result_type='stock_ai_issue_sources_v1'
    AND b.result_payload->>'symbol'=s.stock_name
    AND b.result_payload->>'exchange_day'=l.exchange_day::text
    AND b.expires_at>now()
-  WHERE s.market='미국' AND s.stock_name=ANY(%s)
+  WHERE s.market IN ('미국','국내')
     AND s.expires_at>now()
     AND jsonb_typeof(b.result_payload->'issues')='array'
     AND jsonb_array_length(b.result_payload->'issues') = jsonb_array_length(l.result->'issue_ids')
@@ -102,7 +99,7 @@ SET result_payload =
      '{issue_briefs}',ai.ai_briefs,true)
    || jsonb_build_object('_ai_exchange_day',ai.exchange_day::text)
 FROM ai
-WHERE s.market='미국' AND s.stock_name=ai.stock_name
+WHERE s.market IN ('미국','국내') AND s.stock_name=ai.stock_name
   AND s.expires_at>now() AND ai.records>0
   AND NOT (s.result_payload ? '_ai_issue_briefs')
 RETURNING s.stock_name
@@ -112,7 +109,8 @@ RETURNING s.stock_name
 def reconcile_completed_ai_snapshots(conn, day):
     """Restore missing AI display strictly from already completed paid calls."""
     with conn.cursor() as cur:
-        cur.execute(_RECONCILE_DISPLAY_SQL, (day, list(APPROVED_US)))
+        cur.execute(_RECONCILE_DISPLAY_SQL, (day,
+            datetime.now(SEOUL).date()))
         return [row[0] for row in cur.fetchall()]
 
 

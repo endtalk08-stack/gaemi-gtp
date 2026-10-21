@@ -1,4 +1,4 @@
-"""Sequential per-stock AI batch, staged only; not wired to production.
+"""Production single-entry AI batch for dynamically ranked KR and US stocks.
 
 Uses existing Neon connection and reserves before any paid Groq request.
 """
@@ -17,7 +17,7 @@ def has_eligible_ai_news(articles):
     news, _ = build_model_news(recent_ai_articles(articles or []))
     return any(_has_verifiable_published_at(row.get("published_at")) for row in news)
 from staged_ai_issue_store import save_ai_issues, read_issue_sources
-from staged_daily_call_guard import reserve_once, finish_reservation
+from staged_daily_call_guard import reserve_once, reserve_with_daily_budget, finish_reservation
 
 
 def _safe_failure_reason(exc):
@@ -48,7 +48,7 @@ def _safe_failure_reason(exc):
 
 
 def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
-                    reserve=reserve_once, finish=finish_reservation):
+                    reserve=reserve_with_daily_budget, finish=finish_reservation):
     """Process stocks sequentially with one durable reservation per stock/day.
 
     Caller supplies scheduled stock inputs and existing Neon connection.
@@ -132,9 +132,12 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     from datetime import datetime
     from zoneinfo import ZoneInfo
     from staged_daily_issue_schedule import scheduled_kst_time
-    if market not in ("미국", "US"):
+    if market in ("미국", "US"):
+        market_code = "US"
+    elif market in ("국내", "KR"):
+        market_code = "KR"
+    else:
         return
-    market_code = "US"
     if not os.environ.get("GROQ_API_KEY", "").strip():
         from pathlib import Path
         key_file = Path(__file__).with_name(".groq_api_key")
@@ -147,21 +150,18 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         else:
             print("[news-ai] skipped reason=missing_groq_key", flush=True)
             return
-    # Frozen to the 21 US stocks verified in Neon; no automatic expansion.
-    approved_us = {"TSMC ADR","네비우스 그룹","마이크로소프트","마이크론 테크놀로지","메타","모더나","브로드컴","샌디스크","스페이스X","아마존닷컴","아이렌","아이온큐","알파벳 Class A","애플","엔비디아","오라클","인텔","일라이 릴리","코어위브","테슬라","팔란티어 테크놀로지스"}
-    if stock_name not in approved_us:
-        print("[news-ai] skipped reason=outside_approved_21 stock=%s" % stock_name, flush=True)
-        return
+    # The worker's actual scheduled/ranked stock is the eligible identity.
+    # No hard-coded stock-name allowlist: unknown ticker collisions never merge
+    # because saved snapshots and call ledger use this exact market/name pair.
     if not isinstance(result, dict) or not has_eligible_ai_news(raw):
         print("[news-ai] skipped reason=no_dated_usable_article stock=%s" % stock_name, flush=True)
         return
     from staged_ai_snapshot_integration import with_ai_issue_briefs
     from staged_daily_groq_issues import MODEL
     now = datetime.now(ZoneInfo("Asia/Seoul"))
-    us_now = now.astimezone(ZoneInfo("America/New_York"))
-    us_day = us_now.date()
-    from pathlib import Path
-    if now < scheduled_kst_time(us_day):
+    exchange_day = (now.astimezone(ZoneInfo("America/New_York")).date()
+                    if market_code == "US" else now.date())
+    if market_code == "US" and now < scheduled_kst_time(exchange_day):
         print("[news-ai] skipped reason=before_scheduled_time stock=%s" % stock_name, flush=True)
         return
     # Do not change the original news result or run a second news collection.
@@ -169,7 +169,7 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     with psycopg.connect(_worker_database_url(store), connect_timeout=10, autocommit=True) as conn:
         batch = run_stock_batch(conn, [{
             "market": market_code, "symbol": stock_name,
-            "name": stock_name, "exchange_day": us_day,
+            "name": stock_name, "exchange_day": exchange_day,
             "articles": raw,
         }])
         outcome = batch[0]
@@ -183,12 +183,12 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
                     """SELECT result->'issue_ids', result->'issue_sources' FROM public.news_ai_call_ledger
                        WHERE market=%s AND symbol=%s AND exchange_day=%s
                          AND status='completed' LIMIT 1""",
-                    (market_code, stock_name, us_day))
+                    (market_code, stock_name, exchange_day))
                 row = cur.fetchone()
                 ids = row[0] if row and row[0] else []
                 sources = read_issue_sources(
                     conn, market=market_code, symbol=stock_name,
-                    exchange_day=us_day, issue_ids=ids
+                    exchange_day=exchange_day, issue_ids=ids
                 ) or (row[1] if row and row[1] else [])
         if not ids:
             return
@@ -202,7 +202,7 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         updated = with_ai_issue_briefs(
             result, issues, display_time=now.strftime("%Y-%m-%d %H:%M"),
             stock_names=[stock_name], sources_by_issue=sources,
-            exchange_day=us_day)
+            exchange_day=exchange_day)
         store.save_snapshot(stock_name, fingerprint=fingerprint, result=updated, **params)
         print("[news-ai] snapshot_updated stock=%s count=%s model=%s" % (
             stock_name, len(issues), MODEL), flush=True)
@@ -210,7 +210,7 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
 
 def apply_unchanged_worker_ai(*, store, market, stock_name, raw, fingerprint, params):
     """Use the existing Neon snapshot when news is unchanged; no extra collection."""
-    if market not in ("미국", "US"):
+    if market not in ("미국", "US", "국내", "KR"):
         return
     import psycopg
     with psycopg.connect(_worker_database_url(store), connect_timeout=10, autocommit=True) as conn:
