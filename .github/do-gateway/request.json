@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/staged_daily_groq_issues.py","target":"ops/staged_daily_groq_issues.py"}
+{"operation":"restart","unit":"gaemigtp-news.service"}
