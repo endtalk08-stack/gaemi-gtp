@@ -96,6 +96,34 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual([b["headline"] for b in retained], ["알파벳", "구글"])
         self.assertEqual(_same_stock_issue_briefs(briefs, "TSMC ADR"), [])
 
+    def test_cached_registry_expands_verified_search_without_renaming(self):
+        from backend.services.news_identity_registry import resolve_us_news_identity
+        registered = ({
+            "ticker": "TSM", "label": "TSMC ADR", "news": "TSMC",
+            "key": "US:TSM", "status": "verified",
+        },)
+        with patch("backend.services.news_identity_registry._registry", return_value=registered):
+            result = resolve_us_news_identity("TSMC ADR")
+        self.assertEqual((result["ticker"], result["news_name"]), ("TSM", "TSMC"))
+        self.assertEqual(result["status"], "verified")
+        self.assertIn("taiwan semiconductor", [x.casefold() for x in result["search_terms"]])
+        self.assertIn("TSMC ADR", result["snapshot_names"])
+
+    def test_company_share_classes_keep_original_snapshot_fallback(self):
+        from backend.services.news_identity_registry import resolve_us_news_identity
+        with patch("backend.services.news_identity_registry._registry", return_value=()):
+            result = resolve_us_news_identity("알파벳 Class C")
+        self.assertIn("알파벳 Class A", result["snapshot_names"])
+        self.assertEqual(result["ticker"], "GOOG")
+
+    def test_conflicting_ticker_never_cross_joins_stock_news(self):
+        from backend.services.news_identity_registry import resolve_us_news_identity
+        with patch("backend.services.news_identity_registry._registry", return_value=()):
+            result = resolve_us_news_identity("알파벳 Class A", "AAPL.O")
+        self.assertEqual(result["status"], "pending")
+        self.assertEqual(result["search_terms"], ["알파벳 Class A"])
+        self.assertEqual(result["snapshot_names"], ["알파벳 Class A"])
+
     def test_registration_does_not_run_without_connection(self):
         with patch.dict("os.environ", {"NEWS_DATABASE_URL": ""}):
             self.assertEqual(register_us_ranking_instruments(
