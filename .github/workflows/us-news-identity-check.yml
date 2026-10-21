@@ -13,6 +13,7 @@ on:
       - 'backend/services/news_result.py'
       - 'backend/services/market_issue_headlines.py'
       - 'tests/test_dynamic_stock_identity.py'
+      - 'tests/test_us_stock_news_identity.py'
       - '.github/workflows/us-news-identity-check.yml'
   pull_request:
     paths:
