@@ -39,8 +39,8 @@ def tags_only(payload,stock):
    if not matches:continue
    old=issue.get("tags") or []
    old=[str(t).lstrip("#") for t in old if isinstance(t,str) and str(t).strip()]
-   new=[label]+[t for t in old if t!=label and (anchor in t or t in ("외국인매도","수급부담"))]
-   new=["#"+t for t in list(dict.fromkeys(new))[:3]]
+   new=[label]+[t for t in old if t not in (label,anchor,"자사주매입") and (anchor in t or t in ("외국인매도","수급부담"))]
+   new=list(dict.fromkeys(new))[:3]
    if new!=issue.get("tags"):
     issue["tags"]=new;changed+=1
    break
