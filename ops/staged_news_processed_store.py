@@ -314,6 +314,15 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
                         f"[news-worker] preserved_recent_issues stock={stock_name} count={len(preserved)}",
                         flush=True,
                     )
+            # KR only: replace grounded hashtag labels, never titles, summaries or news.
+            if market in ("국내", "KR"):
+                try:
+                    from staged_issue_tags_only import tags_only
+                    normalized, tag_count = tags_only(normalized, stock_name)
+                    if tag_count:
+                        print(f"[news-worker] kr_tag_only_changed stock={stock_name} count={tag_count}", flush=True)
+                except Exception as exc:
+                    print(f"[news-worker] kr_tag_overlay_skipped error={type(exc).__name__}", flush=True)
             cur.execute("""
                 INSERT INTO public.news_processed_snapshots
                     (market,stock_name,result_limit,storyboard_limit,display_timezone,
