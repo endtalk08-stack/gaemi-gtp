@@ -1204,6 +1204,27 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
         lower = text.lower()
         return any(alias and alias in lower for alias in aliases)
 
+    def active_stock_mentions(text):
+        """Find the selected, uncatalogued listing by its exact displayed name.
+
+        Existing catalog names continue through their existing alias rules.
+        Short Latin symbols keep the same token-boundary rule as the catalog.
+        """
+        name = str(stock_name or "").strip()
+        if not name or _stock_region(name) or any(
+            name.casefold() == str(alias).strip().casefold()
+            for catalog in STOCK_UNIVERSE.values()
+            for canonical, variants in catalog.items()
+            for alias in (canonical, *(variants or []))
+        ):
+            return []
+        token = name.lower()
+        if re.fullmatch(r"[a-z0-9.]+", token) and len(token.replace(".", "")) <= 5:
+            pattern = rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])"
+        else:
+            pattern = re.escape(token)
+        return [match.span() for match in re.finditer(pattern, str(text or "").lower())]
+
     def other_company_owns_phrase(text, phrase):
         """Conservative guard for evaluative/result phrases in multi-company news."""
         lower = text.lower()
@@ -1220,6 +1241,13 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                     p = lower.rfind(token, 0, pos + 1)
                     if p >= 0:
                         nearest.append((pos - p, canonical))
+        # Include the selected listing in the same nearest-owner comparison.
+        # Otherwise a known company can incorrectly own an uncatalogued
+        # company's nearby financial/event phrase.
+        nearest.extend(
+            (pos - start, stock_name)
+            for start, _ in active_stock_mentions(lower[:pos + 1])
+        )
         if not nearest:
             return False
         nearest.sort(key=lambda pair: pair[0])
@@ -1265,6 +1293,18 @@ def build_connected_keyword_test(items, stock_name, max_keywords=3):
                             "end": end,
                             "token": token,
                         })
+        # The active sidebar/search stock is already a confirmed selection.
+        # Do not require it to exist in the historical STOCK_UNIVERSE.
+        for start, end in active_stock_mentions(lower):
+            key = (stock_name, start, end)
+            if key not in seen:
+                seen.add(key)
+                mentions.append({
+                    "stock": stock_name,
+                    "start": start,
+                    "end": end,
+                    "token": str(stock_name).strip().lower(),
+                })
         return mentions
 
     def event_owner_for_detail(detail, title, description, item):
