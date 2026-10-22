@@ -41,7 +41,27 @@ try:
  # Keep all three fully verified source articles, but cap text fed to the 8K TPM 120B model.
  compact=[{**item,"description":str(item.get("description") or "")[:1300]} for item in articles]
  print("AI_SOURCE_INPUT_CHARS",sum(len(item["description"]) for item in compact),flush=True)
- answer=close._generate(compact,TARGET,indices=indices)
+ # Same approved 120B model + system prompt, with JSON mode to prevent non-JSON replies.
+ import urllib.request,urllib.error
+ request_data={"model":close.MODEL,
+  "messages":[{"role":"system","content":close.US_CLOSE_PROMPT},
+              {"role":"user","content":close._prompt(compact,TARGET,indices=indices)}],
+  "temperature":0.2,"max_completion_tokens":1800,"reasoning_effort":"low",
+  "stream":False,"response_format":{"type":"json_object"}}
+ request=urllib.request.Request("https://api.groq.com/openai/v1/chat/completions",
+  data=json.dumps(request_data,ensure_ascii=False).encode("utf-8"),
+  headers={"Authorization":"Bearer "+os.environ["GROQ_API_KEY"].strip(),"Content-Type":"application/json","User-Agent":"gaemiGTP-us-close/1.0"},method="POST")
+ try:
+  with urllib.request.urlopen(request,timeout=35) as response:
+   api_result=json.loads(response.read().decode("utf-8"))
+ except urllib.error.HTTPError as e:
+  msg=e.read(600).decode("utf-8","replace")
+  msg=re.sub(r"org_[A-Za-z0-9_-]+","org_[REDACTED]",msg)
+  print("GROQ_HTTP_ERROR",e.code,"BODY",msg[:420],flush=True)
+  raise
+ choices=api_result.get("choices") or []
+ answer=str(((choices[0].get("message") or {}).get("content")) or "").strip() if choices else ""
+ print("GROQ_RESPONSE","LENGTH",len(answer),"FINISH",choices[0].get("finish_reason") if choices else "none",flush=True)
  result=json.loads(answer)
  if not isinstance(result,dict) or not isinstance(result.get("issues"),list) or not result["issues"]:
   raise RuntimeError("us_close_ai_missing_issues")
