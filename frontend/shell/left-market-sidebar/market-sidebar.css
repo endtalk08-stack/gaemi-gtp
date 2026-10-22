@@ -220,21 +220,21 @@
   gap: 5px;
   min-width: 0;
 }
-.market-stock-rank { font-size: 9px; flex: 0 0 auto; color: var(--gtp-faint); font-weight: 650; }
+.market-stock-rank { font-size: 11px; flex: 0 0 auto; color: var(--gtp-faint); font-weight: 650; }
 .market-stock-name {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 750;
   color: var(--gtp-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.market-stock-price { color: var(--gtp-text); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.market-stock-price { color: var(--gtp-text); font-size: 13px; font-weight: 800; white-space: nowrap; }
 .market-stock-turnover, .market-stock-industry {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--gtp-muted);
 }
@@ -246,6 +246,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px !important;
-  line-height: 1.2;
+  font-size: 13px !important;
+  line-height: 1.3;
 }
