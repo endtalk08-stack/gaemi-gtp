@@ -48,7 +48,6 @@
     const list = sidebar.querySelector('#marketRankingList');
     const title = sidebar.querySelector('#rightListTitle');
     const changeSortButton = sidebar.querySelector('#rightListMetric');
-    const subtitle = sidebar.querySelector('.market-sidebar-subtitle');
     const backendUrl = window.location.hostname.endsWith('github.io')
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
     const market = 'us';
@@ -82,7 +81,6 @@
       if (!list) return;
       if (tab !== 'popular' && tab !== 'value') return;
       if (title) title.textContent = tab === 'value' ? '거래대금 TOP 20' : '인기 TOP 20';
-      if (subtitle) subtitle.textContent = '/ 네이버 미국 원천';
       list.replaceChildren();
       list.textContent = '순위를 불러오는 중이야.';
       try {
