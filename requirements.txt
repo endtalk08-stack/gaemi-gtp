@@ -5,3 +5,4 @@ yfinance
 google-generativeai
 upstash-redis
 psycopg[binary]
+requests>=2.32,<3
