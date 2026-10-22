@@ -143,7 +143,7 @@ class AlpacaNeonLinkTests(unittest.TestCase):
         self.assertEqual(alpaca.call_args.args[:2], ("엔비디아", "NVDA"))
         save.assert_called_once()
         self.assertEqual(save.call_args.args[0], "NVDA")
-        a = next(row for row in result if row["source_type"] == "alpaca_news")
+        a = next(row for row in result if row.get("source_type") == "alpaca_news")
         self.assertIn({"name": "엔비디아", "region": "미국"}, a["stocks"])
 
     def test_korean_stocks_never_request_alpaca(self):
