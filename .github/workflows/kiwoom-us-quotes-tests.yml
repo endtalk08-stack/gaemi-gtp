@@ -22,5 +22,6 @@ jobs:
       - name: Verify code and run mocked Kiwoom unit tests
         run: |
           set -euo pipefail
+          python -m pip install 'requests>=2.32,<3'
           python -m compileall -q backend/providers/kiwoom_us_quotes.py
           python -m unittest -v tests.test_kiwoom_us_quotes
