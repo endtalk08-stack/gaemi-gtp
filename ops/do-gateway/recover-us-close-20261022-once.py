@@ -38,7 +38,10 @@ print("REPAIR_CLAIMED",claimed,flush=True)
 if not claimed:sys.exit(0)
 
 try:
- answer=close._generate(articles,TARGET,indices=indices)
+ # Keep all three fully verified source articles, but cap text fed to the 8K TPM 120B model.
+ compact=[{**item,"description":str(item.get("description") or "")[:1300]} for item in articles]
+ print("AI_SOURCE_INPUT_CHARS",sum(len(item["description"]) for item in compact),flush=True)
+ answer=close._generate(compact,TARGET,indices=indices)
  result=json.loads(answer)
  if not isinstance(result,dict) or not isinstance(result.get("issues"),list) or not result["issues"]:
   raise RuntimeError("us_close_ai_missing_issues")
