@@ -141,17 +141,11 @@
         <div class="flex items-center justify-between gap-3 w-full">
           <div class="flex items-center gap-2 min-w-0 whitespace-nowrap">
             <div class="market-sidebar-title">실시간</div>
-            <div class="market-sidebar-subtitle">/ 미국 종목</div>
           </div>
           <button type="button" onclick="toggleLeftSidebar()" class="market-sidebar-close" aria-label="시장정보 닫기" title="시장정보 닫기">
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>
         </div>
-      </div>
-
-      <!-- 미국 종목 전용 사이드바: 국내 종목 제거 -->
-      <div class="px-4 py-3">
-        <div class="rounded-lg border border-[#cbd5e1] dark:border-[#3f3f46] bg-[#eef2f7] dark:bg-[#272a31] py-2.5 text-center text-[13px] font-bold text-[#0f172a] gtp-dark-text">해외주식 · 미국</div>
       </div>
 
       <!-- 정보 종류 -->
@@ -170,7 +164,7 @@
           <span id="rightListTitle">인기 TOP 20</span>
           <button type="button" id="rightListMetric" aria-pressed="false" title="등락률 높은 순으로 정렬 / 원래 순서로 복원" class="hover:text-sky-500 transition-colors cursor-pointer">상승률</button>
         </div>
-        <div id="marketRankingList" aria-live="polite">미국 종목 순위를 불러오는 중이야.
+        <div id="marketRankingList" aria-live="polite">순위를 불러오는 중이야.
         </div>
       </div>
     </div>
@@ -466,7 +460,7 @@
   <script src="shell/right-panel/right-panel.js?v=20260927-step7-workarea3"></script>
   <script src="shell/left-panel/left-panel-resizer.js?v=20260927-left-fixed"></script>
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260927-sidebar-home"></script>
-  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261022-us-market-only-v1"></script>
+  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261022-hide-unrequested-market-labels-v1"></script>
   <script src="shell/left-earnings-calendar-sidebar/earnings-calendar-sidebar.js?v=20261008-v1"></script>
   <script src="pages/watchlist/watchlist.js?v=20261005-type-v1"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20261020-disclosures-restore-v1"></script>
