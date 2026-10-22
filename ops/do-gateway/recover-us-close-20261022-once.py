@@ -44,7 +44,7 @@ try:
  # Same approved 120B model + system prompt, with JSON mode to prevent non-JSON replies.
  import urllib.request,urllib.error
  request_data={"model":close.MODEL,
-  "messages":[{"role":"system","content":close.US_CLOSE_PROMPT},
+  "messages":[{"role":"system","content":close.US_CLOSE_PROMPT+"\nReturn a valid json object only."},
               {"role":"user","content":close._prompt(compact,TARGET,indices=indices)}],
   "temperature":0.2,"max_completion_tokens":1800,"reasoning_effort":"low",
   "stream":False,"response_format":{"type":"json_object"}}
