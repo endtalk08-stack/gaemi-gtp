@@ -54,7 +54,7 @@
           lines.push(index.name + ' ' + priceFormat.format(index.close) + ' (' + percent(index) + ')');
         }
       }
-      lines.push(issue.summary);
+      lines.push(cleanInlineMarkdown(issue.summary));
       if (issue.tags.length) lines.push(issue.tags.map(tag => '#' + tag).join(' '));
     }
     return lines.join('\n\n');
@@ -130,6 +130,17 @@
     return blocks;
   }
 
+  // The animated chat renderer writes plain text. Remove inline Markdown
+  // delimiters before typing so AI emphasis markers never leak into the UI.
+  // Hashtags are intentionally preserved because they drive the market chart.
+  function cleanInlineMarkdown(value) {
+    return String(value || '')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/~~(.+?)~~/g, '$1')
+      .replace(/\x60([^\x60]+)\x60/g, '$1');
+  }
+
   async function render(node, presentation, { isActive, typeText } = {}) {
     const data = normalize(presentation);
     if (!node || !data || typeof isActive !== 'function' || typeof typeText !== 'function') return false;
@@ -137,7 +148,7 @@
     node.classList.add('gaemi-us-close-reply');
     const type = async (element, text) => {
       if (!isActive()) return false;
-      const typed = await typeText(element, text);
+      const typed = await typeText(element, cleanInlineMarkdown(text));
       return typed !== false && isActive();
     };
     for (let index = 0; index < data.issues.length; index += 1) {

@@ -89,7 +89,7 @@ async function main() {
     response_format: 'free_text_v1',
     issues: [{
       headline: '미국장 마감',
-      summary: '미국장은 대체로 상승했어.\n\n**업종별 흐름**\n- 기술주 약세\n- 산업주 강세\n\n다우가 올랐어.',
+      summary: '미국장은 **대체로 상승**했어.\n\n**업종별 흐름**\n- **기술주** 약세\n- __산업주__ 강세\n\n다우가 올랐어. `VIX`도 확인해.',
       tags: ['#나스닥상승', '#다우보합', '#실적호조']
     }]
   };
@@ -106,7 +106,13 @@ async function main() {
   assert.equal(sections[2].tagName, 'div');
   assert.deepEqual(sections[2].children.map(n => n.tagName), ['p', 'div', 'ul', 'p']);
   assert.equal(sections[2].children[2].children.length, 2);
+  assert.equal(sections[2].children[0].textContent, '미국장은 대체로 상승했어.');
+  assert.equal(sections[2].children[2].children[0].textContent, '기술주 약세');
+  assert.equal(sections[2].children[2].children[1].textContent, '산업주 강세');
+  assert.equal(sections[2].children[3].textContent, '다우가 올랐어. VIX도 확인해.');
   assert.equal(sections[3].textContent, '#나스닥상승 #다우보합 #실적호조');
+  assert.ok(!api.plainText(free).includes('**'), 'inline Markdown delimiters must not leak');
+  assert.ok(api.plainText(free).includes('#나스닥상승 #다우보합 #실적호조'), 'chart hashtags must remain');
 
   // Fail closed: no random AI text, missing indices or stale numeric values.
   assert.equal(api.normalize({ ...valid, market_indices: valid.market_indices.slice(0, 2) }), null);
