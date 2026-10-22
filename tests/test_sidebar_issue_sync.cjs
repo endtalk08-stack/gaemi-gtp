@@ -59,8 +59,8 @@ function setup({ deferred = false } = {}) {
   const title = new Element();
   const metric = new Element();
   const subtitle = new Element();
-  const kr = new Element('button'); kr.textContent = '국내';
-  const us = new Element('button'); us.textContent = '해외';
+  const popularTab = new Element('button'); popularTab.dataset.infoTabAction = 'popular';
+  const valueTab = new Element('button'); valueTab.dataset.infoTabAction = 'value';
   const sidebar = new Element();
   sidebar.querySelector = (selector) => ({
     '#marketRankingList': list,
@@ -69,7 +69,7 @@ function setup({ deferred = false } = {}) {
     '.market-sidebar-subtitle': subtitle
   })[selector] || null;
   sidebar.querySelectorAll = (selector) =>
-    selector === '[data-legacy-region]' ? [kr, us] : [];
+    selector === '[data-info-tab-action]' ? [popularTab, valueTab] : [];
   const documentListeners = {};
   const document = {
     body: { classList: { contains() { return false; }, remove() {}, toggle() {} } },
@@ -87,15 +87,15 @@ function setup({ deferred = false } = {}) {
   let resolveDeferred = null;
   const fetch = async (url, opts) => {
     calls.push({ url, opts });
-    if (url.endsWith('/market/popular?market=kr')) {
-      return { ok: true, json: async () => ({ ok: true, items: [
-        { name: '삼성전자', symbol: '005930', issue_headline: '' }
-      ] }) };
-    }
     if (url.endsWith('/market/popular?market=us')) {
       return { ok: true, json: async () => ({ ok: true, items: [
         { name: '일라이 릴리', symbol: 'LLY', issue_headline: '' },
         { name: '테슬라', symbol: 'TSLA.O', issue_headline: '기존 이슈' }
+      ] }) };
+    }
+    if (url.endsWith('/market/trading-value?market=us')) {
+      return { ok: true, json: async () => ({ ok: true, items: [
+        { name: '엔비디아', symbol: 'NVDA', issue_headline: '' }
       ] }) };
     }
     if (url.endsWith('/market/issue-headlines')) {
@@ -113,7 +113,7 @@ function setup({ deferred = false } = {}) {
   vm.runInNewContext(sidebarSource, { window, document, fetch, console });
   documentListeners.DOMContentLoaded();
   return {
-    list, us, kr, calls,
+    list, popularTab, valueTab, calls,
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
   };
@@ -122,8 +122,7 @@ function setup({ deferred = false } = {}) {
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
   const app = setup();
   await flush();
-  app.us.click();
-  await flush();
+  assert.ok(app.calls[0].url.endsWith('/market/popular?market=us'));
   const before = app.list.querySelectorAll(':scope > button[data-original-index]');
   assert.equal(before.length, 2);
   assert.equal(before[0].querySelector('[data-stock-issue]').textContent, '');
@@ -142,8 +141,6 @@ test('newly stored Eli Lilly issue updates its sidebar row without fetching rank
 test('unrelated analysis and wrong market do not make requests', async () => {
   const app = setup();
   await flush();
-  app.us.click();
-  await flush();
   const n = app.calls.length;
   app.event({ name: '없는 종목', market: 'us', symbol: 'NONE' });
   app.event({ name: '일라이 릴리', market: 'kr', symbol: 'LLY' });
@@ -154,15 +151,13 @@ test('unrelated analysis and wrong market do not make requests', async () => {
 test('stale lookup must not write to a rebuilt sidebar', async () => {
   const app = setup({ deferred: true });
   await flush();
-  app.us.click();
-  await flush();
   app.event({ name: '일라이 릴리', market: 'us', symbol: 'LLY' });
   await flush();
-  app.kr.click();
+  app.valueTab.click();
   await flush();
   app.resolvePost();
   await flush();
-  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockName, '삼성전자');
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockName, '엔비디아');
 });
 
 test('central analysis announces only completed and populated briefs', () => {

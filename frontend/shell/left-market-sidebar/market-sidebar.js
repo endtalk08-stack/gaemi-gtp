@@ -1,4 +1,4 @@
-/* Left Market Sidebar — market shell open/close controls only. */
+/* Left Market Sidebar — US-only rankings and shell controls. */
 (function () {
   'use strict';
 
@@ -21,7 +21,6 @@
     applyState();
   }
 
-  // The restored market list is a fixed layout sample, not a live ranking feed.
   function bindMarketControls() {
     const sidebar = document.getElementById('leftMarketSidebar');
     if (!sidebar || sidebar.dataset.marketControlsBound === 'true') return;
@@ -45,16 +44,14 @@
       buttons.forEach((button, index) => button.setAttribute('aria-pressed', String(index === defaultIndex)));
     }
 
-    // KR and USA trading-value tabs use source-specific market-wide ranking results.
-    // Other tabs retain their existing UI and do not start new collectors.
+    // Only US market data is requested; static sample rows have been removed.
     const list = sidebar.querySelector('#marketRankingList');
     const title = sidebar.querySelector('#rightListTitle');
     const changeSortButton = sidebar.querySelector('#rightListMetric');
     const subtitle = sidebar.querySelector('.market-sidebar-subtitle');
-    const initialMarkup = list?.innerHTML || '';
     const backendUrl = window.location.hostname.endsWith('github.io')
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
-    let region = '국내';
+    const market = 'us';
     let tab = 'popular';
     let requestId = 0;
     let changeSorted = false;
@@ -73,12 +70,6 @@
       changeSortButton?.setAttribute('aria-pressed', String(changeSorted));
     };
 
-    const formatMoney = (value) => {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-      if (value >= 1e12) return (value / 1e12).toLocaleString('ko-KR', { maximumFractionDigits: 2 }) + '조원';
-      if (value >= 1e8) return (value / 1e8).toLocaleString('ko-KR', { maximumFractionDigits: 1 }) + '억원';
-      return value.toLocaleString('ko-KR') + '원';
-    };
     const formatUsd = (value) => {
       if (typeof value !== 'number' || !Number.isFinite(value)) return null;
       if (value >= 1e9) return '$' + (value / 1e9).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'B';
@@ -86,24 +77,12 @@
       return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 2 });
     };
 
-    const showDomesticRanking = async () => {
+    const showUsRanking = async () => {
       const id = ++requestId;
       if (!list) return;
-      const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
-      if ((tab !== 'value' && tab !== 'popular') || (tab === 'popular' && !market)) {
-        list.innerHTML = initialMarkup;
-        if (title) title.textContent = '인기 TOP 20';
-        if (subtitle) subtitle.textContent = '/ 고정 예시 데이터';
-        return;
-      }
+      if (tab !== 'popular' && tab !== 'value') return;
       if (title) title.textContent = tab === 'value' ? '거래대금 TOP 20' : '인기 TOP 20';
-      if (!market) {
-        list.replaceChildren();
-        list.textContent = '국내 또는 해외를 선택하면 해당 순위를 볼 수 있어.';
-        return;
-      }
-
-      if (subtitle) subtitle.textContent = market === 'us' ? '/ 네이버 미국 원천' : '/ 네이버 국내 원천';
+      if (subtitle) subtitle.textContent = '/ 네이버 미국 원천';
       list.replaceChildren();
       list.textContent = '순위를 불러오는 중이야.';
       try {
@@ -134,7 +113,7 @@
             sort: changeSorted ? 'change_pct' : 'source',
             industry: item.industry, price: item.price, change_pct: item.change_pct,
             trading_value: item.trading_value, trading_value_text: item.trading_value_text,
-            currency: market === 'us' ? 'USD' : 'KRW', source: 'naver'
+            currency: 'USD', source: 'naver'
           }));
 
           const top = document.createElement('div');
@@ -149,7 +128,7 @@
           const price = document.createElement('span');
           price.className = 'font-black text-[13px] text-[#0f172a] gtp-dark-text text-right';
           price.textContent = typeof item.price === 'number' && Number.isFinite(item.price)
-            ? (market === 'us' ? '$' + item.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : item.price.toLocaleString('ko-KR') + '원') : '';
+            ? '$' + item.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '';
           top.append(rank, name, price);
 
           // Match popular ranking's second row; display turnover in the blank
@@ -159,7 +138,7 @@
           secondRow.appendChild(document.createElement('span'));
           const turnover = document.createElement('span');
           turnover.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] truncate';
-          const amount = (market === 'us' ? formatUsd(item.trading_value) : formatMoney(item.trading_value)) || item.trading_value_text;
+          const amount = formatUsd(item.trading_value) || item.trading_value_text;
           turnover.textContent = amount ? '거래대금 ' + amount : '';
           const change = document.createElement('span');
           const pct = item.change_pct;
@@ -200,8 +179,7 @@
     const refreshAnalyzedIssue = async (event) => {
       const detail = event.detail || {};
       const name = String(detail.name || '').trim();
-      const market = region === '국내' ? 'kr' : region === '해외' ? 'us' : null;
-      if (!name || !market || (tab !== 'popular' && tab !== 'value')) return;
+      if (!name || (tab !== 'popular' && tab !== 'value')) return;
       if (detail.market && detail.market !== market) return;
       const button = [...list.querySelectorAll(':scope > button[data-original-index]')]
         .find((row) => row.dataset.stockName === name &&
@@ -234,25 +212,17 @@
       applyChangeSort();
     });
 
-    bindStaticSelection('[data-legacy-region]');
     bindStaticSelection('[data-info-tab-action]');
-    sidebar.querySelectorAll('[data-legacy-region]').forEach((button) => {
-      if (button.disabled) return;
-      button.addEventListener('click', () => {
-        region = button.textContent.trim();
-        void showDomesticRanking();
-      });
-    });
     sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
       if (button.disabled) return;
       button.addEventListener('click', () => {
         tab = button.dataset.infoTabAction;
-        void showDomesticRanking();
+        void showUsRanking();
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
-    // Show the live KR popularity list on the first market sidebar view.
-    void showDomesticRanking();
+    // Load US popularity ranking on first open, without demo rows.
+    void showUsRanking();
   }
 
   document.addEventListener('DOMContentLoaded', bindMarketControls);
