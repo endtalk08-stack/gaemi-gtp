@@ -1,60 +1,64 @@
-"""No-network tests for isolated Kiwoom US market read-only adapter."""
+"""No-network regressions for the official-style Kiwoom read-only REST adapter."""
 import datetime as dt
-import io
-import urllib.error
-import json
 import os
 import unittest
 from unittest.mock import patch
 
+import requests
+
 from backend.providers import kiwoom_us_quotes as kiwoom
 
 
-class FakeReply:
-    def __init__(self, payload):
+class FakeResponse:
+    def __init__(self, payload=None, status_code=200, headers=None, content=None):
         self.payload = payload
+        self.status_code = status_code
+        self.headers = headers or {"Content-Type": "application/json"}
+        self.content = content if content is not None else b'{"return_code":0}'
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_):
-        return False
-
-    def read(self):
-        return json.dumps(self.payload).encode("utf-8")
+    def json(self):
+        if self.payload is None:
+            raise ValueError("not JSON")
+        return self.payload
 
 
 class KiwoomReadOnlyTests(unittest.TestCase):
-    def test_oauth_request(self):
-        seen = []
+    def test_oauth_uses_exact_official_requests_json(self):
+        sent = []
 
-        def send(req, timeout):
-            seen.append((req.full_url, json.loads(req.data)))
-            return FakeReply({"return_code": 0, "token": "MOCK_TOKEN"})
+        def send(url, **kwargs):
+            sent.append((url, kwargs))
+            return FakeResponse({"return_code": 0, "token": "MOCK_TOKEN"})
 
         with patch.dict(os.environ, {
             "GAEMI_KIWOOM_APP_KEY": "TEST_KEY",
             "GAEMI_KIWOOM_APP_SECRET": "TEST_SECRET",
-        }), patch.object(kiwoom.urllib.request, "urlopen", side_effect=send):
+        }), patch.object(kiwoom.requests, "post", side_effect=send):
             self.assertEqual(kiwoom.issue_access_token(), "MOCK_TOKEN")
-        self.assertEqual(seen, [(
-            "https://api.kiwoom.com/oauth2/token",
-            {"grant_type": "client_credentials", "appkey": "TEST_KEY",
-             "secretkey": "TEST_SECRET"},
-        )])
+        self.assertEqual(len(sent), 1)
+        url, data = sent[0]
+        self.assertEqual(url, "https://api.kiwoom.com/oauth2/token")
+        self.assertEqual(data["json"], {
+            "grant_type": "client_credentials",
+            "appkey": "TEST_KEY", "secretkey": "TEST_SECRET",
+        })
+        self.assertEqual(data["headers"], {"Content-Type": "application/json;charset=UTF-8"})
+        self.assertEqual(data["timeout"], 8)
+        self.assertEqual(data["allow_redirects"], False)
 
-    def test_daily_uses_exact_close(self):
-        def send(req, timeout):
-            self.assertEqual(req.get_header("Api-id"), "usa20590")
-            self.assertEqual(req.get_header("Authorization"), "Bearer MOCK_TOKEN")
-            self.assertEqual(json.loads(req.data)["base_dt"], "20261019")
-            return FakeReply({"return_code": 0, "result_list": [
+    def test_daily_uses_exact_close_and_api_id(self):
+        def send(url, **kwargs):
+            self.assertEqual(url, "https://api.kiwoom.com/api/us/mrkcond")
+            self.assertEqual(kwargs["headers"]["api-id"], "usa20590")
+            self.assertEqual(kwargs["headers"]["authorization"], "Bearer MOCK_TOKEN")
+            self.assertEqual(kwargs["json"], {"stex_tp": "ND", "stk_cd": "NVDA", "base_dt": "20261019"})
+            return FakeResponse({"return_code": 0, "result_list": [
                 {"dt": "20261016", "cur_prc": "100", "flu_rt": "1.10"},
                 {"dt": "20261019", "cur_prc": "124.25",
                  "flu_rt": "-2.15", "acc_trde_qty": "5,500"},
             ]})
 
-        with patch.object(kiwoom.urllib.request, "urlopen", side_effect=send):
+        with patch.object(kiwoom.requests, "post", side_effect=send):
             answer = kiwoom.fetch_us_close(
                 "nvda", "nd", dt.date(2026, 10, 19), token="MOCK_TOKEN")
         self.assertEqual(answer["session_date"], "2026-10-19")
@@ -62,11 +66,23 @@ class KiwoomReadOnlyTests(unittest.TestCase):
         self.assertEqual(answer["change_pct"], -2.15)
         self.assertEqual(answer["volume"], 5500)
 
+    def test_current_quote_fields(self):
+        with patch.object(kiwoom.requests, "post", return_value=FakeResponse({
+            "return_code": 0, "cur_prc": "220.02", "flu_rt": "+1.64",
+            "base_close_pric": "216.47",
+        })):
+            quote = kiwoom.fetch_us_quote("NVDA", "ND", token="MOCK_TOKEN")
+        self.assertEqual(quote["current"], 220.02)
+        self.assertEqual(quote["change_pct"], 1.64)
+        self.assertEqual(quote["previous_close"], 216.47)
+        self.assertFalse(quote["official_close"])
+
     def test_no_stale_price(self):
-        with patch.object(kiwoom.urllib.request, "urlopen",
-                          return_value=FakeReply({"return_code": 0, "result_list": [
-                              {"dt": "20261016", "cur_prc": "100", "flu_rt": "1"}
-                          ]})):
+        with patch.object(kiwoom.requests, "post", return_value=FakeResponse({
+            "return_code": 0, "result_list": [
+                {"dt": "20261016", "cur_prc": "100", "flu_rt": "1"},
+            ],
+        })):
             self.assertIsNone(kiwoom.fetch_us_close(
                 "AAPL", "ND", dt.date(2026, 10, 19), token="MOCK_TOKEN"))
 
@@ -79,30 +95,23 @@ class KiwoomReadOnlyTests(unittest.TestCase):
             kiwoom.fetch_us_close(
                 "../../bad", "ND", dt.date(2026, 10, 19), token="MOCK_TOKEN")
 
-    def test_oauth_http_error_metadata_only(self):
-        response_text = b"<html><body>Sample blocked response with internal details</body></html>"
-        fake = urllib.error.HTTPError(
-            "https://api.kiwoom.com/oauth2/token", 400, "Bad request",
-            {"Content-Type": "text/html; charset=UTF-8"},
-            io.BytesIO(response_text),
-        )
-        with patch.object(kiwoom.urllib.request, "urlopen", side_effect=fake):
+    def test_html_response_keeps_secrets_and_body_out_of_error(self):
+        raw = b"<html><body>Sample blocked response with internal details</body></html>"
+        fake = FakeResponse(status_code=400, headers={"Content-Type": "text/html; charset=UTF-8"}, content=raw)
+        with patch.object(kiwoom.requests, "post", return_value=fake):
             with self.assertRaises(kiwoom.KiwoomReadOnlyError) as caught:
-                kiwoom._request("/oauth2/token", {})
-        error_text = str(caught.exception)
+                kiwoom._request("/oauth2/token", {"secretkey": "NEVER_LOG_THIS"})
         self.assertEqual(
-            error_text,
+            str(caught.exception),
             "kiwoom_http_400_content_type_text_html_body_html_like_bytes_" +
-            str(len(response_text)) + "_page_unknown_server_none_gateway_no"
+            str(len(raw)) + "_page_unknown_server_none_gateway_no"
         )
-        self.assertNotIn("Sample blocked", error_text)
+        self.assertNotIn("Sample blocked", str(caught.exception))
+        self.assertNotIn("NEVER_LOG_THIS", str(caught.exception))
 
     def test_oauth_http_error_empty(self):
-        fake = urllib.error.HTTPError(
-            "https://api.kiwoom.com/oauth2/token", 400, "Bad request",
-            {"Content-Type": "text/plain"}, io.BytesIO(b""),
-        )
-        with patch.object(kiwoom.urllib.request, "urlopen", side_effect=fake):
+        fake = FakeResponse(status_code=400, headers={"Content-Type": "text/plain"}, content=b"")
+        with patch.object(kiwoom.requests, "post", return_value=fake):
             with self.assertRaises(kiwoom.KiwoomReadOnlyError) as caught:
                 kiwoom._request("/oauth2/token", {})
         self.assertEqual(
@@ -110,22 +119,25 @@ class KiwoomReadOnlyTests(unittest.TestCase):
             "kiwoom_http_400_content_type_text_plain_body_empty_bytes_0_page_unknown_server_none_gateway_no"
         )
 
-    def test_oauth_html_proxy_fingerprint_allowlisted(self):
-        html = b"<html><head><title>400 Bad Request</title></head></html>"
-        fake = urllib.error.HTTPError(
-            "https://api.kiwoom.com/oauth2/token", 400, "Bad request",
-            {"Content-Type": "text/html", "Server": "nginx/1.26.0",
-             "Via": "private proxy data"},
-            io.BytesIO(html),
-        )
-        with patch.object(kiwoom.urllib.request, "urlopen", side_effect=fake):
+    def test_oauth_proxy_fingerprint_is_allowlisted(self):
+        raw = b"<html><head><title>400 Bad Request</title></head></html>"
+        fake = FakeResponse(status_code=400, headers={
+            "Content-Type": "text/html", "Server": "nginx/1.26.0",
+            "Via": "private proxy data",
+        }, content=raw)
+        with patch.object(kiwoom.requests, "post", return_value=fake):
             with self.assertRaises(kiwoom.KiwoomReadOnlyError) as caught:
                 kiwoom._request("/oauth2/token", {})
         error = str(caught.exception)
-        self.assertTrue(error.endswith(
-            "_page_bad_request_400_server_nginx_gateway_yes"))
+        self.assertTrue(error.endswith("_page_bad_request_400_server_nginx_gateway_yes"))
         self.assertNotIn("1.26", error)
         self.assertNotIn("private proxy data", error)
+
+    def test_transport_errors_do_not_expose_exceptions(self):
+        with patch.object(kiwoom.requests, "post", side_effect=requests.Timeout("sensitive request")):
+            with self.assertRaises(kiwoom.KiwoomReadOnlyError) as caught:
+                kiwoom._request("/oauth2/token", {})
+        self.assertEqual(str(caught.exception), "kiwoom_request_failed")
 
     def test_missing_credentials(self):
         with patch.dict(os.environ, {"GAEMI_KIWOOM_APP_KEY": "",
