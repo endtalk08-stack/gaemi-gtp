@@ -25,7 +25,12 @@ def credentials_configured():
 
 
 def _request(path, body, headers=None):
-    """Use Kiwoom's official requests POST(json=...) transport."""
+    """Official requests POST(json=...). Never send undocumented market requests."""
+    if path == QUOTES_PATH:
+        api_id = (headers or {}).get("api-id")
+        _validate_stock_request(api_id, body)
+    elif path != "/oauth2/token":
+        raise KiwoomReadOnlyError("kiwoom_unsupported_api_path")
     try:
         response = requests.post(
             API_ORIGIN + path,
@@ -108,8 +113,11 @@ def _request(path, body, headers=None):
         raise KiwoomReadOnlyError("kiwoom_request_failed") from None
     if not isinstance(result, dict):
         raise KiwoomReadOnlyError("kiwoom_unexpected_response")
-    if str(result.get("return_code", 0)) != "0":
-        raise KiwoomReadOnlyError("kiwoom_api_rejected")
+    code = str(result.get("return_code", 0))
+    if code not in ("0", "0000"):
+        # Keep only the numeric server code; never log return_msg or payload.
+        safe_code = code if re.fullmatch(r"-?[0-9]{1,6}", code) else "unknown"
+        raise KiwoomReadOnlyError("kiwoom_api_rejected_code_" + safe_code)
     return result
 
 
@@ -137,9 +145,33 @@ def _clean_symbol(symbol, exchange):
     return symbol, exchange
 
 
-def _market_request(api_id, body, token):
+def _validate_stock_request(api_id, body):
+    """Reject index-list codes and non-stock exchange values BEFORE HTTP.
+
+    usa10102's NW/NQ/NS identify US indices and MUST NOT be sent to
+    stock-only usa20100/usa20590, which accept NA/ND/NY.
+    """
     if api_id not in ALLOWED_TR:
         raise KiwoomReadOnlyError("kiwoom_non_readonly_api_disallowed")
+    if not isinstance(body, dict):
+        raise KiwoomReadOnlyError("kiwoom_stock_request_invalid")
+    exchange = body.get("stex_tp")
+    symbol = body.get("stk_cd")
+    if exchange not in SUPPORTED_EXCHANGES:
+        raise KiwoomReadOnlyError("kiwoom_invalid_stock_exchange")
+    if not isinstance(symbol, str) or not re.fullmatch(r"[A-Z0-9.\\-]{1,20}", symbol):
+        raise KiwoomReadOnlyError("kiwoom_stock_symbol_invalid")
+    if symbol in {"DJI", "IXIC", "INX", "NDX"}:
+        raise KiwoomReadOnlyError("kiwoom_index_not_stock")
+    if api_id == "usa20590" and not (
+        isinstance(body.get("base_dt"), str)
+        and re.fullmatch(r"[0-9]{8}", body["base_dt"])
+    ):
+        raise KiwoomReadOnlyError("kiwoom_stock_session_invalid")
+
+
+def _market_request(api_id, body, token):
+    _validate_stock_request(api_id, body)
     if not token:
         raise KiwoomReadOnlyError("kiwoom_token_missing")
     return _request(QUOTES_PATH, body, {
