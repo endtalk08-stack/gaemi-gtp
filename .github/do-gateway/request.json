@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect-worker-edit-safety-20261023.py","request_id":"worker-us-only-inspect-20261023","timeout":75}
+{"operation":"deploy","path":"ops/do-gateway/news_worker_us_only_20261023.py","target":"backend/news_worker.py"}
