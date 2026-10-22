@@ -16,6 +16,9 @@
     SOXX: 'ishares.com', GLD: 'ssga.com', SLV: 'ishares.com'
   };
 
+  // Bundled SVG images: theSVG (CC0), https://github.com/glincker/thesvg
+  const STOCK_LOCAL_LOGOS = { SKHY: 'sk-hynix.svg', MU: 'micron.svg', SNDK: 'sandisk.svg' };
+
   function stockMark(item) {
     const ticker = String(item.symbol || '').trim().toUpperCase()
       .replace(/^US:/, '').replace(/\.(?:O|N|K)$/, '');
@@ -38,14 +41,16 @@
       path.setAttribute('fill', '#' + icon.color);
       svg.appendChild(path);
       mark.replaceChildren(svg);
-    } else if (STOCK_DOMAINS[ticker]) {
+    } else if (STOCK_LOCAL_LOGOS[ticker] || STOCK_DOMAINS[ticker]) {
       const img = document.createElement('img');
       img.className = 'market-stock-logo-image';
       img.alt = '';
       img.loading = 'lazy';
       img.decoding = 'async';
-      img.src = 'https://www.google.com/s2/favicons?domain='
-        + encodeURIComponent(STOCK_DOMAINS[ticker]) + '&sz=64';
+      img.src = STOCK_LOCAL_LOGOS[ticker]
+        ? 'shell/left-market-sidebar/logos/' + STOCK_LOCAL_LOGOS[ticker]
+        : 'https://www.google.com/s2/favicons?domain='
+          + encodeURIComponent(STOCK_DOMAINS[ticker]) + '&sz=64';
       img.addEventListener('load', () => { fallback.hidden = true; });
       img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; });
       mark.appendChild(img);
