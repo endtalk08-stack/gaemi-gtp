@@ -139,6 +139,47 @@ class KiwoomReadOnlyTests(unittest.TestCase):
                 kiwoom._request("/oauth2/token", {})
         self.assertEqual(str(caught.exception), "kiwoom_request_failed")
 
+    def test_us_index_exchange_codes_never_reach_stock_api(self):
+        for exchange, symbol in (("NW", "DJI"), ("NQ", "IXIC"), ("NS", "INX")):
+            with self.subTest(exchange=exchange), patch.object(
+                kiwoom.requests, "post", side_effect=AssertionError("network call not permitted")
+            ):
+                with self.assertRaisesRegex(kiwoom.KiwoomReadOnlyError, "kiwoom_invalid_stock_exchange"):
+                    kiwoom._request("/api/us/mrkcond", {
+                        "stex_tp": exchange, "stk_cd": symbol, "base_dt": "20261021",
+                    }, {"api-id": "usa20590", "authorization": "Bearer MOCK_TOKEN"})
+
+    def test_index_symbols_rejected_even_if_exchange_forged(self):
+        with patch.object(kiwoom.requests, "post", side_effect=AssertionError("network call not permitted")):
+            with self.assertRaisesRegex(kiwoom.KiwoomReadOnlyError, "kiwoom_index_not_stock"):
+                kiwoom._market_request("usa20590", {
+                    "stex_tp": "ND", "stk_cd": "IXIC", "base_dt": "20261021",
+                }, "MOCK_TOKEN")
+
+    def test_unapproved_endpoint_cannot_bypass_allowlist(self):
+        with patch.object(kiwoom.requests, "post", side_effect=AssertionError("network call not permitted")):
+            with self.assertRaisesRegex(kiwoom.KiwoomReadOnlyError, "kiwoom_unsupported_api_path"):
+                kiwoom._request("/api/us/stkinfo", {"index_qry_tp": "%"}, {
+                    "api-id": "usa10102", "authorization": "Bearer MOCK_TOKEN",
+                })
+
+    def test_api_numeric_error_code_preserved_without_server_message(self):
+        fake = FakeResponse({"return_code": 1501, "return_msg": "PRIVATE_USER_DATA"})
+        with patch.object(kiwoom.requests, "post", return_value=fake):
+            with self.assertRaises(kiwoom.KiwoomReadOnlyError) as caught:
+                kiwoom._request("/api/us/mrkcond", {
+                    "stex_tp": "ND", "stk_cd": "NVDA", "base_dt": "20261021",
+                }, {"api-id": "usa20590", "authorization": "Bearer MOCK_TOKEN"})
+        self.assertEqual(str(caught.exception), "kiwoom_api_rejected_code_1501")
+        self.assertNotIn("PRIVATE_USER_DATA", str(caught.exception))
+
+    def test_invalid_api_error_code_is_sanitized(self):
+        fake = FakeResponse({"return_code": "secret unexpected", "return_msg": "PRIVATE_USER_DATA"})
+        with patch.object(kiwoom.requests, "post", return_value=fake):
+            with self.assertRaises(kiwoom.KiwoomReadOnlyError) as caught:
+                kiwoom._request("/oauth2/token", {})
+        self.assertEqual(str(caught.exception), "kiwoom_api_rejected_code_unknown")
+
     def test_missing_credentials(self):
         with patch.dict(os.environ, {"GAEMI_KIWOOM_APP_KEY": "",
                                      "GAEMI_KIWOOM_APP_SECRET": ""}):
