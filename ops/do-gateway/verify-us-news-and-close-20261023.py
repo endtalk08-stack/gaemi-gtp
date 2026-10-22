@@ -1,5 +1,6 @@
 """Read-only production verification for US Naver news and US-close service."""
-import json, subprocess
+import json, subprocess, os, sys
+sys.path.insert(0, os.getcwd())
 from backend.providers import naver_news
 print("NAVER_CONFIGURED",naver_news.is_configured(),flush=True)
 if naver_news.is_configured():
