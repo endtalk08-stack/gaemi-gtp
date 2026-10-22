@@ -47,7 +47,34 @@ try:
   "messages":[{"role":"system","content":close.US_CLOSE_PROMPT+"\nReturn a valid json object only."},
               {"role":"user","content":close._prompt(compact,TARGET,indices=indices)}],
   "temperature":0.2,"max_completion_tokens":1800,"reasoning_effort":"low",
-  "stream":False,"response_format":{"type":"json_object"}}
+  "stream":False,"response_format":{
+    "type":"json_schema",
+    "json_schema":{
+      "name":"us_close_issue_briefs",
+      "strict":True,
+      "schema":{
+        "type":"object",
+        "properties":{
+          "issues":{
+            "type":"array",
+            "items":{
+              "type":"object",
+              "properties":{
+                "headline":{"type":"string"},
+                "summary":{"type":"string"},
+                "tags":{"type":"array","items":{"type":"string"}},
+                "source_ids":{"type":"array","items":{"type":"integer"}}
+              },
+              "required":["headline","summary","tags","source_ids"],
+              "additionalProperties":False
+            }
+          }
+        },
+        "required":["issues"],
+        "additionalProperties":False
+      }
+    }
+  }}
  request=urllib.request.Request("https://api.groq.com/openai/v1/chat/completions",
   data=json.dumps(request_data,ensure_ascii=False).encode("utf-8"),
   headers={"Authorization":"Bearer "+os.environ["GROQ_API_KEY"].strip(),"Content-Type":"application/json","User-Agent":"gaemiGTP-us-close/1.0"},method="POST")
