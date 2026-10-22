@@ -103,7 +103,7 @@ def fetch_stock_news(stock_name, ticker, limit=20, *, hours=24):
         print("[provider:alpaca-news] fetch_failed type=" + type(exc).__name__, flush=True)
         return []
 
-    rows, seen = [], set()
+    rows = []
     for item in payload.get("news", []) if isinstance(payload, dict) else []:
         if not isinstance(item, dict):
             continue
@@ -119,7 +119,7 @@ def fetch_stock_news(stock_name, ticker, limit=20, *, hours=24):
         if parsed.scheme not in {"https", "http"} or not parsed.netloc:
             continue
         title = _clean(item.get("headline"))
-        if not title or url in seen:
+        if not title:
             continue
         content = _clean(item.get("content"))
         summary = _clean(item.get("summary"))
@@ -127,7 +127,6 @@ def fetch_stock_news(stock_name, ticker, limit=20, *, hours=24):
         description = (content or summary)[:MAX_EXCERPT_CHARS].strip()
         if not description:
             continue
-        seen.add(url)
         rows.append({
             "provider": "alpaca",
             "source_type": "alpaca_news",
@@ -146,6 +145,7 @@ def fetch_stock_news(stock_name, ticker, limit=20, *, hours=24):
         })
         if len(rows) >= count:
             break
+    rows.sort(key=lambda row: row.get("published_at") or "", reverse=True)
     with _LOCK:
         _CACHE[cache_key] = (time.monotonic(), [dict(item) for item in rows])
     return rows
