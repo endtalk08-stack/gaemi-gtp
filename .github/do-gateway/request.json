@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/do-gateway/news_worker_us_naver_restored_20261023.py","target":"backend/news_worker.py"}
+{"operation":"restart","unit":"gaemigtp-news.service"}
