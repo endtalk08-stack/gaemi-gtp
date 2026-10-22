@@ -1,0 +1,64 @@
+name: Read-only DigitalOcean markdown cleanup check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/do-markdown-cleanup-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 3
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      DO_SSH_USER: gaemi-deploy
+      DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Prepare pinned SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in DO_HOST DO_SSH_PRIVATE_KEY DO_SSH_KNOWN_HOSTS; do
+            test -n "${!name}" || { echo "::error::Missing SSH setting: $name"; exit 1; }
+          done
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Read-only inspect deployed backend for markdown cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$DO_SSH_USER@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          ROOT=/opt/gaemigtp-news/app
+          printf 'SSH_CONNECTION_OK user='
+          id -un
+          printf 'WORKER_SERVICE='
+          systemctl is-active gaemigtp-news.service
+          printf 'APP_ROOT='
+          test -d "$ROOT/backend" && echo present
+          if test -f "$ROOT/backend/services/us_market_close.py"; then
+            echo 'US_CLOSE_BACKEND_FILE=present'
+            grep -nE 'US_CLOSE_PROMPT|def _generate|markdown|Markdown|cleanInline|replace\(|re\.sub\(' "$ROOT/backend/services/us_market_close.py" || true
+          else
+            echo 'US_CLOSE_BACKEND_FILE=missing'
+          fi
+          echo 'MARKDOWN_CLEANUP_SEARCH_BEGIN'
+          grep -RInE 'cleanInlineMarkdown|strip_markdown|markdown.*strip|strip.*markdown|replace\([^)]*\\\*\\\*|re\.sub\([^)]*\\\*' "$ROOT/backend" --include='*.py' 2>/dev/null || true
+          echo 'MARKDOWN_CLEANUP_SEARCH_END'
+          if test -f "$ROOT/frontend/shell/center-chat/us-close-reply.js"; then
+            echo 'SERVER_FRONTEND_REPLY_FILE=present'
+            grep -nE 'cleanInlineMarkdown|replace\(/|plainText' "$ROOT/frontend/shell/center-chat/us-close-reply.js" || true
+          else
+            echo 'SERVER_FRONTEND_REPLY_FILE=not_deployed_at_DO_app_root'
+          fi
+          REMOTE
