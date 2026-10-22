@@ -1,0 +1,42 @@
+name: Check DigitalOcean US-only news worker
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - .github/workflows/do-worker-us-only-check.yml
+      - ops/do-gateway/news_worker_us_only_20261023.py
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check source syntax and US-only scheduling constraints
+        run: |
+          python3 -m py_compile ops/do-gateway/news_worker_us_only_20261023.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          path=Path("ops/do-gateway/news_worker_us_only_20261023.py")
+          src=path.read_text()
+          tree=ast.parse(src)
+          funcs={n.name for n in tree.body if isinstance(n,ast.FunctionDef)}
+          assert 'configured_stocks' not in funcs
+          assert 'fetch_us_non_naver_news' in funcs
+          assert 'run_once' in funcs
+          assert 'process_stock' in funcs
+          assert 'RANKING_ENDPOINTS = (\n    ("미국", "market=us", "/market/trading-value"),\n    ("미국", "market=us", "/market/popular"),' in src
+          assert '("국내"' not in src
+          assert 'fetch_stock_news(' not in src
+          assert 'naver_news.search_news' not in src
+          assert 'news_feed._enrich_item' in src
+          assert 'if market != "미국":' in src
+          assert 'process_due_ai_snapshots' in src
+          assert 'apply_worker_ai' in src
+          assert 'apply_unchanged_worker_ai' in src
+          assert 'run_once(state)' in src
+          assert 'NEWS_WORKER_STOCKS' not in src
+          print("US_ONLY_NO_FIXED_NO_NAVER_PY_SYNTAX_AND_CONTROL_FLOW_PASS")
+          PY
