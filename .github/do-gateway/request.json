@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/audit_us_close_quote_sources_readonly_20261022.py","request_id":"usclose-quote-audit-20261022-v1","timeout":60}
