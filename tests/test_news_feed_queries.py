@@ -146,6 +146,38 @@ class AlpacaNeonLinkTests(unittest.TestCase):
         a = next(row for row in result if row.get("source_type") == "alpaca_news")
         self.assertIn({"name": "엔비디아", "region": "미국"}, a["stocks"])
 
+    def test_us_keeps_repeat_articles_in_publication_order(self):
+        import datetime
+        from backend.services import news_feed
+        now = datetime.datetime.now(datetime.timezone.utc)
+        def news(title, url, minutes_ago):
+            return {
+                "title": title, "description": "Nvidia announced new AI infrastructure investment",
+                "url": url, "link": url, "source": "News",
+                "published_at": (now - datetime.timedelta(minutes=minutes_ago)).isoformat(),
+            }
+        common_url = "https://example.org/same-story"
+        naver = [news("Nvidia announcement earlier", common_url, 30),
+                 news("Nvidia announcement also earlier", common_url, 20)]
+        alpaca = [self._article(url=common_url)]
+        alpaca[0]["title"] = "Nvidia newer announcement"
+        alpaca[0]["published_at"] = (now - datetime.timedelta(minutes=10)).isoformat()
+        with patch.object(news_feed, "_fetch_queries", return_value=naver), \
+             patch.object(news_feed.official_company_news, "fetch_company_news", return_value=[]), \
+             patch.object(news_feed.sec_filings, "fetch_recent_filings", return_value=[]), \
+             patch.object(news_feed, "resolve_us_news_identity",
+                          return_value={"ticker": "NVDA", "status": "verified"}), \
+             patch.object(news_feed.alpaca_news, "is_configured", return_value=True), \
+             patch.object(news_feed.alpaca_news, "fetch_stock_news", return_value=alpaca), \
+             patch.object(news_feed, "save_stock_articles", return_value=1), \
+             patch.dict("os.environ", {"GAEMIGTP_NEWS_WORKER": "1"}):
+            result = fetch_stock_news("엔비디아", market="미국", limit=20)
+        self.assertEqual([row["title"] for row in result],
+                         ["Nvidia newer announcement",
+                          "Nvidia announcement also earlier",
+                          "Nvidia announcement earlier"])
+        self.assertEqual([row["url"] for row in result], [common_url] * 3)
+
     def test_korean_stocks_never_request_alpaca(self):
         from backend.services import news_feed
         with patch.object(news_feed, "_fetch_queries", return_value=[]), \
