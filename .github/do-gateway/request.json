@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-us-market-close.service","lines":150}
+{"operation":"run","path":"ops/do-gateway/diagnose-naver-groq-20261023.py","request_id":"diagproviders-20261023-a","timeout":75}
