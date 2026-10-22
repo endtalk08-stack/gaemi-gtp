@@ -13,6 +13,7 @@ API_ORIGIN = "https://api.kiwoom.com"
 QUOTES_PATH = "/api/us/mrkcond"
 SUPPORTED_EXCHANGES = {"NA", "ND", "NY"}
 ALLOWED_TR = {"usa20100", "usa20590"}
+US_INDEX_SYMBOLS = {"DJI", "IXIC", "INX", "NDX"}
 
 
 class KiwoomReadOnlyError(RuntimeError):
@@ -142,8 +143,9 @@ def _clean_symbol(symbol, exchange):
     if (not re.fullmatch(r"[A-Z0-9.\-]{1,20}", symbol)
             or exchange not in SUPPORTED_EXCHANGES):
         raise ValueError("invalid_us_symbol_or_exchange")
+    if symbol in US_INDEX_SYMBOLS:
+        raise KiwoomReadOnlyError("kiwoom_index_not_stock")
     return symbol, exchange
-
 
 def _validate_stock_request(api_id, body):
     """Reject index-list codes and non-stock exchange values BEFORE HTTP.
@@ -159,9 +161,9 @@ def _validate_stock_request(api_id, body):
     symbol = body.get("stk_cd")
     if exchange not in SUPPORTED_EXCHANGES:
         raise KiwoomReadOnlyError("kiwoom_invalid_stock_exchange")
-    if not isinstance(symbol, str) or not re.fullmatch(r"[A-Z0-9.\\-]{1,20}", symbol):
+    if not isinstance(symbol, str) or not re.fullmatch(r"[A-Z0-9.\-]{1,20}", symbol):
         raise KiwoomReadOnlyError("kiwoom_stock_symbol_invalid")
-    if symbol in {"DJI", "IXIC", "INX", "NDX"}:
+    if symbol in US_INDEX_SYMBOLS:
         raise KiwoomReadOnlyError("kiwoom_index_not_stock")
     if api_id == "usa20590" and not (
         isinstance(body.get("base_dt"), str)
