@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_gdelt_links_20261023.py","request_id":"testgdelt-20261023-a","timeout":50}
+{"operation":"run","path":"ops/do-gateway/test_public_rss_links_20261023.py","request_id":"testrss-20261023-a","timeout":65}
