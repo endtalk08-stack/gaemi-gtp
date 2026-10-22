@@ -1,54 +1,68 @@
-"""One-shot index-code to daily-price compatibility check; no writes, orders or secrets."""
+"""One NVDA-only Kiwoom connection check; no mass stock lookup or orders.
+
+Check current quote plus last completed NY trading session daily close.
+No secrets or access tokens are printed or stored.
+"""
+import datetime as dt
+import json
 import sys
+from zoneinfo import ZoneInfo
+
 from backend.providers.kiwoom_us_quotes import (
-    KiwoomReadOnlyError, credentials_configured, issue_access_token, _request,
+    KiwoomReadOnlyError, credentials_configured,
+    fetch_us_close, fetch_us_quote, issue_access_token,
 )
 
-MARKETS={"DJI":"다우 산업","IXIC":"나스닥 종합","INX":"S&P 500"}
-DAY="20261021"
+NY = ZoneInfo("America/New_York")
+SYMBOL = "NVDA"
+EXCHANGE = "ND"
+
+
+def _last_completed_session(now=None):
+    now = now or dt.datetime.now(NY)
+    if now.tzinfo is None:
+        raise ValueError("timezone_required")
+    local = now.astimezone(NY)
+    day = local.date()
+    if local.hour < 16:
+        day -= dt.timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= dt.timedelta(days=1)
+    return day
+
 
 def main():
     if not credentials_configured():
-        print("KIWOOM_INDEX_DAILY=credentials_missing",flush=True)
+        print("KIWOOM_VERIFY_CREDENTIALS_MISSING", flush=True)
         return 2
     try:
-        token=issue_access_token()
-        response=_request("/api/us/stkinfo",{"index_qry_tp":"%"},{
-            "authorization":"Bearer "+token, "api-id":"usa10102",
-        })
-        records=response.get("list")
-        if not isinstance(records,list):
-            print("KIWOOM_INDEX_DAILY=list_missing",flush=True)
-            return 3
-        mapping={str(x.get("index_cd") or ""):x for x in records if isinstance(x,dict)}
-        for symbol,name in MARKETS.items():
-            meta=mapping.get(symbol)
-            if not meta:
-                print("KIWOOM_INDEX_DAILY="+symbol+"=list_missing",flush=True)
-                continue
-            exchange=str(meta.get("stex_tp") or "")
-            print("KIWOOM_INDEX_DAILY_META="+symbol+" exchange="+exchange[:10],flush=True)
-            try:
-                data=_request("/api/us/mrkcond",{
-                    "stex_tp":exchange,"stk_cd":symbol,"base_dt":DAY,
-                },{
-                    "authorization":"Bearer "+token, "api-id":"usa20590",
-                })
-                items=data.get("result_list")
-                if not isinstance(items,list):
-                    print("KIWOOM_INDEX_DAILY="+symbol+"=no_result_list",flush=True)
-                    continue
-                matching=[x for x in items if isinstance(x,dict) and str(x.get("dt","")).replace("-","")==DAY]
-                if not matching:
-                    print("KIWOOM_INDEX_DAILY="+symbol+"=no_exact_day rows="+str(len(items)),flush=True)
-                    continue
-                record=matching[0]
-                print("KIWOOM_INDEX_DAILY="+symbol+"=exact_day_found close="+str(record.get("cur_prc"))[:24]+" pct="+str(record.get("flu_rt"))[:24]+" symbol_echo="+str(record.get("stk_cd"))[:25],flush=True)
-            except KiwoomReadOnlyError as exc:
-                print("KIWOOM_INDEX_DAILY="+symbol+"=api_error_"+str(exc)[:90],flush=True)
+        token = issue_access_token()
+        print("KIWOOM_VERIFY_OAUTH_OK", flush=True)
+        quote = fetch_us_quote(SYMBOL, EXCHANGE, token=token)
+        if not quote.get("current") or quote["current"] <= 0:
+            print("KIWOOM_VERIFY_NVDA_QUOTE_INVALID", flush=True)
+            return 4
+        print("KIWOOM_VERIFY_NVDA_CURRENT_OK=" + json.dumps({
+            "symbol": SYMBOL, "current": quote["current"],
+            "change_pct": quote["change_pct"],
+            "official_close": False,
+        }, ensure_ascii=False), flush=True)
+
+        day = _last_completed_session()
+        close = fetch_us_close(SYMBOL, EXCHANGE, day, token=token)
+        if close is None:
+            print("KIWOOM_VERIFY_NVDA_CLOSE_NOT_YET_AVAILABLE=" + day.isoformat(), flush=True)
+            return 5
+        print("KIWOOM_VERIFY_NVDA_CLOSE_OK=" + json.dumps({
+            "symbol": SYMBOL, "session_date": close["session_date"],
+            "close": close["close"], "change_pct": close["change_pct"],
+            "source": close["source"],
+        }, ensure_ascii=False), flush=True)
         return 0
     except KiwoomReadOnlyError as exc:
-        print("KIWOOM_INDEX_DAILY=auth_or_list_error_"+str(exc)[:90],flush=True)
+        print("KIWOOM_VERIFY_ERROR=" + str(exc), flush=True)
         return 3
-if __name__=="__main__":
+
+
+if __name__ == "__main__":
     sys.exit(main())
