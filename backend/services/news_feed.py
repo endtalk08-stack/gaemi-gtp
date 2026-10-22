@@ -571,9 +571,14 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     if alpaca_items and os.getenv("GAEMIGTP_NEWS_WORKER") == "1":
         save_stock_articles(ticker, alpaca_items)
 
+    # Keep the original feed rows for US stocks; do not deduplicate on
+    # URL/title or change source priority before the AI sees the news.
+    all_rows = stock_items + official_items + sec_items + alpaca_items
+    if not is_us_stock:
+        all_rows = _dedupe(all_rows)  # Existing domestic behavior unchanged.
     items = [
         _enrich_item(x)
-        for x in _dedupe(stock_items + official_items + sec_items + alpaca_items)
+        for x in all_rows
         if _item_age_ok(x)
     ]
     relevant = []
@@ -603,8 +608,12 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
         selected["analysis_material_signal"] = material_signal
         relevant.append(selected)
 
-    # Choose eventful articles first. Stock relevance still breaks ties, and
-    # recency is the final tie-breaker.
+    if is_us_stock:
+        # Display/feed order is only the original publication time.
+        relevant.sort(key=lambda item: item.get("published_at") or "", reverse=True)
+        return relevant[:max(1, int(limit))]
+
+    # Preserve the existing domestic ranking and selection behavior.
     relevant.sort(
         key=lambda item: (
             int(item.get("analysis_event_strength") or 0),
