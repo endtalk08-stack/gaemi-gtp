@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/recover-us-close-20261022-once.py","request_id":"recoverclose-20261022-005","timeout":170}
+{"operation":"deploy","path":"ops/do-gateway/us_market_close_120b_fixed_20261023.py","target":"backend/services/us_market_close.py"}
