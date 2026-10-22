@@ -12,7 +12,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.utils import parsedate_to_datetime
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE, canonical_us_news_name
-from backend.providers import naver_news, official_company_news, sec_filings
+from backend.providers import naver_news, official_company_news, sec_filings, alpaca_news
+from backend.services.news_identity_registry import resolve_us_news_identity
+from backend.services.alpaca_news_store import save_stock_articles
 from .news_metadata_store import read_cached_news, save_async, _retained_news
 
 _CACHE = {}
@@ -314,6 +316,11 @@ def _enrich_item(item):
     enriched = dict(item)
     enriched["region"] = item.get("region") or _region_for_item(item)
     enriched["stocks"] = _match_stocks(item)
+    if item.get("source_type") == "alpaca_news" and item.get("provider_ticker"):
+        # The provider matched an exact API symbol and an existing Neon identity.
+        target = str(item.get("provider_stock") or "").strip()
+        if target and not any(row["name"] == target and row["region"] == "미국" for row in enriched["stocks"]):
+            enriched["stocks"].append({"name": target, "region": "미국"})
     enriched["themes"] = _match_rules(item, THEME_RULES)
     enriched["issues"] = _match_rules(item, ISSUE_RULES)
     enriched["movement_signals"] = _match_movement_signals(item)
@@ -396,7 +403,7 @@ def _stock_analysis_relevance(item, stock_name):
     description = str(item.get("description") or "").lower()
 
     provider_stock = str(item.get("provider_stock") or "").strip().lower()
-    trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing"}
+    trusted_source = str(item.get("source_type") or "") in {"official_company", "sec_filing", "alpaca_news"}
     if trusted_source and provider_stock == str(stock_name or "").strip().lower():
         return 3
 
@@ -508,6 +515,11 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
 
     is_us_stock = stock_region == "미국" or market == "미국"
     ticker = _primary_us_ticker(stock_name) if is_us_stock else ""
+    if is_us_stock:
+        # Reuse Neon market_instruments, not a second hardcoded stock map.
+        identity = resolve_us_news_identity(stock_name)
+        if identity["ticker"] and identity["status"] in ("verified", "pending"):
+            ticker = identity["ticker"]
 
     # Keep independent providers concurrent so adding official/SEC sources does
     # not serialize extra network latency onto the existing NAVER hot path.
@@ -533,6 +545,13 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
                 min(max(4, int(limit)), 10),
                 MAX_NEWS_AGE_DAYS,
             )
+            if ticker and alpaca_news.is_configured():
+                jobs["alpaca"] = pool.submit(
+                    alpaca_news.fetch_stock_news,
+                    stock_name,
+                    ticker,
+                    max(6, min(int(limit), 50)),
+                )
 
         provider_rows = {}
         provider_failures = set()
@@ -548,10 +567,13 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     stock_items = provider_rows.get("stock") or []
     official_items = provider_rows.get("official") or []
     sec_items = provider_rows.get("sec") or []
+    alpaca_items = provider_rows.get("alpaca") or []
+    if alpaca_items and os.getenv("GAEMIGTP_NEWS_WORKER") == "1":
+        save_stock_articles(ticker, alpaca_items)
 
     items = [
         _enrich_item(x)
-        for x in _dedupe(stock_items + official_items + sec_items)
+        for x in _dedupe(stock_items + official_items + sec_items + alpaca_items)
         if _item_age_ok(x)
     ]
     relevant = []
