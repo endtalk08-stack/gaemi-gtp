@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-news.service","lines":90}
+{"operation":"run","path":"ops/do-gateway/verify-close-vs-kr-news-20261023.py","request_id":"usclose-kr-check-20261023-a","timeout":60}
