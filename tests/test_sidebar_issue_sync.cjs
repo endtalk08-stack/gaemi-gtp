@@ -6,6 +6,8 @@ const vm = require('node:vm');
 const test = require('node:test');
 
 const sidebarSource = fs.readFileSync('frontend/shell/left-market-sidebar/market-sidebar.js', 'utf8');
+const stockMarksSource = fs.readFileSync('frontend/shell/left-market-sidebar/stock-marks.js', 'utf8');
+const sidebarCss = fs.readFileSync('frontend/shell/left-market-sidebar/market-sidebar.css', 'utf8');
 const analysisSource = fs.readFileSync('frontend/shell/center-chat/analysis-flow.js', 'utf8');
 
 class Element {
@@ -90,6 +92,7 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
     body: { classList: { contains() { return false; }, remove() {}, toggle() {} } },
     getElementById(id) { return id === 'leftMarketSidebar' ? sidebar : null; },
     createElement(tagName) { return new Element(tagName); },
+    createElementNS(_namespace, tagName) { return new Element(tagName); },
     addEventListener(name, fn) { documentListeners[name] = fn; }
   };
   const listeners = {};
@@ -125,6 +128,7 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
     }
     throw new Error('unexpected request: ' + url);
   };
+  vm.runInNewContext(stockMarksSource, { window });
   vm.runInNewContext(sidebarSource, { window, document, fetch, console, localStorage });
   documentListeners.DOMContentLoaded();
   return {
@@ -214,4 +218,23 @@ test('saved sidebar order survives ranking tab changes and returns to the same c
   app.popularTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'TSLA.O');
+});
+
+test('local company logos render as SVG even for .O symbols', async () => {
+  const app = setup();
+  await flush();
+  const popular = app.list.querySelectorAll(':scope > button[data-original-index]');
+  const teslaMark = popular[1].children[1];
+  assert.equal(teslaMark.children[0].tagName, 'svg', 'TSLA.O must resolve to bundled TSLA logo');
+  assert.equal(teslaMark.children[0].children[0].tagName, 'path');
+  app.valueTab.click();
+  await flush();
+  const nvidiaMark = app.list.querySelectorAll(':scope > button[data-original-index]')[0].children[1];
+  assert.equal(nvidiaMark.children[0].tagName, 'svg', 'NVDA must have an embedded logo');
+});
+
+test('market list keeps readable original font sizes', () => {
+  assert.match(sidebarCss, /\.market-stock-name\s*\{\s*font-size:\s*13px/);
+  assert.match(sidebarCss, /\.market-stock-price\s*\{[^}]*font-size:\s*13px/);
+  assert.match(sidebarCss, /\.market-stock-third \[data-stock-issue\][\s\S]*font-size:\s*13px/);
 });
