@@ -56,7 +56,10 @@ def save_stock_articles(ticker, items):
                     try:
                         published = datetime.datetime.fromisoformat(
                             str(item.get("published_at") or "").replace("Z", "+00:00")
-                        ).astimezone(datetime.timezone.utc)
+                        )
+                        if published.tzinfo is None or published.utcoffset() is None:
+                            continue
+                        published = published.astimezone(datetime.timezone.utc)
                     except (TypeError, ValueError):
                         continue
                     if not now - datetime.timedelta(hours=24) <= published <= now:
