@@ -104,6 +104,120 @@ class StockNewsQueryTests(unittest.TestCase):
 
 
 
+class AlpacaNeonLinkTests(unittest.TestCase):
+    """Alpaca is a US-only DigitalOcean provider, linked by Neon instrument symbol."""
+
+    def _article(self, *, ticker="NVDA", url="https://www.benzinga.com/news/26/10/nvda"):
+        import datetime
+        published = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        return {
+            "source_type": "alpaca_news", "provider": "alpaca",
+            "provider_stock": "엔비디아", "provider_ticker": ticker,
+            "provider_symbols": [ticker], "source": "benzinga",
+            "title": "Nvidia announces new investment",
+            "description": "NVIDIA announced a major infrastructure investment.",
+            "published_at": published, "url": url, "link": url,
+        }
+
+    def test_us_merges_alpaca_with_naver_and_saves_using_neon_ticker(self):
+        from backend.services import news_feed
+        naver = {
+            "title": "엔비디아 투자 발표", "description": "엔비디아 투자 확대 발표",
+            "url": "https://example.org/naver", "link": "https://example.org/naver",
+            "published_at": "", "source": "네이버",
+        }
+        with patch.object(news_feed, "_fetch_queries", return_value=[naver]), \
+             patch.object(news_feed.official_company_news, "fetch_company_news", return_value=[]), \
+             patch.object(news_feed.sec_filings, "fetch_recent_filings", return_value=[]), \
+             patch.object(news_feed, "resolve_us_news_identity", return_value={
+                 "ticker": "NVDA", "status": "verified"
+             }), \
+             patch.object(news_feed.alpaca_news, "is_configured", return_value=True), \
+             patch.object(news_feed.alpaca_news, "fetch_stock_news",
+                          return_value=[self._article()]) as alpaca, \
+             patch.object(news_feed, "save_stock_articles", return_value=1) as save, \
+             patch.dict("os.environ", {"GAEMIGTP_NEWS_WORKER": "1"}):
+            result = fetch_stock_news("엔비디아", market="미국", limit=20)
+        self.assertEqual({row["url"] for row in result},
+                         {"https://example.org/naver", "https://www.benzinga.com/news/26/10/nvda"})
+        self.assertEqual(alpaca.call_args.args[:2], ("엔비디아", "NVDA"))
+        save.assert_called_once()
+        self.assertEqual(save.call_args.args[0], "NVDA")
+        a = next(row for row in result if row["source_type"] == "alpaca_news")
+        self.assertIn({"name": "엔비디아", "region": "미국"}, a["stocks"])
+
+    def test_korean_stocks_never_request_alpaca(self):
+        from backend.services import news_feed
+        with patch.object(news_feed, "_fetch_queries", return_value=[]), \
+             patch.object(news_feed.alpaca_news, "fetch_stock_news") as alpaca, \
+             patch.object(news_feed.alpaca_news, "is_configured") as configured:
+            self.assertEqual(fetch_stock_news("삼성전자", market="국내"), [])
+        alpaca.assert_not_called()
+        configured.assert_not_called()
+
+    def test_alpaca_requires_exact_api_symbol(self):
+        import datetime
+        import json
+        import os
+        import types
+        from backend.providers import alpaca_news
+        stamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, size=-1):
+                return json.dumps({"news": [
+                    {"headline": "Relevant NVDA announcement", "summary": "Nvidia expands",
+                     "symbols": ["NVDA"], "created_at": stamp, "content": "<p>Detail here</p>",
+                     "url": "https://example.com/nvda"},
+                    {"headline": "Wrong AAPL news", "summary": "Apple launches",
+                     "symbols": ["AAPL"], "created_at": stamp,
+                     "url": "https://example.com/apple"},
+                ]}).encode()
+        alpaca_news._CACHE.clear()
+        with patch.dict(os.environ, {
+            "GAEMIGTP_NEWS_WORKER": "1",
+            "APCA_API_KEY_ID": "test-id",
+            "APCA_API_SECRET_KEY": "test-secret",
+        }), patch.object(alpaca_news.urllib.request, "urlopen", return_value=Response()) as opener:
+            rows = alpaca_news.fetch_stock_news("엔비디아", "NVDA")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["url"], "https://example.com/nvda")
+        self.assertEqual(rows[0]["description"], "Detail here")
+        self.assertEqual(opener.call_args.args[0].get_header("Apca-api-key-id"), "test-id")
+
+    def test_store_uses_existing_neon_instrument_and_article_symbol_link(self):
+        import datetime
+        import os
+        import sys
+        import types
+        from backend.services import alpaca_news_store
+        sql_calls = []
+        class Cursor:
+            def execute(self, sql, params=None):
+                sql_calls.append((sql, params))
+            def fetchall(self): return [("NVDA.O",)]
+            def fetchone(self): return (42,)
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+        class Conn:
+            def cursor(self): return Cursor()
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+        fake_psycopg = types.SimpleNamespace(connect=lambda *args, **kwargs: Conn())
+        item = self._article()
+        with patch.dict(os.environ, {
+            "GAEMIGTP_NEWS_WORKER": "1", "NEWS_DATABASE_URL": "postgresql://test/db",
+        }), patch.dict(sys.modules, {"psycopg": fake_psycopg}):
+            count = alpaca_news_store.save_stock_articles("NVDA", [item])
+        self.assertEqual(count, 1)
+        self.assertTrue(any("public.market_instruments" in sql for sql, _ in sql_calls))
+        self.assertTrue(any("public.news_article_symbols" in sql for sql, _ in sql_calls))
+        self.assertTrue(any("public.news_articles" in sql for sql, _ in sql_calls))
+        symbols = next(params for sql, params in sql_calls if "INSERT INTO public.news_article_symbols" in sql)
+        self.assertEqual(symbols, (42, "NVDA.O"))
+
+
 class SecMissingDisclosureDetailsTests(unittest.TestCase):
     """Pure SEC provider checks: no network, no new test module."""
 
