@@ -5,11 +5,9 @@ No orders, accounts, positions, FX conversions or trading functions.
 The module is not imported by existing news/price workers unless explicitly requested.
 """
 import datetime as dt
-import json
 import os
 import re
-import urllib.error
-import urllib.request
+import requests
 
 API_ORIGIN = "https://api.kiwoom.com"
 QUOTES_PATH = "/api/us/mrkcond"
@@ -27,29 +25,28 @@ def credentials_configured():
 
 
 def _request(path, body, headers=None):
-    req = urllib.request.Request(
-        API_ORIGIN + path,
-        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json;charset=UTF-8", **(headers or {})},
-        method="POST",
-    )
+    """Use Kiwoom's official requests POST(json=...) transport."""
     try:
-        with urllib.request.urlopen(req, timeout=8) as response:
-            result = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        # Diagnostic metadata only. Never include request credentials, headers,
-        # response body, server-provided message text, or tokens in the error.
-        content_type = str(exc.headers.get("Content-Type") or "").lower().split(";", 1)[0].strip()
+        response = requests.post(
+            API_ORIGIN + path,
+            json=body,
+            headers={"Content-Type": "application/json;charset=UTF-8", **(headers or {})},
+            timeout=8,
+            allow_redirects=False,
+        )
+    except requests.RequestException:
+        # Never include credentials, token, request/response details in logs.
+        raise KiwoomReadOnlyError("kiwoom_request_failed") from None
+
+    if response.status_code != 200:
+        # Diagnostic metadata only. Never include request credentials, raw
+        # HTML, response text, response headers or user-supplied content.
+        content_type = str(response.headers.get("Content-Type") or "").lower().split(";", 1)[0].strip()
         kind = content_type if content_type in (
             "application/json", "text/html", "text/plain",
-            "application/problem+json"
+            "application/problem+json",
         ) else "other"
-        try:
-            sample = exc.read(65537)
-        except OSError:
-            sample = b""
-        length = min(len(sample), 65536)
-        truncated = len(sample) > 65536
+        sample = response.content[:65536]
         stripped = sample.lstrip()[:100]
         if not sample:
             body_type = "empty"
@@ -63,11 +60,7 @@ def _request(path, body, headers=None):
                 body_type = "text_like"
             except UnicodeError:
                 body_type = "binary_like"
-        # Fixed-character, bounded output: safe to emit into CI logs.
-        suffix = "_truncated" if truncated else ""
-        # Fixed, allowlisted WAF/proxy signatures only. No free-form title,
-        # raw HTML, response header value, or URL ever reaches a log.
-        lowercase_html = sample[:65536].lower()
+        lowercase_html = sample.lower()
         if b"request blocked" in lowercase_html:
             page_code = "request_blocked"
         elif b"request rejected" in lowercase_html:
@@ -82,11 +75,11 @@ def _request(path, body, headers=None):
             page_code = "captcha"
         else:
             page_code = "unknown"
-        raw_server = str(exc.headers.get("Server") or "").lower()
-        if "nginx" in raw_server:
-            server = "nginx"
-        elif "openresty" in raw_server:
+        raw_server = str(response.headers.get("Server") or "").lower()
+        if "openresty" in raw_server:
             server = "openresty"
+        elif "nginx" in raw_server:
+            server = "nginx"
         elif "cloudflare" in raw_server:
             server = "cloudflare"
         elif "akamai" in raw_server:
@@ -97,22 +90,26 @@ def _request(path, body, headers=None):
             server = "other"
         else:
             server = "none"
-        gateway = "yes" if any(exc.headers.get(x) for x in (
+        gateway = "yes" if any(response.headers.get(x) for x in (
             "Via", "X-Cache", "CF-Ray", "X-Akamai-Request-ID",
-            "X-Served-By", "X-Amz-Cf-Id"
+            "X-Served-By", "X-Amz-Cf-Id",
         )) else "no"
         raise KiwoomReadOnlyError(
-            "kiwoom_http_" + str(int(exc.code)) +
+            "kiwoom_http_" + str(int(response.status_code)) +
             "_content_type_" + kind.replace("/", "_").replace("+", "_") +
-            "_body_" + body_type + "_bytes_" + str(length) + suffix +
+            "_body_" + body_type + "_bytes_" + str(min(len(response.content), 65536)) +
+            ("_truncated" if len(response.content) > 65536 else "") +
             "_page_" + page_code + "_server_" + server + "_gateway_" + gateway
-        ) from None
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        )
+
+    try:
+        result = response.json()
+    except ValueError:
         raise KiwoomReadOnlyError("kiwoom_request_failed") from None
     if not isinstance(result, dict):
         raise KiwoomReadOnlyError("kiwoom_unexpected_response")
     if str(result.get("return_code", 0)) != "0":
-        raise KiwoomReadOnlyError("kiwoom_api_rejected") from None
+        raise KiwoomReadOnlyError("kiwoom_api_rejected")
     return result
 
 
