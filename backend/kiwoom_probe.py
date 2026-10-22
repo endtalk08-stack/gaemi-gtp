@@ -1,68 +1,39 @@
-"""One NVDA-only Kiwoom connection check; no mass stock lookup or orders.
-
-Check current quote plus last completed NY trading session daily close.
-No secrets or access tokens are printed or stored.
-"""
-import datetime as dt
-import json
+"""One-time inspection of official Kiwoom US index list; never calls trading."""
 import sys
-from zoneinfo import ZoneInfo
-
 from backend.providers.kiwoom_us_quotes import (
-    KiwoomReadOnlyError, credentials_configured,
-    fetch_us_close, fetch_us_quote, issue_access_token,
+    KiwoomReadOnlyError, credentials_configured, issue_access_token, _request,
 )
-
-NY = ZoneInfo("America/New_York")
-SYMBOL = "NVDA"
-EXCHANGE = "ND"
-
-
-def _last_completed_session(now=None):
-    now = now or dt.datetime.now(NY)
-    if now.tzinfo is None:
-        raise ValueError("timezone_required")
-    local = now.astimezone(NY)
-    day = local.date()
-    if local.hour < 16:
-        day -= dt.timedelta(days=1)
-    while day.weekday() >= 5:
-        day -= dt.timedelta(days=1)
-    return day
-
 
 def main():
     if not credentials_configured():
-        print("KIWOOM_VERIFY_CREDENTIALS_MISSING", flush=True)
+        print("KIWOOM_INDEX_LIST=credentials_missing",flush=True)
         return 2
     try:
-        token = issue_access_token()
-        print("KIWOOM_VERIFY_OAUTH_OK", flush=True)
-        quote = fetch_us_quote(SYMBOL, EXCHANGE, token=token)
-        if not quote.get("current") or quote["current"] <= 0:
-            print("KIWOOM_VERIFY_NVDA_QUOTE_INVALID", flush=True)
-            return 4
-        print("KIWOOM_VERIFY_NVDA_CURRENT_OK=" + json.dumps({
-            "symbol": SYMBOL, "current": quote["current"],
-            "change_pct": quote["change_pct"],
-            "official_close": False,
-        }, ensure_ascii=False), flush=True)
-
-        day = _last_completed_session()
-        close = fetch_us_close(SYMBOL, EXCHANGE, day, token=token)
-        if close is None:
-            print("KIWOOM_VERIFY_NVDA_CLOSE_NOT_YET_AVAILABLE=" + day.isoformat(), flush=True)
-            return 5
-        print("KIWOOM_VERIFY_NVDA_CLOSE_OK=" + json.dumps({
-            "symbol": SYMBOL, "session_date": close["session_date"],
-            "close": close["close"], "change_pct": close["change_pct"],
-            "source": close["source"],
-        }, ensure_ascii=False), flush=True)
+        token=issue_access_token()
+        print("KIWOOM_INDEX_LIST=oauth_ok",flush=True)
+        payload=_request("/api/us/stkinfo", {"index_qry_tp":"%"}, {
+            "authorization":"Bearer "+token, "api-id":"usa10102",
+        })
+        records=payload.get("list")
+        if not isinstance(records,list):
+            print("KIWOOM_INDEX_LIST=list_missing",flush=True)
+            return 3
+        keys=set()
+        names=[]
+        for item in records:
+            if not isinstance(item,dict):continue
+            keys.update(item)
+            name=str(item.get("index_nm") or item.get("index_enm") or "")
+            if any(t in name.lower() for t in ("다우","나스닥","s&p","dow","nasdaq","s&p500")):
+                names.append((str(item.get("index_cd") or "")[:24],name[:60]))
+        print("KIWOOM_INDEX_LIST=count="+str(len(records)),flush=True)
+        print("KIWOOM_INDEX_LIST=keys="+",".join(sorted(keys)[:35]),flush=True)
+        print("KIWOOM_INDEX_LIST=has_price_or_pct="+str(any(k in keys for k in ("cur_prc","close","close_prc","flu_rt","pred_pre"))).lower(),flush=True)
+        for code,name in names[:14]:
+            print("KIWOOM_INDEX_LIST=matched_code="+code+" name="+name,flush=True)
         return 0
     except KiwoomReadOnlyError as exc:
-        print("KIWOOM_VERIFY_ERROR=" + str(exc), flush=True)
-        return 3
-
-
-if __name__ == "__main__":
+        print("KIWOOM_INDEX_LIST=api_error_"+str(exc)[:90],flush=True)
+        return 4
+if __name__=="__main__":
     sys.exit(main())
