@@ -2,6 +2,46 @@
 (function () {
   'use strict';
 
+  // Company marks are UI-only. Never replace the stock identity or ranking data.
+  const STOCK_MARKS = {
+    NVDA: ['nvidia', '76B900'], SPCX: ['spacex', '000000'],
+    TSLA: ['tesla', 'E82127'], META: ['meta', '0866FF'],
+    AAPL: ['apple', '111111'], MSFT: ['microsoft', '5E5E5E'],
+    GOOGL: ['google', '4285F4'], GOOG: ['google', '4285F4'],
+    AMZN: ['amazon', 'FF9900'], AMD: ['amd', 'ED1C24'],
+    INTC: ['intel', '0071C5'], TSM: ['tsmc', 'E60012'],
+    AVGO: ['broadcom', 'CC092F'], PLTR: ['palantir', '111111'],
+    MU: ['micron', '0069B4'], ORCL: ['oracle', 'F80000'],
+    QCOM: ['qualcomm', '3253DC'], ASML: ['asml', '00A3E0'],
+    NFLX: ['netflix', 'E50914'], CRM: ['salesforce', '00A1E0'],
+    IBM: ['ibm', '1261FE'], LLY: ['eliLilly', 'D71920'],
+    QQQ: ['invesco', '00457C'], SPY: ['statestreet', '0033A0']
+  };
+
+  function stockMark(item) {
+    const ticker = String(item.symbol || '').trim().toUpperCase()
+      .replace(/^US:/, '').replace(/\\.(?:O|N|K)$/, '');
+    const mark = document.createElement('span');
+    mark.className = 'market-stock-logo';
+    const fallback = document.createElement('span');
+    fallback.className = 'market-stock-logo-fallback';
+    fallback.textContent = (ticker || String(item.name || '?')).slice(0, 2);
+    mark.appendChild(fallback);
+    const icon = STOCK_MARKS[ticker];
+    if (icon) {
+      const img = document.createElement('img');
+      img.className = 'market-stock-logo-image';
+      img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.src = 'https://cdn.simpleicons.org/' + icon[0] + '/' + icon[1];
+      img.addEventListener('load', () => { fallback.hidden = true; });
+      img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; });
+      mark.appendChild(img);
+    }
+    return mark;
+  }
+
   function applyState() {
     window.GaemiGTPWorkspaceShellState?.apply?.();
   }
@@ -54,20 +94,71 @@
     let tab = 'popular';
     let requestId = 0;
     let changeSorted = false;
-
+    let draggedRow = null;
+    const orderKey = () => 'gaemiGTP_market_sidebar_order_us_' + tab + '_v1';
+    const readOrder = () => {
+      try {
+        const value = JSON.parse(localStorage.getItem(orderKey()) || '[]');
+        return Array.isArray(value) ? value.filter((item) => typeof item === 'string').slice(0, 100) : [];
+      } catch (_) { return []; }
+    };
+    let customOrder = readOrder();
+    const saveOrder = () => {
+      customOrder = [...list.querySelectorAll(':scope > button[data-original-index]')]
+        .map((row) => row.dataset.rowId);
+      try { localStorage.setItem(orderKey(), JSON.stringify(customOrder)); } catch (_) { /* local storage unavailable */ }
+    };
     const applyChangeSort = () => {
       if (!list) return;
       const rows = [...list.querySelectorAll(':scope > button[data-original-index]')];
-      rows.sort((a, b) => changeSorted
-        ? (Number(b.dataset.changePct) - Number(a.dataset.changePct)) || (Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex))
-        : Number(a.dataset.originalIndex) - Number(b.dataset.originalIndex));
+      const positions = new Map(customOrder.map((key, index) => [key, index]));
+      const sourceIndex = (row) => Number(row.dataset.originalIndex);
+      rows.sort((a, b) => {
+        if (changeSorted) {
+          return (Number(b.dataset.changePct) - Number(a.dataset.changePct)) || (sourceIndex(a) - sourceIndex(b));
+        }
+        if (customOrder.length) {
+          const ai = positions.has(a.dataset.rowId) ? positions.get(a.dataset.rowId) : Infinity;
+          const bi = positions.has(b.dataset.rowId) ? positions.get(b.dataset.rowId) : Infinity;
+          return (ai - bi) || (sourceIndex(a) - sourceIndex(b));
+        }
+        return sourceIndex(a) - sourceIndex(b);
+      });
       rows.forEach((row, index) => {
         const rank = row.querySelector('[data-market-rank]');
+        // A manually arranged list still shows the original market rank.
         if (rank) rank.textContent = String(changeSorted ? index + 1 : row.dataset.originalRank).padStart(2, '0');
         list.appendChild(row);
       });
       changeSortButton?.setAttribute('aria-pressed', String(changeSorted));
     };
+    const finishReorder = () => {
+      changeSorted = false;
+      saveOrder();
+      applyChangeSort();
+    };
+    // Native drag and drop: the grip is the only draggable element.
+    list?.addEventListener('dragover', (event) => {
+      if (!draggedRow) return;
+      const target = event.target.closest('button[data-original-index]');
+      if (!target || target === draggedRow) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    });
+    list?.addEventListener('drop', (event) => {
+      if (!draggedRow) return;
+      const target = event.target.closest('button[data-original-index]');
+      if (!target || target === draggedRow) return;
+      event.preventDefault();
+      const bounds = target.getBoundingClientRect();
+      const after = event.clientY > bounds.top + bounds.height / 2;
+      list.insertBefore(draggedRow, after ? target.nextSibling : target);
+      finishReorder();
+    });
+    list?.addEventListener('dragend', () => {
+      draggedRow?.classList.remove('market-stock-dragging');
+      draggedRow = null;
+    });
 
     const formatUsd = (value) => {
       if (typeof value !== 'number' || !Number.isFinite(value)) return null;
@@ -99,11 +190,42 @@
           button.dataset.stockName = String(item.name || '');
           button.dataset.stockSymbol = String(item.symbol || '');
           button.dataset.originalIndex = String(index);
+          button.dataset.rowId = String(item.symbol || item.name || index);
           button.dataset.originalRank = String(item.rank || index + 1);
           button.dataset.changePct = typeof item.change_pct === 'number' && Number.isFinite(item.change_pct)
             ? String(item.change_pct) : '-Infinity';
           button.type = 'button';
-          button.className = 'w-full py-3 text-left hover:bg-[#f1f5f9] dark:hover:bg-[#1b1c20] transition cursor-pointer';
+          button.className = 'market-stock-row';
+          button.setAttribute('aria-label', String(item.name || '') + ' 종목 열기. Alt + 위아래 방향키로 순서 변경');
+          button.addEventListener('keydown', (event) => {
+            if (!event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+            const rows = [...list.querySelectorAll(':scope > button[data-original-index]')];
+            const position = rows.indexOf(button);
+            const next = rows[position + (event.key === 'ArrowUp' ? -1 : 1)];
+            if (!next) return;
+            event.preventDefault();
+            list.insertBefore(button, event.key === 'ArrowUp' ? next : next.nextSibling);
+            finishReorder();
+            button.focus();
+          });
+          const grip = document.createElement('span');
+          grip.className = 'market-stock-grip';
+          grip.draggable = true;
+          grip.title = '끌어서 종목 순서 이동';
+          grip.textContent = '⠿';
+          grip.setAttribute('aria-hidden', 'true');
+          grip.addEventListener('dragstart', (event) => {
+            draggedRow = button;
+            button.classList.add('market-stock-dragging');
+            if (event.dataTransfer) {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', button.dataset.rowId);
+            }
+          });
+          grip.addEventListener('dragend', () => {
+            button.classList.remove('market-stock-dragging');
+            draggedRow = null;
+          });
           button.addEventListener('click', () => window.openStockInChat?.(item.name, {
             market, menu: tab, name: item.name, symbol: item.symbol,
             rank: item.rank || index + 1,
@@ -114,33 +236,37 @@
             currency: 'USD', source: 'naver'
           }));
 
+          const content = document.createElement('div');
+          content.className = 'market-stock-content';
           const top = document.createElement('div');
-          top.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 items-start';
+          top.className = 'market-stock-top';
           const rank = document.createElement('span');
-          rank.className = 'text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]';
+          rank.className = 'market-stock-rank';
           rank.dataset.marketRank = 'true';
           rank.textContent = String(item.rank || index + 1).padStart(2, '0');
           const name = document.createElement('span');
-          name.className = 'font-bold text-[13px] text-[#0f172a] gtp-dark-text truncate';
+          name.className = 'market-stock-name';
           name.textContent = item.name;
           const price = document.createElement('span');
-          price.className = 'font-black text-[13px] text-[#0f172a] gtp-dark-text text-right';
+          price.className = 'market-stock-price';
           price.textContent = typeof item.price === 'number' && Number.isFinite(item.price)
             ? '$' + item.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '';
-          top.append(rank, name, price);
+          const nameGroup = document.createElement('span');
+          nameGroup.className = 'market-stock-name-group';
+          nameGroup.append(rank, name);
+          top.append(nameGroup, price);
 
           // Match popular ranking's second row; display turnover in the blank
           // cell beneath the stock name and leave the change at the right.
           const secondRow = document.createElement('div');
-          secondRow.className = 'grid grid-cols-[24px_minmax(0,1fr)_auto] gap-2 mt-0.5';
-          secondRow.appendChild(document.createElement('span'));
+          secondRow.className = 'market-stock-second';
           const turnover = document.createElement('span');
-          turnover.className = 'text-[11px] font-semibold text-[#64748b] dark:text-[#a1a1aa] truncate';
+          turnover.className = 'market-stock-turnover';
           const amount = formatUsd(item.trading_value) || item.trading_value_text;
           turnover.textContent = amount ? '거래대금 ' + amount : '';
           const change = document.createElement('span');
           const pct = item.change_pct;
-          change.className = 'text-[11px] font-bold text-right' +
+          change.className = 'market-stock-change' +
             (pct > 0 ? ' text-rose-500' : pct < 0 ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
           change.textContent = typeof pct === 'number' && Number.isFinite(pct)
             ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '';
@@ -149,21 +275,18 @@
           // Reuse the industry name from the same ranking result only.
           // Keep the original third row and its blank slots when not provided.
           const thirdRow = document.createElement('div');
-          thirdRow.className = 'grid grid-cols-[24px_minmax(0,0.7fr)_minmax(0,1.3fr)] gap-2 mt-1 items-center min-h-[16px]';
+          thirdRow.className = 'market-stock-third';
           const industry = document.createElement('span');
-          industry.className = 'text-[11px] font-semibold text-sky-500 truncate';
+          industry.className = 'market-stock-industry';
           industry.textContent = typeof item.industry === 'string' ? item.industry : '';
           const issue = document.createElement('span');
           issue.dataset.stockIssue = 'true';
           issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
           issue.style.fontSize = '13px';
           issue.textContent = typeof item.issue_headline === 'string' ? item.issue_headline : '';
-          thirdRow.append(
-            document.createElement('span'),
-            industry,
-            issue
-          );
-          button.append(top, secondRow, thirdRow);
+          thirdRow.append(industry, issue);
+          content.append(top, secondRow, thirdRow);
+          button.append(grip, stockMark(item), content);
           list.appendChild(button);
         });
         applyChangeSort();
@@ -215,6 +338,8 @@
       if (button.disabled) return;
       button.addEventListener('click', () => {
         tab = button.dataset.infoTabAction;
+        customOrder = readOrder();
+        changeSorted = false;
         void showUsRanking();
       });
     });
