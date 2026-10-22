@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-news.service"}
+{"operation":"logs","unit":"gaemigtp-us-market-close.service","lines":150}
