@@ -18,6 +18,12 @@
     QQQ: ['invesco', '00457C'], SPY: ['statestreet', '0033A0']
   };
 
+  const STOCK_DOMAINS = {
+    SKHY: 'skhynix.com', SNDK: 'sandisk.com', LLY: 'lilly.com',
+    TSM: 'tsmc.com', MU: 'micron.com', AVGO: 'broadcom.com',
+    SPCX: 'spacex.com', GOOGL: 'abc.xyz', GOOG: 'abc.xyz'
+  };
+
   function stockMark(item) {
     const ticker = String(item.symbol || '').trim().toUpperCase()
       .replace(/^US:/, '').replace(/\\.(?:O|N|K)$/, '');
@@ -28,15 +34,28 @@
     fallback.textContent = (ticker || String(item.name || '?')).slice(0, 2);
     mark.appendChild(fallback);
     const icon = STOCK_MARKS[ticker];
-    if (icon) {
+    const domain = STOCK_DOMAINS[ticker];
+    if (icon || domain) {
       const img = document.createElement('img');
       img.className = 'market-stock-logo-image';
       img.alt = '';
       img.loading = 'lazy';
       img.decoding = 'async';
-      img.src = 'https://cdn.simpleicons.org/' + icon[0] + '/' + icon[1];
+      let triedFavicon = !icon;
+      const favicon = () => 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=128';
+      img.src = icon
+        ? 'https://cdn.simpleicons.org/' + icon[0] + '/' + icon[1]
+        : favicon();
       img.addEventListener('load', () => { fallback.hidden = true; });
-      img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; });
+      img.addEventListener('error', () => {
+        if (!triedFavicon && domain) {
+          triedFavicon = true;
+          img.src = favicon();
+        } else {
+          img.hidden = true;
+          fallback.hidden = false;
+        }
+      });
       mark.appendChild(img);
     }
     return mark;
