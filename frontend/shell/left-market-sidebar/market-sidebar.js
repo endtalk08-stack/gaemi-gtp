@@ -2,60 +2,52 @@
 (function () {
   'use strict';
 
-  // Company marks are UI-only. Never replace the stock identity or ranking data.
-  const STOCK_MARKS = {
-    NVDA: ['nvidia', '76B900'], SPCX: ['spacex', '000000'],
-    TSLA: ['tesla', 'E82127'], META: ['meta', '0866FF'],
-    AAPL: ['apple', '111111'], MSFT: ['microsoft', '5E5E5E'],
-    GOOGL: ['google', '4285F4'], GOOG: ['google', '4285F4'],
-    AMZN: ['amazon', 'FF9900'], AMD: ['amd', 'ED1C24'],
-    INTC: ['intel', '0071C5'], TSM: ['tsmc', 'E60012'],
-    AVGO: ['broadcom', 'CC092F'], PLTR: ['palantir', '111111'],
-    MU: ['micron', '0069B4'], ORCL: ['oracle', 'F80000'],
-    QCOM: ['qualcomm', '3253DC'], ASML: ['asml', '00A3E0'],
-    NFLX: ['netflix', 'E50914'], CRM: ['salesforce', '00A1E0'],
-    IBM: ['ibm', '1261FE'], LLY: ['eliLilly', 'D71920'],
-    QQQ: ['invesco', '00457C'], SPY: ['statestreet', '0033A0']
-  };
-
+  // Logos are bundled locally when possible; fallback favicons never hide the ticker mark.
   const STOCK_DOMAINS = {
-    SKHY: 'skhynix.com', SNDK: 'sandisk.com', LLY: 'lilly.com',
-    TSM: 'tsmc.com', MU: 'micron.com', AVGO: 'broadcom.com',
-    SPCX: 'spacex.com', GOOGL: 'abc.xyz', GOOG: 'abc.xyz'
+    NVDA: 'nvidia.com', SPCX: 'spacex.com', TSLA: 'tesla.com',
+    META: 'meta.com', AAPL: 'apple.com', MSFT: 'microsoft.com',
+    GOOGL: 'google.com', GOOG: 'google.com', AMZN: 'amazon.com',
+    AMD: 'amd.com', INTC: 'intel.com', TSM: 'tsmc.com',
+    AVGO: 'broadcom.com', PLTR: 'palantir.com', MU: 'micron.com',
+    ORCL: 'oracle.com', QCOM: 'qualcomm.com', ASML: 'asml.com',
+    NFLX: 'netflix.com', CRM: 'salesforce.com', IBM: 'ibm.com',
+    LLY: 'lilly.com', SKHY: 'skhynix.com', SNDK: 'sandisk.com',
+    SMCI: 'supermicro.com', QQQ: 'invesco.com', SPY: 'ssga.com',
+    SOXX: 'ishares.com', GLD: 'ssga.com', SLV: 'ishares.com'
   };
 
   function stockMark(item) {
     const ticker = String(item.symbol || '').trim().toUpperCase()
-      .replace(/^US:/, '').replace(/\\.(?:O|N|K)$/, '');
+      .replace(/^US:/, '').replace(/\.(?:O|N|K)$/, '');
     const mark = document.createElement('span');
     mark.className = 'market-stock-logo';
     const fallback = document.createElement('span');
     fallback.className = 'market-stock-logo-fallback';
     fallback.textContent = (ticker || String(item.name || '?')).slice(0, 2);
     mark.appendChild(fallback);
-    const icon = STOCK_MARKS[ticker];
-    const domain = STOCK_DOMAINS[ticker];
-    if (icon || domain) {
+
+    const icon = window.GaemiGTPStockMarks?.[ticker];
+    if (icon && icon.path && icon.color) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('class', 'market-stock-logo-image');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('aria-hidden', 'true');
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', icon.path);
+      path.setAttribute('fill', '#' + icon.color);
+      svg.appendChild(path);
+      mark.replaceChildren(svg);
+    } else if (STOCK_DOMAINS[ticker]) {
       const img = document.createElement('img');
       img.className = 'market-stock-logo-image';
       img.alt = '';
       img.loading = 'lazy';
       img.decoding = 'async';
-      let triedFavicon = !icon;
-      const favicon = () => 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=128';
-      img.src = icon
-        ? 'https://cdn.simpleicons.org/' + icon[0] + '/' + icon[1]
-        : favicon();
+      img.src = 'https://www.google.com/s2/favicons?domain='
+        + encodeURIComponent(STOCK_DOMAINS[ticker]) + '&sz=64';
       img.addEventListener('load', () => { fallback.hidden = true; });
-      img.addEventListener('error', () => {
-        if (!triedFavicon && domain) {
-          triedFavicon = true;
-          img.src = favicon();
-        } else {
-          img.hidden = true;
-          fallback.hidden = false;
-        }
-      });
+      img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; });
       mark.appendChild(img);
     }
     return mark;
