@@ -28,6 +28,14 @@ class Element {
     this.children.push(child);
     return child;
   }
+  insertBefore(child, sibling) {
+    this.children = this.children.filter((node) => node !== child);
+    const index = this.children.indexOf(sibling);
+    if (index < 0) this.children.push(child);
+    else this.children.splice(index, 0, child);
+    return child;
+  }
+  focus() {}
   replaceChildren(...nodes) { this.children = [...nodes]; }
   contains(child) { return this.children.includes(child); }
   querySelectorAll(selector) {
@@ -54,7 +62,14 @@ class Element {
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup({ deferred = false } = {}) {
+function setup({ deferred = false, initialOrder = [] } = {}) {
+  const storage = new Map([[
+    'gaemiGTP_market_sidebar_order_us_popular_v1', JSON.stringify(initialOrder)
+  ]]);
+  const localStorage = {
+    getItem(key) { return storage.get(key) || null; },
+    setItem(key, value) { storage.set(key, value); }
+  };
   const list = new Element('div');
   const title = new Element();
   const metric = new Element();
@@ -110,10 +125,10 @@ function setup({ deferred = false } = {}) {
     }
     throw new Error('unexpected request: ' + url);
   };
-  vm.runInNewContext(sidebarSource, { window, document, fetch, console });
+  vm.runInNewContext(sidebarSource, { window, document, fetch, console, localStorage });
   documentListeners.DOMContentLoaded();
   return {
-    list, popularTab, valueTab, calls,
+    list, popularTab, valueTab, calls, storage,
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
   };
@@ -164,4 +179,39 @@ test('central analysis announces only completed and populated briefs', () => {
   assert.match(analysisSource, /Array\.isArray\(result\.issue_briefs\) && result\.issue_briefs\.length > 0/);
   assert.match(analysisSource, /gaemi:analysis-issues-ready/);
   assert.match(analysisSource, /session\.marketSelection\?\.symbol/);
+});
+
+test('market cards show stock logo slot and allow keyboard reorder without changing source ranks', async () => {
+  const app = setup();
+  await flush();
+  const before = app.list.querySelectorAll(':scope > button[data-original-index]');
+  assert.equal(before[1].dataset.stockSymbol, 'TSLA.O');
+  assert.equal(before[1].children[1].className, 'market-stock-logo');
+  assert.equal(before[1].children[0].draggable, true);
+
+  let prevented = false;
+  before[1].listeners.keydown[0]({
+    altKey: true,
+    key: 'ArrowUp',
+    preventDefault() { prevented = true; }
+  });
+  assert.equal(prevented, true);
+  const reordered = app.list.querySelectorAll(':scope > button[data-original-index]');
+  assert.equal(reordered[0].dataset.stockSymbol, 'TSLA.O');
+  assert.equal(reordered[0].querySelector('[data-market-rank]').textContent, '02');
+  assert.equal(reordered[1].querySelector('[data-market-rank]').textContent, '01');
+  assert.deepEqual(JSON.parse(app.storage.get('gaemiGTP_market_sidebar_order_us_popular_v1')),
+    ['TSLA.O', 'LLY']);
+});
+
+test('saved sidebar order survives ranking tab changes and returns to the same custom order', async () => {
+  const app = setup({ initialOrder: ['TSLA.O', 'LLY'] });
+  await flush();
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'TSLA.O');
+  app.valueTab.click();
+  await flush();
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'NVDA');
+  app.popularTab.click();
+  await flush();
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'TSLA.O');
 });
