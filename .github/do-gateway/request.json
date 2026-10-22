@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/check_kiwoom_runtime_readonly_20261022.py","request_id":"kiwoom-deps-20261022-a","timeout":45}
