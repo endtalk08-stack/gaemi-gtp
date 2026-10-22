@@ -156,6 +156,13 @@ class KiwoomReadOnlyTests(unittest.TestCase):
                     "stex_tp": "ND", "stk_cd": "IXIC", "base_dt": "20261021",
                 }, "MOCK_TOKEN")
 
+    def test_public_quote_functions_reject_indices_before_oauth(self):
+        with patch.object(kiwoom.requests, "post", side_effect=AssertionError("even oauth not allowed")):
+            with self.assertRaisesRegex(kiwoom.KiwoomReadOnlyError, "kiwoom_index_not_stock"):
+                kiwoom.fetch_us_close("IXIC", "ND", dt.date(2026, 10, 21))
+            with self.assertRaisesRegex(kiwoom.KiwoomReadOnlyError, "kiwoom_index_not_stock"):
+                kiwoom.fetch_us_quote("DJI", "NY")
+
     def test_unapproved_endpoint_cannot_bypass_allowlist(self):
         with patch.object(kiwoom.requests, "post", side_effect=AssertionError("network call not permitted")):
             with self.assertRaisesRegex(kiwoom.KiwoomReadOnlyError, "kiwoom_unsupported_api_path"):
