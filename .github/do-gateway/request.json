@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect-us-ai-schedule-20261023.py","request_id":"inspect-us-ai-schedule-20261023","timeout":90}
+{"operation":"run","path":"ops/do-gateway/read-us-worker-config-20261023.py","request_id":"us-ai-config-20261023","timeout":60}
