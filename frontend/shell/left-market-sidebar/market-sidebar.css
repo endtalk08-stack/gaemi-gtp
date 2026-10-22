@@ -148,3 +148,104 @@
   border-radius: 999px;
   background: #f59e0b;
 }
+
+/* Compact stock cards: keep the source rank and market figures intact. */
+#marketRankingList {
+  display: grid;
+  gap: 7px;
+  padding-bottom: 14px;
+}
+#marketRankingList > .market-stock-row {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 11px 33px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px 9px 7px;
+  border: 1px solid var(--gtp-border);
+  border-radius: 10px;
+  background: var(--gtp-surface-2);
+  color: var(--gtp-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease, opacity .15s ease;
+}
+#marketRankingList > .market-stock-row:hover {
+  border-color: var(--gtp-accent, #64748b);
+}
+#marketRankingList > .market-stock-row:focus-visible {
+  outline: 2px solid var(--gtp-accent, #2563eb);
+  outline-offset: 2px;
+}
+#marketRankingList > .market-stock-dragging { opacity: .45; }
+.market-stock-grip {
+  color: var(--gtp-faint);
+  font-size: 15px;
+  line-height: 28px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.market-stock-grip:active { cursor: grabbing; }
+.market-stock-logo {
+  width: 33px;
+  height: 33px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #fff;
+  flex-shrink: 0;
+}
+.market-stock-logo-image { width: 23px; height: 23px; object-fit: contain; }
+.market-stock-logo-fallback {
+  font-size: 10px;
+  font-weight: 850;
+  color: #354257;
+  letter-spacing: -.04em;
+}
+.market-stock-content { display: grid; gap: 3px; min-width: 0; }
+.market-stock-top, .market-stock-second, .market-stock-third {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 7px;
+  min-width: 0;
+}
+.market-stock-name-group {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+.market-stock-rank { font-size: 9px; flex: 0 0 auto; color: var(--gtp-faint); font-weight: 650; }
+.market-stock-name {
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--gtp-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.market-stock-price { color: var(--gtp-text); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.market-stock-turnover, .market-stock-industry {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gtp-muted);
+}
+.market-stock-change { font-size: 11px; font-weight: 750; text-align: right; white-space: nowrap; }
+.market-stock-industry { color: var(--gtp-accent, #38bdf8); }
+.market-stock-third [data-stock-issue] {
+  min-width: 0;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px !important;
+  line-height: 1.2;
+}
