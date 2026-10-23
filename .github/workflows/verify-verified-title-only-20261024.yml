@@ -1,0 +1,22 @@
+name: Verify original article bodies with title-only issue change
+on:
+  push:
+    branches: [fix/preserve-verified-body-title-only-20261024]
+    paths:
+      - backend/services/verified_fact_headline.py
+      - backend/services/news_result.py
+      - tests/test_verified_fact_headline_only.py
+      - .github/workflows/verify-verified-title-only-20261024.yml
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile original and title overlay
+        run: python -m py_compile backend/services/verified_fact_headline.py backend/services/news_result.py backend/services/issue_briefs.py
+      - name: Ensure verified article/summary/tag/selection contract
+        run: |
+          python -m unittest discover -s tests -p 'test_verified_fact_headline_only.py' -v
+          python -m unittest discover -s tests -p 'test_article_fact_keywords.py' -v
