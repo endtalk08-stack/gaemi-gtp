@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/do-gateway/us_close_m2_original_two_articles_20261023.py","target":"backend/services/us_market_close.py"}
+{"operation":"run","path":"ops/do-gateway/regenerate_us_close_m2_two_20261023.py","request_id":"regen-close-m2-two-20261023","timeout":170}
