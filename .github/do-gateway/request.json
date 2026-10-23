@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_us_trading_worker_base_20261023.py","request_id":"verify_us_trade_only_20261023","timeout":60}
+{"operation":"deploy","path":"ops/do-gateway/news_worker_trade20_only_20261023.py","target":"backend/news_worker.py"}
