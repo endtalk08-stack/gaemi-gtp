@@ -74,7 +74,8 @@ class PublicationTimeTests(unittest.TestCase):
 
         def model_response(issue):
             payload = {"choices": [{"message": {"content": json.dumps(
-                {"issues": [issue]}, ensure_ascii=False)}}]}
+                {"price_reason": {"headline": "하락 이유", "summary": "주가에 영향을 준 뉴스", "source_ids": [1]},
+                 "issues": [issue]}, ensure_ascii=False)}}]}
             return io.BytesIO(json.dumps(payload).encode("utf-8"))
 
         base = {"headline": "뉴스 이슈", "summary": "검증",
@@ -93,7 +94,7 @@ class PublicationTimeTests(unittest.TestCase):
                 ) as api:
                     from staged_daily_groq_issues import analyze_news
                     output = analyze_news("브로드컴", self.articles)
-                    self.assertEqual(len(output), expected_count)
+                    self.assertEqual(len(output["issues"]), expected_count)
                     api.assert_called_once()
 
     def test_source_date_requires_explicit_timezone(self):
