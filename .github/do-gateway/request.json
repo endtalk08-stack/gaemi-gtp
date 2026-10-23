@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/check_kiwoom_value_sidebar_readonly_20261023.py","request_id":"usvalueprobe20261023x","timeout":60}
+{"operation":"upgrade","path":"ops/do-gateway/gaemi-do-gateway"}
