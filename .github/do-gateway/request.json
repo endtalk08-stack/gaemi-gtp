@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-news.service","lines":45}
+{"operation":"deploy","path":"ops/do-gateway/us_close_m2_two_token_usage_20261023.py","target":"backend/services/us_market_close.py"}
