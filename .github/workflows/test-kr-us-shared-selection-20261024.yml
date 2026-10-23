@@ -5,6 +5,8 @@ on:
     paths:
       - backend/services/news_feed.py
       - backend/services/news_result.py
+      - ops/staged_news_processed_store.py
+      - tests/test_news_feed_queries.py
       - tests/test_us_kr_shared_code_selection.py
       - .github/workflows/test-kr-us-shared-selection-20261024.yml
 permissions:
@@ -16,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Syntax and immutable AI input contracts
         run: |
-          python -m py_compile backend/services/news_feed.py backend/services/news_result.py
+          python -m py_compile backend/services/news_feed.py backend/services/news_result.py ops/staged_news_processed_store.py
           python - <<'PY'
           from pathlib import Path
           us=Path('backend/services/news_feed.py').read_text()
@@ -26,6 +28,8 @@ jobs:
           assert result.count('build_connected_keyword_test(scored_news, stock_name, max_keywords=3)') == 1
           assert result.count('build_connected_keyword_test(\n') == 1
           assert result.count('select_stock_news_for_analysis(raw_news_list, stock_name, limit)') == 1
+          assert '"_kr_selection_revision": 1' in result
+          assert 'payload.get("_kr_selection_revision") != 1' in Path('ops/staged_news_processed_store.py').read_text()
           assert 'GAEMIGTP_NEWS_AI_PAUSED' in Path('ops/staged_ai_sequential_batch.py').read_text()
           assert '"articles": raw,' in Path('ops/staged_ai_sequential_batch.py').read_text()
           print('KR_KEYWORDS_SHARED_US_AI_RAW_UNMODIFIED')
