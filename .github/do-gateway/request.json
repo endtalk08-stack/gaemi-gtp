@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/read-ai-prompts-20261023.py","request_id":"read_actual_us_ai_prompts_20261023","timeout":60}
+{"operation":"run","path":"ops/do-gateway/inspect_live_news_ai_selection_readonly_20261021.py","request_id":"read_live_us_ai_pipeline_20261023","timeout":60}
