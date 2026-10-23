@@ -151,17 +151,17 @@
       <!-- 정보 종류 -->
       <div class="px-4 pt-2 pb-1">
         <div id="rightInfoTabs" class="grid grid-cols-4 text-[13px] font-bold">
-          <button type="button" data-info-tab="popular" data-info-tab-action="popular" class="right-info-tab py-2 text-[#0f172a] gtp-dark-text bg-[#eef2f7] dark:bg-[#272a31] rounded-md">인기 순위</button>
-          <button type="button" data-info-tab="value" data-info-tab-action="value" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">거래대금</button>
-          <button type="button" data-info-tab="industry" data-info-tab-action="industry" disabled aria-disabled="true" title="준비 중" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] opacity-50 cursor-not-allowed rounded-md">산업</button>
-          <button type="button" data-info-tab="theme" data-info-tab-action="theme" disabled aria-disabled="true" title="준비 중" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] opacity-50 cursor-not-allowed rounded-md">테마</button>
+          <button type="button" data-info-tab="realtime" data-info-tab-action="realtime" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">실시간</button>
+          <button type="button" data-info-tab="value" data-info-tab-action="value" class="right-info-tab py-2 text-[#0f172a] gtp-dark-text bg-[#eef2f7] dark:bg-[#272a31] rounded-md">거래대금</button>
+          <button type="button" data-info-tab="gain" data-info-tab-action="gain" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">상승률</button>
+          <button type="button" data-info-tab="loss" data-info-tab-action="loss" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">하락률</button>
         </div>
       </div>
 
       <!-- 리스트 -->
       <div class="px-4">
         <div class="flex items-center justify-between py-3 text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]">
-          <span id="rightListTitle">인기 TOP 20</span>
+          <span id="rightListTitle">거래대금 TOP 20</span>
           <button type="button" id="rightListMetric" aria-pressed="false" title="등락률 높은 순으로 정렬 / 원래 순서로 복원" class="hover:text-sky-500 transition-colors cursor-pointer">상승률</button>
         </div>
         <div id="marketRankingList" aria-live="polite">순위를 불러오는 중이야.
