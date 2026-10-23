@@ -67,7 +67,7 @@ def _read_worker_briefs(market, names):
                     """
                     SELECT stock_name, jsonb_build_object(
                         'issue_briefs', result_payload->'issue_briefs',
-                        '_code_issue_briefs', result_payload->'_code_issue_briefs',
+                        '_ai_issue_briefs', result_payload->'_ai_issue_briefs',
                         '_code_fact_extraction_version', result_payload->'_code_fact_extraction_version',
                         'price_reason', result_payload->'price_reason'
                     )
