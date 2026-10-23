@@ -16,6 +16,8 @@ jobs:
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Verify article fact tests and compile deployment patch
         run: |
           set -euo pipefail
