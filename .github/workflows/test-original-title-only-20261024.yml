@@ -1,0 +1,29 @@
+name: Test original verified-news pipeline with titles only
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/test-original-title-only-20261024.yml]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and check original article pipeline preserved
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/services/news_result.py backend/services/verified_fact_headline.py backend/services/issue_briefs.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('backend/services/news_result.py').read_text()
+          assert s.count('body_texts=verified_body_texts') == 1
+          assert 'build_article_fact_briefs(' not in s
+          assert s.count('overlay_verified_headlines(')==1
+          assert '_title_only_revision": 3' in s
+          print('ORIGINAL_ARTICLE_SELECTION_AND_3_SENTENCES_PRESERVED')
+          PY
+      - name: Exercise unchanged bodies, tags, order and title extraction
+        run: |
+          python -m unittest discover -s tests -p 'test_verified_fact_headline_only.py' -v
+          python -m unittest discover -s tests -p 'test_article_fact_keywords.py' -v
