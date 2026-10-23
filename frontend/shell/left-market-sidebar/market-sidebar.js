@@ -408,23 +408,9 @@
           }
           updated++;
         });
-        if (updated && title) {
-          const fresh = data.items.filter((item) => !item.stale);
-          const newestReceipt = fresh.reduce((latest, item) =>
-            Math.max(latest, Number(item.received_at_ms) || 0), 0);
-          // Show the actual quote reception time, so an unchanged trade price
-          // is distinguishable from a stopped frontend refresh.
-          const asOf = newestReceipt
-            ? new Date(newestReceipt).toLocaleTimeString('ko-KR', { hour12: false })
-            : '';
-          title.textContent = fresh.length
-            ? '거래대금 TOP 20 · 실시간 ' + asOf
-            : '거래대금 TOP 20 · 시세 지연';
-        }
         if (updated && changeSorted && !draggedRow) applyChangeSort();
       } catch (_) {
-        // Retain last displayed prices, but do not label them live.
-        if (title && tab === 'value') title.textContent = '거래대금 TOP 20 · 연결 확인 중';
+        // Keep the previous displayed prices and original title on transient failure.
       } finally {
         quoteRequestInFlight = false;
       }
