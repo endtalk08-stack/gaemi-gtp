@@ -160,7 +160,7 @@ class MarketIssueHeadlineTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["status"], "unavailable")
         self.assertEqual(result["items"][0]["headline"], "")
 
-    def test_us_ai_only_snapshot_has_no_fallback(self):
+    def test_us_ai_only_snapshot_keeps_cited_fallback_during_migration(self):
         from datetime import datetime, timezone
         from backend.services.news_freshness import clean_us_snapshot
         now = datetime.now(timezone.utc)
@@ -179,7 +179,7 @@ class MarketIssueHeadlineTests(unittest.TestCase):
             result = subject.get_market_issue_headlines(
                 "us", [{"name": "마이크론 테크놀로지", "symbol": "MU"}]
             )
-        self.assertEqual(result["items"][0]["status"], "unavailable")
+        self.assertEqual(result["items"][0]["headline"], "구 AI 헤드라인")
 
     def test_us_ai_headline_does_not_invent_evidence(self):
         self.assertEqual(subject._first_ai_headline({"issue_briefs": [
