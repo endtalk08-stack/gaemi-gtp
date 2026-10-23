@@ -32,6 +32,14 @@ def _last_completed_session(now=None):
 
 
 def main():
+    # Market-hours-only FE diagnostic, limited to one NVDA subscription.
+    # Outside US extended-hours windows preserve the proven REST verification.
+    now_et = dt.datetime.now(NY)
+    if now_et.weekday() < 5 and dt.time(4, 0) <= now_et.time() < dt.time(20, 0):
+        print("KIWOOM_VERIFY_ROUTE=us_realtime_FE", flush=True)
+        from backend.kiwoom_fe_realtime_probe import main as run_fe_diagnostic
+        return run_fe_diagnostic()
+    print("KIWOOM_VERIFY_ROUTE=us_rest_snapshot", flush=True)
     if not credentials_configured():
         print("KIWOOM_VERIFY_CREDENTIALS_MISSING", flush=True)
         return 2
