@@ -17,7 +17,6 @@ from backend.analysis.news import (
 )
 
 from .news_byline import strip_leading_news_credit
-from .verified_fact_headline import overlay_verified_headlines
 from .issue_briefs import (
     grounded_issue_display_title,
     _article_excerpt, build_issue_briefs, central_material_brief_supported,
@@ -27,6 +26,7 @@ from .company_critical_events import company_critical_title_and_tags
 from .business_material_events import business_material_title_and_tags
 from .flow_material_events import flow_material_title_and_tags
 from .news_detail import extract_structured_article_facts, read_selected_article_details
+from .verified_fact_headline import overlay_verified_headlines
 from .news_feed import fetch_stock_news
 
 
@@ -715,12 +715,11 @@ def build_stock_news_result(
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
 
-        # Preserve the original 3-sentence article summaries, keyword tags,
-        # verified article selection, count and order. Change ONLY headline,
-        # and attach the matching original article's citation for Render.
+        # US title-only: preserve selected articles, source body sentences and
+        # existing tags. Evidence URLs are attached to the SAME verified article.
         if market in ("미국", "US"):
             issue_briefs = overlay_verified_headlines(
-                issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
+                issue_briefs, storyboard_news_items, verified_body_texts, stock_name
             )
 
         # Diagnostic counts only: trace where central issues drop out without
@@ -767,8 +766,8 @@ def build_stock_news_result(
             "storyboard_news_items": storyboard_news_items,
             "issue_briefs": issue_briefs,
             "keyword_storyboard": keyword_storyboard,
-            "_code_fact_extraction_version": 2 if market in ("미국", "US") else None,
-            "_title_only_revision": 1 if market in ("미국", "US") else None,
+            "_title_only_revision": 3 if market in ("미국", "US") else None,
+            "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
@@ -832,14 +831,6 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
             return None
         if not isinstance(result.get("issue_briefs"), list):
             return None
-        # Code-only '눈에 띄는 흐름' view: never render a prior AI summary
-        # simply because its snapshot has not yet been refreshed.
-        if market in ("미국", "US"):
-            code = result.get("_code_issue_briefs")
-            if isinstance(code, list):
-                result["issue_briefs"] = code
-            elif result.get("_ai_issue_briefs"):
-                result["issue_briefs"] = []
         return result
     except Exception as exc:
         print("[processed news] worker snapshot unavailable: "
