@@ -5,7 +5,7 @@ export PYTHONPATH=/opt/gaemigtp-news/app:/opt/gaemigtp-news/app/ops
 venv=/opt/gaemigtp-news/venv/bin/python
 test -x "$venv"
 backup="$(mktemp -d ./ops/.verified-title-v3-backup.XXXXXX)"
-paths=(backend/services/news_result.py backend/services/verified_fact_headline.py backend/services/news_processed_store.py ops/staged_ai_sequential_batch.py ops/staged_auto_ai_daily.py)
+paths=(backend/services/news_result.py backend/services/verified_fact_headline.py backend/services/news_processed_store.py ops/staged_ai_sequential_batch.py ops/staged_auto_ai_daily.py ops/staged_ai_issue_store.py)
 for target in "${paths[@]}"; do mkdir -p "$backup/$(dirname "$target")"; cp -p "$target" "$backup/$target"; done
 rollback() {
   trap - ERR
@@ -21,7 +21,8 @@ install -m 644 ops/.final-title-helper.py backend/services/verified_fact_headlin
 install -m 644 ops/.final-news-store.py backend/services/news_processed_store.py
 install -m 644 ops/.final-ai-paused.py ops/staged_ai_sequential_batch.py
 install -m 644 ops/.final-ai-daily-paused.py ops/staged_auto_ai_daily.py
-"$venv" -m py_compile backend/services/news_result.py backend/services/verified_fact_headline.py backend/services/news_processed_store.py ops/staged_ai_sequential_batch.py ops/staged_auto_ai_daily.py
+install -m 644 ops/.final-ai-issue-store.py ops/staged_ai_issue_store.py
+"$venv" -m py_compile backend/services/news_result.py backend/services/verified_fact_headline.py backend/services/news_processed_store.py ops/staged_ai_sequential_batch.py ops/staged_auto_ai_daily.py ops/staged_ai_issue_store.py
 "$venv" - <<'PY'
 from pathlib import Path
 import os
