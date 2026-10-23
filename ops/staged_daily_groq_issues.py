@@ -5,10 +5,16 @@ from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
 MODEL = "openai/gpt-oss-20b"
-PROMPT = """주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
-제목은 핵심만 짧게, 내용은 쉽게 구체적으로, 해시태그는 최대 3개. 친구처럼 반말로 답변해.
+PROMPT = """제공된 종목의 현재 주가와 뉴스 원문을 분석해서 친구처럼 반말로 답변해.
+
+1. 현재 주가가 상승했으면 왜 상승했어?
+   현재 주가가 하락했으면 왜 하락했어?
+
+2. 현재 해당 종목에서 중요한 이슈를 0~3개 선정해.
+
+각 이슈의 태그는 최대 3개이고 # 기호 없이 작성해.
 한국어 JSON 객체만 반환해:
-{"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#해시태그"],"source_ids":[1]}]}"""
+{"price_reason":{"headline":"상승 또는 하락 이유 제목","summary":"상승 또는 하락한 이유","source_ids":[1]},"issues":[{"headline":"이슈 제목","summary":"이슈 내용","tags":["키워드1"],"source_ids":[1]}]}"""
 
 
 def parse_issues(response_text):
@@ -42,6 +48,28 @@ def parse_issues(response_text):
                     cleaned.append(source_id)
             item["source_ids"] = cleaned[:3]
     return issues
+
+
+def parse_analysis(response_text):
+    """Validate the new reason + 0-3 sourced issues without changing issue storage."""
+    result = json.loads(response_text)
+    if not isinstance(result, dict) or set(result) != {"price_reason", "issues"}:
+        raise ValueError("Invalid analysis response")
+    reason = result["price_reason"]
+    if not isinstance(reason, dict) or set(reason) != {"headline", "summary", "source_ids"}:
+        raise ValueError("Invalid price reason")
+    if not all(isinstance(reason[k], str) and reason[k].strip() for k in ("headline", "summary")):
+        raise ValueError("Invalid price reason")
+    if not isinstance(reason["source_ids"], list):
+        raise ValueError("Invalid article source IDs")
+    reason_ids = []
+    for value in reason["source_ids"]:
+        if type(value) is int and value > 0 and value not in reason_ids:
+            reason_ids.append(value)
+    issues = parse_issues(json.dumps({"issues": result["issues"]}, ensure_ascii=False))
+    for issue in issues:
+        issue["tags"] = [tag.lstrip("#") for tag in issue["tags"]]
+    return {"price_reason": {**reason, "source_ids": reason_ids[:3]}, "issues": issues}
 
 
 def _article_published_epoch(article):
@@ -200,7 +228,7 @@ def _keep_sourced_issues(issues, news):
     return verified
 
 
-def analyze_news(stock_name, articles, *, usage_callback=None):
+def analyze_news(stock_name, articles, *, usage_callback=None, price_context=None):
     """One Groq request for one stock. Caller handles once-daily scheduling."""
     import os
     import urllib.request
@@ -220,7 +248,7 @@ def analyze_news(stock_name, articles, *, usage_callback=None):
         "messages": [
             {"role": "system", "content": PROMPT},
             {"role": "user", "content": json.dumps(
-                {"stock": stock_name, "news": news[:10]}, ensure_ascii=False)},
+                {"stock": stock_name, "price": price_context or {}, "news": news[:10]}, ensure_ascii=False)},
         ],
         "temperature": 0.2,
         "reasoning_effort": "low",
@@ -249,8 +277,18 @@ def analyze_news(stock_name, articles, *, usage_callback=None):
     content = choice["message"].get("content")
     if not isinstance(content, str) or not content.strip():
         raise ValueError("model_response_empty")
-    issues = parse_issues(content)
-    return _keep_sourced_issues(issues, news)
+    parsed = parse_analysis(content)
+    parsed["issues"] = _keep_sourced_issues(parsed["issues"], news)
+    valid_source_ids = {
+        row["source_id"] for row in news
+        if _has_verifiable_published_at(row.get("published_at"))
+    }
+    reason = parsed["price_reason"]
+    reason["source_ids"] = [source_id for source_id in reason["source_ids"]
+                            if source_id in valid_source_ids]
+    if not reason["source_ids"]:
+        parsed["price_reason"] = None
+    return parsed
 
 
 
