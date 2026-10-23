@@ -1,6 +1,6 @@
 """Production US-close source verification for the existing DigitalOcean timer.
 
-NAVER's actual major-index closes + three validated newspaper article bodies.
+NAVER's actual major-index closes + two validated newspaper article bodies.
 No artificial indices, cached old sessions, summary-only sources, or AI calls.
 Render only reads the resulting Neon brief and never imports this module.
 """
@@ -94,7 +94,7 @@ def _verified_article(entry, body, source, session_date):
 
 
 def verified_originals(session_date, now_utc=None, search=None, reader=None):
-    """Search date-locked NAVER publisher headlines and verify three actual bodies.
+    """Search date-locked NAVER publisher headlines and verify two actual bodies.
 
     No source that fails body checks is passed to Groq, not even as a fallback.
     """
@@ -163,15 +163,15 @@ def verified_originals(session_date, now_utc=None, search=None, reader=None):
         if group:
             chosen.append(max(group, key=lambda a: a["body_chars"]))
     for entry in unique:
-        if len(chosen) >= 3:
+        if len(chosen) >= 2:
             break
         if entry not in chosen:
             chosen.append(entry)
-    chosen = chosen[:3]
+    chosen = chosen[:2]
     print(f"[us-close] search={len(all_rows)} originals_tested={len(short)} "
           f"verified={len(valid)} distinct={len(unique)} selected={len(chosen)} "
           f"session={session_date}", flush=True)
-    return chosen if len(chosen) == 3 else []
+    return chosen if len(chosen) == 2 else []
 
 
 def verified_indices(session_date, opener=None):
