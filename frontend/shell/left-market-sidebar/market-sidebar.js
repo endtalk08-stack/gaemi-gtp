@@ -410,7 +410,7 @@
         });
         if (updated && title) {
           title.textContent = data.items.some((item) => item.stale)
-            ? '거래대금 TOP 20 · 시세 지연' : '거래대금 TOP 20 · 최신 시세';
+            ? '거래대금 TOP 20 · 시세 지연' : '거래대금 TOP 20 · 실시간 시세';
         }
         if (updated && changeSorted && !draggedRow) applyChangeSort();
       } catch (_) {
@@ -491,7 +491,7 @@
     };
     // Keep the working trading-value list as default while new data sources are pending.
     void showUsRanking();
-    // Read prices every 10 seconds, full rankings/headlines at most once a minute.
+    // Read direct DO prices every 3 seconds; refresh rankings/headlines once per minute.
     window.setInterval(() => {
       if (tab !== 'value' || document.visibilityState !== 'visible' ||
           !document.body.classList.contains('left-market-open') || draggedRow) return;
@@ -502,7 +502,7 @@
       } else {
         void readLatestQuotes();
       }
-    }, 10000);
+    }, 3000);
   }
 
   document.addEventListener('DOMContentLoaded', bindMarketControls);
