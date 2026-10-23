@@ -143,10 +143,12 @@ class IdentityTests(unittest.TestCase):
         def identity(_name, *, symbol):
             return identities[symbol]
 
-        with patch.object(market_rankings, "get_stock_industries", return_value={}), \\
-             patch("backend.services.stock_identity_store.register_us_ranking_instruments") as register, \\
-             patch("backend.services.news_identity_registry.resolve_us_news_identity",
-                   side_effect=identity) as resolve:
+        with (
+            patch.object(market_rankings, "get_stock_industries", return_value={}),
+            patch("backend.services.stock_identity_store.register_us_ranking_instruments") as register,
+            patch("backend.services.news_identity_registry.resolve_us_news_identity",
+                  side_effect=identity) as resolve,
+        ):
             rows = market_rankings._with_stock_industries(stocks, "us", "value")
 
         register.assert_called_once()
