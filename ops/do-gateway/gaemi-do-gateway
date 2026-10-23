@@ -141,8 +141,9 @@ case "$action" in
     echo ALPACA_NEWS_VERIFY_PASS
     ;;
   enable-timer)
-    [[ $# == 1 && "$1" == "gaemigtp-kiwoom-us-value.timer" ]] || fail "invalid_kiwoom_us_value_timer"
-    [[ -f /etc/systemd/system/gaemigtp-kiwoom-us-value.timer ]] || fail "timer_not_installed"
+    [[ $# == 1 && ( "$1" == "gaemigtp-kiwoom-us-value.timer" ||
+                    "$1" == "gaemigtp-kiwoom-us-fe.service" ) ]] || fail "invalid_kiwoom_us_market_unit"
+    [[ -f /etc/systemd/system/"$1" ]] || fail "market_unit_not_installed"
     systemctl enable --now "$1"
     systemctl is-enabled --quiet "$1" || fail "timer_not_enabled"
     systemctl is-active --quiet "$1" || fail "timer_not_active"
