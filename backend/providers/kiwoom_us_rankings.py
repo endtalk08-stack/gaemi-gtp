@@ -66,7 +66,9 @@ def _normalize_row(record, position):
         "exchange": exchange,
         "price": abs(price) if price not in (None, 0) else None,
         "change_pct": _num(record.get("flu_rt")),
-        "trading_value": _nonnegative(record.get("trde_prica")),
+        "trading_value": (lambda v: v * 1000 if v is not None else None)(
+            _nonnegative(record.get("trde_prica"))),  # Kiwoom usa20540: USD thousands
+        "trading_value_raw": _nonnegative(record.get("trde_prica")),
         "volume": _nonnegative(record.get("acc_trde_qty")),
         "industry": None,
         "source": "kiwoom",
