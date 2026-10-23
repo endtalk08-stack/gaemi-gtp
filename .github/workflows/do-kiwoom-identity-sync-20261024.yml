@@ -46,7 +46,7 @@ jobs:
           chmod 600 "$HOME/.ssh/id_ed25519"
           opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519")
           remote="gaemi-deploy@$DO_HOST"
-          old="$(git show 6944aee777b5bc287e3adb6cd19af07508495ad3:backend/kiwoom_us_value_collector.py | sha256sum | cut -d' ' -f1)"
+          old="$(git show 02f09e5b5a81f029dffc90e3302fd4723e3ad6b5:backend/kiwoom_us_value_collector.py | sha256sum | cut -d' ' -f1)"
           ssh "${opts[@]}" "$remote" 'bash -s' "$old" <<'REMOTE'
           set -euo pipefail
           cd /opt/gaemigtp-news/app
