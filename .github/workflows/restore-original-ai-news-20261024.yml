@@ -1,0 +1,64 @@
+name: Restore original AI and verified-article news temporarily
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/restore-original-ai-news-20261024.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemigtp-temporary-restore
+  cancel-in-progress: false
+jobs:
+  restore:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Export exact October pre-cutover source files
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gaemi-original
+          git show a8afacb019db859f98a1880f6667195eb153c715:backend/services/news_result.py > /tmp/gaemi-original/news-result.py
+          git show a8afacb019db859f98a1880f6667195eb153c715:ops/staged_news_processed_store.py > /tmp/gaemi-original/news-store.py
+          git show a8afacb019db859f98a1880f6667195eb153c715:ops/staged_ai_sequential_batch.py > /tmp/gaemi-original/ai-sequential.py
+          git show a8afacb019db859f98a1880f6667195eb153c715:ops/staged_auto_ai_daily.py > /tmp/gaemi-original/ai-daily.py
+          python -m py_compile /tmp/gaemi-original/*.py
+          test "$(grep -c 'body_texts=verified_body_texts' /tmp/gaemi-original/news-result.py)" = 1
+          ! grep -q 'GAEMIGTP_NEWS_AI_PAUSED' /tmp/gaemi-original/ai-sequential.py
+      - name: Verify live layout and transfer pre-cutover source
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          opts=(-o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519")
+          remote="gaemi-deploy@$DO_HOST"
+          ssh "${opts[@]}" "$remote" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          grep -Fq 'PAUSED apply_worker_ai' ops/staged_ai_sequential_batch.py
+          grep -Fq '_title_only_revision' backend/services/news_result.py
+          grep -Fq 'normalized["issue_briefs"] = normalized.get("_code_issue_briefs") or []' backend/services/news_processed_store.py
+          echo ORIGINAL_RESTORE_BASELINES_CHECKED
+          REMOTE
+          scp "${opts[@]}" /tmp/gaemi-original/news-result.py "$remote:/opt/gaemigtp-news/app/ops/.restore-orig-news-result.py"
+          scp "${opts[@]}" /tmp/gaemi-original/news-store.py "$remote:/opt/gaemigtp-news/app/ops/.restore-orig-news-store.py"
+          scp "${opts[@]}" /tmp/gaemi-original/ai-sequential.py "$remote:/opt/gaemigtp-news/app/ops/.restore-orig-ai-sequential.py"
+          scp "${opts[@]}" /tmp/gaemi-original/ai-daily.py "$remote:/opt/gaemigtp-news/app/ops/.restore-orig-ai-daily.py"
+          scp "${opts[@]}" ops/do-gateway/restore_original_ai_news_20261024.sh "$remote:/opt/gaemigtp-news/app/ops/.restore-original-ai-news.sh"
+      - name: Restore original 3-sentence news code and guarded daily AI
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash /opt/gaemigtp-news/app/ops/.restore-original-ai-news.sh'
