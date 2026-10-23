@@ -78,8 +78,11 @@ def repair_saved_top20(database_url):
     with psycopg.connect(database_url, connect_timeout=7) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """SELECT e.rank,e.symbol,e.display_name,e.entry_payload->>'exchange'
+                """SELECT e.rank,e.symbol,e.display_name,e.entry_payload->>'exchange',
+                          i.company_key,i.news_name,i.identity_status,i.is_active
                    FROM public.market_rank_entries e
+                   LEFT JOIN public.market_instruments i ON
+                       i.market='US' AND i.symbol=e.symbol
                    WHERE e.market='US' AND e.snapshot_id=(
                        SELECT id FROM public.market_rank_snapshots
                        WHERE source='kiwoom' AND market='US'
@@ -93,8 +96,19 @@ def repair_saved_top20(database_url):
             if len({row[1] for row in rows}) != 20:
                 raise ValueError("duplicate_kiwoom_ticker")
             verified = 0
-            for _, symbol, name, exchange in rows:
-                identity = upsert_kiwoom_identity(cur, symbol, name, exchange)
+            updated = 0
+            for _, symbol, name, exchange, company_key, news_name, status, active in rows:
+                identity = identity_from_kiwoom(name, symbol)
+                if identity is None:
+                    raise ValueError("invalid_saved_kiwoom_identity")
                 verified += identity["status"] == "verified"
+                # Outside the US session the existing timer still fires each
+                # minute. Avoid 20 unnecessary Neon writes every minute.
+                if (company_key, news_name, status, active) == (
+                    identity["company_key"], identity["news_name"], identity["status"], True
+                ):
+                    continue
+                upsert_kiwoom_identity(cur, symbol, name, exchange)
+                updated += 1
         conn.commit()
-    return {"rows": len(rows), "verified": verified}
+    return {"rows": len(rows), "verified": verified, "updated": updated}
