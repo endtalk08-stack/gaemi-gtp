@@ -73,6 +73,21 @@ class FactBriefsTests(unittest.TestCase):
         )
         self.assertEqual(result, [])
 
+    def test_company_mention_is_not_the_other_company_event(self):
+        news = [article("스페이스X, 엔비디아 등 130여개사와 기업 AI 공략",
+                        "스페이스X가 AI 사업을 확대하는 데 엔비디아 등이 참여했다.")]
+        self.assertEqual(build_article_fact_briefs(news, "엔비디아"), [])
+
+    def test_price_only_news_is_not_an_event(self):
+        news = [article("미 증시 장 초반 AAOI 8.08% 하락, AMD 3% 약세",
+                        "AMD가 3.79% 하락했다.")]
+        self.assertEqual(build_article_fact_briefs(news, "AMD", price_change_pct=1.6), [])
+
+    def test_derivative_quote_is_not_tesla_event(self):
+        news = [article("Binance TSLAUSDT Perpetual Trades 24/7 Around Tesla Q3 Results",
+                        "Tesla stock derivatives are available all day.")]
+        self.assertEqual(build_article_fact_briefs(news, "테슬라"), [])
+
     def test_never_calls_external_price_source_when_given_price(self):
         with patch("backend.services.article_fact_keywords.read_us_price_change_pct", side_effect=AssertionError):
             result = build_article_fact_briefs(
