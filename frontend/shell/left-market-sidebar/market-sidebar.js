@@ -107,7 +107,7 @@
     const backendUrl = window.location.hostname.endsWith('github.io')
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
     const market = 'us';
-    let tab = 'popular';
+    let tab = 'value';
     let requestId = 0;
     let changeSorted = false;
     let draggedRow = null;
@@ -179,12 +179,27 @@
     const showUsRanking = async () => {
       const id = ++requestId;
       if (!list) return;
-      if (tab !== 'popular' && tab !== 'value') return;
-      if (title) title.textContent = tab === 'value' ? '거래대금 TOP 20' : '인기 TOP 20';
+      const titles = {
+        realtime: '실시간 · AI 분석 순서',
+        value: '거래대금 TOP 20',
+        gain: '상승률 TOP 20',
+        loss: '하락률 TOP 20'
+      };
+      if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
+      if (title) title.textContent = titles[tab];
+      if (changeSortButton) changeSortButton.hidden = tab !== 'value';
       list.replaceChildren();
+      // These three new tabs are menu placeholders, not inferred market rankings.
+      // Realtime will list completed AI analysis in priority order once its data source exists.
+      if (tab !== 'value') {
+        list.textContent = tab === 'realtime'
+          ? 'AI 분석 결과 연결 전이야.'
+          : '시장 전체 순위 데이터 연결 전이야.';
+        return;
+      }
       list.textContent = '순위를 불러오는 중이야.';
       try {
-        const path = tab === 'value' ? '/market/trading-value' : '/market/popular';
+        const path = '/market/trading-value';
         const response = await fetch(backendUrl + path + '?market=' + market);
         if (!response.ok) throw new Error('market ranking unavailable');
         const result = await response.json();
@@ -324,7 +339,7 @@
     const refreshAnalyzedIssue = async (event) => {
       const detail = event.detail || {};
       const name = String(detail.name || '').trim();
-      if (!name || (tab !== 'popular' && tab !== 'value')) return;
+      if (!name || tab !== 'value') return;
       if (detail.market && detail.market !== market) return;
       const button = [...list.querySelectorAll(':scope > button[data-original-index]')]
         .find((row) => row.dataset.stockName === name &&
@@ -353,11 +368,12 @@
     });
 
     changeSortButton?.addEventListener('click', () => {
+      if (tab !== 'value') return;
       changeSorted = !changeSorted;
       applyChangeSort();
     });
 
-    bindStaticSelection('[data-info-tab-action]');
+    bindStaticSelection('[data-info-tab-action]', 1);
     sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
       if (button.disabled) return;
       button.addEventListener('click', () => {
@@ -368,7 +384,7 @@
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
-    // Load US popularity ranking on first open, without demo rows.
+    // Keep the working trading-value list as default while new data sources are pending.
     void showUsRanking();
   }
 
