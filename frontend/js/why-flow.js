@@ -85,7 +85,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             });
             // 중앙 화면은 원문 기사 제목·설명을 받지 않는다. 서버가 기사에서
             // 추출한 사실을 바탕으로 만든 display-only 이슈 브리핑만 사용한다.
-            const storyboard = Array.isArray(result.issue_briefs) ? result.issue_briefs : [];
+            const storyboard = !inline && Array.isArray(result.issue_briefs) ? result.issue_briefs : [];
             const typeWhyText = (element, text) => typeText(element, text, { chunkSize: 1 });
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5';
@@ -102,17 +102,20 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 block.append(reasonTitle, reasonText);
               }
             }
-            const signalTitle = document.createElement('p');
-            signalTitle.className = responseMessageClass;
-            const signalTitleText = inline
-              ? '오늘 눈에 띄는 흐름 👀'
-              : evidence.signals.length || storyboard.length || disclosures.length
+            // A sourced AI movement reason replaces the issue cards only in the
+            // first inline stock reply. Preserve the legacy follow-up flow.
+            let signalTitle = null;
+            let signalTitleText = '';
+            if (!inline) {
+              signalTitle = document.createElement('p');
+              signalTitle.className = responseMessageClass;
+              signalTitleText = evidence.signals.length || storyboard.length || disclosures.length
                 ? '오늘 눈에 띄는 흐름 👀' : '눈에 띄는 흐름 없음 ☁️';
-            block.appendChild(signalTitle);
-            // Render below the AI movement reason and above the existing follow-up actions.
+              block.appendChild(signalTitle);
+            }
             prompt.insertAdjacentElement('afterend', block);
             if (inline) prompt.remove();
-            await typeWhyText(signalTitle, signalTitleText);
+            if (signalTitle) await typeWhyText(signalTitle, signalTitleText);
 
             if (storyboard.length) {
               const storyboardList = document.createElement('div');
