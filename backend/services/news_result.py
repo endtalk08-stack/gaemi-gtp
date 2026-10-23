@@ -26,7 +26,7 @@ from .company_critical_events import company_critical_title_and_tags
 from .business_material_events import business_material_title_and_tags
 from .flow_material_events import flow_material_title_and_tags
 from .news_detail import extract_structured_article_facts, read_selected_article_details
-from .verified_fact_headline import overlay_verified_headlines
+from .verified_fact_headline import attach_verified_source_citations
 from .news_feed import fetch_stock_news, select_stock_news_for_analysis
 
 
@@ -723,10 +723,11 @@ def build_stock_news_result(
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
 
-        # US title-only: preserve selected articles, source body sentences and
-        # existing tags. Evidence URLs are attached to the SAME verified article.
+        # KR and US share ONE original article/keyword title generator above.
+        # US only attaches source metadata required by Render's freshness guard.
+        # No second title extraction, title overwrite or article reselection.
         if market in ("미국", "US"):
-            issue_briefs = overlay_verified_headlines(
+            issue_briefs = attach_verified_source_citations(
                 issue_briefs, storyboard_news_items, verified_body_texts, stock_name
             )
 
