@@ -9,7 +9,8 @@ from backend.services.issue_title_test import issue_title_test_bp
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
-from backend.services.kiwoom_us_value_board import read_us_trading_value_board, read_us_live_quotes
+from backend.services.kiwoom_us_value_board import read_us_trading_value_board
+from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
 from backend.services.us_market_close import read_brief
 from backend.providers.sec_filings import fetch_panel_missing_detail
 
@@ -133,6 +134,14 @@ def market_trading_value():
         # The Render service never issues Kiwoom API requests.
         items = read_us_trading_value_board(limit=20, diagnostics=diagnostics)
         if items is not None:
+            # DO real-time ticks override the minute-level ranking source in memory.
+            latest = {q["symbol"]: q for q in (read_memory_quotes() or []) if not q["stale"]}
+            for item in items:
+                quote = latest.get(item["symbol"])
+                if quote:
+                    item["price"] = quote["price"]
+                    if quote["change_pct"] is not None:
+                        item["change_pct"] = quote["change_pct"]
             from backend.services.market_rankings import _remember_market_result
             _remember_market_result("us", "value", items)
     else:
@@ -161,16 +170,31 @@ def market_trading_value():
     return response
 
 
+@app.post("/internal/market/us-price-push")
+def market_us_price_push():
+    """Signed, direct DO -> Render price relay. No database writes or external calls."""
+    if (request.content_length or 0) > 6000:
+        return jsonify({"ok": False, "error": "too_large"}), 413
+    raw = request.get_data(cache=False, as_text=False)
+    ok, reason = accept_signed_quotes(
+        raw, request.headers.get("X-Gaemi-Timestamp", ""),
+        request.headers.get("X-Gaemi-Signature", ""),
+    )
+    if not ok:
+        return jsonify({"ok": False, "error": reason}), 403
+    return "", 204
+
+
 @app.get("/market/us-live-quotes")
 def market_us_live_quotes():
-    """Fast read-only latest Kiwoom quotes; never fetch a market provider or AI."""
-    items = read_us_live_quotes()
+    """In-memory quote feed only: never query Neon, Redis, Kiwoom or filesystem."""
+    items = read_memory_quotes()
     if items is None:
         response = jsonify({"ok": False, "market": "us", "items": [],
-                            "error": "quotes_unavailable"})
+                            "error": "waiting_for_direct_feed"})
         response.headers["Cache-Control"] = "no-store"
         return response, 503
-    response = jsonify({"ok": True, "market": "us", "source": "kiwoom",
+    response = jsonify({"ok": True, "market": "us", "source": "kiwoom-direct",
                         "items": items})
     response.headers["Cache-Control"] = "no-store"
     return response
