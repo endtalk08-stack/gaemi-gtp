@@ -20,6 +20,12 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
           paired_news_items: Array.isArray(data.paired_news_items) ? data.paired_news_items : [],
           storyboard_news_items: Array.isArray(data.storyboard_news_items) ? data.storyboard_news_items : [],
           issue_briefs: Array.isArray(data.issue_briefs) ? data.issue_briefs : [],
+          issue_channels: {
+            code: Array.isArray(data.issue_channels?.code) ? data.issue_channels.code : [],
+            ai: Array.isArray(data.issue_channels?.ai) ? data.issue_channels.ai : []
+          },
+          issue_mode: String(data.issue_mode || 'auto'),
+          issue_display_channel: String(data.issue_display_channel || 'unavailable'),
           price_reason: data.price_reason && typeof data.price_reason === 'object' ? data.price_reason : null,
           keyword_storyboard: Array.isArray(data.keyword_storyboard) ? data.keyword_storyboard : [],
           disclosures: Array.isArray(data.disclosures) ? data.disclosures : [],
