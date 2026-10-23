@@ -90,10 +90,15 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
   sidebar.querySelectorAll = (selector) =>
     selector === '[data-info-tab-action]' ? [realtimeTab, valueTab, gainTab, lossTab] : [];
   const documentListeners = {};
+  const logoImages = [];
   const document = {
     body: { classList: { contains() { return false; }, remove() {}, toggle() {} } },
     getElementById(id) { return id === 'leftMarketSidebar' ? sidebar : null; },
-    createElement(tagName) { return new Element(tagName); },
+    createElement(tagName) {
+      const element = new Element(tagName);
+      if (tagName === 'img') logoImages.push(element);
+      return element;
+    },
     createElementNS(_namespace, tagName) { return new Element(tagName); },
     addEventListener(name, fn) { documentListeners[name] = fn; }
   };
@@ -130,7 +135,7 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
   vm.runInNewContext(sidebarSource, { window, document, fetch, console, localStorage });
   documentListeners.DOMContentLoaded();
   return {
-    list, realtimeTab, valueTab, gainTab, lossTab, calls, storage,
+    list, realtimeTab, valueTab, gainTab, lossTab, calls, storage, logoImages,
     replaceValueRows(rows) { valueRows = rows; valueTab.click(); },
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
@@ -252,6 +257,47 @@ test('ranked ticker identity automatically changes the mark and never borrows an
   const mismatched = app.list.querySelectorAll(':scope > button[data-original-index]')[0].children[1];
   assert.equal(mismatched.children[0].textContent, 'AAPL');
   assert.equal(mismatched.children[0].tagName, 'span');
+});
+
+test('AnyLogo loads automatically by the exact Neon-verified ticker and replaces existing logo', async () => {
+  const app = setup();
+  await flush();
+  const rows = app.list.querySelectorAll(':scope > button[data-original-index]');
+  assert.equal(app.logoImages.length, 2, 'one logo lookup per verified source ticker');
+  const tesla = app.logoImages[1];
+  assert.equal(tesla.src, 'https://img.anylogo.dev/ticker/TSLA?size=64&variant=icon');
+  assert.equal(tesla.referrerPolicy, 'no-referrer');
+  const before = rows[1].children[1];
+  assert.equal(before.children[0].tagName, 'svg', 'local logo stays visible while loading');
+  tesla.naturalWidth = 64;
+  tesla.listeners.load[0]();
+  assert.equal(before.children[0], tesla, 'verified logo replaces the fallback on load');
+
+  const lily = app.logoImages[0];
+  lily.listeners.error[0]();
+  assert.equal(rows[0].children[1].children[0].tagName, 'span',
+    'failed logo request keeps its ticker mark');
+});
+
+test('AnyLogo supports new verified tickers without logo lists, but skips pending and mismatched identities', async () => {
+  const app = setup();
+  await flush();
+  const before = app.logoImages.length;
+  app.replaceValueRows([
+    { name: '버크셔 Class B', symbol: 'BRK.B', mark_ticker: 'BRK.B', identity_status: 'verified' },
+    { name: '신규 종목', symbol: 'NEWT.O', mark_ticker: '', identity_status: 'pending' },
+    { name: '다른 기업', symbol: 'AAPL.O', mark_ticker: 'NVDA', identity_status: 'verified' },
+    { name: '검증 불가', symbol: '../INVALID', mark_ticker: '../INVALID', identity_status: 'verified' }
+  ]);
+  await flush();
+  assert.equal(app.logoImages.length, before + 1, 'only the exact verified ticker should load');
+  assert.equal(app.logoImages.at(-1).src,
+    'https://img.anylogo.dev/ticker/BRK.B?size=64&variant=icon');
+  const rows = app.list.querySelectorAll(':scope > button[data-original-index]');
+  assert.equal(rows.length, 4);
+  assert.equal(rows[1].children[1].children[0].textContent, 'NEWT');
+  assert.equal(rows[2].children[1].children[0].textContent, 'AAPL');
+  assert.equal(rows[3].children[1].children[0].tagName, 'span');
 });
 
 test('new side menus do not query a fake partial TOP20 ranking', async () => {
