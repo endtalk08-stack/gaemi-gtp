@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/systemd/gaemigtp-kiwoom-us-value.service","target":"ops/systemd/gaemigtp-kiwoom-us-value.service"} 
+{"operation":"deploy","path":"ops/systemd/gaemigtp-kiwoom-us-value.timer","target":"ops/systemd/gaemigtp-kiwoom-us-value.timer"}
