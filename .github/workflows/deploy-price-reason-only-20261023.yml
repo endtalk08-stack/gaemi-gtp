@@ -50,12 +50,12 @@ jobs:
           SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
           REMOTE="gaemi-deploy@$DO_HOST"
           ssh "${SSH_OPTS[@]}" "$REMOTE" 'cd /opt/gaemigtp-news/app && install -d -m 700 ops/.gaemi-price-reason-20261023'
-          scp "${SSH_OPTS[@]}" "ops/staged_ai_issue_store.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_ai_issue_store.py"
-          scp "${SSH_OPTS[@]}" "ops/staged_ai_issue_display_adapter.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_ai_issue_display_adapter.py"
-          scp "${SSH_OPTS[@]}" "ops/staged_ai_snapshot_integration.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_ai_snapshot_integration.py"
-          scp "${SSH_OPTS[@]}" "ops/staged_ai_sequential_batch.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_ai_sequential_batch.py"
-          scp "${SSH_OPTS[@]}" "ops/staged_daily_groq_issues.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_daily_groq_issues.py"
-          scp "${SSH_OPTS[@]}" "ops/do-gateway/news_worker_price_reason_20261023.py" "$REMOTE:ops/.gaemi-price-reason-20261023/news_worker_price_reason_20261023.py"
+          scp "${SSH_OPTS[@]}" "ops/staged_ai_issue_store.py" "$REMOTE:/opt/gaemigtp-news/app/ops/.gaemi-price-reason-20261023/staged_ai_issue_store.py"
+          scp "${SSH_OPTS[@]}" "ops/staged_ai_issue_display_adapter.py" "$REMOTE:/opt/gaemigtp-news/app/ops/.gaemi-price-reason-20261023/staged_ai_issue_display_adapter.py"
+          scp "${SSH_OPTS[@]}" "ops/staged_ai_snapshot_integration.py" "$REMOTE:/opt/gaemigtp-news/app/ops/.gaemi-price-reason-20261023/staged_ai_snapshot_integration.py"
+          scp "${SSH_OPTS[@]}" "ops/staged_ai_sequential_batch.py" "$REMOTE:/opt/gaemigtp-news/app/ops/.gaemi-price-reason-20261023/staged_ai_sequential_batch.py"
+          scp "${SSH_OPTS[@]}" "ops/staged_daily_groq_issues.py" "$REMOTE:/opt/gaemigtp-news/app/ops/.gaemi-price-reason-20261023/staged_daily_groq_issues.py"
+          scp "${SSH_OPTS[@]}" "ops/do-gateway/news_worker_price_reason_20261023.py" "$REMOTE:/opt/gaemigtp-news/app/ops/.gaemi-price-reason-20261023/news_worker_price_reason_20261023.py"
           echo "AI_REASON_FILES_STAGED_NO_RUNTIME_CHANGE"
       - name: Verify original worker hashes, install with rollback, restart once
         shell: bash
