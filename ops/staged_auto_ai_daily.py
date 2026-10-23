@@ -115,6 +115,10 @@ def process_due_ai_snapshots():
     Groq response, without reading panel news to initiate a second analysis.
     The return value remains zero so the worker cannot report it as new AI work.
     """
+    # User-requested pause: keep prior paid records but do not reconcile AI.
+    if __import__("os").environ.get("GAEMIGTP_NEWS_AI_PAUSED", "1") != "0":
+        return 0
+
     day = due_exchange_day()
     if day is None:
         return 0
