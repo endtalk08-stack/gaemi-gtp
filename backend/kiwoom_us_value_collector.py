@@ -119,7 +119,12 @@ def _fill_verified_fallback_sectors(database_url):
 
 def main():
     ny = dt.datetime.now(ZoneInfo("America/New_York"))
-    in_session = (ny.weekday() < 5 and dt.time(4, 0) <= ny.time() < dt.time(20, 0))
+    # US overnight/day market (including Asia daytime) runs before 04:00 ET.
+    # Keep one weekday market session open from Sunday 20:00 to Friday 20:00 ET.
+    # The provider remains authoritative: never synthesize off-session quotes.
+    in_session = (ny.weekday() < 4 or
+                  (ny.weekday() == 4 and ny.time() < dt.time(20, 0)) or
+                  (ny.weekday() == 6 and ny.time() >= dt.time(20, 0)))
 
     database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
     if not database_url:
@@ -200,7 +205,7 @@ def main():
                     """INSERT INTO public.market_rank_entries
                        (snapshot_id,rank,market,symbol,display_name,
                         price,change_rate,trading_value,volume,entry_payload)
-                       VALUES (%s,%s,'US',%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                       VALUES (%s,%s,'US',%s,%s,%s,%s,%s,%s,%s::jsonb)
                        ON CONFLICT (snapshot_id,rank) DO UPDATE SET
                            market=EXCLUDED.market,
                            symbol=EXCLUDED.symbol,
