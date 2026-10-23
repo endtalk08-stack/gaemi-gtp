@@ -66,6 +66,7 @@ jobs:
           scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/staged_ai_sequential_batch.py "$remote:/opt/gaemigtp-news/app/ops/.final-ai-paused.py"
           scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/staged_auto_ai_daily.py "$remote:/opt/gaemigtp-news/app/ops/.final-ai-daily-paused.py"
           scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/do-gateway/deploy_original_title_only_v3_20261024.sh "$remote:/opt/gaemigtp-news/app/ops/.final-title-v3-deploy.sh"
+      # Retry after correcting on-worker ops module import path.
       - name: Activate original three-sentence code with title-only overlay and pause AI
         shell: bash
         run: |
