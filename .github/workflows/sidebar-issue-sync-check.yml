@@ -7,6 +7,8 @@ on:
       - 'frontend/shell/center-chat/analysis-flow.js'
       - 'frontend/index.html'
       - 'tests/test_sidebar_issue_sync.cjs'
+      - 'backend/services/market_rankings.py'
+      - 'tests/test_dynamic_stock_identity.py'
       - 'backend/services/market_issue_headlines.py'
       - 'tests/test_market_issue_headlines.py'
       - 'app.py'
@@ -34,7 +36,8 @@ jobs:
           node --check frontend/shell/center-chat/analysis-flow.js
       - name: Server syntax and 20-row partial failure regression
         run: |
-          python -m py_compile app.py backend/services/market_issue_headlines.py
+          python -m py_compile app.py backend/services/market_issue_headlines.py backend/services/market_rankings.py tests/test_dynamic_stock_identity.py
           python -m unittest -v tests.test_market_issue_headlines
+          python -m unittest -v tests.test_dynamic_stock_identity.IdentityTests.test_sidebar_marks_follow_existing_neon_ticker_registry
       - name: Sidebar synchronization regression tests
         run: node --test tests/test_sidebar_issue_sync.cjs
