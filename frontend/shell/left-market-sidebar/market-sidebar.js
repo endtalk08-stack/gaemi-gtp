@@ -17,13 +17,18 @@
     mark.title = ticker ? ticker + ' 종목 마크' : '종목 마크';
     const fallback = document.createElement('span');
     fallback.className = 'market-stock-logo-fallback';
-    fallback.textContent = ticker ? ticker.slice(0, 4) : String(item.name || '?').slice(0, 2);
+    fallback.textContent = ticker ? (ticker.length <= 6 ? ticker : ticker.slice(0, 6) + '…')
+      : String(item.name || '?').slice(0, 2);
+    if (ticker.length > 4) fallback.style.fontSize = '8px';
     mark.appendChild(fallback);
 
     // Previously bundled vector artwork is reused automatically by ticker.
     // Every other registered or newly observed ticker gets its own badge,
     // instead of accidentally displaying another company's logo.
-    const icon = ticker && window.GaemiGTPStockMarks?.[ticker];
+    const verified = item.identity_status === 'verified'
+      && canonicalMarkTicker(item.mark_ticker) === ticker
+      && Boolean(ticker);
+    const icon = verified && window.GaemiGTPStockMarks?.[ticker];
     if (icon && icon.path && icon.color) {
       const ns = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(ns, 'svg');
