@@ -101,16 +101,18 @@ class MarketIssueHeadlineTests(unittest.TestCase):
             )
 
 
-    def test_us_cited_ai_issue_visible_without_price_reason(self):
+    def test_us_cited_code_issue_visible_without_price_reason(self):
         from datetime import datetime, timezone
         from backend.services.news_freshness import clean_us_snapshot
         now = datetime.now(timezone.utc)
         snapshot = clean_us_snapshot({
             "price_reason": None,
+            "_code_fact_extraction_version": 2,
             "issue_briefs": [{"headline": "규칙이 만든 옛 재료"}],
-            "_ai_issue_briefs": [{
+            "_ai_issue_briefs": [{"headline": "오래된 AI"}],
+            "_code_issue_briefs": [{
                 "headline": "반도체 수요 확대",
-                "summary": "AI가 분석한 내용",
+                "summary": "기사에서 뽑은 사실",
                 "source_articles": [{
                     "url": "https://source.example/story",
                     "source": "source.example",
@@ -128,15 +130,16 @@ class MarketIssueHeadlineTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["headline"], "반도체 수요 확대")
         self.assertEqual(result["items"][0]["status"], "ready")
 
-    def test_us_no_stale_or_uncited_ai_material_fallback(self):
+    def test_us_no_stale_or_uncited_code_material_fallback(self):
         from datetime import datetime, timedelta, timezone
         from backend.services.news_freshness import clean_us_snapshot
         now = datetime.now(timezone.utc)
         snapshot = clean_us_snapshot({
             "price_reason": None,
             "issue_briefs": [{"headline": "옛 규칙 재료"}],
-            "_ai_issue_briefs": [{
-                "headline": "하루 지난 AI 재료",
+            "_code_fact_extraction_version": 2,
+            "_code_issue_briefs": [{
+                "headline": "하루 지난 코드 재료",
                 "summary": "이미 지난 기사",
                 "source_articles": [{
                     "url": "https://source.example/stale",
@@ -154,6 +157,27 @@ class MarketIssueHeadlineTests(unittest.TestCase):
             )
         self.assertEqual(result["items"][0]["status"], "unavailable")
         self.assertEqual(result["items"][0]["headline"], "")
+
+    def test_us_ai_only_snapshot_has_no_fallback(self):
+        from datetime import datetime, timezone
+        from backend.services.news_freshness import clean_us_snapshot
+        now = datetime.now(timezone.utc)
+        snapshot = clean_us_snapshot({
+            "issue_briefs": [{"headline": "구 AI 헤드라인"}],
+            "_ai_issue_briefs": [{
+                "headline": "구 AI 헤드라인",
+                "source_articles": [{"published_at": now.isoformat(),
+                                     "url": "https://example.org/old"}],
+            }],
+        }, now=now)
+        with patch.object(subject, "resolve_us_news_identity",
+                          return_value={"snapshot_names": ["마이크론 테크놀로지"]}), patch.object(
+            subject, "_read_worker_briefs",
+            return_value={"마이크론 테크놀로지": snapshot}):
+            result = subject.get_market_issue_headlines(
+                "us", [{"name": "마이크론 테크놀로지", "symbol": "MU"}]
+            )
+        self.assertEqual(result["items"][0]["status"], "unavailable")
 
     def test_us_ai_headline_does_not_invent_evidence(self):
         self.assertEqual(subject._first_ai_headline({"issue_briefs": [
