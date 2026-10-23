@@ -3472,6 +3472,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
             "panel_news_items": news_result.get("panel_news_items", news_result.get("paired_news_items", [])),
             "storyboard_news_items": news_result.get("storyboard_news_items", []),
             "issue_briefs": news_result.get("issue_briefs", []),
+            "price_reason": news_result.get("price_reason"),
             "keyword_storyboard": news_result.get("keyword_storyboard", []),
             "disclosures": disclosures,
             "us_filings": us_filings,
