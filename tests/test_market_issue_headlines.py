@@ -107,7 +107,8 @@ class MarketIssueHeadlineTests(unittest.TestCase):
         now = datetime.now(timezone.utc)
         snapshot = clean_us_snapshot({
             "price_reason": None,
-            "_code_fact_extraction_version": 2,
+            "_code_fact_extraction_version": 3,
+            "_title_only_revision": 3,
             "issue_briefs": [{"headline": "규칙이 만든 옛 재료"}],
             "_ai_issue_briefs": [{"headline": "오래된 AI"}],
             "_code_issue_briefs": [{
@@ -137,7 +138,8 @@ class MarketIssueHeadlineTests(unittest.TestCase):
         snapshot = clean_us_snapshot({
             "price_reason": None,
             "issue_briefs": [{"headline": "옛 규칙 재료"}],
-            "_code_fact_extraction_version": 2,
+            "_code_fact_extraction_version": 3,
+            "_title_only_revision": 3,
             "_code_issue_briefs": [{
                 "headline": "하루 지난 코드 재료",
                 "summary": "이미 지난 기사",

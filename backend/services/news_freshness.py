@@ -1,6 +1,6 @@
 """Read-only freshness guard shared by Render chat and market sidebar.
 
-DigitalOcean owns news collection and AI processing. Render only filters Neon snapshots
+DigitalOcean owns news collection and original article-body verification. Render only filters Neon snapshots
 using the original published_at of cited articles, never the AI/DB write time.
 """
 from copy import deepcopy
@@ -29,7 +29,7 @@ def _article_date(value):
 
 
 def clean_us_snapshot(payload, *, now=None):
-    """Return only 24h source-dated AI briefs and news for US screens.
+    """Return source-dated verified-title v3 briefs; use prior paid AI only if none exist.
 
     Both consumers use this function. Reject old source timestamps even when
     a snapshot was saved minutes ago. Unknown dates are not fabricated.
@@ -42,13 +42,27 @@ def clean_us_snapshot(payload, *, now=None):
     cutoff = now.astimezone(timezone.utc) - timedelta(hours=24)
     upper = now.astimezone(timezone.utc)
     result = deepcopy(payload)
-    # Stage 1 restoration: use the original saved AI issues until the original
-    # verified-body, three-sentence news pipeline is ready for title-only UI.
-    ai_briefs = result.get("_ai_issue_briefs")
-    if not isinstance(ai_briefs, list):
-        ai_briefs = []
+    # Prefer the original body-verified v3 briefs. If the verified selector
+    # found no eligible articles, retain already-stored cited AI issues only
+    # as a temporary display fallback. This NEVER invokes or schedules AI.
+    v3 = (
+        str(result.get("_title_only_revision") or "") == "3"
+        and str(result.get("_code_fact_extraction_version") or "") == "3"
+    )
+    code_briefs = result.get("_code_issue_briefs") if v3 else []
+    if not isinstance(code_briefs, list):
+        code_briefs = []
+    ai_fallback = result.get("_ai_issue_briefs") if v3 and not code_briefs else []
+    if not isinstance(ai_fallback, list):
+        ai_fallback = []
+    candidate_briefs = code_briefs or ai_fallback
+    result["_issue_display_channel"] = (
+        "verified_original_article" if code_briefs
+        else "previous_ai_fallback" if ai_fallback
+        else "unavailable"
+    )
     fresh = []
-    for brief in ai_briefs:
+    for brief in candidate_briefs:
         if not isinstance(brief, dict):
             continue
         valid_sources = []

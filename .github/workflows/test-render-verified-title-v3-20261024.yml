@@ -1,0 +1,25 @@
+name: Verify Render verified title-only v3 pipeline
+on:
+  push:
+    branches: [fix/render-original-verified-title-v3-20261024]
+    paths:
+      - backend/services/news_freshness.py
+      - backend/services/market_issue_headlines.py
+      - tests/test_us_news_freshness.py
+      - tests/test_market_issue_headlines.py
+      - tests/test_us_stock_news_identity.py
+      - .github/workflows/test-render-verified-title-v3-20261024.yml
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate verified title-only Render API and sidebar
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/services/news_freshness.py backend/services/market_issue_headlines.py
+          python -m unittest discover -s tests -p 'test_us_news_freshness.py' -v
+          python -m unittest discover -s tests -p 'test_market_issue_headlines.py' -v
+          python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v

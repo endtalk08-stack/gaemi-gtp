@@ -105,7 +105,8 @@ class UsListingNewsIdentityTests(unittest.TestCase):
                 brief = {"headline": "서버의 기존 이슈", "summary": "확인된 내용",
                          "source_articles": [article]}
                 return {"issue_briefs": [brief], "_code_issue_briefs": [brief],
-                        "_code_fact_extraction_version": 2}
+                        "_code_fact_extraction_version": 3,
+                        "_title_only_revision": 3}
             return None
         with patch.object(news_result, "_read_worker_news_snapshot", side_effect=worker):
             result = news_result.get_shared_stock_news_result("NVIDIA", market="미국", limit=50)
