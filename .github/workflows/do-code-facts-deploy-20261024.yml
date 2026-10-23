@@ -1,0 +1,60 @@
+name: Deploy verified code-fact issues and pause paid news AI
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-code-facts-deploy-20261024.yml]
+permissions:
+  contents: read
+jobs:
+  deploy:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify article fact tests and compile deployment patch
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_article_fact_keywords.py' -q
+          python -m unittest discover -s tests -p 'test_code_issue_sidebar_contract.py' -q
+          python -m py_compile ops/do-gateway/deploy_code_facts_20261024.py
+          source_hash="$(git show a8afacb019db859f98a1880f6667195eb153c715:backend/services/news_result.py | sha256sum | cut -d' ' -f1)"
+          echo "BASELINE_SOURCE_SHA256=$source_hash"
+          test "$source_hash" = 2fd05c69a5f4e9748ca283f0ab540910fc343834fb8ec0f6a978e523554e0b1a
+      - name: Guard live worker state and stage exact files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          remote="gaemi-deploy@$DO_HOST"
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "$remote" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test -w backend/services && test -w ops
+          test "$(sha256sum backend/news_worker.py | cut -d' ' -f1)" = d274422a687d89af56868a956dc77317945220cebac13b620f20c78f5ef73967
+          test "$(sha256sum backend/services/news_result.py | cut -d' ' -f1)" = 2fd05c69a5f4e9748ca283f0ab540910fc343834fb8ec0f6a978e523554e0b1a
+          test "$(sha256sum backend/services/news_processed_store.py | cut -d' ' -f1)" = 5c5dd938a4767ae1e8db103d3d43b08311d3cf7e9380e51596d5a1471a7fd7f2
+          test "$(sha256sum ops/staged_ai_sequential_batch.py | cut -d' ' -f1)" = 8461d3e3a015d4b7d5c72bf62f59c8014ce4003398cf0e54db2e017b60333fc0
+          test "$(sha256sum ops/staged_auto_ai_daily.py | cut -d' ' -f1)" = 3fce1e174d9594b7194608efd204ce9ec2b083a30a1adf2fae08be1c629be2d4
+          test ! -e backend/services/article_fact_keywords.py
+          echo CODE_FACTS_BASELINES_VERIFIED
+          REMOTE
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" backend/services/article_fact_keywords.py "$remote:/opt/gaemigtp-news/app/ops/.article-facts-next.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" backend/services/news_result.py "$remote:/opt/gaemigtp-news/app/ops/.news-result-facts-next.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/do-gateway/deploy_code_facts_20261024.py "$remote:/opt/gaemigtp-news/app/ops/.deploy-code-facts-next.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/do-gateway/apply_code_facts_on_worker_20261024.sh "$remote:/opt/gaemigtp-news/app/ops/.apply-code-facts-next.sh"
+      - name: Pause AI and activate code issues with rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash /opt/gaemigtp-news/app/ops/.apply-code-facts-next.sh'
