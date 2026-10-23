@@ -17,8 +17,11 @@ def parse_issues(response_text, *, require_direction=False):
     if not isinstance(result, dict) or set(result) != {"issues"}:
         raise ValueError("Invalid issue response")
     issues = result["issues"]
-    if not isinstance(issues, list) or len(issues) > 3:
+    if not isinstance(issues, list):
         raise ValueError("Expected 0-3 issues")
+    # The model can ignore the requested limit. Keep at most the first three
+    # source-validated candidates instead of discarding the entire paid result.
+    issues = issues[:3]
     for item in issues:
         if not isinstance(item, dict) or not {"headline", "summary", "tags"} <= set(item) or set(item) - {"headline", "summary", "tags", "source_ids", "direction"}:
             raise ValueError("Invalid fields")
