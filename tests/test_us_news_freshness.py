@@ -90,11 +90,17 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual(view["issue_briefs"], [])
 
     def test_central_chat_reads_same_guarded_code_channel(self):
+        actual_now = datetime.now(timezone.utc)
+        def recent_brief(title, hours):
+            return {"headline": title, "source_articles": [{
+                "published_at": (actual_now - timedelta(hours=hours)).isoformat(),
+                "url": "https://example.org/" + title,
+            }]}
         payload = {"_news_status": "ok",
                    "_code_fact_extraction_version": 2,
-                   "_code_issue_briefs": [brief("fresh", 1), brief("stale", 49)],
-                   "_ai_issue_briefs": [brief("outdated AI", 1)],
-                   "issue_briefs": [brief("stale", 49)]}
+                   "_code_issue_briefs": [recent_brief("fresh", 1), recent_brief("stale", 49)],
+                   "_ai_issue_briefs": [recent_brief("outdated AI", 1)],
+                   "issue_briefs": [recent_brief("stale", 49)]}
         with patch.object(news_result, "resolve_us_news_identity",
                           return_value={"snapshot_names": ["테슬라"]}), patch.object(
             news_result, "_read_worker_news_snapshot", return_value=payload):
