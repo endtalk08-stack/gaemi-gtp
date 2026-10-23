@@ -108,5 +108,24 @@ def read_memory_quotes():
         ]
 
 
+
+def read_fresh_us_quote(symbol):
+    """Reuse only a fresh authenticated Kiwoom FE tick already held by Render.
+
+    No quote API calls or database reads; never substitute Yahoo's daily close
+    for a current US price. The sidebar and analysis share this same cache.
+    """
+    code = str(symbol or "").strip().upper()
+    if not _VALID_SYMBOL.fullmatch(code):
+        return None
+    for row in read_memory_quotes() or ():
+        if (row["symbol"] == code and not row["stale"]
+                and isinstance(row["price"], (int, float))
+                and row["price"] > 0):
+            return row
+    return None
+
+
+
 def relay_is_configured():
     return bool(os.environ.get("GAEMI_PRICE_RELAY_PUBKEY", "").strip())
