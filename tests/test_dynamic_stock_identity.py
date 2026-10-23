@@ -125,6 +125,41 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(result["search_terms"], ["알파벳 Class A"])
         self.assertEqual(result["snapshot_names"], ["알파벳 Class A"])
 
+    def test_sidebar_marks_follow_existing_neon_ticker_registry(self):
+        from backend.services import market_rankings
+        stocks = [
+            {"name": "알파벳 Class A", "symbol": "GOOGL.O", "industry": "IT"},
+            {"name": "알파벳 Class C", "symbol": "GOOG.O", "industry": "IT"},
+            {"name": "미등록 상장사", "symbol": "NEW.O", "industry": "IT"},
+            {"name": "잘못된 이름", "symbol": "AAPL.O", "industry": "IT"},
+        ]
+        identities = {
+            "GOOGL.O": {"ticker": "GOOGL", "status": "verified"},
+            "GOOG.O": {"ticker": "GOOG", "status": "verified"},
+            "NEW.O": {"ticker": "NEW", "status": "pending"},
+            "AAPL.O": {"ticker": "NVDA", "status": "verified"},
+        }
+
+        def identity(_name, *, symbol):
+            return identities[symbol]
+
+        with (
+            patch.object(market_rankings, "get_stock_industries", return_value={}),
+            patch("backend.services.stock_identity_store.register_us_ranking_instruments") as register,
+            patch("backend.services.news_identity_registry.resolve_us_news_identity",
+                  side_effect=identity) as resolve,
+        ):
+            rows = market_rankings._with_stock_industries(stocks, "us", "value")
+
+        register.assert_called_once()
+        self.assertEqual(resolve.call_count, 4)
+        self.assertEqual([row["mark_ticker"] for row in rows],
+                         ["GOOGL", "GOOG", "", ""])
+        self.assertEqual([row["identity_status"] for row in rows],
+                         ["verified", "verified", "pending", "pending"])
+        self.assertEqual([row["symbol"] for row in rows],
+                         ["GOOGL.O", "GOOG.O", "NEW.O", "AAPL.O"])
+
     def test_registration_does_not_run_without_connection(self):
         with patch.dict("os.environ", {"NEWS_DATABASE_URL": ""}):
             self.assertEqual(register_us_ranking_instruments(

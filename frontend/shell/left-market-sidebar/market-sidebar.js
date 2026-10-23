@@ -2,34 +2,33 @@
 (function () {
   'use strict';
 
-  // Logos are bundled locally when possible; fallback favicons never hide the ticker mark.
-  const STOCK_DOMAINS = {
-    NVDA: 'nvidia.com', SPCX: 'spacex.com', TSLA: 'tesla.com',
-    META: 'meta.com', AAPL: 'apple.com', MSFT: 'microsoft.com',
-    GOOGL: 'google.com', GOOG: 'google.com', AMZN: 'amazon.com',
-    AMD: 'amd.com', INTC: 'intel.com', TSM: 'tsmc.com',
-    AVGO: 'broadcom.com', PLTR: 'palantir.com', MU: 'micron.com',
-    ORCL: 'oracle.com', QCOM: 'qualcomm.com', ASML: 'asml.com',
-    NFLX: 'netflix.com', CRM: 'salesforce.com', IBM: 'ibm.com',
-    LLY: 'lilly.com', SKHY: 'skhynix.com', SNDK: 'sandisk.com',
-    SMCI: 'supermicro.com', QQQ: 'invesco.com', SPY: 'ssga.com',
-    SOXX: 'ishares.com', GLD: 'ssga.com', SLV: 'ishares.com'
-  };
-
-  // Bundled SVG images: theSVG (CC0), https://github.com/glincker/thesvg
-  const STOCK_LOCAL_LOGOS = { SKHY: 'sk-hynix.svg', MU: 'micron.svg', SNDK: 'sandisk.svg' };
+  // The ranking API already registers source ticker/name pairs into Neon.
+  // Key the mark only by the returned ticker, never by a handwritten name map.
+  function canonicalMarkTicker(symbol) {
+    const ticker = String(symbol || '').trim().toUpperCase()
+      .replace(/^US:/, '').replace(/\.(?:O|N|K)$/, '');
+    return /^[A-Z0-9]+(?:\.[A-Z])?$/.test(ticker) ? ticker : '';
+  }
 
   function stockMark(item) {
-    const ticker = String(item.symbol || '').trim().toUpperCase()
-      .replace(/^US:/, '').replace(/\.(?:O|N|K)$/, '');
+    const ticker = canonicalMarkTicker(item.symbol);
     const mark = document.createElement('span');
     mark.className = 'market-stock-logo';
+    mark.title = ticker ? ticker + ' 종목 마크' : '종목 마크';
     const fallback = document.createElement('span');
     fallback.className = 'market-stock-logo-fallback';
-    fallback.textContent = (ticker || String(item.name || '?')).slice(0, 2);
+    fallback.textContent = ticker ? (ticker.length <= 6 ? ticker : ticker.slice(0, 6) + '…')
+      : String(item.name || '?').slice(0, 2);
+    if (ticker.length > 4) fallback.style.fontSize = '8px';
     mark.appendChild(fallback);
 
-    const icon = window.GaemiGTPStockMarks?.[ticker];
+    // Previously bundled vector artwork is reused automatically by ticker.
+    // Every other registered or newly observed ticker gets its own badge,
+    // instead of accidentally displaying another company's logo.
+    const verified = item.identity_status === 'verified'
+      && canonicalMarkTicker(item.mark_ticker) === ticker
+      && Boolean(ticker);
+    const icon = verified && window.GaemiGTPStockMarks?.[ticker];
     if (icon && icon.path && icon.color) {
       const ns = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(ns, 'svg');
@@ -41,19 +40,26 @@
       path.setAttribute('fill', '#' + icon.color);
       svg.appendChild(path);
       mark.replaceChildren(svg);
-    } else if (STOCK_LOCAL_LOGOS[ticker] || STOCK_DOMAINS[ticker]) {
-      const img = document.createElement('img');
-      img.className = 'market-stock-logo-image';
-      img.alt = '';
-      img.loading = 'lazy';
-      img.decoding = 'async';
-      img.src = STOCK_LOCAL_LOGOS[ticker]
-        ? 'shell/left-market-sidebar/logos/' + STOCK_LOCAL_LOGOS[ticker]
-        : 'https://www.google.com/s2/favicons?domain='
-          + encodeURIComponent(STOCK_DOMAINS[ticker]) + '&sz=64';
-      img.addEventListener('load', () => { fallback.hidden = true; });
-      img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; });
-      mark.appendChild(img);
+    }
+
+    // Query AnyLogo using only the exact, DB-verified US ticker. No manually
+    // maintained stock/domain mapping and no other-company name guessing.
+    // Keep the bundled vector or ticker badge while the request is in flight.
+    if (verified) {
+      const logo = document.createElement('img');
+      logo.className = 'market-stock-logo-image';
+      logo.alt = '';
+      logo.decoding = 'async';
+      // Detached lazy images may never load. Only active ranking rows create one.
+      logo.loading = 'eager';
+      logo.referrerPolicy = 'no-referrer';
+      logo.addEventListener('load', () => {
+        if (logo.naturalWidth > 0) mark.replaceChildren(logo);
+      });
+      // A 404, rate limit, or network failure leaves the local/ticker mark.
+      logo.addEventListener('error', () => {});
+      logo.src = 'https://img.anylogo.dev/ticker/'
+        + encodeURIComponent(ticker) + '?size=64&variant=icon';
     }
     return mark;
   }
@@ -107,7 +113,7 @@
     const backendUrl = window.location.hostname.endsWith('github.io')
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
     const market = 'us';
-    let tab = 'popular';
+    let tab = 'value';
     let requestId = 0;
     let changeSorted = false;
     let draggedRow = null;
@@ -179,12 +185,27 @@
     const showUsRanking = async () => {
       const id = ++requestId;
       if (!list) return;
-      if (tab !== 'popular' && tab !== 'value') return;
-      if (title) title.textContent = tab === 'value' ? '거래대금 TOP 20' : '인기 TOP 20';
+      const titles = {
+        realtime: '실시간 · AI 분석 순서',
+        value: '거래대금 TOP 20',
+        gain: '상승률 TOP 20',
+        loss: '하락률 TOP 20'
+      };
+      if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
+      if (title) title.textContent = titles[tab];
+      if (changeSortButton) changeSortButton.hidden = tab !== 'value';
       list.replaceChildren();
+      // These three new tabs are menu placeholders, not inferred market rankings.
+      // Realtime will list completed AI analysis in priority order once its data source exists.
+      if (tab !== 'value') {
+        list.textContent = tab === 'realtime'
+          ? 'AI 분석 결과 연결 전이야.'
+          : '시장 전체 순위 데이터 연결 전이야.';
+        return;
+      }
       list.textContent = '순위를 불러오는 중이야.';
       try {
-        const path = tab === 'value' ? '/market/trading-value' : '/market/popular';
+        const path = '/market/trading-value';
         const response = await fetch(backendUrl + path + '?market=' + market);
         if (!response.ok) throw new Error('market ranking unavailable');
         const result = await response.json();
@@ -324,7 +345,7 @@
     const refreshAnalyzedIssue = async (event) => {
       const detail = event.detail || {};
       const name = String(detail.name || '').trim();
-      if (!name || (tab !== 'popular' && tab !== 'value')) return;
+      if (!name || tab !== 'value') return;
       if (detail.market && detail.market !== market) return;
       const button = [...list.querySelectorAll(':scope > button[data-original-index]')]
         .find((row) => row.dataset.stockName === name &&
@@ -353,11 +374,12 @@
     });
 
     changeSortButton?.addEventListener('click', () => {
+      if (tab !== 'value') return;
       changeSorted = !changeSorted;
       applyChangeSort();
     });
 
-    bindStaticSelection('[data-info-tab-action]');
+    bindStaticSelection('[data-info-tab-action]', 1);
     sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
       if (button.disabled) return;
       button.addEventListener('click', () => {
@@ -368,7 +390,7 @@
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
-    // Load US popularity ranking on first open, without demo rows.
+    // Keep the working trading-value list as default while new data sources are pending.
     void showUsRanking();
   }
 

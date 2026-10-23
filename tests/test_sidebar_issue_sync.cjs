@@ -66,7 +66,7 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 function setup({ deferred = false, initialOrder = [] } = {}) {
   const storage = new Map([[
-    'gaemiGTP_market_sidebar_order_us_popular_v1', JSON.stringify(initialOrder)
+    'gaemiGTP_market_sidebar_order_us_value_v1', JSON.stringify(initialOrder)
   ]]);
   const localStorage = {
     getItem(key) { return storage.get(key) || null; },
@@ -76,8 +76,10 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
   const title = new Element();
   const metric = new Element();
   const subtitle = new Element();
-  const popularTab = new Element('button'); popularTab.dataset.infoTabAction = 'popular';
+  const realtimeTab = new Element('button'); realtimeTab.dataset.infoTabAction = 'realtime';
   const valueTab = new Element('button'); valueTab.dataset.infoTabAction = 'value';
+  const gainTab = new Element('button'); gainTab.dataset.infoTabAction = 'gain';
+  const lossTab = new Element('button'); lossTab.dataset.infoTabAction = 'loss';
   const sidebar = new Element();
   sidebar.querySelector = (selector) => ({
     '#marketRankingList': list,
@@ -86,12 +88,17 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
     '.market-sidebar-subtitle': subtitle
   })[selector] || null;
   sidebar.querySelectorAll = (selector) =>
-    selector === '[data-info-tab-action]' ? [popularTab, valueTab] : [];
+    selector === '[data-info-tab-action]' ? [realtimeTab, valueTab, gainTab, lossTab] : [];
   const documentListeners = {};
+  const logoImages = [];
   const document = {
     body: { classList: { contains() { return false; }, remove() {}, toggle() {} } },
     getElementById(id) { return id === 'leftMarketSidebar' ? sidebar : null; },
-    createElement(tagName) { return new Element(tagName); },
+    createElement(tagName) {
+      const element = new Element(tagName);
+      if (tagName === 'img') logoImages.push(element);
+      return element;
+    },
     createElementNS(_namespace, tagName) { return new Element(tagName); },
     addEventListener(name, fn) { documentListeners[name] = fn; }
   };
@@ -102,19 +109,15 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
     addEventListener(name, fn) { (listeners[name] ||= []).push(fn); }
   };
   const calls = [];
+  let valueRows = [
+    { name: '일라이 릴리', symbol: 'LLY', mark_ticker: 'LLY', identity_status: 'verified', issue_headline: '' },
+    { name: '테슬라', symbol: 'TSLA.O', mark_ticker: 'TSLA', identity_status: 'verified', issue_headline: '기존 이슈' }
+  ];
   let resolveDeferred = null;
   const fetch = async (url, opts) => {
     calls.push({ url, opts });
-    if (url.endsWith('/market/popular?market=us')) {
-      return { ok: true, json: async () => ({ ok: true, items: [
-        { name: '일라이 릴리', symbol: 'LLY', issue_headline: '' },
-        { name: '테슬라', symbol: 'TSLA.O', issue_headline: '기존 이슈' }
-      ] }) };
-    }
     if (url.endsWith('/market/trading-value?market=us')) {
-      return { ok: true, json: async () => ({ ok: true, items: [
-        { name: '엔비디아', symbol: 'NVDA', issue_headline: '' }
-      ] }) };
+      return { ok: true, json: async () => ({ ok: true, items: valueRows }) };
     }
     if (url.endsWith('/market/issue-headlines')) {
       const request = JSON.parse(opts.body);
@@ -132,7 +135,8 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
   vm.runInNewContext(sidebarSource, { window, document, fetch, console, localStorage });
   documentListeners.DOMContentLoaded();
   return {
-    list, popularTab, valueTab, calls, storage,
+    list, realtimeTab, valueTab, gainTab, lossTab, calls, storage, logoImages,
+    replaceValueRows(rows) { valueRows = rows; valueTab.click(); },
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
   };
@@ -141,7 +145,7 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
   const app = setup();
   await flush();
-  assert.ok(app.calls[0].url.endsWith('/market/popular?market=us'));
+  assert.ok(app.calls[0].url.endsWith('/market/trading-value?market=us'));
   const before = app.list.querySelectorAll(':scope > button[data-original-index]');
   assert.equal(before.length, 2);
   assert.equal(before[0].querySelector('[data-stock-issue]').textContent, '');
@@ -172,11 +176,12 @@ test('stale lookup must not write to a rebuilt sidebar', async () => {
   await flush();
   app.event({ name: '일라이 릴리', market: 'us', symbol: 'LLY' });
   await flush();
-  app.valueTab.click();
+  app.realtimeTab.click();
   await flush();
   app.resolvePost();
   await flush();
-  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockName, '엔비디아');
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
+  assert.match(app.list.textContent, /AI 분석 결과 연결 전/);
 });
 
 test('central analysis announces only completed and populated briefs', () => {
@@ -204,7 +209,7 @@ test('market cards show stock logo slot and allow keyboard reorder without chang
   assert.equal(reordered[0].dataset.stockSymbol, 'TSLA.O');
   assert.equal(reordered[0].querySelector('[data-market-rank]').textContent, '02');
   assert.equal(reordered[1].querySelector('[data-market-rank]').textContent, '01');
-  assert.deepEqual(JSON.parse(app.storage.get('gaemiGTP_market_sidebar_order_us_popular_v1')),
+  assert.deepEqual(JSON.parse(app.storage.get('gaemiGTP_market_sidebar_order_us_value_v1')),
     ['TSLA.O', 'LLY']);
 });
 
@@ -212,10 +217,10 @@ test('saved sidebar order survives ranking tab changes and returns to the same c
   const app = setup({ initialOrder: ['TSLA.O', 'LLY'] });
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'TSLA.O');
-  app.valueTab.click();
+  app.realtimeTab.click();
   await flush();
-  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'NVDA');
-  app.popularTab.click();
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
+  app.valueTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'TSLA.O');
 });
@@ -227,10 +232,84 @@ test('local company logos render as SVG even for .O symbols', async () => {
   const teslaMark = popular[1].children[1];
   assert.equal(teslaMark.children[0].tagName, 'svg', 'TSLA.O must resolve to bundled TSLA logo');
   assert.equal(teslaMark.children[0].children[0].tagName, 'path');
-  app.valueTab.click();
+  app.replaceValueRows([{ name: '엔비디아', symbol: 'NVDA.O', mark_ticker: 'NVDA', identity_status: 'verified' }]);
   await flush();
   const nvidiaMark = app.list.querySelectorAll(':scope > button[data-original-index]')[0].children[1];
   assert.equal(nvidiaMark.children[0].tagName, 'svg', 'NVDA must have an embedded logo');
+});
+
+test('ranked ticker identity automatically changes the mark and never borrows another logo', async () => {
+  const app = setup();
+  await flush();
+  app.replaceValueRows([{ name: '신규 상장사', symbol: 'NEWT.O', mark_ticker: '', identity_status: 'pending' }]);
+  await flush();
+  const unknown = app.list.querySelectorAll(':scope > button[data-original-index]')[0].children[1];
+  assert.equal(unknown.children[0].textContent, 'NEWT');
+  assert.equal(unknown.children[0].tagName, 'span');
+
+  app.replaceValueRows([{ name: '엔비디아', symbol: 'NVDA.O', mark_ticker: 'NVDA', identity_status: 'verified' }]);
+  await flush();
+  const verified = app.list.querySelectorAll(':scope > button[data-original-index]')[0].children[1];
+  assert.equal(verified.children[0].tagName, 'svg');
+
+  app.replaceValueRows([{ name: '다른 회사', symbol: 'AAPL.O', mark_ticker: 'NVDA', identity_status: 'verified' }]);
+  await flush();
+  const mismatched = app.list.querySelectorAll(':scope > button[data-original-index]')[0].children[1];
+  assert.equal(mismatched.children[0].textContent, 'AAPL');
+  assert.equal(mismatched.children[0].tagName, 'span');
+});
+
+test('AnyLogo loads automatically by the exact Neon-verified ticker and replaces existing logo', async () => {
+  const app = setup();
+  await flush();
+  const rows = app.list.querySelectorAll(':scope > button[data-original-index]');
+  assert.equal(app.logoImages.length, 2, 'one logo lookup per verified source ticker');
+  const tesla = app.logoImages[1];
+  assert.equal(tesla.src, 'https://img.anylogo.dev/ticker/TSLA?size=64&variant=icon');
+  assert.equal(tesla.referrerPolicy, 'no-referrer');
+  const before = rows[1].children[1];
+  assert.equal(before.children[0].tagName, 'svg', 'local logo stays visible while loading');
+  tesla.naturalWidth = 64;
+  tesla.listeners.load[0]();
+  assert.equal(before.children[0], tesla, 'verified logo replaces the fallback on load');
+
+  const lily = app.logoImages[0];
+  lily.listeners.error[0]();
+  assert.equal(rows[0].children[1].children[0].tagName, 'span',
+    'failed logo request keeps its ticker mark');
+});
+
+test('AnyLogo supports new verified tickers without logo lists, but skips pending and mismatched identities', async () => {
+  const app = setup();
+  await flush();
+  const before = app.logoImages.length;
+  app.replaceValueRows([
+    { name: '버크셔 Class B', symbol: 'BRK.B', mark_ticker: 'BRK.B', identity_status: 'verified' },
+    { name: '신규 종목', symbol: 'NEWT.O', mark_ticker: '', identity_status: 'pending' },
+    { name: '다른 기업', symbol: 'AAPL.O', mark_ticker: 'NVDA', identity_status: 'verified' },
+    { name: '검증 불가', symbol: '../INVALID', mark_ticker: '../INVALID', identity_status: 'verified' }
+  ]);
+  await flush();
+  assert.equal(app.logoImages.length, before + 1, 'only the exact verified ticker should load');
+  assert.equal(app.logoImages.at(-1).src,
+    'https://img.anylogo.dev/ticker/BRK.B?size=64&variant=icon');
+  const rows = app.list.querySelectorAll(':scope > button[data-original-index]');
+  assert.equal(rows.length, 4);
+  assert.equal(rows[1].children[1].children[0].textContent, 'NEWT');
+  assert.equal(rows[2].children[1].children[0].textContent, 'AAPL');
+  assert.equal(rows[3].children[1].children[0].tagName, 'span');
+});
+
+test('new side menus do not query a fake partial TOP20 ranking', async () => {
+  const app = setup();
+  await flush();
+  const existingCalls = app.calls.length;
+  app.gainTab.click();
+  app.lossTab.click();
+  app.realtimeTab.click();
+  await flush();
+  assert.equal(app.calls.length, existingCalls);
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
 });
 
 test('market list keeps readable original font sizes', () => {
