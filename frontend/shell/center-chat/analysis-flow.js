@@ -69,58 +69,6 @@
       kiwoomQuoteTimer = setInterval(refresh, 3000);
     }
 
-    // Single subdued daily candlestick. All OHLC and the percent share one
-    // historical trading date; never overlay a live Kiwoom percent on old OHLC.
-    function createSingleDailyCandle(snapshot) {
-      const bar = snapshot?.daily_candle;
-      if (!bar || typeof bar !== 'object') return null;
-      const { open, high, low, close, change_pct: pct } = bar;
-      if (![open, high, low, close, pct].every(Number.isFinite) ||
-          low <= 0 || low > Math.min(open, close) ||
-          high < Math.max(open, close)) return null;
-
-      const up = close > open, down = close < open;
-      const color = up ? '#AD777E' : down ? '#738FA8' : '#8A949D';
-      const chart = document.createElement('div');
-      chart.style.cssText = 'display:flex;justify-content:center;width:100%;margin:0;background:transparent;border:0;';
-      const ns = 'http://www.w3.org/2000/svg';
-      const svg = document.createElementNS(ns, 'svg');
-      svg.setAttribute('viewBox', '0 0 320 174');
-      svg.setAttribute('role', 'img');
-      svg.setAttribute('aria-label', '일봉 ' + String(bar.date || '') + ', 등락률 ' +
-        (pct > 0 ? '+' : '') + pct.toFixed(2) + '%');
-      svg.style.cssText = 'display:block;width:100%;max-width:320px;height:auto;background:transparent;overflow:visible;';
-      const element = (name, attributes) => {
-        const node = document.createElementNS(ns, name);
-        Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value)));
-        svg.appendChild(node);
-        return node;
-      };
-      const highY = 16, lowY = 157;
-      const y = high === low ? () => (highY + lowY) / 2 :
-        (value) => highY + (high - value) / (high - low) * (lowY - highY);
-      const openY = y(open), closeY = y(close);
-      element('line', {
-        x1: 125, x2: 125, y1: high === low ? 82 : highY,
-        y2: high === low ? 92 : lowY,
-        stroke: color, 'stroke-width': 2.2, 'stroke-linecap': 'round',
-        'stroke-opacity': 0.78
-      });
-      element('rect', {
-        x: 99, y: Math.min(openY, closeY) - (Math.abs(openY - closeY) < 4 ? 2 : 0),
-        width: 52, height: Math.max(4, Math.abs(openY - closeY)),
-        rx: 1.5, fill: color, 'fill-opacity': 0.55,
-        stroke: color, 'stroke-opacity': 0.76, 'stroke-width': 1
-      });
-      const label = element('text', {
-        x: 181, y: 93, fill: color, 'fill-opacity': 0.91,
-        'font-size': 20, 'font-weight': 500, 'font-family': 'inherit'
-      });
-      label.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
-      chart.appendChild(svg);
-      return chart;
-    }
-
     function startTypewriterFlow(stockName, sections, result, requestId) {
       if (requestId !== ctx.getActiveAnalysisRequestId()) return;
       const chatArea = document.getElementById('chatArea');
@@ -130,8 +78,6 @@
       mainContainer.id = wrapperId;
       mainContainer.className = "space-y-7 py-2";
       chatArea.appendChild(mainContainer);
-      const singleCandle = createSingleDailyCandle(result?.price_snapshot);
-      if (singleCandle) mainContainer.appendChild(singleCandle);
 
       // 첫 답변의 본문 크기·색상·반응형 규칙을 안내/연출 멘트의 공통 기준으로 쓴다.
       const responseMessageClass = 'gtp-chat-copy';

@@ -3470,7 +3470,6 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
             "ticker_symbol": ticker_symbol if not is_krw else None,
             "historical_price_source": price_result.get("historical_price_source"),
             "previous_trading_day": price_result.get("previous_trading_day"),
-            "daily_candle": price_result.get("daily_candle"),
             "week_52_high": previous_high,
         }
         if current_quote > 0 and previous_high > 0 and math.isfinite(current_quote) and math.isfinite(previous_high):
