@@ -32,6 +32,11 @@ def _last_completed_session(now=None):
 
 
 def main():
+    # Temporary one-time WebSocket FE probe through the existing locked
+    # Kiwoom verify gate. Restored immediately after the diagnostic.
+    from backend.kiwoom_fe_realtime_probe import main as _realtime_probe_main
+    return _realtime_probe_main()
+
     if not credentials_configured():
         print("KIWOOM_VERIFY_CREDENTIALS_MISSING", flush=True)
         return 2
