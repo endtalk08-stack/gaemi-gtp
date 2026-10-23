@@ -32,6 +32,10 @@ def _last_completed_session(now=None):
 
 
 def main():
+    # One-time isolated trading-value acceptance check; restore afterward.
+    from backend.kiwoom_rank_probe import main as rank_probe_main
+    return rank_probe_main()
+
     # Market-hours-only FE diagnostic, limited to one NVDA subscription.
     # Outside US extended-hours windows preserve the proven REST verification.
     now_et = dt.datetime.now(NY)
