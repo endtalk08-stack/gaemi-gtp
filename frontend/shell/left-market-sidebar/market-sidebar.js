@@ -123,6 +123,7 @@
     let requestId = 0;
     let changeSorted = false;
     let draggedRow = null;
+    let lastRankingSignature = '';
     const orderKey = () => 'gaemiGTP_market_sidebar_order_us_' + tab + '_v1';
     const readOrder = () => {
       try {
@@ -200,7 +201,9 @@
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
-      list.replaceChildren();
+      if (tab !== 'value' || !list.querySelector('button[data-original-index]')) {
+        list.replaceChildren();
+      }
       // These three new tabs are menu placeholders, not inferred market rankings.
       // Realtime will list completed AI analysis in priority order once its data source exists.
       if (tab !== 'value') {
@@ -209,18 +212,28 @@
           : '시장 전체 순위 데이터 연결 전이야.';
         return;
       }
-      list.textContent = '순위를 불러오는 중이야.';
+      if (!list.querySelector('button[data-original-index]')) {
+        list.textContent = '순위를 불러오는 중이야.';
+      }
       try {
         const path = '/market/trading-value';
-        const response = await fetch(backendUrl + path + '?market=' + market);
+        const response = await fetch(backendUrl + path + '?market=' + market, { cache: 'no-store' });
         if (!response.ok) throw new Error('market ranking unavailable');
         const result = await response.json();
         if (id !== requestId) return;
-        list.replaceChildren();
         if (result.ok !== true || !Array.isArray(result.items) || !result.items.length) {
-          list.textContent = '조회 가능한 순위 원천 데이터가 없어.';
+          if (!list.querySelector('button[data-original-index]')) {
+            list.textContent = '조회 가능한 순위 원천 데이터가 없어.';
+          }
           return;
         }
+        const signature = JSON.stringify(result.items.map((row) => [
+          row.symbol, row.rank, row.price, row.change_pct, row.industry, row.issue_headline
+        ]));
+        if (signature === lastRankingSignature &&
+            list.querySelector('button[data-original-index]')) return;
+        lastRankingSignature = signature;
+        list.replaceChildren();
         result.items.forEach((item, index) => {
           const button = document.createElement('button');
           button.dataset.stockName = String(item.name || '');
@@ -342,7 +355,9 @@
         });
         applyChangeSort();
       } catch (_) {
-        if (id === requestId) list.textContent = '순위 원천 데이터를 가져오지 못했어.';
+        if (id === requestId && !list.querySelector('button[data-original-index]')) {
+          list.textContent = '순위 원천 데이터를 가져오지 못했어.';
+        }
       }
     };
 
@@ -398,6 +413,14 @@
     sidebar.dataset.marketControlsBound = 'true';
     // Keep the working trading-value list as default while new data sources are pending.
     void showUsRanking();
+    // Price/sector changes are read from Render -> Neon; the browser never calls Kiwoom.
+    // Avoid background requests and do not redraw an unchanged or manually reordered list.
+    window.setInterval(() => {
+      if (tab === 'value' && document.visibilityState === 'visible' &&
+          document.body.classList.contains('left-market-open') && !draggedRow) {
+        void showUsRanking();
+      }
+    }, 15000);
   }
 
   document.addEventListener('DOMContentLoaded', bindMarketControls);
