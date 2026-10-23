@@ -262,7 +262,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               switchRow.dataset.newsIssueSwitch = 'true';
               const buttons = {};
               const activeMode = result.issue_display_channel === 'code' ? 'code' :
-                result.issue_display_channel === 'ai' ? 'ai' : 'auto';
+                ['ai', 'previous_ai_fallback'].includes(result.issue_display_channel) ? 'ai' : 'auto';
               const showChannel = (mode) => {
                 if (!isActive()) return;
                 displayIssueList.replaceChildren();
