@@ -4,6 +4,13 @@
 window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, signal, marketSelection = null) {
       try {
         const params = new URLSearchParams({ stock: stockName });
+        // One read-only switch shared by the sidebar and central news display.
+        // Both stored result channels remain available regardless of selection.
+        const selectedMode = (() => {
+          try { return localStorage.getItem('gaemiGTP_issue_mode_us_v1') || 'auto'; }
+          catch (_) { return 'auto'; }
+        })();
+        params.set('issue_mode', ['auto', 'ai', 'code', 'both'].includes(selectedMode) ? selectedMode : 'auto');
         if (marketSelection?.market && marketSelection?.menu && marketSelection?.symbol) {
           params.set('market', marketSelection.market);
           params.set('menu', marketSelection.menu);
