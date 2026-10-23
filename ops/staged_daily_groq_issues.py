@@ -286,7 +286,10 @@ def analyze_news(stock_name, articles, *, usage_callback=None, price_context=Non
     reason = parsed["price_reason"]
     reason["source_ids"] = [source_id for source_id in reason["source_ids"]
                             if source_id in valid_source_ids]
-    if not reason["source_ids"]:
+    change = price_context.get("change_pct") if isinstance(price_context, dict) else None
+    # News alone cannot establish whether today's quoted price is up or down.
+    if (not reason["source_ids"] or type(change) not in (int, float)
+            or not (-100 < change < 100) or change == 0):
         parsed["price_reason"] = None
     return parsed
 
