@@ -30,7 +30,7 @@ def parse_issues(response_text):
         if any(not isinstance(item[k], str) or not item[k].strip() for k in ("headline", "summary")):
             raise ValueError("Invalid text")
         tags = item["tags"]
-        if not isinstance(tags, list) or len(tags) > 3 or any(not isinstance(t, str) or not t.startswith("#") for t in tags):
+        if not isinstance(tags, list) or len(tags) > 3 or any(not isinstance(t, str) or not t.strip() for t in tags):
             raise ValueError("Invalid tags")
         if "source_ids" in item:
             # Citation IDs are model output, not trusted application metadata.
