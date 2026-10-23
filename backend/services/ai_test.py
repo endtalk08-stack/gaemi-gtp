@@ -873,10 +873,16 @@ def ai_test_chat():
                     "industry", "currency"
                 )
             }}
-            context["note"] = context.get("note", "") + (
-                " market_selection은 네이버 메뉴 조회 당시 선택한 종목 정보입니다."
-                " 현재 실시간 시세나 전체 시장 순위로 일반화하지 마세요."
-            )
+            if selected["market"] == "us" and selected["menu"] == "value":
+                context["note"] = context.get("note", "") + (
+                    " market_selection은 키움 미국 거래대금 TOP 20의 선택 종목 정보다."
+                    " 현재가와 등락률은 뒤에 갱신되는 키움 FE 가격값을 우선한다."
+                )
+            else:
+                context["note"] = context.get("note", "") + (
+                    " market_selection은 메뉴 조회 당시 선택한 종목 정보다."
+                    " 현재 실시간 시세나 전체 시장 순위로 일반화하지 마세요."
+                )
         if selected and re.search(r"인기|순위|랭킹|거래대금|상위|TOP\s*20", question, re.IGNORECASE):
             # Market-menu comparison uses the SAME cached result that built
             # the sidebar; no extra collection and no fabricated global ranks.
