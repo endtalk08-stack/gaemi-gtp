@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-kiwoom-us-fe.service","lines":35}
+{"operation":"deploy","path":"backend/kiwoom_us_live_prices.py","target":"backend/kiwoom_us_live_prices.py"}
