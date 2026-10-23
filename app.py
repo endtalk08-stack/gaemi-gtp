@@ -55,7 +55,13 @@ def ai_test_page():
 
 @app.get("/health")
 def health():
-    return jsonify({"ok": True, "service": "gaemiGTP"})
+    """Read-only process health: counts only; never reveal live prices or identities."""
+    quotes = read_memory_quotes() or []
+    fresh = sum(1 for quote in quotes if not quote["stale"])
+    return jsonify({"ok": True, "service": "gaemiGTP",
+                    "us_live_feed": {"fresh_symbols": fresh,
+                                     "cached_symbols": len(quotes),
+                                     "receiving": bool(fresh)}})
 
 @app.get("/calendar")
 def calendar():
