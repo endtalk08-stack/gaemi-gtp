@@ -15,7 +15,7 @@ _LOCK = threading.Lock()
 _LAST_SEND_MS = 0
 _QUOTES = {}
 _LAST_RECEIPT = 0.0
-_VALID_SYMBOL = re.compile(r"[A-Z0-9.\\-]{1,20}")
+_VALID_SYMBOL = re.compile(r"[A-Z0-9.-]{1,20}")
 
 
 def _verify_signature(raw, timestamp, signature):
