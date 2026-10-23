@@ -70,7 +70,7 @@ def to_issue_briefs(issues, display_time, stock_names, sources_by_issue=None):
             "reaction_at": "",
             "headline": issue["headline"],
             "summary": issue["summary"],
-            "tags": issue["tags"],
+            "tags": [str(tag).lstrip("#") for tag in issue["tags"]],
             "stock_names": stock_names[:4],
             "source_articles": sources,
         })
