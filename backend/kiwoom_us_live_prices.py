@@ -119,7 +119,7 @@ def _persist(dsn, latest):
                              || jsonb_build_object('live_price_at',%s,'live_price_source','kiwoom:FE')
                        WHERE snapshot_id=%s AND market='US' AND symbol=%s
                          AND (price IS DISTINCT FROM %s OR
-                              (%s IS NOT NULL AND change_rate IS DISTINCT FROM %s))""",
+                              (%s::numeric IS NOT NULL AND change_rate IS DISTINCT FROM %s::numeric))""",
                     (price, pct, now, sid, symbol, price, pct, pct),
                 )
                 saved += cur.rowcount
