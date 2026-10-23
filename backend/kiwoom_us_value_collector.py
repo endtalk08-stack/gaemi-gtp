@@ -59,6 +59,61 @@ def _fill_missing_us_industries(database_url, max_requests=12):
         time.sleep(0.24)  # Stay below Kiwoom's read-only market TR call rate.
     print("KIWOOM_US_INDUSTRY_UPDATED=" + str(updated) +
           " LOOKUPS=" + str(len(pending)), flush=True)
+    _fill_verified_fallback_sectors(database_url)
+    return updated
+
+
+def _fill_verified_fallback_sectors(database_url):
+    """Fallback ONLY for remaining blank US sector labels, keyed by source ticker.
+
+    Existing Naver industry endpoint yields exact suffixed ticker keys, so
+    Kiwoom ranks/prices, stock identities and nonempty industry are untouched.
+    """
+    import psycopg
+    from backend.providers.market_industry import get_stock_industries
+
+    suffix = {"ND": ".O", "NY": ".N", "NA": ".A"}
+    with psycopg.connect(database_url, connect_timeout=7) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT e.symbol, i.exchange
+                   FROM public.market_rank_entries AS e
+                   JOIN public.market_instruments AS i
+                     ON i.market=e.market AND i.symbol=e.symbol
+                   WHERE e.snapshot_id=(
+                     SELECT id FROM public.market_rank_snapshots
+                     WHERE source='kiwoom' AND market='US' AND rank_type='trading_value'
+                     ORDER BY captured_at DESC,id DESC LIMIT 1)
+                     AND e.market='US'
+                     AND (i.sector IS NULL OR i.sector='')
+                   ORDER BY e.rank LIMIT 20"""
+            )
+            pending = cur.fetchall()
+    code_map = {
+        symbol + suffix[exchange]: symbol
+        for symbol, exchange in pending if exchange in suffix
+    }
+    if not code_map:
+        print("KIWOOM_US_INDUSTRY_FALLBACK_PENDING=0", flush=True)
+        return 0
+    labels = get_stock_industries("us", list(code_map))
+    updated = 0
+    with psycopg.connect(database_url, connect_timeout=7) as conn:
+        with conn.cursor() as cur:
+            for source_code, symbol in code_map.items():
+                sector = labels.get(source_code)
+                if not isinstance(sector, str) or not sector.strip():
+                    continue
+                cur.execute(
+                    """UPDATE public.market_instruments
+                       SET sector=%s
+                       WHERE market='US' AND symbol=%s
+                         AND (sector IS NULL OR sector='')""",
+                    (sector.strip(), symbol),
+                )
+                updated += cur.rowcount
+        conn.commit()
+    print("KIWOOM_US_INDUSTRY_FALLBACK_UPDATED=" + str(updated), flush=True)
     return updated
 
 
