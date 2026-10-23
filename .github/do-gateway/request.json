@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_materials_baseline_20261023.py","request_id":"material_baseline_20261023","timeout":60}
+{"operation":"deploy","path":"ops/do-gateway/us_materials_store_20261023.py","target":"ops/staged_ai_issue_store.py"}
