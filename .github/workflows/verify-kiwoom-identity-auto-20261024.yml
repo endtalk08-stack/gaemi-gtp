@@ -1,0 +1,24 @@
+name: Verify Kiwoom identity sync safe
+on:
+  push:
+    branches: [fix/do-kiwoom-neon-identity-auto-20261024]
+    paths: [.github/workflows/verify-kiwoom-identity-auto-20261024.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test source confirmed top 20 and no cross ticker ownership
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/kiwoom_us_identity_sync.py backend/kiwoom_us_value_collector.py
+          python -m unittest discover -s tests -p test_kiwoom_identity_autoregister.py -v
+          python - <<'PY'
+          from pathlib import Path
+          f=Path('backend/kiwoom_us_value_collector.py').read_text()
+          assert f.count('upsert_kiwoom_identity(')==1
+          assert f.count('repair_saved_top20(database_url)')==2
+          print('NORMAL_KIWOOM_PRICE_SNAPSHOT_PATH_RETAINED')
+          PY
