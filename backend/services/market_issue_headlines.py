@@ -109,10 +109,17 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False):
                 if (worker_briefs.get(name, {}).get("price_reason") or {}).get("headline")
             ), "")
         else:
+            # Domestic behavior and existing list-only callers remain unchanged.
             headline = next((
-                _first_headline(worker_briefs.get(name, {}).get("issue_briefs"))
+                _first_headline(
+                    worker_briefs.get(name) if isinstance(worker_briefs.get(name), list)
+                    else (worker_briefs.get(name) or {}).get("issue_briefs")
+                )
                 for name in names
-                if _first_headline(worker_briefs.get(name, {}).get("issue_briefs"))
+                if _first_headline(
+                    worker_briefs.get(name) if isinstance(worker_briefs.get(name), list)
+                    else (worker_briefs.get(name) or {}).get("issue_briefs")
+                )
             ), "")
         results.append({
             **row, "status": "ready" if headline else "unavailable",
