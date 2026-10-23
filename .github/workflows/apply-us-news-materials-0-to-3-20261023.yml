@@ -64,6 +64,19 @@ jobs:
           old_blobs=("bc0bb9df715bff39b9b230f013cea7b49559083b" "c4944e02863d1b7956db63af32e1ee91b8c0f190" "ae998d711590d42c66c7fe7ba1a76713e04eca58" "fc0051456844ccdff6ce3478a63631959a082658")
           new_blobs=("b556a4eb611e8fa0b8239439a7f87a834c9f370c" "bd1317c7d4f7b8b961e40177d8a027522be39536" "aaae83975f1659499dce72be50aae1fcbd31186c" "654a164385cf4b43c0f06d819f5e34626a8f668a")
           test "$(systemctl is-active gaemigtp-news.service)" = active
+          echo PREFLIGHT_AI_MATERIALS_BEGIN
+          for i in 0 1 2 3; do
+            dst="$app/ops/${names[i]}"
+            src="$stage/${names[i]}"
+            echo "FILE ${names[i]}"
+            if test -f "$dst" && test ! -L "$dst"; then echo FILE_EXISTS_OK; else echo FILE_MISSING_OR_SYMLINK; fi
+            if test -w "$dst"; then echo FILE_WRITABLE_YES; else echo FILE_WRITABLE_NO; fi
+            if test "$(stat -c %u "$dst")" = "$(id -u)"; then echo FILE_OWNER_MATCH_YES; else echo FILE_OWNER_MATCH_NO; fi
+            if test -f "$src" && test ! -L "$src"; then echo STAGED_EXISTS_OK; else echo STAGED_MISSING; fi
+            if test "$(git hash-object -- "$dst")" = "${old_blobs[i]}"; then echo BASE_HASH_MATCH_YES; else echo BASE_HASH_MATCH_NO; fi
+            if test "$(git hash-object -- "$src")" = "${new_blobs[i]}"; then echo STAGE_HASH_MATCH_YES; else echo STAGE_HASH_MATCH_NO; fi
+          done
+          echo PREFLIGHT_AI_MATERIALS_END
           for i in 0 1 2 3; do
             dst="$app/ops/${names[i]}"
             src="$stage/${names[i]}"
