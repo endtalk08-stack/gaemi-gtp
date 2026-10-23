@@ -29,7 +29,7 @@ def _article_date(value):
 
 
 def clean_us_snapshot(payload, *, now=None):
-    """Return only source-dated verified-title v3 briefs and news for US screens.
+    """Return source-dated verified-title v3 briefs; use prior paid AI only if none exist.
 
     Both consumers use this function. Reject old source timestamps even when
     a snapshot was saved minutes ago. Unknown dates are not fabricated.
@@ -42,17 +42,27 @@ def clean_us_snapshot(payload, *, now=None):
     cutoff = now.astimezone(timezone.utc) - timedelta(hours=24)
     upper = now.astimezone(timezone.utc)
     result = deepcopy(payload)
-    # Render is presentation-only: use the worker's original verified-article
-    # briefs with title-only revision v3, never a pasted title/description or AI.
-    code_briefs = result.get("_code_issue_briefs")
-    if (
-        str(result.get("_title_only_revision") or "") != "3"
-        or str(result.get("_code_fact_extraction_version") or "") != "3"
-        or not isinstance(code_briefs, list)
-    ):
+    # Prefer the original body-verified v3 briefs. If the verified selector
+    # found no eligible articles, retain already-stored cited AI issues only
+    # as a temporary display fallback. This NEVER invokes or schedules AI.
+    v3 = (
+        str(result.get("_title_only_revision") or "") == "3"
+        and str(result.get("_code_fact_extraction_version") or "") == "3"
+    )
+    code_briefs = result.get("_code_issue_briefs") if v3 else []
+    if not isinstance(code_briefs, list):
         code_briefs = []
+    ai_fallback = result.get("_ai_issue_briefs") if v3 and not code_briefs else []
+    if not isinstance(ai_fallback, list):
+        ai_fallback = []
+    candidate_briefs = code_briefs or ai_fallback
+    result["_issue_display_channel"] = (
+        "verified_original_article" if code_briefs
+        else "previous_ai_fallback" if ai_fallback
+        else "unavailable"
+    )
     fresh = []
-    for brief in code_briefs:
+    for brief in candidate_briefs:
         if not isinstance(brief, dict):
             continue
         valid_sources = []
