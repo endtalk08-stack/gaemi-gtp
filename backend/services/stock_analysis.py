@@ -6,8 +6,8 @@ from ..analysis.price import build_price_indicators, build_price_result
 from ..providers.market_price import (
     fetch_daily_price_history,
     fetch_kr_stock_quote,
-    fetch_us_stock_quote,
 )
+from .us_price_push import read_fresh_us_quote
 
 
 _SPACER = "\u00a0\u00a0\u00a0"
@@ -125,7 +125,7 @@ def _previous_trading_day(rows, *, is_krw, as_of_date=None):
     return previous
 
 
-def _build_stock_price_result(*, is_krw, ticker_symbol, current, previous=None, high=None, low=None, change_pct=None):
+def _build_stock_price_result(*, is_krw, ticker_symbol, current, previous=None, high=None, low=None, change_pct=None, quote_source=None, quote_received_at_ms=None):
     price_result = build_price_result(
         is_krw=is_krw,
         current=current,
@@ -143,6 +143,9 @@ def _build_stock_price_result(*, is_krw, ticker_symbol, current, previous=None, 
     )
     return {
         **price_result,
+        "quote_source": quote_source,
+        "quote_received_at_ms": quote_received_at_ms,
+        "historical_price_source": "yahoo-daily",
         "indicators": indicators,
         "previous_trading_day": _previous_trading_day(daily_rows, is_krw=is_krw),
         "price_tags": list(indicators.get("price_tags") or []),
@@ -163,12 +166,16 @@ def fetch_stock_price_result(*, is_krw, ticker_symbol, clean_code=None):
             change_pct=change_pct,
         )
 
-    current, previous, high, low = fetch_us_stock_quote(ticker_symbol)
+    # Kiwoom's validated, signed US FE tick already reaches Render for the
+    # sidebar. Use exactly that same quote for the central analysis and AI.
+    # The Yahoo 2-year daily series above is historical indicator input only.
+    # If the tick is missing/stale, never mislabel yesterday's close as live.
+    quote = read_fresh_us_quote(ticker_symbol)
     return _build_stock_price_result(
         is_krw=False,
         ticker_symbol=ticker_symbol,
-        current=current,
-        previous=previous,
-        high=high,
-        low=low,
+        current=quote["price"] if quote else None,
+        change_pct=quote.get("change_pct") if quote else None,
+        quote_source="kiwoom-direct" if quote else "kiwoom-unavailable",
+        quote_received_at_ms=quote.get("received_at_ms") if quote else None,
     )
