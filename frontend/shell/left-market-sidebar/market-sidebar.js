@@ -269,7 +269,7 @@
             sort: changeSorted ? 'change_pct' : 'source',
             industry: item.industry, price: item.price, change_pct: item.change_pct,
             trading_value: item.trading_value, trading_value_text: item.trading_value_text,
-            currency: 'USD', source: 'naver'
+            currency: 'USD', source: result.source === 'kiwoom' ? 'kiwoom' : 'unknown'
           }));
 
           const content = document.createElement('div');
