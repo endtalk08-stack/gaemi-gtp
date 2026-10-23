@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-kiwoom-us-fe.service"}
+{"operation":"logs","unit":"gaemigtp-kiwoom-us-fe.service","lines":35}
