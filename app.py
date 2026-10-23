@@ -127,17 +127,22 @@ def market_trading_value():
     market = str(request.args.get("market", "kr") or "").strip().lower()
     if market not in ("kr", "us"):
         return jsonify({"ok": False, "error": "invalid_market", "items": []}), 400
+    diagnostics = []
     if market == "us":
         # Only USA trading-value Top 20 moves to the DO -> Neon Kiwoom feed.
         # The Render service never issues Kiwoom API requests.
-        items = read_us_trading_value_board(limit=20)
+        items = read_us_trading_value_board(limit=20, diagnostics=diagnostics)
         if items is not None:
             from backend.services.market_rankings import _remember_market_result
             _remember_market_result("us", "value", items)
     else:
         items = build_kr_trading_value_result(limit=20)
     if items is None:
-        return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
+        response = jsonify({"ok": False, "items": [], "error": "source_unavailable",
+                            "provider_status": diagnostics[-1] if diagnostics else "unavailable"})
+        if market == "us":
+            response.headers["X-Gaemi-US-Value-Provider"] = "kiwoom-neon-v1"
+        return response, 502
     issue_rows = [{"name": item.get("name"), "symbol": item.get("symbol")} for item in items]
     try:
         # The ranking list is already source-normalized, but one bad identity
@@ -150,7 +155,10 @@ def market_trading_value():
                 item["issue_headline"] = issue["headline"]
     except Exception as exc:
         print(f"[market ranking issues] lookup failed: {type(exc).__name__}", flush=True)
-    return jsonify({"ok": True, "market": market, "source": "kiwoom" if market == "us" else "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
+    response = jsonify({"ok": True, "market": market, "source": "kiwoom" if market == "us" else "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
+    if market == "us":
+        response.headers["X-Gaemi-US-Value-Provider"] = "kiwoom-neon-v1"
+    return response
 
 
 @app.get("/market/popular")
