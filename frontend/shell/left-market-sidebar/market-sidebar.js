@@ -42,10 +42,14 @@
       mark.replaceChildren(svg);
     }
 
-    // Query AnyLogo using only the exact, DB-verified US ticker. No manually
-    // maintained stock/domain mapping and no other-company name guessing.
+    // Logo lookup is separate from verified *news* matching. The API provides
+    // a source-symbol logo candidate even for a newly listed, still-pending
+    // company, but never for a conflicting known ticker/name combination.
+    // The returned candidate must match the row's own normalized symbol.
+    const logoTicker = canonicalMarkTicker(item.logo_lookup_ticker);
+    const canLookupLogo = verified || (Boolean(ticker) && logoTicker === ticker);
     // Keep the bundled vector or ticker badge while the request is in flight.
-    if (verified) {
+    if (canLookupLogo) {
       const logo = document.createElement('img');
       logo.className = 'market-stock-logo-image';
       logo.alt = '';
