@@ -44,7 +44,7 @@ def clean_us_snapshot(payload, *, now=None):
     result = deepcopy(payload)
     # Prefer the original body-verified v3 briefs. If the verified selector
     # found no eligible articles, retain already-stored cited AI issues only
-    # as a temporary display fallback. This NEVER invokes or schedules AI.
+    # as a temporary display fallback, including older snapshots awaiting v3.\n    # This NEVER invokes or schedules AI.
     v3 = (
         str(result.get("_title_only_revision") or "") == "3"
         and str(result.get("_code_fact_extraction_version") or "") == "3"
@@ -52,7 +52,7 @@ def clean_us_snapshot(payload, *, now=None):
     code_briefs = result.get("_code_issue_briefs") if v3 else []
     if not isinstance(code_briefs, list):
         code_briefs = []
-    ai_fallback = result.get("_ai_issue_briefs") if v3 and not code_briefs else []
+    ai_fallback = result.get("_ai_issue_briefs") if not code_briefs else []
     if not isinstance(ai_fallback, list):
         ai_fallback = []
     candidate_briefs = code_briefs or ai_fallback

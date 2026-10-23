@@ -1,0 +1,22 @@
+name: Verify verified-title migration fallback
+on:
+  push:
+    branches: [fix/ai-fallback-during-title-v3-rollout-20261024]
+    paths:
+      - backend/services/news_freshness.py
+      - tests/test_market_issue_headlines.py
+      - .github/workflows/test-verified-title-fallback-20261024.yml
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify no blank items during v3 rollout and no old snippets
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/services/news_freshness.py
+          python -m unittest discover -s tests -p 'test_us_news_freshness.py' -v
+          python -m unittest discover -s tests -p 'test_market_issue_headlines.py' -v
+          python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v
