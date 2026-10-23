@@ -2,34 +2,28 @@
 (function () {
   'use strict';
 
-  // Logos are bundled locally when possible; fallback favicons never hide the ticker mark.
-  const STOCK_DOMAINS = {
-    NVDA: 'nvidia.com', SPCX: 'spacex.com', TSLA: 'tesla.com',
-    META: 'meta.com', AAPL: 'apple.com', MSFT: 'microsoft.com',
-    GOOGL: 'google.com', GOOG: 'google.com', AMZN: 'amazon.com',
-    AMD: 'amd.com', INTC: 'intel.com', TSM: 'tsmc.com',
-    AVGO: 'broadcom.com', PLTR: 'palantir.com', MU: 'micron.com',
-    ORCL: 'oracle.com', QCOM: 'qualcomm.com', ASML: 'asml.com',
-    NFLX: 'netflix.com', CRM: 'salesforce.com', IBM: 'ibm.com',
-    LLY: 'lilly.com', SKHY: 'skhynix.com', SNDK: 'sandisk.com',
-    SMCI: 'supermicro.com', QQQ: 'invesco.com', SPY: 'ssga.com',
-    SOXX: 'ishares.com', GLD: 'ssga.com', SLV: 'ishares.com'
-  };
-
-  // Bundled SVG images: theSVG (CC0), https://github.com/glincker/thesvg
-  const STOCK_LOCAL_LOGOS = { SKHY: 'sk-hynix.svg', MU: 'micron.svg', SNDK: 'sandisk.svg' };
+  // The ranking API already registers source ticker/name pairs into Neon.
+  // Key the mark only by the returned ticker, never by a handwritten name map.
+  function canonicalMarkTicker(symbol) {
+    const ticker = String(symbol || '').trim().toUpperCase()
+      .replace(/^US:/, '').replace(/\.(?:O|N|K)$/, '');
+    return /^[A-Z0-9]+(?:\.[A-Z])?$/.test(ticker) ? ticker : '';
+  }
 
   function stockMark(item) {
-    const ticker = String(item.symbol || '').trim().toUpperCase()
-      .replace(/^US:/, '').replace(/\.(?:O|N|K)$/, '');
+    const ticker = canonicalMarkTicker(item.symbol);
     const mark = document.createElement('span');
     mark.className = 'market-stock-logo';
+    mark.title = ticker ? ticker + ' 종목 마크' : '종목 마크';
     const fallback = document.createElement('span');
     fallback.className = 'market-stock-logo-fallback';
-    fallback.textContent = (ticker || String(item.name || '?')).slice(0, 2);
+    fallback.textContent = ticker ? ticker.slice(0, 4) : String(item.name || '?').slice(0, 2);
     mark.appendChild(fallback);
 
-    const icon = window.GaemiGTPStockMarks?.[ticker];
+    // Previously bundled vector artwork is reused automatically by ticker.
+    // Every other registered or newly observed ticker gets its own badge,
+    // instead of accidentally displaying another company's logo.
+    const icon = ticker && window.GaemiGTPStockMarks?.[ticker];
     if (icon && icon.path && icon.color) {
       const ns = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(ns, 'svg');
@@ -41,19 +35,6 @@
       path.setAttribute('fill', '#' + icon.color);
       svg.appendChild(path);
       mark.replaceChildren(svg);
-    } else if (STOCK_LOCAL_LOGOS[ticker] || STOCK_DOMAINS[ticker]) {
-      const img = document.createElement('img');
-      img.className = 'market-stock-logo-image';
-      img.alt = '';
-      img.loading = 'lazy';
-      img.decoding = 'async';
-      img.src = STOCK_LOCAL_LOGOS[ticker]
-        ? 'shell/left-market-sidebar/logos/' + STOCK_LOCAL_LOGOS[ticker]
-        : 'https://www.google.com/s2/favicons?domain='
-          + encodeURIComponent(STOCK_DOMAINS[ticker]) + '&sz=64';
-      img.addEventListener('load', () => { fallback.hidden = true; });
-      img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; });
-      mark.appendChild(img);
     }
     return mark;
   }
