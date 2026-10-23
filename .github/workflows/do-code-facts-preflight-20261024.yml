@@ -1,0 +1,62 @@
+name: Read-only live code-facts deployment preflight
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-code-facts-preflight-20261024.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Inspect exactly the live worker call paths and file hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          echo PRECHECK_ID
+          id -un
+          systemctl is-active gaemigtp-news.service
+          echo PRECHECK_FILES
+          for file in backend/news_worker.py backend/services/news_result.py backend/services/news_processed_store.py backend/services/market_issue_headlines.py backend/services/article_fact_keywords.py ops/staged_ai_sequential_batch.py ops/staged_auto_ai_daily.py; do
+            if test -f "$file"; then
+              sha256sum "$file"
+              if test -w "$file"; then echo "WRITABLE $file"; fi
+            else
+              echo "MISSING $file"
+            fi
+          done
+          echo PRECHECK_DIRS
+          test -w backend/services && echo "BACKEND_SERVICES_WRITABLE"
+          test -w ops && echo "OPS_WRITABLE"
+          echo PRECHECK_WORKER
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast
+          for filename in ["backend/news_worker.py","backend/services/news_result.py","backend/services/news_processed_store.py","ops/staged_ai_sequential_batch.py"]:
+              f=Path(filename)
+              if not f.exists(): continue
+              t=ast.parse(f.read_text())
+              print("FILE",filename)
+              lines=f.read_text().splitlines()
+              for node in t.body:
+                  if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in {"process_stock","run_once","apply_worker_ai","apply_unchanged_worker_ai","save_snapshot","_prefer_same_day_ai","read_signature","build_stock_news_result"}:
+                      sample=" | ".join(line.strip()[:100] for line in lines[node.lineno-1:min(node.end_lineno,node.lineno+28)] if "apply_worker_ai" in line or "apply_unchanged_worker_ai" in line or "_prefer_same_day_ai(" in line or "read_signature(" in line or "issue_briefs" in line or "return" in line)
+                      print("FUNCTION",node.name,node.lineno,node.end_lineno,sample[:450])
+          PY
+          echo PRECHECK_END
+          REMOTE
