@@ -44,7 +44,14 @@ def _read_worker_briefs(market, names):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT stock_name, result_payload->'issue_briefs'
+                    SELECT stock_name,
+                           CASE WHEN market='미국'
+                                THEN COALESCE(result_payload->'_code_issue_briefs',
+                                              CASE WHEN result_payload ? '_ai_issue_briefs'
+                                                   THEN '[]'::jsonb
+                                                   ELSE result_payload->'issue_briefs' END)
+                                ELSE result_payload->'issue_briefs'
+                           END
                     FROM public.news_processed_snapshots
                     WHERE market=%s AND stock_name = ANY(%s)
                       AND result_limit=50 AND storyboard_limit=3
