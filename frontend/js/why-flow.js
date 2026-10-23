@@ -13,30 +13,43 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
   appendFollowupChoices,
   typeText,
   responseMessageClass,
-  stockName
+  stockName,
+  inline = false
 }) {
   
+            const existing = mainContainer.querySelector('[data-inline-ai-issues]');
+            if (existing) {
+              if (!inline) existing.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              return;
+            }
             if (mainContainer.querySelector('[data-why-flow]')) return;
-            const prompt = makeUserPrompt(whyState.label, 'whyFlow');
+            const prompt = inline
+              ? document.createElement('div')
+              : makeUserPrompt(whyState.label, 'whyFlow');
             prompt.classList.remove('animate-fade');
-            choices.insertAdjacentElement('afterend', prompt);
-            choices.remove();
-  
-            const loading = document.createElement('div');
-            loading.className = 'mt-5 space-y-2';
-            prompt.insertAdjacentElement('afterend', loading);
+            if (inline) {
+              choices.insertAdjacentElement('beforebegin', prompt);
+            } else {
+              choices.insertAdjacentElement('afterend', prompt);
+              choices.remove();
+            }
+
             const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const isActive = () => requestId === getActiveAnalysisRequestId() && mainContainer.isConnected;
-            const loadingLine = document.createElement('p');
-            loadingLine.className = `${responseMessageClass} font-semibold animate-pulse`;
-            loadingLine.textContent = '생각중';
-            loading.appendChild(loadingLine);
-
-            try {
-              await wait(5000);
-              if (!isActive()) return;
-            } finally {
-              loading.remove();
+            if (!inline) {
+              const loading = document.createElement('div');
+              loading.className = 'mt-5 space-y-2';
+              prompt.insertAdjacentElement('afterend', loading);
+              const loadingLine = document.createElement('p');
+              loadingLine.className = `${responseMessageClass} font-semibold animate-pulse`;
+              loadingLine.textContent = '생각중';
+              loading.appendChild(loadingLine);
+              try {
+                await wait(5000);
+                if (!isActive()) return;
+              } finally {
+                loading.remove();
+              }
             }
   
             const evidence = getWhyEvidence();
@@ -76,12 +89,29 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             const typeWhyText = (element, text) => typeText(element, text, { chunkSize: 1 });
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5';
+            if (inline) {
+              block.dataset.inlineAiIssues = 'true';
+              const reason = result.price_reason;
+              if (reason && reason.headline && reason.summary) {
+                const reasonTitle = document.createElement('p');
+                reasonTitle.className = `${responseMessageClass} font-semibold`;
+                reasonTitle.textContent = String(reason.headline);
+                const reasonText = document.createElement('p');
+                reasonText.className = `${responseMessageClass} whitespace-pre-line`;
+                reasonText.textContent = String(reason.summary);
+                block.append(reasonTitle, reasonText);
+              }
+            }
             const signalTitle = document.createElement('p');
             signalTitle.className = responseMessageClass;
-            const signalTitleText = evidence.signals.length || storyboard.length || disclosures.length ? '오늘 눈에 띄는 흐름 👀' : '눈에 띄는 흐름 없음 ☁️';
+            const signalTitleText = inline
+              ? '오늘 눈에 띄는 흐름 👀'
+              : evidence.signals.length || storyboard.length || disclosures.length
+                ? '오늘 눈에 띄는 흐름 👀' : '눈에 띄는 흐름 없음 ☁️';
             block.appendChild(signalTitle);
-            // 타이핑이 실제 화면에서 보이도록 결과 블록을 먼저 붙인다.
+            // Render below the AI movement reason and above the existing follow-up actions.
             prompt.insertAdjacentElement('afterend', block);
+            if (inline) prompt.remove();
             await typeWhyText(signalTitle, signalTitleText);
 
             if (storyboard.length) {
@@ -111,7 +141,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 const keywordParts = keywords.map((label) => {
                   const keyword = document.createElement('span');
                   keyword.className = 'text-[#94a3b8] dark:text-[#d4d4d8]';
-                  keyword.dataset.typingText = `#${label}`;
+                  keyword.dataset.typingText = label;
                   return keyword;
                 });
                 keywordParts.forEach((part, index) => {
@@ -212,6 +242,8 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               }
             }
   
+            // The initial answer already has its own action buttons and choices.
+            if (inline) return;
             const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(block, `${prompt.innerText}\n${block.innerText}`, 'why', stockName);
 
             const followups = document.createElement('section');
