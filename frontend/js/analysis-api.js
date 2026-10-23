@@ -4,13 +4,6 @@
 window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, signal, marketSelection = null) {
       try {
         const params = new URLSearchParams({ stock: stockName });
-        // One read-only switch shared by the sidebar and central news display.
-        // Both stored result channels remain available regardless of selection.
-        const selectedMode = (() => {
-          try { return localStorage.getItem('gaemiGTP_issue_mode_us_v1') || 'auto'; }
-          catch (_) { return 'auto'; }
-        })();
-        params.set('issue_mode', ['auto', 'ai', 'code', 'both'].includes(selectedMode) ? selectedMode : 'auto');
         if (marketSelection?.market && marketSelection?.menu && marketSelection?.symbol) {
           params.set('market', marketSelection.market);
           params.set('menu', marketSelection.menu);
@@ -27,12 +20,6 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
           paired_news_items: Array.isArray(data.paired_news_items) ? data.paired_news_items : [],
           storyboard_news_items: Array.isArray(data.storyboard_news_items) ? data.storyboard_news_items : [],
           issue_briefs: Array.isArray(data.issue_briefs) ? data.issue_briefs : [],
-          issue_channels: {
-            code: Array.isArray(data.issue_channels?.code) ? data.issue_channels.code : [],
-            ai: Array.isArray(data.issue_channels?.ai) ? data.issue_channels.ai : []
-          },
-          issue_mode: String(data.issue_mode || 'auto'),
-          issue_display_channel: String(data.issue_display_channel || 'unavailable'),
           price_reason: data.price_reason && typeof data.price_reason === 'object' ? data.price_reason : null,
           keyword_storyboard: Array.isArray(data.keyword_storyboard) ? data.keyword_storyboard : [],
           disclosures: Array.isArray(data.disclosures) ? data.disclosures : [],
