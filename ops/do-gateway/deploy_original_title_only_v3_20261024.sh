@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd /opt/gaemigtp-news/app
-export PYTHONPATH=/opt/gaemigtp-news/app
+export PYTHONPATH=/opt/gaemigtp-news/app:/opt/gaemigtp-news/app/ops
 venv=/opt/gaemigtp-news/venv/bin/python
 test -x "$venv"
 backup="$(mktemp -d ./ops/.verified-title-v3-backup.XXXXXX)"
