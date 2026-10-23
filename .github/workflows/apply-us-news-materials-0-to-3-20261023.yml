@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Check exactly four reviewed files and offline tests
+      - name: Check reviewed directional AI files and offline tests
         shell: bash
         run: |
           set -euo pipefail
@@ -33,7 +33,7 @@ jobs:
           python3 -m py_compile ops/do-gateway/us_materials_*.py
           python3 ops/do-gateway/test_us_materials_candidate_20261023.py
           echo MATERIALS_0_TO_3_OFFLINE_TESTS_OK
-      - name: Secure copy four AI files to user staging only
+      - name: Secure copy three writable AI files to user staging only
         shell: bash
         run: |
           set -euo pipefail
@@ -48,9 +48,8 @@ jobs:
           ssh "${opts[@]}" "$remote" 'install -d -m 700 "$HOME/.gaemi-us-materials-20261023"'
           scp "${opts[@]}" ops/do-gateway/us_materials_store_20261023.py "$remote":.gaemi-us-materials-20261023/staged_ai_issue_store.py
           scp "${opts[@]}" ops/do-gateway/us_materials_adapter_20261023.py "$remote":.gaemi-us-materials-20261023/staged_ai_issue_display_adapter.py
-          scp "${opts[@]}" ops/do-gateway/us_materials_groq_20261023.py "$remote":.gaemi-us-materials-20261023/staged_daily_groq_issues.py
           scp "${opts[@]}" ops/do-gateway/us_materials_batch_20261023.py "$remote":.gaemi-us-materials-20261023/staged_ai_sequential_batch.py
-      - name: Verify baseline and atomically apply only AI files with rollback
+      - name: Verify baseline and atomically apply three writable AI files with rollback
         shell: bash
         run: |
           set -euo pipefail
@@ -60,12 +59,12 @@ jobs:
           app=/opt/gaemigtp-news/app
           stage="$HOME/.gaemi-us-materials-20261023"
           backup="$(mktemp -d "$HOME/.gaemi-materials-before.XXXXXXXX")"
-          names=("staged_ai_issue_store.py" "staged_ai_issue_display_adapter.py" "staged_daily_groq_issues.py" "staged_ai_sequential_batch.py")
-          old_blobs=("bc0bb9df715bff39b9b230f013cea7b49559083b" "c4944e02863d1b7956db63af32e1ee91b8c0f190" "ae998d711590d42c66c7fe7ba1a76713e04eca58" "fc0051456844ccdff6ce3478a63631959a082658")
-          new_blobs=("b556a4eb611e8fa0b8239439a7f87a834c9f370c" "bd1317c7d4f7b8b961e40177d8a027522be39536" "aaae83975f1659499dce72be50aae1fcbd31186c" "654a164385cf4b43c0f06d819f5e34626a8f668a")
+          names=("staged_ai_issue_store.py" "staged_ai_issue_display_adapter.py" "staged_ai_sequential_batch.py")
+          old_blobs=("bc0bb9df715bff39b9b230f013cea7b49559083b" "c4944e02863d1b7956db63af32e1ee91b8c0f190" "fc0051456844ccdff6ce3478a63631959a082658")
+          new_blobs=("b556a4eb611e8fa0b8239439a7f87a834c9f370c" "bd1317c7d4f7b8b961e40177d8a027522be39536" "654a164385cf4b43c0f06d819f5e34626a8f668a")
           test "$(systemctl is-active gaemigtp-news.service)" = active
           echo PREFLIGHT_AI_MATERIALS_BEGIN
-          for i in 0 1 2 3; do
+          for i in 0 1 2; do
             dst="$app/ops/${names[i]}"
             src="$stage/${names[i]}"
             echo "FILE ${names[i]}"
@@ -77,7 +76,7 @@ jobs:
             if test "$(git hash-object -- "$src")" = "${new_blobs[i]}"; then echo STAGE_HASH_MATCH_YES; else echo STAGE_HASH_MATCH_NO; fi
           done
           echo PREFLIGHT_AI_MATERIALS_END
-          for i in 0 1 2 3; do
+          for i in 0 1 2; do
             dst="$app/ops/${names[i]}"
             src="$stage/${names[i]}"
             test -f "$dst" && test ! -L "$dst" && test -w "$dst"
@@ -93,7 +92,7 @@ jobs:
           rollback() {
             rc=$?
             trap - ERR
-            for i in 0 1 2 3; do
+            for i in 0 1 2; do
               cp -p "$backup/${names[i]}" "$app/ops/${names[i]}" || true
             done
             sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
@@ -101,7 +100,7 @@ jobs:
             exit "$rc"
           }
           trap rollback ERR
-          for i in 0 1 2 3; do
+          for i in 0 1 2; do
             dst="$app/ops/${names[i]}"
             install -m "$(stat -c %a "$dst")" "$stage/${names[i]}" "$dst"
             test "$(git hash-object -- "$dst")" = "${new_blobs[i]}"
@@ -111,7 +110,7 @@ jobs:
           test "$(systemctl is-active gaemigtp-news.service)" = active
           sleep 3
           test "$(systemctl is-active gaemigtp-news.service)" = active
-          for i in 0 1 2 3; do
+          for i in 0 1 2; do
             test "$(git hash-object -- "$app/ops/${names[i]}")" = "${new_blobs[i]}"
           done
           trap - ERR
