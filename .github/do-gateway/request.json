@@ -1,4 +1,1 @@
-{
-  "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-value.service"
-}
+{"operation":"run","path":"ops/do-gateway/probe_missing_us_industries_readonly_20261023.py","request_id":"usindustryprobe20261023a","timeout":60}
