@@ -63,10 +63,10 @@ class IdentityTests(unittest.TestCase):
 
     def test_sidebar_can_read_same_company_briefs_once(self):
         with patch.object(market_issue_headlines, "_read_worker_briefs",
-                          return_value={"알파벳 Class A": [{"headline":"뉴스"}]}) as read:
+                          return_value={"알파벳 Class A": {"price_reason": {"headline": "알파벳 하락 이유"}}}) as read:
             value=market_issue_headlines.get_market_issue_headlines(
                 "us", [{"name":"알파벳 Class C", "symbol":"GOOG.O"}])
-        self.assertEqual(value["items"][0]["headline"],"뉴스")
+        self.assertEqual(value["items"][0]["headline"],"알파벳 하락 이유")
         self.assertEqual(value["items"][0]["name"],"알파벳 Class C")
         self.assertIn("알파벳 Class A", read.call_args.args[1])
 
