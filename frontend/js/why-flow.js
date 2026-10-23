@@ -320,11 +320,30 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 button.className = 'text-xs font-semibold border rounded-lg px-3 py-1.5 text-[#94a3b8] dark:text-[#d4d4d8] border-[#64748b]';
                 button.textContent = label + ' ' + channelRows[mode].length;
                 button.setAttribute('aria-pressed', String(activeMode === mode));
-                button.addEventListener('click', () => showChannel(mode));
+                button.addEventListener('click', () => {
+                  try { localStorage.setItem('gaemiGTP_issue_mode_us_v1', mode); } catch (_) { /* optional */ }
+                  window.dispatchEvent(new CustomEvent('gaemi:issue-mode-changed', { detail: { mode } }));
+                });
                 buttons[mode] = button;
                 switchRow.appendChild(button);
               }
               displayIssueList.insertAdjacentElement('beforebegin', switchRow);
+              const onIssueModeChanged = (event) => {
+                if (!block.isConnected) {
+                  window.removeEventListener('gaemi:issue-mode-changed', onIssueModeChanged);
+                  return;
+                }
+                const selected = event.detail?.mode;
+                const viewMode = selected === 'auto' || selected === 'both'
+                  ? (channelRows.code.length ? 'code' : 'ai')
+                  : selected;
+                if (viewMode === 'ai' || viewMode === 'code') showChannel(viewMode);
+              };
+              window.addEventListener('gaemi:issue-mode-changed', onIssueModeChanged);
+              // An explicitly empty channel must display a clear empty state.
+              if (!storyboard.length) {
+                showChannel(activeMode === 'code' ? 'code' : 'ai');
+              }
             }
 
             // The initial answer already has its own action buttons and choices.
