@@ -3143,7 +3143,7 @@ def _attach_news_price_reactions(news_result):
     return news_result
 
 
-def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_market_override=False):
+def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_market_override=False, issue_mode='auto'):
     raw_name = str(raw_name or 'SK하이닉스').strip()
     ticker_symbol = ticker_symbol_override or TICKERS.get(raw_name)
     clean_code = None
@@ -3273,6 +3273,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
                 market="미국",
                 limit=50,
                 symbol=ticker_symbol,
+                issue_mode=issue_mode,
             )
             news_result = _attach_news_price_reactions(news_result)
 
@@ -3483,6 +3484,9 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
             "panel_news_items": news_result.get("panel_news_items", news_result.get("paired_news_items", [])),
             "storyboard_news_items": news_result.get("storyboard_news_items", []),
             "issue_briefs": news_result.get("issue_briefs", []),
+            "issue_channels": news_result.get("issue_channels", {}),
+            "issue_mode": news_result.get("issue_mode", "auto"),
+            "issue_display_channel": news_result.get("_issue_display_channel", "unavailable"),
             "price_reason": news_result.get("price_reason"),
             "keyword_storyboard": news_result.get("keyword_storyboard", []),
             "disclosures": disclosures,
