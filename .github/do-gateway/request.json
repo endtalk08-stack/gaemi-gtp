@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/fill_two_missing_value_industries_20261023.py","request_id":"usindustriesbackfill20261023a","timeout":60}
+{"operation":"run","path":"ops/do-gateway/check_live_us_value_industries_readonly_20261023.py","request_id":"liveindustry20261023check1","timeout":50}
