@@ -9,6 +9,7 @@ from backend.services.issue_title_test import issue_title_test_bp
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
+from backend.services.kiwoom_us_value_board import read_us_trading_value_board
 from backend.services.us_market_close import read_brief
 from backend.providers.sec_filings import fetch_panel_missing_detail
 
@@ -126,8 +127,15 @@ def market_trading_value():
     market = str(request.args.get("market", "kr") or "").strip().lower()
     if market not in ("kr", "us"):
         return jsonify({"ok": False, "error": "invalid_market", "items": []}), 400
-    builder = build_us_trading_value_result if market == "us" else build_kr_trading_value_result
-    items = builder(limit=20)
+    if market == "us":
+        # Only USA trading-value Top 20 moves to the DO -> Neon Kiwoom feed.
+        # The Render service never issues Kiwoom API requests.
+        items = read_us_trading_value_board(limit=20)
+        if items is not None:
+            from backend.services.market_rankings import _remember_market_result
+            _remember_market_result("us", "value", items)
+    else:
+        items = build_kr_trading_value_result(limit=20)
     if items is None:
         return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
     issue_rows = [{"name": item.get("name"), "symbol": item.get("symbol")} for item in items]
@@ -142,7 +150,7 @@ def market_trading_value():
                 item["issue_headline"] = issue["headline"]
     except Exception as exc:
         print(f"[market ranking issues] lookup failed: {type(exc).__name__}", flush=True)
-    return jsonify({"ok": True, "market": market, "source": "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
+    return jsonify({"ok": True, "market": market, "source": "kiwoom" if market == "us" else "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
 
 
 @app.get("/market/popular")
