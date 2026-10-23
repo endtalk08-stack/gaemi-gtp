@@ -116,7 +116,7 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
     elif channels["code"]:
         selected, channel = channels["code"], "code"
     else:
-        selected, channel = channels["ai"], "ai" if channels["ai"] else "unavailable"
+        selected, channel = channels["ai"], "previous_ai_fallback" if channels["ai"] else "unavailable"
     result["issue_channels"] = channels
     result["issue_mode"] = mode
     result["_issue_display_channel"] = channel
