@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-news.service","lines":180}
+{"operation":"run","path":"ops/do-gateway/inspect-kr-worker-retention-readonly-20261023.py","request_id":"kr_news_retention_audit_20261023","timeout":75}
