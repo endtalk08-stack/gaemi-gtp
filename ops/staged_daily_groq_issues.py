@@ -12,9 +12,23 @@ PROMPT = """제공된 종목의 현재 주가와 뉴스 원문을 분석해서 �
 
 2. 현재 해당 종목에서 중요한 이슈를 0~3개 선정해.
 
-각 이슈의 태그는 최대 3개이고 # 기호 없이 작성해.
-한국어 JSON 객체만 반환해:
-{"price_reason":{"headline":"상승 또는 하락 이유 제목","summary":"상승 또는 하락한 이유","source_ids":[1]},"issues":[{"headline":"이슈 제목","summary":"이슈 내용","tags":["키워드1"],"source_ids":[1]}]}"""
+한국어 JSON 객체만 반환해.
+
+{
+  "price_reason": {
+    "headline": "상승 또는 하락 이유 제목",
+    "summary": "상승 또는 하락한 이유",
+    "source_ids": [1]
+  },
+  "issues": [
+    {
+      "headline": "이슈 제목",
+      "summary": "이슈 내용",
+      "tags": ["키워드1", "키워드2"],
+      "source_ids": [1]
+    }
+  ]
+}"""
 
 
 def parse_issues(response_text):
