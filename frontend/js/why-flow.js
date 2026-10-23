@@ -114,10 +114,8 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             if (inline) prompt.remove();
             await typeWhyText(signalTitle, signalTitleText);
 
-            let displayIssueList = null;
             if (storyboard.length) {
               const storyboardList = document.createElement('div');
-              displayIssueList = storyboardList;
               storyboardList.className = 'space-y-7';
               const storyboardRows = [];
               storyboard.forEach((event) => {
@@ -244,108 +242,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               }
             }
   
-            // Separate saved AI issues from source-verified code facts without
-            // refreshing /analyze or invoking another model. Both stay in memory.
-            const channels = result.issue_channels || {};
-            const channelRows = {
-              code: Array.isArray(channels.code) ? channels.code : [],
-              ai: Array.isArray(channels.ai) ? channels.ai : []
-            };
-            if (channelRows.code.length || channelRows.ai.length) {
-              if (!displayIssueList) {
-                displayIssueList = document.createElement('div');
-                displayIssueList.className = 'space-y-7';
-                block.appendChild(displayIssueList);
-              }
-              const switchRow = document.createElement('div');
-              switchRow.className = 'flex flex-wrap items-center gap-2';
-              switchRow.dataset.newsIssueSwitch = 'true';
-              const buttons = {};
-              const activeMode = result.issue_display_channel === 'code' ? 'code' :
-                ['ai', 'previous_ai_fallback'].includes(result.issue_display_channel) ? 'ai' : 'auto';
-              const showChannel = (mode) => {
-                if (!isActive()) return;
-                displayIssueList.replaceChildren();
-                buttons.code.setAttribute('aria-pressed', String(mode === 'code'));
-                buttons.ai.setAttribute('aria-pressed', String(mode === 'ai'));
-                for (const event of channelRows[mode]) {
-                  const item = document.createElement('article');
-                  item.className = 'space-y-2';
-                  const title = document.createElement('p');
-                  title.className = responseMessageClass + ' font-semibold';
-                  title.textContent = [event.time || '', event.headline || ''].filter(Boolean).join('  ');
-                  item.appendChild(title);
-                  if (String(event.summary || '').trim()) {
-                    const description = document.createElement('p');
-                    description.className = responseMessageClass + ' whitespace-pre-line';
-                    description.textContent = String(event.summary);
-                    item.appendChild(description);
-                  }
-                  const tags = (Array.isArray(event.tags) ? event.tags : []).slice(0, 3);
-                  if (tags.length) {
-                    const tagsEl = document.createElement('p');
-                    tagsEl.className = 'analysis-hashtag gtp-chat-copy font-semibold';
-                    tagsEl.textContent = tags.map(tag => '#' + String(tag).replace(/^#/, '').trim()).join('  ');
-                    item.appendChild(tagsEl);
-                  }
-                  const source = (Array.isArray(event.source_articles) ? event.source_articles : [])
-                    .find(a => /^https?:\/\//.test(String(a?.url || '')));
-                  if (source) {
-                    const link = document.createElement('a');
-                    link.href = source.url;
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    link.className = 'text-xs text-[#7aa2e3] underline';
-                    link.textContent = '원문 기사 보기';
-                    item.appendChild(link);
-                  }
-                  displayIssueList.appendChild(item);
-                }
-                if (!channelRows[mode].length) {
-                  const empty = document.createElement('p');
-                  empty.className = responseMessageClass;
-                  empty.textContent = mode === 'code'
-                    ? '검증된 기사 이슈가 아직 없어.'
-                    : '저장된 AI 분석 이슈가 아직 없어.';
-                  displayIssueList.appendChild(empty);
-                }
-              };
-              for (const [mode, label] of [
-                ['code', '기사 팩트'],
-                ['ai', '저장된 AI 분석']
-              ]) {
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.dataset.issueChannel = mode;
-                button.className = 'text-xs font-semibold border rounded-lg px-3 py-1.5 text-[#94a3b8] dark:text-[#d4d4d8] border-[#64748b]';
-                button.textContent = label + ' ' + channelRows[mode].length;
-                button.setAttribute('aria-pressed', String(activeMode === mode));
-                button.addEventListener('click', () => {
-                  try { localStorage.setItem('gaemiGTP_issue_mode_us_v1', mode); } catch (_) { /* optional */ }
-                  window.dispatchEvent(new CustomEvent('gaemi:issue-mode-changed', { detail: { mode } }));
-                });
-                buttons[mode] = button;
-                switchRow.appendChild(button);
-              }
-              displayIssueList.insertAdjacentElement('beforebegin', switchRow);
-              const onIssueModeChanged = (event) => {
-                if (!block.isConnected) {
-                  window.removeEventListener('gaemi:issue-mode-changed', onIssueModeChanged);
-                  return;
-                }
-                const selected = event.detail?.mode;
-                const viewMode = selected === 'auto' || selected === 'both'
-                  ? (channelRows.code.length ? 'code' : 'ai')
-                  : selected;
-                if (viewMode === 'ai' || viewMode === 'code') showChannel(viewMode);
-              };
-              window.addEventListener('gaemi:issue-mode-changed', onIssueModeChanged);
-              // An explicitly empty channel must display a clear empty state.
-              if (!storyboard.length) {
-                showChannel(activeMode === 'code' ? 'code' : 'ai');
-              }
-            }
-
             // The initial answer already has its own action buttons and choices.
             if (inline) return;
             const actions = window.GaemiGTPFirstReplyActions.appendFirstReplyActions(block, `${prompt.innerText}\n${block.innerText}`, 'why', stockName);
