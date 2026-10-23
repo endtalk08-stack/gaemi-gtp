@@ -147,6 +147,10 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
     from staged_daily_issue_schedule import scheduled_kst_time
     if market not in ("미국", "US"):
         return
+    # User-requested pause. No Groq calls or paid reservations while paused.
+    if os.getenv("GAEMIGTP_NEWS_AI_PAUSED", "1") != "0":
+        print("[news-ai] paused code_facts_only stock=%s" % stock_name, flush=True)
+        return
     market_code = "US"
     if not os.environ.get("GROQ_API_KEY", "").strip():
         from pathlib import Path
@@ -225,6 +229,9 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
 def apply_unchanged_worker_ai(*, store, market, stock_name, raw, fingerprint, params, price_context=None):
     """Use the existing Neon snapshot when news is unchanged; no extra collection."""
     if market not in ("미국", "US"):
+        return
+    import os
+    if os.getenv("GAEMIGTP_NEWS_AI_PAUSED", "1") != "0":
         return
     import psycopg
     with psycopg.connect(_worker_database_url(store), connect_timeout=10, autocommit=True) as conn:
