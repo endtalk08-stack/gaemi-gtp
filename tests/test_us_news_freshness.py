@@ -108,7 +108,7 @@ class RenderFreshnessTests(unittest.TestCase):
 
     def test_old_code_version_is_never_misrepresented_as_verified_body(self):
         result = clean_us_snapshot({
-            "_code_fact_extraction_version": 3, "_title_only_revision": 3,
+            "_code_fact_extraction_version": 2,
             "_code_issue_briefs": [brief("자른 기사 설명", 1)],
         }, now=NOW)
         self.assertEqual(result["issue_briefs"], [])
