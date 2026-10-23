@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from backend.providers.kiwoom_us_rankings import fetch_us_trading_value_top
 from backend.providers.kiwoom_us_industry import fetch_us_stock_industry
 from backend.providers.kiwoom_us_quotes import issue_access_token
+from backend.kiwoom_us_identity_sync import upsert_kiwoom_identity, repair_saved_top20
 
 
 def _fill_missing_us_industries(database_url, max_requests=12):
@@ -118,6 +119,17 @@ def _fill_verified_fallback_sectors(database_url):
 
 
 def main():
+    import sys
+    if len(sys.argv) > 1:
+        if sys.argv[1:] != ["--identity-repair"]:
+            raise ValueError("unsupported_collector_argument")
+        database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
+        if not database_url:
+            raise ValueError("database_url_missing")
+        report = repair_saved_top20(database_url)
+        print("KIWOOM_US_IDENTITY_REPAIRED=%s verified=%s" %
+              (report["rows"], report["verified"]), flush=True)
+        return 0
     ny = dt.datetime.now(ZoneInfo("America/New_York"))
     # US overnight/day market (including Asia daytime) runs before 04:00 ET.
     # Keep one weekday market session open from Sunday 20:00 to Friday 20:00 ET.
@@ -163,14 +175,8 @@ def main():
     with psycopg.connect(database_url, connect_timeout=7) as conn:
         with conn.cursor() as cur:
             for row in rows:
-                cur.execute(
-                    """INSERT INTO public.market_instruments
-                       (market, symbol, display_name, exchange)
-                       VALUES ('US', %s, %s, %s)
-                       ON CONFLICT (market, symbol) DO UPDATE
-                       SET last_seen_at=NOW(),
-                           exchange=EXCLUDED.exchange""",
-                    (row["symbol"], row["name"], row["exchange"]),
+                upsert_kiwoom_identity(
+                    cur, row["symbol"], row["name"], row["exchange"],
                 )
             # Reuse the single Kiwoom/US/trading_value snapshot forever.
             # Serialize concurrent collector starts and update all 20 ranks
