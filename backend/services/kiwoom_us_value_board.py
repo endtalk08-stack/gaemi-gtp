@@ -4,11 +4,13 @@ The website has no Kiwoom credentials and never calls or collects market data.
 """
 import os
 
-def read_us_trading_value_board(limit=20):
+def read_us_trading_value_board(limit=20, diagnostics=None):
     if type(limit) is not int or not 1 <= limit <= 20:
         raise ValueError("invalid_limit")
     dsn = os.environ.get("NEWS_DATABASE_URL", "").strip()
     if not dsn:
+        if diagnostics is not None:
+            diagnostics.append('db_not_configured')
         return None
     try:
         import psycopg
@@ -23,6 +25,8 @@ def read_us_trading_value_board(limit=20):
                 )
                 snapshot = cur.fetchone()
                 if not snapshot:
+                    if diagnostics is not None:
+                        diagnostics.append('snapshot_not_found')
                     return None
                 cur.execute(
                     """SELECT e.rank,e.symbol,e.display_name,e.price,
@@ -37,6 +41,8 @@ def read_us_trading_value_board(limit=20):
                 )
                 result = cur.fetchall()
         if not result:
+            if diagnostics is not None:
+                diagnostics.append('entries_not_found')
             return None
         rows = []
         for rank, symbol, name, price, change, amount, volume, sector, exchange in result:
@@ -54,4 +60,6 @@ def read_us_trading_value_board(limit=20):
         return rows
     except Exception as exc:
         print("[kiwoom value board] Neon read unavailable: " + type(exc).__name__, flush=True)
+        if diagnostics is not None:
+            diagnostics.append('db_query_failed')
         return None
