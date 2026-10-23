@@ -90,6 +90,29 @@ class RenderFreshnessTests(unittest.TestCase):
                                   "_code_issue_briefs": [invalid]}, now=NOW)
         self.assertEqual(view["issue_briefs"], [])
 
+    def test_verified_three_sentence_summary_and_original_tags_are_untouched(self):
+        summary = "마이크론은 새 제도를 발표했다. 성과급은 내년부터 지급된다. 지급액은 실적에 연동된다."
+        item = {**brief("마이크론, 이익연동 성과급 도입", 1),
+                "summary": summary, "tags": ["이익연동성과급"],
+                "evidence_source": "verified_article_body_title_only"}
+        result = clean_us_snapshot({
+            "_code_fact_extraction_version": 3,
+            "_title_only_revision": 3,
+            "_code_issue_briefs": [item],
+            "_ai_issue_briefs": [brief("구 AI 분석", 1)],
+        }, now=NOW)
+        self.assertEqual(len(result["issue_briefs"]), 1)
+        self.assertEqual(result["issue_briefs"][0]["summary"], summary)
+        self.assertEqual(result["issue_briefs"][0]["tags"], ["이익연동성과급"])
+        self.assertEqual(result["issue_briefs"][0]["headline"], "마이크론, 이익연동 성과급 도입")
+
+    def test_old_code_version_is_never_misrepresented_as_verified_body(self):
+        result = clean_us_snapshot({
+            "_code_fact_extraction_version": 2,
+            "_code_issue_briefs": [brief("자른 기사 설명", 1)],
+        }, now=NOW)
+        self.assertEqual(result["issue_briefs"], [])
+
     def test_central_chat_reads_same_guarded_code_channel(self):
         actual_now = datetime.now(timezone.utc)
         def recent_brief(title, hours):
