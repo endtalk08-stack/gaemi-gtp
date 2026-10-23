@@ -93,7 +93,18 @@ def _prompt(articles, session_date, indices=None):
         "news": news,
     }, ensure_ascii=False)
 
-def _generate(articles, session_date, indices=None):
+def _groq_token_usage(result):
+    """Only valid counts from the Groq completion response."""
+    usage = result.get("usage") if isinstance(result, dict) else None
+    if not isinstance(usage, dict):
+        return None
+    fields = ("prompt_tokens", "completion_tokens", "total_tokens")
+    if not all(type(usage.get(field)) is int and usage[field] >= 0 for field in fields):
+        return None
+    return {field: usage[field] for field in fields}
+
+
+def _generate(articles, session_date, indices=None, usage_out=None):
     key = os.environ.get("GROQ_API_KEY", "").strip()
     if not key:
         raise RuntimeError("groq_key_missing")
@@ -119,6 +130,15 @@ def _generate(articles, session_date, indices=None):
     )
     with urllib.request.urlopen(req, timeout=35) as response:
         result = json.loads(response.read().decode("utf-8"))
+    metered = _groq_token_usage(result)
+    if metered is not None:
+        print("[us-close] token_usage " + json.dumps({
+            "session_date": session_date.isoformat(), "model": MODEL, **metered
+        }, ensure_ascii=False), flush=True)
+        if usage_out is not None:
+            usage_out.update(metered)
+    else:
+        print("[us-close] token_usage_unavailable session=" + session_date.isoformat(), flush=True)
     choices = result.get("choices") or []
     text = str((choices[0].get("message") or {}).get("content") or "").strip() if choices else ""
     if len(text) < 100:
@@ -210,6 +230,9 @@ def _structured_brief(raw_content):
     presentation = {"session_date_et": date, "market_indices": clean_indices, "issues": clean_issues}
     if document.get("response_format") == FREE_TEXT_FORMAT:
         presentation["response_format"] = FREE_TEXT_FORMAT
+    usage = _groq_token_usage({"usage": document.get("usage")})
+    if usage is not None:
+        presentation["usage"] = usage
     return presentation
 
 
@@ -244,8 +267,11 @@ def read_brief():
     if not row:
         return None
     presentation = _structured_brief(row[1])
-    return {"session_date": row[0].isoformat(), "content": _display_brief_content(row[1]),
-            "presentation": presentation, "published_at": row[2].isoformat()}
+    brief = {"session_date": row[0].isoformat(), "content": _display_brief_content(row[1]),
+             "presentation": presentation, "published_at": row[2].isoformat()}
+    if presentation and "usage" in presentation:
+        brief["usage"] = presentation["usage"]
+    return brief
 
 
 def publish_once(now_utc=None, search=None, reader=None, generator=None):
@@ -294,10 +320,11 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
     if not claimed:
         return {"status": "already_attempted", "session_date": session_date.isoformat()}
     try:
+        token_usage = {}
         if generator:
             answer = generator(articles, session_date, indices)
         else:
-            answer = _generate(articles, session_date, indices=indices)
+            answer = _generate(articles, session_date, indices=indices, usage_out=token_usage)
         # Free-form model-2 editorial is stored in the existing structured
         # wrapper. Do not require JSON, headings, or hashtags from the model.
         if not isinstance(answer, str) or len(answer.strip()) < 100:
@@ -312,11 +339,14 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
         }]
         # Persist only AI editorial and verified numeric market facts, not
         # copyrighted publisher original bodies or NAVER snippet texts.
-        content = json.dumps({
+        document = {
             "session_date_et": session_date.isoformat(),
             "market_indices": indices, "response_format": FREE_TEXT_FORMAT,
             "issues": issues,
-        }, ensure_ascii=False)
+        }
+        if token_usage:
+            document["usage"] = token_usage
+        content = json.dumps(document, ensure_ascii=False)
         with _connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
