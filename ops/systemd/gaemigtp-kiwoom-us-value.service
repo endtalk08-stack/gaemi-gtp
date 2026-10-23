@@ -1,0 +1,16 @@
+[Unit]
+Description=gaemiGTP Kiwoom US trading-value Top 20 snapshot collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gaemigtp-news
+Group=gaemigtp-news
+WorkingDirectory=/opt/gaemigtp-news/app
+EnvironmentFile=/etc/gaemigtp/kiwoom.env
+EnvironmentFile=/etc/gaemigtp/news-worker.env
+ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_us_value_collector
+TimeoutStartSec=50
+NoNewPrivileges=true
+PrivateTmp=true
