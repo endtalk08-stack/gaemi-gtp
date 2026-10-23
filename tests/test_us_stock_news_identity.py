@@ -60,14 +60,18 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         captured = {}
         def worker(market, names):
             captured["worker_names"] = names
-            return {"엔비디아": {"price_reason": {"headline": "엔비디아 하락 이유", "summary": "원문 근거"}}}
+            return {"엔비디아": {"issue_briefs": [{
+                "headline": "엔비디아 AI 뉴스 재료",
+                "summary": "원문 근거",
+                "source_articles": [{"url": "https://source.example/verified"}],
+            }]}}
         with patch.object(market_issue_headlines, "_read_worker_briefs", side_effect=worker):
             result = market_issue_headlines.get_market_issue_headlines("us", [
                 {"name": "NVIDIA", "symbol": "NVDA.O"},
                 {"name": "알파벳 Class A", "symbol": "GOOGL.O"},
             ])
         self.assertEqual(result["items"][0]["name"], "NVIDIA")
-        self.assertEqual(result["items"][0]["headline"], "엔비디아 하락 이유")
+        self.assertEqual(result["items"][0]["headline"], "엔비디아 AI 뉴스 재료")
         self.assertEqual(result["items"][1]["headline"], "")
         self.assertEqual(result["items"][1]["status"], "unavailable")
         self.assertIn("엔비디아", captured["worker_names"])
