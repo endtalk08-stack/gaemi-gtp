@@ -94,7 +94,8 @@ def grounded_fact_title(article_title, excerpt, stock_name, original_title):
     return f"{label}, {fragment}"
 
 
-def overlay_verified_headlines(briefs, selected_articles, verified_bodies, stock_name):
+def overlay_verified_headlines(briefs, selected_articles, verified_bodies, stock_name,
+                               *, preserve_kr_headline=False):
     """Change headline alone; carry the same verified article's citation.
 
     The existing article selection, excerpt (up to 3 exact sentences), keyword
@@ -134,9 +135,13 @@ def overlay_verified_headlines(briefs, selected_articles, verified_bodies, stock
             updated.append(dict(original))
             continue
         revised = dict(original)
-        revised["headline"] = grounded_fact_title(
-            article.get("title"), excerpt, stock_name, original.get("headline")
-        )
+        # CODE mode uses the single shared KR headline/keyword generator.
+        # This legacy title rewrite remains only for explicitly opted-in
+        # offline tests; it is never called by the US production pipeline.
+        if not preserve_kr_headline:
+            revised["headline"] = grounded_fact_title(
+                article.get("title"), excerpt, stock_name, original.get("headline")
+            )
         revised["source_articles"] = [{
             "url": url,
             "title": str(article.get("title") or ""),
@@ -145,3 +150,15 @@ def overlay_verified_headlines(briefs, selected_articles, verified_bodies, stock
         revised["evidence_source"] = "verified_article_body_title_only"
         updated.append(revised)
     return updated
+
+
+def attach_verified_source_citations(briefs, selected_articles, verified_bodies, stock_name):
+    """Add the exact verified article URL/date, never generate a second title.
+
+    Both KR and US use build_issue_briefs for keyword-driven headlines.
+    US only requires this source metadata for Render's existing 24h guard.
+    """
+    return overlay_verified_headlines(
+        briefs, selected_articles, verified_bodies, stock_name,
+        preserve_kr_headline=True,
+    )

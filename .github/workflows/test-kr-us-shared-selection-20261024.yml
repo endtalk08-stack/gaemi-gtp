@@ -1,0 +1,48 @@
+name: Verify KR US exact news selection and independent AI raw
+on:
+  push:
+    branches: [feat/us-code-same-kr-selection-20261024]
+    paths:
+      - backend/services/news_feed.py
+      - backend/services/news_result.py
+      - ops/staged_news_processed_store.py
+      - tests/test_news_feed_queries.py
+      - tests/test_us_kr_shared_code_selection.py
+      - .github/workflows/test-kr-us-shared-selection-20261024.yml
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax and immutable AI input contracts
+        run: |
+          python -m py_compile backend/services/news_feed.py backend/services/news_result.py ops/staged_news_processed_store.py
+          python - <<'PY'
+          from pathlib import Path
+          us=Path('backend/services/news_feed.py').read_text()
+          result=Path('backend/services/news_result.py').read_text()
+          assert us.count('return select_stock_news_for_analysis(stock_items + official_items + sec_items, stock_name, limit)') == 1
+          assert us.count('return items[:max(1, int(limit))]') == 1
+          assert result.count('build_connected_keyword_test(scored_news, stock_name, max_keywords=3)') == 1
+          assert result.count('build_connected_keyword_test(\n') == 1
+          assert result.count('select_stock_news_for_analysis(raw_news_list, stock_name, limit)') == 1
+          assert result.count('attach_verified_source_citations(') == 1
+          assert 'overlay_verified_headlines(' not in result
+          from pathlib import Path
+          source=Path('backend/services/verified_fact_headline.py').read_text()
+          assert 'preserve_kr_headline=True' in source
+          assert '"_kr_selection_revision": 1' in result
+          assert 'payload.get("_kr_selection_revision") != 1' in Path('ops/staged_news_processed_store.py').read_text()
+          assert 'GAEMIGTP_NEWS_AI_PAUSED' in Path('ops/staged_ai_sequential_batch.py').read_text()
+          assert '"articles": raw,' in Path('ops/staged_ai_sequential_batch.py').read_text()
+          print('KR_KEYWORDS_SHARED_US_AI_RAW_UNMODIFIED')
+          PY
+      - name: Same article and keyword gates, existing market regressions
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_us_kr_shared_code_selection.py' -v
+          python -m unittest discover -s tests -p 'test_news_feed_queries.py' -v
+          python -m unittest discover -s tests -p 'test_verified_fact_headline_only.py' -v
+          python -m unittest discover -s tests -p 'test_article_fact_keywords.py' -v

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from backend.services.issue_briefs import _article_excerpt
 from backend.services.verified_fact_headline import (
-    grounded_fact_title, overlay_verified_headlines,
+    grounded_fact_title, overlay_verified_headlines, attach_verified_source_citations,
 )
 
 
@@ -52,6 +52,27 @@ class TitleOnlyOverlayTests(unittest.TestCase):
         self.assertEqual(got["source_articles"][0]["url"], self.article["url"])
         self.assertEqual(self.brief["headline"], "기존 코드 키워드 제목")
         self.assertEqual(self.article["description"], "원래 뉴스 설명을 일부만 제공")
+
+    def test_us_code_retains_identical_kr_headline_and_keywords(self):
+        # Real US publisher title would previously overwrite the shared
+        # domestic-style keyword headline with a comma + no '이슈' suffix.
+        original = dict(self.brief, headline="이익연동성과급 도입 이슈")
+        source = attach_verified_source_citations(
+            [original], [self.article], [self.body], "마이크론 테크놀로지",
+        )
+        self.assertEqual(len(source), 1)
+        self.assertEqual(source[0]["headline"], "이익연동성과급 도입 이슈")
+        self.assertEqual(source[0]["summary"], self.excerpt)
+        self.assertEqual(source[0]["tags"], original["tags"])
+        self.assertEqual(source[0]["source_articles"][0]["url"], self.article["url"])
+        self.assertEqual(source[0]["evidence_source"], "verified_article_body_title_only")
+
+    def test_unverified_fallback_keeps_kr_title_without_fake_source(self):
+        original = dict(self.brief, headline="실적발표 이슈")
+        result = attach_verified_source_citations(
+            [original], [], [], "마이크론 테크놀로지"
+        )
+        self.assertEqual(result, [original])
 
     def test_no_verified_original_body_no_broadcast_brief(self):
         self.assertEqual(overlay_verified_headlines([self.brief], [self.article], [""],

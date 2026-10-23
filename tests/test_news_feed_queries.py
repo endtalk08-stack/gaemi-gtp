@@ -25,10 +25,12 @@ class StockNewsQueryTests(unittest.TestCase):
             "알파벳", market="미국", limit=20,
         )
         fetch_queries.assert_called_once()
-        self.assertEqual(
-            fetch_queries.call_args.args[0],
-            ["알파벳", "GOOGL", "GOOG", "구글", "google", "alphabet"],
-        )
+        # Additional verified Class A/C company labels are valid, but the
+        # original broad-name aliases must not disappear from the raw AI feed.
+        queries = fetch_queries.call_args.args[0]
+        self.assertEqual(queries[:6],
+                         ["알파벳", "GOOGL", "GOOG", "구글", "google", "alphabet"])
+        self.assertEqual(len(queries), len(set(queries)))
 
     @patch("backend.services.news_feed._fetch_queries", return_value=[])
     def test_us_stock_restores_official_and_sec_sources(self, fetch_queries):

@@ -418,6 +418,57 @@ def _select_stock_news_with_source_reserve(relevant, limit):
     return selected
 
 
+def select_stock_news_for_analysis(items, stock_name, limit=20):
+    """Exact domestic article eligibility, event words, keyword signals and sort.
+
+    For US *code analysis only* this is applied to a private copy after raw
+    collection. It does not rewrite the raw list used by the paused AI worker.
+    Every filter, weighting and reserve comes directly from the KR feed path.
+    """
+    items = [
+        _enrich_item(x)
+        for x in _dedupe(items)
+        if _item_age_ok(x)
+    ]
+    relevant = []
+    for item in items:
+        if _is_stock_roundup(item):
+            continue
+        text = _search_text(item)
+        relevance_tier = _stock_analysis_relevance(item, stock_name)
+        if relevance_tier <= 0:
+            continue
+
+        # Keep articles that name the stock directly in the title even when our
+        # material/action dictionaries do not know the article's wording yet.
+        # Indirect mentions still require the existing material + event checks
+        # so broad market stories do not flood stock analysis.
+        material_signal = _contains_any(text, STOCK_MATERIAL_SIGNALS)
+        event_strength = _stock_event_strength(item)
+        if relevance_tier < 3:
+            if not material_signal:
+                continue
+            if event_strength <= 0:
+                continue
+
+        selected = dict(item)
+        selected["analysis_relevance_tier"] = relevance_tier
+        selected["analysis_event_strength"] = event_strength
+        selected["analysis_material_signal"] = material_signal
+        relevant.append(selected)
+
+    # Choose eventful articles first. Stock relevance still breaks ties, and
+    # recency is the final tie-breaker.
+    relevant.sort(
+        key=lambda item: (
+            int(item.get("analysis_event_strength") or 0),
+            int(item.get("analysis_relevance_tier") or 0),
+            item.get("published_at") or "",
+        ),
+        reverse=True,
+    )
+    return _select_stock_news_with_source_reserve(relevant, limit)
+
 def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False):
     stock_name = _clean_text(stock_name)
     if not stock_name:
@@ -494,47 +545,7 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
         items.sort(key=lambda item: item.get("published_at") or "", reverse=True)
         return items[:max(1, int(limit))]
 
-    items = [
-        _enrich_item(x)
-        for x in _dedupe(stock_items + official_items + sec_items)
-        if _item_age_ok(x)
-    ]
-    relevant = []
-    for item in items:
-        if _is_stock_roundup(item):
-            continue
-        text = _search_text(item)
-        relevance_tier = _stock_analysis_relevance(item, stock_name)
-        if relevance_tier <= 0:
-            continue
+    # Domestic source selection still executes the exact same rules above.
+    return select_stock_news_for_analysis(stock_items + official_items + sec_items, stock_name, limit)
 
-        # Keep articles that name the stock directly in the title even when our
-        # material/action dictionaries do not know the article's wording yet.
-        # Indirect mentions still require the existing material + event checks
-        # so broad market stories do not flood stock analysis.
-        material_signal = _contains_any(text, STOCK_MATERIAL_SIGNALS)
-        event_strength = _stock_event_strength(item)
-        if relevance_tier < 3:
-            if not material_signal:
-                continue
-            if event_strength <= 0:
-                continue
-
-        selected = dict(item)
-        selected["analysis_relevance_tier"] = relevance_tier
-        selected["analysis_event_strength"] = event_strength
-        selected["analysis_material_signal"] = material_signal
-        relevant.append(selected)
-
-    # Choose eventful articles first. Stock relevance still breaks ties, and
-    # recency is the final tie-breaker.
-    relevant.sort(
-        key=lambda item: (
-            int(item.get("analysis_event_strength") or 0),
-            int(item.get("analysis_relevance_tier") or 0),
-            item.get("published_at") or "",
-        ),
-        reverse=True,
-    )
-    return _select_stock_news_with_source_reserve(relevant, limit)
 

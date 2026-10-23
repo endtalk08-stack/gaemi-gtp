@@ -26,8 +26,8 @@ from .company_critical_events import company_critical_title_and_tags
 from .business_material_events import business_material_title_and_tags
 from .flow_material_events import flow_material_title_and_tags
 from .news_detail import extract_structured_article_facts, read_selected_article_details
-from .verified_fact_headline import overlay_verified_headlines
-from .news_feed import fetch_stock_news
+from .verified_fact_headline import attach_verified_source_citations
+from .news_feed import fetch_stock_news, select_stock_news_for_analysis
 
 
 def _empty_news_result():
@@ -240,8 +240,16 @@ def build_stock_news_result(
             for item in cpi_rows[:12]:
                 diag("fetched_cpi", item)
 
+        # KR keeps its existing upstream selection. US keeps the identical
+        # first-stage KR article/keyword gates in this *code-only* branch.
+        # Crucially, the original raw_news_list is never filtered, mutated, or
+        # reassigned: the independent AI consumer still receives the same raw.
+        code_input_news = (
+            select_stock_news_for_analysis(raw_news_list, stock_name, limit)
+            if market in ("미국", "US", "us") else raw_news_list
+        )
         part_started = time.monotonic()
-        scored_news = score_stock_news(raw_news_list, stock_name)
+        scored_news = score_stock_news(code_input_news, stock_name)
         print(
             f"[analyze news trace] stock={stock_name} part=score done "
             f"elapsed={time.monotonic() - part_started:.2f}s items={len(scored_news)}",
@@ -715,10 +723,11 @@ def build_stock_news_result(
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
 
-        # US title-only: preserve selected articles, source body sentences and
-        # existing tags. Evidence URLs are attached to the SAME verified article.
+        # KR and US share ONE original article/keyword title generator above.
+        # US only attaches source metadata required by Render's freshness guard.
+        # No second title extraction, title overwrite or article reselection.
         if market in ("미국", "US"):
-            issue_briefs = overlay_verified_headlines(
+            issue_briefs = attach_verified_source_citations(
                 issue_briefs, storyboard_news_items, verified_body_texts, stock_name
             )
 
@@ -767,6 +776,7 @@ def build_stock_news_result(
             "issue_briefs": issue_briefs,
             "keyword_storyboard": keyword_storyboard,
             "_title_only_revision": 3 if market in ("미국", "US") else None,
+            "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
