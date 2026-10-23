@@ -769,6 +769,7 @@ def build_stock_news_result(
             "storyboard_news_items": storyboard_news_items,
             "issue_briefs": issue_briefs,
             "keyword_storyboard": keyword_storyboard,
+            "_code_fact_extraction_version": 2 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
