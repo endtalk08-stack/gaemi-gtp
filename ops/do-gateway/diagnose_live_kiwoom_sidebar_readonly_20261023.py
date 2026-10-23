@@ -19,6 +19,8 @@ for path in ("/health","/market/trading-value?market=us"):
                 items=data.get("items")
                 print("DIAG_RESPONSE="+str({"ok":data.get("ok"),
                     "source":data.get("source"),"error":data.get("error"),
+                    "provider_status":data.get("provider_status"),
+                    "backend_marker":res.headers.get("X-Gaemi-US-Value-Provider"),
                     "rows":len(items) if isinstance(items,list) else None,
                     "first_symbol":items[0].get("symbol") if isinstance(items,list) and items else None}),flush=True)
         except ValueError:
