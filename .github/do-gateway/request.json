@@ -1,1 +1,1 @@
-{"operation":"upgrade","path":"ops/do-gateway/gaemi-do-gateway"}
+{"operation":"enable-timer","unit":"gaemigtp-kiwoom-us-value.timer"}
