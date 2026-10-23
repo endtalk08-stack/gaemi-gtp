@@ -164,13 +164,21 @@ def _with_stock_industries(items, market, menu):
         # list of company names and logos.
         from .stock_identity_store import register_us_ranking_instruments
         from .news_identity_registry import resolve_us_news_identity
-        from backend.analysis.news.stock_identity import normalize_us_ticker
+        from backend.analysis.news.stock_identity import (
+            _VERIFIED, normalize_us_ticker,
+        )
         register_us_ranking_instruments(items)
         for item in items:
             ticker = normalize_us_ticker(item["symbol"])
             identity = resolve_us_news_identity(item["name"], symbol=item["symbol"])
             matched = identity["status"] == "verified" and identity["ticker"] == ticker
+            # News matching is deliberately unchanged. A stock absent from
+            # the known-company map can still have a valid exchange ticker:
+            # it may request a logo by that exact ticker without being allowed
+            # to borrow another company's articles or AI analysis.
+            logo_candidate = bool(ticker and (matched or ticker not in _VERIFIED))
             item["mark_ticker"] = ticker if matched else ""
+            item["logo_lookup_ticker"] = ticker if logo_candidate else ""
             item["identity_status"] = "verified" if matched else "pending"
     _remember_market_result(market, menu, items)
     return items
