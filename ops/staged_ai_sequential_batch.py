@@ -16,7 +16,7 @@ def has_eligible_ai_news(articles):
     """
     news, _ = build_model_news(recent_ai_articles(articles or []))
     return any(_has_verifiable_published_at(row.get("published_at")) for row in news)
-from staged_ai_issue_store import save_ai_issues, read_issue_sources
+from staged_ai_issue_store import save_ai_issues, read_issue_sources, read_price_reason
 from staged_daily_call_guard import reserve_once, finish_reservation
 
 
@@ -81,20 +81,33 @@ def run_stock_batch(conn, stocks, *, analyze=analyze_news, save=save_ai_issues,
                                 "status": "already_reserved", "issue_count": 0, "ids": []})
                 continue
             if analyze is analyze_news:
-                issues = analyze(stock["name"], articles, usage_callback=usage.update)
+                analysis = analyze(stock["name"], articles, usage_callback=usage.update,
+                                   price_context=stock.get("price_context"))
             else:
-                issues = analyze(stock["name"], articles)
+                analysis = analyze(stock["name"], articles)
+            # Legacy offline analyzers may still return only the existing issue list.
+            reason = analysis.get("price_reason") if isinstance(analysis, dict) else None
+            issues = analysis.get("issues", []) if isinstance(analysis, dict) else analysis
             sources = issue_source_metadata(issues, articles)
-            ids = save(conn, issues, market=market, symbol=symbol,
-                       exchange_day=day, sources_by_issue=sources) if issues else []
+            reason_sources = issue_source_metadata([reason], articles)[0] if reason else []
+            ids = (save(conn, issues, market=market, symbol=symbol,
+                        exchange_day=day, sources_by_issue=sources,
+                        price_reason=reason, reason_sources=reason_sources)
+                   if reason and analyze is analyze_news else
+                   save(conn, issues, market=market, symbol=symbol,
+                        exchange_day=day, sources_by_issue=sources) if issues else [])
             with conn.transaction():
                 finish(conn, market=market, symbol=symbol, exchange_day=day,
                        request_hash=request_hash, status="completed",
                        result={"issue_ids": ids, "issue_count": len(issues),
+                               **({"price_reason": {"headline": reason["headline"], "summary": reason["summary"]}}
+                                  if reason else {}),
                                **({"usage": usage} if usage else {})})
             results.append({"market": market, "symbol": symbol, "status": "ok",
                             "issue_count": len(issues), "ids": ids,
-                            "issue_sources": sources})
+                            "issue_sources": sources,
+                            "price_reason": ({**reason, "source_articles": reason_sources}
+                                             if reason and reason_sources else None)})
         except Exception as exc:
             reason = _safe_failure_reason(exc)
             # Existing one-call-per-day reservation is preserved even on failure.
@@ -126,7 +139,7 @@ def _worker_database_url(store):
         return getter()
     raise RuntimeError("NEWS_DATABASE_URL is not configured for AI worker")
 
-def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, params):
+def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, params, price_context=None):
     """Run at most one AI analysis per stock/day after original snapshot is saved."""
     import os
     from datetime import datetime
@@ -166,12 +179,14 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
             "market": market_code, "symbol": stock_name,
             "name": stock_name, "exchange_day": us_day,
             "articles": raw,
+            "price_context": price_context,
         }])
         outcome = batch[0]
         print("[news-ai] stock=%s status=%s count=%s" % (
             stock_name, outcome["status"], outcome.get("issue_count", 0)), flush=True)
         ids = outcome.get("ids") or []
         sources = outcome.get("issue_sources") or []
+        price_reason = outcome.get("price_reason")
         if outcome["status"] == "already_reserved":
             with conn.cursor() as cur:
                 cur.execute(
@@ -185,25 +200,29 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
                     conn, market=market_code, symbol=stock_name,
                     exchange_day=us_day, issue_ids=ids
                 ) or (row[1] if row and row[1] else [])
-        if not ids:
+            price_reason = read_price_reason(conn, market=market_code,
+                                             symbol=stock_name, exchange_day=us_day)
+        if not ids and not price_reason:
             return
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT headline, summary, tags FROM public.news_ai_issues WHERE id=ANY(%s) ORDER BY id",
-                (ids,))
-            issues = [{"headline": row[0], "summary": row[1], "tags": row[2]} for row in cur.fetchall()]
-        if not issues:
-            return
+        issues = []
+        if ids:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT headline, summary, tags FROM public.news_ai_issues WHERE id=ANY(%s) ORDER BY id",
+                    (ids,))
+                issues = [{"headline": row[0], "summary": row[1], "tags": row[2]} for row in cur.fetchall()]
+            if not issues and not price_reason:
+                return
         updated = with_ai_issue_briefs(
             result, issues, display_time=now.strftime("%Y-%m-%d %H:%M"),
             stock_names=[stock_name], sources_by_issue=sources,
-            exchange_day=us_day)
+            exchange_day=us_day, price_reason=price_reason)
         store.save_snapshot(stock_name, fingerprint=fingerprint, result=updated, **params)
         print("[news-ai] snapshot_updated stock=%s count=%s model=%s" % (
             stock_name, len(issues), MODEL), flush=True)
 
 
-def apply_unchanged_worker_ai(*, store, market, stock_name, raw, fingerprint, params):
+def apply_unchanged_worker_ai(*, store, market, stock_name, raw, fingerprint, params, price_context=None):
     """Use the existing Neon snapshot when news is unchanged; no extra collection."""
     if market not in ("미국", "US"):
         return
@@ -221,4 +240,5 @@ def apply_unchanged_worker_ai(*, store, market, stock_name, raw, fingerprint, pa
             row = cur.fetchone()
     if row and isinstance(row[0], dict):
         apply_worker_ai(store=store, market=market, stock_name=stock_name,
-                        raw=raw, fingerprint=fingerprint, result=row[0], params=params)
+                        raw=raw, fingerprint=fingerprint, result=row[0], params=params,
+                        price_context=price_context)
