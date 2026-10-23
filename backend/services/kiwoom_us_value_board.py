@@ -14,7 +14,7 @@ def read_us_trading_value_board(limit=20, diagnostics=None):
         return None
     try:
         import psycopg
-        with psycopg.connect(dsn, connect_timeout=4, options="-c statement_timeout=4000") as conn:
+        with psycopg.connect(dsn, connect_timeout=4) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """SELECT id, captured_at
