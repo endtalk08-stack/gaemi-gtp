@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/read-ai-prompts-20261023.py","request_id":"inspectai20261023reason","timeout":90}
+{"operation":"deploy","path":"ops/staged_ai_issue_store.py","target":"ops/staged_ai_issue_store.py"}
