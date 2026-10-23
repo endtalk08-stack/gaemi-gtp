@@ -52,13 +52,17 @@ class MaterialTests(unittest.TestCase):
         self.assertIn('direction="down"', groq.PROMPT)
         self.assertIn("해시태그 1개", groq.PROMPT)
 
-    def test_accept_zero_and_three_reject_four(self):
+    def test_accept_zero_three_and_trim_four_without_losing_paid_result(self):
         self.assertEqual(groq.parse_issues('{"issues":[]}', require_direction=True), [])
         self.assertEqual(len(groq.parse_issues(json.dumps({"issues":[issue()] * 3}),
                                                 require_direction=True)), 3)
+        candidates = [issue(idx=n) for n in range(1,5)]
+        selected = groq.parse_issues(json.dumps({"issues":candidates}),
+                                     require_direction=True)
+        self.assertEqual(len(selected), 3)
+        self.assertEqual([item["source_ids"] for item in selected], [[1], [2], [3]])
         with self.assertRaises(ValueError):
-            groq.parse_issues(json.dumps({"issues":[issue()] * 4}),
-                              require_direction=True)
+            groq.parse_issues('{"issues":{}}', require_direction=True)
 
     def test_require_direction_and_one_hashtag(self):
         wrong = issue()
