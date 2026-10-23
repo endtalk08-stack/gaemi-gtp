@@ -1,0 +1,102 @@
+name: Deploy Kiwoom Neon automatic identity sync
+on:
+  push:
+    branches: [fix/do-kiwoom-neon-identity-auto-20261024]
+    paths: [.github/workflows/do-kiwoom-identity-sync-20261024.yml]
+permissions:
+  contents: read
+concurrency:
+  group: do-kiwoom-identity-sync-20261024
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 9
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify all current ticker labels and safe SQL-only registration
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/kiwoom_us_identity_sync.py backend/kiwoom_us_value_collector.py
+          python -m unittest discover -s tests -p test_kiwoom_identity_autoregister.py -v
+          python - <<'PY'
+          from pathlib import Path
+          collector=Path('backend/kiwoom_us_value_collector.py').read_text()
+          assert collector.count('upsert_kiwoom_identity(')==1
+          assert collector.count('repair_saved_top20(database_url)')==2
+          assert "fetch_us_trading_value_top(limit=20)" in collector
+          print("KIWOOM_COLLECTOR_NORMAL_DATA_FLOW_PRESERVED")
+          PY
+      - name: Verify installed worker source and stage only identity files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519")
+          remote="gaemi-deploy@$DO_HOST"
+          old="$(git show origin/ops/do-ssh-deploy-setup-20261017:backend/kiwoom_us_value_collector.py | sha256sum | cut -d' ' -f1)"
+          ssh "${opts[@]}" "$remote" 'bash -s' "$old" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test -s backend/kiwoom_us_value_collector.py
+          test "$(sha256sum backend/kiwoom_us_value_collector.py | cut -d' ' -f1)" = "$1"
+          test -w backend/kiwoom_us_value_collector.py && test -w backend/
+          test "$(systemctl is-enabled gaemigtp-kiwoom-us-value.timer)" = enabled
+          echo KIWOOM_IDENTITY_DEPLOY_BASELINE_VERIFIED
+          REMOTE
+          scp "${opts[@]}" backend/kiwoom_us_identity_sync.py "$remote:/opt/gaemigtp-news/app/ops/.kiwoom-identity-sync.next"
+          scp "${opts[@]}" backend/kiwoom_us_value_collector.py "$remote:/opt/gaemigtp-news/app/ops/.kiwoom-value-identity.next"
+      - name: Atomically deploy identity files with rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          backup="$(mktemp -d ./ops/.kiwoom-identity-backup.XXXXXX)"
+          cp -p backend/kiwoom_us_value_collector.py "$backup/collector.py"
+          existed=0
+          if test -f backend/kiwoom_us_identity_sync.py; then
+            cp -p backend/kiwoom_us_identity_sync.py "$backup/identity.py"
+            existed=1
+          fi
+          rollback() {
+            set +e
+            install -m 644 "$backup/collector.py" backend/kiwoom_us_value_collector.py
+            if test "$existed" -eq 1; then
+              install -m 644 "$backup/identity.py" backend/kiwoom_us_identity_sync.py
+            else
+              rm -f backend/kiwoom_us_identity_sync.py
+            fi
+            echo KIWOOM_IDENTITY_ROLLED_BACK
+          }
+          trap rollback ERR
+          install -m 644 ops/.kiwoom-identity-sync.next backend/kiwoom_us_identity_sync.py
+          install -m 644 ops/.kiwoom-value-identity.next backend/kiwoom_us_value_collector.py
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/kiwoom_us_identity_sync.py backend/kiwoom_us_value_collector.py
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from backend.kiwoom_us_identity_sync import identity_from_kiwoom
+          for symbol, name in (("MU","마이크론 테크놀로지"),("GOOGL","알파벳 A"),
+                               ("GOOG","알파벳 C"),("META","메타 플랫폼스(페이스북)"),
+                               ("BE","블룸 에너지"),("WDC","웨스턴 디지털")):
+              result=identity_from_kiwoom(name,symbol)
+              assert result["status"]=="verified",(symbol,result)
+          assert identity_from_kiwoom("엔비디아","AAPL")["status"]=="pending"
+          print("KIWOOM_IDENTITY_LIVE_CODE_CHECK_PASS",flush=True)
+          PY
+          trap - ERR
+          echo KIWOOM_IDENTITY_COLLECTOR_DEPLOYED
+          echo KIWOOM_IDENTITY_REPAIR_BY_EXISTING_MINUTE_TIMER
+          REMOTE
