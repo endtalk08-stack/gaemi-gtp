@@ -1,0 +1,19 @@
+name: Verify US directional news materials offline
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - 'ops/do-gateway/us_materials_*.py'
+      - 'ops/do-gateway/test_us_materials_candidate_20261023.py'
+      - '.github/workflows/verify-us-directional-materials-20261023.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test staged material analysis without API or DB calls
+        run: |
+          python -m py_compile ops/do-gateway/us_materials_*.py
+          python ops/do-gateway/test_us_materials_candidate_20261023.py
