@@ -31,10 +31,10 @@ def _article_metadata(source):
 
 
 def save_ai_issues(conn, issues, *, market, symbol, exchange_day,
-                   sources_by_issue=None):
+                   sources_by_issue=None, price_reason=None, reason_sources=None):
     """Persist issues and exact source links atomically, with a 24-hour TTL."""
     rows = issue_records(issues, market=market, symbol=symbol, exchange_day=exchange_day)
-    if not rows:
+    if not rows and not price_reason:
         return []
     if conn is None or not callable(getattr(conn, "transaction", None)):
         raise ValueError("Existing transactional Neon connection required")
@@ -48,6 +48,13 @@ def save_ai_issues(conn, issues, *, market, symbol, exchange_day,
                             for group in sources_by_issue]
         if any(not s["title"] or not s["published_at"]
                for group in sources_by_issue for s in group):
+            raise ValueError("Missing source title or publication timestamp")
+
+    if price_reason:
+        if not isinstance(price_reason, dict) or not isinstance(reason_sources, list) or not reason_sources:
+            raise ValueError("Price reason needs sourced articles")
+        reason_sources = [_article_metadata(source) for source in reason_sources[:3]]
+        if any(not source["title"] or not source["published_at"] for source in reason_sources):
             raise ValueError("Missing source title or publication timestamp")
 
     saved = []
@@ -67,11 +74,16 @@ def save_ai_issues(conn, issues, *, market, symbol, exchange_day,
                 )
                 saved.append(cur.fetchone()[0])
 
-            if sources_by_issue is not None:
+            if sources_by_issue is not None or price_reason:
                 bundle = {
                     "market": market,
                     "symbol": symbol,
                     "exchange_day": exchange_day.isoformat(),
+                    "price_reason": ({
+                        "headline": price_reason["headline"],
+                        "summary": price_reason["summary"],
+                        "source_articles": reason_sources,
+                    } if price_reason else None),
                     "issues": [
                         {
                             "issue_id": issue_id,
@@ -123,3 +135,18 @@ def read_issue_sources(conn, *, market, symbol, exchange_day, issue_ids):
         if isinstance(item, dict) and type(item.get("issue_id")) is int
     }
     return [by_id.get(issue_id, []) for issue_id in issue_ids]
+
+
+def read_price_reason(conn, *, market, symbol, exchange_day):
+    """Read the same 24-hour source bundle; never infer citations from newer news."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT result_payload->'price_reason'
+               FROM public.news_processed_results_24h
+               WHERE result_type=%s AND result_key=%s AND expires_at>now()
+               LIMIT 1""",
+            (SOURCES_RESULT_TYPE, _result_key(market, symbol, exchange_day)),
+        )
+        row = cur.fetchone()
+    reason = row[0] if row and isinstance(row[0], dict) else None
+    return reason if reason and reason.get("source_articles") else None
