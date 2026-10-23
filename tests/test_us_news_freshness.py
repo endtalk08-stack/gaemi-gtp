@@ -57,13 +57,13 @@ class RenderFreshnessTests(unittest.TestCase):
     def test_one_issue_with_mixed_dates_shows_only_recent_citations(self):
         fresh, old = brief("fresh", 1), brief("old", 49)
         mixed = {**fresh, "source_articles": old["source_articles"] + fresh["source_articles"]}
-        cleaned = clean_us_snapshot({"_code_fact_extraction_version": 2,
+        cleaned = clean_us_snapshot({"_code_fact_extraction_version": 3, "_title_only_revision": 3,
                                      "_code_issue_briefs": [mixed]}, now=NOW)
         self.assertEqual(len(cleaned["issue_briefs"]), 1)
         self.assertEqual(len(cleaned["issue_briefs"][0]["source_articles"]), 1)
 
     def test_bad_or_future_article_dates_are_not_fabricated(self):
-        payload = {"_code_fact_extraction_version": 2,
+        payload = {"_code_fact_extraction_version": 3, "_title_only_revision": 3,
                    "_code_issue_briefs": [
             {"headline": "undated", "source_articles": [{"url": "https://example.org/x"}]},
             brief("future", -4),
@@ -76,7 +76,7 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual(cleaned["paired_news_items"], [])
 
     def test_ai_channel_never_overrides_code_channel(self):
-        snapshot = {"_code_fact_extraction_version": 2,
+        snapshot = {"_code_fact_extraction_version": 3, "_title_only_revision": 3,
                     "_code_issue_briefs": [brief("기사에서 추출한 이슈", 1)],
                     "_ai_issue_briefs": [brief("옛날 AI 분석", 1)],
                     "issue_briefs": [brief("옛날 AI 분석", 1)]}
@@ -86,7 +86,7 @@ class RenderFreshnessTests(unittest.TestCase):
     def test_code_brief_requires_verified_fresh_article(self):
         invalid = {**brief("근거 없는 키워드", 1),
                    "source_articles": [{"url": "https://example.org/missing"}]}
-        view = clean_us_snapshot({"_code_fact_extraction_version": 2,
+        view = clean_us_snapshot({"_code_fact_extraction_version": 3, "_title_only_revision": 3,
                                   "_code_issue_briefs": [invalid]}, now=NOW)
         self.assertEqual(view["issue_briefs"], [])
 
@@ -108,7 +108,7 @@ class RenderFreshnessTests(unittest.TestCase):
 
     def test_old_code_version_is_never_misrepresented_as_verified_body(self):
         result = clean_us_snapshot({
-            "_code_fact_extraction_version": 2,
+            "_code_fact_extraction_version": 3, "_title_only_revision": 3,
             "_code_issue_briefs": [brief("자른 기사 설명", 1)],
         }, now=NOW)
         self.assertEqual(result["issue_briefs"], [])
