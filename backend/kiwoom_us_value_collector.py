@@ -1,7 +1,7 @@
 """Collect ONLY Kiwoom usa20540 US trading-value Top 20 into existing Neon ranking tables.
 
 Runs on DigitalOcean with protected Kiwoom and News DB env files.
-No orders, accounts, AI, news collection, migration or additional market APIs.
+No orders, accounts, AI, news collection or migrations; only usa20540 rank\nand usa10100 industry when the current Top 20 has missing sector labels.
 """
 import datetime as dt
 import json
@@ -9,6 +9,57 @@ import os
 from zoneinfo import ZoneInfo
 
 from backend.providers.kiwoom_us_rankings import fetch_us_trading_value_top
+from backend.providers.kiwoom_us_industry import fetch_us_stock_industry
+from backend.providers.kiwoom_us_quotes import issue_access_token
+
+
+def _fill_missing_us_industries(database_url, max_requests=12):
+    """Only the latest Kiwoom value Top 20; do not modify identity/rank/quotes."""
+    import time
+    import psycopg
+    with psycopg.connect(database_url, connect_timeout=7) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT e.symbol, i.exchange
+                   FROM public.market_rank_entries e
+                   JOIN public.market_instruments i
+                     ON i.market=e.market AND i.symbol=e.symbol
+                   WHERE e.snapshot_id=(
+                       SELECT id FROM public.market_rank_snapshots
+                       WHERE source='kiwoom' AND market='US'
+                         AND rank_type='trading_value'
+                       ORDER BY captured_at DESC, id DESC LIMIT 1
+                   )
+                     AND e.market='US'
+                     AND (i.sector IS NULL OR i.sector='')
+                   ORDER BY e.rank LIMIT %s""",
+                (max_requests,),
+            )
+            pending = cur.fetchall()
+    if not pending:
+        print("KIWOOM_US_INDUSTRY_PENDING=0", flush=True)
+        return 0
+
+    token = issue_access_token()
+    updated = 0
+    for symbol, exchange in pending:
+        sector = fetch_us_stock_industry(symbol, exchange, token=token)
+        if sector:
+            with psycopg.connect(database_url, connect_timeout=7) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """UPDATE public.market_instruments
+                           SET sector=%s
+                           WHERE market='US' AND symbol=%s
+                             AND (sector IS NULL OR sector='')""",
+                        (sector, symbol),
+                    )
+                    updated += cur.rowcount
+                conn.commit()
+        time.sleep(0.24)  # Stay below Kiwoom's read-only market TR call rate.
+    print("KIWOOM_US_INDUSTRY_UPDATED=" + str(updated) +
+          " LOOKUPS=" + str(len(pending)), flush=True)
+    return updated
 
 
 def main():
@@ -31,6 +82,9 @@ def main():
                                  AND rank_type='trading_value' LIMIT 1""")
                 if cur.fetchone():
                     print("KIWOOM_US_VALUE_SKIP=outside_us_extended_session", flush=True)
+                    # Existing source-ranked prices stay unchanged; fill only
+                    # blank stock industries using official usa10100 metadata.
+                    _fill_missing_us_industries(database_url)
                     return 0
     rows = fetch_us_trading_value_top(limit=20)
     if not rows:
@@ -80,6 +134,7 @@ def main():
         conn.commit()
     print("KIWOOM_US_VALUE_STORED=20" if len(rows) == 20
           else "KIWOOM_US_VALUE_STORED=" + str(len(rows)), flush=True)
+    _fill_missing_us_industries(database_url)
     return 0
 
 
