@@ -87,6 +87,8 @@
 
     document.body.classList.toggle('left-market-open', !isOpen);
     applyState();
+    // A newly opened panel must show the latest quote immediately.
+    if (!isOpen) window.GaemiGTPMarketSidebar?.refreshLiveQuotes?.();
   }
 
   function bindMarketControls() {
@@ -363,6 +365,9 @@
           list.appendChild(button);
         });
         applyChangeSort();
+        // The initial list is ready: request the current quote now instead of
+        // waiting for the next timer tick or relying on a panel-open CSS class.
+        void readLatestQuotes();
       } catch (_) {
         if (id === requestId && !list.querySelector('button[data-original-index]')) {
           list.textContent = '순위 원천 데이터를 가져오지 못했어.';
@@ -416,6 +421,18 @@
       }
     };
 
+    // Also refresh when the user returns to this tab after it was backgrounded.
+    // Keep background reads off to avoid unnecessary database usage.
+    const refreshOnReturn = () => {
+      if (tab === 'value' && document.visibilityState === 'visible' &&
+          document.body.classList.contains('left-market-open')) {
+        if (list.querySelector('button[data-original-index]')) void readLatestQuotes();
+        else void showUsRanking();
+      }
+    };
+    document.addEventListener('visibilitychange', refreshOnReturn);
+    window.addEventListener('focus', refreshOnReturn);
+
     // Only refresh the analyzed stock's existing DB-backed issue title.
     // Never recollect news, rerank stocks, or replace the displayed list.
     const refreshAnalyzedIssue = async (event) => {
@@ -466,6 +483,12 @@
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
+    window.GaemiGTPMarketSidebar.refreshLiveQuotes = () => {
+      if (tab === 'value' && document.visibilityState === 'visible') {
+        if (list.querySelector('button[data-original-index]')) void readLatestQuotes();
+        else void showUsRanking();
+      }
+    };
     // Keep the working trading-value list as default while new data sources are pending.
     void showUsRanking();
     // Read prices every 10 seconds, full rankings/headlines at most once a minute.
