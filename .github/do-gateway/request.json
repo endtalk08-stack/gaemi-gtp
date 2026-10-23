@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/kiwoom_rank_probe.py","target":"backend/kiwoom_rank_probe.py"}
+{"operation":"deploy","path":"backend/kiwoom_probe.py","target":"backend/kiwoom_probe.py"}
