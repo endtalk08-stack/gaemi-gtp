@@ -116,7 +116,7 @@ def _persist(dsn, latest):
                        SET price=%s,
                            change_rate=COALESCE(%s,change_rate),
                            entry_payload=COALESCE(entry_payload,'{}'::jsonb)
-                             || jsonb_build_object('live_price_at',%s,'live_price_source','kiwoom:FE')
+                             || jsonb_build_object('live_price_at',%s::text,'live_price_source','kiwoom:FE')
                        WHERE snapshot_id=%s AND market='US' AND symbol=%s
                          AND (price IS DISTINCT FROM %s OR
                               (%s::numeric IS NOT NULL AND change_rate IS DISTINCT FROM %s::numeric))""",
