@@ -2,6 +2,8 @@
 import datetime as dt
 import json
 import os
+import sys
+sys.path.insert(0, os.getcwd())
 from unittest.mock import patch
 from backend.services import us_market_close as close
 
