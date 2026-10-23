@@ -1,8 +1,8 @@
 """Kiwoom ticker/name registration: no API, no DB access in these tests."""
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
-from backend.kiwoom_us_identity_sync import identity_from_kiwoom, upsert_kiwoom_identity
+from backend.kiwoom_us_identity_sync import identity_from_kiwoom, upsert_kiwoom_identity, repair_saved_top20
 from backend.analysis.news.stock_identity import resolve_us_identity
 
 
@@ -61,6 +61,22 @@ class IdentitySyncTests(unittest.TestCase):
         self.assertEqual(identity_from_kiwoom("알파벳 C", "GOOGL")["status"], "pending")
         self.assertEqual(resolve_us_identity("엔비디아", "AAPL")["status"], "pending")
         self.assertIsNone(identity_from_kiwoom("무효", "NEW!"))
+
+    def test_existing_saved_identities_do_not_repeat_offsession_writes(self):
+        import sys
+        db = MagicMock()
+        conn = db.connect.return_value.__enter__.return_value
+        cur = conn.cursor.return_value.__enter__.return_value
+        cur.fetchall.return_value = [
+            (rank, ticker, name, None,
+             result["company_key"], result["news_name"], result["status"], True)
+            for rank, (ticker, name) in enumerate(TOP20, start=1)
+            for result in [identity_from_kiwoom(name, ticker)]
+        ]
+        with patch.dict(sys.modules, {"psycopg": db}):
+            report = repair_saved_top20("test-dsn")
+        self.assertEqual(report, {"rows": 20, "verified": 20, "updated": 0})
+        self.assertEqual(cur.execute.call_count, 1)
 
     def test_upsert_does_not_write_news_ai_or_rankings(self):
         cursor = FakeCursor()
