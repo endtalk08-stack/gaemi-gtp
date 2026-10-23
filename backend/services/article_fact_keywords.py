@@ -13,6 +13,13 @@ _MOVEMENT_UP = re.compile(r"증가|확대|개선|상회|성장|출시|계약|체
 _MOVEMENT_DOWN = re.compile(r"감소|축소|하향|철회|취소|중단|유출|적자|고갈|부담|우려|위축|부진|지연|제재|거부|부족|급락|하락|reduce|cut|reject|risk|loss", re.I)
 _ONLY_QUOTE = re.compile(r"^(?:주가|주식|증시|시장|나스닥|반도체주|오늘의|속보).{0,40}(?:%|상승|하락|급등|급락)", re.I)
 _BAD_TITLES = re.compile(r"^(?:USA APPLE IPHONE LAUNCH|Apple iPhone Duo|Brazil Election Amazon|\[오늘의 경제상식\])", re.I)
+_FACT_EVENT = re.compile(
+    r"실적|매출|영업이익|순이익|현금흐름|투자|계약|고객|사업|공급|납품|체결|출시|공개|발표|도입|허가|승인|신청|"
+    r"중단|축소|확대|감소|증가|개발|임상|백신|소송|규제|상장|성과급|협력|기판|칩|반도체|"
+    r"지출|자금|사용|수출|제재|위협|매수의견|목표가|조달|시설|시스템|진출|손잡|"
+    r"earnings|profit|sales|investment|contract|supply|approve|launch|release|reduce|reject|agreement|stake", re.I)
+_PRICE_ONLY = re.compile(r"\d+(?:\.\d+)?%\s*(?:상승|하락|급등|급락)|\b(?:주가|시세|거래량|거래대금|주식시장)\b", re.I)
+
 _COMPANY_SUFFIX = r"(?:은|는|이|가|의|와|과|을|를|도|에|에서|에게|측)?"
 _NONCOMPANY = (
     re.compile(r"애플힙|애플파이|애플수박|메타(?:파머스|케이|버스|데이터|휴먼)|아마존\s*(?:강|숲|열대우림|산림|지역)", re.I),
@@ -162,6 +169,26 @@ def build_article_fact_briefs(articles, stock_name, *, price_change_pct=None, li
         body_match = _company_match(description, aliases)
         if not title_match and not body_match:
             continue
+        # A company merely appearing in another firm's market roundup is
+        # not its own event. Price moves may break ties, never become tags.
+        if title_match is None or title_match.start() > 52:
+            continue
+        if _PRICE_ONLY.search(title) and not _FACT_EVENT.search(title):
+            continue
+        if not _FACT_EVENT.search(title) and not _FACT_EVENT.search(description[:150]):
+            continue
+        # Reject other listed companies' stories where our stock only appears
+        # after the main company in the headline.
+        prefix = title[:title_match.start()]
+        others = [
+            (other_name, other_aliases)
+            for other_name, other_aliases in STOCK_UNIVERSE.get("미국", {}).items()
+            if other_name != stock_name and other_name not in aliases
+        ]
+        if any(_company_match(prefix, [
+            str(a) for a in other_aliases if not (str(a).isascii() and len(str(a)) <= 3)
+        ]) for _, other_aliases in others):
+            continue
         # Title must be about this company, or its own sentence in the description
         # must explicitly describe an event, not merely enumerate tickers.
         snippet = ""
@@ -172,6 +199,11 @@ def build_article_fact_briefs(articles, stock_name, *, price_change_pct=None, li
         if not fact and snippet:
             fact = _short_fact(snippet, aliases)
         if not fact:
+            continue
+        # Reject tags that are only quoted returns, not a source-grounded event.
+        if _PRICE_ONLY.search(fact) and not _FACT_EVENT.search(fact):
+            continue
+        if not _FACT_EVENT.search(fact) and not _FACT_EVENT.search(title):
             continue
         combined = (title + " " + snippet)
         # Pure price reports alone are not corporate news facts.
