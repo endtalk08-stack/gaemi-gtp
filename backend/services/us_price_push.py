@@ -4,6 +4,7 @@ No quote is saved to Neon, Redis, disk or a background job. One Gunicorn
 worker / one Render instance is expected for this in-process feed.
 """
 import base64
+import binascii
 import json
 import math
 import os
@@ -38,7 +39,8 @@ def _verify_signature(raw, timestamp, signature):
             sig, timestamp.encode("ascii") + b":" + raw
         )
         return True
-    except (ValueError, TypeError, UnicodeError, cryptography.exceptions.InvalidSignature):
+    except (ValueError, TypeError, UnicodeError, binascii.Error,
+            cryptography.exceptions.InvalidSignature):
         return False
 
 
