@@ -31,7 +31,11 @@ ORDER BY e.rank LIMIT 20
 
 def _open_us_session():
     now = dt.datetime.now(ZoneInfo("America/New_York"))
-    return now.weekday() < 5 and dt.time(4, 0) <= now.time() < dt.time(20, 0)
+    # Include the overnight/day market as well as premarket, regular and after.
+    # US trading week: Sunday 20:00 ET through Friday 20:00 ET.
+    return (now.weekday() < 4 or
+            (now.weekday() == 4 and now.time() < dt.time(20, 0)) or
+            (now.weekday() == 6 and now.time() >= dt.time(20, 0)))
 
 def _num(value):
     try:
