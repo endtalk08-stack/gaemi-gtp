@@ -100,6 +100,8 @@ def read_signature(stock_name, market, limit, storyboard_limit, display_timezone
             if not row:
                 return None
             payload = row[1] if isinstance(row[1], dict) else {}
+            if market in ("미국", "US") and payload.get("_title_only_revision") != 3:
+                return None
             briefs = payload.get("issue_briefs") or []
             if len(_same_stock_issue_briefs(briefs, stock_name)) != len(briefs):
                 # Re-evaluate legacy mismatched issues one time; save_snapshot
