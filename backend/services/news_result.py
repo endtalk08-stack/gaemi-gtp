@@ -17,7 +17,7 @@ from backend.analysis.news import (
 )
 
 from .news_byline import strip_leading_news_credit
-from .article_fact_keywords import build_article_fact_briefs, read_us_price_change_pct
+from .verified_fact_headline import overlay_verified_headlines
 from .issue_briefs import (
     grounded_issue_display_title,
     _article_excerpt, build_issue_briefs, central_material_brief_supported,
@@ -715,14 +715,12 @@ def build_stock_news_result(
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
 
-        # US headline/keywords: exact article facts, with the existing quote
-        # snapshot used only as a light ranking hint. No AI or preset tags.
-        # Keep the existing verified news collection and KR analysis unchanged.
+        # Preserve the original 3-sentence article summaries, keyword tags,
+        # verified article selection, count and order. Change ONLY headline,
+        # and attach the matching original article's citation for Render.
         if market in ("미국", "US"):
-            issue_briefs = build_article_fact_briefs(
-                paired_news_items, stock_name,
-                price_change_pct=read_us_price_change_pct(stock_name),
-                limit=storyboard_limit,
+            issue_briefs = overlay_verified_headlines(
+                issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
             )
 
         # Diagnostic counts only: trace where central issues drop out without
@@ -770,6 +768,7 @@ def build_stock_news_result(
             "issue_briefs": issue_briefs,
             "keyword_storyboard": keyword_storyboard,
             "_code_fact_extraction_version": 2 if market in ("미국", "US") else None,
+            "_title_only_revision": 1 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
