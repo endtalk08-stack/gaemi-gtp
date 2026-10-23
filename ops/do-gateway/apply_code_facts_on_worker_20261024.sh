@@ -32,7 +32,11 @@ install -m 644 ops/.news-result-facts-next.py backend/services/news_result.py
 "$venv" ops/.deploy-code-facts-next.py verify
 sudo -n /usr/bin/systemctl restart gaemigtp-news.service
 test "$(systemctl is-active gaemigtp-news.service)" = active
-"$venv" ops/.deploy-code-facts-next.py backfill
+if "$venv" -c 'from backend.services.news_processed_store import database_url; assert database_url()' >/dev/null 2>&1; then
+  "$venv" ops/.deploy-code-facts-next.py backfill
+else
+  echo CODE_FACTS_NEON_BACKFILL_NEEDS_EXTERNAL_DB_CONNECTION
+fi
 test "$(systemctl is-active gaemigtp-news.service)" = active
 trap - ERR
-echo CODE_FACTS_DIGITALOCEAN_APPLIED_AND_NEON_BACKFILLED
+echo CODE_FACTS_DIGITALOCEAN_APPLIED
