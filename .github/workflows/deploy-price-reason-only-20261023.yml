@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           REMOTE="gaemi-deploy@$DO_HOST"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$REMOTE" 'bash -s' <<'REMOTE_SCRIPT'
-          set -Eeuo pipefail
+          set -Eeuxo pipefail
           cd /opt/gaemigtp-news/app
           test "$(systemctl is-active gaemigtp-news.service)" = active
           test "$(sha256sum ops/staged_daily_groq_issues.py | cut -d' ' -f1)" = "0d0d071ed6f8da35eee546dd0cb834541c08da5c5340b002b96b3300de8f16b6" || { echo EXISTING_GROQ_PROMPT_DRIFT; exit 1; }
