@@ -46,14 +46,22 @@ jobs:
           chmod 600 "$HOME/.ssh/id_ed25519"
           opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519")
           remote="gaemi-deploy@$DO_HOST"
-          old="$(git show origin/ops/do-ssh-deploy-setup-20261017:backend/kiwoom_us_value_collector.py | sha256sum | cut -d' ' -f1)"
+          old="$(git show 6944aee777b5bc287e3adb6cd19af07508495ad3:backend/kiwoom_us_value_collector.py | sha256sum | cut -d' ' -f1)"
           ssh "${opts[@]}" "$remote" 'bash -s' "$old" <<'REMOTE'
           set -euo pipefail
           cd /opt/gaemigtp-news/app
           test -s backend/kiwoom_us_value_collector.py
-          test "$(sha256sum backend/kiwoom_us_value_collector.py | cut -d' ' -f1)" = "$1"
+          if test "$(sha256sum backend/kiwoom_us_value_collector.py | cut -d' ' -f1)" = "$1"; then
+            echo KIWOOM_COLLECTOR_BASELINE_MATCH=yes
+          else
+            echo KIWOOM_COLLECTOR_BASELINE_MATCH=no
+            exit 1
+          fi
           test -w backend/kiwoom_us_value_collector.py && test -w backend/
-          test "$(systemctl is-enabled gaemigtp-kiwoom-us-value.timer)" = enabled
+          echo KIWOOM_COLLECTOR_WRITABLE=yes
+          timer="$(systemctl is-enabled gaemigtp-kiwoom-us-value.timer || true)"
+          echo "KIWOOM_TIMER_STATE=$timer"
+          test "$timer" = enabled
           echo KIWOOM_IDENTITY_DEPLOY_BASELINE_VERIFIED
           REMOTE
           scp "${opts[@]}" backend/kiwoom_us_identity_sync.py "$remote:/opt/gaemigtp-news/app/ops/.kiwoom-identity-sync.next"
