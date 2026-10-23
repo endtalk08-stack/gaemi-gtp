@@ -13,9 +13,7 @@ from backend.providers.kiwoom_us_rankings import fetch_us_trading_value_top
 
 def main():
     ny = dt.datetime.now(ZoneInfo("America/New_York"))
-    if not (ny.weekday() < 5 and dt.time(4, 0) <= ny.time() < dt.time(20, 0)):
-        print("KIWOOM_US_VALUE_SKIP=outside_us_extended_session", flush=True)
-        return 0
+    in_session = (ny.weekday() < 5 and dt.time(4, 0) <= ny.time() < dt.time(20, 0))
 
     database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
     if not database_url:
@@ -23,6 +21,17 @@ def main():
         return 2
 
     import psycopg
+    if not in_session:
+        # Bootstrap one verified Kiwoom snapshot if none has ever been collected.
+        # Afterward, avoid stale off-session re-collections and extra Kiwoom calls.
+        with psycopg.connect(database_url, connect_timeout=7) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT 1 FROM public.market_rank_snapshots
+                               WHERE source='kiwoom' AND market='US'
+                                 AND rank_type='trading_value' LIMIT 1""")
+                if cur.fetchone():
+                    print("KIWOOM_US_VALUE_SKIP=outside_us_extended_session", flush=True)
+                    return 0
     rows = fetch_us_trading_value_top(limit=20)
     if not rows:
         print("KIWOOM_US_VALUE_ERROR=no_source_rows", flush=True)
@@ -32,7 +41,8 @@ def main():
     payload = json.dumps({
         "api_id": "usa20540", "rank_source": "kiwoom",
         "value_currency": "USD", "value_unit": "USD",
-        "market_date_et": ny.date().isoformat(),
+        "retrieved_at_et": ny.isoformat(timespec="seconds"),
+        "during_market_session": in_session,
     })
     with psycopg.connect(database_url, connect_timeout=7) as conn:
         with conn.cursor() as cur:
