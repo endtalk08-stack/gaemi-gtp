@@ -1,0 +1,109 @@
+name: Apply US news AI up/down materials (total 0 to 3)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/apply-us-news-materials-0-to-3-20261023.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-us-news-materials-0to3
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'APPLY_US_MATERIALS_0_TO_3_20261023'
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 10
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check exactly four reviewed files and offline tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object ops/do-gateway/us_materials_store_20261023.py)" = "b556a4eb611e8fa0b8239439a7f87a834c9f370c"
+          test "$(git hash-object ops/do-gateway/us_materials_adapter_20261023.py)" = "bd1317c7d4f7b8b961e40177d8a027522be39536"
+          test "$(git hash-object ops/do-gateway/us_materials_groq_20261023.py)" = "aaae83975f1659499dce72be50aae1fcbd31186c"
+          test "$(git hash-object ops/do-gateway/us_materials_batch_20261023.py)" = "654a164385cf4b43c0f06d819f5e34626a8f668a"
+          python3 -m py_compile ops/do-gateway/us_materials_*.py
+          python3 ops/do-gateway/test_us_materials_candidate_20261023.py
+          echo MATERIALS_0_TO_3_OFFLINE_TESTS_OK
+      - name: Secure copy four AI files to user staging only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          remote="gaemi-deploy@$DO_HOST"
+          ssh "${opts[@]}" "$remote" 'install -d -m 700 "$HOME/.gaemi-us-materials-20261023"'
+          scp "${opts[@]}" ops/do-gateway/us_materials_store_20261023.py "$remote":.gaemi-us-materials-20261023/staged_ai_issue_store.py
+          scp "${opts[@]}" ops/do-gateway/us_materials_adapter_20261023.py "$remote":.gaemi-us-materials-20261023/staged_ai_issue_display_adapter.py
+          scp "${opts[@]}" ops/do-gateway/us_materials_groq_20261023.py "$remote":.gaemi-us-materials-20261023/staged_daily_groq_issues.py
+          scp "${opts[@]}" ops/do-gateway/us_materials_batch_20261023.py "$remote":.gaemi-us-materials-20261023/staged_ai_sequential_batch.py
+      - name: Verify baseline and atomically apply only AI files with rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          ssh "${opts[@]}" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -Eeuo pipefail
+          app=/opt/gaemigtp-news/app
+          stage="$HOME/.gaemi-us-materials-20261023"
+          backup="$(mktemp -d "$HOME/.gaemi-materials-before.XXXXXXXX")"
+          names=("staged_ai_issue_store.py" "staged_ai_issue_display_adapter.py" "staged_daily_groq_issues.py" "staged_ai_sequential_batch.py")
+          old_blobs=("bc0bb9df715bff39b9b230f013cea7b49559083b" "c4944e02863d1b7956db63af32e1ee91b8c0f190" "ae998d711590d42c66c7fe7ba1a76713e04eca58" "fc0051456844ccdff6ce3478a63631959a082658")
+          new_blobs=("b556a4eb611e8fa0b8239439a7f87a834c9f370c" "bd1317c7d4f7b8b961e40177d8a027522be39536" "aaae83975f1659499dce72be50aae1fcbd31186c" "654a164385cf4b43c0f06d819f5e34626a8f668a")
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          for i in 0 1 2 3; do
+            dst="$app/ops/${names[i]}"
+            src="$stage/${names[i]}"
+            test -f "$dst" && test ! -L "$dst" && test -w "$dst"
+            test "$(stat -c %u "$dst")" = "$(id -u)"
+            test -f "$src" && test ! -L "$src"
+            test "$(git hash-object -- "$dst")" = "${old_blobs[i]}" || { echo AI_MATERIALS_BASELINE_CHANGED_ABORT; exit 1; }
+            test "$(git hash-object -- "$src")" = "${new_blobs[i]}" || { echo AI_MATERIALS_SOURCE_CHANGED_ABORT; exit 1; }
+            /opt/gaemigtp-news/venv/bin/python -m py_compile "$src"
+            cp -p "$dst" "$backup/${names[i]}"
+            test "$(git hash-object -- "$backup/${names[i]}")" = "${old_blobs[i]}"
+          done
+          echo AI_MATERIALS_BASELINE_AND_BACKUPS_OK
+          rollback() {
+            rc=$?
+            trap - ERR
+            for i in 0 1 2 3; do
+              cp -p "$backup/${names[i]}" "$app/ops/${names[i]}" || true
+            done
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service || true
+            echo AI_MATERIALS_ROLLED_BACK
+            exit "$rc"
+          }
+          trap rollback ERR
+          for i in 0 1 2 3; do
+            dst="$app/ops/${names[i]}"
+            install -m "$(stat -c %a "$dst")" "$stage/${names[i]}" "$dst"
+            test "$(git hash-object -- "$dst")" = "${new_blobs[i]}"
+            /opt/gaemigtp-news/venv/bin/python -m py_compile "$dst"
+          done
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          sleep 3
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          for i in 0 1 2 3; do
+            test "$(git hash-object -- "$app/ops/${names[i]}")" = "${new_blobs[i]}"
+          done
+          trap - ERR
+          echo AI_MATERIALS_0_TO_3_APPLIED
+          echo AI_MATERIALS_DIRECTION_HIDDEN_IN_STORED_JSON
+          echo AI_MATERIALS_SIDEBAR_UNTOUCHED
+          echo AI_NEWS_SERVICE_ACTIVE
+          REMOTE
