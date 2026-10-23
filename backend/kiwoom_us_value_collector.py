@@ -157,6 +157,11 @@ def main():
                     # Existing source-ranked prices stay unchanged; fill only
                     # blank stock industries using official usa10100 metadata.
                     _fill_missing_us_industries(database_url)
+                    # Even after the market closes, repair identity metadata
+                    # from the saved Top 20 without fetching any new quotes.
+                    report = repair_saved_top20(database_url)
+                    print("KIWOOM_US_IDENTITY_SAVED=%s verified=%s" %
+                          (report["rows"], report["verified"]), flush=True)
                     return 0
     rows = fetch_us_trading_value_top(limit=20)
     # This board promises exactly 20 source-ranked rows. Never overwrite
