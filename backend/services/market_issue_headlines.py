@@ -47,7 +47,8 @@ def _read_worker_briefs(market, names):
                     """
                     SELECT stock_name, jsonb_build_object(
                         'issue_briefs', result_payload->'issue_briefs',
-                        '_ai_issue_briefs', result_payload->'_ai_issue_briefs'
+                        '_ai_issue_briefs', result_payload->'_ai_issue_briefs',
+                        'price_reason', result_payload->'price_reason'
                     )
                     FROM public.news_processed_snapshots
                     WHERE market=%s AND stock_name = ANY(%s)
@@ -58,8 +59,7 @@ def _read_worker_briefs(market, names):
                 )
                 records = cur.fetchall()
         return {
-            name: (clean_us_snapshot(payload).get("issue_briefs", [])
-                   if market == "us" else payload.get("issue_briefs", []))
+            name: (clean_us_snapshot(payload) if market == "us" else payload)
             for name, payload in records if isinstance(payload, dict)
         }
     except Exception as exc:
@@ -100,11 +100,20 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False):
                 "headline": "",
             })
             continue
-        headline = next(
-            (_first_headline(worker_briefs.get(name))
-             for name in names if _first_headline(worker_briefs.get(name))),
-            "",
-        )
+        # The US sidebar now shows the AI's rise/fall reason, never an issue title.
+        # Keep the domestic behavior unchanged.
+        if market == "us":
+            headline = next((
+                str((worker_briefs.get(name, {}).get("price_reason") or {}).get("headline") or "").strip()
+                for name in names
+                if (worker_briefs.get(name, {}).get("price_reason") or {}).get("headline")
+            ), "")
+        else:
+            headline = next((
+                _first_headline(worker_briefs.get(name, {}).get("issue_briefs"))
+                for name in names
+                if _first_headline(worker_briefs.get(name, {}).get("issue_briefs"))
+            ), "")
         results.append({
             **row, "status": "ready" if headline else "unavailable",
             "headline": headline,
