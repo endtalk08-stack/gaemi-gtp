@@ -41,6 +41,26 @@
       svg.appendChild(path);
       mark.replaceChildren(svg);
     }
+
+    // Query AnyLogo using only the exact, DB-verified US ticker. No manually
+    // maintained stock/domain mapping and no other-company name guessing.
+    // Keep the bundled vector or ticker badge while the request is in flight.
+    if (verified) {
+      const logo = document.createElement('img');
+      logo.className = 'market-stock-logo-image';
+      logo.alt = '';
+      logo.decoding = 'async';
+      // Detached lazy images may never load. Only active ranking rows create one.
+      logo.loading = 'eager';
+      logo.referrerPolicy = 'no-referrer';
+      logo.addEventListener('load', () => {
+        if (logo.naturalWidth > 0) mark.replaceChildren(logo);
+      });
+      // A 404, rate limit, or network failure leaves the local/ticker mark.
+      logo.addEventListener('error', () => {});
+      logo.src = 'https://img.anylogo.dev/ticker/'
+        + encodeURIComponent(ticker) + '?size=64&variant=icon';
+    }
     return mark;
   }
 
