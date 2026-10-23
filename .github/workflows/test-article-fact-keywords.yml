@@ -1,0 +1,26 @@
+name: Test article fact keyword extraction
+on:
+  push:
+    branches:
+      - feat/code-fact-issue-flow-20261024
+    paths:
+      - backend/services/article_fact_keywords.py
+      - backend/services/news_result.py
+      - backend/services/market_issue_headlines.py
+      - ops/staged_ai_sequential_batch.py
+      - tests/test_article_fact_keywords.py
+      - .github/workflows/test-article-fact-keywords.yml
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile changed Python modules
+        run: |
+          python -m py_compile backend/services/article_fact_keywords.py backend/services/news_result.py backend/services/market_issue_headlines.py ops/staged_ai_sequential_batch.py tests/test_article_fact_keywords.py
+      - name: Verify article-only extraction without external calls
+        run: python -m unittest discover -s tests -p 'test_article_fact_keywords.py' -v
+      - name: Verify existing sidebar read path
+        run: python -m unittest discover -s tests -p 'test_market_issue_headlines.py' -v
