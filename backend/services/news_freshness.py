@@ -51,7 +51,7 @@ def issue_mode_for_question(question, *, explicit=None):
 
 
 def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
-    """Read cited, 24-hour AI and code channels; select one without modifying either.
+    """Read cited, 24-hour code and preserved AI channels without changing either.
 
     Both consumers use this function. Reject old source timestamps even when
     a snapshot was saved minutes ago. Unknown dates are not fabricated.
@@ -113,10 +113,12 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
     elif mode == "both":
         selected = channels["code"] + channels["ai"]
         channel = "both"
-    elif channels["code"]:
-        selected, channel = channels["code"], "code"
     else:
-        selected, channel = channels["ai"], "previous_ai_fallback" if channels["ai"] else "unavailable"
+        # Visible news flow is always CODE in automatic mode.
+        # Preserve previous AI issues in Neon without displaying them as
+        # substitute "article facts" when verified articles are unavailable.
+        selected = channels["code"]
+        channel = "code" if selected else "unavailable"
     result["issue_channels"] = channels
     result["issue_mode"] = mode
     result["_issue_display_channel"] = channel

@@ -102,17 +102,20 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 block.append(reasonTitle, reasonText);
               }
             }
-            const signalTitle = document.createElement('p');
-            signalTitle.className = responseMessageClass;
-            const signalTitleText = inline
-              ? '오늘 눈에 띄는 흐름 👀'
-              : evidence.signals.length || storyboard.length || disclosures.length
-                ? '오늘 눈에 띄는 흐름 👀' : '눈에 띄는 흐름 없음 ☁️';
-            block.appendChild(signalTitle);
-            // Render below the AI movement reason and above the existing follow-up actions.
+            // This section is a CODE news feed only. No empty-state label
+            // and no stored AI news substituted for missing verified articles.
+            // Keep other stock-analysis/follow-up behavior unchanged.
+            if (storyboard.length) {
+              const signalTitle = document.createElement('p');
+              signalTitle.className = responseMessageClass;
+              block.appendChild(signalTitle);
+            }
+            // Render below the stock analysis and above existing follow-up actions.
             prompt.insertAdjacentElement('afterend', block);
             if (inline) prompt.remove();
-            await typeWhyText(signalTitle, signalTitleText);
+            if (storyboard.length) {
+              await typeWhyText(block.querySelector('p:last-child'), '오늘 눈에 띄는 흐름 👀');
+            }
 
             if (storyboard.length) {
               const storyboardList = document.createElement('div');
