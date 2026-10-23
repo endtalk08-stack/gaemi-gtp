@@ -198,6 +198,16 @@
         /(어땠|마감|시황|요약|정리)/.test(compact);
     }
 
+    // A factual issue question uses stored article briefs; movement-cause
+    // questions still use the existing AI chat/model path below.
+    function isArticleIssueQuestion(question) {
+      const q = String(question || '').replace(/\s+/g, '');
+      return q.length <= 60
+        && /(이슈|뉴스|소식|재료|기사)/.test(q)
+        && /(있어|있나|있니|뭐야|뭔데|알려|보여|정리|최근|오늘|핵심)/.test(q)
+        && !/(왜|원인|이유|때문|영향으로|올랐|떨어졌|하락했|상승했)/.test(q);
+    }
+
     async function requestChatAnswer(question, sessionId, history) {
       // Freeze mode at the moment the question was sent, not after
       // asynchronous stock analysis or a later mode dropdown change.
@@ -272,6 +282,44 @@
           } else {
             await appendChatReply(result.content, sessionId, result.presentation);
           }
+          return;
+        }
+        if (appMode === 'gaemi' && stock && isArticleIssueQuestion(question)) {
+          // Never spend AI tokens just to display the existing source-verified
+          // article issue feed. Do not guess why a stock moved.
+          const issueParams = new URLSearchParams({
+            stock, market: marketSelection?.market === 'kr' ? 'kr' : 'us',
+            issue_mode: 'code', question
+          });
+          if (marketSelection?.symbol) issueParams.set('symbol', marketSelection.symbol);
+          const response = await fetch(ctx.backendUrl + '/api/news/issues?' + issueParams, {
+            method: 'GET', credentials: 'same-origin', signal: controller.signal
+          });
+          const news = await response.json();
+          if (controller.signal.aborted || ctx.getSession()?.id !== sessionId) return;
+          stopThinking();
+          if (!response.ok || !news?.ok) {
+            appendChatError('뉴스 이슈를 불러오지 못했어.', sessionId);
+            return;
+          }
+          const briefs = Array.isArray(news.issue_briefs) ? news.issue_briefs : [];
+          if (!briefs.length) {
+            await appendChatReply('확인된 기사 팩트 이슈가 아직 없어.', sessionId);
+            return;
+          }
+          const text = briefs.map((item) => {
+            const sources = (Array.isArray(item.source_articles) ? item.source_articles : [])
+              .filter(source => /^https?:\/\//.test(String(source?.url || '')))
+              .slice(0, 1);
+            return [
+              '**' + String(item.headline || '기사 이슈') + '**',
+              String(item.summary || '').trim(),
+              (Array.isArray(item.tags) ? item.tags : []).slice(0, 3)
+                .map(tag => '#' + String(tag).replace(/^#/, '')).join('  '),
+              sources.length ? '원문: ' + sources[0].url : ''
+            ].filter(Boolean).join('\n');
+          }).join('\n\n');
+          await appendChatReply(text, sessionId);
           return;
         }
         const response = await fetch(ctx.backendUrl + '/api/ai-test/chat', {
