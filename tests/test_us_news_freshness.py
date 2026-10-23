@@ -31,7 +31,8 @@ def brief(title, hours):
 class RenderFreshnessTests(unittest.TestCase):
     def test_two_day_old_code_fact_hidden_despite_recent_snapshot_write(self):
         payload = {
-            "_code_fact_extraction_version": 2,
+            "_code_fact_extraction_version": 3,
+            "_title_only_revision": 3,
             "_code_issue_briefs": [brief("old", 49), brief("fresh", 1)],
             "issue_briefs": [brief("old", 49)],
             "_ai_exchange_day": "2026-10-18",
@@ -97,7 +98,8 @@ class RenderFreshnessTests(unittest.TestCase):
                 "url": "https://example.org/" + title,
             }]}
         payload = {"_news_status": "ok",
-                   "_code_fact_extraction_version": 2,
+                   "_code_fact_extraction_version": 3,
+                   "_title_only_revision": 3,
                    "_code_issue_briefs": [recent_brief("fresh", 1), recent_brief("stale", 49)],
                    "_ai_issue_briefs": [recent_brief("outdated AI", 1)],
                    "issue_briefs": [recent_brief("stale", 49)]}
