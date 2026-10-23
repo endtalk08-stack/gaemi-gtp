@@ -274,9 +274,20 @@
           watchStar.className = 'market-stock-watch-star';
           watchStar.textContent = '☆';
           watchStar.title = '관심종목 (연결 전)';
-          watchStar.setAttribute('aria-hidden', 'true');
-          // Visual placeholder only; do not open stock chat when the star is clicked.
-          watchStar.addEventListener('click', (event) => event.stopPropagation());
+          watchStar.setAttribute('role', 'button');
+          watchStar.setAttribute('aria-label', '관심종목 기능 연결 예정');
+          watchStar.tabIndex = 0;
+          // Interactive placeholder only: no watchlist registration or persistence.
+          watchStar.addEventListener('click', (event) => {
+            event.stopPropagation();
+            watchStar.focus();
+          });
+          watchStar.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            event.stopPropagation();
+            watchStar.focus();
+          });
           const industryLabel = document.createElement('span');
           industryLabel.className = 'market-stock-industry-label';
           industryLabel.textContent = typeof item.industry === 'string' ? item.industry : '';
