@@ -1,0 +1,45 @@
+name: Live Render code issue visibility smoke
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/smoke-render-code-issue-20261024.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Check public Render stock issues and central view
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, time, urllib.request, urllib.parse, sys
+          host = "https://gaemi-gtp.onrender.com"
+          def get(path, params):
+              url = host + path + "?" + urllib.parse.urlencode(params)
+              req = urllib.request.Request(url, headers={"User-Agent":"gaemi-render-news-facts-smoke/1","Accept":"application/json"})
+              with urllib.request.urlopen(req, timeout=22) as response:
+                  return json.load(response)
+          for attempt in range(1, 9):
+              try:
+                  board = get("/market/trading-value", {"market":"us"})
+                  stocks = board.get("items") or []
+                  micron = next((x for x in stocks if x.get("symbol")=="MU"), {})
+                  sidebar = micron.get("issue_headline") or ""
+                  analysis = get("/analyze", {"stock":"마이크론 테크놀로지","market":"us","menu":"value","symbol":"MU"})
+                  issue_rows = analysis.get("issue_briefs") or []
+                  code_rows = [x for x in issue_rows if x.get("evidence_source")=="article_title_description_price_context"]
+                  print("CHECK",attempt,"board_ok",board.get("ok"),"MU_found",bool(micron),"MU_sidebar",bool(sidebar),"MU_central_code_rows",len(code_rows),flush=True)
+                  if sidebar and code_rows:
+                      print("RENDER_CODE_FACTS_LIVE_VERIFIED",flush=True)
+                      print("MU_SIDEBAR_TITLE",sidebar[:130],flush=True)
+                      print("MU_CENTRAL_TITLE",code_rows[0].get("headline","")[:130],flush=True)
+                      sys.exit(0)
+              except Exception as exc:
+                  print("CHECK",attempt,"error",type(exc).__name__,str(exc)[:160],flush=True)
+              if attempt < 8: time.sleep(8)
+          print("RENDER_CODE_FACTS_NOT_YET_VISIBLE",flush=True)
+          sys.exit(1)
+          PY
