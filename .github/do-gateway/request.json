@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/check_live_us_value_industries_readonly_20261023.py","request_id":"liveindustry20261023check1","timeout":50}
+{"operation":"deploy","path":"ops/systemd/gaemigtp-kiwoom-us-value.timer","target":"ops/systemd/gaemigtp-kiwoom-us-value.timer"}
