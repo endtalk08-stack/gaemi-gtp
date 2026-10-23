@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-news.service","lines":80}
+{"operation":"run","path":"ops/do-gateway/verify_us_trading_worker_base_20261023.py","request_id":"verify_us_trade_final_20261023","timeout":60}
