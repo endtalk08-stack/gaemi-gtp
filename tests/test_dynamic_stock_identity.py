@@ -157,8 +157,30 @@ class IdentityTests(unittest.TestCase):
                          ["GOOGL", "GOOG", "", ""])
         self.assertEqual([row["identity_status"] for row in rows],
                          ["verified", "verified", "pending", "pending"])
+        self.assertEqual([row["logo_lookup_ticker"] for row in rows],
+                         ["GOOGL", "GOOG", "NEW", ""])
         self.assertEqual([row["symbol"] for row in rows],
                          ["GOOGL.O", "GOOG.O", "NEW.O", "AAPL.O"])
+
+    def test_logo_lookup_does_not_change_pending_news_identity(self):
+        from backend.services import market_rankings
+        sources = [
+            {"name": "램 리서치", "symbol": "LRCX.O", "industry": "반도체"},
+            {"name": "블룸 에너지", "symbol": "BE", "industry": "산업"},
+            {"name": "어플라이드 머티어리얼즈", "symbol": "AMAT.O", "industry": "반도체"},
+        ]
+        with (
+            patch.object(market_rankings, "get_stock_industries", return_value={}),
+            patch("backend.services.stock_identity_store.register_us_ranking_instruments"),
+            patch("backend.services.news_identity_registry.resolve_us_news_identity",
+                  return_value={"status": "pending", "ticker": ""}),
+        ):
+            rows = market_rankings._with_stock_industries(sources, "us", "value")
+        self.assertEqual([row["logo_lookup_ticker"] for row in rows],
+                         ["LRCX", "BE", "AMAT"])
+        self.assertEqual([row["identity_status"] for row in rows],
+                         ["pending", "pending", "pending"])
+        self.assertEqual([row["mark_ticker"] for row in rows], ["", "", ""])
 
     def test_registration_does_not_run_without_connection(self):
         with patch.dict("os.environ", {"NEWS_DATABASE_URL": ""}):
