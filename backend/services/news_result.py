@@ -27,7 +27,7 @@ from .business_material_events import business_material_title_and_tags
 from .flow_material_events import flow_material_title_and_tags
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .verified_fact_headline import overlay_verified_headlines
-from .news_feed import fetch_stock_news
+from .news_feed import fetch_stock_news, select_stock_news_for_analysis
 
 
 def _empty_news_result():
@@ -240,8 +240,16 @@ def build_stock_news_result(
             for item in cpi_rows[:12]:
                 diag("fetched_cpi", item)
 
+        # KR keeps its existing upstream selection. US keeps the identical
+        # first-stage KR article/keyword gates in this *code-only* branch.
+        # Crucially, the original raw_news_list is never filtered, mutated, or
+        # reassigned: the independent AI consumer still receives the same raw.
+        code_input_news = (
+            select_stock_news_for_analysis(raw_news_list, stock_name, limit)
+            if market in ("미국", "US", "us") else raw_news_list
+        )
         part_started = time.monotonic()
-        scored_news = score_stock_news(raw_news_list, stock_name)
+        scored_news = score_stock_news(code_input_news, stock_name)
         print(
             f"[analyze news trace] stock={stock_name} part=score done "
             f"elapsed={time.monotonic() - part_started:.2f}s items={len(scored_news)}",
