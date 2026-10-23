@@ -22,6 +22,26 @@ def _first_headline(briefs):
     return ""
 
 
+def _first_ai_headline(snapshot):
+    """Show only cited US AI materials; never the deprecated price_reason."""
+    if not isinstance(snapshot, dict):
+        return ""
+    for brief in snapshot.get("issue_briefs") or []:
+        if not isinstance(brief, dict):
+            continue
+        sources = brief.get("source_articles")
+        if not isinstance(sources, list) or not any(
+            isinstance(item, dict)
+            and str(item.get("url") or "").startswith(("https://", "http://"))
+            for item in sources
+        ):
+            continue
+        title = str(brief.get("headline") or "").strip()
+        if title and title not in {"기사 주요 내용", "관련 이슈"}:
+            return title
+    return ""
+
+
 def _valid_row(market, item):
     if not isinstance(item, dict):
         return None
@@ -100,14 +120,13 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False):
                 "headline": "",
             })
             continue
-        # The US sidebar now shows the AI's rise/fall reason, never an issue title.
-        # Keep the domestic behavior unchanged.
+        # The US worker saves source-backed AI materials, not price_reason.
+        # _read_worker_briefs already restricts them to original news within 24h.
         if market == "us":
             headline = next((
-                str((worker_briefs.get(name).get("price_reason") or {}).get("headline") or "").strip()
-                for name in names
-                if isinstance(worker_briefs.get(name), dict)
-                and (worker_briefs[name].get("price_reason") or {}).get("headline")
+                title for name in names
+                for title in [_first_ai_headline(worker_briefs.get(name))]
+                if title
             ), "")
         else:
             # Domestic behavior and existing list-only callers remain unchanged.

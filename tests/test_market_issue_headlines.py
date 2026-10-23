@@ -101,5 +101,69 @@ class MarketIssueHeadlineTests(unittest.TestCase):
             )
 
 
+    def test_us_cited_ai_issue_visible_without_price_reason(self):
+        from datetime import datetime, timezone
+        from backend.services.news_freshness import clean_us_snapshot
+        now = datetime.now(timezone.utc)
+        snapshot = clean_us_snapshot({
+            "price_reason": None,
+            "issue_briefs": [{"headline": "규칙이 만든 옛 재료"}],
+            "_ai_issue_briefs": [{
+                "headline": "반도체 수요 확대",
+                "summary": "AI가 분석한 내용",
+                "source_articles": [{
+                    "url": "https://source.example/story",
+                    "source": "source.example",
+                    "published_at": now.isoformat(),
+                }],
+            }],
+        }, now=now)
+        with patch.object(subject, "resolve_us_news_identity",
+                          return_value={"snapshot_names": ["엔비디아"]}), \
+             patch.object(subject, "_read_worker_briefs",
+                          return_value={"엔비디아": snapshot}):
+            result = subject.get_market_issue_headlines(
+                "us", [{"name": "엔비디아", "symbol": "NVDA"}]
+            )
+        self.assertEqual(result["items"][0]["headline"], "반도체 수요 확대")
+        self.assertEqual(result["items"][0]["status"], "ready")
+
+    def test_us_no_stale_or_uncited_ai_material_fallback(self):
+        from datetime import datetime, timedelta, timezone
+        from backend.services.news_freshness import clean_us_snapshot
+        now = datetime.now(timezone.utc)
+        snapshot = clean_us_snapshot({
+            "price_reason": None,
+            "issue_briefs": [{"headline": "옛 규칙 재료"}],
+            "_ai_issue_briefs": [{
+                "headline": "하루 지난 AI 재료",
+                "summary": "이미 지난 기사",
+                "source_articles": [{
+                    "url": "https://source.example/stale",
+                    "source": "source.example",
+                    "published_at": (now - timedelta(hours=25)).isoformat(),
+                }],
+            }],
+        }, now=now)
+        with patch.object(subject, "resolve_us_news_identity",
+                          return_value={"snapshot_names": ["테슬라"]}), \
+             patch.object(subject, "_read_worker_briefs",
+                          return_value={"테슬라": snapshot}):
+            result = subject.get_market_issue_headlines(
+                "us", [{"name": "테슬라", "symbol": "TSLA"}]
+            )
+        self.assertEqual(result["items"][0]["status"], "unavailable")
+        self.assertEqual(result["items"][0]["headline"], "")
+
+    def test_us_ai_headline_does_not_invent_evidence(self):
+        self.assertEqual(subject._first_ai_headline({"issue_briefs": [
+            {"headline": "출처 없는 제목", "summary": "텍스트"}
+        ]}), "")
+        self.assertEqual(subject._first_ai_headline({"issue_briefs": [
+            {"headline": "공식 공급 계약", "summary": "내용",
+             "source_articles": [{"url": "https://source.example/official"}]}
+        ]}), "공식 공급 계약")
+
+
 if __name__ == "__main__":
     unittest.main()
