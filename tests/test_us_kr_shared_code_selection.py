@@ -41,12 +41,15 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         # The same helper is now used by the unchanged domestic feed.
         shared = news_feed.select_stock_news_for_analysis(self.rows, "테슬라", 50)
         self.assertEqual([x["url"] for x in shared], ["https://example.org/tesla-contract"])
-        self.assertEqual(len(shared[0]["analysis_event_strength"] > 0 and [1]), 1)
+        self.assertGreater(shared[0]["analysis_event_strength"], 0)
         self.assertTrue(shared[0]["analysis_material_signal"])
-        self.assertEqual(
-            build_connected_keyword_test(copy.deepcopy(shared), "테슬라", max_keywords=3),
-            build_connected_keyword_test(copy.deepcopy(shared), "테슬라", max_keywords=3),
+        kr_keywords = build_connected_keyword_test(copy.deepcopy(shared), "테슬라", max_keywords=3)
+        us_keywords = build_connected_keyword_test(
+            copy.deepcopy(news_feed.select_stock_news_for_analysis(self.rows, "테슬라", 50)),
+            "테슬라", max_keywords=3,
         )
+        self.assertEqual(kr_keywords, us_keywords)
+        self.assertEqual(len(kr_keywords["articles"]), 1)
 
     def test_domestic_upstream_runs_shared_code_unchanged(self):
         rows = [
