@@ -775,6 +775,7 @@ def build_stock_news_result(
             "issue_briefs": issue_briefs,
             "keyword_storyboard": keyword_storyboard,
             "_title_only_revision": 3 if market in ("미국", "US") else None,
+            "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
