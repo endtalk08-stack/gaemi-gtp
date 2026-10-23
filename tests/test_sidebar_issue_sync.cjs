@@ -279,25 +279,51 @@ test('AnyLogo loads automatically by the exact Neon-verified ticker and replaces
     'failed logo request keeps its ticker mark');
 });
 
-test('AnyLogo supports new verified tickers without logo lists, but skips pending and mismatched identities', async () => {
+test('AnyLogo accepts source-listed pending tickers but rejects mismatched identities', async () => {
   const app = setup();
   await flush();
   const before = app.logoImages.length;
   app.replaceValueRows([
     { name: '버크셔 Class B', symbol: 'BRK.B', mark_ticker: 'BRK.B', identity_status: 'verified' },
-    { name: '신규 종목', symbol: 'NEWT.O', mark_ticker: '', identity_status: 'pending' },
-    { name: '다른 기업', symbol: 'AAPL.O', mark_ticker: 'NVDA', identity_status: 'verified' },
+    { name: '신규 종목', symbol: 'NEWT.O', mark_ticker: '', logo_lookup_ticker: 'NEWT', identity_status: 'pending' },
+    { name: '다른 기업', symbol: 'AAPL.O', mark_ticker: 'NVDA', logo_lookup_ticker: 'AAPL', identity_status: 'verified' },
     { name: '검증 불가', symbol: '../INVALID', mark_ticker: '../INVALID', identity_status: 'verified' }
   ]);
   await flush();
-  assert.equal(app.logoImages.length, before + 1, 'only the exact verified ticker should load');
-  assert.equal(app.logoImages.at(-1).src,
+  assert.equal(app.logoImages.length, before + 2, 'verified and source-listed pending tickers both load');
+  assert.equal(app.logoImages.at(-2).src,
     'https://img.anylogo.dev/ticker/BRK.B?size=64&variant=icon');
+  assert.equal(app.logoImages.at(-1).src,
+    'https://img.anylogo.dev/ticker/NEWT?size=64&variant=icon');
   const rows = app.list.querySelectorAll(':scope > button[data-original-index]');
   assert.equal(rows.length, 4);
   assert.equal(rows[1].children[1].children[0].textContent, 'NEWT');
   assert.equal(rows[2].children[1].children[0].textContent, 'AAPL');
   assert.equal(rows[3].children[1].children[0].tagName, 'span');
+});
+
+test('pending tickers do not change their identity when an external logo fails', async () => {
+  const app = setup();
+  await flush();
+  const prior = app.logoImages.length;
+  app.replaceValueRows([
+    { name: '램 리서치', symbol: 'LRCX.O', identity_status: 'pending',
+      mark_ticker: '', logo_lookup_ticker: 'LRCX' },
+    { name: '블룸 에너지', symbol: 'BE', identity_status: 'pending',
+      mark_ticker: '', logo_lookup_ticker: 'BE' },
+    { name: '어플라이드 머티어리얼즈', symbol: 'AMAT.O', identity_status: 'pending',
+      mark_ticker: '', logo_lookup_ticker: 'AMAT' }
+  ]);
+  await flush();
+  assert.deepEqual(Array.from(app.logoImages.slice(prior), (img) => img.src), [
+    'https://img.anylogo.dev/ticker/LRCX?size=64&variant=icon',
+    'https://img.anylogo.dev/ticker/BE?size=64&variant=icon',
+    'https://img.anylogo.dev/ticker/AMAT?size=64&variant=icon'
+  ]);
+  const rows = app.list.querySelectorAll(':scope > button[data-original-index]');
+  assert.deepEqual(Array.from(rows, (r) => r.dataset.stockSymbol), ['LRCX.O', 'BE', 'AMAT.O']);
+  app.logoImages.at(-1).listeners.error[0]();
+  assert.equal(rows[2].children[1].children[0].textContent, 'AMAT');
 });
 
 test('new side menus do not query a fake partial TOP20 ranking', async () => {

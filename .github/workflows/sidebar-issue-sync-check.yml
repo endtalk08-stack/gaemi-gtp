@@ -38,6 +38,6 @@ jobs:
         run: |
           python -m py_compile app.py backend/services/market_issue_headlines.py backend/services/market_rankings.py tests/test_dynamic_stock_identity.py
           python -m unittest -v tests.test_market_issue_headlines
-          python -m unittest -v tests.test_dynamic_stock_identity.IdentityTests.test_sidebar_marks_follow_existing_neon_ticker_registry
+          python -m unittest -v tests.test_dynamic_stock_identity.IdentityTests.test_sidebar_marks_follow_existing_neon_ticker_registry tests.test_dynamic_stock_identity.IdentityTests.test_logo_lookup_does_not_change_pending_news_identity
       - name: Sidebar synchronization regression tests
         run: node --test tests/test_sidebar_issue_sync.cjs
