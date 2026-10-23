@@ -1,5 +1,5 @@
 [Unit]
-Description=gaemiGTP Kiwoom US FE live trade-price writer (Top 20 only)
+Description=gaemiGTP Kiwoom US FE signed real-time price relay to Render (Top 20)
 After=network-online.target
 Wants=network-online.target
 
@@ -10,7 +10,7 @@ Group=gaemigtp-news
 WorkingDirectory=/opt/gaemigtp-news/app
 EnvironmentFile=/etc/gaemigtp/kiwoom.env
 EnvironmentFile=/etc/gaemigtp/news-worker.env
-ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_us_live_prices
+ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_us_price_relay
 Restart=always
 RestartSec=12
 TimeoutStartSec=40
