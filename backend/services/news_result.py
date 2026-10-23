@@ -17,6 +17,7 @@ from backend.analysis.news import (
 )
 
 from .news_byline import strip_leading_news_credit
+from .article_fact_keywords import build_article_fact_briefs, read_us_price_change_pct
 from .issue_briefs import (
     grounded_issue_display_title,
     _article_excerpt, build_issue_briefs, central_material_brief_supported,
@@ -714,6 +715,16 @@ def build_stock_news_result(
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
 
+        # US headline/keywords: exact article facts, with the existing quote
+        # snapshot used only as a light ranking hint. No AI or preset tags.
+        # Keep the existing verified news collection and KR analysis unchanged.
+        if market in ("미국", "US"):
+            issue_briefs = build_article_fact_briefs(
+                paired_news_items, stock_name,
+                price_change_pct=read_us_price_change_pct(stock_name),
+                limit=storyboard_limit,
+            )
+
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
         central_eligible = [
@@ -821,6 +832,14 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
             return None
         if not isinstance(result.get("issue_briefs"), list):
             return None
+        # Code-only '눈에 띄는 흐름' view: never render a prior AI summary
+        # simply because its snapshot has not yet been refreshed.
+        if market in ("미국", "US"):
+            code = result.get("_code_issue_briefs")
+            if isinstance(code, list):
+                result["issue_briefs"] = code
+            elif result.get("_ai_issue_briefs"):
+                result["issue_briefs"] = []
         return result
     except Exception as exc:
         print("[processed news] worker snapshot unavailable: "
