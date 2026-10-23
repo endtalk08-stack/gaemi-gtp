@@ -23,3 +23,5 @@ jobs:
           python -m unittest discover -s tests -p 'test_us_news_freshness.py' -v
           python -m unittest discover -s tests -p 'test_market_issue_headlines.py' -v
           python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v
+          python -m unittest discover -s tests -p 'test_market_selection_context.py' -v
+          python -m unittest discover -s tests -p 'test_market_trading_value.py' -v
