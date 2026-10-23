@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-kiwoom-us-fe.service","lines":35}
+{"operation":"run","path":"ops/do-gateway/verify-direct-price-relay-20261023.py","request_id":"verify_direct_feed_20261023_01","timeout":50}
