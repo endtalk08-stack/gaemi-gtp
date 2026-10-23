@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_render_kiwoom_value_rollout_readonly_20261023.py","request_id":"renderkiwoomvalue20261023c","timeout":250}
+{"operation":"deploy","path":"backend/providers/kiwoom_us_industry.py","target":"backend/providers/kiwoom_us_industry.py"}
