@@ -1,1 +1,4 @@
-{"operation":"restart","unit":"gaemigtp-kiwoom-us-value.service"}
+{
+  "operation": "restart",
+  "unit": "gaemigtp-kiwoom-us-value.service"
+}
