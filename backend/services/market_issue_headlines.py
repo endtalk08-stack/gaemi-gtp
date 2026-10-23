@@ -104,9 +104,10 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False):
         # Keep the domestic behavior unchanged.
         if market == "us":
             headline = next((
-                str((worker_briefs.get(name, {}).get("price_reason") or {}).get("headline") or "").strip()
+                str((worker_briefs.get(name).get("price_reason") or {}).get("headline") or "").strip()
                 for name in names
-                if (worker_briefs.get(name, {}).get("price_reason") or {}).get("headline")
+                if isinstance(worker_briefs.get(name), dict)
+                and (worker_briefs[name].get("price_reason") or {}).get("headline")
             ), "")
         else:
             # Domestic behavior and existing list-only callers remain unchanged.
