@@ -55,6 +55,7 @@ jobs:
           scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" backend/services/news_result.py "$remote:/opt/gaemigtp-news/app/ops/.news-result-facts-next.py"
           scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/do-gateway/deploy_code_facts_20261024.py "$remote:/opt/gaemigtp-news/app/ops/.deploy-code-facts-next.py"
           scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/do-gateway/apply_code_facts_on_worker_20261024.sh "$remote:/opt/gaemigtp-news/app/ops/.apply-code-facts-next.sh"
+      # An external Neon connection backfills existing snapshots if the SSH environment lacks DB variables.
       # Fatal rollback errors propagate to GitHub Actions; Python imports use the live app root.
       - name: Pause AI and activate code issues with rollback
         shell: bash
