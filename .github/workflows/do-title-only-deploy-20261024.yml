@@ -1,0 +1,61 @@
+name: Deploy verified three-sentence title-only change
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-title-only-deploy-20261024.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemigtp-title-only-cutover
+  cancel-in-progress: false
+jobs:
+  rollout:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Test exact-article summary retention
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_verified_fact_headline_only.py' -v
+          python -m unittest discover -s tests -p 'test_article_fact_keywords.py' -v
+          python -m py_compile backend/services/news_result.py backend/services/verified_fact_headline.py
+      - name: Check live worker and stage only two Python modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          expected="$(git show '975128d307b67cbf630f522c39cf84b86ae1b1d0^:backend/services/news_result.py' | sha256sum | cut -d' ' -f1)"
+          remote="gaemi-deploy@$DO_HOST"
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "$remote" 'bash -s' "$expected" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum backend/services/news_result.py | cut -d' ' -f1)" = "$1"
+          grep -Fq 'payload.get("_code_fact_extraction_version") != 2' backend/services/news_processed_store.py
+          grep -Fq 'normalized["issue_briefs"] = normalized.get("_code_issue_briefs") or []' backend/services/news_processed_store.py
+          grep -Fq 'PAUSED apply_worker_ai' ops/staged_ai_sequential_batch.py
+          grep -Fq 'PAUSED process_due_ai_snapshots' ops/staged_auto_ai_daily.py
+          test ! -e backend/services/verified_fact_headline.py
+          test -w backend/services && test -w ops
+          echo TITLE_ONLY_BASELINES_VERIFIED
+          REMOTE
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" backend/services/verified_fact_headline.py "$remote:/opt/gaemigtp-news/app/ops/.verified-title-helper-next.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" backend/services/news_result.py "$remote:/opt/gaemigtp-news/app/ops/.verified-title-result-next.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/do-gateway/apply_verified_title_only_20261024.sh "$remote:/opt/gaemigtp-news/app/ops/.verified-title-apply.sh"
+      - name: Activate headline overlay while news AI remains paused
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash /opt/gaemigtp-news/app/ops/.verified-title-apply.sh'
