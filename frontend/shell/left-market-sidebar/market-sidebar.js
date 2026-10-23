@@ -370,8 +370,7 @@
       }
     };
 
-    // Update displayed prices without redrawing or reordering the user's ranking list.
-    // One read-only Neon snapshot per request: no AI, news collection or Redis writes.
+    // Only read the newest stored Kiwoom quote; do not start collection or AI.
     const readLatestQuotes = async () => {
       if (quoteRequestInFlight || tab !== 'value' || !list?.querySelector('button[data-original-index]')) return;
       quoteRequestInFlight = true;
@@ -388,79 +387,7 @@
           if (!button) return;
           if (typeof quote.price === 'number' && Number.isFinite(quote.price)) {
             const price = button.querySelector('[data-market-price]');
-            if (price) price.textContent = '
-    // Never recollect news, rerank stocks, or replace the displayed list.
-    const refreshAnalyzedIssue = async (event) => {
-      const detail = event.detail || {};
-      const name = String(detail.name || '').trim();
-      if (!name || tab !== 'value') return;
-      if (detail.market && detail.market !== market) return;
-      const button = [...list.querySelectorAll(':scope > button[data-original-index]')]
-        .find((row) => row.dataset.stockName === name &&
-          (!detail.symbol || row.dataset.stockSymbol === String(detail.symbol)));
-      if (!button) return;
-      const currentRequestId = requestId;
-      try {
-        const response = await fetch(backendUrl + '/market/issue-headlines', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ market, items: [{ name, symbol: button.dataset.stockSymbol }] })
-        });
-        if (!response.ok) return;
-        const data = await response.json();
-        if (currentRequestId !== requestId || !list.contains(button)) return;
-        const updated = data.ok === true && Array.isArray(data.items) ? data.items[0] : null;
-        if (!updated || updated.name !== name || updated.symbol !== button.dataset.stockSymbol) return;
-        const issue = button.querySelector('[data-stock-issue]');
-        if (issue) issue.textContent = typeof updated.headline === 'string' ? updated.headline : '';
-      } catch (_) {
-        // Keep the previous headline on transient read failures.
-      }
-    };
-    window.addEventListener('gaemi:analysis-issues-ready', (event) => {
-      void refreshAnalyzedIssue(event);
-    });
-
-    changeSortButton?.addEventListener('click', () => {
-      if (tab !== 'value') return;
-      changeSorted = !changeSorted;
-      applyChangeSort();
-    });
-
-    bindStaticSelection('[data-info-tab-action]', 1);
-    sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
-      if (button.disabled) return;
-      button.addEventListener('click', () => {
-        tab = button.dataset.infoTabAction;
-        customOrder = readOrder();
-        changeSorted = false;
-        void showUsRanking();
-      });
-    });
-    sidebar.dataset.marketControlsBound = 'true';
-    // Keep the working trading-value list as default while new data sources are pending.
-    void showUsRanking();
-    // Price changes update every 10 seconds without reloading AI issue headlines.
-    // Fetch the full list only once a minute, or retry when the first load failed.
-    window.setInterval(() => {
-      if (tab !== 'value' || document.visibilityState !== 'visible' ||
-          !document.body.classList.contains('left-market-open') || draggedRow) return;
-      if (!list.querySelector('button[data-original-index]') ||
-          Date.now() - lastFullRankingRefresh >= 60000) {
-        lastFullRankingRefresh = Date.now();
-        void showUsRanking();
-      } else {
-        void readLatestQuotes();
-      }
-    }, 10000);
-  }
-
-  document.addEventListener('DOMContentLoaded', bindMarketControls);
-
-  window.toggleLeftSidebar = toggle;
-  window.GaemiGTPMarketSidebar = { toggle, bindMarketControls };
-}());
- + quote.price.toLocaleString('en-US', { maximumFractionDigits: 2 });
+            if (price) price.textContent = '$' + quote.price.toLocaleString('en-US', { maximumFractionDigits: 2 });
             button.dataset.currentPrice = String(quote.price);
           }
           if (typeof quote.change_pct === 'number' && Number.isFinite(quote.change_pct)) {
@@ -482,7 +409,7 @@
         }
         if (updated && changeSorted && !draggedRow) applyChangeSort();
       } catch (_) {
-        // Retain last displayed prices; never misrepresent a failed read as live.
+        // Retain last displayed prices, but do not label them live.
         if (title && tab === 'value') title.textContent = '거래대금 TOP 20 · 연결 확인 중';
       } finally {
         quoteRequestInFlight = false;
@@ -541,14 +468,18 @@
     sidebar.dataset.marketControlsBound = 'true';
     // Keep the working trading-value list as default while new data sources are pending.
     void showUsRanking();
-    // Price/sector changes are read from Render -> Neon; the browser never calls Kiwoom.
-    // Avoid background requests and do not redraw an unchanged or manually reordered list.
+    // Read prices every 10 seconds, full rankings/headlines at most once a minute.
     window.setInterval(() => {
-      if (tab === 'value' && document.visibilityState === 'visible' &&
-          document.body.classList.contains('left-market-open') && !draggedRow) {
+      if (tab !== 'value' || document.visibilityState !== 'visible' ||
+          !document.body.classList.contains('left-market-open') || draggedRow) return;
+      if (!list.querySelector('button[data-original-index]') ||
+          Date.now() - lastFullRankingRefresh >= 60000) {
+        lastFullRankingRefresh = Date.now();
         void showUsRanking();
+      } else {
+        void readLatestQuotes();
       }
-    }, 15000);
+    }, 10000);
   }
 
   document.addEventListener('DOMContentLoaded', bindMarketControls);
