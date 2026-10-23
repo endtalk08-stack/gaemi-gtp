@@ -1,0 +1,25 @@
+name: Verify dual AI and code news issue switch
+on:
+  push:
+    branches: [feat/dual-ai-code-issue-switch-20261024]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax and frontend JavaScript syntax
+        run: |
+          set -euo pipefail
+          python -m py_compile app.py backend/services/news_freshness.py backend/services/news_result.py backend/services/market_issue_headlines.py backend/services/engine.py
+          node --check frontend/js/analysis-api.js
+          node --check frontend/js/why-flow.js
+          node --check frontend/shell/center-chat/ai-chat.js
+      - name: Verify issue switch and prior US news contracts
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_dual_issue_mode.py' -v
+          python -m unittest discover -s tests -p 'test_us_news_freshness.py' -v
+          python -m unittest discover -s tests -p 'test_market_issue_headlines.py' -v
+          python -m unittest discover -s tests -p 'test_us_stock_news_identity.py' -v

@@ -121,6 +121,36 @@
     const backendUrl = window.location.hostname.endsWith('github.io')
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
     const market = 'us';
+    const ISSUE_MODE_KEY = 'gaemiGTP_issue_mode_us_v1';
+    const getIssueMode = () => {
+      try {
+        const value = localStorage.getItem(ISSUE_MODE_KEY);
+        return ['ai', 'code', 'both', 'auto'].includes(value) ? value : 'auto';
+      } catch (_) { return 'auto'; }
+    };
+    let issueMode = getIssueMode();
+    const issueModeRow = document.createElement('div');
+    issueModeRow.className = 'flex flex-wrap gap-1 px-2 py-2 text-xs';
+    issueModeRow.dataset.sidebarIssueMode = 'true';
+    const modeButtons = {};
+    for (const [mode, label] of [['auto', '자동'], ['code', '기사 팩트'], ['ai', '저장된 AI']]) {
+      const modeButton = document.createElement('button');
+      modeButton.type = 'button';
+      modeButton.dataset.issueMode = mode;
+      modeButton.className = 'rounded-md border border-[#64748b] px-2 py-1 text-[#64748b] dark:text-[#a1a1aa]';
+      modeButton.textContent = label;
+      issueModeRow.appendChild(modeButton);
+      modeButtons[mode] = modeButton;
+    }
+    list?.parentElement?.insertBefore(issueModeRow, list);
+    const syncIssueModeButtons = () => {
+      for (const [mode, button] of Object.entries(modeButtons)) {
+        button.setAttribute('aria-pressed', String(issueMode === mode));
+        button.classList.toggle('font-bold', issueMode === mode);
+        button.classList.toggle('dark:text-[#e5e7eb]', issueMode === mode);
+      }
+    };
+    syncIssueModeButtons();
     let tab = 'value';
     let requestId = 0;
     let changeSorted = false;
@@ -221,7 +251,8 @@
       }
       try {
         const path = '/market/trading-value';
-        const response = await fetch(backendUrl + path + '?market=' + market, { cache: 'no-store' });
+        const response = await fetch(backendUrl + path + '?market=' + market +
+          '&issue_mode=' + encodeURIComponent(issueMode), { cache: 'no-store' });
         if (!response.ok) throw new Error('market ranking unavailable');
         const result = await response.json();
         if (id !== requestId) return;
@@ -444,7 +475,7 @@
         const response = await fetch(backendUrl + '/market/issue-headlines', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ market, items: [{ name, symbol: button.dataset.stockSymbol }] })
+          body: JSON.stringify({ market, issue_mode: issueMode, items: [{ name, symbol: button.dataset.stockSymbol }] })
         });
         if (!response.ok) return;
         const data = await response.json();
@@ -459,6 +490,24 @@
     };
     window.addEventListener('gaemi:analysis-issues-ready', (event) => {
       void refreshAnalyzedIssue(event);
+    });
+
+    // A user can switch the current sidebar headlines without changing the
+    // News collector, source selection or the stored AI/code records.
+    for (const [mode, button] of Object.entries(modeButtons)) {
+      button.addEventListener('click', () => {
+        issueMode = mode;
+        try { localStorage.setItem(ISSUE_MODE_KEY, mode); } catch (_) { /* optional */ }
+        window.dispatchEvent(new CustomEvent('gaemi:issue-mode-changed', { detail: { mode } }));
+      });
+    }
+    window.addEventListener('gaemi:issue-mode-changed', (event) => {
+      const mode = event.detail?.mode;
+      if (!['auto', 'ai', 'code', 'both'].includes(mode)) return;
+      issueMode = mode;
+      lastRankingSignature = '';
+      syncIssueModeButtons();
+      if (tab === 'value') void showUsRanking();
     });
 
     changeSortButton?.addEventListener('click', () => {

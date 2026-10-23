@@ -9,6 +9,8 @@ from backend.services.issue_title_test import issue_title_test_bp
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
+from backend.services.news_result import get_shared_stock_news_result
+from backend.services.news_freshness import issue_mode_for_question, normalize_issue_mode
 from backend.services.kiwoom_us_value_board import read_us_trading_value_board
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
 from backend.services.us_market_close import read_brief
@@ -165,6 +167,7 @@ def market_trading_value():
         if issue_rows:
             issue_results = get_market_issue_headlines(
                 market, issue_rows, skip_invalid=True,
+                issue_mode=normalize_issue_mode(request.args.get("issue_mode")),
             )["items"]
             for item, issue in zip(items, issue_results):
                 item["issue_headline"] = issue["headline"]
@@ -223,6 +226,7 @@ def market_popular():
         if issue_rows:
             issue_results = get_market_issue_headlines(
                 market, issue_rows, skip_invalid=True,
+                issue_mode=normalize_issue_mode(request.args.get("issue_mode")),
             )["items"]
             for item, issue in zip(items, issue_results):
                 item["issue_headline"] = issue["headline"]
@@ -241,15 +245,49 @@ def market_issue_headlines():
     if not isinstance(payload, dict):
         return jsonify({"ok": False, "error": "invalid_request"}), 400
     try:
-        result = get_market_issue_headlines(payload.get("market"), payload.get("items"))
+        result = get_market_issue_headlines(
+            payload.get("market"), payload.get("items"),
+            issue_mode=normalize_issue_mode(payload.get("issue_mode")),
+        )
     except ValueError:
         return jsonify({"ok": False, "error": "invalid_request"}), 400
     return jsonify(result)
 
 
+@app.get("/api/news/issues")
+def stock_news_issues():
+    """Fast read-only issue endpoint. No AI calls, news collection or DB writes."""
+    stock = str(request.args.get("stock") or "").strip()
+    market = str(request.args.get("market") or "us").lower()
+    if not stock or len(stock) > 60 or market not in ("us", "kr"):
+        return jsonify({"ok": False, "error": "invalid_input", "issue_briefs": []}), 400
+    symbol = str(request.args.get("symbol") or "").strip().upper()
+    if symbol and (len(symbol) > 32 or not all(c.isascii() and (c.isalnum() or c in ".^-_") for c in symbol)):
+        return jsonify({"ok": False, "error": "invalid_symbol", "issue_briefs": []}), 400
+    mode = issue_mode_for_question(
+        request.args.get("question"),
+        explicit=request.args.get("issue_mode", "code"),
+    )
+    result = get_shared_stock_news_result(
+        stock, market="미국" if market == "us" else "국내",
+        symbol=symbol or None, issue_mode=mode,
+    )
+    return jsonify({
+        "ok": True, "stock": stock, "market": market,
+        "issue_mode": mode,
+        "issue_display_channel": result.get("_issue_display_channel", "unavailable"),
+        "issue_briefs": result.get("issue_briefs", []),
+        "issue_channels": result.get("issue_channels", {}),
+    })
+
+
 @app.get("/analyze")
 def analyze():
     stock = request.args.get("stock", "SK하이닉스")
+    issue_mode = issue_mode_for_question(
+        request.args.get("question"),
+        explicit=request.args.get("issue_mode"),
+    )
     started = time.perf_counter()
     try:
         selected = get_market_selection(
@@ -260,7 +298,8 @@ def analyze():
         result = (analyze_stock(
             stock, ticker_symbol_override=ticker,
             kr_market_override=bool(selected and selected["market"] == "kr"),
-        ) if ticker else analyze_stock(stock))
+            issue_mode=issue_mode,
+        ) if ticker else analyze_stock(stock, issue_mode=issue_mode))
         remember_chat_analysis(stock, result, selection=selected)
         response = jsonify(result)
         response.headers["X-Analysis-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.0f}"

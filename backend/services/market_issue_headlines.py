@@ -9,7 +9,7 @@ import time
 
 from .news_identity_registry import resolve_us_news_identity
 from .issue_briefs import grounded_issue_display_title
-from .news_freshness import clean_us_snapshot
+from .news_freshness import clean_us_snapshot, normalize_issue_mode
 
 _MAX_ITEMS = 20
 
@@ -91,7 +91,7 @@ def _read_worker_briefs(market, names):
         return {}
 
 
-def get_market_issue_headlines(market, items, *, skip_invalid=False):
+def get_market_issue_headlines(market, items, *, skip_invalid=False, issue_mode="auto"):
     started = time.monotonic()
     if market not in ("kr", "us") or not isinstance(items, list) or not 1 <= len(items) <= _MAX_ITEMS:
         raise ValueError("invalid_market_issue_request")
@@ -126,9 +126,20 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False):
         # The US worker saves source-backed code facts, not price_reason.
         # _read_worker_briefs already restricts them to original news within 24h.
         if market == "us":
+            mode = normalize_issue_mode(issue_mode)
+            def selected_snapshot(name):
+                snapshot = worker_briefs.get(name)
+                if not isinstance(snapshot, dict) or mode == "auto":
+                    return snapshot
+                channels = snapshot.get("issue_channels") or {}
+                if mode == "both":
+                    issues = (channels.get("code") or []) + (channels.get("ai") or [])
+                else:
+                    issues = channels.get(mode) or []
+                return {**snapshot, "issue_briefs": issues}
             headline = next((
                 title for name in names
-                for title in [_first_ai_headline(worker_briefs.get(name))]
+                for title in [_first_ai_headline(selected_snapshot(name))]
                 if title
             ), "")
         else:

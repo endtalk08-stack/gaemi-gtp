@@ -28,8 +28,30 @@ def _article_date(value):
     return parsed.astimezone(timezone.utc)
 
 
-def clean_us_snapshot(payload, *, now=None):
-    """Return source-dated verified-title v3 briefs; use prior paid AI only if none exist.
+ISSUE_MODES = frozenset(("auto", "ai", "code", "both"))
+
+
+def normalize_issue_mode(mode):
+    """Safe per-request preference; unsupported values keep existing behavior."""
+    value = str(mode or "").strip().lower()
+    return value if value in ISSUE_MODES else "auto"
+
+
+def issue_mode_for_question(question, *, explicit=None):
+    """Route article-fact questions to code, movement reasons to existing AI."""
+    requested = normalize_issue_mode(explicit)
+    if requested != "auto":
+        return requested
+    content = str(question or "").replace(" ", "").lower()
+    if any(word in content for word in ("왜올랐", "왜떨어", "왜하락", "왜상승", "상승이유", "하락이유", "주가원인", "주가이유")):
+        return "ai"
+    if any(word in content for word in ("이슈는", "이슈있", "최근이슈", "오늘이슈", "뉴스있", "뉴스는", "핵심재료", "관련기사", "새소식")):
+        return "code"
+    return "auto"
+
+
+def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
+    """Read cited, 24-hour AI and code channels; select one without modifying either.
 
     Both consumers use this function. Reject old source timestamps even when
     a snapshot was saved minutes ago. Unknown dates are not fabricated.
@@ -42,51 +64,63 @@ def clean_us_snapshot(payload, *, now=None):
     cutoff = now.astimezone(timezone.utc) - timedelta(hours=24)
     upper = now.astimezone(timezone.utc)
     result = deepcopy(payload)
-    # Prefer the original body-verified v3 briefs. If the verified selector
-    # found no eligible articles, retain already-stored cited AI issues only
-    # as a temporary display fallback, including older snapshots awaiting v3.\n    # This NEVER invokes or schedules AI.
+    # Both news channels are retained. UI preferences never invoke an AI
+    # model, rerun article selection or write to Neon.
     v3 = (
         str(result.get("_title_only_revision") or "") == "3"
         and str(result.get("_code_fact_extraction_version") or "") == "3"
     )
-    code_briefs = result.get("_code_issue_briefs") if v3 else []
-    if not isinstance(code_briefs, list):
-        code_briefs = []
-    ai_fallback = result.get("_ai_issue_briefs") if not code_briefs else []
-    if not isinstance(ai_fallback, list):
-        ai_fallback = []
-    candidate_briefs = code_briefs or ai_fallback
-    result["_issue_display_channel"] = (
-        "verified_original_article" if code_briefs
-        else "previous_ai_fallback" if ai_fallback
-        else "unavailable"
-    )
-    fresh = []
-    for brief in candidate_briefs:
-        if not isinstance(brief, dict):
-            continue
-        valid_sources = []
-        for source in brief.get("source_articles") or []:
-            if not isinstance(source, dict):
+
+    def fresh_source_briefs(briefs):
+        if not isinstance(briefs, list):
+            return []
+        fresh = []
+        for brief in briefs:
+            if not isinstance(brief, dict):
                 continue
-            pub = _article_date(source.get("published_at"))
-            url = str(source.get("url") or "").strip()
-            if pub is None or not cutoff <= pub <= upper or not url.startswith(("https://", "http://")):
+            valid_sources = []
+            for source in brief.get("source_articles") or []:
+                if not isinstance(source, dict):
+                    continue
+                pub = _article_date(source.get("published_at"))
+                url = str(source.get("url") or "").strip()
+                if pub is None or not cutoff <= pub <= upper or not url.startswith(("https://", "http://")):
+                    continue
+                publisher = str(source.get("source") or "").strip() or (urlparse(url).hostname or "")
+                if not publisher:
+                    continue
+                valid_sources.append((pub, {**source, "source": publisher}))
+            if not valid_sources:
                 continue
-            publisher = str(source.get("source") or "").strip() or (urlparse(url).hostname or "")
-            if not publisher:
-                continue
-            valid_sources.append((pub, {**source, "source": publisher}))
-        if not valid_sources:
-            continue
-        latest = max(pub for pub, _ in valid_sources)
-        fresh.append({
-            **brief,
-            "time": latest.astimezone(SEOUL).strftime("%H:%M"),
-            "reaction_at": "",
-            "source_articles": [source for _, source in valid_sources],
-        })
-    result["issue_briefs"] = fresh[:3]
+            latest = max(pub for pub, _ in valid_sources)
+            fresh.append({
+                **brief,
+                "time": latest.astimezone(SEOUL).strftime("%H:%M"),
+                "reaction_at": "",
+                "source_articles": [source for _, source in valid_sources],
+            })
+        return fresh[:3]
+
+    channels = {
+        "code": fresh_source_briefs(result.get("_code_issue_briefs")) if v3 else [],
+        "ai": fresh_source_briefs(result.get("_ai_issue_briefs")),
+    }
+    mode = normalize_issue_mode(issue_mode)
+    if mode == "code":
+        selected, channel = channels["code"], "code"
+    elif mode == "ai":
+        selected, channel = channels["ai"], "ai"
+    elif mode == "both":
+        selected = channels["code"] + channels["ai"]
+        channel = "both"
+    elif channels["code"]:
+        selected, channel = channels["code"], "code"
+    else:
+        selected, channel = channels["ai"], "previous_ai_fallback" if channels["ai"] else "unavailable"
+    result["issue_channels"] = channels
+    result["issue_mode"] = mode
+    result["_issue_display_channel"] = channel
+    result["issue_briefs"] = selected[:6] if mode == "both" else selected[:3]
 
     # Price reason shares the same strict 24-hour cited-article freshness rule.
     reason = result.get("price_reason")

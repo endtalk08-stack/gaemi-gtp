@@ -828,7 +828,7 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
 
 
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
-                                 display_timezone="Asia/Seoul", symbol=None):
+                                 display_timezone="Asia/Seoul", symbol=None, issue_mode="auto"):
     """Read the existing DigitalOcean snapshot only; never collect or save news."""
     names = (resolve_us_news_identity(stock_name, symbol=symbol)["snapshot_names"]
              if market in ("미국", "us") else [str(stock_name)])
@@ -845,5 +845,5 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         return {**_empty_news_result(), "_news_status": "unavailable"}
     worker_result = copy.deepcopy(worker_result)
     if market in ("미국", "us"):
-        worker_result = clean_us_snapshot(worker_result)
+        worker_result = clean_us_snapshot(worker_result, issue_mode=issue_mode)
     return _sanitize_news_display_briefs(worker_result, market=market)
