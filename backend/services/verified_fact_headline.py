@@ -98,7 +98,7 @@ def overlay_verified_headlines(briefs, selected_articles, verified_bodies, stock
     """Change headline alone; carry the same verified article's citation.
 
     The existing article selection, excerpt (up to 3 exact sentences), keyword
-    tags, time, ordering and count are untouched.
+    tags, time, ordering and count are untouched. Unmatched briefs remain intact.
     """
     lookup = {}
     for item, body in zip(selected_articles or [], verified_bodies or []):
@@ -116,17 +116,22 @@ def overlay_verified_headlines(briefs, selected_articles, verified_bodies, stock
         excerpt = original.get("summary") or ""
         matches = lookup.get(excerpt) or []
         if not matches:
-            # A source-less fallback must not be broadcast as a verified story.
+            # Keep the original fallback exactly as produced by the existing
+            # pipeline. Render's separate source check decides visibility.
+            updated.append(dict(original))
             continue
         article = matches.pop(0)
         url = str(article.get("url") or article.get("link") or "").strip()
         stamp = str(article.get("published_at") or "").strip()
         if not url.startswith(("https://", "http://")):
+            updated.append(dict(original))
             continue
         try:
             if datetime.fromisoformat(stamp.replace("Z", "+00:00")).utcoffset() is None:
+                updated.append(dict(original))
                 continue
         except (ValueError, TypeError):
+            updated.append(dict(original))
             continue
         revised = dict(original)
         revised["headline"] = grounded_fact_title(
