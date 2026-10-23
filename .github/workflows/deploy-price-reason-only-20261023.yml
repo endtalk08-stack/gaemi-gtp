@@ -1,0 +1,130 @@
+name: Deploy only requested stock AI reason and issue format
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/deploy-price-reason-only-20261023.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-price-reason-once
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'DEPLOY_PRICE_REASON_ONLY_20261023'
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 12
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify only six approved source files and isolated tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object ops/staged_ai_issue_store.py)" = "6184a9b13a284358e2f0cc7cd00a7fceea58f8ff"
+          test "$(git hash-object ops/staged_ai_issue_display_adapter.py)" = "318c7d8792f62ce7751b2cb7b56bfc6a792a0765"
+          test "$(git hash-object ops/staged_ai_snapshot_integration.py)" = "83542f5a35672fc827f1a22d2fc776ecb10df7d5"
+          test "$(git hash-object ops/staged_ai_sequential_batch.py)" = "8fc5403f91fa8c2224b7fc7642b5e736e40d2844"
+          test "$(git hash-object ops/staged_daily_groq_issues.py)" = "c71c489619d4d72051ec3bfede3404b5456846b6"
+          test "$(git hash-object ops/do-gateway/news_worker_price_reason_20261023.py)" = "8ecc2d3833d9f2deec0a7c50114e08b69527eae3"
+          python3 -m py_compile ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_ai_snapshot_integration.py ops/staged_ai_sequential_batch.py ops/staged_daily_groq_issues.py ops/do-gateway/news_worker_price_reason_20261023.py
+          for pattern in test_staged_ai_issue_store.py test_staged_ai_issue_display_adapter.py test_staged_ai_snapshot_integration.py test_staged_ai_sequential_batch.py test_staged_daily_groq_issues.py test_staged_ai_publication_time.py; do
+            python3 -m unittest discover -s tests -p "$pattern" -q
+          done
+          echo "AI_REASON_TARGETED_TESTS_OK"
+      - name: Stage only the approved files on the existing DigitalOcean worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          REMOTE="gaemi-deploy@$DO_HOST"
+          ssh "${SSH_OPTS[@]}" "$REMOTE" 'cd /opt/gaemigtp-news/app && install -d -m 700 ops/.gaemi-price-reason-20261023'
+          scp "${SSH_OPTS[@]}" "ops/staged_ai_issue_store.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_ai_issue_store.py"
+          scp "${SSH_OPTS[@]}" "ops/staged_ai_issue_display_adapter.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_ai_issue_display_adapter.py"
+          scp "${SSH_OPTS[@]}" "ops/staged_ai_snapshot_integration.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_ai_snapshot_integration.py"
+          scp "${SSH_OPTS[@]}" "ops/staged_ai_sequential_batch.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_ai_sequential_batch.py"
+          scp "${SSH_OPTS[@]}" "ops/staged_daily_groq_issues.py" "$REMOTE:ops/.gaemi-price-reason-20261023/staged_daily_groq_issues.py"
+          scp "${SSH_OPTS[@]}" "ops/do-gateway/news_worker_price_reason_20261023.py" "$REMOTE:ops/.gaemi-price-reason-20261023/news_worker_price_reason_20261023.py"
+          echo "AI_REASON_FILES_STAGED_NO_RUNTIME_CHANGE"
+      - name: Verify original worker hashes, install with rollback, restart once
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE="gaemi-deploy@$DO_HOST"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$REMOTE" 'bash -s' <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum ops/staged_daily_groq_issues.py | cut -d' ' -f1)" = "0d0d071ed6f8da35eee546dd0cb834541c08da5c5340b002b96b3300de8f16b6" || { echo EXISTING_GROQ_PROMPT_DRIFT; exit 1; }
+          test "$(sha256sum ops/staged_ai_sequential_batch.py | cut -d' ' -f1)" = "f1e887b9d983f0c0dd77069411aed2bc68a2455e5f08544ce0fc29bb4a9647fa" || { echo EXISTING_AI_BATCH_DRIFT; exit 1; }
+          test "$(sha256sum backend/news_worker.py | cut -d' ' -f1)" = "21b4ff2b57eaba76ea486ae6f0d216e05ed420d7cdad817356129cf5e9ba7e13" || { echo EXISTING_WORKER_DRIFT; exit 1; }
+          while IFS='|' read -r candidate target; do
+            test -f "$candidate" && test ! -L "$candidate"
+            test -f "$target" && test ! -L "$target" && test -w "$target"
+            /opt/gaemigtp-news/venv/bin/python -m py_compile "$candidate"
+          done <<'FILE_MAP'
+          ops/.gaemi-price-reason-20261023/staged_ai_issue_store.py|ops/staged_ai_issue_store.py
+          ops/.gaemi-price-reason-20261023/staged_ai_issue_display_adapter.py|ops/staged_ai_issue_display_adapter.py
+          ops/.gaemi-price-reason-20261023/staged_ai_snapshot_integration.py|ops/staged_ai_snapshot_integration.py
+          ops/.gaemi-price-reason-20261023/staged_ai_sequential_batch.py|ops/staged_ai_sequential_batch.py
+          ops/.gaemi-price-reason-20261023/staged_daily_groq_issues.py|ops/staged_daily_groq_issues.py
+          ops/.gaemi-price-reason-20261023/news_worker_price_reason_20261023.py|backend/news_worker.py
+          FILE_MAP
+          backup="$(mktemp -d ./ops/.price-reason-before.XXXXXX)"
+          while IFS='|' read -r candidate target; do
+            cp -p "$target" "$backup/$(basename "$target")"
+          done <<'FILE_MAP'
+          ops/.gaemi-price-reason-20261023/staged_ai_issue_store.py|ops/staged_ai_issue_store.py
+          ops/.gaemi-price-reason-20261023/staged_ai_issue_display_adapter.py|ops/staged_ai_issue_display_adapter.py
+          ops/.gaemi-price-reason-20261023/staged_ai_snapshot_integration.py|ops/staged_ai_snapshot_integration.py
+          ops/.gaemi-price-reason-20261023/staged_ai_sequential_batch.py|ops/staged_ai_sequential_batch.py
+          ops/.gaemi-price-reason-20261023/staged_daily_groq_issues.py|ops/staged_daily_groq_issues.py
+          ops/.gaemi-price-reason-20261023/news_worker_price_reason_20261023.py|backend/news_worker.py
+          FILE_MAP
+          rollback() {
+            rc=$?
+            trap - ERR
+            set +e
+            while IFS='|' read -r candidate target; do
+              cp -p "$backup/$(basename "$target")" "$target"
+            done <<'FILE_MAP'
+            ops/.gaemi-price-reason-20261023/staged_ai_issue_store.py|ops/staged_ai_issue_store.py
+            ops/.gaemi-price-reason-20261023/staged_ai_issue_display_adapter.py|ops/staged_ai_issue_display_adapter.py
+            ops/.gaemi-price-reason-20261023/staged_ai_snapshot_integration.py|ops/staged_ai_snapshot_integration.py
+            ops/.gaemi-price-reason-20261023/staged_ai_sequential_batch.py|ops/staged_ai_sequential_batch.py
+            ops/.gaemi-price-reason-20261023/staged_daily_groq_issues.py|ops/staged_daily_groq_issues.py
+            ops/.gaemi-price-reason-20261023/news_worker_price_reason_20261023.py|backend/news_worker.py
+            FILE_MAP
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+            echo AI_REASON_ROLLBACK_COMPLETED
+            exit "$rc"
+          }
+          trap rollback ERR
+          while IFS='|' read -r candidate target; do
+            install -m "$(stat -c %a "$target")" "$candidate" "$target"
+            test "$(sha256sum "$candidate" | cut -d' ' -f1)" = "$(sha256sum "$target" | cut -d' ' -f1)"
+          done <<'FILE_MAP'
+          ops/.gaemi-price-reason-20261023/staged_ai_issue_store.py|ops/staged_ai_issue_store.py
+          ops/.gaemi-price-reason-20261023/staged_ai_issue_display_adapter.py|ops/staged_ai_issue_display_adapter.py
+          ops/.gaemi-price-reason-20261023/staged_ai_snapshot_integration.py|ops/staged_ai_snapshot_integration.py
+          ops/.gaemi-price-reason-20261023/staged_ai_sequential_batch.py|ops/staged_ai_sequential_batch.py
+          ops/.gaemi-price-reason-20261023/staged_daily_groq_issues.py|ops/staged_daily_groq_issues.py
+          ops/.gaemi-price-reason-20261023/news_worker_price_reason_20261023.py|backend/news_worker.py
+          FILE_MAP
+          /opt/gaemigtp-news/venv/bin/python -m py_compile ops/staged_daily_groq_issues.py ops/staged_ai_sequential_batch.py ops/staged_ai_issue_store.py ops/staged_ai_issue_display_adapter.py ops/staged_ai_snapshot_integration.py backend/news_worker.py
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          trap - ERR
+          echo AI_REASON_DEPLOY_OK=6_FILES_NO_OTHER_APP_CHANGES
+          REMOTE_SCRIPT
