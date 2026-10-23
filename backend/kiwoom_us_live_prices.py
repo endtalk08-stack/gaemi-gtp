@@ -1,4 +1,4 @@
-"""Kiwoom FE-only US trade ticks -> existing Neon Top 20 prices.
+"""Kiwoom FE-only US trade ticks -> existing Neon Top 20 prices (15s batch).
 
 Dedicated read-only worker. Ranking and industry remain under usa20540/usa10100.
 Only a tick for an exactly subscribed stock may update its existing ranking row.
@@ -87,7 +87,11 @@ def _ranked_symbols(dsn):
     return sid, selected
 
 def _persist(dsn, latest):
-    """Batch latest buffered FE ticks and mark receipt time, not fictitious trade time."""
+    """Every 15 seconds, update only changed prices on existing Top-20 rows.
+
+    A batch adds no snapshots/history and unchanged prices do not write rows.
+    Receipt time is not represented as an exchange trade time.
+    """
     if not latest:
         return 0
     now = dt.datetime.now(dt.timezone.utc).isoformat()
@@ -109,8 +113,10 @@ def _persist(dsn, latest):
                            change_rate=COALESCE(%s,change_rate),
                            entry_payload=COALESCE(entry_payload,'{}'::jsonb)
                              || jsonb_build_object('live_price_at',%s,'live_price_source','kiwoom:FE')
-                       WHERE snapshot_id=%s AND market='US' AND symbol=%s""",
-                    (price, pct, now, sid, symbol),
+                       WHERE snapshot_id=%s AND market='US' AND symbol=%s
+                         AND (price IS DISTINCT FROM %s OR
+                              (%s IS NOT NULL AND change_rate IS DISTINCT FROM %s))""",
+                    (price, pct, now, sid, symbol, price, pct, pct),
                 )
                 saved += cur.rowcount
         conn.commit()
@@ -169,7 +175,7 @@ async def _one_connection(dsn, initial):
             except ValueError:
                 pass
             now = asyncio.get_running_loop().time()
-            if buf and now - previous_flush >= 3:
+            if buf and now - previous_flush >= 15:
                 try:
                     saved = await asyncio.to_thread(_persist, dsn, buf)
                     if saved:
