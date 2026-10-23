@@ -3295,7 +3295,11 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
 
             price_str = price_result["price_text"]
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
-        if change_pct >= 5.0:
+        # Missing/stale Kiwoom FE ticks must never become a fake 0% quote.
+        if not is_krw and current_price <= 0:
+            status_emoji, title_word = '⚖️', '시세가 없을까'
+            intro_ment = f"{raw_name} 키움 실시간 시세를 확인하지 못했어"
+        elif change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
             intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야"
         elif 0.5 <= change_pct < 5.0:
@@ -3317,12 +3321,14 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
         # 뉴스와 공시는 기존처럼 한 칸(빈 줄) 간격을 유지한다.
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
-        price_tags = list(price_result.get("price_tags") or [])
+        price_tags = list(price_result.get("price_tags") or []) if current_price > 0 else []
         tags_str = "   ".join(price_tags)
 
         first_content_parts = [
             intro_ment,
-            f"현재 주가는 {price_str} 기록 중!",
+            (f"현재 주가는 {price_str} 기록 중!" if current_price > 0
+             else "현재 키움 실시간 시세 수신 대기 중" if not is_krw
+             else "현재 시세를 확인하지 못했어"),
         ]
         price_metrics_text = str(price_result.get("first_reply_metrics_text") or "").strip()
         if price_metrics_text:
@@ -3334,7 +3340,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
                 "id": "why-up",
                 "title": f"{status_emoji} 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
-                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
+                "tags": ([f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
+                         if current_price > 0 else [f"#{raw_name}"])
             }
         ]
 
@@ -3456,8 +3463,12 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
         price_snapshot = {
             "current": current_quote,
             "currency": "KRW" if is_krw else "USD",
-            "change_pct": price_result.get("change_pct"),
+            "change_pct": price_result.get("change_pct") if current_price > 0 else None,
             "change_pct_basis": "현재 표시가격의 직전 종가 대비 등락률",
+            "quote_source": price_result.get("quote_source"),
+            "quote_received_at_ms": price_result.get("quote_received_at_ms"),
+            "ticker_symbol": ticker_symbol if not is_krw else None,
+            "historical_price_source": price_result.get("historical_price_source"),
             "previous_trading_day": price_result.get("previous_trading_day"),
             "week_52_high": previous_high,
         }
