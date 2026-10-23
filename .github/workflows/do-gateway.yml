@@ -31,7 +31,7 @@ jobs:
           import json, os, pathlib, re, subprocess
           req=json.loads(pathlib.Path('.github/do-gateway/request.json').read_text())
           op=req.get("operation")
-          if op not in ("status","logs","restart","deploy","run","upgrade","kiwoom-verify","alpaca-verify","alpaca-news-verify"):
+          if op not in ("status","logs","restart","deploy","run","upgrade","enable-timer","kiwoom-verify","alpaca-verify","alpaca-news-verify"):
               raise ValueError("invalid operation")
           allowed={
               "status":{"operation"},
@@ -40,6 +40,7 @@ jobs:
               "alpaca-news-verify":{"operation"},
               "logs":{"operation","unit","lines"},
               "restart":{"operation","unit"},
+              "enable-timer":{"operation","unit"},
               "deploy":{"operation","path","target"},
               "run":{"operation","path","request_id","timeout"},
               "upgrade":{"operation","path"},
@@ -47,7 +48,7 @@ jobs:
           if set(req)!=allowed:
               raise ValueError("unexpected or missing request fields")
           out={"operation":op,"arg1":"","arg2":"","arg3":"","source":""}
-          if op in ("logs","restart"):
+          if op in ("logs","restart","enable-timer"):
               u=req["unit"]
               if not isinstance(u,str) or not re.fullmatch(r'gaemigtp-[A-Za-z0-9_.@-]{1,100}\.(service|timer)',u):
                   raise ValueError("invalid unit")
