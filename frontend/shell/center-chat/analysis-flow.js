@@ -69,6 +69,15 @@
       kiwoomQuoteTimer = setInterval(refresh, 3000);
     }
 
+    function hasCitedAiBriefs(result) {
+      return Array.isArray(result?.issue_briefs) &&
+        result.issue_briefs.some((item) =>
+          item && typeof item.headline === 'string' && item.headline.trim() &&
+          typeof item.summary === 'string' && item.summary.trim() &&
+          Array.isArray(item.source_articles) && item.source_articles.some((source) =>
+            source && typeof source.url === 'string' && /^https?:\/\//.test(source.url)));
+    }
+
     function startTypewriterFlow(stockName, sections, result, requestId) {
       if (requestId !== ctx.getActiveAnalysisRequestId()) return;
       const chatArea = document.getElementById('chatArea');
@@ -408,9 +417,10 @@
         });
 
         anchor.insertAdjacentElement('afterend', choices);
-        // Only the new sourced AI reason triggers the requested initial reason/issues layout.
-        // Existing replies and their buttons remain unchanged if none is available.
-        if (result.price_reason?.headline && result.price_reason?.summary) {
+        // Render existing cited AI issues even when the removed price_reason
+        // field is absent. Do not auto-display rule-generated or unsourced briefs.
+        if (hasCitedAiBriefs(result) ||
+            (result.price_reason?.headline && result.price_reason?.summary)) {
           void appendWhy(true);
         }
 
