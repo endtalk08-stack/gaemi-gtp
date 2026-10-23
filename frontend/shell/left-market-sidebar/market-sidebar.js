@@ -176,13 +176,6 @@
       draggedRow = null;
     });
 
-    const formatUsd = (value) => {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-      if (value >= 1e9) return '$' + (value / 1e9).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'B';
-      if (value >= 1e6) return '$' + (value / 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'M';
-      return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 2 });
-    };
-
     const showUsRanking = async () => {
       const id = ++requestId;
       if (!list) return;
@@ -272,35 +265,29 @@
           nameGroup.append(rank, name);
           top.append(nameGroup, price);
 
-          // Match popular ranking's second row; display turnover in the blank
-          // cell beneath the stock name and leave the change at the right.
+          // Show industry in the former turnover slot; keep price change at right.
           const secondRow = document.createElement('div');
           secondRow.className = 'market-stock-second';
-          const turnover = document.createElement('span');
-          turnover.className = 'market-stock-turnover';
-          const amount = formatUsd(item.trading_value) || item.trading_value_text;
-          turnover.textContent = amount ? '거래대금 ' + amount : '';
+          const industry = document.createElement('span');
+          industry.className = 'market-stock-industry';
+          industry.textContent = typeof item.industry === 'string' ? item.industry : '';
           const change = document.createElement('span');
           const pct = item.change_pct;
           change.className = 'market-stock-change' +
             (pct > 0 ? ' text-rose-500' : pct < 0 ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
           change.textContent = typeof pct === 'number' && Number.isFinite(pct)
             ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '';
-          secondRow.append(turnover, change);
+          secondRow.append(industry, change);
 
-          // Reuse the industry name from the same ranking result only.
-          // Keep the original third row and its blank slots when not provided.
+          // Dedicate the full third row to a single-line AI issue headline.
           const thirdRow = document.createElement('div');
           thirdRow.className = 'market-stock-third';
-          const industry = document.createElement('span');
-          industry.className = 'market-stock-industry';
-          industry.textContent = typeof item.industry === 'string' ? item.industry : '';
           const issue = document.createElement('span');
           issue.dataset.stockIssue = 'true';
           issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
           issue.style.fontSize = '13px';
           issue.textContent = typeof item.issue_headline === 'string' ? item.issue_headline : '';
-          thirdRow.append(industry, issue);
+          thirdRow.append(issue);
           content.append(top, secondRow, thirdRow);
           button.append(grip, stockMark(item), content);
           list.appendChild(button);
