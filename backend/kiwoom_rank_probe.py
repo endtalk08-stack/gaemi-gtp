@@ -17,6 +17,9 @@ def main():
                 "name": row["name"][:50], "price": row["price"],
                 "change_pct": row["change_pct"],
                 "trading_value": row["trading_value"],
+                "volume": row["volume"],
+                "implied_trade_value_unit": round((row["price"] * row["volume"]) / row["trading_value"], 2)
+                    if row["price"] and row["volume"] and row["trading_value"] else None,
             } for row in rows[:3]]
         }, ensure_ascii=False), flush=True)
         print("KIWOOM_US_VALUE_PROBE_PASS", flush=True)
