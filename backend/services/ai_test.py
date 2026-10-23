@@ -533,6 +533,64 @@ def _context(stock, data):
     }
 
 
+
+
+def _refresh_us_live_chat_quote(stock, selection, context):
+    """Replace cached US price assertions with the freshest signed Kiwoom tick.
+
+    News/filings and historical facts stay cached; stale prices never survive
+    the fifteen-minute conversation cache and cannot mislead Groq analysis.
+    """
+    if not stock or not isinstance(context, dict):
+        return context
+    from .engine import TICKERS
+    from .market_rankings import analysis_ticker_for_selection
+    from .us_price_push import read_fresh_us_quote
+
+    ticker = (analysis_ticker_for_selection(selection)
+              if selection and selection.get("market") == "us" else None)
+    ticker = ticker or TICKERS.get(stock)
+    if ticker is None and isinstance(stock, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9.\\-]{0,19}", stock):
+        ticker = stock.upper()
+    if not ticker or ticker.endswith((".KS", ".KQ")):
+        return context
+
+    quote = read_fresh_us_quote(ticker)
+    metrics = dict(context.get("price_metrics") or {})
+    for field in ("current", "change_pct", "rise_to_52w_high_pct"):
+        metrics.pop(field, None)
+    metrics["quote_source"] = "kiwoom-direct" if quote else "kiwoom-unavailable"
+    market_row = dict(context.get("market_selection") or {})
+    if quote:
+        price = quote["price"]
+        metrics["current"] = price
+        metrics["quote_received_at_ms"] = quote["received_at_ms"]
+        if quote.get("change_pct") is not None:
+            metrics["change_pct"] = quote["change_pct"]
+        high = metrics.get("week_52_high")
+        if isinstance(high, (int, float)) and high > 0:
+            metrics["rise_to_52w_high_pct"] = round(max(0.0, (high - price) / price * 100), 2)
+        change = quote.get("change_pct")
+        detail = f", 전일 종가 대비 {change:+.2f}%" if change is not None else ""
+        price_lines = [f"현재 주가는 ${price:,.2f} (키움 실시간 FE{detail})"]
+        if market_row:
+            market_row["price"] = price
+            market_row["change_pct"] = change
+    else:
+        price_lines = ["키움 실시간 현재가 미수신: 직전 일봉 종가를 현재가로 사용하지 말 것"]
+        if market_row:
+            market_row["price"] = None
+            market_row["change_pct"] = None
+    refreshed = {**context, "price_metrics": metrics,
+                 "price_information": price_lines,
+                 "analysis_hashtags": [],
+                 "note": str(context.get("note") or "") +
+                 " 키움 실시간 가격과 과거 일봉 계산값은 별개다. 최신 price_metrics 값만 현재가/등락률로 사용한다."}
+    if market_row:
+        refreshed["market_selection"] = market_row
+    return refreshed
+
+
 def _previous_day_reply(question, metrics):
     """Answer dated prior-session OHLCV facts without confusing them with today's quote."""
     normalized = re.sub(r"\s+", "", str(question or ""))
@@ -836,6 +894,8 @@ def ai_test_chat():
                 " rank는 원천 순위, display_rank는 표시된 정렬 위치입니다."
                 " 전체 시장 상승률 순위나 실시간 주가로 해석하지 마세요."
             )
+        if stock:
+            context = _refresh_us_live_chat_quote(stock, selected, context)
         if stock and not any((context["news"], context["official_disclosures"],
                               context["price_information"], context["price_metrics"])):
             return jsonify({"ok": False, "error": "stock_data_unavailable", "limits": limits_for_request()}), 422
