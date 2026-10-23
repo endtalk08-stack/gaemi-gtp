@@ -204,7 +204,7 @@ test('market cards show stock logo slot and allow keyboard reorder without chang
   assert.equal(reordered[0].dataset.stockSymbol, 'TSLA.O');
   assert.equal(reordered[0].querySelector('[data-market-rank]').textContent, '02');
   assert.equal(reordered[1].querySelector('[data-market-rank]').textContent, '01');
-  assert.deepEqual(JSON.parse(app.storage.get('gaemiGTP_market_sidebar_order_us_popular_v1')),
+  assert.deepEqual(JSON.parse(app.storage.get('gaemiGTP_market_sidebar_order_us_value_v1')),
     ['TSLA.O', 'LLY']);
 });
 
