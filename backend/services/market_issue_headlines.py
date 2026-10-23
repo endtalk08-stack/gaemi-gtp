@@ -23,7 +23,7 @@ def _first_headline(briefs):
 
 
 def _first_ai_headline(snapshot):
-    """Show only cited US AI materials; never the deprecated price_reason."""
+    """Show source-cited US code-fact issues; never the deprecated price_reason."""
     if not isinstance(snapshot, dict):
         return ""
     for brief in snapshot.get("issue_briefs") or []:
@@ -67,7 +67,8 @@ def _read_worker_briefs(market, names):
                     """
                     SELECT stock_name, jsonb_build_object(
                         'issue_briefs', result_payload->'issue_briefs',
-                        '_ai_issue_briefs', result_payload->'_ai_issue_briefs',
+                        '_code_issue_briefs', result_payload->'_code_issue_briefs',
+                        '_code_fact_extraction_version', result_payload->'_code_fact_extraction_version',
                         'price_reason', result_payload->'price_reason'
                     )
                     FROM public.news_processed_snapshots
@@ -120,7 +121,7 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False):
                 "headline": "",
             })
             continue
-        # The US worker saves source-backed AI materials, not price_reason.
+        # The US worker saves source-backed code facts, not price_reason.
         # _read_worker_briefs already restricts them to original news within 24h.
         if market == "us":
             headline = next((
