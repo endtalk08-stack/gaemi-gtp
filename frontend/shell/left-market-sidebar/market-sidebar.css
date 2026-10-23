@@ -239,7 +239,26 @@
   color: var(--gtp-muted);
 }
 .market-stock-change { font-size: 11px; font-weight: 750; text-align: right; white-space: nowrap; }
-.market-stock-industry { color: var(--gtp-accent, #38bdf8); }
+.market-stock-industry {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--gtp-accent, #38bdf8);
+}
+.market-stock-watch-star {
+  flex: 0 0 auto;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--gtp-muted);
+  cursor: default;
+}
+.market-stock-industry-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* The issue headline owns the full third row, with one-line ellipsis only at the edge. */
 .market-stock-third {
   grid-template-columns: minmax(0, 1fr);
