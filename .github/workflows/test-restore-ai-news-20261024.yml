@@ -1,0 +1,24 @@
+name: Verify temporary AI news restoration
+on:
+  push:
+    branches: [restore/ai-news-before-title-only-20261024]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source-dated AI snapshots in both Render consumers
+        run: |
+          python -m py_compile backend/services/news_freshness.py backend/services/market_issue_headlines.py
+          python - <<'PY'
+          from datetime import datetime,timezone,timedelta
+          from backend.services.news_freshness import clean_us_snapshot
+          now=datetime.now(timezone.utc)
+          brief={'headline':'원문 검증 AI','summary':'기사 근거','source_articles':[{'url':'https://example.org/story','published_at':(now-timedelta(hours=1)).isoformat()}]}
+          result=clean_us_snapshot({'_ai_issue_briefs':[brief], '_code_issue_briefs':[{'headline':'잘못된 코드 결과', 'source_articles':brief['source_articles']}]},now=now)
+          assert [a['headline'] for a in result['issue_briefs']]==['원문 검증 AI'],result['issue_briefs']
+          assert clean_us_snapshot({'_ai_issue_briefs':[{**brief,'source_articles':[{'url':'https://example.org/old','published_at':(now-timedelta(hours=25)).isoformat()}]}]},now=now)['issue_briefs']==[]
+          print('AI_RESTORE_RENDER_CONTRACT_PASS')
+          PY
