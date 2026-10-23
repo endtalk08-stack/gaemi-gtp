@@ -1,0 +1,38 @@
+name: Verify Kiwoom central chat quotes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/kiwoom-central-chat-verify.yml'
+      - 'backend/services/us_price_push.py'
+      - 'backend/services/stock_analysis.py'
+      - 'backend/services/engine.py'
+      - 'backend/services/ai_test.py'
+      - 'frontend/js/analysis-api.js'
+      - 'frontend/shell/center-chat/analysis-flow.js'
+      - 'tests/test_kiwoom_central_quotes.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quote-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python syntax
+        run: |
+          python -m py_compile backend/services/us_price_push.py backend/services/stock_analysis.py backend/services/engine.py backend/services/ai_test.py
+      - name: Frontend syntax
+        run: |
+          node --check frontend/shell/center-chat/analysis-flow.js
+          node --check frontend/js/analysis-api.js
+      - name: Source-isolated price tests
+        run: |
+          python -m unittest discover -s tests -p 'test_kiwoom_central_quotes.py' -v
