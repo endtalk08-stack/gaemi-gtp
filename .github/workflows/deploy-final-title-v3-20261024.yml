@@ -1,0 +1,73 @@
+name: Deploy final original-news title-only v3
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/deploy-final-title-v3-20261024.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemigtp-final-title-cutover
+  cancel-in-progress: false
+jobs:
+  rollout:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify original verified-body, title-only and AI pause tests
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_verified_fact_headline_only.py' -v
+          python -m py_compile backend/services/news_result.py backend/services/verified_fact_headline.py ops/staged_ai_sequential_batch.py ops/staged_auto_ai_daily.py ops/staged_news_processed_store.py
+          python - <<'PY'
+          from pathlib import Path
+          result=Path('backend/services/news_result.py').read_text()
+          assert result.count('body_texts=verified_body_texts')==1
+          assert result.count('overlay_verified_headlines(')==1
+          assert 'build_article_fact_briefs(' not in result
+          assert '_title_only_revision": 3' in result
+          assert 'payload.get("_title_only_revision") != 3' in Path('ops/staged_news_processed_store.py').read_text()
+          assert 'GAEMIGTP_NEWS_AI_PAUSED' in Path('ops/staged_ai_sequential_batch.py').read_text()
+          assert 'GAEMIGTP_NEWS_AI_PAUSED' in Path('ops/staged_auto_ai_daily.py').read_text()
+          print('TITLE_V3_SOURCE_GUARDS_PASS')
+          PY
+      - name: Verify original AI restoration then stage final title-only files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          expected="$(git show a8afacb019db859f98a1880f6667195eb153c715:backend/services/news_result.py | sha256sum | cut -d ' ' -f1)"
+          remote="gaemi-deploy@$DO_HOST"
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "$remote" 'bash -s' "$expected" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum backend/services/news_result.py | cut -d ' ' -f1)" = "$1"
+          ! grep -q 'GAEMIGTP_NEWS_AI_PAUSED' ops/staged_ai_sequential_batch.py
+          grep -Fq 'body_texts=verified_body_texts' backend/services/news_result.py
+          test -w backend/services && test -w ops
+          echo ORIGINAL_AI_PHASE_VERIFIED
+          REMOTE
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" backend/services/news_result.py "$remote:/opt/gaemigtp-news/app/ops/.final-news-result.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" backend/services/verified_fact_headline.py "$remote:/opt/gaemigtp-news/app/ops/.final-title-helper.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/staged_news_processed_store.py "$remote:/opt/gaemigtp-news/app/ops/.final-news-store.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/staged_ai_sequential_batch.py "$remote:/opt/gaemigtp-news/app/ops/.final-ai-paused.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/staged_auto_ai_daily.py "$remote:/opt/gaemigtp-news/app/ops/.final-ai-daily-paused.py"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/do-gateway/deploy_original_title_only_v3_20261024.sh "$remote:/opt/gaemigtp-news/app/ops/.final-title-v3-deploy.sh"
+      - name: Activate original three-sentence code with title-only overlay and pause AI
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash /opt/gaemigtp-news/app/ops/.final-title-v3-deploy.sh'
