@@ -9,7 +9,7 @@ from backend.services.issue_title_test import issue_title_test_bp
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
-from backend.services.kiwoom_us_value_board import read_us_trading_value_board
+from backend.services.kiwoom_us_value_board import read_us_trading_value_board, read_us_live_quotes
 from backend.services.us_market_close import read_brief
 from backend.providers.sec_filings import fetch_panel_missing_detail
 
@@ -158,6 +158,21 @@ def market_trading_value():
     response = jsonify({"ok": True, "market": market, "source": "kiwoom" if market == "us" else "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
     if market == "us":
         response.headers["X-Gaemi-US-Value-Provider"] = "kiwoom-neon-v1"
+    return response
+
+
+@app.get("/market/us-live-quotes")
+def market_us_live_quotes():
+    """Fast read-only latest Kiwoom quotes; never fetch a market provider or AI."""
+    items = read_us_live_quotes()
+    if items is None:
+        response = jsonify({"ok": False, "market": "us", "items": [],
+                            "error": "quotes_unavailable"})
+        response.headers["Cache-Control"] = "no-store"
+        return response, 503
+    response = jsonify({"ok": True, "market": "us", "source": "kiwoom",
+                        "items": items})
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 
