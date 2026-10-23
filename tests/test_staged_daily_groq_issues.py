@@ -10,6 +10,15 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
+def _mock_provider_response(issues):
+    analysis = {
+        "price_reason": {"headline": "하락 이유", "summary": "뉴스 근거로 하락했어", "source_ids": [1]},
+        "issues": issues,
+    }
+    return json.dumps({"choices": [{"message": {"content": json.dumps(analysis, ensure_ascii=False)}}]},
+                      ensure_ascii=False).encode("utf-8")
+
+
 class GroqIssueTests(unittest.TestCase):
     def test_empty_issues(self):
         self.assertEqual(module.parse_issues('{"issues":[]}'), [])
@@ -29,7 +38,7 @@ class GroqIssueTests(unittest.TestCase):
 
     def test_reject_bad_tags(self):
         with self.assertRaises(ValueError):
-            module.parse_issues('{"issues":[{"headline":"x","summary":"y","tags":["x"]}]}')
+            module.parse_issues('{"issues":[{"headline":"x","summary":"y","tags":[""]}]}')
 
     def test_no_news_does_not_call_api(self):
         self.assertEqual(module.analyze_news("NVDA", []), [])
@@ -47,8 +56,9 @@ class GroqIssueTests(unittest.TestCase):
         captured = {}
         class FakeResponse:
             def __enter__(self):
-                return io.BytesIO(json.dumps({"choices": [{"message": {"content":
-                    '{"issues":[{"headline":"테스트","summary":"내용","tags":["#뉴스"],"source_ids":[1]}]}'}}]}).encode())
+                return io.BytesIO(_mock_provider_response([
+                    {"headline": "테스트", "summary": "내용", "tags": ["뉴스"], "source_ids": [1]}
+                ]))
             def __exit__(self, *args):
                 return False
         def fake_urlopen(request, timeout):
@@ -59,7 +69,7 @@ class GroqIssueTests(unittest.TestCase):
             "urllib.request.urlopen", side_effect=fake_urlopen
         ):
             result = module.analyze_news("NVDA", [{"title": "기사", "description": "내용", "published_at": "2026-10-17T18:16:00+00:00"}])
-        self.assertEqual(len(result), 1)
+        self.assertEqual(len(result["issues"]), 1)
         self.assertEqual(captured["request"]["model"], module.MODEL)
         self.assertEqual(captured["request"]["messages"][0]["content"], module.PROMPT)
         self.assertEqual(captured["request"]["response_format"]["type"], "json_object")
@@ -88,12 +98,12 @@ class GroqIssueTests(unittest.TestCase):
         captured = {}
         def fake_urlopen(request, timeout):
             captured["payload"] = json.loads(request.data)
-            return io.BytesIO(b'{"choices":[{"message":{"content":"{\\"issues\\":[]}"}}]}')
+            return io.BytesIO(_mock_provider_response([]))
         articles = [{"title": f"article {i}", "description": "가" * 2400} for i in range(30)]
         with patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}), patch(
             "urllib.request.urlopen", side_effect=fake_urlopen
         ):
-            self.assertEqual(module.analyze_news("NVDA", articles), [])
+            self.assertEqual(module.analyze_news("NVDA", articles)["issues"], [])
         body = json.loads(captured["payload"]["messages"][1]["content"])
         self.assertLessEqual(sum(len(x["content"]) for x in body["news"]), 9000)
         self.assertLessEqual(len(body["news"]), 20)
@@ -114,13 +124,13 @@ class GroqIssueTests(unittest.TestCase):
         captured = {}
         def fake_urlopen(request, timeout):
             captured["request"] = json.loads(request.data.decode("utf-8"))
-            return io.BytesIO(b'{"choices":[{"message":{"content":"{\\"issues\\":[]}"}}]}')
+            return io.BytesIO(_mock_provider_response([]))
         articles = [{"title": "네이버 뉴스 제목", "description": "네이버 뉴스 내용",
                      "pubDate": "Sat, 17 Oct 2026 09:00:00 +0900"}]
         with patch.dict("os.environ", {"GROQ_API_KEY": "offline-only"}), patch(
             "urllib.request.urlopen", side_effect=fake_urlopen
         ):
-            self.assertEqual(module.analyze_news("NVDA", articles), [])
+            self.assertEqual(module.analyze_news("NVDA", articles)["issues"], [])
         payload = json.loads(captured["request"]["messages"][1]["content"])
         self.assertEqual(payload["news"][0]["title"], articles[0]["title"])
         self.assertEqual(payload["news"][0]["content"], articles[0]["description"])
@@ -198,10 +208,16 @@ class GroqIssueTests(unittest.TestCase):
         self.assertEqual(issues[0]["source_ids"], [])
 
     def test_prompt_matches_user_requested_exact_text(self):
-        expected = """주가에 영향을 줄 중요한 이슈를 0~3개 선정해.
-제목은 핵심만 짧게, 내용은 쉽게 구체적으로, 해시태그는 최대 3개. 친구처럼 반말로 답변해.
+        expected = """제공된 종목의 현재 주가와 뉴스 원문을 분석해서 친구처럼 반말로 답변해.
+
+1. 현재 주가가 상승했으면 왜 상승했어?
+   현재 주가가 하락했으면 왜 하락했어?
+
+2. 현재 해당 종목에서 중요한 이슈를 0~3개 선정해.
+
+각 이슈의 태그는 최대 3개이고 # 기호 없이 작성해.
 한국어 JSON 객체만 반환해:
-{"issues":[{"headline":"제목","summary":"쉽고 구체적인 내용","tags":["#해시태그"],"source_ids":[1]}]}"""
+{"price_reason":{"headline":"상승 또는 하락 이유 제목","summary":"상승 또는 하락한 이유","source_ids":[1]},"issues":[{"headline":"이슈 제목","summary":"이슈 내용","tags":["키워드1"],"source_ids":[1]}]}"""
         self.assertEqual(module.PROMPT, expected)
 
     def test_old_event_dates_are_tagged_using_article_publication_time(self):
@@ -240,11 +256,11 @@ class GroqIssueTests(unittest.TestCase):
                    "published_at": "2026-10-19T18:40:00+00:00"}
         def mock_urlopen(request, timeout):
             captured["payload"] = json.loads(request.data.decode("utf-8"))
-            return io.BytesIO(b'{"choices":[{"message":{"content":"{\\"issues\\":[]}"}}]}')
+            return io.BytesIO(_mock_provider_response([]))
         with patch.dict("os.environ", {"GROQ_API_KEY": "mock-only"}), patch(
             "urllib.request.urlopen", side_effect=mock_urlopen
         ) as provider:
-            self.assertEqual(module.analyze_news("엔비디아", [article]), [])
+            self.assertEqual(module.analyze_news("엔비디아", [article])["issues"], [])
         self.assertEqual(provider.call_count, 1)
         self.assertEqual(captured["payload"]["messages"][0]["content"], module.PROMPT)
         model_news = json.loads(captured["payload"]["messages"][1]["content"])["news"]
