@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd /opt/gaemigtp-news/app
+export PYTHONPATH=/opt/gaemigtp-news/app
 venv=/opt/gaemigtp-news/venv/bin/python
 test -x "$venv"
 test -f ops/.article-facts-next.py
@@ -12,6 +13,7 @@ for f in backend/services/news_result.py backend/services/news_processed_store.p
   cp -p "$f" "$backup/$f"
 done
 rollback() {
+  trap - ERR
   set +e
   echo CODE_FACTS_ROLLBACK_START
   for f in backend/services/news_result.py backend/services/news_processed_store.py ops/staged_ai_sequential_batch.py ops/staged_auto_ai_daily.py; do
@@ -20,6 +22,7 @@ rollback() {
   rm -f backend/services/article_fact_keywords.py
   sudo -n /usr/bin/systemctl restart gaemigtp-news.service
   echo CODE_FACTS_ROLLBACK_COMPLETE
+  exit 1
 }
 trap rollback ERR
 "$venv" ops/.deploy-code-facts-next.py patch
