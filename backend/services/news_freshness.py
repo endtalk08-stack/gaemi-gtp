@@ -74,6 +74,22 @@ def clean_us_snapshot(payload, *, now=None):
         })
     result["issue_briefs"] = fresh[:3]
 
+    # Price reason shares the same strict 24-hour cited-article freshness rule.
+    reason = result.get("price_reason")
+    if isinstance(reason, dict):
+        sources = []
+        for source in reason.get("source_articles") or []:
+            if not isinstance(source, dict):
+                continue
+            pub = _article_date(source.get("published_at"))
+            url = str(source.get("url") or "").strip()
+            if pub is None or not cutoff <= pub <= upper or not url.startswith(("https://", "http://")):
+                continue
+            publisher = str(source.get("source") or "").strip() or (urlparse(url).hostname or "")
+            if publisher:
+                sources.append(source)
+        result["price_reason"] = {**reason, "source_articles": sources} if sources else None
+
     # Do not let an old article become today's news merely because DigitalOcean
     # refreshed the snapshot or a cached panel reloaded.
     for key in ("paired_news_items", "panel_news_items", "storyboard_news_items"):
