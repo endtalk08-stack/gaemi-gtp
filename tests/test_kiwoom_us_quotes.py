@@ -77,6 +77,48 @@ class KiwoomReadOnlyTests(unittest.TestCase):
         self.assertEqual(quote["previous_close"], 216.47)
         self.assertFalse(quote["official_close"])
 
+    def test_negative_signed_quote_is_positive_price_not_invalid(self):
+        # Reproduces the live NVDA usa20100 response on 2026-10-23.
+        with patch.object(kiwoom.requests, "post", return_value=FakeResponse({
+            "return_code": 0, "cur_prc": "-213.53", "flu_rt": "-3.80",
+            "base_close_pric": "221.97",
+        })):
+            quote = kiwoom.fetch_us_quote("NVDA", "ND", token="MOCK_TOKEN")
+        self.assertEqual(quote["current"], 213.53)
+        self.assertEqual(quote["change_pct"], -3.8)
+        self.assertEqual(quote["previous_close"], 221.97)
+        self.assertFalse(quote["official_close"])
+
+    def test_negative_signed_daily_close_is_positive_price(self):
+        with patch.object(kiwoom.requests, "post", return_value=FakeResponse({
+            "return_code": 0,
+            "result_list": [{
+                "dt": "20261022", "cur_prc": "-213.53",
+                "flu_rt": "-3.80", "acc_trde_qty": "22,352",
+            }],
+        })):
+            day = kiwoom.fetch_us_close(
+                "NVDA", "ND", dt.date(2026, 10, 22), token="MOCK_TOKEN")
+        self.assertEqual(day["close"], 213.53)
+        self.assertEqual(day["change_pct"], -3.8)
+        self.assertEqual(day["volume"], 22352)
+
+    def test_zero_and_missing_prices_remain_unavailable(self):
+        for raw in ("0", "", None):
+            with self.subTest(raw=raw), patch.object(kiwoom.requests, "post", return_value=FakeResponse({
+                "return_code": 0, "cur_prc": raw, "flu_rt": "0",
+            })):
+                quote = kiwoom.fetch_us_quote("NVDA", "ND", token="MOCK_TOKEN")
+            self.assertIsNone(quote["current"])
+        with patch.object(kiwoom.requests, "post", return_value=FakeResponse({
+            "return_code": 0,
+            "result_list": [{
+                "dt": "20261022", "cur_prc": "0", "flu_rt": "0",
+            }],
+        })):
+            with self.assertRaisesRegex(kiwoom.KiwoomReadOnlyError, "kiwoom_daily_record_invalid"):
+                kiwoom.fetch_us_close("NVDA", "ND", dt.date(2026, 10, 22), token="MOCK_TOKEN")
+
     def test_no_stale_price(self):
         with patch.object(kiwoom.requests, "post", return_value=FakeResponse({
             "return_code": 0, "result_list": [
