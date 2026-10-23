@@ -409,8 +409,17 @@
           updated++;
         });
         if (updated && title) {
-          title.textContent = data.items.some((item) => item.stale)
-            ? '거래대금 TOP 20 · 시세 지연' : '거래대금 TOP 20 · 실시간 시세';
+          const fresh = data.items.filter((item) => !item.stale);
+          const newestReceipt = fresh.reduce((latest, item) =>
+            Math.max(latest, Number(item.received_at_ms) || 0), 0);
+          // Show the actual quote reception time, so an unchanged trade price
+          // is distinguishable from a stopped frontend refresh.
+          const asOf = newestReceipt
+            ? new Date(newestReceipt).toLocaleTimeString('ko-KR', { hour12: false })
+            : '';
+          title.textContent = fresh.length
+            ? '거래대금 TOP 20 · 실시간 ' + asOf
+            : '거래대금 TOP 20 · 시세 지연';
         }
         if (updated && changeSorted && !draggedRow) applyChangeSort();
       } catch (_) {
@@ -424,11 +433,11 @@
     // Also refresh when the user returns to this tab after it was backgrounded.
     // Keep background reads off to avoid unnecessary database usage.
     const refreshOnReturn = () => {
-      if (tab === 'value' && document.visibilityState === 'visible' &&
-          document.body.classList.contains('left-market-open')) {
-        if (list.querySelector('button[data-original-index]')) void readLatestQuotes();
-        else void showUsRanking();
-      }
+      if (tab !== 'value' || document.visibilityState !== 'visible') return;
+      // Sidebar CSS/body classes are not a reliable signal: the data must
+      // continue refreshing even when the workspace shell is restored.
+      if (list.querySelector('button[data-original-index]')) void readLatestQuotes();
+      else void showUsRanking();
     };
     document.addEventListener('visibilitychange', refreshOnReturn);
     window.addEventListener('focus', refreshOnReturn);
@@ -491,12 +500,20 @@
     };
     // Keep the working trading-value list as default while new data sources are pending.
     void showUsRanking();
-    // Read direct DO prices every 3 seconds; refresh rankings/headlines once per minute.
+    // Refresh quotes independently of sidebar open/closed CSS classes.
+    // The lightweight endpoint reads memory only, never calls Kiwoom or Neon.
+    // On a background tab, cap polling at one request per 15 seconds.
+    let lastBackgroundQuoteCheck = 0;
     window.setInterval(() => {
-      if (tab !== 'value' || document.visibilityState !== 'visible' ||
-          !document.body.classList.contains('left-market-open') || draggedRow) return;
-      if (!list.querySelector('button[data-original-index]') ||
-          Date.now() - lastFullRankingRefresh >= 60000) {
+      if (tab !== 'value' || draggedRow) return;
+      const visible = document.visibilityState === 'visible';
+      if (!visible) {
+        if (Date.now() - lastBackgroundQuoteCheck < 15000) return;
+        lastBackgroundQuoteCheck = Date.now();
+      }
+      if (!list.querySelector('button[data-original-index]')) {
+        if (visible) void showUsRanking();
+      } else if (visible && Date.now() - lastFullRankingRefresh >= 60000) {
         lastFullRankingRefresh = Date.now();
         void showUsRanking();
       } else {
