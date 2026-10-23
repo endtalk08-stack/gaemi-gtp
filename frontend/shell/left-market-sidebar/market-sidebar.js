@@ -270,7 +270,17 @@
           secondRow.className = 'market-stock-second';
           const industry = document.createElement('span');
           industry.className = 'market-stock-industry';
-          industry.textContent = typeof item.industry === 'string' ? item.industry : '';
+          const watchStar = document.createElement('span');
+          watchStar.className = 'market-stock-watch-star';
+          watchStar.textContent = '☆';
+          watchStar.title = '관심종목 (연결 전)';
+          watchStar.setAttribute('aria-hidden', 'true');
+          // Visual placeholder only; do not open stock chat when the star is clicked.
+          watchStar.addEventListener('click', (event) => event.stopPropagation());
+          const industryLabel = document.createElement('span');
+          industryLabel.className = 'market-stock-industry-label';
+          industryLabel.textContent = typeof item.industry === 'string' ? item.industry : '';
+          industry.append(watchStar, industryLabel);
           const change = document.createElement('span');
           const pct = item.change_pct;
           change.className = 'market-stock-change' +
