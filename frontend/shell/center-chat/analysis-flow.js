@@ -280,8 +280,9 @@
           element.classList.remove('typing-cursor');
         };
 
-        const appendWhy = async () => {
+        const appendWhy = async (inline = false) => {
           return window.GaemiGTPWhyFlow.appendWhy({
+            inline,
             mainContainer,
             requestId,
             getActiveAnalysisRequestId: () => ctx.getActiveAnalysisRequestId(),
@@ -340,6 +341,11 @@
         });
 
         anchor.insertAdjacentElement('afterend', choices);
+        // Only the new sourced AI reason triggers the requested initial reason/issues layout.
+        // Existing replies and their buttons remain unchanged if none is available.
+        if (result.price_reason?.headline && result.price_reason?.summary) {
+          void appendWhy(true);
+        }
 
         const typeInitialChoices = async () => {
           const sequence = [
