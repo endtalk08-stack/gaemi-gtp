@@ -215,9 +215,10 @@
   min-width: 0;
 }
 .market-stock-name-group {
-  display: flex;
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr);
   align-items: baseline;
-  gap: 5px;
+  column-gap: 5px;
   min-width: 0;
 }
 .market-stock-rank { font-size: 11px; flex: 0 0 auto; color: var(--gtp-faint); font-weight: 650; }
@@ -240,18 +241,23 @@
 }
 .market-stock-change { font-size: 11px; font-weight: 750; text-align: right; white-space: nowrap; }
 .market-stock-industry {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 5px;
   min-width: 0;
   color: var(--gtp-accent, #38bdf8);
 }
 .market-stock-watch-star {
-  flex: 0 0 auto;
-  font-size: 15px;
-  line-height: 1;
+  font-size: 11px;
+  line-height: inherit;
   color: var(--gtp-muted);
-  cursor: default;
+  cursor: pointer;
+}
+.market-stock-watch-star:focus {
+  outline: 1px solid var(--gtp-accent, #38bdf8);
+  outline-offset: 1px;
+  border-radius: 2px;
 }
 .market-stock-industry-label {
   min-width: 0;
