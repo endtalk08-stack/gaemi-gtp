@@ -125,6 +125,58 @@ def _previous_trading_day(rows, *, is_krw, as_of_date=None):
     return previous
 
 
+def _latest_daily_candle(rows, *, is_krw, as_of_date=None):
+    """One dated Yahoo OHLC bar and its own previous-close change, never a live/old mix.
+
+    Reuses the same cached daily rows already fetched for technical indicators.
+    When open or another required price is missing, do not invent a candle.
+    """
+    today = as_of_date or datetime.now(
+        ZoneInfo("Asia/Seoul" if is_krw else "America/New_York")
+    ).date()
+    by_date = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        try:
+            day = date.fromisoformat(str(row.get("date") or ""))
+            close = float(row.get("close"))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if day > today or not (isfinite(close) and close > 0):
+            continue
+        by_date[day] = row
+
+    ordered_days = sorted(by_date)
+    if len(ordered_days) < 2 or (today - ordered_days[-1]).days > 7:
+        return None
+
+    latest = by_date[ordered_days[-1]]
+    previous = by_date[ordered_days[-2]]
+    try:
+        open_price = float(latest["open"])
+        high = float(latest["high"])
+        low = float(latest["low"])
+        close = float(latest["close"])
+        previous_close = float(previous["close"])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return None
+    if not all(isfinite(value) and value > 0 for value in (
+        open_price, high, low, close, previous_close
+    )):
+        return None
+    if not (low <= min(open_price, close) <= max(open_price, close) <= high):
+        return None
+    return {
+        "date": ordered_days[-1].isoformat(),
+        "open": open_price,
+        "high": high,
+        "low": low,
+        "close": close,
+        "change_pct": round((close - previous_close) / previous_close * 100, 2),
+    }
+
+
 def _build_stock_price_result(*, is_krw, ticker_symbol, current, previous=None, high=None, low=None, change_pct=None, quote_source=None, quote_received_at_ms=None):
     price_result = build_price_result(
         is_krw=is_krw,
@@ -148,6 +200,7 @@ def _build_stock_price_result(*, is_krw, ticker_symbol, current, previous=None, 
         "historical_price_source": "yahoo-daily",
         "indicators": indicators,
         "previous_trading_day": _previous_trading_day(daily_rows, is_krw=is_krw),
+        "daily_candle": _latest_daily_candle(daily_rows, is_krw=is_krw),
         "price_tags": list(indicators.get("price_tags") or []),
         "first_reply_metrics_text": _build_first_reply_metrics(price_result, indicators),
     }

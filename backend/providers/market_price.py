@@ -1,5 +1,6 @@
 import datetime
 import json
+import math
 import threading
 import time
 import urllib.parse
@@ -133,6 +134,7 @@ def fetch_daily_price_history(ticker):
                 chart = chart_rows[0]
                 quote = chart.get("indicators", {}).get("quote", [{}])[0]
                 closes = quote.get("close", [])
+                opens = quote.get("open", []) or []
                 highs = quote.get("high", [])
                 lows = quote.get("low", [])
                 volumes = quote.get("volume", [])
@@ -161,6 +163,15 @@ def fetch_daily_price_history(ticker):
                         "low": low_value,
                         "volume": volume_value,
                     }
+                    # Reuse the Yahoo daily open already in this response; no extra request.
+                    raw_open = opens[index] if index < len(opens) else None
+                    if raw_open is not None and not isinstance(raw_open, bool):
+                        try:
+                            open_value = float(raw_open)
+                        except (TypeError, ValueError):
+                            open_value = 0.0
+                        if math.isfinite(open_value) and open_value > 0:
+                            row["open"] = open_value
                     # 거래소 현지 날짜가 확인된 일봉만 날짜를 붙인다.
                     # timestamp가 없거나 잘못되어도 기존 OHLCV 행은 보존한다.
                     if exchange_timezone is not None and index < len(timestamps):
