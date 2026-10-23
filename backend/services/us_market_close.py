@@ -1,4 +1,4 @@
-"""US close editorial: three date-verified NAVER indices and three verified original articles.
+"""US close editorial: three date-verified NAVER indices and two verified original articles.
 
 The existing DigitalOcean timer writes one Neon result; Render reads only.
 Model 2 uses the same free-text chat prompt as model 3. Chart tags are generated in code.
@@ -73,7 +73,7 @@ def select_close_articles(rows, session_date, now_utc=None):
 
 
 def collect_articles(session_date, now_utc=None, search=None, reader=None):
-    """Only three genuinely extracted US-close articles; never snippets."""
+    """Only two genuinely extracted US-close articles; never snippets."""
     return verified_originals(session_date, now_utc=now_utc, search=search, reader=reader)
 
 US_CLOSE_PROMPT = "쉽게 설명 반말로 대답해"
@@ -274,7 +274,7 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
     # Fail before any database claim/AI usage if one is missing or stale.
     indices = verified_indices(session_date)
     articles = collect_articles(session_date, now_utc=now, search=search, reader=reader)
-    if len(articles) != 3:
+    if len(articles) != 2:
         return {"status": "insufficient_verified_originals", "session_date": session_date.isoformat(),
                 "count": len(articles)}
     with _connection() as conn:
