@@ -118,7 +118,10 @@ class FreshIssueTokenTests(unittest.TestCase):
         article = {"title": "news", "description": "body",
                    "published_at": published(1), "url": "https://example.org/one"}
         provider_response = {
-            "choices": [{"message": {"content": '{"issues":[]}'}}],
+            "choices": [{"message": {"content": json.dumps({
+                "price_reason": {"headline": "테슬라 하락 이유", "summary": "뉴스 영향", "source_ids": [1]},
+                "issues": []
+            }, ensure_ascii=False)}}],
             "usage": {"prompt_tokens": 432, "completion_tokens": 25, "total_tokens": 457},
         }
         completed = []
