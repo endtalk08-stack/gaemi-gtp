@@ -5,3 +5,4 @@ yfinance
 google-generativeai
 upstash-redis
 psycopg[binary]
+cryptography>=42,<48
