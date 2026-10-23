@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect-kr-news-neon-residue-readonly-20261023.py","request_id":"audit_kr_news_residue_20261023_a","timeout":90}
+{"operation":"logs","unit":"gaemigtp-news.service","lines":180}
