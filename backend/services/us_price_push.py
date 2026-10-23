@@ -35,7 +35,7 @@ def _verify_signature(raw, timestamp, signature):
         if len(key) != 32 or len(sig) != 64:
             return False
         Ed25519PublicKey.from_public_bytes(key).verify(
-            sig, timestamp.encode("ascii") + b"\\n" + raw
+            sig, timestamp.encode("ascii") + b":" + raw
         )
         return True
     except (ValueError, TypeError, UnicodeError, cryptography.exceptions.InvalidSignature):
