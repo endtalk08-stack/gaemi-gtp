@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/diagnose_kiwoom_fe_sql_readonly_20261023.py","request_id":"fereadonly20261023sql1","timeout":90}
+{"operation":"restart","unit":"gaemigtp-kiwoom-us-fe.service"}
