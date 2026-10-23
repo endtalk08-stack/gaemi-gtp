@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/systemd/gaemigtp-kiwoom-us-fe.service","target":"ops/systemd/gaemigtp-kiwoom-us-fe.service"}
+{"operation":"restart","unit":"gaemigtp-kiwoom-us-fe.service"}
