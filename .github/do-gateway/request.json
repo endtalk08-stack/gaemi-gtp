@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/read-kiwoom-legacy-references-20261023.py","request_id":"read_kiwoom_refs_20261023_1","timeout":60}
+{"operation":"deploy","path":"backend/kiwoom_us_live_prices.py","target":"backend/kiwoom_us_live_prices.py"}
