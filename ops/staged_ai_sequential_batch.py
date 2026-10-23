@@ -173,6 +173,18 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         print("[news-ai] skipped reason=before_scheduled_time stock=%s" % stock_name, flush=True)
         return
     # Do not change the original news result or run a second news collection.
+    # DigitalOcean already sends signed Kiwoom quotes to Render. Read that same
+    # short-lived feed directly before this stock's single Groq call.
+    if price_context is None:
+        try:
+            from staged_us_quote_context import fetch_verified_us_price_context
+            price_context = fetch_verified_us_price_context(stock_name)
+            print("[news-ai-price] stock=%s status=%s" %
+                  (stock_name, "fresh" if price_context else "unavailable"), flush=True)
+        except Exception as quote_exc:
+            print("[news-ai-price] stock=%s status=unavailable error=%s" %
+                  (stock_name, type(quote_exc).__name__), flush=True)
+            price_context = None
     import psycopg
     with psycopg.connect(_worker_database_url(store), connect_timeout=10, autocommit=True) as conn:
         batch = run_stock_batch(conn, [{
