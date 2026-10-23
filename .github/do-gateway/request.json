@@ -1,1 +1,5 @@
-{"operation":"kiwoom-verify"}
+{
+  "operation": "deploy",
+  "path": "backend/kiwoom_rank_probe.py",
+  "target": "backend/kiwoom_rank_probe.py"
+}
