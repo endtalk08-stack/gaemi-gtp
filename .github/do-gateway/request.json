@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/read-kiwoom-cleanup-paths-20261023.py","request_id":"read_cleanup_kiwoom_20261023_1","timeout":60}
+{"operation":"run","path":"ops/do-gateway/read-kiwoom-legacy-references-20261023.py","request_id":"read_kiwoom_refs_20261023_1","timeout":60}
