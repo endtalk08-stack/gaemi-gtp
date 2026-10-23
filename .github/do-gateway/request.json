@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-kiwoom-us-fe.service"}
+{"operation":"run","path":"ops/do-gateway/test_kiwoom_latest_only_no_network_20261023.py","request_id":"kiwoomlatest20261023dryrun1","timeout":70}
