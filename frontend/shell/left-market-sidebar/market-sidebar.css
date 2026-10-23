@@ -247,7 +247,10 @@
   align-items: baseline;
   column-gap: 5px;
   min-width: 0;
-  color: var(--gtp-accent, #38bdf8);
+  color: #7457A8;
+}
+.dark .market-stock-industry {
+  color: #B4A0DB;
 }
 .market-stock-watch-star {
   font-size: 13px;
