@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/providers/kiwoom_us_industry.py","target":"backend/providers/kiwoom_us_industry.py"}
+{"operation":"deploy","path":"backend/kiwoom_us_value_collector.py","target":"backend/kiwoom_us_value_collector.py"}
