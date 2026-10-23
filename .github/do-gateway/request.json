@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify-us-close-publication-20261023.py","request_id":"verifyclose-publish-20261023-a","timeout":60}
+{"operation":"deploy","path":"ops/do-gateway/us_close_runtime_two_articles_20261023.py","target":"backend/services/us_market_close_runtime.py"}
