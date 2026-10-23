@@ -47,7 +47,9 @@
     // company, but never for a conflicting known ticker/name combination.
     // The returned candidate must match the row's own normalized symbol.
     const logoTicker = canonicalMarkTicker(item.logo_lookup_ticker);
-    const canLookupLogo = verified || (Boolean(ticker) && logoTicker === ticker);
+    const canLookupLogo = verified || (
+      item.identity_status === 'pending' && Boolean(ticker) && logoTicker === ticker
+    );
     // Keep the bundled vector or ticker badge while the request is in flight.
     if (canLookupLogo) {
       const logo = document.createElement('img');
