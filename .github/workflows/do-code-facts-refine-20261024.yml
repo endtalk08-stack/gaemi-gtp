@@ -1,0 +1,54 @@
+name: Harden live code fact issues and refresh legacy US snapshots
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-code-facts-refine-20261024.yml]
+permissions:
+  contents: read
+jobs:
+  apply:
+    environment: digitalocean-news-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run fact-only unit and company matching regression tests
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_article_fact_keywords.py' -q
+          python -m unittest discover -s tests -p 'test_code_issue_sidebar_contract.py' -q
+          python -m py_compile backend/services/article_fact_keywords.py backend/services/news_result.py
+      - name: Validate live source identities and stage two guarded replacements
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          base_fact="$(git show 800c2c4bcccdd770cd0b8aa8c201697f524b0194:backend/services/article_fact_keywords.py | sha256sum | cut -d' ' -f1)"
+          base_result="$(git show 800c2c4bcccdd770cd0b8aa8c201697f524b0194:backend/services/news_result.py | sha256sum | cut -d' ' -f1)"
+          remote="gaemi-deploy@$DO_HOST"
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "$remote" 'bash -s' "$base_fact" "$base_result" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum backend/services/article_fact_keywords.py | cut -d' ' -f1)" = "$1"
+          test "$(sha256sum backend/services/news_result.py | cut -d' ' -f1)" = "$2"
+          grep -Fq 'normalized["issue_briefs"] = normalized.get("_code_issue_briefs") or []' backend/services/news_processed_store.py
+          grep -Fq 'PAUSED apply_worker_ai' ops/staged_ai_sequential_batch.py
+          echo CODE_FACTS_V2_BASELINES_VERIFIED
+          REMOTE
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" backend/services/article_fact_keywords.py "$remote:/opt/gaemigtp-news/app/ops/.article-facts-v2.next"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" backend/services/news_result.py "$remote:/opt/gaemigtp-news/app/ops/.news-result-facts-v2.next"
+          scp -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" ops/do-gateway/apply_code_facts_v2_20261024.sh "$remote:/opt/gaemigtp-news/app/ops/.code-facts-v2-apply.sh"
+      - name: Activate v2 fact filter while keeping AI paused
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=12 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash /opt/gaemigtp-news/app/ops/.code-facts-v2-apply.sh'
