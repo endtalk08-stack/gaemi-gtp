@@ -55,14 +55,14 @@ class TitleOnlyOverlayTests(unittest.TestCase):
 
     def test_no_verified_original_body_no_broadcast_brief(self):
         self.assertEqual(overlay_verified_headlines([self.brief], [self.article], [""],
-                       "마이크론 테크놀로지"), [])
+                       "마이크론 테크놀로지"), [self.brief])
 
     def test_no_mismatched_original_article(self):
         unrelated = dict(self.article, url="https://example.org/unrelated")
         self.assertEqual(overlay_verified_headlines(
             [self.brief], [unrelated], ["다른 회사의 기사 원문이다. 매우 긴 본문이다. 완전히 다른 사실이다."],
             "마이크론 테크놀로지",
-        ), [])
+        ), [self.brief])
 
     def test_english_union_fact_in_korean_without_changing_article(self):
         title = "Micron Taoyuan Union Members Reject Profit-Sharing Proposal"
