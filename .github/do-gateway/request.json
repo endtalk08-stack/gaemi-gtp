@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/probe-price-relay-safe-20261023.py","request_id":"probe_price_relay_20261023_a1","timeout":45}
+{"operation":"deploy","path":"backend/kiwoom_us_price_relay.py","target":"backend/kiwoom_us_price_relay.py"}
