@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/do-gateway/us_materials_groq_20261023.py","target":"ops/staged_daily_groq_issues.py"}
+{"operation":"restart","unit":"gaemigtp-news.service"}
