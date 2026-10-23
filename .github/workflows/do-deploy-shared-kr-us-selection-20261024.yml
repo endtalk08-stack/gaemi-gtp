@@ -1,0 +1,110 @@
+name: Deploy US code with identical KR article selection
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/do-deploy-shared-kr-us-selection-20261024.yml]
+permissions:
+  contents: read
+concurrency:
+  group: do-us-code-kr-selection-20261024
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 10
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify shared domestic-US code and AI source isolation
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_us_kr_shared_code_selection.py' -v
+          python -m unittest discover -s tests -p 'test_verified_fact_headline_only.py' -v
+          python -m unittest discover -s tests -p 'test_news_feed_queries.py' -v
+          python -m py_compile backend/services/news_feed.py backend/services/news_result.py backend/services/verified_fact_headline.py ops/staged_news_processed_store.py
+          grep -Fq 'GAEMIGTP_NEWS_AI_PAUSED' ops/staged_ai_sequential_batch.py
+      - name: Inspect DigitalOcean baseline and upload exact three code files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          remote="gaemi-deploy@$DO_HOST"
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519")
+          BASE=db7351f76168a6daf936b382a0542e681195637d
+          before_feed="$(git show "$BASE":backend/services/news_feed.py | sha256sum | cut -d' ' -f1)"
+          before_result="$(git show "$BASE":backend/services/news_result.py | sha256sum | cut -d' ' -f1)"
+          before_title="$(git show "$BASE":backend/services/verified_fact_headline.py | sha256sum | cut -d' ' -f1)"
+          before_store="$(git show "$BASE":ops/staged_news_processed_store.py | sha256sum | cut -d' ' -f1)"
+          ssh "${opts[@]}" "$remote" 'bash -s' "$before_feed" "$before_result" "$before_title" "$before_store" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum backend/services/news_feed.py | cut -d' ' -f1)" = "$1"
+          test "$(sha256sum backend/services/news_result.py | cut -d' ' -f1)" = "$2"
+          test "$(sha256sum backend/services/verified_fact_headline.py | cut -d' ' -f1)" = "$3"
+          test "$(sha256sum backend/services/news_processed_store.py | cut -d' ' -f1)" = "$4"
+          grep -Fq 'GAEMIGTP_NEWS_AI_PAUSED' ops/staged_ai_sequential_batch.py
+          echo KR_US_SELECTION_EXISTING_SOURCE_MATCHED
+          REMOTE
+          scp "${opts[@]}" backend/services/news_feed.py "$remote:/opt/gaemigtp-news/app/ops/.next-shared-news-feed.py"
+          scp "${opts[@]}" backend/services/news_result.py "$remote:/opt/gaemigtp-news/app/ops/.next-shared-news-result.py"
+          scp "${opts[@]}" backend/services/verified_fact_headline.py "$remote:/opt/gaemigtp-news/app/ops/.next-shared-source-meta.py"
+          scp "${opts[@]}" ops/staged_news_processed_store.py "$remote:/opt/gaemigtp-news/app/ops/.next-shared-processed-store.py"
+      - name: Apply exactly code article selection with rollback and paused AI
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          export PYTHONPATH=/opt/gaemigtp-news/app
+          backup="$(mktemp -d ./ops/.kr-us-selection-backup.XXXXXX)"
+          files=(backend/services/news_feed.py backend/services/news_result.py backend/services/verified_fact_headline.py backend/services/news_processed_store.py)
+          for file in "${files[@]}"; do mkdir -p "$backup/$(dirname "$file")"; cp -p "$file" "$backup/$file"; done
+          rollback() {
+            trap - ERR
+            set +e
+            for file in "${files[@]}"; do install -m 644 "$backup/$file" "$file"; done
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+            echo SHARED_SELECTION_ROLLED_BACK
+            exit 1
+          }
+          trap rollback ERR
+          install -m 644 ops/.next-shared-news-feed.py backend/services/news_feed.py
+          install -m 644 ops/.next-shared-news-result.py backend/services/news_result.py
+          install -m 644 ops/.next-shared-source-meta.py backend/services/verified_fact_headline.py
+          install -m 644 ops/.next-shared-processed-store.py backend/services/news_processed_store.py
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_feed.py backend/services/news_result.py backend/services/verified_fact_headline.py backend/services/news_processed_store.py
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          from pathlib import Path
+          from backend.services.news_feed import select_stock_news_for_analysis
+          from backend.services.news_result import build_stock_news_result
+          from backend.services.verified_fact_headline import attach_verified_source_citations
+          news=Path('backend/services/news_result.py').read_text()
+          assert 'overlay_verified_headlines(' not in news
+          assert 'attach_verified_source_citations(' in news
+          assert 'select_stock_news_for_analysis(raw_news_list, stock_name, limit)' in news
+          assert '"_kr_selection_revision": 1' in news
+          store=Path('backend/services/news_processed_store.py').read_text()
+          assert 'payload.get("_kr_selection_revision") != 1' in store
+          ai=Path('ops/staged_ai_sequential_batch.py').read_text()
+          assert 'GAEMIGTP_NEWS_AI_PAUSED' in ai
+          assert '"articles": raw,' in ai
+          print("US_CODE_KR_SOURCE_AND_AI_RAW_GUARD_PASS",flush=True)
+          PY
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          trap - ERR
+          echo US_CODE_SAME_KR_SELECTION_LIVE_AI_PAUSED
+          REMOTE
