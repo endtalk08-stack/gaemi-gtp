@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/kiwoom_us_value_collector.py","target":"backend/kiwoom_us_value_collector.py"}
+{"operation":"restart","unit":"gaemigtp-kiwoom-us-value.service"}
