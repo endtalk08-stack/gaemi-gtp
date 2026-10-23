@@ -13,7 +13,7 @@ from backend.providers.kiwoom_us_quotes import issue_access_token, KiwoomReadOnl
 US_RANKING_PATH = "https://api.kiwoom.com/api/us/rkinfo"
 RANKING_ID = "usa20540"
 RANKING_REQUEST = {
-    "stex_tp": "0", "inds_cd": "", "stk_tp": "1",
+    "stex_tp": "0", "inds_cd": "000", "stk_tp": "1",
     "trde_qty_tp": "0", "stk_cnd": "0",
     "pric_cnd": "0", "trde_prica_cnd": "0",
 }
@@ -22,6 +22,7 @@ FIELDS = ("rank", "stex_tp", "stk_cd", "stk_nm", "stk_enm",
           "cur_prc", "pred_pre_sig", "pred_pre", "flu_rt",
           "acc_trde_qty", "pred_trde_qty", "trde_prica")
 EXCHANGES = {"ND", "NY", "NA"}
+EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
 
 def _num(raw):
     if raw is None or isinstance(raw, bool):
@@ -44,7 +45,8 @@ def _normalize_row(record, position):
     code = str(record.get("stk_cd") or "").strip().upper()
     if not re.fullmatch(r"[A-Z0-9.\\-]{1,20}", code):
         return None
-    exchange = str(record.get("stex_tp") or "").strip().upper()
+    exchange_code = str(record.get("stex_tp") or "").strip().upper()
+    exchange = EXCHANGE_CODES.get(exchange_code, exchange_code)
     if exchange not in EXCHANGES:
         return None
     # Prefer official Korean display name, fall back to English.
