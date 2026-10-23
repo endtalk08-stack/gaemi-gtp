@@ -29,9 +29,10 @@ def brief(title, hours):
 
 
 class RenderFreshnessTests(unittest.TestCase):
-    def test_two_day_old_ai_hidden_despite_recent_snapshot_write(self):
+    def test_two_day_old_code_fact_hidden_despite_recent_snapshot_write(self):
         payload = {
-            "_ai_issue_briefs": [brief("old", 49), brief("fresh", 1)],
+            "_code_fact_extraction_version": 2,
+            "_code_issue_briefs": [brief("old", 49), brief("fresh", 1)],
             "issue_briefs": [brief("old", 49)],
             "_ai_exchange_day": "2026-10-18",
             "paired_news_items": [
@@ -47,7 +48,7 @@ class RenderFreshnessTests(unittest.TestCase):
                          "https://example.org/fresh")
         self.assertEqual(payload["issue_briefs"][0]["headline"], "old")
 
-    def test_missing_ai_never_falls_back_to_code_issues(self):
+    def test_legacy_snapshot_without_new_version_is_not_displayed(self):
         payload = {"issue_briefs": [{"headline": "old deterministic",
                                     "reaction_at": ts(1), "stock_names": ["테슬라"]}]}
         self.assertEqual(clean_us_snapshot(payload, now=NOW)["issue_briefs"], [])
@@ -55,12 +56,14 @@ class RenderFreshnessTests(unittest.TestCase):
     def test_one_issue_with_mixed_dates_shows_only_recent_citations(self):
         fresh, old = brief("fresh", 1), brief("old", 49)
         mixed = {**fresh, "source_articles": old["source_articles"] + fresh["source_articles"]}
-        cleaned = clean_us_snapshot({"_ai_issue_briefs": [mixed]}, now=NOW)
+        cleaned = clean_us_snapshot({"_code_fact_extraction_version": 2,
+                                     "_code_issue_briefs": [mixed]}, now=NOW)
         self.assertEqual(len(cleaned["issue_briefs"]), 1)
         self.assertEqual(len(cleaned["issue_briefs"][0]["source_articles"]), 1)
 
     def test_bad_or_future_article_dates_are_not_fabricated(self):
-        payload = {"_ai_issue_briefs": [
+        payload = {"_code_fact_extraction_version": 2,
+                   "_code_issue_briefs": [
             {"headline": "undated", "source_articles": [{"url": "https://example.org/x"}]},
             brief("future", -4),
         ], "paired_news_items": [
@@ -71,14 +74,38 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual(cleaned["issue_briefs"], [])
         self.assertEqual(cleaned["paired_news_items"], [])
 
-    def test_central_chat_reads_same_guarded_ai_channel(self):
+    def test_ai_channel_never_overrides_code_channel(self):
+        snapshot = {"_code_fact_extraction_version": 2,
+                    "_code_issue_briefs": [brief("기사에서 추출한 이슈", 1)],
+                    "_ai_issue_briefs": [brief("옛날 AI 분석", 1)],
+                    "issue_briefs": [brief("옛날 AI 분석", 1)]}
+        view = clean_us_snapshot(snapshot, now=NOW)
+        self.assertEqual([x["headline"] for x in view["issue_briefs"]], ["기사에서 추출한 이슈"])
+
+    def test_code_brief_requires_verified_fresh_article(self):
+        invalid = {**brief("근거 없는 키워드", 1),
+                   "source_articles": [{"url": "https://example.org/missing"}]}
+        view = clean_us_snapshot({"_code_fact_extraction_version": 2,
+                                  "_code_issue_briefs": [invalid]}, now=NOW)
+        self.assertEqual(view["issue_briefs"], [])
+
+    def test_central_chat_reads_same_guarded_code_channel(self):
+        actual_now = datetime.now(timezone.utc)
+        def recent_brief(title, hours):
+            return {"headline": title, "source_articles": [{
+                "published_at": (actual_now - timedelta(hours=hours)).isoformat(),
+                "url": "https://example.org/" + title,
+            }]}
         payload = {"_news_status": "ok",
-                   "_ai_issue_briefs": [brief("stale", 49)],
-                   "issue_briefs": [brief("stale", 49)]}
-        with patch.object(news_result, "news_snapshot_names", return_value=["테슬라"]), patch.object(
+                   "_code_fact_extraction_version": 2,
+                   "_code_issue_briefs": [recent_brief("fresh", 1), recent_brief("stale", 49)],
+                   "_ai_issue_briefs": [recent_brief("outdated AI", 1)],
+                   "issue_briefs": [recent_brief("stale", 49)]}
+        with patch.object(news_result, "resolve_us_news_identity",
+                          return_value={"snapshot_names": ["테슬라"]}), patch.object(
             news_result, "_read_worker_news_snapshot", return_value=payload):
             result = news_result.get_shared_stock_news_result("테슬라", market="미국")
-        self.assertEqual(result["issue_briefs"], [])
+        self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["fresh"])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """Read-only freshness guard shared by Render chat and market sidebar.
 
-DigitalOcean owns collection and AI work. Render only filters Neon snapshots
+DigitalOcean owns news collection and code fact extraction. Render only filters Neon snapshots
 using the original published_at of cited articles, never the AI/DB write time.
 """
 from copy import deepcopy
@@ -29,7 +29,7 @@ def _article_date(value):
 
 
 def clean_us_snapshot(payload, *, now=None):
-    """Return only 24h source-dated AI briefs and news articles for US screens.
+    """Return only 24h source-dated code-fact briefs and news for US screens.
 
     Both consumers use this function. Reject old source timestamps even when
     a snapshot was saved minutes ago. Unknown dates are not fabricated.
@@ -42,13 +42,14 @@ def clean_us_snapshot(payload, *, now=None):
     cutoff = now.astimezone(timezone.utc) - timedelta(hours=24)
     upper = now.astimezone(timezone.utc)
     result = deepcopy(payload)
-    # Accept only the AI channel. Legacy code-generated issue_briefs are not
-    # substituted when today's AI call failed or produced no issues.
-    ai_briefs = result.get("_ai_issue_briefs")
-    if not isinstance(ai_briefs, list):
-        ai_briefs = []
+    # The news worker now writes code-extracted article facts to its separate
+    # channel. Older AI and legacy briefs must never override this feed.
+    # Require the new extraction version to avoid reviving stale legacy tags.
+    code_briefs = result.get("_code_issue_briefs")
+    if str(result.get("_code_fact_extraction_version") or "") != "2" or not isinstance(code_briefs, list):
+        code_briefs = []
     fresh = []
-    for brief in ai_briefs:
+    for brief in code_briefs:
         if not isinstance(brief, dict):
             continue
         valid_sources = []

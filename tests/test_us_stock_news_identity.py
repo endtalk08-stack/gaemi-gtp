@@ -92,7 +92,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         self.assertEqual(out["items"][0]["headline"], "")
 
     def test_central_reader_uses_existing_us_snapshot_alias_when_exact_missing(self):
-        # US display only accepts real source dates within 24 hours and AI briefs.
+        # US display only accepts source-dated code-fact briefs within 24 hours.
         from datetime import datetime, timezone
         from zoneinfo import ZoneInfo
         published = datetime.now(timezone.utc).isoformat()
@@ -104,7 +104,8 @@ class UsListingNewsIdentityTests(unittest.TestCase):
             if name == "엔비디아":
                 brief = {"headline": "서버의 기존 이슈", "summary": "확인된 내용",
                          "source_articles": [article]}
-                return {"issue_briefs": [brief], "_ai_issue_briefs": [brief]}
+                return {"issue_briefs": [brief], "_code_issue_briefs": [brief],
+                        "_code_fact_extraction_version": 2}
             return None
         with patch.object(news_result, "_read_worker_news_snapshot", side_effect=worker):
             result = news_result.get_shared_stock_news_result("NVIDIA", market="미국", limit=50)
