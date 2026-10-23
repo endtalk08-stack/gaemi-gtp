@@ -1,7 +1,7 @@
 name: Deploy Kiwoom Neon automatic identity sync
 on:
   push:
-    branches: [fix/do-kiwoom-neon-identity-auto-20261024]
+    branches: [ops/do-ssh-deploy-setup-20261017]
     paths: [.github/workflows/do-kiwoom-identity-sync-20261024.yml]
 permissions:
   contents: read
