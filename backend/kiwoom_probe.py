@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from backend.providers.kiwoom_us_quotes import (
     KiwoomReadOnlyError, credentials_configured,
-    fetch_us_close, fetch_us_quote, issue_access_token,
+    fetch_us_close, issue_access_token, _market_request, _num,
 )
 
 NY = ZoneInfo("America/New_York")
@@ -38,13 +38,45 @@ def main():
     try:
         token = issue_access_token()
         print("KIWOOM_VERIFY_OAUTH_OK", flush=True)
-        quote = fetch_us_quote(SYMBOL, EXCHANGE, token=token)
-        if not quote.get("current") or quote["current"] <= 0:
-            print("KIWOOM_VERIFY_NVDA_QUOTE_INVALID", flush=True)
+        # One read-only quote request. Diagnose only public market fields:
+        # never output HTTP headers, auth token, full response, or account data.
+        data = _market_request("usa20100", {
+            "stex_tp": EXCHANGE, "stk_cd": SYMBOL,
+        }, token)
+        current = _num(data.get("cur_prc"))
+        change = _num(data.get("flu_rt"))
+        previous_close = _num(data.get("base_close_pric"))
+        if current is None:
+            state = "non_numeric_or_missing"
+        elif current < 0:
+            state = "negative"
+        elif current == 0:
+            state = "zero"
+        else:
+            state = "positive"
+        print("KIWOOM_VERIFY_NVDA_QUOTE_DIAG=" + json.dumps({
+            "current": current,
+            "current_state": state,
+            "change_pct": change,
+            "previous_close": previous_close,
+            "public_field_presence": {
+                field: field in data for field in (
+                    "cur_prc", "flu_rt", "base_close_pric",
+                    "stk_cd", "stex_tp", "stk_nm", "pred_pre_sig",
+                )
+            },
+            "current_raw_type": type(data.get("cur_prc")).__name__,
+            "requested_symbol_matches": data.get("stk_cd") in (None, SYMBOL),
+            "response_has_nested_objects": any(
+                isinstance(value, (dict, list)) for value in data.values()
+            ),
+        }, ensure_ascii=False, sort_keys=True), flush=True)
+        if current is None or current <= 0:
+            print("KIWOOM_VERIFY_NVDA_QUOTE_INVALID=" + state, flush=True)
             return 4
         print("KIWOOM_VERIFY_NVDA_CURRENT_OK=" + json.dumps({
-            "symbol": SYMBOL, "current": quote["current"],
-            "change_pct": quote["change_pct"],
+            "symbol": SYMBOL, "current": current,
+            "change_pct": change,
             "official_close": False,
         }, ensure_ascii=False), flush=True)
 
