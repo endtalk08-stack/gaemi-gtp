@@ -124,6 +124,8 @@
     let changeSorted = false;
     let draggedRow = null;
     let lastRankingSignature = '';
+    let quoteRequestInFlight = false;
+    let lastFullRankingRefresh = Date.now();
     const orderKey = () => 'gaemiGTP_market_sidebar_order_us_' + tab + '_v1';
     const readOrder = () => {
       try {
@@ -243,6 +245,8 @@
           button.dataset.originalRank = String(item.rank || index + 1);
           button.dataset.changePct = typeof item.change_pct === 'number' && Number.isFinite(item.change_pct)
             ? String(item.change_pct) : '-Infinity';
+          button.dataset.currentPrice = typeof item.price === 'number' ? String(item.price) : '';
+          button.dataset.currentChangePct = typeof item.change_pct === 'number' ? String(item.change_pct) : '';
           button.type = 'button';
           button.className = 'market-stock-row';
           button.setAttribute('aria-label', String(item.name || '') + ' 종목 열기. Alt + 위아래 방향키로 순서 변경');
@@ -280,7 +284,10 @@
             rank: item.rank || index + 1,
             display_rank: Number(rank.textContent) || item.rank || index + 1,
             sort: changeSorted ? 'change_pct' : 'source',
-            industry: item.industry, price: item.price, change_pct: item.change_pct,
+            industry: item.industry,
+            price: button.dataset.currentPrice !== '' ? Number(button.dataset.currentPrice) : item.price,
+            change_pct: button.dataset.currentChangePct !== ''
+              ? Number(button.dataset.currentChangePct) : item.change_pct,
             trading_value: item.trading_value, trading_value_text: item.trading_value_text,
             currency: 'USD', source: result.source === 'kiwoom' ? 'kiwoom' : 'unknown'
           }));
@@ -298,6 +305,7 @@
           name.textContent = item.name;
           const price = document.createElement('span');
           price.className = 'market-stock-price';
+          price.dataset.marketPrice = 'true';
           price.textContent = typeof item.price === 'number' && Number.isFinite(item.price)
             ? '$' + item.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '';
           const nameGroup = document.createElement('span');
@@ -334,6 +342,7 @@
           industry.append(watchStar, industryLabel);
           const change = document.createElement('span');
           const pct = item.change_pct;
+          change.dataset.marketChange = 'true';
           change.className = 'market-stock-change' +
             (pct > 0 ? ' text-rose-500' : pct < 0 ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
           change.textContent = typeof pct === 'number' && Number.isFinite(pct)
@@ -358,6 +367,125 @@
         if (id === requestId && !list.querySelector('button[data-original-index]')) {
           list.textContent = '순위 원천 데이터를 가져오지 못했어.';
         }
+      }
+    };
+
+    // Update displayed prices without redrawing or reordering the user's ranking list.
+    // One read-only Neon snapshot per request: no AI, news collection or Redis writes.
+    const readLatestQuotes = async () => {
+      if (quoteRequestInFlight || tab !== 'value' || !list?.querySelector('button[data-original-index]')) return;
+      quoteRequestInFlight = true;
+      try {
+        const response = await fetch(backendUrl + '/market/us-live-quotes', { cache: 'no-store' });
+        if (!response.ok) throw new Error('quotes unavailable');
+        const data = await response.json();
+        if (tab !== 'value' || data.ok !== true || !Array.isArray(data.items)) return;
+        const bySymbol = new Map([...list.querySelectorAll(':scope > button[data-original-index]')]
+          .map((button) => [button.dataset.stockSymbol, button]));
+        let updated = 0;
+        data.items.forEach((quote) => {
+          const button = bySymbol.get(String(quote.symbol || ''));
+          if (!button) return;
+          if (typeof quote.price === 'number' && Number.isFinite(quote.price)) {
+            const price = button.querySelector('[data-market-price]');
+            if (price) price.textContent = '
+    // Never recollect news, rerank stocks, or replace the displayed list.
+    const refreshAnalyzedIssue = async (event) => {
+      const detail = event.detail || {};
+      const name = String(detail.name || '').trim();
+      if (!name || tab !== 'value') return;
+      if (detail.market && detail.market !== market) return;
+      const button = [...list.querySelectorAll(':scope > button[data-original-index]')]
+        .find((row) => row.dataset.stockName === name &&
+          (!detail.symbol || row.dataset.stockSymbol === String(detail.symbol)));
+      if (!button) return;
+      const currentRequestId = requestId;
+      try {
+        const response = await fetch(backendUrl + '/market/issue-headlines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market, items: [{ name, symbol: button.dataset.stockSymbol }] })
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (currentRequestId !== requestId || !list.contains(button)) return;
+        const updated = data.ok === true && Array.isArray(data.items) ? data.items[0] : null;
+        if (!updated || updated.name !== name || updated.symbol !== button.dataset.stockSymbol) return;
+        const issue = button.querySelector('[data-stock-issue]');
+        if (issue) issue.textContent = typeof updated.headline === 'string' ? updated.headline : '';
+      } catch (_) {
+        // Keep the previous headline on transient read failures.
+      }
+    };
+    window.addEventListener('gaemi:analysis-issues-ready', (event) => {
+      void refreshAnalyzedIssue(event);
+    });
+
+    changeSortButton?.addEventListener('click', () => {
+      if (tab !== 'value') return;
+      changeSorted = !changeSorted;
+      applyChangeSort();
+    });
+
+    bindStaticSelection('[data-info-tab-action]', 1);
+    sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
+      if (button.disabled) return;
+      button.addEventListener('click', () => {
+        tab = button.dataset.infoTabAction;
+        customOrder = readOrder();
+        changeSorted = false;
+        void showUsRanking();
+      });
+    });
+    sidebar.dataset.marketControlsBound = 'true';
+    // Keep the working trading-value list as default while new data sources are pending.
+    void showUsRanking();
+    // Price changes update every 10 seconds without reloading AI issue headlines.
+    // Fetch the full list only once a minute, or retry when the first load failed.
+    window.setInterval(() => {
+      if (tab !== 'value' || document.visibilityState !== 'visible' ||
+          !document.body.classList.contains('left-market-open') || draggedRow) return;
+      if (!list.querySelector('button[data-original-index]') ||
+          Date.now() - lastFullRankingRefresh >= 60000) {
+        lastFullRankingRefresh = Date.now();
+        void showUsRanking();
+      } else {
+        void readLatestQuotes();
+      }
+    }, 10000);
+  }
+
+  document.addEventListener('DOMContentLoaded', bindMarketControls);
+
+  window.toggleLeftSidebar = toggle;
+  window.GaemiGTPMarketSidebar = { toggle, bindMarketControls };
+}());
+ + quote.price.toLocaleString('en-US', { maximumFractionDigits: 2 });
+            button.dataset.currentPrice = String(quote.price);
+          }
+          if (typeof quote.change_pct === 'number' && Number.isFinite(quote.change_pct)) {
+            const change = button.querySelector('[data-market-change]');
+            if (change) {
+              change.textContent = (quote.change_pct > 0 ? '+' : '') + quote.change_pct.toFixed(2) + '%';
+              change.className = 'market-stock-change' +
+                (quote.change_pct > 0 ? ' text-rose-500' : quote.change_pct < 0
+                  ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
+            }
+            button.dataset.changePct = String(quote.change_pct);
+            button.dataset.currentChangePct = String(quote.change_pct);
+          }
+          updated++;
+        });
+        if (updated && title) {
+          title.textContent = data.items.some((item) => item.stale)
+            ? '거래대금 TOP 20 · 시세 지연' : '거래대금 TOP 20 · 최신 시세';
+        }
+        if (updated && changeSorted && !draggedRow) applyChangeSort();
+      } catch (_) {
+        // Retain last displayed prices; never misrepresent a failed read as live.
+        if (title && tab === 'value') title.textContent = '거래대금 TOP 20 · 연결 확인 중';
+      } finally {
+        quoteRequestInFlight = false;
       }
     };
 
