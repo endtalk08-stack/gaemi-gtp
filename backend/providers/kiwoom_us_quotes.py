@@ -191,6 +191,19 @@ def _num(value):
         return None
 
 
+def _price(value):
+    """Kiwoom may prefix absolute prices with the movement direction.
+
+    Preserve the sign on change/change_pct fields, but never interpret the
+    leading '-' of a price as a negative stock price. Missing/zero stays
+    unavailable, not a fabricated valid quote.
+    """
+    number = _num(value)
+    if number is None or number == 0:
+        return None
+    return abs(number)
+
+
 def fetch_us_close(symbol, exchange, session_date, *, token=None):
     """Use usa20590 exact dated daily quote, never an extended-hours snapshot.
 
@@ -210,9 +223,9 @@ def fetch_us_close(symbol, exchange, session_date, *, token=None):
     for item in items:
         if not isinstance(item, dict) or str(item.get("dt", "")).replace("-", "") != daycode:
             continue
-        close = _num(item.get("cur_prc"))
+        close = _price(item.get("cur_prc"))
         change = _num(item.get("flu_rt"))
-        if close is None or close <= 0 or change is None:
+        if close is None or change is None:
             raise KiwoomReadOnlyError("kiwoom_daily_record_invalid")
         return {
             "ticker": symbol, "exchange": exchange,
@@ -232,9 +245,9 @@ def fetch_us_quote(symbol, exchange, *, token=None):
     }, token or issue_access_token())
     return {
         "ticker": symbol, "exchange": exchange,
-        "current": _num(data.get("cur_prc")),
+        "current": _price(data.get("cur_prc")),
         "change_pct": _num(data.get("flu_rt")),
-        "previous_close": _num(data.get("base_close_pric")),
+        "previous_close": _price(data.get("base_close_pric")),
         "source": "kiwoom:usa20100",
         "official_close": False,
     }
