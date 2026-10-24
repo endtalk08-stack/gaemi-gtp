@@ -142,27 +142,10 @@
 .central-widget-card__sparkline--up { color: #ff4d67; }
 .central-widget-card__sparkline--down { color: #3b82f6; }
 
-/* QQQ: neutral, layout-only replacement for the former KOSPI card. */
-.central-widget-card--qqq {
-  grid-column: span 2;
-  min-height: 235px;
-  position: relative;
-  color: var(--gtp-faint);
-}
-.qqq-placeholder__subtitle { margin-left: 5px; font-size: 10px; font-weight: 500; color: var(--gtp-faint); }
-.qqq-placeholder__status { margin-left: auto; font-size: 10px; color: var(--gtp-faint); border: 1px solid var(--gtp-border-strong); border-radius: 5px; padding: 1px 6px; }
-.qqq-placeholder__quote { display: flex; gap: 10px; align-items: baseline; margin: 7px 0 6px; color: var(--gtp-faint); }
-.qqq-placeholder__quote strong { font-size: 18px; font-weight: 700; }
-.qqq-placeholder__quote span { font-size: 12px; }
-.qqq-placeholder__quote small { margin-left: auto; font-size: 10px; }
-.qqq-placeholder__chart { position: relative; height: 113px; border: 1px dashed var(--gtp-border-strong); border-radius: 6px; overflow: hidden; }
-.qqq-placeholder__chart svg { width: 100%; height: 100%; opacity: .45; }
-.qqq-placeholder__grid { stroke: var(--gtp-border-strong); stroke-width: 1; fill: none; }
-.qqq-placeholder__line { stroke: var(--gtp-faint); stroke-width: 2; stroke-dasharray: 5 6; fill: none; }
-.qqq-placeholder__chart-label { position: absolute; bottom: 6px; right: 8px; font-size: 10px; color: var(--gtp-faint); }
-.qqq-placeholder__keywords { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.qqq-placeholder__keywords-label { font-size: 10px; font-weight: 600; }
-.qqq-placeholder__keywords input { flex: 1 1 125px; min-width: 80px; height: 24px; padding: 0 7px; border: 1px solid var(--gtp-border-strong); border-radius: 5px; background: transparent; color: var(--gtp-faint); font-size: 10px; cursor: not-allowed; opacity: .7; }
-.qqq-placeholder__keywords input::placeholder { color: var(--gtp-faint); opacity: 1; }
-.qqq-placeholder__tag { border: 1px solid var(--gtp-border-strong); border-radius: 5px; padding: 2px 5px; font-size: 9px; color: var(--gtp-faint); opacity: .75; }
-@media (max-width: 640px) { .central-widget-card--qqq { grid-column: span 2; } }
+/* QQQ: the original 2026-10-07 KOSPI compact card, shown disabled and gray. */
+.central-widget-card--qqq-muted { opacity: .58; }
+.central-widget-card--qqq-muted .central-widget-card__kospi-title,
+.central-widget-card--qqq-muted .central-widget-card__kospi-row,
+.central-widget-card--qqq-muted .central-widget-card__kospi-row > span,
+.central-widget-card--qqq-muted .central-widget-card__sparkline { color: var(--gtp-faint); }
+.central-widget-card--qqq-muted .central-widget-card__sparkline polygon { opacity: .2; }
