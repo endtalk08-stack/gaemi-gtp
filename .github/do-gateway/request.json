@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/check_kiwoom_config.py","request_id":"kiwoomconfiga20261024","timeout":60}
