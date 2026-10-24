@@ -1,4 +1,4 @@
-name: Validate US CODE rev7 one-shot backfill without AI
+name: Validate US CODE rev8 one-shot backfill without AI
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -30,8 +30,8 @@ jobs:
           for banned in ('apply_worker_ai(', 'apply_unchanged_worker_ai(', 'analyze_news(', 'reserve_once(', 'DELETE FROM', 'TRUNCATE ', 'DROP TABLE', 'UPDATE public.market_instruments', 'purge_expired('):
               assert banned not in code, banned
           assert 'DEADLINE_SECONDS = 780' in code
-          assert 'EXPECTED_REVISION = 7' in code
-          print('US_REV7_BACKFILL_STATIC_VALIDATED_AI_CALLS_ZERO_NO_SQL_DELETIONS')
+          assert 'EXPECTED_REVISION = 8' in code
+          print('US_REV8_BACKFILL_STATIC_VALIDATED_AI_CALLS_ZERO_NO_SQL_DELETIONS')
           PY
           python -m unittest discover -s tests -p test_us_kr_shared_code_selection.py -v
           python -m unittest discover -s tests -p test_us_stock_news_identity.py -v
