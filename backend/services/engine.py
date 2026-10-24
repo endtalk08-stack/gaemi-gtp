@@ -3254,7 +3254,7 @@ def _attach_news_price_reactions(news_result):
     return news_result
 
 
-def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
+def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, news_name_override=None):
     raw_name = str(raw_name or 'SK하이닉스').strip()
     ticker_symbol = ticker_symbol_override or TICKERS.get(raw_name)
     clean_code = None
@@ -3371,7 +3371,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                 volume_profile = None
 
             news_result = get_shared_stock_news_result(
-                raw_name,
+                news_name_override or raw_name,
                 market="미국",
                 limit=50,
             )
