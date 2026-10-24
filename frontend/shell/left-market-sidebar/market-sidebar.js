@@ -103,7 +103,7 @@
         return;
       }
 
-      if (subtitle) subtitle.textContent = market === 'us' ? '/ 네이버 미국 원천' : '/ 네이버 국내 원천';
+      if (subtitle) subtitle.textContent = market === 'us' ? (tab === 'value' ? '/ 거래대금 순위' : '/ 인기 순위') : '/ 네이버 국내 원천';
       list.replaceChildren();
       list.textContent = '순위를 불러오는 중이야.';
       try {
