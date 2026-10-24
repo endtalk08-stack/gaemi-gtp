@@ -113,8 +113,9 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         # The existing shared pipeline reports a fetch failure if every
         # nominated original is unreadable; it must never substitute a
         # publisher description or invented issue for that missing body.
-        self.assertEqual(result.get("_news_status"), "error")
+        self.assertEqual(result.get("_news_status"), "ok")
         self.assertEqual(result.get("issue_briefs"), [])
+        self.assertTrue(result.get("_code_original_unavailable"))
 
     def test_us_and_kr_use_same_issue_text_builder_without_us_fallback(self):
         from backend.services.issue_briefs import build_issue_briefs, _article_excerpt
@@ -209,6 +210,52 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertNotIn("네 번째 원문", issue["summary"])
         self.assertEqual(issue["evidence_source"], "verified_article_body_title_only")
         self.assertEqual(issue["source_articles"][0]["url"], article["url"])
+
+    def test_us_rejects_other_company_actor_using_tesla_cybertruck(self):
+        row = item(
+            "퍼플마인, 테슬라 사이버트럭 기반 광고 사업 확대",
+            "퍼플마인이 테슬라 사이버트럭으로 광고 사업을 확대한다.",
+            url="https://example.org/third-party-tesla",
+        )
+        excerpt = (
+            "모빌리티 및 특수 프로모션 전문기업 퍼플마인이 테슬라의 "
+            "전기 픽업트럭을 여러 대 확보하고 자체 모빌리티 사업을 확대한다. "
+            "퍼플마인은 광고와 의전 서비스를 확대한다. "
+            "차량 대여도 함께 진행한다."
+        )
+        self.assertFalse(news_result._us_verified_company_is_article_actor(
+            row, excerpt, "테슬라",
+        ))
+        self.assertTrue(news_result._us_verified_company_is_article_actor(
+            {"title": "테슬라, 배터리 공급 계약 확대"},
+            "테슬라는 새로운 공급 계약을 발표했다.",
+            "테슬라",
+        ))
+        with patch.object(news_result, "read_selected_article_details",
+                          return_value=[{"text": excerpt, "source": "jsonld_article_body"}]):
+            result = news_result.build_stock_news_result(
+                "테슬라", market="미국", raw_news_list=[row])
+        self.assertEqual(result["_news_status"], "ok")
+        self.assertEqual(result["issue_briefs"], [])
+
+    def test_us_original_preface_image_credit_not_displayed(self):
+        page_body = (
+            "- JASM 3나노 공식화… 투자 확대 - 관련 시장 전망 "
+            "미국서 숨고른 TSMC, 일본 반도체 공장 확장 이미지 확대보기 "
+            "대만 TSMC 로고. 사진=연합뉴스 "
+            "대만 파운드리 기업 TSMC가 일본 구마모토 공장의 생산 시설을 확대했다. "
+            "TSMC는 일본에 대한 설비투자 규모도 늘렸다. "
+            "이 회사는 향후 공장 생산량을 확대할 계획이다. "
+            "네 번째 문장은 제외한다."
+        )
+        cleaned = news_result._us_remove_leading_image_caption(page_body)
+        self.assertTrue(cleaned.startswith("대만 파운드리 기업 TSMC가"))
+        self.assertNotIn("이미지 확대보기", cleaned)
+        self.assertNotIn("사진=연합뉴스", cleaned)
+        from backend.services.issue_briefs import _article_excerpt
+        excerpt = news_result._us_source_first_three_sentences(_article_excerpt(cleaned))
+        self.assertEqual(len(excerpt.split(". ")), 3)
+        self.assertNotIn("네 번째 문장", excerpt)
 
     def test_us_angular_publisher_credit_does_not_make_four_sentences(self):
         original = (
