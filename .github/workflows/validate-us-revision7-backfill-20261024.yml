@@ -1,9 +1,9 @@
-name: Validate US CODE rev9 one-shot backfill without AI
+name: Validate US CODE rev10 one-shot backfill without AI
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
     paths:
-      - ops/do-gateway/us_code_revision9_reprocess_once_20261024.py
+      - ops/do-gateway/us_code_revision10_reprocess_once_20261024.py
       - .github/workflows/validate-us-revision7-backfill-20261024.yml
 permissions:
   contents: read
@@ -15,11 +15,11 @@ jobs:
       - name: Validate syntax, AI absence and no destructive data actions
         run: |
           set -euo pipefail
-          python -m py_compile ops/do-gateway/us_code_revision9_reprocess_once_20261024.py
+          python -m py_compile ops/do-gateway/us_code_revision10_reprocess_once_20261024.py
           python - <<'PY'
           import ast
           from pathlib import Path
-          path=Path('ops/do-gateway/us_code_revision9_reprocess_once_20261024.py')
+          path=Path('ops/do-gateway/us_code_revision10_reprocess_once_20261024.py')
           code=path.read_text()
           tree=ast.parse(code)
           imports=[n for node in ast.walk(tree) if isinstance(node,(ast.Import,ast.ImportFrom)) for n in (node.names if isinstance(node,ast.Import) else [node])]
@@ -30,8 +30,8 @@ jobs:
           for banned in ('apply_worker_ai(', 'apply_unchanged_worker_ai(', 'analyze_news(', 'reserve_once(', 'DELETE FROM', 'TRUNCATE ', 'DROP TABLE', 'UPDATE public.market_instruments', 'purge_expired('):
               assert banned not in code, banned
           assert 'DEADLINE_SECONDS = 780' in code
-          assert 'EXPECTED_REVISION = 9' in code
-          print('US_REV9_BACKFILL_STATIC_VALIDATED_AI_CALLS_ZERO_NO_SQL_DELETIONS')
+          assert 'EXPECTED_REVISION = 10' in code
+          print('US_REV10_BACKFILL_STATIC_VALIDATED_AI_CALLS_ZERO_NO_SQL_DELETIONS')
           PY
           python -m unittest discover -s tests -p test_us_kr_shared_code_selection.py -v
           python -m unittest discover -s tests -p test_us_stock_news_identity.py -v
