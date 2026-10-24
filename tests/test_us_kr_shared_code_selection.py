@@ -210,6 +210,27 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(issue["evidence_source"], "verified_article_body_title_only")
         self.assertEqual(issue["source_articles"][0]["url"], article["url"])
 
+    def test_us_angular_publisher_credit_does_not_make_four_sentences(self):
+        original = (
+            "애플이 신제품 공급 부족을 겪고 있다. "
+            "배송 대기 기간은 석 달을 넘겼다. "
+            "<월스트리트저널>과 <로이터통신>은 판매 상황을 보도했다. "
+            "미국 매장에서도 초기 재고가 소진됐다."
+        )
+        from backend.services.issue_briefs import _article_excerpt
+        # Shared legacy splitter accidentally groups the 2nd and 3rd
+        # sentences when the next one starts with <월스트리트저널>.
+        legacy = _article_excerpt(original)
+        self.assertIn("미국 매장에서도", legacy)
+        trimmed = news_result._us_source_first_three_sentences(legacy)
+        self.assertEqual(
+            trimmed,
+            "애플이 신제품 공급 부족을 겪고 있다. "
+            "배송 대기 기간은 석 달을 넘겼다. "
+            "<월스트리트저널>과 <로이터통신>은 판매 상황을 보도했다."
+        )
+        self.assertNotIn("미국 매장에서도", trimmed)
+
     def test_us_rejects_bitcoin_article_even_when_description_mentions_spacex(self):
         article = item(
             "비트코인 ETF 하루 순유출…국제유가 급등",
