@@ -99,6 +99,42 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(original, self.rows)
         self.assertEqual(len(original), 5)
 
+    def test_us_code_fallback_recovers_direct_company_event_without_ai(self):
+        # Realistic US news: original keyword owner may mark this mention_only,
+        # even though the title and source state Micron's own compensation fact.
+        row = item(
+            "삼전·닉스 이어 마이크론도…글로벌 메모리 업계 '이익 연동 성과급' 정착",
+            "삼성전자와 SK하이닉스에 이어 미국 마이크론도 회사 이익에 연동한 성과급 제도를 도입했다.",
+            url="https://example.org/micron-bonus",
+        )
+        recovered = news_result._us_dated_code_fallback(
+            [], [row], "마이크론 테크놀로지",
+        )
+        self.assertGreaterEqual(len(recovered), 1)
+        self.assertEqual(recovered[0]["stock_names"], ["마이크론 테크놀로지"])
+        self.assertEqual(recovered[0]["source_articles"][0]["url"], row["url"])
+        self.assertIn("성과급", str(recovered[0]))
+
+    def test_us_code_fallback_never_relabels_another_company(self):
+        row = item(
+            "삼성전자, 대규모 성과급 지급 계획 발표",
+            "삼성전자 계획에 대한 기사이며 마이크론도 비교 대상에 언급됐다.",
+            url="https://example.org/samsung-only",
+        )
+        self.assertEqual(news_result._us_dated_code_fallback(
+            [], [row], "마이크론 테크놀로지",
+        ), [])
+
+    def test_us_code_fallback_never_overwrites_sourced_kr_style_issue(self):
+        existing = [{"headline": "기존 검증 코드 이슈", "source_articles": [
+            {"url": "https://example.org/verified", "published_at": NOW.isoformat()}
+        ]}]
+        row = item("마이크론, 성과급 도입 발표", "마이크론이 제도를 도입했다.",
+                   url="https://example.org/another")
+        self.assertEqual(news_result._us_dated_code_fallback(
+            existing, [row], "마이크론 테크놀로지",
+        ), existing)
+
 
 if __name__ == "__main__":
     unittest.main()
