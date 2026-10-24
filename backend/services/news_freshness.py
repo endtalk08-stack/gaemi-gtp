@@ -71,12 +71,19 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
         and str(result.get("_code_fact_extraction_version") or "") == "3"
     )
 
-    def fresh_source_briefs(briefs):
+    def fresh_source_briefs(briefs, *, code_only=False):
         if not isinstance(briefs, list):
             return []
         fresh = []
         for brief in briefs:
             if not isinstance(brief, dict):
+                continue
+            # Display only: US CODE issues without verified article prose
+            # must not appear, even if a source URL is present.
+            if code_only and (
+                brief.get("evidence_source") == "original_unavailable"
+                or str(brief.get("summary") or "").strip() == "원문 확인 불가"
+            ):
                 continue
             valid_sources = []
             for source in brief.get("source_articles") or []:
@@ -102,7 +109,7 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
         return fresh[:3]
 
     channels = {
-        "code": fresh_source_briefs(result.get("_code_issue_briefs")) if v3 else [],
+        "code": fresh_source_briefs(result.get("_code_issue_briefs"), code_only=True) if v3 else [],
         "ai": fresh_source_briefs(result.get("_ai_issue_briefs")),
     }
     mode = normalize_issue_mode(issue_mode)
