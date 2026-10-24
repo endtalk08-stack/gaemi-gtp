@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from backend.providers.kiwoom_us_quotes import (
     KiwoomReadOnlyError, credentials_configured,
-    fetch_us_close, issue_access_token, _market_request, _price, _num,
+    fetch_us_close, fetch_us_quote, issue_access_token,
 )
 
 NY = ZoneInfo("America/New_York")
@@ -46,19 +46,7 @@ def main():
     try:
         token = issue_access_token()
         print("KIWOOM_VERIFY_OAUTH_OK", flush=True)
-        # Single authenticated, read-only usa20100 call: inspect fields in the
-        # actual response, not just what the published schema promises.
-        raw = _market_request("usa20100", {"stex_tp": EXCHANGE, "stk_cd": SYMBOL}, token)
-        quote = {"current": _price(raw.get("cur_prc")),
-                 "change_pct": _num(raw.get("flu_rt"))}
-        keys = ("cur_prc", "flu_rt", "open_pric", "high_pric", "low_pric",
-                "pre_open_pric", "pre_high_pric", "pre_low_pric",
-                "base_close_pric", "52wk_hgst_pric", "52wk_lwst_pric")
-        print("KIWOOM_VERIFY_NVDA_OHLC_FIELDS=" + json.dumps({
-            name: {"present": name in raw, "value":
-                   _num(raw.get(name)) if name == "flu_rt" else _price(raw.get(name))}
-            for name in keys
-        }, ensure_ascii=False), flush=True)
+        quote = fetch_us_quote(SYMBOL, EXCHANGE, token=token)
         if not quote.get("current") or quote["current"] <= 0:
             print("KIWOOM_VERIFY_NVDA_QUOTE_INVALID", flush=True)
             return 4
