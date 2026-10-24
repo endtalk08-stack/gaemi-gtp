@@ -34,8 +34,8 @@ jobs:
           store=Path('ops/staged_news_processed_store.py').read_text()
           ai=Path('ops/staged_ai_sequential_batch.py').read_text()
           assert 'fallback_source=fallback_source' in source
-          assert '"_code_source_revision": 1' in source
-          assert 'payload.get("_code_source_revision") != 1' in store
+          assert '"_code_source_revision": 2' in source
+          assert 'payload.get("_code_source_revision") != 2' in store
           assert 'select_stock_news_for_analysis(raw_news_list, stock_name, limit)' in source
           assert '"articles": raw,' in ai and 'GAEMIGTP_NEWS_AI_PAUSED' in ai
           print('KR_US_SOURCE_AND_AI_ISOLATION_VERIFIED')
@@ -51,7 +51,7 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
           opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519")
-          old=623ccf7c4e8452a75fce282197e61e5e5694ff21
+          old=6c0498914ea816891c558a5476a00d89ab90f08b
           before_result="$(git show "$old":backend/services/news_result.py | sha256sum | cut -d' ' -f1)"
           before_sources="$(git show "$old":backend/services/verified_fact_headline.py | sha256sum | cut -d' ' -f1)"
           before_store="$(git show "$old":ops/staged_news_processed_store.py | sha256sum | cut -d' ' -f1)"
@@ -103,11 +103,11 @@ jobs:
           for i in "${!files[@]}"; do install -m 644 "${staged[$i]}" "${files[$i]}"; done
           /opt/gaemigtp-news/venv/bin/python -m py_compile "${files[@]}"
           test "$(grep -c 'fallback_source=fallback_source' backend/services/news_result.py)" = 1
-          test "$(grep -c 'payload.get("_code_source_revision") != 1' backend/services/news_processed_store.py)" = 1
+          test "$(grep -c 'payload.get("_code_source_revision") != 2' backend/services/news_processed_store.py)" = 1
           sudo -n /usr/bin/systemctl restart gaemigtp-news.service
           test "$(systemctl is-active gaemigtp-news.service)" = active
           trap - ERR
-          echo US_CODE_CITATION_REPAIR_DEPLOYED_AI_UNCHANGED
+          echo US_CODE_FACT_FALLBACK_REV2_DEPLOYED_AI_UNCHANGED
           REMOTE
       - name: Delete temporary SSH credential
         if: always()
