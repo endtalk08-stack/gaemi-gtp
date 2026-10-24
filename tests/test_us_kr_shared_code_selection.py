@@ -99,41 +99,49 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(original, self.rows)
         self.assertEqual(len(original), 5)
 
-    def test_us_code_fallback_recovers_direct_company_event_without_ai(self):
-        # Realistic US news: original keyword owner may mark this mention_only,
-        # even though the title and source state Micron's own compensation fact.
+    def test_us_code_never_displays_description_when_original_fetch_fails(self):
         row = item(
-            "삼전·닉스 이어 마이크론도…글로벌 메모리 업계 '이익 연동 성과급' 정착",
-            "삼성전자와 SK하이닉스에 이어 미국 마이크론도 회사 이익에 연동한 성과급 제도를 도입했다.",
-            url="https://example.org/micron-bonus",
+            "테슬라, 배터리 공급 계약 확대",
+            "테슬라는 새로운 공급 계약을 체결했다.",
+            url="https://example.org/tesla-contract",
         )
-        recovered = news_result._us_dated_code_fallback(
-            [], [row], "마이크론 테크놀로지",
-        )
-        self.assertGreaterEqual(len(recovered), 1)
-        self.assertEqual(recovered[0]["stock_names"], ["마이크론 테크놀로지"])
-        self.assertEqual(recovered[0]["source_articles"][0]["url"], row["url"])
-        self.assertIn("성과급", str(recovered[0]))
+        with patch.object(news_result, "read_selected_article_details",
+                          return_value=[{"source": "fetch_failed", "text": ""}]):
+            result = news_result.build_stock_news_result(
+                "테슬라", market="미국", raw_news_list=[row],
+            )
+        self.assertEqual(result.get("_news_status"), "ok")
+        self.assertEqual(result.get("issue_briefs"), [])
 
-    def test_us_code_fallback_never_relabels_another_company(self):
-        row = item(
-            "삼성전자, 대규모 성과급 지급 계획 발표",
-            "삼성전자 계획에 대한 기사이며 마이크론도 비교 대상에 언급됐다.",
-            url="https://example.org/samsung-only",
+    def test_us_and_kr_use_same_issue_text_builder_without_us_fallback(self):
+        from backend.services.issue_briefs import build_issue_briefs, _article_excerpt
+        from backend.services.verified_fact_headline import attach_verified_source_citations
+        body = (
+            "테슬라는 배터리 공급 계약을 체결했다. "
+            "테슬라는 연간 공급 물량을 늘린다. "
+            "계약 효력은 내년부터 발생한다. "
+            "네 번째 문장은 표시되면 안 된다."
         )
-        self.assertEqual(news_result._us_dated_code_fallback(
-            [], [row], "마이크론 테크놀로지",
-        ), [])
-
-    def test_us_code_fallback_never_overwrites_sourced_kr_style_issue(self):
-        existing = [{"headline": "기존 검증 코드 이슈", "source_articles": [
-            {"url": "https://example.org/verified", "published_at": NOW.isoformat()}
-        ]}]
-        row = item("마이크론, 성과급 도입 발표", "마이크론이 제도를 도입했다.",
-                   url="https://example.org/another")
-        self.assertEqual(news_result._us_dated_code_fallback(
-            existing, [row], "마이크론 테크놀로지",
-        ), existing)
+        row = {
+            "title": "테슬라, 배터리 공급 계약 체결",
+            "published_at": NOW.isoformat(),
+            "url": "https://example.org/tesla-contract",
+            "storyboard_keyword": "공급계약",
+            "storyboard_time": "10:00",
+            "grounded_tags": ["공급계약"],
+            "article_keywords": ["공급계약"],
+            "storyboard_keywords": ["공급계약"],
+            "themes": ["공급계약"],
+        }
+        expected = build_issue_briefs([row], "테슬라", body_texts=[body], market="국내")
+        actual = build_issue_briefs([row], "테슬라", body_texts=[body], market="미국")
+        self.assertEqual(actual, expected)
+        cited = attach_verified_source_citations(actual, [row], [body], "테슬라")
+        self.assertEqual(cited[0]["summary"], _article_excerpt(body))
+        self.assertEqual(cited[0]["headline"], expected[0]["headline"])
+        self.assertEqual(cited[0]["tags"], expected[0]["tags"])
+        self.assertEqual(cited[0]["source_articles"][0]["url"], row["url"])
+        self.assertNotIn("네 번째 문장", cited[0]["summary"])
 
 
 if __name__ == "__main__":
