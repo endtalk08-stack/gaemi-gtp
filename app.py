@@ -14,7 +14,6 @@ from backend.services.news_freshness import issue_mode_for_question, normalize_i
 from backend.services.kiwoom_us_value_board import read_us_trading_value_board
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
 from backend.services.us_market_close import read_brief
-from backend.services.voice_tts import voice_tts_bp
 
 from backend.services.engine import analyze_stock, get_live_calendar_data, start_calendar_warmup
 
@@ -24,7 +23,6 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 app.register_blueprint(ai_test_bp)
 app.register_blueprint(issue_title_test_bp)
-app.register_blueprint(voice_tts_bp)
 CORS(app)
 install_private_access(app, FRONTEND_DIR)
 start_calendar_warmup()
