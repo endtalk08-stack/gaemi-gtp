@@ -50,7 +50,7 @@ def _us_source_first_three_sentences(excerpt):
     if not text:
         return ""
     sentences = re.split(
-        r'(?<=[.!?])\\s+(?=[가-힣A-Za-z0-9"“‘(<\\[【「『])',
+        r'(?<=[.!?])\s+(?=[가-힣A-Za-z0-9"“‘(<\[【「『])',
         text,
     )
     return " ".join(sentences[:3]).strip()
