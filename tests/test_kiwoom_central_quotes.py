@@ -123,6 +123,43 @@ class KiwoomCentralQuoteTests(unittest.TestCase):
         self.assertEqual(result["quote_source"], "kiwoom-neon-snapshot")
         self.assertEqual(result["quote_received_at_ms"], 9999)
 
+    def test_original_direction_ment_has_no_prices_and_no_mid_neutral_band(self):
+        # Load only the pure commentary function; the full analysis engine
+        # imports unrelated optional news/filing integrations.
+        import ast
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "backend/services/engine.py").read_text(encoding="utf-8")
+        parsed = ast.parse(source)
+        helper = next(node for node in parsed.body if isinstance(node, ast.FunctionDef)
+                      and node.name == "_stock_intro_ment")
+        space = {}
+        exec(compile(ast.Module(body=[helper], type_ignores=[]),
+                     "engine-stock-ment-only", "exec"), space)
+        ment = space["_stock_intro_ment"]
+
+        for pct, expected in [
+            (5.0, "오!! 마이크론 상승중이야"),
+            (2.46, "스멀스멀 우상향 중이야"),
+            (0.01, "스멀스멀 우상향 중이야"),
+            (0.0, "마이크론 보합이야"),
+            (-0.01, "아이고 마이크론 파란불 켜져서 속 쓰리겠다"),
+            (-0.59, "아이고 마이크론 파란불 켜져서 속 쓰리겠다"),
+            (-5.0, "헐... 마이크론 무섭게 빠지네"),
+        ]:
+            with self.subTest(pct=pct):
+                emoji, heading, body = ment("마이크론", pct)
+                self.assertEqual(body, expected)
+                self.assertNotIn("%", body)
+                self.assertTrue(emoji)
+                self.assertTrue(heading)
+        self.assertIn(
+            "status_emoji, title_word, intro_ment = _stock_intro_ment(raw_name, change_pct)",
+            source,
+        )
+        self.assertNotIn("실시간 수신이 끊겨 마지막 저장 시세로 보여줄게", source)
+        self.assertIn("first_content_parts = [intro_ment]", source)
+
     def test_saved_quote_rejects_expired_or_bad_source(self):
         from datetime import datetime, timedelta, timezone
         from backend.services.kiwoom_us_value_board import read_recent_saved_us_quote

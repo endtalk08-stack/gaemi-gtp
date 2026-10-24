@@ -3143,6 +3143,23 @@ def _attach_news_price_reactions(news_result):
     return news_result
 
 
+def _stock_intro_ment(raw_name, change_pct):
+    """Only the verified price movement chooses the existing short commentary.
+
+    No synthetic live price, percentage text, or +/-0.5% neutral range.
+    Exactly unchanged (0%) is the only neutral case.
+    """
+    if change_pct >= 5.0:
+        return '🔥', '올랐어', f"오!! {raw_name} 상승중이야"
+    if change_pct > 0:
+        return '🔥', '올랐어', "스멀스멀 우상향 중이야"
+    if change_pct <= -5.0:
+        return '❄️', '빠질까', f"헐... {raw_name} 무섭게 빠지네"
+    if change_pct < 0:
+        return '❄️', '숨고르기일까', f"아이고 {raw_name} 파란불 켜져서 속 쓰리겠다"
+    return '⚖️', '보합이야', f"{raw_name} 보합이야"
+
+
 def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_market_override=False, issue_mode='auto'):
     raw_name = str(raw_name or 'SK하이닉스').strip()
     ticker_symbol = ticker_symbol_override or TICKERS.get(raw_name)
@@ -3293,33 +3310,15 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
                 volume_profile = None
                 print(f"[미국 주가] {ticker_symbol} 조회 실패 - 가짜 가격 사용 안 함")
 
-        # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
-        # A saved Neon snapshot is LAST KNOWN, not a real-time Kiwoom tick.
+        # 마지막으로 저장된 키움 시세도 등락률이 검증되어 있다면
+        # 일반 상승/하락 멘트를 유지한다. 현재가나 등락률 숫자는 출력하지 않는다.
         saved_us_quote = (not is_krw and
                           price_result.get("quote_source") == "kiwoom-neon-snapshot")
-        # Missing/stale Kiwoom FE ticks must never become a fake 0% quote.
-        if saved_us_quote:
-            status_emoji, title_word = '🕒', '마지막 시세는'
-            intro_ment = f"{raw_name} 실시간 수신이 끊겨 마지막 저장 시세로 보여줄게 (실시간 아님)"
-        elif not is_krw and current_price <= 0:
+        if not is_krw and current_price <= 0:
             status_emoji, title_word = '⚖️', '시세가 없을까'
             intro_ment = f"{raw_name} 키움 실시간 시세를 확인하지 못했어"
-        elif change_pct >= 5.0:
-            status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"오!! {raw_name} 상승중이야"
-        elif 0.5 <= change_pct < 5.0:
-            status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = "스멀스멀 우상향 중이야"
-        elif -0.5 < change_pct < 0.5:
-            status_emoji, title_word = '⚖️', '보합일까'
-            intro_ment = f"하아.. {raw_name} 완전 눈치싸움 중이네"
-        elif -5.0 < change_pct <= -0.5:
-            status_emoji, title_word = '❄️', '숨고르기일까'
-            intro_ment = f"아이고 {raw_name} 파란불 켜져서 속 쓰리겠다"
         else:
-            status_emoji, title_word = '❄️', '빠질까'
-            intro_ment = f"헐... {raw_name} 무섭게 빠지네"
-
+            status_emoji, title_word, intro_ment = _stock_intro_ment(raw_name, change_pct)
 
         # 현재가/등락률은 사이드바에서만 출력한다.
         # 기존 멘트와 고가/저가/기술지표 퍼센트는 유지한다.
