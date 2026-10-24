@@ -663,10 +663,12 @@ def build_stock_news_result(
             market=market,
         )
 
+        fallback_source = None  # Only a US title/description fallback needs its own dated source.
         # Original verified company items always win; the new classification
         # is a strictly secondary fallback for source-grounded severe events.
         if not issue_briefs and company_critical_candidates:
             source, headline, tags, direction, _ = company_critical_candidates[0]
+            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -682,6 +684,7 @@ def build_stock_news_result(
         # Only if original verified and critical issues are empty.
         if not issue_briefs and business_material_candidates:
             source, headline, tags, direction, _ = business_material_candidates[0]
+            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -697,6 +700,7 @@ def build_stock_news_result(
         # Then keep the existing market material fallback unchanged.
         if not issue_briefs and market_material_candidates:
             source, headline, tags, _, _ = market_material_candidates[0]
+            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -711,6 +715,7 @@ def build_stock_news_result(
         # Last fallback: explicit stock-level supply/demand disclosures.
         if not issue_briefs and flow_material_candidates:
             source, headline, tags, direction, _ = flow_material_candidates[0]
+            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -728,7 +733,8 @@ def build_stock_news_result(
         # No second title extraction, title overwrite or article reselection.
         if market in ("미국", "US"):
             issue_briefs = attach_verified_source_citations(
-                issue_briefs, storyboard_news_items, verified_body_texts, stock_name
+                issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
+                fallback_source=fallback_source,
             )
 
         # Diagnostic counts only: trace where central issues drop out without
@@ -778,6 +784,7 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
+            "_code_source_revision": 1 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:

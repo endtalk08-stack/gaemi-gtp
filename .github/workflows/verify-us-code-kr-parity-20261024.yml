@@ -1,0 +1,39 @@
+name: Verify US CODE parity, dated sources and AI isolation
+on:
+  push:
+    branches: [fix/us-code-issue-citations-kr-parity-20261024]
+    paths:
+      - backend/services/news_result.py
+      - backend/services/verified_fact_headline.py
+      - ops/staged_news_processed_store.py
+      - tests/test_verified_fact_headline_only.py
+      - .github/workflows/verify-us-code-kr-parity-20261024.yml
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax and unchanged KR/AI path
+        run: |
+          python -m py_compile backend/services/news_result.py backend/services/verified_fact_headline.py ops/staged_news_processed_store.py
+          python - <<'PY'
+          from pathlib import Path
+          src=Path('backend/services/news_result.py').read_text()
+          assert 'select_stock_news_for_analysis(raw_news_list, stock_name, limit)' in src
+          assert 'build_connected_keyword_test(scored_news, stock_name, max_keywords=3)' in src
+          assert 'fallback_source=fallback_source' in src
+          assert '"_code_source_revision": 1' in src
+          store=Path('ops/staged_news_processed_store.py').read_text()
+          assert 'payload.get("_code_source_revision") != 1' in store
+          ai=Path('ops/staged_ai_sequential_batch.py').read_text()
+          assert '"articles": raw,' in ai
+          assert 'GAEMIGTP_NEWS_AI_PAUSED' in ai
+          print('US_CODE_SOURCE_REVISION_AND_AI_ISOLATION_OK')
+          PY
+      - name: KR and US shared selector regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_us_kr_shared_code_selection.py' -v
+          python -m unittest discover -s tests -p 'test_verified_fact_headline_only.py' -v
+          python -m unittest discover -s tests -p 'test_news_feed_queries.py' -v

@@ -152,13 +152,40 @@ def overlay_verified_headlines(briefs, selected_articles, verified_bodies, stock
     return updated
 
 
-def attach_verified_source_citations(briefs, selected_articles, verified_bodies, stock_name):
+def attach_verified_source_citations(briefs, selected_articles, verified_bodies, stock_name,
+                                     *, fallback_source=None):
     """Add the exact verified article URL/date, never generate a second title.
 
     Both KR and US use build_issue_briefs for keyword-driven headlines.
     US only requires this source metadata for Render's existing 24h guard.
     """
-    return overlay_verified_headlines(
+    annotated = overlay_verified_headlines(
         briefs, selected_articles, verified_bodies, stock_name,
         preserve_kr_headline=True,
     )
+    # KR's existing title/description fallback is allowed in US CODE mode, but
+    # Render requires the fallback's *own* dated article, not a fabricated or
+    # borrowed citation from a different selected full-text article.
+    if not isinstance(fallback_source, dict):
+        return annotated
+    title = str(fallback_source.get("title") or "").strip()
+    url = str(fallback_source.get("url") or fallback_source.get("link") or "").strip()
+    stamp = str(fallback_source.get("published_at") or "").strip()
+    if (not _company_match(title, _aliases(stock_name))
+            or not url.startswith(("https://", "http://"))):
+        return annotated
+    try:
+        published = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        if published.utcoffset() is None:
+            return annotated
+    except (ValueError, TypeError, OverflowError):
+        return annotated
+    source = {"title": title, "url": url, "published_at": stamp}
+    return [
+        {**brief, "source_articles": [source]}
+        if isinstance(brief, dict)
+        and brief.get("evidence_source") == "news_title_description"
+        and not brief.get("source_articles")
+        else brief
+        for brief in annotated
+    ]

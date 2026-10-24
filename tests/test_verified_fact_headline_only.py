@@ -121,6 +121,50 @@ class TitleOnlyOverlayTests(unittest.TestCase):
                          [s["url"] for s in sources])
         self.assertEqual([b["tags"] for b in out],[s["tags"] for s in originals])
 
+    def test_us_domestic_style_fallback_keeps_exact_dated_stock_source(self):
+        original = {
+            "headline": "성과급 확대 이슈",
+            "summary": "마이크론은 실적 연동 성과급 도입을 발표했다.",
+            "tags": ["성과급", "실적연동"],
+            "evidence_source": "news_title_description",
+            "stock_names": ["마이크론 테크놀로지"],
+        }
+        result = attach_verified_source_citations(
+            [original], [], [], "마이크론 테크놀로지",
+            fallback_source=self.article,
+        )
+        self.assertEqual(result[0]["headline"], original["headline"])
+        self.assertEqual(result[0]["summary"], original["summary"])
+        self.assertEqual(result[0]["tags"], original["tags"])
+        self.assertEqual(result[0]["source_articles"][0]["url"], self.article["url"])
+        self.assertEqual(result[0]["source_articles"][0]["published_at"], NOW)
+        self.assertNotIn("source_articles", original)
+
+    def test_us_fallback_never_borrows_other_company_article(self):
+        original = {
+            "headline": "실적 발표 이슈", "summary": "일부 기사 설명",
+            "tags": ["실적"], "evidence_source": "news_title_description",
+        }
+        wrong = dict(self.article, title="애플, 아이폰 출시 확대",
+                     url="https://example.org/apple")
+        result = attach_verified_source_citations(
+            [original], [], [], "마이크론 테크놀로지",
+            fallback_source=wrong,
+        )
+        self.assertEqual(result, [original])
+
+    def test_us_fallback_without_verified_publication_time_stays_hidden(self):
+        original = {
+            "headline": "성과급 도입 이슈", "summary": "일부 기사 설명",
+            "tags": ["성과급"], "evidence_source": "news_title_description",
+        }
+        undated = dict(self.article, published_at="2026-10-24")
+        result = attach_verified_source_citations(
+            [original], [], [], "마이크론 테크놀로지",
+            fallback_source=undated,
+        )
+        self.assertEqual(result, [original])
+
 
 if __name__ == "__main__":
     unittest.main()
