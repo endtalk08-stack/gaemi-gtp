@@ -106,7 +106,7 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual(result["issue_briefs"][0]["tags"], ["이익연동성과급"])
         self.assertEqual(result["issue_briefs"][0]["headline"], "마이크론, 이익연동 성과급 도입")
 
-    def test_v3_without_verified_source_restores_cited_saved_ai(self):
+    def test_v3_without_verified_source_does_not_display_saved_ai(self):
         saved_ai = brief("이미 저장된 AI 뉴스", 1)
         view = clean_us_snapshot({
             "_code_fact_extraction_version": 3,
@@ -114,8 +114,8 @@ class RenderFreshnessTests(unittest.TestCase):
             "_code_issue_briefs": [],
             "_ai_issue_briefs": [saved_ai],
         }, now=NOW)
-        self.assertEqual([b["headline"] for b in view["issue_briefs"]], ["이미 저장된 AI 뉴스"])
-        self.assertEqual(view["_issue_display_channel"], "previous_ai_fallback")
+        self.assertEqual(view["issue_briefs"], [])
+        self.assertEqual(view["_issue_display_channel"], "unavailable")
         self.assertEqual([b["headline"] for b in view["issue_channels"]["ai"]], ["이미 저장된 AI 뉴스"])
 
     def test_old_code_version_is_never_misrepresented_as_verified_body(self):
