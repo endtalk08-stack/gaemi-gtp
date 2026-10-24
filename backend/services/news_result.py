@@ -56,6 +56,45 @@ def _us_source_first_three_sentences(excerpt):
     return " ".join(sentences[:3]).strip()
 
 
+def _us_remove_leading_image_caption(full_text):
+    """Trim recognisable image-viewer furniture, never rewrite source prose."""
+    text = str(full_text or "")
+    marker = re.search(r"이미지\\s*확대보기", text[:850])
+    if marker:
+        after = text[marker.end():]
+        credit = re.search(r"사진\\s*=\\s*[^\\s.]{2,45}\\s+", after[:250])
+        if credit:
+            body = after[credit.end():].strip()
+            if len(body) >= 80:
+                return body
+    return text
+
+
+def _us_verified_company_is_article_actor(article, excerpt, stock_name):
+    """A different firm's own expansion is not an event by the stock mentioned.
+
+    General grammatical rule: the title's named issuer before a comma and the
+    original article's 'company X가...' subject both identify a different firm.
+    Do not suppress market-wide policies where no separate named issuer exists.
+    """
+    headline = str(article.get("title") or "").strip()
+    title_actor = re.match(r"^([^,，:：]{2,65})[,，:：]\\s*", headline)
+    if not title_actor:
+        return True
+    first = re.split(r"(?<=[.!?])\\s+", str(excerpt or ""), maxsplit=1)[0][:240]
+    original_actor = re.search(
+        r"(?:기업|회사|업체|그룹)\\s+([가-힣A-Za-z0-9·-]{2,45})(?:이|가|은|는)(?=\\s)",
+        first,
+    )
+    if not original_actor:
+        return True
+    issuer = title_actor.group(1).strip()
+    actor = original_actor.group(1).strip()
+    if issuer.casefold() == actor.casefold() and not _central_stock_mentioned(issuer, stock_name):
+        return False
+    return True
+
+
 def _central_stock_mentioned(text, stock_name):
     """Match the selected company, avoiding short-name partial-word collisions."""
     names = [str(stock_name or "").strip()]
@@ -546,7 +585,11 @@ def build_stock_news_result(
                          source=detail.get("source"), body_chars=len(detail.get("text") or ""))
                     continue
                 verified_body_count += 1
-                excerpt = _article_excerpt(detail.get("text") or "")
+                original_text = (
+                    _us_remove_leading_image_caption(detail.get("text") or "")
+                    if market in ("미국", "US", "us") else detail.get("text") or ""
+                )
+                excerpt = _article_excerpt(original_text)
                 if not excerpt:
                     diag("rejected_after_body", article, reason="empty_excerpt",
                          source=detail.get("source"))
@@ -554,6 +597,11 @@ def build_stock_news_result(
                 if not _central_direct_article(article, excerpt, stock_name):
                     diag("rejected_after_body", article, reason="stock_not_direct_in_opening",
                          body_cpi=has_cpi({"description": excerpt}))
+                    continue
+                if market in ("미국", "US", "us") and not _us_verified_company_is_article_actor(
+                    article, excerpt, stock_name,
+                ):
+                    diag("rejected_after_body", article, reason="other_company_is_business_actor")
                     continue
                 # Only a grounded business/market event belongs in the central
                 # notable-news strip. Quote-only reports stay in the shared feed.
@@ -567,7 +615,7 @@ def build_stock_news_result(
                 candidate["relation_type"] = "direct"
                 candidate["event_owner"] = stock_name
                 candidate["_central_checked_body"] = excerpt
-                candidate["_central_checked_full_text"] = detail.get("text") or ""
+                candidate["_central_checked_full_text"] = original_text
                 candidate["_central_checked_source"] = detail.get("source")
                 accepted_articles.append(candidate)
             storyboard_news_items = select_keyword_storyboard_news(
@@ -590,8 +638,18 @@ def build_stock_news_result(
             for item in storyboard_news_items:
                 diag("selected_issue_article", item)
 
-        if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates and not flow_material_candidates:
-            raise RuntimeError('all_candidate_article_bodies_unavailable')
+        original_body_unavailable = bool(
+            candidate_news and verified_body_count == 0 and not market_material_candidates
+            and not company_critical_candidates and not business_material_candidates
+            and not flow_material_candidates
+        )
+        if original_body_unavailable:
+            if market in ("미국", "US", "us"):
+                # A failed US original read is a valid zero-CODE-issue result.
+                # Keep the raw news panel and old AI data; invent no excerpt.
+                diag("us_original_unavailable_zero_code_issue")
+            else:
+                raise RuntimeError('all_candidate_article_bodies_unavailable')
 
         # Keep full article bodies local to this function, not in API records.
         detail_records = [
@@ -779,11 +837,13 @@ def build_stock_news_result(
                         original_details = []
                     original = original_details[0] if original_details else {}
                     original_source = str(original.get("source") or "")
-                    excerpt = _article_excerpt(original.get("text") or "")
+                    original_text = _us_remove_leading_image_caption(original.get("text") or "")
+                    excerpt = _article_excerpt(original_text)
                     if (
                         original_source in {"jsonld_article_body", "article_or_main_paragraphs"}
                         and excerpt
                         and _central_direct_article(fallback_source, excerpt, stock_name)
+                        and _us_verified_company_is_article_actor(fallback_source, excerpt, stock_name)
                         and central_material_brief_supported(excerpt)
                     ):
                         issue_briefs[0]["summary"] = _us_source_first_three_sentences(excerpt)
@@ -861,7 +921,8 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 7 if market in ("미국", "US") else None,
+            "_code_source_revision": 8 if market in ("미국", "US") else None,
+            "_code_original_unavailable": original_body_unavailable if market in ("미국", "US", "us") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
