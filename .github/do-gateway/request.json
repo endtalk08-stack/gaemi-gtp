@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/kiwoom_us_price_relay.py","target":"backend/kiwoom_us_price_relay.py"}
+{"operation":"deploy","path":"backend/kiwoom_us_live_prices.py","target":"backend/kiwoom_us_live_prices.py"}
