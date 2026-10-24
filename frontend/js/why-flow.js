@@ -102,20 +102,18 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 block.append(reasonTitle, reasonText);
               }
             }
-            // This section is a CODE news feed only. No empty-state label
-            // and no stored AI news substituted for missing verified articles.
-            // Keep other stock-analysis/follow-up behavior unchanged.
-            if (storyboard.length) {
-              const signalTitle = document.createElement('p');
-              signalTitle.className = responseMessageClass;
-              block.appendChild(signalTitle);
-            }
-            // Render below the stock analysis and above existing follow-up actions.
+            // Keep the existing news section visible even when no fresh,
+            // cited issue is available; never fabricate an issue.
+            const signalTitle = document.createElement('p');
+            signalTitle.className = responseMessageClass;
+            const signalTitleText = inline
+              ? '오늘 눈에 띄는 흐름 👀'
+              : evidence.signals.length || storyboard.length || disclosures.length
+                ? '오늘 눈에 띄는 흐름 👀' : '눈에 띄는 흐름 없음 ☁️';
+            block.appendChild(signalTitle);
             prompt.insertAdjacentElement('afterend', block);
             if (inline) prompt.remove();
-            if (storyboard.length) {
-              await typeWhyText(block.querySelector('p:last-child'), '오늘 눈에 띄는 흐름 👀');
-            }
+            await typeWhyText(signalTitle, signalTitleText);
 
             if (storyboard.length) {
               const storyboardList = document.createElement('div');
