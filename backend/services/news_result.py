@@ -40,6 +40,22 @@ def _empty_news_result():
     }
 
 
+def _us_source_first_three_sentences(excerpt):
+    """US display guard for publisher/organization openers like <로이터통신>.
+
+    Re-split only an already verified _article_excerpt result; do not
+    paraphrase or change a source sentence, KR analysis or raw AI news.
+    """
+    text = str(excerpt or "").strip()
+    if not text:
+        return ""
+    sentences = re.split(
+        r'(?<=[.!?])\\s+(?=[가-힣A-Za-z0-9"“‘(<\\[【「『])',
+        text,
+    )
+    return " ".join(sentences[:3]).strip()
+
+
 def _central_stock_mentioned(text, stock_name):
     """Match the selected company, avoiding short-name partial-word collisions."""
     names = [str(stock_name or "").strip()]
@@ -770,7 +786,7 @@ def build_stock_news_result(
                         and _central_direct_article(fallback_source, excerpt, stock_name)
                         and central_material_brief_supported(excerpt)
                     ):
-                        issue_briefs[0]["summary"] = excerpt
+                        issue_briefs[0]["summary"] = _us_source_first_three_sentences(excerpt)
                         issue_briefs[0]["evidence_source"] = "verified_article_body_title_only"
                         issue_briefs[0]["source_articles"] = [{
                             "url": source_url,
@@ -783,6 +799,13 @@ def build_stock_news_result(
                         issue_briefs = []
                 else:
                     issue_briefs = []
+            # A verified body may include an HTML-like media credit starting
+            # with '<', which the shared KR splitter treats as one sentence.
+            # Keep all US verified CODE summaries to exactly <=3 originals.
+            for brief in issue_briefs:
+                if (isinstance(brief, dict)
+                        and brief.get("evidence_source") == "verified_article_body_title_only"):
+                    brief["summary"] = _us_source_first_three_sentences(brief.get("summary"))
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
@@ -838,7 +861,7 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 6 if market in ("미국", "US") else None,
+            "_code_source_revision": 7 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
