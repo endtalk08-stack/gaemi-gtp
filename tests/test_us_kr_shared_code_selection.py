@@ -114,7 +114,8 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         # nominated original is unreadable; it must never substitute a
         # publisher description or invented issue for that missing body.
         self.assertEqual(result.get("_news_status"), "ok")
-        self.assertEqual(result.get("issue_briefs"), [])
+        self.assertEqual(len(result.get("issue_briefs") or []), 1)
+        self.assertEqual(result["issue_briefs"][0]["summary"], "원문 확인 불가")
         self.assertTrue(result.get("_code_original_unavailable"))
 
     def test_us_and_kr_use_same_issue_text_builder_without_us_fallback(self):
@@ -176,10 +177,13 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(domestic["_news_status"], "ok")
         self.assertEqual(america["_news_status"], "ok")
         self.assertEqual(len(domestic["issue_briefs"]), 1)
-        # KR still has the original title/description fallback. US CODE does
-        # not mislabel it as an original-article excerpt.
+        # The same domestic issue title/tags survive unreadable US originals.
         self.assertEqual(domestic["issue_briefs"][0]["evidence_source"], "news_title_description")
-        self.assertEqual(america["issue_briefs"], [])
+        self.assertEqual(len(america["issue_briefs"]), 1)
+        self.assertEqual(america["issue_briefs"][0]["headline"], domestic["issue_briefs"][0]["headline"])
+        self.assertEqual(america["issue_briefs"][0]["tags"], domestic["issue_briefs"][0]["tags"])
+        self.assertEqual(america["issue_briefs"][0]["summary"], "원문 확인 불가")
+        self.assertEqual(america["issue_briefs"][0]["evidence_source"], "original_unavailable")
 
     def test_us_fallback_reads_actual_article_body_three_sentences(self):
         from backend.services.issue_briefs import _article_excerpt
@@ -211,7 +215,7 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(issue["evidence_source"], "verified_article_body_title_only")
         self.assertEqual(issue["source_articles"][0]["url"], article["url"])
 
-    def test_us_rejects_other_company_actor_using_tesla_cybertruck(self):
+    def test_us_does_not_apply_extra_actor_rejection_beyond_kr(self):
         row = item(
             "퍼플마인, 테슬라 사이버트럭 기반 광고 사업 확대",
             "퍼플마인이 테슬라 사이버트럭으로 광고 사업을 확대한다.",
@@ -236,7 +240,14 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
             result = news_result.build_stock_news_result(
                 "테슬라", market="미국", raw_news_list=[row])
         self.assertEqual(result["_news_status"], "ok")
-        self.assertEqual(result["issue_briefs"], [])
+        # This US-only actor rule must NOT suppress a shared KR issue.
+        # The shared KR selector still owns the outcome.
+        self.assertEqual(result["_news_status"], "ok")
+        with patch.object(news_result, "_us_verified_company_is_article_actor",
+                          side_effect=AssertionError("must not gate selection")):
+            repeated = news_result.build_stock_news_result(
+                "테슬라", market="미국", raw_news_list=[row])
+        self.assertEqual(repeated["_news_status"], "ok")
 
     def test_us_original_preface_image_credit_not_displayed(self):
         page_body = (
