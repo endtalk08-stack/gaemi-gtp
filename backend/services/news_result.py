@@ -184,10 +184,17 @@ def build_stock_news_result(
     raw_news_list=None,
 ):
     """Return one shared stock-news result for every screen representation."""
-    # The DO snapshot remains keyed by the requested listing name, but all
-    # US article/entity checks use its verified catalog company identity.
-    if market in ("미국", "us"):
-        stock_name = canonical_us_news_name(stock_name)
+    # Keep the worker/Neon snapshot keyed by the requested listing. For US CODE
+    # analysis, use the already-connected Neon market_instruments identity when
+    # verified; never promote a pending or conflicting mapping automatically.
+    requested_stock_name = stock_name
+    if market in ("미국", "US", "us"):
+        from .news_identity_registry import resolve_us_news_identity
+        identity = resolve_us_news_identity(stock_name)
+        if identity.get("status") == "verified" and identity.get("news_name"):
+            stock_name = identity["news_name"]
+        else:
+            stock_name = canonical_us_news_name(stock_name)
     # Temporary per-article diagnostics; defaults to the reported stock only.
     # Override with a comma-separated GAEMIGTP_NEWS_DIAGNOSTIC_STOCKS value.
     monitored = {
@@ -786,6 +793,13 @@ def build_stock_news_result(
             for item in storyboard_news_items
             if item.get("storyboard_keyword")
         ]
+        # Analysis may use the DB's verified company news_name, but the
+        # snapshot owner must stay the *exact requested listing* (GOOG/GOOGL,
+        # META/META.O, etc.). Do not create a cross-ticker issue owner.
+        if market in ("미국", "US", "us") and requested_stock_name != stock_name:
+            for brief in issue_briefs:
+                if isinstance(brief, dict):
+                    brief["stock_names"] = [requested_stock_name]
         return {
             "paired_news_items": paired_news_items,
             # Presentation-only: include the already-fetched, dated company news
@@ -798,7 +812,7 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 4 if market in ("미국", "US") else None,
+            "_code_source_revision": 5 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
