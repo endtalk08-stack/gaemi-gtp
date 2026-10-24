@@ -175,16 +175,68 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(domestic["_news_status"], "ok")
         self.assertEqual(america["_news_status"], "ok")
         self.assertEqual(len(domestic["issue_briefs"]), 1)
-        self.assertEqual(len(america["issue_briefs"]), 1)
-        kr_brief, us_brief = domestic["issue_briefs"][0], america["issue_briefs"][0]
-        for key in ("headline", "summary", "tags", "stock_names", "time",
-                    "reaction_at", "evidence_source", "material_direction"):
-            self.assertEqual(us_brief.get(key), kr_brief.get(key), key)
-        self.assertEqual(us_brief["evidence_source"], "news_title_description")
-        self.assertEqual(us_brief["summary"], article["description"])
-        self.assertEqual(us_brief["source_articles"][0]["url"], article["url"])
-        self.assertEqual(us_brief["source_articles"][0]["published_at"], article["published_at"])
-        self.assertNotIn("source_articles", kr_brief)
+        # KR still has the original title/description fallback. US CODE does
+        # not mislabel it as an original-article excerpt.
+        self.assertEqual(domestic["issue_briefs"][0]["evidence_source"], "news_title_description")
+        self.assertEqual(america["issue_briefs"], [])
+
+    def test_us_fallback_reads_actual_article_body_three_sentences(self):
+        from backend.services.issue_briefs import _article_excerpt
+        article = item(
+            "테슬라 신용등급 상향 발표",
+            "기사 메타 설명이며 원문에 포함되지 않은 문구.",
+            url="https://example.org/tesla-rated",
+        )
+        body = (
+            "테슬라는 신용등급 상향을 발표했다. "
+            "회사는 재무 건전성이 개선됐다고 밝혔다. "
+            "평가사는 전망도 함께 상향했다. "
+            "네 번째 원문 문장은 화면에 없어야 한다."
+        )
+        raw_item = {**article, "relation_type": "direct", "event_owner": "테슬라",
+                    "storyboard_time": "08:00"}
+        with patch.object(news_result, "build_simple_today_news", return_value=[raw_item]), \
+             patch.object(news_result, "select_keyword_storyboard_news", return_value=[]), \
+             patch.object(news_result, "read_selected_article_details",
+                          side_effect=[
+                              [{"text": "", "source": "fetch_failed"}],
+                              [{"text": body, "source": "jsonld_article_body"}],
+                          ]):
+            result = news_result.build_stock_news_result(
+                "테슬라", market="미국", raw_news_list=[article])
+        self.assertEqual(result["_news_status"], "ok")
+        self.assertEqual(len(result["issue_briefs"]), 1)
+        issue = result["issue_briefs"][0]
+        self.assertEqual(issue["summary"], _article_excerpt(body))
+        self.assertNotIn("기사 메타 설명", issue["summary"])
+        self.assertNotIn("네 번째 원문", issue["summary"])
+        self.assertEqual(issue["evidence_source"], "verified_article_body_title_only")
+        self.assertEqual(issue["source_articles"][0]["url"], article["url"])
+
+    def test_us_rejects_bitcoin_article_even_when_description_mentions_spacex(self):
+        article = item(
+            "비트코인 ETF 하루 순유출…국제유가 급등",
+            "앞서 스페이스X의 호실적을 계기로 기술주가 상승했지만, 비트코인 ETF 자금은 빠졌다.",
+            url="https://example.org/bitcoin-etf",
+        )
+        item_direct = {**article, "relation_type": "direct",
+                       "event_owner": "스페이스X", "storyboard_time": "08:04"}
+        bitcoin_body = (
+            "비트코인 현물 ETF에서 대규모 자금 유출이 발생했다. "
+            "국제유가 상승으로 가상자산 시장의 투자심리가 위축됐다. "
+            "트레이더들은 관련 위험을 점검하고 있다."
+        )
+        with patch.object(news_result, "build_simple_today_news", return_value=[item_direct]), \
+             patch.object(news_result, "select_keyword_storyboard_news", return_value=[]), \
+             patch.object(news_result, "read_selected_article_details",
+                          side_effect=[
+                              [{"text": "", "source": "fetch_failed"}],
+                              [{"text": bitcoin_body, "source": "article_or_main_paragraphs"}],
+                          ]):
+            result = news_result.build_stock_news_result(
+                "스페이스X", market="미국", raw_news_list=[article])
+        self.assertEqual(result["_news_status"], "ok")
+        self.assertEqual(result["issue_briefs"], [])
 
     def test_verified_neon_identity_used_for_us_code_selection(self):
         row = item(
