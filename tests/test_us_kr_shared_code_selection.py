@@ -186,6 +186,70 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(us_brief["source_articles"][0]["published_at"], article["published_at"])
         self.assertNotIn("source_articles", kr_brief)
 
+    def test_verified_neon_identity_used_for_us_code_selection(self):
+        row = item(
+            "메타, 대형 공급 계약 발표",
+            "메타가 새로운 공급 계약을 발표했다.",
+            url="https://example.org/meta-supply",
+        )
+        observed = {}
+        def inspect(rows, name):
+            observed["stock_name"] = name
+            observed["selected_urls"] = [x["url"] for x in rows]
+            raise RuntimeError("stop_after_verified_identity_check")
+        with patch.object(news_result, "resolve_us_news_identity", create=True,
+                          return_value={"status": "verified", "news_name": "메타",
+                                        "company_key": "US:META", "ticker": "META"}), \
+             patch.object(news_result, "score_stock_news", side_effect=inspect):
+            result = news_result.build_stock_news_result(
+                "메타 플랫폼스(페이스북)", market="미국", raw_news_list=[row])
+        self.assertEqual(result["_news_status"], "error")
+        self.assertEqual(observed["stock_name"], "메타")
+        self.assertEqual(observed["selected_urls"], [row["url"]])
+
+    def test_unverified_neon_identity_never_borrows_other_company_news(self):
+        row = item(
+            "미검증테스트기업, 공급 계약 발표",
+            "미검증테스트기업이 새로운 공급 계약을 발표했다.",
+            url="https://example.org/unverified-company",
+        )
+        observed = {}
+        def inspect(rows, name):
+            observed["stock_name"] = name
+            raise RuntimeError("stop_after_pending_identity_check")
+        with patch.object(news_result, "resolve_us_news_identity", create=True,
+                          return_value={"status": "pending", "news_name": "메타",
+                                        "company_key": "US:OTHER", "ticker": "META"}), \
+             patch.object(news_result, "score_stock_news", side_effect=inspect):
+            result = news_result.build_stock_news_result(
+                "미검증테스트기업", market="미국", raw_news_list=[row])
+        self.assertEqual(result["_news_status"], "error")
+        self.assertEqual(observed["stock_name"], "미검증테스트기업")
+
+    def test_verified_db_company_issue_remains_owned_by_listing_name(self):
+        row = item(
+            "메타, 신규 공급 계약 발표",
+            "메타가 새로운 공급 계약을 발표했다.",
+            url="https://example.org/meta",
+        )
+        brief = {
+            "headline": "공급 계약 이슈", "summary": "메타는 공급 계약을 발표했다.",
+            "tags": ["공급계약"], "stock_names": ["메타"]
+        }
+        with patch.object(news_result, "resolve_us_news_identity", create=True,
+                          return_value={"status": "verified", "news_name": "메타"}), \
+             patch.object(news_result, "build_simple_today_news", return_value=[]), \
+             patch.object(news_result, "build_issue_briefs", return_value=[brief.copy()]):
+            result = news_result.build_stock_news_result(
+                "메타 플랫폼스(페이스북)", market="미국", raw_news_list=[row])
+        self.assertEqual(result["_news_status"], "ok")
+        self.assertEqual(result["issue_briefs"][0]["stock_names"],
+                         ["메타 플랫폼스(페이스북)"])
+        self.assertEqual(result["issue_briefs"][0]["headline"], brief["headline"])
+        from ops.staged_news_processed_store import _same_stock_issue_briefs
+        self.assertEqual(len(_same_stock_issue_briefs(
+            result["issue_briefs"], "메타 플랫폼스(페이스북)")), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

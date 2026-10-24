@@ -1,0 +1,127 @@
+name: Verify and deploy verified Neon identity for US CODE once
+on:
+  push:
+    branches:
+      - fix/us-db-verified-code-identity-20261024
+      - ops/do-ssh-deploy-setup-20261017
+    paths:
+      - .github/workflows/do-us-db-identity-once-20261024.yml
+      - backend/services/news_result.py
+      - ops/staged_news_processed_store.py
+      - tests/test_us_kr_shared_code_selection.py
+permissions:
+  contents: read
+concurrency:
+  group: us-db-verified-code-identity-20261024
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile US CODE identity and verify no new fallback or AI behavior
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/services/news_result.py ops/staged_news_processed_store.py
+          python - <<'PY'
+          from pathlib import Path
+          code=Path("backend/services/news_result.py").read_text()
+          store=Path("ops/staged_news_processed_store.py").read_text()
+          ai=Path("ops/staged_ai_sequential_batch.py").read_text()
+          assert "resolve_us_news_identity(stock_name)" in code
+          assert 'identity.get("status") == "verified"' in code
+          assert '"_code_source_revision": 5' in code
+          assert 'payload.get("_code_source_revision") != 5' in store
+          assert '_us_dated_code_fallback' not in code
+          assert 'market not in ("미국", "US", "us") and not issue_briefs' not in code
+          assert "select_stock_news_for_analysis(raw_news_list, stock_name, limit)" in code
+          assert '"articles": raw,' in ai and 'GAEMIGTP_NEWS_AI_PAUSED' in ai
+          print("US_CODE_DB_IDENTITY_AND_SHARED_KR_PATH_OK")
+          PY
+      - name: Identity and original-news regression
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p test_us_kr_shared_code_selection.py -v
+          python -m unittest discover -s tests -p test_news_feed_queries.py -v
+          python -m unittest discover -s tests -p test_us_stock_news_identity.py -v
+          python -m unittest discover -s tests -p test_verified_fact_headline_only.py -v
+  deploy:
+    if: github.ref == 'refs/heads/ops/do-ssh-deploy-setup-20261017'
+    needs: test
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 12
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure SSH, verify exact installed baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519")
+          prior=e97a022a9e200ca83bf8cf54948685e7e6fca14b
+          expected_news="$(git show "$prior":backend/services/news_result.py | sha256sum | cut -d' ' -f1)"
+          expected_store="$(git show "$prior":ops/staged_news_processed_store.py | sha256sum | cut -d' ' -f1)"
+          ssh "${opts[@]}" "gaemi-deploy@$DO_HOST" bash -s "$expected_news" "$expected_store" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          test "$(sha256sum backend/services/news_result.py | cut -d' ' -f1)" = "$1" || { echo US_IDENTITY_NEWS_BASELINE_MISMATCH; exit 1; }
+          test "$(sha256sum backend/services/news_processed_store.py | cut -d' ' -f1)" = "$2" || { echo US_IDENTITY_STORE_BASELINE_MISMATCH; exit 1; }
+          test -f backend/services/news_identity_registry.py
+          test -w backend/services/news_result.py
+          test -w backend/services/news_processed_store.py
+          echo US_IDENTITY_BASELINE_VERIFIED
+          REMOTE
+      - name: Stage only US CODE processing and snapshot revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519")
+          remote="gaemi-deploy@$DO_HOST:/opt/gaemigtp-news/app/ops"
+          scp "${opts[@]}" backend/services/news_result.py "$remote/.us-identity-next-news.py"
+          scp "${opts[@]}" ops/staged_news_processed_store.py "$remote/.us-identity-next-store.py"
+      - name: Install only two files with rollback and restart news worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519" "gaemi-deploy@$DO_HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gaemigtp-news/app
+          backup="$(mktemp -d ops/.us-db-identity-backup.XXXXXX)"
+          cp -p backend/services/news_result.py "$backup/news_result.py"
+          cp -p backend/services/news_processed_store.py "$backup/news_processed_store.py"
+          rollback() {
+            trap - ERR
+            set +e
+            install -m 644 "$backup/news_result.py" backend/services/news_result.py
+            install -m 644 "$backup/news_processed_store.py" backend/services/news_processed_store.py
+            sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+            echo US_IDENTITY_DEPLOY_ROLLBACK
+            exit 1
+          }
+          trap rollback ERR
+          install -m 644 ops/.us-identity-next-news.py backend/services/news_result.py
+          install -m 644 ops/.us-identity-next-store.py backend/services/news_processed_store.py
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_result.py backend/services/news_processed_store.py
+          grep -Fq 'resolve_us_news_identity(stock_name)' backend/services/news_result.py
+          grep -Fq 'payload.get("_code_source_revision") != 5' backend/services/news_processed_store.py
+          sudo -n /usr/bin/systemctl restart gaemigtp-news.service
+          test "$(systemctl is-active gaemigtp-news.service)" = active
+          trap - ERR
+          echo US_CODE_NEON_VERIFIED_IDENTITY_DEPLOYED_REV5_NO_AI_OR_DB_DELETIONS
+          REMOTE
+      - name: Remove ephemeral SSH key
+        if: always()
+        run: rm -f "$HOME/.ssh/id_ed25519"
