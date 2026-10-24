@@ -480,7 +480,8 @@
   <script src="js/external-link-modal.js?v=20260930-chat-split-v1"></script>
   <script src="js/first-reply-actions.js?v=20261024-avatar-v1"></script>
   <script src="js/gaemi-voice-assets.js?v=20261024-avatar-assets-v1"></script>
-  <script src="js/voice-avatar.js?v=20261024-lipsync-transparent-v2"></script>
+  <script>window.GAEMI_VOICE_TTS_ENDPOINT = (location.hostname === 'gaemi-gtp.onrender.com' || location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? '/api/voice/tts' : 'https://gaemi-gtp.onrender.com/api/voice/tts';</script>
+  <script src="js/voice-avatar.js?v=20261024-voice-tts-v1"></script>
   <script src="js/daily-fortune.js?v=20261006-app-split-v1"></script>
   <script src="js/source-lists.js?v=20261010-news-cleanup-v1"></script>
   <script src="js/why-flow.js?v=20261023-price-reason-v1"></script>
