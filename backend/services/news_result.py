@@ -735,14 +735,17 @@ def build_stock_news_result(
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
 
-        # KR and US use the very same original-body and four fallback paths.
-        # US adds only article source metadata for Render's existing 24h check.
-        # Neither market reselects news or invents a fallback summary here.
-        if market in ("미국", "US"):
+        # KR and US share the same issue candidate selection. US CODE summaries
+        # must ALWAYS consist of up to three sentences from a verified article
+        # body. A URL + publisher description does NOT constitute original text.
+        if market in ("미국", "US", "us"):
             issue_briefs = attach_verified_source_citations(
                 issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
             )
             if fallback_source is not None and issue_briefs:
+                # The KR fallback selects an event from title/description, but
+                # US output must fetch THAT same article's original body first.
+                # Never attach a source URL to a description and call it original.
                 from datetime import datetime
                 source_url = str(fallback_source.get("url") or fallback_source.get("link") or "").strip()
                 published_at = str(fallback_source.get("published_at") or "").strip()
@@ -752,11 +755,34 @@ def build_stock_news_result(
                 except (ValueError, TypeError, OverflowError):
                     dated = False
                 if source_url.startswith(("https://", "http://")) and dated:
-                    issue_briefs[0]["source_articles"] = [{
-                        "url": source_url,
-                        "title": str(fallback_source.get("title") or ""),
-                        "published_at": published_at,
-                    }]
+                    try:
+                        original_details = read_selected_article_details(
+                            [fallback_source], limit=1, with_sources=True,
+                        )
+                    except Exception:
+                        original_details = []
+                    original = original_details[0] if original_details else {}
+                    original_source = str(original.get("source") or "")
+                    excerpt = _article_excerpt(original.get("text") or "")
+                    if (
+                        original_source in {"jsonld_article_body", "article_or_main_paragraphs"}
+                        and excerpt
+                        and _central_direct_article(fallback_source, excerpt, stock_name)
+                        and central_material_brief_supported(excerpt)
+                    ):
+                        issue_briefs[0]["summary"] = excerpt
+                        issue_briefs[0]["evidence_source"] = "verified_article_body_title_only"
+                        issue_briefs[0]["source_articles"] = [{
+                            "url": source_url,
+                            "title": str(fallback_source.get("title") or ""),
+                            "published_at": published_at,
+                        }]
+                    else:
+                        # Original inaccessible / not about the stock: cannot
+                        # display the publisher's description as 3 source sentences.
+                        issue_briefs = []
+                else:
+                    issue_briefs = []
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
@@ -812,7 +838,7 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 5 if market in ("미국", "US") else None,
+            "_code_source_revision": 6 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
