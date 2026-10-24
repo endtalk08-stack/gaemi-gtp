@@ -6,6 +6,11 @@ on:
       - '.github/workflows/kiwoom-us-quotes-tests.yml'
       - 'backend/providers/kiwoom_us_quotes.py'
       - 'tests/test_kiwoom_us_quotes.py'
+      - 'backend/services/market_rankings.py'
+      - 'app.py'
+      - 'tests/test_market_trading_value.py'
+      - 'tests/test_market_selection_context.py'
+      - 'frontend/shell/left-market-sidebar/market-sidebar.js'
 permissions:
   contents: read
 jobs:
@@ -25,3 +30,4 @@ jobs:
           python -m pip install 'requests>=2.32,<3'
           python -m compileall -q backend/providers/kiwoom_us_quotes.py
           python -m unittest -v tests.test_kiwoom_us_quotes
+          python -m unittest -v tests.test_market_trading_value tests.test_market_selection_context
