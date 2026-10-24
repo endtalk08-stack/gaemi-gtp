@@ -1,8 +1,8 @@
-name: Verify and deploy verified Neon identity for US CODE once
+name: Verify US CODE three original source sentences and deploy once
 on:
   push:
     branches:
-      - fix/us-db-verified-code-identity-20261024
+      - fix/us-original-excerpt-only-20261024
       - ops/do-ssh-deploy-setup-20261017
     paths:
       - .github/workflows/do-us-db-identity-once-20261024.yml
@@ -12,7 +12,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: us-db-verified-code-identity-20261024
+  group: us-original-excerpt-only-20261024
   cancel-in-progress: false
 jobs:
   test:
@@ -30,9 +30,12 @@ jobs:
           ai=Path("ops/staged_ai_sequential_batch.py").read_text()
           assert "resolve_us_news_identity(stock_name)" in code
           assert 'identity.get("status") == "verified"' in code
-          assert '"_code_source_revision": 5' in code
-          assert 'payload.get("_code_source_revision") != 5' in store
+          assert '"_code_source_revision": 6' in code
+          assert 'payload.get("_code_source_revision") != 6' in store
           assert '_us_dated_code_fallback' not in code
+          assert 'issue_briefs[0]["summary"] = excerpt' in code
+          assert 'issue_briefs = []' in code
+          assert 'original_source in {"jsonld_article_body", "article_or_main_paragraphs"}' in code
           assert 'market not in ("미국", "US", "us") and not issue_briefs' not in code
           assert "select_stock_news_for_analysis(raw_news_list, stock_name, limit)" in code
           assert '"articles": raw,' in ai and 'GAEMIGTP_NEWS_AI_PAUSED' in ai
@@ -70,7 +73,7 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
           opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519")
-          prior=e97a022a9e200ca83bf8cf54948685e7e6fca14b
+          prior=57e2f524f7f0d9c2359cd2773930b12bd4fcb663
           expected_news="$(git show "$prior":backend/services/news_result.py | sha256sum | cut -d' ' -f1)"
           expected_store="$(git show "$prior":ops/staged_news_processed_store.py | sha256sum | cut -d' ' -f1)"
           ssh "${opts[@]}" "gaemi-deploy@$DO_HOST" bash -s "$expected_news" "$expected_store" <<'REMOTE'
@@ -116,11 +119,11 @@ jobs:
           install -m 644 ops/.us-identity-next-store.py backend/services/news_processed_store.py
           /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_result.py backend/services/news_processed_store.py
           grep -Fq 'resolve_us_news_identity(stock_name)' backend/services/news_result.py
-          grep -Fq 'payload.get("_code_source_revision") != 5' backend/services/news_processed_store.py
+          grep -Fq 'payload.get("_code_source_revision") != 6' backend/services/news_processed_store.py
           sudo -n /usr/bin/systemctl restart gaemigtp-news.service
           test "$(systemctl is-active gaemigtp-news.service)" = active
           trap - ERR
-          echo US_CODE_NEON_VERIFIED_IDENTITY_DEPLOYED_REV5_NO_AI_OR_DB_DELETIONS
+          echo US_CODE_ORIGINAL_THREE_SENTENCES_REV6_AI_DB_UNCHANGED
           REMOTE
       - name: Remove ephemeral SSH key
         if: always()
