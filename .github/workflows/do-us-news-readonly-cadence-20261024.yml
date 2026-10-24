@@ -32,6 +32,12 @@ jobs:
           systemctl show gaemigtp-news.service -p ActiveState -p SubState -p MainPID -p ExecStart -p ActiveEnterTimestamp -p NRestarts | head -n 6
           echo CODE_REV6_PRESENT=$(grep -Fc '"_code_source_revision": 6' backend/services/news_result.py)
           echo STORE_REV6_PRESENT=$(grep -Fc 'payload.get("_code_source_revision") != 6' backend/services/news_processed_store.py)
+          echo SERVICE_ACCESS_BEGIN
+          systemctl show gaemigtp-news.service -p User -p Group -p EnvironmentFiles -p WorkingDirectory -p ExecStart | sed -E 's#(EnvironmentFiles=)[^ ]+#\\1<service-file>#g' | head -n 5
+          echo SUDO_ALLOWED_COMMANDS_BEGIN
+          sudo -n -l 2>&1 | sed -E 's#(NEWS_DATABASE_URL|GROQ_API_KEY)=[^ ]+#\\1=<redacted>#g' | head -n 18 || true
+          echo SUDO_ALLOWED_COMMANDS_END
+          echo SERVICE_ACCESS_END
           echo EXECUTION_CONTEXT_BEGIN
           /opt/gaemigtp-news/venv/bin/python - <<'PY'
           import ast, os
