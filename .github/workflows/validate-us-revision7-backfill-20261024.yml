@@ -1,0 +1,37 @@
+name: Validate US CODE rev7 one-shot backfill without AI
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - ops/do-gateway/us_code_revision7_reprocess_once_20261024.py
+      - .github/workflows/validate-us-revision7-backfill-20261024.yml
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate syntax, AI absence and no destructive data actions
+        run: |
+          set -euo pipefail
+          python -m py_compile ops/do-gateway/us_code_revision7_reprocess_once_20261024.py
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          path=Path('ops/do-gateway/us_code_revision7_reprocess_once_20261024.py')
+          code=path.read_text()
+          tree=ast.parse(code)
+          imports=[n for node in ast.walk(tree) if isinstance(node,(ast.Import,ast.ImportFrom)) for n in (node.names if isinstance(node,ast.Import) else [node])]
+          assert 'build_stock_news_result(' in code
+          assert 'fetch_stock_news(' in code
+          assert 'store.save_snapshot(' in code
+          assert 'GAEMIGTP_NEWS_AI_PAUSED' in code
+          for banned in ('apply_worker_ai(', 'apply_unchanged_worker_ai(', 'analyze_news(', 'reserve_once(', 'DELETE FROM', 'TRUNCATE ', 'DROP TABLE', 'UPDATE public.market_instruments', 'purge_expired('):
+              assert banned not in code, banned
+          assert 'DEADLINE_SECONDS = 780' in code
+          assert 'EXPECTED_REVISION = 7' in code
+          print('US_REV7_BACKFILL_STATIC_VALIDATED_AI_CALLS_ZERO_NO_SQL_DELETIONS')
+          PY
+          python -m unittest discover -s tests -p test_us_kr_shared_code_selection.py -v
+          python -m unittest discover -s tests -p test_us_stock_news_identity.py -v
