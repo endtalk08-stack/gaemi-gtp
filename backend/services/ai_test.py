@@ -460,8 +460,8 @@ def _context(stock, data):
     for line in str(first.get("content") or "").splitlines():
         if any(token in line for token in ("현재 주가는", "고가 ", "저가 ", "20일선 ", "52주")):
             # Provider labels are infrastructure details, not user-facing facts.
-            clean_line = re.sub(r"\\s*\\([^)]*(?:키움|시세\\s*미수신)[^)]*\\)", "", line)
-            clean_line = re.sub(r"(?:키움\\s*(?:실시간\\s*)?(?:현재가|시세)[^:：]*[:：]?|(?:키움|시세)\\s*미수신[^:：]*[:：]?)", "", clean_line).strip()
+            clean_line = re.sub(r"\s*\([^)]*(?:키움|시세\s*미수신)[^)]*\)", "", line)
+            clean_line = re.sub(r"(?:키움\s*(?:실시간\s*)?(?:현재가|시세)[^:：]*[:：]?|(?:키움|시세)\s*미수신[^:：]*[:：]?)", "", clean_line).strip()
             if clean_line:
                 price_lines.append(_compact(clean_line, 230))
 
