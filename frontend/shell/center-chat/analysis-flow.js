@@ -657,6 +657,48 @@
       const chatArea = document.getElementById('chatArea');
       ctx.appendChatMessage('user', stockName, 'stock', session.id);
 
+      // Read-only Micron preview: factual company narrative replaces the
+      // stock price speech in the first answer; other tickers are unchanged.
+      const selectedCode = String(session.marketSelection?.symbol || stockName).trim().toUpperCase();
+      const isMicronPreview = (selectedCode === 'MU' || stockName === '마이크론 테크놀로지') &&
+        String(session.marketSelection?.market || 'us').toLowerCase() === 'us';
+      if (isMicronPreview && window.GaemiGTPCompanyIntroPreview) {
+        const previewController = ctx.getAnalysisController();
+        const progress = document.createElement('div');
+        progress.className = 'gtp-chat-copy animate-pulse';
+        progress.textContent = '기업 소개를 불러오는 중입니다';
+        chatArea.appendChild(progress);
+        let intro = null;
+        let errorMessage = '';
+        try {
+          const response = await fetch(BACKEND_URL + '/api/company-intro-preview?symbol=MU', {
+            signal: previewController.signal, credentials: 'same-origin'
+          });
+          if (!response.ok) throw new Error('company_intro_unavailable');
+          intro = await response.json();
+          if (intro?.ok !== true || intro.symbol !== 'MU') throw new Error('company_intro_invalid');
+        } catch (error) {
+          if (error?.name !== 'AbortError') errorMessage = '기업 소개를 불러오지 못했어요. 기존 저장 데이터를 확인해 주세요.';
+        } finally {
+          progress.remove();
+          if (ctx.getAnalysisController() === previewController) ctx.setAnalysisController(null);
+        }
+        if (requestId !== ctx.getActiveAnalysisRequestId() ||
+            ctx.getSession()?.id !== session.id) return;
+        const renderer = window.GaemiGTPCompanyIntroPreview;
+        const narrative = intro ? renderer.readableText(intro) : errorMessage;
+        if (!narrative) return;
+        const row = ctx.appendChatMessage('assistant', narrative, 'answer', session.id);
+        if (!row) return;
+        if (intro) {
+          renderer.render(row, intro);
+          const visible = (row.innerText || narrative).trim();
+          window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(row, visible, 'first', stockName);
+          window.GaemiGTPApp?.linkRecentConversation?.('stock', stockName);
+        }
+        return;
+      }
+
       const loadingDiv = document.createElement('div');
       loadingDiv.className = 'analysis-loading-sequence';
       loadingDiv.innerHTML = `<div class="gtp-chat-copy font-semibold animate-pulse" aria-live="polite">시세를 조회중입니다</div>`;
