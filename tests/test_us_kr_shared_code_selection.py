@@ -110,7 +110,10 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
             result = news_result.build_stock_news_result(
                 "테슬라", market="미국", raw_news_list=[row],
             )
-        self.assertEqual(result.get("_news_status"), "ok")
+        # The existing shared pipeline reports a fetch failure if every
+        # nominated original is unreadable; it must never substitute a
+        # publisher description or invented issue for that missing body.
+        self.assertEqual(result.get("_news_status"), "error")
         self.assertEqual(result.get("issue_briefs"), [])
 
     def test_us_and_kr_use_same_issue_text_builder_without_us_fallback(self):
