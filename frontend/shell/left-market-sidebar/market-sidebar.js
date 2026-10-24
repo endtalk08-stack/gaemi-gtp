@@ -418,7 +418,11 @@
         });
         if (updated && changeSorted && !draggedRow) applyChangeSort();
       } catch (_) {
-        // Keep the previous displayed prices and original title on transient failure.
+        // A broken source must never leave the QQQ widget labeled "live".
+        if (qqqWidgetActive()) {
+          window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: null } }));
+        }
+        // Keep the sidebar's previous display on transient failure.
       } finally {
         quoteRequestInFlight = false;
       }
