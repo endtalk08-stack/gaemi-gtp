@@ -1,8 +1,8 @@
-name: Verify strict three original source sentences and deploy once
+name: Verify US CODE original body actor and source quality revision8
 on:
   push:
     branches:
-      - fix/us-exact-three-sentence-limit-20261024
+      - fix/us-batch-original-subject-quality-20261024
       - ops/do-ssh-deploy-setup-20261017
     paths:
       - .github/workflows/do-us-db-identity-once-20261024.yml
@@ -12,7 +12,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: us-strict-three-sentence-limit-20261024
+  group: us-verified-business-actor-original-20261024
   cancel-in-progress: false
 jobs:
   test:
@@ -30,10 +30,13 @@ jobs:
           ai=Path("ops/staged_ai_sequential_batch.py").read_text()
           assert "resolve_us_news_identity(stock_name)" in code
           assert 'identity.get("status") == "verified"' in code
-          assert '"_code_source_revision": 7' in code
-          assert 'payload.get("_code_source_revision") != 7' in store
+          assert '"_code_source_revision": 8' in code
+          assert 'payload.get("_code_source_revision") != 8' in store
           assert '_us_dated_code_fallback' not in code
           assert '_us_source_first_three_sentences(excerpt)' in code
+          assert '_us_verified_company_is_article_actor' in code
+          assert '_us_remove_leading_image_caption' in code
+          assert 'us_original_unavailable_zero_code_issue' in code
           assert "brief[\"summary\"] = _us_source_first_three_sentences" in code
           assert 'issue_briefs = []' in code
           assert 'original_source in {"jsonld_article_body", "article_or_main_paragraphs"}' in code
@@ -74,7 +77,7 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
           opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519")
-          prior=e5e98004d4f69241cfc259d9e6deda7fd441fb9c
+          prior=1751ee859899e927e1931da865c79b86a068fe96
           expected_news="$(git show "$prior":backend/services/news_result.py | sha256sum | cut -d' ' -f1)"
           expected_store="$(git show "$prior":ops/staged_news_processed_store.py | sha256sum | cut -d' ' -f1)"
           ssh "${opts[@]}" "gaemi-deploy@$DO_HOST" bash -s "$expected_news" "$expected_store" <<'REMOTE'
@@ -120,11 +123,11 @@ jobs:
           install -m 644 ops/.us-identity-next-store.py backend/services/news_processed_store.py
           /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_result.py backend/services/news_processed_store.py
           grep -Fq 'resolve_us_news_identity(stock_name)' backend/services/news_result.py
-          grep -Fq 'payload.get("_code_source_revision") != 7' backend/services/news_processed_store.py
+          grep -Fq 'payload.get("_code_source_revision") != 8' backend/services/news_processed_store.py
           sudo -n /usr/bin/systemctl restart gaemigtp-news.service
           test "$(systemctl is-active gaemigtp-news.service)" = active
           trap - ERR
-          echo US_CODE_EXACT_THREE_SENTENCES_REV7_AI_DB_UNCHANGED
+          echo US_CODE_SOURCE_ACTOR_ORIGINAL_REV8_AI_DB_UNCHANGED
           REMOTE
       - name: Remove ephemeral SSH key
         if: always()
