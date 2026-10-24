@@ -14,6 +14,7 @@ from backend.services.news_freshness import issue_mode_for_question, normalize_i
 from backend.services.kiwoom_us_value_board import read_us_trading_value_board
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
 from backend.services.us_market_close import read_brief
+from backend.services.qqq_chart import read_qqq_daily_history
 
 from backend.services.engine import analyze_stock, get_live_calendar_data, start_calendar_warmup
 
@@ -125,6 +126,20 @@ def market_us_price_push():
     if not ok:
         return jsonify({"ok": False, "error": reason}), 403
     return "", 204
+
+
+@app.get("/api/market/qqq-history")
+def market_qqq_history():
+    """Previous completed daily closes only; never market it as live FE quotes."""
+    result = read_qqq_daily_history()
+    if not result:
+        response = jsonify({"ok": False, "symbol": "QQQ",
+                            "error": "history_unavailable", "points": []})
+        response.headers["Cache-Control"] = "private, max-age=30"
+        return response, 503
+    response = jsonify(result)
+    response.headers["Cache-Control"] = "private, max-age=300"
+    return response
 
 
 @app.get("/market/us-live-quotes")
