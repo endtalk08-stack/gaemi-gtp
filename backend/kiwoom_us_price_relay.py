@@ -48,8 +48,10 @@ def send_quotes(key, rows):
     payload = {
         "sent_at_ms": int(time.time() * 1000),
         "prices": [
-            {"symbol": symbol, "price": price, "change_pct": pct}
-            for symbol, (price, pct) in sorted(rows.items())
+            {"symbol": symbol, "price": quote[0], "change_pct": quote[1],
+             "high": quote[2] if len(quote) > 2 else None,
+             "low": quote[3] if len(quote) > 3 else None}
+            for symbol, quote in sorted(rows.items())
         ],
     }
     raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
