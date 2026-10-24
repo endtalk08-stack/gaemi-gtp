@@ -375,15 +375,23 @@
       }
     };
 
-    // Only read the newest stored Kiwoom quote; do not start collection or AI.
+    // Reuse the SAME 3-second Render memory poll for the QQQ widget (no extra Kiwoom request).
+    const qqqWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('qqq') === true;
     const readLatestQuotes = async () => {
-      if (quoteRequestInFlight || tab !== 'value' || !list?.querySelector('button[data-original-index]')) return;
+      const paintRanking = tab === 'value' && !!list?.querySelector('button[data-original-index]');
+      if (quoteRequestInFlight || (!paintRanking && !qqqWidgetActive())) return;
       quoteRequestInFlight = true;
       try {
         const response = await fetch(backendUrl + '/market/us-live-quotes', { cache: 'no-store' });
         if (!response.ok) throw new Error('quotes unavailable');
         const data = await response.json();
-        if (tab !== 'value' || data.ok !== true || !Array.isArray(data.items)) return;
+        if (data.ok !== true || !Array.isArray(data.items)) return;
+        // In-browser fan-out only: existing sidebar request is also the widget feed.
+        if (qqqWidgetActive()) {
+          const qqq = data.items.find(row => row && row.symbol === 'QQQ') || null;
+          window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: qqq } }));
+        }
+        if (!paintRanking || tab !== 'value') return;
         const bySymbol = new Map([...list.querySelectorAll(':scope > button[data-original-index]')]
           .map((button) => [button.dataset.stockSymbol, button]));
         let updated = 0;
@@ -410,7 +418,11 @@
         });
         if (updated && changeSorted && !draggedRow) applyChangeSort();
       } catch (_) {
-        // Keep the previous displayed prices and original title on transient failure.
+        // A broken source must never leave the QQQ widget labeled "live".
+        if (qqqWidgetActive()) {
+          window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: null } }));
+        }
+        // Keep the sidebar's previous display on transient failure.
       } finally {
         quoteRequestInFlight = false;
       }
@@ -419,7 +431,11 @@
     // Also refresh when the user returns to this tab after it was backgrounded.
     // Keep background reads off to avoid unnecessary database usage.
     const refreshOnReturn = () => {
-      if (tab !== 'value' || document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') return;
+      if (tab !== 'value') {
+        if (qqqWidgetActive()) void readLatestQuotes();
+        return;
+      }
       // Sidebar CSS/body classes are not a reliable signal: the data must
       // continue refreshing even when the workspace shell is restored.
       if (list.querySelector('button[data-original-index]')) void readLatestQuotes();
@@ -491,14 +507,17 @@
     // On a background tab, cap polling at one request per 15 seconds.
     let lastBackgroundQuoteCheck = 0;
     window.setInterval(() => {
-      if (tab !== 'value' || draggedRow) return;
+      if (draggedRow) return;
       const visible = document.visibilityState === 'visible';
       if (!visible) {
         if (Date.now() - lastBackgroundQuoteCheck < 15000) return;
         lastBackgroundQuoteCheck = Date.now();
       }
-      if (!list.querySelector('button[data-original-index]')) {
+      if (tab !== 'value') {
+        if (qqqWidgetActive()) void readLatestQuotes();
+      } else if (!list.querySelector('button[data-original-index]')) {
         if (visible) void showUsRanking();
+        if (qqqWidgetActive()) void readLatestQuotes();
       } else if (visible && Date.now() - lastFullRankingRefresh >= 60000) {
         lastFullRankingRefresh = Date.now();
         void showUsRanking();
