@@ -63,6 +63,8 @@ def accept_signed_quotes(raw, timestamp, signature):
             symbol = row.get("symbol")
             price = row.get("price")
             change = row.get("change_pct")
+            high = row.get("high")
+            low = row.get("low")
             if (not isinstance(symbol, str) or not _VALID_SYMBOL.fullmatch(symbol)
                     or symbol in updates or type(price) not in (int, float)
                     or not math.isfinite(price) or not 0 < price < 10000000):
@@ -70,8 +72,22 @@ def accept_signed_quotes(raw, timestamp, signature):
             if change is not None and (type(change) not in (int, float)
                                        or not math.isfinite(change) or not -100 < change < 10000):
                 return False, "invalid_payload"
-            updates[symbol] = {"symbol": symbol, "price": float(price),
-                               "change_pct": float(change) if change is not None else None}
+            # Kiwoom FE fields 17/18 are optional. Never derive session high/low
+            # from an unrelated day's candles or trust malformed values.
+            for level in (high, low):
+                if level is not None and (
+                    type(level) not in (int, float) or not math.isfinite(level)
+                    or not 0 < level < 10000000
+                ):
+                    return False, "invalid_payload"
+            if high is not None and low is not None and high < low:
+                return False, "invalid_payload"
+            updates[symbol] = {
+                "symbol": symbol, "price": float(price),
+                "change_pct": float(change) if change is not None else None,
+                "high": float(high) if high is not None else None,
+                "low": float(low) if low is not None else None,
+            }
     except (TypeError, KeyError, ValueError, UnicodeError, json.JSONDecodeError):
         return False, "invalid_payload"
 
@@ -101,6 +117,7 @@ def read_memory_quotes():
             {
                 "symbol": item["symbol"], "price": item["price"],
                 "change_pct": item["change_pct"],
+                "high": item.get("high"), "low": item.get("low"),
                 "received_at_ms": round(item["received_at"] * 1000),
                 "stale": now - item["received_at"] > 25,
             }
