@@ -46,6 +46,34 @@ class KiwoomReadOnlyTests(unittest.TestCase):
         self.assertEqual(data["timeout"], 8)
         self.assertEqual(data["allow_redirects"], False)
 
+    def test_kiwoom_fe_stream_reuses_current_and_day_high_low(self):
+        import sys
+        from unittest.mock import MagicMock
+        with patch.dict(sys.modules, {"psycopg": MagicMock()}):
+            from backend.kiwoom_us_live_prices import _parse_price_event
+        selected = {"NVDA": "ND"}
+        sample = {"trnm": "REAL", "data": [
+            {"type": "FE", "item": "NVDA", "values": {
+                "10": "-115.20", "12": "2.40", "17": "112.00", "18": "101.00",
+                "290": "2",
+            }},
+        ]}
+        parsed = _parse_price_event(sample, selected)
+        self.assertEqual(parsed["NVDA"], (115.2, 2.4, 112.0, 101.0))
+        self.assertEqual(_parse_price_event(sample, {"AAPL": "ND"}), {})
+        blank = {"trnm": "REAL", "data": [
+            {"type": "FE", "item": "NVDA", "values": {
+                "10": "110", "12": "-0.2", "17": "", "18": "0",
+            }},
+        ]}
+        self.assertEqual(_parse_price_event(blank, selected)["NVDA"], (110.0, -0.2, None, None))
+        inverted = {"trnm": "REAL", "data": [
+            {"type": "FE", "item": "NVDA", "values": {
+                "10": "110", "12": "1", "17": "90", "18": "120",
+            }},
+        ]}
+        self.assertEqual(_parse_price_event(inverted, selected)["NVDA"], (110.0, 1.0, None, None))
+
     def test_daily_uses_exact_close_and_api_id(self):
         def send(url, **kwargs):
             self.assertEqual(url, "https://api.kiwoom.com/api/us/mrkcond")
