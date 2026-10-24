@@ -56,6 +56,12 @@ window.GaemiGTPFirstReplyActions.appendFirstReplyActions = function(anchor, repl
             return;
           }
           if (action === 'read') {
+            // The shared reader splits long answers and resumes after browser stalls.
+            // Keep the browser's original simple path only if the module fails to load.
+            if (window.GaemiGTPReplySpeech) {
+              window.GaemiGTPReplySpeech.toggle(replyText, button);
+              return;
+            }
             if (!('speechSynthesis' in window)) return;
             if (window.speechSynthesis.speaking) {
               window.speechSynthesis.cancel();
