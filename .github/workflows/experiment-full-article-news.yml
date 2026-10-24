@@ -30,3 +30,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_news_selection_experiment.py' -v
       - name: Test whole-article fact synthesis (offline)
         run: python -m unittest discover -s tests -p 'test_full_article_news_experiment.py' -v
+      - name: Probe stored public article URLs only after category filtering (no DB)
+        run: |
+          python -m experiments.news_selection \
+            --file experiments/samples/2026-10-24-live-metadata.json \
+            --max-total 7 --per-category 3 --read-selected
