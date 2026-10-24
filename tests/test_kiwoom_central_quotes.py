@@ -38,6 +38,55 @@ class KiwoomCentralQuoteTests(unittest.TestCase):
         self.assertIsNone(result["low_gap_pct"])
         self.assertEqual(result["historical_price_source"], "yahoo-daily")
 
+    def test_central_day_high_low_uses_one_shared_kiwoom_tick(self):
+        history = [{"date": "2026-10-22", "close": 108.0, "high": 111.0,
+                    "low": 105.0, "volume": 200}]
+        quote = {"symbol": "NVDA", "price": 110.0, "change_pct": 2.4,
+                 "high": 112.0, "low": 102.0,
+                 "received_at_ms": 121212, "stale": False}
+        with patch("backend.services.stock_analysis.fetch_daily_price_history", return_value=history), \
+             patch("backend.services.stock_analysis.read_fresh_us_quote", return_value=quote), \
+             patch("backend.services.stock_analysis.read_recent_saved_us_quote",
+                   side_effect=AssertionError("no second quote source")):
+            result = fetch_stock_price_result(is_krw=False, ticker_symbol="NVDA")
+        self.assertEqual(result["current_price"], quote["price"])
+        self.assertEqual(result["quote_source"], "kiwoom-direct")
+        self.assertAlmostEqual(result["high_gap_pct"], (110 / 112 - 1) * 100)
+        self.assertAlmostEqual(result["low_gap_pct"], (110 / 102 - 1) * 100)
+        self.assertIn("고가 -1.79%", result["first_reply_metrics_text"])
+        self.assertIn("저가 +7.84%", result["first_reply_metrics_text"])
+
+    def test_extended_hours_outside_reported_high_keeps_authentic_gap(self):
+        # The FE trade can move beyond a previously reported session extreme.
+        quote = {"symbol": "NVDA", "price": 115.0, "change_pct": 1.6,
+                 "high": 112.0, "low": 101.0, "received_at_ms": 222, "stale": False}
+        with patch("backend.services.stock_analysis.fetch_daily_price_history", return_value=[]), \
+             patch("backend.services.stock_analysis.read_fresh_us_quote", return_value=quote):
+            result = fetch_stock_price_result(is_krw=False, ticker_symbol="NVDA")
+        self.assertAlmostEqual(result["high_gap_pct"], (115 / 112 - 1) * 100)
+
+    def test_signed_relay_accepts_optional_fe_high_low_without_another_source(self):
+        import json
+        import time
+        from backend.services import us_price_push as push
+        now = time.time()
+        payload = json.dumps({"sent_at_ms": int(now * 1000), "prices": [
+            {"symbol": "NVDA", "price": 110.0, "change_pct": 2.4,
+             "high": 112.0, "low": 102.0}
+        ]}).encode("utf-8")
+        with patch.object(push, "_verify_signature", return_value=True), \
+             patch.object(push, "_LAST_SEND_MS", 0), patch.object(push, "_QUOTES", {}):
+            ok, reason = push.accept_signed_quotes(payload, "0000000000", "mocked")
+            self.assertEqual((ok, reason), (True, "accepted"))
+            saved = push.read_fresh_us_quote("NVDA")
+            self.assertEqual((saved["price"], saved["high"], saved["low"]), (110., 112., 102.))
+            invalid = json.dumps({"sent_at_ms": int(now * 1000) + 1, "prices": [
+                {"symbol": "NVDA", "price": 110.0, "change_pct": 2.4,
+                 "high": 102.0, "low": 112.0}
+            ]}).encode("utf-8")
+            self.assertEqual(push.accept_signed_quotes(invalid, "0000000000", "mocked")[1],
+                             "invalid_payload")
+
     def test_missing_tick_not_replaced_with_yahoo_previous_close(self):
         history = [
             {"date": "2026-10-21", "close": 855.0, "high": 860.0, "low": 850.0, "volume": 200},
