@@ -67,6 +67,11 @@ def _us_remove_leading_image_caption(full_text):
             body = after[credit.end():].strip()
             if len(body) >= 80:
                 return body
+        if marker.start() < 500:
+            # A prominent "이미지 확대보기" with an unrecognised caption
+            # is not safe original article prose. Reject that central
+            # excerpt rather than calling page furniture source sentences.
+            return ""
     return text
 
 
@@ -921,7 +926,7 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 8 if market in ("미국", "US") else None,
+            "_code_source_revision": 9 if market in ("미국", "US") else None,
             "_code_original_unavailable": original_body_unavailable if market in ("미국", "US", "us") else None,
             "_news_status": "ok",
         }
