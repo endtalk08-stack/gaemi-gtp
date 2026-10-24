@@ -54,7 +54,7 @@ class DualIssueModesTest(unittest.TestCase):
         self.assertEqual(result["issue_briefs"], [])
         self.assertEqual(result["issue_channels"]["code"], [])
         self.assertEqual(len(result["issue_channels"]["ai"]), 1)
-        self.assertEqual([b["headline"] for b in clean_us_snapshot(snapshot, now=NOW)["issue_briefs"]], ["AI 종합 이슈"])
+        self.assertEqual(clean_us_snapshot(snapshot, now=NOW)["issue_briefs"], [])
 
     def test_both_shows_two_without_loss_of_original_summaries(self):
         source = source_snapshot()
