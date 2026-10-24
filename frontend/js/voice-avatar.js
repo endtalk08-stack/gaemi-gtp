@@ -10,25 +10,21 @@
     sample: embedded.sample || new URL('../assets/gaemi_voice_sample.mp3', scriptBase).href
   };
   const css = `
-    .gaemi-voice-dock{position:fixed;right:20px;bottom:24px;z-index:10010;width:min(305px,calc(100vw - 24px));border:1px solid rgba(255,255,255,.17);border-radius:20px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.44);background:linear-gradient(165deg,#23242c,#14151b);color:#f8fafc;font:14px/1.4 system-ui,-apple-system,sans-serif;user-select:none}
+    /* Character-only floating overlay. Never paint a panel or backdrop behind it. */
+    .gaemi-voice-dock{position:fixed;right:20px;bottom:24px;z-index:10010;width:min(305px,calc(100vw - 24px));margin:0;padding:0;border:0!important;border-radius:0!important;overflow:visible;background:transparent!important;box-shadow:none!important;color:inherit;user-select:none;pointer-events:none}
     .gaemi-voice-dock[hidden]{display:none!important}
-    .gaemi-voice-top{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 12px 2px}
-    .gaemi-voice-live{font-size:11px;letter-spacing:.12em;font-weight:800;color:#fcd34d}
-    .gaemi-voice-x{border:0;border-radius:100px;background:#343740;color:#fff;width:30px;height:30px;font-size:20px;cursor:pointer}
-    .gaemi-voice-art{display:block;width:100%;height:min(43vh,390px);max-height:390px;object-fit:contain;filter:drop-shadow(0 10px 20px rgba(0,0,0,.24))}
-    .gaemi-voice-floor{position:absolute;bottom:62px;left:10%;right:10%;height:11px;border-radius:50%;background:rgba(0,0,0,.13);filter:blur(9px);pointer-events:none}
-    .gaemi-voice-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px 12px;background:rgba(12,13,18,.58)}
-    .gaemi-voice-state{font-size:12px;color:#e5e7eb;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .gaemi-voice-action{border:1px solid #51535d;border-radius:10px;background:#31343d;color:white;padding:7px 10px;white-space:nowrap;font-size:12px;cursor:pointer}
-    .gaemi-voice-action:hover,.gaemi-voice-x:hover{background:#4b4e5b}
-    @media(max-width:640px){.gaemi-voice-dock{right:12px;bottom:80px;width:min(240px,calc(100vw - 24px))}.gaemi-voice-art{height:min(38vh,320px)}}
+    .gaemi-voice-art{display:block;width:100%;height:auto;max-width:100%;background:transparent!important;filter:drop-shadow(0 8px 12px rgba(0,0,0,.18));pointer-events:none}
+    .gaemi-voice-x{position:absolute;top:6px;right:0;z-index:2;display:flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:transparent;color:#f8fafc;text-shadow:0 1px 5px rgba(0,0,0,.8);font:24px/1 system-ui,sans-serif;cursor:pointer;pointer-events:auto}
+    .gaemi-voice-x:hover,.gaemi-voice-x:focus-visible{background:rgba(0,0,0,.3)}
+    .gaemi-voice-state{position:absolute!important;width:1px!important;height:1px!important;margin:-1px!important;padding:0!important;overflow:hidden!important;clip-path:inset(50%);white-space:nowrap;border:0}
+    @media(max-width:640px){.gaemi-voice-dock{right:12px;bottom:80px;width:min(240px,calc(100vw - 24px))}}
   `;
   const SAMPLE_TEXT = '개미 여러분, 오늘도 돈 되는 이슈만 쏙쏙 골라왔습니다. 바로 시작하시죠.';
   const WIDTH = 1344;
   const HEIGHT = 1808;
   // Crop above the knees in the compact site overlay so the lip motion is visible.
   const CROP = {x:260,y:20,width:825,height:1110};
-  let panel, canvas, ctx, stateEl, sampleButton, avatar;
+  let panel, canvas, ctx, stateEl, avatar;
   let playing = false;
   let mode = 'idle';
   let currentButton = null;
@@ -56,17 +52,14 @@
     panel.className = 'gaemi-voice-dock';
     panel.hidden = true;
     panel.setAttribute('aria-label', '개미 캐릭터 음성 읽기');
-    panel.innerHTML = '<div class="gaemi-voice-top"><span class="gaemi-voice-live">● GAEMI LIVE</span><button type="button" class="gaemi-voice-x" aria-label="음성 읽기 닫기">×</button></div><div class="gaemi-voice-floor"></div><canvas class="gaemi-voice-art" role="img" aria-label="입을 움직이며 말하는 개미 캐릭터"></canvas><div class="gaemi-voice-controls"><span class="gaemi-voice-state" aria-live="polite">준비 중</span><button class="gaemi-voice-action" type="button" data-sample>샘플 목소리</button><button class="gaemi-voice-action" type="button" data-stop>정지</button></div>';
+    panel.innerHTML = '<button type="button" class="gaemi-voice-x" aria-label="음성 읽기 닫기">×</button><canvas class="gaemi-voice-art" role="img" aria-label="입을 움직이며 말하는 개미 캐릭터"></canvas><span class="gaemi-voice-state" aria-live="polite">준비 중</span>';
     document.body.appendChild(panel);
     canvas = panel.querySelector('canvas');
     canvas.width = 540;
     canvas.height = 727;
     ctx = canvas.getContext('2d');
     stateEl = panel.querySelector('.gaemi-voice-state');
-    sampleButton = panel.querySelector('[data-sample]');
     panel.querySelector('.gaemi-voice-x').addEventListener('click', stop);
-    panel.querySelector('[data-stop]').addEventListener('click', stop);
-    sampleButton.addEventListener('click', () => { playSample(); });
     avatar = new Image();
     avatar.onload = () => draw(0);
     avatar.onerror = () => setState('캐릭터 이미지를 불러올 수 없습니다');
