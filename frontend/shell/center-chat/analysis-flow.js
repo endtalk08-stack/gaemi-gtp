@@ -229,8 +229,11 @@
             answer.textContent = verifiedContent || replyText || '미국장 마감시황을 불러오지 못했어.';
           }
           if (!isActive() || !answer.isConnected) return;
+          // Reuse the displayed result for actions: Markdown/table rendering
+          // must not leak raw formatting tokens into copy/share/speech.
+          const visibleReplyText = (answer.innerText || answer.textContent || replyText).trim();
           window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
-            answer, replyText, 'us-market-followup', stockName
+            answer, visibleReplyText, 'us-market-followup', stockName
           );
           answer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         };
