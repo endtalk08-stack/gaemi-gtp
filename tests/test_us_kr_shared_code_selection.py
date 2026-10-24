@@ -99,7 +99,7 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(original, self.rows)
         self.assertEqual(len(original), 5)
 
-    def test_us_code_never_displays_description_when_original_fetch_fails(self):
+    def test_us_without_eligible_kr_fallback_returns_existing_original_error(self):
         row = item(
             "테슬라, 배터리 공급 계약 확대",
             "테슬라는 새로운 공급 계약을 체결했다.",
@@ -145,6 +145,46 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(cited[0]["tags"], expected[0]["tags"])
         self.assertEqual(cited[0]["source_articles"][0]["url"], row["url"])
         self.assertNotIn("네 번째 문장", cited[0]["summary"])
+
+    def test_us_and_kr_same_company_fallback_when_original_not_readable(self):
+        # Real fallback eligibility and priority are shared, not an added US
+        # title/description extractor. The URL/date remain the same source.
+        article = item(
+            "테슬라 신용등급 상향 발표",
+            "테슬라는 신용등급 상향을 발표했다.",
+            url="https://example.org/tesla-credit-upgrade",
+        )
+        options = {
+            "title": article["title"],
+            "description": article["description"],
+            "published_at": article["published_at"],
+            "url": article["url"],
+            "relation_type": "direct",
+            "event_owner": "테슬라",
+            "storyboard_time": "10:00",
+        }
+        def run(market):
+            with patch.object(news_result, "build_simple_today_news", return_value=[options]), \
+                 patch.object(news_result, "select_keyword_storyboard_news", return_value=[]), \
+                 patch.object(news_result, "read_selected_article_details", return_value=[]):
+                return news_result.build_stock_news_result(
+                    "테슬라", market=market, raw_news_list=[article],
+                )
+        domestic = run("국내")
+        america = run("미국")
+        self.assertEqual(domestic["_news_status"], "ok")
+        self.assertEqual(america["_news_status"], "ok")
+        self.assertEqual(len(domestic["issue_briefs"]), 1)
+        self.assertEqual(len(america["issue_briefs"]), 1)
+        kr_brief, us_brief = domestic["issue_briefs"][0], america["issue_briefs"][0]
+        for key in ("headline", "summary", "tags", "stock_names", "time",
+                    "reaction_at", "evidence_source", "material_direction"):
+            self.assertEqual(us_brief.get(key), kr_brief.get(key), key)
+        self.assertEqual(us_brief["evidence_source"], "news_title_description")
+        self.assertEqual(us_brief["summary"], article["description"])
+        self.assertEqual(us_brief["source_articles"][0]["url"], article["url"])
+        self.assertEqual(us_brief["source_articles"][0]["published_at"], article["published_at"])
+        self.assertNotIn("source_articles", kr_brief)
 
 
 if __name__ == "__main__":
