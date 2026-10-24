@@ -109,7 +109,7 @@ async function scenario(answer, interrupt = false) {
   assert.equal(rich.actions.length, 1, 'exactly one completed-reply action set');
   assert.ok(rich.actions[0].includes('굵은 제목'), 'action text preserves visible words');
   assert.ok(rich.actions[0].includes('두 번째 강조 항목'), 'action text preserves list item');
-  assert.ok(!/\\*\\*|^\\s*[-*+]\\s/m.test(rich.actions[0]), 'copy/read do not receive hidden Markdown markers');
+  assert.ok(!/\*\*|^\s*[-*+]\s/m.test(rich.actions[0]), 'copy/read do not receive hidden Markdown markers');
 
   const interrupted = await scenario('계속 타이핑되는 긴 문장입니다.', true);
   assert.equal(interrupted.ok, false);
