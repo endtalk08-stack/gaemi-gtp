@@ -3354,7 +3354,6 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, news_n
             # 현재가 원천만 stock_analysis 결과를 사용한다.
             current_price = price_result["current_price"]
             change_pct = price_result["change_pct"]
-            price_str = price_result["price_text"]
 
         # 2. 미국 주식
         else:
@@ -3392,7 +3391,6 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, news_n
                 volume_profile = None
                 print(f"[미국 주가] {ticker_symbol} 조회 실패 - 가짜 가격 사용 안 함")
 
-            price_str = price_result["price_text"]
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
