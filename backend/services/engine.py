@@ -3161,6 +3161,8 @@ def _stock_intro_ment(raw_name, change_pct):
 
 
 def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_market_override=False, issue_mode='auto'):
+    # Render may only consume disclosure snapshots produced by DigitalOcean.
+    from .disclosure_transfer import read_snapshot
     raw_name = str(raw_name or 'SK하이닉스').strip()
     ticker_symbol = ticker_symbol_override or TICKERS.get(raw_name)
     clean_code = None
@@ -3237,22 +3239,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
             news_result = _attach_news_price_reactions(news_result)
             _trace_stage("news done", stage_started)
 
-            stage_started = time.monotonic()
-            print(f"[analyze trace] stock={raw_name} stage=dart start", flush=True)
-            try:
-                kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=1, max_results=0)
-                from .disclosure_transfer import one_day_filings
-                kr_official_disclosures = one_day_filings(kr_official_disclosures, "KR")
-                # DART 임원·주요주주 상세(elestock)도 외부 API 호출이라 지연 시
-                # /analyze 전체 worker를 막을 수 있다. 핵심 응답에서는 공시 목록을
-                # 우선 반환하고 상세 조회는 공시 전용 경로에서 처리한다.
-                # DART 원문 document.xml 전체 파싱은 큰 공시에서 Gunicorn worker를
-                # 장시간 점유할 수 있다. /analyze 핵심 응답에서는 원문 상세를 동기
-                # 파싱하지 않고 목록/구조화 공시 결과를 우선 반환한다.
-            except Exception as e:
-                print(f"[국내 공시] fail: {type(e).__name__}: {e}")
-                kr_official_disclosures = []
-            _trace_stage("dart done", stage_started)
+            kr_official_disclosures = read_snapshot("KR", clean_code) or []
 
             stage_started = time.monotonic()
             print(f"[analyze trace] stock={raw_name} stage=volume_profile start", flush=True)
@@ -3262,9 +3249,6 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
                 print(f"[매물대] fail: {type(e).__name__}: {e}")
                 volume_profile = None
             _trace_stage("volume_profile done", stage_started)
-
-            kr_official_disclosures_block = format_kr_official_disclosures(clean_code, kr_official_disclosures)
-            official_filings_block = ""
 
             # 현재가 원천만 stock_analysis 결과를 사용한다.
             current_price = price_result["current_price"]
@@ -3293,16 +3277,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
             )
             news_result = _attach_news_price_reactions(news_result)
 
-            try:
-                us_filings_raw = fetch_us_official_filings(ticker_symbol, days=1, max_results=30, complete_window=True)
-                from .disclosure_transfer import one_day_filings
-                us_filings_raw = one_day_filings(us_filings_raw, "US")
-            except Exception as e:
-                print(f"[미국 공시] fail: {type(e).__name__}: {e}")
-                us_filings_raw = []
-
-            official_filings_block = format_us_official_filings(ticker_symbol, us_filings_raw)
-            kr_official_disclosures_block = ""
+            us_filings_raw = read_snapshot("US", ticker_symbol) or []
 
             current_price = price_result["current_price"]
             change_pct = price_result["change_pct"]
