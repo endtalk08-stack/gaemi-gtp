@@ -30,6 +30,28 @@ from .verified_fact_headline import attach_verified_source_citations
 from .news_feed import fetch_stock_news, select_stock_news_for_analysis
 
 
+def _us_dated_code_fallback(briefs, articles, stock_name, *, limit=3):
+    """Reuse existing factual title extraction only if KR-style CODE sources are absent.
+
+    The common domestic ranking, issue titles and full-body brief always win.
+    Candidate articles are already from the 24-hour stock feed. The existing
+    extractor accepts only a company-named dated event with its real URL;
+    it cannot invent a source, call an AI model or infer a price catalyst.
+    """
+    if any(isinstance(brief, dict) and brief.get("source_articles")
+           for brief in (briefs or [])):
+        return briefs
+    from .article_fact_keywords import build_article_fact_briefs
+    candidates = build_article_fact_briefs(
+        articles, stock_name, limit=limit,
+    )
+    verified = [
+        item for item in candidates
+        if isinstance(item, dict) and item.get("source_articles")
+    ]
+    return verified or briefs
+
+
 def _empty_news_result():
     return {
         "paired_news_items": [],
@@ -736,6 +758,12 @@ def build_stock_news_result(
                 issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
                 fallback_source=fallback_source,
             )
+            # The shared KR CODE path stays primary. If no issue has a real
+            # same-stock source, fall back to the *existing* article title
+            # facts extractor for US only; no AI or extra news collection.
+            issue_briefs = _us_dated_code_fallback(
+                issue_briefs, paired_news_items, stock_name, limit=storyboard_limit,
+            )
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
@@ -784,7 +812,7 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 1 if market in ("미국", "US") else None,
+            "_code_source_revision": 2 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
