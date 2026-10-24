@@ -59,10 +59,10 @@ def _us_source_first_three_sentences(excerpt):
 def _us_remove_leading_image_caption(full_text):
     """Trim recognisable image-viewer furniture, never rewrite source prose."""
     text = str(full_text or "")
-    marker = re.search(r"이미지\\s*확대보기", text[:850])
+    marker = re.search(r"이미지\s*확대보기", text[:850])
     if marker:
         after = text[marker.end():]
-        credit = re.search(r"사진\\s*=\\s*[^\\s.]{2,45}\\s+", after[:250])
+        credit = re.search(r"사진\s*=\s*[^\s.]{2,45}\s+", after[:250])
         if credit:
             body = after[credit.end():].strip()
             if len(body) >= 80:
@@ -78,12 +78,12 @@ def _us_verified_company_is_article_actor(article, excerpt, stock_name):
     Do not suppress market-wide policies where no separate named issuer exists.
     """
     headline = str(article.get("title") or "").strip()
-    title_actor = re.match(r"^([^,，:：]{2,65})[,，:：]\\s*", headline)
+    title_actor = re.match(r"^([^,，:：]{2,65})[,，:：]\s*", headline)
     if not title_actor:
         return True
-    first = re.split(r"(?<=[.!?])\\s+", str(excerpt or ""), maxsplit=1)[0][:240]
+    first = re.split(r"(?<=[.!?])\s+", str(excerpt or ""), maxsplit=1)[0][:240]
     original_actor = re.search(
-        r"(?:기업|회사|업체|그룹)\\s+([가-힣A-Za-z0-9·-]{2,45})(?:이|가|은|는)(?=\\s)",
+        r"(?:기업|회사|업체|그룹)\s+([가-힣A-Za-z0-9·-]{2,45})(?:이|가|은|는)(?=\s)",
         first,
     )
     if not original_actor:
