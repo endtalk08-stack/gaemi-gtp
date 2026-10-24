@@ -76,7 +76,7 @@ def read_recent_saved_us_quote(symbol, *, max_age_seconds=72 * 3600):
     from datetime import datetime, timezone
 
     code = str(symbol or "").strip().upper()
-    if not re.fullmatch(r"[A-Z0-9.\\-]{1,20}", code):
+    if not re.fullmatch(r"[A-Z0-9.-]{1,20}", code):
         return None
     rows = read_us_trading_value_board(limit=20)
     for row in rows or ():
