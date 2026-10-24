@@ -20,12 +20,15 @@ class MarketSelectionContextTests(unittest.TestCase):
             "changeRate": "+2.50", "tradingValue": "3600000000",
             "sectorName": "반도체"
         }}]}
+        kiwoom_saved = [{"rank": 1, "name": "엔비디아", "symbol": "NVDA",
+                         "analysis_symbol": "NVDA", "industry": "반도체",
+                         "price": 210.96, "change_pct": -0.59}]
         with (
             patch.object(rankings, "get_stock_industries", return_value={}) as industry,
             patch.object(rankings, "fetch_kr_popular_ranking_raw", return_value=kr) as kr_pop,
             patch.object(rankings, "fetch_kr_trading_value_ranking_raw", return_value=kr) as kr_val,
             patch.object(rankings, "fetch_us_popular_ranking_raw", return_value=us) as us_pop,
-            patch.object(rankings, "fetch_us_trading_value_ranking_raw", return_value=us) as us_val,
+            patch.object(rankings, "_read_kiwoom_us_value_rows", return_value=kiwoom_saved) as us_val,
         ):
             kr_popular = rankings.build_kr_popular_result()
             kr_value = rankings.build_kr_trading_value_result()
@@ -33,7 +36,7 @@ class MarketSelectionContextTests(unittest.TestCase):
             us_value = rankings.build_us_trading_value_result()
             for menu in ("popular", "value"):
                 selected_kr = rankings.get_market_selection("kr", menu, "005930", stock="삼성전자")
-                selected_us = rankings.get_market_selection("us", menu, "NVDA.O", stock="엔비디아")
+                selected_us = rankings.get_market_selection("us", menu, "NVDA" if menu == "value" else "NVDA.O", stock="엔비디아")
                 self.assertEqual(selected_kr["industry"], None)
                 self.assertEqual(selected_kr["trading_value"], 5916362000000.0)
                 self.assertEqual(selected_us["industry"], "반도체")
@@ -43,7 +46,7 @@ class MarketSelectionContextTests(unittest.TestCase):
                 self.assertEqual(selected_us["currency"], "USD")
         for provider in (kr_pop, kr_val, us_pop, us_val):
             provider.assert_called_once()
-        self.assertEqual(industry.call_count, 4)
+        self.assertEqual(industry.call_count, 3)
         self.assertEqual(kr_popular[0]["name"], kr_value[0]["name"])
         self.assertEqual(us_popular[0]["name"], us_value[0]["name"])
 
