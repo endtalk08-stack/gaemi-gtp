@@ -977,6 +977,28 @@ def grounded_issue_display_title(brief):
     # If a clearly reported direction is absent, retain the original topic.
     return original
 
+
+def _source_fact_headline(item, excerpt, fallback):
+    """Prefer a concrete verified-article headline to a broad category label.
+
+    Only central display text changes; body, classification and selection stay.
+    """
+    title = strip_leading_news_credit(str(item.get("title") or "").strip())
+    title = re.sub(r"^(?:\[(?:속보|단독|종합|영상|포토)\]\s*)+", "", title)
+    title = re.sub(r"\s+", " ", title).strip(" -|·.!?\"“”‘’")
+    if not 10 <= len(title) <= 120:
+        return fallback
+
+    # Require an identifying term shared with the verified article excerpt.
+    words = [
+        word for word in re.findall(r"[가-힣A-Za-z0-9]{3,}", title)
+        if word not in {"관련", "이번", "오늘", "최신", "시장", "기업", "이슈", "뉴스"}
+    ]
+    if not words or not any(word.casefold() in excerpt.casefold() for word in words):
+        return fallback
+    return title
+
+
 def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
     """Return display-only issue briefs without publisher title/description fields."""
     briefs = []
@@ -1034,6 +1056,7 @@ def build_issue_briefs(items, stock_name, limit=3, body_texts=None):
         # Do not modify the summary, selected article, ownership or reaction data.
         if body_texts is not None:
             display_headline, display_tags = _content_driven_title_and_tags(article_summary)
+            display_headline = _source_fact_headline(item, article_summary, display_headline)
 
         briefs.append({
             "time": str(item.get("storyboard_time") or "").strip(),
