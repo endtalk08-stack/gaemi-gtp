@@ -590,10 +590,9 @@ def build_stock_news_result(
                          source=detail.get("source"), body_chars=len(detail.get("text") or ""))
                     continue
                 verified_body_count += 1
-                original_text = (
-                    _us_remove_leading_image_caption(detail.get("text") or "")
-                    if market in ("미국", "US", "us") else detail.get("text") or ""
-                )
+                # Shared domestic/US event selection reads exactly the same
+                # article content. Display-only cleanup happens after selecting.
+                original_text = detail.get("text") or ""
                 excerpt = _article_excerpt(original_text)
                 if not excerpt:
                     diag("rejected_after_body", article, reason="empty_excerpt",
@@ -602,11 +601,6 @@ def build_stock_news_result(
                 if not _central_direct_article(article, excerpt, stock_name):
                     diag("rejected_after_body", article, reason="stock_not_direct_in_opening",
                          body_cpi=has_cpi({"description": excerpt}))
-                    continue
-                if market in ("미국", "US", "us") and not _us_verified_company_is_article_actor(
-                    article, excerpt, stock_name,
-                ):
-                    diag("rejected_after_body", article, reason="other_company_is_business_actor")
                     continue
                 # Only a grounded business/market event belongs in the central
                 # notable-news strip. Quote-only reports stay in the shared feed.
@@ -814,17 +808,15 @@ def build_stock_news_result(
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
 
-        # KR and US share the same issue candidate selection. US CODE summaries
-        # must ALWAYS consist of up to three sentences from a verified article
-        # body. A URL + publisher description does NOT constitute original text.
+        # KR and US produce the same selected issues above. Only US CODE
+        # presentation differs: keep the selected title/tags even when the
+        # article's actual body cannot be displayed. Never substitute a meta
+        # description for the original three sentences.
         if market in ("미국", "US", "us"):
             issue_briefs = attach_verified_source_citations(
                 issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
             )
             if fallback_source is not None and issue_briefs:
-                # The KR fallback selects an event from title/description, but
-                # US output must fetch THAT same article's original body first.
-                # Never attach a source URL to a description and call it original.
                 from datetime import datetime
                 source_url = str(fallback_source.get("url") or fallback_source.get("link") or "").strip()
                 published_at = str(fallback_source.get("published_at") or "").strip()
@@ -833,6 +825,7 @@ def build_stock_news_result(
                     dated = stamp.utcoffset() is not None
                 except (ValueError, TypeError, OverflowError):
                     dated = False
+                original = {}
                 if source_url.startswith(("https://", "http://")) and dated:
                     try:
                         original_details = read_selected_article_details(
@@ -841,36 +834,36 @@ def build_stock_news_result(
                     except Exception:
                         original_details = []
                     original = original_details[0] if original_details else {}
-                    original_source = str(original.get("source") or "")
-                    original_text = _us_remove_leading_image_caption(original.get("text") or "")
-                    excerpt = _article_excerpt(original_text)
-                    if (
-                        original_source in {"jsonld_article_body", "article_or_main_paragraphs"}
-                        and excerpt
-                        and _central_direct_article(fallback_source, excerpt, stock_name)
-                        and _us_verified_company_is_article_actor(fallback_source, excerpt, stock_name)
-                        and central_material_brief_supported(excerpt)
-                    ):
-                        issue_briefs[0]["summary"] = _us_source_first_three_sentences(excerpt)
-                        issue_briefs[0]["evidence_source"] = "verified_article_body_title_only"
-                        issue_briefs[0]["source_articles"] = [{
-                            "url": source_url,
-                            "title": str(fallback_source.get("title") or ""),
-                            "published_at": published_at,
-                        }]
-                    else:
-                        # Original inaccessible / not about the stock: cannot
-                        # display the publisher's description as 3 source sentences.
-                        issue_briefs = []
+                original_source = str(original.get("source") or "")
+                original_text = _us_remove_leading_image_caption(original.get("text") or "")
+                excerpt = _article_excerpt(original_text)
+                if original_source in {"jsonld_article_body", "article_or_main_paragraphs"} and excerpt:
+                    issue_briefs[0]["summary"] = _us_source_first_three_sentences(excerpt)
+                    issue_briefs[0]["evidence_source"] = "verified_article_body_title_only"
                 else:
-                    issue_briefs = []
-            # A verified body may include an HTML-like media credit starting
-            # with '<', which the shared KR splitter treats as one sentence.
-            # Keep all US verified CODE summaries to exactly <=3 originals.
+                    issue_briefs[0]["summary"] = "원문 확인 불가"
+                    issue_briefs[0]["evidence_source"] = "original_unavailable"
+                if source_url.startswith(("https://", "http://")) and dated:
+                    issue_briefs[0]["source_articles"] = [{
+                        "url": source_url,
+                        "title": str(fallback_source.get("title") or ""),
+                        "published_at": published_at,
+                    }]
+                else:
+                    issue_briefs[0]["source_articles"] = []
+
+            # Display only: exact original sentences where readable; keep
+            # issue selection unchanged even if the article body is unusable.
             for brief in issue_briefs:
-                if (isinstance(brief, dict)
-                        and brief.get("evidence_source") == "verified_article_body_title_only"):
-                    brief["summary"] = _us_source_first_three_sentences(brief.get("summary"))
+                if not isinstance(brief, dict):
+                    continue
+                if brief.get("evidence_source") == "verified_article_body_title_only":
+                    excerpt = _article_excerpt(_us_remove_leading_image_caption(brief.get("summary")))
+                    if excerpt:
+                        brief["summary"] = _us_source_first_three_sentences(excerpt)
+                    else:
+                        brief["summary"] = "원문 확인 불가"
+                        brief["evidence_source"] = "original_unavailable"
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
@@ -926,7 +919,7 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 9 if market in ("미국", "US") else None,
+            "_code_source_revision": 10 if market in ("미국", "US") else None,
             "_code_original_unavailable": original_body_unavailable if market in ("미국", "US", "us") else None,
             "_news_status": "ok",
         }
