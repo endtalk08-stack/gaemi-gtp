@@ -64,19 +64,22 @@ class MarketTradingValueTests(unittest.TestCase):
         self.assertIsNone(rows[0]["change_pct"])
         self.assertIsNone(rows[0]["trading_value"])
 
-    def test_us_trading_value_normalizes_usd_without_estimates(self):
-        raw = {"items": [
-            {"itemCode": "NVDA.O", "stockName": "NVIDIA",
-             "price": "140.25", "fluctuationsRatio": "1.23",
-             "tradingValue": "1230000000"},
-            {"itemCode": "AAPL.O", "stockName": "Apple", "tradingVolume": 500},
-        ]}
-        with patch.object(market_rankings, "fetch_us_trading_value_ranking_raw", return_value=raw):
+    def test_us_trading_value_uses_existing_kiwoom_neon_rows(self):
+        snapshot = [{"rank": 1, "symbol": "NVDA", "analysis_symbol": "NVDA",
+                     "name": "엔비디아", "price": 210.96, "change_pct": -0.59,
+                     "trading_value": 12194332000.0, "industry": "반도체"}]
+        with patch.object(market_rankings, "_read_kiwoom_us_value_rows", return_value=snapshot) as source, patch.object(
+            market_rankings, "fetch_us_trading_value_ranking_raw", side_effect=AssertionError("Render must not scrape")
+        ):
             rows = market_rankings.build_us_trading_value_result()
-        self.assertEqual(rows[0]["symbol"], "NVDA.O")
-        self.assertEqual(rows[0]["price"], 140.25)
-        self.assertEqual(rows[0]["trading_value"], 1230000000)
-        self.assertIsNone(rows[1]["trading_value"])
+        source.assert_called_once_with()
+        self.assertEqual(rows[0]["symbol"], "NVDA")
+        self.assertEqual(rows[0]["price"], 210.96)
+        self.assertEqual(rows[0]["change_pct"], -0.59)
+        self.assertEqual(rows[0]["trading_value"], 12194332000.0)
+        self.assertEqual(market_rankings.get_market_selection("us", "value", "NVDA")["price"], 210.96)
+        with patch.object(market_rankings, "_read_kiwoom_us_value_rows", return_value=None):
+            self.assertIsNone(market_rankings.build_us_trading_value_result())
 
     def test_us_trading_value_uses_cached_market_ranking(self):
         market_price.MARKET_RANKING_CACHE.clear()
@@ -195,16 +198,17 @@ class MarketTradingValueTests(unittest.TestCase):
         self.assertEqual(items[0]["industry"], "전기·전자")
         self.assertIsNone(items[1]["industry"])
 
-    def test_us_value_industry_reads_source_price_sector(self):
-        raw = {"items": [
-            {"itemCode": "NVDA.O", "stockName": "NVIDIA",
-             "price": {"currentPrice": "180.00", "sectorName": "반도체"}},
-            {"itemCode": "AAPL.O", "stockName": "Apple",
-             "sectorName": "기술", "price": "210.00"},
-        ]}
-        with patch.object(market_rankings, "fetch_us_trading_value_ranking_raw", return_value=raw) as fetch:
+    def test_us_value_industry_is_from_kiwoom_neon_snapshot(self):
+        saved = [
+            {"rank": 1, "symbol": "NVDA", "name": "엔비디아",
+             "price": 180.0, "change_pct": 1.0, "industry": "반도체"},
+            {"rank": 2, "symbol": "AAPL", "name": "애플",
+             "price": 210.0, "change_pct": -0.5, "industry": "기술"},
+        ]
+        with patch.object(market_rankings, "_read_kiwoom_us_value_rows", return_value=saved), patch.object(
+            market_rankings, "get_stock_industries", side_effect=AssertionError("no lookups")
+        ):
             items = market_rankings.build_us_trading_value_result()
-        fetch.assert_called_once_with(limit=20)
         self.assertEqual([item["industry"] for item in items], ["반도체", "기술"])
 
     def test_us_popular_industry_matches_observed_naver_response(self):
