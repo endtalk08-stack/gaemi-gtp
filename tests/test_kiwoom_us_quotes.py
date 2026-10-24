@@ -125,11 +125,17 @@ class KiwoomReadOnlyTests(unittest.TestCase):
         with patch.object(kiwoom.requests, "post", return_value=FakeResponse({
             "return_code": 0, "cur_prc": "220.02", "flu_rt": "+1.64",
             "base_close_pric": "216.47",
+            "open_pric": "217.50", "high_pric": "225.00", "low_pric": "215.00",
         })):
             quote = kiwoom.fetch_us_quote("NVDA", "ND", token="MOCK_TOKEN")
         self.assertEqual(quote["current"], 220.02)
         self.assertEqual(quote["change_pct"], 1.64)
         self.assertEqual(quote["previous_close"], 216.47)
+        self.assertEqual(quote["open"], 217.5)
+        self.assertEqual(quote["high"], 225.0)
+        self.assertEqual(quote["low"], 215.0)
+        self.assertAlmostEqual((quote["current"] - quote["high"]) / quote["high"] * 100, -2.2133333, places=4)
+        self.assertAlmostEqual((quote["current"] - quote["low"]) / quote["low"] * 100, 2.33488372, places=4)
         self.assertFalse(quote["official_close"])
 
     def test_negative_signed_quote_is_positive_price_not_invalid(self):
