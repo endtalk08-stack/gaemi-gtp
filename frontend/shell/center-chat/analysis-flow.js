@@ -666,8 +666,11 @@
         const previewController = ctx.getAnalysisController();
         const progress = document.createElement('div');
         progress.className = 'gtp-chat-copy animate-pulse';
-        progress.textContent = '기업 소개를 불러오는 중입니다';
+        progress.textContent = '조회중입니다...';
         chatArea.appendChild(progress);
+        // Keep the requested five-second lookup cue, without waiting twice
+        // when the database response itself takes time.
+        const minimumLoading = new Promise(resolve => setTimeout(resolve, 5000));
         let intro = null;
         let errorMessage = '';
         try {
@@ -677,6 +680,7 @@
           if (!response.ok) throw new Error('company_intro_unavailable');
           intro = await response.json();
           if (intro?.ok !== true || intro.symbol !== 'MU') throw new Error('company_intro_invalid');
+          await minimumLoading;
         } catch (error) {
           if (error?.name !== 'AbortError') errorMessage = '기업 소개를 불러오지 못했어요. 기존 저장 데이터를 확인해 주세요.';
         } finally {
@@ -691,7 +695,11 @@
         const row = ctx.appendChatMessage('assistant', narrative, 'answer', session.id);
         if (!row) return;
         if (intro) {
-          renderer.render(row, intro);
+          const completed = await renderer.renderTyped(row, intro, () =>
+            requestId === ctx.getActiveAnalysisRequestId() &&
+            ctx.getSession()?.id === session.id && row.isConnected
+          );
+          if (!completed) return;
           const visible = (row.innerText || narrative).trim();
           window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(row, visible, 'first', stockName);
           window.GaemiGTPApp?.linkRecentConversation?.('stock', stockName);
