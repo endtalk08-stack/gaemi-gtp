@@ -7,10 +7,12 @@ The module is not imported by existing news/price workers unless explicitly requ
 import datetime as dt
 import os
 import re
+import time
 import requests
 
 API_ORIGIN = "https://api.kiwoom.com"
 QUOTES_PATH = "/api/us/mrkcond"
+CHART_PATH = "/api/us/chart"
 SUPPORTED_EXCHANGES = {"NA", "ND", "NY"}
 ALLOWED_TR = {"usa20100", "usa20590"}
 US_INDEX_SYMBOLS = {"DJI", "IXIC", "INX", "NDX"}
@@ -25,11 +27,14 @@ def credentials_configured():
                 and os.environ.get("GAEMI_KIWOOM_APP_SECRET", "").strip())
 
 
-def _request(path, body, headers=None):
+def _request(path, body, headers=None, *, with_continuation=False):
     """Official requests POST(json=...). Never send undocumented market requests."""
     if path == QUOTES_PATH:
         api_id = (headers or {}).get("api-id")
         _validate_stock_request(api_id, body)
+    elif path == CHART_PATH:
+        api_id = (headers or {}).get("api-id")
+        _validate_chart_request(api_id, body)
     elif path != "/oauth2/token":
         raise KiwoomReadOnlyError("kiwoom_unsupported_api_path")
     try:
@@ -119,7 +124,7 @@ def _request(path, body, headers=None):
         # Keep only the numeric server code; never log return_msg or payload.
         safe_code = code if re.fullmatch(r"-?[0-9]{1,6}", code) else "unknown"
         raise KiwoomReadOnlyError("kiwoom_api_rejected_code_" + safe_code)
-    return result
+    return (result, response.headers) if with_continuation else result
 
 
 def issue_access_token():
@@ -250,4 +255,92 @@ def fetch_us_quote(symbol, exchange, *, token=None):
         "previous_close": _price(data.get("base_close_pric")),
         "source": "kiwoom:usa20100",
         "official_close": False,
+    }
+
+
+
+def _validate_chart_request(api_id, body):
+    """Allow only the official US daily-candle chart. Never allow trading."""
+    if api_id != "usa06012":
+        raise KiwoomReadOnlyError("kiwoom_non_readonly_api_disallowed")
+    if not isinstance(body, dict):
+        raise KiwoomReadOnlyError("kiwoom_chart_request_invalid")
+    _clean_symbol(body.get("stk_cd"), body.get("stex_tp"))
+    if not isinstance(body.get("strt_dt"), str) or not re.fullmatch(r"[0-9]{8}", body["strt_dt"]):
+        raise KiwoomReadOnlyError("kiwoom_chart_date_invalid")
+    if body.get("upd_stkpc_tp") not in ("0", "1") or body.get("exrt_appl_tp") not in ("0", "1"):
+        raise KiwoomReadOnlyError("kiwoom_chart_options_invalid")
+
+
+def fetch_us_daily_chart(symbol, exchange, start_date, *, token=None, max_pages=10):
+    """Read official Kiwoom usa06012 OHLCV history; oldest-to-newest.
+
+    Single-source only: never call Yahoo/Alpaca/Naver, never write to storage.
+    A caller must check there are enough sessions for its indicators.
+    """
+    symbol, exchange = _clean_symbol(symbol, exchange)
+    if type(start_date) is not dt.date:
+        raise ValueError("invalid_chart_start_date")
+    if type(max_pages) is not int or not 1 <= max_pages <= 10:
+        raise ValueError("invalid_chart_page_limit")
+    request = {
+        "stex_tp": exchange,
+        "stk_cd": symbol,
+        "strt_dt": start_date.strftime("%Y%m%d"),
+        "upd_stkpc_tp": "1",
+        "exrt_appl_tp": "0",
+    }
+    access_token = token or issue_access_token()
+    rows_by_date = {}
+    cont_yn, next_key = None, None
+    for page in range(max_pages):
+        headers = {
+            "authorization": "Bearer " + access_token,
+            "api-id": "usa06012",
+        }
+        if cont_yn == "Y":
+            if not next_key:
+                raise KiwoomReadOnlyError("kiwoom_chart_continuation_missing")
+            headers.update({"cont-yn": "Y", "next-key": next_key})
+        data, response_headers = _request(
+            CHART_PATH, request, headers, with_continuation=True
+        )
+        records = data.get("result_list")
+        if not isinstance(records, list):
+            raise KiwoomReadOnlyError("kiwoom_chart_records_missing")
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            raw_date = str(record.get("dt") or "").replace("-", "")
+            if not re.fullmatch(r"[0-9]{8}", raw_date):
+                continue
+            try:
+                day = dt.datetime.strptime(raw_date, "%Y%m%d").date()
+            except ValueError:
+                continue
+            if day < start_date:
+                continue
+            opening = _price(record.get("open_pric"))
+            high = _price(record.get("high_pric"))
+            low = _price(record.get("low_pric"))
+            close = _price(record.get("cur_prc"))
+            volume = _num(record.get("acc_trde_qty"))
+            if None in (opening, high, low, close) or not low <= min(opening, close) <= max(opening, close) <= high:
+                continue
+            rows_by_date[day.isoformat()] = {
+                "date": day.isoformat(), "open": opening, "high": high,
+                "low": low, "close": close,
+                "volume": volume if volume is not None and volume >= 0 else None,
+            }
+        cont_yn = str(response_headers.get("cont-yn") or "").upper()
+        next_key = str(response_headers.get("next-key") or "")
+        if cont_yn != "Y":
+            break
+        if page + 1 >= max_pages:
+            raise KiwoomReadOnlyError("kiwoom_chart_page_limit_reached")
+        time.sleep(0.4)
+    return {
+        "ticker": symbol, "exchange": exchange,
+        "rows": [rows_by_date[day] for day in sorted(rows_by_date)],
+        "source": "kiwoom:usa06012",
     }
