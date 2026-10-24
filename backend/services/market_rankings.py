@@ -261,7 +261,7 @@ def _read_kiwoom_us_value_rows():
                 cur.execute("""
                     SELECT e.rank, e.symbol, e.display_name,
                            e.price, e.change_rate, e.trading_value, e.volume,
-                           i.sector
+                           i.sector, i.company_key, i.news_name, i.identity_status
                       FROM public.market_rank_entries e
                       JOIN public.market_instruments i
                         ON i.market=e.market AND i.symbol=e.symbol
@@ -281,7 +281,7 @@ def _read_kiwoom_us_value_rows():
     if len(records) != 20 or [int(row[0]) for row in records] != list(range(1, 21)):
         return None
     items = []
-    for rank, symbol, name, price, change, amount, volume, sector in records:
+    for rank, symbol, name, price, change, amount, volume, sector, company_key, news_name, status in records:
         stock_price = _number(price)
         pct = _number(change)
         if not symbol or not name or stock_price is None or stock_price <= 0 or pct is None:
@@ -289,6 +289,10 @@ def _read_kiwoom_us_value_rows():
         items.append({
             "rank": int(rank), "name": str(name), "symbol": str(symbol),
             "analysis_symbol": str(symbol), "industry": str(sector) if sector else None,
+            # Keep the worker-registered identity; only verified keys may bind news.
+            "company_key": str(company_key) if company_key else None,
+            "news_name": str(news_name) if news_name else None,
+            "identity_status": str(status) if status else None,
             "price": stock_price, "change_pct": pct,
             "trading_value": _number(amount),
             "trading_value_text": None, "volume": int(volume) if volume is not None else None,
