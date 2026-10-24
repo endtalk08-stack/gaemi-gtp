@@ -143,7 +143,8 @@ def _new_story(body: str) -> tuple[str, list[str], list[str]]:
         activities = [label for pattern, label in uses if re.search(pattern, full)]
         if activities:
             paragraphs.append("기사에서 제시한 활용 분야는 " + "·".join(activities) + " 등이다.")
-            evidence += activities
+            evidence += [matched.group(0) for pattern, _ in uses
+                         if (matched := re.search(pattern, full))]
         if re.search(r"복수\s*차량|여러\s*대|다수", full) and "행사" in full:
             paragraphs.append("여러 대의 차량을 활용한 행사 운영도 사업 계획에 포함됐다.")
             evidence.append("행사")
