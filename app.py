@@ -85,7 +85,10 @@ def market_trading_value():
         return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
     issue_rows = [{"name": item.get("name"), "symbol": item.get("symbol")} for item in items]
     try:
-        issue_results = get_market_issue_headlines(market, issue_rows)["items"]
+        issue_results = get_market_issue_headlines(
+            market, items if market == "us" else issue_rows,
+            trusted_kiwoom_identity=(market == "us"),
+        )["items"]
         for item, issue in zip(items, issue_results):
             item["issue_headline"] = issue["headline"]
     except (ValueError, Exception) as exc:
@@ -139,7 +142,18 @@ def analyze():
             request.args.get("symbol"), stock=stock,
         )
         ticker = analysis_ticker_for_selection(selected)
-        result = analyze_stock(stock, ticker_symbol_override=ticker) if ticker else analyze_stock(stock)
+        # Bind only the verified worker-registered Neon identity to US news.
+        verified_news_name = (
+            str(selected.get("news_name") or "").strip()
+            if selected and selected.get("market") == "us"
+            and selected.get("identity_status") == "verified"
+            and str(selected.get("company_key") or "").startswith("US:")
+            else None
+        )
+        result = (
+            analyze_stock(stock, ticker_symbol_override=ticker, news_name_override=verified_news_name)
+            if ticker else analyze_stock(stock)
+        )
         remember_chat_analysis(stock, result, selection=selected)
         response = jsonify(result)
         response.headers["X-Analysis-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.0f}"
