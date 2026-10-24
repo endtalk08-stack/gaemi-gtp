@@ -3296,8 +3296,14 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
 
             price_str = price_result["price_text"]
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
+        # A saved Neon snapshot is LAST KNOWN, not a real-time Kiwoom tick.
+        saved_us_quote = (not is_krw and
+                          price_result.get("quote_source") == "kiwoom-neon-snapshot")
         # Missing/stale Kiwoom FE ticks must never become a fake 0% quote.
-        if not is_krw and current_price <= 0:
+        if saved_us_quote:
+            status_emoji, title_word = '🕒', '마지막 시세는'
+            intro_ment = f"{raw_name} 실시간 수신이 끊겨 마지막 저장 시세로 보여줄게 (실시간 아님)"
+        elif not is_krw and current_price <= 0:
             status_emoji, title_word = '⚖️', '시세가 없을까'
             intro_ment = f"{raw_name} 키움 실시간 시세를 확인하지 못했어"
         elif change_pct >= 5.0:
@@ -3327,7 +3333,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
 
         first_content_parts = [
             intro_ment,
-            (f"현재 주가는 {price_str} 기록 중!" if current_price > 0
+            (f"마지막 저장 가격 {price_str} (실시간 아님)" if saved_us_quote
+             else f"현재 주가는 {price_str} 기록 중!" if current_price > 0
              else "현재 키움 실시간 시세 수신 대기 중" if not is_krw
              else "현재 시세를 확인하지 못했어"),
         ]
@@ -3342,7 +3349,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
                 "title": f"{status_emoji} 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
                 "tags": ([f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
-                         if current_price > 0 else [f"#{raw_name}"])
+                         if current_price > 0 and not saved_us_quote
+                         else [f"#{raw_name}"])
             }
         ]
 
