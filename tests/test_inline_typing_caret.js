@@ -31,7 +31,7 @@ class Element {
   get innerText() {
     return this._text + this.children.map((child) => {
       const text = child.innerText;
-      return ['p', 'div', 'li'].includes(child.tagName) ? text + '\\n' : text;
+      return ['p', 'div', 'li'].includes(child.tagName) ? text + '\n' : text;
     }).join('');
   }
   appendChild(child) {
