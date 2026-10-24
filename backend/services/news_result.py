@@ -663,10 +663,12 @@ def build_stock_news_result(
             market=market,
         )
 
+        fallback_source = None  # Same KR fallback events; US only adds the event article's citation.
         # Original verified company items always win; the new classification
         # is a strictly secondary fallback for source-grounded severe events.
-        if market not in ("미국", "US", "us") and not issue_briefs and company_critical_candidates:
+        if not issue_briefs and company_critical_candidates:
             source, headline, tags, direction, _ = company_critical_candidates[0]
+            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -680,8 +682,9 @@ def build_stock_news_result(
             diag("company_critical_fallback_selected", source, critical_tags=tags)
 
         # Only if original verified and critical issues are empty.
-        if market not in ("미국", "US", "us") and not issue_briefs and business_material_candidates:
+        if not issue_briefs and business_material_candidates:
             source, headline, tags, direction, _ = business_material_candidates[0]
+            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -695,8 +698,9 @@ def build_stock_news_result(
             diag("business_material_fallback_selected", source, business_tags=tags)
 
         # Then keep the existing market material fallback unchanged.
-        if market not in ("미국", "US", "us") and not issue_briefs and market_material_candidates:
+        if not issue_briefs and market_material_candidates:
             source, headline, tags, _, _ = market_material_candidates[0]
+            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -709,8 +713,9 @@ def build_stock_news_result(
             diag("market_material_fallback_selected", source, material_tags=tags)
 
         # Last fallback: explicit stock-level supply/demand disclosures.
-        if market not in ("미국", "US", "us") and not issue_briefs and flow_material_candidates:
+        if not issue_briefs and flow_material_candidates:
             source, headline, tags, direction, _ = flow_material_candidates[0]
+            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -723,18 +728,28 @@ def build_stock_news_result(
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
 
-        # KR and US share ONE original article/keyword title generator above.
-        # US only attaches source metadata required by Render's freshness guard.
-        # No second title extraction, title overwrite or article reselection.
+        # KR and US use the very same original-body and four fallback paths.
+        # US adds only article source metadata for Render's existing 24h check.
+        # Neither market reselects news or invents a fallback summary here.
         if market in ("미국", "US"):
-            issue_briefs = [
-                brief for brief in attach_verified_source_citations(
-                    issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
-                )
-                if isinstance(brief, dict)
-                and brief.get("evidence_source") == "verified_article_body_title_only"
-                and brief.get("source_articles")
-            ]
+            issue_briefs = attach_verified_source_citations(
+                issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
+            )
+            if fallback_source is not None and issue_briefs:
+                from datetime import datetime
+                source_url = str(fallback_source.get("url") or fallback_source.get("link") or "").strip()
+                published_at = str(fallback_source.get("published_at") or "").strip()
+                try:
+                    stamp = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+                    dated = stamp.utcoffset() is not None
+                except (ValueError, TypeError, OverflowError):
+                    dated = False
+                if source_url.startswith(("https://", "http://")) and dated:
+                    issue_briefs[0]["source_articles"] = [{
+                        "url": source_url,
+                        "title": str(fallback_source.get("title") or ""),
+                        "published_at": published_at,
+                    }]
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
@@ -783,7 +798,7 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 3 if market in ("미국", "US") else None,
+            "_code_source_revision": 4 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:

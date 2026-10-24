@@ -1,0 +1,42 @@
+name: Verify identical KR and US news issue fallback
+on:
+  push:
+    branches: [fix/us-kr-exact-fallback-parity-20261024]
+    paths:
+      - backend/services/news_result.py
+      - ops/staged_news_processed_store.py
+      - tests/test_us_kr_shared_code_selection.py
+      - .github/workflows/test-us-kr-fallback-parity-20261024.yml
+permissions:
+  contents: read
+jobs:
+  shared-issue-fallback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and keep AI input unchanged
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/services/news_result.py ops/staged_news_processed_store.py
+          python - <<'PY'
+          from pathlib import Path
+          result=Path("backend/services/news_result.py").read_text()
+          store=Path("ops/staged_news_processed_store.py").read_text()
+          ai=Path("ops/staged_ai_sequential_batch.py").read_text()
+          assert result.count('if not issue_briefs and company_critical_candidates:') == 1
+          assert result.count('if not issue_briefs and business_material_candidates:') == 1
+          assert result.count('if not issue_briefs and market_material_candidates:') == 1
+          assert result.count('if not issue_briefs and flow_material_candidates:') == 1
+          assert 'market not in ("미국", "US", "us") and not issue_briefs' not in result
+          assert '_us_dated_code_fallback' not in result
+          assert '"_code_source_revision": 4' in result
+          assert 'payload.get("_code_source_revision") != 4' in store
+          assert '"articles": raw,' in ai and 'GAEMIGTP_NEWS_AI_PAUSED' in ai
+          print("KR_US_IDENTICAL_FALLBACK_SOURCE_ONLY")
+          PY
+      - name: Test same original selection and fallback result
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p test_us_kr_shared_code_selection.py -v
+          python -m unittest discover -s tests -p test_verified_fact_headline_only.py -v
+          python -m unittest discover -s tests -p test_news_feed_queries.py -v
