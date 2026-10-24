@@ -1,6 +1,21 @@
 /* Existing central stock-analysis display flow. Moved without changing rendering logic. */
 (function () {
   'use strict';
+  // The left sidebar passes its displayed change_pct with the stock selection.
+  // Technical-indicator percentages in analysis prose must not affect this label.
+  function whyChoiceFromChange(rawChange) {
+    if (rawChange === null || rawChange === undefined || rawChange === '' ||
+        typeof rawChange === 'boolean') {
+      return { label: '왜 움직였을까?', tag: '#왜_움직였을까?', color: '#94A3B8' };
+    }
+    const change = Number(rawChange);
+    if (!Number.isFinite(change)) {
+      return { label: '왜 움직였을까?', tag: '#왜_움직였을까?', color: '#94A3B8' };
+    }
+    if (change > 0) return { label: '왜 빨간불일까?', tag: '#왜_빨간불일까?', color: '#FF8DA1' };
+    if (change < 0) return { label: '왜 파란불일까?', tag: '#왜_파란불일까?', color: '#38BDF8' };
+    return { label: '왜 보합일까?', tag: '#왜_보합일까?', color: '#94A3B8' };
+  }
   function create(ctx) {
     let kiwoomQuoteTimer = null;
     function stopKiwoomQuoteTimer() {
@@ -87,14 +102,8 @@
       function appendNextAnalysisChoices(anchor) {
         if (!anchor || anchor.parentElement?.querySelector('[data-next-analysis-choices]')) return;
 
-        const whySection = Array.isArray(sections) ? sections.find((section) => section?.id === 'why-up') : null;
-        const changeMatch = String(whySection?.content || '').match(/([+-]\d+(?:\.\d+)?)%/);
-        const changePercent = changeMatch ? Number(changeMatch[1]) : 0;
-        const whyState = changePercent >= 0.5
-          ? { label: '왜 빨간불일까?', tag: '#왜_빨간불일까?', color: '#FF8DA1' }
-          : changePercent <= -0.5
-            ? { label: '왜 파란불일까?', tag: '#왜_파란불일까?', color: '#38BDF8' }
-            : { label: '왜 보합일까?', tag: '#왜_보합일까?', color: '#94A3B8' };
+        // Only the selected sidebar's quote controls red/blue/flat prompts.
+        const whyState = whyChoiceFromChange(ctx.getSession()?.marketSelection?.change_pct);
 
         const makeUserPrompt = (text, dataName) => {
           const prompt = document.createElement('div');
@@ -727,5 +736,5 @@
 
     return { startTypewriterFlow, requestStock };
   }
-  window.GaemiGTPCenterAnalysisFlow = { create };
+  window.GaemiGTPCenterAnalysisFlow = { create, whyChoiceFromChange };
 }());
