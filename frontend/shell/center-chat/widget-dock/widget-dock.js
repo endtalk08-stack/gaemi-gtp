@@ -136,7 +136,7 @@
       for (const point of data.points.slice(-60)) {
         const date = String(point?.date || '');
         const price = point?.close;
-        if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || date <= prev
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date <= prev
           || typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
           throw new Error('qqq_history_invalid');
         }
