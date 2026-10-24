@@ -71,7 +71,7 @@ class MarketTradingValueTests(unittest.TestCase):
                      "name": "엔비디아", "price": 210.96, "change_pct": -0.59,
                      "trading_value": 12194332000.0, "industry": "반도체"}]
         with patch.object(market_rankings, "_read_kiwoom_us_value_rows", return_value=snapshot) as source, patch.object(
-            market_rankings, "fetch_us_trading_value_ranking_raw", side_effect=AssertionError("Render must not scrape")
+            market_price, "fetch_us_trading_value_ranking_raw", side_effect=AssertionError("Render must not scrape")
         ):
             rows = market_rankings.build_us_trading_value_result()
         source.assert_called_once_with()
