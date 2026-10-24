@@ -1,75 +1,23 @@
 // gaemiGTP - 공시 표시 전용
 window.GaemiGTPDisclosures = window.GaemiGTPDisclosures || {};
 
-window.GaemiGTPDisclosures.hydrateDartDetails = async function (items, limit = null) {
-  const candidates = (Array.isArray(items) ? items : [])
-    .filter((item) => String(item?.source || '').toUpperCase() === 'DART' && item?.receipt_no && item?.stock_code && !item?.snapshot_only);
-  const targets = Number.isFinite(limit) ? candidates.slice(0, Math.max(0, limit)) : candidates;
-  if (!targets.length) return items;
-
-  // Bound concurrent detail requests to avoid flooding the DART detail endpoint.
-  // Keep all selected disclosures eligible; only change request concurrency.
-  const concurrency = Math.min(2, targets.length);
-  let nextIndex = 0;
-  await Promise.all(Array.from({ length: concurrency }, async () => {
-    while (nextIndex < targets.length) {
-      const item = targets[nextIndex++];
-      try {
-        const params = new URLSearchParams({
-          stock_code: String(item.stock_code || ''),
-          receipt_no: String(item.receipt_no || ''),
-          report: String(item.report || item.title || '')
-        });
-        const response = await fetch(`/disclosures/dart/detail?${params.toString()}`);
-        if (!response.ok) continue;
-        const payload = await response.json();
-        const detail = payload && payload.ok && payload.detail ? payload.detail : null;
-        if (!detail) continue;
-        item.detail_fields = Array.isArray(detail.detail_fields) ? detail.detail_fields : [];
-        item.executive_shareholdings = Array.isArray(detail.executive_shareholdings)
-          ? detail.executive_shareholdings : [];
-        item.major_shareholder_change = detail.major_shareholder_change || {};
-        item.earnings_detail = detail.earnings_detail || {};
-        item.supply_contract_detail = detail.supply_contract_detail || {};
-        item.financing_detail = detail.financing_detail || {};
-        item.treasury_stock_detail = detail.treasury_stock_detail || {};
-        item.dividend_detail = detail.dividend_detail || {};
-        item.corporate_action_detail = detail.corporate_action_detail || {};
-        item.shareholding_change = detail.shareholding_change || item.shareholding_change || '';
-        if (detail.shareholding_delta !== null && detail.shareholding_delta !== undefined) {
-          item.shareholding_delta = detail.shareholding_delta;
-        }
-      } catch (error) {
-        console.warn('[국내 공시 상세] 조회 실패:', error);
-      }
-    }
-  }));
+window.GaemiGTPDisclosures.hydrateDartDetails = async function (items) {
+  // DO preloads DART details; Render displays the saved Neon snapshot only.
   return items;
 };
-
 
 window.GaemiGTPDisclosures.hydrateMissingSecDetails = async function (rows, isCurrent) {
   // Fill missing Form 144/10-Q/10-K values inside existing right-panel rows only.
   if (!Array.isArray(rows) || !rows.length) return;
   let next = 0;
-  const apiBase = window.location.hostname.endsWith('github.io')
-    ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
   await Promise.all(Array.from({ length: Math.min(2, rows.length) }, async () => {
     while (next < rows.length) {
       if (!isCurrent()) return;
       const { item, target } = rows[next++];
-      if (!item?.link || !target) continue;
+      if (!target) continue;
       try {
-        let detail = item.panel_extra_detail && typeof item.panel_extra_detail === 'object'
+        const detail = item?.panel_extra_detail && typeof item.panel_extra_detail === 'object'
           ? item.panel_extra_detail : null;
-        if (!detail && !item.snapshot_only) {
-          const url = apiBase + '/disclosures/sec/detail?' +
-            new URLSearchParams({ url: item.link }).toString();
-          const response = await fetch(url);
-          if (!response.ok) continue;
-          const payload = await response.json();
-          detail = payload?.ok ? payload.detail : null;
-        }
         if (!detail || !isCurrent() || !target.isConnected) continue;
         const texts = [];
         (Array.isArray(detail.fields) ? detail.fields : []).slice(0, 12).forEach(field => {

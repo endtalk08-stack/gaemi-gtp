@@ -14,9 +14,8 @@ from backend.services.news_freshness import issue_mode_for_question, normalize_i
 from backend.services.kiwoom_us_value_board import read_us_trading_value_board
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
 from backend.services.us_market_close import read_brief
-from backend.providers.sec_filings import fetch_panel_missing_detail
 
-from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
+from backend.services.engine import analyze_stock, get_live_calendar_data, start_calendar_warmup
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -29,23 +28,6 @@ install_private_access(app, FRONTEND_DIR)
 start_calendar_warmup()
 application = app
 
-# One-time, read-only startup gate for verifying the DO -> Neon -> Render path.
-# Does not call SEC/DART or alter news, prices, database rows, or UI responses.
-if os.getenv("DISCLOSURE_NEON_READ") == "1":
-    try:
-        from backend.services.disclosure_transfer import read_snapshot
-        for _market, _symbol in (("KR", "005930"), ("US", "AAPL")):
-            _filings = read_snapshot(_market, _symbol)
-            print(
-                f"[disclosure-neon-readiness] market={_market} symbol={_symbol} "
-                f"ready={_filings is not None} filings={len(_filings) if _filings is not None else 'unavailable'}",
-                flush=True,
-            )
-    except Exception as _exc:
-        print(
-            f"[disclosure-neon-readiness] unavailable={type(_exc).__name__}",
-            flush=True,
-        )
 
 @app.get("/")
 def home():
@@ -68,55 +50,6 @@ def health():
 @app.get("/calendar")
 def calendar():
     return jsonify({"ok": True, "content": get_live_calendar_data("", "")})
-
-@app.get("/disclosures/sec/detail")
-def sec_right_panel_detail():
-    # Only additional SEC facts for existing 30-day right-panel rows.
-    index_url = str(request.args.get("url", "") or "").strip()
-    try:
-        detail = fetch_panel_missing_detail(index_url)
-        return jsonify({"ok": True, "detail": detail})
-    except ValueError:
-        return jsonify({"ok": False, "error": "invalid_sec_filing"}), 400
-    except Exception as exc:
-        print(f"[미국 공시 상세 API] 실패: {type(exc).__name__}: {exc}")
-        return jsonify({"ok": False, "error": "sec_detail_unavailable"}), 502
-
-
-@app.get("/disclosures/dart/detail")
-def dart_disclosure_detail():
-    stock_code = str(request.args.get("stock_code", "") or "").strip()
-    receipt_no = str(request.args.get("receipt_no", "") or "").strip()
-    report_name = str(request.args.get("report", "") or "").strip()
-    if not stock_code or not receipt_no:
-        return jsonify({"ok": False, "detail": {}, "error": "missing_identifier"}), 400
-    try:
-        detail = fetch_dart_disclosure_detail(stock_code, receipt_no, report_name)
-        return jsonify({"ok": True, "detail": detail})
-    except Exception as exc:
-        print(f"[국내 공시 상세 API] 실패: {type(exc).__name__}: {exc}")
-        return jsonify({"ok": False, "detail": {}, "error": "detail_failed"}), 200
-
-
-@app.get("/debug/dart/elestock")
-def debug_dart_elestock():
-    stock_code = str(request.args.get("stock_code", "005930") or "").strip()
-    return jsonify({
-        "ok": True,
-        "stock_code": stock_code,
-        "items": fetch_dart_executive_shareholdings(stock_code),
-    })
-
-@app.get("/debug/sec/form4")
-def debug_sec_form4():
-    ticker = str(request.args.get("ticker", "NVDA") or "").upper().strip()
-    filings = fetch_us_official_filings(ticker, days=30, max_results=30)
-    return jsonify({
-        "ok": True,
-        "ticker": ticker,
-        "items": [item for item in filings if str(item.get("form") or "").upper() == "4"],
-    })
-
 
 
 @app.get("/api/market/us-close")
