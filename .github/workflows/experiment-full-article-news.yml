@@ -1,0 +1,32 @@
+name: Experimental full-article news (test branch only)
+
+on:
+  push:
+    branches:
+      - experiment/full-article-news-20261025
+    paths:
+      - 'experiments/**'
+      - 'tests/test_news_selection_experiment.py'
+      - 'tests/test_full_article_news_experiment.py'
+      - '.github/workflows/experiment-full-article-news.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-offline-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Syntax check test-only files
+        run: python -m py_compile experiments/news_selection.py experiments/full_article_news.py tests/test_news_selection_experiment.py tests/test_full_article_news_experiment.py
+      - name: Test metadata-first selection and reader isolation (offline)
+        run: python -m unittest discover -s tests -p 'test_news_selection_experiment.py' -v
+      - name: Test whole-article fact synthesis (offline)
+        run: python -m unittest discover -s tests -p 'test_full_article_news_experiment.py' -v
