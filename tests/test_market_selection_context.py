@@ -50,6 +50,69 @@ class MarketSelectionContextTests(unittest.TestCase):
         self.assertEqual(kr_popular[0]["name"], kr_value[0]["name"])
         self.assertEqual(us_popular[0]["name"], us_value[0]["name"])
 
+    def test_kiwoom_neon_read_keeps_verified_auto_identity(self):
+        import sys
+        from unittest.mock import MagicMock
+        records = [
+            (i, "NVDA" if i == 1 else "SYM" + str(i),
+             "엔비디아" if i == 1 else "종목" + str(i),
+             210.96, -0.59, 120000.0, 1000, "반도체",
+             "US:NVDA" if i == 1 else "US:SYM" + str(i),
+             "엔비디아" if i == 1 else "종목" + str(i), "verified")
+            for i in range(1, 21)
+        ]
+        psycopg = MagicMock()
+        cursor = psycopg.connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = records
+        with patch.dict(sys.modules, {"psycopg": psycopg}), patch.dict(
+            rankings.os.environ, {"NEWS_DATABASE_URL": "dummy-neon"}, clear=False
+        ):
+            rows = rankings.build_us_trading_value_result()
+        self.assertEqual(len(rows), 20)
+        self.assertEqual(rows[0]["company_key"], "US:NVDA")
+        self.assertEqual(rows[0]["news_name"], "엔비디아")
+        self.assertEqual(rows[0]["identity_status"], "verified")
+        self.assertEqual(rows[0]["price"], 210.96)
+        self.assertEqual(rankings.get_market_selection("us", "value", "NVDA")["company_key"], "US:NVDA")
+        query = cursor.execute.call_args.args[0]
+        self.assertIn("i.company_key", query)
+        self.assertIn("i.identity_status", query)
+        self.assertIn("JOIN public.market_instruments", query)
+
+    def test_sidebar_worker_issue_uses_only_trusted_auto_identity(self):
+        from backend.services import market_issue_headlines as headlines
+        record = {
+            "rank": 6, "name": "메타 플랫폼스(페이스북)",
+            "symbol": "META", "company_key": "US:META",
+            "news_name": "메타", "identity_status": "verified",
+        }
+        with patch.object(headlines, "_read_worker_briefs", return_value={
+            "메타": [{"headline": "메타 분기 실적 발표", "summary": "실적"}]
+        }) as reader:
+            trusted = headlines.get_market_issue_headlines(
+                "us", [record], trusted_kiwoom_identity=True
+            )
+            names = reader.call_args.args[1]
+        self.assertIn("메타", names)
+        self.assertEqual(trusted["items"][0]["status"], "ready")
+        with patch.object(headlines, "_read_worker_briefs", return_value={
+            "메타": [{"headline": "메타 분기 실적 발표", "summary": "실적"}]
+        }) as reader:
+            untrusted = headlines.get_market_issue_headlines("us", [record])
+            names = reader.call_args.args[1]
+        self.assertNotIn("메타", names)
+        self.assertEqual(untrusted["items"][0]["headline"], "")
+        with patch.object(headlines, "_read_worker_briefs", return_value={
+            "메타": [{"headline": "메타 분기 실적 발표", "summary": "실적"}]
+        }) as reader:
+            pending = headlines.get_market_issue_headlines(
+                "us", [{**record, "identity_status": "review"}],
+                trusted_kiwoom_identity=True,
+            )
+            names = reader.call_args.args[1]
+        self.assertNotIn("메타", names)
+        self.assertEqual(pending["items"][0]["headline"], "")
+
     def test_kosdaq_market_type_overrides_name_guessing(self):
         kr = {"items": [{"itemCode": "247540", "price": {
             "itemName": "에코프로비엠", "marketType": "KOSDAQ",
