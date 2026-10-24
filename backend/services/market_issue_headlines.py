@@ -14,11 +14,16 @@ from .news_freshness import clean_us_snapshot, normalize_issue_mode
 _MAX_ITEMS = 20
 
 
+def _sidebar_title(value):
+    """Remove the redundant trailing word only in sidebar display titles."""
+    return re.sub(r"\s*이슈\s*$", "", str(value or "").strip()).strip()
+
+
 def _first_headline(briefs):
     for brief in briefs or []:
         headline = grounded_issue_display_title(brief)
         if headline and headline not in {"기사 주요 내용", "관련 이슈"}:
-            return headline
+            return _sidebar_title(headline)
     return ""
 
 
@@ -38,7 +43,7 @@ def _first_ai_headline(snapshot):
             continue
         title = str(brief.get("headline") or "").strip()
         if title and title not in {"기사 주요 내용", "관련 이슈"}:
-            return title
+            return _sidebar_title(title)
     return ""
 
 

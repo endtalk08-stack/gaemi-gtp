@@ -1,0 +1,45 @@
+name: Validate Render verified-only issue display
+on:
+  push:
+    branches:
+      - fix/render-hide-unverified-strip-sidebar-issue-20261024
+  pull_request:
+    branches:
+      - main
+    paths:
+      - backend/services/news_freshness.py
+      - backend/services/market_issue_headlines.py
+      - tests/test_market_issue_headlines.py
+      - .github/workflows/validate-render-unverified-issue-display-20261024.yml
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify Render UI only, with unchanged source snapshots
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/services/news_freshness.py backend/services/market_issue_headlines.py tests/test_market_issue_headlines.py
+          python -m unittest discover -s tests -p test_market_issue_headlines.py -v
+          python - <<'PY'
+          from backend.services.news_freshness import clean_us_snapshot
+          from backend.services.market_issue_headlines import _sidebar_title
+          from datetime import datetime,timezone
+          now=datetime.now(timezone.utc)
+          url={'url':'https://example.org/news','published_at':now.isoformat()}
+          source={'_title_only_revision':3,'_code_fact_extraction_version':3,
+                  '_code_issue_briefs':[{'headline':'국제유가 급등 이슈','evidence_source':'original_unavailable','summary':'원문 확인 불가','source_articles':[url]},
+                                        {'headline':'매출 증가 이슈','evidence_source':'verified_article_body_title_only','summary':'매출은 증가했다.','source_articles':[url]}]}
+          result=clean_us_snapshot(source,now=now)
+          assert len(result['issue_briefs'])==1
+          assert result['issue_briefs'][0]['headline']=='매출 증가 이슈'
+          assert _sidebar_title('매출 증가 이슈')=='매출 증가'
+          assert len(source['_code_issue_briefs'])==2
+          print('RENDER_VERIFIED_ONLY_AND_CONCISE_SIDEBAR_OK')
+          PY
