@@ -66,7 +66,10 @@ _PATTERNS = {
         r"월가[^.!?]{0,40}(?:거래\s*마감|하락\s*마감|상승\s*마감)",
     ),
 }
-_COMPILED = {name: re.compile(pattern, re.IGNORECASE) for name, pattern in _PATTERNS.items()}
+# Parenthesized regex fragments may form a tuple when followed by a comma.
+# Compile the concatenated literal fragments, not the tuple container.
+_COMPILED = {name: re.compile("".join(pattern) if isinstance(pattern, tuple) else pattern,
+                              re.IGNORECASE) for name, pattern in _PATTERNS.items()}
 # First matching specialist category wins. A single article may have additional
 # categories for audit; secondary labels never trigger extra full-body reads.
 _PRIORITY = ("실적 발표", "투자의견", "연준 일정", "경제지표",
