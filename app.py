@@ -12,7 +12,6 @@ from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.news_result import get_shared_stock_news_result
 from backend.services.news_freshness import issue_mode_for_question, normalize_issue_mode
 from backend.services.kiwoom_us_value_board import read_us_trading_value_board
-from backend.services.company_intro_preview import read_company_intro_preview
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
 from backend.services.us_market_close import read_brief
 
@@ -62,20 +61,6 @@ def market_us_close():
         print("[us market close] db read failed: " + type(exc).__name__, flush=True)
         return jsonify({"ok": False, "error": "market_close_unavailable"}), 503
     return jsonify({"ok": True, "available": bool(brief), **(brief or {})})
-
-
-@app.get("/api/company-intro-preview")
-def company_intro_preview():
-    """Micron narrative UI trial; reads Kiwoom-labeled sector from existing Neon."""
-    symbol = request.args.get("symbol", "")
-    if str(symbol).strip().upper() != "MU":
-        return jsonify({"ok": False, "error": "preview_only_mu"}), 404
-    try:
-        result = read_company_intro_preview(symbol)
-    except Exception as exc:
-        print("[company intro preview] registry read failed: " + type(exc).__name__, flush=True)
-        return jsonify({"ok": False, "error": "company_intro_unavailable"}), 503
-    return jsonify({"ok": True, **result})
 
 
 @app.get("/market/trading-value")
