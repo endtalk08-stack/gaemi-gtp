@@ -256,38 +256,56 @@
     catch (_) { finished(id); }
   }
 
+  let isResolvingVoice = false;
   async function toggle(text, button) {
     if (playing) { stop(); return; }
+    if (isResolvingVoice) return;
     const clean = String(text || '').replace(/\s+/g,' ').trim();
     if (!clean) return;
     if (clean === SAMPLE_TEXT) return playSample();
-    // Optional first-party voice-cloning endpoint; do not send voice assets to third parties.
-    // POST {text} -> audio/mpeg (raw) or JSON {audio_url}. Configure only after backend is deployed.
-    if (typeof window.GAEMI_VOICE_TTS_ENDPOINT === 'string' && window.GAEMI_VOICE_TTS_ENDPOINT) {
-      const id = begin(button,'audio');
-      setState('목소리 생성 중');
+
+    const endpoint = window.GAEMI_VOICE_TTS_ENDPOINT;
+    if (typeof endpoint === 'string' && endpoint) {
+      isResolvingVoice = true;
+      let available = false;
       try {
-        const response = await fetch(window.GAEMI_VOICE_TTS_ENDPOINT, {
-          method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({text:clean})
-        });
-        if (!response.ok) throw new Error('tts_http_' + response.status);
-        if (runId !== id) return;
-        if (response.headers.get('content-type')?.includes('application/json')) {
-          const result = await response.json();
-          if (!result.audio_url || !String(result.audio_url).startsWith('/')) throw new Error('invalid_voice_url');
-          return playAudio(result.audio_url,button);
+        const statusUrl = new URL('/api/voice/status', endpoint);
+        const status = await fetch(statusUrl.href, {method:'GET', credentials:'same-origin', cache:'no-store'});
+        if (status.ok) available = !!(await status.json()).available;
+      } catch (_) { /* Backend may not have deployed; retain existing reader. */ }
+      finally { isResolvingVoice = false; }
+
+      if (available) {
+        const id = begin(button, 'audio');
+        setState('남성 목소리 생성 중');
+        try {
+          const response = await fetch(endpoint, {
+            method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({text:clean})
+          });
+          if (!response.ok) throw new Error('tts_http_' + response.status);
+          if (runId !== id) return;
+          if (response.headers.get('content-type')?.includes('application/json')) {
+            const result = await response.json();
+            if (!result.audio_url || !String(result.audio_url).startsWith('/')) throw new Error('invalid_voice_url');
+            return playAudio(result.audio_url, button);
+          }
+          const blob = await response.blob();
+          if (!blob.type.startsWith('audio/') || !blob.size) throw new Error('invalid_voice_audio');
+          return playAudio(URL.createObjectURL(blob), button, true);
+        } catch (_) {
+          if (runId === id) {
+            setState('전용 목소리 생성에 실패했습니다');
+            // Do not silently replace the explicitly requested voice with browser TTS.
+            setTimeout(() => finished(id), 2500);
+          }
         }
-        const blob = await response.blob();
-        if (!blob.type.startsWith('audio/') || !blob.size) throw new Error('invalid_voice_audio');
-        const url = URL.createObjectURL(blob);
-        return playAudio(url,button,true);
-      } catch (error) {
-        if (runId === id) { stop(false); playBrowserSpeech(clean,button); }
+        return;
       }
-      return;
     }
-    playBrowserSpeech(clean,button);
+    // Fallback only while cloned-voice service is not configured/deployed.
+    playBrowserSpeech(clean, button);
   }
 
   window.addEventListener('beforeunload',() => stop());

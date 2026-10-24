@@ -6,3 +6,4 @@ google-generativeai
 upstash-redis
 psycopg[binary]
 cryptography>=42,<48
+msgpack>=1.0.7,<2
