@@ -30,28 +30,6 @@ from .verified_fact_headline import attach_verified_source_citations
 from .news_feed import fetch_stock_news, select_stock_news_for_analysis
 
 
-def _us_dated_code_fallback(briefs, articles, stock_name, *, limit=3):
-    """Reuse existing factual title extraction only if KR-style CODE sources are absent.
-
-    The common domestic ranking, issue titles and full-body brief always win.
-    Candidate articles are already from the 24-hour stock feed. The existing
-    extractor accepts only a company-named dated event with its real URL;
-    it cannot invent a source, call an AI model or infer a price catalyst.
-    """
-    if any(isinstance(brief, dict) and brief.get("source_articles")
-           for brief in (briefs or [])):
-        return briefs
-    from .article_fact_keywords import build_article_fact_briefs
-    candidates = build_article_fact_briefs(
-        articles, stock_name, limit=limit,
-    )
-    verified = [
-        item for item in candidates
-        if isinstance(item, dict) and item.get("source_articles")
-    ]
-    return verified or briefs
-
-
 def _empty_news_result():
     return {
         "paired_news_items": [],
@@ -685,12 +663,10 @@ def build_stock_news_result(
             market=market,
         )
 
-        fallback_source = None  # Only a US title/description fallback needs its own dated source.
         # Original verified company items always win; the new classification
         # is a strictly secondary fallback for source-grounded severe events.
-        if not issue_briefs and company_critical_candidates:
+        if market not in ("미국", "US", "us") and not issue_briefs and company_critical_candidates:
             source, headline, tags, direction, _ = company_critical_candidates[0]
-            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -704,9 +680,8 @@ def build_stock_news_result(
             diag("company_critical_fallback_selected", source, critical_tags=tags)
 
         # Only if original verified and critical issues are empty.
-        if not issue_briefs and business_material_candidates:
+        if market not in ("미국", "US", "us") and not issue_briefs and business_material_candidates:
             source, headline, tags, direction, _ = business_material_candidates[0]
-            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -720,9 +695,8 @@ def build_stock_news_result(
             diag("business_material_fallback_selected", source, business_tags=tags)
 
         # Then keep the existing market material fallback unchanged.
-        if not issue_briefs and market_material_candidates:
+        if market not in ("미국", "US", "us") and not issue_briefs and market_material_candidates:
             source, headline, tags, _, _ = market_material_candidates[0]
-            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -735,9 +709,8 @@ def build_stock_news_result(
             diag("market_material_fallback_selected", source, material_tags=tags)
 
         # Last fallback: explicit stock-level supply/demand disclosures.
-        if not issue_briefs and flow_material_candidates:
+        if market not in ("미국", "US", "us") and not issue_briefs and flow_material_candidates:
             source, headline, tags, direction, _ = flow_material_candidates[0]
-            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -754,16 +727,14 @@ def build_stock_news_result(
         # US only attaches source metadata required by Render's freshness guard.
         # No second title extraction, title overwrite or article reselection.
         if market in ("미국", "US"):
-            issue_briefs = attach_verified_source_citations(
-                issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
-                fallback_source=fallback_source,
-            )
-            # The shared KR CODE path stays primary. If no issue has a real
-            # same-stock source, fall back to the *existing* article title
-            # facts extractor for US only; no AI or extra news collection.
-            issue_briefs = _us_dated_code_fallback(
-                issue_briefs, paired_news_items, stock_name, limit=storyboard_limit,
-            )
+            issue_briefs = [
+                brief for brief in attach_verified_source_citations(
+                    issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
+                )
+                if isinstance(brief, dict)
+                and brief.get("evidence_source") == "verified_article_body_title_only"
+                and brief.get("source_articles")
+            ]
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
@@ -812,7 +783,7 @@ def build_stock_news_result(
             "_title_only_revision": 3 if market in ("미국", "US") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 2 if market in ("미국", "US") else None,
+            "_code_source_revision": 3 if market in ("미국", "US") else None,
             "_news_status": "ok",
         }
     except Exception as exc:

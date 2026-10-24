@@ -103,7 +103,7 @@ def read_signature(stock_name, market, limit, storyboard_limit, display_timezone
             if market in ("미국", "US") and (
                 payload.get("_title_only_revision") != 3
                 or payload.get("_kr_selection_revision") != 1
-                or payload.get("_code_source_revision") != 2
+                or payload.get("_code_source_revision") != 3
             ):
                 # Reprocess older code-only snapshots once without touching AI.
                 return None

@@ -1,0 +1,46 @@
+name: US CODE must use KR verified original article
+on:
+  push:
+    branches: [fix/us-code-original-article-only-20261024]
+    paths:
+      - backend/services/news_result.py
+      - backend/services/verified_fact_headline.py
+      - ops/staged_news_processed_store.py
+      - tests/test_us_kr_shared_code_selection.py
+      - tests/test_verified_fact_headline_only.py
+      - .github/workflows/test-us-code-original-parity-20261024.yml
+permissions:
+  contents: read
+jobs:
+  original-body-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate unchanged KR and AI path, remove all US bypasses
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/services/news_result.py backend/services/verified_fact_headline.py ops/staged_news_processed_store.py
+          python - <<'PY'
+          from pathlib import Path
+          news=Path("backend/services/news_result.py").read_text()
+          source=Path("backend/services/verified_fact_headline.py").read_text()
+          store=Path("ops/staged_news_processed_store.py").read_text()
+          ai=Path("ops/staged_ai_sequential_batch.py").read_text()
+          assert "_us_dated_code_fallback" not in news
+          assert "build_article_fact_briefs" not in news
+          assert "fallback_source" not in news
+          assert "fallback_source" not in source
+          assert "select_stock_news_for_analysis(raw_news_list, stock_name, limit)" in news
+          assert "build_issue_briefs(" in news
+          assert "body_texts=verified_body_texts" in news
+          assert '"_code_source_revision": 3' in news
+          assert 'payload.get("_code_source_revision") != 3' in store
+          assert '"articles": raw,' in ai and 'GAEMIGTP_NEWS_AI_PAUSED' in ai
+          print("US_KR_ORIGINAL_ONLY_NO_BYPASS_AI_UNCHANGED")
+          PY
+      - name: Regression original-body source, original excerpt and common KR selector
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p test_us_kr_shared_code_selection.py -v
+          python -m unittest discover -s tests -p test_verified_fact_headline_only.py -v
+          python -m unittest discover -s tests -p test_news_feed_queries.py -v
