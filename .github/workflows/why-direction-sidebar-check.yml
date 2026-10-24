@@ -1,0 +1,26 @@
+name: Why question sidebar direction check
+on:
+  pull_request:
+    paths:
+      - 'frontend/shell/center-chat/analysis-flow.js'
+      - 'frontend/shell/left-market-sidebar/market-sidebar.js'
+      - 'frontend/js/app.js'
+      - 'frontend/index.html'
+      - 'tests/test_why_direction_sidebar.cjs'
+      - '.github/workflows/why-direction-sidebar-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  why-direction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate script
+        run: node --check frontend/shell/center-chat/analysis-flow.js
+      - name: Verify chosen red, blue and fallback direction
+        run: node --test tests/test_why_direction_sidebar.cjs
