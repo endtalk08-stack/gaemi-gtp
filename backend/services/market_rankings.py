@@ -10,7 +10,7 @@ import time
 
 from ..providers.market_industry import get_stock_industries
 from ..providers.market_price import (
-    fetch_kr_trading_value_ranking_raw, fetch_us_trading_value_ranking_raw,
+    fetch_kr_trading_value_ranking_raw,
     fetch_kr_popular_ranking_raw, fetch_us_popular_ranking_raw,
 )
 
