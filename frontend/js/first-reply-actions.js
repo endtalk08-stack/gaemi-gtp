@@ -56,10 +56,6 @@ window.GaemiGTPFirstReplyActions.appendFirstReplyActions = function(anchor, repl
             return;
           }
           if (action === 'read') {
-            if (window.GaemiGTPVoiceAvatar) {
-              await window.GaemiGTPVoiceAvatar.toggle(replyText, button);
-              return;
-            }
             if (!('speechSynthesis' in window)) return;
             if (window.speechSynthesis.speaking) {
               window.speechSynthesis.cancel();
