@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import os
 import time
-import traceback
-from datetime import datetime, timezone
+import sys
+from datetime import datetime
+# Gateway executes a /run/gaemi-gateway/job-*.py copy under the app CWD.
+# Make the project import root explicit without touching production PYTHONPATH.
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 
 from backend.services import news_feed, news_processed_store as store
 from backend.services.news_result import (
