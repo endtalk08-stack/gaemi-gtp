@@ -32,6 +32,11 @@
 
   // Browser-only chart cache: max 120 authenticated relay snapshots, no API or DB calls.
   const qqqPoints = [];
+  let qqqHistory = [];
+  let qqqHistoryDate = '';
+  let qqqHistoryClose = null;
+  let qqqHistoryChange = null;
+  let qqqHistoryRequest = null;
   let qqqLastReceivedMs = 0;
   let qqqSessionKey = '';
   let qqqCurrent = null;
@@ -61,17 +66,19 @@
     const line = card.querySelector('[data-kospi-sparkline]');
     const fill = card.querySelector('[data-kospi-sparkline-fill]');
     if (!line || !fill) return;
-    if (qqqPoints.length < 2) {
+    // History remains visible through weekends/restarts; live FE prices extend it.
+    const series = qqqHistory.concat(qqqPoints);
+    if (series.length < 2) {
       line.setAttribute('points', '');
       fill.setAttribute('points', '');
       return;
     }
-    const lows = qqqPoints.map(point => point.price);
+    const lows = series.map(point => point.price);
     const lowest = Math.min(...lows);
     const highest = Math.max(...lows);
     const span = highest - lowest;
-    const points = qqqPoints.map((point, index) => {
-      const x = 1 + (index / (qqqPoints.length - 1)) * 70;
+    const points = series.map((point, index) => {
+      const x = 1 + (index / (series.length - 1)) * 70;
       const y = span === 0 ? 14 : 25 - ((point.price - lowest) / span) * 22;
       return x.toFixed(1) + ',' + y.toFixed(1);
     }).join(' ');
@@ -87,26 +94,68 @@
     const reasonNode = card.querySelector('.central-widget-card__kospi-reason span');
     const chartNode = card.querySelector('.central-widget-card__sparkline');
     const quote = qqqCurrent;
-    const valid = quote && Number.isFinite(quote.price) && quote.price > 0;
-    const fresh = valid && !quote.stale && Date.now() - quote.received_at_ms <= 25000;
-    card.classList.toggle('central-widget-card--qqq-muted', !fresh);
-    if (priceNode) priceNode.textContent = valid
-      ? quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const quoteValid = quote && Number.isFinite(quote.price) && quote.price > 0;
+    const fresh = quoteValid && !quote.stale && Date.now() - quote.received_at_ms <= 25000;
+    const hasHistory = Number.isFinite(qqqHistoryClose) && qqqHistoryClose > 0
+      && qqqHistory.length >= 2;
+    const price = fresh ? quote.price : hasHistory ? qqqHistoryClose : null;
+    const percent = fresh && Number.isFinite(quote.change_pct)
+      ? quote.change_pct : hasHistory ? qqqHistoryChange : null;
+    card.classList.toggle('central-widget-card--qqq-muted', !fresh && !hasHistory);
+    if (priceNode) priceNode.textContent = price !== null
+      ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '—';
     if (pctNode) {
-      const percent = valid && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
       pctNode.textContent = percent === null ? '—%' : (percent > 0 ? '+' : '') + percent.toFixed(2) + '%';
-      pctNode.classList.toggle('central-widget-card__kospi-change--up', fresh && percent !== null && percent > 0);
-      pctNode.classList.toggle('central-widget-card__kospi-change--down', fresh && percent !== null && percent < 0);
-      chartNode?.classList.toggle('central-widget-card__sparkline--up', fresh && percent !== null && percent > 0);
-      chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && percent !== null && percent < 0);
+      pctNode.classList.toggle('central-widget-card__kospi-change--up', percent !== null && percent > 0);
+      pctNode.classList.toggle('central-widget-card__kospi-change--down', percent !== null && percent < 0);
+      chartNode?.classList.toggle('central-widget-card__sparkline--up', percent !== null && percent > 0);
+      chartNode?.classList.toggle('central-widget-card__sparkline--down', percent !== null && percent < 0);
     }
     if (reasonNode) {
-      if (!valid) reasonNode.textContent = 'QQQ 수신 대기';
-      else if (!fresh) reasonNode.textContent = '시세 지연';
-      else reasonNode.textContent = easternTradingWindow(quote.received_at_ms).period + ' · 실시간';
+      if (fresh) reasonNode.textContent = easternTradingWindow(quote.received_at_ms).period + ' · 실시간';
+      else if (hasHistory) reasonNode.textContent = qqqHistoryDate.slice(5).replace('-', '/') + ' 종가';
+      else reasonNode.textContent = '차트 조회 대기';
     }
     drawQqqChart(card);
+  }
+
+  function loadQqqHistory() {
+    if (qqqHistoryRequest) return qqqHistoryRequest;
+    const url = window.location.hostname.endsWith('github.io')
+      ? 'https://gaemi-gtp.onrender.com/api/market/qqq-history'
+      : '/api/market/qqq-history';
+    // One lightweight historical GET when the widget is mounted; no 3s polling.
+    qqqHistoryRequest = fetch(url, { cache: 'default' }).then(async response => {
+      if (!response.ok) throw new Error('qqq_history_unavailable');
+      const data = await response.json();
+      if (data?.ok !== true || data.symbol !== 'QQQ' || data.source !== 'yahoo-daily'
+        || !Array.isArray(data.points)) throw new Error('qqq_history_invalid');
+      let prev = '';
+      const rows = [];
+      for (const point of data.points.slice(-60)) {
+        const date = String(point?.date || '');
+        const price = point?.close;
+        if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || date <= prev
+          || typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
+          throw new Error('qqq_history_invalid');
+        }
+        rows.push({ date, price });
+        prev = date;
+      }
+      if (rows.length < 2 || rows[rows.length - 1].date !== data.last_trading_date) {
+        throw new Error('qqq_history_invalid');
+      }
+      qqqHistory = rows;
+      qqqHistoryDate = rows[rows.length - 1].date;
+      qqqHistoryClose = rows[rows.length - 1].price;
+      qqqHistoryChange = ((qqqHistoryClose / rows[rows.length - 2].price) - 1) * 100;
+      updateQqqCard();
+    }).catch(() => {
+      // Never invent values, never erase independently received live FE data.
+      updateQqqCard();
+    });
+    return qqqHistoryRequest;
   }
 
   function onQqqQuote(event) {
@@ -193,7 +242,9 @@
   }
   function add(id) {
     if (!catalog()[id] || activeIds.includes(id)) return false;
-    activeIds.push(id); saveState(); render(); return true;
+    activeIds.push(id); saveState(); render();
+    if (id === 'qqq') void loadQqqHistory();
+    return true;
   }
   function remove(id) {
     const next = activeIds.filter(item => item !== id);
@@ -207,6 +258,7 @@
     if (!dock || dock.dataset.bound === 'true') return;
     dock.dataset.bound = 'true';
     activeIds = readState(); render();
+    if (activeIds.includes('qqq')) void loadQqqHistory();
     window.addEventListener('gaemi:qqq-quote', onQqqQuote);
     dock.addEventListener('click', event => {
       const button = event.target.closest('[data-central-widget-remove]');
