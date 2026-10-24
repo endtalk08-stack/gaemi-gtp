@@ -26,6 +26,14 @@ class Element {
   get textContent() {
     return this._text + this.children.map((child) => child.textContent).join('');
   }
+  // Simplified visible-text semantics for the block/inline markup of replies.
+  // Real browsers provide Element.innerText, unlike this lightweight fake DOM.
+  get innerText() {
+    return this._text + this.children.map((child) => {
+      const text = child.innerText;
+      return ['p', 'div', 'li'].includes(child.tagName) ? text + '\\n' : text;
+    }).join('');
+  }
   appendChild(child) {
     this.children.push(child);
     child.parent = this;
@@ -51,7 +59,11 @@ async function scenario(answer, interrupt = false) {
     getElementById: () => null,
     createElement: (tag) => new Element(tag),
   };
-  const window = { GaemiGTPFirstReplyActions: { appendFirstReplyActions: () => null } };
+  const actions = [];
+  const window = { GaemiGTPFirstReplyActions: { appendFirstReplyActions: (anchor, text) => {
+    actions.push(text);
+    return null;
+  } } };
   const observations = [];
   let session = { id: 1, stock: '' };
   const sandbox = {
@@ -81,7 +93,7 @@ async function scenario(answer, interrupt = false) {
   const ok = await window.GaemiGTPCenterAIChat.create(ctx).appendChatReply(answer, 1);
   assert.equal(row.querySelector('.typing-cursor'), null, 'caret must disappear after typing');
   assert.ok(!row.classList.contains('typing-cursor'), 'outer row must never own caret');
-  return { ok, row, observations };
+  return { ok, row, observations, actions };
 }
 (async () => {
   const plain = await scenario('한글이 길게 이어지는 문장입니다. 다음 줄도 있어요.');
@@ -94,6 +106,10 @@ async function scenario(answer, interrupt = false) {
   assert.ok(rich.observations.some((item) => item.tag === 'strong'));
   assert.ok(rich.observations.some((item) => item.tag === 'span'));
   assert.match(rich.row.textContent, /마지막 문단/);
+  assert.equal(rich.actions.length, 1, 'exactly one completed-reply action set');
+  assert.ok(rich.actions[0].includes('굵은 제목'), 'action text preserves visible words');
+  assert.ok(rich.actions[0].includes('두 번째 강조 항목'), 'action text preserves list item');
+  assert.ok(!/\\*\\*|^\\s*[-*+]\\s/m.test(rich.actions[0]), 'copy/read do not receive hidden Markdown markers');
 
   const interrupted = await scenario('계속 타이핑되는 긴 문장입니다.', true);
   assert.equal(interrupted.ok, false);
