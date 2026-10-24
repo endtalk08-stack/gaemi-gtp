@@ -53,6 +53,9 @@ def main():
         print("KIWOOM_VERIFY_NVDA_CURRENT_OK=" + json.dumps({
             "symbol": SYMBOL, "current": quote["current"],
             "change_pct": quote["change_pct"],
+            "high": quote.get("high"), "low": quote.get("low"),
+            "high_low_valid": bool(quote.get("high") and quote.get("low")
+                                   and quote["high"] >= quote["low"] > 0),
             "official_close": False,
         }, ensure_ascii=False), flush=True)
 
