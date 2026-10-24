@@ -7,6 +7,8 @@ on:
       - 'backend/providers/kiwoom_us_quotes.py'
       - 'tests/test_kiwoom_us_quotes.py'
       - 'backend/services/market_rankings.py'
+      - 'backend/services/market_issue_headlines.py'
+      - 'backend/services/engine.py'
       - 'app.py'
       - 'tests/test_market_trading_value.py'
       - 'tests/test_market_selection_context.py'
@@ -28,6 +30,6 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install 'requests>=2.32,<3'
-          python -m compileall -q backend/providers/kiwoom_us_quotes.py
+          python -m compileall -q backend/providers/kiwoom_us_quotes.py backend/services/market_rankings.py backend/services/market_issue_headlines.py backend/services/engine.py app.py
           python -m unittest -v tests.test_kiwoom_us_quotes
-          python -m unittest -v tests.test_market_trading_value tests.test_market_selection_context
+          python -m unittest -v tests.test_market_trading_value tests.test_market_selection_context tests.test_kiwoom_identity_autoregister
