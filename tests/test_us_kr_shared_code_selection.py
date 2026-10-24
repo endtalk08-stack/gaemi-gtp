@@ -114,8 +114,8 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         # nominated original is unreadable; it must never substitute a
         # publisher description or invented issue for that missing body.
         self.assertEqual(result.get("_news_status"), "ok")
-        self.assertEqual(len(result.get("issue_briefs") or []), 1)
-        self.assertEqual(result["issue_briefs"][0]["summary"], "원문 확인 불가")
+        # No event survived the KR selector, so US has no event either.
+        self.assertEqual(result.get("issue_briefs"), [])
         self.assertTrue(result.get("_code_original_unavailable"))
 
     def test_us_and_kr_use_same_issue_text_builder_without_us_fallback(self):
@@ -304,7 +304,7 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         )
         self.assertNotIn("미국 매장에서도", trimmed)
 
-    def test_us_rejects_bitcoin_article_even_when_description_mentions_spacex(self):
+    def test_us_uses_same_kr_fallback_for_bitcoin_mention_without_extra_rules(self):
         article = item(
             "비트코인 ETF 하루 순유출…국제유가 급등",
             "앞서 스페이스X의 호실적을 계기로 기술주가 상승했지만, 비트코인 ETF 자금은 빠졌다.",
@@ -317,15 +317,22 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
             "국제유가 상승으로 가상자산 시장의 투자심리가 위축됐다. "
             "트레이더들은 관련 위험을 점검하고 있다."
         )
-        with patch.object(news_result, "build_simple_today_news", return_value=[item_direct]), \
-             patch.object(news_result, "select_keyword_storyboard_news", return_value=[]), \
-             patch.object(news_result, "read_selected_article_details",
-                          return_value=[{"text": bitcoin_body, "source": "article_or_main_paragraphs"}]) as fetch_body:
-            result = news_result.build_stock_news_result(
-                "스페이스X", market="미국", raw_news_list=[article])
-        self.assertEqual(result["_news_status"], "ok")
-        self.assertEqual(result["issue_briefs"], [])
-        self.assertGreaterEqual(fetch_body.call_count, 1)
+        def run(market):
+            with patch.object(news_result, "build_simple_today_news", return_value=[item_direct]), \
+                 patch.object(news_result, "select_keyword_storyboard_news", return_value=[]), \
+                 patch.object(news_result, "read_selected_article_details",
+                              return_value=[{"text": bitcoin_body, "source": "article_or_main_paragraphs"}]):
+                return news_result.build_stock_news_result(
+                    "스페이스X", market=market, raw_news_list=[article])
+        domestic, america = run("국내"), run("미국")
+        self.assertEqual(domestic["_news_status"], "ok")
+        self.assertEqual(america["_news_status"], "ok")
+        self.assertEqual(len(domestic["issue_briefs"]), len(america["issue_briefs"]))
+        if domestic["issue_briefs"]:
+            self.assertEqual(domestic["issue_briefs"][0]["headline"], america["issue_briefs"][0]["headline"])
+            self.assertEqual(domestic["issue_briefs"][0]["tags"], america["issue_briefs"][0]["tags"])
+            self.assertEqual(america["issue_briefs"][0]["summary"], bitcoin_body)
+            self.assertEqual(america["issue_briefs"][0]["evidence_source"], "verified_article_body_title_only")
 
     def test_verified_neon_identity_used_for_us_code_selection(self):
         row = item(
