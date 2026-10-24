@@ -100,8 +100,22 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
             if not valid_sources:
                 continue
             latest = max(pub for pub, _ in valid_sources)
+            # US code briefs can still contain an old category-only headline.
+            # The same verified brief already stores its selected article title;
+            # display that title directly without new collection or processing.
+            headline = str(brief.get("headline") or "").strip()
+            if code_only and (
+                headline.endswith(" 이슈")
+                or headline in {"기사 주요 내용", "관련 이슈"}
+            ):
+                for _, source in valid_sources:
+                    article_title = str(source.get("title") or "").strip()
+                    if 10 <= len(article_title) <= 180:
+                        headline = article_title
+                        break
             fresh.append({
                 **brief,
+                "headline": headline,
                 "time": latest.astimezone(SEOUL).strftime("%H:%M"),
                 "reaction_at": "",
                 "source_articles": [source for _, source in valid_sources],
