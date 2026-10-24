@@ -32,6 +32,21 @@ jobs:
           systemctl show gaemigtp-news.service -p ActiveState -p SubState -p MainPID -p ExecStart -p ActiveEnterTimestamp -p NRestarts | head -n 6
           echo CODE_REV6_PRESENT=$(grep -Fc '"_code_source_revision": 6' backend/services/news_result.py)
           echo STORE_REV6_PRESENT=$(grep -Fc 'payload.get("_code_source_revision") != 6' backend/services/news_processed_store.py)
+          echo EXECUTION_CONTEXT_BEGIN
+          /opt/gaemigtp-news/venv/bin/python - <<'PY'
+          import ast, os
+          from pathlib import Path
+          p=Path('backend/news_worker.py')
+          code=p.read_text()
+          tree=ast.parse(code)
+          print('SHELL_NEWS_DATABASE_CONFIGURED='+str(bool(os.environ.get('NEWS_DATABASE_URL'))))
+          print('SHELL_NEWS_RANKING_TOKEN_CONFIGURED='+str(bool(os.environ.get('NEWS_WORKER_RANKING_TOKEN'))))
+          print('LIVE_WORKER_FUNCTIONS='+','.join(n.name for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))))
+          print('LIVE_HAS_US_NON_NAVER='+str('fetch_us_non_naver_news' in code))
+          print('LIVE_HAS_NAVER_FETCH='+str('news_feed.fetch_stock_news' in code))
+          print('LIVE_HAS_REPROCESS='+str('def process_stock' in code))
+          PY
+          echo EXECUTION_CONTEXT_END
           echo RECENT_NEWS_WORKER_LOG_BEGIN
           journalctl -u gaemigtp-news.service --since '40 minutes ago' --no-pager -o cat | grep -E '\[news-worker\]|\[analyze news funnel\]|\[뉴스\] fail|\[news detail\] failed' | tail -n 75 | sed -E 's#https?://[^ ]+#<url>#g' || true
           echo RECENT_NEWS_WORKER_LOG_END
