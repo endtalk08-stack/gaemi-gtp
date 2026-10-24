@@ -4,6 +4,7 @@ DigitalOcean owns news collection and original article-body verification. Render
 using the original published_at of cited articles, never the AI/DB write time.
 """
 from copy import deepcopy
+import re
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
@@ -49,6 +50,96 @@ def issue_mode_for_question(question, *, explicit=None):
         return "code"
     return "auto"
 
+
+
+def _compact_code_news_title(brief):
+    """Compose a short display headline from the verified article facts.
+
+    Never reuse the publisher's truncated title or imply that a forecast,
+    analysis or possibility has already happened. Ambiguous facts keep the
+    original category label instead of producing an invented news headline.
+    """
+    original = str(brief.get("headline") or "").strip()
+    if not original.endswith(" 이슈") and original not in {"기사 주요 내용", "관련 이슈"}:
+        return original
+    summary = re.sub(r"\s+", " ", str(brief.get("summary") or "")).strip()
+    if not summary or summary == "원문 확인 불가":
+        return original
+
+    def actor_name():
+        match = re.search(
+            r"(?:전문기업|제약사|서비스 기업|소프트웨어 기업)\s+"
+            r"([가-힣A-Za-z0-9·-]{2,28})", summary
+        )
+        if match:
+            return re.sub(r"(?:이|가|은|는|의)$", "", match.group(1))
+        match = re.match(r"([가-힣A-Za-z0-9·-]{2,25})(?:와|과|이|가|은|는)\b", summary)
+        if match:
+            return match.group(1)
+        match = re.match(r"(?:일론\s+)?(머스크)(?:가|는|의)\b", summary)
+        return match.group(1) if match else ""
+
+    actor = actor_name()
+    headline = ""
+    if ("중동" in summary and "국제유가" in summary
+            and "급등" in summary and "뉴욕 증시" in summary
+            and re.search(r"(?:하락세|하락|내림세).*마감", summary)):
+        headline = "중동 긴장·유가 급등에 뉴욕증시 하락"
+
+    if not headline and re.search(r"암\s*백신", summary) and re.search(r"(?:임상\s*)?3상", summary):
+        price = re.search(r"주가[^.!?]{0,30}?(\d{1,2}(?:\.\d+)?)%\s*(?:가까이|이상|넘게)?\s*급락", summary)
+        if actor and price and re.search(r"(?:효과|입증|성공)", summary):
+            approx = "약 " if "가까이" in price.group(0) else ""
+            headline = f"{actor} 암백신, 3상 효과에도 주가 {approx}{price.group(1)}% 급락"
+        elif actor and re.search(r"(?:재발|사망)\s*(?:또는\s*사망)?\s*위험[^.!?]{0,40}(?:낮췄|감소)", summary):
+            partner = "·MSD" if "MSD" in summary[:110] else ""
+            headline = f"{actor}{partner} 암백신, 3상서 재발·사망 위험 감소"
+
+    if not headline and "AI" in summary and "데이터센터" in summary:
+        amount = re.search(r"최대\s*(\d[\d,]*(?:조|억)?\s*(?:달러|원))", summary)
+        if (amount and re.search(r"(?:투입|투자)", summary)
+                and re.search(r"(?:투입할 수|가능성|분석이 나왔다|전망)", summary)):
+            if actor:
+                headline = f"{actor}, AI 데이터센터 최대 {amount.group(1)} 투자 가능성"
+            else:
+                headline = f"AI 데이터센터 최대 {amount.group(1)} 투자 가능성"
+
+    if (not headline and "사이버트럭" in summary and "확보" in summary
+            and "사업 확대" in summary and actor):
+        if "광고" in summary and "렌트" in summary:
+            headline = f"{actor}, 사이버트럭 확보해 광고·대여 사업 확대"
+        else:
+            headline = f"{actor}, 사이버트럭 확보해 사업 확대"
+
+    if not headline and "컴퓨팅 공급 능력" in summary and "매진" in summary:
+        name = re.search(r"([가-힣A-Za-z0-9·-]+)\(([A-Z]{2,8})\)의\s*컴퓨팅 공급 능력", summary)
+        if name:
+            until = "내년까지 " if "내년까지" in summary else ""
+            prefix = "AI 컴퓨팅" if "AI" in summary else "컴퓨팅"
+            headline = f"{name.group(2)}, {prefix} 공급능력 {until}매진"
+
+    if not headline and re.search(r"(?:인공지능\(AI\)|AI)\s*컴퓨팅\s*수요\s*증가", summary):
+        subject = re.search(r"([가-힣A-Za-z0-9·-]{2,25})의[^.!?]{0,40}(?:인공지능\(AI\)|AI)\s*컴퓨팅\s*수요\s*증가", summary)
+        if subject:
+            headline = f"{subject.group(1)}, AI 컴퓨팅 수요 증가"
+
+    if not headline and actor:
+        event_patterns = (
+            (r"목표\s*주가\s*상향", "목표주가 상향"),
+            (r"목표\s*주가\s*하향", "목표주가 하향"),
+            (r"(?:공급\s*계약|납품\s*계약)[^.!?]{0,50}체결", "공급계약 체결"),
+            (r"자사주[^.!?]{0,30}소각", "자사주 소각"),
+            (r"신용\s*등급[^.!?]{0,25}상향", "신용등급 상향"),
+            (r"신용\s*등급[^.!?]{0,25}하향", "신용등급 하향"),
+        )
+        for pattern, event in event_patterns:
+            if re.search(pattern, summary):
+                headline = f"{actor}, {event}"
+                break
+
+    if not headline or len(headline) > 48 or "..." in headline or "…" in headline:
+        return original
+    return headline
 
 def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
     """Read cited, 24-hour code and preserved AI channels without changing either.
@@ -100,19 +191,9 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
             if not valid_sources:
                 continue
             latest = max(pub for pub, _ in valid_sources)
-            # US code briefs can still contain an old category-only headline.
-            # The same verified brief already stores its selected article title;
-            # display that title directly without new collection or processing.
-            headline = str(brief.get("headline") or "").strip()
-            if code_only and (
-                headline.endswith(" 이슈")
-                or headline in {"기사 주요 내용", "관련 이슈"}
-            ):
-                for _, source in valid_sources:
-                    article_title = str(source.get("title") or "").strip()
-                    if 10 <= len(article_title) <= 180:
-                        headline = article_title
-                        break
+            # Generate from the stored verified prose, not the publisher title.
+            headline = (_compact_code_news_title(brief) if code_only
+                        else str(brief.get("headline") or "").strip())
             fresh.append({
                 **brief,
                 "headline": headline,
