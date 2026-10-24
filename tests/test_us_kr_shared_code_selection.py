@@ -257,6 +257,21 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         self.assertEqual(len(excerpt.split(". ")), 3)
         self.assertNotIn("네 번째 문장", excerpt)
 
+    def test_us_rejects_image_generated_caption_without_real_prose_boundary(self):
+        article_prefix = (
+            "매출 폭발 아이온큐, 2분기 8010만 달러 성장세 입증 "
+            "현금 보유와 경쟁사 평가를 다룬 기사 머리말 "
+            "차세대 양자 컴퓨팅 패권 맞대결… 아이온큐 vs 리게티 "
+            "이미지 확대보기 아이온큐와 리게티 컴퓨팅 비교. "
+            "이미지=구글 AI 제미나이 생성 [핵심 포인트] "
+            "○ 기술 방식 경쟁을 언급한다. "
+            "○ 재무 건전성을 비교한다. "
+            "본문에서 아이온큐는 신제품 개발을 설명했다."
+        )
+        self.assertEqual(
+            news_result._us_remove_leading_image_caption(article_prefix), ""
+        )
+
     def test_us_angular_publisher_credit_does_not_make_four_sentences(self):
         original = (
             "애플이 신제품 공급 부족을 겪고 있다. "
