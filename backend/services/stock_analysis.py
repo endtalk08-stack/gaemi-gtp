@@ -181,6 +181,10 @@ def fetch_stock_price_result(*, is_krw, ticker_symbol, clean_code=None):
         is_krw=False,
         ticker_symbol=ticker_symbol,
         current=quote["price"] if quote else None,
+        # Use the same signed FE tick as the left sidebar, including its
+        # trading-session high/low; stale Neon snapshots have no day range.
+        high=quote.get("high") if quote and source == "kiwoom-direct" else None,
+        low=quote.get("low") if quote and source == "kiwoom-direct" else None,
         change_pct=quote.get("change_pct") if quote else None,
         quote_source=source,
         quote_received_at_ms=quote.get("received_at_ms") if quote else None,
