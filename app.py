@@ -90,7 +90,7 @@ def market_trading_value():
             item["issue_headline"] = issue["headline"]
     except (ValueError, Exception) as exc:
         print(f"[market ranking issues] lookup failed: {type(exc).__name__}", flush=True)
-    return jsonify({"ok": True, "market": market, "source": "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
+    return jsonify({"ok": True, "market": market, "source": "kiwoom" if market == "us" else "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
 
 
 @app.get("/market/popular")
