@@ -68,7 +68,15 @@ def _parse_price_event(message, selected):
             continue
         if pct is not None and not -100 < pct < 100000:
             pct = None
-        updates[symbol] = (abs(price), pct)
+        # Official Kiwoom FE fields: 17=session high, 18=session low.
+        # The sidebar and central metrics must share this exact FE update.
+        high = _num(fields.get("17"))
+        low = _num(fields.get("18"))
+        high = abs(high) if high is not None and 0 < abs(high) < 10000000 else None
+        low = abs(low) if low is not None and 0 < abs(low) < 10000000 else None
+        if high is not None and low is not None and high < low:
+            high, low = None, None
+        updates[symbol] = (abs(price), pct, high, low)
     return updates
 
 def _ranked_symbols(dsn):
