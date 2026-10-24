@@ -70,7 +70,7 @@ def _read_worker_briefs(market, names):
         return {}
 
 
-def get_market_issue_headlines(market, items):
+def get_market_issue_headlines(market, items, *, trusted_kiwoom_identity=False):
     started = time.monotonic()
     if market not in ("kr", "us") or not isinstance(items, list) or not 1 <= len(items) <= _MAX_ITEMS:
         raise ValueError("invalid_market_issue_request")
@@ -80,11 +80,22 @@ def get_market_issue_headlines(market, items):
 
     # Match only verified US ticker/name variants; keep source ranking labels.
     # KR uses exactly its original keys and request path.
-    names_per_row = [
-        news_snapshot_names(row["name"], symbol=row["symbol"])
-        if market == "us" else [row["name"]]
-        for row in rows
-    ]
+    names_per_row = []
+    for row, item in zip(rows, items):
+        if market != "us":
+            names_per_row.append([row["name"]])
+            continue
+        candidates = news_snapshot_names(row["name"], symbol=row["symbol"])
+        # Only the internal Kiwoom/Neon ranking read may supply a trusted
+        # company identity. The public headline POST must never trust aliases.
+        if trusted_kiwoom_identity and item.get("identity_status") == "verified":
+            company_key = str(item.get("company_key") or "")
+            canonical = str(item.get("news_name") or "").strip()
+            if company_key.startswith("US:") and 0 < len(canonical) <= 100:
+                candidates = list(dict.fromkeys(
+                    [*candidates, canonical, *news_snapshot_names(canonical, symbol=row["symbol"])]
+                ))
+        names_per_row.append(candidates)
     all_names = list(dict.fromkeys(name for names in names_per_row for name in names))
     worker_briefs = _read_worker_briefs(market, all_names)
     results = []
