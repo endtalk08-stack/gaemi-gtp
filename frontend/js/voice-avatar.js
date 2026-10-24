@@ -260,7 +260,7 @@
   async function toggle(text, button) {
     if (playing) { stop(); return; }
     if (isResolvingVoice) return;
-    const clean = String(text || '').replace(/\\s+/g,' ').trim();
+    const clean = String(text || '').replace(/\s+/g,' ').trim();
     if (!clean) return;
     if (clean === SAMPLE_TEXT) return playSample();
 
