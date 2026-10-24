@@ -199,7 +199,7 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
             raise RuntimeError("stop_after_verified_identity_check")
         with patch.object(news_result, "resolve_us_news_identity", create=True,
                           return_value={"status": "verified", "news_name": "메타",
-                                        "company_key": "US:META", "ticker": "META"}), \\
+                                        "company_key": "US:META", "ticker": "META"}), \
              patch.object(news_result, "score_stock_news", side_effect=inspect):
             result = news_result.build_stock_news_result(
                 "메타 플랫폼스(페이스북)", market="미국", raw_news_list=[row])
@@ -219,7 +219,7 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
             raise RuntimeError("stop_after_pending_identity_check")
         with patch.object(news_result, "resolve_us_news_identity", create=True,
                           return_value={"status": "pending", "news_name": "메타",
-                                        "company_key": "US:OTHER", "ticker": "META"}), \\
+                                        "company_key": "US:OTHER", "ticker": "META"}), \
              patch.object(news_result, "score_stock_news", side_effect=inspect):
             result = news_result.build_stock_news_result(
                 "미검증테스트기업", market="미국", raw_news_list=[row])
@@ -237,8 +237,8 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
             "tags": ["공급계약"], "stock_names": ["메타"]
         }
         with patch.object(news_result, "resolve_us_news_identity", create=True,
-                          return_value={"status": "verified", "news_name": "메타"}), \\
-             patch.object(news_result, "build_simple_today_news", return_value=[]), \\
+                          return_value={"status": "verified", "news_name": "메타"}), \
+             patch.object(news_result, "build_simple_today_news", return_value=[]), \
              patch.object(news_result, "build_issue_briefs", return_value=[brief.copy()]):
             result = news_result.build_stock_news_result(
                 "메타 플랫폼스(페이스북)", market="미국", raw_news_list=[row])
