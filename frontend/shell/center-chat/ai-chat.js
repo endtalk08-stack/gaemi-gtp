@@ -162,8 +162,12 @@
       row.querySelector('.typing-cursor')?.classList.remove('typing-cursor');
       if (!typed) return false;
       if (ctx.getSession()?.id !== sessionId || !row.isConnected) return false;
+      // The display renderer consumes Markdown markers (headings, bold, lists).
+      // Copy/share/read must receive what the user actually sees, not the
+      // original AI text kept for conversation history and model context.
+      const visibleReplyText = (row.innerText || row.textContent || text).trim();
       const actions = window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
-        row, text, 'ai-' + row.dataset.chatMessageId, ctx.getSession().stock || ''
+        row, visibleReplyText, 'ai-' + row.dataset.chatMessageId, ctx.getSession().stock || ''
       );
       // AI 답변의 타이핑 흐름을 마지막 '싫어요' 아이콘까지 이어간다.
       // 기존 공통 액션 생성/클릭 로직은 그대로 재사용한다.
