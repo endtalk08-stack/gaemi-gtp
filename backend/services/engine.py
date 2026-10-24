@@ -3396,33 +3396,30 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
         # 3. 등락률 분기 (불필요한 멘트 삭제 완료)
         if change_pct >= 5.0:
             status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"오!! {raw_name} {change_pct:+.2f}% 상승중이야"
+            intro_ment = f"오!! {raw_name} 상승중이야"
         elif 0.5 <= change_pct < 5.0:
             status_emoji, title_word = '🔥', '올랐어'
-            intro_ment = f"스멀스멀 {change_pct:+.2f}% 우상향 중이야"
+            intro_ment = "스멀스멀 우상향 중이야"
         elif -0.5 < change_pct < 0.5:
             status_emoji, title_word = '⚖️', '보합일까'
-            intro_ment = f"하아.. {raw_name} {change_pct:+.2f}%로 완전 눈치싸움 중이네"
+            intro_ment = f"하아.. {raw_name} 완전 눈치싸움 중이네"
         elif -5.0 < change_pct <= -0.5:
             status_emoji, title_word = '❄️', '숨고르기일까'
-            intro_ment = f"아이고 {raw_name} {change_pct:+.2f}% 파란불 켜져서 속 쓰리겠다"
+            intro_ment = f"아이고 {raw_name} 파란불 켜져서 속 쓰리겠다"
         else:
             status_emoji, title_word = '❄️', '빠질까'
-            intro_ment = f"헐... {raw_name} {change_pct:+.2f}% 무섭게 빠지네"
+            intro_ment = f"헐... {raw_name} 무섭게 빠지네"
 
 
-        # 첫 화면은 현재 주가를 가장 위에 배치한다.
-        # 그 다음 자리에 향후 AI 분석 영역이 들어간다.
+        # 왼쪽 사이드바에 현재가/등락률이 있으므로 본문에서는 중복하지 않는다.
+        # 본문 멘트는 유지하고 퍼센트는 기술지표(고가/저가/이평선)에만 표시한다.
         # 뉴스와 공시는 기존처럼 한 칸(빈 줄) 간격을 유지한다.
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
         price_tags = list(price_result.get("price_tags") or [])
         tags_str = "   ".join(price_tags)
 
-        first_content_parts = [
-            intro_ment,
-            f"현재 주가는 {price_str} 기록 중!",
-        ]
+        first_content_parts = [intro_ment]
         price_metrics_text = str(price_result.get("first_reply_metrics_text") or "").strip()
         if price_metrics_text:
             first_content_parts.append(price_metrics_text)
@@ -3433,7 +3430,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None):
                 "id": "why-up",
                 "title": f"{status_emoji} 오늘은 왜 {title_word}?",
                 "content": "\n\n".join(first_content_parts),
-                "tags": [f"#{raw_name}", f"#{change_pct:+.2f}%", "#실시간속보"]
+                "tags": [f"#{raw_name}", "#실시간속보"]
             }
         ]
 
