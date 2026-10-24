@@ -1,0 +1,27 @@
+name: Browser read-aloud regression
+on:
+  pull_request:
+    paths:
+      - 'frontend/js/reply-speech.js'
+      - 'frontend/js/first-reply-actions.js'
+      - 'frontend/index.html'
+      - 'tests/test_reply_speech.cjs'
+      - '.github/workflows/reply-speech-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-aloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: |
+          node --check frontend/js/reply-speech.js
+          node --check frontend/js/first-reply-actions.js
+      - name: Long reply and interruption regression tests
+        run: node --test tests/test_reply_speech.cjs
