@@ -9,6 +9,8 @@ from backend.services import market_rankings
 
 class MarketTradingValueTests(unittest.TestCase):
     def setUp(self):
+        # Isolate cached provider failures between independent regression tests.
+        market_price.MARKET_RANKING_CACHE.clear()
         # Ranking normalization tests should not call live industry endpoints.
         mock = patch.object(market_rankings, "get_stock_industries", return_value={})
         mock.start()
