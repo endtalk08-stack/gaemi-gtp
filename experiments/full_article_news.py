@@ -1,11 +1,18 @@
-"""Standalone, code-only full-article news experiment. Not imported by the live app.
+"""Experimental full-article writer; NEVER used to fetch the whole news feed.
 
-Run:
+Agreed strategy: collect metadata -> classify seven types -> filter/shortlist ->
+read ONLY selected full originals -> category-specific writing -> fact checks.
+The real experimental ENTRYPOINT is:
+    python -m experiments.news_selection --file candidates.json --read-selected
+
+These DIRECT article arguments are debugging conveniences for a single chosen
+article, NOT the proposed live news pipeline:
     python -m experiments.full_article_news --url "https://publisher.example/article"
     python -m experiments.full_article_news --file article.txt
 
-Requires a verifiable FULL article body. Unknown formats return "not_supported"
-instead of reusing the source headline or inventing facts. No database writes.
+Existing writing rules cover three event shapes only. The seven category-
+specific writers and production feed integration are NOT implemented.
+Unknown article formats return "not_supported". No database writes.
 """
 from __future__ import annotations
 
