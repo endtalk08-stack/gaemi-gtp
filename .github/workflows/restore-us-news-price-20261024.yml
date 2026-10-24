@@ -1,0 +1,34 @@
+name: Verify restored US news and saved Kiwoom quote
+on:
+  push:
+    branches: [fix/restore-us-news-price-20261024]
+  pull_request:
+    paths:
+      - backend/services/news_freshness.py
+      - backend/services/kiwoom_us_value_board.py
+      - backend/services/stock_analysis.py
+      - backend/services/engine.py
+      - frontend/js/why-flow.js
+      - tests/test_us_news_freshness.py
+      - tests/test_kiwoom_central_quotes.py
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Compile Python and check browser JavaScript
+        run: |
+          python -m py_compile backend/services/news_freshness.py backend/services/kiwoom_us_value_board.py backend/services/stock_analysis.py backend/services/engine.py
+          node --check frontend/js/why-flow.js
+      - name: News and live-price regression tests
+        run: |
+          python -m unittest discover -s tests -p 'test_us_news_freshness.py' -v
+          python -m unittest discover -s tests -p 'test_dual_issue_mode.py' -v
+          python -m unittest discover -s tests -p 'test_market_issue_headlines.py' -v
+          python -m unittest discover -s tests -p 'test_kiwoom_central_quotes.py' -v

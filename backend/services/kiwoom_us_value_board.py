@@ -63,3 +63,43 @@ def read_us_trading_value_board(limit=20, diagnostics=None):
         if diagnostics is not None:
             diagnostics.append('db_query_failed')
         return None
+
+
+def read_recent_saved_us_quote(symbol, *, max_age_seconds=72 * 3600):
+    """Read a recent Kiwoom ranking snapshot as LAST KNOWN price, never live.
+
+    Used only when the authenticated direct feed is absent. No new vendor
+    requests or writes; weekend snapshots can remain available for 72 hours.
+    """
+    import math
+    import re
+    from datetime import datetime, timezone
+
+    code = str(symbol or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9.-]{1,20}", code):
+        return None
+    rows = read_us_trading_value_board(limit=20)
+    for row in rows or ():
+        if row.get("symbol") != code:
+            continue
+        try:
+            captured = datetime.fromisoformat(str(row["captured_at"]).replace("Z", "+00:00"))
+            if captured.tzinfo is None:
+                return None
+            age = (datetime.now(timezone.utc) - captured.astimezone(timezone.utc)).total_seconds()
+            price = float(row["price"])
+            change = row.get("change_pct")
+            change = float(change) if change is not None else None
+        except (TypeError, ValueError, KeyError, OverflowError):
+            return None
+        if not (0 <= age <= max_age_seconds and math.isfinite(price) and price > 0):
+            return None
+        if change is not None and not math.isfinite(change):
+            change = None
+        return {
+            "symbol": code, "price": price, "change_pct": change,
+            "received_at_ms": int(captured.timestamp() * 1000),
+            "stale": True,
+            "source": "kiwoom-neon-snapshot",
+        }
+    return None

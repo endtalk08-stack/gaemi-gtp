@@ -8,6 +8,7 @@ from ..providers.market_price import (
     fetch_kr_stock_quote,
 )
 from .us_price_push import read_fresh_us_quote
+from .kiwoom_us_value_board import read_recent_saved_us_quote
 
 
 _SPACER = "\u00a0\u00a0\u00a0"
@@ -171,11 +172,16 @@ def fetch_stock_price_result(*, is_krw, ticker_symbol, clean_code=None):
     # The Yahoo 2-year daily series above is historical indicator input only.
     # If the tick is missing/stale, never mislabel yesterday's close as live.
     quote = read_fresh_us_quote(ticker_symbol)
+    source = "kiwoom-direct" if quote else "kiwoom-unavailable"
+    if quote is None:
+        quote = read_recent_saved_us_quote(ticker_symbol)
+        if quote:
+            source = "kiwoom-neon-snapshot"
     return _build_stock_price_result(
         is_krw=False,
         ticker_symbol=ticker_symbol,
         current=quote["price"] if quote else None,
         change_pct=quote.get("change_pct") if quote else None,
-        quote_source="kiwoom-direct" if quote else "kiwoom-unavailable",
+        quote_source=source,
         quote_received_at_ms=quote.get("received_at_ms") if quote else None,
     )

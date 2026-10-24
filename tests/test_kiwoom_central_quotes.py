@@ -44,7 +44,8 @@ class KiwoomCentralQuoteTests(unittest.TestCase):
             {"date": "2026-10-22", "close": 856.49, "high": 860.0, "low": 840.0, "volume": 200},
         ]
         with patch("backend.services.stock_analysis.fetch_daily_price_history", return_value=history), \
-             patch("backend.services.stock_analysis.read_fresh_us_quote", return_value=None):
+             patch("backend.services.stock_analysis.read_fresh_us_quote", return_value=None), \
+             patch("backend.services.stock_analysis.read_recent_saved_us_quote", return_value=None):
             result = fetch_stock_price_result(is_krw=False, ticker_symbol="MU")
         self.assertEqual(result["current_price"], 0)
         self.assertEqual(result["quote_source"], "kiwoom-unavailable")
@@ -60,6 +61,32 @@ class KiwoomCentralQuoteTests(unittest.TestCase):
         self.assertEqual(result["change_pct"], 0.0)
         self.assertEqual(result["quote_source"], "kiwoom-direct")
 
+
+
+    def test_missing_live_tick_uses_labeled_recent_saved_kiwoom_price(self):
+        saved = {"symbol": "MU", "price": 877.55, "change_pct": 2.46,
+                 "received_at_ms": 9999, "stale": True}
+        with patch("backend.services.stock_analysis.fetch_daily_price_history", return_value=[]), \
+             patch("backend.services.stock_analysis.read_fresh_us_quote", return_value=None), \
+             patch("backend.services.stock_analysis.read_recent_saved_us_quote", return_value=saved):
+            result = fetch_stock_price_result(is_krw=False, ticker_symbol="MU")
+        self.assertEqual(result["current_price"], 877.55)
+        self.assertEqual(result["quote_source"], "kiwoom-neon-snapshot")
+        self.assertEqual(result["quote_received_at_ms"], 9999)
+
+    def test_saved_quote_rejects_expired_or_bad_source(self):
+        from datetime import datetime, timedelta, timezone
+        from backend.services.kiwoom_us_value_board import read_recent_saved_us_quote
+        now = datetime.now(timezone.utc)
+        with patch("backend.services.kiwoom_us_value_board.read_us_trading_value_board",
+                   return_value=[{"symbol": "MU", "price": 877.55, "change_pct": 2.46,
+                                  "captured_at": (now-timedelta(hours=4)).isoformat()}]):
+            self.assertEqual(read_recent_saved_us_quote("MU")["price"], 877.55)
+            self.assertIsNone(read_recent_saved_us_quote("NVDA"))
+        with patch("backend.services.kiwoom_us_value_board.read_us_trading_value_board",
+                   return_value=[{"symbol": "MU", "price": 877.55, "change_pct": 2.46,
+                                  "captured_at": (now-timedelta(hours=80)).isoformat()}]):
+            self.assertIsNone(read_recent_saved_us_quote("MU"))
 
 if __name__ == "__main__":
     unittest.main()
