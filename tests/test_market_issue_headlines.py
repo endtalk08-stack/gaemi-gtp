@@ -14,7 +14,7 @@ class MarketIssueHeadlineTests(unittest.TestCase):
                           return_value={"삼성전자": briefs}) as reader:
             result = subject.get_market_issue_headlines("kr", items)
         self.assertEqual(result["items"][0]["status"], "ready")
-        self.assertEqual(result["items"][0]["headline"], "AI 반도체 이슈")
+        self.assertEqual(result["items"][0]["headline"], "AI 반도체")
         self.assertFalse(result["pending"])
         reader.assert_called_once_with("kr", ["삼성전자"])
 
@@ -43,10 +43,10 @@ class MarketIssueHeadlineTests(unittest.TestCase):
                           return_value={"종목0": briefs, "종목19": briefs}) as reader:
             result = subject.get_market_issue_headlines("kr", items, skip_invalid=True)
         self.assertEqual(len(result["items"]), 20)
-        self.assertEqual(result["items"][0]["headline"], "공급 계약 이슈")
+        self.assertEqual(result["items"][0]["headline"], "공급 계약")
         self.assertEqual(result["items"][7]["headline"], "")
         self.assertEqual(result["items"][7]["status"], "invalid")
-        self.assertEqual(result["items"][19]["headline"], "공급 계약 이슈")
+        self.assertEqual(result["items"][19]["headline"], "공급 계약")
         self.assertEqual(result["items"][19]["symbol"], "000019")
         names = reader.call_args.args[1]
         self.assertEqual(len(names), 19)
@@ -63,7 +63,7 @@ class MarketIssueHeadlineTests(unittest.TestCase):
                           return_value={"삼성전자": briefs}) as reader:
             rows = subject.get_market_issue_headlines("kr", items, skip_invalid=True)["items"]
         self.assertEqual([row["status"] for row in rows], ["ready", "invalid", "unavailable"])
-        self.assertEqual([row["headline"] for row in rows], ["반도체 계약 이슈", "", ""])
+        self.assertEqual([row["headline"] for row in rows], ["반도체 계약", "", ""])
         reader.assert_called_once_with("kr", ["삼성전자", "삼성SDI"])
 
     def test_all_invalid_rank_rows_do_not_query_db(self):
@@ -181,6 +181,46 @@ class MarketIssueHeadlineTests(unittest.TestCase):
             )
         self.assertEqual(result["items"][0]["headline"], "")
         self.assertEqual(result["items"][0]["status"], "unavailable")
+
+    def test_sidebar_removes_only_trailing_issue_word(self):
+        self.assertEqual(subject._sidebar_title("사업 확대 이슈"), "사업 확대")
+        self.assertEqual(subject._sidebar_title("공급 계약 이슈  "), "공급 계약")
+        self.assertEqual(subject._sidebar_title("이슈 분석 및 전망"), "이슈 분석 및 전망")
+
+    def test_us_unverified_original_is_hidden_in_code_sidebar_and_chat(self):
+        from datetime import datetime, timezone
+        from backend.services.news_freshness import clean_us_snapshot
+        now = datetime.now(timezone.utc)
+        source = {"url": "https://example.org/news", "published_at": now.isoformat()}
+        raw = {
+            "_title_only_revision": 3,
+            "_code_fact_extraction_version": 3,
+            "_code_issue_briefs": [
+                {"headline": "국제유가 급등 이슈", "summary": "원문 확인 불가",
+                 "evidence_source": "original_unavailable", "source_articles": [source]},
+                {"headline": "공급 계약 이슈", "summary": "원문에서 확인한 실제 문장.",
+                 "evidence_source": "verified_article_body_title_only", "source_articles": [source]},
+            ],
+            "_ai_issue_briefs": [],
+        }
+        filtered = clean_us_snapshot(raw, now=now)
+        self.assertEqual(len(filtered["issue_briefs"]), 1)
+        self.assertEqual(filtered["issue_briefs"][0]["headline"], "공급 계약 이슈")
+        self.assertEqual(len(filtered["issue_channels"]["code"]), 1)
+        self.assertEqual(len(raw["_code_issue_briefs"]), 2, "database source must remain unchanged")
+        with patch.object(subject, "resolve_us_news_identity",
+                          return_value={"snapshot_names": ["스페이스X"]}), \
+             patch.object(subject, "_read_worker_briefs",
+                          return_value={"스페이스X": filtered}):
+            result = subject.get_market_issue_headlines(
+                "us", [{"name": "스페이스X", "symbol": "SPACEX"}]
+            )
+        self.assertEqual(result["items"][0]["headline"], "공급 계약")
+        only_unavailable = clean_us_snapshot({
+            **raw, "_code_issue_briefs": raw["_code_issue_briefs"][:1]
+        }, now=now)
+        self.assertEqual(only_unavailable["issue_briefs"], [])
+        self.assertEqual(subject._first_ai_headline(only_unavailable), "")
 
     def test_us_ai_headline_does_not_invent_evidence(self):
         self.assertEqual(subject._first_ai_headline({"issue_briefs": [
