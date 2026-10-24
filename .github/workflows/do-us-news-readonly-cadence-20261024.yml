@@ -45,6 +45,19 @@ jobs:
           print('LIVE_HAS_US_NON_NAVER='+str('fetch_us_non_naver_news' in code))
           print('LIVE_HAS_NAVER_FETCH='+str('news_feed.fetch_stock_news' in code))
           print('LIVE_HAS_REPROCESS='+str('def process_stock' in code))
+          import subprocess
+          pid=subprocess.check_output(['systemctl','show','gaemigtp-news.service','--property','MainPID','--value'],text=True).strip()
+          print('WORKER_PID_PRESENT='+str(pid.isdigit() and int(pid)>1))
+          if pid.isdigit():
+              from pathlib import Path
+              try:
+                  raw=Path('/proc/'+pid+'/environ').read_bytes()
+                  keys=[c.split(b'=',1)[0].decode('ascii','replace') for c in raw.split(b'\\0') if b'=' in c]
+                  print('WORKER_PROC_ENV_READABLE=True')
+                  for field in ('NEWS_DATABASE_URL','NEWS_WORKER_RANKING_TOKEN','GAEMIGTP_NEWS_AI_PAUSED','GROQ_API_KEY'):
+                      print('WORKER_PROC_'+field+'_PRESENT='+str(field in keys))
+              except Exception as e:
+                  print('WORKER_PROC_ENV_READABLE=False ERROR='+type(e).__name__)
           PY
           echo EXECUTION_CONTEXT_END
           echo RECENT_NEWS_WORKER_LOG_BEGIN
