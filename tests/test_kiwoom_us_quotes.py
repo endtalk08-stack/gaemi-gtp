@@ -66,6 +66,61 @@ class KiwoomReadOnlyTests(unittest.TestCase):
         self.assertEqual(answer["change_pct"], -2.15)
         self.assertEqual(answer["volume"], 5500)
 
+    def test_daily_chart_official_endpoint_and_ohlcv_pagination(self):
+        sent = []
+
+        def send(url, **kwargs):
+            sent.append((url, kwargs))
+            if len(sent) == 1:
+                return FakeResponse({
+                    "return_code": 0, "result_list": [
+                        {"dt": "20261022", "open_pric": "200", "high_pric": "210",
+                         "low_pric": "195", "cur_prc": "-205", "acc_trde_qty": "15,000"},
+                    ],
+                }, headers={"cont-yn": "Y", "next-key": "TEST_PAGE_TOKEN"})
+            return FakeResponse({
+                "return_code": 0, "result_list": [
+                    {"dt": "20261023", "open_pric": "210", "high_pric": "220",
+                     "low_pric": "201", "cur_prc": "215", "acc_trde_qty": "18,000"},
+                ],
+            }, headers={"cont-yn": "N"})
+
+        with patch.object(kiwoom.requests, "post", side_effect=send), patch.object(kiwoom.time, "sleep"):
+            result = kiwoom.fetch_us_daily_chart(
+                "nvda", "nd", dt.date(2026, 10, 1), token="MOCK_TOKEN")
+        self.assertEqual(len(sent), 2)
+        self.assertTrue(all(url == "https://api.kiwoom.com/api/us/chart" for url, _ in sent))
+        self.assertEqual(sent[0][1]["headers"]["api-id"], "usa06012")
+        self.assertEqual(sent[0][1]["json"], {
+            "stex_tp": "ND", "stk_cd": "NVDA", "strt_dt": "20261001",
+            "upd_stkpc_tp": "1", "exrt_appl_tp": "0",
+        })
+        self.assertEqual(sent[1][1]["headers"]["cont-yn"], "Y")
+        self.assertEqual(sent[1][1]["headers"]["next-key"], "TEST_PAGE_TOKEN")
+        self.assertEqual(result["source"], "kiwoom:usa06012")
+        self.assertEqual([x["date"] for x in result["rows"]], ["2026-10-22", "2026-10-23"])
+        self.assertEqual(result["rows"][0]["close"], 205.0)
+        self.assertEqual(result["rows"][0]["volume"], 15000.0)
+
+    def test_daily_chart_missing_history_does_not_fallback(self):
+        with patch.object(kiwoom.requests, "post", return_value=FakeResponse({
+            "return_code": 0, "result_list": [],
+        })):
+            result = kiwoom.fetch_us_daily_chart(
+                "NVDA", "ND", dt.date(2025, 1, 1), token="MOCK_TOKEN")
+        self.assertEqual(result["rows"], [])
+
+    def test_daily_chart_rejects_non_chart_tr_and_indices(self):
+        with patch.object(kiwoom.requests, "post", side_effect=AssertionError("no HTTP call")):
+            with self.assertRaises(kiwoom.KiwoomReadOnlyError):
+                kiwoom._request("/api/us/chart", {
+                    "stex_tp": "ND", "stk_cd": "NVDA", "strt_dt": "20261001",
+                    "upd_stkpc_tp": "1", "exrt_appl_tp": "0",
+                }, {"api-id": "ust20000"})
+            with self.assertRaises(kiwoom.KiwoomReadOnlyError):
+                kiwoom.fetch_us_daily_chart(
+                    "IXIC", "ND", dt.date(2026, 10, 1))
+
     def test_current_quote_fields(self):
         with patch.object(kiwoom.requests, "post", return_value=FakeResponse({
             "return_code": 0, "cur_prc": "220.02", "flu_rt": "+1.64",
