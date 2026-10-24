@@ -27,3 +27,18 @@ for path in ("/health","/market/trading-value?market=us"):
             print("DIAG_JSON=no",flush=True)
     except requests.RequestException as exc:
         print("DIAG_REQUEST_EXCEPTION="+type(exc).__name__,flush=True)
+
+
+# Read-only: verify Kiwoom's *actual* closed-session OHLC is still obtainable.
+# Do not mutate Neon, create tables, or substitute another provider.
+try:
+    from backend.providers.kiwoom_us_quotes import fetch_us_quote
+    quote=fetch_us_quote("MU", "ND")
+    high=quote.get("high")
+    low=quote.get("low")
+    print("DIAG_KIWOOM_USA20100_HIGH_LOW=" +
+          str({"symbol":"MU", "high":high, "low":low,
+               "valid":bool(high and low and high >= low > 0)}),flush=True)
+except Exception as exc:
+    print("DIAG_KIWOOM_USA20100_ERROR=" + type(exc).__name__ +
+          ":" + str(exc)[:110],flush=True)
