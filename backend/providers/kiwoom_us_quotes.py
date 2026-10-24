@@ -253,6 +253,9 @@ def fetch_us_quote(symbol, exchange, *, token=None):
         "current": _price(data.get("cur_prc")),
         "change_pct": _num(data.get("flu_rt")),
         "previous_close": _price(data.get("base_close_pric")),
+        "open": _price(data.get("open_pric")),
+        "high": _price(data.get("high_pric")),
+        "low": _price(data.get("low_pric")),
         "source": "kiwoom:usa20100",
         "official_close": False,
     }
