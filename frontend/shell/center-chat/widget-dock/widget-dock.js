@@ -17,12 +17,12 @@
   function readState() {
     try {
       const saved = localStorage.getItem(STATE_KEY);
-      if (saved === null) return ['kospi'];
+      if (saved === null) return ['qqq'];
       const value = JSON.parse(saved);
-      if (!Array.isArray(value)) return ['kospi'];
+      if (!Array.isArray(value)) return ['qqq'];
       // 이전 버전의 코스피 위젯 ID를 새 명확한 ID로 한 번만 이관한다.
       return value
-        .map(id => id === 'why-up' ? 'kospi' : id)
+        .map(id => (id === 'why-up' || id === 'kospi') ? 'qqq' : id)
         .filter((id, index, list) => catalog()[id] && list.indexOf(id) === index);
     } catch (_) { return []; }
   }
@@ -35,11 +35,32 @@
     if (!dock || !bodyEl) return;
     bodyEl.innerHTML = activeIds.map(id => {
       const meta = catalog()[id];
-      if (id === 'kospi' || id === 'night-futures') {
-        const title = id === 'kospi' ? '코스피' : '코스피200 야간선물';
-        const detail = id === 'kospi'
-          ? '키움 원천 데이터 연결 후 시세·등락률·장중 흐름을 표시합니다.'
-          : '야간선물 원천 데이터 연결 후 시세·등락률·흐름을 표시합니다.';
+      if (id === 'qqq') {
+        // Layout-only placeholder: no market-data requests, artificial prices or AI calls.
+        return `<article class="central-widget-card central-widget-card--qqq" data-central-widget-id="qqq" aria-label="QQQ 차트 레이아웃, 데이터 미연결">
+          <div class="central-widget-card__top">
+            <div class="central-widget-card__name">QQQ <span class="qqq-placeholder__subtitle">나스닥100 ETF</span></div>
+            <span class="qqq-placeholder__status">미연결</span>
+            <button type="button" class="central-widget-card__close" data-central-widget-remove="qqq" aria-label="QQQ 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
+          </div>
+          <div class="qqq-placeholder__quote"><strong>—</strong><span>—%</span><small>시세 대기</small></div>
+          <div class="qqq-placeholder__chart" role="img" aria-label="QQQ 가격 차트가 표시될 자리. 시세 연결되지 않음">
+            <svg viewBox="0 0 600 142" preserveAspectRatio="none" aria-hidden="true">
+              <path class="qqq-placeholder__grid" d="M12 18 H588 M12 53 H588 M12 88 H588 M12 123 H588" />
+              <path class="qqq-placeholder__line" d="M12 93 L78 85 L143 91 L209 70 L275 77 L341 54 L406 61 L472 39 L538 45 L588 25" />
+            </svg>
+            <span class="qqq-placeholder__chart-label">차트 미연결</span>
+          </div>
+          <div class="qqq-placeholder__keywords">
+            <span class="qqq-placeholder__keywords-label">키워드</span>
+            <input type="text" disabled placeholder="키워드 입력 (미연결)" aria-label="QQQ 키워드 입력 준비 중" />
+            <span class="qqq-placeholder__tag">#키워드1</span><span class="qqq-placeholder__tag">#키워드2</span><span class="qqq-placeholder__tag">#키워드3</span>
+          </div>
+        </article>`;
+      }
+      if (id === 'night-futures') {
+        const title = '코스피200 야간선물';
+        const detail = '야간선물 원천 데이터 연결 후 시세·등락률·흐름을 표시합니다.';
         return `<article class="central-widget-card central-widget-card--kospi" data-central-widget-id="${escapeHtml(id)}">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="${escapeHtml(title)} 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
           <div class="central-widget-card__kospi-title">${escapeHtml(title)}</div>
