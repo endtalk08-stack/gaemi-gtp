@@ -28,6 +28,7 @@ from .flow_material_events import flow_material_title_and_tags
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .verified_fact_headline import attach_verified_source_citations
 from .news_feed import fetch_stock_news, select_stock_news_for_analysis
+from .news_identity_registry import resolve_us_news_identity
 
 
 def _empty_news_result():
@@ -189,7 +190,6 @@ def build_stock_news_result(
     # verified; never promote a pending or conflicting mapping automatically.
     requested_stock_name = stock_name
     if market in ("미국", "US", "us"):
-        from .news_identity_registry import resolve_us_news_identity
         identity = resolve_us_news_identity(stock_name)
         if identity.get("status") == "verified" and identity.get("news_name"):
             stock_name = identity["news_name"]
