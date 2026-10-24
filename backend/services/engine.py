@@ -3328,7 +3328,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
         # 뉴스와 공시는 기존처럼 한 칸(빈 줄) 간격을 유지한다.
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
-        price_tags = list(price_result.get("price_tags") or []) if current_price > 0 else []
+        price_tags = list(price_result.get("price_tags") or []) if current_price > 0 and not saved_us_quote else []
         tags_str = "   ".join(price_tags)
 
         first_content_parts = [
