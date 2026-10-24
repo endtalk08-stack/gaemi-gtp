@@ -90,7 +90,7 @@ def _reprocess(name):
             if published.utcoffset() is None:
                 raise RuntimeError("naive_source_date")
     store.save_snapshot(name, fingerprint=fingerprint, result=result, **params)
-    # Deliberately NO apply_worker_ai(), no Groq model or AI reservations.
+    # Deliberately no AI runner, Groq model calls or AI reservations.
     return "reprocessed", len(raw), len(issues)
 
 
