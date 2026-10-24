@@ -16,6 +16,25 @@
     if (change < 0) return { label: '왜 파란불일까?', tag: '#왜_파란불일까?', color: '#38BDF8' };
     return { label: '왜 보합일까?', tag: '#왜_보합일까?', color: '#94A3B8' };
   }
+  // Stretch only the existing 52-week marker bar; preserve the source percentages.
+  function stretch52WeekBar(markup) {
+    const lines = markup.split('\n');
+    const index = lines.findIndex(line =>
+      line.includes('52주') && line.includes('저가') && line.includes('고가') &&
+      line.includes('├') && line.includes('┤')
+    );
+    if (index < 0 || index + 2 >= lines.length) return markup;
+    const bar = lines[index].match(/├(█*●─*)┤/)?.[1];
+    if (!bar || !lines[index + 1].includes('현재')) return markup;
+    const gapMarkup = lines[index + 2].replace(/^[\s\u00a0]+/g, '').trim();
+    if (!/^(신고가까지|52주 신고가)/.test(gapMarkup)) return markup;
+    const position = 100 * bar.indexOf('●') / Math.max(1, bar.length - 1);
+    const marker = position.toFixed(2);
+    const label = Math.max(4, Math.min(96, position)).toFixed(2);
+    lines.splice(index, 3, `<span data-gaemi-52w-range="true" style="display:block;width:100%;max-width:100%;white-space:normal;margin-top:8px;"><span style="display:flex;align-items:flex-start;gap:10px;width:100%;"><span style="white-space:nowrap;">52주 저가</span><span style="position:relative;display:block;flex:1 1 0%;min-width:0;height:34px;padding-top:7px;"><span style="display:block;width:100%;height:9px;border-radius:999px;background:rgba(148,163,184,.25);overflow:hidden;"><span style="display:block;width:${marker}%;height:100%;background:#a1a1aa;"></span></span><span style="position:absolute;left:${marker}%;top:11.5px;transform:translate(-50%,-50%);width:13px;height:13px;border-radius:50%;background:#d4d4d8;border:2px solid #71717a;"></span><span style="position:absolute;left:${label}%;top:18px;transform:translateX(-50%);font-size:12px;white-space:nowrap;">현재</span></span><span style="white-space:nowrap;">고가</span></span><span style="display:block;text-align:center;margin-top:3px;">${gapMarkup}</span></span>`);
+    return lines.join('\n');
+  }
+
   function create(ctx) {
     let kiwoomQuoteTimer = null;
     function stopKiwoomQuoteTimer() {
@@ -618,6 +637,7 @@
                   : '현재 키움 실시간 시세 수신 대기 중') + '</span>'
               );
             }
+            if (secIdx === 0) formatted = stretch52WeekBar(formatted);
             pEl.innerHTML = formatted;
             if (secIdx === 0) startKiwoomQuoteTimer(stockName, result, requestId, pEl);
 
