@@ -211,6 +211,12 @@ SYSTEM_PROMPT = "쉽게 설명 반말로 대답해"
 INFO_STYLE_PROMPT = "답변은 간결하게 작성하고, 불필요한 표와 코드블록은 사용하지 마."
 PRIVATE_CHAT_MAX_ANSWER_CHARS = 1500
 PRIVATE_CHAT_LENGTH_PROMPT = "답변은 1500자 이내로 작성하고 문장을 완결해."
+PRIVATE_CHAT_PRICE_PROMPT = (
+    "주가와 등락률은 참고 데이터의 확인된 숫자만 사용해. "
+    "가격 제공사 이름, 시세 수신·연결 상태, 내부 데이터 처리 과정을 답변에 언급하지 마. "
+    "확인된 가격의 기준 시각이 과거라면 실시간 거래 가격이라고 표현하지 마. "
+    "가격이 없으면 추측하지 말고 가격을 묻는 경우에만 확인된 값이 없다고 간단히 답해."
+)
 
 
 def _settings_ready():
@@ -453,7 +459,11 @@ def _context(stock, data):
     price_lines = []
     for line in str(first.get("content") or "").splitlines():
         if any(token in line for token in ("현재 주가는", "고가 ", "저가 ", "20일선 ", "52주")):
-            price_lines.append(_compact(line, 230))
+            # Provider labels are infrastructure details, not user-facing facts.
+            clean_line = re.sub(r"\\s*\\([^)]*(?:키움|시세\\s*미수신)[^)]*\\)", "", line)
+            clean_line = re.sub(r"(?:키움\\s*(?:실시간\\s*)?(?:현재가|시세)[^:：]*[:：]?|(?:키움|시세)\\s*미수신[^:：]*[:：]?)", "", clean_line).strip()
+            if clean_line:
+                price_lines.append(_compact(clean_line, 230))
 
     # Reuse the existing first-analysis hashtags; do not collect or analyze again.
     analysis_tags = []
@@ -514,7 +524,7 @@ def _context(stock, data):
         "stock": stock,
         "price_information": price_lines[:5],
         "analysis_hashtags": analysis_tags,
-        "price_metrics": data.get("price_snapshot") or {},
+        "price_metrics": {k: v for k, v in (data.get("price_snapshot") or {}).items() if k != "quote_source"},
         "news": news,
         "issue_briefs": brief,
         "official_disclosures": disclosures,
@@ -536,60 +546,59 @@ def _context(stock, data):
 
 
 def _refresh_us_live_chat_quote(stock, selection, context):
-    """Replace cached US price assertions with the freshest signed Kiwoom tick.
+    """Give both chat models only verified US prices, not provider/status chatter.
 
-    News/filings and historical facts stay cached; stale prices never survive
-    the fifteen-minute conversation cache and cannot mislead Groq analysis.
+    Prefer the current short-lived quote; use the same recent saved quote that
+    the site's US ranking/analysis can display when markets are closed.
     """
     if not stock or not isinstance(context, dict):
         return context
     from .engine import TICKERS
     from .market_rankings import analysis_ticker_for_selection
     from .us_price_push import read_fresh_us_quote
+    from .kiwoom_us_value_board import read_recent_saved_us_quote
 
     ticker = (analysis_ticker_for_selection(selection)
               if selection and selection.get("market") == "us" else None)
     ticker = ticker or TICKERS.get(stock)
-    if ticker is None and isinstance(stock, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9.\\-]{0,19}", stock):
+    if ticker is None and isinstance(stock, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9.\\.-]{0,19}", stock):
         ticker = stock.upper()
     if not ticker or ticker.endswith((".KS", ".KQ")):
         return context
 
-    quote = read_fresh_us_quote(ticker)
+    fresh_quote = read_fresh_us_quote(ticker)
+    quote = fresh_quote or read_recent_saved_us_quote(ticker)
     metrics = dict(context.get("price_metrics") or {})
-    for field in ("current", "change_pct", "rise_to_52w_high_pct"):
+    for field in ("current", "change_pct", "rise_to_52w_high_pct", "quote_source", "quote_received_at_ms"):
         metrics.pop(field, None)
-    metrics["quote_source"] = "kiwoom-direct" if quote else "kiwoom-unavailable"
     market_row = dict(context.get("market_selection") or {})
+    price_lines = []
     if quote:
         price = quote["price"]
         metrics["current"] = price
-        metrics["quote_received_at_ms"] = quote["received_at_ms"]
-        if quote.get("change_pct") is not None:
-            metrics["change_pct"] = quote["change_pct"]
+        if quote.get("received_at_ms") is not None:
+            metrics["quote_received_at_ms"] = quote["received_at_ms"]
+        change = quote.get("change_pct")
+        if change is not None:
+            metrics["change_pct"] = change
         high = metrics.get("week_52_high")
         if isinstance(high, (int, float)) and high > 0:
             metrics["rise_to_52w_high_pct"] = round(max(0.0, (high - price) / price * 100), 2)
-        change = quote.get("change_pct")
-        detail = f", 전일 종가 대비 {change:+.2f}%" if change is not None else ""
-        price_lines = [f"현재 주가는 ${price:,.2f} (키움 실시간 FE{detail})"]
+        detail = f", 전일 대비 {change:+.2f}%" if change is not None else ""
+        price_lines = [f"가격 ${price:,.2f}{detail}"]
         if market_row:
             market_row["price"] = price
             market_row["change_pct"] = change
-    else:
-        price_lines = ["키움 실시간 현재가 미수신: 직전 일봉 종가를 현재가로 사용하지 말 것"]
-        if market_row:
-            market_row["price"] = None
-            market_row["change_pct"] = None
+    elif market_row:
+        market_row["price"] = None
+        market_row["change_pct"] = None
+
     refreshed = {**context, "price_metrics": metrics,
                  "price_information": price_lines,
-                 "analysis_hashtags": [],
-                 "note": str(context.get("note") or "") +
-                 " 키움 실시간 가격과 과거 일봉 계산값은 별개다. 최신 price_metrics 값만 현재가/등락률로 사용한다."}
+                 "analysis_hashtags": []}
     if market_row:
         refreshed["market_selection"] = market_row
     return refreshed
-
 
 def _previous_day_reply(question, metrics):
     """Answer dated prior-session OHLCV facts without confusing them with today's quote."""
@@ -875,8 +884,8 @@ def ai_test_chat():
             }}
             if selected["market"] == "us" and selected["menu"] == "value":
                 context["note"] = context.get("note", "") + (
-                    " market_selection은 키움 미국 거래대금 TOP 20의 선택 종목 정보다."
-                    " 현재가와 등락률은 뒤에 갱신되는 키움 FE 가격값을 우선한다."
+                    " market_selection은 미국 거래대금 TOP 20의 선택 종목 정보다."
+                    " 가격·등락률은 최종 확인된 price_metrics 숫자만 사용한다."
                 )
             else:
                 context["note"] = context.get("note", "") + (
@@ -942,9 +951,9 @@ def ai_test_chat():
         if dialogue:
             prompt = "이전 대화:\n" + "\n".join(dialogue) + "\n\n현재 질문: " + question
         provider_called = True
-        answer, usage, provider_headers = (_cloudflare_answer(prompt, context, style_prompt=(INFO_STYLE_PROMPT + "\n" + PRIVATE_CHAT_LENGTH_PROMPT) if private_chat and app_mode == "info" else None) if role == "cloudflare" else _groq_answer(
+        answer, usage, provider_headers = (_cloudflare_answer(prompt, context, style_prompt=(INFO_STYLE_PROMPT + "\n" + PRIVATE_CHAT_LENGTH_PROMPT + "\n" + PRIVATE_CHAT_PRICE_PROMPT) if private_chat and app_mode == "info" else None) if role == "cloudflare" else _groq_answer(
             MODELS[role]["id"], prompt, context,
-            style_prompt=PRIVATE_CHAT_LENGTH_PROMPT if private_chat and app_mode == "pro" else None,
+            style_prompt=(PRIVATE_CHAT_LENGTH_PROMPT + "\n" + PRIVATE_CHAT_PRICE_PROMPT) if private_chat and app_mode == "pro" else None,
         ))
         if private_chat and app_mode in ("info", "pro"):
             answer = answer[:PRIVATE_CHAT_MAX_ANSWER_CHARS]
