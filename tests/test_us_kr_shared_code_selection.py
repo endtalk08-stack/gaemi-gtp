@@ -198,10 +198,7 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         with patch.object(news_result, "build_simple_today_news", return_value=[raw_item]), \
              patch.object(news_result, "select_keyword_storyboard_news", return_value=[]), \
              patch.object(news_result, "read_selected_article_details",
-                          side_effect=[
-                              [{"text": "", "source": "fetch_failed"}],
-                              [{"text": body, "source": "jsonld_article_body"}],
-                          ]):
+                          return_value=[{"text": body, "source": "jsonld_article_body"}]) as fetch_body:
             result = news_result.build_stock_news_result(
                 "테슬라", market="미국", raw_news_list=[article])
         self.assertEqual(result["_news_status"], "ok")
@@ -229,14 +226,12 @@ class SharedDomesticUsSelectionTests(unittest.TestCase):
         with patch.object(news_result, "build_simple_today_news", return_value=[item_direct]), \
              patch.object(news_result, "select_keyword_storyboard_news", return_value=[]), \
              patch.object(news_result, "read_selected_article_details",
-                          side_effect=[
-                              [{"text": "", "source": "fetch_failed"}],
-                              [{"text": bitcoin_body, "source": "article_or_main_paragraphs"}],
-                          ]):
+                          return_value=[{"text": bitcoin_body, "source": "article_or_main_paragraphs"}]) as fetch_body:
             result = news_result.build_stock_news_result(
                 "스페이스X", market="미국", raw_news_list=[article])
         self.assertEqual(result["_news_status"], "ok")
         self.assertEqual(result["issue_briefs"], [])
+        self.assertGreaterEqual(fetch_body.call_count, 1)
 
     def test_verified_neon_identity_used_for_us_code_selection(self):
         row = item(
