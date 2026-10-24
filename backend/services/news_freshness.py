@@ -114,12 +114,10 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
         selected = channels["code"] + channels["ai"]
         channel = "both"
     else:
-        # Prefer source-cited code facts, but restore previously saved,
-        # source-cited AI briefs when no valid code brief survives the 24h check.
-        # This is display-only: no AI requests or DB writes.
-        selected = channels["code"] or channels["ai"]
-        channel = ("code" if channels["code"] else
-                   "previous_ai_fallback" if channels["ai"] else "unavailable")
+        # Automatic US news display uses source-cited CODE facts only.
+        # Existing AI analyses remain stored but are not displayed as fallback.
+        selected = channels["code"]
+        channel = "code" if selected else "unavailable"
     result["issue_channels"] = channels
     result["issue_mode"] = mode
     result["_issue_display_channel"] = channel
