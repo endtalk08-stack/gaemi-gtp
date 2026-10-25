@@ -1,0 +1,42 @@
+name: Inspect DO deploy permissions (read only)
+on:
+  push:
+    branches: [fix/us-top20-news-rotation-20261025]
+    paths: ['.github/workflows/do-news-deploy-access-check.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      DO_DEPLOY_SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Check known deploy user SSH route, no code changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$DO_DEPLOY_SSH_KEY" ]; then
+            echo 'DEPLOY_SSH_KEY_NOT_AVAILABLE_IN_THIS_WORKFLOW'
+            exit 0
+          fi
+          test -n "$DO_HOST" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DO_DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "gaemi-deploy@$DO_HOST" 'bash -se' <<'REMOTE'
+          set -eu
+          echo "DEPLOY_SSH_CONNECTED:"
+          id -un
+          echo "DEPLOY_SUDO:"
+          sudo -n -l 2>&1 | head -35 || true
+          echo "DEPLOY_WRITE_CHECK:"
+          for f in /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/backend /opt/gaemigtp-news/app/backend/services/news_result.py /opt/gaemigtp-news/app/backend/services; do
+            if [ -w "$f" ]; then printf 'WRITABLE %s\n' "$f"; else printf 'READONLY %s\n' "$f"; fi
+          done
+          echo "DEPLOY_PERMISSION_AUDIT_COMPLETE"
+          REMOTE
