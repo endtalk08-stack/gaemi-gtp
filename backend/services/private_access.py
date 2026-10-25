@@ -100,7 +100,7 @@ def install_private_access(app, frontend_dir):
             return None
         if request.path in {"/", "/index.html"}:
             return _no_store(send_from_directory(frontend_dir, "private-login.html"))
-        if request.path.startswith(("/api/", "/debug/", "/disclosures/")) or request.path in {"/analyze", "/calendar"}:
+        if request.path.startswith(("/api/", "/debug/", "/disclosures/")) or request.path in {"/analyze", "/calendar", "/market/us-daily-chart"}:
             return _no_store(jsonify({"ok": False, "error": "private_access_required"})), 401
         return redirect("/", code=302)
 
