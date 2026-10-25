@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"deploy","path":"ops/do-gateway/rollback_us_news_result_prechange_20261025.py","target":"backend/services/news_result.py"}
