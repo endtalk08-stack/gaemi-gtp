@@ -207,5 +207,42 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["fresh"])
 
 
+
+class RightPanelIssueMirrorTests(unittest.TestCase):
+    def test_latest_ten_source_news_not_event_ranked(self):
+        from backend.services.news_result import _us_panel_news_issue_briefs
+        rows = []
+        for index in range(13):
+            published = (NOW - datetime.timedelta(minutes=index)).isoformat()
+            rows.append({
+                "title": f"기사 {index}", "description": f"원문 요약 {index}",
+                "published_at": published, "source": "example.org",
+                "url": f"https://example.org/{index}",
+                "analysis_relevance_tier": 0,
+                "storyboard_keywords": [],
+            })
+        rows += [dict(rows[0]), {"title": "날짜 없음", "url": "https://example.org/undated"}]
+        rows.reverse()
+        result = _us_panel_news_issue_briefs(rows, "AMD")
+        self.assertEqual(len(result), 10)
+        self.assertEqual([brief["headline"] for brief in result],
+                         [f"기사 {index}" for index in range(10)])
+        self.assertEqual(result[0]["summary"], "원문 요약 0")
+        self.assertEqual(result[0]["source_articles"][0]["source"], "example.org")
+        self.assertEqual(result[0]["stock_names"], ["AMD"])
+
+    def test_usable_title_date_and_url_are_required(self):
+        from backend.services.news_result import _us_panel_news_issue_briefs
+        usable = {"title": "정상", "published_at": NOW.isoformat(),
+                  "url": "https://example.org/article"}
+        bad = [
+            {**usable, "title": ""},
+            {**usable, "published_at": ""},
+            {**usable, "url": ""},
+        ]
+        result = _us_panel_news_issue_briefs(bad + [usable], "애플")
+        self.assertEqual([item["headline"] for item in result], ["정상"])
+
+
 if __name__ == "__main__":
     unittest.main()
