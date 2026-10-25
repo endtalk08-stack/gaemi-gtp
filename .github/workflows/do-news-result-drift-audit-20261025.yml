@@ -47,6 +47,7 @@ jobs:
           scp "${opts[@]}" "$remote:$live/services/news_result.py" "$old/news_result.py"
           scp "${opts[@]}" "$remote:$live/services/news_processed_store.py" "$old/news_processed_store.py"
           scp "${opts[@]}" "$remote:$live/services/verified_fact_headline.py" "$old/verified_fact_headline.py"
+          scp "${opts[@]}" "$remote:$live/services/article_fact_keywords.py" "$old/article_fact_keywords.py"
           scp "${opts[@]}" "$remote:$live/news_worker.py" "$old/news_worker.py"
           python - "$old" "$built" <<'PY'
           from pathlib import Path
@@ -128,6 +129,10 @@ jobs:
           print("STOCK_SELECTION_AND_WORKER_UNCHANGED")
           PY
           cp "$built/news_result.py" backend/services/news_result.py
+          # This reviewed checkout predates these two production modules.
+          # Import exact live modules, never stubs, for realistic tests.
+          cp "$old/verified_fact_headline.py" backend/services/verified_fact_headline.py
+          cp "$old/article_fact_keywords.py" backend/services/article_fact_keywords.py
           python -m unittest -q tests.test_news_central_selection
           python - <<'PY'
           from backend.services.news_result import _us_citation_title_names_stock
@@ -149,6 +154,11 @@ jobs:
           assert cited[0]["source_articles"][0]["url"]==nvda["url"]
           assert cited[0]["source_articles"][0]["published_at"]==now
           assert cited[0]["headline"]=="제품 공개 이슈"
+          from backend.services.news_freshness import clean_us_snapshot
+          fresh=clean_us_snapshot({"_title_only_revision":3,"_code_fact_extraction_version":3,
+              "_code_issue_briefs":cited},now=datetime.now(timezone.utc))
+          assert len(fresh["issue_briefs"])==1
+          assert fresh["issue_briefs"][0]["source_articles"][0]["url"]==nvda["url"]
           print("US_EXACT_SOURCE_DATE_AND_OTHER_COMPANY_GUARD_PASSED")
           PY
           python -m py_compile "$built/news_result.py"
