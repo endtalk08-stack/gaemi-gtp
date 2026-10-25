@@ -1,0 +1,56 @@
+name: Read-only audit of DO news-worker rotation
+on:
+  push:
+    branches: [fix/us-top20-news-rotation-20261025]
+    paths:
+      - '.github/workflows/audit-do-news-rotation.yml'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      DO_SSH_USER: gaemi-deploy
+      DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Inspect active worker only (no changes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for var in DO_HOST DO_SSH_PRIVATE_KEY DO_SSH_KNOWN_HOSTS; do test -n "${!var}" || { echo "Missing $var"; exit 1; }; done
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$DO_SSH_USER@$DO_HOST" 'bash -se' <<'REMOTE'
+          set -eu
+          echo 'DO_WORKER_ACTIVE:'
+          systemctl is-active gaemigtp-news.service || true
+          echo 'WORKER_COMMAND:'
+          systemctl show gaemigtp-news.service -p ExecStart -p WorkingDirectory -p User | sed -E 's/(KEY|TOKEN|PASSWORD|SECRET)=[^ ;}]+/\1=<redacted>/g'
+          echo 'CODE_CANDIDATE_FILES:'
+          find /opt/gaemigtp-news/app -maxdepth 3 -type f \( -iname '*worker*.py' -o -iname '*news*job*.py' -o -iname '*schedule*.py' -o -iname '*snapshot*.py' -o -iname '*rotat*.py' \) -print 2>/dev/null | head -60
+          echo 'SYSTEMD_TIMER_NAMES:'
+          systemctl list-timers --all --no-pager --no-legend 2>/dev/null | grep -E 'gaemigtp|news' | cut -c 1-170 || true
+          echo 'SELECTOR_CODE_REFERENCES:'
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          base = Path('/opt/gaemigtp-news/app')
+          paths = sorted({*base.glob('*.py'), *base.glob('backend/*worker*.py'), *base.glob('backend/*news*.py'), *base.glob('backend/services/*worker*.py')})
+          pattern = re.compile(r'rotation|rank_|ranked|trading_value|top.?20|round.?robin|cursor|position|index|every|interval|%\s*[1-9]|step|sleep|skip|modulo|alternat|odd|even', re.I)
+          for p in paths[:50]:
+              try: lines = p.read_text(encoding='utf-8').splitlines()
+              except Exception: continue
+              found = [(i+1,l) for i,l in enumerate(lines) if pattern.search(l)]
+              if found:
+                  print(f'PATH: {p.name} total_lines={len(lines)} matches={len(found)}')
+                  for n,line in found[:65]:
+                      if any(key in line.upper() for key in ('PASSWORD','SECRET','AUTH','API_KEY','PRIVATE_KEY','TOKEN','DATABASE_URL','HTTP://','HTTPS://')): print(f'  {n}: [sensitive-line-redacted]')
+                      else: print(f'  {n}: {line[:210]}')
+          PY
+          REMOTE
