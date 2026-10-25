@@ -1,0 +1,57 @@
+name: Stage verified US top20 news fix on DO (do not install)
+on:
+  push:
+    branches: [fix/us-top20-news-rotation-20261025]
+    paths: ['.github/workflows/stage-do-us-top20-news.yml']
+permissions:
+  contents: read
+jobs:
+  prepare-and-stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
+      DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_SSH_KEY }}
+      DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Offline tests for rotation and uncapped US issues
+        run: |
+          python -m unittest -v tests.test_us_top20_rotation tests.test_us_news_freshness tests.test_news_central_selection
+      - name: Verify original live server source and stage modified copies only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in DO_HOST DO_SSH_USER DO_SSH_PRIVATE_KEY DO_SSH_KNOWN_HOSTS; do test -n "${!v}" || { echo "MISSING $v"; exit 1; }; done
+          test "$DO_SSH_USER" = gaemi-news-check
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          read_dir="$RUNNER_TEMP/do-original"
+          patch_dir="$RUNNER_TEMP/do-patch"
+          mkdir -m 700 -p "$read_dir" "$patch_dir"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST:/opt/gaemigtp-news/app/backend/news_worker.py" "$read_dir/news_worker.py"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            "$DO_SSH_USER@$DO_HOST:/opt/gaemigtp-news/app/backend/services/news_result.py" "$read_dir/news_result.py"
+          python ops/prepare_do_top20_news_patch.py "$read_dir/news_worker.py" "$read_dir/news_result.py" "$patch_dir"
+          cp backend/services/us_top20_rotation.py "$patch_dir/us_top20_rotation.py"
+          python -m py_compile "$patch_dir/news_worker.py" "$patch_dir/news_result.py" "$patch_dir/us_top20_rotation.py"
+          stage="/home/gaemi-news-check/news-deploy/us-top20-rotation-pr131"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$DO_SSH_USER@$DO_HOST" \
+            "install -d -m 700 '$stage'"
+          for name in news_worker.py news_result.py us_top20_rotation.py; do
+            scp -o BatchMode=yes -o StrictHostKeyChecking=yes "$patch_dir/$name" \
+              "$DO_SSH_USER@$DO_HOST:$stage/$name"
+          done
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$DO_SSH_USER@$DO_HOST" \
+            "chmod 600 '$stage/'*.py; /opt/gaemigtp-news/venv/bin/python -m py_compile '$stage/news_worker.py' '$stage/news_result.py' '$stage/us_top20_rotation.py'; systemctl is-active gaemigtp-news.service; sha256sum '$stage/'*.py"
+          echo "ROTATION_PATCH_STAGED_ONLY_NOT_INSTALLED"
