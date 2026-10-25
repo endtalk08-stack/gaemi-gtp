@@ -617,6 +617,6 @@
     }
   }
   window.addEventListener('gaemi-analysis-data-change', syncActiveStockPanels);
-  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedDisclosures, getSelectedNews: () => selectRelatedNewsItems(window.GaemiGTPAnalysisData?.get?.()?.newsItems, 20, 4), getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
+  window.GaemiGTPRightPanelTabs = { initialize, addTab, addNamedTab, selectPanelWorkspaceView, removeTab, setActiveTab, showRelatedDisclosures, getTabs: () => tabs.map(tab => ({ ...tab })), getActiveTab: () => activeTabId };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true }); else initialize();
 })();

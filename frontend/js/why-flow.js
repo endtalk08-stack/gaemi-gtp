@@ -83,12 +83,9 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 && Number(match[2]) === today.month
                 && Number(match[3]) === today.day;
             });
-            // 미국 중앙 이슈는 오른쪽 뉴스와 동일한 기사 목록/정렬/중복 제거를 사용한다.
-            // 각 기사의 기존 storyboard_keywords를 그대로 표시하며 재선별하지 않는다.
-            const useUsPanelNews = result.price_snapshot?.currency === 'USD';
-            const storyboard = useUsPanelNews
-              ? (window.GaemiGTPRightPanelTabs?.getSelectedNews?.() || [])
-              : (Array.isArray(result.issue_briefs) ? result.issue_briefs : []);
+            // 중앙 화면은 원문 기사 제목·설명을 받지 않는다. 서버가 기사에서
+            // 추출한 사실을 바탕으로 만든 display-only 이슈 브리핑만 사용한다.
+            const storyboard = Array.isArray(result.issue_briefs) ? result.issue_briefs : [];
             const typeWhyText = (element, text) => typeText(element, text, { chunkSize: 1 });
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5';
@@ -126,26 +123,19 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 const article = document.createElement('article');
                 article.className = 'space-y-2';
 
-                const newsUrl = useUsPanelNews ? String(event.url || event.link || '').trim() : '';
-                const headline = document.createElement(newsUrl ? 'button' : 'p');
-                headline.className = `${responseMessageClass} font-semibold${newsUrl ? ' text-left block hover:underline' : ''}`;
-                if (newsUrl) {
-                  headline.type = 'button';
-                  headline.addEventListener('click', () => window.GaemiGTPExternalLinkModal?.openExternalLinkModal?.(event));
-                }
+                const headline = document.createElement('p');
+                headline.className = `${responseMessageClass} font-semibold`;
                 const timeEl = document.createElement('span');
                 timeEl.className = 'mr-2 text-xs font-bold text-[#64748b] dark:text-[#a1a1aa]';
                 const titleEl = document.createElement('span');
-                if (useUsPanelNews) headline.append(titleEl);
-                else headline.append(timeEl, titleEl);
+                headline.append(timeEl, titleEl);
 
                 const descriptionEl = document.createElement('p');
                 descriptionEl.className = `${responseMessageClass} whitespace-pre-line`;
 
                 const keywordEl = document.createElement('p');
                 keywordEl.className = 'analysis-hashtag gtp-chat-copy font-semibold';
-                const rawKeywords = useUsPanelNews ? event.storyboard_keywords : event.tags;
-                const keywords = (Array.isArray(rawKeywords) ? rawKeywords : [])
+                const keywords = (Array.isArray(event.tags) ? event.tags : [])
                   .map((keyword) => String(keyword || '').trim().replace(/^#/, ''))
                   .filter(Boolean)
                   .slice(0, 3);
@@ -160,7 +150,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   keywordEl.appendChild(part);
                 });
 
-                const stockNames = [...new Set((!useUsPanelNews && Array.isArray(event.stock_names) ? event.stock_names : [])
+                const stockNames = [...new Set((Array.isArray(event.stock_names) ? event.stock_names : [])
                   .map((name) => String(name || '').trim())
                   .filter(Boolean))].slice(0, 3);
                 const finiteOrNull = (value) => {
@@ -222,28 +212,18 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   });
                 }
 
-                const articleSummary = useUsPanelNews
-                  ? String(event.description || event.summary || '기사 내용이 없습니다.').trim()
-                  : String(event.summary || '').trim();
                 article.append(headline);
-                if (articleSummary) article.append(descriptionEl);
-                if (useUsPanelNews) {
-                  const sourceEl = document.createElement('p');
-                  sourceEl.className = 'text-xs text-[#64748b] dark:text-[#a1a1aa]';
-                  sourceEl.textContent = [event.source || '뉴스', event.storyboard_date, event.storyboard_time]
-                    .filter(Boolean).join(' · ');
-                  article.append(sourceEl);
-                }
+                if (String(event.summary || '').trim()) article.append(descriptionEl);
                 if (keywordParts.length) article.append(keywordEl);
                 if (reactionsEl) article.append(reactionsEl);
                 storyboardList.appendChild(article);
                 storyboardRows.push({
                   timeEl,
-                  timeText: useUsPanelNews ? '' : (event.time || ''),
+                  timeText: event.time || '',
                   titleEl,
-                  titleText: String((useUsPanelNews ? event.title : event.headline) || '').trim(),
+                  titleText: String(event.headline || '').trim(),
                   descriptionEl,
-                  descriptionText: articleSummary,
+                  descriptionText: String(event.summary || '').trim(),
                   keywordParts,
                   reactionsEl,
                 });
@@ -251,12 +231,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
               block.appendChild(storyboardList);
 
               for (const row of storyboardRows) {
-                if (useUsPanelNews) {
-                  row.titleEl.textContent = row.titleText;
-                  row.descriptionEl.textContent = row.descriptionText;
-                  for (const part of row.keywordParts) part.textContent = part.dataset.typingText || '';
-                  continue;
-                }
                 await typeWhyText(row.timeEl, row.timeText);
                 await typeWhyText(row.titleEl, row.titleText);
                 if (row.descriptionText) await typeWhyText(row.descriptionEl, row.descriptionText);
