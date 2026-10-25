@@ -53,5 +53,25 @@ jobs:
           systemctl cat gaemigtp-news.service | grep -Ev '(SECRET|TOKEN|PASSWORD|KEY|DATABASE_URL)' | head -90
           echo "RELATED_TIMERS:"
           systemctl list-timers --all --no-pager 2>/dev/null | grep -i -E 'news|gaemigtp' | head -25 || true
+          echo "PERMISSIONS:"
+          stat -c '%A %U:%G %n' /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/backend/services/news_result.py /opt/gaemigtp-news/app/backend/services/news_freshness.py /opt/gaemigtp-news/app/backend/ /opt/gaemigtp-news/app/backend/services/ 2>&1 || true
+          echo "NEWS_RESULT_WORKER_LIVE:"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/opt/gaemigtp-news/app/backend/services/news_result.py')
+          t=p.read_text(encoding='utf-8').splitlines()
+          for i,line in enumerate(t,1):
+              if any(s in line for s in ('limit=storyboard_limit','accepted_articles, limit=','len(storyboard_news_items) >= storyboard_limit','candidate_news.extend','def build_stock_news_result','def get_shared_stock_news_result','limit=max(1, len(rows))')):
+                  print(i,line.strip()[:220])
+          print('news_result_lines',len(t))
+          p=Path('/opt/gaemigtp-news/app/backend/services/news_freshness.py')
+          if p.is_file():
+              t=p.read_text(encoding='utf-8').splitlines()
+              for i,line in enumerate(t,1):
+                  if 'return fresh[:3]' in line or 'issue_briefs' in line and 'selected[:' in line: print('freshness',i,line.strip())
+          PY
+          echo "SUDO_DETAILS:"
+          ls -ld /home/gaemi-news-check /home/gaemi-deploy /opt/gaemigtp-news/app /opt/gaemigtp-news/app/backend 2>/dev/null || true
+          echo "OTHER_DEPLOY_CHANNEL_AVAILABILITY:"
           echo "READ_ONLY_INSPECTION_COMPLETE"
           REMOTE
