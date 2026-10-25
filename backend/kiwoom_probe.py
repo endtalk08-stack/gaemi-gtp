@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from backend.providers.kiwoom_us_quotes import (
     KiwoomReadOnlyError, credentials_configured,
-    fetch_us_close, fetch_us_quote, fetch_us_daily_chart, issue_access_token,
+    fetch_us_close, fetch_us_quote, fetch_us_daily_chart, issue_access_token, _request, CHART_PATH,
 )
 
 NY = ZoneInfo("America/New_York")
@@ -66,6 +66,25 @@ def main():
             "close": close["close"], "change_pct": close["change_pct"],
             "source": close["source"],
         }, ensure_ascii=False), flush=True)
+        # Bounded 2-page diagnostic: no token, key, or raw response logging.
+        body = {"stex_tp": EXCHANGE, "stk_cd": SYMBOL, "strt_dt": (day - dt.timedelta(days=45)).strftime("%Y%m%d"), "upd_stkpc_tp": "1", "exrt_appl_tp": "0"}
+        headers = {"authorization": "Bearer " + token, "api-id": "usa06012"}
+        seen = set()
+        for index in range(2):
+            payload, response_headers = _request(CHART_PATH, body, headers, with_continuation=True)
+            records = payload.get("result_list") or []
+            dates = [str(row.get("dt") or "") for row in records if isinstance(row, dict)]
+            next_key = str(response_headers.get("next-key") or "")
+            cont = str(response_headers.get("cont-yn") or "")
+            safe = {"page": index + 1, "records": len(records), "first_date": dates[0] if dates else None,
+                    "last_date": dates[-1] if dates else None, "continue": cont,
+                    "next_key_present": bool(next_key), "cursor_repeated": next_key in seen if next_key else False}
+            print("KIWOOM_CHART_PAGE_DIAGNOSTIC=" + json.dumps(safe, ensure_ascii=False), flush=True)
+            if cont.upper() != "Y" or not next_key or next_key in seen:
+                break
+            seen.add(next_key)
+            headers.update({"cont-yn": "Y", "next-key": next_key})
+        return 0
         chart = fetch_us_daily_chart(SYMBOL, EXCHANGE, day - dt.timedelta(days=45), token=token, max_pages=10)
         rows = chart.get("rows") or []
         if not rows or not all(row.get("date") and row.get("open") and row.get("high") and row.get("low") and row.get("close") for row in rows):
