@@ -46,13 +46,53 @@ jobs:
           ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null && echo GATEWAY_CONNECTED_ACTIVE'
           scp "${opts[@]}" "$remote:/opt/gaemigtp-news/app/backend/news_worker.py" "$old/news_worker.py"
           scp "${opts[@]}" "$remote:/opt/gaemigtp-news/app/backend/services/news_result.py" "$old/news_result.py"
-          python ops/prepare_do_top20_news_patch.py "$old/news_worker.py" "$old/news_result.py" "$built"
+          python - "$old" "$built" <<'PY'
+          from pathlib import Path
+          import hashlib, importlib.util, sys
+          original, built = map(Path, sys.argv[1:])
+          spec = importlib.util.spec_from_file_location("reviewed_patcher", "ops/prepare_do_top20_news_patch.py")
+          patcher = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(patcher)
+          def sha(data):
+              return hashlib.sha256(data).hexdigest()
+          src_worker = (original / "news_worker.py").read_bytes()
+          src_news = (original / "news_result.py").read_bytes()
+          assert sha(src_worker) == patcher.EXPECTED_WORKER, "running worker changed; refuse deployment"
+          assert sha(src_news) == "10ef9f4f45325664457a959873296e223fc04027f676fed6d62b4c436f0be9ff", "running 801-line news code changed; refuse deployment"
+          old_worker, old_news = src_worker.decode("utf-8"), src_news.decode("utf-8")
+          new_worker = patcher.patch_worker(old_worker)
+          new_news = patcher.patch_news(old_news)
+          # Increase only the US candidate verification pool to include all collected articles.
+          # Keep the existing 12-or-3x limit unchanged for Korean news.
+          old_pool = '            limit = max(12, storyboard_limit * 3)'
+          new_pool = '            limit = max(12, len(rows)) if market in ("미국", "US", "us") else max(12, storyboard_limit * 3)'
+          new_news = patcher.replace_once(new_news, old_pool, new_pool, "US complete article pool")
+          assert len(old_news.splitlines()) == 801, "unexpected live code size"
+          assert sha(src_worker) == patcher.EXPECTED_WORKER
+          assert sha(new_worker.encode("utf-8")) == "b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd"
+          assert new_news.count("issue_count_limit") == 4, "unexpected US cap edit count"
+          # Guard against touching titles, selectors, 24h date verification or KR paths.
+          for key in ("def build_stock_news_result", "def get_shared_stock_news_result",
+                      "def _central_direct_article", "def rank_candidates"):
+              assert old_news.count(key) == new_news.count(key), "function unexpectedly changed: " + key
+          for filename, content in (("news_worker.py", new_worker), ("news_result.py", new_news)):
+              compile(content, filename, "exec")
+              (built / filename).write_text(content, encoding="utf-8")
+              print("CHECKED_PATCH_SHA256", filename, sha(content.encode("utf-8")))
+          print("EXACT_LIVE_801_MINIMAL_PATCH_PREPARED")
+          PY
           cp backend/services/us_top20_rotation.py "$built/us_top20_rotation.py"
           python -m py_compile "$built/news_worker.py" "$built/news_result.py" "$built/us_top20_rotation.py"
-          test "$(sha256sum "$built/news_worker.py" | awk '{print $1}')" = b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd
-          test "$(sha256sum "$built/news_result.py" | awk '{print $1}')" = 66a309ea15d0079e0f3603c6f44670abf1d5fe82c67e0e4635a50936e24ce681
           test "$(sha256sum "$built/us_top20_rotation.py" | awk '{print $1}')" = 53b7082d2bd009867377b70c813b7bc1f1f773939a7d3c3f474859f6f6a65b65
-          echo LIVE_PATCH_HASHES_MATCH_STAGED_REVIEW
+          # Run 801-line production implementation tests, including 4 distinct
+          # US verified issues and Korean news unchanged; do this BEFORE any deploy.
+          cp "$built/news_result.py" backend/services/news_result.py
+          python -m unittest -v \
+            tests.test_news_central_selection.CentralNewsSelectionTests.test_us_four_distinct_verified_issues_not_capped_at_three \
+            tests.test_news_central_selection.CentralNewsSelectionTests.test_market_quote_without_event_stays_in_full_feed_not_central \
+            tests.test_news_central_selection.CentralNewsSelectionTests.test_verified_candidates_replace_unrelated_and_unreadable \
+            tests.test_news_central_selection.CentralNewsSelectionTests.test_recent_material_events_fill_missing_central_news_slots
+          echo LIVE_801_SOURCE_REGRESSION_PASSED
 
           changed=0
           deploy_file() {
@@ -75,6 +115,8 @@ jobs:
             exit "$rc"
           }
           trap 'rollback $?' ERR
+          # Check production hashes again immediately before replacing any file.
+          ssh "${opts[@]}" "$remote" 'test "$(sha256sum /opt/gaemigtp-news/app/backend/news_worker.py | cut -d" " -f1)" = d274422a687d89af56868a956dc77317945220cebac13b620f20c78f5ef73967 && test "$(sha256sum /opt/gaemigtp-news/app/backend/services/news_result.py | cut -d" " -f1)" = 10ef9f4f45325664457a959873296e223fc04027f676fed6d62b4c436f0be9ff && test "$(systemctl is-active gaemigtp-news.service)" = active'
           # Deploy module first; live worker only loads it after final restart.
           deploy_file "$built/us_top20_rotation.py" backend/services/us_top20_rotation.py
           changed=1
