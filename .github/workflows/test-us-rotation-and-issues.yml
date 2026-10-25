@@ -1,0 +1,31 @@
+name: Test 20-stock rotation and uncapped US issues (branch only)
+on:
+  push:
+    branches: [fix/us-top20-news-rotation-20261025]
+    paths:
+      - 'backend/services/us_top20_rotation.py'
+      - 'backend/services/news_freshness.py'
+      - 'backend/services/news_result.py'
+      - 'tests/test_us_top20_rotation.py'
+      - 'tests/test_us_news_freshness.py'
+      - 'tests/test_news_central_selection.py'
+      - '.github/workflows/test-us-rotation-and-issues.yml'
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check syntax
+        run: python -m py_compile backend/services/us_top20_rotation.py backend/services/news_freshness.py backend/services/news_result.py tests/test_us_top20_rotation.py tests/test_us_news_freshness.py
+      - name: Rotation rules and source-date freshness
+        run: python -m unittest -v tests.test_us_top20_rotation tests.test_us_news_freshness
+      - name: Existing issue-selection regression
+        run: python -m unittest -v tests.test_news_central_selection
