@@ -141,3 +141,10 @@
 }
 .central-widget-card__sparkline--up { color: #ff4d67; }
 .central-widget-card__sparkline--down { color: #3b82f6; }
+
+/* US trading-value Top 20 daily candlestick and volume widget. */
+.central-widget-dock__body:has(.central-widget-card--chart) { grid-template-columns: minmax(0, 1fr); }
+.central-widget-card--chart { grid-column: 1 / -1; min-width: 0; }
+.us-daily-chart { padding-top: 10px; min-height: 272px; color: var(--gtp-faint); font-size: 12px; }
+.us-daily-chart__label { padding-bottom: 8px; font-size: 12px; color: var(--gtp-text); font-weight: 600; }
+.us-daily-chart canvas { display: block; width: 100%; max-width: 100%; }
