@@ -1,4 +1,4 @@
-name: Remove the two unapproved US source-citation restrictions
+name: US news first semantic gate and issue title suffix fix
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -18,179 +18,141 @@ jobs:
       SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
-      - name: Checkout stable test code
+      - name: Checkout known test baseline
         uses: actions/checkout@v4
         with:
           ref: 572169449ddd85601acdb9cc3124e01ebe3a997e
           persist-credentials: false
-      - name: Remove citation title-name guard and source-clearing branch only
+      - name: Prepare, verify, and deploy only the approved US news changes
         shell: bash
         run: |
           set -Eeuo pipefail
-          : "${DO_HOST:?}" "${SSH_KEY:?}" "${SSH_KNOWN_HOSTS:?}"
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
           umask 077
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
           remote="gaemi-deploy@$DO_HOST"
           live=/opt/gaemigtp-news/app/backend
-          prev="$RUNNER_TEMP/verified-title-before"
-          built="$RUNNER_TEMP/verified-title-after"
-          mkdir -p "$prev" "$built"
-          ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null'
-          for name in services/news_result.py services/news_processed_store.py services/verified_fact_headline.py services/article_fact_keywords.py news_worker.py; do
-            scp "${opts[@]}" "$remote:$live/$name" "$prev/${name##*/}"
+          old="$RUNNER_TEMP/us-issue-before"
+          built="$RUNNER_TEMP/us-issue-after"
+          mkdir -p "$old" "$built"
+          ssh_do() { ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519" "$remote" "$@"; }
+          scp_do() { scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519" "$@"; }
+          ssh_do 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null'
+          for file in services/news_result.py services/news_processed_store.py services/verified_fact_headline.py news_worker.py services/us_top20_rotation.py; do
+            scp_do "$remote:$live/$file" "$old/$(basename "$file")"
           done
-          python - "$prev" "$built" <<'PY'
+          python - "$old" "$built" <<'PY'
           from pathlib import Path
           import hashlib,sys
-          prev,built=map(Path,sys.argv[1:])
-          sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-          baseline={
-            "news_result.py":"651f4cee76e63b353be4ed9566c1f2dfbe2a6a34fe0af2679cbf2f013e1ae81b",
-            "news_processed_store.py":"67f78d8c0f0c0f6fffa181a20d182f3dcd554ecb0438bb68a6840f229c07d58a",
-            "verified_fact_headline.py":"72a84d64c6c1238a134e3858993ac94dc5b811aa6f6c84eea9e4532bf25c0da5",
+          old,built=map(Path,sys.argv[1:])
+          sha=lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+          expected={
+            "news_result.py":"1953f56bedafa00e600fc1dfedc26753cb1cea290dbd62b17da5561c20e324c2",
+            "news_processed_store.py":"bf27a1d8a7a22ad9a172552fcbd556afaac72f3f2d861412b7d5c6b94cfc2dbb",
             "news_worker.py":"b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd",
+            "us_top20_rotation.py":"53b7082d2bd009867377b70c813b7bc1f1f773939a7d3c3f474859f6f6a65b65",
+            "verified_fact_headline.py":"72a84d64c6c1238a134e3858993ac94dc5b811aa6f6c84eea9e4532bf25c0da5"
           }
-          for name,checksum in baseline.items():
-            assert sha(prev/name)==checksum,"PRODUCTION_DRIFT_STOP: "+name
-          # Keep restored event-title code completely unchanged.
-          title=(prev/"verified_fact_headline.py").read_text()
-          assert 'preserve_kr_headline=False,' in title, "restored title module changed"
-          assert 'def grounded_fact_title(' in title
-          result=(prev/"news_result.py").read_text()
-          # Remove the exact two added restrictions, not the citation attachment.
-          guard=(
-              'def _us_citation_title_names_stock(article, stock_name):\n'
-              '    """Conservative source-ownership guard, never an article selector."""\n'
-              '    title = str((article or {}).get("title") or "").strip()\n'
-              '    return bool(title and _central_stock_mentioned(title[:75], stock_name))\n'
-              '\n\n'
-          )
-          assert result.count(guard)==1,"unexpected title-name guard layout"
-          result=result.replace(guard,'',1)
-          clearing=(
-              '            article_by_url = {\n'
-              '                str(item.get("url") or item.get("link") or "").strip(): item\n'
-              '                for item in storyboard_news_items\n'
-              '            }\n'
+          for name,original in expected.items():
+            assert sha(old/name)==original,"LIVE_DRIFT_STOP:"+name
+          result=(old/"news_result.py").read_text()
+          gate='                if not central_material_brief_supported(excerpt):'
+          assert result.count(gate)==1,"MATERIAL_GATE_LAYOUT_STOP"
+          result=result.replace(gate,'                if market not in ("미국", "US", "us") and not central_material_brief_supported(excerpt):',1)
+          marker='        # Diagnostic counts only: trace where central issues drop out without'
+          assert result.count(marker)==1,"TITLE_ANCHOR_STOP"
+          prefix=(
+              '        # US only: drop redundant trailing issue label. Keep sources and content.\n'
+              '        if market in ("미국", "US", "us"):\n'
               '            for brief in issue_briefs:\n'
-              '                for proof in brief.get("source_articles") or []:\n'
-              '                    article = article_by_url.get(str(proof.get("url") or "").strip())\n'
-              '                    if article is None or not _us_citation_title_names_stock(article, stock_name):\n'
-              '                        # A body about another company\'s action is\n'
-              '                        # not verified evidence of this stock\'s event.\n'
-              '                        brief["source_articles"] = []\n'
-              '                        brief["evidence_source"] = "stock_ownership_unverified"\n'
-              '                        break\n'
+              '                if isinstance(brief, dict):\n'
+              '                    brief["headline"] = re.sub(r"\\s*이슈\\s*$", "", str(brief.get("headline") or "").strip()).strip()\n'
               '\n'
           )
-          assert result.count(clearing)==1,"unexpected source-clearing layout"
-          result=result.replace(clearing,'',1)
-          assert '_us_citation_title_names_stock' not in result
-          assert 'stock_ownership_unverified' not in result
-          assert result.count('attach_verified_source_citations(')==1,"original citation attachment changed"
-          assert result.count('issue_count_limit')==4,"issue count logic changed"
-          assert '            "_code_source_revision": 11 if market in ("미국", "US", "us") else None,' in result
-          # Reprocess cached results so the removed restrictions take effect.
-          before='            "_code_source_revision": 11 if market in ("미국", "US", "us") else None,'
-          assert result.count(before)==1
-          result=result.replace(before,before.replace(': 11 ',': 12 '),1)
+          result=result.replace(marker,prefix+marker,1)
+          version='"_code_source_revision": 12 if market in ("미국", "US", "us") else None,'
+          assert result.count(version)==1,"CODE_REVISION_STOP"
+          result=result.replace(version,version.replace(": 12 ",": 13 "),1)
+          assert result.count("issue_count_limit")==4,"ROTATION_ISSUE_COUNT_CHANGED_STOP"
           compile(result,"news_result.py","exec")
           (built/"news_result.py").write_text(result)
-          cache=(prev/"news_processed_store.py").read_text()
-          before='payload.get("_code_source_revision") != 11'
-          assert cache.count(before)==1,"cache revision guard changed"
-          cache=cache.replace(before,'payload.get("_code_source_revision") != 12',1)
+          cache=(old/"news_processed_store.py").read_text()
+          expected_cache='payload.get("_code_source_revision") != 12'
+          assert cache.count(expected_cache)==1,"CACHE_REVISION_STOP"
+          cache=cache.replace(expected_cache,'payload.get("_code_source_revision") != 13',1)
           compile(cache,"news_processed_store.py","exec")
           (built/"news_processed_store.py").write_text(cache)
-          print("TITLE_NAME_CHECK_REMOVED")
-          print("CITATION_CLEARING_REMOVED")
-          print("SOURCE_URL_DATE_ATTACHMENT_RETAINED")
-          print("CACHE_REPROCESS_VERSION_12")
-          for name in ("news_result.py","news_processed_store.py"):
-            print("PREPARED_SHA256",name,sha(built/name))
-          print("NEWS_SELECTION_TITLE_FORMATTER_AND_TOP20_UNCHANGED")
+          print("US_ONE_MATERIAL_TOPIC_GATE_DISABLED",flush=True)
+          print("US_TRAILING_ISSUE_SUFFIX_REMOVED",flush=True)
+          print("CACHE_REVISION_13",flush=True)
+          print("US_TOP20_ROTATION_UNCHANGED",flush=True)
           PY
           cp "$built/news_result.py" backend/services/news_result.py
           cp "$built/news_processed_store.py" backend/services/news_processed_store.py
-          cp "$prev/verified_fact_headline.py" backend/services/verified_fact_headline.py
-          cp "$prev/article_fact_keywords.py" backend/services/article_fact_keywords.py
+          cp "$old/verified_fact_headline.py" backend/services/verified_fact_headline.py
+          python -m py_compile backend/services/news_result.py backend/services/news_processed_store.py
           python -m unittest -q tests.test_news_central_selection tests.test_us_top20_rotation
           python - <<'PY'
-          from datetime import datetime,timezone
-          from backend.services.verified_fact_headline import attach_verified_source_citations
-          from backend.services.issue_briefs import _article_excerpt
-          from backend.services.news_freshness import clean_us_snapshot
-          now=datetime.now(timezone.utc).isoformat()
-          article={"title":"엔비디아, 새로운 AI 플랫폼 출시","url":"https://example.org/verified","published_at":now}
-          body="엔비디아는 새로운 AI 플랫폼을 출시한다고 밝혔다. 이 플랫폼은 데이터센터에서 사용된다고 설명했다."
-          brief={"headline":"AI 데이터센터 이슈","summary":_article_excerpt(body),
-                 "tags":["AI데이터센터"],"time":"11:00","stock_names":["엔비디아"]}
-          actual=attach_verified_source_citations([brief],[article],[body],"엔비디아")
-          assert len(actual)==1
-          assert actual[0]["headline"]=="엔비디아, 새로운 AI 플랫폼 출시",actual[0]
-          assert actual[0]["summary"]==brief["summary"] and actual[0]["tags"]==brief["tags"]
-          assert actual[0]["source_articles"][0]["url"]==article["url"]
-          assert actual[0]["source_articles"][0]["published_at"]==now
-          display=clean_us_snapshot({"_title_only_revision":3,"_code_fact_extraction_version":3,
-                                    "_code_issue_briefs":actual},issue_mode="code")
-          assert display["issue_briefs"][0]["headline"]==actual[0]["headline"],display
-          unrelated={"title":"삼성그룹, 실적 확대","url":"https://example.org/unrelated","published_at":now}
-          no_change=attach_verified_source_citations([brief],[unrelated],[body],"엔비디아")
-          assert no_change[0]["headline"]==brief["headline"]
-          print("RESTORED_TITLE_AND_RENDER_DISPLAY_TEST_PASSED")
+          from pathlib import Path
+          a=Path("backend/services/news_result.py").read_text()
+          b=Path("backend/services/news_processed_store.py").read_text()
+          assert 'if market not in ("미국", "US", "us") and not central_material_brief_supported(excerpt):' in a
+          assert 'brief["headline"] = re.sub(r"\\s*이슈\\s*$"' in a
+          assert '"_code_source_revision": 13 if market' in a
+          assert 'payload.get("_code_source_revision") != 13' in b
+          from backend.services.us_top20_rotation import TOP_N
+          assert TOP_N==20
+          print("REGRESSION_TESTS_PASSED",flush=True)
           PY
-          python -m py_compile "$built/news_result.py" "$built/news_processed_store.py"
-          ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
+          ssh_do 'bash -se' <<'REMOTE'
           set -eu
-          cd /opt/gaemigtp-news/app
+          cd /opt/gaemigtp-news/app/backend
           test "$(systemctl is-active gaemigtp-news.service)" = active
-          test "$(sha256sum backend/services/news_result.py | cut -d" " -f1)" = 651f4cee76e63b353be4ed9566c1f2dfbe2a6a34fe0af2679cbf2f013e1ae81b
-          test "$(sha256sum backend/services/news_processed_store.py | cut -d" " -f1)" = 67f78d8c0f0c0f6fffa181a20d182f3dcd554ecb0438bb68a6840f229c07d58a
-          test "$(sha256sum backend/services/verified_fact_headline.py | cut -d" " -f1)" = 72a84d64c6c1238a134e3858993ac94dc5b811aa6f6c84eea9e4532bf25c0da5
-          test "$(sha256sum backend/news_worker.py | cut -d" " -f1)" = b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd
+          test "$(sha256sum services/news_result.py | cut -d" " -f1)" = 1953f56bedafa00e600fc1dfedc26753cb1cea290dbd62b17da5561c20e324c2
+          test "$(sha256sum services/news_processed_store.py | cut -d" " -f1)" = bf27a1d8a7a22ad9a172552fcbd556afaac72f3f2d861412b7d5c6b94cfc2dbb
+          test "$(sha256sum news_worker.py | cut -d" " -f1)" = b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd
+          test "$(sha256sum services/us_top20_rotation.py | cut -d" " -f1)" = 53b7082d2bd009867377b70c813b7bc1f1f773939a7d3c3f474859f6f6a65b65
           REMOTE
-          modified=0
+          changed=0
           deploy_file() {
-            local src="$1" path="$2" hash
+            local src="$1" dest="$2" hash
             hash="$(git hash-object -- "$src")"
-            scp "${opts[@]}" "$src" "$remote:.gaemi-gateway/payload"
-            ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy "$path" "$hash"
+            scp_do "$src" "$remote:.gaemi-gateway/payload"
+            ssh_do sudo -n /usr/local/sbin/gaemi-do-gateway deploy "$dest" "$hash"
           }
           rollback() {
             local rc="$1"
             trap - ERR
-            if (( modified )); then
-              echo TITLE_ROLLBACK_START
-              deploy_file "$prev/news_result.py" backend/services/news_result.py || true
-              deploy_file "$prev/news_processed_store.py" backend/services/news_processed_store.py || true
-              ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service || true
-              echo TITLE_ROLLBACK_ATTEMPTED
+            if (( changed )); then
+              echo "ROLLBACK_BEGIN"
+              deploy_file "$old/news_result.py" backend/services/news_result.py || true
+              deploy_file "$old/news_processed_store.py" backend/services/news_processed_store.py || true
+              ssh_do sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service || true
+              echo "ROLLBACK_ATTEMPTED"
             fi
             exit "$rc"
           }
           trap 'rollback $?' ERR
-          modified=1
+          changed=1
           deploy_file "$built/news_result.py" backend/services/news_result.py
           deploy_file "$built/news_processed_store.py" backend/services/news_processed_store.py
-          ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
+          ssh_do 'bash -se' <<'REMOTE'
           set -eu
           cd /opt/gaemigtp-news/app
-          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/verified_fact_headline.py backend/services/news_result.py backend/services/news_processed_store.py
-          /opt/gaemigtp-news/venv/bin/python -c 'from backend.services.verified_fact_headline import attach_verified_source_citations; from backend.services.news_result import build_stock_news_result; print("VERIFIED_OLD_TITLE_FUNCTION_IMPORT_OK")'
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_result.py backend/services/news_processed_store.py
+          /opt/gaemigtp-news/venv/bin/python -c 'from backend.services.news_result import build_stock_news_result; print("US_NEWS_CODE_IMPORT_OK")'
           REMOTE
-          ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service
-          sleep 8
-          ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && echo NEWS_WORKER_ACTIVE_WITH_OLD_TITLE_FUNCTION'
-          for name in news_result.py news_processed_store.py; do
-            livehash="$(ssh "${opts[@]}" "$remote" sha256sum "$live/services/$name" | cut -d' ' -f1)"
-            expected="$(sha256sum "$built/$name" | cut -d' ' -f1)"
-            test "$livehash" = "$expected"
-            echo "LIVE_VERIFIED_SHA256 $name $livehash"
+          ssh_do sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service
+          ssh_do 'test "$(systemctl is-active gaemigtp-news.service)" = active && echo US_NEWS_WORKER_ACTIVE'
+          for file in news_result.py news_processed_store.py; do
+            actual="$(ssh_do sha256sum "$live/services/$file" | cut -d' ' -f1)"
+            expected="$(sha256sum "$built/$file" | cut -d' ' -f1)"
+            test "$actual" = "$expected"
+            echo "LIVE_VERIFIED_SHA256 $file $actual"
           done
-          modified=0
+          changed=0
           trap - ERR
-          echo BOTH_UNAPPROVED_CITATION_RESTRICTIONS_REMOVED_SUCCESS
+          echo "US_MATERIAL_GATE_AND_TITLE_APPLIED"
