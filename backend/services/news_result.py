@@ -855,53 +855,19 @@ def _sanitize_news_display_briefs(result, *, market=None):
             if us_display:
                 # Central body display only; sidebar snapshots stay unchanged.
                 brief["summary"] = _us_original_three_sentences(brief["summary"])
-                # Run the existing article-body extractor only when a
-                # category/placeholder was saved as the issue headline.
-                # Preserve already specific titles, including Micron/SpaceX.
-                saved_title = str(brief.get("headline") or "").strip()
-                if brief["summary"] and (not saved_title or saved_title.endswith(" 이슈") or saved_title in {
-                    "AI 반도체", "AI 반도체 이슈", "AI 메모리",
-                    "AI 메모리 이슈", "반도체 이슈",
-                    "기사 주요 내용", "관련 이슈",
-                }):
-                    extracted_title = _us_article_event_title(brief["summary"])
-                    if extracted_title:
-                        brief["headline"] = extracted_title
-                    else:
-                        # Use the keywords already displayed under this issue.
-                        # If those are empty, match the stored article keywords
-                        # by verified source URL. Never substitute publisher titles.
-                        labels = [
-                            str(label or "").strip().lstrip("#")
-                            for label in (brief.get("tags") or [])
-                            if str(label or "").strip().lstrip("#")
-                        ]
-                        if not labels:
-                            source_urls = {
-                                str(source.get("url") or "").strip()
-                                for source in (brief.get("source_articles") or [])
-                                if isinstance(source, dict) and str(source.get("url") or "").strip()
-                            }
-                            for article in (result.get("storyboard_news_items") or []):
-                                if not isinstance(article, dict):
-                                    continue
-                                url = str(article.get("url") or article.get("link") or "").strip()
-                                if url not in source_urls:
-                                    continue
-                                labels = [
-                                    str(label or "").strip().lstrip("#")
-                                    for label in (
-                                        article.get("storyboard_keywords")
-                                        or article.get("article_keywords")
-                                        or []
-                                    )
-                                    if str(label or "").strip().lstrip("#")
-                                ]
-                                if labels:
-                                    break
-                        # If this legacy snapshot has no keyword either,
-                        # preserve its stored label instead of hiding the issue.
-                        brief["headline"] = " · ".join(labels[:3]) if labels else saved_title
+                # Show the publisher's original title from the cited article
+                # already verified and stored by DigitalOcean. Do not generate
+                # an issue title or promote an extracted keyword to a title.
+                original_title = next(
+                    (str(source.get("title") or "").strip()
+                     for source in (brief.get("source_articles") or [])
+                     if isinstance(source, dict)
+                     and str(source.get("url") or "").startswith(("https://", "http://"))
+                     and str(source.get("title") or "").strip()),
+                    "",
+                )
+                if original_title:
+                    brief["headline"] = original_title
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
                 brief["headline"] = grounded_issue_display_title(brief)

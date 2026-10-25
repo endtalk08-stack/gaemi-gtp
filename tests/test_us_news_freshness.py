@@ -217,7 +217,7 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual(len(result["issue_briefs"]), 5)
         self.assertEqual(len(result["issue_channels"]["code"]), 5)
 
-    def test_failed_issue_title_uses_existing_keywords_not_article_title(self):
+    def test_original_article_titles_are_kept_over_generated_labels_and_keywords(self):
         summary = (
             "미국 기업들의 순이익이 증가할 것으로 전망됐다. "
             "전체 이익 증가분이 일부 기업에 집중됐다. "
@@ -239,22 +239,24 @@ class RenderFreshnessTests(unittest.TestCase):
                 "title": "기사 원제목 두 번째",
             }],
         }
+        third = {
+            "headline": "이미 저장된 이슈 제목", "summary": summary,
+            "tags": [],
+            "source_articles": [{"url": "https://example.org/third"}],
+        }
         payload = {
-            "issue_briefs": [first, second],
+            "issue_briefs": [first, second, third],
             "storyboard_news_items": [
                 {"url": "https://example.org/first", "storyboard_keywords": ["30%급증"]},
                 {"url": "https://example.org/second", "storyboard_keywords": ["30%증가"]},
-                {"url": "https://example.org/unrelated", "storyboard_keywords": ["무관한키워드"]},
             ],
         }
-        with patch.object(news_result, "_us_article_event_title", return_value=""):
-            result = news_result._sanitize_news_display_briefs(payload, market="미국")
+        result = news_result._sanitize_news_display_briefs(payload, market="미국")
         self.assertEqual(
             [issue["headline"] for issue in result["issue_briefs"]],
-            ["AI반도체", "30%증가"],
+            ["기사 원제목 첫 번째", "기사 원제목 두 번째", "이미 저장된 이슈 제목"],
         )
-        self.assertEqual(len(result["issue_briefs"]), 2)
-
+        self.assertEqual(len(result["issue_briefs"]), 3)
 
 if __name__ == "__main__":
     unittest.main()
