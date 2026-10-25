@@ -48,6 +48,15 @@
           <div class="central-widget-card__market-empty">${escapeHtml(detail)}</div>
         </article>`;
       }
+      if (id === 'chart') {
+        return `<article class="central-widget-card central-widget-card--chart" data-central-widget-id="chart">
+          <div class="central-widget-card__top">
+            <div class="central-widget-card__name">미국 거래대금 TOP 20 · 일봉</div>
+            <button type="button" class="central-widget-card__close" data-central-widget-remove="chart" aria-label="차트 닫기">×</button>
+          </div>
+          <div data-us-daily-chart class="us-daily-chart">거래대금 TOP 20 종목을 선택해 줘.</div>
+        </article>`;
+      }
       return `<article class="central-widget-card" data-central-widget-id="${escapeHtml(id)}">
         <div class="central-widget-card__top">
           <div class="central-widget-card__name">${escapeHtml(meta.title)}</div>
