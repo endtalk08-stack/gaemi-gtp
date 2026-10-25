@@ -449,16 +449,18 @@
         }
 
         const sec = sections[secIdx];
-        // US trading-value Top 20: the chart is the primary answer.
-        // Do not render the automatic first-reply comment or action icons.
-        // Keep the existing follow-up questions and all underlying analysis data.
+        // US trading-value Top 20: hide only the automatic commentary.
+        // Keep the original reply actions and the existing follow-up questions.
         const marketSelection = ctx.getSession()?.marketSelection;
         if (secIdx === 0 && sec.id === 'why-up'
             && marketSelection?.market === 'us' && marketSelection?.menu === 'value') {
           const anchor = document.createElement('span');
           anchor.hidden = true;
           mainContainer.appendChild(anchor);
-          appendNextAnalysisChoices(anchor, { autoReason: false });
+          const actions = window.GaemiGTPFirstReplyActions?.appendFirstReplyActions?.(
+            anchor, sec.content || '', 'first', stockName
+          );
+          appendNextAnalysisChoices(actions || anchor, { autoReason: false });
           return;
         }
         const dynamicTitle = sec.title || '';
