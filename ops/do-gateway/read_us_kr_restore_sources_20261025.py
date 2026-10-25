@@ -1,86 +1,41 @@
-"""Read-only in-memory preflight of US-only KR selection restoration."""
+"""Read-only post-deploy verification for exactly two approved US CODE files."""
 from pathlib import Path
 import hashlib
+import subprocess
 
-base = Path("/opt/gaemigtp-news/app/backend/services")
-src = (base/"news_result.py").read_text()
-store = (base/"news_processed_store.py").read_text()
-sha = lambda v: hashlib.sha256(v.encode("utf-8")).hexdigest()
-assert sha(src) == "294aa00b46bbcb64602f9d05f619af1911fe83018d0cd1a81d2d8da9efb36d0d", "RESULT_LIVE_DRIFT_STOP"
-assert sha(store) == "878c658c84072dd9046464ae6b8bf67174a69f6da5ad84fb7b2cdded72163618", "STORE_LIVE_DRIFT_STOP"
-
-def replace_once(text, before, after, label):
-    if text.count(before) != 1:
-        raise AssertionError("PATCH_ANCHOR_MISMATCH_" + label)
-    return text.replace(before, after, 1)
-
-src = replace_once(
-    src, "from .news_feed import fetch_stock_news\n",
-    "from .news_feed import fetch_stock_news, select_stock_news_for_analysis\n",
-    "DOMESTIC_SELECTOR_IMPORT")
-src = replace_once(
-    src,
-    "        part_started = time.monotonic()\n        scored_news = score_stock_news(raw_news_list, stock_name)\n",
-    "        # US CODE only: same article/keyword eligibility already used by KR.\n"
-    "        # Keep the raw news list unchanged for its independent consumers.\n"
-    "        code_news = (\n"
-    "            select_stock_news_for_analysis(raw_news_list, stock_name, limit)\n"
-    "            if market in (\"미국\", \"US\", \"us\") else raw_news_list\n"
-    "        )\n"
-    "        part_started = time.monotonic()\n"
-    "        scored_news = score_stock_news(code_news, stock_name)\n",
-    "US_CODE_INPUT")
-src = replace_once(
-    src,
-    "            limit = max(12, len(rows)) if market in (\"미국\", \"US\", \"us\") else max(12, storyboard_limit * 3)",
-    "            limit = max(12, storyboard_limit * 3)",
-    "KR_CANDIDATE_LIMIT")
-src = replace_once(
-    src,
-    "        issue_count_limit = max(1, len(candidate_news)) if is_us_24h else storyboard_limit",
-    "        issue_count_limit = storyboard_limit",
-    "KR_ISSUE_COUNT")
-src = replace_once(
-    src,
-    "                if market not in (\"미국\", \"US\", \"us\") and not central_material_brief_supported(excerpt):",
-    "                if not central_material_brief_supported(excerpt):",
-    "KR_MATERIAL_GATE")
-suffix = (
-    "        # US only: drop redundant trailing issue label. Keep sources and content.\n"
-    "        if market in (\"미국\", \"US\", \"us\"):\n"
-    "            for brief in issue_briefs:\n"
-    "                if isinstance(brief, dict):\n"
-    "                    brief[\"headline\"] = re.sub(r\"\\s*이슈\\s*$\", \"\", str(brief.get(\"headline\") or \"\").strip()).strip()\n"
-    "\n"
-)
-src = replace_once(src, suffix, "", "KEEP_KR_KEYWORD_TITLE")
-src = replace_once(
-    src, "\"_code_source_revision\": 13 if market in (\"미국\", \"US\", \"us\") else None",
-    "\"_code_source_revision\": 14 if market in (\"미국\", \"US\", \"us\") else None",
-    "CODE_CACHE_REFRESH")
-store = replace_once(
-    store, "payload.get(\"_code_source_revision\") != 13",
-    "payload.get(\"_code_source_revision\") != 14",
-    "CODE_CACHE_SIGNATURE")
-
-for filename, value in (("news_result.py", src), ("news_processed_store.py", store)):
-    compile(value, filename, "exec")
-assert src.count("attach_verified_source_citations(") == 1
-assert 'if not is_us_24h:\n            candidate_news.extend(rank_candidates(older_news))' in src
-assert 'if market in ("미국", "US", "us"):' in src
-assert src.count("limit=issue_count_limit") == 2
-assert '"_code_source_revision": 14' in src
+base = Path("/opt/gaemigtp-news/app/backend")
+expected = {
+    "services/news_result.py": "ce107a7c56210e46664186c7336a1f3fbef41fe2c54baa2b2d5ab989e87e421d",
+    "services/news_processed_store.py": "d6b6c2ff4516779c4183f253c445c48fd5eb81bef6447a1ea2819249403e78f9",
+    "services/news_feed.py": "a4544237a20b45cc02ddf9a320741acd6a5c2c04c6a9db20e503442a5834c7a0",
+    "services/us_top20_rotation.py": "53b7082d2bd009867377b70c813b7bc1f1f773939a7d3c3f474859f6f6a65b65",
+    "news_worker.py": "b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd",
+}
+for rel, expected_sha in expected.items():
+    path = base/rel
+    if not path.is_file() or path.is_symlink():
+        raise AssertionError("FILE_MISSING_"+rel)
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != expected_sha:
+        raise AssertionError("FILE_HASH_MISMATCH_"+rel+": "+actual)
+    print("PRESERVED_OR_RESTORED_FILE", rel, actual, flush=True)
+result = (base/"services/news_result.py").read_text()
+store = (base/"services/news_processed_store.py").read_text()
+compile(result,"news_result.py","exec")
+compile(store,"news_processed_store.py","exec")
+assert "select_stock_news_for_analysis(raw_news_list, stock_name, limit)" in result
+assert 'if not central_material_brief_supported(excerpt):' in result
+assert 'if market not in ("미국", "US", "us") and not central_material_brief_supported(excerpt):' not in result
+assert 'limit = max(12, storyboard_limit * 3)' in result
+assert 'issue_count_limit = storyboard_limit' in result
+assert "attach_verified_source_citations(" in result
+assert 'brief["headline"] = re.sub(r"\\s*이슈\\s*$"' not in result
+assert '"_code_source_revision": 14' in result
+assert 'payload.get("_code_source_revision") != 14' in store
 assert 'payload.get("_kr_selection_revision") != 1' in store
-assert 'def _same_stock_issue_briefs' in store
-assert 'def _prefer_same_day_ai' in store
-assert 'def _recent_existing_issue_briefs' in store
-import sys
-sys.path.insert(0, "/opt/gaemigtp-news/app")
-from backend.services.news_feed import select_stock_news_for_analysis
-from backend.services.issue_briefs import _content_driven_title_and_tags
-assert callable(select_stock_news_for_analysis)
-assert callable(_content_driven_title_and_tags)
-print("US_KR_READONLY_PREFLIGHT_PASS")
-print("NEW_RESULT_SHA256", sha(src))
-print("NEW_STORE_SHA256", sha(store))
-print("PROTECTED_SOURCE_AND_STORE_BEHAVIOR_PRESERVED")
+assert "def _prefer_same_day_ai(" in store
+assert "def _same_stock_issue_briefs(" in store
+print("US_KR_RESULT_AND_CACHE_VALIDATED", flush=True)
+check = subprocess.run(["systemctl","is-active","gaemigtp-news.service"],capture_output=True,text=True)
+assert check.returncode == 0 and check.stdout.strip() == "active", "NEWS_SERVICE_NOT_ACTIVE"
+print("WORKER_SERVICE_ACTIVE", flush=True)
