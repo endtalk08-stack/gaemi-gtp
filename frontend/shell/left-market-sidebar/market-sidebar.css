@@ -247,10 +247,7 @@
   align-items: baseline;
   column-gap: 5px;
   min-width: 0;
-  color: #7457A8;
-}
-.dark .market-stock-industry {
-  color: #B4A0DB;
+  color: var(--gtp-muted);
 }
 .market-stock-watch-star {
   font-size: 13px;
@@ -283,4 +280,14 @@
   white-space: nowrap;
   font-size: 13px !important;
   line-height: 1.3;
+}
+
+/* Soften the dark market sidebar only; do not alter the central chart or market moves. */
+.dark #leftMarketSidebar.market-sidebar {
+  --gtp-text: #bfc3cb;
+  --gtp-text-2: #aeb4bd;
+  --gtp-muted: #9ba2ad;
+}
+.dark #leftMarketSidebar .market-stock-logo {
+  background: #d3d7de;
 }
