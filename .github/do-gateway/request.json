@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/check_kiwoom_config.py","request_id":"kiwoomdaily-preflight-20261025","timeout":90}
+{"operation":"kiwoom-verify"}
