@@ -1,4 +1,4 @@
-name: Audit live news_result drift only (read only)
+name: Audit DO news source provenance and unchanged-cache guard (read only)
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -10,22 +10,18 @@ concurrency:
   cancel-in-progress: false
 jobs:
   audit:
-    environment: digitalocean-news-worker
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    environment: digitalocean-news-worker
+    timeout-minutes: 8
     env:
       DO_HOST: ${{ secrets.DO_HOST }}
       SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Read current production file and compare source (no changes)
+      - name: Inspect live code read-only; never alter running files
         shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
           : "${DO_HOST:?}" "${SSH_KEY:?}" "${SSH_KNOWN_HOSTS:?}"
           umask 077
           mkdir -p ~/.ssh
@@ -34,49 +30,52 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
           opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
           remote="gaemi-deploy@$DO_HOST"
-          ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null && echo GATEWAY_READ_ONLY_OK'
-          scp "${opts[@]}" "$remote:/opt/gaemigtp-news/app/backend/services/news_result.py" "$RUNNER_TEMP/live-news-result.py"
-          scp "${opts[@]}" "$remote:/opt/gaemigtp-news/app/backend/news_worker.py" "$RUNNER_TEMP/live-news-worker.py"
-          python3 - "$RUNNER_TEMP/live-news-result.py" "$RUNNER_TEMP/live-news-worker.py" backend/services/news_result.py <<'PY'
-          import sys,hashlib,ast,difflib,re
+          base=/opt/gaemigtp-news/app/backend
+          ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null && echo AUDIT_ACCESS_OK'
+          scp "${opts[@]}" "$remote:$base/services/news_processed_store.py" "$RUNNER_TEMP/store.py"
+          scp "${opts[@]}" "$remote:$base/news_worker.py" "$RUNNER_TEMP/worker.py"
+          scp "${opts[@]}" "$remote:$base/services/news_result.py" "$RUNNER_TEMP/result.py"
+          if ssh "${opts[@]}" "$remote" "test -f $base/services/verified_fact_headline.py"; then
+            scp "${opts[@]}" "$remote:$base/services/verified_fact_headline.py" "$RUNNER_TEMP/citation.py"
+          fi
+          python - "$RUNNER_TEMP" <<'PY'
           from pathlib import Path
-          live,worker,repo=map(Path,sys.argv[1:])
-          def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
-          print("LIVE_NEWS_RESULT_SHA256",sha(live))
-          print("REVIEWED_BASELINE_NEWS_RESULT_SHA256","0f79aeb99a5931f22273ce4250c8cc3c9eca08734811add49c5ffd7a798f7a58")
-          print("OPERATIONS_BRANCH_NEWS_RESULT_SHA256",sha(repo))
-          print("LIVE_NEWS_WORKER_SHA256",sha(worker))
-          print("EXPECTED_LIVE_NEWS_WORKER_SHA256","d274422a687d89af56868a956dc77317945220cebac13b620f20c78f5ef73967")
-          old=repo.read_text().splitlines()
-          new=live.read_text().splitlines()
-          print("LINE_COUNTS",len(old),len(new))
-          for label,lines in [('OPS_BRANCH',old),('LIVE',new)]:
-              print("----",label,"IMPORTANT_PROCESSING_LINES----")
-              targets=("candidate_news = rank_candidates","candidate_news.extend(rank_candidates","storyboard_limit","issue_count_limit","limit=storyboard_limit","limit=issue_count_limit","len(storyboard_news_items)","24 * 60","rolling_24h","_code_issue_briefs","issue_briefs","accepted_articles","selected_items")
-              for i,line in enumerate(lines):
-                  if any(t in line for t in targets) and not re.search("API_KEY|SECRET|TOKEN|PASSWORD|DATABASE_URL|PRIVATE_KEY|authorization",line,re.I):
-                      print(f"{i+1}: {line[:190]}")
-          def public_code(lines):
-              result=[]
-              for line in lines:
-                  if re.search("API_KEY|SECRET|TOKEN|PASSWORD|DATABASE_URL|PRIVATE_KEY|authorization",line,re.I):
-                      result.append("[redacted]")
-                  else:result.append(line)
-              return result
-          seq=difflib.SequenceMatcher(None,public_code(old),public_code(new),autojunk=False)
-          tags=seq.get_opcodes()
-          changed=[(tag,i1,i2,j1,j2) for tag,i1,i2,j1,j2 in tags if tag!='equal']
-          print("OPS_VS_LIVE_HUNKS",len(changed),"CHANGED_LINES",sum(i2-i1+j2-j1 for _,i1,i2,j1,j2 in changed))
-          for k,(tag,i1,i2,j1,j2) in enumerate(changed[:18],1):
-              print(f"HUNK_{k} type={tag} ops={i1+1}-{i2} live={j1+1}-{j2}")
-              for s in old[i1:min(i2,i1+12)]:
-                  if re.search("API_KEY|SECRET|TOKEN|PASSWORD|DATABASE_URL|PRIVATE_KEY|authorization",s,re.I):s="[redacted]"
-                  print("  -",s[:200])
-              for s in new[j1:min(j2,j1+12)]:
-                  if re.search("API_KEY|SECRET|TOKEN|PASSWORD|DATABASE_URL|PRIVATE_KEY|authorization",s,re.I):s="[redacted]"
-                  print("  +",s[:200])
-          print("HUNKS_OMITTED",max(0,len(changed)-18))
-          print("SERVICE_CURRENTLY_RUNNING")
+          import sys,hashlib,re
+          tmp=Path(sys.argv[1])
+          for filename in ("store.py","worker.py","result.py","citation.py"):
+              f=tmp/filename
+              if not f.exists():
+                  print("MODULE_MISSING",filename)
+                  continue
+              text=f.read_text()
+              print("MODULE",filename,"sha256",hashlib.sha256(f.read_bytes()).hexdigest(),"lines",len(text.splitlines()))
+              lines=text.splitlines()
+              anchors={
+                "store.py":("def save_snapshot","def read_signature","_code_issue_briefs","_code_fact_extraction_version","_title_only_revision","def source_fingerprint"),
+                "worker.py":("def process_stock","store.read_signature","store.save_snapshot","result = build_stock_news_result","if store.read_signature","_read_rotation_state"),
+                "result.py":("from .verified_fact_headline","def build_stock_news_result","issue_briefs = build_issue_briefs","_title_only_revision","_code_fact_extraction_version","return {","original_body_unavailable"),
+                "citation.py":("def attach_verified_source_citations","def overlay_verified_headlines"),
+              }[filename]
+              found=[i for i,line in enumerate(lines) if any(marker in line for marker in anchors)]
+              print("ANCHORS",filename,found)
+              blocks=set()
+              for i in found:
+                  if filename=="store.py" and "def read_signature" in lines[i]:
+                      blocks.update(range(max(0,i-1),min(len(lines),i+55)))
+                  elif filename=="store.py" and "def save_snapshot" in lines[i]:
+                      blocks.update(range(max(0,i-1),min(len(lines),i+75)))
+                  elif filename=="worker.py" and "def process_stock" in lines[i]:
+                      blocks.update(range(i,min(len(lines),i+75)))
+                  elif filename=="result.py" and "issue_briefs = build_issue_briefs" in lines[i]:
+                      blocks.update(range(max(0,i-3),min(len(lines),i+14)))
+                  elif filename=="result.py" and "_news_status" in lines[i]:
+                      blocks.update(range(max(0,i-9),min(len(lines),i+3)))
+                  else:
+                      blocks.update(range(max(0,i-2),min(len(lines),i+3)))
+              secret=re.compile(r"(?i)(password\s*=|secret\s*=|token\s*=|api[_-]?key\s*=|database[_-]?url\s*=|postgresql://|authorization:|private_key)")
+              for i in sorted(blocks):
+                  line=lines[i]
+                  if secret.search(line):line="[REDACTED]"
+                  print(f"{filename}:{i+1} {line[:205]}")
+          print("READ_ONLY_INSPECTION_COMPLETE")
           PY
-          ssh "${opts[@]}" "$remote" 'systemctl is-active gaemigtp-news.service'
-          echo READ_ONLY_AUDIT_COMPLETE
