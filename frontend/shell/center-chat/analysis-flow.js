@@ -99,7 +99,7 @@
 
       let secIdx = 0;
 
-      function appendNextAnalysisChoices(anchor) {
+      function appendNextAnalysisChoices(anchor, { autoReason = true } = {}) {
         if (!anchor || anchor.parentElement?.querySelector('[data-next-analysis-choices]')) return;
 
         // Only the selected sidebar's quote controls red/blue/flat prompts.
@@ -422,7 +422,7 @@
         anchor.insertAdjacentElement('afterend', choices);
         // Only the new sourced AI reason triggers the requested initial reason/issues layout.
         // Existing replies and their buttons remain unchanged if none is available.
-        if (result.price_reason?.headline && result.price_reason?.summary) {
+        if (autoReason && result.price_reason?.headline && result.price_reason?.summary) {
           void appendWhy(true);
         }
 
@@ -449,6 +449,18 @@
         }
 
         const sec = sections[secIdx];
+        // US trading-value Top 20: the chart is the primary answer.
+        // Do not render the automatic first-reply comment or action icons.
+        // Keep the existing follow-up questions and all underlying analysis data.
+        const marketSelection = ctx.getSession()?.marketSelection;
+        if (secIdx === 0 && sec.id === 'why-up'
+            && marketSelection?.market === 'us' && marketSelection?.menu === 'value') {
+          const anchor = document.createElement('span');
+          anchor.hidden = true;
+          mainContainer.appendChild(anchor);
+          appendNextAnalysisChoices(anchor, { autoReason: false });
+          return;
+        }
         const dynamicTitle = sec.title || '';
         // Hide the technical-indicator block below the first US Top-20 reply.
         // Keep the AI commentary and hashtag block; backend data remains untouched.
