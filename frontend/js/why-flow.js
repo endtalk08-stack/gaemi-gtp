@@ -215,19 +215,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 article.append(headline);
                 if (String(event.summary || '').trim()) article.append(descriptionEl);
                 if (keywordParts.length) article.append(keywordEl);
-                if (event.evidence_source === 'panel_news') {
-                  const source = (Array.isArray(event.source_articles) ? event.source_articles : [])
-                    .find((item) => /^https?:\/\//.test(String(item?.url || '')));
-                  if (source) {
-                    const link = document.createElement('a');
-                    link.href = source.url;
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    link.className = 'text-xs text-[#64748b] dark:text-[#a1a1aa] underline';
-                    link.textContent = String(source.source || '기사 원문');
-                    article.appendChild(link);
-                  }
-                }
                 if (reactionsEl) article.append(reactionsEl);
                 storyboardList.appendChild(article);
                 storyboardRows.push({
@@ -239,18 +226,11 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   descriptionText: String(event.summary || '').trim(),
                   keywordParts,
                   reactionsEl,
-                  panelNews: event.evidence_source === 'panel_news',
                 });
               });
               block.appendChild(storyboardList);
 
               for (const row of storyboardRows) {
-                if (row.panelNews) {
-                  row.timeEl.textContent = row.timeText;
-                  row.titleEl.textContent = row.titleText;
-                  row.descriptionEl.textContent = row.descriptionText;
-                  continue;
-                }
                 await typeWhyText(row.timeEl, row.timeText);
                 await typeWhyText(row.titleEl, row.titleText);
                 if (row.descriptionText) await typeWhyText(row.descriptionEl, row.descriptionText);

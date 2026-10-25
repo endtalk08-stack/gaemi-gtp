@@ -6,8 +6,6 @@ import os
 import re
 import threading
 import time
-from urllib.parse import urlparse
-from zoneinfo import ZoneInfo
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE, canonical_us_news_name
 from backend.analysis.news.stock_identity import news_snapshot_names
@@ -19,7 +17,7 @@ from backend.analysis.news import (
 )
 
 from .news_byline import strip_leading_news_credit
-from .news_freshness import clean_us_snapshot, _article_date
+from .news_freshness import clean_us_snapshot
 from .news_identity_registry import resolve_us_news_identity
 from .issue_briefs import (
     grounded_issue_display_title,
@@ -929,51 +927,6 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
         return None
 
 
-def _us_panel_news_issue_briefs(items, stock_name):
-    """Mirror the selected stock's right-hand news feed without issue ranking.
-
-    The DO snapshot already binds these items to the selected stock. This
-    display-only adapter applies just: newest first, source URL deduplication,
-    required article metadata and a 10-article cap. No AI or body gate.
-    """
-    candidates = []
-    for item in items if isinstance(items, list) else []:
-        if not isinstance(item, dict):
-            continue
-        url = str(item.get("url") or item.get("link") or "").strip()
-        title = str(item.get("title") or "").strip()
-        published = _article_date(item.get("published_at"))
-        if (not url.startswith(("https://", "http://")) or not title
-                or published is None):
-            continue
-        source = str(item.get("source") or urlparse(url).hostname or "").strip()
-        if not source:
-            continue
-        candidates.append((published, url, title, source, item))
-    candidates.sort(key=lambda item: item[0], reverse=True)
-    seen = set()
-    briefs = []
-    for published, url, title, source, item in candidates:
-        if url in seen:
-            continue
-        seen.add(url)
-        briefs.append({
-            "headline": title,
-            "summary": str(item.get("description") or item.get("summary") or "").strip(),
-            "time": published.astimezone(ZoneInfo("Asia/Seoul")).strftime("%H:%M"),
-            "source_articles": [{
-                "url": url, "published_at": str(item["published_at"]),
-                "source": source,
-            }],
-            "stock_names": [stock_name],
-            "tags": [],
-            "evidence_source": "panel_news",
-        })
-        if len(briefs) == 10:
-            break
-    return briefs
-
-
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul", symbol=None, issue_mode="auto"):
     """Read the existing DigitalOcean snapshot only; never collect or save news."""
@@ -994,14 +947,5 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
     if market in ("미국", "us"):
         worker_result = clean_us_snapshot(worker_result, issue_mode=issue_mode,
                                           format_titles=False)
-        if issue_mode in ("auto", "code"):
-            # The right panel uses the same pre-matched DO article list.
-            # Do not pass US issues through scoring, event merging, body
-            # extraction or the separate three-brief selection.
-            worker_result["issue_briefs"] = _us_panel_news_issue_briefs(
-                worker_result.get("paired_news_items"), stock_name
-            )
-            worker_result["_issue_display_channel"] = "panel_news"
-            return worker_result
     return _sanitize_news_display_briefs(worker_result, market=market)
 
