@@ -70,3 +70,4 @@ jobs:
           journalctl --no-pager --quiet -u gaemigtp-us-market-close.service --since '2026-10-20 06:30:00 Asia/Seoul' 2>/dev/null | grep -E 'us_market_close_failed|insufficient_full_articles|already_attempted|published|market_not_closed|Failed|Started|Starting' | tail -25 || true
           echo "US_CLOSE_READONLY_DIAGNOSTIC_COMPLETE"
           REMOTE
+# Verification refresh: inspect the installed US market close AI timer without changing the server.
