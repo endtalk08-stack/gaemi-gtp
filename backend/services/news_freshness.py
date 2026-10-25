@@ -141,7 +141,7 @@ def _compact_code_news_title(brief):
         return original
     return headline
 
-def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
+def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=True):
     """Read cited, 24-hour code and preserved AI channels without changing either.
 
     Both consumers use this function. Reject old source timestamps even when
@@ -192,10 +192,11 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
                 continue
             latest = max(pub for pub, _ in valid_sources)
             # Generate from the stored verified prose, not the publisher title.
-            headline = (_compact_code_news_title(brief) if code_only
+            headline = (_compact_code_news_title(brief) if code_only and format_titles
                         else str(brief.get("headline") or "").strip())
             # US display only: remove obsolete trailing category label.
-            headline = re.sub(r"\s*이슈\s*$", "", headline).strip()
+            if format_titles:
+                headline = re.sub(r"\s*이슈\s*$", "", headline).strip()
             fresh.append({
                 **brief,
                 "headline": headline,
@@ -273,3 +274,4 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
             and cutoff <= pub <= upper
         ]
     return result
+

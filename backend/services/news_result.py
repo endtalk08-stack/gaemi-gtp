@@ -776,6 +776,9 @@ def _us_original_three_sentences(summary):
     text = str(summary or "").strip()
     if not text:
         return ""
+    # An index of linked headlines is not original article prose.
+    if len(re.findall(r"\.{3,}|…", text)) >= 3:
+        return ""
     highlights = re.search(r"\[\s*핵심\s*포인트\s*\]", text)
     if highlights is not None and highlights.start() < 1400:
         section = text[highlights.end():]
@@ -788,14 +791,58 @@ def _us_original_three_sentences(summary):
         )
         text = (after_last_bullet[end_of_bullet.end():].strip()
                 if end_of_bullet else "")
-    elif "이미지 확대보기" in text[:900]:
+    if "이미지 확대보기" in text[:900]:
         after_image = text.split("이미지 확대보기", 1)[1]
         photo_credit = re.search(
             r"사진\s*=\s*[가-힣A-Za-z0-9·./-]{2,40}(?:\s+|$)",
             after_image[:900],
         )
         text = after_image[photo_credit.end():].strip() if photo_credit else ""
-    return _article_excerpt(text, limit=3)
+    # The shared excerpt helper drops sentences shorter than ten characters,
+    # which can replace a valid short third sentence with the fourth one.
+    # Keep that worker helper unchanged; count source sentences here first.
+    text = strip_leading_news_credit(re.sub(r"\s+", " ", text).strip())
+    # Include closing quotation marks in the sentence boundary. A decimal
+    # point is not a boundary unless followed by whitespace or end of text.
+    complete = [match.group().strip() for match in re.finditer(
+        r'.+?[.!?]["”’)]*(?=\s|$)', text
+    )]
+    return " ".join(complete[:3])
+
+
+def _us_article_event_title(summary):
+    """Extract a concise event from verified prose, without publisher titles."""
+    headline, _ = _content_driven_title_and_tags(summary)
+    # Preserve the existing factual detectors; category headings need an
+    # actual subject/action instead of stripping the word 'issue'.
+    if headline != "기사 주요 내용" and not headline.endswith(" 이슈"):
+        return headline
+    for sentence in re.split(r'(?<=[.!?])\s+', summary):
+        request = re.fullmatch(
+            r'(?P<actor>.+?)(?:이|가)\s+(?P<target>.+?)(?:에|에게)\s+'
+            r'(?P<event>.+?)(?:을|를)\s+(?P<action>촉구|주문|요청)했다\.',
+            sentence,
+        )
+        if request:
+            actor = request.group('actor')
+            # A company and named executive remain explicit; only the job
+            # label is removed, never the actor, target or requested action.
+            actor = re.sub(r'\s+(?:최고경영자|CEO)\s+', ' ', actor)
+            target = re.sub(r'^.+?\s+기업\s+', '', request.group('target'))
+            event = request.group('event')
+            acceleration = re.fullmatch(
+                r'(?P<facility>데이터센터) 구축 과정에서 발생한 문제를 해결하고 '
+                r'시설 가동에 속도를 낼 것', event
+            )
+            if acceleration:
+                event = f"{acceleration.group('facility')} 문제 해결·가동 가속"
+            candidate = (f"{actor}, {target}에 "
+                         f"{event} {request.group('action')}")
+            if len(candidate) <= 60:
+                return candidate
+    # The user requested that an item without an extractable event be hidden,
+    # rather than using a full sentence or a vague warning as its heading.
+    return ""
 
 
 def _sanitize_news_display_briefs(result, *, market=None):
@@ -806,20 +853,18 @@ def _sanitize_news_display_briefs(result, *, market=None):
     for brief in result.get("issue_briefs") or []:
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
             if us_display:
-                # The sidebar displays the clean_us_snapshot headline directly.
-                # Keep the same title here; use only three original article sentences.
+                # Central body display only; sidebar snapshots stay unchanged.
                 brief["summary"] = _us_original_three_sentences(brief["summary"])
                 # Run the existing article-body extractor only when a
                 # category/placeholder was saved as the issue headline.
                 # Preserve already specific titles, including Micron/SpaceX.
-                if brief["summary"] and str(brief.get("headline") or "").strip() in {
+                saved_title = str(brief.get("headline") or "").strip()
+                if brief["summary"] and (not saved_title or saved_title.endswith(" 이슈") or saved_title in {
                     "AI 반도체", "AI 반도체 이슈", "AI 메모리",
                     "AI 메모리 이슈", "반도체 이슈",
                     "기사 주요 내용", "관련 이슈",
-                }:
-                    brief["headline"], _ = _content_driven_title_and_tags(
-                        brief["summary"]
-                    )
+                }):
+                    brief["headline"] = _us_article_event_title(brief["summary"])
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
                 brief["headline"] = grounded_issue_display_title(brief)
@@ -837,6 +882,12 @@ def _sanitize_news_display_briefs(result, *, market=None):
                 )
                 if publication or ai_time:
                     brief["time"] = (publication or ai_time).group(1)
+    if us_display:
+        result["issue_briefs"] = [brief for brief in result.get("issue_briefs") or []
+                                  if isinstance(brief, dict)
+                                  and isinstance(brief.get("summary"), str)
+                                  and brief["summary"].strip()
+                                  and str(brief.get("headline") or "").strip()]
     return result
 
 
@@ -894,5 +945,7 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         return {**_empty_news_result(), "_news_status": "unavailable"}
     worker_result = copy.deepcopy(worker_result)
     if market in ("미국", "us"):
-        worker_result = clean_us_snapshot(worker_result, issue_mode=issue_mode)
+        worker_result = clean_us_snapshot(worker_result, issue_mode=issue_mode,
+                                          format_titles=False)
     return _sanitize_news_display_briefs(worker_result, market=market)
+
