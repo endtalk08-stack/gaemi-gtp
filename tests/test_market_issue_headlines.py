@@ -222,6 +222,51 @@ class MarketIssueHeadlineTests(unittest.TestCase):
         self.assertEqual(only_unavailable["issue_briefs"], [])
         self.assertEqual(subject._first_ai_headline(only_unavailable), "")
 
+    def test_us_sidebar_uses_article_title_before_ellipsis_without_changing_source(self):
+        from datetime import datetime, timezone
+        from backend.services.news_freshness import clean_us_snapshot
+        now = datetime.now(timezone.utc)
+        full_title = (
+            "美기업 순익 30% 급증한다는데…"
+            "증가분 3분의 1은 엔비디아·마이크론 몫"
+        )
+        raw = {
+            "_code_fact_extraction_version": 3,
+            "_title_only_revision": 3,
+            "_code_issue_briefs": [{
+                "headline": "AI 반도체",
+                "summary": "미국 기업 순익 증가 전망을 다룬 기사.",
+                "source_articles": [{
+                    "url": "https://source.example/micron",
+                    "published_at": now.isoformat(),
+                    "title": full_title,
+                }],
+            }],
+        }
+        cleaned = clean_us_snapshot(raw, now=now)
+        with patch.object(subject, "resolve_us_news_identity",
+                          return_value={"snapshot_names": ["마이크론 테크놀로지"]}), \\
+             patch.object(subject, "_read_worker_briefs",
+                          return_value={"마이크론 테크놀로지": cleaned}):
+            result = subject.get_market_issue_headlines(
+                "us", [{"name": "마이크론 테크놀로지", "symbol": "MU"}]
+            )
+        self.assertEqual(result["items"][0]["headline"], "美기업 순익 30% 급증한다는데")
+        self.assertEqual(cleaned["issue_briefs"][0]["source_articles"][0]["title"], full_title)
+        self.assertEqual(raw["_code_issue_briefs"][0]["source_articles"][0]["title"], full_title)
+
+    def test_us_sidebar_handles_ascii_ellipsis_and_unsplit_original_title(self):
+        source = {"url": "https://source.example/news", "title": "실적 급증...시장 주목"}
+        issue = {"headline": "AI 반도체", "source_articles": [source]}
+        self.assertEqual(
+            subject._first_ai_headline({"issue_briefs": [issue]}), "실적 급증"
+        )
+        source["title"] = "실적 급증 전망"
+        self.assertEqual(
+            subject._first_ai_headline({"issue_briefs": [issue]}), "실적 급증 전망"
+        )
+        self.assertEqual(issue["headline"], "AI 반도체")
+
     def test_us_ai_headline_does_not_invent_evidence(self):
         self.assertEqual(subject._first_ai_headline({"issue_briefs": [
             {"headline": "출처 없는 제목", "summary": "텍스트"}

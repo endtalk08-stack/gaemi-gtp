@@ -41,6 +41,18 @@ def _first_ai_headline(snapshot):
             for item in sources
         ):
             continue
+        # Sidebar-only: display the original, cited article headline up to
+        # its first ellipsis. The central article headline is not modified.
+        for item in sources:
+            if not isinstance(item, dict) or not str(item.get("url") or "").startswith(
+                ("https://", "http://")
+            ):
+                continue
+            original_title = str(item.get("title") or "").strip()
+            if original_title:
+                prefix = re.split(r"…|\\.{3,}", original_title, maxsplit=1)[0].strip()
+                if prefix:
+                    return prefix
         title = str(brief.get("headline") or "").strip()
         if title and title not in {"기사 주요 내용", "관련 이슈"}:
             return _sidebar_title(title)
