@@ -73,5 +73,11 @@ jobs:
           echo "SUDO_DETAILS:"
           ls -ld /home/gaemi-news-check /home/gaemi-deploy /opt/gaemigtp-news/app /opt/gaemigtp-news/app/backend 2>/dev/null || true
           echo "OTHER_DEPLOY_CHANNEL_AVAILABILITY:"
+          echo "DEPLOY_WRITE_CAPABILITIES:"
+          for f in /opt/gaemigtp-news/app/backend /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/backend/services /opt/gaemigtp-news/app/backend/services/news_result.py /var/lib/gaemigtp-news /opt/gaemigtp-news/app; do
+            if test -w "$f"; then echo "writable $f"; else echo "not-writable $f"; fi
+          done
+          echo "ORIGINAL_SOURCE_FINGERPRINT:"
+          sha256sum /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/backend/services/news_result.py
           echo "READ_ONLY_INSPECTION_COMPLETE"
           REMOTE
