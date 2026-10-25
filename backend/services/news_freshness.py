@@ -60,7 +60,29 @@ def _compact_code_news_title(brief):
     original category label instead of producing an invented news headline.
     """
     original = str(brief.get("headline") or "").strip()
-    if not original.endswith(" 이슈") and original not in {"기사 주요 내용", "관련 이슈"}:
+    # Generic labels are not factual headlines. Use a currently cited source
+    # title only for these labels; do not alter already specific news titles.
+    generic_titles = {
+        "기사 주요 내용", "관련 이슈", "AI 반도체", "AI 반도체 이슈",
+        "AI 메모리", "AI 메모리 이슈", "반도체 이슈",
+    }
+    if original in generic_titles:
+        for source in brief.get("source_articles") or []:
+            if not isinstance(source, dict):
+                continue
+            source_title = re.sub(r"\s+", " ", str(source.get("title") or "")).strip()
+            source_title = re.sub(
+                r"^(?:\[[^]]{1,30}\]|【[^】]{1,30}】)\s*", "", source_title
+            )
+            # A truncated publisher headline is not shown as an unfinished
+            # sentence. Keep its complete opening clause instead.
+            if source_title.endswith(("...", "…")):
+                source_title = re.split(
+                    r"(?:\.{3,}|…)", source_title, maxsplit=1
+                )[0].strip(" ,:;-–—")
+            if 14 <= len(source_title) <= 100 and source_title not in generic_titles:
+                return source_title
+    if not original.endswith(" 이슈") and original not in generic_titles:
         return original
     summary = re.sub(r"\s+", " ", str(brief.get("summary") or "")).strip()
     if not summary or summary == "원문 확인 불가":
@@ -192,8 +214,12 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
                 continue
             latest = max(pub for pub, _ in valid_sources)
             # Generate from the stored verified prose, not the publisher title.
-            headline = (_compact_code_news_title(brief) if code_only
-                        else str(brief.get("headline") or "").strip())
+            headline = (
+                _compact_code_news_title({
+                    **brief,
+                    "source_articles": [source for _, source in valid_sources],
+                }) if code_only else str(brief.get("headline") or "").strip()
+            )
             # US display only: remove obsolete trailing category label.
             headline = re.sub(r"\s*이슈\s*$", "", headline).strip()
             fresh.append({

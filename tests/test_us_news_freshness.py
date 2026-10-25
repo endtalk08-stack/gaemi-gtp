@@ -207,5 +207,64 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["fresh"])
 
 
+    def test_generic_nvidia_title_matches_sidebar_from_same_verified_source(self):
+        from backend.services import market_issue_headlines as sidebar
+        news = {
+            **brief("AI 반도체", 1),
+            "summary": "엔비디아 데이터센터 전력 공급이 지연되고 있다. 시설 완공에도 차질 우려가 나왔다.",
+        }
+        news["source_articles"] = [{**news["source_articles"][0],
+            "title": "엔비디아 성장 신화에 드리운 '전력 절벽'...AI 데이터센터 절반 무산 위..."}]
+        snapshot = {"_code_fact_extraction_version": 3, "_title_only_revision": 3,
+                    "_code_issue_briefs": [news]}
+        displayed = clean_us_snapshot(snapshot, now=NOW)
+        expected = "엔비디아 성장 신화에 드리운 '전력 절벽'"
+        self.assertEqual(displayed["issue_briefs"][0]["headline"], expected)
+        self.assertEqual(snapshot["_code_issue_briefs"][0]["headline"], "AI 반도체")
+        with patch.object(sidebar, "resolve_us_news_identity",
+                          return_value={"snapshot_names": ["엔비디아"]}), patch.object(
+            sidebar, "_read_worker_briefs", return_value={"엔비디아": displayed}):
+            row = sidebar.get_market_issue_headlines(
+                "us", [{"name": "엔비디아", "symbol": "NVDA"}]
+            )
+        self.assertEqual(row["items"][0]["headline"], expected)
+
+    def test_us_gallery_bullets_not_shown_as_article_sentences(self):
+        raw_summary = (
+            "전력망 미비·자재 조달 난항 이미지 확대보기 "
+            "베를린 행사에서 엔비디아 로고가 보인다. 사진=로이터 "
+            "[핵심 포인트] ○ 인프라 병목 현상 심화: 장비 부족으로 계획 차질이 발생했다. "
+            "○ 장기 성장 논쟁: 투자자들은 장기 성장성에 우려를 제기했다. "
+            "엔비디아는 전력 공급 부족을 겪고 있다. "
+            "데이터센터 구축이 지연되고 있다. "
+            "투자자들은 완공 시점을 주시하고 있다. "
+            "이 문장은 네 번째라서 노출되면 안 된다."
+        )
+        title = "엔비디아, 데이터센터 전력 부족에 구축 지연"
+        output = news_result._sanitize_news_display_briefs(
+            {"issue_briefs": [{"headline": title, "summary": raw_summary}]},
+            market="미국",
+        )["issue_briefs"][0]
+        self.assertEqual(output["headline"], title)
+        self.assertEqual(
+            output["summary"],
+            "엔비디아는 전력 공급 부족을 겪고 있다. "
+            "데이터센터 구축이 지연되고 있다. "
+            "투자자들은 완공 시점을 주시하고 있다.",
+        )
+        self.assertNotIn("핵심 포인트", output["summary"])
+        self.assertNotIn("사진=로이터", output["summary"])
+        self.assertNotIn("네 번째", output["summary"])
+
+    def test_specific_us_headline_unmodified(self):
+        title = "마이크론, AI 메모리 공급 부족에 기대"
+        item = {**brief(title, 1), "summary": "마이크론은 반도체 업체다. 수요가 확대되고 있다."}
+        view = clean_us_snapshot({
+            "_title_only_revision": 3, "_code_fact_extraction_version": 3,
+            "_code_issue_briefs": [item],
+        }, now=NOW)
+        self.assertEqual(view["issue_briefs"][0]["headline"], title)
+
+
 if __name__ == "__main__":
     unittest.main()

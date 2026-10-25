@@ -766,6 +766,37 @@ def build_stock_news_result(
 
 # Render reads DigitalOcean-processed news; it does not start its own news processing.
 
+def _us_original_three_sentences(summary):
+    """Display original article prose, not gallery or publisher bullet furniture.
+
+    Keep the stored worker payload untouched. Fewer than three verified prose
+    sentences are preferable to reproducing photo captions or fabricating text.
+    """
+    text = str(summary or "").strip()
+    if not text:
+        return ""
+    highlights = re.search(r"\[\s*핵심\s*포인트\s*\]", text)
+    if highlights is not None and highlights.start() < 1400:
+        section = text[highlights.end():]
+        bullets = list(re.finditer(r"(?:^|\s)○\s*", section))
+        if not bullets:
+            return ""
+        after_last_bullet = section[bullets[-1].end():]
+        end_of_bullet = re.search(
+            r'[.!?]["”’)]?(?=\s|$)', after_last_bullet
+        )
+        text = (after_last_bullet[end_of_bullet.end():].strip()
+                if end_of_bullet else "")
+    elif "이미지 확대보기" in text[:900]:
+        after_image = text.split("이미지 확대보기", 1)[1]
+        photo_credit = re.search(
+            r"사진\s*=\s*[가-힣A-Za-z0-9·./-]{2,40}(?:\s+|$)",
+            after_image[:900],
+        )
+        text = after_image[photo_credit.end():].strip() if photo_credit else ""
+    return _article_excerpt(text, limit=3)
+
+
 def _sanitize_news_display_briefs(result, *, market=None):
     """Remove only byline boilerplate from visible summaries, not the source data."""
     if not isinstance(result, dict):
@@ -776,7 +807,7 @@ def _sanitize_news_display_briefs(result, *, market=None):
             if us_display:
                 # The sidebar displays the clean_us_snapshot headline directly.
                 # Keep the same title here; use only three original article sentences.
-                brief["summary"] = _article_excerpt(brief["summary"], limit=3)
+                brief["summary"] = _us_original_three_sentences(brief["summary"])
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
                 brief["headline"] = grounded_issue_display_title(brief)
