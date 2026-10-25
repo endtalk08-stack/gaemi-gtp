@@ -598,5 +598,58 @@ class CentralNewsSelectionTests(unittest.TestCase):
             result = build_stock_news_result("SK하이닉스", market="국내")
         self.assertEqual(result["issue_briefs"], [])
 
+    def test_us_four_distinct_verified_issues_not_capped_at_three(self):
+        """The stored legacy storyboard_limit=3 must not cap rolling-24h US issues."""
+        from datetime import datetime, timedelta, timezone
+
+        now = datetime.now(timezone.utc)
+        rows = []
+        for i in range(4):
+            row = self.article(
+                f"news-{i}", f"엔비디아 사업 {i} 신규 발표",
+                f"엔비디아는 사업 {i} 관련 신규 계약을 발표했다. "
+                f"이를 통해 데이터센터 투자를 확대할 계획이다.",
+                keyword=f"distinct-{i}", score=100 - i,
+            )
+            row["published_at"] = (now - timedelta(minutes=5 + i)).isoformat()
+            rows.append(row)
+
+        def keywords(items, stock, max_keywords=3):
+            return {"articles": [
+                {"keywords": [x["storyboard_keyword"]],
+                 "keyword_details": x.get("article_keyword_details") or [],
+                 "grounded_tags": [], "stock_entities": [stock],
+                 "event_owner": stock, "relation_type": "direct"}
+                for x in items
+            ]}
+
+        def read_details(batch, limit=3, with_sources=False):
+            return [{"text": x["description"], "source": "jsonld_article_body"}
+                    for x in batch]
+
+        with patch("backend.services.news_result.fetch_stock_news", return_value=rows), \
+             patch("backend.services.news_result.score_stock_news",
+                   side_effect=lambda items, stock: items), \
+             patch("backend.services.news_result.build_connected_keyword_test",
+                   side_effect=keywords), \
+             patch("backend.services.news_result.build_simple_today_news",
+                   side_effect=lambda items, *args, **kwargs: list(items)), \
+             patch("backend.services.news_result.select_keyword_storyboard_news",
+                   side_effect=lambda items, limit, candidate_pool=False: list(items)[:limit]), \
+             patch("backend.services.news_result.read_selected_article_details",
+                   side_effect=read_details), \
+             patch("backend.services.news_result.central_material_brief_supported",
+                   return_value=True), \
+             patch("backend.services.news_result.build_issue_briefs",
+                   side_effect=lambda items, stock, limit, body_texts:
+                   [{"headline": x["title"], "summary": body_texts[i]}
+                    for i, x in enumerate(items[:limit])]):
+            result = build_stock_news_result("엔비디아", market="미국", storyboard_limit=3)
+
+        self.assertEqual(result["_news_status"], "ok")
+        self.assertEqual(len(result["storyboard_news_items"]), 4)
+        self.assertEqual(len(result["issue_briefs"]), 4)
+
+
 if __name__ == "__main__":
     unittest.main()
