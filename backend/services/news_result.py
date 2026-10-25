@@ -770,10 +770,16 @@ def _sanitize_news_display_briefs(result, *, market=None):
     """Remove only byline boilerplate from visible summaries, not the source data."""
     if not isinstance(result, dict):
         return result
+    us_display = market in ("미국", "US", "us")
     for brief in result.get("issue_briefs") or []:
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
-            brief["summary"] = strip_leading_news_credit(brief["summary"])
-            brief["headline"] = grounded_issue_display_title(brief)
+            if us_display:
+                # The sidebar displays the clean_us_snapshot headline directly.
+                # Keep the same title here; use only three original article sentences.
+                brief["summary"] = _article_excerpt(brief["summary"], limit=3)
+            else:
+                brief["summary"] = strip_leading_news_credit(brief["summary"])
+                brief["headline"] = grounded_issue_display_title(brief)
             # Earlier AI worker versions added unrequested publication/AI labels.
             # Show only the existing concise HH:MM; leave persisted evidence untouched.
             timestamp = brief.get("time")
