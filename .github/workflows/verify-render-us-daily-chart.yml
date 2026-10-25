@@ -1,0 +1,38 @@
+name: Verify Render US daily chart read-only
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: ['.github/workflows/verify-render-us-daily-chart.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify NVDA and MU from live Render API
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error
+          base = "https://gaemi-gtp.onrender.com/market/us-daily-chart?symbol="
+          for symbol in ("NVDA", "MU"):
+              request = urllib.request.Request(base + symbol, headers={"Accept":"application/json","User-Agent":"gaemi-readonly-chart-verification"})
+              try:
+                  with urllib.request.urlopen(request, timeout=40) as response:
+                      status = response.status
+                      payload = json.load(response)
+              except urllib.error.HTTPError as exc:
+                  print("CHART_VERIFY_HTTP_ERROR symbol=%s status=%s" % (symbol, exc.code), flush=True)
+                  raise
+              assert status == 200, (symbol, status)
+              assert payload.get("ok") is True, (symbol, payload.get("error"))
+              assert payload.get("symbol") == symbol
+              assert payload.get("source") == "kiwoom:usa06012"
+              assert payload.get("company_key", "").startswith("US:")
+              assert 1 <= int(payload.get("rank", 0)) <= 20
+              candles = payload.get("rows", [])
+              assert len(candles) >= 15, (symbol, len(candles))
+              assert all(x.get("open",0)>0 and x.get("high",0)>0 and x.get("low",0)>0 and x.get("close",0)>0 for x in candles)
+              print("CHART_VERIFY_OK symbol=%s candles=%s rank=%s first=%s last=%s" % (symbol,len(candles),payload["rank"],candles[0]["date"],candles[-1]["date"]),flush=True)
+          PY
