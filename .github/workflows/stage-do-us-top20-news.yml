@@ -45,6 +45,7 @@ jobs:
           python ops/prepare_do_top20_news_patch.py "$read_dir/news_worker.py" "$read_dir/news_result.py" "$patch_dir"
           cp backend/services/us_top20_rotation.py "$patch_dir/us_top20_rotation.py"
           python -m py_compile "$patch_dir/news_worker.py" "$patch_dir/news_result.py" "$patch_dir/us_top20_rotation.py"
+          bash -n ops/install-do-us-top20-rotation-once.sh
           stage="/home/gaemi-news-check/news-deploy/us-top20-rotation-pr131"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$DO_SSH_USER@$DO_HOST" \
             "install -d -m 700 '$stage'"
@@ -52,6 +53,8 @@ jobs:
             scp -o BatchMode=yes -o StrictHostKeyChecking=yes "$patch_dir/$name" \
               "$DO_SSH_USER@$DO_HOST:$stage/$name"
           done
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            ops/install-do-us-top20-rotation-once.sh "$DO_SSH_USER@$DO_HOST:$stage/install-once.sh"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$DO_SSH_USER@$DO_HOST" \
-            "chmod 600 '$stage/'*.py; /opt/gaemigtp-news/venv/bin/python -m py_compile '$stage/news_worker.py' '$stage/news_result.py' '$stage/us_top20_rotation.py'; systemctl is-active gaemigtp-news.service; sha256sum '$stage/'*.py"
+            "chmod 600 '$stage/'*.py '$stage/install-once.sh'; /opt/gaemigtp-news/venv/bin/python -m py_compile '$stage/news_worker.py' '$stage/news_result.py' '$stage/us_top20_rotation.py'; bash -n '$stage/install-once.sh'; systemctl is-active gaemigtp-news.service; sha256sum '$stage/'*.py"
           echo "ROTATION_PATCH_STAGED_ONLY_NOT_INSTALLED"
