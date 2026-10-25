@@ -74,6 +74,8 @@ assert 'payload.get("_kr_selection_revision") != 1' in store
 assert 'def _same_stock_issue_briefs' in store
 assert 'def _prefer_same_day_ai' in store
 assert 'def _recent_existing_issue_briefs' in store
+import sys
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 from backend.services.news_feed import select_stock_news_for_analysis
 from backend.services.issue_briefs import _content_driven_title_and_tags
 assert callable(select_stock_news_for_analysis)
