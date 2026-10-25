@@ -164,27 +164,30 @@ class TestUSClose(unittest.TestCase):
             "issues": [{"headline": "미국장 마감", "summary": "미국 증시는 혼조였어.",
                         "tags": ["#나스닥상승"]}]
         }, ensure_ascii=False)
+        sources = [{key: item[key] for key in ("title", "url", "published_at", "publisher")}
+                   for item in NEWS[:2]]
 
-        with patch.object(close, "_connection", return_value=SingleRow(None)):
-            self.assertIsNone(close.read_brief())
-        with patch.object(close, "_connection", return_value=SingleRow(
-                (DAY, "※ 시험판: Reuters 기사 요약으로 생성.\\\\n\\\\n**미국장 요약**", published))):
-            self.assertIsNone(close.read_brief())
-        with patch.object(close, "_connection", return_value=SingleRow(
-                (DAY + dt.timedelta(days=1), valid, published))):
-            self.assertIsNone(close.read_brief())
-        with patch.object(close, "_connection", return_value=SingleRow(
-                (DAY, valid, published + dt.timedelta(days=6)))):
-            self.assertIsNone(close.read_brief())
-        with patch.object(close, "_connection", return_value=SingleRow(
-                (DAY, valid, published))):
-            reply = close.read_brief()
-        self.assertEqual(reply["session_date"], DAY.isoformat())
-        self.assertEqual(reply["presentation"]["session_date_et"], DAY.isoformat())
-        self.assertIn("나스닥 종합 26,430.89 (+1.11%)", reply["content"])
-        self.assertNotIn("시험판", reply["content"])
+        def read(row):
+            with patch.object(close, "_connection", return_value=SingleRow(row)):
+                return close.read_brief()
 
-    def test_no_ai_when_fewer_than_three_originals(self):
+        self.assertIsNone(read(None))
+        self.assertIsNone(read((DAY, "※ 시험판: Reuters 요약", published, sources, close.MODEL)))
+        self.assertIsNone(read((DAY + dt.timedelta(days=1), valid, published, sources, close.MODEL)))
+        self.assertIsNone(read((DAY, valid, published + dt.timedelta(days=6), sources, close.MODEL)))
+        self.assertIsNone(read((DAY, valid, published, NEWS, close.MODEL)))
+        self.assertIsNone(read((DAY, valid, published, sources, "demo-model")))
+        incomplete = json.dumps({"session_date_et": DAY.isoformat(), "market_indices": INDICES,
+                                 "issues": [{"headline": "가짜", "summary": "내용"}]}, ensure_ascii=False)
+        self.assertIsNone(read((DAY, incomplete, published, sources, close.MODEL)))
+        result = read((DAY, valid, published, sources, close.MODEL))
+        self.assertEqual(result["session_date"], DAY.isoformat())
+        self.assertEqual(result["presentation"]["session_date_et"], DAY.isoformat())
+        self.assertEqual(result["presentation"]["issues"][0]["headline"], "AI 미국장 마감분석")
+        self.assertIn("나스닥 종합 26,430.89 (+1.11%)", result["content"])
+        self.assertNotIn("시험판", result["content"])
+
+    def test_no_ai_when_fewer_than_two_originals(self):
         class Blank:
             def __enter__(self):return self
             def __exit__(self,*args):return False
@@ -192,7 +195,7 @@ class TestUSClose(unittest.TestCase):
             def execute(self,*args):pass
             def fetchone(self):return None
         with patch.object(close,"verified_indices",return_value=INDICES),\
-             patch.object(close,"collect_articles",return_value=NEWS[:2]),\
+             patch.object(close,"collect_articles",return_value=NEWS[:1]),\
              patch.object(close,"_connection",return_value=Blank()):
             result=close.publish_once(now_utc=NOW)
         self.assertEqual(result["status"],"insufficient_verified_originals")
@@ -218,7 +221,7 @@ class TestUSClose(unittest.TestCase):
             def execute(self,*args):pass
             def fetchone(self):return None
         with patch.object(close,"verified_indices",return_value=INDICES),\
-             patch.object(close,"collect_articles",return_value=NEWS),\
+             patch.object(close,"collect_articles",return_value=NEWS[:2]),\
              patch.object(close,"_connection",return_value=Duplicate()):
             result=close.publish_once(now_utc=NOW,generator=lambda *_:self.fail("duplicate AI"))
         self.assertEqual(result["status"],"already_attempted")
@@ -234,7 +237,7 @@ class TestUSClose(unittest.TestCase):
             def fetchone(self):return returned.pop(0) if returned else None
         output="나스닥이 1.11% 상승했어. 기업들의 실적 호조가 시장을 이끌었어.\n\n" + ("반도체 투자와 금리 흐름을 확인해야 해. " * 5)
         with patch.object(close,"verified_indices",return_value=INDICES),\
-             patch.object(close,"collect_articles",return_value=NEWS),\
+             patch.object(close,"collect_articles",return_value=NEWS[:2]),\
              patch.object(close,"_connection",return_value=Conn()):
             result=close.publish_once(now_utc=NOW,generator=lambda *_:output)
         self.assertEqual(result["status"],"published")
@@ -248,7 +251,7 @@ class TestUSClose(unittest.TestCase):
         saved=updated[0]
         self.assertEqual(saved["response_format"],close.FREE_TEXT_FORMAT)
         self.assertEqual(saved["issues"][0]["summary"],output.strip())
-        self.assertEqual(saved["issues"][0]["headline"],"미국장 마감")
+        self.assertEqual(saved["issues"][0]["headline"],"AI 미국장 마감분석")
         self.assertEqual(saved["issues"][0]["tags"],["#나스닥상승","#다우보합","#실적호조"])
         presentation=close._structured_brief(json.dumps(saved,ensure_ascii=False))
         self.assertEqual(presentation["response_format"],close.FREE_TEXT_FORMAT)

@@ -227,6 +227,9 @@ def _structured_brief(raw_content):
         })
     if not clean_issues:
         return None
+    # Label already-published verified reports consistently with new AI reports.
+    if clean_issues[0]["headline"] == "미국장 마감":
+        clean_issues[0]["headline"] = "AI 미국장 마감분석"
     presentation = {"session_date_et": date, "market_indices": clean_indices, "issues": clean_issues}
     if document.get("response_format") == FREE_TEXT_FORMAT:
         presentation["response_format"] = FREE_TEXT_FORMAT
@@ -255,27 +258,35 @@ def _display_brief_content(raw_content):
 
 
 def read_brief():
-    """Read only verified editorial JSON for its actual NY market-close session.
+    """Only genuine AI US-market-close editorials from the verified DO pipeline.
 
-    Invalid or test-only stored rows stay in Neon for audit purposes, but must
-    never be surfaced as a legitimate close report or fallback text.
+    The nightly worker stores free_text_v1 with precisely two original-article
+    source records. Unstructured trial rows are retained in Neon for audit, not
+    returned to the user; Render never generates or substitutes AI analysis.
     """
     with _connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """SELECT session_date, content, published_at FROM public.us_market_close_briefs
+                """SELECT session_date, content, published_at, source_manifest, model
+                FROM public.us_market_close_briefs
                 WHERE status='published' AND expires_at > now()
                 ORDER BY session_date DESC LIMIT 1"""
             )
             row = cur.fetchone()
     if not row:
         return None
-    session_date, raw_content, published_at = row
+    session_date, raw_content, published_at, sources, model = row
     presentation = _structured_brief(raw_content)
-    # The nightly DO job publishes after 16:00 New York time on the same
-    # market session date. Reject old rows republished with a fresh expiry.
-    if (presentation is None
+    # Reject handwritten tests, mismatched sessions and stale sessions
+    # republished with artificially extended expiry.
+    if (presentation is None or presentation.get("response_format") != FREE_TEXT_FORMAT
             or presentation["session_date_et"] != session_date.isoformat()
+            or model != MODEL
+            or not isinstance(sources, list) or len(sources) != 2
+            or any(not isinstance(item, dict) or not all(
+                isinstance(item.get(field), str) and item[field].strip()
+                for field in ("title", "url", "published_at", "publisher"))
+                for item in sources)
             or not isinstance(published_at, datetime.datetime)
             or published_at.tzinfo is None
             or published_at.astimezone(NY).date() != session_date):
@@ -346,7 +357,7 @@ def publish_once(now_utc=None, search=None, reader=None, generator=None):
         if re.search(r"코스피|코스닥|국내증시", answer):
             raise RuntimeError("us_close_ai_non_us_market_analysis")
         issues = [{
-            "headline": "미국장 마감",
+            "headline": "AI 미국장 마감분석",
             "summary": answer.strip()[:3600],
             "tags": _code_chart_tags(answer, indices),
             "source_ids": [],
