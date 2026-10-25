@@ -182,7 +182,14 @@ jobs:
           scp "${opts[@]}" "$built/news_result.py" "$remote:.gaemi-gateway/payload"
           ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy backend/services/news_result.py "$hash"
           changed=1
-          ssh "${opts[@]}" "$remote" 'cd /opt/gaemigtp-news/app && /opt/gaemigtp-news/venv/bin/python -c "import backend.services.news_result; from backend.services.verified_fact_headline import attach_verified_source_citations; print(\u0027PROVENANCE_IMPORT_OK\u0027)"'
+          # Reuse the proven remote shell format from the successful rotation deploy.
+          # Shell heredoc preserves literal Python quotes (no Unicode escape injection).
+          ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
+          set -eu
+          cd /opt/gaemigtp-news/app
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_result.py
+          /opt/gaemigtp-news/venv/bin/python -c 'import backend.services.news_result; from backend.services.verified_fact_headline import attach_verified_source_citations; print("PROVENANCE_IMPORT_OK")'
+          REMOTE
           ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service
           sleep 11
           ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && echo NEWS_WORKER_ACTIVE_AFTER_PROVENANCE_FIX'
