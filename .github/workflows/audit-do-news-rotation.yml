@@ -26,7 +26,7 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$DO_SSH_USER@$DO_HOST" 'bash -se' <<'REMOTE'
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$DO_SSH_USER@$DO_HOST" 'bash -se' > "$RUNNER_TEMP/do-audit.txt" 2>&1 <<'REMOTE'
           set -eu
           echo 'DO_WORKER_ACTIVE:'
           systemctl is-active gaemigtp-news.service || true
@@ -54,3 +54,11 @@ jobs:
                       else: print(f'  {n}: {line[:210]}')
           PY
           REMOTE
+      - name: Upload read-only diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: do-news-rotation-audit
+          path: ${{ runner.temp }}/do-audit.txt
+          if-no-files-found: warn
+          retention-days: 2
