@@ -1,4 +1,4 @@
-name: Verify restored US news result on DigitalOcean (read only)
+name: Restore verified US event headlines without generic issue suffix
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -9,16 +9,21 @@ concurrency:
   group: gaemi-digitalocean-gateway
   cancel-in-progress: false
 jobs:
-  audit:
+  fix:
     runs-on: ubuntu-latest
     environment: digitalocean-news-worker
-    timeout-minutes: 7
+    timeout-minutes: 12
     env:
       DO_HOST: ${{ secrets.DO_HOST }}
       SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
-      - name: Validate installed source, unchanged rotation, and active worker (read-only)
+      - name: Checkout known regression test baseline
+        uses: actions/checkout@v4
+        with:
+          ref: 572169449ddd85601acdb9cc3124e01ebe3a997e
+          persist-credentials: false
+      - name: Prepare exact live title-only fix and check all tests before deploy
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -30,18 +35,161 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
           opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
           remote="gaemi-deploy@$DO_HOST"
+          live=/opt/gaemigtp-news/app/backend
+          old="$RUNNER_TEMP/news-headline-before"
+          built="$RUNNER_TEMP/news-headline-after"
+          mkdir -m 700 -p "$old" "$built"
+          ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null'
+          scp "${opts[@]}" "$remote:$live/services/news_result.py" "$old/news_result.py"
+          scp "${opts[@]}" "$remote:$live/services/news_processed_store.py" "$old/news_processed_store.py"
+          scp "${opts[@]}" "$remote:$live/services/verified_fact_headline.py" "$old/verified_fact_headline.py"
+          scp "${opts[@]}" "$remote:$live/services/article_fact_keywords.py" "$old/article_fact_keywords.py"
+          scp "${opts[@]}" "$remote:$live/news_worker.py" "$old/news_worker.py"
+          python - "$old" "$built" <<'PY'
+          import hashlib,sys,re
+          from pathlib import Path
+          old,built=map(Path,sys.argv[1:])
+          def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+          expected={
+            "news_result.py":"e2a3008bb65122ff8d58375900e8d0e10177c75c113cbbc99535229a38cde74a",
+            "news_processed_store.py":"24b488568a5354c7fd7c8dab50cd28c880022bc06e8f2ad2893508e52fc8a156",
+            "verified_fact_headline.py":"2aada3aad3f18ad1d42e383efadd3c08c39e4cfae3c6bdcc819d43b985120d1a",
+            "news_worker.py":"b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd",
+          }
+          for name,checksum in expected.items():
+            assert sha(old/name)==checksum, "live code drift: stop without deployment "+name
+          src=(old/"news_result.py").read_text()
+          def replace_once(old_text,new_text,reason):
+            global src
+            assert src.count(old_text)==1,"live layout changed: "+reason
+            src=src.replace(old_text,new_text,1)
+          replace_once(
+            'from .verified_fact_headline import attach_verified_source_citations',
+            'from .verified_fact_headline import attach_verified_source_citations, grounded_fact_title',
+            'reuse existing short fact title formatter'
+          )
+          helper='''def _us_source_grounded_headline(article, stock_name, brief):
+              """US CODE display only: prefer a verified event, else exact source title."""
+              original = str((brief or {}).get("headline") or "").strip()
+              title = re.sub(r"^\\[[^\\]]{1,35}\\]\\s*", "", str((article or {}).get("title") or "").strip())
+              title = re.sub(r"\\s+", " ", title).strip()
+              if not title:
+                  return original
+              short = grounded_fact_title(
+                  title, str((brief or {}).get("summary") or ""), stock_name, original
+              )
+              if not short or short == original or short.endswith(" 이슈"):
+                  short = title  # Literal publisher title, never a fabricated event.
+              return re.sub(r"\\s+이슈\\s*$", "", short).strip()
+
+
+          '''
+          replace_once('def _us_citation_title_names_stock(',helper+'def _us_citation_title_names_stock(', 'verified-title helper')
+          replace_once(
+            '                        brief["evidence_source"] = "stock_ownership_unverified"\n                        break\n',
+            '                        brief["evidence_source"] = "stock_ownership_unverified"\n                        break\n'
+            '                    # Only change a headline after an exact, cited, same-stock source.\n'
+            '                    brief["headline"] = _us_source_grounded_headline(article, stock_name, brief)\n',
+            'change only accepted US cited issue headline'
+          )
+          src,count=re.subn(
+            r'("_code_source_revision"\s*:\s*)10(\s+if\s+market)',
+            r'\g<1>11\g<2>',src,
+          )
+          assert count==1,"result revision marker missing"
+          assert src.count('_us_source_grounded_headline(article, stock_name, brief)')==2
+          compile(src,"news_result.py","exec")
+          (built/"news_result.py").write_text(src)
+          store=(old/"news_processed_store.py").read_text()
+          before='payload.get("_code_source_revision") != 10'
+          assert store.count(before)==1,"unexpected cache revision guard"
+          store=store.replace(before,'payload.get("_code_source_revision") != 11')
+          compile(store,"news_processed_store.py","exec")
+          (built/"news_processed_store.py").write_text(store)
+          print("TITLE_ONLY_CHANGED_FILE", "news_result.py",sha(built/"news_result.py"))
+          print("CACHE_REVISION_GUARD_CHANGED_FILE", "news_processed_store.py",sha(built/"news_processed_store.py"))
+          print("NEWS_SELECTION_AND_TOP20_CODE_UNCHANGED")
+          PY
+          cp "$built/news_result.py" backend/services/news_result.py
+          cp "$built/news_processed_store.py" backend/services/news_processed_store.py
+          cp "$old/verified_fact_headline.py" backend/services/verified_fact_headline.py
+          cp "$old/article_fact_keywords.py" backend/services/article_fact_keywords.py
+          python -m unittest -q tests.test_news_central_selection tests.test_us_news_freshness tests.test_us_top20_rotation
+          python - <<'PY'
+          from datetime import datetime,timezone
+          from backend.services.news_result import _us_source_grounded_headline,_us_citation_title_names_stock
+          from backend.services.news_freshness import clean_us_snapshot
+          now=datetime.now(timezone.utc).isoformat()
+          source={"title":"엔비디아, 신규 AI 서버 플랫폼 출시","url":"https://example.org/nvda","published_at":now}
+          brief={"headline":"AI 데이터센터 이슈",
+                 "summary":"엔비디아가 신규 AI 서버 플랫폼을 출시했다고 밝혔다. 이번 제품은 데이터센터에서 활용된다.",
+                 "tags":["AI데이터센터"],"source_articles":[source],"evidence_source":"verified_article_body_title_only"}
+          assert _us_citation_title_names_stock(source,"엔비디아")
+          fixed=_us_source_grounded_headline(source,"엔비디아",brief)
+          assert fixed=="엔비디아, 신규 AI 서버 플랫폼 출시",fixed
+          assert not fixed.endswith("이슈")
+          english={"title":"Nvidia unveils new AI servers"}
+          assert _us_source_grounded_headline(english,"엔비디아",brief)=="Nvidia unveils new AI servers"
+          assert not _us_citation_title_names_stock({"title":"삼성그룹 실적 확대"},"엔비디아")
+          payload={"_title_only_revision":3,"_code_fact_extraction_version":3,
+                   "_code_issue_briefs":[{**brief,"headline":fixed}]}
+          display=clean_us_snapshot(payload,issue_mode="code")
+          assert display["issue_briefs"][0]["headline"]==fixed,display["issue_briefs"]
+          assert display["issue_briefs"][0]["tags"]==brief["tags"]
+          print("TITLE_AND_RENDER_PASSTHROUGH_TEST_PASSED")
+          PY
+          python -m py_compile "$built/news_result.py" "$built/news_processed_store.py"
+          # Last hash check before the first write.
           ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
           set -eu
           cd /opt/gaemigtp-news/app
           systemctl is-active --quiet gaemigtp-news.service
           test "$(sha256sum backend/services/news_result.py | cut -d" " -f1)" = e2a3008bb65122ff8d58375900e8d0e10177c75c113cbbc99535229a38cde74a
+          test "$(sha256sum backend/services/news_processed_store.py | cut -d" " -f1)" = 24b488568a5354c7fd7c8dab50cd28c880022bc06e8f2ad2893508e52fc8a156
           test "$(sha256sum backend/news_worker.py | cut -d" " -f1)" = b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd
-          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_result.py
-          /opt/gaemigtp-news/venv/bin/python -c 'from backend.services.news_result import _us_citation_title_names_stock; from backend.services.verified_fact_headline import attach_verified_source_citations; print("LIVE_CITATION_MODULE_IMPORT_OK")'
-          systemctl show gaemigtp-news.service -p ActiveState -p SubState -p NRestarts --no-pager
-          echo CURRENT_LIVE_HASHES:
-          sha256sum backend/services/news_result.py backend/news_worker.py
-          echo RECENT_WORKER_STOCK_UPDATES:
-          journalctl -u gaemigtp-news.service --since '2026-10-25 02:18:00 UTC' --no-pager -o cat | grep -E 'news-worker|analyze news funnel|news-ai|error' | tail -32 || true
-          echo READ_ONLY_NEWS_REPAIR_VERIFIED
           REMOTE
+          modified=0
+          deploy_file() {
+            local localpath="$1" dest="$2" hash
+            hash="$(git hash-object -- "$localpath")"
+            scp "${opts[@]}" "$localpath" "$remote:.gaemi-gateway/payload"
+            ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy "$dest" "$hash"
+          }
+          rollback() {
+            rc="$1"
+            trap - ERR
+            if (( modified )); then
+              echo NEWS_TITLE_FIX_ROLLBACK_BEGIN
+              deploy_file "$old/news_result.py" backend/services/news_result.py || true
+              deploy_file "$old/news_processed_store.py" backend/services/news_processed_store.py || true
+              ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service || true
+              echo NEWS_TITLE_FIX_ROLLBACK_ATTEMPTED
+            fi
+            exit "$rc"
+          }
+          trap 'rollback $?' ERR
+          modified=1
+          deploy_file "$built/news_result.py" backend/services/news_result.py
+          deploy_file "$built/news_processed_store.py" backend/services/news_processed_store.py
+          ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
+          set -eu
+          cd /opt/gaemigtp-news/app
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/services/news_result.py backend/services/news_processed_store.py
+          /opt/gaemigtp-news/venv/bin/python -c 'from backend.services.news_result import _us_source_grounded_headline; from backend.services.news_processed_store import read_signature; print("LIVE_EVENT_TITLE_IMPORT_OK")'
+          REMOTE
+          ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service
+          sleep 9
+          ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
+          set -eu
+          cd /opt/gaemigtp-news/app
+          systemctl is-active --quiet gaemigtp-news.service
+          echo LIVE_NEWS_WORKER_ACTIVE
+          sha256sum backend/services/news_result.py backend/services/news_processed_store.py backend/news_worker.py
+          REMOTE
+          actual_result="$(ssh "${opts[@]}" "$remote" sha256sum /opt/gaemigtp-news/app/backend/services/news_result.py | cut -d' ' -f1)"
+          actual_store="$(ssh "${opts[@]}" "$remote" sha256sum /opt/gaemigtp-news/app/backend/services/news_processed_store.py | cut -d' ' -f1)"
+          test "$actual_result" = "$(sha256sum "$built/news_result.py" | cut -d' ' -f1)"
+          test "$actual_store" = "$(sha256sum "$built/news_processed_store.py" | cut -d' ' -f1)"
+          modified=0
+          trap - ERR
+          echo VERIFIED_US_NEWS_TITLE_FIX_DEPLOY_SUCCESS
