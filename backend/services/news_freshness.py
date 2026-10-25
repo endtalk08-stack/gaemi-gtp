@@ -194,6 +194,8 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
             # Generate from the stored verified prose, not the publisher title.
             headline = (_compact_code_news_title(brief) if code_only
                         else str(brief.get("headline") or "").strip())
+            # US display only: remove obsolete trailing category label.
+            headline = re.sub(r"\s*이슈\s*$", "", headline).strip()
             fresh.append({
                 **brief,
                 "headline": headline,

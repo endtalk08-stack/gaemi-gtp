@@ -81,7 +81,7 @@ class RenderFreshnessTests(unittest.TestCase):
                     "_ai_issue_briefs": [brief("옛날 AI 분석", 1)],
                     "issue_briefs": [brief("옛날 AI 분석", 1)]}
         view = clean_us_snapshot(snapshot, now=NOW)
-        self.assertEqual([x["headline"] for x in view["issue_briefs"]], ["기사에서 추출한 이슈"])
+        self.assertEqual([x["headline"] for x in view["issue_briefs"]], ["기사에서 추출한"])
 
     def test_code_brief_requires_verified_fresh_article(self):
         invalid = {**brief("근거 없는 키워드", 1),

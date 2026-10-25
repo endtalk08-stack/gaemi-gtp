@@ -37,14 +37,14 @@ def source_snapshot(*, v3=True):
 class DualIssueModesTest(unittest.TestCase):
     def test_auto_prefers_verified_code_but_keeps_ai(self):
         result = clean_us_snapshot(source_snapshot(), now=NOW)
-        self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["코드 팩트 이슈"])
-        self.assertEqual([x["headline"] for x in result["issue_channels"]["ai"]], ["AI 종합 이슈"])
+        self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["코드 팩트"])
+        self.assertEqual([x["headline"] for x in result["issue_channels"]["ai"]], ["AI 종합"])
         self.assertEqual(result["issue_display_channel"] if "issue_display_channel" in result else result["_issue_display_channel"], "code")
 
     def test_explicit_ai_does_not_mutate_code_source(self):
         snapshot = source_snapshot()
         result = clean_us_snapshot(snapshot, now=NOW, issue_mode="ai")
-        self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["AI 종합 이슈"])
+        self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["AI 종합"])
         self.assertEqual(result["issue_channels"]["code"][0]["tags"], ["원래키워드"])
         self.assertEqual(snapshot["issue_briefs"][0]["headline"], "오래된 UI 기본값")
 
@@ -60,7 +60,7 @@ class DualIssueModesTest(unittest.TestCase):
         source = source_snapshot()
         result = clean_us_snapshot(source, now=NOW, issue_mode="both")
         self.assertEqual([x["headline"] for x in result["issue_briefs"]],
-                         ["코드 팩트 이슈", "AI 종합 이슈"])
+                         ["코드 팩트", "AI 종합"])
         for key in ("code", "ai"):
             self.assertEqual(result["issue_channels"][key][0]["tags"], ["원래키워드"])
             self.assertEqual(result["issue_channels"][key][0]["summary"],
@@ -70,7 +70,7 @@ class DualIssueModesTest(unittest.TestCase):
         source = source_snapshot()
         source["_code_issue_briefs"] = [brief("오래된 팩트", 40)]
         result = clean_us_snapshot(source, now=NOW, issue_mode="both")
-        self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["AI 종합 이슈"])
+        self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["AI 종합"])
         self.assertEqual(result["issue_channels"]["code"], [])
 
     def test_question_selection_and_sanitized_mode(self):
@@ -86,9 +86,9 @@ class DualIssueModesTest(unittest.TestCase):
         result = clean_us_snapshot(source_snapshot(), now=NOW)
         with patch.object(sidebar, "_read_worker_briefs", return_value={"테슬라": result}) as worker:
             row = [{"name": "테슬라", "symbol": "TSLA"}]
-            self.assertEqual(sidebar.get_market_issue_headlines("us", row)["items"][0]["headline"], "코드 팩트 이슈")
-            self.assertEqual(sidebar.get_market_issue_headlines("us", row, issue_mode="ai")["items"][0]["headline"], "AI 종합 이슈")
-            self.assertEqual(sidebar.get_market_issue_headlines("us", row, issue_mode="code")["items"][0]["headline"], "코드 팩트 이슈")
+            self.assertEqual(sidebar.get_market_issue_headlines("us", row)["items"][0]["headline"], "코드 팩트")
+            self.assertEqual(sidebar.get_market_issue_headlines("us", row, issue_mode="ai")["items"][0]["headline"], "AI 종합")
+            self.assertEqual(sidebar.get_market_issue_headlines("us", row, issue_mode="code")["items"][0]["headline"], "코드 팩트")
             self.assertEqual(worker.call_count, 3)
             self.assertEqual(worker.call_args.args, ("us", ["테슬라"]))
 

@@ -205,7 +205,7 @@ class MarketIssueHeadlineTests(unittest.TestCase):
         }
         filtered = clean_us_snapshot(raw, now=now)
         self.assertEqual(len(filtered["issue_briefs"]), 1)
-        self.assertEqual(filtered["issue_briefs"][0]["headline"], "공급 계약 이슈")
+        self.assertEqual(filtered["issue_briefs"][0]["headline"], "공급 계약")
         self.assertEqual(len(filtered["issue_channels"]["code"]), 1)
         self.assertEqual(len(raw["_code_issue_briefs"]), 2, "database source must remain unchanged")
         with patch.object(subject, "resolve_us_news_identity",
