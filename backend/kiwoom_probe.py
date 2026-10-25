@@ -66,7 +66,7 @@ def main():
             "close": close["close"], "change_pct": close["change_pct"],
             "source": close["source"],
         }, ensure_ascii=False), flush=True)
-        chart = fetch_us_daily_chart(SYMBOL, EXCHANGE, day - dt.timedelta(days=45), token=token, max_pages=3)
+        chart = fetch_us_daily_chart(SYMBOL, EXCHANGE, day - dt.timedelta(days=45), token=token, max_pages=10)
         rows = chart.get("rows") or []
         if not rows or not all(row.get("date") and row.get("open") and row.get("high") and row.get("low") and row.get("close") for row in rows):
             print("KIWOOM_VERIFY_CHART_EMPTY_OR_INVALID", flush=True)
