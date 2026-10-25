@@ -1,0 +1,57 @@
+name: Inspect existing DO news worker (read only)
+on:
+  push:
+    branches: [fix/us-top20-news-rotation-20261025]
+    paths: ['.github/workflows/do-news-worker-readonly-inspect.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      DO_SSH_USER: ${{ vars.NEWS_SSH_USER }}
+      DO_SSH_PRIVATE_KEY: ${{ secrets.NEWS_SSH_KEY }}
+      DO_SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Validate and inspect using the previously successful news-check SSH route
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in DO_HOST DO_SSH_USER DO_SSH_PRIVATE_KEY DO_SSH_KNOWN_HOSTS; do
+            test -n "${!v}" || { echo "MISSING: $v"; exit 1; }
+          done
+          test "$DO_SSH_USER" = gaemi-news-check || { echo "UNEXPECTED SSH USER"; exit 1; }
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$DO_SSH_USER@$DO_HOST" 'bash -se' <<'REMOTE'
+          set -eu
+          echo "WHOAMI:"; id -un
+          echo "ACTIVE:"; systemctl is-active gaemigtp-news.service
+          echo "SERVICE_PROPERTIES:"
+          systemctl show gaemigtp-news.service -p WorkingDirectory -p User -p ExecStart | sed -E 's/([A-Z_]*(KEY|TOKEN|PASSWORD|SECRET)[A-Z_]*)=[^ ;}]+/\1=<redacted>/g'
+          echo "AVAILABLE_SUDO_COMMANDS:"
+          sudo -n -l 2>&1 | sed -E 's/([A-Z_]*(KEY|TOKEN|PASSWORD|SECRET)[A-Z_]*)=[^ ;}]+/\1=<redacted>/g' | head -35 || true
+          echo "WORKER_SOURCE_SELECTION:"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/opt/gaemigtp-news/app/backend/news_worker.py')
+          if not p.is_file(): raise SystemExit('WORKER_FILE_MISSING')
+          lines=p.read_text(encoding='utf-8').splitlines()
+          print('worker_lines=',len(lines))
+          for n,line in enumerate(lines,1):
+              if any(x in line.upper() for x in ('SECRET','API_KEY','PASSWORD','TOKEN','DATABASE_URL','PRIVATE_KEY','BEARER')):
+                  print(f'{n:03d}: [redacted config line]')
+              else:
+                  print(f'{n:03d}: {line[:260]}')
+          PY
+          echo "WORKER_SERVICE_SOURCE:"
+          systemctl cat gaemigtp-news.service | grep -Ev '(SECRET|TOKEN|PASSWORD|KEY|DATABASE_URL)' | head -90
+          echo "RELATED_TIMERS:"
+          systemctl list-timers --all --no-pager 2>/dev/null | grep -i -E 'news|gaemigtp' | head -25 || true
+          echo "READ_ONLY_INSPECTION_COMPLETE"
+          REMOTE
