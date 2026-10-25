@@ -1,0 +1,103 @@
+name: Deploy checked US top20 rotation and issue-cap fix to DO
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: ['.github/workflows/do-us-top20-rotation-deploy.yml']
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-gateway
+  cancel-in-progress: false
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 12
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Checkout reviewed news fix at exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: 572169449ddd85601acdb9cc3124e01ebe3a997e
+          persist-credentials: false
+      - name: Verify reviewed offline regressions
+        run: |
+          set -euo pipefail
+          python -m unittest -v tests.test_us_top20_rotation tests.test_us_news_freshness tests.test_news_central_selection
+          python -m py_compile ops/prepare_do_top20_news_patch.py backend/services/us_top20_rotation.py
+      - name: Patch real running source, verify, deploy with backups and rollback
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : "${DO_HOST:?}" "${SSH_KEY:?}" "${SSH_KNOWN_HOSTS:?}"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          remote="gaemi-deploy@$DO_HOST"
+          old="$RUNNER_TEMP/us-top20-original"
+          built="$RUNNER_TEMP/us-top20-built"
+          mkdir -m 700 -p "$old" "$built"
+          ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null && echo GATEWAY_CONNECTED_ACTIVE'
+          scp "${opts[@]}" "$remote:/opt/gaemigtp-news/app/backend/news_worker.py" "$old/news_worker.py"
+          scp "${opts[@]}" "$remote:/opt/gaemigtp-news/app/backend/services/news_result.py" "$old/news_result.py"
+          python ops/prepare_do_top20_news_patch.py "$old/news_worker.py" "$old/news_result.py" "$built"
+          cp backend/services/us_top20_rotation.py "$built/us_top20_rotation.py"
+          python -m py_compile "$built/news_worker.py" "$built/news_result.py" "$built/us_top20_rotation.py"
+          test "$(sha256sum "$built/news_worker.py" | awk '{print $1}')" = b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd
+          test "$(sha256sum "$built/news_result.py" | awk '{print $1}')" = 66a309ea15d0079e0f3603c6f44670abf1d5fe82c67e0e4635a50936e24ce681
+          test "$(sha256sum "$built/us_top20_rotation.py" | awk '{print $1}')" = 53b7082d2bd009867377b70c813b7bc1f1f773939a7d3c3f474859f6f6a65b65
+          echo LIVE_PATCH_HASHES_MATCH_STAGED_REVIEW
+
+          changed=0
+          deploy_file() {
+            local file="$1" dest="$2" hash
+            hash="$(git hash-object -- "$file")"
+            scp "${opts[@]}" "$file" "$remote:.gaemi-gateway/payload"
+            ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy "$dest" "$hash"
+          }
+          rollback() {
+            local rc="$1"
+            trap - ERR
+            if (( changed > 0 )); then
+              echo "DEPLOY_ERROR_ROLLBACK_BEGIN code=$rc"
+              deploy_file "$old/news_worker.py" backend/news_worker.py || true
+              deploy_file "$old/news_result.py" backend/services/news_result.py || true
+              ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service || true
+              ssh "${opts[@]}" "$remote" systemctl is-active gaemigtp-news.service || true
+              echo DEPLOY_ERROR_ROLLBACK_ATTEMPTED
+            fi
+            exit "$rc"
+          }
+          trap 'rollback $?' ERR
+          # Deploy module first; live worker only loads it after final restart.
+          deploy_file "$built/us_top20_rotation.py" backend/services/us_top20_rotation.py
+          changed=1
+          deploy_file "$built/news_result.py" backend/services/news_result.py
+          deploy_file "$built/news_worker.py" backend/news_worker.py
+          ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
+          set -eu
+          cd /opt/gaemigtp-news/app
+          /opt/gaemigtp-news/venv/bin/python -m py_compile backend/news_worker.py backend/services/news_result.py backend/services/us_top20_rotation.py
+          /opt/gaemigtp-news/venv/bin/python -c 'from backend.services.us_top20_rotation import plan_tick, finish_tick; print("ROTATION_IMPORT_OK")'
+          REMOTE
+          ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service
+          sleep 12
+          ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
+          set -eu
+          systemctl is-active --quiet gaemigtp-news.service
+          echo NEWS_WORKER_ACTIVE_AFTER_RESTART
+          systemctl show gaemigtp-news.service -p ActiveState -p SubState -p MainPID -p NRestarts --no-pager
+          echo INSTALLED_SHA256:
+          sha256sum /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/backend/services/news_result.py /opt/gaemigtp-news/app/backend/services/us_top20_rotation.py
+          echo NEWS_WORKER_RECENT:
+          journalctl -u gaemigtp-news.service --no-pager -n 18 | grep -E 'news-worker|news-ai|error|started|active' | tail -15 || true
+          REMOTE
+          changed=0
+          trap - ERR
+          echo DO_US_TOP20_ROTATION_DEPLOY_SUCCESS
