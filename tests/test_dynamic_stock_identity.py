@@ -66,7 +66,10 @@ class IdentityTests(unittest.TestCase):
                           return_value={"알파벳 Class A": {"issue_briefs": [{
                               "headline": "알파벳 AI 뉴스 재료",
                               "summary": "원문 검증 완료",
-                              "source_articles": [{"url": "https://source.example/verified"}],
+                              "source_articles": [{
+                                  "url": "https://source.example/verified",
+                                  "published_at": datetime.now(timezone.utc).isoformat(),
+                              }],
                           }]}}) as read:
             value=market_issue_headlines.get_market_issue_headlines(
                 "us", [{"name":"알파벳 Class C", "symbol":"GOOG.O"}])

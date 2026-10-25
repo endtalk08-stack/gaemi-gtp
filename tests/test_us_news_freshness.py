@@ -29,6 +29,12 @@ def brief(title, hours):
 
 
 class RenderFreshnessTests(unittest.TestCase):
+    def _render_issue_view(self, payload):
+        """Mirror the actual chat path: freshness filter then display shaping."""
+        return news_result._sanitize_news_display_briefs(
+            clean_us_snapshot(payload, now=NOW), market="미국"
+        )
+
     def test_two_day_old_code_fact_hidden_despite_recent_snapshot_write(self):
         payload = {
             "_code_fact_extraction_version": 3,
@@ -119,7 +125,7 @@ class RenderFreshnessTests(unittest.TestCase):
                                      "title": title}]}
         payload = {"_title_only_revision": 3, "_code_fact_extraction_version": 3,
                    "_code_issue_briefs": [item]}
-        out = clean_us_snapshot(payload, now=NOW)["issue_briefs"][0]
+        out = self._render_issue_view(payload)["issue_briefs"][0]
         self.assertEqual(out["headline"], title)
         self.assertEqual(out["summary"], summary.split("네 번째")[0].strip())
         self.assertEqual(payload["_code_issue_briefs"][0]["summary"], summary)
@@ -134,9 +140,8 @@ class RenderFreshnessTests(unittest.TestCase):
             "이 문장은 네 번째이므로 보이면 안 된다."
         )
         item = {**brief("테슬라, 현지 출시 취소", 1), "summary": snippet}
-        out = clean_us_snapshot({"_title_only_revision": 3,
-            "_code_fact_extraction_version": 3, "_code_issue_briefs": [item]},
-            now=NOW)["issue_briefs"][0]
+        out = self._render_issue_view({"_title_only_revision": 3,
+            "_code_fact_extraction_version": 3, "_code_issue_briefs": [item]})["issue_briefs"][0]
         self.assertEqual(out["summary"],
             "테슬라가 사이버트럭의 현지 출시를 취소했다. "
             "예약금은 모두 반환할 예정이다. 생산 계획도 전면 철회했다.")
@@ -151,7 +156,7 @@ class RenderFreshnessTests(unittest.TestCase):
         item = {**brief("기사 주요 내용", 1), "summary": index}
         payload = {"_title_only_revision": 3, "_code_fact_extraction_version": 3,
                    "_code_issue_briefs": [item]}
-        self.assertEqual(clean_us_snapshot(payload, now=NOW)["issue_briefs"], [])
+        self.assertEqual(self._render_issue_view(payload)["issue_briefs"], [])
         self.assertEqual(payload["_code_issue_briefs"][0]["summary"], index)
 
     def test_nvda_generic_heading_recovers_original_verified_source_title(self):
@@ -163,9 +168,8 @@ class RenderFreshnessTests(unittest.TestCase):
         item = {**brief("기사 주요 내용", 1), "summary": summary,
                 "source_articles": [{**brief("x", 1)["source_articles"][0],
                                      "title": title}]}
-        out = clean_us_snapshot({"_title_only_revision": 3,
-            "_code_fact_extraction_version": 3, "_code_issue_briefs": [item]},
-            now=NOW)["issue_briefs"][0]
+        out = self._render_issue_view({"_title_only_revision": 3,
+            "_code_fact_extraction_version": 3, "_code_issue_briefs": [item]})["issue_briefs"][0]
         self.assertEqual(out["headline"], title)
 
     def test_v3_without_verified_source_does_not_display_saved_ai(self):
@@ -190,7 +194,8 @@ class RenderFreshnessTests(unittest.TestCase):
     def test_central_chat_reads_same_guarded_code_channel(self):
         actual_now = datetime.now(timezone.utc)
         def recent_brief(title, hours):
-            return {"headline": title, "source_articles": [{
+            return {"headline": title, "summary": "테슬라의 사업 계획이 발표됐다.",
+                    "source_articles": [{
                 "published_at": (actual_now - timedelta(hours=hours)).isoformat(),
                 "url": "https://example.org/" + title,
             }]}
@@ -257,6 +262,41 @@ class RenderFreshnessTests(unittest.TestCase):
             ["기사 원제목 첫 번째", "기사 원제목 두 번째", "이미 저장된 이슈 제목"],
         )
         self.assertEqual(len(result["issue_briefs"]), 3)
+
+    def test_central_keywords_extract_from_article_title_and_body(self):
+        # The publisher headline and the verified article body carry
+        # independent factual labels. Both must reach the central hashtags.
+        item = {
+            "headline": "기사 주요 내용",
+            "summary": (
+                "테슬라는 신규 공장을 증설한다고 발표했다. "
+                "생산 시설은 내년부터 가동할 예정이다."
+            ),
+            "tags": [],
+            "source_articles": [{
+                "url": "https://example.org/tesla-plant",
+                "title": "테슬라, 공급 계약 체결",
+            }],
+        }
+        result = news_result._sanitize_news_display_briefs(
+            {"issue_briefs": [item]}, market="미국"
+        )
+        self.assertEqual(result["issue_briefs"][0]["headline"], "테슬라, 공급 계약 체결")
+        self.assertIn("공급계약", result["issue_briefs"][0]["tags"])
+        self.assertIn("공장증설", result["issue_briefs"][0]["tags"])
+
+    def test_central_keywords_use_body_when_original_title_is_missing(self):
+        item = {
+            "headline": "기존 제목",
+            "summary": "테슬라는 신규 공장을 증설한다고 발표했다.",
+            "tags": [],
+            "source_articles": [{"url": "https://example.org/no-title"}],
+        }
+        result = news_result._sanitize_news_display_briefs(
+            {"issue_briefs": [item]}, market="미국"
+        )
+        self.assertEqual(result["issue_briefs"][0]["headline"], "기존 제목")
+        self.assertIn("공장증설", result["issue_briefs"][0]["tags"])
 
 if __name__ == "__main__":
     unittest.main()

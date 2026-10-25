@@ -868,6 +868,22 @@ def _sanitize_news_display_briefs(result, *, market=None):
                 )
                 if original_title:
                     brief["headline"] = original_title
+                # Central hashtags: extract existing fact-based labels from both
+                # the verified source title and the displayed original prose.
+                # Only the Render display copy changes, never the DO snapshot.
+                extracted_tags = []
+                for evidence in (original_title, brief["summary"]):
+                    if not evidence:
+                        continue
+                    _, labels = _content_driven_title_and_tags(evidence)
+                    for label in labels:
+                        tag = str(label or "").strip().lstrip("#")
+                        if tag and tag not in extracted_tags:
+                            extracted_tags.append(tag)
+                    if len(extracted_tags) >= 3:
+                        break
+                if extracted_tags:
+                    brief["tags"] = extracted_tags[:3]
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
                 brief["headline"] = grounded_issue_display_title(brief)
