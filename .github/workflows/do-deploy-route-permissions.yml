@@ -1,0 +1,45 @@
+name: Check existing privileged deployment route (read only)
+on:
+  push:
+    branches: [fix/us-top20-news-rotation-20261025]
+    paths: ['.github/workflows/do-deploy-route-permissions.yml']
+permissions:
+  contents: read
+jobs:
+  inspect-only:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_PRIVATE_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Check credentials and Linux permissions without modifying server
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST" || { echo "DO_HOST missing"; exit 1; }
+          test -n "$SSH_KNOWN_HOSTS" || { echo "known_hosts missing"; exit 1; }
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "DEPLOY_KEY_UNAVAILABLE_IN_PROTECTED_ENVIRONMENT"
+            exit 0
+          fi
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 gaemi-deploy@"$DO_HOST" 'bash -se' <<'REMOTE'
+          set -eu
+          echo 'DEPLOY_USER:'; id -un
+          echo 'SUDO_PERMISSIONS:'
+          sudo -n -l 2>&1 | head -60 || true
+          echo 'WRITE_PERMISSIONS:'
+          for p in /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/backend/services/news_result.py /opt/gaemigtp-news/app/backend/services /opt/gaemigtp-news/app/backend; do
+            if [ -w "$p" ]; then echo "writable:$p"; else echo "not_writable:$p"; fi
+          done
+          echo 'SERVICE_STATE:'
+          systemctl is-active gaemigtp-news.service
+          echo 'PERMISSION_AUDIT_COMPLETE'
+          REMOTE
