@@ -25,7 +25,7 @@
       // 이전 버전의 코스피 위젯 ID를 새 명확한 ID로 한 번만 이관한다.
       return value
         .map(id => (id === 'why-up' || id === 'kospi') ? 'qqq' : id)
-        .filter((id, index, list) => catalog()[id] && list.indexOf(id) === index);
+        .filter((id, index, list) => id !== 'chart' && catalog()[id] && list.indexOf(id) === index);
     } catch (_) { return []; }
   }
   function saveState() {
@@ -178,15 +178,6 @@
           <div class="central-widget-card__market-empty">${escapeHtml(detail)}</div>
         </article>`;
       }
-      if (id === 'chart') {
-        return `<article class="central-widget-card central-widget-card--chart" data-central-widget-id="chart">
-          <div class="central-widget-card__top">
-            <div class="central-widget-card__name">미국 거래대금 TOP 20 · 일봉</div>
-            <button type="button" class="central-widget-card__close" data-central-widget-remove="chart" aria-label="차트 닫기">×</button>
-          </div>
-          <div data-us-daily-chart class="us-daily-chart">거래대금 TOP 20 종목을 선택해 줘.</div>
-        </article>`;
-      }
       return `<article class="central-widget-card" data-central-widget-id="${escapeHtml(id)}">
         <div class="central-widget-card__top">
           <div class="central-widget-card__name">${escapeHtml(meta.title)}</div>
@@ -201,23 +192,25 @@
     });
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('qqq')) updateQqqCard();
-    if (activeIds.includes('chart')) loadChart();
+
   }
   function setChartSelection(symbol) {
-    if (!/^[A-Z0-9.\\-]{1,20}$/.test(String(symbol || ''))) return;
-    chartSymbol = symbol;
-    if (!activeIds.includes('chart')) add('chart');
-    else loadChart();
+    chartSymbol = /^[A-Z0-9.\\-]{1,20}$/.test(String(symbol || '')) ? String(symbol) : '';
   }
 
-  async function loadChart() {
-    const target = document.querySelector('[data-us-daily-chart]');
-    if (!target || !chartSymbol) return;
+  function renderInlineChart(target, symbol) {
+    setChartSelection(symbol);
+    if (!chartSymbol || !target) return;
+    return loadChart(target, chartSymbol);
+  }
+
+  async function loadChart(target, symbol) {
+    if (!target || !symbol) return;
     const current = ++chartRequest;
     target.textContent = '키움 일봉을 불러오는 중...';
     try {
       const response = await fetch(BACKEND_URL + '/market/us-daily-chart?symbol=' +
-        encodeURIComponent(chartSymbol));
+        encodeURIComponent(symbol));
       const data = await response.json();
       if (current !== chartRequest || !target.isConnected) return;
       if (!response.ok || !data.ok || !Array.isArray(data.rows) || !data.rows.length) {
@@ -290,7 +283,7 @@
   }
 
   function add(id) {
-    if (!catalog()[id] || activeIds.includes(id)) return false;
+    if (id === 'chart' || !catalog()[id] || activeIds.includes(id)) return false;
     activeIds.push(id); saveState(); render(); return true;
   }
   function remove(id) {
@@ -312,5 +305,5 @@
     });
   }
   document.addEventListener('DOMContentLoaded', initialize);
-  window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], isActive: id => activeIds.includes(id), setChartSelection };
+  window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart };
 }());
