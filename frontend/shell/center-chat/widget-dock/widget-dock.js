@@ -220,18 +220,25 @@
       target.replaceChildren();
       const canvas = document.createElement('canvas');
       canvas.height = 272;
-      canvas.setAttribute('aria-label', data.name + ' 일봉 캔들과 거래량');
-      target.appendChild(canvas);
-      drawCandles(canvas, data.rows);
+      canvas.tabIndex = 0;
+      canvas.setAttribute('aria-label', data.name + ' 일봉. 마우스나 터치로 개별 봉 정보 확인');
+      const tooltip = document.createElement('div');
+      tooltip.className = 'us-daily-chart__tooltip';
+      tooltip.hidden = true;
+      tooltip.setAttribute('role', 'status');
+      target.append(canvas, tooltip);
+      drawCandles(canvas, data.rows, tooltip);
     } catch (_) {
       if (current === chartRequest && target.isConnected)
         target.textContent = '일봉 데이터를 조회할 수 없어.';
     }
   }
 
-  function drawCandles(canvas, input) {
-    const rows = input.slice(-65).filter(row =>
+
+  function drawCandles(canvas, input, tooltip) {
+    const valid = input.filter(row =>
       ['open', 'high', 'low', 'close'].every(key => Number.isFinite(Number(row[key])) && Number(row[key]) > 0));
+    const rows = valid.slice(-65);
     if (!rows.length) return;
     const width = Math.max(320, canvas.getBoundingClientRect().width || 560);
     const height = 272;
@@ -240,13 +247,14 @@
     canvas.height = Math.round(height * ratio);
     canvas.style.height = height + 'px';
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     ctx.scale(ratio, ratio);
     const left = 8, right = 8, top = 10, priceBottom = 205, volumeTop = 222, volumeBottom = 262;
     const chartWidth = width - left - right;
     const highs = rows.map(row => Number(row.high));
     const lows = rows.map(row => Number(row.low));
     const hi = Math.max(...highs), lo = Math.min(...lows);
-    const padding = Math.max((hi - lo) * 0.08, 0.01);
+    const padding = Math.max((hi - lo) *0.08, 0.01);
     const min = lo - padding, max = hi + padding;
     const y = value => top + (max - value) / (max - min) * (priceBottom - top);
     const step = chartWidth / rows.length, candleWidth = Math.max(2, Math.min(10, step * 0.65));
@@ -263,6 +271,82 @@
       ctx.fillStyle = '#50545c';
       ctx.fillRect(x - candleWidth / 2, volumeBottom - volHeight, candleWidth, volHeight);
     });
+
+    const price = value => '$' + Number(value).toLocaleString('en-US', {
+      minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+    const fullStart = valid.length - rows.length;
+    function showCandle(index) {
+      if (index < 0 || index >= rows.length || !canvas.isConnected) return;
+      const row = rows[index];
+      const close = Number(row.close);
+      const previous = valid[fullStart + index - 1];
+      const previousClose = previous ? Number(previous.close) : NaN;
+      const change = previousClose > 0 ? ((close - previousClose) / previousClose * 100) : null;
+      const changeText = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+      const fields = [
+        ['시가', price(row.open)], ['고가', price(row.high)],
+        ['저가', price(row.low)], ['종가', price(row.close)],
+        ['등락률', changeText],
+        ['거래량', row.volume == null ? '—' : Number(row.volume).toLocaleString('ko-KR') + '주']
+      ];
+      tooltip.replaceChildren();
+      const dateEl = document.createElement('div');
+      dateEl.className = 'us-daily-chart__tooltip-date';
+      dateEl.textContent = row.date;
+      const grid = document.createElement('div');
+      grid.className = 'us-daily-chart__tooltip-grid';
+      fields.forEach(([name, value]) => {
+        const item = document.createElement('div');
+        const key = document.createElement('span');
+        key.textContent = name;
+        const val = document.createElement('strong');
+        val.textContent = value;
+        if (name === '등락률') val.style.color = change === null ? '' : change >= 0 ? '#ff8da1' : '#38bdf8';
+        item.append(key, val);
+        grid.appendChild(item);
+      });
+      tooltip.append(dateEl, grid);
+      tooltip.hidden = false;
+      const hostWidth = canvas.parentElement?.clientWidth || width;
+      const centerX = left + step * (index + 0.5);
+      const desiredLeft = centerX - tooltip.offsetWidth / 2;
+      tooltip.style.left = Math.round(Math.min(Math.max(0, desiredLeft), Math.max(0, hostWidth - tooltip.offsetWidth))) + 'px';
+    }
+    function candleIndex(event) {
+      const bounds = canvas.getBoundingClientRect();
+      const x = (event.clientX - bounds.left) * (width / bounds.width);
+      if (x < left || x > width - right) return -1;
+      return Math.min(rows.length - 1, Math.max(0, Math.floor((x - left) / step)));
+    }
+    canvas.addEventListener('pointermove', event => {
+      if (event.pointerType === 'mouse' || event.pointerType === 'pen') {
+        const index = candleIndex(event);
+        if (index >= 0) showCandle(index);
+        else tooltip.hidden = true;
+      }
+    });
+    canvas.addEventListener('pointerleave', event => {
+      if (event.pointerType !== 'touch') tooltip.hidden = true;
+    });
+    // Touch devices: tap a candle to pin its details until the next tap.
+    canvas.addEventListener('pointerdown', event => {
+      if (event.pointerType !== 'mouse') {
+        const index = candleIndex(event);
+        if (index >= 0) showCandle(index);
+      }
+    });
+    canvas.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const active = Number(canvas.dataset.selectedIndex);
+      const index = Number.isFinite(active)
+        ? Math.min(rows.length - 1, Math.max(0, active + (event.key === 'ArrowRight' ? 1 : -1)))
+        : rows.length - 1;
+      canvas.dataset.selectedIndex = String(index);
+      showCandle(index);
+    });
+    canvas.addEventListener('blur', () => { tooltip.hidden = true; });
   }
 
   function add(id) {

@@ -450,7 +450,18 @@
 
         const sec = sections[secIdx];
         const dynamicTitle = sec.title || '';
-        const text = (sec.content || '')
+        // Hide the technical-indicator block below the first US Top-20 reply.
+        // Keep the AI commentary and hashtag block; backend data remains untouched.
+        let displayContent = sec.content || '';
+        const selected = ctx.getSession()?.marketSelection;
+        if (secIdx === 0 && sec.id === 'why-up' && selected?.market === 'us' && selected?.menu === 'value') {
+          const blocks = displayContent.split('\\n\\n');
+          if (blocks.length >= 2 && /(?:^|\\n)\\s*(?:20일선|고가|저가|상단|중심|하단|52주)/.test(blocks[1])) {
+            blocks.splice(1, 1);
+            displayContent = blocks.join('\\n\\n');
+          }
+        }
+        const text = displayContent
           .replace(/이런 뉴스 재료와 기업 공시가 나오면서 시장이 반응하고 있는 거야/g, '')
           .replace(/\n{3,}/g, '\n\n')
           .trim();

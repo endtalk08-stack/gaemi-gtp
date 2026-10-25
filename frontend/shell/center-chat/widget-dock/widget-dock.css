@@ -161,3 +161,28 @@
 .us-daily-chart--inline canvas { width: 100%; max-width: 100%; }
 
 .us-daily-chart__live { font-size: 12px; font-weight: 600; color: #a5abb5; margin: 2px 0 8px; }
+
+/* On-demand OHLCV information; no grid, labels or chart border at rest. */
+.us-daily-chart--inline { position: relative; }
+.us-daily-chart--inline canvas { touch-action: pan-y; cursor: crosshair; }
+.us-daily-chart__tooltip[hidden] { display: none; }
+.us-daily-chart__tooltip {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  width: max-content;
+  max-width: calc(100% - 8px);
+  padding: 10px 12px;
+  border: 1px solid rgba(145,155,170,.28);
+  border-radius: 9px;
+  background: #191b20;
+  color: #e2e8f0;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  pointer-events: none;
+  font-size: 12px;
+}
+.us-daily-chart__tooltip-date { font-weight: 700; margin-bottom: 7px; }
+.us-daily-chart__tooltip-grid { display: grid; grid-template-columns: repeat(2,minmax(110px,1fr)); gap: 4px 14px; }
+.us-daily-chart__tooltip-grid > div { display: flex; justify-content: space-between; gap: 9px; }
+.us-daily-chart__tooltip-grid span { color: #94a3b8; }
+.us-daily-chart__tooltip-grid strong { font-weight: 600; }
