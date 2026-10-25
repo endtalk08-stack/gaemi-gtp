@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from backend.providers.kiwoom_us_quotes import (
     KiwoomReadOnlyError, credentials_configured,
-    fetch_us_close, fetch_us_quote, issue_access_token,
+    fetch_us_close, fetch_us_quote, fetch_us_daily_chart, issue_access_token,
 )
 
 NY = ZoneInfo("America/New_York")
@@ -65,6 +65,15 @@ def main():
             "symbol": SYMBOL, "session_date": close["session_date"],
             "close": close["close"], "change_pct": close["change_pct"],
             "source": close["source"],
+        }, ensure_ascii=False), flush=True)
+        chart = fetch_us_daily_chart(SYMBOL, EXCHANGE, day - dt.timedelta(days=45), token=token, max_pages=3)
+        rows = chart.get("rows") or []
+        if not rows or not all(row.get("date") and row.get("open") and row.get("high") and row.get("low") and row.get("close") for row in rows):
+            print("KIWOOM_VERIFY_CHART_EMPTY_OR_INVALID", flush=True)
+            return 6
+        print("KIWOOM_VERIFY_CHART_OK=" + json.dumps({
+            "symbol": SYMBOL, "count": len(rows), "first_date": rows[0]["date"],
+            "last_date": rows[-1]["date"], "source": chart["source"],
         }, ensure_ascii=False), flush=True)
         return 0
     except KiwoomReadOnlyError as exc:
