@@ -1,4 +1,4 @@
-name: Restore previously verified US event headline formatter
+name: Remove the two unapproved US source-citation restrictions
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -23,7 +23,7 @@ jobs:
         with:
           ref: 572169449ddd85601acdb9cc3124e01ebe3a997e
           persist-credentials: false
-      - name: Enable existing verified title function, verify, deploy with rollback
+      - name: Remove citation title-name guard and source-clearing branch only
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -49,42 +49,74 @@ jobs:
           prev,built=map(Path,sys.argv[1:])
           sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
           baseline={
-            "news_result.py":"e2a3008bb65122ff8d58375900e8d0e10177c75c113cbbc99535229a38cde74a",
-            "news_processed_store.py":"24b488568a5354c7fd7c8dab50cd28c880022bc06e8f2ad2893508e52fc8a156",
-            "verified_fact_headline.py":"2aada3aad3f18ad1d42e383efadd3c08c39e4cfae3c6bdcc819d43b985120d1a",
+            "news_result.py":"651f4cee76e63b353be4ed9566c1f2dfbe2a6a34fe0af2679cbf2f013e1ae81b",
+            "news_processed_store.py":"67f78d8c0f0c0f6fffa181a20d182f3dcd554ecb0438bb68a6840f229c07d58a",
+            "verified_fact_headline.py":"72a84d64c6c1238a134e3858993ac94dc5b811aa6f6c84eea9e4532bf25c0da5",
             "news_worker.py":"b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd",
           }
           for name,checksum in baseline.items():
             assert sha(prev/name)==checksum,"PRODUCTION_DRIFT_STOP: "+name
-          helper=(prev/"verified_fact_headline.py").read_text()
-          before='        preserve_kr_headline=True,'
-          assert helper.count(before)==1,"EXISTING_TITLE_SWITCH_NOT_FOUND"
-          helper=helper.replace(before,'        preserve_kr_headline=False,',1)
-          # The implementation of grounded_fact_title remains byte-for-byte unchanged.
-          assert "def grounded_fact_title(" in helper
-          assert helper.count('preserve_kr_headline=False')==2
-          compile(helper,"verified_fact_headline.py","exec")
-          (built/"verified_fact_headline.py").write_text(helper)
+          # Keep restored event-title code completely unchanged.
+          title=(prev/"verified_fact_headline.py").read_text()
+          assert 'preserve_kr_headline=False,' in title, "restored title module changed"
+          assert 'def grounded_fact_title(' in title
           result=(prev/"news_result.py").read_text()
-          before='            "_code_source_revision": 10 if market in ("미국", "US", "us") else None,'
-          assert result.count(before)==1,"RESULT_REVISION_NOT_FOUND"
-          result=result.replace(before,before.replace(': 10 ',': 11 '),1)
+          # Remove the exact two added restrictions, not the citation attachment.
+          guard=(
+              'def _us_citation_title_names_stock(article, stock_name):\n'
+              '    """Conservative source-ownership guard, never an article selector."""\n'
+              '    title = str((article or {}).get("title") or "").strip()\n'
+              '    return bool(title and _central_stock_mentioned(title[:75], stock_name))\n'
+              '\n\n'
+          )
+          assert result.count(guard)==1,"unexpected title-name guard layout"
+          result=result.replace(guard,'',1)
+          clearing=(
+              '            article_by_url = {\n'
+              '                str(item.get("url") or item.get("link") or "").strip(): item\n'
+              '                for item in storyboard_news_items\n'
+              '            }\n'
+              '            for brief in issue_briefs:\n'
+              '                for proof in brief.get("source_articles") or []:\n'
+              '                    article = article_by_url.get(str(proof.get("url") or "").strip())\n'
+              '                    if article is None or not _us_citation_title_names_stock(article, stock_name):\n'
+              '                        # A body about another company\'s action is\n'
+              '                        # not verified evidence of this stock\'s event.\n'
+              '                        brief["source_articles"] = []\n'
+              '                        brief["evidence_source"] = "stock_ownership_unverified"\n'
+              '                        break\n'
+              '\n'
+          )
+          assert result.count(clearing)==1,"unexpected source-clearing layout"
+          result=result.replace(clearing,'',1)
+          assert '_us_citation_title_names_stock' not in result
+          assert 'stock_ownership_unverified' not in result
+          assert result.count('attach_verified_source_citations(')==1,"original citation attachment changed"
+          assert result.count('issue_count_limit')==4,"issue count logic changed"
+          assert '            "_code_source_revision": 11 if market in ("미국", "US", "us") else None,' in result
+          # Reprocess cached results so the removed restrictions take effect.
+          before='            "_code_source_revision": 11 if market in ("미국", "US", "us") else None,'
+          assert result.count(before)==1
+          result=result.replace(before,before.replace(': 11 ',': 12 '),1)
           compile(result,"news_result.py","exec")
           (built/"news_result.py").write_text(result)
           cache=(prev/"news_processed_store.py").read_text()
-          before='payload.get("_code_source_revision") != 10'
-          assert cache.count(before)==1,"CACHE_REVISION_NOT_FOUND"
-          cache=cache.replace(before,'payload.get("_code_source_revision") != 11',1)
+          before='payload.get("_code_source_revision") != 11'
+          assert cache.count(before)==1,"cache revision guard changed"
+          cache=cache.replace(before,'payload.get("_code_source_revision") != 12',1)
           compile(cache,"news_processed_store.py","exec")
           (built/"news_processed_store.py").write_text(cache)
-          print("EXISTING_TITLE_FUNCTION_RESTORED")
-          for name in ("verified_fact_headline.py","news_result.py","news_processed_store.py"):
+          print("TITLE_NAME_CHECK_REMOVED")
+          print("CITATION_CLEARING_REMOVED")
+          print("SOURCE_URL_DATE_ATTACHMENT_RETAINED")
+          print("CACHE_REPROCESS_VERSION_12")
+          for name in ("news_result.py","news_processed_store.py"):
             print("PREPARED_SHA256",name,sha(built/name))
-          print("NO_CHANGES_TO_WORKER_ROTATION_NEWS_SCORING_OR_SELECTION")
+          print("NEWS_SELECTION_TITLE_FORMATTER_AND_TOP20_UNCHANGED")
           PY
           cp "$built/news_result.py" backend/services/news_result.py
           cp "$built/news_processed_store.py" backend/services/news_processed_store.py
-          cp "$built/verified_fact_headline.py" backend/services/verified_fact_headline.py
+          cp "$prev/verified_fact_headline.py" backend/services/verified_fact_headline.py
           cp "$prev/article_fact_keywords.py" backend/services/article_fact_keywords.py
           python -m unittest -q tests.test_news_central_selection tests.test_us_top20_rotation
           python - <<'PY'
@@ -111,14 +143,14 @@ jobs:
           assert no_change[0]["headline"]==brief["headline"]
           print("RESTORED_TITLE_AND_RENDER_DISPLAY_TEST_PASSED")
           PY
-          python -m py_compile "$built/verified_fact_headline.py" "$built/news_result.py" "$built/news_processed_store.py"
+          python -m py_compile "$built/news_result.py" "$built/news_processed_store.py"
           ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
           set -eu
           cd /opt/gaemigtp-news/app
           test "$(systemctl is-active gaemigtp-news.service)" = active
-          test "$(sha256sum backend/services/news_result.py | cut -d" " -f1)" = e2a3008bb65122ff8d58375900e8d0e10177c75c113cbbc99535229a38cde74a
-          test "$(sha256sum backend/services/news_processed_store.py | cut -d" " -f1)" = 24b488568a5354c7fd7c8dab50cd28c880022bc06e8f2ad2893508e52fc8a156
-          test "$(sha256sum backend/services/verified_fact_headline.py | cut -d" " -f1)" = 2aada3aad3f18ad1d42e383efadd3c08c39e4cfae3c6bdcc819d43b985120d1a
+          test "$(sha256sum backend/services/news_result.py | cut -d" " -f1)" = 651f4cee76e63b353be4ed9566c1f2dfbe2a6a34fe0af2679cbf2f013e1ae81b
+          test "$(sha256sum backend/services/news_processed_store.py | cut -d" " -f1)" = 67f78d8c0f0c0f6fffa181a20d182f3dcd554ecb0438bb68a6840f229c07d58a
+          test "$(sha256sum backend/services/verified_fact_headline.py | cut -d" " -f1)" = 72a84d64c6c1238a134e3858993ac94dc5b811aa6f6c84eea9e4532bf25c0da5
           test "$(sha256sum backend/news_worker.py | cut -d" " -f1)" = b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd
           REMOTE
           modified=0
@@ -133,7 +165,6 @@ jobs:
             trap - ERR
             if (( modified )); then
               echo TITLE_ROLLBACK_START
-              deploy_file "$prev/verified_fact_headline.py" backend/services/verified_fact_headline.py || true
               deploy_file "$prev/news_result.py" backend/services/news_result.py || true
               deploy_file "$prev/news_processed_store.py" backend/services/news_processed_store.py || true
               ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service || true
@@ -143,7 +174,6 @@ jobs:
           }
           trap 'rollback $?' ERR
           modified=1
-          deploy_file "$built/verified_fact_headline.py" backend/services/verified_fact_headline.py
           deploy_file "$built/news_result.py" backend/services/news_result.py
           deploy_file "$built/news_processed_store.py" backend/services/news_processed_store.py
           ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
@@ -155,7 +185,7 @@ jobs:
           ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service
           sleep 8
           ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && echo NEWS_WORKER_ACTIVE_WITH_OLD_TITLE_FUNCTION'
-          for name in verified_fact_headline.py news_result.py news_processed_store.py; do
+          for name in news_result.py news_processed_store.py; do
             livehash="$(ssh "${opts[@]}" "$remote" sha256sum "$live/services/$name" | cut -d' ' -f1)"
             expected="$(sha256sum "$built/$name" | cut -d' ' -f1)"
             test "$livehash" = "$expected"
@@ -163,4 +193,4 @@ jobs:
           done
           modified=0
           trap - ERR
-          echo PREVIOUS_VERIFIED_US_HEADLINE_RESTORE_SUCCESS
+          echo BOTH_UNAPPROVED_CITATION_RESTRICTIONS_REMOVED_SUCCESS
