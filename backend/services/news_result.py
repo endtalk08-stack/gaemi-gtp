@@ -21,7 +21,8 @@ from .news_freshness import clean_us_snapshot
 from .news_identity_registry import resolve_us_news_identity
 from .issue_briefs import (
     grounded_issue_display_title,
-    _article_excerpt, build_issue_briefs, central_material_brief_supported,
+    _article_excerpt, _content_driven_title_and_tags,
+    build_issue_briefs, central_material_brief_supported,
     market_material_title_and_tags,
 )
 from .company_critical_events import company_critical_title_and_tags
@@ -808,6 +809,17 @@ def _sanitize_news_display_briefs(result, *, market=None):
                 # The sidebar displays the clean_us_snapshot headline directly.
                 # Keep the same title here; use only three original article sentences.
                 brief["summary"] = _us_original_three_sentences(brief["summary"])
+                # Run the existing article-body extractor only when a
+                # category/placeholder was saved as the issue headline.
+                # Preserve already specific titles, including Micron/SpaceX.
+                if brief["summary"] and str(brief.get("headline") or "").strip() in {
+                    "AI 반도체", "AI 반도체 이슈", "AI 메모리",
+                    "AI 메모리 이슈", "반도체 이슈",
+                    "기사 주요 내용", "관련 이슈",
+                }:
+                    brief["headline"], _ = _content_driven_title_and_tags(
+                        brief["summary"]
+                    )
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
                 brief["headline"] = grounded_issue_display_title(brief)
