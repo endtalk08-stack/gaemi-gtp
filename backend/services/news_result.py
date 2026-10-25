@@ -476,7 +476,13 @@ def build_stock_news_result(
         # Verify today's candidates first, then fill unoccupied event slots
         # from the existing recent news. No new collector or display path.
         candidate_news = rank_candidates(paired_news_items)
-        candidate_news.extend(rank_candidates(older_news))
+        is_us_24h = market in ("미국", "us", "US")
+        # US issues expire by original publication date after 24 hours. Do not
+        # spend article fetches on week-old fallback, and do not impose the
+        # legacy three-event *display* quota on verified US events.
+        if not is_us_24h:
+            candidate_news.extend(rank_candidates(older_news))
+        issue_count_limit = max(1, len(candidate_news)) if is_us_24h else storyboard_limit
         if tracing:
             queued_keys = {
                 (str(item.get("url") or item.get("link") or ""), str(item.get("title") or ""))
@@ -539,9 +545,9 @@ def build_stock_news_result(
                 candidate["_central_checked_source"] = detail.get("source")
                 accepted_articles.append(candidate)
             storyboard_news_items = select_keyword_storyboard_news(
-                accepted_articles, limit=storyboard_limit,
+                accepted_articles, limit=issue_count_limit,
             )
-            if len(storyboard_news_items) >= storyboard_limit:
+            if len(storyboard_news_items) >= issue_count_limit:
                 break
 
         if tracing:
@@ -649,7 +655,7 @@ def build_stock_news_result(
         issue_briefs = build_issue_briefs(
             storyboard_news_items,
             stock_name,
-            limit=storyboard_limit,
+            limit=issue_count_limit,
             body_texts=verified_body_texts,
         )
 
