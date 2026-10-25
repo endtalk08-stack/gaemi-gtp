@@ -281,7 +281,9 @@
             button.classList.remove('market-stock-dragging');
             draggedRow = null;
           });
-          button.addEventListener('click', () => window.openStockInChat?.(item.name, {
+          button.addEventListener('click', () => {
+            if (market === 'us' && tab === 'value') window.GaemiGTPWidgetDock?.setChartSelection?.(String(item.symbol || ''));
+            window.openStockInChat?.(item.name, {
             market, menu: tab, name: item.name, symbol: item.symbol,
             rank: item.rank || index + 1,
             display_rank: Number(rank.textContent) || item.rank || index + 1,
@@ -292,7 +294,8 @@
               ? Number(button.dataset.currentChangePct) : item.change_pct,
             trading_value: item.trading_value, trading_value_text: item.trading_value_text,
             currency: 'USD', source: result.source === 'kiwoom' ? 'kiwoom' : 'unknown'
-          }));
+          });
+          });
 
           const content = document.createElement('div');
           content.className = 'market-stock-content';
