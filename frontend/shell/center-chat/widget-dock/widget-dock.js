@@ -218,52 +218,15 @@
         return;
       }
       target.replaceChildren();
-      const label = document.createElement('div');
-      label.className = 'us-daily-chart__label';
-      label.textContent = data.name;
       const canvas = document.createElement('canvas');
       canvas.height = 272;
       canvas.setAttribute('aria-label', data.name + ' 일봉 캔들과 거래량');
-      const live = document.createElement('div');
-      live.className = 'us-daily-chart__live';
-      live.setAttribute('aria-live', 'polite');
-      live.textContent = '시세 확인 중';
-      target.append(label, live, canvas);
+      target.appendChild(canvas);
       drawCandles(canvas, data.rows);
-      attachLivePrice(live, symbol);
     } catch (_) {
       if (current === chartRequest && target.isConnected)
         target.textContent = '일봉 데이터를 조회할 수 없어.';
     }
-  }
-
-  function attachLivePrice(node, symbol) {
-    let stopped = false;
-    async function refresh() {
-      if (!node.isConnected || stopped) return;
-      try {
-        const response = await fetch(BACKEND_URL + '/market/us-live-quotes', { cache: 'no-store' });
-        if (!response.ok) throw new Error('unavailable');
-        const payload = await response.json();
-        const quote = (payload.items || []).find(item => item.symbol === symbol);
-        if (!node.isConnected || stopped) return;
-        if (!quote || quote.stale || !Number.isFinite(quote.price) || !Number.isFinite(quote.received_at_ms)) {
-          node.textContent = '실시간 시세 수신 대기';
-          return;
-        }
-        const period = easternTradingWindow(quote.received_at_ms).period;
-        const pct = Number.isFinite(quote.change_pct)
-          ? ' · ' + (quote.change_pct > 0 ? '+' : '') + quote.change_pct.toFixed(2) + '%' : '';
-        node.textContent = period + ' · ' + quote.price.toFixed(2) + ' USD' + pct;
-      } catch (_) {
-        if (node.isConnected) node.textContent = '실시간 시세 수신 대기';
-      }
-    }
-    void refresh();
-    const timer = setInterval(() => {
-      if (!node.isConnected) { stopped = true; clearInterval(timer); return; }
-      if (document.visibilityState === 'visible') void refresh();
-    }, 15000);
   }
 
   function drawCandles(canvas, input) {
@@ -278,7 +241,7 @@
     canvas.style.height = height + 'px';
     const ctx = canvas.getContext('2d');
     ctx.scale(ratio, ratio);
-    const left = 8, right = 58, top = 10, priceBottom = 195, volumeTop = 210, volumeBottom = 247;
+    const left = 8, right = 8, top = 10, priceBottom = 205, volumeTop = 222, volumeBottom = 262;
     const chartWidth = width - left - right;
     const highs = rows.map(row => Number(row.high));
     const lows = rows.map(row => Number(row.low));
@@ -286,13 +249,6 @@
     const padding = Math.max((hi - lo) * 0.08, 0.01);
     const min = lo - padding, max = hi + padding;
     const y = value => top + (max - value) / (max - min) * (priceBottom - top);
-    ctx.font = '11px sans-serif';
-    ctx.fillStyle = '#94a3b8';
-    for (let tick = 0; tick <= 4; tick++) {
-      const value = min + (max - min) * tick / 4;
-      const yy = y(value);
-      ctx.fillText(value.toFixed(2), width - right + 8, yy + 4);
-    }
     const step = chartWidth / rows.length, candleWidth = Math.max(2, Math.min(10, step * 0.65));
     const volMax = Math.max(1, ...rows.map(row => Number(row.volume) || 0));
     rows.forEach((row, index) => {
@@ -307,10 +263,6 @@
       ctx.fillStyle = '#50545c';
       ctx.fillRect(x - candleWidth / 2, volumeBottom - volHeight, candleWidth, volHeight);
     });
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText(rows[0].date.slice(5), left, 266);
-    const last = rows[rows.length - 1].date.slice(5);
-    ctx.fillText(last, width - right - ctx.measureText(last).width, 266);
   }
 
   function add(id) {

@@ -157,7 +157,7 @@
 .us-daily-chart canvas { display: block; width: 100%; max-width: 100%; }
 
 /* Inline US daily chart: full analysis column, below the stock name bubble. */
-.us-daily-chart--inline { display: block; width: min(100%, 720px); max-width: 100%; min-height: 310px; margin: 12px auto 22px; padding: 12px 14px; border: 1px solid rgba(145,155,170,.20); border-radius: 12px; box-sizing: border-box; }
+.us-daily-chart--inline { display: block; width: min(100%, 720px); max-width: 100%; min-height: 272px; margin: 12px auto 22px; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; box-sizing: border-box; }
 .us-daily-chart--inline canvas { width: 100%; max-width: 100%; }
 
 .us-daily-chart__live { font-size: 12px; font-weight: 600; color: #a5abb5; margin: 2px 0 8px; }
