@@ -37,12 +37,26 @@ def main():
         raise RuntimeError("chart_exchange_mapping_missing")
     ny_date = dt.datetime.now(ZoneInfo("America/New_York")).date()
     start = ny_date - dt.timedelta(days=120)
-    token = issue_access_token()
+    token = None
     for rank, symbol, exchange, company_key in matches:
-        result = fetch_us_daily_chart(symbol, exchange, start, end_date=ny_date,
+        with psycopg.connect(dsn, connect_timeout=7) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT MAX(session_date) FROM public.us_daily_candles
+                    WHERE market='US' AND symbol=%s AND source='kiwoom:usa06012'
+                """, (symbol,))
+                latest = cur.fetchone()[0]
+        window_start = max(start, latest - dt.timedelta(days=4)) if latest else start
+        if window_start > ny_date:
+            continue
+        if token is None:
+            token = issue_access_token()
+        result = fetch_us_daily_chart(symbol, exchange, window_start, end_date=ny_date,
                                       token=token, max_pages=10)
         rows = result["rows"]
-        if len(rows) < 15:
+        if not rows:
+            raise RuntimeError("chart_history_empty_rank_" + str(rank))
+        if latest is None and len(rows) < 15:
             raise RuntimeError("chart_history_insufficient_rank_" + str(rank))
         with psycopg.connect(dsn, connect_timeout=7) as conn:
             with conn.cursor() as cur:
@@ -56,6 +70,11 @@ def main():
                             open=EXCLUDED.open,high=EXCLUDED.high,low=EXCLUDED.low,
                             close=EXCLUDED.close,volume=EXCLUDED.volume,
                             fetched_at=now()
+                        WHERE (us_daily_candles.open,us_daily_candles.high,
+                               us_daily_candles.low,us_daily_candles.close,
+                               us_daily_candles.volume) IS DISTINCT FROM
+                              (EXCLUDED.open,EXCLUDED.high,EXCLUDED.low,
+                               EXCLUDED.close,EXCLUDED.volume)
                     """, (symbol,row["date"],row["open"],row["high"],
                           row["low"],row["close"],
                           int(volume) if volume is not None else None))
