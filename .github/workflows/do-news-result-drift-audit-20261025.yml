@@ -1,4 +1,4 @@
-name: Audit DO news source provenance and unchanged-cache guard (read only)
+name: Repair US news citation provenance on live DO worker (no selection change)
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -9,16 +9,25 @@ concurrency:
   group: gaemi-digitalocean-gateway
   cancel-in-progress: false
 jobs:
-  audit:
+  repair:
     runs-on: ubuntu-latest
     environment: digitalocean-news-worker
-    timeout-minutes: 8
+    timeout-minutes: 12
     env:
       DO_HOST: ${{ secrets.DO_HOST }}
       SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
     steps:
-      - name: Inspect live code read-only; never alter running files
+      - name: Checkout reviewed regression suite at exact SHA
+        uses: actions/checkout@v4
+        with:
+          ref: 572169449ddd85601acdb9cc3124e01ebe3a997e
+          persist-credentials: false
+      - name: Validate baseline regression suite
+        run: |
+          set -euo pipefail
+          python -m unittest -q tests.test_us_top20_rotation tests.test_us_news_freshness tests.test_news_central_selection
+      - name: Patch only live US news citation metadata, test, and deploy with rollback
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -30,52 +39,146 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
           opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
           remote="gaemi-deploy@$DO_HOST"
-          base=/opt/gaemigtp-news/app/backend
-          ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null && echo AUDIT_ACCESS_OK'
-          scp "${opts[@]}" "$remote:$base/services/news_processed_store.py" "$RUNNER_TEMP/store.py"
-          scp "${opts[@]}" "$remote:$base/news_worker.py" "$RUNNER_TEMP/worker.py"
-          scp "${opts[@]}" "$remote:$base/services/news_result.py" "$RUNNER_TEMP/result.py"
-          if ssh "${opts[@]}" "$remote" "test -f $base/services/verified_fact_headline.py"; then
-            scp "${opts[@]}" "$remote:$base/services/verified_fact_headline.py" "$RUNNER_TEMP/citation.py"
-          fi
-          python - "$RUNNER_TEMP" <<'PY'
+          live=/opt/gaemigtp-news/app/backend
+          old="$RUNNER_TEMP/gaemi-news-before"
+          built="$RUNNER_TEMP/gaemi-news-after"
+          mkdir -m 700 -p "$old" "$built"
+          ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null'
+          scp "${opts[@]}" "$remote:$live/services/news_result.py" "$old/news_result.py"
+          scp "${opts[@]}" "$remote:$live/services/news_processed_store.py" "$old/news_processed_store.py"
+          scp "${opts[@]}" "$remote:$live/services/verified_fact_headline.py" "$old/verified_fact_headline.py"
+          scp "${opts[@]}" "$remote:$live/news_worker.py" "$old/news_worker.py"
+          python - "$old" "$built" <<'PY'
           from pathlib import Path
-          import sys,hashlib,re
-          tmp=Path(sys.argv[1])
-          for filename in ("store.py","worker.py","result.py","citation.py"):
-              f=tmp/filename
-              if not f.exists():
-                  print("MODULE_MISSING",filename)
-                  continue
-              text=f.read_text()
-              print("MODULE",filename,"sha256",hashlib.sha256(f.read_bytes()).hexdigest(),"lines",len(text.splitlines()))
-              lines=text.splitlines()
-              anchors={
-                "store.py":("def save_snapshot","def read_signature","_code_issue_briefs","_code_fact_extraction_version","_title_only_revision","def source_fingerprint"),
-                "worker.py":("def process_stock","store.read_signature","store.save_snapshot","result = build_stock_news_result","if store.read_signature","_read_rotation_state"),
-                "result.py":("from .verified_fact_headline","def build_stock_news_result","issue_briefs = build_issue_briefs","_title_only_revision","_code_fact_extraction_version","return {","original_body_unavailable"),
-                "citation.py":("def attach_verified_source_citations","def overlay_verified_headlines"),
-              }[filename]
-              found=[i for i,line in enumerate(lines) if any(marker in line for marker in anchors)]
-              print("ANCHORS",filename,found)
-              blocks=set()
-              for i in found:
-                  if filename=="store.py" and "def read_signature" in lines[i]:
-                      blocks.update(range(max(0,i-1),min(len(lines),i+55)))
-                  elif filename=="store.py" and "def save_snapshot" in lines[i]:
-                      blocks.update(range(max(0,i-1),min(len(lines),i+75)))
-                  elif filename=="worker.py" and "def process_stock" in lines[i]:
-                      blocks.update(range(i,min(len(lines),i+75)))
-                  elif filename=="result.py" and "issue_briefs = build_issue_briefs" in lines[i]:
-                      blocks.update(range(max(0,i-3),min(len(lines),i+14)))
-                  elif filename=="result.py" and "_news_status" in lines[i]:
-                      blocks.update(range(max(0,i-9),min(len(lines),i+3)))
-                  else:
-                      blocks.update(range(max(0,i-2),min(len(lines),i+3)))
-              secret=re.compile(r"(?i)(password\s*=|secret\s*=|token\s*=|api[_-]?key\s*=|database[_-]?url\s*=|postgresql://|authorization:|private_key)")
-              for i in sorted(blocks):
-                  line=lines[i]
-                  if secret.search(line):line="[REDACTED]"
-                  print(f"{filename}:{i+1} {line[:205]}")
-          print("READ_ONLY_INSPECTION_COMPLETE")
+          import hashlib,sys
+          old,built=map(Path,sys.argv[1:])
+          def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+          expected={
+              "news_result.py":"a77ac725b582e2eab4862d59527d3606d8dccabd8c4d93d68603d07c03e70c46",
+              "news_processed_store.py":"24b488568a5354c7fd7c8dab50cd28c880022bc06e8f2ad2893508e52fc8a156",
+              "verified_fact_headline.py":"2aada3aad3f18ad1d42e383efadd3c08c39e4cfae3c6bdcc819d43b985120d1a",
+              "news_worker.py":"b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd",
+          }
+          for name,value in expected.items():
+              assert sha(old/name)==value,"live baseline changed; stop before deploy: "+name
+          source=(old/"news_result.py").read_text()
+          def replace_once(before,after,label):
+              global source
+              assert source.count(before)==1,"unexpected live source layout: "+label
+              source=source.replace(before,after,1)
+          # Reuse production's already-installed citation helper. This helper
+          # maps each issue by its exact verified excerpt, never a guessed URL.
+          replace_once(
+              'from .news_feed import fetch_stock_news',
+              'from .verified_fact_headline import attach_verified_source_citations\nfrom .news_feed import fetch_stock_news',
+              'existing provenance helper import',
+          )
+          # This guards citation *eligibility*, not the 24h article selector,
+          # headline, keyword score, or issue list. Fail closed if the title
+          # does not itself name the stock. Other-company articles stay hidden.
+          guard='''def _us_citation_title_names_stock(article, stock_name):
+              """Conservative source-ownership guard, never an article selector."""
+              title = str((article or {}).get("title") or "").strip()
+              return bool(title and _central_stock_mentioned(title[:75], stock_name))
+
+
+          '''
+          replace_once('def build_stock_news_result(',guard+'def build_stock_news_result(', 'separate source citation guard')
+          attach='''        # Attach only the actual read/verified original's URL and published_at.
+                  # Do not alter which issues were selected, their labels or count.
+                  if market in ("미국", "US", "us"):
+                      issue_briefs = attach_verified_source_citations(
+                          issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
+                      )
+                      article_by_url = {
+                          str(item.get("url") or item.get("link") or "").strip(): item
+                          for item in storyboard_news_items
+                      }
+                      for brief in issue_briefs:
+                          for proof in brief.get("source_articles") or []:
+                              article = article_by_url.get(str(proof.get("url") or "").strip())
+                              if article is None or not _us_citation_title_names_stock(article, stock_name):
+                                  # A body about another company's action is
+                                  # not verified evidence of this stock's event.
+                                  brief["source_articles"] = []
+                                  brief["evidence_source"] = "stock_ownership_unverified"
+                                  break
+
+          '''
+          replace_once(
+              '        # Diagnostic counts only: trace where central issues drop out without',
+              attach+'        # Diagnostic counts only: trace where central issues drop out without',
+              'US-only citation attachment',
+          )
+          replace_once(
+              '            "_news_status": "ok",',
+              '            "_title_only_revision": 3 if market in ("미국", "US", "us") else None,\n'
+              '            "_kr_selection_revision": 1 if market in ("미국", "US", "us") else None,\n'
+              '            "_code_fact_extraction_version": 3 if market in ("미국", "US", "us") else None,\n'
+              '            "_code_source_revision": 10 if market in ("미국", "US", "us") else None,\n'
+              '            "_news_status": "ok",',
+              'Render and Neon revision markers',
+          )
+          assert source.count("attach_verified_source_citations(")==1
+          assert source.count("issue_count_limit")==4
+          assert source.count("def next_ranked_stock")==0
+          compile(source,"news_result.py","exec")
+          (built/"news_result.py").write_text(source)
+          print("VERIFIED_SOURCE_ONLY_PATCH_PREPARED_SHA256",sha(built/"news_result.py"))
+          print("STOCK_SELECTION_AND_WORKER_UNCHANGED")
           PY
+          cp "$built/news_result.py" backend/services/news_result.py
+          python -m unittest -q tests.test_news_central_selection
+          python - <<'PY'
+          from backend.services.news_result import _us_citation_title_names_stock
+          from backend.services.verified_fact_headline import attach_verified_source_citations
+          from backend.services.issue_briefs import _article_excerpt
+          from datetime import datetime,timezone
+          now=datetime.now(timezone.utc).isoformat()
+          nvda={"title":"엔비디아, AI 데이터센터 플랫폼 출시", "url":"https://example.org/nvda","published_at":now}
+          wrong1={"title":"전자만 잘 나가는게 아니다…삼성, 그룹 전반 실적 대도약","url":"https://example.org/samsung","published_at":now}
+          wrong2={"title":"AI 발열 잡아야 데이터 터진다… 日 미쓰비시 머티리얼 센서 증설","url":"https://example.org/mitsubishi","published_at":now}
+          assert _us_citation_title_names_stock(nvda,"엔비디아")
+          assert not _us_citation_title_names_stock(wrong1,"엔비디아")
+          assert not _us_citation_title_names_stock(wrong2,"엔비디아")
+          body="엔비디아는 신형 데이터센터 플랫폼을 출시한다고 밝혔다. 회사는 고객에게 새 제품을 공급한다."
+          excerpt=_article_excerpt(body)
+          cited=attach_verified_source_citations(
+              [{"headline":"제품 공개 이슈","summary":excerpt,"tags":["제품공개"]}],
+              [nvda],[body],"엔비디아")
+          assert cited[0]["source_articles"][0]["url"]==nvda["url"]
+          assert cited[0]["source_articles"][0]["published_at"]==now
+          assert cited[0]["headline"]=="제품 공개 이슈"
+          print("US_EXACT_SOURCE_DATE_AND_OTHER_COMPANY_GUARD_PASSED")
+          PY
+          python -m py_compile "$built/news_result.py"
+          ssh "${opts[@]}" "$remote" 'test "$(sha256sum /opt/gaemigtp-news/app/backend/services/news_result.py | cut -d" " -f1)" = a77ac725b582e2eab4862d59527d3606d8dccabd8c4d93d68603d07c03e70c46 && test "$(sha256sum /opt/gaemigtp-news/app/backend/news_worker.py | cut -d" " -f1)" = b1706dd0ab3200d7c3f3fbce4c086ef2266cf66e834a29aa936e2f640b85c2cd && test "$(systemctl is-active gaemigtp-news.service)" = active'
+          changed=0
+          rollback() {
+            code="$1"
+            trap - ERR
+            if (( changed > 0 )); then
+              echo NEWS_PROVENANCE_ROLLBACK_BEGIN
+              hash="$(git hash-object "$old/news_result.py")"
+              scp "${opts[@]}" "$old/news_result.py" "$remote:.gaemi-gateway/payload" || true
+              ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy backend/services/news_result.py "$hash" || true
+              ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service || true
+              echo NEWS_PROVENANCE_ROLLBACK_ATTEMPTED
+            fi
+            exit "$code"
+          }
+          trap 'rollback $?' ERR
+          hash="$(git hash-object "$built/news_result.py")"
+          scp "${opts[@]}" "$built/news_result.py" "$remote:.gaemi-gateway/payload"
+          ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy backend/services/news_result.py "$hash"
+          changed=1
+          ssh "${opts[@]}" "$remote" 'cd /opt/gaemigtp-news/app && /opt/gaemigtp-news/venv/bin/python -c "import backend.services.news_result; from backend.services.verified_fact_headline import attach_verified_source_citations; print(\u0027PROVENANCE_IMPORT_OK\u0027)"'
+          ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service
+          sleep 11
+          ssh "${opts[@]}" "$remote" 'test "$(systemctl is-active gaemigtp-news.service)" = active && echo NEWS_WORKER_ACTIVE_AFTER_PROVENANCE_FIX'
+          actual="$(ssh "${opts[@]}" "$remote" sha256sum /opt/gaemigtp-news/app/backend/services/news_result.py | cut -d' ' -f1)"
+          expected="$(sha256sum "$built/news_result.py" | cut -d' ' -f1)"
+          test "$actual" = "$expected"
+          changed=0
+          trap - ERR
+          echo DO_NEWS_PROVENANCE_REPAIR_SUCCESS
