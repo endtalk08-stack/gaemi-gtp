@@ -141,6 +141,184 @@ def _compact_code_news_title(brief):
         return original
     return headline
 
+
+def _us_three_source_sentences(value):
+    """Keep at most three real original prose sentences for US CODE display."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text:
+        return ""
+    if "이미지 확대보기" in text[:750]:
+        # Drop publisher gallery heading and photo caption, not news prose.
+        credit = re.search(r"사진\s*=\s*[^\s.]{2,45}\s+", text[:1100])
+        if not credit:
+            return ""
+        text = text[credit.end():].strip()
+    ellipses = text.count("…") + len(re.findall(r"\.{3,}", text))
+    if ellipses >= 3 and not re.search(r"[가-힣]다\.(?:\s|$)", text):
+        return ""  # Navigation links masquerading as an article body.
+    fragments = re.split(r'(?<=[.!?])\s+(?=[가-힣A-Za-z0-9"“‘(])', text)
+    sentences = []
+    for sentence in fragments:
+        sentence = sentence.strip()
+        if not (10 <= len(sentence) <= 600):
+            continue
+        if not re.search(r'[.!?]["”’)]?
+    """Read cited, 24-hour code and preserved AI channels without changing either.
+
+    Both consumers use this function. Reject old source timestamps even when
+    a snapshot was saved minutes ago. Unknown dates are not fabricated.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        raise ValueError("timezone-aware now required")
+    cutoff = now.astimezone(timezone.utc) - timedelta(hours=24)
+    upper = now.astimezone(timezone.utc)
+    result = deepcopy(payload)
+    # Both news channels are retained. UI preferences never invoke an AI
+    # model, rerun article selection or write to Neon.
+    v3 = (
+        str(result.get("_title_only_revision") or "") == "3"
+        and str(result.get("_code_fact_extraction_version") or "") == "3"
+    )
+
+    def fresh_source_briefs(briefs, *, code_only=False):
+        if not isinstance(briefs, list):
+            return []
+        fresh = []
+        for brief in briefs:
+            if not isinstance(brief, dict):
+                continue
+            # Display only: US CODE issues without verified article prose
+            # must not appear, even if a source URL is present.
+            if code_only and (
+                brief.get("evidence_source") == "original_unavailable"
+                or str(brief.get("summary") or "").strip() == "원문 확인 불가"
+            ):
+                continue
+            valid_sources = []
+            for source in brief.get("source_articles") or []:
+                if not isinstance(source, dict):
+                    continue
+                pub = _article_date(source.get("published_at"))
+                url = str(source.get("url") or "").strip()
+                if pub is None or not cutoff <= pub <= upper or not url.startswith(("https://", "http://")):
+                    continue
+                publisher = str(source.get("source") or "").strip() or (urlparse(url).hostname or "")
+                if not publisher:
+                    continue
+                valid_sources.append((pub, {**source, "source": publisher}))
+            if not valid_sources:
+                continue
+            latest = max(pub for pub, _ in valid_sources)
+            summary = str(brief.get("summary") or "")
+            if code_only and summary:
+                summary = _us_three_source_sentences(summary)
+                if not summary:
+                    continue  # Page navigation/caption is not original prose.
+            displayed = {**brief, "summary": summary}
+            headline = (_compact_code_news_title(displayed) if code_only
+                        else str(brief.get("headline") or "").strip())
+            if code_only:
+                headline = _us_source_grounded_title(
+                    {**displayed, "headline": headline}, summary,
+                    [source for _, source in valid_sources],
+                )
+            headline = re.sub(r"\s*이슈\s*$", "", headline).strip()
+            fresh.append({
+                **displayed,
+                "headline": headline,
+                "time": latest.astimezone(SEOUL).strftime("%H:%M"),
+                "reaction_at": "",
+                "source_articles": [source for _, source in valid_sources],
+            })
+        return fresh[:3]
+
+    channels = {
+        "code": fresh_source_briefs(result.get("_code_issue_briefs"), code_only=True) if v3 else [],
+        "ai": fresh_source_briefs(result.get("_ai_issue_briefs")),
+    }
+    mode = normalize_issue_mode(issue_mode)
+    if mode == "code":
+        selected, channel = channels["code"], "code"
+    elif mode == "ai":
+        selected, channel = channels["ai"], "ai"
+    elif mode == "both":
+        selected = channels["code"] + channels["ai"]
+        channel = "both"
+    else:
+        # Automatic US news display uses source-cited CODE facts only.
+        # Existing AI analyses remain stored but are not displayed as fallback.
+        selected = channels["code"]
+        channel = "code" if selected else "unavailable"
+    result["issue_channels"] = channels
+    result["issue_mode"] = mode
+    result["_issue_display_channel"] = channel
+    result["issue_briefs"] = selected[:6] if mode == "both" else selected[:3]
+
+    # Price reason shares the same strict 24-hour cited-article freshness rule.
+    reason = result.get("price_reason")
+    if isinstance(reason, dict):
+        sources = []
+        for source in reason.get("source_articles") or []:
+            if not isinstance(source, dict):
+                continue
+            pub = _article_date(source.get("published_at"))
+            url = str(source.get("url") or "").strip()
+            if pub is None or not cutoff <= pub <= upper or not url.startswith(("https://", "http://")):
+                continue
+            publisher = str(source.get("source") or "").strip() or (urlparse(url).hostname or "")
+            if publisher:
+                sources.append(source)
+        result["price_reason"] = {**reason, "source_articles": sources} if sources else None
+
+    # Do not let an old article become today's news merely because DigitalOcean
+    # refreshed the snapshot or a cached panel reloaded.
+    for key in ("paired_news_items", "panel_news_items", "storyboard_news_items"):
+        items = result.get(key)
+        if not isinstance(items, list):
+            continue
+        result[key] = [
+            item for item in items
+            if isinstance(item, dict)
+            and (pub := _article_date(item.get("published_at") or item.get("pubDate"))) is not None
+            and cutoff <= pub <= upper
+        ]
+    return result
+, sentence):
+            continue
+        if sentence.count("…") + len(re.findall(r"\.{3,}", sentence)) >= 3:
+            continue
+        sentences.append(sentence)
+        if len(sentences) == 3:
+            break
+    if sentences:
+        return " ".join(sentences)
+    # Historical short excerpts may lack terminal punctuation.
+    return text if len(text) <= 180 and ellipses == 0 else ""
+
+
+def _us_source_grounded_title(brief, summary, sources):
+    """Replace only generic headlines with the source article's evidenced title."""
+    original = str(brief.get("headline") or "").strip()
+    if original not in {"기사 주요 내용", "관련 이슈", ""}:
+        return original
+    for source in sources:
+        title = re.sub(r"\s+", " ", str(source.get("title") or "")).strip()
+        title = re.sub(r"^(?:\[[^\]]{1,30}\]|【[^】]{1,30}】)\s*", "", title)
+        if not 12 <= len(title) <= 100:
+            continue
+        words = set(re.findall(r"[가-힣A-Za-z0-9]{3,}", title))
+        compared = re.sub(r"\s+", "", summary).casefold()
+        overlap = sum(bool(re.search(r"[가-힣A-Za-z]", word))
+                      and word.casefold() in compared for word in words)
+        if overlap >= 2:
+            return title
+    first = re.split(r"(?<=[.!?])\s+", summary, maxsplit=1)[0].strip()
+    return first.rstrip(".") if 12 <= len(first) <= 70 else original
+
+
 def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
     """Read cited, 24-hour code and preserved AI channels without changing either.
 

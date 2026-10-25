@@ -106,6 +106,68 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual(result["issue_briefs"][0]["tags"], ["이익연동성과급"])
         self.assertEqual(result["issue_briefs"][0]["headline"], "마이크론, 이익연동 성과급 도입")
 
+    def test_tesla_uses_evidenced_original_article_title_not_generic_label(self):
+        summary = (
+            "미국 전기차 업체 테슬라가 자율주행 기술과 에너지저장 사업의 성장 가능성에 힘입어 월가의 관심을 받고 있다. "
+            "UBS는 테슬라의 목표주가를 기존 391달러에서 425달러로 높였다. "
+            "그러나 투자의견은 중립을 유지해 신중한 접근을 주문했다. "
+            "네 번째 문장은 나오면 안 된다."
+        )
+        title = "테슬라 자율주행·에너지 사업에 기대…UBS, 목표주가 425달러로 상향"
+        item = {**brief("기사 주요 내용", 1), "summary": summary,
+                "source_articles": [{**brief("x", 1)["source_articles"][0],
+                                     "title": title}]}
+        payload = {"_title_only_revision": 3, "_code_fact_extraction_version": 3,
+                   "_code_issue_briefs": [item]}
+        out = clean_us_snapshot(payload, now=NOW)["issue_briefs"][0]
+        self.assertEqual(out["headline"], title)
+        self.assertEqual(out["summary"], summary.split("네 번째")[0].strip())
+        self.assertEqual(payload["_code_issue_briefs"][0]["summary"], summary)
+
+    def test_gallery_furniture_removed_and_three_article_sentences_only(self):
+        snippet = (
+            "호주 예약금 반환…테슬라 판매 취소 이미지 확대보기 "
+            "쇼핑몰에 테슬라 차량이 전시돼 있다. "
+            "사진=로이터 테슬라가 사이버트럭의 현지 출시를 취소했다. "
+            "예약금은 모두 반환할 예정이다. "
+            "생산 계획도 전면 철회했다. "
+            "이 문장은 네 번째이므로 보이면 안 된다."
+        )
+        item = {**brief("테슬라, 현지 출시 취소", 1), "summary": snippet}
+        out = clean_us_snapshot({"_title_only_revision": 3,
+            "_code_fact_extraction_version": 3, "_code_issue_briefs": [item]},
+            now=NOW)["issue_briefs"][0]
+        self.assertEqual(out["summary"],
+            "테슬라가 사이버트럭의 현지 출시를 취소했다. "
+            "예약금은 모두 반환할 예정이다. 생산 계획도 전면 철회했다.")
+        self.assertEqual(out["headline"], "테슬라, 현지 출시 취소")
+
+    def test_scraped_link_index_not_treated_as_verified_article_sentences(self):
+        index = (
+            "“주차 맡기고 올라가세요” ... 현대위아 주차로봇 [단독] "
+            "테슬라 추격 현대차 ... 엔비디아 기술책임자 영입 "
+            "현대차 기본급 제시 ... 타이어값 인상 ..."
+        )
+        item = {**brief("기사 주요 내용", 1), "summary": index}
+        payload = {"_title_only_revision": 3, "_code_fact_extraction_version": 3,
+                   "_code_issue_briefs": [item]}
+        self.assertEqual(clean_us_snapshot(payload, now=NOW)["issue_briefs"], [])
+        self.assertEqual(payload["_code_issue_briefs"][0]["summary"], index)
+
+    def test_nvda_generic_heading_recovers_original_verified_source_title(self):
+        summary = (
+            "엔비디아 최고경영자 젠슨 황이 엔스케일에 데이터센터 건설을 촉구했다. "
+            "엔스케일의 데이터센터 구축 지연에 신속한 대응을 주문했다."
+        )
+        title = "젠슨 황, AI 데이터센터 지연에 경고…엔스케일 인프라 확충 시험대"
+        item = {**brief("기사 주요 내용", 1), "summary": summary,
+                "source_articles": [{**brief("x", 1)["source_articles"][0],
+                                     "title": title}]}
+        out = clean_us_snapshot({"_title_only_revision": 3,
+            "_code_fact_extraction_version": 3, "_code_issue_briefs": [item]},
+            now=NOW)["issue_briefs"][0]
+        self.assertEqual(out["headline"], title)
+
     def test_v3_without_verified_source_does_not_display_saved_ai(self):
         saved_ai = brief("이미 저장된 AI 뉴스", 1)
         view = clean_us_snapshot({
