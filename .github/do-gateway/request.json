@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/do-gateway/rollback_us_news_store_prechange_20261025.py","target":"backend/services/news_processed_store.py"}
+{"operation":"run","path":"ops/do-gateway/read_us_kr_restore_sources_20261025.py","request_id":"us_rollback_verify_20261025_1","timeout":60}
