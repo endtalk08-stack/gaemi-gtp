@@ -864,7 +864,44 @@ def _sanitize_news_display_briefs(result, *, market=None):
                     "AI 메모리 이슈", "반도체 이슈",
                     "기사 주요 내용", "관련 이슈",
                 }):
-                    brief["headline"] = _us_article_event_title(brief["summary"])
+                    extracted_title = _us_article_event_title(brief["summary"])
+                    if extracted_title:
+                        brief["headline"] = extracted_title
+                    else:
+                        # Use the keywords already displayed under this issue.
+                        # If those are empty, match the stored article keywords
+                        # by verified source URL. Never substitute publisher titles.
+                        labels = [
+                            str(label or "").strip().lstrip("#")
+                            for label in (brief.get("tags") or [])
+                            if str(label or "").strip().lstrip("#")
+                        ]
+                        if not labels:
+                            source_urls = {
+                                str(source.get("url") or "").strip()
+                                for source in (brief.get("source_articles") or [])
+                                if isinstance(source, dict) and str(source.get("url") or "").strip()
+                            }
+                            for article in (result.get("storyboard_news_items") or []):
+                                if not isinstance(article, dict):
+                                    continue
+                                url = str(article.get("url") or article.get("link") or "").strip()
+                                if url not in source_urls:
+                                    continue
+                                labels = [
+                                    str(label or "").strip().lstrip("#")
+                                    for label in (
+                                        article.get("storyboard_keywords")
+                                        or article.get("article_keywords")
+                                        or []
+                                    )
+                                    if str(label or "").strip().lstrip("#")
+                                ]
+                                if labels:
+                                    break
+                        # If this legacy snapshot has no keyword either,
+                        # preserve its stored label instead of hiding the issue.
+                        brief["headline"] = " · ".join(labels[:3]) if labels else saved_title
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
                 brief["headline"] = grounded_issue_display_title(brief)

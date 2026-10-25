@@ -207,5 +207,54 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["fresh"])
 
 
+    def test_us_five_recent_code_issues_are_not_display_capped(self):
+        payload = {
+            "_title_only_revision": 3,
+            "_code_fact_extraction_version": 3,
+            "_code_issue_briefs": [brief(f"issue-{i}", i) for i in range(1, 6)],
+        }
+        result = clean_us_snapshot(payload, now=NOW)
+        self.assertEqual(len(result["issue_briefs"]), 5)
+        self.assertEqual(len(result["issue_channels"]["code"]), 5)
+
+    def test_failed_issue_title_uses_existing_keywords_not_article_title(self):
+        summary = (
+            "미국 기업들의 순이익이 증가할 것으로 전망됐다. "
+            "전체 이익 증가분이 일부 기업에 집중됐다. "
+            "시장 관계자들은 기업 실적 전망을 주목했다."
+        )
+        first = {
+            "headline": "AI 반도체", "summary": summary,
+            "tags": ["#AI반도체"],
+            "source_articles": [{
+                "url": "https://example.org/first",
+                "title": "기사 원제목 첫 번째",
+            }],
+        }
+        second = {
+            "headline": "기사 주요 내용", "summary": summary,
+            "tags": [],
+            "source_articles": [{
+                "url": "https://example.org/second",
+                "title": "기사 원제목 두 번째",
+            }],
+        }
+        payload = {
+            "issue_briefs": [first, second],
+            "storyboard_news_items": [
+                {"url": "https://example.org/first", "storyboard_keywords": ["30%급증"]},
+                {"url": "https://example.org/second", "storyboard_keywords": ["30%증가"]},
+                {"url": "https://example.org/unrelated", "storyboard_keywords": ["무관한키워드"]},
+            ],
+        }
+        with patch.object(news_result, "_us_article_event_title", return_value=""):
+            result = news_result._sanitize_news_display_briefs(payload, market="미국")
+        self.assertEqual(
+            [issue["headline"] for issue in result["issue_briefs"]],
+            ["AI반도체", "30%증가"],
+        )
+        self.assertEqual(len(result["issue_briefs"]), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

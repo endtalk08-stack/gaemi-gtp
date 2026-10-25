@@ -204,7 +204,7 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
                 "reaction_at": "",
                 "source_articles": [source for _, source in valid_sources],
             })
-        # Keep only the three most recently published verified issues.
+        # Keep every source-verified issue within the existing 24-hour window.
         fresh.sort(
             key=lambda brief: max(
                 _article_date(source.get("published_at"))
@@ -212,7 +212,7 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
             ),
             reverse=True,
         )
-        return fresh[:3]
+        return fresh
 
     channels = {
         "code": fresh_source_briefs(result.get("_code_issue_briefs"), code_only=True) if v3 else [],
@@ -243,7 +243,7 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
             ),
             reverse=True,
         )
-    result["issue_briefs"] = selected[:6] if mode == "both" else selected[:3]
+    result["issue_briefs"] = selected
 
     # Price reason shares the same strict 24-hour cited-article freshness rule.
     reason = result.get("price_reason")
