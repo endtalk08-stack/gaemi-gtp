@@ -275,7 +275,7 @@ def _validate_chart_request(api_id, body):
         raise KiwoomReadOnlyError("kiwoom_chart_options_invalid")
 
 
-def fetch_us_daily_chart(symbol, exchange, start_date, *, token=None, max_pages=10):
+def fetch_us_daily_chart(symbol, exchange, start_date, *, end_date=None, token=None, max_pages=10):
     """Read official Kiwoom usa06012 OHLCV history; oldest-to-newest.
 
     Single-source only: never call Yahoo/Alpaca/Naver, never write to storage.
@@ -284,12 +284,16 @@ def fetch_us_daily_chart(symbol, exchange, start_date, *, token=None, max_pages=
     symbol, exchange = _clean_symbol(symbol, exchange)
     if type(start_date) is not dt.date:
         raise ValueError("invalid_chart_start_date")
+    if end_date is None:
+        end_date = start_date
+    if type(end_date) is not dt.date or end_date < start_date:
+        raise ValueError("invalid_chart_end_date")
     if type(max_pages) is not int or not 1 <= max_pages <= 10:
         raise ValueError("invalid_chart_page_limit")
     request = {
         "stex_tp": exchange,
         "stk_cd": symbol,
-        "strt_dt": start_date.strftime("%Y%m%d"),
+        "strt_dt": end_date.strftime("%Y%m%d"),
         "upd_stkpc_tp": "1",
         "exrt_appl_tp": "0",
     }
@@ -311,6 +315,7 @@ def fetch_us_daily_chart(symbol, exchange, start_date, *, token=None, max_pages=
         records = data.get("result_list")
         if not isinstance(records, list):
             raise KiwoomReadOnlyError("kiwoom_chart_records_missing")
+        reached_older_history = False
         for record in records:
             if not isinstance(record, dict):
                 continue
@@ -322,6 +327,9 @@ def fetch_us_daily_chart(symbol, exchange, start_date, *, token=None, max_pages=
             except ValueError:
                 continue
             if day < start_date:
+                reached_older_history = True
+                continue
+            if day > end_date:
                 continue
             opening = _price(record.get("open_pric"))
             high = _price(record.get("high_pric"))
@@ -337,7 +345,7 @@ def fetch_us_daily_chart(symbol, exchange, start_date, *, token=None, max_pages=
             }
         cont_yn = str(response_headers.get("cont-yn") or "").upper()
         next_key = str(response_headers.get("next-key") or "")
-        if cont_yn != "Y":
+        if cont_yn != "Y" or reached_older_history:
             break
         if page + 1 >= max_pages:
             raise KiwoomReadOnlyError("kiwoom_chart_page_limit_reached")
