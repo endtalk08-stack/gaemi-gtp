@@ -106,6 +106,24 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual(result["issue_briefs"][0]["tags"], ["이익연동성과급"])
         self.assertEqual(result["issue_briefs"][0]["headline"], "마이크론, 이익연동 성과급 도입")
 
+    def test_all_verified_issues_in_24h_remain_visible_beyond_three(self):
+        issues = [brief(f"event-{i}", 1 + i) for i in range(6)]
+        issues.append(brief("too-old", 25))
+        payload = {
+            "_code_fact_extraction_version": 3,
+            "_title_only_revision": 3,
+            "_code_issue_briefs": issues,
+            "_ai_issue_briefs": [brief(f"ai-{i}", 1 + i) for i in range(5)],
+        }
+        auto = clean_us_snapshot(payload, now=NOW)
+        self.assertEqual([x["headline"] for x in auto["issue_briefs"]],
+                         [f"event-{i}" for i in range(6)])
+        both = clean_us_snapshot(payload, now=NOW, issue_mode="both")
+        self.assertEqual(len(both["issue_briefs"]), 11)
+        self.assertEqual(len(both["issue_channels"]["code"]), 6)
+        self.assertEqual(len(both["issue_channels"]["ai"]), 5)
+        self.assertTrue(all(x["headline"] != "too-old" for x in both["issue_briefs"]))
+
     def test_v3_without_verified_source_does_not_display_saved_ai(self):
         saved_ai = brief("이미 저장된 AI 뉴스", 1)
         view = clean_us_snapshot({
