@@ -255,7 +255,11 @@ def _display_brief_content(raw_content):
 
 
 def read_brief():
-    """Read-only Render path; return sanitized structured presentation for UI."""
+    """Read only verified editorial JSON for its actual NY market-close session.
+
+    Invalid or test-only stored rows stay in Neon for audit purposes, but must
+    never be surfaced as a legitimate close report or fallback text.
+    """
     with _connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -266,10 +270,20 @@ def read_brief():
             row = cur.fetchone()
     if not row:
         return None
-    presentation = _structured_brief(row[1])
-    brief = {"session_date": row[0].isoformat(), "content": _display_brief_content(row[1]),
-             "presentation": presentation, "published_at": row[2].isoformat()}
-    if presentation and "usage" in presentation:
+    session_date, raw_content, published_at = row
+    presentation = _structured_brief(raw_content)
+    # The nightly DO job publishes after 16:00 New York time on the same
+    # market session date. Reject old rows republished with a fresh expiry.
+    if (presentation is None
+            or presentation["session_date_et"] != session_date.isoformat()
+            or not isinstance(published_at, datetime.datetime)
+            or published_at.tzinfo is None
+            or published_at.astimezone(NY).date() != session_date):
+        return None
+    brief = {"session_date": session_date.isoformat(),
+             "content": _display_brief_content(raw_content),
+             "presentation": presentation, "published_at": published_at.isoformat()}
+    if "usage" in presentation:
         brief["usage"] = presentation["usage"]
     return brief
 

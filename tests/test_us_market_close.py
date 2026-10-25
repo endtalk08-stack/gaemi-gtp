@@ -142,6 +142,48 @@ class TestUSClose(unittest.TestCase):
         payload["session_date_et"]="2026-10-16"
         self.assertIsNone(close._structured_brief(json.dumps(payload,ensure_ascii=False)))
 
+    def test_read_brief_filters_test_text_and_mismatched_trading_dates(self):
+        class SingleRow:
+            def __init__(self, row):
+                self.row = row
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def cursor(self):
+                return self
+            def execute(self, *args):
+                pass
+            def fetchone(self):
+                return self.row
+
+        published = dt.datetime(2026, 10, 19, 22, tzinfo=dt.timezone.utc)
+        valid = json.dumps({
+            "session_date_et": DAY.isoformat(), "market_indices": INDICES,
+            "response_format": close.FREE_TEXT_FORMAT,
+            "issues": [{"headline": "미국장 마감", "summary": "미국 증시는 혼조였어.",
+                        "tags": ["#나스닥상승"]}]
+        }, ensure_ascii=False)
+
+        with patch.object(close, "_connection", return_value=SingleRow(None)):
+            self.assertIsNone(close.read_brief())
+        with patch.object(close, "_connection", return_value=SingleRow(
+                (DAY, "※ 시험판: Reuters 기사 요약으로 생성.\\\\n\\\\n**미국장 요약**", published))):
+            self.assertIsNone(close.read_brief())
+        with patch.object(close, "_connection", return_value=SingleRow(
+                (DAY + dt.timedelta(days=1), valid, published))):
+            self.assertIsNone(close.read_brief())
+        with patch.object(close, "_connection", return_value=SingleRow(
+                (DAY, valid, published + dt.timedelta(days=6)))):
+            self.assertIsNone(close.read_brief())
+        with patch.object(close, "_connection", return_value=SingleRow(
+                (DAY, valid, published))):
+            reply = close.read_brief()
+        self.assertEqual(reply["session_date"], DAY.isoformat())
+        self.assertEqual(reply["presentation"]["session_date_et"], DAY.isoformat())
+        self.assertIn("나스닥 종합 26,430.89 (+1.11%)", reply["content"])
+        self.assertNotIn("시험판", reply["content"])
+
     def test_no_ai_when_fewer_than_three_originals(self):
         class Blank:
             def __enter__(self):return self
