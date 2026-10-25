@@ -7,6 +7,7 @@ base = Path("/opt/gaemigtp-news/app")
 targets = {
     "result": base / "backend/services/news_result.py",
     "store": base / "backend/services/news_processed_store.py",
+    "feed": base / "backend/services/news_feed.py",
 }
 for key, path in targets.items():
     if not path.is_file() or path.is_symlink():
