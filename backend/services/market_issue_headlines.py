@@ -9,7 +9,7 @@ import time
 
 from .news_identity_registry import resolve_us_news_identity
 from .issue_briefs import grounded_issue_display_title
-from .news_freshness import clean_us_snapshot, normalize_issue_mode
+from .news_freshness import _article_date, clean_us_snapshot, normalize_issue_mode
 
 _MAX_ITEMS = 20
 
@@ -142,11 +142,26 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False, issue_mode=
                 else:
                     issues = channels.get(mode) or []
                 return {**snapshot, "issue_briefs": issues}
-            headline = next((
-                title for name in names
-                for title in [_first_ai_headline(selected_snapshot(name))]
-                if title
-            ), "")
+            # Resolve all matching snapshot aliases by original article date,
+            # rather than picking the first stock-name alias.
+            dated_titles = []
+            for name in names:
+                snapshot = selected_snapshot(name)
+                if not isinstance(snapshot, dict):
+                    continue
+                for brief in snapshot.get("issue_briefs") or []:
+                    title = _first_ai_headline({"issue_briefs": [brief]})
+                    if not title:
+                        continue
+                    dates = [
+                        _article_date(source.get("published_at"))
+                        for source in brief.get("source_articles") or []
+                        if isinstance(source, dict)
+                    ] if isinstance(brief, dict) else []
+                    dates = [date for date in dates if date is not None]
+                    if dates:
+                        dated_titles.append((max(dates), title))
+            headline = max(dated_titles, key=lambda item: item[0])[1] if dated_titles else ""
         else:
             # Domestic behavior and existing list-only callers remain unchanged.
             headline = next((
