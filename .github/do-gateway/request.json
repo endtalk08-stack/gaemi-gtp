@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-kiwoom-us-daily.service"}
+{"operation":"deploy","path":"backend/kiwoom_us_daily_collector.py","target":"backend/kiwoom_us_daily_collector.py"}
