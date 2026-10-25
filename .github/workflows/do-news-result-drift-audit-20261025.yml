@@ -41,7 +41,7 @@ jobs:
           ssh_do() { ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519" "$remote" "$@"; }
           scp_do() { scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 -i "$HOME/.ssh/id_ed25519" "$@"; }
           ssh_do 'test "$(systemctl is-active gaemigtp-news.service)" = active && sudo -n /usr/local/sbin/gaemi-do-gateway status >/dev/null'
-          for file in services/news_result.py services/news_processed_store.py services/verified_fact_headline.py news_worker.py services/us_top20_rotation.py; do
+          for file in services/news_result.py services/news_processed_store.py services/verified_fact_headline.py services/article_fact_keywords.py news_worker.py services/us_top20_rotation.py; do
             scp_do "$remote:$live/$file" "$old/$(basename "$file")"
           done
           python - "$old" "$built" <<'PY'
@@ -93,6 +93,7 @@ jobs:
           cp "$built/news_result.py" backend/services/news_result.py
           cp "$built/news_processed_store.py" backend/services/news_processed_store.py
           cp "$old/verified_fact_headline.py" backend/services/verified_fact_headline.py
+          cp "$old/article_fact_keywords.py" backend/services/article_fact_keywords.py
           python -m py_compile backend/services/news_result.py backend/services/news_processed_store.py
           python -m unittest -q tests.test_news_central_selection tests.test_us_top20_rotation
           python - <<'PY'
