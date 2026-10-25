@@ -456,9 +456,10 @@
         const selected = ctx.getSession()?.marketSelection;
         if (secIdx === 0 && sec.id === 'why-up' && selected?.market === 'us' && selected?.menu === 'value') {
           const blocks = displayContent.split('\n\n');
-          if (blocks.length >= 2 && /(?:^|\n)\s*(?:20일선|고가|저가|상단|중심|하단|52주)/.test(blocks[1])) {
-            blocks.splice(1, 1);
-            displayContent = blocks.join('\n\n');
+          const visibleBlocks = blocks.filter((block, index) =>
+            index === 0 || !/(?:^|\n)\s*(?:20일선|고가|저가|상단|중심|하단|52주)(?:\s|$)/.test(block));
+          if (visibleBlocks.length !== blocks.length) {
+            displayContent = visibleBlocks.join('\n\n');
           }
         }
         const text = displayContent
