@@ -7,6 +7,7 @@ on:
       - backend/services/news_result.py
       - backend/services/market_issue_headlines.py
       - tests/test_us_news_freshness.py
+      - tests/test_sidebar_issue_sync.cjs
       - .github/workflows/us-news-freshness-check.yml
   push:
     branches: [main]
@@ -15,6 +16,7 @@ on:
       - backend/services/news_result.py
       - backend/services/market_issue_headlines.py
       - tests/test_us_news_freshness.py
+      - tests/test_sidebar_issue_sync.cjs
       - .github/workflows/us-news-freshness-check.yml
 permissions:
   contents: read
