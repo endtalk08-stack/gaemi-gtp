@@ -1,4 +1,4 @@
-name: Verify Render US daily chart read-only
+name: Diagnose Render daily chart response metadata
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -10,29 +10,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify NVDA and MU from live Render API
+      - name: Inspect response safely without outputting body
         shell: bash
         run: |
           python3 - <<'PY'
           import json, urllib.request, urllib.error
           base = "https://gaemi-gtp.onrender.com/market/us-daily-chart?symbol="
           for symbol in ("NVDA", "MU"):
-              request = urllib.request.Request(base + symbol, headers={"Accept":"application/json","User-Agent":"gaemi-readonly-chart-verification"})
+              req = urllib.request.Request(base + symbol, headers={"Accept":"application/json","User-Agent":"gaemi-readonly-chart-verification"})
               try:
-                  with urllib.request.urlopen(request, timeout=40) as response:
-                      status = response.status
-                      payload = json.load(response)
+                  with urllib.request.urlopen(req, timeout=40) as response:
+                      raw = response.read(200000)
+                      status, ct, url = response.status, response.headers.get("Content-Type",""), response.geturl()
               except urllib.error.HTTPError as exc:
-                  print("CHART_VERIFY_HTTP_ERROR symbol=%s status=%s" % (symbol, exc.code), flush=True)
-                  raise
-              assert status == 200, (symbol, status)
-              assert payload.get("ok") is True, (symbol, payload.get("error"))
-              assert payload.get("symbol") == symbol
-              assert payload.get("source") == "kiwoom:usa06012"
-              assert payload.get("company_key", "").startswith("US:")
-              assert 1 <= int(payload.get("rank", 0)) <= 20
-              candles = payload.get("rows", [])
-              assert len(candles) >= 15, (symbol, len(candles))
-              assert all(x.get("open",0)>0 and x.get("high",0)>0 and x.get("low",0)>0 and x.get("close",0)>0 for x in candles)
-              print("CHART_VERIFY_OK symbol=%s candles=%s rank=%s first=%s last=%s" % (symbol,len(candles),payload["rank"],candles[0]["date"],candles[-1]["date"]),flush=True)
+                  status, ct, url = exc.code, exc.headers.get("Content-Type",""), exc.geturl()
+                  raw = exc.read(200000)
+              url_kind = "requested" if url == base + symbol else ("same_host" if url.startswith("https://gaemi-gtp.onrender.com/") else "other_host")
+              stripped = raw.lstrip().lower()
+              kind = "json_like" if stripped.startswith((b"{", b"[")) else "html_like" if stripped.startswith((b"<!doctype", b"<html")) else "empty" if not stripped else "other"
+              print("CHART_HTTP_META symbol=%s status=%s content_type=%s bytes=%s body_kind=%s final_url=%s" % (symbol,status,ct.split(";")[0],len(raw),kind,url_kind),flush=True)
+              if kind == "json_like":
+                  try:
+                      payload = json.loads(raw)
+                      print("CHART_JSON_META symbol=%s ok=%s error=%s rows=%s" % (symbol,payload.get("ok"),payload.get("error"),len(payload.get("rows",[]))),flush=True)
+                  except (ValueError,AttributeError):
+                      print("CHART_JSON_INVALID symbol="+symbol,flush=True)
           PY
