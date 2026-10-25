@@ -106,6 +106,8 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
   const window = {
     innerWidth: 1200,
     location: { hostname: 'gaemi-gtp.onrender.com', origin: 'https://gaemi-gtp.onrender.com' },
+    // Fake browser: acknowledge polling without starting a background timer.
+    setInterval() { return 1; },
     addEventListener(name, fn) { (listeners[name] ||= []).push(fn); }
   };
   const calls = [];
