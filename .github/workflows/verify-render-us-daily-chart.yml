@@ -1,4 +1,4 @@
-name: Diagnose Render daily chart response metadata
+name: Verify private Render chart API response
 on:
   push:
     branches: [ops/do-ssh-deploy-setup-20261017]
@@ -10,29 +10,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Inspect response safely without outputting body
-        shell: bash
+      - name: Verify unauthenticated chart API returns JSON 401
         run: |
           python3 - <<'PY'
-          import json, urllib.request, urllib.error
-          base = "https://gaemi-gtp.onrender.com/market/us-daily-chart?symbol="
-          for symbol in ("NVDA", "MU"):
-              req = urllib.request.Request(base + symbol, headers={"Accept":"application/json","User-Agent":"gaemi-readonly-chart-verification"})
+          import json,urllib.request,urllib.error
+          for symbol in ("NVDA","MU"):
+              url="https://gaemi-gtp.onrender.com/market/us-daily-chart?symbol="+symbol
+              req=urllib.request.Request(url,headers={"Accept":"application/json"})
               try:
-                  with urllib.request.urlopen(req, timeout=40) as response:
-                      raw = response.read(200000)
-                      status, ct, url = response.status, response.headers.get("Content-Type",""), response.geturl()
+                  with urllib.request.urlopen(req,timeout=40) as resp:
+                      status=resp.status
+                      body=resp.read(10000)
+                      ct=resp.headers.get("Content-Type","")
               except urllib.error.HTTPError as exc:
-                  status, ct, url = exc.code, exc.headers.get("Content-Type",""), exc.geturl()
-                  raw = exc.read(200000)
-              url_kind = "requested" if url == base + symbol else ("same_host" if url.startswith("https://gaemi-gtp.onrender.com/") else "other_host")
-              stripped = raw.lstrip().lower()
-              kind = "json_like" if stripped.startswith((b"{", b"[")) else "html_like" if stripped.startswith((b"<!doctype", b"<html")) else "empty" if not stripped else "other"
-              print("CHART_HTTP_META symbol=%s status=%s content_type=%s bytes=%s body_kind=%s final_url=%s" % (symbol,status,ct.split(";")[0],len(raw),kind,url_kind),flush=True)
-              if kind == "json_like":
-                  try:
-                      payload = json.loads(raw)
-                      print("CHART_JSON_META symbol=%s ok=%s error=%s rows=%s" % (symbol,payload.get("ok"),payload.get("error"),len(payload.get("rows",[]))),flush=True)
-                  except (ValueError,AttributeError):
-                      print("CHART_JSON_INVALID symbol="+symbol,flush=True)
+                  status=exc.code
+                  body=exc.read(10000)
+                  ct=exc.headers.get("Content-Type","")
+              assert status==401,(symbol,status)
+              assert "application/json" in ct,(symbol,ct)
+              data=json.loads(body)
+              assert data.get("error")=="private_access_required",(symbol,data.get("error"))
+              print("CHART_PRIVATE_GATE_OK symbol=%s status=%s error=%s"%(symbol,status,data["error"]),flush=True)
           PY
