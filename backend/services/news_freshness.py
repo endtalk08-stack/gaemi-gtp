@@ -201,7 +201,8 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
                 "reaction_at": "",
                 "source_articles": [source for _, source in valid_sources],
             })
-        return fresh[:3]
+        # Preserve every verified issue; original article dates still expire after 24h.
+        return fresh
 
     channels = {
         "code": fresh_source_briefs(result.get("_code_issue_briefs"), code_only=True) if v3 else [],
@@ -223,7 +224,8 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto"):
     result["issue_channels"] = channels
     result["issue_mode"] = mode
     result["_issue_display_channel"] = channel
-    result["issue_briefs"] = selected[:6] if mode == "both" else selected[:3]
+    # Do not cap per-stock issues at three; all rows must pass the 24h source-date guard.
+    result["issue_briefs"] = selected
 
     # Price reason shares the same strict 24-hour cited-article freshness rule.
     reason = result.get("price_reason")
