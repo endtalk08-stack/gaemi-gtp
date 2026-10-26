@@ -218,6 +218,14 @@ def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, d
         verified = detail.get("source") in {"jsonld_article_body", "article_or_main_paragraphs"}
         summary = _article_excerpt(detail.get("text") or "") if verified else ""
         tags = list(article.get("article_keywords") or [])[:3]
+        if not tags and verified and detail.get("text"):
+            try:
+                body_input = {**article, "description": detail["text"]}
+                body_keywords = build_connected_keyword_test([body_input], stock_name, max_keywords=3)
+                tags = list((body_keywords.get("articles") or [{}])[0].get("keywords") or [])[:3]
+            except Exception:
+                pass
+        article["article_keywords"] = tags
         source = {
             "title": article.get("title") or "",
             "url": article.get("url") or article.get("link") or "",
