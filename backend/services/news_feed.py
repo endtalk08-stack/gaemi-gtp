@@ -541,7 +541,24 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     # US only: sort the collected articles by newest publication time.
     # Do not remove duplicates or apply date/relevance filters before AI.
     if is_us_stock:
-        items = [_enrich_item(item) for item in stock_items + official_items + sec_items]
+        terms = identity["search_terms"]
+        def company_match(item):
+            text = _search_text(item)
+            compact_text = re.sub(r"\\s+", "", text)
+            for term in terms:
+                alias = str(term or "").strip().lower()
+                if not alias:
+                    continue
+                if re.fullmatch(r"[a-z0-9. -]+", alias):
+                    if re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text):
+                        return True
+                elif re.sub(r"\\s+", "", alias) in compact_text:
+                    return True
+            return False
+        # Match company identity and deduplicate before applying the collection cap.
+        # Otherwise unrelated short-ticker search hits crowd out the company's news.
+        relevant_stock = [item for item in stock_items if company_match(item)]
+        items = [_enrich_item(item) for item in _dedupe(relevant_stock + official_items + sec_items)]
         items.sort(key=lambda item: item.get("published_at") or "", reverse=True)
         return items[:max(1, int(limit))]
 
