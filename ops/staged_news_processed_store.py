@@ -242,6 +242,12 @@ def _prefer_same_day_ai(coming, previous, stock_name, us_day):
     """Keep same-stock, source-fresh AI across US day boundaries, until 24h expiry."""
     code = _same_stock_issue_briefs(
         coming.get("_code_issue_briefs", coming.get("issue_briefs") or []), stock_name)
+    if not code and isinstance(previous, dict):
+        # Preserve only this company's still-dated, source-backed code issues.
+        # Never use issue_briefs here: that field may contain the AI channel.
+        prior_code = _same_stock_issue_briefs(
+            previous.get("_code_issue_briefs") or [], stock_name)
+        code = _fresh_ai_briefs(prior_code)
     coming["_code_issue_briefs"] = code
     candidate = []
     candidate_day = None
