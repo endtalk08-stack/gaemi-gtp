@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/rebuild_top20_issues_20261026.py","request_id":"rebuild_top20_grounded_events_rev15","timeout":900}
+{"operation":"run","path":"ops/do-gateway/inspect_missing_issue_inputs_20261026.py","request_id":"actual_missing_stock_event_inputs_1026","timeout":300}
