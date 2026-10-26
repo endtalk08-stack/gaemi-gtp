@@ -1,7 +1,7 @@
 name: Inspect existing DO news worker (read only)
 on:
   push:
-    branches: [fix/us-top20-news-rotation-20261025]
+    branches: [audit/do-live-issue-store-20261026]
     paths: ['.github/workflows/do-news-worker-readonly-inspect.yml']
 permissions:
   contents: read
@@ -69,6 +69,27 @@ jobs:
               t=p.read_text(encoding='utf-8').splitlines()
               for i,line in enumerate(t,1):
                   if 'return fresh[:3]' in line or 'issue_briefs' in line and 'selected[:' in line: print('freshness',i,line.strip())
+          PY
+          echo "LIVE_STORE_SOURCE_AUDIT:"
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast, hashlib, re
+          p=Path('/opt/gaemigtp-news/app/backend/services/news_processed_store.py')
+          if not p.is_file(): raise SystemExit('LIVE_STORE_FILE_MISSING')
+          raw=p.read_bytes()
+          lines=raw.decode('utf-8').splitlines()
+          print('LIVE_STORE_LINES=',len(lines),'SHA256=',hashlib.sha256(raw).hexdigest())
+          tree=ast.parse(raw.decode('utf-8'))
+          relevant={'read_signature','save_snapshot','_same_stock_issue_briefs','_recent_existing_issue_briefs','_fresh_ai_briefs','_prefer_same_day_ai','purge_expired'}
+          for node in tree.body:
+              if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in relevant:
+                  print('BEGIN_FN',node.name,node.lineno,node.end_lineno)
+                  for no in range(node.lineno,node.end_lineno+1):
+                      value=lines[no-1]
+                      if re.search(r'(?i)(password|private_key|secret|api_key|bearer)',value):
+                          value='[redacted sensitive line]'
+                      print(str(no)+':'+value[:260])
+                  print('END_FN',node.name)
           PY
           echo "SUDO_DETAILS:"
           ls -ld /home/gaemi-news-check /home/gaemi-deploy /opt/gaemigtp-news/app /opt/gaemigtp-news/app/backend 2>/dev/null || true
