@@ -1,0 +1,59 @@
+name: Persist news worker rotation across service restarts
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/fix-rotation-persistence-20261026.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-gateway
+  cancel-in-progress: false
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch installed worker and service then verify restart continuity
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          remote="gaemi-deploy@$DO_HOST"
+          scp "${opts[@]}" "$remote:/opt/gaemigtp-news/app/backend/news_worker.py" worker.py
+          ssh "${opts[@]}" "$remote" systemctl cat gaemigtp-news.service > worker.service
+          python - <<'PY'
+          from pathlib import Path
+          p=Path("worker.py")
+          text=p.read_text()
+          old='ROTATION_STATE_PATH = "/var/tmp/gaemigtp-news-top20-rotation.json"'
+          new='ROTATION_STATE_PATH = "/var/lib/gaemigtp-news/rotation.json"'
+          assert text.count(old)==1
+          text=text.replace(old,new)
+          compile(text,"worker.py","exec")
+          p.write_text(text)
+          u=Path("worker.service")
+          text=u.read_text()
+          assert "[Service]" in text
+          text=text.replace("[Service]","[Service]\nStateDirectory=gaemigtp-news\nStateDirectoryMode=0700",1)
+          u.write_text(text)
+          print("PERSISTENT_ROTATION_PATCH_VALIDATED")
+          PY
+          deploy() {
+            scp "${opts[@]}" "$1" "$remote:.gaemi-gateway/payload"
+            ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy "$2" "$(git hash-object "$1")"
+          }
+          deploy worker.service ops/systemd/gaemigtp-news.service
+          deploy worker.py backend/news_worker.py
+          ssh "${opts[@]}" "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway restart gaemigtp-news.service
+          sleep 15
+          ssh "${opts[@]}" "$remote" 'systemctl is-active gaemigtp-news.service; systemctl show gaemigtp-news.service -p StateDirectory -p PrivateTmp'
+          echo PERSISTENT_ROTATION_DEPLOYED
