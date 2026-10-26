@@ -175,7 +175,7 @@ def _central_obvious_price_report(item):
 def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, display_timezone):
     """Keep every matched 24h article; enrich it with cited events and translations."""
     from .news_signal_enrichment import (
-        classify_article, cluster_events, clean_original_excerpt, translate_records,
+        classify_article, cluster_events, clean_original_excerpt, translate_records, select_issue_articles,
     )
     seen_urls, seen_titles, unique = set(), set(), []
     for raw in raw_news_list:
@@ -205,12 +205,14 @@ def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, d
                           "description": str(article.get("description") or ""),
                           "summary": excerpt})
     prior_translations = {}
+    previous_issues = []
     try:
         from .news_processed_store import read_snapshot
         previous = read_snapshot(requested_stock_name, market="미국", limit=50,
                                  storyboard_limit=3, display_timezone=display_timezone)
         if isinstance(previous, dict):
             prior_translations = previous.get("_article_translations") or {}
+            previous_issues = previous.get("_code_issue_briefs") or []
     except Exception:
         pass
     records = translate_records([dict(record) for record in originals], prior_translations)
@@ -222,7 +224,9 @@ def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, d
         article["description"] = record["description"]
         article["translation_status"] = record.get("translation_status", "not_needed")
         translated = record.get("translation_status") == "translated"
-        classification = classify_article(article, record.get("summary") or "")
+        detail = details[len(briefs)] if len(briefs) < len(details) else {}
+        original_body = clean_original_excerpt(str(detail.get("text") or ""))
+        classification = classify_article(article, original_body or record.get("summary") or "")
         tags = list(classification["keywords"])
         # Keep independently grounded legacy labels while filling gaps with
         # the PDF taxonomy. Never resurrect an unsupported comparison label.
@@ -271,16 +275,22 @@ def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, d
             translations[record["translation_key"]] = {
                 k: record[k] for k in ("title", "description", "summary", "translation_status", "original_text")
             }
+    identity = resolve_us_news_identity(requested_stock_name)
+    issue_briefs, rejected = select_issue_articles(
+        articles, briefs, requested_stock_name, aliases=identity.get("search_terms") or [],
+        previous=previous_issues,
+    )
     return {
         "paired_news_items": articles, "panel_news_items": articles,
-        "storyboard_news_items": articles, "issue_briefs": briefs,
+        "storyboard_news_items": articles, "issue_briefs": issue_briefs,
+        "_issue_selection_revision": 1, "_issue_selection_rejections": rejected,
         "keyword_storyboard": [{"time": a.get("storyboard_time", ""),
                                "keywords": a.get("article_keywords") or []} for a in articles],
         "event_clusters": cluster_events(articles, requested_stock_name),
         "_article_translations": translations,
         "_translation_pending_count": sum(r.get("translation_status") == "pending" for r in records),
         "_title_only_revision": 3, "_kr_selection_revision": 1,
-        "_code_fact_extraction_version": 3, "_code_source_revision": 18,
+        "_code_fact_extraction_version": 3, "_code_source_revision": 19,
         "_event_taxonomy_revision": 1, "_company_match_revision": 2, "_news_status": "ok",
     }
 
