@@ -173,91 +173,115 @@ def _central_obvious_price_report(item):
 
 
 def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, display_timezone):
-    """Every matched, dated article stays visible; enrichment never controls eligibility."""
-    try:
-        keyword_result = build_connected_keyword_test(raw_news_list, stock_name, max_keywords=3)
-    except Exception as exc:
-        print("[news keywords] enrichment_failed=" + type(exc).__name__, flush=True)
-        keyword_result = {"articles": []}
-    by_url = []
-    seen_urls, seen_titles = set(), set()
-    extracted_rows = keyword_result.get("articles") or []
-    for index, raw in enumerate(raw_news_list):
-        extracted = extracted_rows[index] if index < len(extracted_rows) else {}
+    """Keep every matched 24h article; enrich it with cited events and translations."""
+    from .news_signal_enrichment import (
+        classify_article, cluster_events, clean_original_excerpt, translate_records,
+    )
+    seen_urls, seen_titles, unique = set(), set(), []
+    for raw in raw_news_list:
         article = dict(raw)
         url = str(article.get("url") or article.get("link") or "").strip()
         title = str(article.get("title") or "").strip()
-        title_key = re.sub(r"\s+", "", title).lower()
-        if not title or not url or url in seen_urls or title_key in seen_titles:
+        key = re.sub(r"\s+", "", title).lower()
+        if not title or not url or url in seen_urls or key in seen_titles:
             continue
         seen_urls.add(url)
-        seen_titles.add(title_key)
-        article["article_keywords"] = list(extracted.get("keywords") or [])
-        article["article_keyword_details"] = list(extracted.get("keyword_details") or [])
-        # This explicit phrase is a useful issue itself, even in a multi-company
-        # article. Do not require the selected stock to own every other fact.
-        text = title + " " + str(article.get("description") or "")
-        if re.search(r"휴머노이드[^.!?\n]{0,65}공동\s*개발", text, re.IGNORECASE):
-            article["article_keywords"] = list(dict.fromkeys(
-                ["휴머노이드공동개발"] + article["article_keywords"]
-            ))[:3]
-        by_url.append(article)
+        seen_titles.add(key)
+        unique.append(article)
     articles = build_simple_today_news(
-        by_url, stock_name, limit=None, display_timezone=display_timezone, max_age_hours=24,
+        unique, stock_name, limit=None, display_timezone=display_timezone, max_age_hours=24,
     )
-    # Body fetch enriches visible articles. Failed/late-body company mentions
-    # never delete a title, keyword, or source from the 24-hour feed.
     try:
         details = read_selected_article_details(articles, limit=max(1, len(articles)), with_sources=True)
     except Exception as exc:
         print("[news body] enrichment_failed=" + type(exc).__name__, flush=True)
         details = []
-    briefs = []
+    originals = []
     for index, article in enumerate(articles):
         detail = details[index] if index < len(details) else {}
         verified = detail.get("source") in {"jsonld_article_body", "article_or_main_paragraphs"}
-        summary = _article_excerpt(detail.get("text") or "") if verified else ""
-        tags = list(article.get("article_keywords") or [])[:3]
-        if not tags and verified and detail.get("text"):
-            try:
-                body_input = {**article, "description": detail["text"]}
-                body_keywords = build_connected_keyword_test([body_input], stock_name, max_keywords=3)
-                tags = list((body_keywords.get("articles") or [{}])[0].get("keywords") or [])[:3]
-            except Exception:
-                pass
-        article["article_keywords"] = tags
-        source = {
-            "title": article.get("title") or "",
-            "url": article.get("url") or article.get("link") or "",
-            "source": article.get("source") or "",
-            "published_at": article.get("published_at") or article.get("pub_date") or "",
-        }
+        excerpt = clean_original_excerpt(_article_excerpt(detail.get("text") or "")) if verified else ""
+        originals.append({"title": str(article.get("title") or ""),
+                          "description": str(article.get("description") or ""),
+                          "summary": excerpt})
+    prior_translations = {}
+    try:
+        from .news_processed_store import read_snapshot
+        previous = read_snapshot(requested_stock_name, market="미국", limit=50,
+                                 storyboard_limit=3, display_timezone=display_timezone)
+        if isinstance(previous, dict):
+            prior_translations = previous.get("_article_translations") or {}
+    except Exception:
+        pass
+    records = translate_records([dict(record) for record in originals], prior_translations)
+    briefs, translations = [], {}
+    for article, record, original in zip(articles, records, originals):
+        article["original_title"] = original["title"]
+        article["original_description"] = original["description"]
+        article["title"] = record["title"]
+        article["description"] = record["description"]
+        article["translation_status"] = record.get("translation_status", "not_needed")
+        translated = record.get("translation_status") == "translated"
+        classification = classify_article(article, record.get("summary") or "")
+        tags = list(classification["keywords"])
+        # Keep independently grounded legacy labels while filling gaps with
+        # the PDF taxonomy. Never resurrect an unsupported comparison label.
+        keyword_details = list(classification["keyword_details"])
+        try:
+            legacy = build_connected_keyword_test([article], stock_name, max_keywords=3)
+            block = {"목표가상향", "목표가하향", "목표주가상향", "목표주가하향",
+                     "실적상회", "실적악화", "호실적", "어닝서프라이즈", "예상치상회"}
+            evidence_text = re.sub(r"\s+", "", article["title"] + article["description"]).lower()
+            for detail in (legacy.get("articles") or [{}])[0].get("keyword_details") or []:
+                label = str(detail.get("label") or "")
+                evidence = re.sub(r"\s+", "", str(detail.get("evidence") or "")).lower()
+                if label and label not in block and label not in tags and evidence and evidence in evidence_text:
+                    tags.append(label)
+                    keyword_details.append({"role": "EVENT", "label": label,
+                                            "evidence_span": detail["evidence"], "source": "legacy_grounded"})
+                if len(tags) >= 3:
+                    break
+        except Exception:
+            pass
+        article["article_keywords"] = tags[:3]
+        article["article_keyword_details"] = keyword_details
+        article["event_classification"] = classification
+        article["storyboard_keywords"] = tags[:3]
+        article["storyboard_keyword"] = tags[0] if tags else ""
+        source = {"title": original["title"], "display_title": record["title"],
+                  "url": article.get("url") or article.get("link") or "",
+                  "source": article.get("source") or "",
+                  "published_at": article.get("published_at") or article.get("pub_date") or ""}
         briefs.append({
-            "headline": article.get("title") or "",
-            "summary": summary,
-            "tags": tags,
+            "headline": record["title"], "summary": record.get("summary") or "",
+            "original_headline": original["title"], "original_summary": original["summary"],
+            "translation_status": record.get("translation_status", "not_needed"),
+            "tags": tags[:3], "keyword_details": keyword_details,
+            "event_types": [e["event_type"] for e in classification["events"]],
+            "event_families": classification["families"],
+            "failure_labels": classification["failure_labels"],
             "time": article.get("storyboard_time") or "",
-            "reaction_at": source["published_at"],
-            "stock_names": [requested_stock_name],
+            "reaction_at": source["published_at"], "stock_names": [requested_stock_name],
             "source_articles": [source],
-            "evidence_source": "verified_article_body_title_only" if summary else "article_title_and_snippet",
-            "_original_body_excerpt": bool(summary),
+            "evidence_source": "verified_article_body_title_only" if original["summary"] else "article_title_and_snippet",
+            "_original_body_excerpt": bool(original["summary"]) and not translated,
+            "_original_body_preserved": bool(original["summary"]),
         })
+        if translated and record.get("translation_key"):
+            translations[record["translation_key"]] = {
+                k: record[k] for k in ("title", "description", "summary", "translation_status", "original_text")
+            }
     return {
-        "paired_news_items": articles,
-        "panel_news_items": articles,
-        "storyboard_news_items": articles,
-        "issue_briefs": briefs,
-        "keyword_storyboard": [
-            {"time": a.get("storyboard_time", ""), "keywords": a.get("article_keywords") or []}
-            for a in articles
-        ],
-        "_title_only_revision": 3,
-        "_kr_selection_revision": 1,
-        "_code_fact_extraction_version": 3,
-        "_code_source_revision": 17,
-        "_company_match_revision": 2,
-        "_news_status": "ok",
+        "paired_news_items": articles, "panel_news_items": articles,
+        "storyboard_news_items": articles, "issue_briefs": briefs,
+        "keyword_storyboard": [{"time": a.get("storyboard_time", ""),
+                               "keywords": a.get("article_keywords") or []} for a in articles],
+        "event_clusters": cluster_events(articles, requested_stock_name),
+        "_article_translations": translations,
+        "_translation_pending_count": sum(r.get("translation_status") == "pending" for r in records),
+        "_title_only_revision": 3, "_kr_selection_revision": 1,
+        "_code_fact_extraction_version": 3, "_code_source_revision": 18,
+        "_event_taxonomy_revision": 1, "_company_match_revision": 2, "_news_status": "ok",
     }
 
 
