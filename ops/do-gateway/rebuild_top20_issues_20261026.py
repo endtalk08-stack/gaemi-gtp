@@ -15,28 +15,25 @@ for item in state["cycle"]:
   if result.get("_news_status")!="ok": raise RuntimeError("code_analysis_failed")
   store.save_snapshot(name,fingerprint=store.source_fingerprint(raw),result=result,**params)
   briefs=result.get("issue_briefs") or []
-  print("TOP20_REBUILD",json.dumps({"stock":name,"symbol":item["symbol"],"status":"saved","issues":len(briefs),"missing_tags":sum(not b.get("tags") for b in briefs),"original_body_verified":sum(bool(b.get("_original_body_excerpt")) for b in briefs)},ensure_ascii=False),flush=True)
+  panel=result.get("panel_news_items") or []
+  assert len(panel)==len(briefs), "article_hidden"
+  print("TOP20_REBUILD",json.dumps({"panel_news":len(panel),"stock":name,"symbol":item["symbol"],"status":"saved","issues":len(briefs),"missing_tags":sum(not b.get("tags") for b in briefs),"original_body_verified":sum(bool(b.get("_original_body_excerpt")) for b in briefs)},ensure_ascii=False),flush=True)
  except Exception as exc:
   print("TOP20_REBUILD",json.dumps({"stock":name,"symbol":item["symbol"],"status":"failed","error":type(exc).__name__},ensure_ascii=False),flush=True)
 
-from backend.services.news_detail import read_selected_article_details
-from backend.services.issue_briefs import _article_excerpt
+from backend.services.news_freshness import clean_us_snapshot
+from datetime import datetime,timezone
 import psycopg
 with psycopg.connect(os.environ["NEWS_DATABASE_URL"],connect_timeout=10) as conn:
  conn.execute("SET TRANSACTION READ ONLY")
  with conn.cursor() as cur:
-  cur.execute("SELECT stock_name,result_payload FROM public.news_processed_snapshots WHERE market='미국' AND stock_name IN ('엔비디아','마이크론 테크놀로지','스페이스X') AND expires_at>now()")
-  verified=0
+  cur.execute("SELECT stock_name,result_payload FROM public.news_processed_snapshots WHERE market='미국' AND expires_at>now()")
   for name,p in cur.fetchall():
-   for brief in p.get("_code_issue_briefs") or []:
-    if not brief.get("_original_body_excerpt"): continue
-    source=next(iter(brief.get("source_articles") or []),None)
-    if not source: continue
-    details=read_selected_article_details([source],limit=1,with_sources=True)
-    if not details: continue
-    original=_article_excerpt(details[0].get("text") or "")
-    if original and original==brief.get("summary"):
-     print("LIVE_ORIGINAL_MATCH",name,"exact_excerpt=True","tags="+str(brief.get("tags") or []),flush=True)
-     verified+=1
-     break
-  print("LIVE_ORIGINAL_MATCH_COUNT",verified,flush=True)
+   if p.get("_code_source_revision")!=17: continue
+   visible=clean_us_snapshot(p,issue_mode="code")
+   issues=visible.get("issue_briefs") or []
+   panel=visible.get("panel_news_items") or []
+   print("STORED_VISIBILITY",json.dumps({"stock":name,"panel":len(panel),"code":len(issues),"empty_body_visible":sum(not b.get("summary") for b in issues),"missing_keywords_visible":sum(not b.get("tags") for b in issues)},ensure_ascii=False),flush=True)
+   for b in issues:
+    if name=="엔비디아" and ("휴머노이드" in b.get("headline","") or "휴머노이드공동개발" in (b.get("tags") or [])):
+     print("NVIDIA_HUMANOID",json.dumps({"title":b["headline"],"tags":b.get("tags"),"source":b.get("source_articles")},ensure_ascii=False),flush=True)
