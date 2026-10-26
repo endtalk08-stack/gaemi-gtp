@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-news.service"}
+{"operation":"run","path":"ops/do-gateway/inspect_news_worker_cadence_readonly_20261021.py","request_id":"trace_live_rotation_rootcause_1026","timeout":120}
