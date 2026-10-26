@@ -169,6 +169,10 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
         for brief in briefs:
             if not isinstance(brief, dict):
                 continue
+            if code_only and brief.get("_issue_expires_at"):
+                expiry = _article_date(brief["_issue_expires_at"])
+                if expiry is None or expiry <= upper:
+                    continue
             # Display only: US CODE issues without verified article prose
             # must not appear, even if a source URL is present.
             if code_only and (
