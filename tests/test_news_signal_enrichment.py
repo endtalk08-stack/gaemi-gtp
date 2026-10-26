@@ -113,5 +113,39 @@ class SelectedIssueTests(unittest.TestCase):
         self.assertEqual(expired, [])
 
 
+
+class OwnershipRegressionTests(unittest.TestCase):
+    def test_other_company_target_does_not_use_article_intro_as_evidence(self):
+        from datetime import datetime, timezone
+        from backend.services.news_signal_enrichment import select_issue_articles
+        now = datetime.now(timezone.utc).isoformat()
+        a = {"title": "테슬라, 합병 기대감 급등", "url": "https://a", "published_at": now}
+        a["event_classification"] = classify_article(a,
+            "메타, 알파벳, 엔비디아는 동반 조정을 겪었다. 테슬라 목표주가를 기존 370달러에서 450달러로 상향했다.")
+        b = {"summary": "무관한 도입 문장입니다.", "original_summary": "무관한 도입 문장입니다.",
+             "source_articles": [{"url": "https://a", "published_at": now}]}
+        wrong, _ = select_issue_articles([a], [b], "엔비디아")
+        self.assertEqual(wrong, [])
+        correct, _ = select_issue_articles([a], [b], "테슬라")
+        self.assertEqual(len(correct), 1)
+        self.assertIn("테슬라 목표주가", correct[0]["summary"])
+        self.assertNotIn("무관한", correct[0]["summary"])
+
+    def test_oil_fall_and_stock_rise_are_different_subjects(self):
+        result = classify_article({"title": "국제유가 하락도 증시 상승을 뒷받침했다."})
+        self.assertIn("유가하락", result["keywords"])
+        self.assertNotIn("유가상승", result["keywords"])
+
+    def test_ipo_does_not_mean_product_launch(self):
+        result = classify_article({"title": "AI 모델 클로드 개발사 앤트로픽이 기업공개 증권신고서를 제출했다."})
+        self.assertNotIn("제품공개", result["keywords"])
+
+    def test_automatic_translation_is_off_without_opt_in(self):
+        with patch.dict("os.environ", {"NEWS_TRANSLATION_ENABLED": "0", "GROQ_API_KEY": "not-used"}):
+            with patch("urllib.request.urlopen") as request:
+                translate_records([{"title": "Nvidia launches new robot system", "summary": "", "description": ""}])
+        request.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
