@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/analysis/news/stock_identity.py","target":"backend/analysis/news/stock_identity.py"}
+{"operation":"run","path":"ops/do-gateway/inspect_missing_issue_inputs_20261026.py","request_id":"count_current_24h_news_20261027","timeout":120}
