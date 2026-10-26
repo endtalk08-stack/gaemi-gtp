@@ -830,7 +830,14 @@ def _sanitize_news_display_briefs(result, *, market=None):
             if us_display:
                 # Central body display only; sidebar snapshots stay unchanged.
                 brief["summary"] = _us_original_three_sentences(brief["summary"])
-                # Preserve the worker-generated issue title and its language.
+                source_title = next((
+                    str(source.get("title") or "").strip()
+                    for source in brief.get("source_articles") or []
+                    if isinstance(source, dict)
+                    and re.search(r"[가-힣]", str(source.get("title") or ""))
+                ), "")
+                if source_title:
+                    brief["headline"] = source_title
                 # No Render keyword re-extraction or old broad-tag fallback.
                 # Preserve grounded issue tags when article lookup has no keywords.
                 brief["tags"] = next(
