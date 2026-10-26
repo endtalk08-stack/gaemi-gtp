@@ -172,6 +172,86 @@ def _central_obvious_price_report(item):
     return True
 
 
+def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, display_timezone):
+    """Every matched, dated article stays visible; enrichment never controls eligibility."""
+    try:
+        keyword_result = build_connected_keyword_test(raw_news_list, stock_name, max_keywords=3)
+    except Exception as exc:
+        print("[news keywords] enrichment_failed=" + type(exc).__name__, flush=True)
+        keyword_result = {"articles": []}
+    by_url = []
+    seen_urls, seen_titles = set(), set()
+    extracted_rows = keyword_result.get("articles") or []
+    for index, raw in enumerate(raw_news_list):
+        extracted = extracted_rows[index] if index < len(extracted_rows) else {}
+        article = dict(raw)
+        url = str(article.get("url") or article.get("link") or "").strip()
+        title = str(article.get("title") or "").strip()
+        title_key = re.sub(r"\s+", "", title).lower()
+        if not title or not url or url in seen_urls or title_key in seen_titles:
+            continue
+        seen_urls.add(url)
+        seen_titles.add(title_key)
+        article["article_keywords"] = list(extracted.get("keywords") or [])
+        article["article_keyword_details"] = list(extracted.get("keyword_details") or [])
+        # This explicit phrase is a useful issue itself, even in a multi-company
+        # article. Do not require the selected stock to own every other fact.
+        text = title + " " + str(article.get("description") or "")
+        if re.search(r"휴머노이드[^.!?\n]{0,65}공동\s*개발", text, re.IGNORECASE):
+            article["article_keywords"] = list(dict.fromkeys(
+                ["휴머노이드공동개발"] + article["article_keywords"]
+            ))[:3]
+        by_url.append(article)
+    articles = build_simple_today_news(
+        by_url, stock_name, limit=None, display_timezone=display_timezone, max_age_hours=24,
+    )
+    # Body fetch enriches visible articles. Failed/late-body company mentions
+    # never delete a title, keyword, or source from the 24-hour feed.
+    try:
+        details = read_selected_article_details(articles, limit=max(1, len(articles)), with_sources=True)
+    except Exception as exc:
+        print("[news body] enrichment_failed=" + type(exc).__name__, flush=True)
+        details = []
+    briefs = []
+    for index, article in enumerate(articles):
+        detail = details[index] if index < len(details) else {}
+        verified = detail.get("source") in {"jsonld_article_body", "article_or_main_paragraphs"}
+        summary = _article_excerpt(detail.get("text") or "") if verified else ""
+        tags = list(article.get("article_keywords") or [])[:3]
+        source = {
+            "title": article.get("title") or "",
+            "url": article.get("url") or article.get("link") or "",
+            "source": article.get("source") or "",
+            "published_at": article.get("published_at") or article.get("pub_date") or "",
+        }
+        briefs.append({
+            "headline": article.get("title") or "",
+            "summary": summary,
+            "tags": tags,
+            "time": article.get("storyboard_time") or "",
+            "reaction_at": source["published_at"],
+            "stock_names": [requested_stock_name],
+            "source_articles": [source],
+            "evidence_source": "verified_article_body_title_only" if summary else "article_title_and_snippet",
+            "_original_body_excerpt": bool(summary),
+        })
+    return {
+        "paired_news_items": articles,
+        "panel_news_items": articles,
+        "storyboard_news_items": articles,
+        "issue_briefs": briefs,
+        "keyword_storyboard": [
+            {"time": a.get("storyboard_time", ""), "keywords": a.get("article_keywords") or []}
+            for a in articles
+        ],
+        "_title_only_revision": 3,
+        "_kr_selection_revision": 1,
+        "_code_fact_extraction_version": 3,
+        "_code_source_revision": 17,
+        "_news_status": "ok",
+    }
+
+
 def build_stock_news_result(
     stock_name,
     *,
@@ -244,6 +324,11 @@ def build_stock_news_result(
             diag("fetched_summary", total=len(raw_news_list), cpi_count=len(cpi_rows))
             for item in cpi_rows[:12]:
                 diag("fetched_cpi", item)
+
+        if market in ("미국", "US", "us"):
+            return _build_us_24h_news_result(
+                raw_news_list, stock_name, requested_stock_name, display_timezone,
+            )
 
         part_started = time.monotonic()
         scored_news = score_stock_news(raw_news_list, stock_name)
