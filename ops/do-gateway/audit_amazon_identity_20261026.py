@@ -1,4 +1,6 @@
 """User-approved read-only Amazon identity and issue-count check. No credentials output."""
+import sys
+sys.path.insert(0, '/opt/gaemigtp-news/app')
 import os,json,psycopg
 from backend.services.news_identity_registry import resolve_us_news_identity
 for name in ("아마존닷컴","아마존"):
