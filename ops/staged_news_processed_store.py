@@ -116,7 +116,7 @@ def read_signature(stock_name, market, limit, storyboard_limit, display_timezone
 
 def read_snapshot(stock_name, *, market, limit=50, storyboard_limit=3,
                   display_timezone="Asia/Seoul"):
-    """Only return results from a worker that has checked this stock recently."""
+    """US results remain readable until expiry; retain the KR worker health check."""
     if not database_url():
         return None
     try:
@@ -127,8 +127,8 @@ def read_snapshot(stock_name, *, market, limit=50, storyboard_limit=3,
                     WHERE market=%s AND stock_name=%s AND result_limit=%s
                     AND storyboard_limit=%s AND display_timezone=%s
                     AND expires_at>now()
-                    AND checked_at > now() - CASE WHEN market IN ('미국', 'US', 'us')
-                        THEN interval '120 minutes' ELSE interval '20 minutes' END
+                    AND (market IN ('미국', 'US', 'us')
+                         OR checked_at > now() - interval '20 minutes')
                     LIMIT 1
                 """, (market, stock_name, limit, storyboard_limit, display_timezone))
                 row = cur.fetchone()
