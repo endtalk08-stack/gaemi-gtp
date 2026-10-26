@@ -102,7 +102,7 @@ def _status(text):
 
 def _evidence_sentence(text, start, end):
     """Find the sentence containing a match; decimal points are not boundaries."""
-    boundaries = list(re.finditer(r'(?<=[.!?])\s+|\n+', text))
+    boundaries = list(re.finditer(r'(?<=[.!?])(?=\s|[가-힣])\s*|\n+', text))
     left = max((m.end() for m in boundaries if m.end() <= start), default=0)
     right = min((m.start() for m in boundaries if m.start() >= end), default=len(text))
     return text[left:right].strip()
@@ -345,6 +345,19 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
             elif token and token in text:
                 return True
         return False
+    def owns_event(event):
+        sentence = str(event.get("evidence_sentence") or "")
+        span = str(event.get("evidence_span") or "")
+        if not span:
+            return False
+        # Lists can connect unrelated companies and events in one sentence.
+        clauses = re.split(r"외에도|그리고|반면|한편|[;；]", sentence)
+        if event.get("event_type") == "CAPITAL_RAISE" and re.search(
+            r"(?:공모|증자).{0,50}참여|참여.{0,50}(?:주식|공모)", sentence
+        ):
+            return False  # Participation is not the participant raising capital.
+        return any(span in clause and mentions(clause) for clause in clauses)
+
     selected = {}
     rejected = []
     for article, brief in zip(articles, briefs):
@@ -354,7 +367,7 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
             continue
         events = []
         for event in classification.get("events", []):
-            if mentions(event.get("evidence_sentence")):
+            if owns_event(event):
                 events.append(event)
             elif mentions(article.get("title")) and re.search(
                 r"(?:이 회사|회사[는가]|동사|the company|its )", event.get("evidence_sentence", ""), re.I
@@ -417,6 +430,8 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
     # 24h expiry. Never preserve the old unselected article-as-issue snapshots.
     for old in previous or []:
         if old.get("selection_revision") != 2 or not old.get("issue_id"):
+            continue
+        if not old.get("selected_events") or not all(owns_event(e) for e in old["selected_events"]):
             continue
         expiry = stamp(old.get("_issue_expires_at"))
         if not expiry or expiry <= now:
