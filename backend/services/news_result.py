@@ -273,8 +273,6 @@ def build_stock_news_result(
                         "source": item.get("source") or item.get("publisher") or "",
                     }],
                 })
-                if len(briefs) >= 3:
-                    break
             return {
                 "paired_news_items": dated, "panel_news_items": dated[:20],
                 "storyboard_news_items": selected, "issue_briefs": briefs,
