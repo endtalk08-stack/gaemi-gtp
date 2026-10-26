@@ -248,6 +248,7 @@ def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, d
         "_kr_selection_revision": 1,
         "_code_fact_extraction_version": 3,
         "_code_source_revision": 17,
+        "_company_match_revision": 2,
         "_news_status": "ok",
     }
 
