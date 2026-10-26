@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-news.service"}
+{"operation":"run","path":"ops/do-gateway/read_us_kr_restore_sources_20261025.py","request_id":"verify_rev13_stage34_rollback_1026","timeout":120}
