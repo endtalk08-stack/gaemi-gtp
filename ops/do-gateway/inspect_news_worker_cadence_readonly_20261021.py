@@ -18,3 +18,6 @@ for filename in ("/opt/gaemigtp-news/app/backend/services/us_top20_rotation.py",
   for i,row in enumerate(p.read_text().splitlines()):
    if not any(x in row.upper() for x in ("PASSWORD","TOKEN","SECRET","API_KEY","DATABASE_URL","AUTHORIZATION")):
     print("ROTATION",i+1,row[:2500],flush=True)
+
+import subprocess
+print("WORKER_TMP_SETTINGS",subprocess.run(["systemctl","show","gaemigtp-news.service","-p","PrivateTmp","-p","MainPID","-p","ProtectSystem","-p","ReadWritePaths"],capture_output=True,text=True).stdout,flush=True)
