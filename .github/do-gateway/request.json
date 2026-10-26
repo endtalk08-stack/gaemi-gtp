@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/audit_amazon_identity_20261026.py","request_id":"approved_all_us_matching_counts_1026","timeout":120}
+{"operation":"deploy","path":"backend/services/news_identity_registry.py","target":"backend/services/news_identity_registry.py"}
