@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect_missing_issue_inputs_20261026.py","request_id":"count_current_24h_news_20261027","timeout":120}
+{"operation":"deploy","path":"backend/services/news_signal_enrichment.py","target":"backend/services/news_signal_enrichment.py"}
