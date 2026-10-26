@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/rebuild_top20_issues_20261026.py","request_id":"audit_stored_article_visibility_rev17","timeout":120}
+{"operation":"deploy","path":"backend/services/news_feed.py","target":"backend/services/news_feed.py"}
