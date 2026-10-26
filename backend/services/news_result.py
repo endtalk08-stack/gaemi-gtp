@@ -870,7 +870,6 @@ def _sanitize_news_display_briefs(result, *, market=None):
         result["issue_briefs"] = [brief for brief in result.get("issue_briefs") or []
                                   if isinstance(brief, dict)
                                   and isinstance(brief.get("summary"), str)
-                                  and brief["summary"].strip()
                                   and str(brief.get("headline") or "").strip()]
     return result
 
