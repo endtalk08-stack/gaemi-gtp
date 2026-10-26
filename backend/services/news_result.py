@@ -446,6 +446,8 @@ def build_stock_news_result(
         )
 
         def rank_candidates(rows):
+            if market in ("미국", "US", "us"):
+                return sorted(rows, key=lambda item: str(item.get("published_at") or ""), reverse=True)
             if tracing:
                 for row in rows:
                     if _central_obvious_price_report(row) and (
@@ -538,12 +540,16 @@ def build_stock_news_result(
                 candidate["_central_checked_full_text"] = detail.get("text") or ""
                 candidate["_central_checked_source"] = detail.get("source")
                 accepted_articles.append(candidate)
-            storyboard_news_items = select_keyword_storyboard_news(
-                accepted_articles, limit=issue_count_limit,
-                candidate_pool=market in ("미국", "US", "us"),
-            )
             if market in ("미국", "US", "us"):
-                storyboard_news_items.sort(key=lambda row: str(row.get("published_at") or ""), reverse=True)
+                storyboard_news_items = sorted(
+                    accepted_articles,
+                    key=lambda row: str(row.get("published_at") or ""),
+                    reverse=True,
+                )
+            else:
+                storyboard_news_items = select_keyword_storyboard_news(
+                    accepted_articles, limit=issue_count_limit,
+                )
             if len(storyboard_news_items) >= issue_count_limit:
                 break
 
