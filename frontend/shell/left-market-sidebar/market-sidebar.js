@@ -193,6 +193,9 @@
       draggedRow = null;
     });
 
+    const sidebarIssueTitle = (value) =>
+      typeof value === 'string' ? value.split(/…|\.{3,}/, 1)[0].trim() : '';
+
     const showUsRanking = async () => {
       const id = ++requestId;
       if (!list) return;
@@ -367,7 +370,7 @@
           issue.dataset.stockIssue = 'true';
           issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
           issue.style.fontSize = '13px';
-          issue.textContent = typeof item.issue_headline === 'string' ? item.issue_headline : '';
+          issue.textContent = sidebarIssueTitle(item.issue_headline);
           thirdRow.append(issue);
           content.append(top, secondRow, thirdRow);
           button.append(grip, stockMark(item), content);
@@ -478,7 +481,7 @@
         const updated = data.ok === true && Array.isArray(data.items) ? data.items[0] : null;
         if (!updated || updated.name !== name || updated.symbol !== button.dataset.stockSymbol) return;
         const issue = button.querySelector('[data-stock-issue]');
-        if (issue) issue.textContent = typeof updated.headline === 'string' ? updated.headline : '';
+        if (issue) issue.textContent = sidebarIssueTitle(updated.headline);
       } catch (_) {
         // Keep the previous headline on transient read failures.
       }
