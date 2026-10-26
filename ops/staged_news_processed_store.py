@@ -127,7 +127,8 @@ def read_snapshot(stock_name, *, market, limit=50, storyboard_limit=3,
                     WHERE market=%s AND stock_name=%s AND result_limit=%s
                     AND storyboard_limit=%s AND display_timezone=%s
                     AND expires_at>now()
-                    AND checked_at>now()-interval '20 minutes'
+                    AND checked_at > now() - CASE WHEN market IN ('미국', 'US', 'us')
+                        THEN interval '120 minutes' ELSE interval '20 minutes' END
                     LIMIT 1
                 """, (market, stock_name, limit, storyboard_limit, display_timezone))
                 row = cur.fetchone()
