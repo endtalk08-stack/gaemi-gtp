@@ -80,5 +80,38 @@ class SignalTests(unittest.TestCase):
         self.assertEqual(out[0]["translation_status"], "pending")
 
 
+
+class SelectedIssueTests(unittest.TestCase):
+    def test_selection_retention_and_reaction_anchor(self):
+        from datetime import datetime, timedelta, timezone
+        from backend.services.news_signal_enrichment import select_issue_articles
+        now = datetime.now(timezone.utc)
+        rows, briefs = [], []
+        for title, url in [
+            ("엔비디아, LG와 휴머노이드 공동 개발", "https://a"),
+            ("한국공학대 고교생 진로 교육, 엔비디아 직원 참여", "https://b"),
+            ("메타가 자본 조달을 발표했다. 엔비디아도 언급됐다.", "https://c"),
+        ]:
+            row = {"title": title, "url": url, "published_at": now.isoformat()}
+            row["event_classification"] = classify_article(row)
+            rows.append(row)
+            briefs.append({"headline": title, "summary": "", "source_articles": [
+                {"title": title, "url": url, "published_at": now.isoformat()}]})
+        selected, rejected = select_issue_articles(rows, briefs, "엔비디아", now=now)
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(len(rejected), 2)
+        self.assertEqual(selected[0]["tags"][0], "휴머노이드공동개발")
+        selected[0]["stock_reactions"] = [{"observed_at": now.isoformat()}]
+        kept, _ = select_issue_articles([], [], "엔비디아", previous=selected,
+                                        now=now + timedelta(hours=23))
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0]["issue_id"], selected[0]["issue_id"])
+        self.assertEqual(kept[0]["stock_reactions"], selected[0]["stock_reactions"])
+        expired, _ = select_issue_articles([], [], "엔비디아", previous=selected,
+                                           now=now + timedelta(hours=25))
+        self.assertEqual(expired, [])
+
+
 if __name__ == "__main__":
     unittest.main()
