@@ -5,7 +5,7 @@ sys.path.insert(0,"/opt/gaemigtp-news/app")
 import psycopg
 from psycopg.types.json import Jsonb
 from backend.services.news_identity_registry import resolve_us_news_identity
-from backend.services.news_signal_enrichment import select_issue_articles
+from backend.services.news_signal_enrichment import select_issue_articles, _evidence_sentence
 state=json.loads(Path("/var/lib/gaemigtp-news/rotation.json").read_text())
 names=[a["name"] for a in state["cycle"]]
 totals={"panel":0,"selected":0,"removed":0,"stocks":0}
@@ -15,6 +15,13 @@ with psycopg.connect(os.environ["NEWS_DATABASE_URL"],connect_timeout=10) as conn
   for name,p in cur.fetchall():
    if p.get("_issue_selection_revision")!=2: continue
    old=p.get("_code_issue_briefs") or []
+   for brief in old:
+    for event in brief.get("selected_events") or []:
+     sentence=str(event.get("evidence_sentence") or "")
+     span=str(event.get("evidence_span") or "")
+     start=sentence.find(span) if span else -1
+     if start>=0:
+      event["evidence_sentence"]=_evidence_sentence(sentence,start,start+len(span))
    new,_=select_issue_articles([],[],name,aliases=resolve_us_news_identity(name)["search_terms"],previous=old)
    if new!=old:
     p["_code_issue_briefs"]=new
