@@ -544,7 +544,7 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
         terms = identity["search_terms"]
         def company_match(item):
             text = _search_text(item)
-            compact_text = re.sub(r"\\s+", "", text)
+            compact_text = re.sub(r"\s+", "", text)
             for term in terms:
                 alias = str(term or "").strip().lower()
                 if not alias:
@@ -552,7 +552,7 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
                 if re.fullmatch(r"[a-z0-9. -]+", alias):
                     if re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text):
                         return True
-                elif re.sub(r"\\s+", "", alias) in compact_text:
+                elif re.sub(r"\s+", "", alias) in compact_text:
                     return True
             return False
         # Match company identity and deduplicate before applying the collection cap.
