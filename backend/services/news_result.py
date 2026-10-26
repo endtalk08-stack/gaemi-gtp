@@ -17,7 +17,7 @@ from backend.analysis.news import (
 )
 
 from .news_byline import strip_leading_news_credit
-from .news_freshness import clean_us_snapshot
+from .news_freshness import clean_us_snapshot, read_recent_us_code_issue_history
 from .news_identity_registry import resolve_us_news_identity
 from .issue_briefs import (
     grounded_issue_display_title,
@@ -919,8 +919,9 @@ def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, d
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul", symbol=None, issue_mode="auto"):
     """Read the existing DigitalOcean snapshot only; never collect or save news."""
-    names = (resolve_us_news_identity(stock_name, symbol=symbol)["snapshot_names"]
-             if market in ("미국", "us") else [str(stock_name)])
+    is_us = market in ("미국", "us")
+    identity = resolve_us_news_identity(stock_name, symbol=symbol) if is_us else None
+    names = identity["snapshot_names"] if identity else [str(stock_name)]
     worker_result = None
     for candidate_name in names:
         worker_result = _read_worker_news_snapshot(
@@ -930,10 +931,38 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         )
         if worker_result is not None:
             break
+
+    # Free-text pending names without an exact ticker must never take another
+    # company's history. A selected sidebar ticker may be pending, but it is
+    # always checked by resolve_us_news_identity before reaching this reader.
+    ticker = (identity.get("ticker") if identity and
+              (symbol or identity.get("status") == "verified") else "")
+    history = (read_recent_us_code_issue_history([ticker]).get(ticker, [])
+               if ticker else [])
     if worker_result is None:
-        return {**_empty_news_result(), "_news_status": "unavailable"}
+        if not history:
+            return {**_empty_news_result(), "_news_status": "unavailable"}
+        worker_result = {**_empty_news_result(), "_news_status": "ok"}
     worker_result = copy.deepcopy(worker_result)
-    if market in ("미국", "us"):
+    if is_us:
+        if history:
+            # Preserve the freshest legacy snapshot during migration; archived
+            # issues do not disappear when a subsequent CODE analysis yields 0.
+            candidates = history + (worker_result.get("_code_issue_briefs") or [])
+            deduped, seen = [], set()
+            for brief in candidates:
+                if not isinstance(brief, dict):
+                    continue
+                url = next((str(source.get("url") or "").split("#", 1)[0]
+                            for source in brief.get("source_articles") or []
+                            if isinstance(source, dict) and source.get("url")), "")
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                deduped.append(brief)
+            worker_result["_code_issue_briefs"] = deduped
+            worker_result["_title_only_revision"] = 3
+            worker_result["_code_fact_extraction_version"] = 3
         worker_result = clean_us_snapshot(worker_result, issue_mode=issue_mode,
                                           format_titles=False)
     return _sanitize_news_display_briefs(worker_result, market=market)
