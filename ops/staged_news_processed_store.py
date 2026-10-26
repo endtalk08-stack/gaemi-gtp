@@ -103,7 +103,7 @@ def read_signature(stock_name, market, limit, storyboard_limit, display_timezone
             if market in ("미국", "US") and (
                 payload.get("_title_only_revision") != 3
                 or payload.get("_kr_selection_revision") != 1
-                or payload.get("_code_source_revision") != 10
+                or payload.get("_code_source_revision") != 13
             ):
                 # Reprocess older code-only snapshots once without touching AI.
                 return None
@@ -272,6 +272,81 @@ def _prefer_same_day_ai(coming, previous, stock_name, us_day):
     return coming
 
 
+
+def _archive_verified_us_code_issues(cur, stock_name, snapshot):
+    """Append genuine original-cited CODE issues; never refresh their first published time.
+
+    Distinct companies are separated by their actual Kiwoom/Neon ticker, not by
+    a free-text alias. The caller wraps this write and snapshot save in one transaction.
+    """
+    from datetime import datetime, timezone, timedelta
+    from email.utils import parsedate_to_datetime
+    from urllib.parse import urlsplit, urlunsplit
+    from psycopg.types.json import Jsonb
+
+    if (str(snapshot.get("_title_only_revision")) != "3"
+            or str(snapshot.get("_code_fact_extraction_version")) != "3"):
+        return 0
+    briefs = _same_stock_issue_briefs(snapshot.get("_code_issue_briefs") or [], stock_name)
+    if not briefs:
+        return 0
+    cur.execute("""
+        SELECT symbol, company_key
+        FROM public.market_instruments
+        WHERE market='US' AND display_name=%s AND is_active=true
+    """, (stock_name,))
+    identities = cur.fetchall()
+    if len(identities) != 1 or not identities[0][0]:
+        print("[issue-history] skipped ambiguous ticker identity", flush=True)
+        return 0
+    ticker, company_key = identities[0]
+    ticker = str(ticker).strip().upper()
+    # A pending company stays isolated by its source ticker until verified.
+    company_key = str(company_key or ("US:" + ticker))
+    now = datetime.now(timezone.utc)
+    inserted = 0
+    for brief in briefs:
+        if (brief.get("evidence_source") == "original_unavailable"
+                or str(brief.get("summary") or "").strip() == "원문 확인 불가"):
+            continue
+        citations = []
+        for source in brief.get("source_articles") or []:
+            if not isinstance(source, dict):
+                continue
+            try:
+                parts = urlsplit(str(source.get("url") or "").strip())
+                if parts.scheme not in ("https", "http") or not parts.netloc:
+                    continue
+                url = urlunsplit((parts.scheme, parts.netloc.lower(), parts.path, parts.query, ""))
+                stamp = str(source.get("published_at") or "").strip()
+                try:
+                    published = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                except ValueError:
+                    published = parsedate_to_datetime(stamp)
+                if published.tzinfo is None:
+                    continue
+                published = published.astimezone(timezone.utc)
+                if not now - timedelta(hours=24) <= published <= now:
+                    continue
+                citations.append((published, url))
+            except (ValueError, TypeError, OverflowError, IndexError):
+                continue
+        if not citations:
+            continue
+        # A source article contributes at most one issue per ticker; repeated
+        # CODE runs never duplicate it or extend its 24-hour display lifetime.
+        published, primary_url = min(citations, key=lambda pair: (pair[0], pair[1]))
+        cur.execute("""
+            INSERT INTO public.news_issue_history
+                (market, symbol, company_key, source_stock_name, channel,
+                 source_url, published_at, issue_brief)
+            VALUES ('US', %s, %s, %s, 'code', %s, %s, %s)
+            ON CONFLICT (market, symbol, channel, source_url) DO NOTHING
+        """, (ticker, company_key, stock_name, primary_url, published, Jsonb(brief)))
+        inserted += max(cur.rowcount, 0)
+    return inserted
+
+
 def save_snapshot(stock_name, *, market, limit, storyboard_limit,
                   display_timezone, fingerprint, result):
     """Atomic upsert; never write unsuccessful analysis."""
@@ -330,6 +405,10 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
                         print(f"[news-worker] kr_tag_only_changed stock={stock_name} count={tag_count}", flush=True)
                 except Exception as exc:
                     print(f"[news-worker] kr_tag_overlay_skipped error={type(exc).__name__}", flush=True)
+            if market in ("미국", "US"):
+                count = _archive_verified_us_code_issues(cur, stock_name, normalized)
+                if count:
+                    print(f"[issue-history] archived stock={stock_name} count={count}", flush=True)
             cur.execute("""
                 INSERT INTO public.news_processed_snapshots
                     (market,stock_name,result_limit,storyboard_limit,display_timezone,
