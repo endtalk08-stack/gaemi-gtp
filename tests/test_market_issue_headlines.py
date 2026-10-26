@@ -245,7 +245,7 @@ class MarketIssueHeadlineTests(unittest.TestCase):
         }
         cleaned = clean_us_snapshot(raw, now=now)
         with patch.object(subject, "resolve_us_news_identity",
-                          return_value={"snapshot_names": ["마이크론 테크놀로지"]}), \\
+                          return_value={"snapshot_names": ["마이크론 테크놀로지"]}), \
              patch.object(subject, "_read_worker_briefs",
                           return_value={"마이크론 테크놀로지": cleaned}):
             result = subject.get_market_issue_headlines(
