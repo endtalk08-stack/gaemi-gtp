@@ -208,6 +208,13 @@ def _fresh_ai_briefs(briefs, *, now=None):
     for brief in briefs or []:
         if not isinstance(brief, dict):
             continue
+        if brief.get("_issue_expires_at"):
+            try:
+                expiry = datetime.fromisoformat(str(brief["_issue_expires_at"]).replace("Z", "+00:00"))
+                if expiry.tzinfo is None or expiry <= now:
+                    continue
+            except (ValueError, TypeError):
+                continue
         recent_sources = []
         for source in (brief.get("source_articles") or []):
             if not isinstance(source, dict):
