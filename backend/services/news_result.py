@@ -567,7 +567,7 @@ def build_stock_news_result(
             for item in storyboard_news_items:
                 diag("selected_issue_article", item)
 
-        if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates and not flow_material_candidates:
+        if market not in ("미국", "US", "us") and candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates and not flow_material_candidates:
             raise RuntimeError('all_candidate_article_bodies_unavailable')
 
         # Keep full article bodies local to this function, not in API records.
@@ -728,6 +728,48 @@ def build_stock_news_result(
             issue_briefs = attach_verified_source_citations(
                 issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
             )
+        # If the publisher body cannot be read, retain explicitly extracted
+        # company events from the dated title/snippet, not every collected article.
+        if market in ("미국", "US", "us") and not issue_briefs:
+            seen_events = set()
+            for article in paired_news_items:
+                direct = [
+                    detail for detail in article.get("article_keyword_details") or []
+                    if isinstance(detail, dict) and detail.get("relation_type") == "direct"
+                ]
+                labels = list(dict.fromkeys(
+                    str(detail.get("label") or "").strip() for detail in direct
+                    if str(detail.get("label") or "").strip()
+                ))
+                concrete = [label for label in labels if re.search(
+                    r"계약|수주|실적|매출|이익|투자|인수|합병|출시|공개|승인|허가|배당|자사주|목표|증가|감소|확대|축소|상향|하향|조달|매입|매각|임상|생산|공급|수요",
+                    label)]
+                url = str(article.get("url") or article.get("link") or "").strip()
+                title = str(article.get("title") or "").strip()
+                if not concrete or not url.startswith(("http://", "https://")):
+                    continue
+                event_key = re.sub(r"\s+", "", title).casefold()
+                if not event_key or event_key in seen_events:
+                    continue
+                seen_events.add(event_key)
+                source = dict(article)
+                source["article_keywords"] = concrete
+                source["storyboard_keywords"] = concrete
+                built = build_issue_briefs([source], stock_name, limit=1)
+                if not built:
+                    continue
+                brief = built[0]
+                brief["headline"] = title if re.search(r"[가-힣]", title) else stock_name + ", " + ", ".join(concrete[:2])
+                brief["tags"] = concrete[:3]
+                brief["evidence_source"] = "news_title_description"
+                brief["source_articles"] = [{
+                    "title": title, "url": url,
+                    "published_at": article.get("published_at") or article.get("pub_date") or "",
+                    "source": article.get("source") or "",
+                }]
+                issue_briefs.append(brief)
+                storyboard_news_items.append(source)
+
         # US only: drop redundant trailing issue label. Keep sources and content.
         if market in ("미국", "US", "us"):
             for brief in issue_briefs:
@@ -791,13 +833,14 @@ def build_stock_news_result(
                         ]
         return {
             "paired_news_items": paired_news_items,
+            "panel_news_items": paired_news_items if market in ("미국", "US", "us") else recent_news[:20],
             "storyboard_news_items": storyboard_news_items,
             "issue_briefs": issue_briefs,
             "keyword_storyboard": keyword_storyboard,
             "_title_only_revision": 3 if market in ("미국", "US", "us") else None,
             "_kr_selection_revision": 1 if market in ("미국", "US", "us") else None,
             "_code_fact_extraction_version": 3 if market in ("미국", "US", "us") else None,
-            "_code_source_revision": 14 if market in ("미국", "US", "us") else None,
+            "_code_source_revision": 15 if market in ("미국", "US", "us") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
