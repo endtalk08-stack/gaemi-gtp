@@ -283,14 +283,15 @@ def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, d
     return {
         "paired_news_items": articles, "panel_news_items": articles,
         "storyboard_news_items": articles, "issue_briefs": issue_briefs,
-        "_issue_selection_revision": 1, "_issue_selection_rejections": rejected,
+        "_issue_selection_revision": 2, "_issue_selection_rejections": rejected,
         "keyword_storyboard": [{"time": a.get("storyboard_time", ""),
                                "keywords": a.get("article_keywords") or []} for a in articles],
         "event_clusters": cluster_events(articles, requested_stock_name),
         "_article_translations": translations,
+        "_translation_enabled": os.environ.get("NEWS_TRANSLATION_ENABLED", "0") == "1",
         "_translation_pending_count": sum(r.get("translation_status") == "pending" for r in records),
         "_title_only_revision": 3, "_kr_selection_revision": 1,
-        "_code_fact_extraction_version": 3, "_code_source_revision": 19,
+        "_code_fact_extraction_version": 3, "_code_source_revision": 20,
         "_event_taxonomy_revision": 1, "_company_match_revision": 2, "_news_status": "ok",
     }
 
