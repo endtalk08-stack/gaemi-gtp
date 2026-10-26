@@ -447,6 +447,10 @@ def select_us_news_by_verified_identity(items, stock_name):
     from backend.services.news_identity_registry import resolve_us_news_identity
 
     rows = list(items or [])
+    # Domestic stock selection must keep its existing behavior and avoid a
+    # new Neon lookup in the KR hot path.
+    if stock_name in STOCK_UNIVERSE.get("국내", {}):
+        return rows
     identity = resolve_us_news_identity(stock_name)
     if identity.get("status") != "verified" or not identity.get("company_key"):
         return rows
