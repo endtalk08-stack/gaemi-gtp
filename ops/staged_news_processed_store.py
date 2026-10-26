@@ -103,7 +103,7 @@ def read_signature(stock_name, market, limit, storyboard_limit, display_timezone
             if market in ("미국", "US") and (
                 payload.get("_title_only_revision") != 3
                 or payload.get("_kr_selection_revision") != 1
-                or payload.get("_code_source_revision") != 14
+                or payload.get("_code_source_revision") != 15
             ):
                 # Reprocess older code-only snapshots once without touching AI.
                 return None
@@ -243,7 +243,7 @@ def _prefer_same_day_ai(coming, previous, stock_name, us_day):
     code = _same_stock_issue_briefs(
         coming.get("_code_issue_briefs", coming.get("issue_briefs") or []), stock_name)
     if (not code and isinstance(previous, dict)
-            and previous.get("_code_source_revision") == 14):
+            and previous.get("_code_source_revision") in (14, 15)):
         # Preserve only this company's still-dated, source-backed code issues.
         # Never use issue_briefs here: that field may contain the AI channel.
         prior_code = _same_stock_issue_briefs(
