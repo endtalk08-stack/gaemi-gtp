@@ -255,12 +255,12 @@ def translate_records(records, previous=None):
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         return records
-    for start in range(0, len(pending), 5):
-        batch = pending[start:start + 5]
+    for start in range(0, min(len(pending), 2), 2):
+        batch = pending[start:start + 2]
         inputs = [{"id": i, **{k: v[:1800] for k, v in original.items()}}
                   for i, _, original in batch]
         payload = {"model": "openai/gpt-oss-20b", "temperature": 0,
-            "reasoning_effort": "low", "max_completion_tokens": 6500,
+            "reasoning_effort": "low", "max_completion_tokens": 2500,
             "response_format": {"type": "json_object"}, "messages": [
              {"role": "system", "content": "금융 기사 번역기다. 입력의 title, description, summary를 각각 한국어로 충실히 번역한다. 요약하거나 새 사실·인과·키워드를 추가하지 않는다. 숫자·통화·회사명·부정·검토/예정/전망 상태를 보존한다. 빈 문자열은 빈 문자열로 둔다. 이미 한국어인 항목은 그대로 둔다. JSON {\"items\":[{\"id\":정수,\"title\":문자열,\"description\":문자열,\"summary\":문자열}]}만 반환한다."},
              {"role": "user", "content": json.dumps(inputs, ensure_ascii=False)}]}
