@@ -304,3 +304,110 @@ def translate_records(records, previous=None):
         except Exception as exc:
             print("[news translation] failed=" + type(exc).__name__, flush=True)
     return records
+
+
+def select_issue_articles(articles, briefs, company, aliases=(), previous=(), now=None):
+    """Select source-backed company events, preserve the article feed separately.
+
+    No minimum price move is required: the issue must exist before its reaction.
+    Stable IDs and original timestamps let later price observations join the event.
+    """
+    from datetime import datetime, timezone, timedelta
+    from email.utils import parsedate_to_datetime
+    now = now or datetime.now(timezone.utc)
+    def stamp(value):
+        try:
+            try:
+                d = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            except ValueError:
+                d = parsedate_to_datetime(str(value))
+            return d.astimezone(timezone.utc) if d.tzinfo else None
+        except (ValueError, TypeError, OverflowError):
+            return None
+    names = [str(n).lower().strip() for n in (company, *aliases) if str(n).strip()]
+    def mentions(text):
+        text = re.sub(r"\s+", "", str(text).lower())
+        for name in names:
+            token = re.sub(r"\s+", "", name)
+            if re.fullmatch(r"[a-z0-9.]{1,5}", token):
+                if re.search(r"(?<![a-z0-9])" + re.escape(token) + r"(?![a-z0-9])", text):
+                    return True
+            elif token and token in text:
+                return True
+        return False
+    selected = {}
+    rejected = []
+    for article, brief in zip(articles, briefs):
+        classification = article.get("event_classification") or {}
+        if "PROMOTIONAL_OR_BACKGROUND" in classification.get("failure_labels", []):
+            rejected.append({"url": article.get("url"), "reason": "PROMOTIONAL_OR_BACKGROUND"})
+            continue
+        events = []
+        for event in classification.get("events", []):
+            if mentions(event.get("evidence_sentence")):
+                events.append(event)
+            elif mentions(article.get("title")) and re.search(
+                r"(?:이 회사|회사[는가]|동사|the company|its )", event.get("evidence_sentence", ""), re.I
+            ):
+                events.append(event)
+        if not events:
+            rejected.append({"url": article.get("url"), "reason": "NO_COMPANY_EVENT_EVIDENCE"})
+            continue
+        main = events[0]
+        # Use exact reported actor+facts for research notes. For less structured
+        # events only merge highly similar concrete evidence, never a label alone.
+        evidence = re.sub(r"\s+", "", str(main.get("evidence_span") or "")).lower()
+        strong = main.get("actor") and main.get("reported_numbers")
+        identity = [company, main["event_type"], main.get("status"), main.get("actor"),
+                    main.get("reported_numbers") if strong else evidence,
+                    "" if strong else str(article.get("original_title") or article.get("title"))]
+        issue_id = hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()[:24]
+        sources = [s for s in brief.get("source_articles", []) if stamp(s.get("published_at"))]
+        if not sources:
+            continue
+        first = min(stamp(s["published_at"]) for s in sources)
+        if not now - timedelta(hours=24) <= first <= now:
+            continue
+        entry = dict(brief)
+        entry.update(issue_id=issue_id, selection_revision=1, selected_events=events,
+                     event_types=list(dict.fromkeys(e["event_type"] for e in events)),
+                     _issue_first_published_at=first.isoformat(),
+                     _issue_expires_at=(first+timedelta(hours=24)).isoformat(),
+                     reaction_anchor_at=first.isoformat(),
+                     reaction_status="awaiting_market_observation",
+                     selection_reason="company_event_with_cited_evidence")
+        # Display only the selected company's grounded event labels. An event
+        # belonging to another company in the same article must not supply tags.
+        entry["tags"] = list(dict.fromkeys(e["label"] for e in events))[:3]
+        if issue_id in selected:
+            existing = selected[issue_id]
+            known = {s.get("url") for s in existing["source_articles"]}
+            existing["source_articles"].extend(s for s in sources if s.get("url") not in known)
+            if first < stamp(existing["_issue_first_published_at"]):
+                for field in ("_issue_first_published_at", "_issue_expires_at", "reaction_anchor_at"):
+                    existing[field] = entry[field]
+        else:
+            selected[issue_id] = entry
+    # Retain selected issues across refreshes/Top50 churn until their original
+    # 24h expiry. Never preserve the old unselected article-as-issue snapshots.
+    for old in previous or []:
+        if old.get("selection_revision") != 1 or not old.get("issue_id"):
+            continue
+        expiry = stamp(old.get("_issue_expires_at"))
+        if not expiry or expiry <= now:
+            continue
+        issue_id = old["issue_id"]
+        if issue_id not in selected:
+            selected[issue_id] = dict(old)
+        else:
+            current = selected[issue_id]
+            prior_first = stamp(old.get("_issue_first_published_at"))
+            if prior_first and prior_first < stamp(current["_issue_first_published_at"]):
+                for field in ("_issue_first_published_at", "_issue_expires_at", "reaction_anchor_at"):
+                    current[field] = old[field]
+            # Reaction observations must survive text/translation refreshes.
+            for field in ("stock_reactions", "reaction_observations", "reaction_status"):
+                if old.get(field):
+                    current[field] = old[field]
+    result = sorted(selected.values(), key=lambda b:b["_issue_first_published_at"], reverse=True)
+    return result, rejected
