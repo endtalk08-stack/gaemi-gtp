@@ -28,3 +28,16 @@ for item in list(state["cycle"]):
   print("SELECTED_FAILED",json.dumps({"stock":name,"error":type(exc).__name__},ensure_ascii=False),flush=True)
 print("SELECTED_REBUILD_COMPLETE",json.dumps({"stocks":len(state["cycle"]),"failed":failed}),flush=True)
 if failed: raise RuntimeError("some_stock_rebuilds_failed")
+
+import urllib.request,urllib.parse,urllib.error
+for stock in ("엔비디아","테슬라","AMD"):
+ url="https://gaemi-gtp.onrender.com/api/news/issues?"+urllib.parse.urlencode({"stock":stock,"market":"us","issue_mode":"code"})
+ try:
+  with urllib.request.urlopen(url,timeout=20) as response:
+   body=json.load(response)
+  issues=body.get("issue_briefs") or []
+  print("WEB_SELECTED_VERIFY",json.dumps({"stock":stock,"ok":body.get("ok"),"visible_issues":len(issues),"all_selected":all(b.get("selection_revision")==2 and bool(b.get("issue_id")) for b in issues),"titles":[b.get("headline") for b in issues[:2]]},ensure_ascii=False),flush=True)
+ except urllib.error.HTTPError as exc:
+  print("WEB_SELECTED_VERIFY",json.dumps({"stock":stock,"http_status":exc.code,"verified":False}),flush=True)
+ except Exception as exc:
+  print("WEB_SELECTED_VERIFY",json.dumps({"stock":stock,"error":type(exc).__name__,"verified":False}),flush=True)
