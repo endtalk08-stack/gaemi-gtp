@@ -15,8 +15,9 @@ _MAX_ITEMS = 20
 
 
 def _sidebar_title(value):
-    """Remove the redundant trailing word only in sidebar display titles."""
-    return re.sub(r"\s*이슈\s*$", "", str(value or "").strip()).strip()
+    """Apply the same ellipsis rule to every sidebar title source."""
+    title = re.split(r"…|\.{3,}", str(value or "").strip(), maxsplit=1)[0].strip()
+    return re.sub(r"\s*이슈\s*$", "", title).strip()
 
 
 def _first_headline(briefs):
@@ -50,7 +51,7 @@ def _first_ai_headline(snapshot):
                 continue
             original_title = str(item.get("title") or "").strip()
             if original_title:
-                prefix = re.split(r"…|\\.{3,}", original_title, maxsplit=1)[0].strip()
+                prefix = re.split(r"…|\.{3,}", original_title, maxsplit=1)[0].strip()
                 if prefix:
                     return prefix
         title = str(brief.get("headline") or "").strip()
