@@ -280,6 +280,25 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
     return result
 
 
+from pathlib import Path
+from backend.services import news_feed,news_processed_store as store
+from backend.services.news_result import build_stock_news_result
+state=json.loads(Path("/var/lib/gaemigtp-news/rotation.json").read_text())
+params=dict(market="미국",limit=50,storyboard_limit=3,display_timezone="Asia/Seoul")
+for item in list(state["cycle"]):
+ name=item["name"]
+ try:
+  raw=news_feed.fetch_stock_news(name,market="미국",limit=50,raise_on_error=True)
+  result=build_stock_news_result(name,raw_news_list=raw,**params)
+  if result.get("_news_status")!="ok": raise RuntimeError("code_analysis_failed")
+  store.save_snapshot(name,fingerprint=store.source_fingerprint(raw),result=result,**params)
+  briefs=result.get("issue_briefs") or []
+  panel=result.get("panel_news_items") or []
+  assert len(panel)==len(briefs), "article_hidden"
+  print("TOP20_REBUILD",json.dumps({"stock":name,"symbol":item["symbol"],"status":"saved","news":len(panel),"missing_keywords":sum(not b.get("tags") for b in briefs)},ensure_ascii=False),flush=True)
+ except Exception as exc:
+  print("TOP20_REBUILD",json.dumps({"stock":name,"status":"failed","error":type(exc).__name__},ensure_ascii=False),flush=True)
+
 import psycopg
 with psycopg.connect(os.environ["NEWS_DATABASE_URL"],connect_timeout=10) as conn:
  conn.execute("SET TRANSACTION READ ONLY")
