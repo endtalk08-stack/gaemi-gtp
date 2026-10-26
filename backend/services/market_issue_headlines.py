@@ -49,7 +49,7 @@ def _first_ai_headline(snapshot):
                 ("https://", "http://")
             ):
                 continue
-            original_title = str(item.get("title") or "").strip()
+            original_title = str(item.get("display_title") or item.get("title") or "").strip()
             if original_title:
                 prefix = re.split(r"…|\.{3,}", original_title, maxsplit=1)[0].strip()
                 if prefix:
