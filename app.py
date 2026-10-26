@@ -216,7 +216,7 @@ def stock_news_issues():
 
 @app.get("/market/us-daily-chart")
 def market_us_daily_chart():
-    """Render only stored Kiwoom candles for latest verified US value Top 20."""
+    """Read existing daily candles for any verified US stock, regardless of live rank."""
     import re
     import psycopg
     symbol = str(request.args.get("symbol", "") or "").strip().upper()
@@ -229,22 +229,22 @@ def market_us_daily_chart():
         with psycopg.connect(dsn, connect_timeout=3) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT e.rank, i.display_name, i.company_key
-                    FROM public.market_rank_entries e
-                    JOIN public.market_instruments i
-                      ON i.market=e.market AND i.symbol=e.symbol
-                    WHERE e.market='US' AND e.symbol=%s AND i.is_active
-                      AND i.identity_status='verified' AND i.company_key LIKE 'US:%%'
+                    SELECT i.display_name, i.company_key, e.rank
+                    FROM public.market_instruments i
+                    LEFT JOIN public.market_rank_entries e
+                      ON e.market=i.market AND e.symbol=i.symbol
                       AND e.snapshot_id=(
                         SELECT s.id FROM public.market_rank_snapshots s
                         WHERE s.source='kiwoom' AND s.market='US'
                           AND s.rank_type='trading_value'
                         ORDER BY s.captured_at DESC,s.id DESC LIMIT 1)
-                      AND e.rank BETWEEN 1 AND 20
+                    WHERE i.market='US' AND i.symbol=%s AND i.is_active
+                      AND i.identity_status='verified' AND i.company_key LIKE 'US:%%'
+                    LIMIT 1
                 """, (symbol,))
                 identity = cur.fetchone()
                 if not identity:
-                    return jsonify({"ok": False, "error": "not_verified_top20", "rows": []}), 404
+                    return jsonify({"ok": False, "error": "not_verified_symbol", "rows": []}), 404
                 cur.execute("""
                     SELECT session_date,open,high,low,close,volume
                     FROM public.us_daily_candles
@@ -253,8 +253,8 @@ def market_us_daily_chart():
                 """, (symbol,))
                 rows = cur.fetchall()
         return jsonify({"ok": bool(rows), "symbol": symbol,
-                        "name": identity[1], "company_key": identity[2],
-                        "rank": identity[0], "source": "kiwoom:usa06012",
+                        "name": identity[0], "company_key": identity[1],
+                        "rank": identity[2], "source": "kiwoom:usa06012",
                         "rows": [{
                             "date": str(day), "open": float(o), "high": float(h),
                             "low": float(l), "close": float(c),

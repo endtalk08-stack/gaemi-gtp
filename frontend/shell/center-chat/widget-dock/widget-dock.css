@@ -162,6 +162,13 @@
 
 .us-daily-chart__live { font-size: 12px; font-weight: 600; color: #a5abb5; margin: 2px 0 8px; }
 
+/* One browser-only live-price overlay: never alters stored OHLCV candles. */
+.us-daily-chart__plot { position: relative; width: 100%; }
+.us-daily-chart__price-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 272px;
+  pointer-events: none;
+}
+
 /* On-demand OHLCV information; no grid, labels or chart border at rest. */
 .us-daily-chart--inline { position: relative; }
 .us-daily-chart--inline canvas { touch-action: pan-y; cursor: crosshair; }

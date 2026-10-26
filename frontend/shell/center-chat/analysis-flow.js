@@ -17,10 +17,12 @@
     return { label: '왜 보합일까?', tag: '#왜_보합일까?', color: '#94A3B8' };
   }
   function create(ctx) {
-    let kiwoomQuoteTimer = null;
+    let kiwoomQuoteListener = null;
     function stopKiwoomQuoteTimer() {
-      if (kiwoomQuoteTimer !== null) clearInterval(kiwoomQuoteTimer);
-      kiwoomQuoteTimer = null;
+      if (kiwoomQuoteListener) {
+        window.removeEventListener('gaemi:us-live-quotes', kiwoomQuoteListener);
+      }
+      kiwoomQuoteListener = null;
     }
 
     function quoteIntro(name, change) {
@@ -35,53 +37,46 @@
 
     // Reuse the exact in-memory Kiwoom quote feed used by the left sidebar.
     // Historical indicators remain the analysis-time snapshot.
+    // The left sidebar owns the shared Kiwoom memory poll. The chat consumes
+    // its browser event instead of making a second 3-second API request.
     function startKiwoomQuoteTimer(name, result, requestId, firstParagraph) {
       const snapshot = result?.price_snapshot || {};
       const ticker = String(snapshot.ticker_symbol || '').toUpperCase();
       if (!String(snapshot.quote_source || '').startsWith('kiwoom-') ||
-          !/^[A-Z0-9][A-Z0-9.\-]{0,19}$/.test(ticker)) return;
+          !/^[A-Z0-9][A-Z0-9.\\-]{0,19}$/.test(ticker)) return;
       const intro = firstParagraph.querySelector('[data-kiwoom-intro]');
       const current = firstParagraph.querySelector('[data-kiwoom-current]');
       if (!intro || !current) return;
       stopKiwoomQuoteTimer();
-      let inFlight = false;
-      const refresh = async () => {
+      const refresh = (event) => {
         if (requestId !== ctx.getActiveAnalysisRequestId() || !firstParagraph.isConnected) {
           stopKiwoomQuoteTimer();
           return;
         }
-        if (document.visibilityState !== 'visible' || inFlight) return;
-        inFlight = true;
-        try {
-          const response = await fetch(BACKEND_URL + '/market/us-live-quotes', { cache: 'no-store' });
-          if (!response.ok) return;
-          const body = await response.json();
-          if (!body || !Array.isArray(body.items)) return;
-          const quote = body.items.find((item) => item.symbol === ticker && !item.stale);
-          if (!quote || !Number.isFinite(quote.price) || quote.price <= 0 ||
-              requestId !== ctx.getActiveAnalysisRequestId()) return;
-          current.textContent = '현재 주가는 $' +
-            quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
-            ' 기록 중!';
-          const change = Number.isFinite(quote.change_pct) ? quote.change_pct : null;
-          const [before, percent, after] = quoteIntro(name, change);
-          if (percent) {
-            const span = document.createElement('span');
-            span.className = 'font-bold';
-            span.style.color = change >= 0 ? '#FF8DA1' : '#38BDF8';
-            span.textContent = percent;
-            intro.replaceChildren(document.createTextNode(before), span, document.createTextNode(after));
-          } else {
-            intro.textContent = before;
-          }
-        } catch (_) {
-          // Keep the last confirmed quote on a transient connection failure.
-        } finally {
-          inFlight = false;
+        const items = event.detail?.items;
+        const quote = Array.isArray(items)
+          ? items.find(item => item && item.symbol === ticker) : null;
+        if (!quote || quote.stale !== false || !Number.isFinite(quote.price)
+            || quote.price <= 0 || !Number.isFinite(quote.received_at_ms)
+            || Date.now() - quote.received_at_ms > 25000
+            || quote.received_at_ms > Date.now() + 5000) return;
+        current.textContent = '현재 주가는 $' +
+          quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+          ' 기록 중!';
+        const change = Number.isFinite(quote.change_pct) ? quote.change_pct : null;
+        const [before, percent, after] = quoteIntro(name, change);
+        if (percent) {
+          const span = document.createElement('span');
+          span.className = 'font-bold';
+          span.style.color = change >= 0 ? '#FF8DA1' : '#38BDF8';
+          span.textContent = percent;
+          intro.replaceChildren(document.createTextNode(before), span, document.createTextNode(after));
+        } else {
+          intro.textContent = before;
         }
       };
-      void refresh();
-      kiwoomQuoteTimer = setInterval(refresh, 3000);
+      kiwoomQuoteListener = refresh;
+      window.addEventListener('gaemi:us-live-quotes', refresh);
     }
 
     function startTypewriterFlow(stockName, sections, result, requestId) {

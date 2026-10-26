@@ -6,6 +6,7 @@
   let activeIds = [];
   let chartSymbol = '';
   let chartRequest = 0;
+  let inlineChart = null; // Single selected chart; no extra market-data polling.
 
   function catalog() { return window.GaemiGTPWidgetCatalog || {}; }
   function escapeHtml(value) {
@@ -201,7 +202,22 @@
   function renderInlineChart(target, symbol) {
     setChartSelection(symbol);
     if (!chartSymbol || !target) return;
-    return loadChart(target, chartSymbol);
+    const selected = chartSymbol;
+    inlineChart = { target, symbol: selected, updateLive: null };
+    return loadChart(target, selected);
+  }
+
+  function isInlineChartActive() {
+    return Boolean(inlineChart?.target?.isConnected);
+  }
+
+  function onUsLiveQuotes(event) {
+    const active = inlineChart;
+    if (!active?.target?.isConnected || typeof active.updateLive !== 'function') return;
+    const items = event.detail?.items;
+    const quote = Array.isArray(items)
+      ? items.find(row => row && row.symbol === active.symbol) : null;
+    active.updateLive(quote || null);
   }
 
   async function loadChart(target, symbol) {
@@ -218,16 +234,81 @@
         return;
       }
       target.replaceChildren();
+      const status = document.createElement('div');
+      status.className = 'us-daily-chart__live';
+      status.setAttribute('role', 'status');
+      status.textContent = '실시간 가격 수신 대기 · 일봉';
+      const plot = document.createElement('div');
+      plot.className = 'us-daily-chart__plot';
       const canvas = document.createElement('canvas');
       canvas.height = 272;
       canvas.tabIndex = 0;
       canvas.setAttribute('aria-label', data.name + ' 일봉. 마우스나 터치로 개별 봉 정보 확인');
+      const overlay = document.createElement('canvas');
+      overlay.className = 'us-daily-chart__price-overlay';
+      overlay.setAttribute('aria-hidden', 'true');
       const tooltip = document.createElement('div');
       tooltip.className = 'us-daily-chart__tooltip';
       tooltip.hidden = true;
       tooltip.setAttribute('role', 'status');
-      target.append(canvas, tooltip);
-      drawCandles(canvas, data.rows, tooltip);
+      plot.append(canvas, overlay);
+      target.append(status, plot, tooltip);
+      const geometry = drawCandles(canvas, data.rows, tooltip);
+      if (!geometry) return;
+      const pixelRatio = window.devicePixelRatio || 1;
+      overlay.width = Math.round(geometry.width * pixelRatio);
+      overlay.height = Math.round(272 * pixelRatio);
+      const overlayCtx = overlay.getContext('2d');
+      let lastQuote = null;
+      const updateLive = (quote) => {
+        const now = Date.now();
+        if (quote && quote.symbol === symbol && Number.isFinite(quote.price)
+            && quote.price > 0 && Number.isFinite(quote.received_at_ms)
+            && quote.received_at_ms <= now + 5000
+            && now - quote.received_at_ms <= 86400000) {
+          lastQuote = quote;
+        }
+        const shown = lastQuote && now - lastQuote.received_at_ms <= 86400000
+          ? lastQuote : null;
+        const fresh = shown && quote === shown && shown.stale === false
+          && now - shown.received_at_ms <= 25000;
+        const money = shown ? '$' + shown.price.toLocaleString('en-US', {
+          minimumFractionDigits: 2, maximumFractionDigits: 2
+        }) : '';
+        status.textContent = !shown ? '실시간 가격 수신 대기 · 일봉'
+          : fresh ? easternTradingWindow(shown.received_at_ms).period
+            + ' 시간대(수신 시각) · 현재가 ' + money
+          : '시세 지연 · 마지막 수신가 ' + money;
+        if (!overlayCtx) return;
+        overlayCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+        overlayCtx.clearRect(0, 0, geometry.width, 272);
+        if (!shown) return;
+        // Draw only a price guide. Never rewrite official OHLC candles or
+        // pretend the receipt timestamp proves a pre/after-market trade.
+        const rawY = geometry.top + (geometry.max - shown.price)
+          / (geometry.max - geometry.min) * (geometry.priceBottom - geometry.top);
+        const atTop = rawY < geometry.top;
+        const atBottom = rawY > geometry.priceBottom;
+        const lineY = Math.max(geometry.top, Math.min(geometry.priceBottom, rawY));
+        overlayCtx.strokeStyle = fresh ? '#9677e6' : '#9299a5';
+        overlayCtx.fillStyle = overlayCtx.strokeStyle;
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.setLineDash([5, 4]);
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(geometry.left, lineY);
+        overlayCtx.lineTo(geometry.width - geometry.right, lineY);
+        overlayCtx.stroke();
+        overlayCtx.setLineDash([]);
+        overlayCtx.font = 'bold 11px sans-serif';
+        overlayCtx.textAlign = 'right';
+        const boundary = atTop ? ' ↑' : atBottom ? ' ↓' : '';
+        overlayCtx.fillText(money + boundary, geometry.width - geometry.right - 4,
+          Math.max(geometry.top + 11, Math.min(geometry.priceBottom - 2, lineY - 5)));
+      };
+      if (inlineChart?.target === target && inlineChart.symbol === symbol) {
+        inlineChart.updateLive = updateLive;
+      }
+      updateLive(null);
     } catch (_) {
       if (current === chartRequest && target.isConnected)
         target.textContent = '일봉 데이터를 조회할 수 없어.';
@@ -347,6 +428,7 @@
       showCandle(index);
     });
     canvas.addEventListener('blur', () => { tooltip.hidden = true; });
+    return { width, left, right, top, priceBottom, min, max };
   }
 
   function add(id) {
@@ -366,11 +448,12 @@
     dock.dataset.bound = 'true';
     activeIds = readState(); render();
     window.addEventListener('gaemi:qqq-quote', onQqqQuote);
+    window.addEventListener('gaemi:us-live-quotes', onUsLiveQuotes);
     dock.addEventListener('click', event => {
       const button = event.target.closest('[data-central-widget-remove]');
       if (button) remove(button.dataset.centralWidgetRemove);
     });
   }
   document.addEventListener('DOMContentLoaded', initialize);
-  window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart };
+  window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive };
 }());

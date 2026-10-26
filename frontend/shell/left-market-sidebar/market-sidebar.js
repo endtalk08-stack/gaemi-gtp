@@ -388,17 +388,23 @@
       }
     };
 
-    // Reuse the SAME 3-second Render memory poll for the QQQ widget (no extra Kiwoom request).
+    // Reuse one existing 3-second Render memory poll for sidebar, QQQ, chart and chat.
     const qqqWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('qqq') === true;
+    const quoteConsumersActive = () => qqqWidgetActive()
+      || window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
     const readLatestQuotes = async () => {
       const paintRanking = tab === 'value' && !!list?.querySelector('button[data-original-index]');
-      if (quoteRequestInFlight || (!paintRanking && !qqqWidgetActive())) return;
+      if (quoteRequestInFlight || (!paintRanking && !quoteConsumersActive())) return;
       quoteRequestInFlight = true;
       try {
         const response = await fetch(backendUrl + '/market/us-live-quotes', { cache: 'no-store' });
         if (!response.ok) throw new Error('quotes unavailable');
         const data = await response.json();
         if (data.ok !== true || !Array.isArray(data.items)) return;
+        // Share exactly these quotes with the active chart/chat. No extra HTTP read.
+        window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
+          detail: { items: data.items }
+        }));
         // In-browser fan-out only: existing sidebar request is also the widget feed.
         if (qqqWidgetActive()) {
           const qqq = data.items.find(row => row && row.symbol === 'QQQ') || null;
@@ -431,6 +437,9 @@
         });
         if (updated && changeSorted && !draggedRow) applyChangeSort();
       } catch (_) {
+        window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
+          detail: { items: [] }
+        }));
         // A broken source must never leave the QQQ widget labeled "live".
         if (qqqWidgetActive()) {
           window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: null } }));
@@ -446,7 +455,7 @@
     const refreshOnReturn = () => {
       if (document.visibilityState !== 'visible') return;
       if (tab !== 'value') {
-        if (qqqWidgetActive()) void readLatestQuotes();
+        if (quoteConsumersActive()) void readLatestQuotes();
         return;
       }
       // Sidebar CSS/body classes are not a reliable signal: the data must
@@ -527,10 +536,10 @@
         lastBackgroundQuoteCheck = Date.now();
       }
       if (tab !== 'value') {
-        if (qqqWidgetActive()) void readLatestQuotes();
+        if (quoteConsumersActive()) void readLatestQuotes();
       } else if (!list.querySelector('button[data-original-index]')) {
         if (visible) void showUsRanking();
-        if (qqqWidgetActive()) void readLatestQuotes();
+        if (quoteConsumersActive()) void readLatestQuotes();
       } else if (visible && Date.now() - lastFullRankingRefresh >= 60000) {
         lastFullRankingRefresh = Date.now();
         void showUsRanking();
