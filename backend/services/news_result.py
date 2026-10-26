@@ -7,8 +7,8 @@ import re
 import threading
 import time
 
-from backend.analysis.news.catalog import STOCK_UNIVERSE, canonical_us_news_name
-from backend.analysis.news.stock_identity import news_snapshot_names
+from backend.analysis.news.catalog import STOCK_UNIVERSE
+from .news_identity_registry import resolve_us_news_identity
 from backend.analysis.news import (
     build_connected_keyword_test,
     build_simple_today_news,
@@ -16,9 +16,7 @@ from backend.analysis.news import (
     select_keyword_storyboard_news,
 )
 
-from .news_byline import strip_leading_news_credit
 from .issue_briefs import (
-    grounded_issue_display_title,
     _article_excerpt, build_issue_briefs, central_material_brief_supported,
     market_material_title_and_tags,
 )
@@ -27,8 +25,7 @@ from .business_material_events import business_material_title_and_tags
 from .flow_material_events import flow_material_title_and_tags
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .verified_fact_headline import attach_verified_source_citations
-from .news_feed import fetch_stock_news, select_stock_news_for_analysis
-from .news_identity_registry import resolve_us_news_identity
+from .news_feed import fetch_stock_news
 
 
 def _empty_news_result():
@@ -38,66 +35,6 @@ def _empty_news_result():
         "issue_briefs": [],
         "keyword_storyboard": [],
     }
-
-
-def _us_source_first_three_sentences(excerpt):
-    """US display guard for publisher/organization openers like <로이터통신>.
-
-    Re-split only an already verified _article_excerpt result; do not
-    paraphrase or change a source sentence, KR analysis or raw AI news.
-    """
-    text = str(excerpt or "").strip()
-    if not text:
-        return ""
-    sentences = re.split(
-        r'(?<=[.!?])\s+(?=[가-힣A-Za-z0-9"“‘(<\[【「『])',
-        text,
-    )
-    return " ".join(sentences[:3]).strip()
-
-
-def _us_remove_leading_image_caption(full_text):
-    """Trim recognisable image-viewer furniture, never rewrite source prose."""
-    text = str(full_text or "")
-    marker = re.search(r"이미지\s*확대보기", text[:850])
-    if marker:
-        after = text[marker.end():]
-        credit = re.search(r"사진\s*=\s*[^\s.]{2,45}\s+", after[:250])
-        if credit:
-            body = after[credit.end():].strip()
-            if len(body) >= 80:
-                return body
-        if marker.start() < 500:
-            # A prominent "이미지 확대보기" with an unrecognised caption
-            # is not safe original article prose. Reject that central
-            # excerpt rather than calling page furniture source sentences.
-            return ""
-    return text
-
-
-def _us_verified_company_is_article_actor(article, excerpt, stock_name):
-    """A different firm's own expansion is not an event by the stock mentioned.
-
-    General grammatical rule: the title's named issuer before a comma and the
-    original article's 'company X가...' subject both identify a different firm.
-    Do not suppress market-wide policies where no separate named issuer exists.
-    """
-    headline = str(article.get("title") or "").strip()
-    title_actor = re.match(r"^([^,，:：]{2,65})[,，:：]\s*", headline)
-    if not title_actor:
-        return True
-    first = re.split(r"(?<=[.!?])\s+", str(excerpt or ""), maxsplit=1)[0][:240]
-    original_actor = re.search(
-        r"(?:기업|회사|업체|그룹)\s+([가-힣A-Za-z0-9·-]{2,45})(?:이|가|은|는)(?=\s)",
-        first,
-    )
-    if not original_actor:
-        return True
-    issuer = title_actor.group(1).strip()
-    actor = original_actor.group(1).strip()
-    if issuer.casefold() == actor.casefold() and not _central_stock_mentioned(issuer, stock_name):
-        return False
-    return True
 
 
 def _central_stock_mentioned(text, stock_name):
@@ -245,16 +182,14 @@ def build_stock_news_result(
     raw_news_list=None,
 ):
     """Return one shared stock-news result for every screen representation."""
-    # Keep the worker/Neon snapshot keyed by the requested listing. For US CODE
-    # analysis, use the already-connected Neon market_instruments identity when
-    # verified; never promote a pending or conflicting mapping automatically.
+    # The worker snapshot remains keyed by the requested listing name.
+    # News analysis uses only the database-verified company identity, so e.g.
+    # META / 메타 플랫폼스(페이스북) is classified under the canonical 메타.
     requested_stock_name = stock_name
     if market in ("미국", "US", "us"):
         identity = resolve_us_news_identity(stock_name)
         if identity.get("status") == "verified" and identity.get("news_name"):
             stock_name = identity["news_name"]
-        else:
-            stock_name = canonical_us_news_name(stock_name)
     # Temporary per-article diagnostics; defaults to the reported stock only.
     # Override with a comma-separated GAEMIGTP_NEWS_DIAGNOSTIC_STOCKS value.
     monitored = {
@@ -295,6 +230,9 @@ def build_stock_news_result(
                 limit=limit,
                 raise_on_error=True,
             )
+        else:
+            # Reuse the exact validated collection used for the worker digest.
+            raw_news_list = [dict(row) for row in raw_news_list]
         print(
             f"[analyze news trace] stock={stock_name} part=fetch done "
             f"elapsed={time.monotonic() - part_started:.2f}s items={len(raw_news_list)}",
@@ -307,13 +245,8 @@ def build_stock_news_result(
             for item in cpi_rows[:12]:
                 diag("fetched_cpi", item)
 
-        # KR keeps its existing upstream selection. US keeps the identical
-        # first-stage KR article/keyword gates in this *code-only* branch.
-        # Crucially, the original raw_news_list is never filtered, mutated, or
-        # reassigned: the independent AI consumer still receives the same raw.
-        code_input_news = raw_news_list
         part_started = time.monotonic()
-        scored_news = score_stock_news(code_input_news, stock_name)
+        scored_news = score_stock_news(raw_news_list, stock_name)
         print(
             f"[analyze news trace] stock={stock_name} part=score done "
             f"elapsed={time.monotonic() - part_started:.2f}s items={len(scored_news)}",
@@ -535,7 +468,7 @@ def build_stock_news_result(
                 limit=max(1, len(rows)),
                 candidate_pool=True,
             )
-            limit = max(12, storyboard_limit * 3)
+            limit = max(12, len(rows)) if market in ("미국", "US", "us") else max(12, storyboard_limit * 3)
             diverse, remaining, seen_keywords = [], [], set()
             for item in pool:
                 keyword = str(item.get("storyboard_keyword") or "").strip()
@@ -549,7 +482,10 @@ def build_stock_news_result(
         # Verify today's candidates first, then fill unoccupied event slots
         # from the existing recent news. No new collector or display path.
         candidate_news = rank_candidates(paired_news_items)
-        candidate_news.extend(rank_candidates(older_news))
+        is_us_24h = market in ("미국", "us", "US")
+        if not is_us_24h:
+            candidate_news.extend(rank_candidates(older_news))
+        issue_count_limit = max(1, len(candidate_news)) if is_us_24h else storyboard_limit
         if tracing:
             queued_keys = {
                 (str(item.get("url") or item.get("link") or ""), str(item.get("title") or ""))
@@ -587,10 +523,7 @@ def build_stock_news_result(
                          source=detail.get("source"), body_chars=len(detail.get("text") or ""))
                     continue
                 verified_body_count += 1
-                # Shared domestic/US event selection reads exactly the same
-                # article content. Display-only cleanup happens after selecting.
-                original_text = detail.get("text") or ""
-                excerpt = _article_excerpt(original_text)
+                excerpt = _article_excerpt(detail.get("text") or "")
                 if not excerpt:
                     diag("rejected_after_body", article, reason="empty_excerpt",
                          source=detail.get("source"))
@@ -601,7 +534,7 @@ def build_stock_news_result(
                     continue
                 # Only a grounded business/market event belongs in the central
                 # notable-news strip. Quote-only reports stay in the shared feed.
-                if not central_material_brief_supported(excerpt):
+                if market not in ("미국", "US", "us") and not central_material_brief_supported(excerpt):
                     diag("rejected_after_body", article, reason="no_supported_material_topic",
                          body_cpi=has_cpi({"description": excerpt}))
                     continue
@@ -611,13 +544,13 @@ def build_stock_news_result(
                 candidate["relation_type"] = "direct"
                 candidate["event_owner"] = stock_name
                 candidate["_central_checked_body"] = excerpt
-                candidate["_central_checked_full_text"] = original_text
+                candidate["_central_checked_full_text"] = detail.get("text") or ""
                 candidate["_central_checked_source"] = detail.get("source")
                 accepted_articles.append(candidate)
             storyboard_news_items = select_keyword_storyboard_news(
-                accepted_articles, limit=storyboard_limit,
+                accepted_articles, limit=issue_count_limit,
             )
-            if len(storyboard_news_items) >= storyboard_limit:
+            if len(storyboard_news_items) >= issue_count_limit:
                 break
 
         if tracing:
@@ -634,18 +567,8 @@ def build_stock_news_result(
             for item in storyboard_news_items:
                 diag("selected_issue_article", item)
 
-        original_body_unavailable = bool(
-            candidate_news and verified_body_count == 0 and not market_material_candidates
-            and not company_critical_candidates and not business_material_candidates
-            and not flow_material_candidates
-        )
-        if original_body_unavailable:
-            if market in ("미국", "US", "us"):
-                # A failed US original read is a valid zero-CODE-issue result.
-                # Keep the raw news panel and old AI data; invent no excerpt.
-                diag("us_original_unavailable_zero_code_issue")
-            else:
-                raise RuntimeError('all_candidate_article_bodies_unavailable')
+        if candidate_news and verified_body_count == 0 and not market_material_candidates and not company_critical_candidates and not business_material_candidates and not flow_material_candidates:
+            raise RuntimeError('all_candidate_article_bodies_unavailable')
 
         # Keep full article bodies local to this function, not in API records.
         detail_records = [
@@ -735,17 +658,14 @@ def build_stock_news_result(
         issue_briefs = build_issue_briefs(
             storyboard_news_items,
             stock_name,
-            limit=storyboard_limit,
+            limit=issue_count_limit,
             body_texts=verified_body_texts,
-            market=market,
         )
 
-        fallback_source = None  # Same KR fallback events; US only adds the event article's citation.
         # Original verified company items always win; the new classification
         # is a strictly secondary fallback for source-grounded severe events.
         if not issue_briefs and company_critical_candidates:
             source, headline, tags, direction, _ = company_critical_candidates[0]
-            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -761,7 +681,6 @@ def build_stock_news_result(
         # Only if original verified and critical issues are empty.
         if not issue_briefs and business_material_candidates:
             source, headline, tags, direction, _ = business_material_candidates[0]
-            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -777,7 +696,6 @@ def build_stock_news_result(
         # Then keep the existing market material fallback unchanged.
         if not issue_briefs and market_material_candidates:
             source, headline, tags, _, _ = market_material_candidates[0]
-            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -792,7 +710,6 @@ def build_stock_news_result(
         # Last fallback: explicit stock-level supply/demand disclosures.
         if not issue_briefs and flow_material_candidates:
             source, headline, tags, direction, _ = flow_material_candidates[0]
-            fallback_source = source
             issue_briefs = [{
                 "time": str(source.get("storyboard_time") or "").strip(),
                 "reaction_at": str(source.get("published_at") or "").strip(),
@@ -805,62 +722,17 @@ def build_stock_news_result(
             }]
             diag("flow_material_fallback_selected", source, flow_tags=tags)
 
-        # KR and US produce the same selected issues above. Only US CODE
-        # presentation differs: keep the selected title/tags even when the
-        # article's actual body cannot be displayed. Never substitute a meta
-        # description for the original three sentences.
+        # Attach only the actual read/verified original's URL and published_at.
+        # Do not alter which issues were selected, their labels or count.
         if market in ("미국", "US", "us"):
             issue_briefs = attach_verified_source_citations(
                 issue_briefs, storyboard_news_items, verified_body_texts, stock_name,
             )
-            if fallback_source is not None and issue_briefs:
-                from datetime import datetime
-                source_url = str(fallback_source.get("url") or fallback_source.get("link") or "").strip()
-                published_at = str(fallback_source.get("published_at") or "").strip()
-                try:
-                    stamp = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
-                    dated = stamp.utcoffset() is not None
-                except (ValueError, TypeError, OverflowError):
-                    dated = False
-                original = {}
-                if source_url.startswith(("https://", "http://")) and dated:
-                    try:
-                        original_details = read_selected_article_details(
-                            [fallback_source], limit=1, with_sources=True,
-                        )
-                    except Exception:
-                        original_details = []
-                    original = original_details[0] if original_details else {}
-                original_source = str(original.get("source") or "")
-                original_text = _us_remove_leading_image_caption(original.get("text") or "")
-                excerpt = _article_excerpt(original_text)
-                if original_source in {"jsonld_article_body", "article_or_main_paragraphs"} and excerpt:
-                    issue_briefs[0]["summary"] = _us_source_first_three_sentences(excerpt)
-                    issue_briefs[0]["evidence_source"] = "verified_article_body_title_only"
-                else:
-                    issue_briefs[0]["summary"] = "원문 확인 불가"
-                    issue_briefs[0]["evidence_source"] = "original_unavailable"
-                if source_url.startswith(("https://", "http://")) and dated:
-                    issue_briefs[0]["source_articles"] = [{
-                        "url": source_url,
-                        "title": str(fallback_source.get("title") or ""),
-                        "published_at": published_at,
-                    }]
-                else:
-                    issue_briefs[0]["source_articles"] = []
-
-            # Display only: exact original sentences where readable; keep
-            # issue selection unchanged even if the article body is unusable.
+        # US only: drop redundant trailing issue label. Keep sources and content.
+        if market in ("미국", "US", "us"):
             for brief in issue_briefs:
-                if not isinstance(brief, dict):
-                    continue
-                if brief.get("evidence_source") == "verified_article_body_title_only":
-                    excerpt = _article_excerpt(_us_remove_leading_image_caption(brief.get("summary")))
-                    if excerpt:
-                        brief["summary"] = _us_source_first_three_sentences(excerpt)
-                    else:
-                        brief["summary"] = "원문 확인 불가"
-                        brief["evidence_source"] = "original_unavailable"
+                if isinstance(brief, dict):
+                    brief["headline"] = re.sub(r"\s*이슈\s*$", "", str(brief.get("headline") or "").strip()).strip()
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
@@ -897,27 +769,26 @@ def build_stock_news_result(
             for item in storyboard_news_items
             if item.get("storyboard_keyword")
         ]
-        # Analysis may use the DB's verified company news_name, but the
-        # snapshot owner must stay the *exact requested listing* (GOOG/GOOGL,
-        # META/META.O, etc.). Do not create a cross-ticker issue owner.
-        if market in ("미국", "US", "us") and requested_stock_name != stock_name:
+        # The storage guard validates the original requested listing name.
+        # Restore that name only in output ownership labels, not in analysis.
+        if requested_stock_name != stock_name:
             for brief in issue_briefs:
                 if isinstance(brief, dict):
-                    brief["stock_names"] = [requested_stock_name]
+                    names = brief.get("stock_names") or []
+                    if isinstance(names, list):
+                        brief["stock_names"] = [
+                            requested_stock_name if name == stock_name else name
+                            for name in names
+                        ]
         return {
             "paired_news_items": paired_news_items,
-            # Presentation-only: include the already-fetched, dated company news
-            # from the existing 7-day provider window. AI/issue evidence keeps
-            # using the untouched 24-hour paired_news_items. Snapshot TTL is 24h.
-            "panel_news_items": recent_news[:20],
             "storyboard_news_items": storyboard_news_items,
             "issue_briefs": issue_briefs,
             "keyword_storyboard": keyword_storyboard,
-            "_title_only_revision": 3 if market in ("미국", "US") else None,
-            "_kr_selection_revision": 1 if market in ("미국", "US") else None,
-            "_code_fact_extraction_version": 3 if market in ("미국", "US") else None,
-            "_code_source_revision": 10 if market in ("미국", "US") else None,
-            "_code_original_unavailable": original_body_unavailable if market in ("미국", "US", "us") else None,
+            "_title_only_revision": 3 if market in ("미국", "US", "us") else None,
+            "_kr_selection_revision": 1 if market in ("미국", "US", "us") else None,
+            "_code_fact_extraction_version": 3 if market in ("미국", "US", "us") else None,
+            "_code_source_revision": 13 if market in ("미국", "US", "us") else None,
             "_news_status": "ok",
         }
     except Exception as exc:
@@ -925,82 +796,46 @@ def build_stock_news_result(
         return {**_empty_news_result(), "_news_status": "error"}
 
 
-# Render reads DigitalOcean-processed news; it does not start its own news processing.
-
-def _sanitize_news_display_briefs(result, *, market=None):
-    """Remove only byline boilerplate from visible summaries, not the source data."""
-    if not isinstance(result, dict):
-        return result
-    for brief in result.get("issue_briefs") or []:
-        if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
-            brief["summary"] = strip_leading_news_credit(brief["summary"])
-            brief["headline"] = grounded_issue_display_title(brief)
-            # Earlier AI worker versions added unrequested publication/AI labels.
-            # Show only the existing concise HH:MM; leave persisted evidence untouched.
-            timestamp = brief.get("time")
-            if isinstance(timestamp, str):
-                publication = re.fullmatch(
-                    r"기사 발행 \d{2}\.\d{2} (\d{2}:\d{2})(?: · AI 분석 \d{2}:\d{2})?",
-                    timestamp.strip(),
-                )
-                ai_time = re.fullmatch(
-                    r"AI 분석 (?:\d{4}-\d{2}-\d{2} )?(\d{2}:\d{2})",
-                    timestamp.strip(),
-                )
-                if publication or ai_time:
-                    brief["time"] = (publication or ai_time).group(1)
-    return result
-
-
-def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, display_timezone):
-    """Read the DigitalOcean worker's valid 24h output before doing web/API work."""
-    database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
-    if not database_url:
-        return None
-    try:
-        import psycopg
-        with psycopg.connect(database_url, connect_timeout=3) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT result_payload
-                    FROM public.news_processed_snapshots
-                    WHERE market=%s AND stock_name=%s
-                      AND result_limit=%s AND storyboard_limit=%s
-                      AND display_timezone=%s AND expires_at>now()
-                    LIMIT 1
-                    """,
-                    (market, str(stock_name), int(limit), int(storyboard_limit),
-                     display_timezone),
-                )
-                row = cur.fetchone()
-        result = row[0] if row else None
-        if isinstance(result, str):
-            result = json.loads(result)
-        if not isinstance(result, dict) or result.get("_news_status") == "error":
-            return None
-        if not isinstance(result.get("issue_briefs"), list):
-            return None
-        return result
-    except Exception as exc:
-        print("[processed news] worker snapshot unavailable: "
-              + type(exc).__name__, flush=True)
-        return None
+# Reuse the exact stock-news result across central analysis and market-menu issues.
+# No independent sidebar collector or separate issue interpretation.
+_SHARED_NEWS_CACHE = {}
+_SHARED_NEWS_LOCK = threading.Lock()
+_SHARED_NEWS_KEY_LOCKS = {}
+_SHARED_NEWS_TTL = 15 * 60
 
 
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul"):
-    """Read the existing DigitalOcean snapshot only; never collect or save news."""
-    names = news_snapshot_names(stock_name) if market in ("미국", "us") else [str(stock_name)]
-    worker_result = None
-    for candidate_name in names:
-        worker_result = _read_worker_news_snapshot(
-            candidate_name, market=market, limit=limit,
+    # Opt-in only: Render remains unchanged until worker, Neon and UI verify.
+    read_mode = os.environ.get("NEWS_PROCESSED_READ_MODE", "off").strip().lower()
+    if read_mode in ("prefer", "only"):
+        from .news_processed_store import read_snapshot
+        snapshot = read_snapshot(
+            stock_name, market=market, limit=limit,
             storyboard_limit=storyboard_limit,
             display_timezone=display_timezone,
         )
-        if worker_result is not None:
-            break
-    if worker_result is None:
-        return {**_empty_news_result(), "_news_status": "unavailable"}
-    return _sanitize_news_display_briefs(copy.deepcopy(worker_result), market=market)
+        if snapshot is not None:
+            return copy.deepcopy(snapshot)
+        if read_mode == "only":
+            return {**_empty_news_result(), "_news_status": "error"}
+
+    key = (str(stock_name), market, int(limit), int(storyboard_limit), display_timezone)
+    with _SHARED_NEWS_LOCK:
+        lock = _SHARED_NEWS_KEY_LOCKS.setdefault(key, threading.Lock())
+    with lock:
+        with _SHARED_NEWS_LOCK:
+            cached = _SHARED_NEWS_CACHE.get(key)
+            if cached and time.monotonic() - cached[0] < _SHARED_NEWS_TTL:
+                return copy.deepcopy(cached[1])
+        result = build_stock_news_result(
+            stock_name, market=market, limit=limit,
+            storyboard_limit=storyboard_limit, display_timezone=display_timezone,
+        )
+        if result.get("_news_status") == "error":
+            return result
+        with _SHARED_NEWS_LOCK:
+            if len(_SHARED_NEWS_CACHE) >= 96:
+                _SHARED_NEWS_CACHE.clear()
+            _SHARED_NEWS_CACHE[key] = (time.monotonic(), copy.deepcopy(result))
+        return result
