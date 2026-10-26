@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/repair_selected_issue_titles_20261026.py","request_id":"repair_actual_selected_titles_1026","timeout":120}
+{"operation":"deploy","path":"backend/services/news_result.py","target":"backend/services/news_result.py"}
