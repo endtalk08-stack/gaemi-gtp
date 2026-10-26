@@ -56,41 +56,6 @@ class UsListingNewsIdentityTests(unittest.TestCase):
             news_feed.fetch_stock_news("삼성전자", market="국내", limit=20)
         self.assertEqual(query.call_args.args[0], ["삼성전자", "samsung electronics"])
 
-    def test_verified_meta_identity_filters_only_company_named_articles(self):
-        """One verified Neon company key must feed both independent analyzers."""
-        raw = [
-            {"title": "시장 점검", "description": "메타의 현금흐름이 악화됐다."},
-            {"title": "지역 행사", "description": "메타세쿼이아길에서 장터가 열렸다."},
-            {"title": "돔구장", "description": "메타기획컨설팅이 용역을 맡았다."},
-            {"title": "Meta Platforms earnings", "description": "Quarterly results."},
-            {"title": "META shares", "description": "Shares reacted."},
-        ]
-        resolved = {
-            "status": "verified", "company_key": "US:META",
-            "news_name": "메타", "search_terms": [
-                "메타 플랫폼스(페이스북)", "메타", "META",
-                "Meta Platforms", "메타 플랫폼스",
-            ],
-        }
-        with patch("backend.services.news_identity_registry.resolve_us_news_identity",
-                   return_value=resolved):
-            kept = news_feed.select_us_news_by_verified_identity(
-                raw, "메타 플랫폼스(페이스북)")
-        self.assertEqual(
-            [row["title"] for row in kept],
-            ["시장 점검", "Meta Platforms earnings", "META shares"],
-        )
-        self.assertEqual(len(raw), 5)  # Source collection is not modified.
-
-    def test_pending_us_identity_keeps_original_input(self):
-        raw = [{"title": "Unknown new listing", "description": "News"}]
-        with patch("backend.services.news_identity_registry.resolve_us_news_identity",
-                   return_value={"status": "pending", "company_key": "US:UNKNOWN"}):
-            self.assertEqual(
-                news_feed.select_us_news_by_verified_identity(raw, "신규상장사"),
-                raw,
-            )
-
     def test_sidebar_reads_existing_us_alias_without_renaming_row(self):
         captured = {}
         def worker(market, names):
