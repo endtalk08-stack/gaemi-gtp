@@ -493,7 +493,13 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     if is_us_stock:
         from backend.services.news_identity_registry import resolve_us_news_identity
         identity = resolve_us_news_identity(stock_name)
-        queries = identity["search_terms"]
+        queries = list(identity["search_terms"])
+        # Listing suffixes are not company names in ordinary articles.
+        for term in list(queries):
+            stem = re.sub(r"\s*\([^)]*\)\s*", "", term).strip()
+            stem = re.sub(r"\s*(?:홀딩스|그룹)$", "", stem).strip()
+            if len(stem) >= 3 and stem not in queries:
+                queries.append(stem)
         ticker = identity["ticker"] or ticker
         provider_name = identity["news_name"]
 
@@ -541,15 +547,24 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     # US only: sort the collected articles by newest publication time.
     # Do not remove duplicates or apply date/relevance filters before AI.
     if is_us_stock:
-        terms = identity["search_terms"]
+        terms = queries
         def company_match(item):
-            text = _search_text(item)
+            original_text = str(item.get("title") or "") + " " + str(item.get("description") or "")
+            text = original_text.lower()
             compact_text = re.sub(r"\s+", "", text)
             for term in terms:
                 alias = str(term or "").strip().lower()
                 if not alias:
                     continue
-                if re.fullmatch(r"[a-z0-9. -]+", alias):
+                if re.fullmatch(r"[a-z]{1,5}", alias) and alias.upper() == ticker:
+                    # BE / LITE / NU are also ordinary words and product names.
+                    # A bare ticker query hit is not proof of company identity.
+                    code = re.escape(alias.upper())
+                    if re.search(r"(?:\$\s*" + code + r"\b|\(\s*" + code
+                                 + r"\s*\)|(?:NASDAQ|NYSE)\s*:\s*" + code + r"\b)",
+                                 original_text, re.IGNORECASE):
+                        return True
+                elif re.fullmatch(r"[a-z0-9. -]+", alias):
                     if re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text):
                         return True
                 elif re.sub(r"\s+", "", alias) in compact_text:
