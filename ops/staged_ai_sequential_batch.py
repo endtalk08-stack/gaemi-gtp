@@ -164,17 +164,15 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         else:
             print("[news-ai] skipped reason=missing_groq_key", flush=True)
             return
-    # Match the same verified Neon company before passing articles to Groq.
-    # Preserve the original listing label as the ledger/snapshot storage key.
+    # Use the same verified Neon company identity as the CODE analyzer.
+    # Keep raw articles unchanged and the original listing name as the DB key.
     from backend.services.news_identity_registry import resolve_us_news_identity
-    from backend.services.news_feed import select_us_news_by_verified_identity
     company_identity = resolve_us_news_identity(stock_name)
     ai_stock_name = (
         company_identity.get("news_name") or stock_name
         if company_identity.get("status") == "verified" else stock_name
     )
-    ai_articles = select_us_news_by_verified_identity(raw, stock_name)
-    if not isinstance(result, dict) or not has_eligible_ai_news(ai_articles):
+    if not isinstance(result, dict) or not has_eligible_ai_news(raw):
         print("[news-ai] skipped reason=no_dated_usable_article stock=%s" % stock_name, flush=True)
         return
     from staged_ai_snapshot_integration import with_ai_issue_briefs
@@ -192,7 +190,7 @@ def apply_worker_ai(*, store, market, stock_name, raw, fingerprint, result, para
         batch = run_stock_batch(conn, [{
             "market": market_code, "symbol": stock_name,
             "name": ai_stock_name, "exchange_day": us_day,
-            "articles": ai_articles,
+            "articles": raw,
             "price_context": price_context,
         }])
         outcome = batch[0]
