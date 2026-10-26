@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/audit_missing_us_ai_readonly_20261021.py","request_id":"read_only_us_worker_rootcause_1026","timeout":120}
+{"operation":"deploy","path":"backend/services/news_result.py","target":"backend/services/news_result.py"}
