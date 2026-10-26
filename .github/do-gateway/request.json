@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/rebuild_top20_issues_20261026.py","request_id":"verify_lite_company_news_final","timeout":180}
+{"operation":"restart","unit":"gaemigtp-news.service"}
