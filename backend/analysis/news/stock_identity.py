@@ -8,6 +8,7 @@ import re
 # Canonical company news identity, source display names observed in Naver lists.
 # Do not infer mergers, ticker transfers, or same-company ownership by fuzzy text.
 _VERIFIED = {
+    "NU": ("US:NU", "누 홀딩스", ("누 홀딩스", "누홀딩스", "누뱅크", "누 뱅크", "Nu Holdings", "Nu Holdings Ltd.", "Nubank")),
     "GOOGL": ("US:ALPHABET", "알파벳", ("알파벳 Class A", "알파벳", "구글", "Alphabet", "Alphabet Class A", "Alphabet Inc Class A", "Google")),
     "GOOG": ("US:ALPHABET", "알파벳", ("알파벳 Class C", "알파벳", "구글", "Alphabet", "Alphabet Class C", "Alphabet Inc Class C", "Google")),
     "TSM": ("US:TSM", "TSMC", ("TSMC ADR", "TSMC", "Taiwan Semiconductor Manufacturing")),
