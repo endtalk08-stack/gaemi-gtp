@@ -831,10 +831,10 @@ def _sanitize_news_display_briefs(result, *, market=None):
                 # Central body display only; sidebar snapshots stay unchanged.
                 brief["summary"] = _us_original_three_sentences(brief["summary"])
                 source_title = next((
-                    str(source.get("title") or "").strip()
+                    str(source.get("display_title") or source.get("title") or "").strip()
                     for source in brief.get("source_articles") or []
                     if isinstance(source, dict)
-                    and re.search(r"[가-힣]", str(source.get("title") or ""))
+                    and re.search(r"[가-힣]", str(source.get("display_title") or source.get("title") or ""))
                 ), "")
                 if source_title:
                     brief["headline"] = source_title
