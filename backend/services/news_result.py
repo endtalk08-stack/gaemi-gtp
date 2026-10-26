@@ -239,6 +239,51 @@ def build_stock_news_result(
             flush=True,
         )
 
+        if market in ("미국", "US", "us"):
+            # Lightweight sourced news issues: no body-fetch or keyword gate.
+            dated = build_simple_today_news(
+                raw_news_list, stock_name, limit=None,
+                display_timezone=display_timezone)
+            dated.sort(key=lambda row: str(row.get("published_at") or row.get("pub_date") or ""), reverse=True)
+            selected, briefs, seen = [], [], set()
+            for item in dated:
+                title = str(item.get("title") or "").strip()
+                description = str(item.get("description") or "").strip()
+                url = str(item.get("url") or item.get("link") or "").strip()
+                if not title or not url.startswith(("https://", "http://")):
+                    continue
+                if not _central_stock_mentioned(title + " " + description, stock_name):
+                    continue
+                key = re.sub(r"\\s+", "", title).casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                selected.append(item)
+                briefs.append({
+                    "headline": title,
+                    "summary": description or title,
+                    "tags": [],
+                    "stock_names": [requested_stock_name],
+                    "time": item.get("storyboard_time") or "",
+                    "reaction_at": item.get("published_at") or item.get("pub_date") or "",
+                    "evidence_source": "news_title_description",
+                    "source_articles": [{
+                        "title": title, "url": url,
+                        "published_at": item.get("published_at") or item.get("pub_date") or "",
+                        "source": item.get("source") or item.get("publisher") or "",
+                    }],
+                })
+                if len(briefs) >= 3:
+                    break
+            return {
+                "paired_news_items": dated, "panel_news_items": dated[:20],
+                "storyboard_news_items": selected, "issue_briefs": briefs,
+                "keyword_storyboard": [], "_title_only_revision": 3,
+                "_kr_selection_revision": 1, "_code_fact_extraction_version": 3,
+                "_code_source_revision": 13, "_simple_news_revision": 1,
+                "_news_status": "ok",
+            }
+
         if tracing:
             cpi_rows = [item for item in raw_news_list if has_cpi(item)]
             diag("fetched_summary", total=len(raw_news_list), cpi_count=len(cpi_rows))
