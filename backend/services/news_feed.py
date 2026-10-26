@@ -418,6 +418,62 @@ def _select_stock_news_with_source_reserve(relevant, limit):
     return selected
 
 
+def _verified_us_alias_in_text(text, alias):
+    """Match a whole company name/ticker, not a fragment of an unrelated word."""
+    alias = str(alias or "").strip()
+    if len(alias) < 2:
+        return False
+    if re.fullmatch(r"[A-Z]{2,5}(?:\.[A-Z])?", alias):
+        # Exchange ticker codes must retain their original uppercase spelling.
+        pattern = rf"(?<![A-Za-z0-9]){re.escape(alias)}(?![A-Za-z0-9])"
+        return bool(re.search(pattern, text))
+    if alias.isascii():
+        pattern = rf"(?<![A-Za-z0-9]){re.escape(alias)}(?![A-Za-z0-9])"
+        return bool(re.search(pattern, text, flags=re.IGNORECASE))
+    if re.fullmatch(r"[가-힣]{2,3}", alias):
+        # '메타' may be a company name, but is not inside '메타세쿼이아'
+        # or '메타기획컨설팅'. Korean subject particles remain valid.
+        pattern = rf"(?<![가-힣A-Za-z0-9]){re.escape(alias)}(?=$|[^가-힣A-Za-z0-9]|[은는이가의을를도와과])"
+        return bool(re.search(pattern, text))
+    return alias.casefold() in text.casefold()
+
+
+def select_us_news_by_verified_identity(items, stock_name):
+    """Share only the confirmed US company identity between CODE and AI.
+
+    This is an identity check, not a materiality/issue selection gate. The
+    original collection remains unchanged; pending identities pass through.
+    """
+    from backend.services.news_identity_registry import resolve_us_news_identity
+
+    rows = list(items or [])
+    identity = resolve_us_news_identity(stock_name)
+    if identity.get("status") != "verified" or not identity.get("company_key"):
+        return rows
+
+    aliases = list(dict.fromkeys(
+        str(value).strip() for value in identity.get("search_terms", ())
+        if str(value).strip()
+    ))
+    if not aliases:
+        return rows
+
+    selected = []
+    known_names = {value.casefold() for value in aliases}
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        provider = str(item.get("provider_stock") or "").strip().casefold()
+        trusted = item.get("source_type") in ("official_company", "sec_filing")
+        if trusted and provider and provider in known_names:
+            selected.append(item)
+            continue
+        text = " ".join(str(item.get(k) or "") for k in ("title", "description", "body", "summary"))
+        if any(_verified_us_alias_in_text(text, alias) for alias in aliases):
+            selected.append(item)
+    return selected
+
+
 def select_stock_news_for_analysis(items, stock_name, limit=20):
     """Exact domestic article eligibility, event words, keyword signals and sort.
 
@@ -427,7 +483,7 @@ def select_stock_news_for_analysis(items, stock_name, limit=20):
     """
     items = [
         _enrich_item(x)
-        for x in _dedupe(items)
+        for x in _dedupe(select_us_news_by_verified_identity(items, stock_name))
         if _item_age_ok(x)
     ]
     relevant = []
