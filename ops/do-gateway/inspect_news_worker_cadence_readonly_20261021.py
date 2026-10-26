@@ -10,3 +10,11 @@ for st,en in ((1,80),(82,132),(133,300)):
    row="[redacted configuration line]"
   print(str(i+1)+": "+row[:220],flush=True)
 print("READ_ONLY_CADENCE_DONE",flush=True)
+
+for filename in ("/opt/gaemigtp-news/app/backend/services/us_top20_rotation.py","/var/tmp/gaemigtp-news-top20-rotation.json"):
+ p=Path(filename)
+ print("ROTATION_FILE",p.name,flush=True)
+ if p.is_file():
+  for i,row in enumerate(p.read_text().splitlines()):
+   if not any(x in row.upper() for x in ("PASSWORD","TOKEN","SECRET","API_KEY","DATABASE_URL","AUTHORIZATION")):
+    print("ROTATION",i+1,row[:2500],flush=True)
