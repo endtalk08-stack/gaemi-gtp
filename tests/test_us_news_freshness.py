@@ -263,40 +263,63 @@ class RenderFreshnessTests(unittest.TestCase):
         )
         self.assertEqual(len(result["issue_briefs"]), 3)
 
-    def test_central_keywords_extract_from_article_title_and_body(self):
-        # The publisher headline and the verified article body carry
-        # independent factual labels. Both must reach the central hashtags.
+    def test_central_keywords_reuse_worker_article_keywords_only(self):
         item = {
             "headline": "기사 주요 내용",
             "summary": (
                 "테슬라는 신규 공장을 증설한다고 발표했다. "
                 "생산 시설은 내년부터 가동할 예정이다."
             ),
-            "tags": [],
+            "tags": ["AI반도체"],
             "source_articles": [{
                 "url": "https://example.org/tesla-plant",
                 "title": "테슬라, 공급 계약 체결",
             }],
         }
-        result = news_result._sanitize_news_display_briefs(
-            {"issue_briefs": [item]}, market="미국"
-        )
+        result = news_result._sanitize_news_display_briefs({
+            "issue_briefs": [item],
+            "storyboard_news_items": [{
+                "url": "https://example.org/tesla-plant",
+                "article_keywords": ["양산개시", "생산확대", "공장건설", "초과키워드"],
+                "storyboard_keywords": ["공급계약"],
+            }],
+        }, market="미국")
         self.assertEqual(result["issue_briefs"][0]["headline"], "테슬라, 공급 계약 체결")
-        self.assertIn("공급계약", result["issue_briefs"][0]["tags"])
-        self.assertIn("공장증설", result["issue_briefs"][0]["tags"])
+        self.assertEqual(result["issue_briefs"][0]["tags"], ["양산개시", "생산확대", "공장건설"])
+        self.assertEqual(len(result["issue_briefs"]), 1)
 
-    def test_central_keywords_use_body_when_original_title_is_missing(self):
+    def test_central_keywords_are_not_generated_if_worker_match_is_missing(self):
         item = {
             "headline": "기존 제목",
             "summary": "테슬라는 신규 공장을 증설한다고 발표했다.",
-            "tags": [],
+            "tags": ["AI반도체"],
             "source_articles": [{"url": "https://example.org/no-title"}],
         }
         result = news_result._sanitize_news_display_briefs(
             {"issue_briefs": [item]}, market="미국"
         )
         self.assertEqual(result["issue_briefs"][0]["headline"], "기존 제목")
-        self.assertIn("공장증설", result["issue_briefs"][0]["tags"])
+        self.assertEqual(result["issue_briefs"][0]["tags"], [])
+        self.assertEqual(len(result["issue_briefs"]), 1)
+
+    def test_central_keywords_match_each_article_url_not_selection_order(self):
+        first = {
+            "headline": "첫 기사", "summary": "첫 기사 본문입니다.",
+            "source_articles": [{"url": "https://example.org/first"}],
+        }
+        second = {
+            "headline": "두 번째 기사", "summary": "두 번째 기사 본문입니다.",
+            "source_articles": [{"url": "https://example.org/second"}],
+        }
+        result = news_result._sanitize_news_display_briefs({
+            "issue_briefs": [first, second],
+            "storyboard_news_items": [
+                {"url": "https://example.org/second", "article_keywords": ["임상3상"]},
+                {"url": "https://example.org/first", "article_keywords": ["30%급증", "수익성개선"]},
+            ],
+        }, market="미국")
+        self.assertEqual([x["tags"] for x in result["issue_briefs"]],
+                         [["30%급증", "수익성개선"], ["임상3상"]])
 
 if __name__ == "__main__":
     unittest.main()

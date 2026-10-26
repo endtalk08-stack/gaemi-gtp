@@ -21,8 +21,7 @@ from .news_freshness import clean_us_snapshot
 from .news_identity_registry import resolve_us_news_identity
 from .issue_briefs import (
     grounded_issue_display_title,
-    _article_excerpt, _content_driven_title_and_tags,
-    build_issue_briefs, central_material_brief_supported,
+    _article_excerpt, build_issue_briefs, central_material_brief_supported,
     market_material_title_and_tags,
 )
 from .company_critical_events import company_critical_title_and_tags
@@ -810,46 +809,22 @@ def _us_original_three_sentences(summary):
     return " ".join(complete[:3])
 
 
-def _us_article_event_title(summary):
-    """Extract a concise event from verified prose, without publisher titles."""
-    headline, _ = _content_driven_title_and_tags(summary)
-    # Preserve the existing factual detectors; category headings need an
-    # actual subject/action instead of stripping the word 'issue'.
-    if headline != "기사 주요 내용" and not headline.endswith(" 이슈"):
-        return headline
-    for sentence in re.split(r'(?<=[.!?])\s+', summary):
-        request = re.fullmatch(
-            r'(?P<actor>.+?)(?:이|가)\s+(?P<target>.+?)(?:에|에게)\s+'
-            r'(?P<event>.+?)(?:을|를)\s+(?P<action>촉구|주문|요청)했다\.',
-            sentence,
-        )
-        if request:
-            actor = request.group('actor')
-            # A company and named executive remain explicit; only the job
-            # label is removed, never the actor, target or requested action.
-            actor = re.sub(r'\s+(?:최고경영자|CEO)\s+', ' ', actor)
-            target = re.sub(r'^.+?\s+기업\s+', '', request.group('target'))
-            event = request.group('event')
-            acceleration = re.fullmatch(
-                r'(?P<facility>데이터센터) 구축 과정에서 발생한 문제를 해결하고 '
-                r'시설 가동에 속도를 낼 것', event
-            )
-            if acceleration:
-                event = f"{acceleration.group('facility')} 문제 해결·가동 가속"
-            candidate = (f"{actor}, {target}에 "
-                         f"{event} {request.group('action')}")
-            if len(candidate) <= 60:
-                return candidate
-    # The user requested that an item without an extractable event be hidden,
-    # rather than using a full sentence or a vague warning as its heading.
-    return ""
-
 
 def _sanitize_news_display_briefs(result, *, market=None):
     """Remove only byline boilerplate from visible summaries, not the source data."""
     if not isinstance(result, dict):
         return result
     us_display = market in ("미국", "US", "us")
+    # Reuse only the keywords produced by the DigitalOcean worker.
+    # A source URL identifies the same article in selected CODE briefs.
+    worker_keywords = {}
+    if us_display:
+        for article in result.get("storyboard_news_items") or []:
+            if not isinstance(article, dict):
+                continue
+            url = str(article.get("url") or article.get("link") or "").strip()
+            if url and isinstance(article.get("article_keywords"), list):
+                worker_keywords[url] = article["article_keywords"][:3]
     for brief in result.get("issue_briefs") or []:
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
             if us_display:
@@ -868,22 +843,17 @@ def _sanitize_news_display_briefs(result, *, market=None):
                 )
                 if original_title:
                     brief["headline"] = original_title
-                # Central hashtags: extract existing fact-based labels from both
-                # the verified source title and the displayed original prose.
-                # Only the Render display copy changes, never the DO snapshot.
-                extracted_tags = []
-                for evidence in (original_title, brief["summary"]):
-                    if not evidence:
-                        continue
-                    _, labels = _content_driven_title_and_tags(evidence)
-                    for label in labels:
-                        tag = str(label or "").strip().lstrip("#")
-                        if tag and tag not in extracted_tags:
-                            extracted_tags.append(tag)
-                    if len(extracted_tags) >= 3:
-                        break
-                if extracted_tags:
-                    brief["tags"] = extracted_tags[:3]
+                # No Render keyword re-extraction or old broad-tag fallback.
+                # Missing worker keywords remain empty; keep the article itself.
+                brief["tags"] = next(
+                    (
+                        list(worker_keywords[str(source.get("url") or "").strip()])
+                        for source in (brief.get("source_articles") or [])
+                        if isinstance(source, dict)
+                        and str(source.get("url") or "").strip() in worker_keywords
+                    ),
+                    [],
+                )
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
                 brief["headline"] = grounded_issue_display_title(brief)
