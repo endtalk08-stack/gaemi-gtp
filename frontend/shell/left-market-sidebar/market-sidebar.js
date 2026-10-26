@@ -135,7 +135,7 @@
         return Array.isArray(value) ? value.filter((item) => typeof item === 'string').slice(0, 100) : [];
       } catch (_) { return []; }
     };
-    let customOrder = readOrder();
+    let customOrder = []; // Trading-value ranking starts in current source order.
     const saveOrder = () => {
       customOrder = [...list.querySelectorAll(':scope > button[data-original-index]')]
         .map((row) => row.dataset.rowId);
@@ -226,16 +226,22 @@
         const result = await response.json();
         if (id !== requestId) return;
         if (result.ok !== true || !Array.isArray(result.items) || !result.items.length) {
+          if (title) title.textContent = titles[tab] + ' · 갱신 실패';
           if (!list.querySelector('button[data-original-index]')) {
             list.textContent = '조회 가능한 순위 원천 데이터가 없어.';
           }
           return;
         }
+        customOrder = []; // A refreshed ranking supersedes a manually saved layout.
+        if (title) title.textContent = titles[tab];
         const signature = JSON.stringify(result.items.map((row) => [
-          row.symbol, row.rank, row.price, row.change_pct, row.industry, row.issue_headline
+          row.symbol, row.name, row.rank, row.price, row.change_pct, row.trading_value, row.trading_value_text, row.industry, row.issue_headline
         ]));
         if (signature === lastRankingSignature &&
-            list.querySelector('button[data-original-index]')) return;
+            list.querySelector('button[data-original-index]')) {
+          applyChangeSort();
+          return;
+        }
         lastRankingSignature = signature;
         list.replaceChildren();
         result.items.forEach((item, index) => {
@@ -372,6 +378,7 @@
         // waiting for the next timer tick or relying on a panel-open CSS class.
         void readLatestQuotes();
       } catch (_) {
+        if (id === requestId && title) title.textContent = titles[tab] + ' · 갱신 실패';
         if (id === requestId && !list.querySelector('button[data-original-index]')) {
           list.textContent = '순위 원천 데이터를 가져오지 못했어.';
         }
