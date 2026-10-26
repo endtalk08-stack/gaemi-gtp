@@ -431,7 +431,7 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
     for old in previous or []:
         if old.get("selection_revision") != 2 or not old.get("issue_id"):
             continue
-        if not old.get("selected_events") or not all(owns_event(e) for e in old["selected_events"]):
+        if not old.get("selected_events") or not all(owns_event(e) or (mentions(old.get("headline")) and re.search(r"(?:이 회사|회사[는가]|동사|the company|its )", str(e.get("evidence_sentence") or ""), re.I)) for e in old["selected_events"]):
             continue
         expiry = stamp(old.get("_issue_expires_at"))
         if not expiry or expiry <= now:
