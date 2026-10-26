@@ -215,16 +215,16 @@ test('market cards show stock logo slot and allow keyboard reorder without chang
     ['TSLA.O', 'LLY']);
 });
 
-test('saved sidebar order survives ranking tab changes and returns to the same custom order', async () => {
-  const app = setup({ initialOrder: ['TSLA.O', 'LLY'] });
+test('fresh ranking ignores stale saved order before and after tab changes', async () => {
+  const app = setup({ initialOrder: ['LLY', 'LLY'] });
   await flush();
-  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'TSLA.O');
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'LLY');
   app.realtimeTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
   app.valueTab.click();
   await flush();
-  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'TSLA.O');
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'LLY');
 });
 
 test('local company logos render as SVG even for .O symbols', async () => {
