@@ -63,7 +63,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
             return {"엔비디아": {"issue_briefs": [{
                 "headline": "엔비디아 AI 뉴스 재료",
                 "summary": "원문 근거",
-                "source_articles": [{"url": "https://source.example/verified"}],
+                "source_articles": [{"url": "https://source.example/verified", "title": "엔비디아 AI 뉴스 재료"}],
             }]}}
         with patch.object(market_issue_headlines, "_read_worker_briefs", side_effect=worker):
             result = market_issue_headlines.get_market_issue_headlines("us", [
