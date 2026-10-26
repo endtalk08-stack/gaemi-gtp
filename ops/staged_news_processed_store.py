@@ -103,7 +103,7 @@ def read_signature(stock_name, market, limit, storyboard_limit, display_timezone
             if market in ("미국", "US") and (
                 payload.get("_title_only_revision") != 3
                 or payload.get("_kr_selection_revision") != 1
-                or payload.get("_code_source_revision") != 10
+                or payload.get("_code_source_revision") != 13
             ):
                 # Reprocess older code-only snapshots once without touching AI.
                 return None
@@ -310,6 +310,28 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
                 day = datetime.now(ZoneInfo("America/New_York")).date().isoformat()
                 normalized = _prefer_same_day_ai(normalized, previous_payload,
                                                   stock_name, day)
+                # Keep previous same-company, source-verified CODE issues while
+                # their original articles remain within the existing 24h window.
+                # Do not alter article dates, summaries, AI, or Render behavior.
+                previous_code = (previous_payload or {}).get("_code_issue_briefs") or []
+                current_code = normalized.get("_code_issue_briefs") or []
+                kept, seen_urls = [], set()
+                for brief in _same_stock_issue_briefs(previous_code + current_code, stock_name):
+                    if (brief.get("evidence_source") == "original_unavailable"
+                            or str(brief.get("summary") or "").strip() == "원문 확인 불가"):
+                        continue
+                    validated = _fresh_ai_briefs([brief])
+                    if not validated:
+                        continue
+                    urls = {
+                        str(source.get("url") or "").split("#", 1)[0]
+                        for source in validated[0]["source_articles"]
+                    }
+                    if not urls or urls & seen_urls:
+                        continue
+                    seen_urls.update(urls)
+                    kept.append(brief)
+                normalized["_code_issue_briefs"] = kept
             # US display is AI-only; never resurrect legacy code headlines.
             if market not in ("미국", "US") and not normalized.get("issue_briefs"):
                 preserved = _recent_existing_issue_briefs(previous_payload, stock_name)
