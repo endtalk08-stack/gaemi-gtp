@@ -1,1 +1,5 @@
-{"operation":"deploy","path":"backend/services/news_signal_enrichment.py","target":"backend/services/news_signal_enrichment.py"}
+{
+  "operation": "deploy",
+  "path": "backend/services/news_signal_enrichment.py",
+  "target": "backend/services/news_signal_enrichment.py"
+}
