@@ -9,7 +9,8 @@ import time
 
 from .news_identity_registry import resolve_us_news_identity
 from .issue_briefs import grounded_issue_display_title
-from .news_freshness import _article_date, clean_us_snapshot, normalize_issue_mode
+from .news_freshness import (_article_date, clean_us_snapshot, normalize_issue_mode,
+                             read_recent_us_code_issue_history)
 
 _MAX_ITEMS = 20
 
@@ -128,6 +129,10 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False, issue_mode=
     ]
     all_names = list(dict.fromkeys(name for names in names_per_row for name in names))
     worker_briefs = _read_worker_briefs(market, all_names) if all_names else {}
+    # One read for all ranked tickers; DO's separate history survives snapshot refresh.
+    history = read_recent_us_code_issue_history(
+        [row["symbol"] for row in rows if row is not None]
+    ) if market == "us" else {}
     results = []
     for original, row, names in zip(items, rows, names_per_row):
         if row is None:
@@ -157,6 +162,24 @@ def get_market_issue_headlines(market, items, *, skip_invalid=False, issue_mode=
             # Resolve all matching snapshot aliases by original article date,
             # rather than picking the first stock-name alias.
             dated_titles = []
+            from backend.analysis.news.stock_identity import normalize_us_ticker
+            saved = history.get(normalize_us_ticker(row["symbol"]), [])
+            if saved:
+                historical = clean_us_snapshot({
+                    "_title_only_revision": 3,
+                    "_code_fact_extraction_version": 3,
+                    "_code_issue_briefs": saved,
+                }, issue_mode=mode)
+                for brief in historical.get("issue_briefs") or []:
+                    title = _first_ai_headline({"issue_briefs": [brief]})
+                    dates = [
+                        _article_date(source.get("published_at"))
+                        for source in brief.get("source_articles") or []
+                        if isinstance(source, dict)
+                    ]
+                    dates = [date for date in dates if date is not None]
+                    if title and dates:
+                        dated_titles.append((max(dates), title))
             for name in names:
                 snapshot = selected_snapshot(name)
                 if not isinstance(snapshot, dict):
