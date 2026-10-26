@@ -1,20 +1,13 @@
-"""Read-only code-analysis diagnosis. No AI calls and no processed snapshot writes."""
-import sys,json
+"""Read-only live NVDA verification; output counts and field availability only."""
+import sys
 sys.path.insert(0,"/opt/gaemigtp-news/app")
-from backend.services.news_identity_registry import resolve_us_news_identity
-from backend.services.news_feed import fetch_stock_news
-from backend.analysis.news import score_stock_news,build_connected_keyword_test
-from backend.services.news_result import build_stock_news_result
-for name in ["메타 플랫폼스(페이스북)","팔란티어 테크","알파벳 A","아마존닷컴"]:
- identity=resolve_us_news_identity(name)
- raw=fetch_stock_news(name,limit=50,market="미국",raise_on_error=True)
- canonical=identity["news_name"]
- scored=score_stock_news(raw,canonical)
- classified=build_connected_keyword_test(scored,canonical,max_keywords=3).get("articles",[])
- relations={}
- for row in classified:
-  key=row.get("relation_type","unknown")
-  relations[key]=relations.get(key,0)+1
- print("CODE_INPUT_DIAG",json.dumps({"stock":name,"canonical":canonical,"collected":len(raw),"scored":len(scored),"relations":relations},ensure_ascii=False),flush=True)
- result=build_stock_news_result(name,market="미국",limit=50,storyboard_limit=3,display_timezone="Asia/Seoul",raw_news_list=raw)
- print("CODE_RESULT_DIAG",json.dumps({"stock":name,"status":result.get("_news_status"),"paired":len(result.get("paired_news_items") or []),"selected":len(result.get("storyboard_news_items") or []),"issues":len(result.get("issue_briefs") or [])},ensure_ascii=False),flush=True)
+import os,json,psycopg,re
+from collections import Counter
+with psycopg.connect(os.environ["NEWS_DATABASE_URL"],connect_timeout=10) as conn:
+ conn.execute("SET TRANSACTION READ ONLY")
+ with conn.cursor() as cur:
+  cur.execute("SELECT stock_name,result_payload FROM public.news_processed_snapshots WHERE market='미국' AND stock_name IN ('엔비디아','NVIDIA') AND expires_at>now()")
+  for name,p in cur.fetchall():
+   issues=p.get("_code_issue_briefs") or []
+   urls=[str(s.get("url") or "") for b in issues for s in b.get("source_articles") or [] if isinstance(s,dict)]
+   print("NVDA_LIVE_CHECK",json.dumps({"stock":name,"revision":p.get("_code_source_revision"),"raw_article_mode":p.get("_simple_news_revision"),"code_issues":len(issues),"ai_issues":len(p.get("_ai_issue_briefs") or []),"display_issues":len(p.get("issue_briefs") or []),"paired_articles":len(p.get("paired_news_items") or []),"panel_articles":len(p.get("panel_news_items") or []),"selected_articles":len(p.get("storyboard_news_items") or []),"issues_without_tags":sum(not b.get("tags") for b in issues),"english_only_titles":sum(not re.search("[가-힣]",str(b.get("headline") or "")) for b in issues),"english_only_summaries":sum(not re.search("[가-힣]",str(b.get("summary") or "")) for b in issues),"duplicate_source_occurrences":sum(n-1 for u,n in Counter(urls).items() if u)},ensure_ascii=False),flush=True)
