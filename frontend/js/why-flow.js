@@ -26,6 +26,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             const prompt = inline
               ? document.createElement('div')
               : makeUserPrompt(whyState.label, 'whyFlow');
+            prompt.dataset.whyFlow = 'true';
             prompt.classList.remove('animate-fade');
             if (inline) {
               choices.insertAdjacentElement('beforebegin', prompt);
@@ -85,7 +86,19 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             });
             // 중앙 화면은 원문 기사 제목·설명을 받지 않는다. 서버가 기사에서
             // 추출한 사실을 바탕으로 만든 display-only 이슈 브리핑만 사용한다.
-            const storyboard = Array.isArray(result.issue_briefs) ? result.issue_briefs : [];
+            const seenIssues = new Set();
+            const storyboard = (Array.isArray(result.issue_briefs) ? result.issue_briefs : [])
+              .filter((event) => {
+                if (!event || typeof event !== 'object') return false;
+                const sources = (Array.isArray(event.source_articles) ? event.source_articles : [])
+                  .map((source) => String(source?.url || '').trim().split('#')[0])
+                  .filter(Boolean).sort();
+                const key = sources.length ? sources.join('|')
+                  : String(event.headline || '').replace(/\s+/g, '').toLowerCase();
+                if (!key || seenIssues.has(key)) return false;
+                seenIssues.add(key);
+                return true;
+              });
             const typeWhyText = (element, text) => typeText(element, text, { chunkSize: 1 });
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5';
