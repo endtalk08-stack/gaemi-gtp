@@ -48,8 +48,8 @@ RULES = (
  ("SECTOR", "SUPPLY_SHORTAGE", "공급부족", r"공급\s*부족|반도체\s*품귀|supply\s+shortage"),
  ("SECTOR", "DEMAND_OUTLOOK", "수요전망", r"(?:AI|반도체|메모리|클라우드)[^.!?\n]{0,30}수요[^.!?\n]{0,20}(?:전망|호조|증가|확대)|(?:strong|growing)\s+(?:AI\s+)?demand"),
  ("COMMODITY", "GOLD_PRICE_UP", "금값반등", r"(?:금값|금\s*가격)[^.!?\n]{0,20}(?:반등|상승)|gold\s+prices?[^.!?\n]{0,20}(?:rise|rebound|gain)"),
- ("COMMODITY", "OIL_PRICE_DOWN", "유가하락", r"유가[^.!?\n]{0,20}하락|oil\s+prices?[^.!?\n]{0,20}(?:fall|drop|declin)"),
- ("COMMODITY", "OIL_PRICE_UP", "유가상승", r"유가[^.!?\n]{0,20}(?:상승|급등)|oil\s+prices?[^.!?\n]{0,20}(?:rise|surge)"),
+ ("COMMODITY", "OIL_PRICE_DOWN", "유가하락", r"유가(?:는|가|도|의)?\s*(?:\d+(?:\.\d+)?%\s*)?하락|oil\s+prices?[^.!?\n]{0,20}(?:fall|drop|declin)"),
+ ("COMMODITY", "OIL_PRICE_UP", "유가상승", r"유가(?:는|가|도|의)?\s*(?:\d+(?:\.\d+)?%\s*)?(?:상승|급등)|oil\s+prices?[^.!?\n]{0,20}(?:rise|surge)"),
  ("MACRO", "RATE_CUT", "금리인하", r"금리\s*인하|interest\s+rate\s+cut"),
  ("MACRO", "INFLATION_EASING", "인플레완화", r"(?:인플레|인플레이션|물가)[^.!?\n]{0,25}(?:둔화|완화)|(?:easing|cooling)\s+inflation"),
  ("REGULATION", "POLICY_ELECTION", "선거정책", r"룰라[^.!?\n]{0,20}(?:재선|당선)|(?:선거|대선)[^.!?\n]{0,25}(?:승리|결과)|election\s+(?:victory|win|result)"),
@@ -100,6 +100,14 @@ def _status(text):
     return "reported"
 
 
+def _evidence_sentence(text, start, end):
+    """Find the sentence containing a match; decimal points are not boundaries."""
+    boundaries = list(re.finditer(r'(?<=[.!?])\s+|\n+', text))
+    left = max((m.end() for m in boundaries if m.end() <= start), default=0)
+    right = min((m.start() for m in boundaries if m.start() >= end), default=len(text))
+    return text[left:right].strip()
+
+
 def classify_article(article, body_text=""):
     """Return grounded events and flexible keyword slots, including source spans."""
     fields = [("title", str(article.get("title") or "")),
@@ -116,7 +124,7 @@ def classify_article(article, body_text=""):
                 actors = [a for a in ACTORS if a.lower() in text.lower()]
                 events.append({"family": "ANALYST", "event_type": "ANALYST_TARGET_" + direction,
                     "label": label, "status": "reported", "evidence_field": field,
-                    "evidence_span": target.group(), "evidence_sentence": text[:700],
+                    "evidence_span": target.group(), "evidence_sentence": _evidence_sentence(text, target.start(), target.end())[:700],
                     "actor": actors[0] if actors else "", "old_value": old, "new_value": new,
                     "unit": target.group(4) or target.group(2) or "",
                     "reported_numbers": [str(old), str(new)],
@@ -132,7 +140,7 @@ def classify_article(article, body_text=""):
                 events.append({"family": "ANALYST", "event_type": "ANALYST_RATING_CHANGE",
                     "label": "투자의견상향" if new > old else "투자의견하향", "status": "reported",
                     "old_rating": rating.group(1), "new_rating": rating.group(2),
-                    "evidence_field": field, "evidence_span": rating.group(), "evidence_sentence": text[:700],
+                    "evidence_field": field, "evidence_span": rating.group(), "evidence_sentence": _evidence_sentence(text, rating.start(), rating.end())[:700],
                     "actor": actors[0] if actors else "", "reported_numbers": [],
                     "source_url": article.get("url") or article.get("link") or ""})
                 seen.add("ANALYST_RATING_CHANGE")
@@ -142,10 +150,9 @@ def classify_article(article, body_text=""):
             match = re.search(pattern, text, re.I)
             if not match:
                 continue
-            left = max(text.rfind(".", 0, match.start()), text.rfind("\n", 0, match.start())) + 1
-            right = re.search(r"[.!?\n]", text[match.end():])
-            end = match.end() + right.start() if right else len(text)
-            clause = text[left:end].strip()
+            clause = _evidence_sentence(text, match.start(), match.end())
+            if event_type == "PRODUCT_RELEASE" and re.search(r"기업공개|사건도?\\s*공개", match.group()):
+                continue
             status = _status(clause)
             if status == "negated":
                 continue
@@ -252,6 +259,9 @@ def translate_records(records, previous=None):
             continue
         record["translation_status"] = "pending"
         pending.append((index, key, original))
+    # Code-only operation is the default; translation is an explicit opt-in.
+    if os.environ.get("NEWS_TRANSLATION_ENABLED", "0") != "1":
+        return records
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         return records
@@ -369,7 +379,7 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
         if not now - timedelta(hours=24) <= first <= now:
             continue
         entry = dict(brief)
-        entry.update(issue_id=issue_id, selection_revision=1, selected_events=events,
+        entry.update(issue_id=issue_id, selection_revision=2, selected_events=events,
                      event_types=list(dict.fromkeys(e["event_type"] for e in events)),
                      _issue_first_published_at=first.isoformat(),
                      _issue_expires_at=(first+timedelta(hours=24)).isoformat(),
@@ -379,6 +389,54 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
         # Display only the selected company's grounded event labels. An event
         # belonging to another company in the same article must not supply tags.
         entry["tags"] = list(dict.fromkeys(e["label"] for e in events))[:3]
+        # Show original sentences supporting this issue, not unrelated opening
+        # prose from the same multi-company article. Never turn a snippet into body.
+        body_sentences = list(dict.fromkeys(
+            str(e.get("evidence_sentence") or "").strip()
+            for e in events if e.get("evidence_field") == "body"
+            and re.search(r'[.!?]["”’)]*        if issue_id in selected:
+            existing = selected[issue_id]
+            known = {s.get("url") for s in existing["source_articles"]}
+            existing["source_articles"].extend(s for s in sources if s.get("url") not in known)
+            if first < stamp(existing["_issue_first_published_at"]):
+                for field in ("_issue_first_published_at", "_issue_expires_at", "reaction_anchor_at"):
+                    existing[field] = entry[field]
+        else:
+            selected[issue_id] = entry
+    # Retain selected issues across refreshes/Top50 churn until their original
+    # 24h expiry. Never preserve the old unselected article-as-issue snapshots.
+    for old in previous or []:
+        if old.get("selection_revision") != 2 or not old.get("issue_id"):
+            continue
+        expiry = stamp(old.get("_issue_expires_at"))
+        if not expiry or expiry <= now:
+            continue
+        issue_id = old["issue_id"]
+        if issue_id not in selected:
+            selected[issue_id] = dict(old)
+        else:
+            current = selected[issue_id]
+            prior_first = stamp(old.get("_issue_first_published_at"))
+            if prior_first and prior_first < stamp(current["_issue_first_published_at"]):
+                for field in ("_issue_first_published_at", "_issue_expires_at", "reaction_anchor_at"):
+                    current[field] = old[field]
+            # Reaction observations must survive text/translation refreshes.
+            for field in ("stock_reactions", "reaction_observations", "reaction_status"):
+                if old.get(field):
+                    current[field] = old[field]
+    result = sorted(selected.values(), key=lambda b:b["_issue_first_published_at"], reverse=True)
+    return result, rejected
+, str(e.get("evidence_sentence") or "").strip())
+        ))[:3]
+        if body_sentences:
+            entry["summary"] = " ".join(body_sentences)
+            entry["original_summary"] = entry["summary"]
+            entry["translation_status"] = "not_needed" if re.search(r"[가-힣]", entry["summary"]) else "pending"
+            entry["_original_body_excerpt"] = True
+        elif not any(str(e.get("evidence_span") or "").strip() in str(entry.get("original_summary") or "")
+                     for e in events if e.get("evidence_span")):
+            entry["summary"] = ""
+            entry["summary_status"] = "selected_event_not_in_original_excerpt"
         if issue_id in selected:
             existing = selected[issue_id]
             known = {s.get("url") for s in existing["source_articles"]}
@@ -391,7 +449,7 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
     # Retain selected issues across refreshes/Top50 churn until their original
     # 24h expiry. Never preserve the old unselected article-as-issue snapshots.
     for old in previous or []:
-        if old.get("selection_revision") != 1 or not old.get("issue_id"):
+        if old.get("selection_revision") != 2 or not old.get("issue_id"):
             continue
         expiry = stamp(old.get("_issue_expires_at"))
         if not expiry or expiry <= now:
