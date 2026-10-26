@@ -811,7 +811,7 @@ def _us_original_three_sentences(summary):
 
 
 def _sanitize_news_display_briefs(result, *, market=None):
-    """Remove only byline boilerplate from visible summaries, not the source data."""
+    """Format existing news; retain source-titled articles when original body is unavailable."""
     if not isinstance(result, dict):
         return result
     us_display = market in ("미국", "US", "us")
