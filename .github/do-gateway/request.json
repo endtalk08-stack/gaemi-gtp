@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/rebuild_top20_issues_20261026.py","request_id":"verify_code_selected_issues_revision20","timeout":900}
+{"operation":"deploy","path":"backend/services/news_signal_enrichment.py","target":"backend/services/news_signal_enrichment.py"}
