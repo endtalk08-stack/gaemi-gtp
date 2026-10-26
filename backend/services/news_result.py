@@ -830,29 +830,17 @@ def _sanitize_news_display_briefs(result, *, market=None):
             if us_display:
                 # Central body display only; sidebar snapshots stay unchanged.
                 brief["summary"] = _us_original_three_sentences(brief["summary"])
-                # Show the publisher's original title from the cited article
-                # already verified and stored by DigitalOcean. Do not generate
-                # an issue title or promote an extracted keyword to a title.
-                original_title = next(
-                    (str(source.get("title") or "").strip()
-                     for source in (brief.get("source_articles") or [])
-                     if isinstance(source, dict)
-                     and str(source.get("url") or "").startswith(("https://", "http://"))
-                     and str(source.get("title") or "").strip()),
-                    "",
-                )
-                if original_title:
-                    brief["headline"] = original_title
+                # Preserve the worker-generated issue title and its language.
                 # No Render keyword re-extraction or old broad-tag fallback.
-                # Missing worker keywords remain empty; keep the article itself.
+                # Preserve grounded issue tags when article lookup has no keywords.
                 brief["tags"] = next(
                     (
                         list(worker_keywords[str(source.get("url") or "").strip()])
                         for source in (brief.get("source_articles") or [])
                         if isinstance(source, dict)
-                        and str(source.get("url") or "").strip() in worker_keywords
+                        and worker_keywords.get(str(source.get("url") or "").strip())
                     ),
-                    [],
+                    list(brief.get("tags") or []),
                 )
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
