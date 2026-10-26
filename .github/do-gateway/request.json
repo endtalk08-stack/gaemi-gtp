@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/rebuild_top20_issues_20261026.py","request_id":"rebuild_company_matched_top20_1026","timeout":900}
+{"operation":"deploy","path":"backend/services/news_result.py","target":"backend/services/news_result.py"}
