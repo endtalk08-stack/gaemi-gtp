@@ -560,8 +560,7 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
                     # BE / LITE / NU are also ordinary words and product names.
                     # A bare ticker query hit is not proof of company identity.
                     code = re.escape(alias.upper())
-                    if re.search(r"(?:\$\s*" + code + r"\b|\(\s*" + code
-                                 + r"\s*\)|(?:NASDAQ|NYSE)\s*:\s*" + code + r"\b)",
+                    if re.search(r"(?:\$\s*" + code + r"\b|(?:NASDAQ|NYSE)\s*:\s*" + code + r"\b)",
                                  original_text, re.IGNORECASE):
                         return True
                 elif re.fullmatch(r"[a-z0-9. -]+", alias):
