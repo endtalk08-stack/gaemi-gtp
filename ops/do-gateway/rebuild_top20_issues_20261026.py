@@ -285,12 +285,16 @@ from backend.services import news_feed,news_processed_store as store
 from backend.services.news_result import build_stock_news_result
 state=json.loads(Path("/var/lib/gaemigtp-news/rotation.json").read_text())
 params=dict(market="미국",limit=50,storyboard_limit=3,display_timezone="Asia/Seoul")
-for item in list(state["cycle"]):
+for item in [x for x in list(state["cycle"]) if x["symbol"]=="LITE"]:
  name=item["name"]
  try:
   raw=news_feed.fetch_stock_news(name,market="미국",limit=50,raise_on_error=True)
   result=build_stock_news_result(name,raw_news_list=raw,**params)
   if result.get("_news_status")!="ok": raise RuntimeError("code_analysis_failed")
+  print("FINAL_COMPANY_NEWS",json.dumps({"stock":name,"titles":[a.get("title") for a in raw]},ensure_ascii=False),flush=True)
+  if not (result.get("issue_briefs") or []):
+   with store._connect() as conn:
+    conn.execute("UPDATE public.news_processed_snapshots SET result_payload=jsonb_set(result_payload,'{_code_issue_briefs}','[]'::jsonb) WHERE market='미국' AND stock_name=%s",(name,))
   store.save_snapshot(name,fingerprint=store.source_fingerprint(raw),result=result,**params)
   briefs=result.get("issue_briefs") or []
   panel=result.get("panel_news_items") or []
