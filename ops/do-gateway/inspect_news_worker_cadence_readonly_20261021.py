@@ -2,7 +2,7 @@
 from pathlib import Path
 p=Path("/opt/gaemigtp-news/app/backend/news_worker.py")
 lines=p.read_text().splitlines()
-for st,en in ((1,80),(82,132),(133,204)):
+for st,en in ((1,80),(82,132),(133,300)):
  print("WORKER_WINDOW "+str(st)+"-"+str(en),flush=True)
  for i in range(st-1,min(en,len(lines))):
   row=lines[i]
