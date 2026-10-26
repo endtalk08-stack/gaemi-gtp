@@ -311,10 +311,7 @@ def build_stock_news_result(
         # first-stage KR article/keyword gates in this *code-only* branch.
         # Crucially, the original raw_news_list is never filtered, mutated, or
         # reassigned: the independent AI consumer still receives the same raw.
-        code_input_news = (
-            select_stock_news_for_analysis(raw_news_list, stock_name, limit)
-            if market in ("미국", "US", "us") else raw_news_list
-        )
+        code_input_news = raw_news_list
         part_started = time.monotonic()
         scored_news = score_stock_news(code_input_news, stock_name)
         print(
