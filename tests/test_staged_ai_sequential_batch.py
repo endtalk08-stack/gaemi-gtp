@@ -128,5 +128,63 @@ class SequentialBatchTests(unittest.TestCase):
         self.assertEqual(module._safe_failure_reason(ValueError("model_response_truncated")), "model_truncated")
 
 
+    def test_ai_uses_neon_company_name_without_filtering_raw_news(self):
+        """The CODE and AI paths share the verified label; AI keeps raw input."""
+        import os
+        import sys
+        import types
+        from contextlib import nullcontext
+        from datetime import datetime
+        from unittest.mock import patch
+        from zoneinfo import ZoneInfo
+
+        articles = [
+            {"title": "메타 투자 발표", "description": "Meta Platforms", "published_at": "2026-10-26"},
+            {"title": "니나드 메타 박사", "description": "학회 소식", "published_at": "2026-10-26"},
+        ]
+        fake_psycopg = types.ModuleType("psycopg")
+        fake_psycopg.connect = Mock(return_value=nullcontext(object()))
+        environments = {
+            "GAEMIGTP_NEWS_AI_PAUSED": "0",
+            "GROQ_API_KEY": "mock-only-not-used",
+            "NEWS_DATABASE_URL": "postgres://mock-only-not-used",
+        }
+        with patch.dict(os.environ, environments), \
+             patch.dict(sys.modules, {"psycopg": fake_psycopg}), \
+             patch("staged_daily_issue_schedule.scheduled_kst_time",
+                   return_value=datetime(2000, 1, 1, tzinfo=ZoneInfo("Asia/Seoul"))), \
+             patch.object(module, "has_eligible_ai_news", return_value=True), \
+             patch.object(module, "run_stock_batch",
+                          return_value=[{"status": "ok", "ids": [], "issue_count": 0}]) as batch, \
+             patch("backend.services.news_identity_registry.resolve_us_news_identity",
+                   return_value={"status": "verified", "company_key": "US:META",
+                                 "news_name": "메타"}):
+            module.apply_worker_ai(
+                store=object(), market="미국", stock_name="메타 플랫폼스(페이스북)",
+                raw=articles, fingerprint="offline", result={"_news_status": "ok"},
+                params={"limit": 50, "storyboard_limit": 3},
+            )
+        passed = batch.call_args.args[1][0]
+        self.assertEqual(passed["symbol"], "메타 플랫폼스(페이스북)")
+        self.assertEqual(passed["name"], "메타")
+        self.assertIs(passed["articles"], articles)
+        self.assertEqual(len(passed["articles"]), 2)
+
+    def test_ai_pause_keeps_identity_lookup_and_paid_call_disabled(self):
+        import os
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"GAEMIGTP_NEWS_AI_PAUSED": "1"}), \
+             patch("backend.services.news_identity_registry.resolve_us_news_identity") as resolver, \
+             patch.object(module, "run_stock_batch") as batch:
+            module.apply_worker_ai(
+                store=object(), market="미국", stock_name="메타 플랫폼스(페이스북)",
+                raw=[{"title": "기사"}], fingerprint="offline",
+                result={"_news_status": "ok"}, params={},
+            )
+        resolver.assert_not_called()
+        batch.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
