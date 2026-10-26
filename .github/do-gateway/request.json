@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-news.service","lines":300}
+{"operation":"run","path":"ops/do-gateway/audit_amazon_identity_20261026.py","request_id":"us_code_rejection_trace_1026","timeout":300}
