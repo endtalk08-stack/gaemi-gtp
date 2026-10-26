@@ -732,7 +732,16 @@ def build_stock_news_result(
         if market in ("미국", "US", "us"):
             for brief in issue_briefs:
                 if isinstance(brief, dict):
-                    brief["headline"] = re.sub(r"\s*이슈\s*$", "", str(brief.get("headline") or "").strip()).strip()
+                    source_title = next((
+                        str(source.get("title") or "").strip()
+                        for source in brief.get("source_articles") or []
+                        if isinstance(source, dict)
+                        and re.search(r"[가-힣]", str(source.get("title") or ""))
+                    ), "")
+                    if source_title:
+                        brief["headline"] = source_title
+                    else:
+                        brief["headline"] = re.sub(r"\s*이슈\s*$", "", str(brief.get("headline") or "").strip()).strip()
 
         # Diagnostic counts only: trace where central issues drop out without
         # changing the shared news, selection, or presentation results.
