@@ -63,7 +63,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
             return {"엔비디아": {"issue_briefs": [{
                 "headline": "엔비디아 AI 뉴스 재료",
                 "summary": "원문 근거",
-                "source_articles": [{"url": "https://source.example/verified", "title": "엔비디아 AI 뉴스 재료"}],
+                "source_articles": [{"url": "https://source.example/verified", "title": "엔비디아 AI 뉴스 재료", "published_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}],
             }]}}
         with patch.object(market_issue_headlines, "_read_worker_briefs", side_effect=worker):
             result = market_issue_headlines.get_market_issue_headlines("us", [
@@ -97,7 +97,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         from zoneinfo import ZoneInfo
         published = datetime.now(timezone.utc).isoformat()
         article = {"published_at": published, "url": "https://example.org/nvidia-news",
-                   "source": "Example"}
+                   "source": "Example", "title": "서버의 기존 이슈"}
         found = []
         def worker(name, **kwargs):
             found.append(name)
