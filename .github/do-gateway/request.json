@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect_news_worker_cadence_readonly_20261021.py","request_id":"trace_systemd_rotation_tmp_1026","timeout":120}
+{"operation":"run","path":"ops/do-gateway/verify_rotation_persistence_20261026.py","request_id":"rotation_persistent_baseline_1026","timeout":120}
