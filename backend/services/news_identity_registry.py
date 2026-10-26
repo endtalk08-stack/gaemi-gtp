@@ -74,11 +74,24 @@ def resolve_us_news_identity(name, symbol=None):
                    and r["status"] == "verified"]
         if len({r["key"] for r in matches}) != 1:
             matches = []
+    # Exchange-suffixed and plain symbols normalize to the same ticker.
+    # Prefer an explicitly verified DB name pair over an unreviewed duplicate.
+    exact_verified = [r for r in matches
+                      if r["status"] == "verified"
+                      and r["label"].casefold() == name.casefold()]
+    verified_matches = [r for r in matches if r["status"] == "verified"]
+    if exact_verified:
+        matches = exact_verified
+    elif verified_matches:
+        matches = verified_matches
     row = matches[0] if len(matches) == 1 or (
         matches and len({r["key"] for r in matches}) == 1
     ) else None
     basic = resolve_us_identity(name, ticker or None)
-    if ticker and basic["status"] != "verified" and resolve_us_identity(name)["status"] == "verified":
+    if (ticker and basic["status"] != "verified"
+            and resolve_us_identity(name)["status"] == "verified"
+            and not (row and row["status"] == "verified"
+                     and row["label"].casefold() == name.casefold())):
         # A mismatched known ticker must never steal another firm's news.
         return dict(company_key=basic["company_key"], ticker="", news_name=name,
                     status="pending", search_terms=[name], snapshot_names=[name])
