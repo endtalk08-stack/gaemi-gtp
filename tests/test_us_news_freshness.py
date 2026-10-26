@@ -147,6 +147,17 @@ class RenderFreshnessTests(unittest.TestCase):
             "예약금은 모두 반환할 예정이다. 생산 계획도 전면 철회했다.")
         self.assertEqual(out["headline"], "테슬라, 현지 출시 취소")
 
+    def test_recent_source_title_survives_unavailable_body_and_keywords(self):
+        item = {**brief("실제 기사 제목", 1), "summary": "", "tags": [],
+                "source_articles": [{**brief("x", 1)["source_articles"][0],
+                                     "title": "실제 기사 제목"}]}
+        out = self._render_issue_view({"_title_only_revision": 3,
+            "_code_fact_extraction_version": 3, "_code_issue_briefs": [item]})["issue_briefs"]
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["headline"], "실제 기사 제목")
+        self.assertEqual(out[0]["summary"], "")
+        self.assertEqual(out[0]["tags"], [])
+
     def test_scraped_link_index_not_treated_as_verified_article_sentences(self):
         index = (
             "“주차 맡기고 올라가세요” ... 현대위아 주차로봇 [단독] "
@@ -288,18 +299,18 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual(result["issue_briefs"][0]["tags"], ["양산개시", "생산확대", "공장건설"])
         self.assertEqual(len(result["issue_briefs"]), 1)
 
-    def test_central_keywords_are_not_generated_if_worker_match_is_missing(self):
+    def test_central_preserves_worker_issue_tags_when_article_lookup_is_missing(self):
         item = {
             "headline": "기존 제목",
             "summary": "테슬라는 신규 공장을 증설한다고 발표했다.",
-            "tags": ["AI반도체"],
+            "tags": ["공장증설"],
             "source_articles": [{"url": "https://example.org/no-title"}],
         }
         result = news_result._sanitize_news_display_briefs(
             {"issue_briefs": [item]}, market="미국"
         )
         self.assertEqual(result["issue_briefs"][0]["headline"], "기존 제목")
-        self.assertEqual(result["issue_briefs"][0]["tags"], [])
+        self.assertEqual(result["issue_briefs"][0]["tags"], ["공장증설"])
         self.assertEqual(len(result["issue_briefs"]), 1)
 
     def test_central_keywords_match_each_article_url_not_selection_order(self):
