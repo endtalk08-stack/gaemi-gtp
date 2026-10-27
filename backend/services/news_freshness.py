@@ -142,7 +142,7 @@ def _compact_code_news_title(brief):
     return headline
 
 def _source_news_brief(brief, articles):
-    """Display the selected article's provider text; never generate missing prose."""
+    """Preserve the worker summary; use publisher description only when missing."""
     sources = [s for s in brief.get("source_articles") or [] if isinstance(s, dict)]
     sources.sort(key=lambda s: (_article_date(s.get("published_at"))
                                or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
@@ -153,11 +153,16 @@ def _source_news_brief(brief, articles):
                     or source.get("original_title") or source.get("title") or "").strip()
         if not title:
             continue
-        # Keep the DigitalOcean issue summary as stored. Publisher snippets
-        # must not replace source-backed sentences during display shaping.
-        text = str(brief.get("summary") or "")
-        return {**brief, "headline": title,
-                "display_content_source": "worker_issue" if text.strip() else "title_only"}
+        # Do not replace source-backed worker prose with a publisher snippet.
+        summary = str(brief.get("summary") or "")
+        if summary.strip():
+            return {**brief, "headline": title,
+                    "display_content_source": "worker_issue"}
+        # When no worker prose exists, show the provider's existing description.
+        description = str(article.get("original_description") or article.get("description")
+                          or source.get("original_description") or source.get("description") or "").strip()
+        return {**brief, "headline": title, "summary": description,
+                "display_content_source": "provider_description" if description else "title_only"}
     if brief.get("evidence_source") == "original_unavailable":
         return None
     return dict(brief)
