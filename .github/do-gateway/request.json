@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-news.service"}
+{"operation":"run","path":"ops/do-gateway/us_daily_backfill_20261026_once.py","request_id":"usdaily20261026once","timeout":900}
