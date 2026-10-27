@@ -125,10 +125,10 @@ def lab_run():
     # Auto mode preserves JSON for the original issue-analysis instructions,
     # but switches to free text if the administrator edits them to normal prose.
     structured = output_format == "json" or (output_format == "auto" and bool(
-        re.search(r"\\bjson\\b", system_prompt, re.I)
+        re.search(r"\bjson\b", system_prompt, re.I)
         and re.search(r"반환|출력|응답|형식|return|output|format", system_prompt, re.I)
     ))
-    if structured and not re.search(r"\\bjson\\b", system_prompt + " " + user_input, re.I):
+    if structured and not re.search(r"\bjson\b", system_prompt + " " + user_input, re.I):
         return jsonify({"ok": False, "error": "json_instruction_required"}), 400
     key = os.getenv("GROQ_API_KEY", "").strip()
     if not key:
