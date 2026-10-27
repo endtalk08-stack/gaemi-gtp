@@ -288,7 +288,7 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
             ),
             reverse=True,
         )
-    result["issue_briefs"] = selected[:3]
+    result["issue_briefs"] = selected
 
     # Price reason shares the same strict 24-hour cited-article freshness rule.
     reason = result.get("price_reason")
