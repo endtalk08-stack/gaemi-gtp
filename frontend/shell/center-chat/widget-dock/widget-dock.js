@@ -246,8 +246,8 @@
       inlineChart.updateLive = updateLive;
     }
     const loading = document.createElement('div');
-    loading.textContent = '키움 일봉을 불러오는 중...';
-    target.replaceChildren(status, loading);
+    loading.textContent = '';
+    target.replaceChildren(loading);
     try {
       const response = await fetch(BACKEND_URL + '/market/us-daily-chart?symbol=' +
         encodeURIComponent(symbol));
