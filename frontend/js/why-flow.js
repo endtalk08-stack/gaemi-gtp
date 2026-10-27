@@ -123,7 +123,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 if (!key || seenIssues.has(key)) return false;
                 seenIssues.add(key);
                 return true;
-              }).slice(0, 3);
+              });
             const typeWhyText = (element, text) => typeText(element, text, { chunkSize: 1 });
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5';
