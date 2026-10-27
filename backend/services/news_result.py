@@ -840,7 +840,8 @@ def _sanitize_news_display_briefs(result, *, market=None):
                     brief["headline"] = source_title
                 # No Render keyword re-extraction or old broad-tag fallback.
                 # Preserve grounded issue tags when article lookup has no keywords.
-                brief["tags"] = next(
+                if not brief.get("event_selection_revision"):
+                    brief["tags"] = next(
                     (
                         list(worker_keywords[str(source.get("url") or "").strip()])
                         for source in (brief.get("source_articles") or [])
@@ -848,7 +849,7 @@ def _sanitize_news_display_briefs(result, *, market=None):
                         and worker_keywords.get(str(source.get("url") or "").strip())
                     ),
                     list(brief.get("tags") or []),
-                )
+                    )
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
                 brief["headline"] = grounded_issue_display_title(brief)
@@ -933,8 +934,10 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         return {**_empty_news_result(), "_news_status": "unavailable"}
     worker_result = copy.deepcopy(worker_result)
     if market in ("미국", "us"):
+        aliases = [stock_name] + list(resolve_us_news_identity(
+            stock_name, symbol=symbol).get("search_terms") or [])
         worker_result = clean_us_snapshot(worker_result, issue_mode=issue_mode,
-                                          format_titles=False)
+                                          format_titles=False, company_aliases=aliases)
     return _sanitize_news_display_briefs(worker_result, market=market)
 
 
