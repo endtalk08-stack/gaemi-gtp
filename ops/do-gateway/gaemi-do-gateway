@@ -191,6 +191,40 @@ case "$action" in
       /opt/gaemigtp-news/venv/bin/python "$job"
     echo "GAEMI_JOB_OK=$1"
     ;;
+  kiwoom-daily-backfill)
+    # Only the pinned 2026-10-26 recovery script may use BOTH existing secrets.
+    [[ $# == 3 ]] || fail "backfill_requires_id_sha_timeout"
+    [[ "$1" == "usdaily20261026recover2" ]] || fail "backfill_unapproved_request"
+    [[ "$2" == "1be6f559740c026b37d9d6e8ed8d3bb0abd100d3" ]] || fail "backfill_unapproved_payload"
+    [[ "$3" == "900" ]] || fail "backfill_unapproved_timeout"
+    [[ -f "$inbox" && ! -L "$inbox" ]] || fail "backfill_payload_missing"
+    [[ "$(blob_sha "$inbox")" == "$2" ]] || fail "backfill_payload_sha_mismatch"
+    [[ -f /etc/gaemigtp/kiwoom.env && ! -L /etc/gaemigtp/kiwoom.env ]] || fail "backfill_kiwoom_env_missing"
+    [[ "$(stat -c %U:%G /etc/gaemigtp/kiwoom.env)" == "root:root" ]] || fail "backfill_kiwoom_env_owner_invalid"
+    [[ "$(stat -c %a /etc/gaemigtp/kiwoom.env)" == "600" ]] || fail "backfill_kiwoom_env_permissions_invalid"
+    [[ -f "$envfile" && ! -L "$envfile" ]] || fail "backfill_database_env_missing"
+    systemctl is-active --quiet gaemigtp-news.service || fail "backfill_original_worker_inactive"
+    exec 9>/run/lock/gaemi-gateway.lock
+    flock -n 9 || fail "backfill_concurrent_operation"
+    install -d -o root -g root -m 0700 /var/lib/gaemi-gateway
+    record="/var/lib/gaemi-gateway/run-$1"
+    [[ ! -e "$record" ]] || fail "backfill_duplicate_request"
+    printf '%s\n' "$(date -u +%FT%TZ) $2" > "$record"
+    install -d -o gaemigtp-news -g gaemigtp-news -m 0700 /run/gaemi-gateway
+    job="/run/gaemi-gateway/job-$1.py"
+    install -o gaemigtp-news -g gaemigtp-news -m 0500 -- "$inbox" "$job"
+    trap 'rm -f "$job"' EXIT
+    systemd-run --quiet --wait --pipe --collect \
+      --unit="gaemi-gateway-$1" \
+      -p User=gaemigtp-news -p Group=gaemigtp-news \
+      -p WorkingDirectory="$app" \
+      -p EnvironmentFile=/etc/gaemigtp/kiwoom.env \
+      -p EnvironmentFile=/etc/gaemigtp/news-worker.env \
+      -p TimeoutStartSec=900 -p NoNewPrivileges=true \
+      /opt/gaemigtp-news/venv/bin/python "$job"
+    systemctl is-active --quiet gaemigtp-news.service || fail "backfill_original_worker_changed"
+    echo "GAEMI_KIWOOM_BACKFILL_OK=$1"
+    ;;
   *)
     fail "unknown_operation"
     ;;

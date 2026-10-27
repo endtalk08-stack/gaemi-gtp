@@ -31,7 +31,7 @@ jobs:
           import json, os, pathlib, re, subprocess
           req=json.loads(pathlib.Path('.github/do-gateway/request.json').read_text())
           op=req.get("operation")
-          if op not in ("status","logs","restart","deploy","run","upgrade","enable-timer","kiwoom-verify","alpaca-verify","alpaca-news-verify"):
+          if op not in ("status","logs","restart","deploy","run","upgrade","enable-timer","kiwoom-verify","kiwoom-daily-backfill","alpaca-verify","alpaca-news-verify"):
               raise ValueError("invalid operation")
           allowed={
               "status":{"operation"},
@@ -43,6 +43,7 @@ jobs:
               "enable-timer":{"operation","unit"},
               "deploy":{"operation","path","target"},
               "run":{"operation","path","request_id","timeout"},
+              "kiwoom-daily-backfill":{"operation","path","request_id","timeout"},
               "upgrade":{"operation","path"},
           }[op]
           if set(req)!=allowed:
@@ -58,7 +59,7 @@ jobs:
               if type(n)!=int or not 1<=n<=300:
                   raise ValueError("invalid lines")
               out["arg2"]=str(n)
-          if op in ("deploy","run","upgrade"):
+          if op in ("deploy","run","upgrade","kiwoom-daily-backfill"):
               path=req["path"]
               if (not isinstance(path,str) or not re.fullmatch(r'[A-Za-z0-9_./-]{1,220}',path)
                   or '..' in path or '//' in path or path.startswith('/')):
@@ -74,7 +75,13 @@ jobs:
                       raise ValueError("invalid deployment path")
                   out.update(arg1=target,arg2=sha)
               if op=="upgrade": out["arg1"]=sha
-              if op=="run":
+              if op in ("run","kiwoom-daily-backfill"):
+                  if op=="kiwoom-daily-backfill":
+                      if (path!="ops/do-gateway/us_daily_backfill_20261026_once.py"
+                              or sha!="1be6f559740c026b37d9d6e8ed8d3bb0abd100d3"
+                              or req["request_id"]!="usdaily20261026recover2"
+                              or req["timeout"]!=900):
+                          raise ValueError("unapproved one-time Kiwoom recovery")
                   if not path.endswith('.py'):
                       raise ValueError("only python jobs")
                   key=req["request_id"]
