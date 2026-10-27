@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-news.service"}
+{"operation":"run","path":"ops/do-gateway/reprocess_nvda_tsla_without_ai_20261028.py","request_id":"nvda_tsla_post_remove20261028a","timeout":900}
