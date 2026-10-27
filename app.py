@@ -5,6 +5,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from backend.services.ai_test import ai_test_bp, remember_chat_analysis
+from backend.services.worker_ai_lab import worker_ai_lab_bp
 from backend.services.issue_title_test import issue_title_test_bp
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
@@ -22,6 +23,7 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 app.register_blueprint(ai_test_bp)
+app.register_blueprint(worker_ai_lab_bp)
 app.register_blueprint(issue_title_test_bp)
 CORS(app)
 install_private_access(app, FRONTEND_DIR)
@@ -36,6 +38,11 @@ def home():
 @app.get("/ai-test")
 def ai_test_page():
     return send_from_directory(FRONTEND_DIR, "ai-test.html")
+
+
+@app.get("/worker-ai-test")
+def worker_ai_test_page():
+    return send_from_directory(FRONTEND_DIR, "worker-ai-test.html")
 
 @app.get("/health")
 def health():
