@@ -413,10 +413,6 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
             entry["original_summary"] = entry["summary"]
             entry["translation_status"] = "not_needed" if re.search(r"[가-힣]", entry["summary"]) else "pending"
             entry["_original_body_excerpt"] = True
-        elif not any(str(e.get("evidence_span") or "").strip() in str(entry.get("original_summary") or "")
-                     for e in events if e.get("evidence_span")):
-            entry["summary"] = ""
-            entry["summary_status"] = "selected_event_not_in_original_excerpt"
         selected.append(entry)
     result = sorted(selected, key=lambda b:b["_issue_first_published_at"], reverse=True)
     return result, rejected
