@@ -15,7 +15,7 @@
     .muted { color: #aab8c7; font-size: .9rem; }
     .panel { padding: 22px; border: 1px solid #344354; background: #19212b; border-radius: 14px; margin: 15px 0; }
     label { display: block; font-size: .91rem; font-weight: 650; margin: 12px 0 7px; }
-    input,textarea { display: block; width: 100%; border-radius: 8px; background: #0e151e; border: 1px solid #536479; color: #f1f4f7; padding: 12px; font: inherit; }
+    input,select,textarea { display: block; width: 100%; border-radius: 8px; background: #0e151e; border: 1px solid #536479; color: #f1f4f7; padding: 12px; font: inherit; }
     textarea { resize: vertical; min-height: 125px; font-family: ui-monospace,SFMono-Regular,Consolas,monospace; font-size: .89rem; line-height: 1.65; }
     #systemPrompt { min-height: 165px; }
     #userInput { min-height: 225px; }
@@ -53,7 +53,7 @@
     <div class="tabs" role="group" aria-label="독립 테스트할 모델 선택">
       <button class="tab active" id="tabIssue" type="button" aria-pressed="true">
         AI 이슈 분석
-        <small>GPT-OSS 20B · JSON · 최대 1,000 응답 토큰</small>
+        <small>GPT-OSS 20B · 자유 응답 / JSON · 최대 1,000 응답 토큰</small>
       </button>
       <button class="tab" id="tabClose" type="button" aria-pressed="false">
         미국 마감시황
@@ -63,11 +63,17 @@
     <p id="modelInfo">AI 이슈 분석 · openai/gpt-oss-20b</p>
   </section>
   <section class="panel">
-    <label for="systemPrompt">시스템 프롬프트 (편집 가능)</label>
+    <label for="systemPrompt">시스템 프롬프트 (선택 사항 · 편집 가능)</label>
     <textarea id="systemPrompt" maxlength="6000" placeholder="인증하면 DigitalOcean에서 사용 중인 기본 프롬프트가 나타납니다."></textarea>
-    <label for="userInput">AI에 보낼 내용 / 뉴스 자료 (편집 가능)</label>
-    <textarea id="userInput" maxlength="15000" placeholder="기사 원문이 포함된 JSON 또는 직접 작성한 요청을 입력하세요."></textarea>
-    <p class="muted">예시의 대괄호 내용은 반드시 실제 기사·시세 자료로 바꿔 주세요. 두 모델의 프롬프트와 입력 내용은 화면에서 각각 따로 유지합니다. 분석 버튼을 누를 때마다 Groq에 새 요청을 보내며 토큰이 소모됩니다. 같은 프롬프트라면 답변 문장이 같을 수도 있습니다.</p>
+    <label for="userInput">AI에 보낼 메시지 (질문·뉴스 자료 등 자유 입력)</label>
+    <textarea id="userInput" maxlength="15000" placeholder="예: 엔비디아 왜 올랐어? / 뉴스 원문 / 원하는 분석 요청"></textarea>
+    <label for="formatMode">AI 응답 형식</label>
+    <select id="formatMode">
+      <option value="auto">자동 · 프롬프트가 JSON을 요청할 때만 JSON 강제</option>
+      <option value="text">자유 응답 · 일반 텍스트 (추천)</option>
+      <option value="json">JSON 강제 · 프롬프트에도 JSON 출력 지시 필요</option>
+    </select>
+    <p class="muted">시스템 프롬프트는 비워도 됩니다. 질문만으로 자유롭게 테스트할 수 있지만 실제 뉴스·시세가 자동 첨부되지는 않습니다. 근거 있는 분석을 원한다면 관련 자료를 함께 입력하세요. 모델별 작성 내용과 출력 형식은 각각 유지되며, 분석 버튼을 누를 때마다 Groq 토큰이 소모됩니다.</p>
     <div class="row">
       <button type="button" id="send" disabled>AI 분석 실행</button>
       <button type="button" id="reset" class="secondary" disabled>기본 프롬프트·예시 복원</button>
@@ -91,12 +97,15 @@
 (() => {
   const $ = id => document.getElementById(id);
   const state = { current: 'issue', verified: false, config: null, inputs: {
-    issue: {system_prompt:'',user_input:''},
-    close: {system_prompt:'',user_input:''}
+    issue: {system_prompt:'',user_input:'',output_format:'auto'},
+    close: {system_prompt:'',user_input:'',output_format:'auto'}
   }, results: {issue:null,close:null}, runs: {issue:0,close:0} };
   const messages = {
     unauthorized_or_disabled:'인증 실패: 기존 AI_TEST_TOKEN, AI_TEST_ENABLED, Render Groq 설정을 확인하세요.',
-    invalid_prompt:'시스템 프롬프트와 보낼 내용을 확인해 주세요.',
+    invalid_prompt:'AI에 보낼 메시지를 입력해 주세요. 시스템 프롬프트는 비워도 됩니다.',
+    invalid_output_format:'응답 형식을 다시 선택해 주세요.',
+    json_instruction_required:'JSON 강제 모드에서는 시스템 프롬프트 또는 메시지에 JSON 출력 지시가 필요합니다.',
+    provider_bad_request:'Groq가 요청을 잘못된 형식으로 판단했습니다. 자유 응답을 선택하거나 프롬프트를 확인해 주세요.',
     invalid_model:'선택한 모델을 확인해 주세요.',
     provider_not_configured:'Render에 GROQ_API_KEY가 설정되지 않았습니다.',
     provider_rate_limit:'Groq 속도·사용량 제한에 도달했습니다.',
@@ -108,7 +117,8 @@
   const fmt = n => Number.isInteger(n) && n >= 0 ? n.toLocaleString('ko-KR') : '미확인';
   const notice = msg => $('notice').textContent = msg;
   const save = () => { if (state.verified) state.inputs[state.current] = {
-    system_prompt: $('systemPrompt').value, user_input: $('userInput').value
+    system_prompt: $('systemPrompt').value, user_input: $('userInput').value,
+    output_format: $('formatMode').value
   }; };
   function renderResult() {
     const data = state.results[state.current];
@@ -120,6 +130,7 @@
     $('reasoning').textContent = data && Number.isInteger(usage.reasoning_tokens)
       ? '출력 토큰 중 추론 토큰: ' + fmt(usage.reasoning_tokens) : '';
     $('finish').textContent = data ? '모델: ' + data.model
+      + ' · 응답 형식: ' + (data.output_format === 'json' ? 'JSON' : '자유 응답')
       + ' · 응답 종료 상태: ' + (data.finish_reason || '미확인')
       + ' · ' + data.run_no + '회차 · 완료 ' + data.completed_at : '';
   }
@@ -134,6 +145,7 @@
     if (state.verified) {
       $('systemPrompt').value = state.inputs[variant].system_prompt;
       $('userInput').value = state.inputs[variant].user_input;
+      $('formatMode').value = state.inputs[variant].output_format;
     }
     const config = state.config?.[variant];
     $('modelInfo').textContent = config
@@ -158,7 +170,9 @@
     if (!response.ok || !data.ok)
       throw new Error((messages[data.error]||'요청 실패')
         +' (HTTP '+response.status
-        +(data.provider_status?', Groq '+data.provider_status:'')+').');
+        +(data.provider_status?', Groq '+data.provider_status:'')
+        +(data.provider_error_code?', 코드 '+data.provider_error_code:'')
+        +(data.provider_error_type?', 유형 '+data.provider_error_type:'')+').');
     return data;
   }
   $('auth').addEventListener('click', async () => {
@@ -172,10 +186,12 @@
       state.config=data.models; state.verified=true;
       for(const v of ['issue','close']) state.inputs[v]={
         system_prompt:data.models[v].system_prompt,
-        user_input:data.models[v].example_input
+        user_input:data.models[v].example_input,
+        output_format:'auto'
       };
       $('systemPrompt').value=state.inputs[state.current].system_prompt;
       $('userInput').value=state.inputs[state.current].user_input;
+      $('formatMode').value=state.inputs[state.current].output_format;
       $('send').disabled=false; $('reset').disabled=false;
       $('modelInfo').textContent=data.models[state.current].label+' · '
         +data.models[state.current].model+' · 응답 토큰 상한 '
@@ -191,14 +207,15 @@
     const d=state.config[state.current];
     $('systemPrompt').value=d.system_prompt;
     $('userInput').value=d.example_input;
+    $('formatMode').value='auto';
     save(); notice('선택한 모델의 운영 기본 프롬프트와 입력 예시를 복원했습니다.');
   });
   $('send').addEventListener('click',async ()=>{
     if(!state.verified)return;
     save();
     const values=state.inputs[state.current];
-    if(!values.system_prompt.trim() || !values.user_input.trim()) {
-      notice('프롬프트와 보낼 내용을 입력해 주세요.'); return;
+    if(!values.user_input.trim()) {
+      notice('AI에 보낼 메시지를 입력해 주세요. 시스템 프롬프트는 비워도 됩니다.'); return;
     }
     const current=state.current;
     // Button click itself is the explicit request: no confirmation dialog that
@@ -215,7 +232,8 @@
     $('reasoning').textContent='';
     try {
       const result=await api('/api/worker-ai-test/run',{
-        variant:current,system_prompt:values.system_prompt,user_input:values.user_input
+        variant:current,system_prompt:values.system_prompt,user_input:values.user_input,
+        output_format:values.output_format
       });
       state.runs[current]+=1;
       state.results[current]={...result,run_no:state.runs[current],
