@@ -62,12 +62,15 @@ def main():
     ny = now.astimezone(ZoneInfo('America/New_York'))
     today = ny.date()
     market_window = ny.weekday() < 5 and dt.time(4) <= ny.time() < dt.time(20, 10)
+    expected = today if ny.time() >= dt.time(16) else today - dt.timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= dt.timedelta(days=1)
     token = None
     failed = 0
     for symbol, exchange, latest, count, fetched in matches:
         if fetched and not market_window and now - fetched < dt.timedelta(hours=6):
             # New and incomplete histories still get one full attempt per off-hours cycle.
-            if count >= 65:
+            if count >= 65 and latest and latest >= expected:
                 continue
         start = history_start(today, latest, count)
         try:
