@@ -199,12 +199,12 @@
     chartSymbol = /^[A-Z0-9.\\-]{1,20}$/.test(String(symbol || '')) ? String(symbol) : '';
   }
 
-  function renderInlineChart(target, symbol) {
+  function renderInlineChart(target, symbol, initialChangePct = null) {
     setChartSelection(symbol);
     if (!chartSymbol || !target) return;
     const selected = chartSymbol;
     inlineChart = { target, symbol: selected, updateLive: null };
-    return loadChart(target, selected);
+    return loadChart(target, selected, initialChangePct);
   }
 
   function isInlineChartActive() {
@@ -220,25 +220,44 @@
     active.updateLive(quote || null);
   }
 
-  async function loadChart(target, symbol) {
+  async function loadChart(target, symbol, initialChangePct) {
     if (!target || !symbol) return;
     const current = ++chartRequest;
-    target.textContent = '키움 일봉을 불러오는 중...';
+    const status = document.createElement('div');
+    status.className = 'us-daily-chart__live';
+    status.setAttribute('role', 'status');
+    status.style.textAlign = 'right';
+    const showPercentage = (change) => {
+      if (!Number.isFinite(change)) return;
+      status.textContent = (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+      status.style.color = change > 0 ? '#ff8da1' : change < 0 ? '#38bdf8' : '#a5abb5';
+    };
+    showPercentage(initialChangePct);
+    const updateLive = (quote) => {
+      const now = Date.now();
+      const fresh = quote && quote.symbol === symbol && quote.stale === false
+        && Number.isFinite(quote.price) && quote.price > 0
+        && Number.isFinite(quote.received_at_ms)
+        && quote.received_at_ms <= now + 5000
+        && now - quote.received_at_ms <= 25000;
+      if (fresh) showPercentage(quote.change_pct);
+    };
+    if (inlineChart?.target === target && inlineChart.symbol === symbol) {
+      inlineChart.updateLive = updateLive;
+    }
+    const loading = document.createElement('div');
+    loading.textContent = '키움 일봉을 불러오는 중...';
+    target.replaceChildren(status, loading);
     try {
       const response = await fetch(BACKEND_URL + '/market/us-daily-chart?symbol=' +
         encodeURIComponent(symbol));
       const data = await response.json();
       if (current !== chartRequest || !target.isConnected) return;
       if (!response.ok || !data.ok || !Array.isArray(data.rows) || !data.rows.length) {
-        target.textContent = '일봉 데이터가 아직 준비되지 않았어.';
+        loading.textContent = '일봉 데이터가 아직 준비되지 않았어.';
         return;
       }
-      target.replaceChildren();
-      const status = document.createElement('div');
-      status.className = 'us-daily-chart__live';
-      status.setAttribute('role', 'status');
-      status.textContent = '';
-      status.style.textAlign = 'right';
+      loading.remove();
       const plot = document.createElement('div');
       plot.className = 'us-daily-chart__plot';
       const canvas = document.createElement('canvas');
@@ -252,28 +271,9 @@
       plot.append(canvas);
       target.append(status, plot, tooltip);
       drawCandles(canvas, data.rows, tooltip);
-      const updateLive = (quote) => {
-        const now = Date.now();
-        const fresh = quote && quote.symbol === symbol && quote.stale === false
-          && Number.isFinite(quote.price) && quote.price > 0
-          && Number.isFinite(quote.received_at_ms)
-          && quote.received_at_ms <= now + 5000
-          && now - quote.received_at_ms <= 25000;
-        // Reuse the sidebar's existing percentage without another request.
-        const change = fresh && Number.isFinite(quote.change_pct)
-          ? quote.change_pct : null;
-        status.textContent = change === null ? ''
-          : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
-        status.style.color = change === null ? ''
-          : change > 0 ? '#ff8da1' : change < 0 ? '#38bdf8' : '#a5abb5';
-      };
-      if (inlineChart?.target === target && inlineChart.symbol === symbol) {
-        inlineChart.updateLive = updateLive;
-      }
-      updateLive(null);
     } catch (_) {
       if (current === chartRequest && target.isConnected)
-        target.textContent = '일봉 데이터를 조회할 수 없어.';
+        loading.textContent = '일봉 데이터를 조회할 수 없어.';
     }
   }
 

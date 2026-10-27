@@ -687,6 +687,19 @@
       const chatArea = document.getElementById('chatArea');
       ctx.appendChatMessage('user', stockName, 'stock', session.id);
 
+      // Render the selected stock's existing percent immediately, not after analysis.
+      const selection = session.marketSelection;
+      if (selection?.market === 'us' && selection?.menu === 'value'
+          && /^[A-Z0-9.\\-]{1,20}$/.test(String(selection.symbol || ''))) {
+        const chartHost = document.createElement('section');
+        chartHost.className = 'us-daily-chart us-daily-chart--inline';
+        chartHost.setAttribute('aria-label', selection.name + ' 일봉');
+        chatArea.appendChild(chartHost);
+        window.GaemiGTPWidgetDock?.renderInlineChart?.(
+          chartHost, selection.symbol, selection.change_pct
+        );
+      }
+
       const loadingDiv = document.createElement('div');
       loadingDiv.className = 'analysis-loading-sequence';
       loadingDiv.innerHTML = `<div class="gtp-chat-copy font-semibold animate-pulse" aria-live="polite">시세를 조회중입니다</div>`;
@@ -750,17 +763,6 @@
         sections: sections.map(({ id, title, content }) => ({ id, title, content }))
       });
       window.GaemiGTPApp?.saveChatHistory?.();
-      // Render verified US TOP 20 candles in the conversation, immediately
-      // below the selected stock name and before the analysis response.
-      const selection = session.marketSelection;
-      if (selection?.market === 'us' && selection?.menu === 'value'
-          && /^[A-Z0-9.\\-]{1,20}$/.test(String(selection.symbol || ''))) {
-        const chartHost = document.createElement('section');
-        chartHost.className = 'us-daily-chart us-daily-chart--inline';
-        chartHost.setAttribute('aria-label', selection.name + ' 일봉');
-        chatArea.appendChild(chartHost);
-        window.GaemiGTPWidgetDock?.renderInlineChart?.(chartHost, selection.symbol);
-      }
       startTypewriterFlow(stockName, sections, result, requestId);
     }
 
