@@ -1,5 +1,5 @@
 [Unit]
-Description=gaemiGTP Kiwoom US daily candles for verified trading-value Top 20
+Description=gaemiGTP automatic US daily candle refresh
 After=network-online.target
 Wants=network-online.target
 
@@ -11,6 +11,6 @@ WorkingDirectory=/opt/gaemigtp-news/app
 EnvironmentFile=/etc/gaemigtp/kiwoom.env
 EnvironmentFile=/etc/gaemigtp/news-worker.env
 ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_us_daily_collector
-TimeoutStartSec=300
+TimeoutStartSec=240
 NoNewPrivileges=true
 PrivateTmp=true

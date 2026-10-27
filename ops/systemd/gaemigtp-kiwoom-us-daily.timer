@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh US daily candles and fill new ranked symbols every five minutes
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=300s
+AccuracySec=10s
+Unit=gaemigtp-kiwoom-us-daily.service
+
+[Install]
+WantedBy=timers.target

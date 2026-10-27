@@ -1,0 +1,55 @@
+name: Install automatic US daily charts
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: ['.github/workflows/install-us-daily-refresh-20261027.yml']
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-gateway
+  cancel-in-progress: false
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 10
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate and install only daily chart collector and timer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile backend/kiwoom_us_daily_collector.py
+          bash -n ops/do-gateway/gaemi-do-gateway
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          host="gaemi-deploy@$DO_HOST"
+          ssh "${opts[@]}" "$host" 'install -d -m 0700 "$HOME/.gaemi-gateway"'
+          # The gateway change adds only this one exact timer to its existing allowlist.
+          scp "${opts[@]}" ops/do-gateway/gaemi-do-gateway "$host:.gaemi-gateway/payload"
+          sha="$(git hash-object ops/do-gateway/gaemi-do-gateway)"
+          ssh "${opts[@]}" "$host" sudo -n /usr/local/sbin/gaemi-do-gateway upgrade "$sha"
+          for path in backend/kiwoom_us_daily_collector.py ops/systemd/gaemigtp-kiwoom-us-daily.service ops/systemd/gaemigtp-kiwoom-us-daily.timer; do
+            scp "${opts[@]}" "$path" "$host:.gaemi-gateway/payload"
+            sha="$(git hash-object "$path")"
+            ssh "${opts[@]}" "$host" sudo -n /usr/local/sbin/gaemi-do-gateway deploy "$path" "$sha"
+          done
+          ssh "${opts[@]}" "$host" sudo -n /usr/local/sbin/gaemi-do-gateway enable-timer gaemigtp-kiwoom-us-daily.timer
+          ssh "${opts[@]}" "$host" 'systemctl is-enabled gaemigtp-kiwoom-us-daily.timer; systemctl is-active gaemigtp-kiwoom-us-daily.timer; systemctl is-active gaemigtp-news.service'
+          for attempt in {1..36}; do
+            state="$(ssh "${opts[@]}" "$host" 'systemctl show gaemigtp-kiwoom-us-daily.service -p ActiveState -p Result -p ExecMainStartTimestamp')"
+            if [[ "$state" == *"ActiveState=inactive"* && "$state" == *"Result=success"* && "$state" != *$'ExecMainStartTimestamp=\n'* ]]; then
+              break
+            fi
+            sleep 5
+          done
+          ssh "${opts[@]}" "$host" sudo -n /usr/local/sbin/gaemi-do-gateway logs gaemigtp-kiwoom-us-daily.service 45

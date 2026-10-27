@@ -142,7 +142,8 @@ case "$action" in
     ;;
   enable-timer)
     [[ $# == 1 && ( "$1" == "gaemigtp-kiwoom-us-value.timer" ||
-                    "$1" == "gaemigtp-kiwoom-us-fe.service" ) ]] || fail "invalid_kiwoom_us_market_unit"
+                    "$1" == "gaemigtp-kiwoom-us-fe.service" ||
+                    "$1" == "gaemigtp-kiwoom-us-daily.timer" ) ]] || fail "invalid_kiwoom_us_market_unit"
     [[ -f /etc/systemd/system/"$1" ]] || fail "market_unit_not_installed"
     systemctl enable --now "$1"
     systemctl is-enabled --quiet "$1" || fail "timer_not_enabled"
