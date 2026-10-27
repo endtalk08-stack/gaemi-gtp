@@ -1,6 +1,32 @@
 // gaemiGTP - '왜 움직였나?' 흐름 전용
 window.GaemiGTPWhyFlow = window.GaemiGTPWhyFlow || {};
 
+
+// Read-only display shaping: retain selected events and their existing tags.
+window.GaemiGTPWhyFlow.selectedArticleBriefs = function (result) {
+  const articles = new Map();
+  for (const key of ['paired_news_items', 'panel_news_items', 'storyboard_news_items']) {
+    for (const item of (Array.isArray(result[key]) ? result[key] : [])) {
+      const url = String(item?.url || item?.link || '').trim().split('#')[0];
+      if (url && !articles.has(url)) articles.set(url, item);
+    }
+  }
+  const stamp = (event) => Math.max(0, ...(event.source_articles || []).map(
+    (source) => Date.parse(source?.published_at || '') || 0));
+  return (Array.isArray(result.issue_briefs) ? result.issue_briefs : [])
+    .filter((event) => event && typeof event === 'object')
+    .map((event) => {
+      const sources = [...(event.source_articles || [])].sort((a, b) =>
+        (Date.parse(b?.published_at || '') || 0) - (Date.parse(a?.published_at || '') || 0));
+      const source = sources[0] || {};
+      const item = articles.get(String(source.url || '').trim().split('#')[0]) || {};
+      return {...event,
+        headline: String(item.original_title || item.title || source.original_title || source.title || event.headline || ''),
+        summary: String(item.original_description || item.description || source.original_description || source.description || event.summary || '')};
+    })
+    .sort((a, b) => stamp(b) - stamp(a));
+};
+
 window.GaemiGTPWhyFlow.appendWhy = async function ({
   mainContainer,
   requestId,
@@ -84,10 +110,9 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 && Number(match[2]) === today.month
                 && Number(match[3]) === today.day;
             });
-            // 중앙 화면은 원문 기사 제목·설명을 받지 않는다. 서버가 기사에서
-            // 추출한 사실을 바탕으로 만든 display-only 이슈 브리핑만 사용한다.
+            // Display selected articles with provider text and unchanged tags.
             const seenIssues = new Set();
-            const storyboard = (Array.isArray(result.issue_briefs) ? result.issue_briefs : [])
+            const storyboard = window.GaemiGTPWhyFlow.selectedArticleBriefs(result)
               .filter((event) => {
                 if (!event || typeof event !== 'object') return false;
                 const sources = (Array.isArray(event.source_articles) ? event.source_articles : [])
@@ -98,7 +123,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 if (!key || seenIssues.has(key)) return false;
                 seenIssues.add(key);
                 return true;
-              });
+              }).slice(0, 3);
             const typeWhyText = (element, text) => typeText(element, text, { chunkSize: 1 });
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5';
@@ -348,3 +373,4 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
             if (window.lucide) window.lucide.createIcons();
             followups.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
+
