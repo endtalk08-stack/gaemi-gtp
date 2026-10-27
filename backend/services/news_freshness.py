@@ -163,6 +163,8 @@ def _source_news_brief(brief, articles):
                 text = ""
         return {**brief, "headline": title, "summary": text,
                 "display_content_source": "provider_news" if text else "title_only"}
+    if brief.get("evidence_source") == "original_unavailable":
+        return None
     return dict(brief)
 
 
@@ -230,7 +232,13 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
                     {**brief, "source_articles": [source for _, source in valid_sources]},
                     articles_by_url,
                 )
+            if brief is None:
+                continue
             headline = str(brief.get("headline") or "").strip()
+            if code_only and format_titles and not any(
+                str(source.get("title") or "").strip() for _, source in valid_sources
+            ):
+                headline = re.sub(r"\s*이슈\s*$", "", headline).strip()
             if not headline:
                 continue
             fresh.append({
