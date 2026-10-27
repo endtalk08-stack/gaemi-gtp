@@ -153,16 +153,11 @@ def _source_news_brief(brief, articles):
                     or source.get("original_title") or source.get("title") or "").strip()
         if not title:
             continue
-        text = str(article.get("original_description") or article.get("description")
-                   or source.get("original_description") or source.get("description") or "").strip()
-        # A verified stored original excerpt remains usable when the feed has
-        # no description. Do not substitute generated/unsupported issue prose.
-        if not text and brief.get("evidence_source") != "original_unavailable":
-            text = str(brief.get("original_summary") or brief.get("summary") or "").strip()
-            if text == "원문 확인 불가":
-                text = ""
-        return {**brief, "headline": title, "summary": text,
-                "display_content_source": "provider_news" if text else "title_only"}
+        # Keep the DigitalOcean issue summary as stored. Publisher snippets
+        # must not replace source-backed sentences during display shaping.
+        text = str(brief.get("summary") or "")
+        return {**brief, "headline": title,
+                "display_content_source": "worker_issue" if text.strip() else "title_only"}
     if brief.get("evidence_source") == "original_unavailable":
         return None
     return dict(brief)
