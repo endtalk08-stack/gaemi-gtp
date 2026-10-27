@@ -67,9 +67,9 @@
     <textarea id="systemPrompt" maxlength="6000" placeholder="인증하면 DigitalOcean에서 사용 중인 기본 프롬프트가 나타납니다."></textarea>
     <label for="userInput">AI에 보낼 내용 / 뉴스 자료 (편집 가능)</label>
     <textarea id="userInput" maxlength="15000" placeholder="기사 원문이 포함된 JSON 또는 직접 작성한 요청을 입력하세요."></textarea>
-    <p class="muted">예시의 대괄호 내용은 반드시 실제 기사·시세 자료로 바꿔 주세요. 두 모델의 프롬프트와 입력 내용은 화면에서 각각 따로 유지합니다. 실제 API 호출 시 토큰이 소모됩니다.</p>
+    <p class="muted">예시의 대괄호 내용은 반드시 실제 기사·시세 자료로 바꿔 주세요. 두 모델의 프롬프트와 입력 내용은 화면에서 각각 따로 유지합니다. 분석 버튼을 누를 때마다 Groq에 새 요청을 보내며 토큰이 소모됩니다. 같은 프롬프트라면 답변 문장이 같을 수도 있습니다.</p>
     <div class="row">
-      <button type="button" id="send" disabled>선택한 모델만 분석 요청</button>
+      <button type="button" id="send" disabled>AI 분석 실행</button>
       <button type="button" id="reset" class="secondary" disabled>기본 프롬프트·예시 복원</button>
     </div>
   </section>
@@ -93,7 +93,7 @@
   const state = { current: 'issue', verified: false, config: null, inputs: {
     issue: {system_prompt:'',user_input:''},
     close: {system_prompt:'',user_input:''}
-  }, results: {issue:null,close:null} };
+  }, results: {issue:null,close:null}, runs: {issue:0,close:0} };
   const messages = {
     unauthorized_or_disabled:'인증 실패: 기존 AI_TEST_TOKEN, AI_TEST_ENABLED, Render Groq 설정을 확인하세요.',
     invalid_prompt:'시스템 프롬프트와 보낼 내용을 확인해 주세요.',
@@ -120,7 +120,8 @@
     $('reasoning').textContent = data && Number.isInteger(usage.reasoning_tokens)
       ? '출력 토큰 중 추론 토큰: ' + fmt(usage.reasoning_tokens) : '';
     $('finish').textContent = data ? '모델: ' + data.model
-      + ' · 응답 종료 상태: ' + (data.finish_reason || '미확인') : '';
+      + ' · 응답 종료 상태: ' + (data.finish_reason || '미확인')
+      + ' · ' + data.run_no + '회차 · 완료 ' + data.completed_at : '';
   }
   function switchModel(variant) {
     if (state.current === variant) return;
@@ -139,6 +140,7 @@
       ? config.label + ' · ' + config.model + ' · 응답 토큰 상한 ' + fmt(config.max_completion_tokens)
       : variant === 'issue' ? 'AI 이슈 분석 · openai/gpt-oss-20b'
         : '미국 마감시황 · openai/gpt-oss-120b';
+    $('send').textContent = state.runs[variant] ? '다시 AI 분석 실행' : 'AI 분석 실행';
     renderResult();
   }
   async function api(path,payload) {
@@ -160,6 +162,10 @@
     return data;
   }
   $('auth').addEventListener('click', async () => {
+    if (state.verified) {
+      notice('이미 인증됐습니다. 아래의 AI 분석 실행 버튼을 누르면 매번 새 요청이 전송됩니다.');
+      return;
+    }
     $('auth').disabled=true; notice('인증 중...');
     try {
       const data=await api('/api/worker-ai-test/config');
@@ -174,7 +180,7 @@
       $('modelInfo').textContent=data.models[state.current].label+' · '
         +data.models[state.current].model+' · 응답 토큰 상한 '
         +fmt(data.models[state.current].max_completion_tokens);
-      notice('인증 성공. 테스트할 모델과 프롬프트를 선택하세요.');
+      notice('인증 성공. 아래 AI 분석 실행 버튼을 누를 때마다 새 요청을 보냅니다.');
     } catch(e) { state.verified=false; notice(e.message); }
     finally { $('auth').disabled=false; }
   });
@@ -195,19 +201,35 @@
       notice('프롬프트와 보낼 내용을 입력해 주세요.'); return;
     }
     const current=state.current;
-    if(!window.confirm('Groq '+state.config[current].model+'에 실제 요청합니다. 토큰이 소모됩니다. 계속할까요?'))return;
-    $('send').disabled=true; $('reset').disabled=true; notice('선택한 모델에 요청 중...');
+    // Button click itself is the explicit request: no confirmation dialog that
+    // can silently prevent a second call. Always POST again, even for identical input.
+    $('send').disabled=true; $('reset').disabled=true;
+    $('send').textContent='새 분석 요청 중...';
+    notice(state.config[current].label+' 새 분석 요청 중... (Groq 토큰 사용)');
+    state.results[current]=null;
+    $('answer').textContent='새 AI 응답을 받고 있습니다...';
+    $('finish').textContent='';
+    $('inTokens').textContent='—';
+    $('outTokens').textContent='—';
+    $('allTokens').textContent='—';
+    $('reasoning').textContent='';
     try {
       const result=await api('/api/worker-ai-test/run',{
         variant:current,system_prompt:values.system_prompt,user_input:values.user_input
       });
-      state.results[current]=result;
+      state.runs[current]+=1;
+      state.results[current]={...result,run_no:state.runs[current],
+        completed_at:new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})};
       if(state.current===current)renderResult();
-      notice('테스트 완료: '+state.config[current].label+'.');
-    }catch(e){notice(e.message);if(state.current===current) {
-      $('answer').textContent='요청에 실패했습니다. 이전 답변은 보존됩니다.';
-    }}
-    finally { $('send').disabled=false; $('reset').disabled=false; }
+      notice('새 분석 완료: '+state.config[current].label+' · '+state.runs[current]+'회차');
+    }catch(e){
+      notice('재실행 실패: '+e.message);
+      if(state.current===current) $('answer').textContent='이번 AI 요청 실패: '+e.message;
+    }finally {
+      $('send').disabled=false;
+      $('reset').disabled=false;
+      $('send').textContent=state.runs[state.current] ? '다시 AI 분석 실행' : 'AI 분석 실행';
+    }
   });
 })();
 </script>
