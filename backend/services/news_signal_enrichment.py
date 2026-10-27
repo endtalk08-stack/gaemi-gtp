@@ -401,7 +401,56 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
                      selection_reason="company_event_with_cited_evidence")
         # Display only the selected company's grounded event labels. An event
         # belonging to another company in the same article must not supply tags.
-        entry["tags"] = list(dict.fromkeys(e["label"] for e in events))[:3]
+        # Keyword-only gate: event names are not automatically price factors.
+        # Direction is a potential impact, not a proven market reaction.
+        impact_directions = {
+            "EARNINGS_BEAT": "UP", "EARNINGS_MISS": "DOWN",
+            "REVENUE_GROWTH": "UP", "REVENUE_DECLINE": "DOWN",
+            "GUIDANCE_UP": "UP", "GUIDANCE_DOWN": "DOWN",
+            "ANALYST_TARGET_UP": "UP", "ANALYST_TARGET_DOWN": "DOWN",
+            "CUSTOMER_GROWTH": "UP", "CONTRACT_ORDER": "UP",
+            "CLINICAL_POSITIVE": "UP", "CLINICAL_RISK": "DOWN",
+            "REGULATORY_APPROVAL": "UP", "RECALL": "DOWN",
+            "SHARE_BUYBACK": "UP", "SPECIAL_DIVIDEND": "UP",
+            "FOREIGN_BUY": "UP", "FOREIGN_FLOW": "DOWN",
+            "ETF_FLOW": "UP", "SHORT_INTEREST": "DOWN",
+        }
+        impact_details = []
+        article_title = str(article.get("original_title") or article.get("title") or "")
+        # Broad-market roundups frequently mix other companies' catalysts.
+        broad_roundup = any(term in article_title for term in (
+            "뉴욕증시", "미국증시", "주요기사", "증시 프리뷰",
+            "주간 증시", "시장 전망", "시장 혼조",
+        ))
+        for event in events:
+            event_type = str(event.get("event_type") or "")
+            label = str(event.get("label") or "").strip()
+            direction = impact_directions.get(event_type)
+            if event_type == "ANALYST_RATING_CHANGE":
+                direction = {"투자의견상향": "UP", "투자의견하향": "DOWN"}.get(label)
+            if not direction or not label or event.get("status") != "reported":
+                continue
+            if broad_roundup or not mentions(article_title):
+                continue
+            sentence = str(event.get("evidence_sentence") or "")
+            span = str(event.get("evidence_span") or "")
+            if not sentence or not span or span not in sentence:
+                continue
+            # A target company mentioned in another clause is not the actor.
+            clause = next((part for part in re.split(r"[,;；]|반면|한편|그리고|외에도", sentence)
+                           if span in part), "")
+            if not clause or not mentions(clause) or not owns_event(event):
+                continue
+            if label not in {item["label"] for item in impact_details}:
+                impact_details.append({
+                    "role": "IMPACT", "label": label, "event_type": event_type,
+                    "impact_direction": direction, "evidence_span": span,
+                    "source_url": event.get("source_url") or "",
+                })
+            if len(impact_details) == 3:
+                break
+        entry["tags"] = [item["label"] for item in impact_details]
+        entry["keyword_details"] = impact_details
         # Display only original prose supporting the selected event.
         body_sentences = list(dict.fromkeys(
             str(e.get("evidence_sentence") or "").strip()
