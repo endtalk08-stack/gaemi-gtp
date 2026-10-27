@@ -6,7 +6,9 @@
   let activeIds = [];
   let chartSymbol = '';
   let chartRequest = 0;
-  let inlineChart = null; // Single selected chart; no extra market-data polling.
+  let inlineChart = null;
+  let chartRefreshTimer = null;
+  let chartController = null;
 
   function catalog() { return window.GaemiGTPWidgetCatalog || {}; }
   function escapeHtml(value) {
@@ -200,6 +202,8 @@
   }
 
   function renderInlineChart(target, symbol, initialChangePct = null) {
+    clearTimeout(chartRefreshTimer);
+    chartController?.abort();
     setChartSelection(symbol);
     if (!chartSymbol || !target) return;
     const selected = chartSymbol;
@@ -222,7 +226,13 @@
 
   async function loadChart(target, symbol, initialChangePct) {
     if (!target || !symbol) return;
+    clearTimeout(chartRefreshTimer);
+    chartController?.abort();
+    const controller = new AbortController();
+    chartController = controller;
+    const requestTimeout = setTimeout(() => controller.abort(), 15000);
     const current = ++chartRequest;
+    const previous = target.querySelector('canvas');
     const status = document.createElement('div');
     status.className = 'us-daily-chart__live';
     status.setAttribute('role', 'status');
@@ -247,14 +257,14 @@
     }
     const loading = document.createElement('div');
     loading.textContent = '';
-    target.replaceChildren(loading);
+    if (!previous) target.replaceChildren(loading);
     try {
       const response = await fetch(BACKEND_URL + '/market/us-daily-chart?symbol=' +
-        encodeURIComponent(symbol));
+        encodeURIComponent(symbol), { cache: 'no-store', signal: controller.signal });
       const data = await response.json();
       if (current !== chartRequest || !target.isConnected) return;
       if (!response.ok || !data.ok || !Array.isArray(data.rows) || !data.rows.length) {
-        loading.textContent = '일봉 데이터가 아직 준비되지 않았어.';
+        if (!previous) loading.textContent = '일봉 데이터를 준비 중이야. 자동으로 다시 확인할게.';
         return;
       }
       loading.remove();
@@ -269,11 +279,20 @@
       tooltip.hidden = true;
       tooltip.setAttribute('role', 'status');
       plot.append(canvas);
-      target.append(status, plot, tooltip);
+      target.replaceChildren(status, plot, tooltip);
       drawCandles(canvas, data.rows, tooltip);
     } catch (_) {
-      if (current === chartRequest && target.isConnected)
-        loading.textContent = '일봉 데이터를 조회할 수 없어.';
+      if (current === chartRequest && target.isConnected && !previous)
+        loading.textContent = '일봉 연결을 다시 확인 중이야.';
+    } finally {
+      clearTimeout(requestTimeout);
+      if (current === chartRequest && inlineChart?.target === target && target.isConnected) {
+        chartRefreshTimer = setTimeout(() => {
+          if (inlineChart?.target !== target || !target.isConnected) return;
+          if (document.hidden) return;
+          return loadChart(target, symbol, initialChangePct);
+        }, 60000);
+      }
     }
   }
 
@@ -401,6 +420,11 @@
     if (!dock || dock.dataset.bound === 'true') return;
     dock.dataset.bound = 'true';
     activeIds = readState(); render();
+    document.addEventListener('visibilitychange', () => {
+      const active = inlineChart;
+      if (!document.hidden && active?.target?.isConnected)
+        loadChart(active.target, active.symbol, null);
+    });
     window.addEventListener('gaemi:qqq-quote', onQqqQuote);
     window.addEventListener('gaemi:us-live-quotes', onUsLiveQuotes);
     dock.addEventListener('click', event => {
@@ -411,3 +435,4 @@
   document.addEventListener('DOMContentLoaded', initialize);
   window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive };
 }());
+
