@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-news.service"}
+{"operation":"run","path":"ops/do-gateway/inspect_live_ai_test_inputs_20261027_readonly.py","request_id":"liveaitestinspect20261027b","timeout":180}
