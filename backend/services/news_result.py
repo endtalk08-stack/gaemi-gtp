@@ -815,16 +815,6 @@ def _sanitize_news_display_briefs(result, *, market=None):
     if not isinstance(result, dict):
         return result
     us_display = market in ("미국", "US", "us")
-    # Reuse only the keywords produced by the DigitalOcean worker.
-    # A source URL identifies the same article in selected CODE briefs.
-    worker_keywords = {}
-    if us_display:
-        for article in result.get("storyboard_news_items") or []:
-            if not isinstance(article, dict):
-                continue
-            url = str(article.get("url") or article.get("link") or "").strip()
-            if url and isinstance(article.get("article_keywords"), list):
-                worker_keywords[url] = article["article_keywords"][:3]
     for brief in result.get("issue_briefs") or []:
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
             if us_display:
@@ -838,17 +828,9 @@ def _sanitize_news_display_briefs(result, *, market=None):
                 ), "")
                 if source_title:
                     brief["headline"] = source_title
-                # No Render keyword re-extraction or old broad-tag fallback.
-                # Preserve grounded issue tags when article lookup has no keywords.
-                brief["tags"] = next(
-                    (
-                        list(worker_keywords[str(source.get("url") or "").strip()])
-                        for source in (brief.get("source_articles") or [])
-                        if isinstance(source, dict)
-                        and worker_keywords.get(str(source.get("url") or "").strip())
-                    ),
-                    list(brief.get("tags") or []),
-                )
+                # Use only DigitalOcean's selected issue keywords, not
+                # unselected keywords taken from the whole source article.
+                brief["tags"] = list(brief.get("tags") or [])
             else:
                 brief["summary"] = strip_leading_news_credit(brief["summary"])
                 brief["headline"] = grounded_issue_display_title(brief)
