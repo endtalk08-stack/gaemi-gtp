@@ -358,7 +358,7 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
             return False  # Participation is not the participant raising capital.
         return any(span in clause and mentions(clause) for clause in clauses)
 
-    selected = {}
+    selected = []
     rejected = []
     for article, brief in zip(articles, briefs):
         classification = article.get("event_classification") or {}
@@ -417,15 +417,7 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
                      for e in events if e.get("evidence_span")):
             entry["summary"] = ""
             entry["summary_status"] = "selected_event_not_in_original_excerpt"
-        if issue_id in selected:
-            existing = selected[issue_id]
-            known = {s.get("url") for s in existing["source_articles"]}
-            existing["source_articles"].extend(s for s in sources if s.get("url") not in known)
-            if first < stamp(existing["_issue_first_published_at"]):
-                for field in ("_issue_first_published_at", "_issue_expires_at", "reaction_anchor_at"):
-                    existing[field] = entry[field]
-        else:
-            selected[issue_id] = entry
-    result = sorted(selected.values(), key=lambda b:b["_issue_first_published_at"], reverse=True)
+        selected.append(entry)
+    result = sorted(selected, key=lambda b:b["_issue_first_published_at"], reverse=True)
     return result, rejected
 
