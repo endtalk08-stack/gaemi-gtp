@@ -237,7 +237,7 @@
       const status = document.createElement('div');
       status.className = 'us-daily-chart__live';
       status.setAttribute('role', 'status');
-      status.textContent = '실시간 가격 수신 대기 · 일봉';
+      status.textContent = '';
       const plot = document.createElement('div');
       plot.className = 'us-daily-chart__plot';
       const canvas = document.createElement('canvas');
@@ -275,10 +275,13 @@
         const money = shown ? '$' + shown.price.toLocaleString('en-US', {
           minimumFractionDigits: 2, maximumFractionDigits: 2
         }) : '';
-        status.textContent = !shown ? '실시간 가격 수신 대기 · 일봉'
-          : fresh ? easternTradingWindow(shown.received_at_ms).period
-            + ' 시간대(수신 시각) · 현재가 ' + money
-          : '시세 지연 · 마지막 수신가 ' + money;
+        // Reuse the sidebar's existing percentage without another request.
+        const change = fresh && Number.isFinite(shown.change_pct)
+          ? shown.change_pct : null;
+        status.textContent = change === null ? ''
+          : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+        status.style.color = change === null ? ''
+          : change > 0 ? '#ff8da1' : change < 0 ? '#38bdf8' : '#a5abb5';
         if (!overlayCtx) return;
         overlayCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
         overlayCtx.clearRect(0, 0, geometry.width, 272);
@@ -356,19 +359,12 @@
     const price = value => '$' + Number(value).toLocaleString('en-US', {
       minimumFractionDigits: 2, maximumFractionDigits: 2
     });
-    const fullStart = valid.length - rows.length;
     function showCandle(index) {
       if (index < 0 || index >= rows.length || !canvas.isConnected) return;
       const row = rows[index];
-      const close = Number(row.close);
-      const previous = valid[fullStart + index - 1];
-      const previousClose = previous ? Number(previous.close) : NaN;
-      const change = previousClose > 0 ? ((close - previousClose) / previousClose * 100) : null;
-      const changeText = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
       const fields = [
         ['시가', price(row.open)], ['고가', price(row.high)],
         ['저가', price(row.low)], ['종가', price(row.close)],
-        ['등락률', changeText],
         ['거래량', row.volume == null ? '—' : Number(row.volume).toLocaleString('ko-KR') + '주']
       ];
       tooltip.replaceChildren();
@@ -383,7 +379,6 @@
         key.textContent = name;
         const val = document.createElement('strong');
         val.textContent = value;
-        if (name === '등락률') val.style.color = change === null ? '' : change >= 0 ? '#ff8da1' : '#38bdf8';
         item.append(key, val);
         grid.appendChild(item);
       });
