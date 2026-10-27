@@ -687,17 +687,26 @@
       const chatArea = document.getElementById('chatArea');
       ctx.appendChatMessage('user', stockName, 'stock', session.id);
 
-      // Render the selected stock's existing percent immediately, not after analysis.
+      // Show the already-selected percentage immediately, but keep the existing
+      // chart-fetch order (AFTER analysis). Do not make parallel DB requests.
       const selection = session.marketSelection;
+      let chartHost = null;
       if (selection?.market === 'us' && selection?.menu === 'value'
           && /^[A-Z0-9.\\-]{1,20}$/.test(String(selection.symbol || ''))) {
-        const chartHost = document.createElement('section');
+        chartHost = document.createElement('section');
         chartHost.className = 'us-daily-chart us-daily-chart--inline';
         chartHost.setAttribute('aria-label', selection.name + ' 일봉');
+        const change = selection.change_pct;
+        if (typeof change === 'number' && Number.isFinite(change)) {
+          const status = document.createElement('div');
+          status.className = 'us-daily-chart__live';
+          status.setAttribute('role', 'status');
+          status.style.textAlign = 'right';
+          status.textContent = (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+          status.style.color = change > 0 ? '#ff8da1' : change < 0 ? '#38bdf8' : '#a5abb5';
+          chartHost.appendChild(status);
+        }
         chatArea.appendChild(chartHost);
-        window.GaemiGTPWidgetDock?.renderInlineChart?.(
-          chartHost, selection.symbol, selection.change_pct
-        );
       }
 
       const loadingDiv = document.createElement('div');
@@ -721,6 +730,7 @@
       if (ctx.getAnalysisController() === controller) ctx.setAnalysisController(null);
 
       if (!result.ok || sections.length === 0) {
+        chartHost?.remove();
         const notFoundSection = sections.find((section) => section?.id === 'analysis-error');
         if (notFoundSection) {
           const state = document.createElement('div');
@@ -763,6 +773,12 @@
         sections: sections.map(({ id, title, content }) => ({ id, title, content }))
       });
       window.GaemiGTPApp?.saveChatHistory?.();
+      // Start the unchanged candle query only after analysis completes.
+      if (chartHost?.isConnected) {
+        window.GaemiGTPWidgetDock?.renderInlineChart?.(
+          chartHost, selection.symbol, selection.change_pct
+        );
+      }
       startTypewriterFlow(stockName, sections, result, requestId);
     }
 
