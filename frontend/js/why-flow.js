@@ -21,8 +21,7 @@ window.GaemiGTPWhyFlow.selectedArticleBriefs = function (result) {
       const source = sources[0] || {};
       const item = articles.get(String(source.url || '').trim().split('#')[0]) || {};
       return {...event,
-        headline: String(item.original_title || item.title || source.original_title || source.title || event.headline || ''),
-        summary: String(item.original_description || item.description || source.original_description || source.description || event.summary || '')};
+        headline: String(item.original_title || item.title || source.original_title || source.title || event.headline || '')};
     })
     .sort((a, b) => stamp(b) - stamp(a));
 };
@@ -124,19 +123,6 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 seenIssues.add(key);
                 return true;
               });
-            // Limit only the displayed news body to three source sentences.
-            // Keep the full article and stored summaries unchanged.
-            const displayedNewsBody = (value) => {
-              const text = String(value || '').trim();
-              if (!text) return '';
-              const sentenceEnding = /[.!?]["”’)\]]*(?=\s|$)/g;
-              let count = 0;
-              let match;
-              while ((match = sentenceEnding.exec(text)) !== null) {
-                if (++count === 3) return text.slice(0, sentenceEnding.lastIndex).trim();
-              }
-              return text;
-            };
             const typeWhyText = (element, text) => typeText(element, text, { chunkSize: 1 });
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5';
@@ -274,7 +260,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   titleEl,
                   titleText: String(event.headline || '').trim(),
                   descriptionEl,
-                  descriptionText: displayedNewsBody(event.summary),
+                  descriptionText: String(event.summary || '').trim(),
                   keywordParts,
                   reactionsEl,
                 });
