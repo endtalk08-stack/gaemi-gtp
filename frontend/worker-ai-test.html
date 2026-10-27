@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>gaemiGTP · DigitalOcean AI 모델 2종 독립 테스트</title>
+  <style>
+    :root { font-family: system-ui,-apple-system,"Segoe UI",sans-serif; color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0d1117; color: #e8edf2; }
+    main { width: min(930px,calc(100% - 32px)); margin: 24px auto 60px; }
+    h1 { font-size: 1.48rem; margin: 0 0 8px; }
+    p { line-height: 1.6; }
+    .muted { color: #aab8c7; font-size: .9rem; }
+    .panel { padding: 22px; border: 1px solid #344354; background: #19212b; border-radius: 14px; margin: 15px 0; }
+    label { display: block; font-size: .91rem; font-weight: 650; margin: 12px 0 7px; }
+    input,textarea { display: block; width: 100%; border-radius: 8px; background: #0e151e; border: 1px solid #536479; color: #f1f4f7; padding: 12px; font: inherit; }
+    textarea { resize: vertical; min-height: 125px; font-family: ui-monospace,SFMono-Regular,Consolas,monospace; font-size: .89rem; line-height: 1.65; }
+    #systemPrompt { min-height: 165px; }
+    #userInput { min-height: 225px; }
+    button { border: 0; border-radius: 8px; background: #3377e5; color: white; padding: 11px 17px; font-size: .92rem; font-weight: 700; cursor: pointer; }
+    button.secondary { background: #374658; }
+    button:disabled { opacity: .5; cursor: wait; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .row input { flex: 1 1 280px; }
+    .tabs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 16px; }
+    .tab { text-align: left; border: 1px solid #40526b; background: #1b2938; padding: 14px; border-radius: 11px; line-height: 1.5; }
+    .tab.active { outline: 2px solid #81b4ff; background: #233c5b; }
+    .tab small { display: block; color: #bbc9d8; font-weight: 400; font-size: .79rem; }
+    .stat-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
+    .stat { padding: 13px; border: 1px solid #435368; background: #101925; border-radius: 10px; }
+    .stat span { display: block; color: #b3c2d2; font-size: .83rem; }
+    .stat strong { font-size: 1.45rem; display: block; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    #answer { min-height: 85px; margin: 13px 0; padding: 14px; background: #0e151e; border: 1px solid #37475a; border-radius: 9px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: .91rem; }
+    #notice { color: #f7d79a; min-height: 1.5em; }
+    #modelInfo { font-size: .91rem; color: #c1d5ec; }
+    .footer { border-top: 1px solid #3c4956; padding-top: 18px; }
+    @media(max-width:600px) { .panel {padding:15px;} .tabs {grid-template-columns:1fr;} .stat strong{font-size:1.15rem;} }
+  </style>
+</head>
+<body>
+<main>
+  <h1>gaemiGTP · DigitalOcean AI 모델 독립 테스트</h1>
+  <p class="muted">운영 DigitalOcean의 현재 모델·프롬프트 설정을 기준으로 한 별도 테스트입니다. AI API 호출은 Render의 Groq 설정으로 실행하며, 기존 뉴스 수집·Neon DB 저장·미국 마감시황 게시·운영 AI 예약은 건드리지 않습니다.</p>
+  <section class="panel">
+    <label for="token">관리자 테스트 비밀번호 (기존 AI_TEST_TOKEN)</label>
+    <div class="row">
+      <input id="token" type="password" autocomplete="off" placeholder="기존 /ai-test 관리자 비밀번호">
+      <button id="auth" type="button" class="secondary">인증 및 프롬프트 불러오기</button>
+    </div>
+    <p id="notice" role="status" aria-live="polite">먼저 인증해 주세요.</p>
+    <div class="tabs" role="group" aria-label="독립 테스트할 모델 선택">
+      <button class="tab active" id="tabIssue" type="button" aria-pressed="true">
+        AI 이슈 분석
+        <small>GPT-OSS 20B · JSON · 최대 1,000 응답 토큰</small>
+      </button>
+      <button class="tab" id="tabClose" type="button" aria-pressed="false">
+        미국 마감시황
+        <small>GPT-OSS 120B · 자유 형식 · 최대 1,500 응답 토큰</small>
+      </button>
+    </div>
+    <p id="modelInfo">AI 이슈 분석 · openai/gpt-oss-20b</p>
+  </section>
+  <section class="panel">
+    <label for="systemPrompt">시스템 프롬프트 (편집 가능)</label>
+    <textarea id="systemPrompt" maxlength="6000" placeholder="인증하면 DigitalOcean에서 사용 중인 기본 프롬프트가 나타납니다."></textarea>
+    <label for="userInput">AI에 보낼 내용 / 뉴스 자료 (편집 가능)</label>
+    <textarea id="userInput" maxlength="15000" placeholder="기사 원문이 포함된 JSON 또는 직접 작성한 요청을 입력하세요."></textarea>
+    <p class="muted">예시의 대괄호 내용은 반드시 실제 기사·시세 자료로 바꿔 주세요. 두 모델의 프롬프트와 입력 내용은 화면에서 각각 따로 유지합니다. 실제 API 호출 시 토큰이 소모됩니다.</p>
+    <div class="row">
+      <button type="button" id="send" disabled>선택한 모델만 분석 요청</button>
+      <button type="button" id="reset" class="secondary" disabled>기본 프롬프트·예시 복원</button>
+    </div>
+  </section>
+  <section class="panel">
+    <strong>AI 응답</strong>
+    <div id="answer">아직 호출하지 않았습니다.</div>
+    <p id="finish" class="muted"></p>
+    <div class="stat-grid" aria-label="이번 요청의 실제 사용 토큰">
+      <div class="stat"><span>입력 토큰</span><strong id="inTokens">—</strong></div>
+      <div class="stat"><span>출력 토큰</span><strong id="outTokens">—</strong></div>
+      <div class="stat"><span>총 토큰</span><strong id="allTokens">—</strong></div>
+    </div>
+    <p id="reasoning" class="muted"></p>
+    <p class="muted">숫자는 Groq 응답의 실제 usage 값입니다. 제공되지 않는 값은 추정하지 않고 ‘미확인’으로 표시합니다. 출력 토큰에는 모델 내부 추론 토큰이 포함될 수 있습니다.</p>
+  </section>
+  <p class="muted footer">보안: 입력한 비밀번호는 브라우저 저장소에 저장되지 않습니다. API 키를 페이지에 입력하지 마세요. 테스트 답변과 프롬프트는 Neon DB에 저장하지 않습니다.</p>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const state = { current: 'issue', verified: false, config: null, inputs: {
+    issue: {system_prompt:'',user_input:''},
+    close: {system_prompt:'',user_input:''}
+  }, results: {issue:null,close:null} };
+  const messages = {
+    unauthorized_or_disabled:'인증 실패: 기존 AI_TEST_TOKEN, AI_TEST_ENABLED, Render Groq 설정을 확인하세요.',
+    invalid_prompt:'시스템 프롬프트와 보낼 내용을 확인해 주세요.',
+    invalid_model:'선택한 모델을 확인해 주세요.',
+    provider_not_configured:'Render에 GROQ_API_KEY가 설정되지 않았습니다.',
+    provider_rate_limit:'Groq 속도·사용량 제한에 도달했습니다.',
+    provider_http_error:'Groq 제공사 요청이 실패했습니다.',
+    provider_error:'Groq 서버 연결 또는 응답 처리가 실패했습니다.',
+    empty_provider_response:'모델이 비어 있는 답변을 반환했습니다.',
+    request_too_large:'입력 크기가 너무 큽니다.'
+  };
+  const fmt = n => Number.isInteger(n) && n >= 0 ? n.toLocaleString('ko-KR') : '미확인';
+  const notice = msg => $('notice').textContent = msg;
+  const save = () => { if (state.verified) state.inputs[state.current] = {
+    system_prompt: $('systemPrompt').value, user_input: $('userInput').value
+  }; };
+  function renderResult() {
+    const data = state.results[state.current];
+    $('answer').textContent = data ? data.answer : '이 모델은 아직 호출하지 않았습니다.';
+    const usage = data?.usage || {};
+    $('inTokens').textContent = data ? fmt(usage.prompt_tokens) : '—';
+    $('outTokens').textContent = data ? fmt(usage.completion_tokens) : '—';
+    $('allTokens').textContent = data ? fmt(usage.total_tokens) : '—';
+    $('reasoning').textContent = data && Number.isInteger(usage.reasoning_tokens)
+      ? '출력 토큰 중 추론 토큰: ' + fmt(usage.reasoning_tokens) : '';
+    $('finish').textContent = data ? '모델: ' + data.model
+      + ' · 응답 종료 상태: ' + (data.finish_reason || '미확인') : '';
+  }
+  function switchModel(variant) {
+    if (state.current === variant) return;
+    save();
+    state.current = variant;
+    $('tabIssue').classList.toggle('active', variant === 'issue');
+    $('tabClose').classList.toggle('active', variant === 'close');
+    $('tabIssue').setAttribute('aria-pressed', String(variant === 'issue'));
+    $('tabClose').setAttribute('aria-pressed', String(variant === 'close'));
+    if (state.verified) {
+      $('systemPrompt').value = state.inputs[variant].system_prompt;
+      $('userInput').value = state.inputs[variant].user_input;
+    }
+    const config = state.config?.[variant];
+    $('modelInfo').textContent = config
+      ? config.label + ' · ' + config.model + ' · 응답 토큰 상한 ' + fmt(config.max_completion_tokens)
+      : variant === 'issue' ? 'AI 이슈 분석 · openai/gpt-oss-20b'
+        : '미국 마감시황 · openai/gpt-oss-120b';
+    renderResult();
+  }
+  async function api(path,payload) {
+    const response = await fetch(path,{
+      method: payload ? 'POST':'GET',
+      cache:'no-store',
+      credentials:'same-origin',
+      headers:{'Authorization':'Bearer '+$('token').value,
+        ...(payload?{'Content-Type':'application/json'}:{})},
+      body:payload?JSON.stringify(payload):undefined
+    });
+    let data;
+    try { data = await response.json(); }
+    catch (_) { throw new Error('서버 응답을 읽을 수 없습니다 (HTTP '+response.status+').'); }
+    if (!response.ok || !data.ok)
+      throw new Error((messages[data.error]||'요청 실패')
+        +' (HTTP '+response.status
+        +(data.provider_status?', Groq '+data.provider_status:'')+').');
+    return data;
+  }
+  $('auth').addEventListener('click', async () => {
+    $('auth').disabled=true; notice('인증 중...');
+    try {
+      const data=await api('/api/worker-ai-test/config');
+      state.config=data.models; state.verified=true;
+      for(const v of ['issue','close']) state.inputs[v]={
+        system_prompt:data.models[v].system_prompt,
+        user_input:data.models[v].example_input
+      };
+      $('systemPrompt').value=state.inputs[state.current].system_prompt;
+      $('userInput').value=state.inputs[state.current].user_input;
+      $('send').disabled=false; $('reset').disabled=false;
+      $('modelInfo').textContent=data.models[state.current].label+' · '
+        +data.models[state.current].model+' · 응답 토큰 상한 '
+        +fmt(data.models[state.current].max_completion_tokens);
+      notice('인증 성공. 테스트할 모델과 프롬프트를 선택하세요.');
+    } catch(e) { state.verified=false; notice(e.message); }
+    finally { $('auth').disabled=false; }
+  });
+  $('tabIssue').addEventListener('click',()=>switchModel('issue'));
+  $('tabClose').addEventListener('click',()=>switchModel('close'));
+  $('reset').addEventListener('click',()=>{
+    if(!state.verified)return;
+    const d=state.config[state.current];
+    $('systemPrompt').value=d.system_prompt;
+    $('userInput').value=d.example_input;
+    save(); notice('선택한 모델의 운영 기본 프롬프트와 입력 예시를 복원했습니다.');
+  });
+  $('send').addEventListener('click',async ()=>{
+    if(!state.verified)return;
+    save();
+    const values=state.inputs[state.current];
+    if(!values.system_prompt.trim() || !values.user_input.trim()) {
+      notice('프롬프트와 보낼 내용을 입력해 주세요.'); return;
+    }
+    const current=state.current;
+    if(!window.confirm('Groq '+state.config[current].model+'에 실제 요청합니다. 토큰이 소모됩니다. 계속할까요?'))return;
+    $('send').disabled=true; $('reset').disabled=true; notice('선택한 모델에 요청 중...');
+    try {
+      const result=await api('/api/worker-ai-test/run',{
+        variant:current,system_prompt:values.system_prompt,user_input:values.user_input
+      });
+      state.results[current]=result;
+      if(state.current===current)renderResult();
+      notice('테스트 완료: '+state.config[current].label+'.');
+    }catch(e){notice(e.message);if(state.current===current) {
+      $('answer').textContent='요청에 실패했습니다. 이전 답변은 보존됩니다.';
+    }}
+    finally { $('send').disabled=false; $('reset').disabled=false; }
+  });
+})();
+</script>
+</body>
+</html>
