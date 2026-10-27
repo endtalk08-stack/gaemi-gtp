@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 
@@ -102,7 +103,7 @@ def lab_config():
 def lab_run():
     if not _allowed():
         return jsonify({"ok": False, "error": "unauthorized_or_disabled"}), 403
-    if (request.content_length or 0) > 25000:
+    if (request.content_length or 0) > 75000:
         return jsonify({"ok": False, "error": "request_too_large"}), 413
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -113,25 +114,35 @@ def lab_run():
     config = CONFIG[variant]
     system_prompt = data.get("system_prompt", config["system_prompt"])
     user_input = data.get("user_input")
+    # The system prompt is optional for ad hoc tests. Only the user message is required.
     if (not isinstance(system_prompt, str) or not isinstance(user_input, str)
-            or not system_prompt.strip() or not user_input.strip()
+            or not user_input.strip()
             or len(system_prompt) > 6000 or len(user_input) > 15000):
         return jsonify({"ok": False, "error": "invalid_prompt"}), 400
+    output_format = data.get("output_format", "auto")
+    if output_format not in ("auto", "text", "json"):
+        return jsonify({"ok": False, "error": "invalid_output_format"}), 400
+    # Auto mode preserves JSON for the original issue-analysis instructions,
+    # but switches to free text if the administrator edits them to normal prose.
+    structured = output_format == "json" or (output_format == "auto" and bool(
+        re.search(r"\\bjson\\b", system_prompt, re.I)
+        and re.search(r"반환|출력|응답|형식|return|output|format", system_prompt, re.I)
+    ))
+    if structured and not re.search(r"\\bjson\\b", system_prompt + " " + user_input, re.I):
+        return jsonify({"ok": False, "error": "json_instruction_required"}), 400
     key = os.getenv("GROQ_API_KEY", "").strip()
     if not key:
         return jsonify({"ok": False, "error": "provider_not_configured"}), 503
     payload = {
         "model": config["model"],
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input},
-        ],
+        "messages": ([{"role": "system", "content": system_prompt}] if system_prompt.strip() else [])
+                    + [{"role": "user", "content": user_input}],
         "temperature": 0.2,
         "max_completion_tokens": config["max_completion_tokens"],
         "reasoning_effort": "low",
         "stream": False,
     }
-    if variant == "issue":
+    if structured:
         payload["response_format"] = {"type": "json_object"}
     provider_request = urllib.request.Request(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -152,13 +163,29 @@ def lab_run():
         # Expose provider-reported counts, not approximated token estimates.
         return jsonify({"ok": True, "model": config["model"], "variant": variant,
                         "answer": answer, "usage": _token_usage(result),
+                        "output_format": "json" if structured else "text",
                         "finish_reason": choice.get("finish_reason")})
     except urllib.error.HTTPError as exc:
-        # Do not include upstream response bodies (they can contain private details).
+        # Only return bounded provider code/type, never its message or failed
+        # generation (which can echo private user-submitted prompt content).
         status = exc.code
-        print("[worker-ai-lab] provider_http_error", variant, status, flush=True)
-        return jsonify({"ok": False, "error": "provider_rate_limit" if status == 429
-                        else "provider_http_error", "provider_status": status}), 429 if status == 429 else 502
+        provider_details = {}
+        try:
+            upstream = json.loads(exc.read(16000).decode("utf-8"))
+            fields = upstream.get("error") if isinstance(upstream, dict) else None
+            if isinstance(fields, dict):
+                for field in ("code", "type"):
+                    value = fields.get(field)
+                    if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value):
+                        provider_details["provider_error_" + field] = value
+        except (ValueError, UnicodeError, OSError):
+            pass
+        print("[worker-ai-lab] provider_http_error", variant, status,
+              provider_details.get("provider_error_code", "unknown"), flush=True)
+        error = "provider_rate_limit" if status == 429 else (
+            "provider_bad_request" if status == 400 else "provider_http_error")
+        return jsonify({"ok": False, "error": error, "provider_status": status,
+                        **provider_details}), 429 if status == 429 else 400 if status == 400 else 502
     except (urllib.error.URLError, TimeoutError, ValueError, TypeError, KeyError, IndexError) as exc:
         print("[worker-ai-lab] provider_error", variant, type(exc).__name__, flush=True)
         return jsonify({"ok": False, "error": "provider_error"}), 502
