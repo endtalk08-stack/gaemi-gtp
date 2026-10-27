@@ -87,7 +87,7 @@ class RenderFreshnessTests(unittest.TestCase):
                     "_ai_issue_briefs": [brief("옛날 AI 분석", 1)],
                     "issue_briefs": [brief("옛날 AI 분석", 1)]}
         view = clean_us_snapshot(snapshot, now=NOW)
-        self.assertEqual([x["headline"] for x in view["issue_briefs"]], ["기사에서 추출한"])
+        self.assertEqual([x["headline"] for x in view["issue_briefs"]], ["기사에서 추출한 이슈"])
 
     def test_code_brief_requires_verified_fresh_article(self):
         invalid = {**brief("근거 없는 키워드", 1),
@@ -127,10 +127,10 @@ class RenderFreshnessTests(unittest.TestCase):
                    "_code_issue_briefs": [item]}
         out = self._render_issue_view(payload)["issue_briefs"][0]
         self.assertEqual(out["headline"], title)
-        self.assertEqual(out["summary"], summary.split("네 번째")[0].strip())
+        self.assertEqual(out["summary"], summary)
         self.assertEqual(payload["_code_issue_briefs"][0]["summary"], summary)
 
-    def test_gallery_furniture_removed_and_three_article_sentences_only(self):
+    def test_stored_article_text_is_not_rewritten_by_display(self):
         snippet = (
             "호주 예약금 반환…테슬라 판매 취소 이미지 확대보기 "
             "쇼핑몰에 테슬라 차량이 전시돼 있다. "
@@ -142,9 +142,7 @@ class RenderFreshnessTests(unittest.TestCase):
         item = {**brief("테슬라, 현지 출시 취소", 1), "summary": snippet}
         out = self._render_issue_view({"_title_only_revision": 3,
             "_code_fact_extraction_version": 3, "_code_issue_briefs": [item]})["issue_briefs"][0]
-        self.assertEqual(out["summary"],
-            "테슬라가 사이버트럭의 현지 출시를 취소했다. "
-            "예약금은 모두 반환할 예정이다. 생산 계획도 전면 철회했다.")
+        self.assertEqual(out["summary"], snippet)
         self.assertEqual(out["headline"], "테슬라, 현지 출시 취소")
 
     def test_recent_source_title_survives_unavailable_body_and_keywords(self):
@@ -158,7 +156,7 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual(out[0]["summary"], "")
         self.assertEqual(out[0]["tags"], [])
 
-    def test_scraped_link_index_not_treated_as_verified_article_sentences(self):
+    def test_display_does_not_blank_stored_text_based_on_punctuation(self):
         index = (
             "“주차 맡기고 올라가세요” ... 현대위아 주차로봇 [단독] "
             "테슬라 추격 현대차 ... 엔비디아 기술책임자 영입 "
@@ -167,7 +165,7 @@ class RenderFreshnessTests(unittest.TestCase):
         item = {**brief("기사 주요 내용", 1), "summary": index}
         payload = {"_title_only_revision": 3, "_code_fact_extraction_version": 3,
                    "_code_issue_briefs": [item]}
-        self.assertEqual(self._render_issue_view(payload)["issue_briefs"], [])
+        self.assertEqual(self._render_issue_view(payload)["issue_briefs"][0]["summary"], index)
         self.assertEqual(payload["_code_issue_briefs"][0]["summary"], index)
 
     def test_nvda_generic_heading_recovers_original_verified_source_title(self):
@@ -223,14 +221,14 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["fresh"])
 
 
-    def test_us_five_recent_code_issues_are_not_display_capped(self):
+    def test_us_recent_code_issues_display_latest_three_only(self):
         payload = {
             "_title_only_revision": 3,
             "_code_fact_extraction_version": 3,
             "_code_issue_briefs": [brief(f"issue-{i}", i) for i in range(1, 6)],
         }
         result = clean_us_snapshot(payload, now=NOW)
-        self.assertEqual(len(result["issue_briefs"]), 5)
+        self.assertEqual(len(result["issue_briefs"]), 3)
         self.assertEqual(len(result["issue_channels"]["code"]), 5)
 
     def test_original_article_titles_are_kept_over_generated_labels_and_keywords(self):
@@ -334,3 +332,4 @@ class RenderFreshnessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

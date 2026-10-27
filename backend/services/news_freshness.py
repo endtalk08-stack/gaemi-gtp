@@ -141,6 +141,31 @@ def _compact_code_news_title(brief):
         return original
     return headline
 
+def _source_news_brief(brief, articles):
+    """Display the selected article's provider text; never generate missing prose."""
+    sources = [s for s in brief.get("source_articles") or [] if isinstance(s, dict)]
+    sources.sort(key=lambda s: (_article_date(s.get("published_at"))
+                               or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    for source in sources:
+        url = str(source.get("url") or "").strip()
+        article = articles.get(url, {})
+        title = str(article.get("original_title") or article.get("title")
+                    or source.get("original_title") or source.get("title") or "").strip()
+        if not title:
+            continue
+        text = str(article.get("original_description") or article.get("description")
+                   or source.get("original_description") or source.get("description") or "").strip()
+        # A verified stored original excerpt remains usable when the feed has
+        # no description. Do not substitute generated/unsupported issue prose.
+        if not text and brief.get("evidence_source") != "original_unavailable":
+            text = str(brief.get("original_summary") or brief.get("summary") or "").strip()
+            if text == "원문 확인 불가":
+                text = ""
+        return {**brief, "headline": title, "summary": text,
+                "display_content_source": "provider_news" if text else "title_only"}
+    return dict(brief)
+
+
 def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=True):
     """Read cited, 24-hour code and preserved AI channels without changing either.
 
@@ -162,6 +187,17 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
         and str(result.get("_code_fact_extraction_version") or "") == "3"
     )
 
+    articles_by_url = {}
+    # Prefer the full provider feed over enriched storyboard copies.
+    for key in ("paired_news_items", "panel_news_items", "storyboard_news_items"):
+        for article in result.get(key) or []:
+            if not isinstance(article, dict):
+                continue
+            url = str(article.get("url") or article.get("link") or "").strip()
+            pub = _article_date(article.get("published_at") or article.get("pubDate"))
+            if url and pub is not None and cutoff <= pub <= upper:
+                articles_by_url.setdefault(url, article)
+
     def fresh_source_briefs(briefs, *, code_only=False):
         if not isinstance(briefs, list):
             return []
@@ -173,13 +209,6 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
                 expiry = _article_date(brief["_issue_expires_at"])
                 if expiry is None or expiry <= upper:
                     continue
-            # Display only: US CODE issues without verified article prose
-            # must not appear, even if a source URL is present.
-            if code_only and (
-                brief.get("evidence_source") == "original_unavailable"
-                or str(brief.get("summary") or "").strip() == "원문 확인 불가"
-            ):
-                continue
             valid_sources = []
             for source in brief.get("source_articles") or []:
                 if not isinstance(source, dict):
@@ -194,13 +223,16 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
                 valid_sources.append((pub, {**source, "source": publisher}))
             if not valid_sources:
                 continue
-            latest = max(pub for pub, _ in valid_sources)
-            # Generate from the stored verified prose, not the publisher title.
-            headline = (_compact_code_news_title(brief) if code_only and format_titles
-                        else str(brief.get("headline") or "").strip())
-            # US display only: remove obsolete trailing category label.
-            if format_titles:
-                headline = re.sub(r"\s*이슈\s*$", "", headline).strip()
+            valid_sources.sort(key=lambda pair: pair[0], reverse=True)
+            latest = valid_sources[0][0]
+            if code_only:
+                brief = _source_news_brief(
+                    {**brief, "source_articles": [source for _, source in valid_sources]},
+                    articles_by_url,
+                )
+            headline = str(brief.get("headline") or "").strip()
+            if not headline:
+                continue
             fresh.append({
                 **brief,
                 "headline": headline,
@@ -247,7 +279,7 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
             ),
             reverse=True,
         )
-    result["issue_briefs"] = selected
+    result["issue_briefs"] = selected[:3]
 
     # Price reason shares the same strict 24-hour cited-article freshness rule.
     reason = result.get("price_reason")
@@ -278,4 +310,5 @@ def clean_us_snapshot(payload, *, now=None, issue_mode="auto", format_titles=Tru
             and cutoff <= pub <= upper
         ]
     return result
+
 

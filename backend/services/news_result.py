@@ -828,13 +828,13 @@ def _sanitize_news_display_briefs(result, *, market=None):
     for brief in result.get("issue_briefs") or []:
         if isinstance(brief, dict) and isinstance(brief.get("summary"), str):
             if us_display:
-                # Central body display only; sidebar snapshots stay unchanged.
-                brief["summary"] = _us_original_three_sentences(brief["summary"])
+                # clean_us_snapshot already supplies the publisher title and
+                # provider description. Keep punctuation, bullets and length.
                 source_title = next((
-                    str(source.get("display_title") or source.get("title") or "").strip()
+                    str(source.get("original_title") or source.get("title") or "").strip()
                     for source in brief.get("source_articles") or []
                     if isinstance(source, dict)
-                    and re.search(r"[가-힣]", str(source.get("display_title") or source.get("title") or ""))
+                    and str(source.get("original_title") or source.get("title") or "").strip()
                 ), "")
                 if source_title:
                     brief["headline"] = source_title
@@ -936,4 +936,5 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         worker_result = clean_us_snapshot(worker_result, issue_mode=issue_mode,
                                           format_titles=False)
     return _sanitize_news_display_briefs(worker_result, market=market)
+
 
