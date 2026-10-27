@@ -426,29 +426,6 @@ def select_issue_articles(articles, briefs, company, aliases=(), previous=(), no
                     existing[field] = entry[field]
         else:
             selected[issue_id] = entry
-    # Retain selected issues across refreshes/Top50 churn until their original
-    # 24h expiry. Never preserve the old unselected article-as-issue snapshots.
-    for old in previous or []:
-        if old.get("selection_revision") != 2 or not old.get("issue_id"):
-            continue
-        if not old.get("selected_events") or not all(owns_event(e) or (mentions(old.get("headline")) and re.search(r"(?:이 회사|회사[는가]|동사|the company|its )", str(e.get("evidence_sentence") or ""), re.I)) for e in old["selected_events"]):
-            continue
-        expiry = stamp(old.get("_issue_expires_at"))
-        if not expiry or expiry <= now:
-            continue
-        issue_id = old["issue_id"]
-        if issue_id not in selected:
-            selected[issue_id] = dict(old)
-        else:
-            current = selected[issue_id]
-            prior_first = stamp(old.get("_issue_first_published_at"))
-            if prior_first and prior_first < stamp(current["_issue_first_published_at"]):
-                for field in ("_issue_first_published_at", "_issue_expires_at", "reaction_anchor_at"):
-                    current[field] = old[field]
-            # Reaction observations must survive text/translation refreshes.
-            for field in ("stock_reactions", "reaction_observations", "reaction_status"):
-                if old.get(field):
-                    current[field] = old[field]
     result = sorted(selected.values(), key=lambda b:b["_issue_first_published_at"], reverse=True)
     return result, rejected
 
