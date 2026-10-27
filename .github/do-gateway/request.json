@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-news.service"}
+{"operation":"run","path":"ops/do-gateway/test_nvda_14_event_selection_readonly_20261027.py","request_id":"nvda14aftercarryoverremoval20261028a","timeout":900}
