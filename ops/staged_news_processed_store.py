@@ -363,9 +363,103 @@ def save_snapshot(stock_name, *, market, limit, storyboard_limit,
             """, (market, stock_name, limit, storyboard_limit, display_timezone,
                   fingerprint, Jsonb(normalized)))
 
+def _retained_24h_issue_briefs(briefs, *, now):
+    """Only retain event briefs backed by a source from the past 24 hours."""
+    from datetime import datetime, timezone, timedelta
+    from email.utils import parsedate_to_datetime
+
+    def parse(value):
+        if not value:
+            return None
+        try:
+            value = str(value)
+            try:
+                dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                dt = parsedate_to_datetime(value)
+            return dt.astimezone(timezone.utc) if dt.tzinfo else None
+        except (TypeError, ValueError, OverflowError, IndexError):
+            return None
+
+    lower = now - timedelta(hours=24)
+    retained = []
+    for brief in briefs or []:
+        if not isinstance(brief, dict):
+            continue
+        expiry = parse(brief.get("_issue_expires_at"))
+        if brief.get("_issue_expires_at") and (expiry is None or expiry <= now):
+            continue
+        sources = brief.get("source_articles") or []
+        if not isinstance(sources, list):
+            continue
+        current_sources = [
+            source for source in sources
+            if isinstance(source, dict)
+            and (lambda published: published is not None and lower < published <= now)(
+                parse(source.get("published_at"))
+            )
+        ]
+        if not current_sources:
+            continue
+        # Preserve original issue metadata while removing expired source details.
+        result = dict(brief)
+        result["source_articles"] = current_sources
+        retained.append(result)
+    return retained
+
+
 def purge_expired():
-    """Delete only expired derived results, not original news."""
+    """Permanently purge 24h-expired CODE and AI issues without touching market feeds."""
+    from datetime import datetime, timezone
+    from psycopg.types.json import Jsonb
+
+    now = datetime.now(timezone.utc)
+    counters = {"snapshots": 0, "code": 0, "ai": 0, "legacy_results": 0,
+                "legacy_ai": 0, "ai_archive": 0}
     with _connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM public.news_processed_snapshots WHERE expires_at<=now()")
-            return cur.rowcount
+            # Lock each snapshot row. Do not extend the snapshot's own expiration
+            # or interfere with source fingerprints and worker refresh cadence.
+            cur.execute("""
+                SELECT market, stock_name, result_limit, storyboard_limit,
+                       display_timezone, result_payload
+                FROM public.news_processed_snapshots
+                WHERE expires_at > now() AND market IN ('미국', 'US', 'us')
+                FOR UPDATE
+            """)
+            for market, stock_name, limit, storyboard_limit, tz, payload in cur.fetchall():
+                if not isinstance(payload, dict):
+                    continue
+                changes = {}
+                for key, kind in (("_code_issue_briefs", "code"),
+                                  ("_ai_issue_briefs", "ai"),
+                                  ("issue_briefs", None)):
+                    items = payload.get(key)
+                    if not isinstance(items, list):
+                        continue
+                    retained = _retained_24h_issue_briefs(items, now=now)
+                    if retained != items:
+                        changes[key] = retained
+                        if kind:
+                            counters[kind] += len(items) - len(retained)
+                if changes:
+                    updated = dict(payload)
+                    updated.update(changes)
+                    cur.execute("""
+                        UPDATE public.news_processed_snapshots
+                        SET result_payload=%s
+                        WHERE market=%s AND stock_name=%s AND result_limit=%s
+                          AND storyboard_limit=%s AND display_timezone=%s
+                    """, (Jsonb(updated), market, stock_name, limit, storyboard_limit, tz))
+
+            # Independent AI/result storage has no snapshot-scoped expiration.
+            cur.execute("DELETE FROM public.news_ai_issues WHERE generated_at <= now() - interval '24 hours'")
+            counters["legacy_ai"] = cur.rowcount
+            cur.execute("DELETE FROM public.news_processed_results_24h WHERE expires_at <= now()")
+            counters["legacy_results"] = cur.rowcount
+            cur.execute("DELETE FROM public.us_news_ai_archive_20261024 WHERE expires_at <= now()")
+            counters["ai_archive"] = cur.rowcount
+            cur.execute("DELETE FROM public.news_processed_snapshots WHERE expires_at <= now()")
+            counters["snapshots"] = cur.rowcount
+    print("[news-worker] 24h_issue_db_cleanup=" + json.dumps(counters, sort_keys=True), flush=True)
+    return counters["snapshots"]
