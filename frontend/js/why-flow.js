@@ -124,6 +124,19 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                 seenIssues.add(key);
                 return true;
               });
+            // Limit only the displayed news body to three source sentences.
+            // Keep the full article and stored summaries unchanged.
+            const displayedNewsBody = (value) => {
+              const text = String(value || '').trim();
+              if (!text) return '';
+              const sentenceEnding = /[.!?]["”’)\]]*(?=\s|$)/g;
+              let count = 0;
+              let match;
+              while ((match = sentenceEnding.exec(text)) !== null) {
+                if (++count === 3) return text.slice(0, sentenceEnding.lastIndex).trim();
+              }
+              return text;
+            };
             const typeWhyText = (element, text) => typeText(element, text, { chunkSize: 1 });
             const block = document.createElement('section');
             block.className = 'mt-5 space-y-5';
@@ -261,7 +274,7 @@ window.GaemiGTPWhyFlow.appendWhy = async function ({
                   titleEl,
                   titleText: String(event.headline || '').trim(),
                   descriptionEl,
-                  descriptionText: String(event.summary || '').trim(),
+                  descriptionText: displayedNewsBody(event.summary),
                   keywordParts,
                   reactionsEl,
                 });
