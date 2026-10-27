@@ -1,0 +1,42 @@
+name: Inspect existing DO US daily execution permission
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: ['.github/workflows/do-us-daily-permission-readonly-20261027.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 3
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Check three read-only facts without credentials output
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${DO_HOST:?}" "${SSH_KEY:?}" "${SSH_KNOWN_HOSTS:?}"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 0600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "gaemi-deploy@$DO_HOST" 'bash -se' <<'REMOTE'
+          set -eu
+          unit=gaemigtp-kiwoom-us-daily.service
+          echo DO_USER="$(id -un)"
+          echo DAILY_UNIT_LOADED="$(systemctl show "$unit" -p LoadState --value 2>/dev/null || echo missing)"
+          echo DAILY_UNIT_EXEC="$(systemctl show "$unit" -p ExecStart --value 2>/dev/null | grep -F -c backend.kiwoom_us_daily_collector || true)"
+          if systemctl show "$unit" -p EnvironmentFiles --value 2>/dev/null | grep -Fq /etc/gaemigtp/kiwoom.env; then echo DAILY_KIWOOM_ENV_CONFIGURED=yes; else echo DAILY_KIWOOM_ENV_CONFIGURED=no; fi
+          if systemctl show "$unit" -p EnvironmentFiles --value 2>/dev/null | grep -Fq /etc/gaemigtp/news-worker.env; then echo DAILY_DB_ENV_CONFIGURED=yes; else echo DAILY_DB_ENV_CONFIGURED=no; fi
+          if test -f /opt/gaemigtp-news/app/backend/kiwoom_us_daily_collector.py; then echo DAILY_COLLECTOR_INSTALLED=yes; else echo DAILY_COLLECTOR_INSTALLED=no; fi
+          if test -f /etc/gaemigtp/kiwoom.env; then echo KIWOOM_CREDENTIAL_FILE_PRESENT=yes; else echo KIWOOM_CREDENTIAL_FILE_PRESENT=no; fi
+          if test -f /etc/gaemigtp/news-worker.env; then echo DB_ENV_FILE_PRESENT=yes; else echo DB_ENV_FILE_PRESENT=no; fi
+          if sudo -n -l /usr/bin/systemd-run >/dev/null 2>&1; then echo CAN_SYSTEMD_RUN_AS_ROOT=yes; else echo CAN_SYSTEMD_RUN_AS_ROOT=no; fi
+          if sudo -n -l /usr/bin/systemctl start "$unit" >/dev/null 2>&1; then echo CAN_START_EXISTING_DAILY=yes; else echo CAN_START_EXISTING_DAILY=no; fi
+          if sudo -n -l -u gaemigtp-news /usr/bin/env >/dev/null 2>&1; then echo CAN_RUN_AS_NEWS_USER=yes; else echo CAN_RUN_AS_NEWS_USER=no; fi
+          REMOTE
