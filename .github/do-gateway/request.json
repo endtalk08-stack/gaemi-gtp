@@ -1,1 +1,1 @@
-{"operation":"upgrade","path":"ops/do-gateway/gaemi-do-gateway"}
+{"operation":"kiwoom-daily-backfill","path":"ops/do-gateway/us_daily_backfill_20261026_once.py","request_id":"usdaily20261026recover3","timeout":900}
