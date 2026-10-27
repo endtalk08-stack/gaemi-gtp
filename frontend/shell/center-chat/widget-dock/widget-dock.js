@@ -238,75 +238,34 @@
       status.className = 'us-daily-chart__live';
       status.setAttribute('role', 'status');
       status.textContent = '';
+      status.style.textAlign = 'right';
       const plot = document.createElement('div');
       plot.className = 'us-daily-chart__plot';
       const canvas = document.createElement('canvas');
       canvas.height = 272;
       canvas.tabIndex = 0;
       canvas.setAttribute('aria-label', data.name + ' 일봉. 마우스나 터치로 개별 봉 정보 확인');
-      const overlay = document.createElement('canvas');
-      overlay.className = 'us-daily-chart__price-overlay';
-      overlay.setAttribute('aria-hidden', 'true');
       const tooltip = document.createElement('div');
       tooltip.className = 'us-daily-chart__tooltip';
       tooltip.hidden = true;
       tooltip.setAttribute('role', 'status');
-      plot.append(canvas, overlay);
+      plot.append(canvas);
       target.append(status, plot, tooltip);
-      const geometry = drawCandles(canvas, data.rows, tooltip);
-      if (!geometry) return;
-      const pixelRatio = window.devicePixelRatio || 1;
-      overlay.width = Math.round(geometry.width * pixelRatio);
-      overlay.height = Math.round(272 * pixelRatio);
-      const overlayCtx = overlay.getContext('2d');
-      let lastQuote = null;
+      drawCandles(canvas, data.rows, tooltip);
       const updateLive = (quote) => {
         const now = Date.now();
-        if (quote && quote.symbol === symbol && Number.isFinite(quote.price)
-            && quote.price > 0 && Number.isFinite(quote.received_at_ms)
-            && quote.received_at_ms <= now + 5000
-            && now - quote.received_at_ms <= 86400000) {
-          lastQuote = quote;
-        }
-        const shown = lastQuote && now - lastQuote.received_at_ms <= 86400000
-          ? lastQuote : null;
-        const fresh = shown && quote === shown && shown.stale === false
-          && now - shown.received_at_ms <= 25000;
-        const money = shown ? '$' + shown.price.toLocaleString('en-US', {
-          minimumFractionDigits: 2, maximumFractionDigits: 2
-        }) : '';
+        const fresh = quote && quote.symbol === symbol && quote.stale === false
+          && Number.isFinite(quote.price) && quote.price > 0
+          && Number.isFinite(quote.received_at_ms)
+          && quote.received_at_ms <= now + 5000
+          && now - quote.received_at_ms <= 25000;
         // Reuse the sidebar's existing percentage without another request.
-        const change = fresh && Number.isFinite(shown.change_pct)
-          ? shown.change_pct : null;
+        const change = fresh && Number.isFinite(quote.change_pct)
+          ? quote.change_pct : null;
         status.textContent = change === null ? ''
           : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
         status.style.color = change === null ? ''
           : change > 0 ? '#ff8da1' : change < 0 ? '#38bdf8' : '#a5abb5';
-        if (!overlayCtx) return;
-        overlayCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-        overlayCtx.clearRect(0, 0, geometry.width, 272);
-        if (!shown) return;
-        // Draw only a price guide. Never rewrite official OHLC candles or
-        // pretend the receipt timestamp proves a pre/after-market trade.
-        const rawY = geometry.top + (geometry.max - shown.price)
-          / (geometry.max - geometry.min) * (geometry.priceBottom - geometry.top);
-        const atTop = rawY < geometry.top;
-        const atBottom = rawY > geometry.priceBottom;
-        const lineY = Math.max(geometry.top, Math.min(geometry.priceBottom, rawY));
-        overlayCtx.strokeStyle = fresh ? '#9677e6' : '#9299a5';
-        overlayCtx.fillStyle = overlayCtx.strokeStyle;
-        overlayCtx.lineWidth = 1.5;
-        overlayCtx.setLineDash([5, 4]);
-        overlayCtx.beginPath();
-        overlayCtx.moveTo(geometry.left, lineY);
-        overlayCtx.lineTo(geometry.width - geometry.right, lineY);
-        overlayCtx.stroke();
-        overlayCtx.setLineDash([]);
-        overlayCtx.font = 'bold 11px sans-serif';
-        overlayCtx.textAlign = 'right';
-        const boundary = atTop ? ' ↑' : atBottom ? ' ↓' : '';
-        overlayCtx.fillText(money + boundary, geometry.width - geometry.right - 4,
-          Math.max(geometry.top + 11, Math.min(geometry.priceBottom - 2, lineY - 5)));
       };
       if (inlineChart?.target === target && inlineChart.symbol === symbol) {
         inlineChart.updateLive = updateLive;
