@@ -78,8 +78,8 @@ jobs:
               if op in ("run","kiwoom-daily-backfill"):
                   if op=="kiwoom-daily-backfill":
                       if (path!="ops/do-gateway/us_daily_backfill_20261026_once.py"
-                              or sha!="1be6f559740c026b37d9d6e8ed8d3bb0abd100d3"
-                              or req["request_id"]!="usdaily20261026recover2"
+                              or sha!="bd1c64a8ae0eb9f25214dbacea723bc4e5025db9"
+                              or req["request_id"]!="usdaily20261026recover3"
                               or req["timeout"]!=900):
                           raise ValueError("unapproved one-time Kiwoom recovery")
                   if not path.endswith('.py'):

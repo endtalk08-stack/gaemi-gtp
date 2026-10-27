@@ -194,8 +194,8 @@ case "$action" in
   kiwoom-daily-backfill)
     # Only the pinned 2026-10-26 recovery script may use BOTH existing secrets.
     [[ $# == 3 ]] || fail "backfill_requires_id_sha_timeout"
-    [[ "$1" == "usdaily20261026recover2" ]] || fail "backfill_unapproved_request"
-    [[ "$2" == "1be6f559740c026b37d9d6e8ed8d3bb0abd100d3" ]] || fail "backfill_unapproved_payload"
+    [[ "$1" == "usdaily20261026recover3" ]] || fail "backfill_unapproved_request"
+    [[ "$2" == "bd1c64a8ae0eb9f25214dbacea723bc4e5025db9" ]] || fail "backfill_unapproved_payload"
     [[ "$3" == "900" ]] || fail "backfill_unapproved_timeout"
     [[ -f "$inbox" && ! -L "$inbox" ]] || fail "backfill_payload_missing"
     [[ "$(blob_sha "$inbox")" == "$2" ]] || fail "backfill_payload_sha_mismatch"

@@ -71,17 +71,24 @@ def main():
 
     token = issue_access_token()
     recovered = []
+    no_candle = []
     for symbol, exchange in missing:
         result = fetch_us_daily_chart(
             symbol, exchange, TARGET_DAY, end_date=TARGET_DAY,
             token=token, max_pages=10,
         )
         rows = result.get("rows")
-        if (not isinstance(rows, list) or len(rows) != 1
-                or rows[0].get("date") != TARGET_DAY.isoformat()
-                or result.get("ticker") != symbol
-                or result.get("source") != SOURCE):
-            raise RuntimeError("BACKFILL_STOP_INVALID_DAY_OR_MISSING_" + symbol)
+        if (result.get("ticker") != symbol or result.get("source") != SOURCE
+                or not isinstance(rows, list)):
+            raise RuntimeError("BACKFILL_STOP_INVALID_SOURCE_" + symbol)
+        # A valid provider response may have no bar for this exact session.
+        # Do not manufacture a candle or discard other verified candles.
+        if len(rows) == 0:
+            no_candle.append(symbol)
+            print("BACKFILL_NO_VERIFIED_CANDLE=" + symbol, flush=True)
+            continue
+        if len(rows) != 1 or rows[0].get("date") != TARGET_DAY.isoformat():
+            raise RuntimeError("BACKFILL_STOP_INVALID_DAY_" + symbol)
         candle = rows[0]
         if not all(isinstance(candle.get(k), (int, float))
                    and candle[k] > 0 for k in ("open", "high", "low", "close")):
@@ -90,7 +97,13 @@ def main():
         print("BACKFILL_FETCHED=" + symbol, flush=True)
         time.sleep(0.4)
 
-    # No writes until ALL requested official daily bars have been verified.
+    # Fetch all symbols before the first write; no gaps filled artificially.
+    # Require a large verified subset and only write validated exact-date bars.
+    if len(recovered) < 15:
+        raise RuntimeError("BACKFILL_STOP_INSUFFICIENT_VERIFIED_CANDLES")
+    print("BACKFILL_VERIFIED=" + str(len(recovered)), flush=True)
+    print("BACKFILL_UNAVAILABLE=" + ",".join(no_candle), flush=True)
+
     with psycopg.connect(dsn, connect_timeout=7) as conn:
         with conn.cursor() as cur:
             inserted = 0
@@ -112,12 +125,13 @@ def main():
                 WHERE market='US' AND session_date=%s AND source=%s
                   AND symbol=ANY(%s)
             """, (TARGET_DAY, SOURCE, [symbol for symbol, _ in universe]))
-            if cur.fetchone()[0] != len(universe):
+            if cur.fetchone()[0] != len(universe) - len(no_candle):
                 raise RuntimeError("BACKFILL_STOP_FINAL_VERIFICATION")
         conn.commit()
     print("BACKFILL_COMMITTED_DAY=" + TARGET_DAY.isoformat(), flush=True)
     print("BACKFILL_INSERTED=" + str(inserted), flush=True)
-    print("BACKFILL_SUCCESS", flush=True)
+    print("BACKFILL_STILL_UNAVAILABLE=" + str(len(no_candle)), flush=True)
+    print("BACKFILL_PARTIAL_OR_FULL_SUCCESS", flush=True)
 
 
 if __name__ == "__main__":
