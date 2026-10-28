@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/export_egress_sources_readonly_20261028.py",
-  "request_id": "egressbaseline20261028a",
-  "timeout": 60
+  "operation": "deploy",
+  "path": "backend/services/news_processed_store.py",
+  "target": "backend/services/news_processed_store.py"
 }
