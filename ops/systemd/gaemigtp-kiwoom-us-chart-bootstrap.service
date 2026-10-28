@@ -1,0 +1,16 @@
+[Unit]
+Description=Fill daily history only for missing current Top20 stocks after ranking refresh
+After=network-online.target gaemigtp-kiwoom-us-daily.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gaemigtp-news
+Group=gaemigtp-news
+WorkingDirectory=/opt/gaemigtp-news/app
+EnvironmentFile=/etc/gaemigtp/kiwoom.env
+EnvironmentFile=/etc/gaemigtp/news-worker.env
+ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_us_daily_collector --bootstrap
+TimeoutStartSec=240
+NoNewPrivileges=true
+PrivateTmp=true

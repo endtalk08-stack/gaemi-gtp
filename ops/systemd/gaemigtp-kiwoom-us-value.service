@@ -2,6 +2,7 @@
 Description=gaemiGTP Kiwoom US trading-value Top 20 snapshot collector
 After=network-online.target
 Wants=network-online.target
+OnSuccess=gaemigtp-kiwoom-us-chart-bootstrap.service
 
 [Service]
 Type=oneshot
