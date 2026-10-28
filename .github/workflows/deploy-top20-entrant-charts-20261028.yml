@@ -1,0 +1,53 @@
+name: Deploy Top20 entrant chart backfill while paused
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: ['.github/workflows/deploy-top20-entrant-charts-20261028.yml']
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-gateway
+  cancel-in-progress: false
+jobs:
+  deploy-paused:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 8
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install rank-triggered bounded chart backfill without enabling collection
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway pause-market
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" 'python3 -' <<'PY'
+          import pathlib,subprocess
+          for item in [{"path":"backend/kiwoom_us_daily_collector.py","sha":"50f3d589048eaf7912872f7930ce0495a7e6c49f"},{"path":"ops/systemd/gaemigtp-kiwoom-us-value.service","sha":"a4360eac91cc80380a1fd453d8f5c5e487a785ba"}]:
+              if item['path'].startswith('ops/systemd/'):
+                  path=pathlib.Path('/etc/systemd/system')/pathlib.Path(item['path']).name
+              else:
+                  path=pathlib.Path('/opt/gaemigtp-news/app')/item['path']
+              actual=subprocess.check_output(['git','hash-object','--',str(path)],text=True).strip()
+              assert actual==item['sha'], 'baseline drift: '+item['path']
+          print('ENTRANT_BASELINE_VERIFIED')
+          PY
+          for file in backend/services/market_data_cache.py backend/kiwoom_us_daily_collector.py ops/systemd/gaemigtp-kiwoom-us-chart-bootstrap.service ops/systemd/gaemigtp-kiwoom-us-value.service; do
+            sha=$(git hash-object "$file")
+            scp "${opts[@]}" "$file" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
+            ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway deploy "$file" "$sha"
+          done
+          file=ops/do-gateway/verify_top20_entrant_charts_20261028.py
+          sha=$(git hash-object "$file")
+          scp "${opts[@]}" "$file" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway run entrantchartsverify20261028a "$sha" 60
