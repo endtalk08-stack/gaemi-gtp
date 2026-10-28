@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-news.service",
-  "lines": 120
+  "operation": "run",
+  "path": "ops/do-gateway/export_egress_sources_readonly_20261028.py",
+  "request_id": "egressbaseline20261028a",
+  "timeout": 60
 }
