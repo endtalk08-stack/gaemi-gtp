@@ -44,6 +44,17 @@ def already_refreshed(now, latest, fetched):
     return latest >= expected and fetched >= close.astimezone(dt.timezone.utc)
 
 
+def needs_bootstrap(now, latest):
+    """Only new entries or reentries missing a completed session need backfill."""
+    if latest is None:
+        return True
+    ny = now.astimezone(ZoneInfo('America/New_York'))
+    expected = ny.date() if ny.time() >= dt.time(16, 15) else ny.date() - dt.timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= dt.timedelta(days=1)
+    return latest < expected
+
+
 def main(*, bootstrap=False):
     now = dt.datetime.now(dt.timezone.utc)
     ny = now.astimezone(ZoneInfo('America/New_York'))
@@ -78,7 +89,9 @@ def main(*, bootstrap=False):
     token = None
     failed = 0
     for symbol, exchange, latest, count, fetched in matches:
-        if already_refreshed(now, latest, fetched):
+        if bootstrap and not needs_bootstrap(now, latest):
+            continue
+        if not bootstrap and already_refreshed(now, latest, fetched):
             continue
         start = history_start(today, latest, count)
         try:

@@ -11,6 +11,7 @@
   let chartController = null;
   const chartDataCache = new Map();
   const CHART_HISTORY_TTL = 300000;
+  let chartRetryDelay = 15000;
 
   function catalog() { return window.GaemiGTPWidgetCatalog || {}; }
   function escapeHtml(value) {
@@ -210,6 +211,7 @@
     if (!chartSymbol || !target) return;
     const selected = chartSymbol;
     inlineChart = { target, symbol: selected, updateLive: null };
+    chartRetryDelay = 15000;
     return loadChart(target, selected, initialChangePct);
   }
 
@@ -234,6 +236,7 @@
     chartController = controller;
     const requestTimeout = setTimeout(() => controller.abort(), 15000);
     const current = ++chartRequest;
+    let historyReady = false;
     const previous = target.querySelector('canvas');
     const status = document.createElement('div');
     status.className = 'us-daily-chart__live';
@@ -281,6 +284,8 @@
         if (!previous) loading.textContent = '일봉 데이터를 준비 중이야. 자동으로 다시 확인할게.';
         return;
       }
+      historyReady = true;
+      chartRetryDelay = 15000;
       loading.remove();
       const plot = document.createElement('div');
       plot.className = 'us-daily-chart__plot';
@@ -301,11 +306,13 @@
     } finally {
       clearTimeout(requestTimeout);
       if (current === chartRequest && inlineChart?.target === target && target.isConnected) {
+        const nextRead = historyReady ? CHART_HISTORY_TTL : chartRetryDelay;
+        if (!historyReady) chartRetryDelay = Math.min(60000, chartRetryDelay * 2);
         chartRefreshTimer = setTimeout(() => {
           if (inlineChart?.target !== target || !target.isConnected) return;
           if (document.hidden) return;
           return loadChart(target, symbol, initialChangePct);
-        }, CHART_HISTORY_TTL);
+        }, nextRead);
       }
     }
   }

@@ -49,7 +49,7 @@ def cached_market_json(*, ttl=300, error_ttl=15):
                 if body is None or response.status_code >= 500:
                     # Return an explicit short-lived error entry, never a stale success.
                     return {"body": body, "status": response.status_code, "error": True}
-                return {"body": body, "status": response.status_code, "error": response.status_code != 200}
+                return {"body": body, "status": response.status_code, "error": response.status_code != 200 or (isinstance(body, dict) and body.get("ok") is False)}
             # Cache successes and failures independently so an outage is retried slowly.
             with cache._lock:
                 now = time.monotonic()

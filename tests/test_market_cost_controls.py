@@ -60,12 +60,63 @@ class Controls(unittest.TestCase):
         now=dt.datetime(2026,10,28,17,20,tzinfo=zone)
         self.assertTrue(c.already_refreshed(now,now.date(),now-dt.timedelta(hours=1)))
         self.assertFalse(c.already_refreshed(now,now.date(),now-dt.timedelta(hours=2)))
+    def test_new_rank_entry_and_reentry_bootstrap_only_missing_history(self):
+        c=load_collector();zone=ZoneInfo('America/New_York')
+        now=dt.datetime(2026,10,28,11,tzinfo=zone)
+        self.assertTrue(c.needs_bootstrap(now,None))
+        self.assertTrue(c.needs_bootstrap(now,dt.date(2026,10,23)))
+        self.assertFalse(c.needs_bootstrap(now,dt.date(2026,10,27)))
+        self.assertFalse(c.needs_bootstrap(now,dt.date(2026,10,28)))
+        monday=dt.datetime(2026,11,2,10,tzinfo=zone)
+        self.assertFalse(c.needs_bootstrap(monday,dt.date(2026,10,30)))
+
+    def test_bootstrap_fetches_only_new_and_stale_reentries(self):
+        c=load_collector();requests=[]
+        class Clock(dt.datetime):
+            @classmethod
+            def now(cls,tz=None):return cls(2026,10,28,15,tzinfo=dt.timezone.utc)
+        class Conn:
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def cursor(self):return self
+            def execute(self,*args):pass
+            def commit(self):pass
+            def fetchall(self):
+                return [('OLD','ND',dt.date(2026,10,27),80,None),
+                        ('NEW','NY',None,0,None),
+                        ('RETURN','ND',dt.date(2026,10,20),70,None)]
+        def fetch(symbol,exchange,start,**kwargs):
+            requests.append((symbol,start))
+            return {'ticker':symbol,'source':c.SOURCE,'rows':[{
+                'date':'2026-10-27','open':10,'high':12,'low':9,'close':11,'volume':100}]}
+        with patch.object(c.dt,'datetime',Clock),patch.object(c.psycopg,'connect',return_value=Conn()),patch.object(c,'issue_access_token',return_value='test'),patch.object(c,'fetch_us_daily_chart',side_effect=fetch),patch.object(c.time,'sleep'),patch.dict(os.environ,{'NEWS_DATABASE_URL':'offline-test'}):
+            c.main(bootstrap=True)
+        self.assertEqual([r[0] for r in requests],['NEW','RETURN'])
+        self.assertEqual(requests[0][1],dt.date(2026,10,28)-dt.timedelta(days=180))
+        self.assertEqual(requests[1][1],dt.date(2026,10,16))
+
     def test_off_hours_exits_before_database_connection(self):
         c=load_collector()
         class Clock(dt.datetime):
             @classmethod
             def now(cls,tz=None):return cls(2026,10,28,12,tzinfo=dt.timezone.utc)
         with patch.object(c.dt,'datetime',Clock):c.main()
+    def test_pending_chart_result_is_retried_after_short_cache(self):
+        try:from flask import Flask,jsonify
+        except ImportError:self.skipTest('Flask checked on deployed runtime')
+        app=Flask(__name__);loads=[]
+        @app.get('/pending')
+        @cached_market_json(ttl=300,error_ttl=15)
+        def pending():
+            loads.append(1)
+            return jsonify({'ok':False,'rows':[]})
+        with app.test_client() as client:
+            with patch('backend.services.market_data_cache.time.monotonic',return_value=100):client.get('/pending')
+            with patch('backend.services.market_data_cache.time.monotonic',return_value=110):client.get('/pending')
+            self.assertEqual(len(loads),1)
+            with patch('backend.services.market_data_cache.time.monotonic',return_value=116):client.get('/pending')
+        self.assertEqual(len(loads),2)
+
     def test_shared_http_cache_keeps_access_hooks_and_symbol_separation(self):
         try:from flask import Flask,jsonify
         except ImportError:self.skipTest('Flask checked on deployed runtime')

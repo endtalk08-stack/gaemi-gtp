@@ -1,9 +1,9 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const listeners={},timers=new Map();let id=0,calls=0,fail=false,now=1000000;
+const listeners={},timers=new Map();let id=0,calls=0,fail=false,pending=false,now=1000000;
 class Node {constructor(tag){this.tag=tag;this.children=[];this.style={};this.dataset={};this.isConnected=true;this.clientWidth=560;}setAttribute(){}addEventListener(){}append(...v){this.children.push(...v);}replaceChildren(...v){this.children=v;}remove(){}getBoundingClientRect(){return {width:560};}querySelector(tag){return this.children.flatMap(x=>[x,...x.children]).find(x=>x.tag===tag)||null;}getContext(){return new Proxy({}, {get:(t,k)=>t[k]||(()=>{}),set:(t,k,v)=>(t[k]=v,true)});}}
 const document={hidden:false,createElement:t=>new Node(t),addEventListener:(n,f)=>listeners[n]=f};
 const window={devicePixelRatio:1,addEventListener(){}};
-const context={window,document,localStorage:{},BACKEND_URL:'',AbortController,Date:class extends Date { static now(){return now;} },Intl,Number,Array,Boolean,Math,console,setTimeout:(f,ms)=>{timers.set(++id,{f,ms});return id;},clearTimeout:i=>timers.delete(i),fetch:async()=>{calls++;if(fail)throw Error('network');return {ok:true,json:async()=>({ok:true,name:'NU',rows:[{date:'2026-10-26',open:1,high:2,low:1,close:2,volume:10}]})};}};
+const context={window,document,localStorage:{},BACKEND_URL:'',AbortController,Date:class extends Date { static now(){return now;} },Intl,Number,Array,Boolean,Math,console,setTimeout:(f,ms)=>{timers.set(++id,{f,ms});return id;},clearTimeout:i=>timers.delete(i),fetch:async()=>{calls++;if(fail)throw Error('network');return {ok:true,json:async()=>({ok:true,name:'NU',rows:pending?[]:[{date:'2026-10-26',open:1,high:2,low:1,close:2,volume:10}]})};}};
 vm.runInNewContext(fs.readFileSync(__dirname+'/../frontend/shell/center-chat/widget-dock/widget-dock.js','utf8'),context);
 (async()=>{
  const target=new Node('section');
@@ -17,10 +17,17 @@ vm.runInNewContext(fs.readFileSync(__dirname+'/../frontend/shell/center-chat/wid
  const canvas=reopened.querySelector('canvas');
  await [...timers.values()].find(x=>x.ms===300000).f();
  assert.equal(calls,2);assert.equal(reopened.querySelector('canvas'),canvas);
+ assert([...timers.values()].some(x=>x.ms===15000),'unready history should retry promptly');
  document.hidden=true;const before=calls;
- await [...timers.values()].find(x=>x.ms===300000).f();
+ await [...timers.values()].filter(x=>x.ms===15000).at(-1).f();
  assert.equal(calls,before,'hidden tabs must stop history reads');
  document.hidden=false;reopened.isConnected=false;
- await [...timers.values()].find(x=>x.ms===300000).f();assert.equal(calls,before);
+ await [...timers.values()].filter(x=>x.ms===15000).at(-1).f();assert.equal(calls,before);
+ fail=false;pending=true;const newcomer=new Node('section');
+ await window.GaemiGTPWidgetDock.renderInlineChart(newcomer,'NEW');
+ assert(!newcomer.querySelector('canvas'));
+ const pendingCalls=calls;pending=false;now+=15001;
+ await [...timers.values()].filter(x=>x.ms===15000).at(-1).f();
+ assert.equal(calls,pendingCalls+1);assert(newcomer.querySelector('canvas'),'new entrant should appear automatically when backfill becomes available');
  console.log('PASS: shared chart history, five-minute refresh, failure preservation, hidden/detached stop');
 })().catch(e=>{console.error(e);process.exit(1)});
