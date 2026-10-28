@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/restore_us_calendar_single_file_once.py",
+  "request_id": "calendarrestore20261028a1",
+  "timeout": 90
 }
