@@ -1,3 +1,5 @@
 {
-  "operation": "status"
+  "operation": "deploy",
+  "path": "backend/us_market_calendar.py",
+  "target": "backend/us_market_calendar.py"
 }
