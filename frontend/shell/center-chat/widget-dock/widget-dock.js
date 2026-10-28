@@ -9,6 +9,8 @@
   let inlineChart = null;
   let chartRefreshTimer = null;
   let chartController = null;
+  const chartDataCache = new Map();
+  const CHART_HISTORY_TTL = 300000;
 
   function catalog() { return window.GaemiGTPWidgetCatalog || {}; }
   function escapeHtml(value) {
@@ -225,7 +227,7 @@
   }
 
   async function loadChart(target, symbol, initialChangePct) {
-    if (!target || !symbol) return;
+    if (!target || !symbol || document.hidden) return;
     clearTimeout(chartRefreshTimer);
     chartController?.abort();
     const controller = new AbortController();
@@ -259,11 +261,23 @@
     loading.textContent = '';
     if (!previous) target.replaceChildren(loading);
     try {
-      const response = await fetch(BACKEND_URL + '/market/us-daily-chart?symbol=' +
-        encodeURIComponent(symbol), { cache: 'no-store', signal: controller.signal });
-      const data = await response.json();
+      const cached = chartDataCache.get(symbol);
+      let data;
+      let responseOk = true;
+      if (cached && Date.now() - cached.at < CHART_HISTORY_TTL) {
+        data = cached.data;
+      } else {
+        const response = await fetch(BACKEND_URL + '/market/us-daily-chart?symbol=' +
+          encodeURIComponent(symbol), { cache: 'default', signal: controller.signal });
+        data = await response.json();
+        responseOk = response.ok;
+        if (responseOk && data.ok && Array.isArray(data.rows) && data.rows.length) {
+          if (chartDataCache.size >= 20) chartDataCache.delete(chartDataCache.keys().next().value);
+          chartDataCache.set(symbol, { at: Date.now(), data });
+        }
+      }
       if (current !== chartRequest || !target.isConnected) return;
-      if (!response.ok || !data.ok || !Array.isArray(data.rows) || !data.rows.length) {
+      if (!responseOk || !data.ok || !Array.isArray(data.rows) || !data.rows.length) {
         if (!previous) loading.textContent = '일봉 데이터를 준비 중이야. 자동으로 다시 확인할게.';
         return;
       }
@@ -291,7 +305,7 @@
           if (inlineChart?.target !== target || !target.isConnected) return;
           if (document.hidden) return;
           return loadChart(target, symbol, initialChangePct);
-        }, 60000);
+        }, CHART_HISTORY_TTL);
       }
     }
   }

@@ -1,0 +1,31 @@
+name: Market cost controls regression
+on:
+  push:
+    paths:
+      - app.py
+      - backend/services/market_data_cache.py
+      - backend/services/kiwoom_us_value_board.py
+      - backend/services/market_issue_headlines.py
+      - backend/kiwoom_us_daily_collector.py
+      - frontend/shell/left-market-sidebar/market-sidebar.js
+      - frontend/shell/center-chat/widget-dock/widget-dock.js
+      - tests/test_market_cost_controls.py
+      - tests/test_market_polling_cost.cjs
+      - tests/test_chart_refresh.cjs
+      - .github/workflows/market-cost-controls.yml
+permissions:
+  contents: read
+jobs:
+  offline-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install flask
+      - run: python tests/test_market_cost_controls.py
+      - run: node tests/test_market_polling_cost.cjs
+      - run: node tests/test_chart_refresh.cjs
+      - run: python -m py_compile app.py backend/services/market_data_cache.py backend/services/kiwoom_us_value_board.py backend/services/market_issue_headlines.py backend/kiwoom_us_daily_collector.py

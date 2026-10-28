@@ -13,6 +13,7 @@ from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.news_result import get_shared_stock_news_result
 from backend.services.news_freshness import issue_mode_for_question, normalize_issue_mode
 from backend.services.kiwoom_us_value_board import read_us_trading_value_board
+from backend.services.market_data_cache import cached_market_json
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
 from backend.services.us_market_close import read_brief
 
@@ -222,6 +223,7 @@ def stock_news_issues():
 
 
 @app.get("/market/us-daily-chart")
+@cached_market_json(ttl=300, error_ttl=15)
 def market_us_daily_chart():
     """Read existing daily candles for any verified US stock, regardless of live rank."""
     import re

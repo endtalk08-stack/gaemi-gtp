@@ -2,9 +2,12 @@
 
 The website has no Kiwoom credentials and never calls or collects market data.
 """
+from .market_data_cache import MarketReadCache
 import os
 
-def read_us_trading_value_board(limit=20, diagnostics=None):
+_BOARD_CACHE = MarketReadCache(max_entries=4)
+
+def _read_us_trading_value_board_uncached(limit=20, diagnostics=None):
     if type(limit) is not int or not 1 <= limit <= 20:
         raise ValueError("invalid_limit")
     dsn = os.environ.get("NEWS_DATABASE_URL", "").strip()
@@ -63,6 +66,20 @@ def read_us_trading_value_board(limit=20, diagnostics=None):
         if diagnostics is not None:
             diagnostics.append('db_query_failed')
         return None
+
+
+def read_us_trading_value_board(limit=20, diagnostics=None):
+    if type(limit) is not int or not 1 <= limit <= 20:
+        raise ValueError("invalid_limit")
+    dsn = os.environ.get("NEWS_DATABASE_URL", "").strip()
+    messages = []
+    rows = _BOARD_CACHE.get_or_load(
+        (dsn, limit), lambda: _read_us_trading_value_board_uncached(limit, messages),
+        ttl=60, empty_ttl=15,
+    )
+    if rows is None and diagnostics is not None:
+        diagnostics.extend(messages or ['source_unavailable'])
+    return rows
 
 
 def read_recent_saved_us_quote(symbol, *, max_age_seconds=72 * 3600):

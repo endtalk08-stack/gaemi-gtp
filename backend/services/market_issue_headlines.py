@@ -3,7 +3,10 @@
 The sidebar must never collect, process, or save news. No alternate Render
 issue store is queried when DigitalOcean has no matching processed brief.
 """
+from .market_data_cache import MarketReadCache
 import os
+
+_BRIEFS_CACHE = MarketReadCache(max_entries=64)
 import re
 import time
 
@@ -77,7 +80,7 @@ def _read_worker_briefs(market, names):
     database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
     if not market_name or not database_url or not names:
         return {}
-    try:
+    def load_records():
         import psycopg
         with psycopg.connect(database_url, connect_timeout=3) as conn:
             with conn.cursor() as cur:
@@ -99,6 +102,20 @@ def _read_worker_briefs(market, names):
                     (market_name, names),
                 )
                 records = cur.fetchall()
+        return records
+
+    def load_safely():
+        try:
+            return load_records()
+        except Exception as exc:
+            print("[market issue] DB temporarily unavailable: " + type(exc).__name__, flush=True)
+            return []
+
+    try:
+        records = _BRIEFS_CACHE.get_or_load(
+            (database_url, market_name, tuple(sorted(set(names)))), load_safely,
+            ttl=30, empty_ttl=15,
+        )
         return {
             name: (clean_us_snapshot(payload) if market == "us" else payload)
             for name, payload in records if isinstance(payload, dict)

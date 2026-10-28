@@ -127,7 +127,12 @@
     let draggedRow = null;
     let lastRankingSignature = '';
     let quoteRequestInFlight = false;
-    let lastFullRankingRefresh = Date.now();
+    let nextRankingReadAt = 0;
+    let rankingRequestInFlight = false;
+    let rankingFailureCount = 0;
+    const sidebarActive = () => document.visibilityState === 'visible'
+      && document.body.classList.contains('left-market-open')
+      && !(window.innerWidth < 1024 && document.body.classList.contains('right-panel-open'));
     const orderKey = () => 'gaemiGTP_market_sidebar_order_us_' + tab + '_v1';
     const readOrder = () => {
       try {
@@ -197,6 +202,7 @@
       typeof value === 'string' ? value.split(/…|\.{3,}/, 1)[0].trim() : '';
 
     const showUsRanking = async () => {
+      if (!sidebarActive() || rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
       const id = ++requestId;
       if (!list) return;
       const titles = {
@@ -222,19 +228,18 @@
       if (!list.querySelector('button[data-original-index]')) {
         list.textContent = '순위를 불러오는 중이야.';
       }
+      rankingRequestInFlight = true;
+      nextRankingReadAt = Date.now() + 15000;
       try {
         const path = '/market/trading-value';
         const response = await fetch(backendUrl + path + '?market=' + market, { cache: 'no-store' });
         if (!response.ok) throw new Error('market ranking unavailable');
         const result = await response.json();
         if (id !== requestId) return;
-        if (result.ok !== true || !Array.isArray(result.items) || !result.items.length) {
-          if (title) title.textContent = titles[tab] + ' · 갱신 실패';
-          if (!list.querySelector('button[data-original-index]')) {
-            list.textContent = '조회 가능한 순위 원천 데이터가 없어.';
-          }
-          return;
-        }
+        if (result.ok !== true || !Array.isArray(result.items) || !result.items.length)
+          throw new Error('empty market ranking');
+        rankingFailureCount = 0;
+        nextRankingReadAt = Date.now() + 60000;
         customOrder = []; // A refreshed ranking supersedes a manually saved layout.
         if (title) title.textContent = titles[tab];
         const signature = JSON.stringify(result.items.map((row) => [
@@ -381,10 +386,14 @@
         // waiting for the next timer tick or relying on a panel-open CSS class.
         void readLatestQuotes();
       } catch (_) {
+        rankingFailureCount += 1;
+        nextRankingReadAt = Date.now() + Math.min(300000, 15000 * 2 ** (rankingFailureCount - 1));
         if (id === requestId && title) title.textContent = titles[tab] + ' · 갱신 실패';
         if (id === requestId && !list.querySelector('button[data-original-index]')) {
           list.textContent = '순위 원천 데이터를 가져오지 못했어.';
         }
+      } finally {
+        rankingRequestInFlight = false;
       }
     };
 
@@ -393,7 +402,8 @@
     const quoteConsumersActive = () => qqqWidgetActive()
       || window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
     const readLatestQuotes = async () => {
-      const paintRanking = tab === 'value' && !!list?.querySelector('button[data-original-index]');
+      if (document.visibilityState !== 'visible') return;
+      const paintRanking = sidebarActive() && tab === 'value' && !!list?.querySelector('button[data-original-index]');
       if (quoteRequestInFlight || (!paintRanking && !quoteConsumersActive())) return;
       quoteRequestInFlight = true;
       try {
@@ -454,14 +464,8 @@
     // Keep background reads off to avoid unnecessary database usage.
     const refreshOnReturn = () => {
       if (document.visibilityState !== 'visible') return;
-      if (tab !== 'value') {
-        if (quoteConsumersActive()) void readLatestQuotes();
-        return;
-      }
-      // Sidebar CSS/body classes are not a reliable signal: the data must
-      // continue refreshing even when the workspace shell is restored.
-      if (list.querySelector('button[data-original-index]')) void readLatestQuotes();
-      else void showUsRanking();
+      if (sidebarActive() && tab === 'value') void showUsRanking();
+      if (sidebarActive() || quoteConsumersActive()) void readLatestQuotes();
     };
     document.addEventListener('visibilitychange', refreshOnReturn);
     window.addEventListener('focus', refreshOnReturn);
@@ -516,36 +520,13 @@
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
-    window.GaemiGTPMarketSidebar.refreshLiveQuotes = () => {
-      if (tab === 'value' && document.visibilityState === 'visible') {
-        if (list.querySelector('button[data-original-index]')) void readLatestQuotes();
-        else void showUsRanking();
-      }
-    };
-    // Keep the working trading-value list as default while new data sources are pending.
-    void showUsRanking();
-    // Refresh quotes independently of sidebar open/closed CSS classes.
-    // The lightweight endpoint reads memory only, never calls Kiwoom or Neon.
-    // On a background tab, cap polling at one request per 15 seconds.
-    let lastBackgroundQuoteCheck = 0;
+    window.GaemiGTPMarketSidebar.refreshLiveQuotes = refreshOnReturn;
+    // Closed panels and background tabs consume no ranking or quote reads.
+    if (sidebarActive()) void showUsRanking();
     window.setInterval(() => {
-      if (draggedRow) return;
-      const visible = document.visibilityState === 'visible';
-      if (!visible) {
-        if (Date.now() - lastBackgroundQuoteCheck < 15000) return;
-        lastBackgroundQuoteCheck = Date.now();
-      }
-      if (tab !== 'value') {
-        if (quoteConsumersActive()) void readLatestQuotes();
-      } else if (!list.querySelector('button[data-original-index]')) {
-        if (visible) void showUsRanking();
-        if (quoteConsumersActive()) void readLatestQuotes();
-      } else if (visible && Date.now() - lastFullRankingRefresh >= 60000) {
-        lastFullRankingRefresh = Date.now();
-        void showUsRanking();
-      } else {
-        void readLatestQuotes();
-      }
+      if (draggedRow || document.visibilityState !== 'visible') return;
+      if (sidebarActive() && tab === 'value') void showUsRanking();
+      if (sidebarActive() || quoteConsumersActive()) void readLatestQuotes();
     }, 3000);
   }
 
