@@ -1,0 +1,44 @@
+name: Pause market collectors during disabled database maintenance
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: ['.github/workflows/pause-market-maintenance-20261028.yml']
+permissions:
+  contents: read
+jobs:
+  pause-market:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 6
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pause collectors and capture exact source without DB access
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          file=ops/do-gateway/gaemi-do-gateway-market-pause-20261028
+          bash -n "$file"
+          sha=$(git hash-object "$file")
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" 'install -d -m 0700 "$HOME/.gaemi-gateway"'
+          scp "${opts[@]}" "$file" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway upgrade "$sha"
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway pause-market
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" 'python3 -' <<'PY'
+          import pathlib,base64,json,hashlib
+          base=pathlib.Path('/opt/gaemigtp-news/app')
+          for rel in ['backend/kiwoom_us_daily_collector.py','backend/kiwoom_us_price_relay.py','backend/kiwoom_us_value_collector.py']:
+              data=(base/rel).read_bytes()
+              print('MARKET_SOURCE='+json.dumps({'path':rel,'sha256':hashlib.sha256(data).hexdigest(),'base64':base64.b64encode(data).decode()}),flush=True)
+          PY
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway status
