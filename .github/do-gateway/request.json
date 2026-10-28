@@ -1,3 +1,4 @@
 {
-  "operation": "status"
+  "operation": "upgrade",
+  "path": "ops/do-gateway/gaemi-do-gateway"
 }
