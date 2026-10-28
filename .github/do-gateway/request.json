@@ -1,3 +1,6 @@
 {
-    "operation": "alpaca-price-remove"
+  "operation": "run",
+  "path": "ops/do-gateway/nvda_news_collection_local_json_once_20261028.py",
+  "request_id": "nvdanewslocal20261028a",
+  "timeout": 45
 }
