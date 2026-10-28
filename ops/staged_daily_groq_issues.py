@@ -266,7 +266,7 @@ def analyze_news(stock_name, articles, *, usage_callback=None, price_context=Non
         "model": MODEL,
         "messages": [
             {"role": "system", "content": OUTPUT_SCHEMA},
-            {"role": "user", "content": PROMPT.replace("[종목명]", str(stock_name)) + "\\n" + json.dumps(
+            {"role": "user", "content": PROMPT.replace("[종목명]", str(stock_name)) + "\n" + json.dumps(
                 {"stock": stock_name, "price": price_context or {}, "news": news[:MAX_MODEL_NEWS]}, ensure_ascii=False)},
         ],
         "temperature": 0.2,
