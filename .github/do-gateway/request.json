@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-news.service"}
+{"operation":"run","path":"ops/do-gateway/audit_ai_live_sync_readonly_20261020.py","request_id":"restoreaudit20261028a","timeout":120}
