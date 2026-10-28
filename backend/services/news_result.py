@@ -275,25 +275,14 @@ def _build_us_24h_news_result(raw_news_list, stock_name, requested_stock_name, d
             translations[record["translation_key"]] = {
                 k: record[k] for k in ("title", "description", "summary", "translation_status", "original_text")
             }
-    # Keep the general news feed, article facts and stock quote paths unchanged.
-    # Only the US CODE issue-selection stage can be disabled independently.
-    # Default ON preserves the current worker behavior until explicitly switched off.
-    code_issues_enabled = os.environ.get(
-        "GAEMIGTP_US_CODE_ISSUES_ENABLED", "1"
-    ).strip() != "0"
-    if code_issues_enabled:
-        identity = resolve_us_news_identity(requested_stock_name)
-        issue_briefs, rejected = select_issue_articles(
-            articles, briefs, requested_stock_name, aliases=identity.get("search_terms") or [],
-            previous=previous_issues,
-        )
-    else:
-        issue_briefs, rejected = [], []
+    identity = resolve_us_news_identity(requested_stock_name)
+    issue_briefs, rejected = select_issue_articles(
+        articles, briefs, requested_stock_name, aliases=identity.get("search_terms") or [],
+        previous=previous_issues,
+    )
     return {
         "paired_news_items": articles, "panel_news_items": articles,
         "storyboard_news_items": articles, "issue_briefs": issue_briefs,
-        "_code_issue_briefs": issue_briefs,
-        "_code_issue_selection_enabled": code_issues_enabled,
         "_issue_selection_revision": 2, "_issue_selection_rejections": rejected,
         "keyword_storyboard": [{"time": a.get("storyboard_time", ""),
                                "keywords": a.get("article_keywords") or []} for a in articles],
