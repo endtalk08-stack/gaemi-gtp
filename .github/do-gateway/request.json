@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "backend/alpaca_probe.py",
-  "request_id": "alpacacredverify20261028a",
-  "timeout": 40
+  "operation": "status"
 }
