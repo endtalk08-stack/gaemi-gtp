@@ -23,6 +23,50 @@ valid_req() { [[ "$1" =~ ^[a-zA-Z0-9_-]{8,55}$ ]]; }
 valid_timeout() { [[ "$1" =~ ^[0-9]{1,4}$ ]] && (( 30 <= $1 && $1 <= 900 )); }
 
 case "$action" in
+  pause-market)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    systemctl disable --now gaemigtp-kiwoom-us-daily.timer gaemigtp-kiwoom-us-value.timer gaemigtp-kiwoom-us-fe.service
+    systemctl stop gaemigtp-kiwoom-us-daily.service gaemigtp-kiwoom-us-value.service
+    for unit in gaemigtp-kiwoom-us-daily.timer gaemigtp-kiwoom-us-value.timer gaemigtp-kiwoom-us-fe.service; do
+      systemctl is-active --quiet "$unit" && fail "market_unit_still_active"
+    done
+    echo GAEMI_MARKET_PAUSED_SERVER_POWER_UNCHANGED
+    ;;
+  stop-news)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    systemctl disable --now gaemigtp-news.service
+    systemctl is-active --quiet gaemigtp-news.service && fail "news_still_active"
+    echo GAEMI_NEWS_STOPPED
+    ;;
+
+  alpaca-price-remove)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    [[ "$(systemctl is-active gaemigtp-news.service || true)" == inactive ]] || fail "news_worker_not_paused"
+    [[ -f "$app/backend/alpaca_news_probe.py" && ! -L "$app/backend/alpaca_news_probe.py" ]] || fail "alpaca_news_probe_missing_abort"
+    [[ -f /etc/gaemigtp/alpaca.env && ! -L /etc/gaemigtp/alpaca.env ]] || fail "alpaca_credentials_missing_abort"
+    if grep -El 'backend[./]alpaca_probe|alpaca_probe[.]py' /etc/systemd/system/gaemigtp-*.service /etc/systemd/system/gaemigtp-*.timer 2>/dev/null; then
+      fail "alpaca_price_referenced_by_systemd_abort"
+    fi
+    p="$app/backend/alpaca_probe.py"
+    if [[ -e "$p" || -L "$p" ]]; then
+      [[ -f "$p" && ! -L "$p" ]] || fail "unexpected_price_file_type"
+      [[ "$(blob_sha "$p")" == "664bee44240f2c6978bb70bd0f0918fdc036e4de" ]] || fail "unexpected_price_file_hash"
+      rm -- "$p"
+      echo ALPACA_PRICE_SOURCE_REMOVED
+    else
+      echo ALPACA_PRICE_SOURCE_ALREADY_ABSENT
+    fi
+    for c in "$app/backend/__pycache__/alpaca_probe.cpython-"*.pyc; do
+      [[ -e "$c" || -L "$c" ]] || continue
+      [[ -f "$c" && ! -L "$c" ]] || fail "unexpected_price_cache_type"
+      rm -- "$c"
+      echo ALPACA_PRICE_BYTECODE_REMOVED
+    done
+    [[ ! -e "$p" && ! -L "$p" ]] || fail "price_source_still_present"
+    [[ -f "$app/backend/alpaca_news_probe.py" && -f /etc/gaemigtp/alpaca.env ]] || fail "news_or_credentials_changed"
+    [[ "$(systemctl is-active gaemigtp-news.service || true)" == inactive ]] || fail "news_worker_changed"
+    echo ALPACA_PRICE_REMOVE_PASS_NEWS_AND_CREDENTIALS_PRESERVED
+    ;;
   status)
     [[ $# == 0 ]] || fail "unexpected_arguments"
     systemctl --no-pager --plain status gaemigtp-news.service --lines=3 || true
