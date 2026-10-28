@@ -20,6 +20,9 @@ for i,a in enumerate(articles,1):
         url=""
     row={"n":i,"title":str(a.get("headline") or "")[:400],
          "url":url,"source":str(a.get("source") or "")[:120],
-         "published_at":str(a.get("created_at") or "")[:64]}
+         "published_at":str(a.get("created_at") or "")[:64],
+         "content_length":len(str(a.get("content") or "")),
+         "content_preview":str(a.get("content") or "").strip()[:350],
+         "summary_preview":str(a.get("summary") or "").strip()[:350]}
     print("NVDA_ARTICLE_LINK="+json.dumps(row,ensure_ascii=False),flush=True)
 print("NVDA_ARTICLE_LINKS_DONE",flush=True)
