@@ -1,5 +1,6 @@
 {
-  "operation": "deploy",
-  "path": "backend/services/news_processed_store.py",
-  "target": "backend/services/news_processed_store.py"
+  "operation": "run",
+  "path": "ops/do-gateway/verify_news_egress_fix_20261028.py",
+  "request_id": "egressverify20261028a",
+  "timeout": 60
 }
