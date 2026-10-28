@@ -1,0 +1,41 @@
+name: Stop news collection only
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: ['.github/workflows/stop-news-only-20261028.yml']
+permissions:
+  contents: read
+jobs:
+  stop-news:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 5
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Stop news worker and preserve server power
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          file=ops/do-gateway/gaemi-do-gateway-stop-news-20261028
+          bash -n "$file"
+          sha=$(git hash-object "$file")
+          for attempt in {1..12}; do
+            if ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" 'true'; then break; fi
+            sleep 5
+          done
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" 'install -d -m 0700 "$HOME/.gaemi-gateway"'
+          scp "${opts[@]}" "$file" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway upgrade "$sha"
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway stop-news
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway status
