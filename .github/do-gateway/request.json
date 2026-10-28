@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/audit_sidebar_chart_cost_readonly_20261028.py",
-  "request_id": "marketcostaudit20261028a",
-  "timeout": 60
+  "operation": "alpaca-verify"
 }
