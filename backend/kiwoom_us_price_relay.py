@@ -189,6 +189,7 @@ async def main():
     )
     # Only an Ed25519 public verification key is printed, never a secret.
     print("US_RELAY_PUBKEY_B64=" + base64.b64encode(public).decode("ascii"), flush=True)
+    retry_delay = 15
     while True:
         if not _open_us_session():
             await asyncio.sleep(60)
@@ -197,11 +198,13 @@ async def main():
             initial = await asyncio.to_thread(_ranked_symbols, dsn)
             if initial[1]:
                 await stream_once(dsn, initial, key)
+                retry_delay = 15
             else:
                 print("US_RELAY_NO_TOP20", flush=True)
         except Exception as exc:
             print("US_RELAY_CONNECTION_ERROR=" + type(exc).__name__, flush=True)
-        await asyncio.sleep(12 if _open_us_session() else 60)
+            retry_delay = min(300, retry_delay * 2)
+        await asyncio.sleep(retry_delay if _open_us_session() else 60)
 
 
 if __name__ == "__main__":

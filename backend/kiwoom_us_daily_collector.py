@@ -1,4 +1,4 @@
-"""Refresh verified ranked/tracked US daily candles independently on DigitalOcean."""
+"""Refresh only current verified Top20 daily candles after the New York close."""
 import datetime as dt
 import math
 import os
@@ -12,7 +12,7 @@ SOURCE = 'kiwoom:usa06012'
 
 def history_start(today, latest, count):
     start = today - dt.timedelta(days=180)
-    return max(start, latest - dt.timedelta(days=4)) if latest and count >= 65 else start
+    return max(start, latest - dt.timedelta(days=4)) if latest else start
 
 
 def valid_candle(row, start, end):
@@ -29,7 +29,27 @@ def valid_candle(row, start, end):
         return False
 
 
-def main():
+def refresh_window(ny):
+    return ny.weekday() < 5 and ny.time() >= dt.time(16, 15)
+
+
+def already_refreshed(now, latest, fetched):
+    if latest is None or fetched is None:
+        return False
+    ny = now.astimezone(ZoneInfo('America/New_York'))
+    expected = ny.date() if ny.time() >= dt.time(16) else ny.date() - dt.timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= dt.timedelta(days=1)
+    close = dt.datetime.combine(expected, dt.time(16, 15), ZoneInfo('America/New_York'))
+    return latest >= expected and fetched >= close.astimezone(dt.timezone.utc)
+
+
+def main(*, bootstrap=False):
+    now = dt.datetime.now(dt.timezone.utc)
+    ny = now.astimezone(ZoneInfo('America/New_York'))
+    if not bootstrap and not refresh_window(ny):
+        print('CHART_REFRESH_SKIP=outside_post_close_window', flush=True)
+        return
     dsn = os.environ.get('NEWS_DATABASE_URL', '').strip()
     if not dsn:
         raise RuntimeError('chart_database_url_missing')
@@ -43,13 +63,9 @@ def main():
                     WHERE source='kiwoom' AND market='US' AND rank_type='trading_value'
                     ORDER BY captured_at DESC,id DESC LIMIT 1)
                   ORDER BY e.rank LIMIT 20
-                ), tracked AS (
-                  SELECT symbol FROM ranked UNION
-                  SELECT DISTINCT symbol FROM public.us_daily_candles
-                  WHERE market='US' AND source='kiwoom:usa06012'
                 )
                 SELECT i.symbol,i.exchange,MAX(c.session_date),COUNT(c.session_date),MAX(c.fetched_at)
-                FROM tracked t JOIN public.market_instruments i
+                FROM ranked t JOIN public.market_instruments i
                   ON i.market='US' AND i.symbol=t.symbol
                 LEFT JOIN public.us_daily_candles c
                   ON c.market='US' AND c.symbol=i.symbol AND c.source='kiwoom:usa06012'
@@ -58,20 +74,12 @@ def main():
                 GROUP BY i.symbol,i.exchange ORDER BY i.symbol
             """)
             matches = cur.fetchall()
-    now = dt.datetime.now(dt.timezone.utc)
-    ny = now.astimezone(ZoneInfo('America/New_York'))
     today = ny.date()
-    market_window = ny.weekday() < 5 and dt.time(4) <= ny.time() < dt.time(20, 10)
-    expected = today if ny.time() >= dt.time(16) else today - dt.timedelta(days=1)
-    while expected.weekday() >= 5:
-        expected -= dt.timedelta(days=1)
     token = None
     failed = 0
     for symbol, exchange, latest, count, fetched in matches:
-        if fetched and not market_window and now - fetched < dt.timedelta(hours=6):
-            # New and incomplete histories still get one full attempt per off-hours cycle.
-            if count >= 65 and latest and latest >= expected:
-                continue
+        if already_refreshed(now, latest, fetched):
+            continue
         start = history_start(today, latest, count)
         try:
             if token is None:
@@ -94,8 +102,17 @@ def main():
                               close=EXCLUDED.close,volume=EXCLUDED.volume,
                               source=EXCLUDED.source,fetched_at=now()
                             WHERE us_daily_candles.source=EXCLUDED.source
+                              AND (us_daily_candles.open,us_daily_candles.high,us_daily_candles.low,
+                                   us_daily_candles.close,us_daily_candles.volume)
+                                  IS DISTINCT FROM
+                                  (EXCLUDED.open,EXCLUDED.high,EXCLUDED.low,EXCLUDED.close,EXCLUDED.volume)
                         """, (symbol,row['date'],row['open'],row['high'],row['low'],row['close'],
                               int(row['volume']) if row.get('volume') is not None else None,SOURCE))
+                    cur.execute("""UPDATE public.us_daily_candles SET fetched_at=now()
+                                   WHERE market='US' AND symbol=%s AND source=%s
+                                     AND session_date=(SELECT MAX(session_date) FROM public.us_daily_candles
+                                         WHERE market='US' AND symbol=%s AND source=%s)""",
+                                (symbol,SOURCE,symbol,SOURCE))
                 conn.commit()
             print('CHART_REFRESH_OK symbol=%s rows=%s' % (symbol,len(rows)), flush=True)
         except Exception as exc:
@@ -110,4 +127,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--bootstrap', action='store_true', help='One-time current TOP20 chart initialization')
+    main(bootstrap=parser.parse_args().bootstrap)

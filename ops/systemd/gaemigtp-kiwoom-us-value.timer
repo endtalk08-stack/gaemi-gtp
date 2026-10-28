@@ -1,9 +1,8 @@
 [Unit]
-Description=Update Kiwoom US trading-value Top 20 every minute during US trading windows
+Description=Refresh shared US trading-value Top20 every five minutes
 
 [Timer]
-OnCalendar=*-*-* *:*:00
-RandomizedDelaySec=0
+OnCalendar=*-*-* *:0/5:00
 Persistent=false
 Unit=gaemigtp-kiwoom-us-value.service
 

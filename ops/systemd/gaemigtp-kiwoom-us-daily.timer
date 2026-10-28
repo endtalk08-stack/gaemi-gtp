@@ -1,10 +1,10 @@
 [Unit]
-Description=Refresh US daily candles and fill new ranked symbols every five minutes
+Description=Refresh current US Top20 daily candles after New York close
 
 [Timer]
-OnBootSec=30s
-OnUnitInactiveSec=300s
-AccuracySec=10s
+OnCalendar=Mon..Fri *-*-* 16:20:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 17:20:00 America/New_York
+Persistent=false
 Unit=gaemigtp-kiwoom-us-daily.service
 
 [Install]
