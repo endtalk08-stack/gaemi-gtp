@@ -5,35 +5,30 @@ from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
 MODEL = "openai/gpt-oss-20b"
-# The user's tested analysis prompt is preserved verbatim.
-# Only the [종목명] placeholder is replaced for each stock.
-PROMPT = "[종목명] 최신 뉴스에서 중요한 이슈만 골라 제목과 내용을 설명해 줘. 중복 기사와 종합 시황 기사는 제외하고, 이슈 개수는 제한하지 마. 각 이슈에 참고 기사와 발행 시간을 표시해 줘. 맨 마지막에는 현재 주가가 상승·하락하는 주된 이유를 핵심 키워드 1개와 내용으로 설명해 줘."
+PROMPT = """제공된 종목의 현재 주가와 뉴스 원문을 분석해서 친구처럼 반말로 답변해.
 
-# Transport-only instructions: link article IDs to original publication metadata.
-# They do not alter or replace the tested user prompt.
-OUTPUT_SCHEMA = """한국어 JSON 객체 하나만 반환해. 주어진 뉴스에 없는 사건이나 날짜를 추측하지 마.
-이슈 개수에는 제한을 두지 마. 종목과 직접 관련 있는 이슈만 작성해.
-이슈의 source_ids는 입력 뉴스의 실제 source_id만 사용해. 각 이슈에는 근거 기사를 연결해.
-주가 변동 원인은 제공된 price의 등락률을 기준으로 판단하고, 확인되지 않으면 추측하지 마.
-기사 근거로 원인을 확인할 수 없으면 price_reason의 source_ids를 빈 배열로 반환해.
+1. 현재 주가가 상승했으면 왜 상승했어?
+   현재 주가가 하락했으면 왜 하락했어?
+
+2. 현재 해당 종목에서 중요한 이슈를 0~3개 선정해.
+
+한국어 JSON 객체만 반환해.
 
 {
   "price_reason": {
-    "headline": "핵심 키워드 1개",
-    "summary": "상승 또는 하락한 주된 이유. 근거가 없으면 확인되지 않았다고 설명",
+    "headline": "상승 또는 하락 이유 제목",
+    "summary": "상승 또는 하락한 이유",
     "source_ids": [1]
   },
   "issues": [
     {
       "headline": "이슈 제목",
       "summary": "이슈 내용",
-      "tags": [],
+      "tags": ["키워드1", "키워드2"],
       "source_ids": [1]
     }
   ]
 }"""
-
-MAX_MODEL_NEWS = 6
 
 
 def parse_issues(response_text):
@@ -41,8 +36,8 @@ def parse_issues(response_text):
     if not isinstance(result, dict) or set(result) != {"issues"}:
         raise ValueError("Invalid issue response")
     issues = result["issues"]
-    if not isinstance(issues, list):
-        raise ValueError("Expected issue list")
+    if not isinstance(issues, list) or len(issues) > 3:
+        raise ValueError("Expected 0-3 issues")
     for item in issues:
         if not isinstance(item, dict) or not {"headline", "summary", "tags"} <= set(item) or set(item) - {"headline", "summary", "tags", "source_ids"}:
             raise ValueError("Invalid fields")
@@ -70,7 +65,7 @@ def parse_issues(response_text):
 
 
 def parse_analysis(response_text):
-    """Validate the price reason plus source-cited issues without changing storage."""
+    """Validate the new reason + 0-3 sourced issues without changing issue storage."""
     result = json.loads(response_text)
     if not isinstance(result, dict) or set(result) != {"price_reason", "issues"}:
         raise ValueError("Invalid analysis response")
@@ -166,11 +161,11 @@ def _historical_event_mentions(content, published_at):
 
 
 def build_model_news(articles):
-    """Number only the six latest usable articles; share IDs with storage."""
+    """Number only the 10 latest usable articles; share IDs with storage."""
     news, sources = [], []
     char_budget = 9000
     for article in sorted(articles, key=_article_published_epoch, reverse=True):
-        if len(news) >= MAX_MODEL_NEWS:
+        if len(news) >= 10:
             break
         if not isinstance(article, dict) or char_budget <= 0:
             continue
@@ -265,13 +260,13 @@ def analyze_news(stock_name, articles, *, usage_callback=None, price_context=Non
     data = json.dumps({
         "model": MODEL,
         "messages": [
-            {"role": "system", "content": OUTPUT_SCHEMA},
-            {"role": "user", "content": PROMPT.replace("[종목명]", str(stock_name)) + "\n" + json.dumps(
-                {"stock": stock_name, "price": price_context or {}, "news": news[:MAX_MODEL_NEWS]}, ensure_ascii=False)},
+            {"role": "system", "content": PROMPT},
+            {"role": "user", "content": json.dumps(
+                {"stock": stock_name, "price": price_context or {}, "news": news[:10]}, ensure_ascii=False)},
         ],
         "temperature": 0.2,
         "reasoning_effort": "low",
-        "max_completion_tokens": 2500,
+        "max_completion_tokens": 1000,
         "response_format": {"type": "json_object"},
     }, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
