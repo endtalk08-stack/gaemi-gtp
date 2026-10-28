@@ -1,0 +1,60 @@
+name: Deploy market cost controls without restarting collection
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: ['.github/workflows/deploy-market-cost-controls-20261028.yml']
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-gateway
+  cancel-in-progress: false
+jobs:
+  deploy-paused:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 8
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install bounded collectors and verify without any DB connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway pause-market
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" 'python3 -' <<'PY'
+          import pathlib,hashlib
+          base=pathlib.Path('/opt/gaemigtp-news/app')
+          for item in [{"path":"backend/kiwoom_us_daily_collector.py","sha256":"e2406619a57bec6deb66536f25ac64689eca0cc8421ac19a5a97753265dbadb8"},{"path":"backend/kiwoom_us_price_relay.py","sha256":"526280a389522db3a4a0c39f595498c345fa60462371215933336d632248503f"}]:
+              actual=hashlib.sha256((base/item['path']).read_bytes()).hexdigest()
+              assert actual==item['sha256'], 'baseline drift: '+item['path']
+          print('MARKET_BASELINE_VERIFIED')
+          PY
+          for file in backend/services/market_data_cache.py backend/services/kiwoom_us_value_board.py backend/kiwoom_us_daily_collector.py backend/kiwoom_us_price_relay.py ops/systemd/gaemigtp-kiwoom-us-daily.timer ops/systemd/gaemigtp-kiwoom-us-value.timer; do
+            sha=$(git hash-object "$file")
+            scp "${opts[@]}" "$file" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
+            ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway deploy "$file" "$sha"
+          done
+          file=ops/do-gateway/verify_market_cost_controls_20261028.py
+          sha=$(git hash-object "$file")
+          scp "${opts[@]}" "$file" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway run marketcostverify20261028a "$sha" 60
+          ssh "${opts[@]}" gaemi-deploy@"$DO_HOST" 'python3 -' <<'PY'
+          import subprocess
+          units=['gaemigtp-kiwoom-us-daily.timer','gaemigtp-kiwoom-us-value.timer','gaemigtp-kiwoom-us-fe.service','gaemigtp-news.service']
+          for unit in units:
+              active=subprocess.run(['systemctl','is-active',unit],capture_output=True,text=True).stdout.strip()
+              enabled=subprocess.run(['systemctl','is-enabled',unit],capture_output=True,text=True).stdout.strip()
+              assert active not in ('active','activating'), unit
+              assert enabled!='enabled', unit
+              print('PAUSED_VERIFIED '+unit+' '+active+' '+enabled)
+          PY
