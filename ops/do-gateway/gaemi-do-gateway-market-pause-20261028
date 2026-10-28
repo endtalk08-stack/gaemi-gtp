@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# gaemiGTP project management gateway.
+# Fixed, root-owned entry point for pre-authorized GitHub Actions SSH user.
+set -Eeuo pipefail
+umask 077
+
+fail() { echo "GAEMI_GATEWAY_ERROR=$*" >&2; exit 1; }
+[[ $EUID -eq 0 ]] || fail "root_only"
+[[ -f /opt/gaemigtp-news/app/backend/services/us_market_close.py ]] || fail "missing_app"
+[[ -x /opt/gaemigtp-news/venv/bin/python ]] || fail "missing_venv"
+command -v flock >/dev/null || fail "flock_required"
+
+app=/opt/gaemigtp-news/app
+inbox=/home/gaemi-deploy/.gaemi-gateway/payload
+envfile=/etc/gaemigtp/news-worker.env
+action="$1"
+shift || true
+
+valid_sha() { [[ "$1" =~ ^[a-f0-9]{40}$ ]]; }
+blob_sha() { git hash-object -- "$1"; }
+valid_unit() { [[ "$1" =~ ^gaemigtp-[A-Za-z0-9_.@-]{1,100}\.(service|timer)$ ]]; }
+valid_req() { [[ "$1" =~ ^[a-zA-Z0-9_-]{8,55}$ ]]; }
+valid_timeout() { [[ "$1" =~ ^[0-9]{1,4}$ ]] && (( 30 <= $1 && $1 <= 900 )); }
+
+case "$action" in
+  pause-market)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    systemctl disable --now gaemigtp-kiwoom-us-daily.timer gaemigtp-kiwoom-us-value.timer gaemigtp-kiwoom-us-fe.service
+    systemctl stop gaemigtp-kiwoom-us-daily.service gaemigtp-kiwoom-us-value.service
+    for unit in gaemigtp-kiwoom-us-daily.timer gaemigtp-kiwoom-us-value.timer gaemigtp-kiwoom-us-fe.service; do
+      systemctl is-active --quiet "$unit" && fail "market_unit_still_active"
+    done
+    echo GAEMI_MARKET_PAUSED_SERVER_POWER_UNCHANGED
+    ;;
+  stop-news)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    systemctl disable --now gaemigtp-news.service
+    systemctl is-active --quiet gaemigtp-news.service && fail "news_still_active"
+    echo GAEMI_NEWS_STOPPED
+    ;;
+
+  status)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    systemctl --no-pager --plain status gaemigtp-news.service --lines=3 || true
+    systemctl list-units --all --no-pager 'gaemigtp-*.service' 'gaemigtp-*.timer' || true
+    ;;
+  logs)
+    [[ $# == 2 ]] || fail "logs_requires_unit_and_lines"
+    valid_unit "$1" || fail "invalid_service"
+    [[ "$2" =~ ^[0-9]{1,3}$ ]] && (( $2 >= 1 && $2 <= 300 )) || fail "invalid_log_lines"
+    journalctl --no-pager -u "$1" -n "$2"
+    ;;
+  restart)
+    [[ $# == 1 ]] || fail "restart_requires_unit"
+    valid_unit "$1" || fail "invalid_service"
+    systemctl restart "$1"
+    systemctl is-active --quiet "$1" || fail "service_not_active"
+    echo "GAEMI_SERVICE_RESTARTED=$1"
+    ;;
+  deploy)
+    [[ $# == 2 ]] || fail "deploy_requires_destination_and_sha"
+    dest="$1"
+    valid_sha "$2" || fail "invalid_sha"
+    # Paths must be inside the project tree or gaemigtp-specific systemd files.
+    [[ "$dest" =~ ^(backend|frontend)/[A-Za-z0-9_./-]{1,210}$ || "$dest" == "app.py" ||
+       "$dest" == "ops/staged_daily_groq_issues.py" ||
+       "$dest" =~ ^ops/systemd/gaemigtp-[A-Za-z0-9_.@-]{1,90}\.(service|timer)$ ]] || fail "invalid_destination"
+    [[ "$dest" != *".."* && "$dest" != *"//"* ]] || fail "path_traversal"
+    [[ -f "$inbox" && ! -L "$inbox" ]] || fail "payload_missing"
+    [[ "$(blob_sha "$inbox")" == "$2" ]] || fail "payload_sha_mismatch"
+    if [[ "$dest" == ops/systemd/* ]]; then
+      target=/etc/systemd/system/"$(basename "$dest")"
+    else
+      target="$app/$dest"
+    fi
+    [[ ! -L "$target" ]] || fail "destination_symlink"
+    [[ -d "$(dirname "$target")" ]] || fail "destination_directory_missing"
+    [[ -f "$target" || ! -e "$target" ]] || fail "destination_not_file"
+    mkdir -p /var/backups/gaemi-gateway
+    lock=/run/lock/gaemi-gateway.lock
+    exec 8>"$lock"
+    flock -n 8 || fail "concurrent_operation"
+    stamp=$(date -u +%Y%m%dT%H%M%S)
+    if [[ -f "$target" ]]; then
+      cp -p -- "$target" "/var/backups/gaemi-gateway/$(basename "$target").$stamp.$2.before"
+    fi
+    tmp=$(mktemp "$(dirname "$target")/.gaemi-gateway.XXXXXXXX")
+    trap 'rm -f "$tmp"' EXIT
+    install -o root -g root -m 0644 -- "$inbox" "$tmp"
+    [[ "$(blob_sha "$tmp")" == "$2" ]] || fail "copied_sha_mismatch"
+    if [[ "$target" == *.py ]]; then
+      /opt/gaemigtp-news/venv/bin/python -m py_compile "$tmp"
+    fi
+    mv -f -- "$tmp" "$target"
+    trap - EXIT
+    if [[ "$dest" == ops/systemd/* ]]; then
+      systemctl daemon-reload
+    fi
+    echo "GAEMI_DEPLOY_OK=$dest"
+    ;;
+  kiwoom-verify)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    [[ -f /etc/gaemigtp/kiwoom.env && ! -L /etc/gaemigtp/kiwoom.env ]] || fail "kiwoom_credentials_not_installed"
+    [[ "$(stat -c %U:%G /etc/gaemigtp/kiwoom.env)" == "root:root" ]] || fail "kiwoom_credentials_wrong_owner"
+    [[ "$(stat -c %a /etc/gaemigtp/kiwoom.env)" == "600" ]] || fail "kiwoom_credentials_wrong_permissions"
+    [[ -f "$app/backend/kiwoom_probe.py" && ! -L "$app/backend/kiwoom_probe.py" ]] || fail "kiwoom_probe_missing"
+    [[ -f "$app/backend/providers/kiwoom_us_quotes.py" ]] || fail "kiwoom_provider_missing"
+    systemctl is-active --quiet gaemigtp-news.service || fail "original_news_worker_inactive"
+    exec 9>/run/lock/gaemi-kiwoom-verify.lock
+    flock -n 9 || fail "kiwoom_verify_already_running"
+    systemd-run --quiet --wait --pipe --collect \
+      --unit="gaemi-kiwoom-verify-$(date -u +%s)" \
+      -p User=gaemigtp-news -p Group=gaemigtp-news \
+      -p WorkingDirectory="$app" \
+      -p EnvironmentFile=/etc/gaemigtp/kiwoom.env \
+      -p TimeoutStartSec=50 \
+      /opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_probe
+    systemctl is-active --quiet gaemigtp-news.service || fail "original_worker_changed"
+    echo "KIWOOM_VERIFY_PASS"
+    ;;
+  alpaca-verify)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    [[ -f /etc/gaemigtp/alpaca.env && ! -L /etc/gaemigtp/alpaca.env ]] || fail "alpaca_credentials_not_installed"
+    [[ "$(stat -c %U:%G /etc/gaemigtp/alpaca.env)" == "root:root" ]] || fail "alpaca_credentials_wrong_owner"
+    [[ "$(stat -c %a /etc/gaemigtp/alpaca.env)" == "600" ]] || fail "alpaca_credentials_wrong_permissions"
+    [[ -f "$app/backend/alpaca_probe.py" && ! -L "$app/backend/alpaca_probe.py" ]] || fail "alpaca_probe_missing"
+    systemctl is-active --quiet gaemigtp-news.service || fail "original_news_worker_inactive"
+    exec 9>/run/lock/gaemi-alpaca-verify.lock
+    flock -n 9 || fail "alpaca_verify_already_running"
+    systemd-run --quiet --wait --pipe --collect \
+      --unit="gaemi-alpaca-verify-$(date -u +%s)" \
+      -p User=gaemigtp-news -p Group=gaemigtp-news \
+      -p WorkingDirectory="$app" \
+      -p EnvironmentFile=/etc/gaemigtp/alpaca.env \
+      -p TimeoutStartSec=40 \
+      /opt/gaemigtp-news/venv/bin/python -m backend.alpaca_probe
+    systemctl is-active --quiet gaemigtp-news.service || fail "original_worker_changed"
+    echo ALPACA_VERIFY_PASS
+    ;;
+  alpaca-news-verify)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    [[ -f /etc/gaemigtp/alpaca.env && ! -L /etc/gaemigtp/alpaca.env ]] || fail "alpaca_credentials_not_installed"
+    [[ "$(stat -c %U:%G /etc/gaemigtp/alpaca.env)" == "root:root" ]] || fail "alpaca_credentials_wrong_owner"
+    [[ "$(stat -c %a /etc/gaemigtp/alpaca.env)" == "600" ]] || fail "alpaca_credentials_wrong_permissions"
+    [[ -f "$app/backend/alpaca_news_probe.py" && ! -L "$app/backend/alpaca_news_probe.py" ]] || fail "alpaca_news_probe_missing"
+    systemctl is-active --quiet gaemigtp-news.service || fail "original_news_worker_inactive"
+    exec 9>/run/lock/gaemi-alpaca-news-verify.lock
+    flock -n 9 || fail "alpaca_news_verify_already_running"
+    systemd-run --quiet --wait --pipe --collect \
+      --unit="gaemi-alpaca-news-verify-$(date -u +%s)" \
+      -p User=gaemigtp-news -p Group=gaemigtp-news \
+      -p WorkingDirectory="$app" \
+      -p EnvironmentFile=/etc/gaemigtp/alpaca.env \
+      -p TimeoutStartSec=45 \
+      /opt/gaemigtp-news/venv/bin/python -m backend.alpaca_news_probe
+    systemctl is-active --quiet gaemigtp-news.service || fail "original_worker_changed"
+    echo ALPACA_NEWS_VERIFY_PASS
+    ;;
+  enable-timer)
+    [[ $# == 1 && ( "$1" == "gaemigtp-kiwoom-us-value.timer" ||
+                    "$1" == "gaemigtp-kiwoom-us-fe.service" ||
+                    "$1" == "gaemigtp-kiwoom-us-daily.timer" ) ]] || fail "invalid_kiwoom_us_market_unit"
+    [[ -f /etc/systemd/system/"$1" ]] || fail "market_unit_not_installed"
+    systemctl enable --now "$1"
+    systemctl is-enabled --quiet "$1" || fail "timer_not_enabled"
+    systemctl is-active --quiet "$1" || fail "timer_not_active"
+    echo "GAEMI_KIWOOM_VALUE_TIMER_ENABLED=$1"
+    ;;
+  upgrade)
+    [[ $# == 1 ]] || fail "upgrade_requires_sha"
+    valid_sha "$1" || fail "invalid_sha"
+    [[ -f "$inbox" && ! -L "$inbox" ]] || fail "payload_missing"
+    [[ "$(blob_sha "$inbox")" == "$1" ]] || fail "payload_sha_mismatch"
+    bash -n "$inbox" || fail "upgrade_syntax_invalid"
+    tmp=$(mktemp /usr/local/sbin/.gaemi-do-gateway.XXXXXXXX)
+    trap 'rm -f "$tmp"' EXIT
+    install -o root -g root -m 0750 -- "$inbox" "$tmp"
+    [[ "$(blob_sha "$tmp")" == "$1" ]] || fail "upgrade_sha_mismatch"
+    mv -f "$tmp" /usr/local/sbin/gaemi-do-gateway
+    trap - EXIT
+    echo "GAEMI_GATEWAY_UPGRADED=$1"
+    ;;
+  run)
+    [[ $# == 3 ]] || fail "run_requires_request_id_sha_timeout"
+    valid_req "$1" || fail "invalid_request"
+    valid_sha "$2" || fail "invalid_sha"
+    valid_timeout "$3" || fail "invalid_timeout"
+    [[ -f "$inbox" && ! -L "$inbox" ]] || fail "payload_missing"
+    [[ "$(blob_sha "$inbox")" == "$2" ]] || fail "payload_sha_mismatch"
+    [[ -r "$envfile" ]] || fail "environment_missing"
+    id gaemigtp-news >/dev/null || fail "service_user_missing"
+    exec 9>/run/lock/gaemi-gateway.lock
+    flock -n 9 || fail "concurrent_operation"
+    install -d -o root -g root -m 0700 /var/lib/gaemi-gateway
+    record="/var/lib/gaemi-gateway/run-$1"
+    [[ ! -e "$record" ]] || fail "duplicate_run_request"
+    # Record before external API calls, preventing accidental paid retries.
+    printf '%s\n' "$(date -u +%FT%TZ) $2" > "$record"
+    install -d -o gaemigtp-news -g gaemigtp-news -m 0700 /run/gaemi-gateway
+    job="/run/gaemi-gateway/job-$1.py"
+    install -o gaemigtp-news -g gaemigtp-news -m 0500 -- "$inbox" "$job"
+    trap 'rm -f "$job"' EXIT
+    unit="gaemi-gateway-$1"
+    systemd-run --quiet --wait --pipe --collect \
+      --unit="$unit" -p User=gaemigtp-news -p Group=gaemigtp-news \
+      -p WorkingDirectory="$app" -p EnvironmentFile="$envfile" \
+      -p TimeoutStartSec="$3" \
+      /opt/gaemigtp-news/venv/bin/python "$job"
+    echo "GAEMI_JOB_OK=$1"
+    ;;
+  kiwoom-daily-backfill)
+    # Only the pinned 2026-10-26 recovery script may use BOTH existing secrets.
+    [[ $# == 3 ]] || fail "backfill_requires_id_sha_timeout"
+    [[ "$1" == "usdaily20261026recover3" ]] || fail "backfill_unapproved_request"
+    [[ "$2" == "bd1c64a8ae0eb9f25214dbacea723bc4e5025db9" ]] || fail "backfill_unapproved_payload"
+    [[ "$3" == "900" ]] || fail "backfill_unapproved_timeout"
+    [[ -f "$inbox" && ! -L "$inbox" ]] || fail "backfill_payload_missing"
+    [[ "$(blob_sha "$inbox")" == "$2" ]] || fail "backfill_payload_sha_mismatch"
+    [[ -f /etc/gaemigtp/kiwoom.env && ! -L /etc/gaemigtp/kiwoom.env ]] || fail "backfill_kiwoom_env_missing"
+    [[ "$(stat -c %U:%G /etc/gaemigtp/kiwoom.env)" == "root:root" ]] || fail "backfill_kiwoom_env_owner_invalid"
+    [[ "$(stat -c %a /etc/gaemigtp/kiwoom.env)" == "600" ]] || fail "backfill_kiwoom_env_permissions_invalid"
+    [[ -f "$envfile" && ! -L "$envfile" ]] || fail "backfill_database_env_missing"
+    systemctl is-active --quiet gaemigtp-news.service || fail "backfill_original_worker_inactive"
+    exec 9>/run/lock/gaemi-gateway.lock
+    flock -n 9 || fail "backfill_concurrent_operation"
+    install -d -o root -g root -m 0700 /var/lib/gaemi-gateway
+    record="/var/lib/gaemi-gateway/run-$1"
+    [[ ! -e "$record" ]] || fail "backfill_duplicate_request"
+    printf '%s\n' "$(date -u +%FT%TZ) $2" > "$record"
+    install -d -o gaemigtp-news -g gaemigtp-news -m 0700 /run/gaemi-gateway
+    job="/run/gaemi-gateway/job-$1.py"
+    install -o gaemigtp-news -g gaemigtp-news -m 0500 -- "$inbox" "$job"
+    trap 'rm -f "$job"' EXIT
+    systemd-run --quiet --wait --pipe --collect \
+      --unit="gaemi-gateway-$1" \
+      -p User=gaemigtp-news -p Group=gaemigtp-news \
+      -p WorkingDirectory="$app" \
+      -p EnvironmentFile=/etc/gaemigtp/kiwoom.env \
+      -p EnvironmentFile=/etc/gaemigtp/news-worker.env \
+      -p TimeoutStartSec=900 -p NoNewPrivileges=true \
+      /opt/gaemigtp-news/venv/bin/python "$job"
+    systemctl is-active --quiet gaemigtp-news.service || fail "backfill_original_worker_changed"
+    echo "GAEMI_KIWOOM_BACKFILL_OK=$1"
+    ;;
+  *)
+    fail "unknown_operation"
+    ;;
+esac
