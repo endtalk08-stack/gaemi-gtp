@@ -9,7 +9,7 @@ from backend.services.private_access import install_private_access
 from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
 
-from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings
+from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -18,6 +18,7 @@ app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 app.register_blueprint(ai_test_bp)
 CORS(app)
 install_private_access(app, FRONTEND_DIR)
+start_calendar_warmup()
 application = app
 
 @app.get("/")
@@ -31,6 +32,10 @@ def ai_test_page():
 @app.get("/health")
 def health():
     return jsonify({"ok": True, "service": "gaemiGTP"})
+
+@app.get("/calendar")
+def calendar():
+    return jsonify({"ok": True, "content": get_live_calendar_data("", "")})
 
 @app.get("/disclosures/dart/detail")
 def dart_disclosure_detail():
