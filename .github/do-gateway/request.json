@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/audit_egress_sources_readonly_20261028.py",
-  "request_id": "egressaudit20261028a",
-  "timeout": 60
+  "operation": "logs",
+  "unit": "gaemigtp-news.service",
+  "lines": 120
 }
