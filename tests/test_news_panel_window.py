@@ -22,7 +22,12 @@ class NewsPanelWindowTests(unittest.TestCase):
         engine=(root/"backend/services/engine.py").read_text()
         frontend=(root/"frontend/widgets/analysis-data/analysis-data.js").read_text()
         self.assertIn('"paired_news_items": paired_news_items', result)
-        self.assertIn('"panel_news_items": recent_news[:20]', result)
+        # Existing US code keeps the complete validated 24-hour pair list;
+        # the domestic panel retains its established twenty-row limit.
+        self.assertIn(
+            '"panel_news_items": paired_news_items if market in ("미국", "US", "us") else recent_news[:20]',
+            result,
+        )
         self.assertIn('"panel_news_items": news_result.get("panel_news_items"', engine)
         self.assertIn('Array.isArray(result?.panel_news_items)', frontend)
 
