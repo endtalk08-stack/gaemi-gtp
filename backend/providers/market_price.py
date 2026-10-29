@@ -9,8 +9,6 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 _CACHE_LOCK_GUARD = threading.Lock()
 _CACHE_LOCKS = {}
-KR_QUOTE_CACHE = {}
-KR_QUOTE_CACHE_TTL = 5
 US_QUOTE_CACHE = {}
 US_QUOTE_CACHE_TTL = 15
 DAILY_HISTORY_CACHE = {}
@@ -33,69 +31,6 @@ def _get_lock(key):
 def _history_ttl(ticker):
     symbol = str(ticker or "").upper()
     return 600 if symbol.endswith((".KS", ".KQ")) else 15
-
-
-def _kr_quote_number(value, *, positive=False):
-    """Parse one Naver quote field without discarding other valid fields."""
-    import math
-
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        number = float(str(value).strip().replace(",", ""))
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(number) or (positive and number <= 0):
-        return None
-    return number
-
-
-def fetch_kr_stock_quote(code_six):
-    code_six = str(code_six or "").strip()
-    now = time.time()
-    cached = KR_QUOTE_CACHE.get(code_six)
-    if cached and now - cached[0] < KR_QUOTE_CACHE_TTL:
-        return cached[1]
-
-    with _get_lock(("kr-quote", code_six)):
-        now = time.time()
-        cached = KR_QUOTE_CACHE.get(code_six)
-        if cached and now - cached[0] < KR_QUOTE_CACHE_TTL:
-            return cached[1]
-        try:
-            url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code_six}"
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
-                    "Referer": "https://m.stock.naver.com/",
-                },
-            )
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            rows = data.get("datas", [])
-            if rows and isinstance(rows[0], dict):
-                item = rows[0]
-                # Naver can return "-" for an optional quote value before or
-                # during a market-data update. Preserve a verified current price
-                # even if change, high, or low is temporarily unavailable.
-                current = _kr_quote_number(item.get("closePrice"), positive=True)
-                if current is not None:
-                    result = (
-                        current,
-                        _kr_quote_number(item.get("compareToPreviousClosePrice")),
-                        _kr_quote_number(item.get("fluctuationsRatio")),
-                        _kr_quote_number(item.get("highPrice"), positive=True),
-                        _kr_quote_number(item.get("lowPrice"), positive=True),
-                    )
-                    KR_QUOTE_CACHE[code_six] = (now, result)
-                    return result
-        except Exception as exc:
-            print("네이버 실시간 시세 조회 예외:", exc)
-
-    result = (None, None, None, None, None)
-    KR_QUOTE_CACHE[code_six] = (now, result)
-    return result
 
 
 def fetch_daily_price_history(ticker):
@@ -459,16 +394,6 @@ def _fetch_naver_market_ranking_raw(cache_key, path, query_params, ttl_seconds):
         return payload
 
 
-def fetch_kr_trading_value_ranking_raw(limit=20):
-    """Read the Korean trading-value top 20 using the existing price provider."""
-    size = max(1, min(int(limit), 20))
-    return _fetch_naver_market_ranking_raw(
-        ("kr", "trading-value", size),
-        "/api/stockSecurity/individual-stocks/v3/domestic",
-        {"listingType": "tradingValueDesc", "exchangeType": "consolidated", "index": 0, "size": size},
-        ttl_seconds=30,
-    )
-
 def fetch_us_trading_value_ranking_raw(limit=20):
     """USA trading-value listing; no per-ticker quote or volume estimates."""
     size = max(1, min(int(limit), 20))
@@ -481,25 +406,4 @@ def fetch_us_trading_value_ranking_raw(limit=20):
             "includeOverMarket": "true",
         },
         ttl_seconds=30,
-    )
-
-def fetch_kr_popular_ranking_raw(limit=20):
-    """Naver's domestic home popular ranking (not trading value)."""
-    size = max(1, min(int(limit), 20))
-    return _fetch_naver_market_ranking_raw(
-        ("kr", "popular", size),
-        "/api/stockSecurity/aggregate/domesticStock",
-        {"type": "popular", "exchangeType": "KRX", "size": size},
-        ttl_seconds=120,
-    )
-
-
-def fetch_us_popular_ranking_raw(limit=20):
-    """Naver's USA popular stock list (not trading value)."""
-    size = max(1, min(int(limit), 20))
-    return _fetch_naver_market_ranking_raw(
-        ("us", "popular", size),
-        "/api/stockSecurity/aggregate/foreignPopularStock",
-        {"size": size},
-        ttl_seconds=120,
     )
