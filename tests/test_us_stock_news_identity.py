@@ -158,10 +158,26 @@ class LocalKiwoomWorkerIdentityTests(unittest.TestCase):
 
     @staticmethod
     def _write(rows, path):
+        """Load exactly the production writer function, without provider imports."""
+        import ast
+        import json
+        import os
         from datetime import datetime, timezone
-        from backend.kiwoom_us_value_collector import _write_local_news_top20
-        _write_local_news_top20(rows, datetime(2026, 10, 29, tzinfo=timezone.utc),
-                                target_path=path)
+        from pathlib import Path
+
+        source = (Path(__file__).resolve().parents[1] /
+                  "backend/kiwoom_us_value_collector.py").read_text(encoding="utf-8")
+        functions = [node for node in ast.parse(source).body
+                     if isinstance(node, ast.FunctionDef)
+                     and node.name == "_write_local_news_top20"]
+        if len(functions) != 1:
+            raise AssertionError("local Top20 writer missing or ambiguous")
+        isolated = ast.Module(body=functions, type_ignores=[])
+        globals_ = {"os": os, "json": json}
+        exec(compile(isolated, "<production-local-top20-writer>", "exec"), globals_)
+        globals_["_write_local_news_top20"](
+            rows, datetime(2026, 10, 29, tzinfo=timezone.utc), target_path=path
+        )
 
     @staticmethod
     def _worker_scope(path):
