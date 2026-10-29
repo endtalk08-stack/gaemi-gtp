@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/inspect_news_worker_cadence_readonly_20261021.py",
-  "request_id": "news-time-audit-20261029a",
-  "timeout": 60
+  "operation": "status"
 }
