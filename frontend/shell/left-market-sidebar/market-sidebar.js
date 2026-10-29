@@ -126,6 +126,7 @@
     let changeSorted = false;
     let draggedRow = null;
     let lastRankingSignature = '';
+    let cachedRankingRows = [];
     let quoteRequestInFlight = false;
     let nextRankingReadAt = 0;
     let rankingRequestInFlight = false;
@@ -202,7 +203,7 @@
       typeof value === 'string' ? value.split(/…|\.{3,}/, 1)[0].trim() : '';
 
     const showUsRanking = async () => {
-      if (!sidebarActive() || rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
+      if (!sidebarActive()) return;
       const id = ++requestId;
       if (!list) return;
       const titles = {
@@ -214,8 +215,14 @@
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
-      if (tab !== 'value' || !list.querySelector('button[data-original-index]')) {
+      if (tab !== 'value') {
+        const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
+        if (displayedRows.length) cachedRankingRows = displayedRows;
         list.replaceChildren();
+      } else if (!list.querySelectorAll(':scope > button[data-original-index]').length && cachedRankingRows.length) {
+        // Restore last verified TOP20 immediately without an extra Neon read.
+        list.replaceChildren(...cachedRankingRows);
+        applyChangeSort();
       }
       // These three new tabs are menu placeholders, not inferred market rankings.
       // Realtime will list completed AI analysis in priority order once its data source exists.
@@ -225,7 +232,8 @@
           : '시장 전체 순위 데이터 연결 전이야.';
         return;
       }
-      if (!list.querySelector('button[data-original-index]')) {
+      if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
+      if (!list.querySelectorAll(':scope > button[data-original-index]').length) {
         list.textContent = '순위를 불러오는 중이야.';
       }
       rankingRequestInFlight = true;
