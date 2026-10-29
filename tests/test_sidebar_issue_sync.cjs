@@ -64,7 +64,8 @@ class Element {
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup({ deferred = false, initialOrder = [] } = {}) {
+function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {}) {
+  let mockNow = 1_000_000;
   const storage = new Map([[
     'gaemiGTP_market_sidebar_order_us_value_v1', JSON.stringify(initialOrder)
   ]]);
@@ -92,7 +93,8 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
   const documentListeners = {};
   const logoImages = [];
   const document = {
-    body: { classList: { contains() { return false; }, remove() {}, toggle() {} } },
+    visibilityState: 'visible',
+    body: { classList: { contains(name) { return sidebarOpen && name === 'left-market-open'; }, remove() {}, toggle() {} } },
     getElementById(id) { return id === 'leftMarketSidebar' ? sidebar : null; },
     createElement(tagName) {
       const element = new Element(tagName);
@@ -108,7 +110,8 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
     location: { hostname: 'gaemi-gtp.onrender.com', origin: 'https://gaemi-gtp.onrender.com' },
     // Fake browser: acknowledge polling without starting a background timer.
     setInterval() { return 1; },
-    addEventListener(name, fn) { (listeners[name] ||= []).push(fn); }
+    addEventListener(name, fn) { (listeners[name] ||= []).push(fn); },
+    dispatchEvent(event) { for (const fn of listeners[event.type] || []) fn(event); }
   };
   const calls = [];
   let valueRows = [
@@ -131,14 +134,22 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
         { name: '일라이 릴리', symbol: 'LLY', headline: '사업 제휴 이슈' }
       ] }) };
     }
+    if (url.endsWith('/market/us-live-quotes')) {
+      return { ok: true, json: async () => ({ ok: true, items: [] }) };
+    }
     throw new Error('unexpected request: ' + url);
   };
   vm.runInNewContext(stockMarksSource, { window });
-  vm.runInNewContext(sidebarSource, { window, document, fetch, console, localStorage });
+  vm.runInNewContext(sidebarSource, {
+    window, document, fetch, console, localStorage,
+    Date: { now: () => mockNow },
+    CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } }
+  });
   documentListeners.DOMContentLoaded();
   return {
     list, realtimeTab, valueTab, gainTab, lossTab, calls, storage, logoImages,
-    replaceValueRows(rows) { valueRows = rows; valueTab.click(); },
+    replaceValueRows(rows) { mockNow += 61_000; valueRows = rows; valueTab.click(); },
+    advanceTime(milliseconds) { mockNow += milliseconds; },
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
   };
@@ -215,6 +226,27 @@ test('market cards show stock logo slot and allow keyboard reorder without chang
     ['TSLA.O', 'LLY']);
 });
 
+test('switching tabs immediately restores TOP20 without another Neon read', async () => {
+  const app = setup();
+  await flush();
+  const originalRows = app.list.querySelectorAll(':scope > button[data-original-index]');
+  const rankingRequests = () => app.calls.filter((call) =>
+    call.url.endsWith('/market/trading-value?market=us')).length;
+  assert.equal(originalRows.length, 2);
+  assert.equal(rankingRequests(), 1);
+
+  app.realtimeTab.click();
+  await flush();
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
+  assert.match(app.list.textContent, /AI 분석 결과 연결 전/);
+  app.valueTab.click();
+  await flush();
+  const restoredRows = app.list.querySelectorAll(':scope > button[data-original-index]');
+  assert.equal(restoredRows.length, 2);
+  assert.equal(restoredRows[0], originalRows[0], 'reuse cached verified ranking nodes');
+  assert.equal(rankingRequests(), 1, 'tab switch must not force another Neon ranking read');
+});
+
 test('fresh ranking ignores stale saved order before and after tab changes', async () => {
   const app = setup({ initialOrder: ['LLY', 'LLY'] });
   await flush();
@@ -222,6 +254,7 @@ test('fresh ranking ignores stale saved order before and after tab changes', asy
   app.realtimeTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
+  app.advanceTime(61_000);
   app.valueTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'LLY');

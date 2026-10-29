@@ -144,7 +144,7 @@ class UsListingNewsIdentityTests(unittest.TestCase):
             result = market_issue_headlines.get_market_issue_headlines(
                 "kr", [{"name": "삼성전자", "symbol": "005930"}])
         self.assertEqual(read_worker.call_args.args, ("kr", ["삼성전자"]))
-        self.assertEqual(result["items"][0]["headline"], "DigitalOcean 이슈")
+        self.assertEqual(result["items"][0]["headline"], "DigitalOcean")  # Sidebar strips the display-only suffix.
 
 
 if __name__ == "__main__":

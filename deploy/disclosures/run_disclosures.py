@@ -23,7 +23,6 @@ def main(argv=None):
     parser.add_argument("--smoke", action="store_true", help="One KR and one US stock only")
     parser.add_argument("--cleanup-only", action="store_true", help="Remove expired 24-hour rows only")
     parser.add_argument("--auto", action="store_true", help="Hourly cron gate: KR at 18 KST, US at 08 KST")
-    parser.add_argument("--no-ranked", action="store_true", help="Verify mapped stock universe without refreshing rankings")
     args = parser.parse_args(argv)
     if args.auto:
         hour = datetime.now(ZoneInfo("Asia/Seoul")).hour
@@ -52,8 +51,7 @@ def main(argv=None):
             raise RuntimeError("disclosure_credential_missing_" + name)
 
     # The SEC submissions provider supplies this safe identifier fallback.
-    # Also set it before importing SEC so the ranked-ticker CIK directory
-    # does not silently return {} when no dedicated agent is configured.
+    # Preserve SEC request identity for the existing filing provider.
     os.environ.setdefault("SEC_USER_AGENT", "gaemiGTP/1.0")
 
     os.environ.pop("DISCLOSURE_NEON_READ", None)
@@ -70,13 +68,8 @@ def main(argv=None):
         print("DISCLOSURE_EXPIRED_DELETED", cleanup_expired(), flush=True)
         return
 
-    registered = {
-        "KR": sorted(engine.DART_STOCK_CORP_CODES),
-        "US": sorted(engine.US_CIKS),
-    }
-    if not args.smoke and not args.no_ranked:
-        from backend.services.disclosure_ranked_universe import resolve_universe
-        registered = resolve_universe(engine)
+    from backend.services.disclosure_ranked_universe import resolve_universe
+    registered = resolve_universe(engine)
     chosen = {
         "KR": ["005930"] if args.smoke else registered["KR"],
         "US": ["AAPL"] if args.smoke else registered["US"],

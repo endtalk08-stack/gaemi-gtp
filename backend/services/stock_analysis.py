@@ -3,10 +3,7 @@ from math import isfinite
 from zoneinfo import ZoneInfo
 
 from ..analysis.price import build_price_indicators, build_price_result
-from ..providers.market_price import (
-    fetch_daily_price_history,
-    fetch_kr_stock_quote,
-)
+from ..providers.market_price import fetch_daily_price_history
 from .us_price_push import read_fresh_us_quote
 from .kiwoom_us_value_board import read_recent_saved_us_quote
 
@@ -157,15 +154,7 @@ def _build_stock_price_result(*, is_krw, ticker_symbol, current, previous=None, 
 def fetch_stock_price_result(*, is_krw, ticker_symbol, clean_code=None):
     """Collect raw price data, calculate indicators, and build the shared price result."""
     if is_krw:
-        current, _diff, change_pct, high, low = fetch_kr_stock_quote(clean_code)
-        return _build_stock_price_result(
-            is_krw=True,
-            ticker_symbol=ticker_symbol,
-            current=current,
-            high=high,
-            low=low,
-            change_pct=change_pct,
-        )
+        raise ValueError("domestic_quote_removed_use_news_disclosure_snapshot")
 
     # Kiwoom's validated, signed US FE tick already reaches Render for the
     # sidebar. Use exactly that same quote for the central analysis and AI.

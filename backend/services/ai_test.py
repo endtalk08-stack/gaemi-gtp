@@ -112,20 +112,17 @@ def _is_market_gainers_question(question):
 
 
 def _market_ranking_request(question):
-    """Recognize direct questions about either existing market menu."""
+    """Recognize only the retained US trading-value TOP20 menu."""
     compact = re.sub(r"\s+", "", str(question or "").casefold())
     if re.search(r"(왜|이유|원인|전망|분석|추천|매수|매도)", compact):
         return None
-    if "거래대금" in compact:
-        menu = "value"
-    elif re.search(r"(인기순위|인기랭킹|인기종목|인기주식|인기top|인기상위)", compact):
-        menu = "popular"
-    else:
+    if "거래대금" not in compact:
+        return None
+    if not re.search(r"(미국|미장|해외|나스닥|뉴욕증시)", compact):
         return None
     if not re.search(r"(순위|랭킹|상위|top\d*|\d+위|몇위|누구|뭐야|종목|목록|알려|보여)", compact):
         return None
-    market = "us" if re.search(r"(미국|미장|해외|나스닥|뉴욕증시)", compact) else "kr"
-    return market, menu
+    return "us", "value"
 
 
 def _market_ranking_reply(question):
@@ -135,19 +132,6 @@ def _market_ranking_reply(question):
         return None
     market, menu = request_info
     rows = get_market_menu_rows(market, menu)
-    if not rows:
-        from .market_rankings import (
-            build_kr_trading_value_result, build_us_trading_value_result,
-            build_kr_popular_result, build_us_popular_result,
-        )
-        builder = {
-            ("kr", "value"): build_kr_trading_value_result,
-            ("us", "value"): build_us_trading_value_result,
-            ("kr", "popular"): build_kr_popular_result,
-            ("us", "popular"): build_us_popular_result,
-        }[(market, menu)]
-        builder(limit=20)
-        rows = get_market_menu_rows(market, menu)
     label = ("미국" if market == "us" else "국내") + (" 거래대금" if menu == "value" else " 인기순위")
     if not rows:
         return label + " 데이터를 지금 확인하지 못했어."

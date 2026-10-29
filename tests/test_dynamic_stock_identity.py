@@ -133,61 +133,63 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(result["snapshot_names"], ["알파벳 Class A"])
 
     def test_sidebar_marks_follow_existing_neon_ticker_registry(self):
-        from backend.services import market_rankings
+        """Verified registry identities remain strict without deleted ranking enrichers."""
+        from backend.services.news_identity_registry import resolve_us_news_identity
+        registry = (
+            {"ticker": "GOOGL", "label": "알파벳 Class A", "news": "알파벳",
+             "key": "US:ALPHABET", "status": "verified"},
+            {"ticker": "GOOG", "label": "알파벳 Class C", "news": "알파벳",
+             "key": "US:ALPHABET", "status": "verified"},
+            {"ticker": "NEW", "label": "미등록 상장사", "news": "미등록 상장사",
+             "key": "US:NEW", "status": "pending"},
+            {"ticker": "AAPL", "label": "Apple", "news": "애플",
+             "key": "US:AAPL", "status": "verified"},
+        )
         stocks = [
-            {"name": "알파벳 Class A", "symbol": "GOOGL.O", "industry": "IT"},
-            {"name": "알파벳 Class C", "symbol": "GOOG.O", "industry": "IT"},
-            {"name": "미등록 상장사", "symbol": "NEW.O", "industry": "IT"},
-            {"name": "잘못된 이름", "symbol": "AAPL.O", "industry": "IT"},
+            {"name": "알파벳 Class A", "symbol": "GOOGL.O"},
+            {"name": "알파벳 Class C", "symbol": "GOOG.O"},
+            {"name": "미등록 상장사", "symbol": "NEW.O"},
+            {"name": "Apple", "symbol": "AAPL.O"},
         ]
-        identities = {
-            "GOOGL.O": {"ticker": "GOOGL", "status": "verified"},
-            "GOOG.O": {"ticker": "GOOG", "status": "verified"},
-            "NEW.O": {"ticker": "NEW", "status": "pending"},
-            "AAPL.O": {"ticker": "NVDA", "status": "verified"},
-        }
-
-        def identity(_name, *, symbol):
-            return identities[symbol]
-
-        with (
-            patch.object(market_rankings, "get_stock_industries", return_value={}),
-            patch("backend.services.stock_identity_store.register_us_ranking_instruments") as register,
-            patch("backend.services.news_identity_registry.resolve_us_news_identity",
-                  side_effect=identity) as resolve,
-        ):
-            rows = market_rankings._with_stock_industries(stocks, "us", "value")
-
-        register.assert_called_once()
-        self.assertEqual(resolve.call_count, 4)
-        self.assertEqual([row["mark_ticker"] for row in rows],
-                         ["GOOGL", "GOOG", "", ""])
-        self.assertEqual([row["identity_status"] for row in rows],
-                         ["verified", "verified", "pending", "pending"])
-        self.assertEqual([row["logo_lookup_ticker"] for row in rows],
-                         ["GOOGL", "GOOG", "NEW", ""])
-        self.assertEqual([row["symbol"] for row in rows],
-                         ["GOOGL.O", "GOOG.O", "NEW.O", "AAPL.O"])
+        with patch("backend.services.news_identity_registry._registry",
+                   return_value=registry) as read_registry:
+            identities = [
+                resolve_us_news_identity(item["name"], symbol=item["symbol"])
+                for item in stocks
+            ]
+        self.assertEqual(read_registry.call_count, len(stocks))
+        self.assertEqual([item["status"] for item in identities],
+                         ["verified", "verified", "pending", "verified"])
+        self.assertEqual([item["company_key"] for item in identities[:2]],
+                         ["US:ALPHABET", "US:ALPHABET"])
+        self.assertEqual([item["ticker"] for item in identities[:2]],
+                         ["GOOGL", "GOOG"])
+        self.assertEqual(identities[2]["snapshot_names"], ["미등록 상장사"])
+        self.assertEqual(identities[3]["ticker"], "AAPL")
+        self.assertEqual(identities[3]["news_name"], "애플")
 
     def test_logo_lookup_does_not_change_pending_news_identity(self):
-        from backend.services import market_rankings
+        """Pending tickers retain their own news; logos are checked separately."""
+        from backend.services.news_identity_registry import resolve_us_news_identity
         sources = [
-            {"name": "램 리서치", "symbol": "LRCX.O", "industry": "반도체"},
-            {"name": "블룸 에너지", "symbol": "BE", "industry": "산업"},
-            {"name": "어플라이드 머티어리얼즈", "symbol": "AMAT.O", "industry": "반도체"},
+            {"name": "램 리서치", "symbol": "LRCX.O"},
+            {"name": "블룸 에너지", "symbol": "BE"},
+            {"name": "어플라이드 머티어리얼즈", "symbol": "AMAT.O"},
         ]
-        with (
-            patch.object(market_rankings, "get_stock_industries", return_value={}),
-            patch("backend.services.stock_identity_store.register_us_ranking_instruments"),
-            patch("backend.services.news_identity_registry.resolve_us_news_identity",
-                  return_value={"status": "pending", "ticker": ""}),
-        ):
-            rows = market_rankings._with_stock_industries(sources, "us", "value")
-        self.assertEqual([row["logo_lookup_ticker"] for row in rows],
+        with patch("backend.services.news_identity_registry._registry",
+                   return_value=()):
+            identities = [
+                resolve_us_news_identity(item["name"], symbol=item["symbol"])
+                for item in sources
+            ]
+        self.assertEqual([row["ticker"] for row in identities],
                          ["LRCX", "BE", "AMAT"])
-        self.assertEqual([row["identity_status"] for row in rows],
+        self.assertEqual([row["status"] for row in identities],
                          ["pending", "pending", "pending"])
-        self.assertEqual([row["mark_ticker"] for row in rows], ["", "", ""])
+        self.assertEqual([row["snapshot_names"] for row in identities],
+                         [[item["name"]] for item in sources])
+        self.assertEqual([row["news_name"] for row in identities],
+                         [item["name"] for item in sources])
 
     def test_registration_does_not_run_without_connection(self):
         with patch.dict("os.environ", {"NEWS_DATABASE_URL": ""}):

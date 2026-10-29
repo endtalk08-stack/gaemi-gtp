@@ -41,7 +41,6 @@
   <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261012-sidebar-recent-v1">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261026-soft-gray-v2">
-  <link rel="stylesheet" href="shell/left-earnings-calendar-sidebar/earnings-calendar-sidebar.css?v=20261008-right-panel-v1">
   <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20261005-border-system-v1">
   <link rel="stylesheet" href="shell/right-panel/right-panel-tabs.css?v=20261005-news-density-v1">
@@ -166,46 +165,6 @@
         </div>
         <div id="marketRankingList" aria-live="polite">순위를 불러오는 중이야.
         </div>
-      </div>
-    </div>
-  </aside>
-
-  <!-- 왼쪽 실적 캘린더: 실제 일정 데이터 연결 전의 화면 자리 -->
-  <aside id="leftEarningsCalendarSidebar" class="earnings-calendar-sidebar" aria-label="실적 캘린더" aria-hidden="true">
-    <header class="earnings-calendar-sidebar__header">
-      <div>
-        <div class="earnings-calendar-sidebar__title">실적 캘린더</div>
-      </div>
-      <button type="button" class="earnings-calendar-sidebar__close" onclick="showLeftSidebarHomeSection('home')" aria-label="실적 캘린더 닫기" title="실적 캘린더 닫기">
-        <i data-lucide="x" class="w-4 h-4"></i>
-      </button>
-    </header>
-    <div class="earnings-calendar-sidebar__body">
-      <div class="earnings-calendar-sidebar__mode-tabs" role="tablist" aria-label="실적 캘린더 보기">
-        <button type="button" class="is-active" data-calendar-mode="all" role="tab" aria-selected="true">전체</button>
-        <button type="button" data-calendar-mode="week" role="tab" aria-selected="false">주별</button>
-        <button type="button" data-calendar-mode="month" role="tab" aria-selected="false">월별</button>
-        <button type="button" data-calendar-mode="custom" role="tab" aria-selected="false"><i data-lucide="calendar-days" aria-hidden="true"></i> 사용자 지정</button>
-      </div>
-      <div class="earnings-calendar-sidebar__date-nav">
-        <button type="button" aria-label="이전 날짜"><i data-lucide="chevron-left" aria-hidden="true"></i></button>
-        <strong id="earningsCalendarDate">2026.10.08</strong>
-        <button type="button" aria-label="다음 날짜"><i data-lucide="chevron-right" aria-hidden="true"></i></button>
-        <button type="button" class="earnings-calendar-sidebar__today">오늘</button>
-      </div>
-      <div class="earnings-calendar-sidebar__importance" role="tablist" aria-label="중요도 필터">
-        <button type="button" class="is-active" data-calendar-importance="all" role="tab" aria-selected="true">전체</button>
-        <button type="button" data-calendar-importance="high" role="tab" aria-selected="false">★★★</button>
-        <button type="button" data-calendar-importance="medium" role="tab" aria-selected="false">★★</button>
-        <button type="button" data-calendar-importance="low" role="tab" aria-selected="false">★</button>
-      </div>
-    </div>
-    <div class="earnings-calendar-sidebar__list" aria-live="polite">
-      <div id="earningsCalendarDayLabel" class="earnings-calendar-sidebar__day-label">10월 8일 목요일</div>
-      <div class="earnings-calendar-sidebar__empty">
-        <div class="earnings-calendar-sidebar__empty-icon"><i data-lucide="calendar-clock" class="w-5 h-5"></i></div>
-        <strong>실적 일정 데이터 준비 중</strong>
-        <p>발표일, 예상치, 실제 발표값과 발표 후 주가 흐름을 이곳에 표시합니다.</p>
       </div>
     </div>
   </aside>
@@ -462,7 +421,6 @@
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260927-sidebar-home"></script>
   <script src="shell/left-market-sidebar/stock-marks.js?v=20261022-visible-logos-v2"></script>
   <script src="shell/left-market-sidebar/market-sidebar.js?v=20261027-shared-quotes-v1"></script>
-  <script src="shell/left-earnings-calendar-sidebar/earnings-calendar-sidebar.js?v=20261008-v1"></script>
   <script src="pages/watchlist/watchlist.js?v=20261005-type-v1"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20261028-overseas-news-menu-v1"></script>
   <script src="widgets/catalog/catalog.js?v=20261024-qqq-layout-v1"></script>

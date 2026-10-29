@@ -221,14 +221,18 @@ class RenderFreshnessTests(unittest.TestCase):
         self.assertEqual([x["headline"] for x in result["issue_briefs"]], ["fresh"])
 
 
-    def test_us_recent_code_issues_display_latest_three_only(self):
+    def test_us_recent_code_issues_keep_all_cited_items_within_24_hours(self):
         payload = {
             "_title_only_revision": 3,
             "_code_fact_extraction_version": 3,
-            "_code_issue_briefs": [brief(f"issue-{i}", i) for i in range(1, 6)],
+            "_code_issue_briefs": [brief(f"issue-{i}", i) for i in range(1, 6)] +
+                                  [brief("expired", 49)],
         }
         result = clean_us_snapshot(payload, now=NOW)
-        self.assertEqual(len(result["issue_briefs"]), 3)
+        self.assertEqual(
+            [item["headline"] for item in result["issue_briefs"]],
+            [f"issue-{i}" for i in range(1, 6)],
+        )
         self.assertEqual(len(result["issue_channels"]["code"]), 5)
 
     def test_original_article_titles_are_kept_over_generated_labels_and_keywords(self):
