@@ -149,7 +149,7 @@ class IdentityTests(unittest.TestCase):
             {"name": "알파벳 Class A", "symbol": "GOOGL.O"},
             {"name": "알파벳 Class C", "symbol": "GOOG.O"},
             {"name": "미등록 상장사", "symbol": "NEW.O"},
-            {"name": "잘못된 이름", "symbol": "AAPL.O"},
+            {"name": "Apple", "symbol": "AAPL.O"},
         ]
         with patch("backend.services.news_identity_registry._registry",
                    return_value=registry) as read_registry:
@@ -159,14 +159,14 @@ class IdentityTests(unittest.TestCase):
             ]
         self.assertEqual(read_registry.call_count, len(stocks))
         self.assertEqual([item["status"] for item in identities],
-                         ["verified", "verified", "pending", "pending"])
+                         ["verified", "verified", "pending", "verified"])
         self.assertEqual([item["company_key"] for item in identities[:2]],
                          ["US:ALPHABET", "US:ALPHABET"])
         self.assertEqual([item["ticker"] for item in identities[:2]],
                          ["GOOGL", "GOOG"])
         self.assertEqual(identities[2]["snapshot_names"], ["미등록 상장사"])
-        self.assertEqual(identities[3]["snapshot_names"], ["잘못된 이름"])
-        self.assertEqual(identities[3]["news_name"], "잘못된 이름")
+        self.assertEqual(identities[3]["ticker"], "AAPL")
+        self.assertEqual(identities[3]["news_name"], "애플")
 
     def test_logo_lookup_does_not_change_pending_news_identity(self):
         """Pending tickers retain their own news; logos are checked separately."""
