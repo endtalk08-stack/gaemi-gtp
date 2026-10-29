@@ -14,8 +14,6 @@ US_QUOTE_CACHE_TTL = 15
 DAILY_HISTORY_CACHE = {}
 INTRADAY_HISTORY_CACHE = {}
 INTRADAY_HISTORY_CACHE_TTL = 60
-# Ranking feeds share a bounded, process-local cache. No DB or persistent writes.
-MARKET_RANKING_CACHE = {}
 
 
 
@@ -352,58 +350,3 @@ def fetch_us_stock_quote(ticker):
 
         US_QUOTE_CACHE[key] = (now, result)
         return result
-
-
-def _fetch_naver_market_ranking_raw(cache_key, path, query_params, ttl_seconds):
-    """Single-flight, short-lived source cache shared by market ranking menus.
-
-    Keep successful payloads for their menu TTL and failures for five seconds.
-    An outage never becomes a fake empty result or an unlabelled stale ranking.
-    """
-    now = time.monotonic()
-    cached = MARKET_RANKING_CACHE.get(cache_key)
-    if cached and now - cached[0] < (5 if cached[1] is None else ttl_seconds):
-        return cached[1]
-
-    with _get_lock(("market-ranking", cache_key)):
-        now = time.monotonic()
-        cached = MARKET_RANKING_CACHE.get(cache_key)
-        if cached and now - cached[0] < (5 if cached[1] is None else ttl_seconds):
-            return cached[1]
-
-        url = "https://stock.naver.com" + path + "?" + urllib.parse.urlencode(query_params)
-        request = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-                "Referer": "https://stock.naver.com/",
-                "Accept": "application/json",
-            },
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=5) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-            if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
-                raise ValueError("unexpected market ranking payload")
-        except Exception as exc:
-            print(f"[시장 순위 원천] {cache_key} 조회 실패: {type(exc).__name__}: {exc}", flush=True)
-            MARKET_RANKING_CACHE[cache_key] = (time.monotonic(), None)
-            return None
-
-        MARKET_RANKING_CACHE[cache_key] = (time.monotonic(), payload)
-        return payload
-
-
-def fetch_us_trading_value_ranking_raw(limit=20):
-    """USA trading-value listing; no per-ticker quote or volume estimates."""
-    size = max(1, min(int(limit), 20))
-    return _fetch_naver_market_ranking_raw(
-        ("us", "trading-value", size),
-        "/api/stockSecurity/aggregate/foreignStock",
-        {
-            "type": "listing", "nationType": "USA", "size": size, "index": 0,
-            "sortType": "tradingValue", "sortDirection": "desc",
-            "includeOverMarket": "true",
-        },
-        ttl_seconds=30,
-    )
