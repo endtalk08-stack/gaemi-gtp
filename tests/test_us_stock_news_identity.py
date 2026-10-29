@@ -136,5 +136,116 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["headline"], "DigitalOcean 이슈")
 
 
+
+class LocalKiwoomWorkerIdentityTests(unittest.TestCase):
+    """No real Neon, Kiwoom, news, AI or external network requests."""
+
+    @staticmethod
+    def _rows():
+        rows = [
+            {"rank": i, "symbol": f"ZB{i:02d}", "name": f"Example Company {i:02d}"}
+            for i in range(1, 21)
+        ]
+        rows[0] = {"rank": 1, "symbol": "NVDA", "name": "엔비디아"}
+        return rows
+
+    @staticmethod
+    def _write(rows, path):
+        from datetime import datetime, timezone
+        from backend.kiwoom_us_value_collector import _write_local_news_top20
+        _write_local_news_top20(rows, datetime(2026, 10, 29, tzinfo=timezone.utc),
+                                target_path=path)
+
+    @staticmethod
+    def _worker_scope(path):
+        import os
+        import sys
+        import types
+        from contextlib import ExitStack
+        from backend.services import news_identity_registry
+        blocked = types.ModuleType("psycopg")
+        def forbid_db(*args, **kwargs):
+            raise AssertionError("worker attempted a Neon DB connection")
+        blocked.connect = forbid_db
+        stack = ExitStack()
+        stack.enter_context(patch.dict(os.environ, {
+            "GAEMIGTP_NEWS_WORKER": "1", "NEWS_DATABASE_URL": "postgresql://mock.invalid/no-access"
+        }))
+        stack.enter_context(patch.dict(sys.modules, {"psycopg": blocked}))
+        stack.enter_context(patch.object(news_identity_registry, "_LOCAL_NEWS_TOP20_PATH",
+                                         str(path)))
+        return stack
+
+    def test_local_complete_top20_routes_known_and_new_names_without_neon(self):
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from backend.services import news_identity_registry
+        with TemporaryDirectory() as temp:
+            path = Path(temp) / "top20.json"
+            self._write(self._rows(), path)
+            self.assertEqual(json.loads(path.read_text())["source"], "kiwoom")
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            with self._worker_scope(path):
+                nvda = news_identity_registry.resolve_us_news_identity("엔비디아")
+                self.assertEqual((nvda["company_key"], nvda["ticker"], nvda["news_name"]),
+                                 ("US:NVDA", "NVDA", "엔비디아"))
+                self.assertEqual(nvda["status"], "verified")
+                self.assertIn("nvidia", [t.lower() for t in nvda["search_terms"]])
+                new = news_identity_registry.resolve_us_news_identity("Example Company 02")
+                self.assertEqual((new["company_key"], new["ticker"], new["status"]),
+                                 ("US:ZB02", "ZB02", "verified"))
+
+    def test_conflicting_known_company_ticker_does_not_cross_merge(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from backend.services import news_identity_registry
+        rows = self._rows()
+        rows[0] = {"rank": 1, "symbol": "AAPL", "name": "NVIDIA"}
+        with TemporaryDirectory() as temp:
+            path = Path(temp) / "top20.json"
+            self._write(rows, path)
+            with self._worker_scope(path):
+                result = news_identity_registry.resolve_us_news_identity("NVIDIA")
+                self.assertEqual(result["status"], "pending")
+                self.assertEqual(result["company_key"], "US:AAPL")
+                self.assertEqual(result["search_terms"], ["NVIDIA"])
+                self.assertNotIn("NVDA", result["search_terms"])
+
+    def test_bad_or_missing_local_snapshot_fails_without_neon_fallback(self):
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from backend.services import news_identity_registry
+        with TemporaryDirectory() as temp:
+            path = Path(temp) / "top20.json"
+            with self._worker_scope(path):
+                with self.assertRaises(FileNotFoundError):
+                    news_identity_registry.resolve_us_news_identity("엔비디아")
+                self._write(self._rows(), path)
+                payload = json.loads(path.read_text())
+                payload["items"] = payload["items"][:19]
+                path.write_text(json.dumps(payload))
+                with self.assertRaises(ValueError):
+                    news_identity_registry.resolve_us_news_identity("엔비디아")
+                self._write(self._rows(), path)
+                payload = json.loads(path.read_text())
+                payload["items"][0]["company_key"] = "US:OTHER"
+                path.write_text(json.dumps(payload))
+                with self.assertRaisesRegex(ValueError, "invalid_local_identity_mapping"):
+                    news_identity_registry.resolve_us_news_identity("엔비디아")
+
+    def test_render_registry_keeps_existing_neon_path(self):
+        import os
+        from backend.services import news_identity_registry
+        with patch.dict(os.environ, {"GAEMIGTP_NEWS_WORKER": "0", "NEWS_DATABASE_URL": ""}), \
+             patch.object(news_identity_registry, "_worker_local_registry",
+                          side_effect=AssertionError("Render read local file")), \
+             patch.object(news_identity_registry, "_UPDATED", 0.0), \
+             patch.object(news_identity_registry, "_ROWS", ()):
+            self.assertEqual(news_identity_registry._registry(), ())
+
+
+
 if __name__ == "__main__":
     unittest.main()
