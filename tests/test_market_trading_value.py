@@ -62,7 +62,7 @@ class MarketTradingValueTests(unittest.TestCase):
             first[0]["price"] = 999
             second = board.read_us_trading_value_board(limit=20)
         read.assert_called_once()
-        self.assertEqual(second, sample)
+        self.assertEqual(second[0]["price"], 140.25)
         self.assertEqual(second[0]["source"], "kiwoom")
 
     def test_removed_naver_ranking_collectors_are_absent(self):
