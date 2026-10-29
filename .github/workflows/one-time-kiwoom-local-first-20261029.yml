@@ -1,0 +1,196 @@
+name: One-time Kiwoom local-first before Neon persistence
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/one-time-kiwoom-local-first-20261029.yml]
+permissions:
+  contents: write
+concurrency:
+  group: gaemi-digitalocean-gateway
+  cancel-in-progress: false
+jobs:
+  offline-deploy:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 10
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ops/do-ssh-deploy-setup-20261017
+          fetch-depth: 1
+          persist-credentials: true
+      - name: Offline regression then atomic collector deployment, no service start
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          remote="gaemi-deploy@$DO_HOST"
+          original="$RUNNER_TEMP/collector-original.py"
+          patched="$RUNNER_TEMP/collector-local-first.py"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" 'test "$(systemctl is-active gaemigtp-news.service || true)" = inactive && test "$(systemctl is-enabled gaemigtp-news.service || true)" = disabled && test "$(systemctl is-active gaemigtp-kiwoom-us-value.timer || true)" = inactive && test "$(systemctl is-enabled gaemigtp-kiwoom-us-value.timer || true)" = disabled && test "$(systemctl is-active gaemigtp-kiwoom-us-value.service || true)" != active && echo ALL_NEWS_KIWOOM_SERVICES_PAUSED'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote:/opt/gaemigtp-news/app/backend/kiwoom_us_value_collector.py" "$original"
+          cmp -s "$original" backend/kiwoom_us_value_collector.py
+          python3 - "$original" "$patched" backend/news_worker.py <<'PY'
+          import ast, pathlib, sys, types, datetime, json, os, tempfile
+          from unittest.mock import patch as patch_obj
+          before=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          old_guard='''    database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
+              if not database_url:
+                  print("KIWOOM_US_VALUE_ERROR=database_url_missing", flush=True)
+                  return 2
+          
+              import psycopg
+              if not in_session:
+          '''
+          new_guard='''    database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
+              # A missing DB URL must not prevent the in-session local TOP20 handoff.
+              if not in_session and not database_url:
+                  print("KIWOOM_US_VALUE_ERROR=database_url_missing", flush=True)
+                  return 2
+          
+              import psycopg
+              if not in_session:
+          '''
+          old_captured='''    captured = dt.datetime.now(dt.timezone.utc)
+              payload = json.dumps({
+          '''
+          new_captured='''    captured = dt.datetime.now(dt.timezone.utc)
+              # Commit the already-validated Kiwoom identities to the local handoff
+              # before any Neon connection or write. Keep the existing DB path intact.
+              _write_local_news_top20(rows, captured)
+              print("KIWOOM_US_LOCAL_TOP20_UPDATED=20", flush=True)
+              if not database_url:
+                  print("KIWOOM_US_VALUE_ERROR=database_url_missing", flush=True)
+                  return 2
+          
+              payload = json.dumps({
+          '''
+          old_after='''        conn.commit()
+              _write_local_news_top20(rows, captured)
+              print("KIWOOM_US_VALUE_SNAPSHOT_UPDATED=20", flush=True)
+          '''
+          new_after='''        conn.commit()
+              print("KIWOOM_US_VALUE_SNAPSHOT_UPDATED=20", flush=True)
+          '''
+          for needle in (old_guard,old_captured,old_after):
+              assert before.count(needle)==1, "unexpected_live_collector_baseline"
+          after=before.replace(old_guard,new_guard,1).replace(old_captured,new_captured,1).replace(old_after,new_after,1)
+          assert after.count("_write_local_news_top20(rows, captured)")==1
+          assert after.count("conn.commit()")==before.count("conn.commit()")
+          assert after.count("upsert_kiwoom_identity(")==before.count("upsert_kiwoom_identity(")
+          assert after.count("fetch_us_trading_value_top(")==before.count("fetch_us_trading_value_top(")
+          assert after.index("_write_local_news_top20(rows, captured)")<after.index("    payload = json.dumps({",after.index("    captured ="))
+          ast.parse(after, filename="backend/kiwoom_us_value_collector.py")
+          pathlib.Path(sys.argv[2]).write_text(after, encoding="utf-8")
+          # Offline main(): replace provider, date, DB, and file-write with test doubles.
+          main_node=next(n for n in ast.parse(after).body if isinstance(n,ast.FunctionDef) and n.name=="main")
+          scope={}
+          exec(compile(ast.Module(body=[main_node],type_ignores=[]),"offline-collector.py","exec"),scope)
+          actual_datetime=datetime.datetime
+          class Clock:
+              @staticmethod
+              def now(tz):
+                  return actual_datetime(2026,10,29,14,0,tzinfo=datetime.timezone.utc).astimezone(tz)
+          mock_dt=types.SimpleNamespace(datetime=Clock,time=datetime.time,timezone=datetime.timezone)
+          rows=[{"rank":i,"symbol":f"ZT{i:02d}","name":f"Issuer {i}"} for i in range(1,21)]
+          events=[]
+          def local(rows, captured):
+              events.append(("local",len(rows)))
+          def fetch(*,limit):
+              events.append(("provider",limit))
+              return rows
+          def blocked_connect(*args,**kwargs):
+              events.append(("db_connect_attempt",None))
+              raise RuntimeError("MOCK_NEON_DISABLED")
+          fake_psycopg=types.ModuleType("psycopg")
+          fake_psycopg.connect=blocked_connect
+          fake_env=os.environ.copy()
+          def case(db_url,provided_rows):
+              events.clear()
+              scope.update(os=os,dt=mock_dt,ZoneInfo=__import__("zoneinfo").ZoneInfo,
+                           fetch_us_trading_value_top=lambda limit: fetch(limit=limit) if provided_rows is rows else provided_rows,
+                           _write_local_news_top20=local)
+              if db_url is None: os.environ.pop("NEWS_DATABASE_URL",None)
+              else: os.environ["NEWS_DATABASE_URL"]=db_url
+              with patch_obj.dict(sys.modules,{"psycopg":fake_psycopg}),patch_obj.object(sys,"argv",["collector"]):
+                  return scope["main"]()
+          try:
+              try:
+                  case("postgresql://mock-only/blocked",rows)
+              except RuntimeError as e:
+                  assert str(e)=="MOCK_NEON_DISABLED"
+              else: raise AssertionError("expected mocked DB failure")
+              assert events==[("provider",20),("local",20),("db_connect_attempt",None)],events
+              result=case(None,rows)
+              assert result==2 and events==[("provider",20),("local",20)],events
+              result=case("postgresql://mock-only/blocked",rows[:19])
+              assert result==3 and events==[],events
+          finally:
+              os.environ.clear()
+              os.environ.update(fake_env)
+          # Real local snapshot writer + worker reader, purely offline, using synthetic TOP20.
+          writer_node=next(n for n in ast.parse(after).body if isinstance(n,ast.FunctionDef) and n.name=="_write_local_news_top20")
+          reader_code=pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
+          reader_node=next(n for n in ast.parse(reader_code).body if isinstance(n,ast.FunctionDef) and n.name=="read_ranked_stocks")
+          ns={"os":os,"json":json}
+          exec(compile(ast.Module(body=[writer_node],type_ignores=[]),"offline-local.py","exec"),ns)
+          exec(compile(ast.Module(body=[reader_node],type_ignores=[]),"offline-reader.py","exec"),ns)
+          with tempfile.TemporaryDirectory() as tmp:
+              target=pathlib.Path(tmp)/"kiwoom-us-top20-news.json"
+              # Exact-ticker identity matching; no external services.
+              ns["_write_local_news_top20"](rows,actual_datetime.now(datetime.timezone.utc),target_path=target)
+              fetched=ns["read_ranked_stocks"]("미국","market=us","/market/trading-value",snapshot_path=target)
+              assert len(fetched)==20
+              assert [r["rank"] for r in fetched]==list(range(1,21))
+              assert target.stat().st_mode & 0o777==0o600
+              saved=target.read_bytes()
+              try:
+                  ns["_write_local_news_top20"](rows[:19],actual_datetime.now(datetime.timezone.utc),target_path=target)
+              except ValueError: pass
+              else: raise AssertionError("partial snapshot accepted")
+              assert target.read_bytes()==saved
+          print("OFFLINE_LOCAL_FIRST_NEON_DOWN_PASS")
+          print("OFFLINE_DATABASE_URL_MISSING_STILL_LOCAL_PASS")
+          print("OFFLINE_PARTIAL20_REJECTED_PASS")
+          print("OFFLINE_LOCAL_TO_WORKER_HANDOFF_PASS")
+          print("NO_REAL_KIWOOM_NO_REAL_NEON_NO_NEWS_AI_CALLS")
+          PY
+          test "$(sha256sum "$original" | cut -d' ' -f1)" != "$(sha256sum "$patched" | cut -d' ' -f1)"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" "test \"\$(systemctl is-active gaemigtp-news.service || true)\" = inactive && test \"\$(systemctl is-enabled gaemigtp-news.service || true)\" = disabled && test \"\$(systemctl is-active gaemigtp-kiwoom-us-value.timer || true)\" = inactive && test \"\$(systemctl is-enabled gaemigtp-kiwoom-us-value.timer || true)\" = disabled && test \"\$(systemctl is-active gaemigtp-kiwoom-us-value.service || true)\" != active && test \"\$(sha256sum /opt/gaemigtp-news/app/backend/kiwoom_us_value_collector.py | cut -d' ' -f1)\" = '$(sha256sum "$original" | cut -d' ' -f1)'"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" 'install -d -m 0700 "$HOME/.gaemi-gateway"'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$patched" "$remote:.gaemi-gateway/payload"
+          changed=0
+          rollback() {
+            rc="$?"
+            trap - ERR
+            if [ "$changed" = 1 ]; then
+              echo "SOURCE_SYNC_OR_DEPLOY_FAILED_ROLLBACK"
+              scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$original" "$remote:.gaemi-gateway/payload" || true
+              ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy backend/kiwoom_us_value_collector.py "$(git hash-object "$original")" || true
+            fi
+            exit "$rc"
+          }
+          trap rollback ERR
+          changed=1
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy backend/kiwoom_us_value_collector.py "$(git hash-object "$patched")"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" "test \"\$(systemctl is-active gaemigtp-news.service || true)\" = inactive && test \"\$(systemctl is-enabled gaemigtp-news.service || true)\" = disabled && test \"\$(systemctl is-active gaemigtp-kiwoom-us-value.timer || true)\" = inactive && test \"\$(systemctl is-enabled gaemigtp-kiwoom-us-value.timer || true)\" = disabled && test \"\$(systemctl is-active gaemigtp-kiwoom-us-value.service || true)\" != active && test \"\$(sha256sum /opt/gaemigtp-news/app/backend/kiwoom_us_value_collector.py | cut -d' ' -f1)\" = '$(sha256sum "$patched" | cut -d' ' -f1)'"
+          cp "$patched" backend/kiwoom_us_value_collector.py
+          git add -- backend/kiwoom_us_value_collector.py
+          git diff --cached --check
+          test "$(git diff --cached --name-only)" = backend/kiwoom_us_value_collector.py
+          git -c user.name="gaemi-ops-bot" -c user.email="gaemi-ops-bot@users.noreply.github.com" commit -m 'Write DigitalOcean local Kiwoom TOP20 before optional Neon persistence'
+          git push origin "HEAD:ops/do-ssh-deploy-setup-20261017"
+          changed=0
+          trap - ERR
+          echo "LOCAL_FIRST_DEPLOYED_NEWS_KIWOOM_STILL_DISABLED"
+          echo "LOCAL_FIRST_SOURCE_COMMIT=$(git rev-parse HEAD)"
+          
