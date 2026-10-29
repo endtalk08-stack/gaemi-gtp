@@ -204,7 +204,6 @@
 
     const showUsRanking = async () => {
       if (!sidebarActive()) return;
-      const id = ++requestId;
       if (!list) return;
       const titles = {
         realtime: '실시간 · AI 분석 순서',
@@ -233,6 +232,7 @@
         return;
       }
       if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
+      const id = ++requestId;
       if (!list.querySelectorAll(':scope > button[data-original-index]').length) {
         list.textContent = '순위를 불러오는 중이야.';
       }
@@ -521,6 +521,7 @@
     sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
       if (button.disabled) return;
       button.addEventListener('click', () => {
+        ++requestId; // Cancel stale ranking/issue responses only when the view changes.
         tab = button.dataset.infoTabAction;
         customOrder = readOrder();
         changeSorted = false;
