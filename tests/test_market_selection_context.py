@@ -33,6 +33,37 @@ class MarketSelectionContextTests(unittest.TestCase):
         self.assertEqual(rankings.get_market_menu_rows("us", "popular"), [])
         self.assertEqual(rankings.get_market_menu_rows("kr", "value"), [])
 
+    def test_us_top20_chat_reads_existing_verified_rows_only(self):
+        from backend.services import ai_test as chat
+        rankings._remember_market_result("us", "value", [{
+            "symbol": "NVDA", "name": "NVIDIA", "rank": 1,
+            "trading_value": 1230000000.0, "change_pct": 1.5,
+        }])
+        with patch.object(chat, "get_market_menu_rows",
+                          wraps=rankings.get_market_menu_rows) as read:
+            answer = chat._market_ranking_reply("미국 거래대금 TOP 1 알려줘")
+        self.assertIn("1위 NVIDIA", answer)
+        self.assertIn("$1,230,000,000", answer)
+        read.assert_called_once_with("us", "value")
+
+    def test_us_top20_chat_without_saved_rows_never_recollects(self):
+        from backend.services import ai_test as chat
+        self.assertEqual(
+            chat._market_ranking_reply("미국 거래대금 TOP 20 알려줘"),
+            "미국 거래대금 데이터를 지금 확인하지 못했어.",
+        )
+
+    def test_removed_rank_menus_are_not_handled_as_existing_results(self):
+        from backend.services import ai_test as chat
+        for question in (
+            "국내 거래대금 TOP 20 알려줘",
+            "국내 인기순위 TOP 20 알려줘",
+            "미국 인기순위 TOP 20 알려줘",
+        ):
+            with self.subTest(question=question):
+                self.assertIsNone(chat._market_ranking_request(question))
+                self.assertIsNone(chat._market_ranking_reply(question))
+
     def test_domestic_news_disclosure_reads_do_not_fetch_price(self):
         from backend.services import engine
         with patch.object(engine, "fetch_stock_price_result",
