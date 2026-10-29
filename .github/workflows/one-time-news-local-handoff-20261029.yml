@@ -1,0 +1,51 @@
+name: Check local Kiwoom to news handoff read-only
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: ['.github/workflows/one-time-news-local-handoff-20261029.yml']
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-gateway
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 7
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect installed worker and collector, no database access
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          remote="gaemi-deploy@$DO_HOST"
+          ssh "${opts[@]}" "$remote" 'bash -se' <<'REMOTE'
+          set -eu
+          echo NEWS_WORKER_ACTIVE="$(systemctl is-active gaemigtp-news.service || true)"
+          echo NEWS_WORKER_ENABLED="$(systemctl is-enabled gaemigtp-news.service || true)"
+          echo KIWOOM_VALUE_TIMER_ACTIVE="$(systemctl is-active gaemigtp-kiwoom-us-value.timer || true)"
+          echo KIWOOM_VALUE_TIMER_ENABLED="$(systemctl is-enabled gaemigtp-kiwoom-us-value.timer || true)"
+          systemctl show gaemigtp-news.service -p StateDirectory -p User -p Group
+          systemctl show gaemigtp-kiwoom-us-value.service -p User -p Group -p StateDirectory
+          stat -c 'NEWS_STATE_DIR=%A:%U:%G' /var/lib/gaemigtp-news || true
+          sha256sum /opt/gaemigtp-news/app/backend/news_worker.py /opt/gaemigtp-news/app/backend/kiwoom_us_value_collector.py
+          echo COLLECTOR_READONLY_DETAILS
+          grep -nE '^(def main|def identity_from_kiwoom|def upsert_kiwoom_identity)|conn.commit\(\)|KIWOOM_US_VALUE_SNAPSHOT_UPDATED|_fill_missing_us_industries|fetch_us_trading_value_top' /opt/gaemigtp-news/app/backend/kiwoom_us_value_collector.py || true
+          echo WORKER_READONLY_DETAILS
+          grep -nE '^def (read_ranked_stocks|next_ranked_stock|_news_slot|_batch|main)|ranked_rows =|read_ranked_stocks\(|normalize_ranking|psycopg.connect|NEWS_WORKER_RANKING_URL' /opt/gaemigtp-news/app/backend/news_worker.py || true
+          echo LOCAL_HANDOFF_PREFLIGHT_DONE
+          REMOTE
+          echo REPO_COLLECTOR_SHA256="$(sha256sum backend/kiwoom_us_value_collector.py | awk '{print $1}')"
