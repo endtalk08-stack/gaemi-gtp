@@ -1,7 +1,9 @@
-"""Cached read-only identity mapping from the existing Neon market_instruments table."""
+"""US news identity: local Kiwoom TOP20 for DO worker, existing Neon for readers."""
+import json
 import os
 import threading
 import time
+from pathlib import Path
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE
 from backend.analysis.news.stock_identity import (
@@ -31,7 +33,50 @@ def _unique(values):
     return result
 
 
+# Writer: backend.kiwoom_us_value_collector._write_local_news_top20
+_LOCAL_NEWS_TOP20_PATH = "/var/lib/gaemigtp-news/kiwoom-us-top20-news.json"
+
+
+def _worker_local_registry():
+    """Use the already-fetched, ticker-verified Kiwoom ranking without Neon.
+
+    Fail closed if this one-server handoff is missing, partial or corrupted.
+    Reader services keep their existing Neon identity registry unchanged.
+    """
+    from backend.kiwoom_us_identity_sync import identity_from_kiwoom
+    from backend.services.us_top20_rotation import normalize_ranking
+
+    path = Path(_LOCAL_NEWS_TOP20_PATH)
+    if path.is_symlink():
+        raise ValueError("unsafe_local_identity_path")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if (not isinstance(data, dict) or data.get("schema_version") != 1
+            or data.get("source") != "kiwoom" or data.get("market") != "US"
+            or data.get("rank_type") != "trading_value"):
+        raise ValueError("invalid_local_identity_header")
+    items = data.get("items")
+    ranking = normalize_ranking(items)
+    by_symbol = {str(row["symbol"]).strip().upper(): row for row in items}
+    identities = []
+    for item in ranking:
+        source = by_symbol[item["symbol"]]
+        identity = identity_from_kiwoom(item["name"], item["symbol"])
+        if (identity is None
+                or source.get("company_key") != identity["company_key"]
+                or source.get("news_name") != identity["news_name"]
+                or source.get("identity_status") != identity["status"]):
+            raise ValueError("invalid_local_identity_mapping")
+        identities.append(dict(
+            ticker=_ticker(item["symbol"]), label=item["name"],
+            news=identity["news_name"], key=identity["company_key"],
+            status=identity["status"],
+        ))
+    return tuple(identities)
+
+
 def _registry():
+    if os.environ.get("GAEMIGTP_NEWS_WORKER") == "1":
+        return _worker_local_registry()
     global _ROWS, _UPDATED
     now = time.monotonic()
     if _UPDATED and now - _UPDATED < _TTL:
@@ -87,6 +132,12 @@ def resolve_us_news_identity(name, symbol=None):
     row = matches[0] if len(matches) == 1 or (
         matches and len({r["key"] for r in matches}) == 1
     ) else None
+    # A provider-name/ticker conflict cannot borrow a different ticker's alias.
+    # This guard applies only to the local DigitalOcean worker identity path.
+    if os.environ.get("GAEMIGTP_NEWS_WORKER") == "1" and row and row["status"] != "verified":
+        return dict(company_key=row["key"], ticker=row["ticker"],
+                    news_name=row["label"], status="pending",
+                    search_terms=[row["label"]], snapshot_names=[row["label"]])
     basic = resolve_us_identity(name, ticker or None)
     if (ticker and basic["status"] != "verified"
             and resolve_us_identity(name)["status"] == "verified"
