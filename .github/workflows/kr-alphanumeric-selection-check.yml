@@ -10,6 +10,8 @@ on:
       - backend/services/disclosure_ranked_universe.py
       - backend/providers/market_price.py
       - backend/providers/market_industry.py
+      - frontend/index.html
+      - frontend/shell/right-panel/right-panel-tabs.js
       - tests/test_market_selection_context.py
       - tests/test_market_trading_value.py
       - tests/test_market_industry.py
@@ -34,3 +36,9 @@ jobs:
       - name: Guard US value and domestic news/disclosure after removals
         run: |
           python -m unittest -v tests.test_market_selection_context tests.test_market_trading_value tests.test_market_industry tests.test_disclosure_ranked_universe tests.test_disclosure_transfer tests.test_render_disclosure_separation
+      - name: Verify surviving disclosure and panel JavaScript
+        run: |
+          node --check frontend/shell/right-panel/right-panel-tabs.js
+          node --check frontend/shell/left-market-sidebar/market-sidebar.js
+          node --test tests/test_disclosure_view_contract.cjs
+          node tests/test_market_polling_cost.cjs
