@@ -64,7 +64,8 @@ class Element {
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup({ deferred = false, initialOrder = [] } = {}) {
+function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {}) {
+  let mockNow = 1_000_000;
   const storage = new Map([[
     'gaemiGTP_market_sidebar_order_us_value_v1', JSON.stringify(initialOrder)
   ]]);
@@ -92,7 +93,8 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
   const documentListeners = {};
   const logoImages = [];
   const document = {
-    body: { classList: { contains() { return false; }, remove() {}, toggle() {} } },
+    visibilityState: 'visible',
+    body: { classList: { contains(name) { return sidebarOpen && name === 'left-market-open'; }, remove() {}, toggle() {} } },
     getElementById(id) { return id === 'leftMarketSidebar' ? sidebar : null; },
     createElement(tagName) {
       const element = new Element(tagName);
@@ -108,7 +110,8 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
     location: { hostname: 'gaemi-gtp.onrender.com', origin: 'https://gaemi-gtp.onrender.com' },
     // Fake browser: acknowledge polling without starting a background timer.
     setInterval() { return 1; },
-    addEventListener(name, fn) { (listeners[name] ||= []).push(fn); }
+    addEventListener(name, fn) { (listeners[name] ||= []).push(fn); },
+    dispatchEvent(event) { for (const fn of listeners[event.type] || []) fn(event); }
   };
   const calls = [];
   let valueRows = [
@@ -131,14 +134,22 @@ function setup({ deferred = false, initialOrder = [] } = {}) {
         { name: '일라이 릴리', symbol: 'LLY', headline: '사업 제휴 이슈' }
       ] }) };
     }
+    if (url.endsWith('/market/us-live-quotes')) {
+      return { ok: true, json: async () => ({ ok: true, items: [] }) };
+    }
     throw new Error('unexpected request: ' + url);
   };
   vm.runInNewContext(stockMarksSource, { window });
-  vm.runInNewContext(sidebarSource, { window, document, fetch, console, localStorage });
+  vm.runInNewContext(sidebarSource, {
+    window, document, fetch, console, localStorage,
+    Date: { now: () => mockNow },
+    CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } }
+  });
   documentListeners.DOMContentLoaded();
   return {
     list, realtimeTab, valueTab, gainTab, lossTab, calls, storage, logoImages,
-    replaceValueRows(rows) { valueRows = rows; valueTab.click(); },
+    replaceValueRows(rows) { mockNow += 61_000; valueRows = rows; valueTab.click(); },
+    advanceTime(milliseconds) { mockNow += milliseconds; }
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
   };
@@ -222,6 +233,7 @@ test('fresh ranking ignores stale saved order before and after tab changes', asy
   app.realtimeTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
+  app.advanceTime(61_000);
   app.valueTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]')[0].dataset.stockSymbol, 'LLY');
