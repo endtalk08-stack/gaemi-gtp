@@ -1,13 +1,19 @@
-name: KR alphanumeric stock selection checks
+name: Safe source-removal and disclosure isolation checks
 on:
   push:
-    branches: [main]
+    branches: [main, cleanup/remove-unused-feeds-20261029]
     paths:
-      - backend/services/market_rankings.py
-      - backend/services/engine.py
-      - backend/services/ai_test.py
       - app.py
+      - backend/services/engine.py
+      - backend/services/market_rankings.py
+      - backend/services/stock_analysis.py
+      - backend/services/disclosure_ranked_universe.py
+      - backend/providers/market_price.py
+      - backend/providers/market_industry.py
       - tests/test_market_selection_context.py
+      - tests/test_market_trading_value.py
+      - tests/test_market_industry.py
+      - tests/test_disclosure_ranked_universe.py
       - .github/workflows/kr-alphanumeric-selection-check.yml
 permissions:
   contents: read
@@ -22,34 +28,9 @@ jobs:
           python-version: '3.11'
       - name: Install existing application dependencies
         run: python -m pip install -r requirements.txt
-      - name: Check only changed Python modules
-        run: python -m py_compile backend/services/market_rankings.py backend/services/engine.py backend/services/ai_test.py app.py tests/test_market_selection_context.py
-      - name: Verify KR stock selection and unchanged market menus
+      - name: Check updated sources compile
         run: |
-          python -m unittest -v tests.test_market_selection_context
-          # The existing trading-value fixtures share a module-level
-          # short-failure cache. Isolate each case so fixture order cannot
-          # contaminate the next case; do not change production cache behavior.
-          python - <<'PY' > /tmp/kr-market-test-cases.txt
-          import unittest
-          from tests.test_market_trading_value import MarketTradingValueTests
-          suite = unittest.defaultTestLoader.loadTestsFromTestCase(MarketTradingValueTests)
-          for case in suite:
-              print(case.id())
-          PY
-          while IFS= read -r test_case; do
-            python -m unittest -v "$test_case"
-          done < /tmp/kr-market-test-cases.txt
-          python -m unittest -v tests.test_kr_quote_parsing
-      - name: Confirm public Render health without bypassing private login
+          python -m py_compile app.py backend/services/engine.py backend/services/market_rankings.py backend/services/stock_analysis.py backend/services/disclosure_ranked_universe.py backend/providers/market_price.py backend/providers/market_industry.py
+      - name: Guard US value and domestic news/disclosure after removals
         run: |
-          python - <<'PY'
-          import json, urllib.request
-          req=urllib.request.Request(
-              "https://gaemi-gtp.onrender.com/health",
-              headers={"User-Agent":"gaemi-public-health-check/1.0"})
-          with urllib.request.urlopen(req, timeout=45) as response:
-              health=json.load(response)
-          assert health.get("ok") is True
-          print("RENDER_PUBLIC_HEALTH_PASS")
-          PY
+          python -m unittest -v tests.test_market_selection_context tests.test_market_trading_value tests.test_market_industry tests.test_disclosure_ranked_universe tests.test_disclosure_transfer tests.test_render_disclosure_separation
