@@ -44,6 +44,9 @@ jobs:
             echo "DIAG_ENABLED=$(systemctl is-enabled "$u" || true)"
             systemctl show "$u" -p ActiveState -p SubState -p Result -p LoadState --no-pager | head -n 4
           done
+          echo "KIWOOM_COLLECTOR_FAILED_DETAILS"
+          systemctl show gaemigtp-kiwoom-us-value.service -p Result -p ExecMainCode -p ExecMainStatus -p StateChangeTimestamp --no-pager
+          journalctl -u gaemigtp-kiwoom-us-value.service --since '2026-10-26' --no-pager -o cat 2>/dev/null | grep -E 'KIWOOM_US_|Traceback|ModuleNotFoundError|PermissionError|OperationalError|ImportError|failed|Failed|error|Error|Exception|NEWS_DATABASE_URL' | sed -E 's#(postgres(ql)?://)[^ ]+#\\1<hidden>#g; s/(API_KEY|SECRET|TOKEN|PASSWORD|NEWS_DATABASE_URL)=([^ ]+)/\\1=<hidden>/g' | tail -n 28 || true
           echo "DIAG_NEWS_FILE=$(test -f /opt/gaemigtp-news/app/backend/news_worker.py && echo present || echo missing)"
           echo "DIAG_COLLECTOR_FILE=$(test -f /opt/gaemigtp-news/app/backend/kiwoom_us_value_collector.py && echo present || echo missing)"
           echo "DIAG_NEWS_STATE=$(stat -c '%a:%U:%G' /var/lib/gaemigtp-news 2>/dev/null || echo unavailable)"
