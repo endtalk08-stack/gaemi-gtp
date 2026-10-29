@@ -87,41 +87,48 @@ class UsListingNewsIdentityTests(unittest.TestCase):
         self.assertEqual(worker.call_args.args[1], ["삼성전자"])
         self.assertEqual(out["items"][0]["headline"], "")
 
-    def test_central_reader_uses_existing_us_snapshot_alias_when_exact_missing(self):
-        found = []
-        def worker(name, **kwargs):
-            found.append(name)
-            if name == "엔비디아":
-                return {"issue_briefs": [{"headline": "서버의 기존 이슈", "summary": "확인된 내용"}]}
-            return None
-        with patch.object(news_result, "_read_worker_news_snapshot", side_effect=worker):
+    def test_central_reader_uses_opted_in_worker_snapshot(self):
+        with patch.dict("os.environ", {"NEWS_PROCESSED_READ_MODE": "prefer"}), \
+             patch("backend.services.news_processed_store.read_snapshot",
+                   return_value={"issue_briefs": [{"headline": "서버의 기존 이슈", "summary": "확인된 내용"}]}) as reader, \
+             patch.object(news_result, "build_stock_news_result",
+                          side_effect=AssertionError("unwanted new collection")):
             result = news_result.get_shared_stock_news_result("NVIDIA", market="미국", limit=50)
-        self.assertEqual(found, ["NVIDIA", "엔비디아"])
+        reader.assert_called_once_with(
+            "NVIDIA", market="미국", limit=50, storyboard_limit=3,
+            display_timezone="Asia/Seoul",
+        )
         self.assertEqual(result["issue_briefs"][0]["headline"], "서버의 기존 이슈")
 
-    def test_no_worker_result_does_not_run_render_collection_or_write(self):
-        """Missing worker output must never start Render news or reuse its old store."""
+    def test_only_mode_without_snapshot_does_not_start_new_collection(self):
+        """With explicit read-only mode missing data remains unavailable."""
         for stock, market in [("삼성전자", "국내"), ("테슬라", "미국")]:
             with self.subTest(stock=stock), \
-                 patch.object(news_result, "_read_worker_news_snapshot", return_value=None) as snapshot, \
-                 patch.object(news_result, "build_stock_news_result", side_effect=AssertionError("Render collected news")), \
-                 patch("backend.services.news_processed_results_store.read_issue_briefs_batch", side_effect=AssertionError("Legacy store read")), \
-                 patch("backend.services.news_processed_results_store.save_issue_briefs", side_effect=AssertionError("Render wrote news")):
+                 patch.dict("os.environ", {"NEWS_PROCESSED_READ_MODE": "only"}), \
+                 patch("backend.services.news_processed_store.read_snapshot",
+                       return_value=None) as reader, \
+                 patch.object(news_result, "build_stock_news_result",
+                              side_effect=AssertionError("Render collected news")), \
+                 patch("backend.services.news_processed_results_store.save_issue_briefs",
+                       side_effect=AssertionError("Render wrote legacy news")):
                 result = news_result.get_shared_stock_news_result(stock, market=market)
-            self.assertEqual(snapshot.call_count, 1)
+            self.assertEqual(reader.call_count, 1)
             self.assertEqual(result["issue_briefs"], [])
             self.assertEqual(result["paired_news_items"], [])
-            self.assertEqual(result["_news_status"], "unavailable")
+            self.assertEqual(result["_news_status"], "error")
 
-    def test_worker_result_is_not_overwritten_by_render_legacy_store(self):
+    def test_opted_in_worker_result_is_not_overwritten_by_render_store(self):
         worker_result = {
             "issue_briefs": [{"headline": "DigitalOcean 이슈", "summary": "기사 근거"}],
             "paired_news_items": [], "storyboard_news_items": [], "keyword_storyboard": [],
         }
-        with patch.object(news_result, "_read_worker_news_snapshot", return_value=worker_result), \
-             patch.object(news_result, "build_stock_news_result", side_effect=AssertionError("Render collected news")), \
-             patch("backend.services.news_processed_results_store.read_issue_briefs_batch", side_effect=AssertionError("Legacy store read")), \
-             patch("backend.services.news_processed_results_store.save_issue_briefs", side_effect=AssertionError("Render wrote news")):
+        with patch.dict("os.environ", {"NEWS_PROCESSED_READ_MODE": "only"}), \
+             patch("backend.services.news_processed_store.read_snapshot",
+                   return_value=worker_result), \
+             patch.object(news_result, "build_stock_news_result",
+                          side_effect=AssertionError("Render collected news")), \
+             patch("backend.services.news_processed_results_store.save_issue_briefs",
+                   side_effect=AssertionError("Render wrote legacy news")):
             result = news_result.get_shared_stock_news_result("삼성전자", market="국내")
         self.assertEqual(result["issue_briefs"][0]["headline"], "DigitalOcean 이슈")
 
