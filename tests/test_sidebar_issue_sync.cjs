@@ -226,6 +226,27 @@ test('market cards show stock logo slot and allow keyboard reorder without chang
     ['TSLA.O', 'LLY']);
 });
 
+test('switching tabs immediately restores TOP20 without another Neon read', async () => {
+  const app = setup();
+  await flush();
+  const originalRows = app.list.querySelectorAll(':scope > button[data-original-index]');
+  const rankingRequests = () => app.calls.filter((call) =>
+    call.url.endsWith('/market/trading-value?market=us')).length;
+  assert.equal(originalRows.length, 2);
+  assert.equal(rankingRequests(), 1);
+
+  app.realtimeTab.click();
+  await flush();
+  assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
+  assert.match(app.list.textContent, /AI 분석 결과 연결 전/);
+  app.valueTab.click();
+  await flush();
+  const restoredRows = app.list.querySelectorAll(':scope > button[data-original-index]');
+  assert.equal(restoredRows.length, 2);
+  assert.equal(restoredRows[0], originalRows[0], 'reuse cached verified ranking nodes');
+  assert.equal(rankingRequests(), 1, 'tab switch must not force another Neon ranking read');
+});
+
 test('fresh ranking ignores stale saved order before and after tab changes', async () => {
   const app = setup({ initialOrder: ['LLY', 'LLY'] });
   await flush();
