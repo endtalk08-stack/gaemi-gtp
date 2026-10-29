@@ -166,7 +166,7 @@ class IdentityTests(unittest.TestCase):
                          ["GOOGL", "GOOG"])
         self.assertEqual(identities[2]["snapshot_names"], ["미등록 상장사"])
         self.assertEqual(identities[3]["snapshot_names"], ["잘못된 이름"])
-        self.assertNotIn("애플", identities[3]["search_terms"])
+        self.assertEqual(identities[3]["news_name"], "잘못된 이름")
 
     def test_logo_lookup_does_not_change_pending_news_identity(self):
         """Pending tickers retain their own news; logos are checked separately."""
