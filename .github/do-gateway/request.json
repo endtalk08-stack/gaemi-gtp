@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/audit_legacy_disclosure_remnants_20261029_readonly.py",
+  "request_id": "disclegacycheck20261029v1",
+  "timeout": 75
 }
