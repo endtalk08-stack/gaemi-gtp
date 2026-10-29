@@ -26,7 +26,7 @@ jobs:
       - name: Read pinned disclosure-only source
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: 6d5832da8b32cb69f997cc4df80051eef38c9fcf
           persist-credentials: false
 
       - name: Prepare strict SSH connection
