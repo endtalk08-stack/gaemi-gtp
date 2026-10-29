@@ -93,7 +93,7 @@ jobs:
           pathlib.Path(sys.argv[2]).write_text(after, encoding="utf-8")
           # Offline main(): replace provider, date, DB, and file-write with test doubles.
           main_node=next(n for n in ast.parse(after).body if isinstance(n,ast.FunctionDef) and n.name=="main")
-          scope={}
+          scope={"json":json}
           exec(compile(ast.Module(body=[main_node],type_ignores=[]),"offline-collector.py","exec"),scope)
           actual_datetime=datetime.datetime
           class Clock:
