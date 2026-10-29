@@ -118,6 +118,54 @@ def _fill_verified_fallback_sectors(database_url):
     return updated
 
 
+def _write_local_news_top20(rows, captured_at, *, target_path=None):
+    """Atomic one-server handoff of already fetched Kiwoom ranks and identities.
+
+    The existing Neon write stays unchanged; this file never triggers an API/DB call.
+    """
+    from pathlib import Path
+    import tempfile
+    from backend.services.us_top20_rotation import normalize_ranking
+    from backend.kiwoom_us_identity_sync import identity_from_kiwoom
+
+    path = Path(target_path) if target_path is not None else Path(
+        "/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
+    if not path.parent.is_dir() or path.is_symlink():
+        raise RuntimeError("unsafe_local_ranking_path")
+    normalized = normalize_ranking([
+        {"rank": row["rank"], "symbol": row["symbol"], "name": row["name"]}
+        for row in rows
+    ])
+    items=[]
+    for row in normalized:
+        matched=identity_from_kiwoom(row["name"], row["symbol"])
+        if matched is None:
+            raise ValueError("unmatched_kiwoom_identity")
+        items.append({
+            **row,
+            "company_key": matched["company_key"],
+            "news_name": matched["news_name"],
+            "identity_status": matched["status"]
+        })
+    data={"schema_version": 1, "source": "kiwoom",
+          "market": "US", "rank_type": "trading_value",
+          "captured_at": captured_at.isoformat(), "items": items}
+    temp_name=None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=str(path.parent),
+            prefix=".kiwoom-news-top20-", delete=False
+        ) as handle:
+            temp_name=handle.name
+            os.fchmod(handle.fileno(), 0o600)
+            json.dump(data,handle,ensure_ascii=False,separators=(",",":"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name,path)
+    finally:
+        if temp_name is not None and os.path.exists(temp_name):
+            os.unlink(temp_name)
+
 def main():
     import sys
     if len(sys.argv) > 1:
@@ -235,6 +283,7 @@ def main():
                                  "trading_value_raw_thousand_usd": row["trading_value_raw"]})),
                 )
         conn.commit()
+    _write_local_news_top20(rows, captured)
     print("KIWOOM_US_VALUE_SNAPSHOT_UPDATED=20", flush=True)
     _fill_missing_us_industries(database_url)
     return 0
