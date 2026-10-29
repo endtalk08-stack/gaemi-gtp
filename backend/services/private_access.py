@@ -87,10 +87,10 @@ def install_private_access(app, frontend_dir):
         # Do not require browser preview cookies for the dedicated DO sender.
         if request.method == "POST" and request.path == "/internal/market/us-price-push":
             return None
-        # The news worker may read only the two existing ranking GET routes.
+        # The news worker may read only the retained US trading-value ranking route.
         # This is not a login session and never grants access to other paths.
         if (request.method == "GET"
-                and request.path in ("/market/trading-value", "/market/popular")):
+                and request.path == "/market/trading-value"):
             shared_token = os.getenv("NEWS_WORKER_RANKING_TOKEN", "").strip()
             supplied_token = request.headers.get("X-Gaemi-News-Worker-Token", "")
             if (len(shared_token) >= 32 and len(supplied_token) <= 512
@@ -100,7 +100,7 @@ def install_private_access(app, frontend_dir):
             return None
         if request.path in {"/", "/index.html"}:
             return _no_store(send_from_directory(frontend_dir, "private-login.html"))
-        if request.path.startswith(("/api/", "/debug/", "/disclosures/")) or request.path in {"/analyze", "/calendar", "/market/us-daily-chart"}:
+        if request.path.startswith(("/api/", "/debug/", "/disclosures/")) or request.path in {"/analyze", "/market/us-daily-chart"}:
             return _no_store(jsonify({"ok": False, "error": "private_access_required"})), 401
         return redirect("/", code=302)
 
