@@ -187,7 +187,8 @@ def main():
                   (ny.weekday() == 6 and ny.time() >= dt.time(20, 0)))
 
     database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
-    if not database_url:
+    # A missing DB URL must not prevent the in-session local TOP20 handoff.
+    if not in_session and not database_url:
         print("KIWOOM_US_VALUE_ERROR=database_url_missing", flush=True)
         return 2
 
@@ -219,6 +220,14 @@ def main():
         return 3
 
     captured = dt.datetime.now(dt.timezone.utc)
+    # Commit the already-validated Kiwoom identities to the local handoff
+    # before any Neon connection or write. Keep the existing DB path intact.
+    _write_local_news_top20(rows, captured)
+    print("KIWOOM_US_LOCAL_TOP20_UPDATED=20", flush=True)
+    if not database_url:
+        print("KIWOOM_US_VALUE_ERROR=database_url_missing", flush=True)
+        return 2
+
     payload = json.dumps({
         "api_id": "usa20540", "rank_source": "kiwoom",
         "value_currency": "USD", "value_unit": "USD",
@@ -283,7 +292,6 @@ def main():
                                  "trading_value_raw_thousand_usd": row["trading_value_raw"]})),
                 )
         conn.commit()
-    _write_local_news_top20(rows, captured)
     print("KIWOOM_US_VALUE_SNAPSHOT_UPDATED=20", flush=True)
     _fill_missing_us_industries(database_url)
     return 0
