@@ -8,7 +8,7 @@ from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.worker_ai_lab import worker_ai_lab_bp
 from backend.services.issue_title_test import issue_title_test_bp
 from backend.services.private_access import install_private_access
-from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
+from backend.services.market_rankings import get_market_selection, analysis_ticker_for_selection
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.news_result import get_shared_stock_news_result
 from backend.services.news_freshness import issue_mode_for_question, normalize_issue_mode
@@ -17,7 +17,7 @@ from backend.services.market_data_cache import cached_market_json
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
 from backend.services.us_market_close import read_brief
 
-from backend.services.engine import analyze_stock, get_live_calendar_data, start_calendar_warmup
+from backend.services.engine import analyze_stock
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -28,7 +28,6 @@ app.register_blueprint(worker_ai_lab_bp)
 app.register_blueprint(issue_title_test_bp)
 CORS(app)
 install_private_access(app, FRONTEND_DIR)
-start_calendar_warmup()
 application = app
 
 
@@ -55,11 +54,6 @@ def health():
                                      "cached_symbols": len(quotes),
                                      "receiving": bool(fresh)}})
 
-@app.get("/calendar")
-def calendar():
-    return jsonify({"ok": True, "content": get_live_calendar_data("", "")})
-
-
 @app.get("/api/market/us-close")
 def market_us_close():
     """Only read a completed 24h US close brief; never collect or invoke AI."""
@@ -75,7 +69,7 @@ def market_us_close():
 def market_trading_value():
     """Menu result; collection and interpretation stay outside the route."""
     market = str(request.args.get("market", "kr") or "").strip().lower()
-    if market not in ("kr", "us"):
+    if market != "us":
         return jsonify({"ok": False, "error": "invalid_market", "items": []}), 400
     diagnostics = []
     if market == "us":
@@ -93,8 +87,6 @@ def market_trading_value():
                         item["change_pct"] = quote["change_pct"]
             from backend.services.market_rankings import _remember_market_result
             _remember_market_result("us", "value", items)
-    else:
-        items = build_kr_trading_value_result(limit=20)
     if items is None:
         response = jsonify({"ok": False, "items": [], "error": "source_unavailable",
                             "provider_status": diagnostics[-1] if diagnostics else "unavailable"})
@@ -148,33 +140,6 @@ def market_us_live_quotes():
                         "items": items})
     response.headers["Cache-Control"] = "no-store"
     return response
-
-
-@app.get("/market/popular")
-def market_popular():
-    """Separate popular ranking menu result; never reinterpret traded volume."""
-    market = str(request.args.get("market", "kr") or "").strip().lower()
-    if market not in ("kr", "us"):
-        return jsonify({"ok": False, "error": "invalid_market", "items": []}), 400
-    builder = build_us_popular_result if market == "us" else build_kr_popular_result
-    items = builder(limit=20)
-    if items is None:
-        return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
-    issue_rows = [{"name": item.get("name"), "symbol": item.get("symbol")} for item in items]
-    try:
-        # The ranking list is already source-normalized, but one bad identity
-        # must not discard the valid stocks' existing Neon issue headlines.
-        if issue_rows:
-            issue_results = get_market_issue_headlines(
-                market, issue_rows, skip_invalid=True,
-                issue_mode=normalize_issue_mode(request.args.get("issue_mode")),
-            )["items"]
-            for item, issue in zip(items, issue_results):
-                item["issue_headline"] = issue["headline"]
-    except Exception as exc:
-        print(f"[market ranking issues] lookup failed: {type(exc).__name__}", flush=True)
-    return jsonify({"ok": True, "market": market, "source": "naver", "ranking": "popular",
-                    "currency": "USD" if market == "us" else "KRW", "items": items})
 
 
 @app.post("/market/issue-headlines")
