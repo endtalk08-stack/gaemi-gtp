@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/inspect_news_worker_cadence_readonly_20261021.py",
+  "request_id": "rotation-readonly-restore-20261029",
+  "timeout": 120
 }
