@@ -37,6 +37,8 @@ jobs:
       - name: Guard US value and domestic news/disclosure after removals
         run: |
           python -m unittest -v tests.test_market_selection_context tests.test_market_trading_value tests.test_market_industry tests.test_disclosure_ranked_universe tests.test_disclosure_transfer tests.test_render_disclosure_separation
+      - name: Run complete offline Python regression suite
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Verify surviving disclosure and panel JavaScript
         run: |
           node --check frontend/shell/right-panel/right-panel-tabs.js
