@@ -46,3 +46,13 @@ jobs:
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
           node --test tests/*.cjs tests/*.js
 
+  baseline-main-js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 70ccd7dc4849e7344cc40452a9b1ea3aa6cf4fad
+          persist-credentials: false
+      - name: Run complete offline JS regressions from unchanged main
+        run: node --test tests/*.cjs tests/*.js
