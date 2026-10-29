@@ -3,7 +3,6 @@
 The industry source is independent of which ranking tab happens to need it.
 Only the industry's verified Naver fields are used; no ticker-name inference.
 """
-import concurrent.futures
 import json
 import re
 import threading
@@ -12,7 +11,7 @@ import urllib.parse
 import urllib.request
 
 INDUSTRY_CACHE = {}
-_REGION_LOCKS = {"kr": threading.Lock(), "us": threading.Lock()}
+_REGION_LOCKS = {"us": threading.Lock()}
 _PRESENT_TTL = 12 * 60 * 60
 _ABSENT_TTL = 5 * 60
 _FAILURE_TTL = 30
@@ -24,8 +23,7 @@ _HEADERS = {
 
 
 def _valid_code(market, code):
-    pattern = r"[A-Z0-9]{6}" if market == "kr" else r"[A-Z0-9._^-]{1,32}"
-    return bool(re.fullmatch(pattern, code))
+    return market == "us" and bool(re.fullmatch(r"[A-Z0-9._^-]{1,32}", code))
 
 
 def _label(payload):
@@ -50,18 +48,6 @@ def _naver_json(path, params=None):
     return payload
 
 
-def _kr_industry(code):
-    # Verified 2026-10-13: Samsung Electronics profile returns industryName.
-    try:
-        data = _naver_json(f"/api/stockSecurity/items/v2/domestic/{code}/profile")
-        if data.get("itemCode") not in (None, code):
-            raise ValueError("industry profile code mismatch")
-        return _label(data), False
-    except Exception as exc:
-        print(f"[네이버 업종] 국내 {code} 조회 실패: {type(exc).__name__}", flush=True)
-        return None, True
-
-
 def _us_industries(codes):
     # Verified 2026-10-13: repeated itemCodes return a code-keyed object;
     # each item's sectorName is the industry label.
@@ -77,13 +63,7 @@ def _us_industries(codes):
 
 
 def get_stock_industries(market, codes, known=None):
-    """Return one cached industry map shared by popular and trading-value menus.
-
-    Known labels from a ranking payload seed the same map. For unknown KR
-    symbols, look up one profile per stock code, with a bounded worker pool.
-    For US symbols, make one Naver batch request per uncached set. Missing
-    labels never become fabricated industry names.
-    """
+    """Return cached US industry labels for the surviving trading-value menu."""
     if market not in _REGION_LOCKS:
         return {}
     ordered = []
@@ -115,11 +95,7 @@ def get_stock_industries(market, codes, known=None):
         if not missing:
             return result
 
-        if market == "kr":
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(5, len(missing))) as pool:
-                fetched = dict(zip(missing, pool.map(_kr_industry, missing)))
-        else:
-            fetched = _us_industries(missing)
+        fetched = _us_industries(missing)
 
         timestamp = time.monotonic()
         for code in missing:
