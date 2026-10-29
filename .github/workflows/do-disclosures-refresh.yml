@@ -2,9 +2,6 @@ name: DigitalOcean disclosures 24h refresh
 
 on:
   workflow_dispatch:
-  schedule:
-    # 08:20 KST and 18:20 KST, after respective market sessions.
-    - cron: '20 9,23 * * *'
 
 permissions:
   contents: read
