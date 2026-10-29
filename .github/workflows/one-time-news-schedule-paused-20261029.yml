@@ -1,0 +1,162 @@
+name: One-time install news eight-KST-window scheduler (worker disabled)
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths: [.github/workflows/one-time-news-schedule-paused-20261029.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemi-digitalocean-gateway
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 9
+    env:
+      DO_HOST: ${{ secrets.DO_HOST }}
+      SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify and stage fixed KST batches without starting worker
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "$DO_HOST" && test -n "$SSH_KEY" && test -n "$SSH_KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          remote="gaemi-deploy@$DO_HOST"
+          src="$RUNNER_TEMP/news-original.py"
+          out="$RUNNER_TEMP/news-scheduled.py"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" 'test "$(systemctl is-active gaemigtp-news.service || true)" = inactive && test "$(systemctl is-enabled gaemigtp-news.service || true)" = disabled && echo NEWS_DISABLED_CHECK_OK'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote:/opt/gaemigtp-news/app/backend/news_worker.py" "$src"
+          python3 - "$src" "$out" <<'PY'
+          import ast, sys, pathlib, time
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          original=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          head='def run_once(state):\n'
+          mid='def main():\n'
+          tail='\nif __name__ == "__main__":\n'
+          assert original.count(head)==original.count(mid)==original.count(tail)==1
+          a=original.index(head);b=original.index(mid,a);c=original.index(tail,b)
+          old=original[a:b]
+          assert all(k in old for k in ("store.purge_expired()","store.purge_expired_original_news()","process_due_ai_snapshots()"))
+          assert "NEWS_WORKER_INTERVAL_SECONDS" in original[b:c] and "run_once(state)" in original[b:c]
+          anchor="    try:\n        import sys\n        from pathlib import Path\n"
+          assert old.count(anchor)==1
+          new=old.replace(head,"def run_once(state, *, maintenance=True):\n",1)
+          new=new.replace(anchor,"    if not maintenance:\n        return target is not None\n"+anchor,1)
+          new+="    return target is not None\n\n"
+          main='''def _news_slot(now=None):
+              from datetime import datetime
+              from zoneinfo import ZoneInfo
+              local=datetime.now(ZoneInfo("Asia/Seoul")) if now is None else now.astimezone(ZoneInfo("Asia/Seoul"))
+              if local.hour in (1,4,7,10,13,16,19,22) and local.minute < 15:
+                  return local.strftime("%Y%m%d%H")
+              return None
+          
+          def _batch(state, now=None, *, runner=None, persist=None, sleeper=None):
+              slot=_news_slot(now)
+              if slot is None: return 0
+              runner=runner or run_once
+              persist=persist or _write_rotation_state
+              sleeper=sleeper or time.sleep
+              if state.get("_batch_slot") != slot:
+                  state["_batch_slot"]=slot
+                  state["_batch_progress"]=0
+                  persist(state)
+              count=state.get("_batch_progress")
+              if type(count) is not int or not 0 <= count <= 20:
+                  raise ValueError("invalid_batch_progress")
+              attempted=0
+              for i in range(count,20):
+                  try:
+                      has_stock=runner(state,maintenance=(i==19))
+                  except Exception:
+                      state["_batch_progress"]=20
+                      persist(state)
+                      raise
+                  state["_batch_progress"]=i+1
+                  persist(state)
+                  if not has_stock:
+                      state["_batch_progress"]=20
+                      persist(state)
+                      print("[news-worker] batch_stopped_no_ranking",flush=True)
+                      break
+                  attempted+=1
+                  if i<19: sleeper(10)
+              return attempted
+          
+          def main():
+              os.environ["GAEMIGTP_NEWS_WORKER"]="1"
+              if not store.database_url():
+                  raise SystemExit("NEWS_DATABASE_URL is required")
+              state=_read_rotation_state()
+              print("[news-worker] scheduled kst=01,04,07,10,13,16,19,22 batch=20",flush=True)
+              while True:
+                  try:
+                      _batch(state)
+                  except Exception as exc:
+                      print("[news-worker] batch_error="+type(exc).__name__,flush=True)
+                  time.sleep(20)
+          '''
+          updated=original[:a]+new+main+original[c:]
+          ast.parse(updated)
+          assert updated[:a]==original[:a] and updated.endswith(original[c:])
+          assert "urllib.request.urlopen" not in updated[updated.index("def read_ranked_stocks("):updated.index("def next_ranked_stock(")]
+          pathlib.Path(sys.argv[2]).write_text(updated,encoding="utf-8")
+          nodes=[n for n in ast.parse(updated).body if isinstance(n,ast.FunctionDef) and n.name in ("_news_slot","_batch")]
+          scope={"time":time}
+          exec(compile(ast.Module(body=nodes,type_ignores=[]),"schedule_tests","exec"),scope)
+          tz=ZoneInfo("Asia/Seoul")
+          dt=lambda h,m=0:datetime(2026,10,29,h,m,tzinfo=tz)
+          for h in (1,4,7,10,13,16,19,22): assert scope["_news_slot"](dt(h))==f"20261029{h:02d}"
+          assert scope["_news_slot"](dt(1,15)) is None and scope["_news_slot"](dt(2)) is None
+          calls=[];writes=[];state={}
+          def runner(s,maintenance):calls.append(maintenance);return True
+          def persist(s):writes.append(s.copy())
+          batch=lambda when:scope["_batch"](state,when,runner=runner,persist=persist,sleeper=lambda _:None)
+          assert batch(dt(1))==20 and len(calls)==20 and calls.count(True)==1
+          prior=len(writes)
+          assert batch(dt(1,10))==0 and batch(dt(2))==0 and len(writes)==prior
+          calls.clear()
+          assert batch(dt(4))==20 and len(calls)==20 and calls.count(True)==1
+          state["_batch_progress"]=10;calls.clear()
+          assert batch(dt(4,5))==10 and len(calls)==10
+          no={}
+          assert scope["_batch"](no,dt(7),runner=lambda s,maintenance:False,persist=persist,sleeper=lambda _:None)==0
+          assert no["_batch_progress"]==20
+          print("OFFLINE_8X_KST_SCHEDULE_PASS")
+          print("OFFLINE_20_STOCK_BATCH_NO_DUPLICATE_PASS")
+          print("NO_DB_NO_PROVIDER_NO_AI_CALL")
+          PY
+          oldsha="$(sha256sum "$src" | awk '{print $1}')"
+          newsha="$(sha256sum "$out" | awk '{print $1}')"
+          test "$oldsha" != "$newsha"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" "test \"\$(systemctl is-active gaemigtp-news.service || true)\" = inactive && test \"\$(systemctl is-enabled gaemigtp-news.service || true)\" = disabled && test \"\$(sha256sum /opt/gaemigtp-news/app/backend/news_worker.py | awk '{print \$1}')\" = '$oldsha'"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" 'install -d -m 0700 "$HOME/.gaemi-gateway"'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$out" "$remote:.gaemi-gateway/payload"
+          armed=1
+          rollback() {
+           rc="$?"; trap - ERR
+           if [ "$armed" = 1 ]; then
+             echo 'SCHEDULE_ERROR_ROLLBACK'
+             scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$src" "$remote:.gaemi-gateway/payload" || true
+             ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy backend/news_worker.py "$(git hash-object "$src")" || true
+           fi
+           exit "$rc"
+          }
+          trap rollback ERR
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" sudo -n /usr/local/sbin/gaemi-do-gateway deploy backend/news_worker.py "$(git hash-object "$out")"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 "$remote" "test \"\$(systemctl is-active gaemigtp-news.service || true)\" = inactive && test \"\$(systemctl is-enabled gaemigtp-news.service || true)\" = disabled && test \"\$(sha256sum /opt/gaemigtp-news/app/backend/news_worker.py | awk '{print \$1}')\" = '$newsha'"
+          armed=0
+          trap - ERR
+          echo 'SCHEDULE_INSTALLED_WORKER_DISABLED'
+          
