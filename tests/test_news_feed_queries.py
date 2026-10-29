@@ -88,7 +88,10 @@ class StockNewsQueryTests(unittest.TestCase):
     def test_marvell_queries_use_verified_company_aliases(self, fetch_queries):
         fetch_stock_news("마벨 테크놀로지 그룹", market="미국", limit=20)
         queries = fetch_queries.call_args.args[0]
-        self.assertEqual(queries, ["마벨 테크놀로지 그룹", "MRVL", "마벨", "Marvell", "Marvell Technology"])
+        # The existing US name-normalization path additionally searches the
+        # suffix-stripped Korean company name; this is not a new alias merge.
+        self.assertEqual(queries, ["마벨 테크놀로지 그룹", "MRVL", "마벨", "Marvell", "Marvell Technology", "마벨 테크놀로지"])
+        self.assertEqual(len(queries), len(set(queries)))
         self.assertEqual(self.sec_fetch.call_args.args[1], "MRVL")
 
     @patch("backend.services.news_feed._fetch_queries")
