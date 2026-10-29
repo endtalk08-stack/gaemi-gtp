@@ -54,14 +54,19 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(value["items"][0]["name"],"알파벳 Class C")
         self.assertIn("알파벳 Class A", read.call_args.args[1])
 
-    def test_central_news_reads_canonical_when_no_row_is_present(self):
-        def finder(name,**kwargs):
-            return ({"issue_briefs":[],"paired_news_items":[{"title":"기사"}]}
-                    if name=="알파벳 Class A" else None)
-        with patch.object(news_result,"_read_worker_news_snapshot",side_effect=finder) as query:
-            found=news_result.get_shared_stock_news_result("알파벳 Class C",market="미국")
-        self.assertEqual(found["paired_news_items"][0]["title"],"기사")
-        self.assertIn("알파벳 Class A",[x.args[0] for x in query.call_args_list])
+    def test_central_news_reads_verified_snapshot_without_new_collection(self):
+        """Current read-mode contract: prefer existing Neon snapshot without a new fetch."""
+        with patch.dict("os.environ", {"NEWS_PROCESSED_READ_MODE": "prefer"}), \
+             patch("backend.services.news_processed_store.read_snapshot",
+                   return_value={"issue_briefs": [], "paired_news_items": [{"title": "기사"}]}) as query, \
+             patch.object(news_result, "build_stock_news_result",
+                          side_effect=AssertionError("unexpected Render collection")):
+            found = news_result.get_shared_stock_news_result("알파벳 Class C", market="미국")
+        self.assertEqual(found["paired_news_items"][0]["title"], "기사")
+        query.assert_called_once_with(
+            "알파벳 Class C", market="미국", limit=50, storyboard_limit=3,
+            display_timezone="Asia/Seoul",
+        )
 
     def test_snapshot_store_accepts_only_verified_same_company(self):
         import pathlib
