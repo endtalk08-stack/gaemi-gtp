@@ -29,6 +29,10 @@ from .business_material_events import business_material_title_and_tags
 from .flow_material_events import flow_material_title_and_tags
 from .news_detail import extract_structured_article_facts, read_selected_article_details
 from .news_feed import fetch_stock_news
+from .market_data_cache import MarketReadCache
+
+
+_WORKER_NEWS_READ_CACHE = MarketReadCache(max_entries=24)
 
 
 def _empty_news_result():
@@ -879,40 +883,74 @@ def _sanitize_news_display_briefs(result, *, market=None):
     return result
 
 
-def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, display_timezone):
-    """Read the DigitalOcean worker's valid 24h output before doing web/API work."""
+def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit,
+                               display_timezone, candidate_names=None):
+    """Read one valid Neon news snapshot across the stock's verified aliases."""
     database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
     if not database_url:
         return None
+    names = tuple(dict.fromkeys(
+        str(name) for name in (candidate_names or (stock_name,))
+        if str(name).strip()
+    ))
+    if not names:
+        return None
+
+    key = (database_url, market, names, int(limit), int(storyboard_limit),
+           display_timezone)
+
+    def load():
+        try:
+            import psycopg
+            with psycopg.connect(database_url, connect_timeout=3) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT result_payload, expires_at
+                        FROM public.news_processed_snapshots
+                        WHERE market=%s AND stock_name=ANY(%s)
+                          AND result_limit=%s AND storyboard_limit=%s
+                          AND display_timezone=%s AND expires_at>now()
+                          AND jsonb_typeof(result_payload)='object'
+                          AND COALESCE(result_payload->>'_news_status','')<>'error'
+                          AND jsonb_typeof(result_payload->'issue_briefs')='array'
+                        ORDER BY array_position(%s::text[], stock_name)
+                        LIMIT 1
+                        """,
+                        (market, list(names), int(limit), int(storyboard_limit),
+                         display_timezone, list(names)),
+                    )
+                    return cur.fetchone()
+        except Exception as exc:
+            print("[processed news] worker snapshot unavailable: "
+                  + type(exc).__name__, flush=True)
+            return None
+
+    # Share one DB read across concurrent requests and aliases. A cached row
+    # may outlive its SQL result, so enforce expiry again on every access.
+    row = _WORKER_NEWS_READ_CACHE.get_or_load(
+        key, load, ttl=30, empty_ttl=15,
+    )
+    if not row:
+        return None
+    result, expires_at = row
+    from datetime import datetime, timezone
+    if not isinstance(expires_at, datetime):
+        return None
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= datetime.now(timezone.utc):
+        return None
     try:
-        import psycopg
-        with psycopg.connect(database_url, connect_timeout=3) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT result_payload
-                    FROM public.news_processed_snapshots
-                    WHERE market=%s AND stock_name=%s
-                      AND result_limit=%s AND storyboard_limit=%s
-                      AND display_timezone=%s AND expires_at>now()
-                    LIMIT 1
-                    """,
-                    (market, str(stock_name), int(limit), int(storyboard_limit),
-                     display_timezone),
-                )
-                row = cur.fetchone()
-        result = row[0] if row else None
         if isinstance(result, str):
             result = json.loads(result)
-        if not isinstance(result, dict) or result.get("_news_status") == "error":
-            return None
-        if not isinstance(result.get("issue_briefs"), list):
-            return None
-        return result
-    except Exception as exc:
-        print("[processed news] worker snapshot unavailable: "
-              + type(exc).__name__, flush=True)
+    except (ValueError, TypeError):
         return None
+    if not isinstance(result, dict) or result.get("_news_status") == "error":
+        return None
+    if not isinstance(result.get("issue_briefs"), list):
+        return None
+    return result
 
 
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
@@ -925,7 +963,7 @@ def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_lim
         worker_result = _read_worker_news_snapshot(
             candidate_name, market=market, limit=limit,
             storyboard_limit=storyboard_limit,
-            display_timezone=display_timezone,
+            display_timezone=display_timezone, candidate_names=names,
         )
         if worker_result is not None:
             break
