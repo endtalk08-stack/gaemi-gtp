@@ -7,6 +7,7 @@ on:
       - backend/services/engine.py
       - backend/services/market_rankings.py
       - backend/services/stock_analysis.py
+      - backend/services/private_access.py
       - backend/services/disclosure_ranked_universe.py
       - backend/providers/market_price.py
       - backend/providers/market_industry.py
@@ -32,7 +33,7 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Check updated sources compile
         run: |
-          python -m py_compile app.py backend/services/engine.py backend/services/market_rankings.py backend/services/stock_analysis.py backend/services/disclosure_ranked_universe.py backend/providers/market_price.py backend/providers/market_industry.py
+          python -m py_compile app.py backend/services/engine.py backend/services/market_rankings.py backend/services/stock_analysis.py backend/services/private_access.py backend/services/disclosure_ranked_universe.py backend/providers/market_price.py backend/providers/market_industry.py
       - name: Guard US value and domestic news/disclosure after removals
         run: |
           python -m unittest -v tests.test_market_selection_context tests.test_market_trading_value tests.test_market_industry tests.test_disclosure_ranked_universe tests.test_disclosure_transfer tests.test_render_disclosure_separation
