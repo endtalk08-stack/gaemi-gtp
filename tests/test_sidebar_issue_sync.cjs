@@ -149,7 +149,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   return {
     list, realtimeTab, valueTab, gainTab, lossTab, calls, storage, logoImages,
     replaceValueRows(rows) { mockNow += 61_000; valueRows = rows; valueTab.click(); },
-    advanceTime(milliseconds) { mockNow += milliseconds; }
+    advanceTime(milliseconds) { mockNow += milliseconds; },
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
   };
