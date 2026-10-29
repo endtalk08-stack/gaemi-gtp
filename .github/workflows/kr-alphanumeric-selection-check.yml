@@ -17,6 +17,7 @@ on:
       - tests/test_market_trading_value.py
       - tests/test_market_industry.py
       - tests/test_disclosure_ranked_universe.py
+      - tests/test_dynamic_stock_identity.py
       - .github/workflows/kr-alphanumeric-selection-check.yml
 permissions:
   contents: read
@@ -37,6 +38,8 @@ jobs:
       - name: Guard US value and domestic news/disclosure after removals
         run: |
           python -m unittest -v tests.test_market_selection_context tests.test_market_trading_value tests.test_market_industry tests.test_disclosure_ranked_universe tests.test_disclosure_transfer tests.test_render_disclosure_separation
+      - name: Verify retained US stock identity without deleted ranking enrichers
+        run: python -m unittest -v tests.test_dynamic_stock_identity
       - name: Run complete offline Python regression suite
         run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Verify surviving disclosure and panel JavaScript
