@@ -64,6 +64,39 @@ class MarketSelectionContextTests(unittest.TestCase):
                 self.assertIsNone(chat._market_ranking_request(question))
                 self.assertIsNone(chat._market_ranking_reply(question))
 
+    def test_ranking_worker_token_allows_only_retained_us_value_route(self):
+        from pathlib import Path
+        from flask import Flask, jsonify
+        from backend.services import private_access
+
+        app = Flask(__name__)
+        private_access.install_private_access(app, Path("frontend"))
+
+        @app.get("/market/trading-value")
+        @app.get("/market/popular")
+        @app.get("/calendar")
+        def fake_route():
+            # Fake endpoints isolate the authorization gate without market APIs.
+            return jsonify({"ok": True})
+
+        token = "isolated-test-token-" + "x" * 32
+        with (
+            patch.object(private_access, "private_enabled", return_value=True),
+            patch.object(private_access, "_authorized", return_value=False),
+            patch.dict("os.environ", {"NEWS_WORKER_RANKING_TOKEN": token}),
+        ):
+            client = app.test_client()
+            headers = {"X-Gaemi-News-Worker-Token": token}
+            self.assertEqual(
+                client.get("/market/trading-value", headers=headers).status_code, 200
+            )
+            for path in ("/market/popular", "/calendar"):
+                with self.subTest(path=path):
+                    response = client.get(path, headers=headers)
+                    self.assertEqual(response.status_code, 302)
+                    self.assertEqual(response.headers["Location"], "/")
+            self.assertEqual(client.get("/market/trading-value").status_code, 302)
+
     def test_domestic_news_disclosure_reads_do_not_fetch_price(self):
         from backend.services import engine
         with patch.object(engine, "fetch_stock_price_result",
