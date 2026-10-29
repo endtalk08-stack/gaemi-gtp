@@ -1,3 +1,5 @@
 {
-  "operation": "status"
+  "operation": "logs",
+  "unit": "gaemigtp-kiwoom-us-value.service",
+  "lines": 160
 }
