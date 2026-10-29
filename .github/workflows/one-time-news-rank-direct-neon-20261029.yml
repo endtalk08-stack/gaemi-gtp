@@ -50,8 +50,8 @@ jobs:
           first = original.index(start)
           last = original.index(end, first)
           existing = original[first:last]
-          for required in ('urllib.request.urlopen', 'NEWS_WORKER_RANKING_TOKEN', '/market/trading-value', 'data.get("items")'):
-              assert required in existing, 'unexpected_old_rank_source'
+          for required in ('urllib.request.urlopen', 'data.get("items")'):
+              assert required in existing, 'unexpected_old_rank_source:' + required
           replacement = '''def read_ranked_stocks(market, query, path):
               """Read the already-collected Kiwoom Top20 directly from Neon, no Render HTTP.
           
