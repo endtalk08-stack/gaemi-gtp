@@ -1,7 +1,7 @@
 """Relay existing Kiwoom FE real-time price ticks directly to Render.
 
-Reads Neon only for Top-20 membership. Sends signed changed quotes over HTTPS.
-NEVER persists prices to Neon, Redis or disk; does not touch news or AI.
+Reads the existing DigitalOcean local Top-20 snapshot. Sends signed changed quotes over HTTPS.
+NEVER reads/writes Neon or Redis and never persists live prices to disk; does not touch news or AI.
 """
 import asyncio
 import base64
@@ -77,7 +77,7 @@ def send_quotes(key, rows):
     return len(rows)
 
 
-async def stream_once(dsn, initial, key):
+async def stream_once(initial, key):
     try:
         from websockets.asyncio.client import connect
     except ImportError:
@@ -152,7 +152,7 @@ async def stream_once(dsn, initial, key):
 
             if now - last_rank_check >= 55:
                 try:
-                    next_snapshot, next_symbols = await asyncio.to_thread(_ranked_symbols, dsn)
+                    next_snapshot, next_symbols = await asyncio.to_thread(_ranked_symbols)
                     if next_symbols and (next_symbols != selected or next_snapshot != snapshot_id):
                         if next_symbols != selected:
                             await ws.send(json.dumps(register(next_symbols)))
@@ -174,10 +174,6 @@ async def stream_once(dsn, initial, key):
 
 
 async def main():
-    dsn = os.environ.get("NEWS_DATABASE_URL", "").strip()
-    if not dsn:
-        print("US_RELAY_NEON_MEMBERSHIP_UNAVAILABLE", flush=True)
-        return 2
     try:
         key = signing_key()
     except Exception as exc:
@@ -195,9 +191,9 @@ async def main():
             await asyncio.sleep(60)
             continue
         try:
-            initial = await asyncio.to_thread(_ranked_symbols, dsn)
+            initial = await asyncio.to_thread(_ranked_symbols)
             if initial[1]:
-                await stream_once(dsn, initial, key)
+                await stream_once(initial, key)
                 retry_delay = 15
             else:
                 print("US_RELAY_NO_TOP20", flush=True)
