@@ -136,6 +136,7 @@ def _write_local_news_top20(rows, captured_at, *, target_path=None):
         {"rank": row["rank"], "symbol": row["symbol"], "name": row["name"]}
         for row in rows
     ])
+    source_rows = {row["symbol"]: row for row in rows}
     items=[]
     for row in normalized:
         matched=identity_from_kiwoom(row["name"], row["symbol"])
@@ -143,6 +144,7 @@ def _write_local_news_top20(rows, captured_at, *, target_path=None):
             raise ValueError("unmatched_kiwoom_identity")
         items.append({
             **row,
+            "exchange": source_rows[row["symbol"]]["exchange"],
             "company_key": matched["company_key"],
             "news_name": matched["news_name"],
             "identity_status": matched["status"]
