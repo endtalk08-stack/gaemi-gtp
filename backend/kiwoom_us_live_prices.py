@@ -1,29 +1,19 @@
 """Shared Kiwoom US real-time feed helpers for the direct Render relay.
 
-Symbol/exchange validation and source-ranked Top 20 membership only.
-This module does not collect ticks or write live prices to Neon/Redis.
+Symbol/exchange validation and the existing DigitalOcean local Top-20 snapshot only.
+This module does not collect ticks or read/write Neon/Redis.
 The active collector is backend.kiwoom_us_price_relay.
 """
 import datetime as dt
+import json
 import math
 import re
+from pathlib import Path
 from zoneinfo import ZoneInfo
-
-import psycopg
 
 URL = "wss://api.kiwoom.com:10000/api/us/websocket"
 EXCHANGES = {"ND", "NY", "NA"}
-RANK_QUERY = """
-SELECT s.id, e.symbol, i.exchange
-FROM public.market_rank_snapshots s
-JOIN public.market_rank_entries e ON e.snapshot_id=s.id
-JOIN public.market_instruments i ON i.market=e.market AND i.symbol=e.symbol
-WHERE s.source='kiwoom' AND s.market='US' AND s.rank_type='trading_value'
-AND s.id=(SELECT id FROM public.market_rank_snapshots
-          WHERE market='US' AND rank_type='trading_value' AND source='kiwoom'
-          ORDER BY captured_at DESC,id DESC LIMIT 1)
-ORDER BY e.rank LIMIT 20
-"""
+LOCAL_TOP20_PATH = "/var/lib/gaemigtp-news/kiwoom-us-top20-news.json"
 
 def _open_us_session():
     now = dt.datetime.now(ZoneInfo("America/New_York"))
@@ -79,17 +69,33 @@ def _parse_price_event(message, selected):
         updates[symbol] = (abs(price), pct, high, low)
     return updates
 
-def _ranked_symbols(dsn):
-    with psycopg.connect(dsn, connect_timeout=6) as conn:
-        with conn.cursor() as cur:
-            cur.execute(RANK_QUERY)
-            rows = cur.fetchall()
-    if not rows:
-        return None, {}
-    sid = int(rows[0][0])
-    selected = {}
-    for _, symbol, exchange in rows:
-        if (isinstance(symbol, str) and re.fullmatch(r"[A-Z0-9.\\-]{1,20}", symbol)
-                and exchange in EXCHANGES):
-            selected[symbol] = exchange
-    return sid, selected
+def _ranked_symbols(snapshot_path=None):
+    """Read one complete Kiwoom Top-20 snapshot from DigitalOcean local storage."""
+    path = Path(snapshot_path or LOCAL_TOP20_PATH)
+    if path.is_symlink():
+        raise ValueError("unsafe_local_ranking_path")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if (not isinstance(data, dict) or data.get("schema_version") != 1
+            or data.get("source") != "kiwoom" or data.get("market") != "US"
+            or data.get("rank_type") != "trading_value"):
+        raise ValueError("invalid_local_kiwoom_snapshot")
+    rows = data.get("items")
+    if not isinstance(rows, list) or len(rows) != 20:
+        raise ValueError("incomplete_local_kiwoom_top20")
+    selected, ranks = {}, set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("invalid_local_kiwoom_row")
+        rank = row.get("rank")
+        symbol = row.get("symbol")
+        exchange = row.get("exchange")
+        if (type(rank) is not int or not 1 <= rank <= 20 or rank in ranks
+                or not isinstance(symbol, str)
+                or not re.fullmatch(r"[A-Z0-9.\\-]{1,20}", symbol)
+                or symbol in selected or exchange not in EXCHANGES):
+            raise ValueError("invalid_local_kiwoom_row")
+        ranks.add(rank)
+        selected[symbol] = exchange
+    if ranks != set(range(1, 21)):
+        raise ValueError("incomplete_local_kiwoom_top20")
+    return data.get("captured_at"), selected
