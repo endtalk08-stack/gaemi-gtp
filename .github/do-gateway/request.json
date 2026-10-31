@@ -1,6 +1,6 @@
 {
   "operation": "run",
   "path": "ops/do-gateway/refresh_tradingview_news_once_20261101.py",
-  "request_id": "tvrefreshko20261101",
+  "request_id": "tvrefreshko20261101b",
   "timeout": 120
 }
