@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/clear_tradingview_news_cache_once_20261101.py",
-  "request_id": "tvclearcache20261101",
-  "timeout": 120
+  "path": "ops/do-gateway/audit_digitalocean_storage_readonly_20261101.py",
+  "request_id": "dostorageaudit20261101",
+  "timeout": 180
 }
