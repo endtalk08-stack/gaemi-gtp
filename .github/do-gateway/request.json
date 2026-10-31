@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/verify_tradingview_news_20261101_once.py",
-  "request_id": "tvnews20261101verify1",
+  "path": "ops/do-gateway/test_tradingview_api_one_call_20261101.py",
+  "request_id": "tvapi20261101once1",
   "timeout": 90
 }
