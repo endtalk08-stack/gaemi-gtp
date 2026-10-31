@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only inventory of files actually persisted on the DigitalOcean host."""
+"""Read-only inventory of accessible DigitalOcean application and temporary files."""
 import os, stat, json, time
 from pathlib import Path
 
@@ -14,10 +14,16 @@ def item(p):
         }
     except Exception as e:return {"path":str(p),"error":type(e).__name__}
 
-def walk(root, max_items=400, max_depth=4):
+def walk(root, max_items=700, max_depth=5):
     base=Path(root)
-    if not base.exists():
+    try:
+        st=base.lstat()
+    except FileNotFoundError:
         return {"root":root,"exists":False,"items":[],"count":0}
+    except Exception as e:
+        return {"root":root,"accessible":False,"error":type(e).__name__,"items":[]}
+    if stat.S_ISLNK(st.st_mode):
+        return {"root":root,"accessible":False,"error":"symlink_root","items":[]}
     out=[]
     for cur,dirs,files in os.walk(base,topdown=True,followlinks=False):
         rel=Path(cur).relative_to(base)
@@ -26,23 +32,19 @@ def walk(root, max_items=400, max_depth=4):
         if depth>=max_depth: dirs[:]=[]
         for n in dirs+files:
             p=Path(cur)/n
-            if p.is_symlink():
-                out.append(item(p)); continue
-            if p.is_file() or p.is_dir():
-                out.append(item(p))
+            rec=item(p)
+            out.append(rec)
             if len(out)>=max_items: break
         if len(out)>=max_items: break
-    return {"root":root,"exists":True,"count_listed":len(out),"truncated":len(out)>=max_items,"items":out}
+    return {"root":root,"accessible":True,"count_listed":len(out),"truncated":len(out)>=max_items,"items":out}
 
 roots=[
  "/opt/gaemigtp-news/app/ops",
  "/opt/gaemigtp-news/app/backend",
- "/home/gaemi-deploy/.gaemi-gateway",
  "/run/gaemi-gateway",
- "/var/lib/gaemi-gateway",
- "/var/lib/gaemigtp-news",
  "/tmp",
  "/var/tmp",
+ "/var/lib/gaemigtp-news",
 ]
 result={"mode":"READ_ONLY","roots":[walk(p) for p in roots]}
 print(json.dumps(result,ensure_ascii=False,separators=(",",":")))
