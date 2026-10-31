@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/compare_tradingview_ast_with_publisher_20261101.py",
-  "request_id": "tvcompare20261101a1",
-  "timeout": 90
+  "operation": "deploy",
+  "path": "backend/providers/tradingview_news.py",
+  "target": "backend/providers/tradingview_news.py"
 }
