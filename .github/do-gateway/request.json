@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/refresh_tradingview_news_once_20261101.py",
-  "request_id": "tvrefreshko20261101b",
+  "path": "ops/do-gateway/clear_tradingview_news_cache_once_20261101.py",
+  "request_id": "tvclearcache20261101",
   "timeout": 120
 }
