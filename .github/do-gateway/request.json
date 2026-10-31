@@ -1,6 +1,1 @@
-{
-  "operation": "run",
-  "path": "ops/do-gateway/audit_privileged_cleanup_and_service_state_readonly_20261101.py",
-  "request_id": "rootcleanupcheck20261101",
-  "timeout": 180
-}
+{"operation":"status"}
