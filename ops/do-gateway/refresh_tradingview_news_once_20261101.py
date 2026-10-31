@@ -25,7 +25,7 @@ def load_key():
     raise RuntimeError("tradingview_api_key_missing")
 
 def main():
-    import providers.tradingview_news as tv
+    import backend.providers.tradingview_news as tv
     now = time.time()
     month = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime("%Y-%m")
     key = load_key()
