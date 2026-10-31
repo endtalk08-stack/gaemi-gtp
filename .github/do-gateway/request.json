@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/test_tradingview_publisher_detail_20261101.py",
-  "request_id": "tvpublisher20261101one1",
+  "path": "ops/do-gateway/test_tradingview_reuters_detail_20261101.py",
+  "request_id": "tvreuters20261101one1",
   "timeout": 90
 }
