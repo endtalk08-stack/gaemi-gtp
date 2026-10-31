@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/test_tradingview_nvda_news_once_20261031.py",
+  "request_id": "tvnvda-20261031-ko-detail-03",
+  "timeout": 90
 }
