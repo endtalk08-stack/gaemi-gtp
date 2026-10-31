@@ -134,16 +134,10 @@ def fetch_stock_news(ticker):
         title = str(article.get("title") or "").strip()
         if not title:
             continue
-        # Never use TradingView storyPath. Only retain an actual publisher URL
-        # supplied by the API; headlines without one remain non-clickable.
-        link = str(
-            article.get("link")
-            or article.get("url")
-            or article.get("canonical_link")
-            or ""
-        ).strip()
-        if not link.startswith(("https://", "http://")):
-            link = ""
+        # Use the TradingView news page path as the article destination.
+        # Publisher/original URLs are intentionally not used.
+        story_path = str(article.get("storyPath") or "").strip()
+        link = "https://www.tradingview.com" + story_path if story_path.startswith("/news/") else ""
         stamp = article.get("published")
         try:
             published = dt.datetime.fromtimestamp(int(stamp), dt.timezone.utc).isoformat()
