@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/audit_server_inventory_readonly_20261101.py",
-  "request_id": "serverinventory2nov2026",
+  "path": "ops/do-gateway/test_tradingview_one_symbol_rights_20261101.py",
+  "request_id": "nvdaRights20261101",
   "timeout": 180
 }
