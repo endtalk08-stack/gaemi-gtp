@@ -12,7 +12,7 @@ id gaemigtp-news >/dev/null
 source=/home/gaemi-deploy/.gaemi-gateway/bootstrap/gaemi-do-gateway
 target=/usr/local/sbin/gaemi-do-gateway
 rulefile=/etc/sudoers.d/gaemi-gateway
-expected=dd1f50231f2ab1d36756b6bb24c2aca5b1035c42
+expected=c050a9599c54add00f020b400961a68fa101c7ea
 rule="gaemi-deploy ALL=(root) NOPASSWD: /usr/local/sbin/gaemi-do-gateway"
 
 [[ -f "$source" && ! -L "$source" ]] || { echo SOURCE_NOT_STAGED >&2; exit 1; }
