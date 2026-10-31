@@ -1,6 +1,6 @@
 {
   "operation": "run",
   "path": "ops/do-gateway/audit_server_inventory_readonly_20261101.py",
-  "request_id": "serverinventory20261101",
+  "request_id": "serverinventory2nov2026",
   "timeout": 180
 }
