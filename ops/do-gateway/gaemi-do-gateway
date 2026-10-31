@@ -62,7 +62,7 @@ case "$action" in
       .identity-store.next; do
       f="$app/ops/$name"
       [[ -f "$f" && ! -L "$f" ]] || continue
-      find "$f" -maxdepth 0 -type f -mtime +7 -print -quit | grep -q . || continue
+      find "$f" -maxdepth 0 -type f -mmin +10080 -print -quit | grep -q . || continue
       if grep -R -F -l -- "$name" "$app/backend" "$app/frontend" "$app/app.py" "$app/ops/systemd" /etc/systemd/system/gaemigtp-* 2>/dev/null | grep -v -F -- "$f" >/dev/null; then
         continue
       fi
