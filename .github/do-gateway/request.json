@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/audit_tradingview_news_connection_readonly_20261101.py",
+  "request_id": "tvaudit20261101v1",
+  "timeout": 90
 }
