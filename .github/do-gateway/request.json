@@ -1,6 +1,1 @@
-{
-  "operation": "run",
-  "path": "ops/do-gateway/test_tradingview_one_symbol_rights_20261101.py",
-  "request_id": "nvdaRights20261101",
-  "timeout": 180
-}
+{"operation":"status"}
