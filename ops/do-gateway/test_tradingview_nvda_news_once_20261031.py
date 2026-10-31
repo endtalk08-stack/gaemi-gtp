@@ -136,7 +136,7 @@ def main():
     if not items:
         emit("STOP", reason="news_list_empty_or_unrecognized", data_keys=list(data.get("data", {}).keys())[:20] if isinstance(data, dict) and isinstance(data.get("data"), dict) else [])
         return 4
-    first = items[0]
+    first = next((item for item in items if not item.get("permission")), items[0])
     news_id = str(first.get("id") or first.get("newsId") or first.get("news_id") or "").strip()
     if not news_id:
         emit("STOP", reason="missing_news_id", first_keys=list(first.keys())[:20])
