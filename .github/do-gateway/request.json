@@ -1,5 +1,6 @@
 {
-  "operation": "deploy",
-  "path": "backend/services/news_feed.py",
-  "target": "backend/services/news_feed.py"
+  "operation": "run",
+  "path": "ops/do-gateway/verify_tradingview_news_20261101_once.py",
+  "request_id": "tvnews20261101verify1",
+  "timeout": 90
 }
