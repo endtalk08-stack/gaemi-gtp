@@ -4,7 +4,11 @@ import os, subprocess
 base=Path("/opt/gaemigtp-news/app")
 for rel in ("backend/news_worker.py","backend/services/news_feed.py",
             "backend/providers/naver_news.py","backend/providers/tradingview_news.py"):
-    print("SOURCE",rel,"PRESENT",(base/rel).is_file(),flush=True)
+    present = (base/rel).is_file()
+    print("SOURCE",rel,"PRESENT",present,flush=True)
+    if present:
+        r=subprocess.run(["git","hash-object","--",str(base/rel)],capture_output=True,text=True,timeout=10)
+        print("SOURCE_SHA",rel,r.stdout.strip(),flush=True)
 for keypath in ("/etc/gaemigtp/tradingview.env", "/etc/gaemigtp/news-worker.env"):
     try:
         st=Path(keypath).lstat()
