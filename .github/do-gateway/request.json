@@ -1,5 +1,5 @@
 {
   "operation": "deploy",
-  "path": "backend/providers/tradingview_news.py",
-  "target": "backend/providers/tradingview_news.py"
+  "path": "backend/services/news_feed.py",
+  "target": "backend/services/news_feed.py"
 }
