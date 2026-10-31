@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/audit_tradingview_news_connection_readonly_20261101.py",
-  "request_id": "tvaudit20261101v3",
-  "timeout": 90
+  "operation": "deploy",
+  "path": "backend/providers/tradingview_news.py",
+  "target": "backend/providers/tradingview_news.py"
 }
