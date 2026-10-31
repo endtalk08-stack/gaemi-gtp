@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.utils import parsedate_to_datetime
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE
-from backend.providers import naver_news, official_company_news, sec_filings
+from backend.providers import naver_news, official_company_news, sec_filings, tradingview_news
 
 _CACHE = {}
 _CACHE_TTL = 120
@@ -528,6 +528,10 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
                 min(max(4, int(limit)), 10),
                 MAX_NEWS_AGE_DAYS,
             )
+            # One cached API request shared across all US stocks; other providers stay intact.
+            jobs["tradingview"] = pool.submit(
+                tradingview_news.fetch_stock_news, ticker,
+            )
 
         provider_rows = {}
         provider_failures = set()
@@ -543,6 +547,7 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     stock_items = provider_rows.get("stock") or []
     official_items = provider_rows.get("official") or []
     sec_items = provider_rows.get("sec") or []
+    tradingview_items = provider_rows.get("tradingview") or []
 
     # US only: sort the collected articles by newest publication time.
     # Do not remove duplicates or apply date/relevance filters before AI.
@@ -572,7 +577,7 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
         # Match company identity and deduplicate before applying the collection cap.
         # Otherwise unrelated short-ticker search hits crowd out the company's news.
         relevant_stock = [item for item in stock_items if company_match(item)]
-        items = [_enrich_item(item) for item in _dedupe(relevant_stock + official_items + sec_items)]
+        items = [_enrich_item(item) for item in _dedupe(relevant_stock + official_items + sec_items + tradingview_items)]
         items.sort(key=lambda item: item.get("published_at") or "", reverse=True)
         return items[:max(1, int(limit))]
 
