@@ -145,10 +145,30 @@ def fetch_stock_news(ticker):
             continue
         provider = article.get("provider")
         source = str(provider.get("name") or "TradingView") if isinstance(provider, dict) else "TradingView"
+        # Preserve TradingView's supplied content and rights metadata.
+        # The list response may omit story-detail fields; keep them empty rather
+        # than substituting publisher text or generating a summary.
+        short_description = str(
+            article.get("shortDescription")
+            or article.get("short_description")
+            or ""
+        ).strip()
+        ast_description = (
+            article.get("astDescription")
+            if article.get("astDescription") is not None
+            else article.get("ast_description")
+        )
         results.append({
             "title": title,
-            "description": "",  # Respect headline-only news permissions.
-            "summary": "",
+            "description": short_description,
+            "summary": short_description,
+            "short_description": short_description,
+            "ast_description": ast_description if isinstance(ast_description, (dict, list, str)) else None,
+            "news_id": article.get("id") or article.get("newsId"),
+            "permission": article.get("permission"),
+            "paywall": article.get("paywall"),
+            "copyright": article.get("copyright"),
+            "related_symbols": related,
             "url": link,
             "link": link,
             "published_at": published,
