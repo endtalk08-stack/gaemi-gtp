@@ -1,1 +1,6 @@
-{"operation":"status"}
+{
+  "operation": "run",
+  "path": "ops/do-gateway/audit_server_persisted_workfiles_readonly_20261101.py",
+  "request_id": "serverfilesaudit20261101",
+  "timeout": 180
+}
