@@ -14,6 +14,72 @@
   let relatedDisclosureItems = [];
   let disclosuresRenderVersion = 0;
   const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '대시보드', icon: 'layout-dashboard' }, news: { label: '뉴스', icon: 'newspaper' }, 'overseas-stock': { label: '해외 종목', icon: 'globe' }, disclosures: { label: '공시', icon: 'file-text' } };
+  const TRADINGVIEW_NVDA_TEST_NEWS = [
+    {
+      id: "tag:reuters.com,2026:newsml_L3N46G1VX:0",
+      title: "AI 투자에 대한 우려가 커지면서 나스닥, 10월에 2조 달러 규모의 시가총액 폭락 위기에 직면",
+      source: "Reuters", published_at: "2026-10-30T15:07:45+00:00", permission: "headline",
+      related_symbols: ["NASDAQ:NVDA"],
+      link: "https://www.tradingview.com/news/reuters.com,2026:newsml_L3N46G1VX:0/"
+    },
+    {
+      id: "tag:reuters.com,2026:newsml_L3N46G1O0:0",
+      title: "인텔, 사상 최악의 하루를 맞이할 전망… 전 세계 반도체 시장 폭락 촉발",
+      source: "Reuters", published_at: "2026-10-30T13:26:15+00:00", permission: "headline",
+      related_symbols: ["NASDAQ:NVDA"],
+      link: "https://www.tradingview.com/news/reuters.com,2026:newsml_L3N46G1O0:0/"
+    },
+    {
+      id: "tag:reuters.com,2026:newsml_L3N46G1CT:0",
+      title: "인텔의 경고로 반도체주가 급락… PC 시장 부진이 회복세에 먹구름 드리워",
+      source: "Reuters", published_at: "2026-10-30T11:24:37+00:00", permission: "headline",
+      related_symbols: ["NASDAQ:NVDA"],
+      link: "https://www.tradingview.com/news/reuters.com,2026:newsml_L3N46G1CT:0/"
+    },
+    {
+      id: "tag:reuters.com,2026:newsml_L3N46G126:0",
+      title: "아시아 반도체 기업들, AI 수요 호조 전망…시장 불안 지속",
+      source: "Reuters", published_at: "2026-10-30T09:38:43+00:00", permission: "headline",
+      related_symbols: ["NASDAQ:NVDA"],
+      link: "https://www.tradingview.com/news/reuters.com,2026:newsml_L3N46G126:0/"
+    },
+    {
+      id: "tag:reuters.com,2026:newsml_L3N46G0VP:0",
+      title: "폭스콘, 오픈AI와 새로운 제휴 추진 중… “AI 버블은 없다”고 밝혀",
+      source: "Reuters", published_at: "2026-10-30T08:35:03+00:00", permission: "headline",
+      related_symbols: ["NASDAQ:NVDA"],
+      link: "https://www.tradingview.com/news/reuters.com,2026:newsml_L3N46G0VP:0/"
+    },
+    {
+      id: "tag:reuters.com,2026:newsml_L3N46G061:0",
+      title: "인도 AI 기업, 엔비디아 칩 발주를 위해 30억 달러 자금 조달 추진 - 블룸버그 뉴스",
+      source: "Reuters", published_at: "2026-10-30T01:54:43+00:00", permission: "headline",
+      related_symbols: ["NASDAQ:NVDA"],
+      link: "https://www.tradingview.com/news/reuters.com,2026:newsml_L3N46G061:0/"
+    },
+    {
+      id: "tag:reuters.com,2026:newsml_L3N46G04I:0",
+      title: "‘더 인포메이션’ 보도에 따르면, 엔비디아가 엔스케일(Nscale)과 앤트로픽(Anthropic) 간의 거래에 대한 신용 지원을 제공하기 위해 협의 중이라고 한다.",
+      source: "Reuters", published_at: "2026-10-30T01:17:27+00:00", permission: "headline",
+      related_symbols: ["NASDAQ:NVDA"],
+      link: "https://www.tradingview.com/news/reuters.com,2026:newsml_L3N46G04I:0/"
+    },
+    {
+      id: "tag:reuters.com,2026:newsml_L6N46F1HG:0",
+      title: "인텔, 이스라엘 공장 폭발 사고와 PC 시장 부진으로 시간외서 주가 21% 급락",
+      source: "Reuters", published_at: "2026-10-29T23:50:54+00:00", permission: "headline",
+      related_symbols: ["NASDAQ:NVDA"],
+      link: "https://www.tradingview.com/news/reuters.com,2026:newsml_L6N46F1HG:0/"
+    },
+    {
+      id: "hankyung:9cc1fb2f065a7:0",
+      title: "AI에 천문학적 돈 쏟아부었는데…알파벳, 하루 새 669조 증발 '패닉'",
+      source: "Hankyung", published_at: "2026-10-29T23:26:55+00:00", permission: "",
+      related_symbols: ["NASDAQ:NVDA"],
+      description: "구글 모회사 알파벳 주가가 29일(현지시간) 검색 수익화 부진과 인공지능(AI) 투자 우려에 상장 이후 최대 하락률을 기록했다.",
+      link: "https://www.tradingview.com/news/hankyung:9cc1fb2f065a7:0/"
+    }
+  ];
 
   function normalizeLegacyPanelWorkspaceDom() {
     const legacyView = document.getElementById('rightPanelTabView-dashboard');
@@ -55,7 +121,7 @@
     const root = document.getElementById('rightPanelWorkspace'); if (!root) return;
     if (!panelWorkspaceView) { root.innerHTML = ''; return; }
     if (panelWorkspaceView === 'panel-workspace') { root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>'; if (window.GaemiGTPPanelWorkspace && typeof window.GaemiGTPPanelWorkspace.mount === 'function') window.GaemiGTPPanelWorkspace.mount(root); return; }
-    if (panelWorkspaceView === 'news') { renderRelatedNewsPanel(); return; }
+    if (panelWorkspaceView === 'news') { loadActiveStockNews(); return; }
     if (panelWorkspaceView === 'overseas-stock') { root.innerHTML = '<section class="right-panel-related-news" aria-label="해외 종목 뉴스"><div class="right-panel-related-news__empty">해외 종목 뉴스는 아직 연결되지 않았습니다.</div></section>'; return; }
     if (panelWorkspaceView === 'disclosures') { renderRelatedDisclosuresPanel(); return; }
   }
@@ -129,8 +195,9 @@
   }
 
   function loadActiveStockNews() {
-    const snapshot = window.GaemiGTPAnalysisData?.get?.();
-    relatedNewsItems = selectRelatedNewsItems(snapshot?.newsItems, 20, 4);
+    // One-shot, real TradingView API snapshot from the approved DigitalOcean gateway test.
+    // Headline-only items intentionally show no body text; each item links to its TradingView story.
+    relatedNewsItems = TRADINGVIEW_NVDA_TEST_NEWS.map(item => ({ ...item }));
     renderRelatedNewsPanel();
   }
   function selectPanelWorkspaceView(type) {
@@ -158,7 +225,18 @@
     root.innerHTML = '';
     const section = document.createElement('section');
     section.className = 'right-panel-related-news';
-    section.setAttribute('aria-label', '관련 기사');
+    section.setAttribute('aria-label', '엔비디아 종목뉴스');
+
+    const heading = document.createElement('h3');
+    heading.className = 'right-panel-related-news__heading';
+    heading.textContent = '엔비디아 (NASDAQ:NVDA) · TradingView 뉴스';
+    section.appendChild(heading);
+
+    const note = document.createElement('div');
+    note.className = 'right-panel-related-news__meta';
+    note.textContent = '실제 API 1회 수신 · 목록 200건 · 상위 10건 중 NVDA 연관 9건 · 자동 갱신 전';
+    section.appendChild(note);
+
     if (!relatedNewsItems.length) {
       const empty = document.createElement('div');
       empty.className = 'right-panel-related-news__empty';
@@ -175,13 +253,21 @@
         const title = document.createElement('div');
         title.className = 'right-panel-related-news__title';
         title.textContent = item.title || '제목 확인 필요';
-        const description = document.createElement('div');
-        description.className = 'right-panel-related-news__description';
-        description.textContent = item.description || item.summary || '기사 내용이 없습니다.';
+        article.appendChild(title);
+
+        const descriptionText = item.description || item.summary || '';
+        if (descriptionText) {
+          const description = document.createElement('div');
+          description.className = 'right-panel-related-news__description';
+          description.textContent = descriptionText;
+          article.appendChild(description);
+        }
+
+        const permissionLabel = item.permission === 'headline' ? '제목 제공' : '';
         const meta = document.createElement('div');
         meta.className = 'right-panel-related-news__meta';
-        meta.textContent = [item.source || '뉴스', formatNewsDate(item.published_at)].filter(Boolean).join(' · ');
-        article.append(title, description, meta);
+        meta.textContent = [item.source || '뉴스', formatNewsDate(item.published_at), permissionLabel].filter(Boolean).join(' · ');
+        article.appendChild(meta);
         list.appendChild(article);
       });
       section.appendChild(list);
