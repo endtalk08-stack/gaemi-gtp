@@ -1,5 +1,6 @@
 {
-  "operation": "deploy",
-  "path": "backend/providers/tradingview_news.py",
-  "target": "backend/providers/tradingview_news.py"
+  "operation": "run",
+  "path": "ops/do-gateway/resolve_reuters_shortlink_20261101.py",
+  "request_id": "tvshort20261101once1",
+  "timeout": 90
 }
