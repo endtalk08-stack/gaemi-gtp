@@ -81,7 +81,7 @@ def _load_news(key, *, now=None, opener=None):
         state["requests"] = attempts + 1
         state["last_attempt"] = now
         _write_state(path, state)
-        query = urllib.parse.urlencode({"lang": "en", "market_country": "US"})
+        query = urllib.parse.urlencode({"lang": "ko", "market_country": "US"})
         req = urllib.request.Request(
             API_URL + "?" + query,
             headers={
