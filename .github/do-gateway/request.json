@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/cleanup_reviewed_staging_20261101.py","request_id":"cleanupstagingnov1","timeout":120}
+{"operation":"upgrade","path":"ops/do-gateway/gaemi-do-gateway"}
