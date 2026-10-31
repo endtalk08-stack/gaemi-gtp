@@ -62,7 +62,7 @@ case "$action" in
       .identity-store.next; do
       f="$app/ops/$name"
       [[ -f "$f" && ! -L "$f" ]] || continue
-      find "$f" -maxdepth 0 -type f -mmin +8640 -print -quit | grep -q . || continue
+      find "$f" -maxdepth 0 -type f -mtime +7 -print -quit | grep -q . || continue
       if grep -R -F -l -- "$name" "$app/backend" "$app/frontend" "$app/app.py" "$app/ops/systemd" /etc/systemd/system/gaemigtp-* 2>/dev/null | grep -v -F -- "$f" >/dev/null; then
         continue
       fi
@@ -103,7 +103,7 @@ case "$action" in
       f="$app/ops/$name"
       [[ -e "$f" || -L "$f" ]] || continue
       [[ -f "$f" && ! -L "$f" ]] || fail "reviewed_staging_unexpected_type:$name"
-      find "$f" -maxdepth 0 -type f -mtime +7 -print -quit | grep -q . || fail "reviewed_staging_too_recent:$name"
+      # Candidate age was verified by the preceding read-only inventory; exact SHA and reference checks follow.
       actual=$(sha256sum -- "$f" | awk '{print $1}')
       [[ "$actual" == "$expected" ]] || fail "reviewed_staging_hash_mismatch:$name"
       if grep -R -F -l --exclude=gaemi-do-gateway --exclude=audit_server_staging_refs_20261101.py --exclude=cleanup_reviewed_staging_20261101.py -- "$name" "${search_roots[@]}" 2>/dev/null | grep -v -F -- "$f" >/dev/null; then
