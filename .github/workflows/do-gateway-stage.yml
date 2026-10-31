@@ -26,9 +26,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object ops/do-gateway/gaemi-do-gateway)" = 571177e32c7bda8b2e615c8c4cff6e620011a825
+          test "$(git hash-object ops/do-gateway/gaemi-do-gateway)" = c050a9599c54add00f020b400961a68fa101c7ea
           bash -n ops/do-gateway/gaemi-do-gateway
-          test "$(git hash-object ops/do-gateway/install-once.sh)" = 26c7473f9fa74922706deb3ec78ca6ee785d85ad
+          test "$(git hash-object ops/do-gateway/install-once.sh)" = 3dc6010e02038b039ce3e5f06a502dbd646a5768
           bash -n ops/do-gateway/install-once.sh
           test "$(git hash-object ops/do-gateway/kiwoom-credentials-once.sh)" = 7cd2b286fd147fd13887ec3f67abc458eaf06e62
           bash -n ops/do-gateway/kiwoom-credentials-once.sh
