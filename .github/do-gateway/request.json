@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/test_tradingview_reuters_detail_20261101.py",
-  "request_id": "tvreuters20261101one1",
-  "timeout": 90
+  "operation": "deploy",
+  "path": "backend/providers/tradingview_news.py",
+  "target": "backend/providers/tradingview_news.py"
 }
