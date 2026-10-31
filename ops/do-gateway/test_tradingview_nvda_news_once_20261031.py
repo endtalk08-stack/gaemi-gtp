@@ -77,6 +77,7 @@ def summary(item):
         "published": published,
         "permission": item.get("permission"),
         "storyPath": str(item.get("storyPath") or "")[:300],
+        "link": str(item.get("link") or "")[:350],
         "relatedSymbols": [
             s.get("symbol") for s in (item.get("relatedSymbols") or [])
             if isinstance(s, dict) and isinstance(s.get("symbol"), str)
@@ -124,13 +125,13 @@ def main():
             "TRADINGVIEW_DATA_API_KEY", "TRADINGVIEW_API_KEY", "TRADINGVIEW_RAPIDAPI_KEY", "RAPIDAPI_KEY"])
         return 2
     emit("START", symbol=SYMBOL, authentication=auth, calls_max=2)
-    query = urllib.parse.urlencode({"symbol": SYMBOL, "lang": "en", "market": "stock", "market_country": "US"})
+    query = urllib.parse.urlencode({"symbol": SYMBOL, "lang": "ko", "market": "stock", "market_country": "US"})
     status, data = request_json(base + "/api/news?" + query, headers)
     if status != 200 or data is None:
         emit("STOP", reason="list_request_failed", status=status)
         return 3
     items = [item for item in list_items(data) if isinstance(item, dict)]
-    emit("LIST", status=status, count=len(items), top=[summary(item) for item in items[:3]],
+    emit("LIST", status=status, count=len(items), top=[summary(item) for item in items[:10]],
          root_keys=list(data.keys())[:12] if isinstance(data, dict) else [])
     if not items:
         emit("STOP", reason="news_list_empty_or_unrecognized", data_keys=list(data.get("data", {}).keys())[:20] if isinstance(data, dict) and isinstance(data.get("data"), dict) else [])
@@ -140,7 +141,7 @@ def main():
     if not news_id:
         emit("STOP", reason="missing_news_id", first_keys=list(first.keys())[:20])
         return 5
-    url = base + "/api/news/" + urllib.parse.quote(news_id, safe="")
+    url = base + "/api/news/" + urllib.parse.quote(news_id, safe="") + "?lang=ko"
     detail_status, detail = request_json(url, headers)
     if detail_status != 200 or detail is None:
         emit("DETAIL", status=detail_status, id=news_id[:200], available=False)
@@ -158,7 +159,13 @@ def main():
         }
     else:
         detail_summary = {"type": type(block).__name__}
+    raw_block = block if isinstance(block, dict) else {}
+    short_description = raw_block.get("shortDescription") or raw_block.get("short_description") or ""
+    ast_description = raw_block.get("astDescription") or raw_block.get("ast_description")
     emit("DETAIL", status=detail_status, id=news_id[:200],
+         permission=raw_block.get("permission"), copyright=raw_block.get("copyright"),
+         short_description=str(short_description)[:1800],
+         ast_description=json.dumps(ast_description, ensure_ascii=False, default=str)[:5000] if ast_description is not None else None,
          body_present=bool(plain), body_characters=len(plain), body_excerpt=plain[:320],
          detail=detail_summary)
     emit("DONE", calls=2, succeeded=True)
