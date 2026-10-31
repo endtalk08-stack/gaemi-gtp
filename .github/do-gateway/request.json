@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/resolve_reuters_shortlink_20261101.py",
-  "request_id": "tvshort20261101once1",
+  "path": "ops/do-gateway/compare_tradingview_ast_with_publisher_20261101.py",
+  "request_id": "tvcompare20261101a1",
   "timeout": 90
 }
