@@ -23,6 +23,77 @@ valid_req() { [[ "$1" =~ ^[a-zA-Z0-9_-]{8,55}$ ]]; }
 valid_timeout() { [[ "$1" =~ ^[0-9]{1,4}$ ]] && (( 30 <= $1 && $1 <= 900 )); }
 
 case "$action" in
+  cleanup)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    exec 8>/run/lock/gaemi-gateway.lock
+    flock -n 8 || fail "concurrent_operation"
+    [[ "$(systemctl is-active gaemigtp-news.service || true)" != "active" ]] || fail "news_worker_active_abort"
+    for proc in apt apt-get dpkg; do
+      pgrep -x "$proc" >/dev/null 2>&1 && fail "package_manager_busy"
+    done
+
+    apt_before=$(du -sb /var/cache/apt 2>/dev/null | awk '{print $1}')
+    apt-get clean
+    rm -f -- /var/cache/apt/pkgcache.bin /var/cache/apt/srcpkgcache.bin
+    apt_after=$(du -sb /var/cache/apt 2>/dev/null | awk '{print $1}')
+
+    pyc_count=$(find "$app" -xdev -type f -name '*.pyc' -printf '.' | wc -c)
+    pyc_bytes=$(find "$app" -xdev -type f -name '*.pyc' -printf '%s\n' | awk '{s+=$1} END {print s+0}')
+    find "$app" -xdev -type f -name '*.pyc' -delete
+    find "$app" -xdev -depth -type d -name '__pycache__' -empty -delete
+
+    temp_removed=0
+    for name in \
+      .us-identity-next-news.py \
+      .us-code-next-result.py \
+      .next-shared-news-result.py \
+      .news-result-facts-v2.next \
+      .verified-title-result-next.py \
+      .news-result-facts-next.py \
+      .news-coverage-result.next \
+      .next-shared-news-feed.py \
+      .us-identity-next-store.py \
+      .us-code-next-store.py \
+      .next-shared-processed-store.py \
+      .article-facts-v2.next \
+      .kiwoom-value-identity.next \
+      .article-facts-next.py \
+      .ai-primary-store.next \
+      .identity-store.next; do
+      f="$app/ops/$name"
+      [[ -f "$f" && ! -L "$f" ]] || continue
+      find "$f" -maxdepth 0 -type f -mtime +7 -print -quit | grep -q . || continue
+      if grep -R -F -l -- "$name" "$app/backend" "$app/frontend" "$app/app.py" "$app/ops/systemd" /etc/systemd/system/gaemigtp-* 2>/dev/null | grep -v -F -- "$f" >/dev/null; then
+        continue
+      fi
+      rm -f -- "$f"
+      temp_removed=$((temp_removed+1))
+    done
+
+    stale_jobs=0
+    if [[ -d /run/gaemi-gateway ]]; then
+      stale_jobs=$(find /run/gaemi-gateway -maxdepth 1 -type f -name 'job-*.py' -mmin +1440 -print | wc -l)
+      find /run/gaemi-gateway -maxdepth 1 -type f -name 'job-*.py' -mmin +1440 -delete
+    fi
+    old_runs=0
+    if [[ -d /var/lib/gaemi-gateway ]]; then
+      old_runs=$(find /var/lib/gaemi-gateway -maxdepth 1 -type f -name 'run-*' -mtime +90 -print | wc -l)
+      find /var/lib/gaemi-gateway -maxdepth 1 -type f -name 'run-*' -mtime +90 -delete
+    fi
+    if [[ -f "$inbox" && ! -L "$inbox" ]]; then rm -f -- "$inbox"; fi
+
+    journalctl --vacuum-size=256M
+    echo "GAEMI_CLEANUP_APT_BYTES_BEFORE=$apt_before"
+    echo "GAEMI_CLEANUP_APT_BYTES_AFTER=$apt_after"
+    echo "GAEMI_CLEANUP_PYC_FILES_REMOVED=$pyc_count"
+    echo "GAEMI_CLEANUP_PYC_BYTES_REMOVED=$pyc_bytes"
+    echo "GAEMI_CLEANUP_STALE_OPS_TEMP_REMOVED=$temp_removed"
+    echo "GAEMI_CLEANUP_STALE_JOB_FILES_REMOVED=$stale_jobs"
+    echo "GAEMI_CLEANUP_OLD_RUN_RECORDS_REMOVED=$old_runs"
+    journalctl --disk-usage
+    df -h /
+    echo "GAEMI_CLEANUP_DONE_SECURITY_LOGS_AND_ROLLBACK_BACKUPS_PRESERVED"
+    ;;
   pause-market)
     [[ $# == 0 ]] || fail "unexpected_arguments"
     systemctl disable --now gaemigtp-kiwoom-us-daily.timer gaemigtp-kiwoom-us-value.timer gaemigtp-kiwoom-us-fe.service
