@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-kiwoom-us-value.service","lines":300}
+{"operation":"run","path":"ops/do-gateway/chart_status_20261027.py","request_id":"chartstatus20261101","timeout":60}
