@@ -127,9 +127,7 @@ def _merge(fresh, existing, now):
 
 
 def _request_category(key, category, opener):
-    params = {"lang": "ko"}
-    if category == "stock":
-        params["market_country"] = "US"
+    params = {"lang": "ko", "market_country": "US"}
     url = BASE_URL + "/" + category + "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(
         url,
