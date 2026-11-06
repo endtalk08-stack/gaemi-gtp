@@ -1,8 +1,8 @@
 """TradingView Data API US stock-news provider.
 
-One shared US news request per eight hours for all TOP20 stocks.
-A local, locked cache and hard monthly budget prevent per-ticker API fan-out.
-This provider never writes to Neon or invokes AI.
+One shared US stock-news request is reused by every ticker. Collection cadence
+follows the US market session and a local rolling cache prevents per-ticker API
+fan-out. This provider never writes to Neon and never invokes AI.
 """
 from __future__ import annotations
 
@@ -16,11 +16,56 @@ import tempfile
 import time
 import urllib.parse
 import urllib.request
+from zoneinfo import ZoneInfo
 
 API_URL = "https://api.tradingviewapi.com/api/news/stock"
 CACHE_PATH = Path("/var/lib/gaemigtp-news/tradingview-us-stock-news.json")
-MIN_REQUEST_INTERVAL_SECONDS = 8 * 60 * 60
-MONTHLY_REQUEST_LIMIT = 90
+
+# Initial news-first collection policy. America/New_York handles DST
+# automatically, so the Korea-time windows move with the US market.
+SESSION_INTERVAL_SECONDS = {
+    "premarket": 10 * 60,
+    "regular": 5 * 60,
+    "afterhours": 10 * 60,
+    "offhours": 30 * 60,
+}
+DEFAULT_MONTHLY_REQUEST_LIMIT = 90
+CACHE_MAX_AGE_SECONDS = 48 * 60 * 60
+MAX_CACHE_ITEMS = 3000
+
+
+def _monthly_request_limit():
+    value = os.environ.get("TRADINGVIEW_NEWS_MONTHLY_LIMIT", "").strip()
+    if not value:
+        return DEFAULT_MONTHLY_REQUEST_LIMIT
+    try:
+        parsed = int(value)
+    except ValueError:
+        return DEFAULT_MONTHLY_REQUEST_LIMIT
+    return max(1, min(parsed, 100_000))
+
+
+def collection_session(now=None):
+    """Return the current US-news collection session and interval.
+
+    Weekends use the off-hours cadence. Market holidays are intentionally not
+    hard-coded here; the provider's API budget and dedupe still bound requests.
+    """
+    stamp = time.time() if now is None else float(now)
+    ny = dt.datetime.fromtimestamp(stamp, dt.timezone.utc).astimezone(
+        ZoneInfo("America/New_York")
+    )
+    if ny.weekday() >= 5:
+        return "offhours", SESSION_INTERVAL_SECONDS["offhours"]
+
+    minute = ny.hour * 60 + ny.minute
+    if 4 * 60 <= minute < 9 * 60 + 30:
+        return "premarket", SESSION_INTERVAL_SECONDS["premarket"]
+    if 9 * 60 + 30 <= minute < 16 * 60:
+        return "regular", SESSION_INTERVAL_SECONDS["regular"]
+    if 16 * 60 <= minute < 20 * 60:
+        return "afterhours", SESSION_INTERVAL_SECONDS["afterhours"]
+    return "offhours", SESSION_INTERVAL_SECONDS["offhours"]
 
 
 def _write_state(path, state):
@@ -43,9 +88,49 @@ def _write_state(path, state):
             os.unlink(name)
 
 
+def _article_key(article):
+    article_id = article.get("id") or article.get("newsId")
+    if article_id not in (None, ""):
+        return "id:" + str(article_id)
+    story_path = str(article.get("storyPath") or "").strip()
+    if story_path:
+        return "story:" + story_path
+    return "fallback:%s|%s" % (
+        str(article.get("published") or ""),
+        str(article.get("title") or "").strip(),
+    )
+
+
+def _article_is_recent(article, now):
+    try:
+        published = float(article.get("published"))
+    except (TypeError, ValueError):
+        return True
+    return published >= now - CACHE_MAX_AGE_SECONDS
+
+
+def _merge_items(fresh, existing, now):
+    """Merge newest API rows into a bounded 48-hour local cache."""
+    merged = []
+    seen = set()
+    for article in list(fresh) + list(existing):
+        if not isinstance(article, dict) or not _article_is_recent(article, now):
+            continue
+        key = _article_key(article)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(article)
+        if len(merged) >= MAX_CACHE_ITEMS:
+            break
+    return merged
+
+
 def _load_news(key, *, now=None, opener=None):
     now = time.time() if now is None else float(now)
     month = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime("%Y-%m")
+    session, interval_seconds = collection_session(now)
+    monthly_limit = _monthly_request_limit()
     path = CACHE_PATH
     if not path.parent.is_dir() or path.parent.is_symlink() or path.is_symlink():
         return []
@@ -53,6 +138,7 @@ def _load_news(key, *, now=None, opener=None):
     if lock_path.is_symlink():
         return []
     opener = opener or urllib.request.urlopen
+
     with lock_path.open("a+", encoding="utf-8") as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         if path.exists():
@@ -64,9 +150,23 @@ def _load_news(key, *, now=None, opener=None):
                 # Fail closed rather than resetting the API request counter.
                 return []
         else:
-            state = {"month": month, "requests": 0, "last_attempt": 0, "items": []}
+            state = {
+                "month": month,
+                "requests": 0,
+                "last_attempt": 0,
+                "last_success": 0,
+                "items": [],
+            }
+
         if state.get("month") != month:
-            state = {"month": month, "requests": 0, "last_attempt": 0, "items": []}
+            state = {
+                "month": month,
+                "requests": 0,
+                "last_attempt": 0,
+                "last_success": 0,
+                "items": state.get("items", []) if isinstance(state.get("items"), list) else [],
+            }
+
         try:
             attempts = int(state.get("requests", 0))
             last_attempt = float(state.get("last_attempt", 0))
@@ -75,12 +175,21 @@ def _load_news(key, *, now=None, opener=None):
                 return []
         except (ValueError, TypeError):
             return []
-        if now - last_attempt < MIN_REQUEST_INTERVAL_SECONDS or attempts >= MONTHLY_REQUEST_LIMIT:
-            return items if now - last_attempt <= 48 * 3600 else []
-        # Record usage BEFORE the HTTP request to avoid accidentally paid retries.
+
+        # Keep useful recent cache data even after a monthly budget is reached.
+        cached = [x for x in items if isinstance(x, dict) and _article_is_recent(x, now)]
+        if now - last_attempt < interval_seconds or attempts >= monthly_limit:
+            return cached
+
+        # Record usage BEFORE the HTTP request to avoid accidental retry storms.
         state["requests"] = attempts + 1
         state["last_attempt"] = now
+        state["session"] = session
+        state["interval_seconds"] = interval_seconds
+        state["monthly_limit"] = monthly_limit
+        state["items"] = cached
         _write_state(path, state)
+
         query = urllib.parse.urlencode({"lang": "ko", "market_country": "US"})
         req = urllib.request.Request(
             API_URL + "?" + query,
@@ -99,12 +208,46 @@ def _load_news(key, *, now=None, opener=None):
             fresh = data.get("items") if isinstance(data, dict) else None
             if not isinstance(fresh, list):
                 raise ValueError("invalid_tradingview_news_items")
-            state["items"] = [x for x in fresh[:300] if isinstance(x, dict)]
+            state["items"] = _merge_items(
+                [x for x in fresh if isinstance(x, dict)],
+                cached,
+                now,
+            )
+            state["last_success"] = now
+            state.pop("last_error", None)
             _write_state(path, state)
+            print(
+                "[provider:tradingview-news] refreshed session=%s items=%s requests=%s/%s"
+                % (session, len(state["items"]), state["requests"], monthly_limit),
+                flush=True,
+            )
             return state["items"]
         except Exception as exc:
-            print("[provider:tradingview-news] request_failed=%s" % type(exc).__name__, flush=True)
-            return items if now - last_attempt <= 48 * 3600 else []
+            state["last_error"] = type(exc).__name__
+            state["items"] = cached
+            _write_state(path, state)
+            print(
+                "[provider:tradingview-news] request_failed=%s"
+                % type(exc).__name__,
+                flush=True,
+            )
+            return cached
+
+
+def refresh_news_cache(*, now=None, opener=None):
+    """Refresh/read the shared US cache without doing any DB or AI work."""
+    key = os.environ.get("TRADINGVIEW_API_KEY", "").strip()
+    if not key:
+        return []
+    try:
+        return _load_news(key, now=now, opener=opener)
+    except (OSError, ValueError) as exc:
+        print(
+            "[provider:tradingview-news] cache_failed=%s"
+            % type(exc).__name__,
+            flush=True,
+        )
+        return []
 
 
 def fetch_stock_news(ticker):
@@ -112,14 +255,8 @@ def fetch_stock_news(ticker):
     ticker = str(ticker or "").upper().strip()
     if not re.fullmatch(r"[A-Z][A-Z0-9.-]{0,15}", ticker):
         return []
-    key = os.environ.get("TRADINGVIEW_API_KEY", "").strip()
-    if not key:
-        return []
-    try:
-        items = _load_news(key)
-    except (OSError, ValueError) as exc:
-        print("[provider:tradingview-news] cache_failed=%s" % type(exc).__name__, flush=True)
-        return []
+
+    items = refresh_news_cache()
     results = []
     for article in items:
         related = article.get("relatedSymbols") or []
@@ -134,20 +271,27 @@ def fetch_stock_news(ticker):
         title = str(article.get("title") or "").strip()
         if not title:
             continue
-        # Use the TradingView news page path as the article destination.
-        # Publisher/original URLs are intentionally not used.
+
         story_path = str(article.get("storyPath") or "").strip()
-        link = "https://www.tradingview.com" + story_path if story_path.startswith("/news/") else ""
+        link = (
+            "https://www.tradingview.com" + story_path
+            if story_path.startswith("/news/")
+            else ""
+        )
         stamp = article.get("published")
         try:
-            published = dt.datetime.fromtimestamp(int(stamp), dt.timezone.utc).isoformat()
+            published = dt.datetime.fromtimestamp(
+                int(stamp), dt.timezone.utc
+            ).isoformat()
         except (TypeError, ValueError, OverflowError, OSError):
             continue
+
         provider = article.get("provider")
-        source = str(provider.get("name") or "TradingView") if isinstance(provider, dict) else "TradingView"
-        # Preserve TradingView's supplied content and rights metadata.
-        # The list response may omit story-detail fields; keep them empty rather
-        # than substituting publisher text or generating a summary.
+        source = (
+            str(provider.get("name") or "TradingView")
+            if isinstance(provider, dict)
+            else "TradingView"
+        )
         short_description = str(
             article.get("shortDescription")
             or article.get("short_description")
@@ -158,12 +302,17 @@ def fetch_stock_news(ticker):
             if article.get("astDescription") is not None
             else article.get("ast_description")
         )
+
         results.append({
             "title": title,
             "description": short_description,
             "summary": short_description,
             "short_description": short_description,
-            "ast_description": ast_description if isinstance(ast_description, (dict, list, str)) else None,
+            "ast_description": (
+                ast_description
+                if isinstance(ast_description, (dict, list, str))
+                else None
+            ),
             "news_id": article.get("id") or article.get("newsId"),
             "permission": article.get("permission"),
             "paywall": article.get("paywall"),
