@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/providers/tradingview_news_bundle.py","target":"backend/providers/tradingview_news_bundle.py"}
+{"operation":"run","path":"ops/do-gateway/test_news_four_feeds_offline_20261107.py","request_id":"newsready1107d","timeout":90}
