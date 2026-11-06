@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/inspect_news_unit.py","request_id":"inspectnewsunit20261106","timeout":60}
