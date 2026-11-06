@@ -1,4 +1,4 @@
-"""Optional, budget-capped TradingView Data API article-detail enrichment.
+"""TradingView Data API article-detail enrichment.
 
 Uses the IDs already returned by the US news bundle (no additional list request).
 No network call unless enrich_articles() is explicitly given a positive max_requests.
@@ -13,7 +13,6 @@ import urllib.parse
 import urllib.request
 
 DETAIL_BASE_URL = "https://api.tradingviewapi.com/api/news/"
-MAX_PER_RUN = 10
 MAX_DETAIL_CHARS = 100_000
 MAX_FIELD_CHARS = 10_000
 
@@ -38,7 +37,7 @@ def _get_detail(news_id, key, opener):
         "User-Agent": "gaemiGTP-news-worker/1.0",
     })
     with opener(request, timeout=10) as response:
-        payload = json.loads(response.read(200_000).decode("utf-8"))
+        payload = json.loads(response.read(2_000_000).decode("utf-8"))
     if not isinstance(payload, dict) or payload.get("success") is not True:
         raise ValueError("invalid_news_detail_response")
     data = payload.get("data")
@@ -96,12 +95,12 @@ def _extract_detail(data):
 def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
     """Return (new_items, stats). Positive budget is required for API calls.
 
-    Details are fetched only once for IDs missing body, description or summary.
+    Details are fetched only once for IDs not previously checked.
     A 429 stops the run instead of retrying, to prevent overspending.
     Raw article bodies remain in the short-lived private worker cache; publication requires separate rights approval.
-    Headline-only articles are not enriched into publicly displayed summaries.
+    Headline-only rights are recorded separately from whether the detail endpoint contains text.
     """
-    budget = max(0, min(int(max_requests), MAX_PER_RUN))
+    budget = max(0, int(max_requests))
     key = (api_key if api_key is not None else os.getenv("TRADINGVIEW_API_KEY", "")).strip()
     opener = opener or urllib.request.urlopen
     rows = [dict(item) for item in items if isinstance(item, dict)]
