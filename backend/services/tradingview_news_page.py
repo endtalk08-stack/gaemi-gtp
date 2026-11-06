@@ -22,7 +22,7 @@ CATEGORY_RULES = (
         "earnings", "quarterly results", "financial results", "실적 발표",
         "실적발표", "어닝", "매출", "영업이익", "순이익", "eps",
     )),
-    ("guidance", "실적 전망", (
+    ("guidance", "실적 발표", (
         "guidance", "outlook", "forecast", "가이던스", "전망 상향",
         "전망 하향", "연간 전망", "매출 전망",
     )),
@@ -56,7 +56,7 @@ CATEGORY_RULES = (
         "lawsuit", "sued", "litigation", "recall", "breach", "cyberattack",
         "outage", "accident", "소송", "리콜", "보안 사고", "해킹", "사고",
     )),
-    ("regulation", "기업 관련 인허가·규제", (
+    ("regulation", "인허가·규제", (
         "fda", "approval", "approved", "rejects", "rejected", "ban",
         "regulator", "antitrust", "승인", "승인 거절", "판매 금지", "인허가",
         "규제 당국",
@@ -105,6 +105,19 @@ def _text(value):
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
+def _has_us_equity_symbol(article):
+    related = article.get("relatedSymbols") or article.get("related_symbols") or []
+    if not isinstance(related, list):
+        return False
+    for entry in related:
+        if not isinstance(entry, dict):
+            continue
+        symbol = str(entry.get("symbol") or "").upper()
+        if symbol.startswith(("NASDAQ:", "NYSE:", "AMEX:", "NYSEARCA:", "NYSEAMERICAN:", "BATS:")):
+            return True
+    return False
+
+
 def classify_article(article):
     haystack = " ".join((
         _text(article.get("title")),
@@ -115,7 +128,10 @@ def classify_article(article):
         source_categories = []
 
     stock_matches = []
-    if "stock" in source_categories:
+    stock_source = "stock" in source_categories or (
+        "overall" in source_categories and _has_us_equity_symbol(article)
+    )
+    if stock_source:
         for code, label, terms in CATEGORY_RULES:
             if any(str(term).lower() in haystack for term in terms):
                 stock_matches.append({"code": code, "label": label})
@@ -129,9 +145,9 @@ def classify_article(article):
     if market_matches:
         return market_matches[0], market_matches, "market"
 
-    if "stock" in source_categories:
+    if stock_source:
         return {"code": "stock", "label": "종목"}, [], "stock"
-    if "economic" in source_categories:
+    if "overall" in source_categories or "economic" in source_categories:
         return {"code": "market_trend", "label": "시장동향"}, [], "market"
     if "index" in source_categories:
         return {"code": "major_index", "label": "주요지수"}, [], "market"
