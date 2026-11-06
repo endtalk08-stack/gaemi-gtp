@@ -51,8 +51,11 @@ def run_once():
 
 def main():
     print(
-        "[tradingview-news-worker] started desks=stock,economic,index,futures "
-        "mode=%s" % os.environ.get("TRADINGVIEW_NEWS_MODE", "basic_test"),
+        "[tradingview-news-worker] started desks=%s mode=%s"
+        % (
+            ",".join(tradingview_news_bundle.CATEGORIES),
+            os.environ.get("TRADINGVIEW_NEWS_MODE", "basic_test"),
+        ),
         flush=True,
     )
     while True:
