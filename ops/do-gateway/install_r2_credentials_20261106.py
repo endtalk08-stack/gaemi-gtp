@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-SOURCE = Path("/opt/gaemigtp-news/app/r2-bootstrap.enc")
+SOURCE = Path("/opt/gaemigtp-news/app/backend/r2-bootstrap.enc")
 PRIVATE_KEY = Path("/var/lib/gaemigtp-news/r2-bootstrap-key.pem")
 TARGET_DIR = Path("/var/lib/gaemigtp-news")
 TARGET = TARGET_DIR / "r2.env"
