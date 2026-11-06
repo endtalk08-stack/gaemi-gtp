@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/refresh_us_overall_news_once_20261107.py","request_id":"usoverall20261107once01","timeout":180}
+{"operation":"run","path":"ops/do-gateway/verify_us_news_detail_once_20261107.py","request_id":"usdetailverify20261107a","timeout":120}
