@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/systemd/gaemigtp-tradingview-news.service","target":"/etc/systemd/system/gaemigtp-tradingview-news.service"}
+{"operation":"deploy","path":"ops/systemd/gaemigtp-tradingview-news.service","target":"ops/systemd/gaemigtp-tradingview-news.service"}
