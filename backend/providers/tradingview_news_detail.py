@@ -83,9 +83,6 @@ def _extract_detail(data):
             "body", "articleBody", "article_body", "bodyText",
             "fullText", "full_text", "content", "text", "storyText",
         ), MAX_DETAIL_CHARS),
-        "detail_description": _first_field(data, (
-            "shortDescription", "short_description", "description", "excerpt",
-        ), MAX_FIELD_CHARS),
         "detail_summary": _first_field(data, (
             "summary", "shortSummary", "short_summary", "abstract",
         ), MAX_FIELD_CHARS),
@@ -103,8 +100,9 @@ def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
     budget = max(0, int(max_requests))
     key = (api_key if api_key is not None else os.getenv("TRADINGVIEW_API_KEY", "")).strip()
     opener = opener or urllib.request.urlopen
-    rows = [dict(item) for item in items if isinstance(item, dict)]
-    stats = {"requested": 0, "bodies": 0, "described": 0, "summarized": 0, "blocked": 0, "failed": 0, "skipped": 0}
+    rows = [{k: v for k, v in item.items() if k not in ("shortDescription", "short_description", "description", "detail_description", "excerpt")}
+            for item in items if isinstance(item, dict)]
+    stats = {"requested": 0, "bodies": 0, "summarized": 0, "blocked": 0, "failed": 0, "skipped": 0}
     if not budget or not key:
         stats["skipped"] = len(rows)
         return rows, stats
@@ -136,14 +134,11 @@ def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
             # Keep retrieved material private. Publication is separate.
             for field, metric in (
                 ("detail_body", "bodies"),
-                ("detail_description", "described"),
                 ("detail_summary", "summarized"),
             ):
                 if values[field]:
                     row[field] = values[field]
                     stats[metric] += 1
-            if values["detail_description"] and not row.get("shortDescription"):
-                row["shortDescription"] = values["detail_description"]
             row["detail_checked"] = "content" if any(values.values()) else "no_content"
         except urllib.error.HTTPError as exc:
             stats["failed"] += 1
