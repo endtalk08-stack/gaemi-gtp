@@ -22,7 +22,7 @@ CATEGORY_RULES = (
         "earnings", "quarterly results", "financial results", "실적 발표",
         "실적발표", "어닝", "매출", "영업이익", "순이익", "eps",
     )),
-    ("guidance", "실적 발표", (
+    ("guidance", "실적 전망", (
         "guidance", "outlook", "forecast", "가이던스", "전망 상향",
         "전망 하향", "연간 전망", "매출 전망",
     )),
