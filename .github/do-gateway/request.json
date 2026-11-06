@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/compare_overall_stock_structure_20261107.py","request_id":"tvoverallstock20261107","timeout":60}
+{"operation":"run","path":"ops/do-gateway/test_uploaded_menu_classification_20261107.py","request_id":"tvmenutest20261107","timeout":60}
