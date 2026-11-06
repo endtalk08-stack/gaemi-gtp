@@ -47,6 +47,8 @@ body{background:var(--bg);color:var(--txt);display:flex;justify-content:center;p
 .news-card-foot{display:flex;justify-content:flex-end;align-items:center;margin-top:1px}
 .news-time{font-size:11px;color:var(--sub);white-space:nowrap}
 .news-summary{font-size:12px;line-height:1.55;color:var(--sub);margin:0}
+.article-text{font-size:13px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--txt)}
+.article-empty{font-size:12px;color:var(--sub);line-height:1.6}
 .empty{padding:60px 20px;text-align:center;color:var(--sub);font-size:14px}
 .empty .icon{width:40px;height:40px;margin:0 auto 12px;opacity:.4}
 .more-btn{width:100%;background:var(--card);color:var(--txt);border:none;border-radius:8px;padding:15px;margin-bottom:10px;font-size:14px;font-weight:bold;cursor:pointer;transition:background .2s;text-align:center}
@@ -211,6 +213,8 @@ margin-top:4px;
 <div class="prev-bot"><span class="prev-views"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span id="detViews">0</span></span></div>
 </div>
 
+<div class="info-sec"><div class="info-title">기사 내용</div><div id="detArticleContent" class="article-text"></div></div>
+
 <div class="info-sec"><div class="info-title">관련 이슈</div><div class="chip-row" id="detIssues"></div></div>
 <div class="info-sec"><div class="info-title">관련 종목</div><div class="stocks-col" id="detStocks"></div></div>
 <div class="info-sec"><div class="info-title">관련 산업·테마</div><div class="chip-row" id="detIndustries"></div></div>
@@ -305,6 +309,8 @@ function openDetail(id){
  el("detTime").textContent=timeLabel(n.published_at);
  el("detTitle").textContent=n.title;
  el("detSource").textContent=n.source||"출처 미확인";
+ el("detArticleContent").textContent=n.body||"제공 가능한 기사 본문이 없습니다. 아래 기사 원문 링크에서 확인할 수 있습니다.";
+ el("detArticleContent").classList.toggle("article-empty",!n.body);
  // R2 source has no reliable view count: do not fabricate one.
  el("detViews").textContent="—";
  const issues=[...new Set((n.event_matches||[]).map(x=>x?.label).filter(Boolean))];
