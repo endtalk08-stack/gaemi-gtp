@@ -5,22 +5,24 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-SOURCE = Path("/home/gaemi-deploy/.gaemi-gateway/r2.env.enc")
+SOURCE = Path("/opt/gaemigtp-news/app/r2-bootstrap.enc")
 PRIVATE_KEY = Path("/var/lib/gaemigtp-news/r2-bootstrap-key.pem")
-TARGET_DIR = Path("/opt/gaemigtp-news/app")
-TARGET = TARGET_DIR / ".r2.env"
+TARGET_DIR = Path("/var/lib/gaemigtp-news")
+TARGET = TARGET_DIR / "r2.env"
 ALLOWED = ("R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")
 
-if os.geteuid() != 0:
-    raise SystemExit("R2_INSTALL_REQUIRES_ROOT")
 if not SOURCE.is_file() or SOURCE.is_symlink():
     raise SystemExit("R2_INSTALL_SOURCE_MISSING")
 if not PRIVATE_KEY.is_file() or PRIVATE_KEY.is_symlink():
     raise SystemExit("R2_INSTALL_PRIVATE_KEY_MISSING")
+if not TARGET_DIR.is_dir() or TARGET_DIR.is_symlink():
+    raise SystemExit("R2_INSTALL_TARGET_DIR_UNSAFE")
+if not os.access(TARGET_DIR, os.W_OK):
+    raise SystemExit("R2_INSTALL_TARGET_NOT_WRITABLE")
 
 plain_path = None
 try:
-    fd, plain_name = tempfile.mkstemp(prefix=".r2-plain-", dir="/var/lib/gaemigtp-news")
+    fd, plain_name = tempfile.mkstemp(prefix=".r2-plain-", dir=str(TARGET_DIR))
     os.close(fd)
     plain_path = Path(plain_name)
     os.chmod(plain_path, 0o600)
@@ -48,22 +50,17 @@ try:
     if set(values) != set(ALLOWED):
         raise SystemExit("R2_INSTALL_KEYS_MISSING")
 
-    TARGET_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chmod(TARGET_DIR, 0o700)
     tmp = TARGET_DIR / ".r2.env.tmp"
     with tmp.open("w", encoding="utf-8") as out:
         for key in ALLOWED:
             out.write(f"{key}={values[key]}\n")
     os.chmod(tmp, 0o600)
-    os.chown(tmp, 0, 0)
     os.replace(tmp, TARGET)
 finally:
-    SOURCE.unlink(missing_ok=True)
     if plain_path is not None:
         plain_path.unlink(missing_ok=True)
 
-st = TARGET.stat()
-if st.st_uid != 0 or st.st_gid != 0 or (st.st_mode & 0o777) != 0o600:
+if (TARGET.stat().st_mode & 0o777) != 0o600:
     raise SystemExit("R2_INSTALL_PERMISSIONS_FAILED")
 print("R2_CREDENTIALS_INSTALLED")
 print("R2_CREDENTIAL_VALUES_NOT_LOGGED")
