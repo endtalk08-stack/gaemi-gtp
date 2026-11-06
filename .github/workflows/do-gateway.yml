@@ -143,18 +143,18 @@ jobs:
             trap 'rm -f "$tmp_env" "$tmp_pub" "$tmp_enc"' EXIT
             printf 'R2_ACCESS_KEY_ID=%s\nR2_SECRET_ACCESS_KEY=%s\n' "$R2_ACCESS_KEY_ID" "$R2_SECRET_ACCESS_KEY" > "$tmp_env"
             cat > "$tmp_pub" <<'PUB'
------BEGIN PUBLIC KEY-----
-MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA5+zLXbipWkTNYgnoqLV1
-9uXClxV3zBqEvzcm2kJTvlvb/suHxyjoLUrhH5ZvGMg+f7vqCmjHkDZNCBKQ8cPI
-Vqk+7tF9c+MWsk/SWt255IPEVEW98pzfDcvY9fvilxmcadTrJTSClRYpPeEbQUK2
-650le5aYnmGo2rg9+lobe2V7qDqPdonKw4eCa3nlSw8LOCFWdA/ZolleT0wjd8TX
-StyqdXFL65pOzzzuNAY0bV/YanUdZR3fbKfjYeksY2P7caNbUDE3Tgi58gkBU3Wq
-CMVNjqzdnPviXULwHqiVG7mZeMYW6xV9CZFkqnEnuxl+AD6rjGor4LPYKtfan13l
-LRBssBSN2Ro8tnfgPxCB30jElXFR5HpPjNb+UNKRF0MWVrfGSsmQUex4Nrx5maFs
-tf7ql51R5qVYyspiEr6kdXggbEwueIsB2z6ESityE+FhHwbCXERDmfprSoCuBbDa
-UKaaujl4gxPKPV3iHSzUmQ7EyCS35ns2+p8Hqliv879ZAgMBAAE=
------END PUBLIC KEY-----
-PUB
+            -----BEGIN PUBLIC KEY-----
+            MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA5+zLXbipWkTNYgnoqLV1
+            9uXClxV3zBqEvzcm2kJTvlvb/suHxyjoLUrhH5ZvGMg+f7vqCmjHkDZNCBKQ8cPI
+            Vqk+7tF9c+MWsk/SWt255IPEVEW98pzfDcvY9fvilxmcadTrJTSClRYpPeEbQUK2
+            650le5aYnmGo2rg9+lobe2V7qDqPdonKw4eCa3nlSw8LOCFWdA/ZolleT0wjd8TX
+            StyqdXFL65pOzzzuNAY0bV/YanUdZR3fbKfjYeksY2P7caNbUDE3Tgi58gkBU3Wq
+            CMVNjqzdnPviXULwHqiVG7mZeMYW6xV9CZFkqnEnuxl+AD6rjGor4LPYKtfan13l
+            LRBssBSN2Ro8tnfgPxCB30jElXFR5HpPjNb+UNKRF0MWVrfGSsmQUex4Nrx5maFs
+            tf7ql51R5qVYyspiEr6kdXggbEwueIsB2z6ESityE+FhHwbCXERDmfprSoCuBbDa
+            UKaaujl4gxPKPV3iHSzUmQ7EyCS35ns2+p8Hqliv879ZAgMBAAE=
+            -----END PUBLIC KEY-----
+            PUB
             openssl pkeyutl -encrypt -pubin -inkey "$tmp_pub" -in "$tmp_env" -out "$tmp_enc" \
               -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256
             scp "${SSH_OPTS[@]}" "$tmp_enc" gaemi-deploy@"$DO_HOST":.gaemi-gateway/r2.env.enc
