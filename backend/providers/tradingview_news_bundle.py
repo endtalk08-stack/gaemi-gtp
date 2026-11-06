@@ -1,6 +1,6 @@
 """TradingView multi-category news collector for the standalone News App.
 
-Collects stock, economic, and futures desks into one bounded local cache.
+Collects the US-scoped overall news feed into one bounded local cache.
 No Neon or AI calls happen here.
 """
 from __future__ import annotations
@@ -17,7 +17,8 @@ import urllib.request
 from zoneinfo import ZoneInfo
 
 BASE_URL = "https://api.tradingviewapi.com/api/news"
-CATEGORIES = ("stock", "economic", "futures")
+CATEGORIES = ("overall",)
+FEED_VERSION = "overall-us-ko-v1"
 CACHE_PATH = Path("/var/lib/gaemigtp-news/tradingview-news-bundle.json")
 CACHE_MAX_AGE_SECONDS = 48 * 60 * 60
 MAX_CACHE_ITEMS = 4000
@@ -126,9 +127,9 @@ def _merge(fresh, existing, now):
     return merged
 
 
-def _request_category(key, category, opener):
+def _request_news(key, opener):
     params = {"lang": "ko", "market_country": "US"}
-    url = BASE_URL + "/" + category + "?" + urllib.parse.urlencode(params)
+    url = BASE_URL + "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(
         url,
         headers={
@@ -150,13 +151,13 @@ def _request_category(key, category, opener):
         if not isinstance(article, dict):
             continue
         row = dict(article)
-        row["news_category"] = category
-        row["news_categories"] = [category]
+        row["news_category"] = "overall"
+        row["news_categories"] = ["overall"]
         rows.append(row)
     return rows
 
 
-def refresh_news_cache(*, now=None, opener=None):
+def refresh_news_cache(*, now=None, opener=None, force=False):
     key = os.environ.get("TRADINGVIEW_API_KEY", "").strip()
     if not key:
         return []
@@ -179,7 +180,7 @@ def refresh_news_cache(*, now=None, opener=None):
                 return []
         if not isinstance(state, dict):
             return []
-        existing = state.get("items", [])
+        existing = state.get("items", []) if state.get("feed_version") == FEED_VERSION else []
         if not isinstance(existing, list):
             existing = []
         cached = [x for x in existing if isinstance(x, dict) and _recent(x, now)]
@@ -189,16 +190,17 @@ def refresh_news_cache(*, now=None, opener=None):
         slot_key = None
         if mode == "basic_test":
             session, slot_key = _basic_slot(now)
-            if slot_key is None or state.get("last_slot") == slot_key:
+            if not force and (slot_key is None or state.get("last_slot") == slot_key):
                 return cached
         else:
             try:
                 last_attempt = float(state.get("last_attempt", 0))
             except (TypeError, ValueError):
                 last_attempt = 0
-            if now - last_attempt < interval:
+            if not force and now - last_attempt < interval:
                 return cached
 
+        state["feed_version"] = FEED_VERSION
         state["last_attempt"] = now
         state["mode"] = mode
         state["session"] = session
@@ -211,30 +213,28 @@ def refresh_news_cache(*, now=None, opener=None):
         fresh = []
         ok_categories = []
         failed_categories = []
-        for category in CATEGORIES:
-            try:
-                rows = _request_category(key, category, opener)
-                fresh.extend(rows)
-                ok_categories.append(category)
-                print(
-                    "[provider:tradingview-bundle] category=%s items=%s"
-                    % (category, len(rows)),
-                    flush=True,
-                )
-            except Exception as exc:
-                failed_categories.append(category)
-                print(
-                    "[provider:tradingview-bundle] category=%s error=%s"
-                    % (category, type(exc).__name__),
-                    flush=True,
-                )
+        try:
+            fresh = _request_news(key, opener)
+            ok_categories.append("overall")
+            print(
+                "[provider:tradingview-bundle] category=overall items=%s"
+                % len(fresh),
+                flush=True,
+            )
+        except Exception as exc:
+            failed_categories.append("overall")
+            print(
+                "[provider:tradingview-bundle] category=overall error=%s"
+                % type(exc).__name__,
+                flush=True,
+            )
 
         state["items"] = _merge(fresh, cached, now)
         state["last_success"] = now if ok_categories else state.get("last_success", 0)
         state["ok_categories"] = ok_categories
         state["failed_categories"] = failed_categories
-        state["requests_last_refresh"] = len(CATEGORIES)
-        state["requests_total"] = int(state.get("requests_total", 0) or 0) + len(CATEGORIES)
+        state["requests_last_refresh"] = 1
+        state["requests_total"] = int(state.get("requests_total", 0) or 0) + 1
         _write(state)
         print(
             "[provider:tradingview-bundle] refreshed mode=%s session=%s items=%s categories=%s"
