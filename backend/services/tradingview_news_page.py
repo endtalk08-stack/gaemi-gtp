@@ -201,9 +201,11 @@ def normalize_article(article):
         "id": article.get("id") or article.get("newsId"),
         "published_at": _published_iso(article),
         "title": _text(article.get("title")),
-        "summary": _text(
-            article.get("shortDescription") or article.get("short_description")
-        ),
+        "summary": _text(article.get("detail_summary")),
+        "description": _text(article.get("detail_description") or article.get("shortDescription") or article.get("short_description")),
+        "body_available": bool(_text(article.get("detail_body"))),
+        "detail_status": _text(article.get("detail_checked")),
+        # Full source article bodies are never copied into publicly readable Pages JSON.
         "source": source,
         "url": _news_url(article),
         "symbols": _symbols(article),
