@@ -11,7 +11,7 @@ import json
 import os
 import time
 
-from backend.providers import tradingview_news
+from backend.providers import tradingview_news_bundle
 from backend.services.r2_news_uploader import upload_file
 from backend.services.tradingview_news_page import NEWS_PAGE_PATH, write_snapshot
 
@@ -23,7 +23,7 @@ def run_once():
     if not os.environ.get("TRADINGVIEW_API_KEY", "").strip():
         print("[tradingview-news-worker] missing TRADINGVIEW_API_KEY", flush=True)
         return 0
-    items = tradingview_news.refresh_news_cache()
+    items = tradingview_news_bundle.refresh_news_cache()
     global _last_uploaded_digest
     snapshot = write_snapshot(items)
     print(
@@ -51,8 +51,8 @@ def run_once():
 
 def main():
     print(
-        "[tradingview-news-worker] started mode=basic_test cadence=3x_us_trading_day; "
-        "set TRADINGVIEW_NEWS_MODE=pro after plan upgrade",
+        "[tradingview-news-worker] started desks=stock,economic,index,futures "
+        "mode=%s" % os.environ.get("TRADINGVIEW_NEWS_MODE", "basic_test"),
         flush=True,
     )
     while True:
