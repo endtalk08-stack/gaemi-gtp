@@ -241,7 +241,7 @@ margin-top:4px;
 "use strict";
 // Read-only display of the existing R2 snapshot. A Pages/Worker route must serve this JSON.
 const NEWS_URL=(window.ENV&&window.ENV.NEWS_R2_URL)||"/news/latest.json";
-const INIT=5, MAX_VISIBLE=10, FAV_KEY="news_app_favorites";
+const INIT=5, PAGE_SIZE=10, FAV_KEY="news_app_favorites";
 const marketCats=new Set(["증시","경제지표","연준","정부정책","관세","국제정세","에너지","금리·환율","주요지수","시장동향","미국장 마감"]);
 let news=[],filtered=[],cat="전체",q="",vis=INIT,relatedStocks=[],detail=null;
 const el=id=>document.getElementById(id);
@@ -277,8 +277,8 @@ function renderNews(){
   '<div class="news-title">'+escapeHTML(n.title)+'</div>'+
   (n.summary?'<p class="news-summary">'+escapeHTML(n.summary)+'</p>':"")+
   '<div class="news-card-foot"><span class="news-time">'+escapeHTML(timeLabel(n.published_at))+'</span></div></article>').join("");
- more.classList.toggle("hidden",filtered.length<=INIT);
- more.textContent=vis>INIT?"접기":"더보기 ("+(Math.min(MAX_VISIBLE,filtered.length)-INIT)+"개 더)";
+ more.classList.toggle("hidden",vis>=filtered.length);
+ more.textContent="더보기 ("+Math.min(PAGE_SIZE,filtered.length-vis)+"개 더)";
 }
 function renderStocks(){
  const container=el("detStocks");
@@ -329,7 +329,7 @@ async function loadNews(){
 }
 document.addEventListener("DOMContentLoaded",()=>{
  updateFavBadge();loadNews();
- el("moreBtn").addEventListener("click",()=>{vis=vis>INIT?INIT:Math.min(MAX_VISIBLE,filtered.length);renderNews();});
+ el("moreBtn").addEventListener("click",()=>{vis=Math.min(vis+PAGE_SIZE,filtered.length);renderNews();});
  el("categoryTabs").addEventListener("click",e=>{const b=e.target.closest(".cat");if(!b)return;document.querySelectorAll(".cat").forEach(x=>x.classList.remove("active"));b.classList.add("active");cat=b.dataset.cat;filterNews();});
  el("searchInput").addEventListener("input",e=>{q=e.target.value;filterNews();});
  el("newsList").addEventListener("click",e=>{const row=e.target.closest("[data-id]");if(row)openDetail(row.dataset.id);});
