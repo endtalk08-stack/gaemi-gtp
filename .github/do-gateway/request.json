@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_r2_upload_once_20261106.py","request_id":"r2uploadverify20261106","timeout":60}
+{"operation":"deploy","path":"backend/services/r2_news_uploader.py","target":"backend/services/r2_news_uploader.py"}
