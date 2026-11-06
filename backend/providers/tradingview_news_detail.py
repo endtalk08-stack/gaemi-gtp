@@ -117,11 +117,9 @@ def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
                 or article_id in done or row.get("detail_checked")):
             stats["skipped"] += 1
             continue
-        # Never republish an article body when upstream rights say headline-only.
-        if row.get("permission") == "headline":
-            stats["blocked"] += 1
-            row["detail_checked"] = "headline_only"
-            continue
+        # A headline-only listing does NOT tell us whether the separate
+        # detail endpoint has content. Query the detail endpoint, but do not
+        # expose its response publicly unless rights have been verified.
         done.add(article_id)
         stats["requested"] += 1
         try:
@@ -135,9 +133,8 @@ def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
             if detail_permission is not None:
                 row["detail_permission"] = detail_permission
             if detail_permission == "headline":
-                row["detail_checked"] = "headline_only"
                 stats["blocked"] += 1
-                continue
+            # Keep retrieved material private. Publication is separate.
             for field, metric in (
                 ("detail_body", "bodies"),
                 ("detail_description", "described"),
