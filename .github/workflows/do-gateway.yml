@@ -115,11 +115,22 @@ jobs:
           ARG2: ${{ steps.request.outputs.arg2 }}
           ARG3: ${{ steps.request.outputs.arg3 }}
           SOURCE: ${{ steps.request.outputs.source }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
           if [[ -n "$SOURCE" ]]; then
             ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'install -d -m 0700 "$HOME/.gaemi-gateway"'
             scp "${SSH_OPTS[@]}" "$SOURCE" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
+          fi
+          if [[ "$SOURCE" == "ops/do-gateway/install_r2_credentials_20261106.py" ]]; then
+            test -n "$R2_ACCESS_KEY_ID" && test -n "$R2_SECRET_ACCESS_KEY"
+            umask 077
+            tmp_env="$(mktemp)"
+            trap 'rm -f "$tmp_env"' EXIT
+            printf 'R2_ACCESS_KEY_ID=%s\nR2_SECRET_ACCESS_KEY=%s\n' "$R2_ACCESS_KEY_ID" "$R2_SECRET_ACCESS_KEY" > "$tmp_env"
+            scp "${SSH_OPTS[@]}" "$tmp_env" gaemi-deploy@"$DO_HOST":.gaemi-gateway/r2.env
+            ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'chmod 600 "$HOME/.gaemi-gateway/r2.env"'
           fi
           ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway "$ACTION" ${ARG1:+"$ARG1"} ${ARG2:+"$ARG2"} ${ARG3:+"$ARG3"}
