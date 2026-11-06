@@ -29,7 +29,14 @@ SESSION_INTERVAL_SECONDS = {
     "afterhours": 10 * 60,
     "offhours": 30 * 60,
 }
-DEFAULT_MONTHLY_REQUEST_LIMIT = 90
+# Basic test mode spends at most three HTTP requests per US trading day.
+# Windows are New York local time and therefore follow DST automatically.
+BASIC_COLLECTION_WINDOWS = {
+    "premarket": (8 * 60 + 30, 9 * 60),
+    "regular": (12 * 60 + 30, 13 * 60),
+    "afterhours": (16 * 60 + 30, 17 * 60),
+}
+DEFAULT_MONTHLY_REQUEST_LIMIT = 200
 CACHE_MAX_AGE_SECONDS = 48 * 60 * 60
 MAX_CACHE_ITEMS = 3000
 
@@ -46,11 +53,7 @@ def _monthly_request_limit():
 
 
 def collection_session(now=None):
-    """Return the current US-news collection session and interval.
-
-    Weekends use the off-hours cadence. Market holidays are intentionally not
-    hard-coded here; the provider's API budget and dedupe still bound requests.
-    """
+    """Return the current US-news session and production interval."""
     stamp = time.time() if now is None else float(now)
     ny = dt.datetime.fromtimestamp(stamp, dt.timezone.utc).astimezone(
         ZoneInfo("America/New_York")
@@ -66,6 +69,26 @@ def collection_session(now=None):
     if 16 * 60 <= minute < 20 * 60:
         return "afterhours", SESSION_INTERVAL_SECONDS["afterhours"]
     return "offhours", SESSION_INTERVAL_SECONDS["offhours"]
+
+
+def _collection_mode():
+    value = os.environ.get("TRADINGVIEW_NEWS_MODE", "basic_test").strip().lower()
+    return "pro" if value == "pro" else "basic_test"
+
+
+def _basic_collection_slot(now):
+    """Return one of the three Basic test slots, or None when no call is due."""
+    stamp = time.time() if now is None else float(now)
+    ny = dt.datetime.fromtimestamp(stamp, dt.timezone.utc).astimezone(
+        ZoneInfo("America/New_York")
+    )
+    if ny.weekday() >= 5:
+        return None, None
+    minute = ny.hour * 60 + ny.minute
+    for name, (start, end) in BASIC_COLLECTION_WINDOWS.items():
+        if start <= minute < end:
+            return name, ny.strftime("%Y%m%d") + ":" + name
+    return None, None
 
 
 def _write_state(path, state):
@@ -130,6 +153,7 @@ def _load_news(key, *, now=None, opener=None):
     now = time.time() if now is None else float(now)
     month = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime("%Y-%m")
     session, interval_seconds = collection_session(now)
+    mode = _collection_mode()
     monthly_limit = _monthly_request_limit()
     path = CACHE_PATH
     if not path.parent.is_dir() or path.parent.is_symlink() or path.is_symlink():
@@ -178,15 +202,25 @@ def _load_news(key, *, now=None, opener=None):
 
         # Keep useful recent cache data even after a monthly budget is reached.
         cached = [x for x in items if isinstance(x, dict) and _article_is_recent(x, now)]
-        if now - last_attempt < interval_seconds or attempts >= monthly_limit:
+        slot_key = None
+        if mode == "basic_test":
+            session, slot_key = _basic_collection_slot(now)
+            if slot_key is None or state.get("last_slot") == slot_key:
+                return cached
+        elif now - last_attempt < interval_seconds:
+            return cached
+        if attempts >= monthly_limit:
             return cached
 
         # Record usage BEFORE the HTTP request to avoid accidental retry storms.
         state["requests"] = attempts + 1
         state["last_attempt"] = now
         state["session"] = session
-        state["interval_seconds"] = interval_seconds
+        state["mode"] = mode
+        state["interval_seconds"] = interval_seconds if mode == "pro" else None
         state["monthly_limit"] = monthly_limit
+        if slot_key is not None:
+            state["last_slot"] = slot_key
         state["items"] = cached
         _write_state(path, state)
 
@@ -217,8 +251,8 @@ def _load_news(key, *, now=None, opener=None):
             state.pop("last_error", None)
             _write_state(path, state)
             print(
-                "[provider:tradingview-news] refreshed session=%s items=%s requests=%s/%s"
-                % (session, len(state["items"]), state["requests"], monthly_limit),
+                "[provider:tradingview-news] refreshed mode=%s session=%s items=%s requests=%s/%s"
+                % (mode, session, len(state["items"]), state["requests"], monthly_limit),
                 flush=True,
             )
             return state["items"]
