@@ -213,7 +213,7 @@ margin-top:4px;
 <div class="prev-bot"><span class="prev-views"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span id="detViews">0</span></span></div>
 </div>
 
-<div class="info-sec" id="detSummarySection" style="display:none"><div class="info-title">기사 요약</div><div id="detSummary" class="article-text"></div></div>
+
 
 <div class="info-sec"><div class="info-title">기사 본문</div><div id="detArticleContent" class="article-text"></div></div>
 
@@ -284,7 +284,7 @@ function timeLabel(iso){
 }
 function filterNews(){
  const term=q.trim().toLowerCase();
- filtered=news.filter(n=>inCategory(n)&&(!term||[n.title,n.source,n.summary,n.description,...(n.symbols||[]),...(n.event_matches||[]).map(x=>x.label)].join(" ").toLowerCase().includes(term)));
+ filtered=news.filter(n=>inCategory(n)&&(!term||[n.title,n.source,n.summary,...(n.symbols||[]),...(n.event_matches||[]).map(x=>x.label)].join(" ").toLowerCase().includes(term)));
  vis=INIT;renderNews();
 }
 function renderNews(){
@@ -311,8 +311,7 @@ function openDetail(id){
  el("detTime").textContent=timeLabel(n.published_at);
  el("detTitle").textContent=n.title;
  el("detSource").textContent=n.source||"출처 미확인";
- el("detSummary").textContent=n.summary||"";
- el("detSummarySection").style.display=n.summary?"block":"none";
+
 
  el("detArticleContent").textContent=n.body||"";
  el("detArticleContent").classList.toggle("article-empty",!n.body);
