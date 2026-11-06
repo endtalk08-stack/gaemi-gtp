@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/cleanup_r2_bootstrap_20261106.py","request_id":"r2bootstrapcleanup","timeout":60}
+{"operation":"run","path":"ops/do-gateway/cleanup_r2_bootstrap_keys_20261106.py","request_id":"r2keycleanup20261106","timeout":60}
