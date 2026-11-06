@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect_tradingview_snapshot_20261107.py","request_id":"tvinspect20261107","timeout":60}
+{"operation":"run","path":"ops/do-gateway/verify_tradingview_index_params_20261107.py","request_id":"tvindexparams20261107","timeout":60}
