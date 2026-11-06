@@ -45,14 +45,18 @@ class DetailTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertIn("tag%3Aabc%2F1", calls[0])
 
-    def test_headline_permission_blocks_details(self):
-        def unexpected(*args, **kwargs):
-            raise AssertionError("network called")
+    def test_headline_listing_still_checks_detail(self):
+        calls = []
+        def fake(request, timeout):
+            calls.append(request.full_url)
+            return FakeResponse({"success": True, "data": {"body": "Detail API body", "permission": "headline"}})
         rows, stat = enrich_articles([{"id": "one", "permission": "headline"}],
-                                     max_requests=2, api_key="test", opener=unexpected)
+                                     max_requests=2, api_key="test", opener=fake)
         self.assertEqual(stat["blocked"], 1)
-        self.assertEqual(stat["requested"], 0)
-        self.assertNotIn("shortDescription", rows[0])
+        self.assertEqual(stat["requested"], 1)
+        self.assertEqual(stat["bodies"], 1)
+        self.assertEqual(rows[0]["detail_body"], "Detail API body")
+        self.assertEqual(len(calls), 1)
 
     def test_rate_limit_stops_other_requests(self):
         calls = []
