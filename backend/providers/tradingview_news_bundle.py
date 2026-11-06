@@ -1,6 +1,7 @@
 """TradingView multi-category news collector for the standalone News App.
 
-Collects the US-scoped overall news feed into one bounded local cache.
+Supports four documented US news desks in one deduplicated local cache.
+Four-feed collection is disabled unless explicitly opted in (no extra API charges).
 No Neon or AI calls happen here.
 """
 from __future__ import annotations
@@ -17,7 +18,9 @@ import urllib.request
 from zoneinfo import ZoneInfo
 
 BASE_URL = "https://api.tradingviewapi.com/api/news"
-CATEGORIES = ("overall",)
+CATEGORIES = ("overall", "stock", "economic", "index")
+# Preserve the current single-request schedule until the account owner enables 4 feeds.
+FOUR_FEEDS_ENV = "TRADINGVIEW_NEWS_FOUR_FEEDS_ENABLED"
 FEED_VERSION = "overall-us-ko-v1"
 CACHE_PATH = Path("/var/lib/gaemigtp-news/tradingview-news-bundle.json")
 CACHE_MAX_AGE_SECONDS = 48 * 60 * 60
@@ -132,9 +135,12 @@ def _merge(fresh, existing, now):
     return merged
 
 
-def _request_news(key, opener):
+def _request_news(key, opener, category="overall"):
+    if category not in CATEGORIES:
+        raise ValueError("unsupported_news_category")
     params = {"lang": "ko", "market_country": "US"}
-    url = BASE_URL + "?" + urllib.parse.urlencode(params)
+    endpoint = BASE_URL if category == "overall" else BASE_URL + "/" + category
+    url = endpoint + "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(
         url,
         headers={
@@ -156,8 +162,8 @@ def _request_news(key, opener):
         if not isinstance(article, dict):
             continue
         row = dict(article)
-        row["news_category"] = "overall"
-        row["news_categories"] = ["overall"]
+        row["news_category"] = category
+        row["news_categories"] = [category]
         rows.append(row)
     return rows
 
@@ -218,28 +224,33 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
         fresh = []
         ok_categories = []
         failed_categories = []
-        try:
-            fresh = _request_news(key, opener)
-            ok_categories.append("overall")
-            print(
-                "[provider:tradingview-bundle] category=overall items=%s"
-                % len(fresh),
-                flush=True,
-            )
-        except Exception as exc:
-            failed_categories.append("overall")
-            print(
-                "[provider:tradingview-bundle] category=overall error=%s"
-                % type(exc).__name__,
-                flush=True,
-            )
+        # Do not turn one monthly-quota request into four without opt-in.
+        enabled = os.environ.get(FOUR_FEEDS_ENV, "").strip() == "1"
+        categories = CATEGORIES if enabled else ("overall",)
+        attempted = 0
+        for category in categories:
+            attempted += 1
+            try:
+                batch = _request_news(key, opener, category)
+                fresh.extend(batch)
+                ok_categories.append(category)
+                print(
+                    "[provider:tradingview-bundle] category=%s items=%s" % (category, len(batch)),
+                    flush=True,
+                )
+            except Exception as exc:
+                failed_categories.append(category)
+                print(
+                    "[provider:tradingview-bundle] category=%s error=%s" % (category, type(exc).__name__),
+                    flush=True,
+                )
 
         state["items"] = _merge(fresh, cached, now)
         state["last_success"] = now if ok_categories else state.get("last_success", 0)
         state["ok_categories"] = ok_categories
         state["failed_categories"] = failed_categories
-        state["requests_last_refresh"] = 1
-        state["requests_total"] = int(state.get("requests_total", 0) or 0) + 1
+        state["requests_last_refresh"] = attempted
+        state["requests_total"] = int(state.get("requests_total", 0) or 0) + attempted
         _write(state)
         print(
             "[provider:tradingview-bundle] refreshed mode=%s session=%s items=%s categories=%s"
