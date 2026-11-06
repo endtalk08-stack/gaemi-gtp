@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/do-gateway/empty_r2_bootstrap_payload_20261106.bin","target":"backend/r2-bootstrap.enc"}
+{"operation":"run","path":"ops/do-gateway/verify_r2_bootstrap_zeroized_20261106.py","request_id":"r2zeroverify20261106","timeout":60}
