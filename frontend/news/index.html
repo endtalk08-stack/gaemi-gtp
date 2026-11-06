@@ -154,12 +154,41 @@ margin-top:4px;
 </div>
 
 <div class="cats" id="categoryTabs">
-<div class="cat-row" id="primaryTabs" role="group" aria-label="뉴스 대분류">
+<div class="cat-row">
 <button class="cat active" data-major="전체" aria-pressed="true">전체</button>
 <button class="cat" data-major="종목" aria-pressed="false">종목</button>
-<button class="cat" data-major="증시" aria-pressed="false">증시</button>
+<button class="cat" data-minor="실적 발표" aria-pressed="false">실적 발표</button>
+<button class="cat" data-minor="실적 전망" aria-pressed="false">실적 전망</button>
+<button class="cat" data-minor="증권사 평가" aria-pressed="false">증권사 평가</button>
+<button class="cat" data-minor="사업 성과" aria-pressed="false">사업 성과</button>
+<button class="cat" data-minor="계약·수주" aria-pressed="false">계약·수주</button>
+<button class="cat" data-minor="제품·기술" aria-pressed="false">제품·기술</button>
+<button class="cat" data-minor="재무·주주환원" aria-pressed="false">재무·주주환원</button>
 </div>
-<div class="cat-row" id="subcategoryTabs" role="group" aria-label="뉴스 중분류" hidden></div>
+<div class="cat-row">
+<button class="cat" data-minor="인수합병·구조조정" aria-pressed="false">인수합병·구조조정</button>
+<button class="cat" data-minor="법률·사고" aria-pressed="false">법률·사고</button>
+<button class="cat" data-minor="인허가·규제" aria-pressed="false">인허가·규제</button>
+<button class="cat" data-minor="종목별 수급" aria-pressed="false">종목별 수급</button>
+<button class="cat" data-minor="연구개발·임상" aria-pressed="false">연구개발·임상</button>
+<button class="cat" data-minor="제휴·공급망" aria-pressed="false">제휴·공급망</button>
+<button class="cat" data-minor="경영진·지배구조" aria-pressed="false">경영진·지배구조</button>
+</div>
+<div class="cat-row">
+<button class="cat" data-major="증시" aria-pressed="false">증시</button>
+<button class="cat" data-minor="경제지표" aria-pressed="false">경제지표</button>
+<button class="cat" data-minor="연준" aria-pressed="false">연준</button>
+<button class="cat" data-minor="정부정책" aria-pressed="false">정부정책</button>
+<button class="cat" data-minor="관세" aria-pressed="false">관세</button>
+<button class="cat" data-minor="국제정세" aria-pressed="false">국제정세</button>
+</div>
+<div class="cat-row">
+<button class="cat" data-minor="에너지" aria-pressed="false">에너지</button>
+<button class="cat" data-minor="금리·환율" aria-pressed="false">금리·환율</button>
+<button class="cat" data-minor="주요지수" aria-pressed="false">주요지수</button>
+<button class="cat" data-minor="시장동향" aria-pressed="false">시장동향</button>
+<button class="cat" data-minor="미국장 마감" aria-pressed="false">미국장 마감</button>
+</div>
 </div>
 
 <div>
@@ -235,18 +264,11 @@ function inCategory(n){
  return category(n)===minor||(Array.isArray(n.event_matches)&&n.event_matches.some(x=>x?.label===minor));
 }
 function renderCategoryTabs(){
- document.querySelectorAll("#primaryTabs [data-major]").forEach(b=>{
-  const active=b.dataset.major===major;
+ // Keep the original four-row menu layout, only update selection state.
+ document.querySelectorAll("#categoryTabs button.cat").forEach(b=>{
+  const active=b.dataset.major?major===b.dataset.major&&!minor:minor===b.dataset.minor;
   b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));
  });
- const sub=el("subcategoryTabs");
- // The primary "전체" choice must not hide all subordinate news filters.
- // Show all stock + market filters there; narrow them on a specific major tab.
- sub.hidden=false;
- const options=major==="종목"?stockCats:major==="증시"?marketCats:[...stockCats,...marketCats];
- sub.innerHTML=options.map(label=>
-  '<button class="cat'+(minor===label?' active':'')+'" data-minor="'+escapeHTML(label)+'" aria-pressed="'+String(minor===label)+'">'+escapeHTML(label)+'</button>'
- ).join("");
 }
 function timeLabel(iso){
  const d=new Date(iso||"");
@@ -319,7 +341,7 @@ async function loadNews(){
 document.addEventListener("DOMContentLoaded",()=>{
  updateFavBadge();renderCategoryTabs();loadNews();
  el("moreBtn").addEventListener("click",()=>{vis=Math.min(vis+PAGE_SIZE,filtered.length);renderNews();});
- el("categoryTabs").addEventListener("click",e=>{const b=e.target.closest("button.cat");if(!b)return;if(b.dataset.major){major=b.dataset.major;minor="";}else if(b.dataset.minor){minor=minor===b.dataset.minor?"":b.dataset.minor;}else{return;}renderCategoryTabs();filterNews();});
+ el("categoryTabs").addEventListener("click",e=>{const b=e.target.closest("button.cat");if(!b)return;if(b.dataset.major){major=b.dataset.major;minor="";}else if(b.dataset.minor){const chosen=b.dataset.minor;major=stockCatSet.has(chosen)?"종목":"증시";minor=minor===chosen?"":chosen;}else{return;}renderCategoryTabs();filterNews();});
  el("searchInput").addEventListener("input",e=>{q=e.target.value;filterNews();});
  el("newsList").addEventListener("click",e=>{const row=e.target.closest("[data-id]");if(row)openDetail(row.dataset.id);});
  el("newsList").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){const row=e.target.closest("[data-id]");if(row){e.preventDefault();openDetail(row.dataset.id);}}});
