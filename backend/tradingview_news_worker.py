@@ -6,13 +6,17 @@ that cache without causing per-ticker API fan-out.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import time
 
 from backend.providers import tradingview_news
-from backend.services.tradingview_news_page import write_snapshot
+from backend.services.r2_news_uploader import upload_file
+from backend.services.tradingview_news_page import NEWS_PAGE_PATH, write_snapshot
 
 CHECK_INTERVAL_SECONDS = 60
+_last_uploaded_digest = None
 
 
 def run_once():
@@ -20,11 +24,28 @@ def run_once():
         print("[tradingview-news-worker] missing TRADINGVIEW_API_KEY", flush=True)
         return 0
     items = tradingview_news.refresh_news_cache()
+    global _last_uploaded_digest
     snapshot = write_snapshot(items)
     print(
         "[tradingview-news-worker] page_snapshot items=%s" % snapshot["count"],
         flush=True,
     )
+    if snapshot["count"] > 0:
+        digest_payload = {
+            "source": snapshot["source"],
+            "taxonomy": snapshot["taxonomy"],
+            "count": snapshot["count"],
+            "category_counts": snapshot["category_counts"],
+            "items": snapshot["items"],
+        }
+        digest = hashlib.sha256(
+            json.dumps(
+                digest_payload, ensure_ascii=False, sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        if digest != _last_uploaded_digest and upload_file(NEWS_PAGE_PATH):
+            _last_uploaded_digest = digest
     return len(items)
 
 
