@@ -265,7 +265,7 @@ function timeLabel(iso){
 }
 function filterNews(){
  const term=q.trim().toLowerCase();
- filtered=news.filter(n=>inCategory(n,cat)&&(!term||[n.title,n.source,n.summary,...(n.symbols||[]),...(n.event_matches||[]).map(x=>x.label)].join(" ").toLowerCase().includes(term)));
+ filtered=news.filter(n=>inCategory(n,cat)&&(!term||[n.title,n.source,n.summary,n.description,...(n.symbols||[]),...(n.event_matches||[]).map(x=>x.label)].join(" ").toLowerCase().includes(term)));
  vis=INIT;renderNews();
 }
 function renderNews(){
