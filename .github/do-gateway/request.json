@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/republish_us_news_snapshot_20261107.py","request_id":"stripdesc1107b","timeout":90}
+{"operation":"deploy","path":"backend/providers/tradingview_news_bundle.py","target":"backend/providers/tradingview_news_bundle.py"}
