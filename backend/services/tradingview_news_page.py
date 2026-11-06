@@ -119,10 +119,7 @@ def _has_us_equity_symbol(article):
 
 
 def classify_article(article):
-    haystack = " ".join((
-        _text(article.get("title")),
-        _text(article.get("shortDescription") or article.get("short_description")),
-    )).lower()
+    haystack = _text(article.get("title")).lower()
     source_categories = article.get("news_categories") or []
     if not isinstance(source_categories, list):
         source_categories = []
