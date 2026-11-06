@@ -1,6 +1,6 @@
 """TradingView multi-category news collector for the standalone News App.
 
-Collects stock, economic, index, and futures desks into one bounded local cache.
+Collects stock, economic, and futures desks into one bounded local cache.
 No Neon or AI calls happen here.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ import urllib.request
 from zoneinfo import ZoneInfo
 
 BASE_URL = "https://api.tradingviewapi.com/api/news"
-CATEGORIES = ("stock", "economic", "index", "futures")
+CATEGORIES = ("stock", "economic", "futures")
 CACHE_PATH = Path("/var/lib/gaemigtp-news/tradingview-news-bundle.json")
 CACHE_MAX_AGE_SECONDS = 48 * 60 * 60
 MAX_CACHE_ITEMS = 4000
