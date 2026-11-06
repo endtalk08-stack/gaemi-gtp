@@ -1,0 +1,25 @@
+[Unit]
+Description=gaemiGTP TradingView US news collector (DigitalOcean)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+StateDirectory=gaemigtp-news
+StateDirectoryMode=0700
+Type=simple
+User=gaemigtp-news
+Group=gaemigtp-news
+WorkingDirectory=/opt/gaemigtp-news/app
+Environment=PYTHONDONTWRITEBYTECODE=1
+EnvironmentFile=/etc/gaemigtp/news-worker.env
+ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.tradingview_news_worker
+Restart=on-failure
+RestartSec=20
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
