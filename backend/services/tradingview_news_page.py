@@ -124,33 +124,38 @@ def classify_article(article):
     if not isinstance(source_categories, list):
         source_categories = []
 
-    stock_matches = []
     stock_source = "stock" in source_categories or (
         "overall" in source_categories and _has_us_equity_symbol(article)
     )
+    stock_matches = [
+        {"code": code, "label": label}
+        for code, label, terms in CATEGORY_RULES
+        if any(str(term).lower() in haystack for term in terms)
+    ] if stock_source else []
+    # An explicit stock feed / US equity association takes precedence over
+    # broad words like "stocks" and "market" in a company headline.
     if stock_source:
-        for code, label, terms in CATEGORY_RULES:
-            if any(str(term).lower() in haystack for term in terms):
-                stock_matches.append({"code": code, "label": label})
         if stock_matches:
             return stock_matches[0], stock_matches, "stock"
+        return {"code": "stock", "label": "종목"}, [], "stock"
 
-    market_matches = []
-    for code, label, terms in MARKET_RULES:
-        if any(str(term).lower() in haystack for term in terms):
-            market_matches.append({"code": code, "label": label})
+    # Specific market events take precedence over generic market terms.
+    market_matches = [
+        {"code": code, "label": label}
+        for code, label, terms in MARKET_RULES
+        if any(str(term).lower() in haystack for term in terms)
+    ]
+    specific = [match for match in market_matches
+                if match["code"] not in ("market", "market_trend", "sector")]
+    if specific:
+        return specific[0], market_matches, "market"
+    if "economic" in source_categories:
+        return {"code": "economic", "label": "경제지표"}, market_matches, "market"
+    if "index" in source_categories:
+        return {"code": "major_index", "label": "주요지수"}, market_matches, "market"
     if market_matches:
         return market_matches[0], market_matches, "market"
-
-    if stock_source:
-        return {"code": "stock", "label": "종목"}, [], "stock"
-    if "economic" in source_categories:
-        return {"code": "economic", "label": "경제지표"}, [], "market"
-    if "index" in source_categories:
-        return {"code": "major_index", "label": "주요지수"}, [], "market"
-    if "overall" in source_categories:
-        return {"code": "market_trend", "label": "시장동향"}, [], "market"
-    if "futures" in source_categories:
+    if "overall" in source_categories or "futures" in source_categories:
         return {"code": "market_trend", "label": "시장동향"}, [], "market"
     return {"code": "other", "label": "기타"}, [], "other"
 
