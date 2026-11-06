@@ -93,7 +93,10 @@ with tempfile.TemporaryDirectory() as td:
         assert [x["id"] for x in state["items"]]==["preserve"]
         assert "economic" in state["failed_categories"] and state["requests_last_refresh"]==4
 
-        combined=bundle.refresh_news_cache(now=now+1,opener=opener,force=True)
+        # Daily guard must block retries even with force=True.
+        block=bundle.refresh_news_cache(now=now+1,opener=no_api,force=True)
+        assert [x["id"] for x in block]==["preserve"]
+        combined=bundle.refresh_news_cache(now=now+86400,opener=opener,force=True)
         ids=[x["id"] for x in combined]
         assert set(ids)=={"news","stock","economic","index","shared","preserve"}, ids
         shared=next(x for x in combined if x["id"]=="shared")
@@ -101,6 +104,12 @@ with tempfile.TemporaryDirectory() as td:
         assert all("shortDescription" not in x for x in combined)
         state=json.loads(bundle.CACHE_PATH.read_text())
         assert not state["failed_categories"] and state["requests_last_refresh"]==4
+        assert state["four_feed_month_requests"]==8
+        # Monthly fail-closed protection, even with a forced run.
+        state["four_feed_month_requests"]=120
+        bundle.CACHE_PATH.write_text(json.dumps(state))
+        protected=bundle.refresh_news_cache(now=now+2*86400,opener=no_api,force=True)
+        assert len(protected)==6
     finally:
         bundle.CACHE_PATH=cache_path
         if oldkey is None: os.environ.pop("TRADINGVIEW_API_KEY",None)
