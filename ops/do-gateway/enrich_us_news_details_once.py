@@ -1,6 +1,6 @@
 """Explicit one-shot detail enrichment of the existing TradingView news cache.
 
-One-shot gateway run uses a default 10-request cap; optional override 1..10.
+One-shot gateway run processes all remaining article IDs by default; optional explicit cap.
 Does NOT call the list API, run AI, or start systemd services.
 Never run this automatically in the general news refresh.
 """
@@ -22,10 +22,6 @@ from backend.services.r2_news_uploader import upload_file
 
 
 def main():
-    raw = os.environ.get("NEWS_DETAIL_REQUEST_BUDGET", "10").strip()
-    budget = int(raw)
-    if not 1 <= budget <= 10:
-        raise SystemExit("NEWS_DETAIL_REQUEST_BUDGET must be 1..10")
     if not os.environ.get("TRADINGVIEW_API_KEY", "").strip():
         raise SystemExit("TRADINGVIEW_API_KEY not configured")
     if not CACHE_PATH.exists() or CACHE_PATH.is_symlink():
@@ -39,6 +35,12 @@ def main():
         items = state.get("items")
         if not isinstance(items, list) or not items:
             raise SystemExit("empty_existing_news_cache")
+        # No arbitrary ten-item cap. Skip details already checked and dedupe
+        # article IDs inside enrich_articles; stop on upstream rate limiting.
+        raw_budget = os.environ.get("NEWS_DETAIL_REQUEST_BUDGET", "").strip()
+        budget = len(items) if not raw_budget else int(raw_budget)
+        if budget < 1:
+            raise SystemExit("NEWS_DETAIL_REQUEST_BUDGET must be positive")
         updated, stats = enrich_articles(items, max_requests=budget)
         print("NEWS_DETAILS_STATS=" + json.dumps(stats, separators=(",", ":")), flush=True)
         # Save body/description/summary statuses even when a provider supplies
