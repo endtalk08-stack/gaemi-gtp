@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_uploaded_menu_classification_20261107.py","request_id":"tvmenutest20261107","timeout":60}
+{"operation":"deploy","path":"backend/providers/tradingview_news_bundle.py","target":"backend/providers/tradingview_news_bundle.py"}
