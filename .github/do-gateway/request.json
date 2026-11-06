@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/providers/tradingview_news.py","target":"backend/providers/tradingview_news.py"}
+{"operation":"restart","unit":"gaemigtp-tradingview-news.service"}
