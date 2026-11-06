@@ -1,6 +1,6 @@
 """Explicit one-shot detail enrichment of the existing TradingView news cache.
 
-Usage requires an intentional invocation with NEWS_DETAIL_REQUEST_BUDGET=1..10.
+One-shot gateway run uses a default 10-request cap; optional override 1..10.
 Does NOT call the list API, run AI, or start systemd services.
 Never run this automatically in the general news refresh.
 """
@@ -22,10 +22,10 @@ from backend.services.r2_news_uploader import upload_file
 
 
 def main():
-    raw = os.environ.get("NEWS_DETAIL_REQUEST_BUDGET", "0").strip()
+    raw = os.environ.get("NEWS_DETAIL_REQUEST_BUDGET", "10").strip()
     budget = int(raw)
     if not 1 <= budget <= 10:
-        raise SystemExit("NEWS_DETAIL_REQUEST_BUDGET must be 1..10 (explicit approval)")
+        raise SystemExit("NEWS_DETAIL_REQUEST_BUDGET must be 1..10")
     if not os.environ.get("TRADINGVIEW_API_KEY", "").strip():
         raise SystemExit("TRADINGVIEW_API_KEY not configured")
     if not CACHE_PATH.exists() or CACHE_PATH.is_symlink():
