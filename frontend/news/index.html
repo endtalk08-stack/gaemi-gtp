@@ -250,7 +250,7 @@ const safeText=v=>String(v??"").trim();
 const getFavs=()=>{try{const v=JSON.parse(localStorage.getItem(FAV_KEY)||"[]");return Array.isArray(v)?v:[]}catch{return[]}};
 const saveFavs=f=>{try{localStorage.setItem(FAV_KEY,JSON.stringify(f))}catch{}};
 const isFav=t=>getFavs().includes(t);
-const category=n=>safeText(n.event_category?.label||n.category||"시장동향");
+const category=n=>n.event_category?.code==="guidance"?"실적 전망":safeText(n.event_category?.label||n.category||"시장동향");
 const stockSection=n=>n.news_section==="stock"||category(n)==="종목";
 function inCategory(n,c){
  if(c==="전체")return true;
