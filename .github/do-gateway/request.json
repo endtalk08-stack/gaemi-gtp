@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_news_four_feeds_offline_20261107.py","request_id":"newsready1107d","timeout":90}
+{"operation":"upgrade","path":"ops/do-gateway/gaemi-do-gateway-stop-news-20261028"}
