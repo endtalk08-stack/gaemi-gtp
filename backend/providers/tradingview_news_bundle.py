@@ -104,13 +104,20 @@ def _recent(article, now):
         return True
 
 
+def _without_description(article):
+    """Discard unsolicited description fields; retain genuine API summary and body."""
+    return {key: value for key, value in article.items()
+            if key not in ("shortDescription", "short_description", "description",
+                           "detail_description", "excerpt")}
+
+
 def _merge(fresh, existing, now):
     merged = []
     index = {}
     for article in list(fresh) + list(existing):
         if not isinstance(article, dict) or not _recent(article, now):
             continue
-        row = dict(article)
+        row = _without_description(article)
         cats = row.get("news_categories")
         if not isinstance(cats, list):
             cat = str(row.get("news_category") or "").strip()
@@ -124,7 +131,7 @@ def _merge(fresh, existing, now):
                     current["news_categories"].append(cat)
             # Preserve previously checked detail metadata when a fresh headline
             # duplicates the same article during the next list refresh.
-            for field in ("shortDescription", "short_description", "detail_checked", "detail_body", "detail_description", "detail_summary", "detail_permission"):
+            for field in ("detail_checked", "detail_body", "detail_summary", "detail_permission"):
                 if not current.get(field) and row.get(field):
                     current[field] = row[field]
             continue
@@ -161,7 +168,7 @@ def _request_news(key, opener, category="overall"):
     for article in items:
         if not isinstance(article, dict):
             continue
-        row = dict(article)
+        row = _without_description(article)
         row["news_category"] = category
         row["news_categories"] = [category]
         rows.append(row)
@@ -194,7 +201,7 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
         existing = state.get("items", []) if state.get("feed_version") == FEED_VERSION else []
         if not isinstance(existing, list):
             existing = []
-        cached = [x for x in existing if isinstance(x, dict) and _recent(x, now)]
+        cached = [_without_description(x) for x in existing if isinstance(x, dict) and _recent(x, now)]
 
         mode = _mode()
         session, interval = _session(now)
