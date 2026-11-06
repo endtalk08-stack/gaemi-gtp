@@ -211,8 +211,8 @@ def normalize_article(article):
         "id": article.get("id") or article.get("newsId"),
         "published_at": _published_iso(article),
         "title": _text(article.get("title")),
-        "summary": _text(article.get("detail_summary")),
-        "description": _text(article.get("detail_description") or article.get("shortDescription") or article.get("short_description")),
+        "summary": _text(article.get("detail_summary") or article.get("summary")),
+
         "content_source": "api_detail" if article.get("detail_checked") else "news_list",
         "body_available": bool(body) and may_publish_body,
         "body": body if may_publish_body else "",
