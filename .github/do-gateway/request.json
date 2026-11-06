@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/verify_tradingview_news_categories_20261106.py","request_id":"tvnews8once20261106","timeout":120}
