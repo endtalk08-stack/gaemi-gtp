@@ -36,13 +36,15 @@ def main():
             raise SystemExit("empty_existing_news_cache")
         updated, stats = enrich_articles(items, max_requests=budget)
         print("NEWS_DETAILS_STATS=" + json.dumps(stats, separators=(",", ":")), flush=True)
-        if not stats["described"]:
-            print("NEWS_DETAILS_NO_NEW_DESCRIPTIONS_R2_UNCHANGED", flush=True)
+        # Save body/description/summary statuses even when a provider supplies
+        # only body content or denies access. This prevents repeated paid calls.
+        if not stats["requested"] and not stats["blocked"]:
+            print("NEWS_DETAILS_NOTHING_TO_SAVE", flush=True)
             return
         state["items"] = updated
         _write(state)
+        # Only permitted screen-facing fields go into the shared JSON.
         snapshot = write_snapshot(updated)
-        # Upload only the normal screen-facing snapshot: never raw article bodies.
         if not upload_file(NEWS_PAGE_PATH):
             raise SystemExit("R2_UPLOAD_FAILED_LOCAL_CACHE_SAVED")
         print("NEWS_DETAILS_R2_ITEMS=%d" % snapshot["count"], flush=True)
