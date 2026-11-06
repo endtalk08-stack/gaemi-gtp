@@ -97,6 +97,16 @@ jobs:
                   f.write(k+'='+v+'\n')
           print('GAEMI_REQUEST_VALIDATED operation='+op)
           PY
+      - name: Verify R2 secret registration
+        shell: bash
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$R2_ACCESS_KEY_ID"
+          test -n "$R2_SECRET_ACCESS_KEY"
+          echo "R2_SECRETS_PRESENT=yes"
       - name: Configure locked SSH
         shell: bash
         run: |
