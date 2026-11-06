@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-tradingview-news.service","lines":220}
+{"operation":"run","path":"ops/do-gateway/inspect_tradingview_snapshot_20261107.py","request_id":"tvinspect20261107","timeout":60}
