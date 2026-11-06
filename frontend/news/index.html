@@ -213,7 +213,9 @@ margin-top:4px;
 <div class="prev-bot"><span class="prev-views"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span id="detViews">0</span></span></div>
 </div>
 
-<div class="info-sec"><div class="info-title">기사 내용</div><div id="detArticleContent" class="article-text"></div></div>
+<div class="info-sec" id="detSummarySection" style="display:none"><div class="info-title">기사 요약</div><div id="detSummary" class="article-text"></div></div>
+<div class="info-sec" id="detDescriptionSection" style="display:none"><div class="info-title">기사 설명</div><div id="detDescription" class="article-text"></div></div>
+<div class="info-sec"><div class="info-title">기사 본문</div><div id="detArticleContent" class="article-text"></div></div>
 
 <div class="info-sec"><div class="info-title">관련 이슈</div><div class="chip-row" id="detIssues"></div></div>
 <div class="info-sec"><div class="info-title">관련 종목</div><div class="stocks-col" id="detStocks"></div></div>
@@ -292,7 +294,7 @@ function renderNews(){
   '<article class="news-item" tabindex="0" role="button" data-id="'+escapeHTML(n._index)+'">'+
   '<div class="news-card-head"><div class="news-tags"><span class="news-category">'+escapeHTML(majorCategory(n))+'</span><span class="news-category">'+escapeHTML(category(n))+'</span></div><span class="news-source">'+escapeHTML(n.source||"출처 미확인")+'</span></div>'+
   '<div class="news-title">'+escapeHTML(n.title)+'</div>'+
-  ((n.detail_status==="content"&&n.summary)?'<p class="news-summary">'+escapeHTML(n.summary)+'</p>':"")+
+  ((n.summary||n.description)?'<p class="news-summary">'+escapeHTML(n.summary||n.description)+'</p>':"")+
   '<div class="news-card-foot"><span class="news-time">'+escapeHTML(timeLabel(n.published_at))+'</span></div></article>').join("");
  more.classList.toggle("hidden",vis>=filtered.length);
  more.textContent="더보기 ("+Math.min(PAGE_SIZE,filtered.length-vis)+"개 더)";
@@ -309,6 +311,10 @@ function openDetail(id){
  el("detTime").textContent=timeLabel(n.published_at);
  el("detTitle").textContent=n.title;
  el("detSource").textContent=n.source||"출처 미확인";
+ el("detSummary").textContent=n.summary||"";
+ el("detSummarySection").style.display=n.summary?"block":"none";
+ el("detDescription").textContent=n.description||"";
+ el("detDescriptionSection").style.display=n.description?"block":"none";
  el("detArticleContent").textContent=n.body||"제공 가능한 기사 본문이 없습니다. 아래 기사 원문 링크에서 확인할 수 있습니다.";
  el("detArticleContent").classList.toggle("article-empty",!n.body);
  // R2 source has no reliable view count: do not fabricate one.
