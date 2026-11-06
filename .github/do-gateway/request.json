@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-tradingview-news.service","lines":80}
+{"operation":"deploy","path":"backend/tradingview_news_worker.py","target":"backend/tradingview_news_worker.py"}
