@@ -147,10 +147,12 @@ def classify_article(article):
 
     if stock_source:
         return {"code": "stock", "label": "종목"}, [], "stock"
-    if "overall" in source_categories or "economic" in source_categories:
-        return {"code": "market_trend", "label": "시장동향"}, [], "market"
+    if "economic" in source_categories:
+        return {"code": "economic", "label": "경제지표"}, [], "market"
     if "index" in source_categories:
         return {"code": "major_index", "label": "주요지수"}, [], "market"
+    if "overall" in source_categories:
+        return {"code": "market_trend", "label": "시장동향"}, [], "market"
     if "futures" in source_categories:
         return {"code": "market_trend", "label": "시장동향"}, [], "market"
     return {"code": "other", "label": "기타"}, [], "other"
@@ -211,6 +213,7 @@ def normalize_article(article):
         "title": _text(article.get("title")),
         "summary": _text(article.get("detail_summary")),
         "description": _text(article.get("detail_description") or article.get("shortDescription") or article.get("short_description")),
+        "content_source": "api_detail" if article.get("detail_checked") else "news_list",
         "body_available": bool(body) and may_publish_body,
         "body": body if may_publish_body else "",
         "detail_status": _text(article.get("detail_checked")),
