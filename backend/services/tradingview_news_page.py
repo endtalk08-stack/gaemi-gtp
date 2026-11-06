@@ -18,13 +18,13 @@ MAX_PAGE_ITEMS = 2000
 # gaemiGTP's fixed 14 stock-news event taxonomy.
 # Rules only provide a first-pass page filter. AI interpretation stays separate.
 CATEGORY_RULES = (
-    ("earnings", "실적 발표", (
-        "earnings", "quarterly results", "financial results", "실적 발표",
-        "실적발표", "어닝", "매출", "영업이익", "순이익", "eps",
-    )),
     ("guidance", "실적 전망", (
         "guidance", "outlook", "forecast", "가이던스", "전망 상향",
         "전망 하향", "연간 전망", "매출 전망",
+    )),
+    ("earnings", "실적 발표", (
+        "earnings", "quarterly results", "financial results", "실적 발표",
+        "실적발표", "어닝", "매출", "영업이익", "순이익", "eps",
     )),
     ("analyst", "증권사 평가", (
         "price target", "target price", "upgrade", "downgrade", "initiates",
