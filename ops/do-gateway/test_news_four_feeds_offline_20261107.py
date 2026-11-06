@@ -107,8 +107,9 @@ with tempfile.TemporaryDirectory() as td:
         assert state["four_feed_month_requests"]==8
         # Monthly fail-closed protection, even with a forced run.
         state["four_feed_month_requests"]=120
+        state["four_feed_last_day"]=""
         bundle.CACHE_PATH.write_text(json.dumps(state))
-        protected=bundle.refresh_news_cache(now=now+2*86400,opener=no_api,force=True)
+        protected=bundle.refresh_news_cache(now=now+86401,opener=no_api,force=True)
         assert len(protected)==6
     finally:
         bundle.CACHE_PATH=cache_path
