@@ -197,13 +197,22 @@ def normalize_article(article):
         if isinstance(provider, dict)
         else "TradingView"
     ) or "TradingView"
+    # An API response containing article text is not proof of
+    # republication rights. Keep full text private by default.
+    may_publish_body = (
+        article.get("detail_publication_allowed") is True
+        and article.get("permission") != "headline"
+        and article.get("detail_permission") != "headline"
+    )
+    body = _text(article.get("detail_body"))
     return {
         "id": article.get("id") or article.get("newsId"),
         "published_at": _published_iso(article),
         "title": _text(article.get("title")),
         "summary": _text(article.get("detail_summary")),
         "description": _text(article.get("detail_description") or article.get("shortDescription") or article.get("short_description")),
-        "body_available": bool(_text(article.get("detail_body"))),
+        "body_available": bool(body) and may_publish_body,
+        "body": body if may_publish_body else "",
         "detail_status": _text(article.get("detail_checked")),
         # Full source article bodies are never copied into publicly readable Pages JSON.
         "source": source,
