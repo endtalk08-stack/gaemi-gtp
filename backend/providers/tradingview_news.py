@@ -77,13 +77,11 @@ def _collection_mode():
 
 
 def _basic_collection_slot(now):
-    """Return one of the three Basic test slots, or None when no call is due."""
+    """Return one of the three Basic test slots every day, including weekends."""
     stamp = time.time() if now is None else float(now)
     ny = dt.datetime.fromtimestamp(stamp, dt.timezone.utc).astimezone(
         ZoneInfo("America/New_York")
     )
-    if ny.weekday() >= 5:
-        return None, None
     minute = ny.hour * 60 + ny.minute
     for name, (start, end) in BASIC_COLLECTION_WINDOWS.items():
         if start <= minute < end:
