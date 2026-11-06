@@ -81,6 +81,24 @@ class DetailTests(unittest.TestCase):
         self.assertEqual(rows[0]["detail_body"], "Copyrighted full text")
         self.assertEqual(stat["summarized"], 0)
 
+    def test_no_arbitrary_ten_article_limit(self):
+        calls = []
+        def fake(request, timeout):
+            calls.append(request.full_url)
+            return FakeResponse({"success": True, "data": {
+                "body": "Full article", "description": "Description",
+                "summary": "Summary",
+            }})
+        items = [{"id": "article-%02d" % i} for i in range(12)]
+        rows, stat = enrich_articles(items, max_requests=len(items),
+                                     api_key="test", opener=fake)
+        self.assertEqual(len(calls), 12)
+        self.assertEqual(stat["requested"], 12)
+        self.assertEqual(stat["bodies"], 12)
+        self.assertEqual(stat["described"], 12)
+        self.assertEqual(stat["summarized"], 12)
+        self.assertTrue(all(row["detail_body"] for row in rows))
+
     def test_body_description_summary_are_separate(self):
         def fake(request, timeout):
             return FakeResponse({"success": True, "data": {"article": {
