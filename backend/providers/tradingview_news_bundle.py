@@ -121,7 +121,7 @@ def _merge(fresh, existing, now):
                     current["news_categories"].append(cat)
             # Preserve previously checked detail metadata when a fresh headline
             # duplicates the same article during the next list refresh.
-            for field in ("shortDescription", "short_description", "detail_checked"):
+            for field in ("shortDescription", "short_description", "detail_checked", "detail_body", "detail_description", "detail_summary", "detail_permission"):
                 if not current.get(field) and row.get(field):
                     current[field] = row[field]
             continue
