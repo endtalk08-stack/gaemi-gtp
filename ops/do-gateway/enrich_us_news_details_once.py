@@ -9,6 +9,11 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import sys
+from pathlib import Path
+
+# The gateway stages this script outside the application repository.
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 
 from backend.providers.tradingview_news_bundle import CACHE_PATH, _write
 from backend.providers.tradingview_news_detail import enrich_articles
@@ -45,6 +50,14 @@ def main():
         _write(state)
         # Only permitted screen-facing fields go into the shared JSON.
         snapshot = write_snapshot(updated)
+        env_path = Path("/var/lib/gaemigtp-news/r2.env")
+        if not env_path.is_file():
+            raise SystemExit("R2_ENV_MISSING_LOCAL_CACHE_SAVED")
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            if raw_line and "=" in raw_line:
+                env_key, env_value = raw_line.split("=", 1)
+                if env_key in {"R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"}:
+                    os.environ[env_key] = env_value
         if not upload_file(NEWS_PAGE_PATH):
             raise SystemExit("R2_UPLOAD_FAILED_LOCAL_CACHE_SAVED")
         print("NEWS_DETAILS_R2_ITEMS=%d" % snapshot["count"], flush=True)
