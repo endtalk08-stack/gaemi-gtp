@@ -24,8 +24,8 @@ def run_once():
 
 def main():
     print(
-        "[tradingview-news-worker] started cadence=premarket10m,regular5m,"
-        "afterhours10m,offhours30m",
+        "[tradingview-news-worker] started mode=basic_test cadence=3x_us_trading_day; "
+        "set TRADINGVIEW_NEWS_MODE=pro after plan upgrade",
         flush=True,
     )
     while True:
