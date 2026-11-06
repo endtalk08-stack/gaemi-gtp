@@ -30,6 +30,14 @@ case "$action" in
     echo GAEMI_NEWS_STOPPED
     ;;
 
+  stop-tradingview-news)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    # Only the standalone TradingView news collector; keep the original
+    # stopped news worker and all other services unchanged.
+    systemctl disable --now gaemigtp-tradingview-news.service
+    systemctl is-active --quiet gaemigtp-tradingview-news.service && fail "tradingview_news_still_active"
+    echo GAEMI_TRADINGVIEW_NEWS_STOPPED
+    ;;
   status)
     [[ $# == 0 ]] || fail "unexpected_arguments"
     systemctl --no-pager --plain status gaemigtp-news.service --lines=3 || true
