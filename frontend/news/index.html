@@ -214,7 +214,7 @@ margin-top:4px;
 </div>
 
 <div class="info-sec" id="detSummarySection" style="display:none"><div class="info-title">기사 요약</div><div id="detSummary" class="article-text"></div></div>
-<div class="info-sec" id="detDescriptionSection" style="display:none"><div class="info-title">기사 설명</div><div id="detDescription" class="article-text"></div></div>
+
 <div class="info-sec"><div class="info-title">기사 본문</div><div id="detArticleContent" class="article-text"></div></div>
 
 <div class="info-sec"><div class="info-title">관련 이슈</div><div class="chip-row" id="detIssues"></div></div>
@@ -313,9 +313,8 @@ function openDetail(id){
  el("detSource").textContent=n.source||"출처 미확인";
  el("detSummary").textContent=n.summary||"";
  el("detSummarySection").style.display=n.summary?"block":"none";
- el("detDescription").textContent=n.description||"";
- el("detDescriptionSection").style.display=n.description?"block":"none";
- el("detArticleContent").textContent=n.body||"제공 가능한 기사 본문이 없습니다. 아래 기사 원문 링크에서 확인할 수 있습니다.";
+
+ el("detArticleContent").textContent=n.body||"";
  el("detArticleContent").classList.toggle("article-empty",!n.body);
  // R2 source has no reliable view count: do not fabricate one.
  el("detViews").textContent="—";
