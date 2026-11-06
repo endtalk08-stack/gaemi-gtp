@@ -43,7 +43,8 @@ def main():
         _write(state)
         snapshot = write_snapshot(updated)
         # Upload only the normal screen-facing snapshot: never raw article bodies.
-        upload_file(NEWS_PAGE_PATH)
+        if not upload_file(NEWS_PAGE_PATH):
+            raise SystemExit("R2_UPLOAD_FAILED_LOCAL_CACHE_SAVED")
         print("NEWS_DETAILS_R2_ITEMS=%d" % snapshot["count"], flush=True)
 
 
