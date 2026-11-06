@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/news_readonly_audit_20261107.py","request_id":"newsaudit20261107v1","timeout":90}
+{"operation":"deploy","path":"backend/services/tradingview_news_page.py","target":"backend/services/tradingview_news_page.py"}
