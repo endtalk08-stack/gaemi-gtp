@@ -158,7 +158,7 @@ jobs:
               -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256
             enc_sha="$(git hash-object "$tmp_enc")"
             scp "${SSH_OPTS[@]}" "$tmp_enc" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
-            ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway deploy r2-bootstrap.enc "$enc_sha"
+            ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway deploy backend/r2-bootstrap.enc "$enc_sha"
             scp "${SSH_OPTS[@]}" "$SOURCE" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
           fi
           ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" sudo -n /usr/local/sbin/gaemi-do-gateway "$ACTION" ${ARG1:+"$ARG1"} ${ARG2:+"$ARG2"} ${ARG3:+"$ARG3"}
