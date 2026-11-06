@@ -7,8 +7,8 @@ from pathlib import Path
 
 SOURCE = Path("/home/gaemi-deploy/.gaemi-gateway/r2.env.enc")
 PRIVATE_KEY = Path("/var/lib/gaemigtp-news/r2-bootstrap-key.pem")
-TARGET_DIR = Path("/etc/gaemigtp")
-TARGET = TARGET_DIR / "r2.env"
+TARGET_DIR = Path("/opt/gaemigtp-news/app")
+TARGET = TARGET_DIR / ".r2.env"
 ALLOWED = ("R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")
 
 if os.geteuid() != 0:
