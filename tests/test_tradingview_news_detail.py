@@ -72,7 +72,26 @@ class DetailTests(unittest.TestCase):
         rows, stat = enrich_articles([{"id": "one"}], max_requests=1,
                                      api_key="test", opener=fake)
         self.assertEqual(stat["described"], 0)
-        self.assertEqual(rows[0]["detail_checked"], "no_description")
+        self.assertEqual(rows[0]["detail_checked"], "content")
+        self.assertEqual(stat["bodies"], 1)
+        self.assertEqual(rows[0]["detail_body"], "Copyrighted full text")
+        self.assertEqual(stat["summarized"], 0)
+
+    def test_body_description_summary_are_separate(self):
+        def fake(request, timeout):
+            return FakeResponse({"success": True, "data": {"article": {
+                "body": "Full detailed article text.",
+                "description": "An article description.",
+                "summary": "A short provider summary.",
+            }}})
+        rows, stat = enrich_articles([{"id": "one", "permission": "provider"}],
+                                     max_requests=1, api_key="test", opener=fake)
+        self.assertEqual(rows[0]["detail_body"], "Full detailed article text.")
+        self.assertEqual(rows[0]["detail_description"], "An article description.")
+        self.assertEqual(rows[0]["detail_summary"], "A short provider summary.")
+        self.assertEqual(stat["bodies"], 1)
+        self.assertEqual(stat["described"], 1)
+        self.assertEqual(stat["summarized"], 1)
 
 
 if __name__ == "__main__":
