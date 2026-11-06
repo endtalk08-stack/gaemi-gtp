@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/providers/tradingview_news_bundle.py","target":"backend/providers/tradingview_news_bundle.py"}
+{"operation":"deploy","path":"backend/services/tradingview_news_page.py","target":"backend/services/tradingview_news_page.py"}
