@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_r2_upload_once_20261106.py","request_id":"r2uploadverify3","timeout":60}
+{"operation":"run","path":"ops/do-gateway/cleanup_r2_bootstrap_20261106.py","request_id":"r2bootstrapcleanup","timeout":60}
