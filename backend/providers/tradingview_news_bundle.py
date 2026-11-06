@@ -21,6 +21,9 @@ BASE_URL = "https://api.tradingviewapi.com/api/news"
 CATEGORIES = ("overall", "stock", "economic", "index")
 # Preserve the current single-request schedule until the account owner enables 4 feeds.
 FOUR_FEEDS_ENV = "TRADINGVIEW_NEWS_FOUR_FEEDS_ENABLED"
+# A separate fail-closed guard: max one 4-feed batch/day, 120 requests/month.
+# Existing overall-only scheduling is unchanged until explicit activation.
+FOUR_FEED_MONTHLY_REQUEST_CAP = 120
 FEED_VERSION = "overall-us-ko-v1"  # Do not reset the existing 203-article cache on upgrade.
 CACHE_PATH = Path("/var/lib/gaemigtp-news/tradingview-news-bundle.json")
 CACHE_MAX_AGE_SECONDS = 48 * 60 * 60
@@ -204,6 +207,14 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
         cached = [_without_description(x) for x in existing if isinstance(x, dict) and _recent(x, now)]
 
         mode = _mode()
+        four_enabled = os.environ.get(FOUR_FEEDS_ENV, "").strip() == "1"
+        four_month = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime("%Y-%m")
+        four_day = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime("%Y-%m-%d")
+        # Never spend a second four-feed batch within a day, even with force=True.
+        if four_enabled:
+            used = int(state.get("four_feed_month_requests", 0) or 0) if state.get("four_feed_month") == four_month else 0
+            if state.get("four_feed_last_day") == four_day or used + len(CATEGORIES) > FOUR_FEED_MONTHLY_REQUEST_CAP:
+                return cached
         session, interval = _session(now)
         slot_key = None
         if mode == "basic_test":
@@ -224,8 +235,7 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
         ok_categories = []
         failed_categories = []
         # Do not turn one monthly-quota request into four without opt-in.
-        enabled = os.environ.get(FOUR_FEEDS_ENV, "").strip() == "1"
-        categories = CATEGORIES if enabled else ("overall",)
+        categories = CATEGORIES if four_enabled else ("overall",)
         attempted = 0
         for category in categories:
             attempted += 1
@@ -253,7 +263,7 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
             state["last_slot"] = slot_key
         # Require ALL four feeds to succeed before publishing a four-feed refresh.
         # A one-feed failure should likewise keep the existing snapshot intact.
-        complete = len(ok_categories) == len(categories) and not failed_categories
+        complete = len(ok_categories) == len(categories) and not failed_categories and bool(fresh)
         if complete:
             state["items"] = _merge(fresh, cached, now)
             state["last_success"] = now
@@ -263,6 +273,10 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
         state["failed_categories"] = failed_categories
         state["requests_last_refresh"] = attempted
         state["requests_total"] = int(state.get("requests_total", 0) or 0) + attempted
+        if four_enabled:
+            state["four_feed_last_day"] = four_day
+            state["four_feed_month"] = four_month
+            state["four_feed_month_requests"] = used + attempted
         _write(state)
         print(
             "[provider:tradingview-bundle] refreshed mode=%s session=%s items=%s categories=%s"
