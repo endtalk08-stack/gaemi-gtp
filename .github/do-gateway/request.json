@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_news_bundle_import_20261106.py","request_id":"newsbundlecheck220261106","timeout":60}
+{"operation":"restart","unit":"gaemigtp-tradingview-news.service"}
