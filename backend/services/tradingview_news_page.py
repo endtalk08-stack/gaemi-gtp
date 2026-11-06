@@ -83,6 +83,18 @@ CATEGORY_RULES = (
     )),
 )
 
+MARKET_RULES = (
+    ("market", "증시", ("stock market", "wall street", "equities", "stocks", "증시", "주식시장")),
+    ("economic", "경제지표", ("cpi", "pce", "gdp", "jobs", "payroll", "employment", "inflation", "retail sales", "pmi", "경제지표", "고용", "물가", "소비자물가")),
+    ("fed", "연준", ("federal reserve", "fed ", "fomc", "powell", "rate cut", "rate hike", "연준", "파월", "금리 인하", "금리 인상")),
+    ("policy", "정부·정책", ("white house", "congress", "treasury", "administration", "government", "policy", "정부", "정책", "백악관", "의회")),
+    ("energy", "에너지", ("oil", "crude", "opec", "natural gas", "energy", "원유", "유가", "천연가스", "에너지")),
+    ("tariff", "관세", ("tariff", "trade war", "import duty", "관세", "무역전쟁")),
+    ("market_close", "미국장 마감시황", ("market close", "closing bell", "closed higher", "closed lower", "마감", "종가")),
+    ("major_index", "주요 지수", ("s&p 500", "nasdaq", "dow jones", "dow ", "index", "나스닥", "다우", "s&p")),
+    ("market_trend", "시장 동향", ("futures", "risk-on", "risk-off", "rally", "selloff", "market sentiment", "선물", "랠리", "매도세", "시장 동향")),
+)
+
 
 def _text(value):
     return re.sub(r"\s+", " ", str(value or "")).strip()
@@ -93,13 +105,34 @@ def classify_article(article):
         _text(article.get("title")),
         _text(article.get("shortDescription") or article.get("short_description")),
     )).lower()
-    matched = []
-    for code, label, terms in CATEGORY_RULES:
+    source_categories = article.get("news_categories") or []
+    if not isinstance(source_categories, list):
+        source_categories = []
+
+    stock_matches = []
+    if "stock" in source_categories:
+        for code, label, terms in CATEGORY_RULES:
+            if any(str(term).lower() in haystack for term in terms):
+                stock_matches.append({"code": code, "label": label})
+        if stock_matches:
+            return stock_matches[0], stock_matches, "stock"
+
+    market_matches = []
+    for code, label, terms in MARKET_RULES:
         if any(str(term).lower() in haystack for term in terms):
-            matched.append({"code": code, "label": label})
-    if matched:
-        return matched[0], matched
-    return {"code": "other", "label": "기타"}, []
+            market_matches.append({"code": code, "label": label})
+    if market_matches:
+        return market_matches[0], market_matches, "market"
+
+    if "stock" in source_categories:
+        return {"code": "stock", "label": "종목"}, [], "stock"
+    if "economic" in source_categories:
+        return {"code": "economic", "label": "경제지표"}, [], "market"
+    if "index" in source_categories:
+        return {"code": "major_index", "label": "주요 지수"}, [], "market"
+    if "futures" in source_categories:
+        return {"code": "market_trend", "label": "시장 동향"}, [], "market"
+    return {"code": "other", "label": "기타"}, [], "other"
 
 
 def _symbols(article):
@@ -136,7 +169,7 @@ def _news_url(article):
 
 
 def normalize_article(article):
-    primary, matches = classify_article(article)
+    primary, matches, section = classify_article(article)
     provider = article.get("provider")
     source = (
         _text(provider.get("name"))
@@ -155,6 +188,8 @@ def normalize_article(article):
         "symbols": _symbols(article),
         "event_category": primary,
         "event_matches": matches,
+        "news_section": section,
+        "source_categories": article.get("news_categories") or [],
         "paywall": article.get("paywall"),
         "permission": article.get("permission"),
         "provider": "tradingview",
@@ -168,7 +203,7 @@ def build_snapshot(items, *, generated_at=None):
         if not isinstance(article, dict):
             continue
         row = normalize_article(article)
-        if not row["title"]:
+        if not row["title"] or row["event_category"]["code"] == "other":
             continue
         key = str(row["id"] or "") or (
             row["published_at"] + "|" + row["title"]
