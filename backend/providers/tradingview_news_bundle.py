@@ -21,7 +21,7 @@ BASE_URL = "https://api.tradingviewapi.com/api/news"
 CATEGORIES = ("overall", "stock", "economic", "index")
 # Preserve the current single-request schedule until the account owner enables 4 feeds.
 FOUR_FEEDS_ENV = "TRADINGVIEW_NEWS_FOUR_FEEDS_ENABLED"
-FEED_VERSION = "overall-us-ko-v1"
+FEED_VERSION = "overall-us-ko-v1"  # Do not reset the existing 203-article cache on upgrade.
 CACHE_PATH = Path("/var/lib/gaemigtp-news/tradingview-news-bundle.json")
 CACHE_MAX_AGE_SECONDS = 48 * 60 * 60
 MAX_CACHE_ITEMS = 4000
@@ -218,16 +218,8 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
             if not force and now - last_attempt < interval:
                 return cached
 
-        state["feed_version"] = FEED_VERSION
-        state["last_attempt"] = now
-        state["mode"] = mode
-        state["session"] = session
-        state["interval_seconds"] = interval if mode == "pro" else None
-        if slot_key:
-            state["last_slot"] = slot_key
-        state["items"] = cached
-        _write(state)
-
+        # A failed or incomplete 4-feed attempt must never replace existing news.
+        # Record attempts only after responses have been validated.
         fresh = []
         ok_categories = []
         failed_categories = []
@@ -252,8 +244,21 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
                     flush=True,
                 )
 
-        state["items"] = _merge(fresh, cached, now)
-        state["last_success"] = now if ok_categories else state.get("last_success", 0)
+        state["feed_version"] = FEED_VERSION
+        state["last_attempt"] = now
+        state["mode"] = mode
+        state["session"] = session
+        state["interval_seconds"] = interval if mode == "pro" else None
+        if slot_key:
+            state["last_slot"] = slot_key
+        # Require ALL four feeds to succeed before publishing a four-feed refresh.
+        # A one-feed failure should likewise keep the existing snapshot intact.
+        complete = len(ok_categories) == len(categories) and not failed_categories
+        if complete:
+            state["items"] = _merge(fresh, cached, now)
+            state["last_success"] = now
+        else:
+            state["items"] = cached
         state["ok_categories"] = ok_categories
         state["failed_categories"] = failed_categories
         state["requests_last_refresh"] = attempted
