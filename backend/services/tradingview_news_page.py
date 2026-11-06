@@ -88,11 +88,15 @@ MARKET_RULES = (
     ("economic", "경제지표", ("cpi", "pce", "gdp", "jobs", "payroll", "employment", "inflation", "retail sales", "pmi", "경제지표", "고용", "물가", "소비자물가")),
     ("fed", "연준", ("federal reserve", "fed ", "fomc", "powell", "rate cut", "rate hike", "연준", "파월", "금리 인하", "금리 인상")),
     ("policy", "정부·정책", ("white house", "congress", "treasury", "administration", "government", "policy", "정부", "정책", "백악관", "의회")),
+    ("rates_bonds", "금리·채권", ("treasury yield", "bond yield", "10-year", "2-year", "yield curve", "국채금리", "채권금리", "10년물", "2년물", "수익률곡선")),
     ("energy", "에너지", ("oil", "crude", "opec", "natural gas", "energy", "원유", "유가", "천연가스", "에너지")),
+    ("fx_commodities", "달러·원자재", ("dollar index", "dxy", "gold", "silver", "copper", "commodity", "달러지수", "달러", "금값", "금 가격", "은 가격", "구리", "원자재")),
     ("tariff", "관세", ("tariff", "trade war", "import duty", "관세", "무역전쟁")),
     ("market_close", "미국장 마감시황", ("market close", "closing bell", "closed higher", "closed lower", "마감", "종가")),
     ("major_index", "주요 지수", ("s&p 500", "nasdaq", "dow jones", "dow ", "index", "나스닥", "다우", "s&p")),
-    ("market_trend", "시장 동향", ("futures", "risk-on", "risk-off", "rally", "selloff", "market sentiment", "선물", "랠리", "매도세", "시장 동향")),
+    ("sector", "섹터·업종", ("sector", "semiconductor stocks", "tech stocks", "financial stocks", "energy stocks", "healthcare stocks", "섹터", "업종", "반도체주", "기술주", "금융주", "에너지주", "헬스케어주")),
+    ("volatility_sentiment", "변동성·투자심리", ("vix", "volatility", "fear gauge", "risk appetite", "risk-on", "risk-off", "investor sentiment", "변동성", "공포지수", "위험선호", "위험회피", "투자심리")),
+    ("market_trend", "시장 동향", ("futures", "rally", "selloff", "market sentiment", "선물", "랠리", "매도세", "시장 동향")),
 )
 
 
