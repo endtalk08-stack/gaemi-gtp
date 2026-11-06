@@ -87,16 +87,17 @@ MARKET_RULES = (
     ("market", "증시", ("stock market", "wall street", "equities", "stocks", "증시", "주식시장")),
     ("economic", "경제지표", ("cpi", "pce", "gdp", "jobs", "payroll", "employment", "inflation", "retail sales", "pmi", "경제지표", "고용", "물가", "소비자물가")),
     ("fed", "연준", ("federal reserve", "fed ", "fomc", "powell", "rate cut", "rate hike", "연준", "파월", "금리 인하", "금리 인상")),
-    ("policy", "정부·정책", ("white house", "congress", "treasury", "administration", "government", "policy", "정부", "정책", "백악관", "의회")),
-    ("rates_bonds", "금리·채권", ("treasury yield", "bond yield", "10-year", "2-year", "yield curve", "국채금리", "채권금리", "10년물", "2년물", "수익률곡선")),
+    ("policy", "정부정책", ("white house", "congress", "treasury", "administration", "government", "policy", "정부", "정책", "백악관", "의회")),
+    ("rates_bonds", "금리·환율", ("treasury yield", "bond yield", "10-year", "2-year", "yield curve", "interest rate", "exchange rate", "forex", "currency", "국채금리", "채권금리", "10년물", "2년물", "수익률곡선", "환율", "엔화", "유로화", "달러지수")),
     ("energy", "에너지", ("oil", "crude", "opec", "natural gas", "energy", "원유", "유가", "천연가스", "에너지")),
-    ("fx_commodities", "달러·원자재", ("dollar index", "dxy", "gold", "silver", "copper", "commodity", "달러지수", "달러", "금값", "금 가격", "은 가격", "구리", "원자재")),
+    ("fx_commodities", "금리·환율", ("dollar index", "dxy", "exchange rate", "forex", "currency", "달러지수", "환율", "엔화", "유로화")),
     ("tariff", "관세", ("tariff", "trade war", "import duty", "관세", "무역전쟁")),
-    ("market_close", "미국장 마감시황", ("market close", "closing bell", "closed higher", "closed lower", "마감", "종가")),
-    ("major_index", "주요 지수", ("s&p 500", "nasdaq", "dow jones", "dow ", "index", "나스닥", "다우", "s&p")),
-    ("sector", "섹터·업종", ("sector", "semiconductor stocks", "tech stocks", "financial stocks", "energy stocks", "healthcare stocks", "섹터", "업종", "반도체주", "기술주", "금융주", "에너지주", "헬스케어주")),
-    ("volatility_sentiment", "변동성·투자심리", ("vix", "volatility", "fear gauge", "risk appetite", "risk-on", "risk-off", "investor sentiment", "변동성", "공포지수", "위험선호", "위험회피", "투자심리")),
-    ("market_trend", "시장 동향", ("futures", "rally", "selloff", "market sentiment", "선물", "랠리", "매도세", "시장 동향")),
+    ("market_close", "미국장 마감", ("market close", "closing bell", "closed higher", "closed lower", "마감", "종가")),
+    ("major_index", "주요지수", ("s&p 500", "nasdaq", "dow jones", "dow ", "index", "나스닥", "다우", "s&p")),
+    ("sector", "시장동향", ("sector", "semiconductor stocks", "tech stocks", "financial stocks", "energy stocks", "healthcare stocks", "섹터", "업종", "반도체주", "기술주", "금융주", "에너지주", "헬스케어주")),
+    ("volatility_sentiment", "시장동향", ("vix", "volatility", "fear gauge", "risk appetite", "risk-on", "risk-off", "investor sentiment", "변동성", "공포지수", "위험선호", "위험회피", "투자심리")),
+    ("market_trend", "시장동향", ("futures", "rally", "selloff", "market sentiment", "선물", "랠리", "매도세", "시장 동향")),
+    ("international", "국제정세", ("middle east", "iran", "war", "sanction", "geopolitical", "중동", "이란", "전쟁", "제재", "지정학")),
 )
 
 
@@ -131,11 +132,11 @@ def classify_article(article):
     if "stock" in source_categories:
         return {"code": "stock", "label": "종목"}, [], "stock"
     if "economic" in source_categories:
-        return {"code": "economic", "label": "경제지표"}, [], "market"
+        return {"code": "market_trend", "label": "시장동향"}, [], "market"
     if "index" in source_categories:
-        return {"code": "major_index", "label": "주요 지수"}, [], "market"
+        return {"code": "major_index", "label": "주요지수"}, [], "market"
     if "futures" in source_categories:
-        return {"code": "market_trend", "label": "시장 동향"}, [], "market"
+        return {"code": "market_trend", "label": "시장동향"}, [], "market"
     return {"code": "other", "label": "기타"}, [], "other"
 
 
