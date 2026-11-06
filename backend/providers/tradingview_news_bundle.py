@@ -119,6 +119,11 @@ def _merge(fresh, existing, now):
             for cat in row["news_categories"]:
                 if cat not in current["news_categories"]:
                     current["news_categories"].append(cat)
+            # Preserve previously checked detail metadata when a fresh headline
+            # duplicates the same article during the next list refresh.
+            for field in ("shortDescription", "short_description", "detail_checked"):
+                if not current.get(field) and row.get(field):
+                    current[field] = row[field]
             continue
         index[key] = len(merged)
         merged.append(row)
