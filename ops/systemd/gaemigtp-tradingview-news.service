@@ -12,7 +12,7 @@ Group=gaemigtp-news
 WorkingDirectory=/opt/gaemigtp-news/app
 Environment=PYTHONDONTWRITEBYTECODE=1
 EnvironmentFile=/etc/gaemigtp/news-worker.env
-EnvironmentFile=-/opt/gaemigtp-news/app/.r2.env
+EnvironmentFile=-/var/lib/gaemigtp-news/r2.env
 ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.tradingview_news_worker
 Restart=on-failure
 RestartSec=20
