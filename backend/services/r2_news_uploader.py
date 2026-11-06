@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import requests
+import xml.etree.ElementTree as ET
 
 ACCOUNT_ID = "6cf7450897a598809db421965a07304b"
 BUCKET = "gaemigtp-news-data"
@@ -89,7 +90,16 @@ def upload_file(path: Path) -> bool:
         timeout=TIMEOUT_SECONDS,
     )
     if response.status_code // 100 != 2:
-        print(f"[r2-news] upload_failed status={response.status_code}", flush=True)
+        code = ""
+        try:
+            root = ET.fromstring(response.text)
+            code = (root.findtext("Code") or "").strip()
+        except Exception:
+            code = ""
+        print(
+            f"[r2-news] upload_failed status={response.status_code} code={code or 'unknown'}",
+            flush=True,
+        )
         return False
     print(
         f"[r2-news] upload_ok key={OBJECT_KEY} bytes={len(body)}",
