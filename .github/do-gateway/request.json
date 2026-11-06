@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/enrich_us_news_details_once.py","request_id":"usdetailbatch20261107a","timeout":180}
+{"operation":"run","path":"ops/do-gateway/news_readonly_audit_20261107.py","request_id":"newsaudit20261107v1","timeout":90}
