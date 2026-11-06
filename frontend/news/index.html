@@ -229,7 +229,6 @@ const category=n=>n.event_category?.code==="guidance"?"실적 전망":safeText(n
 const stockSection=n=>n.news_section==="stock"||(n.news_section!=="market"&&stockCatSet.has(category(n)))||category(n)==="종목";
 const marketSection=n=>n.news_section==="market"||(n.news_section!=="stock"&&marketCatSet.has(category(n)));
 function inCategory(n){
- if(major==="전체")return true;
  if(major==="종목"&&!stockSection(n))return false;
  if(major==="증시"&&!marketSection(n))return false;
  if(!minor)return true;
@@ -241,9 +240,10 @@ function renderCategoryTabs(){
   b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));
  });
  const sub=el("subcategoryTabs");
- sub.hidden=major==="전체";
- if(sub.hidden){sub.replaceChildren();return;}
- const options=major==="종목"?stockCats:marketCats;
+ // The primary "전체" choice must not hide all subordinate news filters.
+ // Show all stock + market filters there; narrow them on a specific major tab.
+ sub.hidden=false;
+ const options=major==="종목"?stockCats:major==="증시"?marketCats:[...stockCats,...marketCats];
  sub.innerHTML=options.map(label=>
   '<button class="cat'+(minor===label?' active':'')+'" data-minor="'+escapeHTML(label)+'" aria-pressed="'+String(minor===label)+'">'+escapeHTML(label)+'</button>'
  ).join("");
