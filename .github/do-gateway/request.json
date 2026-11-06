@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/compare_overall_vs_market_news_20261107.py","request_id":"tvoverlap20261107","timeout":60}
+{"operation":"run","path":"ops/do-gateway/check_tradingview_index_lang_20261107.py","request_id":"tvindexlang20261107","timeout":60}
