@@ -10,6 +10,7 @@ import os
 import time
 
 from backend.providers import tradingview_news
+from backend.services.tradingview_news_page import write_snapshot
 
 CHECK_INTERVAL_SECONDS = 60
 
@@ -19,6 +20,11 @@ def run_once():
         print("[tradingview-news-worker] missing TRADINGVIEW_API_KEY", flush=True)
         return 0
     items = tradingview_news.refresh_news_cache()
+    snapshot = write_snapshot(items)
+    print(
+        "[tradingview-news-worker] page_snapshot items=%s" % snapshot["count"],
+        flush=True,
+    )
     return len(items)
 
 
