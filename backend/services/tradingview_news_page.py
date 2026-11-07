@@ -137,7 +137,9 @@ def classify_article(article):
     if stock_source:
         if stock_matches:
             return stock_matches[0], stock_matches, "stock"
-        return {"code": "stock", "label": "종목"}, [], "stock"
+        # Stock-feed membership alone is not a match for any of the 14 events.
+        # Exclude unclassified stock headlines from the public news snapshot.
+        return {"code": "other", "label": "기타"}, [], "other"
 
     # Specific market events take precedence over generic market terms.
     market_matches = [
