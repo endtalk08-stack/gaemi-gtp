@@ -214,6 +214,9 @@ def normalize_article(article):
         "published_at": _published_iso(article),
         "title": _text(article.get("title")),
         "summary": _text(article.get("detail_summary") or article.get("summary")),
+        # Preserve the original API detail excerpt separately from a true summary.
+        "description": _text(article.get("shortDescription") or article.get("detail_description")),
+
 
         "content_source": "api_detail" if article.get("detail_checked") else "news_list",
         "body_available": bool(body) and may_publish_body,
