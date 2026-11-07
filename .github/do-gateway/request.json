@@ -1,1 +1,1 @@
-{"operation":"stop-tradingview-news"}
+{"operation":"run","path":"ops/do-gateway/news_readonly_audit_20261107.py","request_id":"newsprivatecacheaudit20261107x","timeout":60}
