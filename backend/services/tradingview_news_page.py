@@ -213,7 +213,9 @@ def normalize_article(article):
         "id": article.get("id") or article.get("newsId"),
         "published_at": _published_iso(article),
         "title": _text(article.get("title")),
-        "summary": _text(article.get("detail_summary") or article.get("summary")),
+        # Compatibility display field for the existing Pages news-card renderer.
+        # This is an API excerpt, not an AI-generated summary.
+        "summary": _text(article.get("detail_summary") or article.get("summary") or article.get("shortDescription") or article.get("detail_description")),
         # Preserve the original API detail excerpt separately from a true summary.
         "description": _text(article.get("shortDescription") or article.get("detail_description")),
 
