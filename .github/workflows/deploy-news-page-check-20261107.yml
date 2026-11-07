@@ -1,0 +1,66 @@
+name: One-time existing Pages deploy with environment credentials
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - .github/workflows/deploy-news-page-check-20261107.yml
+permissions:
+  contents: read
+concurrency:
+  group: gaemigtp-pages-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: digitalocean-news-worker
+    timeout-minutes: 12
+    env:
+      CF_ACCOUNT: 6cf7450897a598809db421965a07304b
+      TOKEN_PRIMARY: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TOKEN_ALT1: ${{ secrets.CF_API_TOKEN }}
+      TOKEN_ALT2: ${{ secrets.CLOUDFLARE_PAGES_API_TOKEN }}
+      TOKEN_ALT3: ${{ secrets.CLOUDFLARE_AUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate permitted Cloudflare Pages credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          for id in PRIMARY ALT1 ALT2 ALT3; do
+            var="TOKEN_${id}"
+            token="${!var:-}"
+            [ -n "$token" ] || continue
+            http=$(curl --max-time 15 -sS -o /tmp/pages-auth-result -w '%{http_code}' -H "Authorization: Bearer $token" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/pages/projects/gaemigtp-news" || true)
+            if [ "$http" = 200 ] && python3 -c 'import json; d=json.load(open("/tmp/pages-auth-result")); exit(0 if d.get("success") else 1)'; then
+              echo "::add-mask::$token"
+              printf '%s' "$token" > /tmp/gaemi-pages-token
+              echo "PAGES_DEPLOY_AUTH_OK source=$id"
+              exit 0
+            fi
+          done
+          echo "::error::No authorized existing Cloudflare Pages deployment token found. Existing site untouched."
+          exit 1
+      - name: Deploy complete frontend and existing Pages Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="$(cat /tmp/gaemi-pages-token)"
+          export CLOUDFLARE_ACCOUNT_ID="$CF_ACCOUNT"
+          npx --yes wrangler@3.90.0 pages deploy frontend --project-name gaemigtp-news --branch ops/do-ssh-deploy-setup-20261017 --commit-dirty=false
+      - name: Verify news CSS and badge fix on live Pages
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,time
+          for i in range(10):
+              try:
+                  txt=urllib.request.urlopen(urllib.request.Request('https://gaemigtp-news.pages.dev/news/',headers={'Cache-Control':'no-cache'}),timeout=15).read().decode('utf-8')
+                  assert '.news-title{font-size:15px;font-weight:600;line-height:1.5;margin:0;color:#D7DCE5}' in txt
+                  assert '.news-summary{font-size:14px;line-height:1.65;color:#B1B7C2;margin:0}' in txt
+                  assert "category(n)!==majorCategory(n)" in txt
+                  print('NEWS_PAGE_LIVE_VERIFIED'); break
+              except Exception:
+                  if i==9: raise
+                  time.sleep(6)
+          PY
