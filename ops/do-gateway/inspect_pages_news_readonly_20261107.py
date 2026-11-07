@@ -27,7 +27,7 @@ print("CLI_WRANGLER=" + str(bool(shutil.which("wrangler"))))
 print("CLI_CF=" + str(bool(shutil.which("cf"))))
 for key in ("CLOUDFLARE_API_TOKEN", "CF_API_TOKEN", "CLOUDFLARE_PAGES_API_TOKEN", "CLOUDFLARE_AUTH_TOKEN"):
     print("CREDENTIAL_PRESENT_" + key + "=" + str(bool(os.getenv(key))))
-for base in (root / "ops", root / "backend", root / "frontend", Path("/home/gaemi-deploy/.gaemi-gateway")):
+for base in (root / "ops", root / "backend", root / "frontend"):
     if not base.exists():
         continue
     found = []
