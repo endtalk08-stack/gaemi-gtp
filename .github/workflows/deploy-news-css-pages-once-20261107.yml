@@ -1,0 +1,49 @@
+name: One-time deploy existing gaemiGTP Pages frontend
+on:
+  push:
+    branches: [ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - '.github/workflows/deploy-news-css-pages-once-20261107.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gaemigtp-pages-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Pages deployment credentials are configured
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not configured for this repository. Nothing deployed."
+            exit 1
+          fi
+      - name: Deploy full existing frontend to original Pages project
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name=gaemigtp-news --branch=ops/do-ssh-deploy-setup-20261017 --commit-dirty=false
+      - name: Check live news CSS
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,time
+          url='https://gaemigtp-news.pages.dev/news/'
+          for attempt in range(6):
+            try:
+              txt=urllib.request.urlopen(urllib.request.Request(url,headers={'Cache-Control':'no-cache'}),timeout=15).read().decode('utf-8')
+              assert '.news-title{font-size:15px;font-weight:600;line-height:1.5;margin:0;color:#D7DCE5}' in txt
+              assert '.news-summary{font-size:14px;line-height:1.65;color:#B1B7C2;margin:0}' in txt
+              print('GAEMI_NEWS_CSS_LIVE_VERIFIED')
+              break
+            except Exception:
+              if attempt == 5: raise
+              time.sleep(5)
+          PY
