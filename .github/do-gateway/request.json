@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/check_globenewswire_rss_one_20261107.py","request_id":"globeoneread20261107a","timeout":60}
+{"operation":"run","path":"ops/do-gateway/audit_cached_excerpt_rights_20261107.py","request_id":"newsrights20261107a","timeout":60}
