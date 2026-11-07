@@ -35,7 +35,7 @@ for base in (root / "ops", root / "backend", root / "frontend"):
         if p.is_file() and any(z in p.name.lower() for z in ("cloudflare", "wrangler", "pages", "publish")):
             found.append(p.name)
     print("DEPLOY_CANDIDATES=" + str(base) + ":" + ",".join(found[:25]))
-for url in ("https://gaemigtp-news.pages.dev/news/","https://gaemigtp-news.pages.dev/news/index.html"):
+for url in ("https://gaemigtp-news.pages.dev/","https://gaemigtp-news.pages.dev/index.html","https://gaemigtp-news.pages.dev/news/"):
     try:
         with urllib.request.urlopen(urllib.request.Request(url,headers={"User-Agent":"gaemi-readonly-check"}),timeout=9) as r:
             s=r.read(100000).decode("utf-8","replace")
