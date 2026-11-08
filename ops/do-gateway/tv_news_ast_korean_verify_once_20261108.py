@@ -55,8 +55,8 @@ def walk(node, depth=0):
 strings=walk(ast)
 body=" ".join(s.strip() for s in strings if s.strip())
 desc=str(data.get("shortDescription") or "")
-body_norm=re.sub(r"\\s+"," ",body).strip()
-desc_norm=re.sub(r"\\s+"," ",desc).strip()
+body_norm=re.sub(r"\s+"," ",body).strip()
+desc_norm=re.sub(r"\s+"," ",desc).strip()
 ko_count=len(re.findall("[가-힣]",body_norm))
 node_details=[]
 if isinstance(ast,dict):
