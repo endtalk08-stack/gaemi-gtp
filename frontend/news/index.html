@@ -260,9 +260,10 @@ const getFavs=()=>{try{const v=JSON.parse(localStorage.getItem(FAV_KEY)||"[]");r
 const saveFavs=f=>{try{localStorage.setItem(FAV_KEY,JSON.stringify(f))}catch{}};
 const isFav=t=>getFavs().includes(t);
 const category=n=>n.event_category?.code==="guidance"?"실적 전망":safeText(n.event_category?.label||n.category||"시장동향");
-const stockSection=n=>n.news_section==="stock"||(n.news_section!=="market"&&stockCatSet.has(category(n)))||category(n)==="종목";
-const marketSection=n=>n.news_section==="market"||(n.news_section!=="stock"&&marketCatSet.has(category(n)));
+const stockSection=n=>Array.isArray(n.news_sections)?n.news_sections.includes("stock"):n.news_section==="stock"||(n.news_section!=="market"&&stockCatSet.has(category(n)))||category(n)==="종목";
+const marketSection=n=>Array.isArray(n.news_sections)?n.news_sections.includes("market"):n.news_section==="market"||(n.news_section!=="stock"&&marketCatSet.has(category(n)));
 const majorCategory=n=>n.news_section==="stock"?"종목":n.news_section==="market"?"증시":stockCatSet.has(category(n))?"종목":"증시";
+const displayCategory=n=>major==="증시"&&n.market_event_category?.label?safeText(n.market_event_category.label):category(n);
 // Display-only mapping for existing R2 category codes; no collection or backend changes.
 const marketMenuCodes={
  "미국증시":["market","major_index","market_close","market_trend"],
@@ -280,8 +281,10 @@ function inCategory(n){
  if(!minor)return true;
  if(major==="증시"){
   const codes=marketMenuCodes[minor]||[];
-  return codes.includes(n.event_category?.code)||
-   (Array.isArray(n.event_matches)&&n.event_matches.some(x=>codes.includes(x?.code)));
+  const matches=Array.isArray(n.market_event_matches)?n.market_event_matches:n.event_matches;
+  const primary=n.market_event_category?.code||n.event_category?.code;
+  return codes.includes(primary)||
+   (Array.isArray(matches)&&matches.some(x=>codes.includes(x?.code)));
  }
  return category(n)===minor||(Array.isArray(n.event_matches)&&n.event_matches.some(x=>x?.label===minor));
 }
@@ -306,7 +309,7 @@ function renderNews(){
  if(!filtered.length){list.innerHTML='<div class="empty">표시할 뉴스가 없습니다</div>';more.classList.add("hidden");return;}
  list.innerHTML=filtered.slice(0,vis).map(n=>
   '<article class="news-item" tabindex="0" role="button" data-id="'+escapeHTML(n._index)+'">'+
-  '<div class="news-card-head"><div class="news-tags"><span class="news-category">'+escapeHTML(majorCategory(n))+'</span><span class="news-category">'+escapeHTML(category(n))+'</span></div><span class="news-source">'+escapeHTML(n.source||"출처 미확인")+'</span></div>'+
+  '<div class="news-card-head"><div class="news-tags"><span class="news-category">'+escapeHTML(majorCategory(n))+'</span><span class="news-category">'+escapeHTML(displayCategory(n))+'</span></div><span class="news-source">'+escapeHTML(n.source||"출처 미확인")+'</span></div>'+
   '<div class="news-title">'+escapeHTML(n.title)+'</div>'+
   (n.summary?'<p class="news-summary">'+escapeHTML(n.summary)+'</p>':"")+
   '<div class="news-card-foot"><span class="news-time">'+escapeHTML(timeLabel(n.published_at))+'</span></div></article>').join("");
@@ -321,7 +324,7 @@ function renderStocks(){
 function openDetail(id){
  const n=news[Number(id)];if(!n)return;
  detail=n;
- el("detTag").textContent=category(n);
+ el("detTag").textContent=displayCategory(n);
  el("detTime").textContent=timeLabel(n.published_at);
  el("detTitle").textContent=n.title;
  el("detSource").textContent=n.source||"출처 미확인";
