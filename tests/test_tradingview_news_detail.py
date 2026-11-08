@@ -6,6 +6,13 @@ import io
 import json
 import unittest
 import urllib.error
+import sys
+
+# The gateway stages this test under /run/gaemi-gateway; add the existing
+# application root so the test imports the installed backend package.
+APP_ROOT = "/opt/gaemigtp-news/app"
+if APP_ROOT not in sys.path:
+    sys.path.insert(0, APP_ROOT)
 
 from backend.providers.tradingview_news_detail import enrich_articles
 
