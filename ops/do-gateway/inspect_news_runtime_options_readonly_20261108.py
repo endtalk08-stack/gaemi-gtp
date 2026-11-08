@@ -2,9 +2,13 @@
 import pathlib, subprocess
 env_path=pathlib.Path("/etc/gaemigtp/news-worker.env")
 keys=("TRADINGVIEW_NEWS_MODE","TRADINGVIEW_NEWS_FOUR_FEEDS_ENABLED","NEWS_DETAIL_REQUEST_BUDGET","NEWS_DETAIL_PUBLICATION_ALLOWED","TRADINGVIEW_API_KEY")
-print("NEWS_RUNTIME_ENV_READABLE="+str(env_path.is_file() and env_path.stat().st_size<50000 and __import__("os").access(env_path,__import__("os").R_OK)))
+try:
+ readable=env_path.is_file() and env_path.stat().st_size<50000 and __import__("os").access(env_path,__import__("os").R_OK)
+except PermissionError:
+ readable=False
+print("NEWS_RUNTIME_ENV_READABLE="+str(readable))
 values={}
-if env_path.is_file() and __import__("os").access(env_path,__import__("os").R_OK):
+if readable:
  for line in env_path.read_text(encoding="utf-8").splitlines():
   line=line.strip()
   if not line or line.startswith("#") or "=" not in line:continue
