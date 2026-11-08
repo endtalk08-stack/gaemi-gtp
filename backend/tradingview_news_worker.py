@@ -56,7 +56,8 @@ def enrich_cached_articles(items):
             return items
         day = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
         used = max(0, int(state.get("detail_daily_requests", 0) or 0)) if state.get("detail_daily_day") == day else 0
-        budget = min(requested, max(0, MAX_DETAIL_REQUESTS_PER_UTC_DAY - used))
+        halted_today = state.get("detail_halted_day") == day
+        budget = 0 if halted_today else min(requested, max(0, MAX_DETAIL_REQUESTS_PER_UTC_DAY - used))
         updated, stats = enrich_articles(current, max_requests=budget)
         if allow_publication:
             for row in updated:
@@ -67,6 +68,9 @@ def enrich_cached_articles(items):
         state["items"] = updated
         state["detail_daily_day"] = day
         state["detail_daily_requests"] = used + stats["requested"]
+        if stats.get("halted_http_status"):
+            state["detail_halted_day"] = day
+            state["detail_halted_status"] = stats["halted_http_status"]
         tradingview_news_bundle._write(state)
         print("[tradingview-news-worker] detail_stats=%s" %
               json.dumps({**stats, "daily_used": state["detail_daily_requests"],
