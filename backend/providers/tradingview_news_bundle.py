@@ -37,7 +37,6 @@ SESSION_INTERVAL_SECONDS = {
 }
 BASIC_COLLECTION_WINDOWS = {
     "premarket": (8 * 60 + 30, 9 * 60),
-    "regular": (12 * 60 + 30, 13 * 60),
     "afterhours": (16 * 60 + 30, 17 * 60),
 }
 
@@ -134,7 +133,8 @@ def _merge(fresh, existing, now):
                     current["news_categories"].append(cat)
             # Preserve previously checked detail metadata when a fresh headline
             # duplicates the same article during the next list refresh.
-            for field in ("detail_checked", "detail_body", "detail_summary", "detail_permission"):
+            for field in ("detail_checked", "detail_body", "detail_summary", "detail_permission",
+                          "detail_parser_version", "detail_publication_allowed", "detail_rights_confirmed"):
                 if not current.get(field) and row.get(field):
                     current[field] = row[field]
             continue
@@ -206,7 +206,9 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
             existing = []
         cached = [_without_description(x) for x in existing if isinstance(x, dict) and _recent(x, now)]
 
-        mode = _mode()
+        # The approved overall collection limit is two fixed windows a day.
+        # Never switch this worker into high-frequency mode via a stale flag.
+        mode = "basic_test"
         # Approved test policy: overall feed only, regardless of stale server flags.
         four_enabled = False
         four_month = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime("%Y-%m")
