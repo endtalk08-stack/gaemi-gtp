@@ -85,9 +85,15 @@ CATEGORY_RULES = (
 
 MARKET_RULES = (
     ("market", "증시", ("stock market", "wall street", "equities", "stocks", "증시", "주식시장")),
-    ("economic", "경제지표", ("cpi", "pce", "gdp", "jobs", "payroll", "employment", "inflation", "retail sales", "pmi", "경제지표", "고용", "물가", "소비자물가")),
-    ("fed", "연준", ("federal reserve", "fed ", "fomc", "powell", "rate cut", "rate hike", "연준", "파월", "금리 인하", "금리 인상")),
-    ("policy", "정부정책", ("white house", "congress", "treasury", "administration", "government", "policy", "정부", "정책", "백악관", "의회")),
+    ("economic", "경제지표", ("cpi", "pce", "gdp", "jobs", "payroll", "employment", "inflation", "retail sales", "pmi", "경제지표", "고용", "물가", "소비자물가",
+        "ppi", "adp", "jolts", "ism", "jobless claims", "unemployment claims", "initial claims", "job openings", "consumer confidence", "consumer sentiment", "productivity", "실업수당", "구인건수", "생산성", "소비자심리", "소비자신뢰", "생산자물가", "비농업고용", "실업률", "고용보고서", "소매판매"
+    )),
+    ("fed", "연준", ("federal reserve", "fed ", "fomc", "powell", "rate cut", "rate hike", "연준", "파월", "금리 인하", "금리 인상",
+        "central bank", "european central bank", "bank of england", "bank of japan", "lagarde", "bailey", "ueda", "waller", "williams", "hammack", "barkin", "bowman", "goolsbee", "daly", "라가르드", "베일리", "우에다", "월러", "윌리엄스", "해맥", "바킨", "보먼", "굴스비", "연은 총재", "금리 동결", "기준금리", "점도표", "연준 의사록", "양적긴축", "양적완화", "매파", "비둘기파"
+    )),
+    ("policy", "정부정책", ("white house", "congress", "treasury", "administration", "government", "policy", "정부", "정책", "백악관", "의회",
+        "trump", "hassett", "트럼프", "해싯", "수출통제", "수출 제한", "수출규제", "반독점", "보조금", "재무장관", "백악관 발표"
+    )),
     ("rates_bonds", "금리·환율", ("treasury yield", "bond yield", "10-year", "2-year", "yield curve", "interest rate", "exchange rate", "forex", "currency", "국채금리", "채권금리", "10년물", "2년물", "수익률곡선", "환율", "엔화", "유로화", "달러지수")),
     ("energy", "에너지", ("oil", "crude", "opec", "natural gas", "energy", "원유", "유가", "천연가스", "에너지")),
     ("fx_commodities", "금리·환율", ("dollar index", "dxy", "exchange rate", "forex", "currency", "달러지수", "환율", "엔화", "유로화")),
@@ -95,7 +101,9 @@ MARKET_RULES = (
     ("market_close", "미국장 마감", ("market close", "closing bell", "closed higher", "closed lower", "마감", "종가")),
     ("major_index", "주요지수", ("s&p 500", "nasdaq", "dow jones", "dow ", "index", "나스닥", "다우", "s&p")),
     ("sector", "시장동향", ("sector", "semiconductor stocks", "tech stocks", "financial stocks", "energy stocks", "healthcare stocks", "섹터", "업종", "반도체주", "기술주", "금융주", "에너지주", "헬스케어주")),
-    ("volatility_sentiment", "시장동향", ("vix", "volatility", "fear gauge", "risk appetite", "risk-on", "risk-off", "investor sentiment", "변동성", "공포지수", "위험선호", "위험회피", "투자심리")),
+    ("volatility_sentiment", "시장동향", ("vix", "volatility", "fear gauge", "risk appetite", "risk-on", "risk-off", "investor sentiment", "변동성", "공포지수", "위험선호", "위험회피", "투자심리",
+        "net inflows", "net outflows", "fund inflows", "fund outflows", "capital flows", "money market fund", "mmf", "liquidity", "credit spread", "credit default", "default risk", "short selling", "short interest", "institutional buying", "institutional selling", "자금 유입", "자금 유출", "자금유입", "자금유출", "기관 순매수", "기관 순매도", "순매수", "순매도", "공매도", "유동성", "신용스프레드", "신용 스프레드", "채무불이행", "국채 입찰", "옵션 만기"
+    )),
     ("market_trend", "시장동향", ("futures", "rally", "selloff", "market sentiment", "선물", "랠리", "매도세", "시장 동향")),
     ("international", "국제정세", ("middle east", "iran", "war", "sanction", "geopolitical", "중동", "이란", "전쟁", "제재", "지정학")),
 )
