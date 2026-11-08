@@ -61,6 +61,8 @@ def _session(now):
 
 def _basic_slot(now):
     ny = dt.datetime.fromtimestamp(now, dt.timezone.utc).astimezone(ZoneInfo("America/New_York"))
+    if ny.weekday() >= 5:
+        return None, None
     minute = ny.hour * 60 + ny.minute
     for name, (start, end) in BASIC_COLLECTION_WINDOWS.items():
         if start <= minute < end:
