@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>News App</title>
+<style>
+:root{--bg:#131314;--card:#1E1F20;--hover:#282A2C;--txt:#F2F2F2;--sub:#8E918F;--bd:#282A2C;--star:#FFD24D;--active:#2B3A5A;--activeTxt:#8AB4F8}
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--txt);display:flex;justify-content:center;padding:20px;min-height:100vh}
+.app{width:100%;max-width:850px;background:var(--bg);position:relative}
+.icon{width:18px;height:18px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;display:block}
+.icon-sm{width:14px;height:14px}
+.icon-lg{width:22px;height:22px}
+
+.search-bar{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:18px;transition:background .2s}
+.search-bar:hover{background:var(--hover)}
+.search-bar .icon{color:var(--sub);flex-shrink:0}
+.search-bar input{flex:1;background:none;border:none;color:var(--txt);font-size:14px;outline:none}
+.search-bar input::placeholder{color:var(--sub)}
+.fav-page-btn{background:none;border:none;position:relative;padding:4px;border-radius:6px;cursor:pointer;color:var(--sub);display:flex;align-items:center;transition:all .2s;flex-shrink:0}
+.fav-page-btn:hover{color:var(--star)}
+.fav-page-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.fav-page-btn.has-fav svg{fill:var(--star);stroke:var(--star)}
+.fav-count{position:absolute;top:-4px;right:-4px;background:var(--star);color:#131314;font-size:9px;font-weight:bold;min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.fav-count.hidden{display:none}
+
+.cats{display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:24px;overflow:visible;padding-bottom:0}
+.cat-row{display:flex;justify-content:center;align-items:center;gap:6px;width:100%;flex-wrap:wrap;min-width:0}
+.cat-row::-webkit-scrollbar{display:none}
+.cat{flex-shrink:0;background:var(--card);color:var(--sub);border:1px solid transparent;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;transition:all .2s;white-space:nowrap}
+.cat:hover{background:var(--hover);color:var(--txt)}
+.cat.active{background:var(--active);color:var(--activeTxt)}
+#subcategoryTabs[hidden]{display:none}
+#subcategoryTabs{max-width:900px;gap:6px;margin-top:4px}
+
+#list{display:block}
+.news-list{display:flex;flex-direction:column}
+.news-item{background:var(--card);border-radius:10px;padding:14px 16px;margin-bottom:10px;min-height:82px;cursor:pointer;transition:background .2s;animation:fadeIn .25s ease;display:flex;flex-direction:column;align-items:stretch;gap:7px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.news-item:hover{background:var(--hover)}
+.news-card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;min-width:0}
+.news-tags{display:flex;align-items:center;gap:5px;min-width:0;flex-wrap:wrap}
+.news-category{background:#282A2C;color:#a0a0a0;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:bold;flex-shrink:0}
+.news-source{font-size:11px;color:var(--sub);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.news-title{font-size:18px;font-weight:bold;line-height:1.45;margin:0;color:#C2C8D2}
+.news-card-foot{display:flex;justify-content:flex-end;align-items:center;margin-top:1px}
+.news-time{font-size:11px;color:var(--sub);white-space:nowrap}
+.news-summary{font-size:16px;line-height:1.55;color:var(--sub);margin:0}
+.article-text{font-size:13px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--txt)}
+.article-empty{font-size:12px;color:var(--sub);line-height:1.6}
+.empty{padding:60px 20px;text-align:center;color:var(--sub);font-size:14px}
+.empty .icon{width:40px;height:40px;margin:0 auto 12px;opacity:.4}
+.more-btn{width:100%;background:var(--card);color:var(--txt);border:none;border-radius:8px;padding:15px;margin-bottom:10px;font-size:14px;font-weight:bold;cursor:pointer;transition:background .2s;text-align:center}
+.more-btn:hover{background:var(--hover)}
+.more-btn.hidden{display:none}
+
+#detail{display:none;flex-direction:column;animation:fadeIn .3s ease-in-out;padding-bottom:40px}
+.det-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.icon-btn{background:none;border:none;color:var(--sub);cursor:pointer;padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.icon-btn:hover{color:var(--txt);background:var(--hover)}
+
+.preview-card{background:var(--card);border-radius:10px;padding:16px;margin-bottom:24px}
+.prev-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:10px}
+.prev-tag{background:#282A2C;color:#a0a0a0;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:bold;flex-shrink:0}
+.prev-time{font-size:12px;color:var(--sub);flex-shrink:0}
+.prev-title{font-size:15px;font-weight:bold;line-height:1.4;color:var(--txt);margin-bottom:8px}
+.prev-source{font-size:12px;color:var(--sub);font-weight:bold;margin-bottom:12px}
+.prev-bot{display:flex;justify-content:flex-end;align-items:center;font-size:12px;color:var(--sub)}
+.prev-views{display:flex;align-items:center;gap:4px}
+
+.info-sec{margin-bottom:22px}
+.info-title{font-size:13px;color:var(--sub);margin-bottom:10px;font-weight:bold}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--card);border:1px solid var(--bd);padding:6px 12px;border-radius:6px;font-size:13px;color:var(--txt);font-weight:bold;cursor:pointer;transition:all .2s}
+.chip:hover{background:var(--hover);border-color:#3A3A3A}
+
+.stocks-col{display:flex;flex-direction:column;gap:8px}
+.stock-item{display:flex;align-items:center;justify-content:space-between;background:var(--card);border-radius:8px;padding:12px 14px;transition:background .2s}
+.stock-item:hover{background:var(--hover)}
+.stock-ticker{font-size:14px;font-weight:bold;color:var(--txt);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fav-btn{background:none;border:none;cursor:pointer;padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
+.fav-btn:hover{background:rgba(255,210,77,.1)}
+.fav-btn svg{width:20px;height:20px;fill:none;stroke:var(--sub);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;transition:all .2s}
+.fav-btn.fav svg{fill:var(--star);stroke:var(--star)}
+.fav-btn.fav{animation:pop .3s ease}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.25)}100%{transform:scale(1)}}
+
+/* 🌟 NEW: 하단 기사 원문 링크 (관련 종목 박스와 동일 스타일) */
+.original-link-bottom{
+display:flex;
+align-items:center;
+justify-content:center;
+gap:8px;
+background:var(--card);
+color:var(--txt);
+border:1px solid var(--bd);
+border-radius:8px;
+padding:14px;
+font-size:14px;
+font-weight:bold;
+cursor:pointer;
+transition:all .2s;
+text-decoration:none;
+margin-top:4px;
+}
+.original-link-bottom:hover{background:var(--hover);border-color:#3A3A3A}
+.original-link-bottom svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none}
+
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);background:#2B3A5A;color:#8AB4F8;padding:12px 24px;border-radius:24px;font-size:13px;font-weight:bold;box-shadow:0 4px 20px rgba(0,0,0,.5);opacity:0;transition:all .3s ease;z-index:300;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:100;display:none;flex-direction:column;align-items:center;animation:slideUp .25s ease;overflow-y:auto}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal.open{display:flex}
+.modal-inner{width:100%;max-width:600px;padding:20px}
+.modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding:0 4px}
+.modal-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:bold}
+.modal-title .title-icon{color:var(--star);width:18px;height:18px}
+.modal-title .count-badge{font-size:11px;background:var(--card);color:var(--sub);padding:2px 8px;border-radius:10px;font-weight:bold}
+.modal-close{background:none;border:none;color:var(--sub);cursor:pointer;padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.modal-close:hover{color:var(--txt);background:var(--card)}
+
+.fav-list{display:flex;flex-direction:column;gap:10px}
+.fav-item{display:flex;align-items:center;justify-content:space-between;background:var(--card);border-radius:10px;padding:16px;transition:background .2s;animation:fadeIn .2s ease}
+.fav-item:hover{background:var(--hover)}
+.fav-info{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.fav-ticker{font-size:15px;font-weight:bold;color:var(--txt)}
+.fav-label{font-size:11px;color:var(--sub)}
+.fav-remove{background:none;border:none;cursor:pointer;padding:8px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
+.fav-remove:hover{background:rgba(255,90,90,.1)}
+.fav-remove svg{width:18px;height:18px;stroke:var(--sub);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;transition:all .2s}
+.fav-remove:hover svg{stroke:#FF5A5A}
+.fav-empty{text-align:center;padding:80px 20px;color:var(--sub)}
+.fav-empty .icon{width:48px;height:48px;margin:0 auto 16px;opacity:.3}
+.fav-empty .msg{font-size:14px;margin-bottom:6px}
+.fav-empty .sub{font-size:12px;opacity:.7}
+
+@media(max-width:480px){
+.cat-row{justify-content:center;overflow:visible;scrollbar-width:none;gap:6px}
+.c-arrow{width:28px;height:28px}
+.c-arrow svg{width:14px;height:14px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div id="list">
+<div class="search-bar">
+<svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+<input type="text" id="searchInput" placeholder="검색어를 입력하세요">
+<button class="fav-page-btn" id="openFavBtn" title="관심종목">
+<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+<span class="fav-count hidden" id="favCount">0</span>
+</button>
+</div>
+
+<div class="cats" id="categoryTabs">
+<div class="cat-row">
+<button class="cat active" data-major="전체" aria-pressed="true">전체</button>
+<button class="cat" data-major="종목" aria-pressed="false">종목</button>
+<button class="cat" data-minor="실적 발표" aria-pressed="false">실적 발표</button>
+<button class="cat" data-minor="실적 전망" aria-pressed="false">실적 전망</button>
+<button class="cat" data-minor="증권사 평가" aria-pressed="false">증권사 평가</button>
+<button class="cat" data-minor="사업 성과" aria-pressed="false">사업 성과</button>
+<button class="cat" data-minor="계약·수주" aria-pressed="false">계약·수주</button>
+<button class="cat" data-minor="제품·기술" aria-pressed="false">제품·기술</button>
+<button class="cat" data-minor="재무·주주환원" aria-pressed="false">재무·주주환원</button>
+</div>
+<div class="cat-row">
+<button class="cat" data-minor="인수합병·구조조정" aria-pressed="false">인수합병·구조조정</button>
+<button class="cat" data-minor="법률·사고" aria-pressed="false">법률·사고</button>
+<button class="cat" data-minor="인허가·규제" aria-pressed="false">인허가·규제</button>
+<button class="cat" data-minor="종목별 수급" aria-pressed="false">종목별 수급</button>
+<button class="cat" data-minor="연구개발·임상" aria-pressed="false">연구개발·임상</button>
+<button class="cat" data-minor="제휴·공급망" aria-pressed="false">제휴·공급망</button>
+<button class="cat" data-minor="경영진·지배구조" aria-pressed="false">경영진·지배구조</button>
+</div>
+<div class="cat-row">
+<button class="cat" data-major="증시" aria-pressed="false">증시</button>
+<button class="cat" data-minor="미국증시" aria-pressed="false">미국증시</button>
+<button class="cat" data-minor="경제지표" aria-pressed="false">경제지표</button>
+<button class="cat" data-minor="연준·금리" aria-pressed="false">연준·금리</button>
+<button class="cat" data-minor="정책·규제" aria-pressed="false">정책·규제</button>
+<button class="cat" data-minor="환율·원자재" aria-pressed="false">환율·원자재</button>
+</div>
+<div class="cat-row">
+<button class="cat" data-minor="산업·섹터" aria-pressed="false">산업·섹터</button>
+<button class="cat" data-minor="국제정세" aria-pressed="false">국제정세</button>
+<button class="cat" data-minor="수급·변동성" aria-pressed="false">수급·변동성</button>
+</div>
+</div>
+
+<div>
+<div class="news-list" id="newsList"></div>
+<button class="more-btn" id="moreBtn">더보기</button>
+</div>
+</div>
+
+<div id="detail">
+<!-- 🌟 상단: 뒤로가기 버튼만 -->
+<div class="det-top">
+<button class="icon-btn" onclick="closeDetail()"><svg class="icon icon-lg" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+</div>
+
+<div class="preview-card">
+<div class="prev-top"><span class="prev-tag" id="detTag">증시</span><span class="prev-time" id="detTime">방금 전</span></div>
+<div class="prev-title" id="detTitle">뉴스 제목</div>
+<div class="prev-source" id="detSource">한국경제</div>
+<div class="prev-bot"><span class="prev-views"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span id="detViews">0</span></span></div>
+</div>
+
+
+
+<div class="info-sec"><div class="info-title">기사 본문</div><div id="detArticleContent" class="article-text"></div></div>
+
+<div class="info-sec"><div class="info-title">관련 이슈</div><div class="chip-row" id="detIssues"></div></div>
+<div class="info-sec"><div class="info-title">관련 종목</div><div class="stocks-col" id="detStocks"></div></div>
+<div class="info-sec"><div class="info-title">관련 산업·테마</div><div class="chip-row" id="detIndustries"></div></div>
+
+<!-- 🌟 NEW: 하단 기사 원문 링크 (관련 종목 박스와 동일한 사이즈) -->
+<a class="original-link-bottom" id="origLink" href="#" target="_blank" rel="noopener">
+기사 원문
+<svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+</a>
+</div>
+
+</div>
+
+<div class="toast" id="toast">관심종목에 추가되었습니다</div>
+
+<div class="modal" id="favModal">
+<div class="modal-inner">
+<div class="modal-hd">
+<div class="modal-title">
+<svg class="title-icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+관심종목 <span class="count-badge" id="favModalCount">0개</span>
+</div>
+<button class="modal-close" onclick="closeModal('favModal')"><svg class="icon" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg></button>
+</div>
+<div class="fav-list" id="favList"></div>
+</div>
+</div>
+
+<script>
+
+"use strict";
+// Read-only display of the existing R2 snapshot. A Pages/Worker route must serve this JSON.
+const NEWS_URL=(window.ENV&&window.ENV.NEWS_R2_URL)||"/news/latest.json";
+const INIT=5, PAGE_SIZE=10, FAV_KEY="news_app_favorites";
+const stockCats=["실적 발표","실적 전망","증권사 평가","사업 성과","계약·수주","제품·기술","재무·주주환원","인수합병·구조조정","법률·사고","인허가·규제","종목별 수급","연구개발·임상","제휴·공급망","경영진·지배구조"];
+const marketCats=["미국증시","경제지표","연준·금리","정책·규제","환율·원자재","산업·섹터","국제정세","수급·변동성"];
+const stockCatSet=new Set(stockCats),marketCatSet=new Set(marketCats);
+let news=[],filtered=[],major="전체",minor="",q="",vis=INIT,relatedStocks=[],detail=null;
+const el=id=>document.getElementById(id);
+const escapeHTML=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const safeText=v=>String(v??"").trim();
+const getFavs=()=>{try{const v=JSON.parse(localStorage.getItem(FAV_KEY)||"[]");return Array.isArray(v)?v:[]}catch{return[]}};
+const saveFavs=f=>{try{localStorage.setItem(FAV_KEY,JSON.stringify(f))}catch{}};
+const isFav=t=>getFavs().includes(t);
+const category=n=>n.event_category?.code==="guidance"?"실적 전망":safeText(n.event_category?.label||n.category||"시장동향");
+const stockSection=n=>n.news_section==="stock"||(n.news_section!=="market"&&stockCatSet.has(category(n)))||category(n)==="종목";
+const marketSection=n=>n.news_section==="market"||(n.news_section!=="stock"&&marketCatSet.has(category(n)));
+const majorCategory=n=>n.news_section==="stock"?"종목":n.news_section==="market"?"증시":stockCatSet.has(category(n))?"종목":"증시";
+// Display-only mapping for existing R2 category codes; no collection or backend changes.
+const marketMenuCodes={
+ "미국증시":["market","major_index","market_close","market_trend"],
+ "경제지표":["economic"],
+ "연준·금리":["fed","rates_bonds"],
+ "정책·규제":["policy","tariff"],
+ "환율·원자재":["energy","fx_commodities"],
+ "산업·섹터":["sector"],
+ "국제정세":["international"],
+ "수급·변동성":["volatility_sentiment"]
+};
+function inCategory(n){
+ if(major==="종목"&&!stockSection(n))return false;
+ if(major==="증시"&&!marketSection(n))return false;
+ if(!minor)return true;
+ if(major==="증시")return (marketMenuCodes[minor]||[]).includes(n.event_category?.code);
+ return category(n)===minor||(Array.isArray(n.event_matches)&&n.event_matches.some(x=>x?.label===minor));
+}
+function renderCategoryTabs(){
+ // Keep the original four-row menu layout, only update selection state.
+ document.querySelectorAll("#categoryTabs button.cat").forEach(b=>{
+  const active=b.dataset.major?major===b.dataset.major&&!minor:minor===b.dataset.minor;
+  b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));
+ });
+}
+function timeLabel(iso){
+ const d=new Date(iso||"");
+ return Number.isNaN(d.getTime())?"시간 미확인":new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).format(d);
+}
+function filterNews(){
+ const term=q.trim().toLowerCase();
+ filtered=news.filter(n=>inCategory(n)&&(!term||[n.title,n.source,n.summary,...(n.symbols||[]),...(n.event_matches||[]).map(x=>x.label)].join(" ").toLowerCase().includes(term)));
+ vis=INIT;renderNews();
+}
+function renderNews(){
+ const list=el("newsList"),more=el("moreBtn");
+ if(!filtered.length){list.innerHTML='<div class="empty">표시할 뉴스가 없습니다</div>';more.classList.add("hidden");return;}
+ list.innerHTML=filtered.slice(0,vis).map(n=>
+  '<article class="news-item" tabindex="0" role="button" data-id="'+escapeHTML(n._index)+'">'+
+  '<div class="news-card-head"><div class="news-tags"><span class="news-category">'+escapeHTML(majorCategory(n))+'</span><span class="news-category">'+escapeHTML(category(n))+'</span></div><span class="news-source">'+escapeHTML(n.source||"출처 미확인")+'</span></div>'+
+  '<div class="news-title">'+escapeHTML(n.title)+'</div>'+
+  (n.summary?'<p class="news-summary">'+escapeHTML(n.summary)+'</p>':"")+
+  '<div class="news-card-foot"><span class="news-time">'+escapeHTML(timeLabel(n.published_at))+'</span></div></article>').join("");
+ more.classList.toggle("hidden",vis>=filtered.length);
+ more.textContent="더보기 ("+Math.min(PAGE_SIZE,filtered.length-vis)+"개 더)";
+}
+function renderStocks(){
+ const container=el("detStocks");
+ if(!relatedStocks.length){container.innerHTML='<div class="stock-item"><span class="stock-ticker">관련 종목 정보 없음</span></div>';return;}
+ container.innerHTML=relatedStocks.map(s=>'<div class="stock-item"><span class="stock-ticker">'+escapeHTML(s)+'</span><button class="fav-btn '+(isFav(s)?"fav":"")+'" data-ticker="'+escapeHTML(s)+'" aria-label="관심종목 추가·삭제"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>').join("");
+}
+function openDetail(id){
+ const n=news[Number(id)];if(!n)return;
+ detail=n;
+ el("detTag").textContent=category(n);
+ el("detTime").textContent=timeLabel(n.published_at);
+ el("detTitle").textContent=n.title;
+ el("detSource").textContent=n.source||"출처 미확인";
+
+
+ el("detArticleContent").textContent=n.body||"";
+ el("detArticleContent").classList.toggle("article-empty",!n.body);
+ // R2 source has no reliable view count: do not fabricate one.
+ el("detViews").textContent="—";
+ const issues=[...new Set((n.event_matches||[]).map(x=>x?.label).filter(Boolean))];
+ el("detIssues").innerHTML=issues.length?issues.map(i=>'<span class="chip">'+escapeHTML(i)+'</span>').join(""):'<span class="news-summary">분류된 세부 이슈 없음</span>';
+ relatedStocks=Array.isArray(n.symbols)?n.symbols.filter(x=>typeof x==="string"&&x):[];
+ renderStocks();
+ // Industry/theme mappings are not part of this R2 snapshot.
+ el("detIndustries").innerHTML='<span class="news-summary">연결 데이터 없음</span>';
+ const raw=safeText(n.url);let valid="";
+ try{const parsed=new URL(raw);if(["https:","http:"].includes(parsed.protocol))valid=parsed.href;}catch{}
+ const link=el("origLink");link.href=valid||"#";link.style.display=valid?"flex":"none";
+ el("list").style.display="none";el("detail").style.display="flex";window.scrollTo(0,0);
+}
+function closeDetail(){detail=null;el("detail").style.display="none";el("list").style.display="block";window.scrollTo(0,0);}
+function toast(msg){const t=el("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800);}
+function toggleFav(t){if(!t)return;let f=getFavs();f=f.includes(t)?f.filter(x=>x!==t):[...f,t];saveFavs(f);updateFavBadge();renderStocks();if(el("favModal").classList.contains("open"))renderFavList();toast(t+(f.includes(t)?" 관심종목 추가":" 관심종목 제거"));}
+function updateFavBadge(){const f=getFavs(),b=el("favCount");b.textContent=f.length>99?"99+":String(f.length);b.classList.toggle("hidden",!f.length);el("openFavBtn").classList.toggle("has-fav",!!f.length);}
+function openModal(id){el(id).classList.add("open");document.body.style.overflow="hidden";}
+function closeModal(id){el(id).classList.remove("open");document.body.style.overflow="";}
+function renderFavList(){const f=getFavs();el("favModalCount").textContent=f.length+"개";el("favList").innerHTML=f.length?f.map(t=>'<div class="fav-item"><span class="fav-ticker">'+escapeHTML(t)+'</span><button class="fav-remove" data-remove="'+escapeHTML(t)+'" aria-label="관심종목 삭제">×</button></div>').join(""):'<div class="fav-empty">관심종목이 비어있습니다</div>';}
+async function loadNews(){
+ el("newsList").innerHTML='<div class="empty">뉴스를 불러오는 중…</div>';
+ try{
+  const c=new AbortController();const timer=setTimeout(()=>c.abort(),8000);
+  let response;try{response=await fetch(NEWS_URL,{signal:c.signal,cache:"no-cache"});}finally{clearTimeout(timer);}
+  if(!response.ok)throw Error("HTTP "+response.status);
+  const data=await response.json();
+  if(!data||data.ok!==true||!Array.isArray(data.items))throw Error("R2 데이터 형식 불일치");
+  news=data.items.filter(n=>n&&typeof n.title==="string"&&n.title.trim()).map((n,i)=>({...n,_index:i}));
+  news.sort((a,b)=>Date.parse(b.published_at||0)-Date.parse(a.published_at||0));
+  // Reassign indices after sorting so details are always the clicked article.
+  news.forEach((n,i)=>n._index=i);
+  filterNews();
+ }catch(e){el("newsList").innerHTML='<div class="empty">뉴스 데이터를 불러올 수 없습니다. R2 읽기 경로를 확인해주세요.</div>';el("moreBtn").classList.add("hidden");console.error("news snapshot fetch failed",e);}
+}
+document.addEventListener("DOMContentLoaded",()=>{
+ updateFavBadge();renderCategoryTabs();loadNews();
+ el("moreBtn").addEventListener("click",()=>{vis=Math.min(vis+PAGE_SIZE,filtered.length);renderNews();});
+ el("categoryTabs").addEventListener("click",e=>{const b=e.target.closest("button.cat");if(!b)return;if(b.dataset.major){major=b.dataset.major;minor="";}else if(b.dataset.minor){const chosen=b.dataset.minor;major=stockCatSet.has(chosen)?"종목":"증시";minor=minor===chosen?"":chosen;}else{return;}renderCategoryTabs();filterNews();});
+ el("searchInput").addEventListener("input",e=>{q=e.target.value;filterNews();});
+ el("newsList").addEventListener("click",e=>{const row=e.target.closest("[data-id]");if(row)openDetail(row.dataset.id);});
+ el("newsList").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){const row=e.target.closest("[data-id]");if(row){e.preventDefault();openDetail(row.dataset.id);}}});
+ el("detStocks").addEventListener("click",e=>{const b=e.target.closest("[data-ticker]");if(b)toggleFav(b.dataset.ticker);});
+ el("favList").addEventListener("click",e=>{const b=e.target.closest("[data-remove]");if(b)toggleFav(b.dataset.remove);});
+ el("openFavBtn").addEventListener("click",()=>{openModal("favModal");renderFavList();});
+ document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal("favModal");if(detail)closeDetail();}});
+});
+
+</script>
+</body>
+</html>
