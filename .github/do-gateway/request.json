@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/tv_news_ast_korean_verify_once_20261108.py","request_id":"tvastko20261108once","timeout":90}
