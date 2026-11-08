@@ -241,8 +241,11 @@ def normalize_article(article):
     # republication rights. Keep full text private by default.
     may_publish_body = (
         article.get("detail_publication_allowed") is True
-        and article.get("permission") != "headline"
-        and article.get("detail_permission") != "headline"
+        and (
+            article.get("detail_rights_confirmed") is True
+            or (article.get("permission") != "headline"
+                and article.get("detail_permission") != "headline")
+        )
     )
     body = _text(article.get("detail_body"))
     return {
