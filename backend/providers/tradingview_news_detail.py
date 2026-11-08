@@ -143,7 +143,7 @@ def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
     opener = opener or urllib.request.urlopen
     rows = [{k: v for k, v in item.items() if k not in ("shortDescription", "short_description", "description", "detail_description", "excerpt")}
             for item in items if isinstance(item, dict)]
-    stats = {"requested": 0, "bodies": 0, "summarized": 0, "blocked": 0, "failed": 0, "skipped": 0}
+    stats = {"requested": 0, "bodies": 0, "summarized": 0, "blocked": 0, "failed": 0, "skipped": 0, "halted_http_status": None}
     if not budget or not key:
         stats["skipped"] = len(rows)
         return rows, stats
@@ -187,6 +187,7 @@ def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
             stats["failed"] += 1
             if exc.code in (401, 402, 403, 429):
                 halted = True
+                stats["halted_http_status"] = exc.code
         except (ValueError, TypeError, UnicodeError, OSError):
             stats["failed"] += 1
     return rows, stats
