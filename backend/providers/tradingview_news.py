@@ -267,36 +267,19 @@ def _load_news(key, *, now=None, opener=None):
 
 
 def refresh_news_cache(*, now=None, opener=None):
-    """Read the already collected overall-news cache; do not make a second API call.
-
-    The dedicated TradingView news worker owns new API collection. Keep the
-    older stock-only cache as a read-only fallback while the system is paused
-    or before the first overall-news batch is available.
-    """
-    from backend.providers import tradingview_news_bundle
-
-    stamp = time.time() if now is None else float(now)
-    for path, expected_version in (
-        (tradingview_news_bundle.CACHE_PATH, tradingview_news_bundle.FEED_VERSION),
-        (CACHE_PATH, None),
-    ):
-        if path.is_symlink() or not path.is_file() or path.parent.is_symlink():
-            continue
-        try:
-            state = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, TypeError):
-            continue
-        if not isinstance(state, dict):
-            continue
-        if expected_version is not None and state.get("feed_version") != expected_version:
-            continue
-        rows = state.get("items", [])
-        if isinstance(rows, list):
-            fresh = [row for row in rows if isinstance(row, dict) and
-                     _article_is_recent(row, stamp)]
-            if fresh:
-                return fresh
-    return []
+    """Refresh/read the shared US cache without doing any DB or AI work."""
+    key = os.environ.get("TRADINGVIEW_API_KEY", "").strip()
+    if not key:
+        return []
+    try:
+        return _load_news(key, now=now, opener=opener)
+    except (OSError, ValueError) as exc:
+        print(
+            "[provider:tradingview-news] cache_failed=%s"
+            % type(exc).__name__,
+            flush=True,
+        )
+        return []
 
 def fetch_stock_news(ticker):
     """Return normalized, symbol-verified US news; never bill per ticker."""
