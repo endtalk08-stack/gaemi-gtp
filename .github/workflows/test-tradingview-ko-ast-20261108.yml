@@ -1,0 +1,25 @@
+name: Verify TradingView Korean AST detail extraction
+
+on:
+  push:
+    branches: [fix/tradingview-ko-ast-detail-20261108]
+    paths:
+      - 'backend/providers/tradingview_news_detail.py'
+      - 'tests/test_tradingview_ko_ast_detail.py'
+      - '.github/workflows/test-tradingview-ko-ast-20261108.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile Korean detail provider
+        run: python -m py_compile backend/providers/tradingview_news_detail.py
+      - name: Test AST body extraction without external API
+        run: python -m unittest discover -s tests -p 'test_tradingview_ko_ast_detail.py' -v
