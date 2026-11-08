@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/check_news_detail_env_effective_20261108.py","request_id":"news_detail_env_effective_20261108","timeout":60}
