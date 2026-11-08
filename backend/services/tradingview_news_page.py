@@ -85,17 +85,25 @@ CATEGORY_RULES = (
 
 MARKET_RULES = (
     ("market", "증시", ("stock market", "wall street", "equities", "stocks", "증시", "주식시장")),
-    ("economic", "경제지표", ("cpi", "pce", "gdp", "jobs", "payroll", "employment", "inflation", "retail sales", "pmi", "경제지표", "고용", "물가", "소비자물가")),
-    ("fed", "연준", ("federal reserve", "fed ", "fomc", "powell", "rate cut", "rate hike", "연준", "파월", "금리 인하", "금리 인상")),
-    ("policy", "정부정책", ("white house", "congress", "treasury", "administration", "government", "policy", "정부", "정책", "백악관", "의회")),
-    ("rates_bonds", "금리·환율", ("treasury yield", "bond yield", "10-year", "2-year", "yield curve", "interest rate", "exchange rate", "forex", "currency", "국채금리", "채권금리", "10년물", "2년물", "수익률곡선", "환율", "엔화", "유로화", "달러지수")),
+    ("economic", "경제지표", ("cpi", "pce", "gdp", "jobs", "payroll", "employment", "inflation", "retail sales", "pmi", "경제지표", "고용", "물가", "소비자물가",
+        "ppi", "adp", "jolts", "ism", "jobless claims", "unemployment claims", "initial claims", "job openings", "consumer confidence", "consumer sentiment", "productivity", "실업수당", "구인건수", "생산성", "소비자심리", "소비자신뢰", "생산자물가", "비농업고용", "실업률", "고용보고서", "소매판매"
+    )),
+    ("fed", "연준", ("federal reserve", "fed ", "fomc", "powell", "rate cut", "rate hike", "연준", "파월", "금리 인하", "금리 인상",
+        "central bank", "european central bank", "bank of england", "bank of japan", "lagarde", "bailey", "ueda", "waller", "williams", "hammack", "barkin", "bowman", "goolsbee", "daly", "라가르드", "베일리", "우에다", "월러", "윌리엄스", "해맥", "바킨", "보먼", "굴스비", "연은 총재", "금리 동결", "기준금리", "점도표", "연준 의사록", "양적긴축", "양적완화", "매파", "비둘기파"
+    )),
+    ("policy", "정부정책", ("white house", "congress", "treasury", "administration", "government", "policy", "정부", "정책", "백악관", "의회",
+        "trump", "hassett", "트럼프", "해싯", "수출통제", "수출 제한", "수출규제", "반독점", "보조금", "재무장관", "백악관 발표"
+    )),
+    ("rates_bonds", "국채·금리", ("treasury yield", "bond yield", "10-year", "2-year", "yield curve", "interest rate", "국채금리", "채권금리", "10년물", "2년물", "수익률곡선")),
     ("energy", "에너지", ("oil", "crude", "opec", "natural gas", "energy", "원유", "유가", "천연가스", "에너지")),
-    ("fx_commodities", "금리·환율", ("dollar index", "dxy", "exchange rate", "forex", "currency", "달러지수", "환율", "엔화", "유로화")),
+    ("fx_commodities", "환율·원자재", ("dollar index", "dxy", "exchange rate", "forex", "currency", "달러지수", "환율", "엔화", "유로화")),
     ("tariff", "관세", ("tariff", "trade war", "import duty", "관세", "무역전쟁")),
     ("market_close", "미국장 마감", ("market close", "closing bell", "closed higher", "closed lower", "마감", "종가")),
     ("major_index", "주요지수", ("s&p 500", "nasdaq", "dow jones", "dow ", "index", "나스닥", "다우", "s&p")),
     ("sector", "시장동향", ("sector", "semiconductor stocks", "tech stocks", "financial stocks", "energy stocks", "healthcare stocks", "섹터", "업종", "반도체주", "기술주", "금융주", "에너지주", "헬스케어주")),
-    ("volatility_sentiment", "시장동향", ("vix", "volatility", "fear gauge", "risk appetite", "risk-on", "risk-off", "investor sentiment", "변동성", "공포지수", "위험선호", "위험회피", "투자심리")),
+    ("volatility_sentiment", "시장동향", ("vix", "volatility", "fear gauge", "risk appetite", "risk-on", "risk-off", "investor sentiment", "변동성", "공포지수", "위험선호", "위험회피", "투자심리",
+        "net inflows", "net outflows", "fund inflows", "fund outflows", "capital flows", "money market fund", "mmf", "liquidity", "credit spread", "credit default", "default risk", "short selling", "short interest", "institutional buying", "institutional selling", "자금 유입", "자금 유출", "자금유입", "자금유출", "기관 순매수", "기관 순매도", "순매수", "순매도", "공매도", "유동성", "신용스프레드", "신용 스프레드", "채무불이행", "국채 입찰", "옵션 만기"
+    )),
     ("market_trend", "시장동향", ("futures", "rally", "selloff", "market sentiment", "선물", "랠리", "매도세", "시장 동향")),
     ("international", "국제정세", ("middle east", "iran", "war", "sanction", "geopolitical", "중동", "이란", "전쟁", "제재", "지정학")),
 )
@@ -197,6 +205,32 @@ def _news_url(article):
 
 def normalize_article(article):
     primary, matches, section = classify_article(article)
+    # A news item keeps one ID while carrying both market and stock tags.
+    market_matches = matches if section == "market" else [
+        {"code": code, "label": label}
+        for code, label, terms in MARKET_RULES
+        if any(str(term).lower() in _text(article.get("title")).lower() for term in terms)
+    ]
+    market_evidence = [
+        item for item in market_matches
+        if item["code"] not in ("market", "market_trend")
+    ]
+    if section == "other" and market_evidence:
+        primary, matches, section = market_evidence[0], market_matches, "market"
+    elif section == "other" and "overall" in (article.get("news_categories") or []):
+        # Do not silently discard an overall-feed story merely because it
+        # has a US equity symbol but no one of the 14 stock-event keywords.
+        primary, matches, section = {"code": "market_trend", "label": "시장동향"}, market_matches, "market"
+    stock_matches = matches if section == "stock" else []
+    market_primary = (
+        next((m for m in market_matches
+              if m["code"] not in ("market", "market_trend", "sector")), None)
+        or (market_evidence[0] if market_evidence else None)
+        or (primary if section == "market" else None)
+    )
+    news_sections = ["stock"] if section == "stock" else []
+    if section == "market" or (section == "stock" and market_evidence):
+        news_sections.append("market")
     provider = article.get("provider")
     source = (
         _text(provider.get("name"))
@@ -233,6 +267,10 @@ def normalize_article(article):
         "event_category": primary,
         "event_matches": matches,
         "news_section": section,
+        "news_sections": news_sections,
+        "stock_event_matches": stock_matches,
+        "market_event_category": market_primary,
+        "market_event_matches": market_matches if "market" in news_sections else [],
         "source_categories": article.get("news_categories") or [],
         "paywall": article.get("paywall"),
         "permission": article.get("permission"),
