@@ -1,4 +1,7 @@
-"""Mock-only tests: never send a real TradingView API request."""
+"""Mock-only tests for TradingView article-detail enrichment.
+
+These tests use fake HTTP responses and never contact TradingView.
+"""
 import io
 import json
 import unittest
@@ -25,95 +28,155 @@ class DetailTests(unittest.TestCase):
     def test_zero_budget_never_calls_api(self):
         def unexpected(*args, **kwargs):
             raise AssertionError("network called")
-        rows, stat = enrich_articles([{"id": "one", "title": "Title"}], max_requests=0, api_key="test", opener=unexpected)
-        self.assertEqual(stat["requested"], 0)
+
+        rows, stats = enrich_articles(
+            [{"id": "one", "title": "Title"}],
+            max_requests=0,
+            api_key="test",
+            opener=unexpected,
+        )
+        self.assertEqual(stats["requested"], 0)
+        self.assertEqual(stats["skipped"], 1)
         self.assertEqual(rows[0]["title"], "Title")
 
-    def test_one_detail_and_no_duplicate(self):
+    def test_duplicate_article_is_requested_once(self):
         calls = []
+
         def fake(request, timeout):
             calls.append(request.full_url)
-            return FakeResponse({"success": True, "data": {"description": "A verified factual description"}})
-        rows, stat = enrich_articles(
-            [{"id": "tag:abc/1", "title": "News", "permission": "provider"},
-             {"id": "tag:abc/1", "title": "News duplicate", "permission": "provider"}],
-            max_requests=2, api_key="test", opener=fake,
+            return FakeResponse({
+                "success": True,
+                "data": {"summary": "A verified provider summary"},
+            })
+
+        rows, stats = enrich_articles(
+            [
+                {"id": "tag:abc/1", "title": "News"},
+                {"id": "tag:abc/1", "title": "News duplicate"},
+            ],
+            max_requests=2,
+            api_key="test",
+            opener=fake,
         )
-        self.assertEqual(stat["requested"], 1)
-        self.assertEqual(stat["described"], 1)
-        self.assertEqual(rows[0]["shortDescription"], "A verified factual description")
+        self.assertEqual(stats["requested"], 1)
+        self.assertEqual(stats["summarized"], 1)
+        self.assertEqual(rows[0]["detail_summary"], "A verified provider summary")
         self.assertEqual(len(calls), 1)
         self.assertIn("tag%3Aabc%2F1", calls[0])
 
-    def test_headline_listing_still_checks_detail(self):
+    def test_headline_permission_does_not_prevent_detail_lookup(self):
         calls = []
+
         def fake(request, timeout):
             calls.append(request.full_url)
-            return FakeResponse({"success": True, "data": {"body": "Detail API body", "permission": "headline"}})
-        rows, stat = enrich_articles([{"id": "one", "permission": "headline"}],
-                                     max_requests=2, api_key="test", opener=fake)
-        self.assertEqual(stat["blocked"], 1)
-        self.assertEqual(stat["requested"], 1)
-        self.assertEqual(stat["bodies"], 1)
+            return FakeResponse({
+                "success": True,
+                "data": {
+                    "body": "Detail API body",
+                    "permission": "headline",
+                },
+            })
+
+        rows, stats = enrich_articles(
+            [{"id": "one", "permission": "headline"}],
+            max_requests=2,
+            api_key="test",
+            opener=fake,
+        )
+        self.assertEqual(stats["blocked"], 1)
+        self.assertEqual(stats["requested"], 1)
+        self.assertEqual(stats["bodies"], 1)
         self.assertEqual(rows[0]["detail_body"], "Detail API body")
         self.assertEqual(len(calls), 1)
 
-    def test_rate_limit_stops_other_requests(self):
+    def test_rate_limit_stops_remaining_requests(self):
         calls = []
+
         def fake(request, timeout):
             calls.append(request.full_url)
-            raise urllib.error.HTTPError(request.full_url, 429, "limit", {}, io.BytesIO(b""))
-        rows, stat = enrich_articles([{"id": "one"}, {"id": "two"}],
-                                     max_requests=10, api_key="test", opener=fake)
-        self.assertEqual(stat["requested"], 1)
-        self.assertEqual(stat["failed"], 1)
+            raise urllib.error.HTTPError(
+                request.full_url, 429, "limit", {}, io.BytesIO(b"")
+            )
+
+        rows, stats = enrich_articles(
+            [{"id": "one"}, {"id": "two"}],
+            max_requests=10,
+            api_key="test",
+            opener=fake,
+        )
+        self.assertEqual(stats["requested"], 1)
+        self.assertEqual(stats["failed"], 1)
+        self.assertEqual(stats["halted_http_status"], 429)
         self.assertEqual(len(calls), 1)
-        self.assertNotIn("shortDescription", rows[0])
+        self.assertNotIn("detail_body", rows[0])
 
     def test_body_is_not_mistaken_for_summary(self):
         def fake(request, timeout):
-            return FakeResponse({"success": True, "data": {"body": "Copyrighted full text"}})
-        rows, stat = enrich_articles([{"id": "one"}], max_requests=1,
-                                     api_key="test", opener=fake)
-        self.assertEqual(stat["described"], 0)
-        self.assertEqual(rows[0]["detail_checked"], "content")
-        self.assertEqual(stat["bodies"], 1)
-        self.assertEqual(rows[0]["detail_body"], "Copyrighted full text")
-        self.assertEqual(stat["summarized"], 0)
+            return FakeResponse({
+                "success": True,
+                "data": {"body": "Copyrighted full text"},
+            })
 
-    def test_no_arbitrary_ten_article_limit(self):
+        rows, stats = enrich_articles(
+            [{"id": "one"}],
+            max_requests=1,
+            api_key="test",
+            opener=fake,
+        )
+        self.assertEqual(stats["summarized"], 0)
+        self.assertEqual(rows[0]["detail_checked"], "content")
+        self.assertEqual(stats["bodies"], 1)
+        self.assertEqual(rows[0]["detail_body"], "Copyrighted full text")
+        self.assertNotIn("detail_summary", rows[0])
+
+    def test_request_budget_is_respected_above_ten_articles(self):
         calls = []
+
         def fake(request, timeout):
             calls.append(request.full_url)
-            return FakeResponse({"success": True, "data": {
-                "body": "Full article", "description": "Description",
-                "summary": "Summary",
-            }})
+            return FakeResponse({
+                "success": True,
+                "data": {
+                    "body": "Full article",
+                    "summary": "Provider summary",
+                },
+            })
+
         items = [{"id": "article-%02d" % i} for i in range(12)]
-        rows, stat = enrich_articles(items, max_requests=len(items),
-                                     api_key="test", opener=fake)
+        rows, stats = enrich_articles(
+            items,
+            max_requests=len(items),
+            api_key="test",
+            opener=fake,
+        )
         self.assertEqual(len(calls), 12)
-        self.assertEqual(stat["requested"], 12)
-        self.assertEqual(stat["bodies"], 12)
-        self.assertEqual(stat["described"], 12)
-        self.assertEqual(stat["summarized"], 12)
+        self.assertEqual(stats["requested"], 12)
+        self.assertEqual(stats["bodies"], 12)
+        self.assertEqual(stats["summarized"], 12)
         self.assertTrue(all(row["detail_body"] for row in rows))
 
-    def test_body_description_summary_are_separate(self):
+    def test_body_and_summary_are_kept_separate(self):
         def fake(request, timeout):
-            return FakeResponse({"success": True, "data": {"article": {
-                "body": "Full detailed article text.",
-                "description": "An article description.",
-                "summary": "A short provider summary.",
-            }}})
-        rows, stat = enrich_articles([{"id": "one", "permission": "provider"}],
-                                     max_requests=1, api_key="test", opener=fake)
+            return FakeResponse({
+                "success": True,
+                "data": {
+                    "article": {
+                        "body": "Full detailed article text.",
+                        "summary": "A short provider summary.",
+                    }
+                },
+            })
+
+        rows, stats = enrich_articles(
+            [{"id": "one", "permission": "provider"}],
+            max_requests=1,
+            api_key="test",
+            opener=fake,
+        )
         self.assertEqual(rows[0]["detail_body"], "Full detailed article text.")
-        self.assertEqual(rows[0]["detail_description"], "An article description.")
         self.assertEqual(rows[0]["detail_summary"], "A short provider summary.")
-        self.assertEqual(stat["bodies"], 1)
-        self.assertEqual(stat["described"], 1)
-        self.assertEqual(stat["summarized"], 1)
+        self.assertEqual(stats["bodies"], 1)
+        self.assertEqual(stats["summarized"], 1)
 
 
 if __name__ == "__main__":
