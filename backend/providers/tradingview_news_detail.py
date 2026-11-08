@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -30,7 +31,7 @@ def _detail_id(article):
 
 
 def _get_detail(news_id, key, opener):
-    url = DETAIL_BASE_URL + urllib.parse.quote(news_id, safe="")
+    url = DETAIL_BASE_URL + urllib.parse.quote(news_id, safe="") + "?lang=ko"
     request = urllib.request.Request(url, headers={
         "Authorization": "Bearer " + key,
         "Accept": "application/json",
@@ -77,12 +78,50 @@ def _first_field(data, fields, limit):
     return ""
 
 
+def _ast_body(value):
+    """Read TradingView astDescription text nodes in document order.
+
+    AST paragraphs commonly contain string children rather than text fields.
+    URL targets and structural node names are not part of article text.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "".join(_ast_body(child) for child in value)
+    if not isinstance(value, dict):
+        return ""
+
+    children = value.get("children")
+    if isinstance(children, list):
+        text = _ast_body(children)
+    else:
+        text = next((
+            value[field] for field in ("text", "plainText", "value", "content")
+            if isinstance(value.get(field), str)
+        ), "")
+        if not text and value.get("type") == "url":
+            params = value.get("params")
+            if isinstance(params, dict):
+                text = _text(params.get("linkText"))
+
+    if value.get("type") in ("p", "li", "h1", "h2", "h3", "blockquote"):
+        return text.strip() + "\n\n" if text.strip() else ""
+    return text
+
+
 def _extract_detail(data):
+    body = _first_field(data, (
+        "body", "articleBody", "article_body", "bodyText",
+        "fullText", "full_text", "content", "text", "storyText",
+    ), MAX_DETAIL_CHARS)
+    if not body:
+        for obj in _candidate_objects(data):
+            ast_body = _ast_body(obj.get("astDescription"))
+            if ast_body.strip():
+                body = re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+", " ", ast_body)).strip()[:MAX_DETAIL_CHARS]
+                break
     return {
-        "detail_body": _first_field(data, (
-            "body", "articleBody", "article_body", "bodyText",
-            "fullText", "full_text", "content", "text", "storyText",
-        ), MAX_DETAIL_CHARS),
+        "detail_body": body,
         "detail_summary": _first_field(data, (
             "summary", "shortSummary", "short_summary", "abstract",
         ), MAX_FIELD_CHARS),
