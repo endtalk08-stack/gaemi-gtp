@@ -1,7 +1,7 @@
 """TradingView multi-category news collector for the standalone News App.
 
-Supports four documented US news desks in one deduplicated local cache.
-Four-feed collection is disabled unless explicitly opted in (no extra API charges).
+Collects the single approved US overall news desk in one deduplicated local cache.
+The optional multi-feed switch is intentionally disabled to prevent extra API charges.
 No Neon or AI calls happen here.
 """
 from __future__ import annotations
@@ -207,7 +207,8 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
         cached = [_without_description(x) for x in existing if isinstance(x, dict) and _recent(x, now)]
 
         mode = _mode()
-        four_enabled = os.environ.get(FOUR_FEEDS_ENV, "").strip() == "1"
+        # Approved test policy: overall feed only, regardless of stale server flags.
+        four_enabled = False
         four_month = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime("%Y-%m")
         four_day = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime("%Y-%m-%d")
         # Never spend a second four-feed batch within a day, even with force=True.
@@ -235,7 +236,7 @@ def refresh_news_cache(*, now=None, opener=None, force=False):
         ok_categories = []
         failed_categories = []
         # Do not turn one monthly-quota request into four without opt-in.
-        categories = CATEGORIES if four_enabled else ("overall",)
+        categories = ("overall",)
         attempted = 0
         for category in categories:
             attempted += 1
