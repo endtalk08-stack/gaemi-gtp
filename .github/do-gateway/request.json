@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/tradingview_news_worker.py","target":"backend/tradingview_news_worker.py"}
+{"operation":"run","path":"ops/do-gateway/verify_tv_detail_pipeline_offline_20261108.py","request_id":"news_detail_pipeline_test_20261108","timeout":60}
