@@ -1,11 +1,5 @@
 import unittest
 from unittest.mock import patch
-import sys
-
-APP_ROOT = "/opt/gaemigtp-news/app"
-if APP_ROOT not in sys.path:
-    sys.path.insert(0, APP_ROOT)
-
 from backend.services.news_feed import fetch_stock_news
 
 
