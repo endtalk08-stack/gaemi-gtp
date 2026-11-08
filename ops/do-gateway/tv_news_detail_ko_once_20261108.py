@@ -10,7 +10,7 @@ key=os.environ.get("TRADINGVIEW_API_KEY","").strip()
 if not key:
     raise SystemExit("TV_STOP_API_KEY_MISSING")
 # The saved Korean headline passed the economic title-only filter.
-news_id="tag:reuters.com,2026:newsml_L3N46N1G1:0"
+news_id="tag:reuters.com,2026:newsml_L3N46P01F:0"
 url="https://api.tradingviewapi.com/api/news/"+urllib.parse.quote(news_id,safe="")+"?lang=ko"
 req=urllib.request.Request(url,headers={"Authorization":"Bearer "+key,"Accept":"application/json"})
 print("TV_DETAIL_CALL_BUDGET=1 LANG=ko TITLE_FILTER=pass",flush=True)
@@ -61,6 +61,14 @@ print("TV_DETAIL_KO_PROBE="+json.dumps({
     "cache_writes":0,
     "r2_writes":0,
 },ensure_ascii=False,separators=(",",":")),flush=True)
+from backend.providers.tradingview_news_detail import _extract_detail
+values=_extract_detail(data)
+body=values.get("detail_body") or ""
+print("TV_TOP1_EXTRACT="+json.dumps({"title":str(data.get("title") or "")[:180],"body_chars":len(body),
+ "body_hangul_chars":len(re.findall("[가-힣]",body)),"body_excerpt":body[:150],
+ "language":data.get("language"),"permission":data.get("permission"),
+ "summary_chars":len(values.get("detail_summary") or ""),"calls":1,
+ "published":False},ensure_ascii=False,separators=(",",":")),flush=True)
 if any(not inactive(u) for u in units):
     raise SystemExit("TV_STOP_WORKER_STATE_CHANGED")
 print("TV_DETAIL_KO_PROBE_DONE_ONE_CALL",flush=True)
