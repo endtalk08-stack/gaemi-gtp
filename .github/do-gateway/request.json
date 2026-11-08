@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_tv_news_precollect_offline_20261108.py","request_id":"news_precollect_offline_20261108","timeout":60}
+{"operation":"run","path":"ops/do-gateway/inspect_news_precollection_readonly_20261108.py","request_id":"news_postdeploy_hash_20261108","timeout":60}
