@@ -262,8 +262,8 @@ const isFav=t=>getFavs().includes(t);
 const category=n=>n.event_category?.code==="guidance"?"실적 전망":safeText(n.event_category?.label||n.category||"시장동향");
 const stockSection=n=>Array.isArray(n.news_sections)?n.news_sections.includes("stock"):n.news_section==="stock"||(n.news_section!=="market"&&stockCatSet.has(category(n)))||category(n)==="종목";
 const marketSection=n=>Array.isArray(n.news_sections)?n.news_sections.includes("market"):n.news_section==="market"||(n.news_section!=="stock"&&marketCatSet.has(category(n)));
-const majorCategory=n=>n.news_section==="stock"?"종목":n.news_section==="market"?"증시":stockCatSet.has(category(n))?"종목":"증시";
-const displayCategory=n=>major==="증시"&&n.market_event_category?.label?safeText(n.market_event_category.label):category(n);
+const majorCategory=n=>major==="증시"?"증시":major==="종목"?"종목":n.news_section==="stock"?"종목":n.news_section==="market"?"증시":stockCatSet.has(category(n))?"종목":"증시";
+const displayCategory=n=>major==="증시"?(minor||safeText(n.market_event_category?.label||category(n))):category(n);
 // Display-only mapping for existing R2 category codes; no collection or backend changes.
 const marketMenuCodes={
  "미국증시":["market","major_index","market_close","market_trend"],
@@ -301,7 +301,7 @@ function timeLabel(iso){
 }
 function filterNews(){
  const term=q.trim().toLowerCase();
- filtered=news.filter(n=>inCategory(n)&&(!term||[n.title,n.source,n.summary,...(n.symbols||[]),...(n.event_matches||[]).map(x=>x.label)].join(" ").toLowerCase().includes(term)));
+ filtered=news.filter(n=>inCategory(n)&&(!term||[n.title,n.source,n.summary,...(n.symbols||[]),...(n.event_matches||[]).map(x=>x.label),...(n.market_event_matches||[]).map(x=>x.label)].join(" ").toLowerCase().includes(term)));
  vis=INIT;renderNews();
 }
 function renderNews(){
@@ -334,7 +334,8 @@ function openDetail(id){
  el("detArticleContent").classList.toggle("article-empty",!n.body);
  // R2 source has no reliable view count: do not fabricate one.
  el("detViews").textContent="—";
- const issues=[...new Set((n.event_matches||[]).map(x=>x?.label).filter(Boolean))];
+ const issueMatches=major==="증시"&&Array.isArray(n.market_event_matches)?n.market_event_matches:n.event_matches;
+ const issues=[...new Set((issueMatches||[]).map(x=>x?.label).filter(Boolean))];
  el("detIssues").innerHTML=issues.length?issues.map(i=>'<span class="chip">'+escapeHTML(i)+'</span>').join(""):'<span class="news-summary">분류된 세부 이슈 없음</span>';
  relatedStocks=Array.isArray(n.symbols)?n.symbols.filter(x=>typeof x==="string"&&x):[];
  renderStocks();
