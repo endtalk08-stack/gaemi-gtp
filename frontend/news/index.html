@@ -265,7 +265,7 @@ const marketSection=n=>n.news_section==="market"||(n.news_section!=="stock"&&mar
 const majorCategory=n=>n.news_section==="stock"?"종목":n.news_section==="market"?"증시":stockCatSet.has(category(n))?"종목":"증시";
 // Display-only mapping for existing R2 category codes; no collection or backend changes.
 const marketMenuCodes={
- "미국증시":["market","major_index","market_close","market_trend"],
+ "미국증시":["market","major_index","market_close"],
  "경제지표":["economic"],
  "연준·금리":["fed","rates_bonds"],
  "정책·규제":["policy","tariff"],
