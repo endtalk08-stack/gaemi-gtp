@@ -16,6 +16,7 @@ import urllib.request
 DETAIL_BASE_URL = "https://api.tradingviewapi.com/api/news/"
 MAX_DETAIL_CHARS = 100_000
 MAX_FIELD_CHARS = 10_000
+DETAIL_PARSER_VERSION = "ast-ko-v2"
 
 
 def _text(value):
@@ -131,7 +132,8 @@ def _extract_detail(data):
 def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
     """Return (new_items, stats). Positive budget is required for API calls.
 
-    Details are fetched only once for IDs not previously checked.
+    Details are fetched once per parser version; legacy checked-without-body items
+    may be retried once following the Korean AST parser upgrade.
     A 429 stops the run instead of retrying, to prevent overspending.
     Raw article bodies remain in the short-lived private worker cache; publication requires separate rights approval.
     Headline-only rights are recorded separately from whether the detail endpoint contains text.
@@ -150,7 +152,8 @@ def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
     for row in rows:
         article_id = _detail_id(row)
         if (halted or stats["requested"] >= budget or not article_id
-                or article_id in done or row.get("detail_checked")):
+                or article_id in done or (row.get("detail_checked") and
+                    (row.get("detail_body") or row.get("detail_parser_version") == DETAIL_PARSER_VERSION))):
             stats["skipped"] += 1
             continue
         # A headline-only listing does NOT tell us whether the separate
@@ -179,6 +182,7 @@ def enrich_articles(items, *, max_requests=0, opener=None, api_key=None):
                     row[field] = values[field]
                     stats[metric] += 1
             row["detail_checked"] = "content" if any(values.values()) else "no_content"
+            row["detail_parser_version"] = DETAIL_PARSER_VERSION
         except urllib.error.HTTPError as exc:
             stats["failed"] += 1
             if exc.code in (401, 402, 403, 429):
