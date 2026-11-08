@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect_news_runtime_options_readonly_20261108.py","request_id":"news_runtime_opts_20261108","timeout":60}
+{"operation":"deploy","path":"backend/providers/tradingview_news_detail.py","target":"backend/providers/tradingview_news_detail.py"}
