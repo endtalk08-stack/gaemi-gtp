@@ -205,6 +205,28 @@ def _news_url(article):
 
 def normalize_article(article):
     primary, matches, section = classify_article(article)
+    # A news item keeps one ID while carrying both market and stock tags.
+    market_matches = matches if section == "market" else [
+        {"code": code, "label": label}
+        for code, label, terms in MARKET_RULES
+        if any(str(term).lower() in _text(article.get("title")).lower() for term in terms)
+    ]
+    market_evidence = [
+        item for item in market_matches
+        if item["code"] not in ("market", "market_trend")
+    ]
+    if section == "other" and market_evidence:
+        primary, matches, section = market_evidence[0], market_matches, "market"
+    stock_matches = matches if section == "stock" else []
+    market_primary = (
+        next((m for m in market_matches
+              if m["code"] not in ("market", "market_trend", "sector")), None)
+        or (market_evidence[0] if market_evidence else None)
+        or (primary if section == "market" else None)
+    )
+    news_sections = ["stock"] if section == "stock" else []
+    if section == "market" or (section == "stock" and market_evidence):
+        news_sections.append("market")
     provider = article.get("provider")
     source = (
         _text(provider.get("name"))
@@ -241,6 +263,10 @@ def normalize_article(article):
         "event_category": primary,
         "event_matches": matches,
         "news_section": section,
+        "news_sections": news_sections,
+        "stock_event_matches": stock_matches,
+        "market_event_category": market_primary,
+        "market_event_matches": market_matches if "market" in news_sections else [],
         "source_categories": article.get("news_categories") or [],
         "paywall": article.get("paywall"),
         "permission": article.get("permission"),
