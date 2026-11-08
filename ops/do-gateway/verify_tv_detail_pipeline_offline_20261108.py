@@ -74,7 +74,26 @@ try:
         assert bundle._mode() in {"basic_test","pro"} # refresh forces basic
         for n in (1,2):
             assert n in (1,2)
-        print("NEWS_DETAIL_OFFLINE_PASS=1 ARTICLES=2 REQUESTS=2 REPEAT_REQUESTS=0")
+        # One simulated 429 must suspend further detail calls for the UTC day.
+        from urllib.error import HTTPError
+        calls_429=[]
+        with tempfile.TemporaryDirectory(prefix="news-limit-offline-") as temp2:
+            bundle.CACHE_PATH=Path(temp2)/"cache.json"
+            story={"id":"LIMIT1","title":"Fed Powell on rates","published":1762550000,"news_categories":["overall"]}
+            bundle._write({"items":[story],"feed_version":bundle.FEED_VERSION})
+            def rate_limited(request,timeout):
+                calls_429.append(request.full_url)
+                raise HTTPError(request.full_url,429,"Rate limit",{},io.BytesIO(b""))
+            worker.enrich_articles=lambda rows,max_requests: original_enrich(
+                rows,max_requests=max_requests,opener=rate_limited,api_key="mock")
+            os.environ["NEWS_DETAIL_REQUEST_BUDGET"]="10"
+            worker.enrich_cached_articles([story])
+            worker.enrich_cached_articles([story])
+            assert len(calls_429)==1, calls_429
+            halted=json.loads(bundle.CACHE_PATH.read_text(encoding="utf-8"))
+            assert halted["detail_halted_status"]==429
+            assert halted["detail_daily_requests"]==1
+        print("NEWS_DETAIL_OFFLINE_PASS=1 ARTICLES=2 REQUESTS=2 REPEAT_REQUESTS=0 RATE_LIMIT_RETRY=0")
         print("TESTS=existing_AST_parser,lang_ko,legacy_retry_once,publish_rights,body_in_snapshot,dual_classification,cache_persist,daily_limit,per_run_cap,twice_daily_slots,no_network,no_R2_write")
 finally:
     bundle.CACHE_PATH=original_path
