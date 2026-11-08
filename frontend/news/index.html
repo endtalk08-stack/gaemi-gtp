@@ -311,7 +311,7 @@ function renderNews(){
   '<article class="news-item" tabindex="0" role="button" data-id="'+escapeHTML(n._index)+'">'+
   '<div class="news-card-head"><div class="news-tags"><span class="news-category">'+escapeHTML(majorCategory(n))+'</span><span class="news-category">'+escapeHTML(displayCategory(n))+'</span></div><span class="news-source">'+escapeHTML(n.source||"출처 미확인")+'</span></div>'+
   '<div class="news-title">'+escapeHTML(n.title)+'</div>'+
-  (n.summary?'<p class="news-summary">'+escapeHTML(n.summary)+'</p>':"")+
+  // News list: titles only. Keep summary/body data for the article detail view.
   '<div class="news-card-foot"><span class="news-time">'+escapeHTML(timeLabel(n.published_at))+'</span></div></article>').join("");
  more.classList.toggle("hidden",vis>=filtered.length);
  more.textContent="더보기 ("+Math.min(PAGE_SIZE,filtered.length-vis)+"개 더)";
