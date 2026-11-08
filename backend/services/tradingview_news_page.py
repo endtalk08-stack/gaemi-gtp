@@ -94,9 +94,9 @@ MARKET_RULES = (
     ("policy", "정부정책", ("white house", "congress", "treasury", "administration", "government", "policy", "정부", "정책", "백악관", "의회",
         "trump", "hassett", "트럼프", "해싯", "수출통제", "수출 제한", "수출규제", "반독점", "보조금", "재무장관", "백악관 발표"
     )),
-    ("rates_bonds", "금리·환율", ("treasury yield", "bond yield", "10-year", "2-year", "yield curve", "interest rate", "exchange rate", "forex", "currency", "국채금리", "채권금리", "10년물", "2년물", "수익률곡선", "환율", "엔화", "유로화", "달러지수")),
+    ("rates_bonds", "국채·금리", ("treasury yield", "bond yield", "10-year", "2-year", "yield curve", "interest rate", "국채금리", "채권금리", "10년물", "2년물", "수익률곡선")),
     ("energy", "에너지", ("oil", "crude", "opec", "natural gas", "energy", "원유", "유가", "천연가스", "에너지")),
-    ("fx_commodities", "금리·환율", ("dollar index", "dxy", "exchange rate", "forex", "currency", "달러지수", "환율", "엔화", "유로화")),
+    ("fx_commodities", "환율·원자재", ("dollar index", "dxy", "exchange rate", "forex", "currency", "달러지수", "환율", "엔화", "유로화")),
     ("tariff", "관세", ("tariff", "trade war", "import duty", "관세", "무역전쟁")),
     ("market_close", "미국장 마감", ("market close", "closing bell", "closed higher", "closed lower", "마감", "종가")),
     ("major_index", "주요지수", ("s&p 500", "nasdaq", "dow jones", "dow ", "index", "나스닥", "다우", "s&p")),
@@ -217,6 +217,10 @@ def normalize_article(article):
     ]
     if section == "other" and market_evidence:
         primary, matches, section = market_evidence[0], market_matches, "market"
+    elif section == "other" and "overall" in (article.get("news_categories") or []):
+        # Do not silently discard an overall-feed story merely because it
+        # has a US equity symbol but no one of the 14 stock-event keywords.
+        primary, matches, section = {"code": "market_trend", "label": "시장동향"}, market_matches, "market"
     stock_matches = matches if section == "stock" else []
     market_primary = (
         next((m for m in market_matches
