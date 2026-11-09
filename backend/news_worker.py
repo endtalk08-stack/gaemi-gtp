@@ -15,6 +15,10 @@ from backend.services import news_feed
 from backend.services.news_result import build_stock_news_result
 from backend.services import news_processed_store as store
 
+
+def _r2_mode():
+    return os.environ.get("GAEMIGTP_NEWS_STORAGE", "").strip().lower() == "r2"
+
 RESULT_LIMIT = 50
 STORYBOARD_LIMIT = 3
 TIMEZONE = "Asia/Seoul"
@@ -104,7 +108,7 @@ def next_ranked_stock(state):
     _write_rotation_state(state)
     return "미국", item["name"], item["symbol"]
 
-def process_stock(market, stock_name):
+def process_stock(market, stock_name, *, symbol=None):
     if market != "미국":
         return "skipped_non_us"
     params = dict(market=market, limit=RESULT_LIMIT,
@@ -113,6 +117,16 @@ def process_stock(market, stock_name):
     if not raw:
         raise RuntimeError("empty news source; keep previous known-good snapshot")
     fingerprint = store.source_fingerprint(raw)
+    if _r2_mode():
+        if not symbol:
+            raise ValueError("top20_symbol_required_for_r2")
+        result = build_stock_news_result(stock_name, raw_news_list=raw, **params)
+        if result.get("_news_status") != "ok":
+            raise RuntimeError("analysis failed; previous good R2 result preserved")
+        from backend.services.top20_r2_store import publish_stock_news
+        if not publish_stock_news(symbol, stock_name, fingerprint, result):
+            raise RuntimeError("r2_upload_failed; previous good R2 result preserved")
+        return "r2_updated"
     if store.read_signature(stock_name, **params) == fingerprint:
         try:
             import sys
@@ -151,7 +165,8 @@ def run_once(state, *, maintenance=True):
         market, stock_name, symbol = target
         ok = False
         try:
-            result = process_stock(market, stock_name)
+            result = (process_stock(market, stock_name, symbol=symbol)
+                      if _r2_mode() else process_stock(market, stock_name))
             ok = True
             print(f"[news-worker] market={market} stock={stock_name} {result}", flush=True)
         except Exception as exc:
@@ -161,7 +176,7 @@ def run_once(state, *, maintenance=True):
             _write_rotation_state(new_state)
             state.clear()
             state.update(new_state)
-    if not maintenance:
+    if not maintenance or _r2_mode():
         return target is not None
     try:
         import sys
@@ -230,7 +245,13 @@ def _batch(state, now=None, *, runner=None, persist=None, sleeper=None):
 
 def main():
     os.environ["GAEMIGTP_NEWS_WORKER"]="1"
-    if not store.database_url():
+    storage = os.environ.get("GAEMIGTP_NEWS_STORAGE", "").strip().lower()
+    if storage not in ("", "neon", "r2"):
+        raise SystemExit("invalid GAEMIGTP_NEWS_STORAGE")
+    if storage == "r2":
+        if not os.environ.get("R2_ACCESS_KEY_ID") or not os.environ.get("R2_SECRET_ACCESS_KEY"):
+            raise SystemExit("R2 credentials required")
+    elif not store.database_url():
         raise SystemExit("NEWS_DATABASE_URL is required")
     state=_read_rotation_state()
     print("[news-worker] scheduled kst=01,04,07,10,13,16,19,22 batch=20",flush=True)
