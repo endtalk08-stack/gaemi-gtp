@@ -56,6 +56,10 @@ def process_r2_stock(market, stock_name, symbol, state):
     if not raw:
         raise RuntimeError("empty news source; keep previous known-good R2 object")
     fingerprint = store.source_fingerprint(raw)
+    # Reuse existing Groq validation, only under explicit AI opt-in. This runs
+    # even on unchanged raw articles, as AI has a separate daily schedule.
+    from backend.services.news_r2_ai import maybe_publish
+    maybe_publish(stock_name, symbol, raw, state, _write_rotation_state)
     previous = state.get("_r2_news_fingerprints") or {}
     if previous.get(symbol) == fingerprint:
         return "unchanged"
