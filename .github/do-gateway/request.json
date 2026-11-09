@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/inspect_news_detail_pipeline_readonly_20261108.py","request_id":"newsfinal-audit-20261109","timeout":180}
+{"operation":"run","path":"ops/do-gateway/refresh_us_overall_news_once_20261107.py","request_id":"newsfinal-refresh-20261109","timeout":240}
