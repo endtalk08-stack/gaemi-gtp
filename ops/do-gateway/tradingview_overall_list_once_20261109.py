@@ -104,5 +104,27 @@ for original in items:
     if section=="market":market[primary["label"]]+=1
     if section=="stock":stock[primary["label"]]+=1
     if len(samples[section])<7:samples[section].append({"title":str(item.get("title",""))[:110],"category":primary["label"],"related_symbols":len(item.get("relatedSymbols") or item.get("related_symbols") or [])})
+description_fields=("shortDescription","detail_description","description","summary","text","body")
+presence={key:{"present":0,"nonempty":0,"avg_length_nonempty":0} for key in description_fields}
+lengths={key:[] for key in description_fields}
+examples=[]
+for item in items:
+    if not isinstance(item,dict):
+        continue
+    for key in description_fields:
+        if key in item and item[key] is not None:
+            presence[key]["present"]+=1
+        value=item.get(key)
+        if isinstance(value,str) and value.strip():
+            presence[key]["nonempty"]+=1
+            lengths[key].append(len(value.strip()))
+    if len(examples)<3 and any(isinstance(item.get(k),str) and item[k].strip() for k in description_fields):
+        examples.append({"title":str(item.get("title") or "")[:80],
+                         "filled_fields":[k for k in description_fields if isinstance(item.get(k),str) and item[k].strip()],
+                         "excerpt":str(next((item[k] for k in description_fields if isinstance(item.get(k),str) and item[k].strip()),""))[:160]})
+for key in description_fields:
+    values=lengths[key]
+    presence[key]["avg_length_nonempty"]=round(sum(values)/len(values)) if values else 0
+print("TV_LIST_FIELD_STATS="+json.dumps({"raw_count":len(items),"description_fields":presence,"any_description":sum(bool(any(isinstance(item.get(k),str) and item[k].strip() for k in description_fields)) for item in items if isinstance(item,dict)),"title_nonempty":sum(bool(str(item.get("title") or "").strip()) for item in items if isinstance(item,dict)),"related_symbols_nonempty":sum(bool(item.get("relatedSymbols") or item.get("related_symbols")) for item in items if isinstance(item,dict)),"samples":examples},ensure_ascii=False),flush=True)
 print("TV_LIST_RESULT="+json.dumps({"raw_count":len(items),"classified":dict(counts),"market_8":dict(market),"stock_14":dict(stock),"sample_titles":samples},ensure_ascii=False),flush=True)
 print("TV_LIST_TEST_COMPLETE=1",flush=True)
