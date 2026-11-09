@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/services/r2_news_uploader.py","target":"backend/services/r2_news_uploader.py"}
+{"operation":"deploy","path":"backend/services/news_processed_store.py","target":"backend/services/news_processed_store.py"}
