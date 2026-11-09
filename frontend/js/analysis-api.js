@@ -18,10 +18,11 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
         // /analyze response and the KR news panel remain unchanged.
         // Activate only after the Pages NEWS_R2 binding and routes are verified.
         let r2PanelNews = null;
-        const r2Base = String(window.ENV?.NEWS_STOCKS_R2_BASE_URL || '').trim().replace(/\\/+$/, '');
+        let r2Base = String(window.ENV?.NEWS_STOCKS_R2_BASE_URL || '').trim();
+        while (r2Base.endsWith('/')) r2Base = r2Base.slice(0, -1);
         const usSymbol = String(marketSelection?.symbol || '').trim().toUpperCase();
         if (marketSelection?.market === 'us' && /^[A-Z][A-Z0-9.-]{0,14}$/.test(usSymbol)
-            && (r2Base.startsWith('/') || /^https:\\/\\//.test(r2Base))) {
+            && (r2Base.startsWith('/') || r2Base.startsWith('https://'))) {
           try {
             const r2Response = await fetch(
               r2Base + '/news/stocks/us/' + encodeURIComponent(usSymbol),
@@ -33,7 +34,8 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
                   && Array.isArray(published.items) && published.items.length) {
                 r2PanelNews = published.items.filter(item =>
                   item && typeof item.title === 'string' && item.title.trim()
-                  && typeof item.url === 'string' && /^https?:\\/\\//.test(item.url)
+                  && typeof item.url === 'string'
+                  && (item.url.startsWith('https://') || item.url.startsWith('http://'))
                 );
               }
             }
