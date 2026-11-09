@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_news_excerpt_integration_20261109.py","request_id":"news-excerpt-regression-fixed-20261109","timeout":120}
+{"operation":"upgrade","path":"ops/do-gateway/gaemi-do-gateway-stop-news-20261028"}
