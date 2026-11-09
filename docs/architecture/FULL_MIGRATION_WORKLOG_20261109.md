@@ -244,3 +244,12 @@
 - 최신 독립 GitHub Actions 실행 [42655720175](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42655720175): Python 13건 + Node 16건 = **29건 전부 통과**, 문법 검사 통과.
 
 **미완료**: 기존 Pages 프로젝트에 새 API와 미국 뉴스 패널의 URL 환경변수 적용, 실제 R2 종목별 데이터 발생 여부, 기존 AI 결과 실전 출처·권한 검증 및 하루 1회 예약 전환, DigitalOcean R2 뉴스 워커 운영 배포, 라이브 사이트 반영. 운영 이전·배포를 완료했다고 주장하지 않음. 서비스 중지 상태와 비용 안전 정책을 유지함.
+
+
+## 4차 확인 — 통합 브랜치 오프라인 CI 통과 (2026-11-10)
+
+- GitHub Actions [Validate full-migration R2 news offline, run 42655279300](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42655279300): `success`. CI가 실제 실행된 것이므로 위의 초기 기록 중 "Python 테스트 미실행" 문구는 **당시 이력**으로만 읽어야 함.
+- 실제 검증: Python **13개 통과**(`tests.test_news_worker_r2_only`, `tests.test_news_r2_ai`), Node **14개 통과**(`tests/news-r2-panel.test.mjs`, `tests/news-r2-pages.test.mjs`); R2 Pages Function 파일 문법 검사 및 Python 컴파일 모두 성공. 전부 외부 API/Neon/실제 R2 쓰기 없는 오프라인 검증.
+- `frontend/js/analysis-api.js`는 기존 `/analyze` 출력과 함께 미국 TOP20 종목뉴스 R2 데이터를 **설정이 활성화된 경우에만** 별도의 `panel_news_items`로 전달. 현재 프런트의 `GaemiGTPAnalysisData.set`와 오른쪽 뉴스 탭은 이미 `panel_news_items`를 소비하도록 되어 있음. 국내 뉴스·기존 차트/공시 로직 변경 없음.
+- CI는 **서버 연결, 실제 새 종목별 R2 객체 존재, 웹사이트 반영, 유료 AI 호출 여부**를 검증한 것이 아님. 운영 환경 적용은 여전히 미승인/미실행.
+- 이 작업 도중 운영 브랜치에서 **별도 승인으로 TradingView 서비스만 복구하면서 GitHub gateway 관련 6개 커밋이 추가됨**. 통합 브랜치를 운영 브랜치로 병합하기 전 최신 운영 변경분을 보존하면서 명시적 검토가 필요. 운영 브랜치 수정/병합은 하지 않음.
