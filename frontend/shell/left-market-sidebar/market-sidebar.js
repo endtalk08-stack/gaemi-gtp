@@ -239,9 +239,8 @@
       rankingRequestInFlight = true;
       nextRankingReadAt = Date.now() + 15000;
       try {
-        // The existing Kiwoom TOP20 is read directly from DigitalOcean over Cloudflare HTTPS.
-        // Ranking is not stored or served by Render, Neon, or R2.
-        const response = await fetch('https://quotes.gaemigtp.com/market/trading-value?market=us', { cache: 'no-store' });
+        const path = '/market/trading-value';
+        const response = await fetch(backendUrl + path + '?market=' + market, { cache: 'no-store' });
         if (!response.ok) throw new Error('market ranking unavailable');
         const result = await response.json();
         if (id !== requestId) return;
