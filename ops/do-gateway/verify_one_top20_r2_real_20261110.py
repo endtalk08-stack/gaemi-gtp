@@ -5,6 +5,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path("/opt/gaemigtp-news/app")
 R2_ENV = Path("/var/lib/gaemigtp-news/r2.env")
@@ -70,7 +71,24 @@ print("TOP20_SINGLE_PROBE_AI_PAUSED=True")
 print("TOP20_SINGLE_PROBE_ROTATION_NOT_MODIFIED=True")
 print("TOP20_SINGLE_PROBE_TARGET=news/stocks/us/" + symbol + ".json")
 # A fresh in-memory state means neither persistent rotation nor AI reservations are changed.
-result = process_r2_stock("미국", name, symbol, {})
+# The canonical Kiwoom identity file is missing. For this single isolated
+# probe only, supply the SAME exact name/ticker identity in memory; do not
+# fabricate or persist a Kiwoom snapshot on the server.
+from backend.kiwoom_us_identity_sync import identity_from_kiwoom
+from backend.services import news_identity_registry
+identity = identity_from_kiwoom(name, symbol)
+if not identity or identity.get("status") != "verified" or identity.get("ticker") != symbol:
+    abort("FROZEN_IDENTITY_NOT_VERIFIED")
+single_identity = ({
+    "ticker": symbol,
+    "label": name,
+    "news": identity["news_name"],
+    "key": identity["company_key"],
+    "status": identity["status"],
+},)
+print("TOP20_SINGLE_PROBE_IDENTITY=in_memory_verified_frozen_entry")
+with patch.object(news_identity_registry, "_worker_local_registry", return_value=single_identity):
+    result = process_r2_stock("미국", name, symbol, {})
 if result != "updated":
     abort("UNEXPECTED_RESULT_" + str(result))
 print("TOP20_SINGLE_PROBE_R2_UPLOAD_SUCCESS=True")
