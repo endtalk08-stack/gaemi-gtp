@@ -8,6 +8,7 @@ import datetime as dt
 import hashlib
 import hmac
 import os
+import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -25,7 +26,12 @@ def _sign(key: bytes, msg: str) -> bytes:
     return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
 
-def upload_file(path: Path) -> bool:
+def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
+    # Keep the existing news page key unchanged. Stock feeds use separate objects.
+    if object_key != OBJECT_KEY and not re.fullmatch(
+        r"news/stocks/us/[A-Z][A-Z0-9.-]{0,14}\.json", object_key
+    ):
+        raise ValueError("invalid_r2_news_object_key")
     access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
     secret_key = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
     if not access_key or not secret_key:
@@ -38,7 +44,7 @@ def upload_file(path: Path) -> bool:
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     date_stamp = now.strftime("%Y%m%d")
 
-    encoded_key = "/".join(quote(part, safe="-_.~") for part in OBJECT_KEY.split("/"))
+    encoded_key = "/".join(quote(part, safe="-_.~") for part in object_key.split("/"))
     canonical_uri = f"/{BUCKET}/{encoded_key}"
     host = f"{ACCOUNT_ID}.r2.cloudflarestorage.com"
     canonical_headers = (
@@ -102,7 +108,7 @@ def upload_file(path: Path) -> bool:
         )
         return False
     print(
-        f"[r2-news] upload_ok key={OBJECT_KEY} bytes={len(body)}",
+        f"[r2-news] upload_ok key={object_key} bytes={len(body)}",
         flush=True,
     )
     return True
