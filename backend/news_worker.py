@@ -6,6 +6,9 @@ Keeps the existing once-per-US-exchange-day Groq scheduling and Neon storage.
 from __future__ import annotations
 
 import json
+import datetime
+import tempfile
+from pathlib import Path
 import os
 import re
 import time
@@ -31,6 +34,73 @@ RANKING_ENDPOINTS = (
 # Rotation progress is local metadata (not article data and not Neon).
 # /var/tmp survives ordinary service restarts; each write is atomic and mode 0600.
 ROTATION_STATE_PATH = "/var/lib/gaemigtp-news/rotation.json"
+
+def news_storage_mode():
+    """Explicit opt-in, so existing deployments keep their previous behavior."""
+    return os.environ.get("GAEMIGTP_NEWS_STORAGE", "neon").strip().lower()
+
+
+def process_r2_stock(market, stock_name, symbol, state):
+    """Collect the existing selected US feed and publish without touching Neon.
+
+    This is the raw news channel. AI summaries and code-based issue briefs are
+    deliberately excluded; they have separate retention and migration policies.
+    """
+    if market != "미국":
+        return "skipped_non_us"
+    if not re.fullmatch(r"[A-Z][A-Z0-9.-]{0,14}", str(symbol or "")):
+        raise ValueError("invalid_us_stock_symbol")
+    raw = news_feed.fetch_stock_news(
+        stock_name, market=market, limit=RESULT_LIMIT, raise_on_error=True
+    )
+    if not raw:
+        raise RuntimeError("empty news source; keep previous known-good R2 object")
+    fingerprint = store.source_fingerprint(raw)
+    previous = state.get("_r2_news_fingerprints") or {}
+    if previous.get(symbol) == fingerprint:
+        return "unchanged"
+    items = []
+    for article in raw:
+        if not isinstance(article, dict):
+            continue
+        url = str(article.get("url") or article.get("originallink")
+                  or article.get("link") or "").strip()
+        title = str(article.get("title") or "").strip()
+        if not title or not url.startswith(("https://", "http://")):
+            continue
+        items.append({
+            "title": title,
+            "description": str(article.get("description") or ""),
+            "url": url,
+            "published_at": str(article.get("published_at")
+                                or article.get("pubDate") or ""),
+            "source": str(article.get("source") or ""),
+        })
+    if not items:
+        raise RuntimeError("no_publishable_news; keep previous known-good R2 object")
+    payload = {
+        "ok": True, "source": "existing_us_stock_news",
+        "market": "US", "stock_name": stock_name, "symbol": symbol,
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "count": len(items), "items": items,
+    }
+    # Existing uploader reads a file; use a short-lived temporary JSON file.
+    from backend.services.r2_news_uploader import upload_file
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", suffix=".json", delete=False
+        ) as out:
+            temp_path = Path(out.name)
+            json.dump(payload, out, ensure_ascii=False, separators=(",", ":"))
+        if not upload_file(temp_path, object_key=f"news/stocks/us/{symbol}.json"):
+            raise RuntimeError("r2_news_upload_failed; preserve prior fingerprint")
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+    # Only mark a source as published after the remote PUT has succeeded.
+    state.setdefault("_r2_news_fingerprints", {})[symbol] = fingerprint
+    return "updated"
 
 def _read_rotation_state():
     from pathlib import Path
@@ -151,7 +221,10 @@ def run_once(state, *, maintenance=True):
         market, stock_name, symbol = target
         ok = False
         try:
-            result = process_stock(market, stock_name)
+            if news_storage_mode() == "r2":
+                result = process_r2_stock(market, stock_name, symbol, state)
+            else:
+                result = process_stock(market, stock_name)
             ok = True
             print(f"[news-worker] market={market} stock={stock_name} {result}", flush=True)
         except Exception as exc:
@@ -161,7 +234,8 @@ def run_once(state, *, maintenance=True):
             _write_rotation_state(new_state)
             state.clear()
             state.update(new_state)
-    if not maintenance:
+    if not maintenance or news_storage_mode() == "r2":
+        # No Neon cleanup or AI reservation while R2-only news is running.
         return target is not None
     try:
         import sys
@@ -230,8 +304,16 @@ def _batch(state, now=None, *, runner=None, persist=None, sleeper=None):
 
 def main():
     os.environ["GAEMIGTP_NEWS_WORKER"]="1"
-    if not store.database_url():
+    mode = news_storage_mode()
+    if mode not in ("neon", "r2"):
+        raise SystemExit("invalid GAEMIGTP_NEWS_STORAGE")
+    if mode == "neon" and not store.database_url():
         raise SystemExit("NEWS_DATABASE_URL is required")
+    if mode == "r2" and not (
+        os.environ.get("R2_ACCESS_KEY_ID") and
+        os.environ.get("R2_SECRET_ACCESS_KEY")
+    ):
+        raise SystemExit("R2 credentials are required")
     state=_read_rotation_state()
     print("[news-worker] scheduled kst=01,04,07,10,13,16,19,22 batch=20",flush=True)
     while True:
