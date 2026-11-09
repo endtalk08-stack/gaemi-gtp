@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/audit_deployed_top20_r2_readonly_20261110.py","request_id":"top20r2readonly20261110a1","timeout":120}
