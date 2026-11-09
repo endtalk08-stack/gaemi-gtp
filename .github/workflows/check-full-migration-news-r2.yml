@@ -12,6 +12,7 @@ on:
       - 'tests/test_news_worker_r2_only.py'
       - 'tests/test_news_r2_ai.py'
       - 'tests/news-r2-panel.test.mjs'
+      - 'tests/news-r2-pages.test.mjs'
       - '.github/workflows/check-full-migration-news-r2.yml'
 permissions:
   contents: read
@@ -31,7 +32,7 @@ jobs:
       - name: Run offline Python tests (no APIs, DB, R2, or paid AI)
         run: python -m unittest tests.test_news_worker_r2_only tests.test_news_r2_ai -v
       - name: Run frontend R2 fallback tests
-        run: node --test tests/news-r2-panel.test.mjs
+        run: node --test tests/news-r2-panel.test.mjs tests/news-r2-pages.test.mjs
       - name: Check Pages Function JS syntax
         run: |
           node --check functions/news/latest.json.js
