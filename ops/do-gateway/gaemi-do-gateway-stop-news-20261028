@@ -48,7 +48,7 @@ EnvironmentFile=-/var/lib/gaemigtp-news/r2.env'
     else
       tmp=$(mktemp "$dir/.gaemi-r2-env.XXXXXXXX")
       trap 'rm -f "$tmp"' EXIT
-      printf '%s\\n' "$expected" > "$tmp"
+      printf '%s\n' "$expected" > "$tmp"
       chmod 0644 "$tmp"
       mv -n -- "$tmp" "$target"
       trap - EXIT
