@@ -12,7 +12,11 @@ for mode,base,ctx in (
     for path in paths:
         url=base+path
         try:
-            with urllib.request.urlopen(url,timeout=12,context=ctx) as resp:
+            req=urllib.request.Request(url,headers={
+                "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+                "Accept":"application/json",
+            })
+            with urllib.request.urlopen(req,timeout=12,context=ctx) as resp:
                 body=json.loads(resp.read(60000).decode("utf-8"))
                 status=resp.status
             print("PROBE_MODE="+mode+" PATH="+path.split("?")[0]+" HTTP="+str(status)+" OK="+str(body.get("ok"))+
