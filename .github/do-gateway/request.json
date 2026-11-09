@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/verify_quotes_https_once.py",
+  "request_id": "kiwoomquotescheck20261110a",
+  "timeout": 90
 }
