@@ -8,7 +8,7 @@
 
 ## 최종 목표 (확정 지침)
 
-- 메인 웹사이트: Render → 기존 또는 승인된 Cloudflare Pages 배포 방식으로 이전. 전체 검증 전 Render 제거 금지.
+- 이 저장소의 `frontend/`는 현재 Flask `app.py`가 서비스하는 화면 원본. 목표는 기존 `gaemi-gtp` 화면을 Cloudflare Pages로 이전하는 것. 검증 전 Render Python 서비스 제거 금지.
 - 실시간 미국 시세와 TOP20: 기존 키움 API → DigitalOcean 메모리 → WebSocket → 사이트. 매초 DB 저장 금지.
 - 뉴스 수집·선별과 AI 분석: DigitalOcean에서 기존 기능 재사용.
 - 일반 뉴스·화면용 AI 요약: 기존 Cloudflare R2 `gaemigtp-news-data`에 저장·제공.
@@ -82,7 +82,7 @@
 ### 아직 확인해야 할 사항
 
 - 어떤 기존 잡/서비스가 `news/latest.json` 파일을 생성하고 `upload_file`을 실제 호출하는지.
-- Render 메인 사이트 뉴스 패널이 어디서 데이터를 가져오는지(Cloudflare 뉴스 페이지와 구별).
+- 현재 `gaemi-gtp`의 Flask `/analyze`가 반환하는 뉴스 결과와 별도 Cloudflare 뉴스 페이지 `/news/latest.json` 연결을 구별.
 - DO 서버에서 현재 설정된 환경변수/서비스 종류의 실제 상태(지금은 재가동 금지).
 - 코드만의 정적 테스트 및 로컬 모의 R2 검증 가능 경로.
 
@@ -145,31 +145,52 @@
 | --- | --- | --- | --- | --- |
 | 2026-11-10 | Render 메인 오른쪽 뉴스 탭 소스 분석 | 기존 `/analyze` → `newsItems` 경로 확인, R2 미연결 명시 | GitHub 코드 읽기 전용 확인 | 없음 |
 
+## 실제 파일 구조 및 R2 전환 작업 (2026-11-10)
 
-## Render 실제 운영 서비스/메인 사이트 저장소 점검 (2026-11-10)
+**정확한 작업 저장소 `endtalk08-stack/gaemi-gtp`만 기준.** 이름이 비슷한 다른 서비스는 대상이 아니며 이번 작업에서 코드·설정 변경 없음.
 
-**실제 Render 연결에서 읽기 전용으로 확인.** 이전 분석에서 `endtalk08-stack/gaemi-gtp`의 `frontend/`를 메인 화면이라고 간주한 것은 잘못된 전제였음. 현재 서비스는 **서로 다른 두 저장소**에 연결됨.
+- `app.py`: Flask API와 `frontend/index.html` 제공. `README.md`도 동일 구조를 명시.
+- `frontend/index.html`, `frontend/shell/`, `frontend/widgets/`: 기존 gaemiGTP 화면. 오른쪽 뉴스 탭은 `frontend/shell/right-panel/right-panel-tabs.js`에서 `GaemiGTPAnalysisData.newsItems` 사용.
+- `frontend/news/index.html`: 별도 Cloudflare 뉴스 페이지; `/news/latest.json` 사용.
+- `functions/news/latest.json.js`: 기존 `NEWS_R2` 바인딩으로 `gaemigtp-news-data/news/latest.json` 읽기.
+- `backend/tradingview_news_worker.py` → `backend/services/tradingview_news_page.py` → `backend/services/r2_news_uploader.py`: 기존 TradingView 뉴스 페이지 생성·R2 업로드 경로. 변경하지 않고 그대로 재사용.
+- `backend/news_worker.py`: 기존 키움 로컬 TOP20 순회 및 Naver/회사/SEC 뉴스 수집. 기존 `NEWS_DATABASE_URL` 기반 처리 모드는 유지하고 R2 전용 모드를 **명시적 opt-in**으로 추가.
+- `backend/services/news_r2_ai.py`: 기존 `ops/staged_daily_groq_issues.py`, `ops/staged_ai_issue_display_adapter.py`를 재사용한 미국 TOP20 AI 요약 R2 출력 경로 추가. AI 호출은 `GAEMIGTP_NEWS_AI_PAUSED=0`과 `GAEMIGTP_NEWS_AI_R2_ENABLED=1`을 모두 설정해야만 실행(현재 활성화 안 됨). 미국 거래일 10:30 ET 이후 1회, 본문과 명시적 발행 시각이 있는 최근 24시간 뉴스만 분석. **AI 호출 전** 기존 `/var/lib/gaemigtp-news/rotation.json`에 예약을 기록하여 중복 유료 호출 방지. 이미 예약되면 성공/실패 무관하게 다시 유료 호출하지 않음.
+- R2 객체 **기존 버킷 사용**, 새 버킷/키/서비스 생성 안 함:
+  - `news/latest.json` — TradingView 기존 뉴스 페이지; 덮어쓰지 않음
+  - `news/stocks/us/{SYMBOL}.json` — 미국 TOP20 뉴스 메타데이터; 기존 코드 기반 수집
+  - `news/ai/us/{SYMBOL}.json` — 기존 Groq AI의 출처 검증된 이슈 0~3개 요약; 가격 상승·하락 이유는 실제 가격 맥락 없을 때 생성하지 않음
+- `functions/news/stocks/us/[symbol].js` 및 `functions/news/ai/us/[symbol].js`: 기존 `NEWS_R2`에서 종목별 저장 결과 읽는 Pages Functions. **신규 URL은 코드에만 존재하며 배포되지 않았음.**
+- `backend/kiwoom_us_price_relay.py`: 실시간 가격 스트림, Neon/Redis 저장하지 않는 기존 코드.
+- `backend/kiwoom_us_daily_collector.py`: 일봉 DB 원본은 `NEWS_DATABASE_URL` 사용하므로 이 환경변수 전체 제거 금지.
+- `.github/workflows/do-gateway.yml`: 운영 브랜치의 `.github/do-gateway/request.json` 변경으로 Actions→SSH→DigitalOcean 경유. **운영 브랜치에서만 trigger**, 이번 통합 브랜치의 코드 커밋은 서버 배포 아님.
 
-| Render 서비스 | 종류 | GitHub 저장소/브랜치 | 실제 배포 확인 |
-| --- | --- | --- | --- |
-| `gaemigtp` (`srv-db7k6uavcj2c73dv63eg`) | Static Site, 빌드 `npm ci && npm run build`, 출력 `dist` | `endtalk08-stack/gaemigtp` / `main` | Render 최신 배포 `bb35e469` (2026-11-05), 상태 `live` |
-| `gaemi-gtp` (`srv-daek7jlbedkc73djl4j0`) | Python Web Service, `gunicorn app:app` | `endtalk08-stack/gaemi-gtp` / `main` | Render 최신 배포 `6d1c2a5c` (2026-10-31), 상태 `live` |
+### 수정 파일/검증
 
-- **현재 생성한 통합 브랜치 `integration/full-migration-20261109`는 Python 백엔드 저장소 `gaemi-gtp`에만 있음.** 메인 `gaemigtp` 저장소의 복구·Cloudflare Pages 이전을 대체하지 못함.
-- 실제 메인 저장소 `endtalk08-stack/gaemigtp`의 `src/widgets/market.jsx` `NewsWidget`은 테스트용 뉴스 배열을 하드코딩하고 있으며 코드 주석도 '실제 API/DB 연결은 하지 않는다'고 명시.
-- 메인 저장소 `src/market-proxy.js`는 `market.gaemigtp.com`의 시세·차트 등 API, `account.gaemigtp.com` 계정 API를 사용함. **이 경로는 뉴스 전용 Render Python `/analyze` 소비 경로와 동일하다고 가정하면 안 됨**.
-- `gaemi-gtp` 저장소의 `frontend/js/analysis-api.js` 및 오른쪽 뉴스 패널 호출 경로는 그 저장소 내부의 프런트엔드 기준. 메인 Render Static Site의 `NewsWidget`과 구분.
-- Render 양 서비스 모두 `main` 자동 배포 설정. 이번 통합 브랜치의 코드 변경이 자동 배포된 것은 아님.
-- Render `live`는 배포 상태를 뜻하며 실제 도메인의 모든 기능 정상 작동을 보증하지 않음.
+| 파일 | 수정 | 상태 |
+| --- | --- | --- |
+| `backend/news_worker.py` | R2 opt-in raw 뉴스 발행과 AI 요약 발행 연결 | 커밋 |
+| `backend/services/r2_news_uploader.py` | 기존 객체 유지, 종목/AI 객체 키만 제한적으로 허용 | 커밋 |
+| `backend/services/news_r2_ai.py` | 별도 AI 요약 출처·중복 호출 보호 및 R2 저장 | 신규 커밋 |
+| `functions/news/stocks/us/[symbol].js` | 기존 R2 바인딩으로 종목 뉴스 조회 | 신규 커밋 |
+| `functions/news/ai/us/[symbol].js` | 기존 R2 바인딩으로 AI 요약 조회 | 신규 커밋 |
+| `tests/test_news_worker_r2_only.py` | 순수 수집·저장 안전성 테스트 | 테스트 코드 작성 |
+| `tests/test_news_r2_ai.py` | 기본 중지, 1일 예약, 실패 시 중복 호출 금지, 실제 기사 출처/최근 24시간 | 테스트 코드 작성 |
 
-### 즉시 우선순위 정정
+**검증 사실:** 수정·신규 파일은 GitHub에서 재조회됨. 이 통합 브랜치에 대한 GitHub Actions 실행 기록은 **0건**. Python 단위 테스트는 **아직 실제 실행되지 않았음**. 실제 DigitalOcean R2 환경변수·연결과 배포 기능도 미검증.
 
-1. 메인 사이트 `endtalk08-stack/gaemigtp`의 실 뉴스 UI 및 API 연결을 별도로 명시하고 검증해야 함. 테스트용 위젯을 운영 데이터로 오인하지 말 것.
-2. DigitalOcean 뉴스 R2 저장 변경과 메인 UI 읽기 연결은 **서로 다른 저장소의 작업**. 뉴스와 오른쪽 패널 보존 조건을 적용할 정확한 화면/서비스를 먼저 식별.
-3. 운영 배포·DigitalOcean 재가동은 아직 실행하지 않음. 추가 복구나 DB 변경은 현재 파일 상태를 확인한 뒤 최소 변경.
+### 다음 차단 조건
+
+1. 실행 환경에서 Python 테스트 통과 및 R2 모의 객체 읽기 검증.
+2. `gaemi-gtp`의 기존 뉴스 패널과 별도 뉴스 페이지 소비 경로에 대한 실 데이터 연결 여부 확정. 새 Functions는 조회 API로만 추가되었고, **UI 자동 연결된 상태는 아님**.
+3. DigitalOcean 서버 내 기존 R2 자격증명 바인딩 및 뉴스 서비스 unit 확인. 서버·Neon 의도적 중지 유지.
+4. 운영 branch로 승인된 배포 절차를 거치기 전 재가동 금지. 가격/차트 코드 및 기존 국내 패널 변경하지 않음.
 
 ### 변경 이력 추가
 
 | 날짜 | 작업 | 결과 | 검증 | 운영 영향 |
 | --- | --- | --- | --- | --- |
-| 2026-11-10 | Render 서비스 목록·최신 배포·메인 프런트 저장소 조회 | 실제 메인 `gaemigtp`와 Python `gaemi-gtp` 분리 확인; 메인 NewsWidget 테스트 데이터 확인 | Render 연결 및 GitHub 소스 조회 | 없음 |
+| 2026-11-10 | 실제 저장소 파일 트리 재점검 | `gaemi-gtp` 운영 브랜치 파일 597개 구성 파악 | GitHub 트리·코드 조회 | 없음 |
+| 2026-11-10 | AI 요약 R2 안전 경로 추가 | `backend/services/news_r2_ai.py` 및 worker 호출 | GitHub 파일 재조회 | 없음 |
+| 2026-11-10 | 출처/24시간 기준 AI 선별 강화 | `3d21ca6`, `6749600` | 테스트 코드 작성, 실행 미완료 | 없음 |
+| 2026-11-10 | 미국 종목뉴스·AI 요약 Pages 조회 Function 추가 | `functions/news/stocks/us/[symbol].js`, `functions/news/ai/us/[symbol].js` | GitHub 파일 재조회 | 없음 |
