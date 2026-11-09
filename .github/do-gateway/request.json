@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_kiwoom_local_only_offline_20261110.py","request_id":"top20localoffline20261110a1","timeout":120}
+{"operation":"run","path":"ops/do-gateway/generate_kiwoom_top20_local_once_20261110.py","request_id":"kiwoomtop20local20261110a1","timeout":120}
