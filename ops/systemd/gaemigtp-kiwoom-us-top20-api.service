@@ -1,0 +1,23 @@
+[Unit]
+Description=gaemiGTP read-only DigitalOcean Kiwoom US TOP20 local API
+After=network.target gaemigtp-kiwoom-us-value.service
+
+[Service]
+Type=simple
+User=gaemigtp-news
+Group=gaemigtp-news
+WorkingDirectory=/opt/gaemigtp-news/app
+ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_us_top20_api
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=
+RestrictAddressFamilies=AF_INET AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+[Install]
+WantedBy=multi-user.target
