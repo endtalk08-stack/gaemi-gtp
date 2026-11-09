@@ -56,7 +56,7 @@
     const root = document.getElementById('rightPanelWorkspace'); if (!root) return;
     if (!panelWorkspaceView) { root.innerHTML = ''; return; }
     if (panelWorkspaceView === 'panel-workspace') { root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>'; if (window.GaemiGTPPanelWorkspace && typeof window.GaemiGTPPanelWorkspace.mount === 'function') window.GaemiGTPPanelWorkspace.mount(root); return; }
-    if (panelWorkspaceView === 'news') { renderRelatedNewsPanel(); return; }
+    if (panelWorkspaceView === 'news') { renderTradingViewNewsPage(); return; }
     if (panelWorkspaceView === 'overseas-stock') { root.innerHTML = '<section class="right-panel-related-news" aria-label="해외 종목 뉴스"><div class="right-panel-related-news__empty">해외 종목 뉴스는 아직 연결되지 않았습니다.</div></section>'; return; }
     if (panelWorkspaceView === 'disclosures') { renderRelatedDisclosuresPanel(); return; }
     if (panelWorkspaceView === 'earnings') { renderEarningsCalendarPanel(); return; }
@@ -145,7 +145,6 @@
     setActiveTab('panel-workspace');
     savePanelWorkspaceView();
     togglePanelWorkspaceMenu(false);
-    if (type === 'news') loadActiveStockNews();
     if (type === 'earnings') renderEarningsCalendarPanel();
   }
 
@@ -169,6 +168,19 @@
       }).format(new Date(value));
     } catch (_) { return String(value); }
   }
+  function renderTradingViewNewsPage() {
+    const root = document.getElementById('rightPanelWorkspace');
+    if (!root) return;
+    if (root.querySelector('#rightPanelTradingViewNews')) return;
+    const frame = document.createElement('iframe');
+    frame.id = 'rightPanelTradingViewNews';
+    frame.title = 'TradingView 뉴스페이지';
+    frame.src = 'https://gaemigtp-news.pages.dev/';
+    frame.loading = 'lazy';
+    frame.style.cssText = 'display:block;width:100%;height:100%;min-height:0;border:0;background:transparent;';
+    root.replaceChildren(frame);
+  }
+
   function renderRelatedNewsPanel() {
     const root = document.getElementById('rightPanelWorkspace');
     if (!root) return;
@@ -554,8 +566,7 @@
   }
   function syncActiveStockPanels() {
     // 화면별 재수집 없이 기존 분석 데이터 변경을 현재 열린 메뉴에 반영한다.
-    if (panelWorkspaceView === 'news') loadActiveStockNews();
-    else if (panelWorkspaceView === 'disclosures') {
+    if (panelWorkspaceView === 'disclosures') {
       loadActiveStockDisclosures();
       void renderRelatedDisclosuresPanel();
     }
