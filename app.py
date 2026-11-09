@@ -12,9 +12,8 @@ from backend.services.market_rankings import get_market_selection, analysis_tick
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.news_result import get_shared_stock_news_result
 from backend.services.news_freshness import issue_mode_for_question, normalize_issue_mode
-from backend.services.kiwoom_us_value_board import read_us_trading_value_board
 from backend.services.market_data_cache import cached_market_json
-from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
+from backend.services.us_price_push import read_memory_quotes
 from backend.services.us_market_close import read_brief
 
 from backend.services.engine import analyze_stock
@@ -63,83 +62,6 @@ def market_us_close():
         print("[us market close] db read failed: " + type(exc).__name__, flush=True)
         return jsonify({"ok": False, "error": "market_close_unavailable"}), 503
     return jsonify({"ok": True, "available": bool(brief), **(brief or {})})
-
-
-@app.get("/market/trading-value")
-def market_trading_value():
-    """Menu result; collection and interpretation stay outside the route."""
-    market = str(request.args.get("market", "kr") or "").strip().lower()
-    if market != "us":
-        return jsonify({"ok": False, "error": "invalid_market", "items": []}), 400
-    diagnostics = []
-    if market == "us":
-        # Only USA trading-value Top 20 moves to the DO -> Neon Kiwoom feed.
-        # The Render service never issues Kiwoom API requests.
-        items = read_us_trading_value_board(limit=20, diagnostics=diagnostics)
-        if items is not None:
-            # DO real-time ticks override the minute-level ranking source in memory.
-            latest = {q["symbol"]: q for q in (read_memory_quotes() or []) if not q["stale"]}
-            for item in items:
-                quote = latest.get(item["symbol"])
-                if quote:
-                    item["price"] = quote["price"]
-                    if quote["change_pct"] is not None:
-                        item["change_pct"] = quote["change_pct"]
-            from backend.services.market_rankings import _remember_market_result
-            _remember_market_result("us", "value", items)
-    if items is None:
-        response = jsonify({"ok": False, "items": [], "error": "source_unavailable",
-                            "provider_status": diagnostics[-1] if diagnostics else "unavailable"})
-        if market == "us":
-            response.headers["X-Gaemi-US-Value-Provider"] = "kiwoom-neon-v1"
-        return response, 502
-    issue_rows = [{"name": item.get("name"), "symbol": item.get("symbol")} for item in items]
-    try:
-        # The ranking list is already source-normalized, but one bad identity
-        # must not discard the valid stocks' existing Neon issue headlines.
-        if issue_rows:
-            issue_results = get_market_issue_headlines(
-                market, issue_rows, skip_invalid=True,
-                issue_mode=normalize_issue_mode(request.args.get("issue_mode")),
-            )["items"]
-            for item, issue in zip(items, issue_results):
-                item["issue_headline"] = issue["headline"]
-    except Exception as exc:
-        print(f"[market ranking issues] lookup failed: {type(exc).__name__}", flush=True)
-    response = jsonify({"ok": True, "market": market, "source": "kiwoom" if market == "us" else "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
-    if market == "us":
-        response.headers["X-Gaemi-US-Value-Provider"] = "kiwoom-neon-v1"
-    return response
-
-
-@app.post("/internal/market/us-price-push")
-def market_us_price_push():
-    """Signed, direct DO -> Render price relay. No database writes or external calls."""
-    if (request.content_length or 0) > 6000:
-        return jsonify({"ok": False, "error": "too_large"}), 413
-    raw = request.get_data(cache=False, as_text=False)
-    ok, reason = accept_signed_quotes(
-        raw, request.headers.get("X-Gaemi-Timestamp", ""),
-        request.headers.get("X-Gaemi-Signature", ""),
-    )
-    if not ok:
-        return jsonify({"ok": False, "error": reason}), 403
-    return "", 204
-
-
-@app.get("/market/us-live-quotes")
-def market_us_live_quotes():
-    """In-memory quote feed only: never query Neon, Redis, Kiwoom or filesystem."""
-    items = read_memory_quotes()
-    if items is None:
-        response = jsonify({"ok": False, "market": "us", "items": [],
-                            "error": "waiting_for_direct_feed"})
-        response.headers["Cache-Control"] = "no-store"
-        return response, 503
-    response = jsonify({"ok": True, "market": "us", "source": "kiwoom-direct",
-                        "items": items})
-    response.headers["Cache-Control"] = "no-store"
-    return response
 
 
 @app.post("/market/issue-headlines")
