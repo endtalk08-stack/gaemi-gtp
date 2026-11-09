@@ -19,7 +19,7 @@ ALLOWED_ORIGINS = {
     "https://www.gaemigtp.com",
     "https://gaemigtp-news.pages.dev",
 }
-SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\\Z")
+SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
 
 
 def read_top20(path=RANKING_FILE):
