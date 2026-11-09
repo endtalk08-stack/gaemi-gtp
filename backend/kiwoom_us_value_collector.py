@@ -170,10 +170,9 @@ def _write_local_news_top20(rows, captured_at, *, target_path=None):
 
 def main():
     import sys
-    args = sys.argv[1:]
-    if args and args not in (["--identity-repair"], ["--local-news-top20"]):
-        raise ValueError("unsupported_collector_argument")
-    if args == ["--identity-repair"]:
+    if len(sys.argv) > 1:
+        if sys.argv[1:] != ["--identity-repair"]:
+            raise ValueError("unsupported_collector_argument")
         database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
         if not database_url:
             raise ValueError("database_url_missing")
@@ -188,20 +187,6 @@ def main():
     in_session = (ny.weekday() < 4 or
                   (ny.weekday() == 4 and ny.time() < dt.time(20, 0)) or
                   (ny.weekday() == 6 and ny.time() >= dt.time(20, 0)))
-
-    if args == ["--local-news-top20"]:
-        # Explicit local-only opt-in for the existing DO news worker handoff.
-        # Never import/connect Neon, start services or change the standard collector.
-        if not in_session:
-            print("KIWOOM_US_LOCAL_TOP20_SKIP=outside_us_extended_session", flush=True)
-            return 0
-        rows = fetch_us_trading_value_top(limit=20)
-        if len(rows) != 20 or [row["rank"] for row in rows] != list(range(1, 21)):
-            print("KIWOOM_US_LOCAL_TOP20_ERROR=incomplete_source_rows", flush=True)
-            return 3
-        _write_local_news_top20(rows, dt.datetime.now(dt.timezone.utc))
-        print("KIWOOM_US_LOCAL_TOP20_UPDATED=20", flush=True)
-        return 0
 
     database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
     # A missing DB URL must not prevent the in-session local TOP20 handoff.
