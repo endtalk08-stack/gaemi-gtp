@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/tradingview_detail_structure_once_20261109.py","request_id":"tv-ast-node-types-20261109","timeout":120}
+{"operation":"run","path":"ops/do-gateway/validate_news_formatting_integration_20261109.py","request_id":"tv-news-format-regression-20261109","timeout":120}
