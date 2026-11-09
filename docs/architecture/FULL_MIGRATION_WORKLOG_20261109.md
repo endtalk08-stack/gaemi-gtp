@@ -312,3 +312,26 @@
 - 사용자 정책상 Neon은 의도적 중지이며 이 뉴스 점검을 이유로 Neon을 재가동하지 않음. 키움 TOP20 수집 서비스의 재시작, DB 우회 동작 변경, 순위 파일 수동 생성·교체도 승인 전 실행하지 않음.
 - 현재 로컬 TOP20 JSON 파일이 없는 상태에서 `rotation.json`에 유효한 과거 20종목이 남아 있어도 그것을 **신규 실시간 TOP20**으로 표시하면 안 됨. 최신 순위의 정상 생성·신선도 확인을 별도 게이트로 유지.
 - 점검을 위한 운영 브랜치 파일 수정은 `ops/do-gateway/` 내부의 읽기 전용 스크립트 2개와 `.github/do-gateway/request.json`에 한정됨. 실제 서비스 환경·키·DB·배포 파일 변경 없음.
+
+
+## 7차 현장 검증 — 기존 TOP20 뉴스 systemd R2 환경 연결 누락 (2026-11-10)
+
+### 확인 범위 및 결과
+
+- 사용자 요청에 따라 뉴스·AI R2 전환 준비의 **읽기 전용 점검**만 수행. GitHub 운영 브랜치에는 임시 점검 코드 `ops/do-gateway/audit_news_r2_unit_readonly_20261110.py`와 기존 요청 파일 수정으로 GitHub→SSH 조회 실행. 서버 애플리케이션·서비스 unit·환경·DB·R2 객체 변경 및 재시작 없음.
+- [실제 systemd 조회 42663978307](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42663978307): 시스템 unit 메타데이터 출력으로 확인:
+  - `gaemigtp-news.service`: `ActiveState=inactive`, `UnitFileState=disabled`, 기존 `news-worker.env` 사용, **`r2.env` 포함되지 않음**.
+  - `gaemigtp-tradingview-news.service`: `ActiveState=active`, `UnitFileState=enabled`, **`r2.env` 사용**. 기존 TradingView 수집 서비스는 안전하게 유지.
+  - `gaemigtp-kiwoom-us-value.service`: `ActiveState=failed`, `UnitFileState=static`, 기존 `news-worker.env` 사용, `r2.env` 미포함.
+- 해당 읽기 전용 점검 job 자체는 `/etc/gaemigtp/news-worker.env` 파일을 서비스 계정으로 직접 읽는 과정에서 **`PermissionError`** 로 실패. 이것은 **메타데이터 확인 결과를 무효화하거나 기존 뉴스 서비스가 새로 장애 났다는 뜻이 아님**. 권한 우회·민감 값 노출 시도하지 않았음. 추가 재시작도 없음.
+- 이전 [42661488569](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42661488569) gateway 실행환경 검사에서 `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`가 보이지 않았음. 단, 이 검사는 `news-worker.env`만 주입한 임시 job 환경으로 실제 서비스 설정과 조합해서 판단. 기존 `r2.env` 파일 자체는 이전 [42661996682](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42661996682)에서 존재·읽기 가능과 두 변수 이름 보유를 확인.
+- **확인된 배포 차단 요인:** 지금의 기존 TOP20 뉴스 서비스는 R2 인증 파일을 물려받지 못하므로, 통합 브랜치 R2 모드를 바로 적용·기동하는 것은 안전하지 않음. 변경 필요 시 기존 파일을 **뉴스 서비스 unit의 추가 `EnvironmentFile=-/var/lib/gaemigtp-news/r2.env`로 연결하는 최소 수정만 후보**로 검토. 기존 TradingView, Kiwoom, 차트 unit은 수정 대상 아님. 파일 권한과 실제 값 유효성·업로드 권한 확인 전 실행 금지.
+- **추가 차단 요인:** 최신 `kiwoom-us-top20-news.json` 부재. 유효 동결 20종목은 오래된 fallback이며 새 TOP20과 동일하지 않음. 수집 서비스 `failed`의 과거 원인은 외부 Neon DB 연결 실패로 확인. Neon 의도적 중단 유지.
+
+### 권장 다음 조치 / 승인 게이트
+
+1. TOP20 뉴스 서비스만 R2 인증 파일에 연결하고 읽기 권한을 별도 검증할지 변경안 승인. 키 값을 출력·복사하거나 새 인증 정보를 만들지 않음.
+2. 최신 TOP20 로컬 파일 부재 문제를 기존 수집 코드 안에서 해결할지 검토. `gaemigtp-kiwoom-us-value.service`를 이번 뉴스 작업으로 임의 재시작하지 않음.
+3. 위 차단 사항 해결 이후 기존 통합 브랜치의 R2 뉴스 발행 코드만 단계적으로 적용·실측 검증. AI 유료 실행, Pages 기능 배포는 각각 별도 확인·승인.
+
+**현재까지 실제 변경:** 운영 사이트·서비스 설정 없음. 뉴스·AI R2 전환은 아직 실배포 전. 통합 브랜치 본 작업 기록만 갱신.
