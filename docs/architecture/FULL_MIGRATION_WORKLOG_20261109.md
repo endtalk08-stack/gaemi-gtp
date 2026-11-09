@@ -194,3 +194,10 @@
 | 2026-11-10 | AI 요약 R2 안전 경로 추가 | `backend/services/news_r2_ai.py` 및 worker 호출 | GitHub 파일 재조회 | 없음 |
 | 2026-11-10 | 출처/24시간 기준 AI 선별 강화 | `3d21ca6`, `6749600` | 테스트 코드 작성, 실행 미완료 | 없음 |
 | 2026-11-10 | 미국 종목뉴스·AI 요약 Pages 조회 Function 추가 | `functions/news/stocks/us/[symbol].js`, `functions/news/ai/us/[symbol].js` | GitHub 파일 재조회 | 없음 |
+
+### 운영 전 추가 안전 확인
+
+- R2 AI의 로컬 예약 기록은 **새로운 R2 모드 내부에서만** 중복 분석을 막음. 이전 Neon `news_ai_call_ledger` 예약과 자동 동기화하지 않으므로 전환 당일 중복 비용 위험이 있음. **실제 활성화 전에 기존 당일 AI 예약 유무를 안전하게 확인**하고, AI는 승인 없이 활성화하지 않음.
+- 본 브랜치의 R2 AI 예약은 단일 DigitalOcean 워커 프로세스를 전제로 함. 실제 운영 시 중복 워커 인스턴스가 없음을 검증하기 전 AI 활성화 금지.
+- 기존 `frontend/news/index.html`의 `loadNews()`는 여전히 `/news/latest.json`만 읽음. 신규 `news/stocks/us` 및 `news/ai/us` 조회 API는 **아직 UI에 합쳐지지 않았음**. 기존 화면을 임의로 수정하지 않음.
+- 기존 R2 업로드 계정의 실제 경로별 쓰기 권한, Functions 실행의 인증·바인딩, Python 회귀 테스트 통과는 미확인. 작성된 코드를 운영 배포 전 검증해야 함.
