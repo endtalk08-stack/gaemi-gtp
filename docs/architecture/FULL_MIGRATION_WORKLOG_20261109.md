@@ -201,3 +201,33 @@
 - 본 브랜치의 R2 AI 예약은 단일 DigitalOcean 워커 프로세스를 전제로 함. 실제 운영 시 중복 워커 인스턴스가 없음을 검증하기 전 AI 활성화 금지.
 - 기존 `frontend/news/index.html`의 `loadNews()`는 여전히 `/news/latest.json`만 읽음. 신규 `news/stocks/us` 및 `news/ai/us` 조회 API는 **아직 UI에 합쳐지지 않았음**. 기존 화면을 임의로 수정하지 않음.
 - 기존 R2 업로드 계정의 실제 경로별 쓰기 권한, Functions 실행의 인증·바인딩, Python 회귀 테스트 통과는 미확인. 작성된 코드를 운영 배포 전 검증해야 함.
+
+
+## 3차 구현 — 미국 TOP20 R2 뉴스 패널 연결·로컬 검증 (2026-11-10)
+
+이번 작업 저장소는 `endtalk08-stack/gaemi-gtp`, 브랜치는 `integration/full-migration-20261109`로 한정. 자동매매 사이트/저장소 관련 작업 없음. 운영 배포·DigitalOcean 뉴스 워커 재가동·Neon 재개 없음.
+
+- `frontend/js/analysis-api.js`: 기존 `/analyze` 호출 및 응답 구조를 유지하면서, **미국 종목**이고 명시적 `window.ENV.NEWS_STOCKS_R2_BASE_URL`을 설정한 경우에만 `{BASE}/news/stocks/us/{SYMBOL}` 조회. 유효한 R2 종목 기사 데이터가 있으면 기존 `panel_news_items` 계약으로 전달.
+- R2 조회 오류/404/빈 기사/종목 코드 불일치일 경우 기존 `paired_news_items` 뉴스 패널을 사용. **국내 종목 뉴스는 전혀 변경하지 않음.** 기존 공시·분석 결과도 그대로 전달.
+- 종목 코드 허용 문자 검증과 R2 원문 URL HTTP(S) 검증. 잘못된 R2 주소 또는 프로토콜 상대 주소 `//...`는 요청하지 않음. 사용자 화면 레이아웃 변경 없음.
+- `tests/news-r2-panel.test.mjs`: R2 비설정 시 기존 경로, 미국 R2 성공, 실패 시 기존 뉴스 유지, 한국 종목 격리, 잘못된 종목 코드, 프로토콜 상대 주소 차단 테스트 추가.
+- **실제 로컬 Node 테스트:** 저장된 `frontend/js/analysis-api.js`와 동일한 코드의 길이(3,367자) 및 코드 포인트 FNV-1a 체크섬(`b5ce2512`)을 대조한 로컬 파일로 `node --check` 통과, Node `node --test` 6개 시나리오 전부 통과. 로컬 테스트 스크립트는 저장소 테스트 파일을 직접 checkout한 것이 아니라 6개 동등 시나리오 재현이므로 **GitHub 저장소의 실제 CI 테스트 완료로 기록하지 않음.**
+- 기존 R2 뉴스 조회 Functions는 코드에만 추가돼 있으며 실제 Pages 사이트에 배포되지 않았음. `NEWS_STOCKS_R2_BASE_URL`도 운영 사이트에서 설정되지 않았으므로 실제 패널 기능은 **비활성** 상태.
+
+### 추가 Neon 코드 의존 확인
+
+- `backend/news_worker.py` R2 모드는 `news_feed.fetch_stock_news` + `news_processed_store.source_fingerprint` 호출. `source_fingerprint`는 기사 메타데이터 해시 계산만 수행, `_connect()` 호출 없음.
+- `backend/services/news_feed.py` 수집과 `backend/providers/naver_news.py`는 기사 조회/가공 및 캐시를 사용, 직접 DB 호출 없음.
+- 기존 `news_processed_store.save_snapshot/read_signature/purge_expired` 및 `staged_auto_ai_daily` DB 경로는 `GAEMIGTP_NEWS_STORAGE=r2` 선택 시 실행하지 않는 분기.
+- **단, 전체 환경에서 Neon 접속 0건 실측은 아직 미검증**. 전체 Python 모의 단위 테스트와 서비스 실행 검증 전에 보장하지 않음.
+
+### 운영 상태 별도 기록 (이번 통합 브랜치에서 변경하지 않음)
+
+2026-11-10 별도 사용자의 명시적 승인으로 운영 브랜치 GitHub→SSH를 통해 `gaemigtp-tradingview-news.service`만 활성화. status 출력 `active/running`, 기존 `gaemigtp-news.service`는 `inactive/disabled`. 수집 로그 `r2-news upload_ok key=news/latest.json` 및 Cloudflare R2 객체 갱신 확인. **따라서 이 시점부터 'DigitalOcean의 모든 뉴스 서비스가 중지'라는 과거 문장은 현재 전체 운영 상태를 나타내지 않음.** Neon 의도적 중지는 유지. 새 통합 브랜치 R2 종목·AI 코드는 아직 운영 서버에 배포되지 않음.
+
+### 후속 차단 조건
+
+1. 저장소의 Python 테스트 `tests/test_news_worker_r2_only.py`, `tests/test_news_r2_ai.py` 실제 실행 및 실패 수정. GitHub Actions는 별도 승인 없이 시작하지 않음.
+2. 기존 `NEWS_R2` Pages Functions의 `news/stocks/us` 및 `news/ai/us` 응답 실검증, 동일 출처 제공/인증 검토.
+3. TOP20 종목뉴스 R2 발행이 실제로 가능하도록 운영 워커 단독 전환 검증. 기존 TradingView 뉴스페이지를 덮어쓰거나 Neon 일봉 코드 변경 금지.
+4. AI 비용·중복 분석 예약 전환 확인 전에는 `GAEMIGTP_NEWS_AI_R2_ENABLED` 활성화 금지. 시장 휴장일과 기존 Neon AI 예약 상태 확인 필요.
