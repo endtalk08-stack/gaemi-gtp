@@ -38,6 +38,16 @@ case "$action" in
     systemctl is-active --quiet gaemigtp-tradingview-news.service && fail "tradingview_news_still_active"
     echo GAEMI_TRADINGVIEW_NEWS_STOPPED
     ;;
+  enable-tradingview-news)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    # Explicitly scoped: activate ONLY standalone TradingView news.
+    # Never start the legacy Neon-dependent gaemigtp-news.service.
+    [[ -f /etc/systemd/system/gaemigtp-tradingview-news.service ]] || fail "tradingview_unit_missing"
+    systemctl enable --now gaemigtp-tradingview-news.service
+    systemctl is-enabled --quiet gaemigtp-tradingview-news.service || fail "tradingview_news_not_enabled"
+    systemctl is-active --quiet gaemigtp-tradingview-news.service || fail "tradingview_news_not_active"
+    echo GAEMI_TRADINGVIEW_NEWS_ENABLED
+    ;;
   status)
     [[ $# == 0 ]] || fail "unexpected_arguments"
     systemctl --no-pager --plain status gaemigtp-news.service --lines=3 || true
