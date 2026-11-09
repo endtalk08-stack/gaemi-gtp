@@ -104,8 +104,23 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    # Avoid publicly exposing a plain-HTTP origin or credential-bearing endpoints.
-    with ThreadingHTTPServer((ADDRESS, PORT), Handler) as server:
+    import sys
+    if sys.argv[1:] not in ([], ["--tls"]):
+        raise SystemExit("unsupported_api_mode")
+    tls = sys.argv[1:] == ["--tls"]
+    # Plain HTTP remains loopback-only; the separately managed TLS listener is public.
+    host, port = ("0.0.0.0", 443) if tls else (ADDRESS, PORT)
+    with ThreadingHTTPServer((host, port), Handler) as server:
+        if tls:
+            import ssl
+            cert_dir = Path("/var/lib/gaemigtp-news")
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            ctx.load_cert_chain(
+                certfile=str(cert_dir / "quotes-origin.crt"),
+                keyfile=str(cert_dir / "quotes-origin.key"),
+            )
+            server.socket = ctx.wrap_socket(server.socket, server_side=True)
         server.serve_forever()
 
 
