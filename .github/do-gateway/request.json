@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/kiwoom_us_value_collector.py","target":"backend/kiwoom_us_value_collector.py"}
+{"operation":"run","path":"ops/do-gateway/test_kiwoom_local_only_offline_20261110.py","request_id":"top20localoffline20261110a1","timeout":120}
