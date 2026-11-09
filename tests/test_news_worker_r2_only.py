@@ -29,6 +29,8 @@ class R2StockNewsWorkerTests(unittest.TestCase):
         with patch.object(news_worker.news_feed, "fetch_stock_news", return_value=[article]), \
              patch.object(news_worker.store, "source_fingerprint", return_value="news-sha"), \
              patch.object(news_worker.store, "save_snapshot", side_effect=AssertionError("Neon write")), \
+             patch.object(news_worker.store, "read_signature", side_effect=AssertionError("Neon read")), \
+             patch.object(news_worker.store, "mark_checked", side_effect=AssertionError("Neon check")), \
              patch.object(r2_news_uploader, "upload_file", side_effect=fake_upload) as upload:
             self.assertEqual(news_worker.process_r2_stock("미국", "NVIDIA", "NVDA", state), "updated")
             self.assertEqual(news_worker.process_r2_stock("미국", "NVIDIA", "NVDA", state), "unchanged")
@@ -62,6 +64,16 @@ class R2StockNewsWorkerTests(unittest.TestCase):
     def test_invalid_symbol_does_not_publish(self):
         with self.assertRaisesRegex(ValueError, "invalid_us_stock_symbol"):
             news_worker.process_r2_stock("미국", "NVIDIA", "../news/latest", {})
+
+    def test_r2_mode_never_runs_neon_maintenance_without_a_ranking(self):
+        state = {}
+        with patch.dict(os.environ, {"GAEMIGTP_NEWS_STORAGE": "r2"}), \
+             patch.object(news_worker, "next_ranked_stock", return_value=None), \
+             patch.object(news_worker.store, "purge_expired",
+                          side_effect=AssertionError("Neon purge")), \
+             patch.object(news_worker.store, "purge_expired_original_news",
+                          side_effect=AssertionError("Neon originals purge")):
+            self.assertFalse(news_worker.run_once(state, maintenance=True))
 
     def test_existing_uploader_key_is_backwards_compatible(self):
         with self.assertRaisesRegex(ValueError, "invalid_r2_news_object_key"):
