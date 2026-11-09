@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/audit_top20_storage_mode_readonly_20261110.py","request_id":"top20modeaudit20261110a1","timeout":120}
+{"operation":"deploy","path":"backend/services/r2_news_uploader.py","target":"backend/services/r2_news_uploader.py"}
