@@ -231,3 +231,16 @@
 2. 기존 `NEWS_R2` Pages Functions의 `news/stocks/us` 및 `news/ai/us` 응답 실검증, 동일 출처 제공/인증 검토.
 3. TOP20 종목뉴스 R2 발행이 실제로 가능하도록 운영 워커 단독 전환 검증. 기존 TradingView 뉴스페이지를 덮어쓰거나 Neon 일봉 코드 변경 금지.
 4. AI 비용·중복 분석 예약 전환 확인 전에는 `GAEMIGTP_NEWS_AI_R2_ENABLED` 활성화 금지. 시장 휴장일과 기존 Neon AI 예약 상태 확인 필요.
+
+
+## 재개 작업 결과 — 독립 검증 및 뉴스 패널 장애 격리 (2026-11-10)
+
+- 실제 작업 대상: `endtalk08-stack/gaemi-gtp`의 통합 브랜치. 다른 자동매매 사이트는 조회·수정하지 않음.
+- TradingView 전용 수집 서비스 `gaemigtp-tradingview-news.service`는 별도 승인에 따른 복구 후 실행 유지. 이 작업에서는 서비스/Neon/DB/Cloudflare 운영 설정을 변경하지 않음.
+- 기존 R2 이관 검증용 workflow가 없는 파일 `backend/services/news_market_issue_r2.py` 등을 컴파일하여 실패했던 기록 확인. 이번 통합 브랜치에 존재하는 파일만 검사하는 `.github/workflows/check-full-migration-news-r2.yml` 추가. 로컬 모의 객체 테스트만 실행하며 뉴스 API, DB, R2, AI에 실제 요청하지 않음.
+- `frontend/js/analysis-api.js`: R2를 명시적으로 설정한 미국 종목에서 기존 `/analyze` 요청이 실패해도 R2 뉴스 결과를 표시하도록 두 요청을 독립적으로 처리. 한국 시장, 기존 뉴스·공시 반환, R2 설정이 없을 때 기존 동작은 유지.
+- `tests/news-r2-pages.test.mjs`: 기존 `NEWS_R2` 바인딩으로 종목·AI 객체를 조회하는 경로를 모의 검증(응답 200/304/404/503, 종목 식별자 검증).
+- `tests/news-r2-panel.test.mjs`: 기존 분석 API가 503일 때 R2 뉴스 유지, 양쪽 모두 실패할 때 기존 실패 응답 유지 사례 추가.
+- 최신 독립 GitHub Actions 실행 [42655720175](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42655720175): Python 13건 + Node 16건 = **29건 전부 통과**, 문법 검사 통과.
+
+**미완료**: 기존 Pages 프로젝트에 새 API와 미국 뉴스 패널의 URL 환경변수 적용, 실제 R2 종목별 데이터 발생 여부, 기존 AI 결과 실전 출처·권한 검증 및 하루 1회 예약 전환, DigitalOcean R2 뉴스 워커 운영 배포, 라이브 사이트 반영. 운영 이전·배포를 완료했다고 주장하지 않음. 서비스 중지 상태와 비용 안전 정책을 유지함.
