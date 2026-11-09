@@ -303,3 +303,12 @@
 | 통합 브랜치 | 본 worklog | 서버 결과 기록만, 앱 기능 수정 없음 |
 
 **다음 차단 조건:** 신규 TOP20 순위 로컬 스냅샷 생성 경로의 실패 원인과 순위 데이터 신선도, R2 뉴스 서비스의 유효 환경 파일을 확인한 뒤 사용자에게 보고. 사용자 별도 승인 전 키움·Neon·기존 뉴스 서비스는 기동하지 않고 운영 배포·Cloudflare Pages 변경도 하지 않음.
+
+
+### TOP20 순위 생성 실패 원인 — 기존 키움 수집 로그 (2026-11-10)
+
+- [읽기 전용 Kiwoom value 로그 42662330300](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42662330300): `gaemigtp-kiwoom-us-value.service`가 2026-10-28 07:25~07:27 UTC 반복 실패한 실제 오류는 `psycopg.OperationalError` / `NEWS_DATABASE_URL`의 Neon PostgreSQL 연결 불가(`Network is unreachable`). 당시 서비스는 `status=1/FAILURE`; 장애는 추측이 아니라 기존 journal 기록으로 확인.
+- 운영 브랜치 `backend/kiwoom_us_value_collector.py` 170~229행 대조: **미국 확장 거래시간 외 구간**에서 기존 DB 스냅샷 유무를 먼저 조회하므로 이 단계에서 Neon 연결이 실패하면 키움 데이터를 수집하거나 `kiwoom-us-top20-news.json`을 생성하기 전에 종료할 수 있음. 반면 거래시간 안에는 20개 소스 순위를 받아 로컬 파일을 먼저 기록하고 그 이후 Neon에 저장하도록 설계되어 있음. 그러므로 **모든 시간대에 Neon이 항상 선행되어야 한다는 주장은 사실이 아님**.
+- 사용자 정책상 Neon은 의도적 중지이며 이 뉴스 점검을 이유로 Neon을 재가동하지 않음. 키움 TOP20 수집 서비스의 재시작, DB 우회 동작 변경, 순위 파일 수동 생성·교체도 승인 전 실행하지 않음.
+- 현재 로컬 TOP20 JSON 파일이 없는 상태에서 `rotation.json`에 유효한 과거 20종목이 남아 있어도 그것을 **신규 실시간 TOP20**으로 표시하면 안 됨. 최신 순위의 정상 생성·신선도 확인을 별도 게이트로 유지.
+- 점검을 위한 운영 브랜치 파일 수정은 `ops/do-gateway/` 내부의 읽기 전용 스크립트 2개와 `.github/do-gateway/request.json`에 한정됨. 실제 서비스 환경·키·DB·배포 파일 변경 없음.
