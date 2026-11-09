@@ -22,7 +22,8 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
         while (r2Base.endsWith('/')) r2Base = r2Base.slice(0, -1);
         const usSymbol = String(marketSelection?.symbol || '').trim().toUpperCase();
         if (marketSelection?.market === 'us' && /^[A-Z][A-Z0-9.-]{0,14}$/.test(usSymbol)
-            && (r2Base.startsWith('/') || r2Base.startsWith('https://'))) {
+            && ((r2Base.startsWith('/') && !r2Base.startsWith('//'))
+                || r2Base.startsWith('https://'))) {
           try {
             const r2Response = await fetch(
               r2Base + '/news/stocks/us/' + encodeURIComponent(usSymbol),
