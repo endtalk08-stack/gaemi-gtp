@@ -8,6 +8,7 @@ import datetime as dt
 import hashlib
 import hmac
 import os
+import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -25,20 +26,29 @@ def _sign(key: bytes, msg: str) -> bytes:
     return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
 
-def upload_file(path: Path) -> bool:
+def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
+    """Upload one JSON file; legacy TradingView key stays the default."""
+    return upload_bytes(Path(path).read_bytes(), object_key=object_key)
+
+
+def upload_bytes(body: bytes, *, object_key: str) -> bool:
+    """Existing SigV4 upload, with explicit protected R2 object namespaces."""
+    if object_key != OBJECT_KEY and not re.fullmatch(r"news/top20/[A-Z][A-Z0-9.-]{0,15}\.json", object_key):
+        raise ValueError("unsafe_r2_object_key")
+    if not isinstance(body, bytes) or not body:
+        raise ValueError("invalid_r2_payload")
     access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
     secret_key = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
     if not access_key or not secret_key:
         print("[r2-news] credentials_missing", flush=True)
         return False
 
-    body = Path(path).read_bytes()
     payload_hash = hashlib.sha256(body).hexdigest()
     now = dt.datetime.now(dt.timezone.utc)
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     date_stamp = now.strftime("%Y%m%d")
 
-    encoded_key = "/".join(quote(part, safe="-_.~") for part in OBJECT_KEY.split("/"))
+    encoded_key = "/".join(quote(part, safe="-_.~") for part in object_key.split("/"))
     canonical_uri = f"/{BUCKET}/{encoded_key}"
     host = f"{ACCOUNT_ID}.r2.cloudflarestorage.com"
     canonical_headers = (
@@ -102,7 +112,7 @@ def upload_file(path: Path) -> bool:
         )
         return False
     print(
-        f"[r2-news] upload_ok key={OBJECT_KEY} bytes={len(body)}",
+        f"[r2-news] upload_ok key={object_key} bytes={len(body)}",
         flush=True,
     )
     return True
