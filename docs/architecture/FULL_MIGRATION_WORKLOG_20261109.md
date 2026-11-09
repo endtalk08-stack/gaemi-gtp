@@ -253,3 +253,22 @@
 - `frontend/js/analysis-api.js`는 기존 `/analyze` 출력과 함께 미국 TOP20 종목뉴스 R2 데이터를 **설정이 활성화된 경우에만** 별도의 `panel_news_items`로 전달. 현재 프런트의 `GaemiGTPAnalysisData.set`와 오른쪽 뉴스 탭은 이미 `panel_news_items`를 소비하도록 되어 있음. 국내 뉴스·기존 차트/공시 로직 변경 없음.
 - CI는 **서버 연결, 실제 새 종목별 R2 객체 존재, 웹사이트 반영, 유료 AI 호출 여부**를 검증한 것이 아님. 운영 환경 적용은 여전히 미승인/미실행.
 - 이 작업 도중 운영 브랜치에서 **별도 승인으로 TradingView 서비스만 복구하면서 GitHub gateway 관련 6개 커밋이 추가됨**. 통합 브랜치를 운영 브랜치로 병합하기 전 최신 운영 변경분을 보존하면서 명시적 검토가 필요. 운영 브랜치 수정/병합은 하지 않음.
+
+
+## 5차 재개 — 운영 보호 및 R2 이관 차단 원인 확인 (2026-11-10)
+
+- **대상 한정:** `endtalk08-stack/gaemi-gtp` 통합 브랜치의 **뉴스·AI R2 전환**. 차트·시세·자동매매 저장소 및 다른 사이트 변경 없음.
+- **Cloudflare 읽기 전용 확인:** 기존 Pages 프로젝트 `gaemigtp-news`의 production branch는 `ops/do-ssh-deploy-setup-20261017`, 배포 상태 성공, `NEWS_R2` 바인딩은 기존 버킷 `gaemigtp-news-data`로 연결.
+- **R2 데이터 실측:** 현재 `news/` 경로에 `news/latest.json`과 `news/backups/latest-before-paragraph-fix-20261109.json`만 있음. **미국 TOP20 `news/stocks/us/` 또는 AI `news/ai/us/` 객체는 아직 없음.** 따라서 새 코드에 대한 실제 서비스·R2 게시 및 사이트 연동 완료로 판단하지 말 것.
+- **분기 보호:** 통합 브랜치와 운영 브랜치는 **서로 diverged**. 이 확인 당시 통합 ahead 33 commits, behind 6 commits. 운영 브랜치의 TradingView 서비스 복구와 SSH gateway 변경을 보존해야 하므로 **무검토 병합 및 운영 배포 금지.**
+- **코드 점검:** `backend/news_worker.py`에서 R2 전용 분기는 기존 `news_feed.fetch_stock_news`를 사용하고 `store.source_fingerprint`는 순수 해시 함수. AI 호출은 기본 OFF, `news/latest.json` 덮어쓰기 금지. 기존 TOP20 종목 로컬 순위 파일과 서비스 상태 실측은 별도 확인이 필요하며, 지난 운영 점검에서 Kiwoom TOP20 수집 서비스 `failed` 상태가 관측됐으므로 새 종목별 R2 발행이 실제 시작할 수 있는지 미확인.
+- **추가 보강:** `tests/test_news_worker_r2_only.py`에 `read_signature`, `mark_checked` 등 기존 Neon 경로를 실행하면 테스트가 실패하도록 검증 범위를 확장. R2 모드에서 순위 데이터가 없더라도 Neon 유지보수 함수 `purge_expired`, `purge_expired_original_news`가 호출되지 않음을 추가 검증. **운영 코드 변경 없음.**
+- **CI 실측 결과:** GitHub Actions [42660059733](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42660059733)에서 Python **14/14 통과**, JavaScript **16/16 통과**, Python 컴파일 및 Pages Functions 구문 검증 성공. 총 30건. **모든 시험은 오프라인 mock 기반**, 실제 뉴스 API·Neon·R2 업로드 및 운영 사이트 작동 검증은 아님.
+- **이번 변경 파일:** `tests/test_news_worker_r2_only.py`, 본 작업 기록. 운영 서버 가동, DB/환경변수 변경, Pages 배포, 유료 AI 활성화, 운영 브랜치 병합 **없음**.
+
+### 다음 단계 수행 조건
+
+1. DigitalOcean의 기존 TOP20 순위 파일 `/var/lib/gaemigtp-news/kiwoom-us-top20-news.json`이 최신·정상 20종목인지 **읽기 전용** 확인. 기존 시세·차트 서비스는 재가동하지 않음.
+2. 기존 TradingView 수집 서비스 `gaemigtp-tradingview-news.service`는 그대로 보호. TOP20 뉴스와 AI의 R2 전환은 독립 운영 대상으로 분리.
+3. 종목별 R2 객체가 없는 상태에서 새 Pages API를 운영에 먼저 내보내도 사용자 화면에는 데이터가 없으므로 **종목뉴스 수집→R2 발행→읽기→화면** 순서로 단계별 실측 검증.
+4. 통합 브랜치 최신 코드·운영 브랜치 gateway 변경 차이를 재검토하고, **명시적 배포 승인 전 운영 브랜치 병합·DigitalOcean 변경·Cloudflare Pages 배포 금지.**
