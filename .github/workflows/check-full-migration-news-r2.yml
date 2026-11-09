@@ -1,0 +1,39 @@
+name: Validate full-migration R2 news offline
+on:
+  push:
+    branches:
+      - integration/full-migration-20261109
+    paths:
+      - 'backend/news_worker.py'
+      - 'backend/services/news_r2_ai.py'
+      - 'backend/services/r2_news_uploader.py'
+      - 'frontend/js/analysis-api.js'
+      - 'functions/news/**'
+      - 'tests/test_news_worker_r2_only.py'
+      - 'tests/test_news_r2_ai.py'
+      - 'tests/news-r2-panel.test.mjs'
+      - '.github/workflows/check-full-migration-news-r2.yml'
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install only local dependencies
+        run: python -m pip install requests
+      - name: Compile Python migration files
+        run: python -m py_compile backend/news_worker.py backend/services/news_r2_ai.py backend/services/r2_news_uploader.py tests/test_news_r2_ai.py tests/test_news_worker_r2_only.py
+      - name: Run offline Python tests (no APIs, DB, R2, or paid AI)
+        run: python -m unittest tests.test_news_worker_r2_only tests.test_news_r2_ai -v
+      - name: Run frontend R2 fallback tests
+        run: node --test tests/news-r2-panel.test.mjs
+      - name: Check Pages Function JS syntax
+        run: |
+          node --check functions/news/latest.json.js
+          node --check 'functions/news/stocks/us/[symbol].js'
+          node --check 'functions/news/ai/us/[symbol].js'
