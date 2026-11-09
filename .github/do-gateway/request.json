@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"ops/systemd/gaemigtp-kiwoom-us-top20-https.service","target":"ops/systemd/gaemigtp-kiwoom-us-top20-https.service"}
+{"operation":"enable-top20-https"}
