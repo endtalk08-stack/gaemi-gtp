@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"deploy","path":"backend/services/news_r2_ai.py","target":"backend/services/news_r2_ai.py"}
