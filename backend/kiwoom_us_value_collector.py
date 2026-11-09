@@ -40,7 +40,13 @@ def _write_local_news_top20(rows, captured_at, *, target_path=None):
             "exchange": source_rows[row["symbol"]]["exchange"],
             "company_key": matched["company_key"],
             "news_name": matched["news_name"],
-            "identity_status": matched["status"]
+            "identity_status": matched["status"],
+            # Preserve the values already returned by usa20540 for the
+            # DigitalOcean-local TOP20 API; no extra market or DB read.
+            "price": source_rows[row["symbol"]]["price"],
+            "change_pct": source_rows[row["symbol"]]["change_pct"],
+            "trading_value": source_rows[row["symbol"]]["trading_value"],
+            "volume": source_rows[row["symbol"]]["volume"],
         })
     data={"schema_version": 1, "source": "kiwoom",
           "market": "US", "rank_type": "trading_value",
