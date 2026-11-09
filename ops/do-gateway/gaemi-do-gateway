@@ -236,6 +236,16 @@ case "$action" in
     systemctl is-active --quiet gaemigtp-news.service || fail "original_worker_changed"
     echo ALPACA_NEWS_VERIFY_PASS
     ;;
+  remove-render-price-relay)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    systemctl disable --now gaemigtp-kiwoom-us-fe.service
+    systemctl is-active --quiet gaemigtp-kiwoom-us-fe.service && fail "render_relay_still_active"
+    rm -f -- "$app/backend/kiwoom_us_price_relay.py"
+    rm -f -- /etc/systemd/system/gaemigtp-kiwoom-us-fe.service
+    systemctl daemon-reload
+    [[ ! -e "$app/backend/kiwoom_us_price_relay.py" ]] || fail "render_relay_file_remaining"
+    echo GAEMI_RENDER_PRICE_RELAY_REMOVED=1
+    ;;
   enable-timer)
     [[ $# == 1 && ( "$1" == "gaemigtp-kiwoom-us-value.timer" ||
                     "$1" == "gaemigtp-kiwoom-us-fe.service" ||
