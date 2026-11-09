@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/quotes_origin_cert_install_once.py","request_id":"quotes-origin-cert-20261110","timeout":60}
+{"operation":"upgrade","path":"ops/do-gateway/gaemi-do-gateway"}
