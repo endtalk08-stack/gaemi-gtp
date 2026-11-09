@@ -1,1 +1,1 @@
-{"operation":"enable-top20-api"}
+{"operation":"run","path":"ops/do-gateway/quotes_origin_csr_once.py","request_id":"quotes-origin-csr-20261110","timeout":90}
