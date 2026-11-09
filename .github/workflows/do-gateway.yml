@@ -32,7 +32,7 @@ jobs:
           import json, os, pathlib, re, subprocess
           req=json.loads(pathlib.Path('.github/do-gateway/request.json').read_text())
           op=req.get("operation")
-          if op not in ("status","logs","restart","stop-tradingview-news","enable-tradingview-news","link-news-r2-env","deploy","run","upgrade","enable-timer","enable-top20-api","remove-render-price-relay","kiwoom-verify","kiwoom-daily-backfill","alpaca-price-remove","alpaca-news-verify","cleanup"):
+          if op not in ("status","logs","restart","stop-tradingview-news","enable-tradingview-news","link-news-r2-env","deploy","run","upgrade","enable-timer","enable-top20-api","enable-top20-https","remove-render-price-relay","kiwoom-verify","kiwoom-daily-backfill","alpaca-price-remove","alpaca-news-verify","cleanup"):
               raise ValueError("invalid operation")
           allowed={
               "status":{"operation"},
@@ -42,6 +42,7 @@ jobs:
               "cleanup":{"operation"},
               "remove-render-price-relay":{"operation"},
               "enable-top20-api":{"operation"},
+              "enable-top20-https":{"operation"},
               "kiwoom-verify":{"operation"},
               "alpaca-news-verify":{"operation"},
               "alpaca-price-remove":{"operation"},
