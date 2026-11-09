@@ -104,6 +104,21 @@ class AiR2WorkerTests(unittest.TestCase):
             ), "no_eligible_articles")
         self.assertNotIn("_r2_ai_reservations", state)
 
+    def test_old_article_never_triggers_paid_call(self):
+        stale = [{
+            "title": "Old earnings story",
+            "description": "Old quarter revenue",
+            "link": "https://example.org/old",
+            "pubDate": "Fri, 06 Nov 2026 09:00:00 GMT",
+        }]
+        state = {}
+        with patch.dict(os.environ, ENABLED):
+            self.assertEqual(news_r2_ai.maybe_publish(
+                "NVIDIA", "NVDA", stale, state, lambda x: None, now=NOW,
+                analyzer=lambda *args: self.fail("stale article must not be billed"),
+            ), "no_eligible_articles")
+        self.assertNotIn("_r2_ai_reservations", state)
+
     def test_reject_unsafe_symbol(self):
         with self.assertRaisesRegex(ValueError, "invalid_us_stock_symbol"):
             news_r2_ai.publish_payload({"symbol": "../latest.json"})
