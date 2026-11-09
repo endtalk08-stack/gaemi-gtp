@@ -272,3 +272,34 @@
 2. 기존 TradingView 수집 서비스 `gaemigtp-tradingview-news.service`는 그대로 보호. TOP20 뉴스와 AI의 R2 전환은 독립 운영 대상으로 분리.
 3. 종목별 R2 객체가 없는 상태에서 새 Pages API를 운영에 먼저 내보내도 사용자 화면에는 데이터가 없으므로 **종목뉴스 수집→R2 발행→읽기→화면** 순서로 단계별 실측 검증.
 4. 통합 브랜치 최신 코드·운영 브랜치 gateway 변경 차이를 재검토하고, **명시적 배포 승인 전 운영 브랜치 병합·DigitalOcean 변경·Cloudflare Pages 배포 금지.**
+
+
+## 6차 서버 실측 — 기존 TOP20 로컬 순위·동결 순회·R2 환경 (2026-11-10)
+
+실행 대상: **DigitalOcean 기존 서버** `gaemigtp-news-worker`. 읽기 전용 GitHub Actions→SSH gateway 스크립트만 사용. 원본 뉴스 서비스·TradingView 서비스·Neon·키움 서비스 기동/중지/환경변수 변경 없음. 서버 파일 쓰기 및 네트워크/API/DB 쿼리 없음.
+
+### 확인된 실제 결과
+
+1. [read-only run 42661488569](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42661488569) — `/var/lib/gaemigtp-news/kiwoom-us-top20-news.json` **없음**. `rotation.json` **있음**. 마지막 갱신 `2026-10-28T07:03:37Z`; `next_index=17`; R2 뉴스 지문 0개, R2 AI 예약 0개.
+2. 같은 점검은 GitHub gateway의 `/etc/gaemigtp/news-worker.env` 환경만 사용하므로 `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`가 **그 실행 환경에 없음**을 확인. **이 사실만으로 서버 전체에 R2 키가 없다고 말하면 안 됨.**
+3. [read-only run 42661996682](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42661996682) — `rotation.json`의 동결 순회 20종목을 원본 `us_top20_rotation.py`의 필수 필드(순위 1~20, 중복 없는 티커, 유효 종목명·형식)와 동일한 조건으로 읽기 전용 검증: **20/20 유효**, `next_index=17`, `pending=False`, 기존 동결 목록 사용 가능.
+4. 동일한 두 번째 점검 — `/var/lib/gaemigtp-news/r2.env` 실제 존재·읽기 가능, 파일 안에 `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` 변수 **이름 존재**. 키 값과 실제 사용·권한은 조회하지 않음. `gaemigtp-tradingview-news.service`에는 기존 `EnvironmentFile=-/var/lib/gaemigtp-news/r2.env` 설정이 있으며, TradingView의 `news/latest.json` 업로드 성공 이력이 있음.
+5. 두 번째 첫 실행 [42661787725](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42661787725)은 standalone script의 `backend` 모듈 import 경로 오류로 실패했으며, 순수 표준 라이브러리 검사로 수정한 재실행 42661996682는 성공. 이 실패는 서버의 뉴스 수집 장애나 기존 서비스 오류가 아니라 **점검 스크립트 오류**임.
+
+### 확인된 문제와 영향
+
+- **정규 최신 TOP20 순위 로컬 스냅샷이 없어 신규 최신 순위를 확보할 수 없음.** 유효한 기존 동결 20종목은 fallback이 가능하지만 10월 28일 이후 갱신되지 않은 상태여서 **최신 TOP20 뉴스라고 주장하면 안 됨**. 동결 목록의 나머지 3개 처리 뒤에도 코드상 이전 20종목을 재순회할 수 있으나 신선도는 복구되지 않음.
+- 별도 `r2.env`에 credential **변수 이름**이 있어도, 기존 `gaemigtp-news.service`의 유효한 systemd `EnvironmentFile` 목록에 자동 포함된다고 가정할 수 없음. **NEWS_STORAGE=r2 배포/기동 이전에 뉴스 서비스의 실제 환경 파일 포함 여부를 읽기 전용 확인하고**, R2 권한과 발행 테스트를 완료해야 함.
+- `gaemigtp-kiwoom-us-value.service`는 앞선 실제 status 점검에서 `failed`였음. 로컬 순위 생성 코드는 `backend/kiwoom_us_value_collector.py`의 `_write_local_news_top20`; 이것을 뉴스 이전 작업과 혼동하여 서비스를 임의 재가동하거나 Neon을 활성화하지 않음.
+- `GAEMIGTP_NEWS_STORAGE`는 점검 job 환경에서 미설정(default Neon), AI R2 스위치 미설정. AI 실행/유료 호출 없음. **현재 TOP20 R2 객체 신규 생성도 없음.**
+
+### 실행 및 변경 기록
+
+| 구분 | 파일·범위 | 결과 |
+| --- | --- | --- |
+| 서버 읽기 전용 점검 | `ops/do-gateway/verify_top20_r2_readiness_readonly_20261110.py` | 통과, ranking 파일 부재 확인 |
+| 서버 fallback/환경 점검 | `ops/do-gateway/audit_top20_fallback_r2env_readonly_20261110.py` | 첫 진입 오류 수정 후 재실행 통과 |
+| GitHub gateway 요청 | 운영 브랜치 `.github/do-gateway/request.json` | 검증용 작업 3회 (첫 2차 점검 실패 포함); 서비스 제어·배포 없음 |
+| 통합 브랜치 | 본 worklog | 서버 결과 기록만, 앱 기능 수정 없음 |
+
+**다음 차단 조건:** 신규 TOP20 순위 로컬 스냅샷 생성 경로의 실패 원인과 순위 데이터 신선도, R2 뉴스 서비스의 유효 환경 파일을 확인한 뒤 사용자에게 보고. 사용자 별도 승인 전 키움·Neon·기존 뉴스 서비스는 기동하지 않고 운영 배포·Cloudflare Pages 변경도 하지 않음.
