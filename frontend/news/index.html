@@ -304,13 +304,39 @@ function filterNews(){
  filtered=news.filter(n=>inCategory(n)&&(!term||[n.title,n.source,n.summary,...(n.symbols||[]),...(n.event_matches||[]).map(x=>x.label),...(n.market_event_matches||[]).map(x=>x.label)].join(" ").toLowerCase().includes(term)));
  vis=INIT;renderNews();
 }
+function listBodyExcerpt(n){
+ const direct=String(n.list_excerpt||"").replace(/\\s+/g," ").trim();
+ if(direct)return direct;
+ const body=String(n.body||"");
+ if(!body.trim())return "";
+ const chunks=body.split(/\\n\\s*\\n+/);
+ const picked=[];
+ let size=0;
+ for(const chunk of chunks){
+  const paragraph=chunk.replace(/\\s+/g," ").trim();
+  if(!paragraph||paragraph.length>2500)continue;
+  const sentences=paragraph.match(/[^.!?。]+[.!?。]+(?=\\s|$)|[^.!?。]+$/g)||[paragraph];
+  for(const raw of sentences){
+   const sentence=raw.trim();
+   if(sentence.length<12||sentence.length>300)continue;
+   if(/^(?:면책|법적 고지|회사 소개|forward-looking|about |관련 문의)/i.test(sentence))continue;
+   if((sentence.match(/\\d+(?:[,.]\\d+)*/g)||[]).length>=12)continue;
+   if((sentence.match(/\\$[\\d,]+/g)||[]).length>=3)continue;
+   if(picked.includes(sentence))continue;
+   if(size+sentence.length+(picked.length?1:0)>420)continue;
+   picked.push(sentence);size+=sentence.length+1;
+   if(picked.length===3)return picked.join(" ");
+  }
+ }
+ return picked.join(" ");
+}
 function renderNews(){
  const list=el("newsList"),more=el("moreBtn");
  if(!filtered.length){list.innerHTML='<div class="empty">표시할 뉴스가 없습니다</div>';more.classList.add("hidden");return;}
  list.innerHTML=filtered.slice(0,vis).map(n=>
   '<article class="news-item" tabindex="0" role="button" data-id="'+escapeHTML(n._index)+'">'+
   '<div class="news-card-head"><div class="news-tags"><span class="news-category">'+escapeHTML(majorCategory(n))+'</span><span class="news-category">'+escapeHTML(displayCategory(n))+'</span></div><span class="news-source">'+escapeHTML(n.source||"출처 미확인")+'</span></div>'+
-  '<div class="news-title">'+escapeHTML(n.title)+'</div>'+
+  '<div class="news-title">'+escapeHTML(n.title)+'</div>'+\n  (listBodyExcerpt(n)?'<p class="news-summary">'+escapeHTML(listBodyExcerpt(n))+'</p>':'')+
   // News list: titles only. Keep summary/body data for the article detail view.
   '<div class="news-card-foot"><span class="news-time">'+escapeHTML(timeLabel(n.published_at))+'</span></div></article>').join("");
  more.classList.toggle("hidden",vis>=filtered.length);
