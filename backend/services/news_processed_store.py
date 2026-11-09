@@ -46,6 +46,9 @@ def _invalidate_snapshot_cache():
 
 
 def database_url():
+    # TOP20 R2 mode must not silently reconnect to an intentionally paused Neon DB.
+    if os.environ.get("GAEMIGTP_NEWS_STORAGE", "").strip().lower() == "r2":
+        return ""
     return os.environ.get("NEWS_DATABASE_URL", "").strip()
 
 def _connection_failure_category(exc):
