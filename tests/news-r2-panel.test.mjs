@@ -51,7 +51,8 @@ test('R2 failures and empty payload preserve working legacy news', async () => {
     { ok: true, json: async () => ({ ok: true, symbol: 'NVDA', items: [] }) },
     { ok: true, json: async () => ({ ok: true, symbol: 'TSLA', items: [{ title: 'wrong symbol', url: 'https://example.org' }] }) },
   ]) {
-    const { result } = await run({ marketSelection: us, r2Base: '', r2Response: response });
+    const { result, requests } = await run({ marketSelection: us, r2Base: '/r2', r2Response: response });
+    assert.equal(requests.length, 2);
     assert.equal(result.panel_news_items, undefined);
     assert.equal(result.paired_news_items[0].title, '기존 뉴스');
   }
