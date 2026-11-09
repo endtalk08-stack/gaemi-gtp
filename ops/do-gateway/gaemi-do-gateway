@@ -246,6 +246,26 @@ case "$action" in
     [[ ! -e "$app/backend/kiwoom_us_price_relay.py" ]] || fail "render_relay_file_remaining"
     echo GAEMI_RENDER_PRICE_RELAY_REMOVED=1
     ;;
+  enable-top20-api)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    unit=gaemigtp-kiwoom-us-top20-api.service
+    [[ -f /etc/systemd/system/"$unit" ]] || fail "top20_api_service_not_installed"
+    [[ -f "$app/backend/kiwoom_us_top20_api.py" ]] || fail "top20_api_code_missing"
+    systemctl enable --now "$unit"
+    systemctl is-active --quiet "$unit" || fail "top20_api_service_inactive"
+    # The API must only bind to loopback until HTTPS ingress is verified.
+    if ss -ltn | grep ':8765' | grep -v '127.0.0.1:8765'; then fail "top20_api_nonloopback"; fi
+    /opt/gaemigtp-news/venv/bin/python - <<'PY'
+import json, urllib.request
+for path in ('/health', '/market/trading-value?market=us'):
+    with urllib.request.urlopen('http://127.0.0.1:8765'+path, timeout=5) as res:
+        data=json.load(res)
+    if not data.get('ok'): raise SystemExit('api_not_ok')
+    if path.startswith('/market') and len(data.get('items', [])) != 20:
+        raise SystemExit('api_not_20')
+print('GAEMI_TOP20_API_LOCAL_VERIFIED=20')
+PY
+    ;;
   enable-timer)
     [[ $# == 1 && ( "$1" == "gaemigtp-kiwoom-us-value.timer" ||
                     "$1" == "gaemigtp-kiwoom-us-fe.service" ||
