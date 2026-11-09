@@ -27,22 +27,18 @@ def _sign(key: bytes, msg: str) -> bytes:
 
 
 def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
-    """Upload one JSON file; legacy TradingView key stays the default."""
-    return upload_bytes(Path(path).read_bytes(), object_key=object_key)
-
-
-def upload_bytes(body: bytes, *, object_key: str) -> bool:
-    """Existing SigV4 upload, with explicit protected R2 object namespaces."""
-    if object_key != OBJECT_KEY and not re.fullmatch(r"news/top20/[A-Z][A-Z0-9.-]{0,15}\.json", object_key):
-        raise ValueError("unsafe_r2_object_key")
-    if not isinstance(body, bytes) or not body:
-        raise ValueError("invalid_r2_payload")
+    # Keep the existing news page key unchanged. Stock feeds use separate objects.
+    if object_key != OBJECT_KEY and not re.fullmatch(
+        r"news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}\.json", object_key
+    ):
+        raise ValueError("invalid_r2_news_object_key")
     access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
     secret_key = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
     if not access_key or not secret_key:
         print("[r2-news] credentials_missing", flush=True)
         return False
 
+    body = Path(path).read_bytes()
     payload_hash = hashlib.sha256(body).hexdigest()
     now = dt.datetime.now(dt.timezone.utc)
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
