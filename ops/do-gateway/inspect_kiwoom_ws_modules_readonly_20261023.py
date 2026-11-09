@@ -23,3 +23,26 @@ try:
 except (OSError, ssl.SSLError, TimeoutError) as exc:
     print("KIWOOM_WS_TLS_FAIL_TYPE=" + type(exc).__name__, flush=True)
     sys.exit(2)
+
+# Read-only inventory of existing HTTP/WebSocket ingress paths on DigitalOcean.
+import os
+import pathlib
+import subprocess
+for unit in ("nginx.service", "caddy.service", "cloudflared.service",
+             "gaemigtp-kiwoom-us-value.timer", "gaemigtp-news.service"):
+    try:
+        p=subprocess.run(["systemctl","show",unit,"--property=ActiveState,UnitFileState",
+                          "--no-pager"],capture_output=True,text=True,timeout=4)
+        print("INGRESS_UNIT="+unit+" "+p.stdout.strip().replace("\\n"," "),flush=True)
+    except Exception as exc: print("INGRESS_UNIT_ERROR="+unit+" "+type(exc).__name__)
+try:
+    p=subprocess.run(["ss","-ltn"],capture_output=True,text=True,timeout=6)
+    for line in p.stdout.splitlines():
+        if line.startswith("State"):continue
+        parts=line.split()
+        if len(parts)>=4:print("INGRESS_LISTEN="+parts[3],flush=True)
+except Exception as exc:print("INGRESS_LISTEN_ERROR="+type(exc).__name__)
+for directory in ("/etc/nginx/sites-enabled","/etc/caddy","/etc/cloudflared"):
+    p=pathlib.Path(directory)
+    if p.is_dir():
+        print("INGRESS_DIR="+directory+" FILES="+",".join(x.name for x in p.iterdir() if x.is_file()),flush=True)
