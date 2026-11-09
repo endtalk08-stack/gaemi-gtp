@@ -71,3 +71,8 @@ test('untrusted symbols never produce R2 paths', async () => {
   });
   assert.equal(requests.length, 1);
 });
+
+test('protocol-relative R2 hosts are rejected', async () => {
+  const { requests } = await run({ marketSelection: us, r2Base: '//untrusted.example' });
+  assert.equal(requests.length, 1);
+});
