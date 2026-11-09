@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_news_page_deploy_readonly_20261109.py","request_id":"tvnews-readonly-verify-20261109c","timeout":120}
+{"operation":"run","path":"ops/do-gateway/tradingview_overall_list_once_20261109.py","request_id":"tv-overall-list-onecall-20261109","timeout":120}
