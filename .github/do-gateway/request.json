@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/probe_r2_scoped_once_20261110.py","request_id":"r2scopedprobe20261110a1","timeout":120}
