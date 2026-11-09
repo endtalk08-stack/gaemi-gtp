@@ -119,3 +119,28 @@
 | 2026-11-09 | R2 업로더에 기존 버킷 내 종목별 키 지원 | `0ca3620` | GitHub 파일 재조회 | 없음 |
 | 2026-11-09 | 뉴스 워커 R2 전용 분기 추가 | `41b2ccd` | GitHub 파일 재조회 | 없음 |
 | 2026-11-09 | R2 회귀 테스트 작성 | `77aa651` | GitHub 파일 재조회, 실행 미완료 | 없음 |
+
+
+## 2차 검증 — Render 메인 뉴스 소비 경로 (2026-11-10)
+
+- 코드 조회: `frontend/js/analysis-api.js`는 `BACKEND_URL/analyze`로 분석 요청을 하고 `paired_news_items`를 전달.
+- `frontend/widgets/analysis-data/analysis-data.js`는 `panel_news_items` (없으면 `paired_news_items`)를 `newsItems`로 보관.
+- `frontend/shell/right-panel/right-panel-tabs.js`의 오른쪽 뉴스 탭은 `GaemiGTPAnalysisData.get().newsItems`를 그리는 구조이며 R2를 직접 호출하지 않음.
+- `backend/services/news_result.py`는 `NEWS_PROCESSED_READ_MODE=off` 시 종목 뉴스 수집/캐시를 이용하고, `prefer/only` 시 Neon 스냅샷을 먼저 읽음.
+- **따라서 종목별 R2 업로드 경로를 추가한 것만으로 Render 오른쪽 패널이 R2를 읽는 것은 아님.** 기존 패널 구조는 보존했고 R2 연결 변경·배포는 아직 하지 않음.
+- 기존 `news/latest.json`은 별도 뉴스 페이지 데이터이며 우측 패널용 종목 데이터와 섞지 않음.
+- 실제 Render 서비스 조회는 계정 워크스페이스 선택이 필요한 상태여서 이 단계에서는 진행하지 못함. 어떠한 Render 설정도 변경하지 않음.
+- Python/JS 테스트: 신규 테스트 파일 및 코드가 GitHub에 저장돼 있음을 확인했지만 **실제 단위 테스트는 실행하지 못함**. `git ls-remote` 원격 접속도 현재 검사 컨테이너의 DNS 제한으로 실패. GitHub Actions는 사용자 별도 허락 없이 실행하지 않음.
+
+### 검증 후 작업 판단
+
+1. R2 저장용 종목별 JSON을 직접 패널에 읽히게 하기 전에 Render의 실제 뉴스 호출 경로와 BACKEND_URL을 운영 설정과 대조해야 함.
+2. 기존 오른쪽 패널은 임의 수정 금지. R2 종목 뉴스 조회 경로는 기존 UI 데이터 계약과 호환되는지 모의 테스트 후 연결.
+3. 실가동 기준: R2 발행 정상, 수집 실패 시 이전 데이터 보존, 중복 재업로드 억제, Neon 호출 0, KR 패널 회귀 없음, US TOP20 원본 매칭 유지.
+4. **운영 반영 차단:** Render 워크스페이스 확정·실제 테스트 실행·DigitalOcean R2 자격증명 확인·도메인 소비 경로 검증 전에는 서버 재가동/배포하지 않음.
+
+### 변경 이력 추가
+
+| 날짜 | 작업 | 결과 | 검증 | 운영 영향 |
+| --- | --- | --- | --- | --- |
+| 2026-11-10 | Render 메인 오른쪽 뉴스 탭 소스 분석 | 기존 `/analyze` → `newsItems` 경로 확인, R2 미연결 명시 | GitHub 코드 읽기 전용 확인 | 없음 |
