@@ -197,6 +197,28 @@ case "$action" in
     fi
     echo "GAEMI_DEPLOY_OK=$dest"
     ;;
+  kiwoom-local-top20)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    [[ -f /etc/gaemigtp/kiwoom.env && ! -L /etc/gaemigtp/kiwoom.env ]] || fail "kiwoom_credentials_not_installed"
+    [[ "$(stat -c %U:%G /etc/gaemigtp/kiwoom.env)" == "root:root" ]] || fail "kiwoom_credentials_wrong_owner"
+    [[ "$(stat -c %a /etc/gaemigtp/kiwoom.env)" == "600" ]] || fail "kiwoom_credentials_wrong_permissions"
+    [[ -f "$app/backend/kiwoom_us_value_collector.py" && ! -L "$app/backend/kiwoom_us_value_collector.py" ]] || fail "kiwoom_collector_missing"
+    [[ "$(systemctl is-active gaemigtp-news.service || true)" == "inactive" ]] || fail "news_worker_must_stay_stopped"
+    [[ "$(systemctl is-active gaemigtp-tradingview-news.service || true)" == "active" ]] || fail "tradingview_must_stay_active"
+    [[ "$(systemctl is-active gaemigtp-kiwoom-us-value.service || true)" != "active" ]] || fail "kiwoom_collector_already_running"
+    exec 9>/run/lock/gaemi-gateway.lock
+    flock -n 9 || fail "concurrent_operation"
+    systemd-run --quiet --wait --pipe --collect \
+      --unit="gaemi-kiwoom-local-top20-$(date -u +%s)" \
+      -p User=gaemigtp-news -p Group=gaemigtp-news \
+      -p WorkingDirectory="$app" \
+      -p EnvironmentFile=/etc/gaemigtp/kiwoom.env \
+      -p NoNewPrivileges=true -p TimeoutStartSec=60 \
+      /opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_us_value_collector --local-news-top20
+    [[ "$(systemctl is-active gaemigtp-news.service || true)" == "inactive" ]] || fail "news_worker_state_changed"
+    [[ "$(systemctl is-active gaemigtp-tradingview-news.service || true)" == "active" ]] || fail "tradingview_state_changed"
+    echo "GAEMI_KIWOOM_LOCAL_TOP20_ONCE_DONE"
+    ;;
   kiwoom-verify)
     [[ $# == 0 ]] || fail "unexpected_arguments"
     [[ -f /etc/gaemigtp/kiwoom.env && ! -L /etc/gaemigtp/kiwoom.env ]] || fail "kiwoom_credentials_not_installed"
