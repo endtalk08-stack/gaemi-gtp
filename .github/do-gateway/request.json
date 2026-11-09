@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_top20_r2_offline_20261110.py","request_id":"top20r2offline20261110a1","timeout":120}
+{"operation":"run","path":"ops/do-gateway/configure_top20_r2_mode_once_20261110.py","request_id":"top20r2mode20261110a1","timeout":120}
