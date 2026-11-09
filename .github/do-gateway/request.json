@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/check_live_us_value_industries_readonly_20261023.py","request_id":"usvalueapi20261110test01","timeout":60}
