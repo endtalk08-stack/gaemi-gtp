@@ -19,11 +19,11 @@ def read_config():
         try:
             c=subprocess.run(["systemctl","cat",unit],capture_output=True,text=True,timeout=5)
             for match in re.finditer(r"(?m)^\s*EnvironmentFile\s*=\s*-?([^\s#]+)",c.stdout):
-                paths.append(match.group(1).strip('"''))
+                paths.append(match.group(1).strip().strip(chr(34)).strip(chr(39)))
             for match in re.finditer(r"(?m)^\s*Environment\s*=\s*(.*)$",c.stdout):
                 for pair in re.findall(r"(?:[A-Z][A-Z0-9_]+)=(?:[^\s]+)",match.group(1)):
                     k,v=pair.split("=",1)
-                    keys.setdefault(k,v.strip('"''))
+                    keys.setdefault(k,v.strip().strip(chr(34)).strip(chr(39)))
         except Exception:
             pass
     for p in dict.fromkeys(paths):
@@ -36,7 +36,7 @@ def read_config():
             for line in path.read_text(encoding="utf-8").splitlines():
                 m=re.match(r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*$",line)
                 if m:
-                    keys.setdefault(m.group(1),m.group(2).strip('"''))
+                    keys.setdefault(m.group(1),m.group(2).strip().strip(chr(34)).strip(chr(39)))
         except Exception:
             pass
     return keys
