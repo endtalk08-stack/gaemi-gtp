@@ -82,4 +82,23 @@ def examine(obj,parent="",depth=0):
             print("DETAIL_LIST="+key+" COUNT="+str(len(value))+" FIRST_TYPE="+(type(value[0]).__name__ if value else "empty"),flush=True)
             if value and isinstance(value[0],dict):examine(value[0],key+"[0]",depth+1)
 examine(data)
+from collections import Counter
+nodes=Counter()
+examples={}
+def walk(v,depth=0):
+    if depth>24:return
+    if isinstance(v,list):
+        for child in v:walk(child,depth+1)
+    elif isinstance(v,dict):
+        t=str(v.get("type") or "")
+        if t:
+            nodes[t]+=1
+            if t not in examples:
+                examples[t]={"keys":list(v)[:12],"params":v.get("params"),"child_types":[(c.get("type") if isinstance(c,dict) else type(c).__name__) for c in (v.get("children") or [])[:8]]}
+        for k,w in v.items():
+            if k in ("children",):walk(w,depth+1)
+root=data.get("data") if isinstance(data.get("data"),dict) else data
+walk(root.get("astDescription") or root.get("ast_description"))
+print("DETAIL_AST_NODE_TYPES="+json.dumps(dict(nodes),ensure_ascii=False),flush=True)
+print("DETAIL_AST_NODE_SHAPES="+json.dumps(examples,ensure_ascii=False)[:9000],flush=True)
 print("DETAIL_TEST_COMPLETE=1",flush=True)
