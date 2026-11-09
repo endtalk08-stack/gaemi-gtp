@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-tradingview-news.service","lines":100}
+{"operation":"run","path":"ops/do-gateway/verify_top20_r2_readiness_readonly_20261110.py","request_id":"top20-r2-readiness-20261110-a1","timeout":90}
