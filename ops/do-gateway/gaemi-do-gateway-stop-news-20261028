@@ -30,6 +30,37 @@ case "$action" in
     echo GAEMI_NEWS_STOPPED
     ;;
 
+  link-news-r2-env)
+    [[ $# == 0 ]] || fail "unexpected_arguments"
+    # Explicitly authorized scoped config change: do not start any service.
+    unit=gaemigtp-news.service
+    [[ -f /etc/systemd/system/$unit && ! -L /etc/systemd/system/$unit ]] || fail "news_unit_missing"
+    [[ -f /var/lib/gaemigtp-news/r2.env && ! -L /var/lib/gaemigtp-news/r2.env ]] || fail "r2_env_missing"
+    systemctl is-active --quiet "$unit" && fail "news_unit_must_remain_stopped"
+    dir="/etc/systemd/system/$unit.d"
+    target="$dir/90-gaemi-r2-env.conf"
+    install -d -o root -g root -m 0755 -- "$dir"
+    expected='[Service]
+EnvironmentFile=-/var/lib/gaemigtp-news/r2.env'
+    if [[ -e "$target" || -L "$target" ]]; then
+      [[ ! -L "$target" && -f "$target" && "$(cat "$target")" == "$expected" ]] || fail "existing_r2_dropin_conflict"
+      echo GAEMI_NEWS_R2_DROPIN_ALREADY_PRESENT
+    else
+      tmp=$(mktemp "$dir/.gaemi-r2-env.XXXXXXXX")
+      trap 'rm -f "$tmp"' EXIT
+      printf '%s\\n' "$expected" > "$tmp"
+      chmod 0644 "$tmp"
+      mv -n -- "$tmp" "$target"
+      trap - EXIT
+      [[ -f "$target" && "$(cat "$target")" == "$expected" ]] || fail "dropin_write_failed"
+      echo GAEMI_NEWS_R2_DROPIN_CREATED
+    fi
+    systemctl daemon-reload
+    systemctl is-active --quiet "$unit" && fail "news_unit_unexpectedly_active"
+    systemctl is-enabled --quiet "$unit" && fail "news_unit_unexpectedly_enabled"
+    systemctl show "$unit" -p EnvironmentFiles --value | grep -Fq '/var/lib/gaemigtp-news/r2.env' || fail "news_r2_env_not_loaded"
+    echo GAEMI_NEWS_R2_ENV_LINKED_NEWS_STILL_STOPPED
+    ;;
   stop-tradingview-news)
     [[ $# == 0 ]] || fail "unexpected_arguments"
     # Only the standalone TradingView news collector; keep the original
