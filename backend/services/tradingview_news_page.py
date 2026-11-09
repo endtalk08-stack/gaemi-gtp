@@ -113,6 +113,36 @@ def _text(value):
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
+def _article_body(value):
+    """Preserve API paragraphs and remove clearly identified publisher boilerplate."""
+    if not isinstance(value, str):
+        return ""
+    body = re.sub(r"[ \t]+", " ", value.replace("\r\n", "\n").replace("\r", "\n")).strip()
+    body = re.sub(
+        r"\s*\(로이터는 영어 원어민이 아닌 독자들의 편의를 위해[\s\S]*?"
+        r"로이터는 완전 자동화된 번역 기능 사용으로 인한 어떠한 종류의 손해나 손실에 대해 "
+        r"어떠한 책임도 지지 않습니다\.\)\s*$",
+        "", body,
+    ).strip()
+    if not body:
+        return ""
+    if "\n" in body:
+        return re.sub(r"\n[ \t]*\n+", "\n\n", body)
+    sentences = re.split(r'(?<=[.!?]) +(?=[가-힣A-Z“‘"(])', body)
+    if len(sentences) < 2:
+        return body
+    paragraphs = []
+    group = []
+    for sentence in sentences:
+        if group and (len(group) >= 2 or sum(map(len, group)) > 350):
+            paragraphs.append(" ".join(group))
+            group = []
+        group.append(sentence)
+    if group:
+        paragraphs.append(" ".join(group))
+    return "\n\n".join(paragraphs)
+
+
 def _has_us_equity_symbol(article):
     related = article.get("relatedSymbols") or article.get("related_symbols") or []
     if not isinstance(related, list):
@@ -247,7 +277,7 @@ def normalize_article(article):
                 and article.get("detail_permission") != "headline")
         )
     )
-    body = _text(article.get("detail_body"))
+    body = _article_body(article.get("detail_body"))
     return {
         "id": article.get("id") or article.get("newsId"),
         "published_at": _published_iso(article),
