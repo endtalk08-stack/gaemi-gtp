@@ -5,6 +5,7 @@ Reports no credential values and performs no network, DB, service or file writes
 from __future__ import annotations
 import json
 import os
+import re
 from pathlib import Path
 
 root=Path("/var/lib/gaemigtp-news")
@@ -15,21 +16,24 @@ if state_path.is_file() and not state_path.is_symlink():
     try:
         state=json.loads(state_path.read_text(encoding="utf-8"))
         rows=state.get("cycle")
-        from backend.services.us_top20_rotation import normalize_ranking, plan_tick
-        try:
-            valid=normalize_ranking(rows)
-            print("FROZEN_CYCLE_VALID=True")
-            print("FROZEN_CYCLE_ITEMS="+str(len(valid)))
-            print("FROZEN_CYCLE_NEXT_INDEX="+str(state.get("next_index")))
-            try:
-                selected,_=plan_tick(state, [])
-                print("FROZEN_CYCLE_FALLBACK_PLAN_OK=True")
-                print("FROZEN_CYCLE_FALLBACK_RANK="+str(selected.get("rank")))
-            except (ValueError,TypeError) as exc:
-                print("FROZEN_CYCLE_FALLBACK_PLAN_ERROR="+type(exc).__name__)
-        except (ValueError,TypeError) as exc:
-            print("FROZEN_CYCLE_VALID=False")
-            print("FROZEN_CYCLE_ERROR="+str(exc)[:60])
+        valid=(isinstance(rows,list) and len(rows)==20)
+        if valid:
+            ranks=[r.get("rank") for r in rows if isinstance(r,dict)]
+            symbols=[str(r.get("symbol") or "").upper() for r in rows if isinstance(r,dict)]
+            names=[str(r.get("name") or r.get("display_name") or "").strip() for r in rows if isinstance(r,dict)]
+            valid=(len(ranks)==20 and set(ranks)==set(range(1,21))
+                   and len(set(symbols))==20
+                   and all(re.fullmatch(r"[A-Z][A-Z0-9.\\-]{0,15}",sym) for sym in symbols)
+                   and all(names))
+        print("FROZEN_CYCLE_VALID="+str(bool(valid)))
+        print("FROZEN_CYCLE_ITEMS="+str(len(rows) if isinstance(rows,list) else 0))
+        index=state.get("next_index")
+        print("FROZEN_CYCLE_NEXT_INDEX="+str(index))
+        pending=state.get("pending")
+        print("FROZEN_CYCLE_PENDING="+str(bool(pending)))
+        can_resume=(bool(valid) and type(index) is int and 0<=index<=20
+                    and (not pending or (index<20 and pending==rows[index]["symbol"])))
+        print("FROZEN_CYCLE_FALLBACK_PLAN_OK="+str(can_resume))
     except (OSError,ValueError,TypeError) as exc:
         print("ROTATION_READ_ERROR="+type(exc).__name__)
 else:
