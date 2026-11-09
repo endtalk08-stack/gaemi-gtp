@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/audit_top20_fallback_r2env_readonly_20261110.py","request_id":"top20-fallback-r2env-20261110-a2","timeout":90}
+{"operation":"logs","unit":"gaemigtp-kiwoom-us-value.service","lines":80}
