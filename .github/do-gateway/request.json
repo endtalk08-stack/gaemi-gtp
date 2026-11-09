@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/services/tradingview_news_page.py","target":"backend/services/tradingview_news_page.py"}
+{"operation":"run","path":"ops/do-gateway/verify_news_page_deploy_readonly_20261109.py","request_id":"tvnews-readonly-verify-20261109b","timeout":120}
