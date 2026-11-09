@@ -5,13 +5,13 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../frontend/js/analysis-api.js', import.meta.url), 'utf8');
 
-async function run({ marketSelection = null, r2Base = '', newsResponse = null, r2Response = null }) {
+async function run({ marketSelection = null, r2Base = '', newsResponse = null, r2Response = null, backendFails = false }) {
   const requests = [];
   const window = { ENV: r2Base ? { NEWS_STOCKS_R2_BASE_URL: r2Base } : {} };
   const original = { ok: true, sections: [], paired_news_items: [{ title: '기존 뉴스', url: 'https://example.org/old' }] };
   const fetch = async (url) => {
     requests.push(String(url));
-    if (requests.length === 1) return { ok: true, json: async () => newsResponse ?? original };
+    if (requests.length === 1) return backendFails ? { ok: false, status: 503 } : { ok: true, json: async () => newsResponse ?? original };
     return r2Response ?? { ok: false, status: 503 };
   };
   vm.runInNewContext(source, { window, fetch, BACKEND_URL: 'https://example.test', URLSearchParams });
@@ -75,4 +75,29 @@ test('untrusted symbols never produce R2 paths', async () => {
 test('protocol-relative R2 hosts are rejected', async () => {
   const { requests } = await run({ marketSelection: us, r2Base: '//untrusted.example' });
   assert.equal(requests.length, 1);
+});
+
+test('US R2 news remains available when legacy analyze API returns 503', async () => {
+  const { result, requests } = await run({
+    marketSelection: us,
+    r2Base: '/r2',
+    backendFails: true,
+    r2Response: { ok: true, json: async () => ({
+      ok: true, symbol: 'NVDA',
+      items: [{ title: 'R2 독립 기사', url: 'https://example.org/independent' }],
+    }) },
+  });
+  assert.equal(requests.length, 2);
+  assert.equal(result.ok, true);
+  assert.equal(result.panel_news_items[0].title, 'R2 독립 기사');
+  assert.equal(result.paired_news_items.length, 0);
+});
+
+test('both R2 and legacy analyze failure still returns the original failure contract', async () => {
+  const { result, requests } = await run({
+    marketSelection: us, r2Base: '/r2', backendFails: true,
+    r2Response: { ok: false, status: 503 },
+  });
+  assert.equal(requests.length, 2);
+  assert.equal(result.ok, false);
 });
