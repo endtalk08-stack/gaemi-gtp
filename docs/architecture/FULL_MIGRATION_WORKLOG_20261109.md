@@ -144,3 +144,32 @@
 | 날짜 | 작업 | 결과 | 검증 | 운영 영향 |
 | --- | --- | --- | --- | --- |
 | 2026-11-10 | Render 메인 오른쪽 뉴스 탭 소스 분석 | 기존 `/analyze` → `newsItems` 경로 확인, R2 미연결 명시 | GitHub 코드 읽기 전용 확인 | 없음 |
+
+
+## Render 실제 운영 서비스/메인 사이트 저장소 점검 (2026-11-10)
+
+**실제 Render 연결에서 읽기 전용으로 확인.** 이전 분석에서 `endtalk08-stack/gaemi-gtp`의 `frontend/`를 메인 화면이라고 간주한 것은 잘못된 전제였음. 현재 서비스는 **서로 다른 두 저장소**에 연결됨.
+
+| Render 서비스 | 종류 | GitHub 저장소/브랜치 | 실제 배포 확인 |
+| --- | --- | --- | --- |
+| `gaemigtp` (`srv-db7k6uavcj2c73dv63eg`) | Static Site, 빌드 `npm ci && npm run build`, 출력 `dist` | `endtalk08-stack/gaemigtp` / `main` | Render 최신 배포 `bb35e469` (2026-11-05), 상태 `live` |
+| `gaemi-gtp` (`srv-daek7jlbedkc73djl4j0`) | Python Web Service, `gunicorn app:app` | `endtalk08-stack/gaemi-gtp` / `main` | Render 최신 배포 `6d1c2a5c` (2026-10-31), 상태 `live` |
+
+- **현재 생성한 통합 브랜치 `integration/full-migration-20261109`는 Python 백엔드 저장소 `gaemi-gtp`에만 있음.** 메인 `gaemigtp` 저장소의 복구·Cloudflare Pages 이전을 대체하지 못함.
+- 실제 메인 저장소 `endtalk08-stack/gaemigtp`의 `src/widgets/market.jsx` `NewsWidget`은 테스트용 뉴스 배열을 하드코딩하고 있으며 코드 주석도 '실제 API/DB 연결은 하지 않는다'고 명시.
+- 메인 저장소 `src/market-proxy.js`는 `market.gaemigtp.com`의 시세·차트 등 API, `account.gaemigtp.com` 계정 API를 사용함. **이 경로는 뉴스 전용 Render Python `/analyze` 소비 경로와 동일하다고 가정하면 안 됨**.
+- `gaemi-gtp` 저장소의 `frontend/js/analysis-api.js` 및 오른쪽 뉴스 패널 호출 경로는 그 저장소 내부의 프런트엔드 기준. 메인 Render Static Site의 `NewsWidget`과 구분.
+- Render 양 서비스 모두 `main` 자동 배포 설정. 이번 통합 브랜치의 코드 변경이 자동 배포된 것은 아님.
+- Render `live`는 배포 상태를 뜻하며 실제 도메인의 모든 기능 정상 작동을 보증하지 않음.
+
+### 즉시 우선순위 정정
+
+1. 메인 사이트 `endtalk08-stack/gaemigtp`의 실 뉴스 UI 및 API 연결을 별도로 명시하고 검증해야 함. 테스트용 위젯을 운영 데이터로 오인하지 말 것.
+2. DigitalOcean 뉴스 R2 저장 변경과 메인 UI 읽기 연결은 **서로 다른 저장소의 작업**. 뉴스와 오른쪽 패널 보존 조건을 적용할 정확한 화면/서비스를 먼저 식별.
+3. 운영 배포·DigitalOcean 재가동은 아직 실행하지 않음. 추가 복구나 DB 변경은 현재 파일 상태를 확인한 뒤 최소 변경.
+
+### 변경 이력 추가
+
+| 날짜 | 작업 | 결과 | 검증 | 운영 영향 |
+| --- | --- | --- | --- | --- |
+| 2026-11-10 | Render 서비스 목록·최신 배포·메인 프런트 저장소 조회 | 실제 메인 `gaemigtp`와 Python `gaemi-gtp` 분리 확인; 메인 NewsWidget 테스트 데이터 확인 | Render 연결 및 GitHub 소스 조회 | 없음 |
