@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/news_worker.py","target":"backend/news_worker.py"}
+{"operation":"run","path":"ops/do-gateway/test_top20_r2_offline_20261110.py","request_id":"top20r2offline20261110a1","timeout":120}
