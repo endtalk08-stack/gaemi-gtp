@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-kiwoom-us-value.service","lines":80}
+{"operation":"run","path":"ops/do-gateway/audit_news_r2_unit_readonly_20261110.py","request_id":"news-r2-unit-audit-20261110-v1","timeout":90}
