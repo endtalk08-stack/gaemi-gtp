@@ -108,8 +108,18 @@ def maybe_publish(stock_name, symbol, raw, state, persist, *, now=None,
     ops = str(Path(__file__).resolve().parents[2] / "ops")
     if ops not in sys.path:
         sys.path.insert(0, ops)
-    from staged_daily_groq_issues import build_model_news, recent_ai_articles
-    eligible, _ = build_model_news(recent_ai_articles(raw))
+    from staged_daily_groq_issues import (
+        build_model_news, _article_published_epoch,
+    )
+    reference = now or dt.datetime.now(dt.timezone.utc)
+    if reference.tzinfo is None or reference.utcoffset() is None:
+        raise ValueError("timezone_aware_time_required")
+    # Only dated, last-24h articles can trigger a paid AI request.
+    recent = [
+        item for item in (raw or []) if isinstance(item, dict)
+        and 0 <= reference.timestamp() - _article_published_epoch(item) <= 86400
+    ]
+    eligible, _ = build_model_news(recent)
     if not eligible:
         return "no_eligible_articles"
     ledger = state.setdefault("_r2_ai_reservations", {})
@@ -123,8 +133,8 @@ def maybe_publish(stock_name, symbol, raw, state, persist, *, now=None,
         from staged_daily_groq_issues import analyze_news
         analyzer = analyze_news
     try:
-        analysis = analyzer(stock_name, raw)
-        payload = build_ai_payload(stock_name, symbol, day, raw, analysis, now=now)
+        analysis = analyzer(stock_name, recent)
+        payload = build_ai_payload(stock_name, symbol, day, recent, analysis, now=reference)
         publish_payload(payload, uploader=uploader)
     except Exception as exc:
         ledger[record] = "failed"
