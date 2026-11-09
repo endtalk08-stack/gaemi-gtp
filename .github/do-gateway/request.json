@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/news_worker.py","target":"backend/news_worker.py"}
+{"operation":"run","path":"ops/do-gateway/verify_integrated_r2_deploy_readonly_20261110.py","request_id":"integratedr2verify20261110a1","timeout":120}
