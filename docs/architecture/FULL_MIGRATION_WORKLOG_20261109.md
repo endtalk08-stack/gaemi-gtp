@@ -335,3 +335,33 @@
 3. 위 차단 사항 해결 이후 기존 통합 브랜치의 R2 뉴스 발행 코드만 단계적으로 적용·실측 검증. AI 유료 실행, Pages 기능 배포는 각각 별도 확인·승인.
 
 **현재까지 실제 변경:** 운영 사이트·서비스 설정 없음. 뉴스·AI R2 전환은 아직 실배포 전. 통합 브랜치 본 작업 기록만 갱신.
+
+
+## 8차 승인된 설정 변경 — TOP20 뉴스 워커 R2 인증 파일 연결 (2026-11-10)
+
+**작업 범위:** 기존 R2 파일 재사용을 위해 `gaemigtp-news.service` systemd 설정만 변경. 사용자가 인증 파일 연결 필요성을 확인한 후 "진행해"라고 승인. 이 작업에서는 뉴스 워커를 실행하거나 새 TOP20 원천 데이터를 수집하지 않음.
+
+### 사전 확인과 최소 변경
+
+- 운영 코드의 `ops/do-gateway/gaemi-do-gateway-stop-news-20261028`는 systemd unit 전체 파일을 덮어쓰는 `deploy`만 제공했으므로 **기존 unit 전체 교체를 피함**.
+- 대신 기존 GitHub Actions→SSH 관리 통로에 `link-news-r2-env` 단일 작업을 추가. 중지된 `gaemigtp-news.service`에 한해서 `/etc/systemd/system/gaemigtp-news.service.d/90-gaemi-r2-env.conf`를 **신규 추가**. 내용은 다음의 두 줄만 포함:
+
+  ```ini
+  [Service]
+  EnvironmentFile=-/var/lib/gaemigtp-news/r2.env
+  ```
+
+- 기존 인증값·R2 파일 내용 변경 없음. 신규 토큰/버킷/서버 생성 없음. `systemctl daemon-reload`만 수행하며 `start`, `restart`, `enable` 호출 없음. 기존 설정이 이미 있으면 정확한 내용 대조 후 재사용하고, 다른 내용이면 충돌 오류로 중단하도록 구현.
+- GitHub Actions 입력 검증 화이트리스트에 해당 단일 operation만 추가. 기존 gateway 스크립트 반영 [42665962666](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42665962666) 성공.
+- 실제 적용 [42666096135](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42666096135) 성공: `GAEMI_NEWS_R2_DROPIN_CREATED`, `GAEMI_NEWS_R2_ENV_LINKED_NEWS_STILL_STOPPED`. 해당 gateway 명령은 systemd에 `r2.env` 경로가 인식되고, 뉴스 unit이 **inactive/disabled**임을 반드시 검증.
+- 후속 기존 서비스 status [42666224795](https://github.com/endtalk08-stack/gaemi-gtp/actions/runs/42666224795) 성공:
+  - `gaemigtp-news.service`: `inactive (dead)`, `disabled`, drop-in 폴더 존재.
+  - `gaemigtp-tradingview-news.service`: `active/running` 유지.
+  - `gaemigtp-kiwoom-us-value.service`: `failed` 상태 유지 (이번 작업에서 변경하지 않음).
+
+### 작업 범위와 남은 검증
+
+- **적용 완료:** TOP20 뉴스 systemd unit의 **기존 R2 인증 파일 경로 연결**. 뉴스·AI R2 전환 코드 자체의 운영 배포나 R2 쓰기 실측을 완료한 것이 아님. 
+- **미완료:** `gaemigtp-news.service` 기동 시 인증값 실제 주입 및 업로드 성공 여부, 신규 TOP20 로컬 순위 파일의 확보, 통합 브랜치 뉴스 R2 코드 운영 배포, 새 Pages API·화면 검증. AI 유료 호출은 비활성 유지.
+- Neon·차트·실시간 시세·자동매매·키움·TradingView 수집 코드 변경 없음. 기존 중지된 뉴스 워커와 Neon은 중지 유지.
+- 운영 브랜치와 통합 브랜치가 분기된 상황이므로 **운영 gateway 변경 커밋을 무검토 병합해 덮어쓰지 말 것**. 이후 작업은 여기 기록부터 확인.
