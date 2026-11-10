@@ -1,4 +1,5 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-tradingview-news.service"
+  "operation": "logs",
+  "unit": "gaemigtp-tradingview-news.service",
+  "lines": 65
 }
