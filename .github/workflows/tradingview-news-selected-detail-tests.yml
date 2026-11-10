@@ -1,0 +1,28 @@
+name: TradingView news selection and duplicate tests
+on:
+  push:
+    branches:
+      - ops/do-ssh-deploy-setup-20261017
+    paths:
+      - backend/tradingview_news_worker.py
+      - backend/services/tradingview_news_page.py
+      - backend/providers/tradingview_news_detail.py
+      - tests/test_tradingview_news_detail.py
+      - .github/workflows/tradingview-news-selected-detail-tests.yml
+permissions:
+  contents: read
+jobs:
+  offline-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Syntax check
+        run: python -m py_compile backend/tradingview_news_worker.py backend/services/tradingview_news_page.py backend/providers/tradingview_news_detail.py tests/test_tradingview_news_detail.py
+      - name: Mock-only selected news and detail request tests
+        run: python -m unittest discover -s tests -p 'test_tradingview_news_detail.py' -v
