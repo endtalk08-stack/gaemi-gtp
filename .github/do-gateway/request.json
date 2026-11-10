@@ -1,4 +1,5 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-tradingview-news.service"
+  "operation": "deploy",
+  "path": "backend/tradingview_news_worker.py",
+  "target": "backend/tradingview_news_worker.py"
 }
