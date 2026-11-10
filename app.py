@@ -67,48 +67,46 @@ def market_us_close():
 
 @app.get("/market/trading-value")
 def market_trading_value():
-    """Menu result; collection and interpretation stay outside the route."""
+    """Serve the existing DigitalOcean Kiwoom TOP20; never query Neon or Kiwoom here."""
     market = str(request.args.get("market", "kr") or "").strip().lower()
     if market != "us":
         return jsonify({"ok": False, "error": "invalid_market", "items": []}), 400
-    diagnostics = []
-    if market == "us":
-        # Only USA trading-value Top 20 moves to the DO -> Neon Kiwoom feed.
-        # The Render service never issues Kiwoom API requests.
-        items = read_us_trading_value_board(limit=20, diagnostics=diagnostics)
-        if items is not None:
-            # DO real-time ticks override the minute-level ranking source in memory.
-            latest = {q["symbol"]: q for q in (read_memory_quotes() or []) if not q["stale"]}
-            for item in items:
-                quote = latest.get(item["symbol"])
-                if quote:
-                    item["price"] = quote["price"]
-                    if quote["change_pct"] is not None:
-                        item["change_pct"] = quote["change_pct"]
-            from backend.services.market_rankings import _remember_market_result
-            _remember_market_result("us", "value", items)
-    if items is None:
-        response = jsonify({"ok": False, "items": [], "error": "source_unavailable",
-                            "provider_status": diagnostics[-1] if diagnostics else "unavailable"})
-        if market == "us":
-            response.headers["X-Gaemi-US-Value-Provider"] = "kiwoom-neon-v1"
-        return response, 502
-    issue_rows = [{"name": item.get("name"), "symbol": item.get("symbol")} for item in items]
+
+    import json
+    from urllib.request import Request, urlopen
+
+    upstream_url = "https://quotes.gaemigtp.com/market/trading-value?market=us"
     try:
-        # The ranking list is already source-normalized, but one bad identity
-        # must not discard the valid stocks' existing Neon issue headlines.
-        if issue_rows:
-            issue_results = get_market_issue_headlines(
-                market, issue_rows, skip_invalid=True,
-                issue_mode=normalize_issue_mode(request.args.get("issue_mode")),
-            )["items"]
-            for item, issue in zip(items, issue_results):
-                item["issue_headline"] = issue["headline"]
-    except Exception as exc:
-        print(f"[market ranking issues] lookup failed: {type(exc).__name__}", flush=True)
-    response = jsonify({"ok": True, "market": market, "source": "kiwoom" if market == "us" else "naver", "currency": "USD" if market == "us" else "KRW", "items": items})
-    if market == "us":
-        response.headers["X-Gaemi-US-Value-Provider"] = "kiwoom-neon-v1"
+        req = Request(upstream_url, headers={"Accept": "application/json"})
+        with urlopen(req, timeout=8) as upstream:
+            raw = upstream.read(128001)
+        if len(raw) > 128000:
+            raise ValueError("oversized_top20")
+        payload = json.loads(raw.decode("utf-8"))
+        if (not isinstance(payload, dict) or payload.get("ok") is not True
+                or payload.get("source") != "kiwoom"
+                or payload.get("market") != "us"):
+            raise ValueError("invalid_top20_metadata")
+        rows = payload.get("items")
+        if (not isinstance(rows, list) or len(rows) != 20
+                or any(not isinstance(row, dict) or row.get("rank") != i
+                       or not isinstance(row.get("symbol"), str)
+                       or not isinstance(row.get("name"), str)
+                       for i, row in enumerate(rows, 1))
+                or len({row["symbol"] for row in rows}) != 20):
+            raise ValueError("invalid_top20_rows")
+    except (OSError, TimeoutError, ValueError, UnicodeError) as exc:
+        print("[market ranking] DigitalOcean TOP20 unavailable: " + type(exc).__name__, flush=True)
+        response = jsonify({"ok": False, "market": "us", "items": [], "error": "source_unavailable"})
+        response.headers["Cache-Control"] = "no-store"
+        return response, 502
+
+    response = jsonify({
+        "ok": True, "market": "us", "source": "kiwoom", "currency": "USD",
+        "captured_at": payload.get("captured_at"), "items": rows,
+    })
+    response.headers["X-Gaemi-US-Value-Provider"] = "kiwoom-digitalocean-https"
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 
