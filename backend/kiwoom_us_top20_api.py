@@ -15,6 +15,7 @@ RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 ADDRESS = "127.0.0.1"
 PORT = 8765
 ALLOWED_ORIGINS = {
+    "https://gaemi-gtp.onrender.com",
     "https://gaemigtp.com",
     "https://www.gaemigtp.com",
     "https://gaemigtp-news.pages.dev",
