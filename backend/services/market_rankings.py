@@ -3,7 +3,6 @@
 No separate ticker-by-ticker scraping, estimated trading value, or database writes.
 """
 import math
-import os
 import re
 import threading
 import time
