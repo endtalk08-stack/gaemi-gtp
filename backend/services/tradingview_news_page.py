@@ -233,6 +233,49 @@ def _news_url(article):
     return ""
 
 
+
+def extract_body_highlights(body, title=""):
+    """Extract up to three informative original article sentences, without AI or API calls."""
+    if not isinstance(body, str) or not body.strip():
+        return ""
+    title_words = set(re.findall(r"[가-힣A-Za-z]{2,}|\\d+(?:\\.\\d+)?%?", _text(title).lower()))
+    candidates = []
+    for paragraph in re.split(r"\\n\\s*\\n+", body):
+        paragraph = " ".join(paragraph.split())
+        if not paragraph or len(paragraph) > 3000:
+            continue
+        sentences = re.split(r'(?<=[.!?。])\\s+(?=[가-힣A-Za-z0-9“‘"(])', paragraph)
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not 18 <= len(sentence) <= 420:
+                continue
+            lower = sentence.lower()
+            if lower.startswith(("면책", "법적 고지", "회사 소개", "관련 문의",
+                                 "forward-looking", "about ", "본 자료는")):
+                continue
+            if len(re.findall(r"\\d+(?:[,.]\\d+)*", sentence)) >= 12:
+                continue
+            words = set(re.findall(r"[가-힣A-Za-z]{2,}|\\d+(?:\\.\\d+)?%?", lower))
+            score = len(words & title_words) * 3
+            if re.search(r"\\d+(?:[,.]\\d+)*\\s*(?:%|달러|원|억|조|명|개)", sentence):
+                score += 1
+            candidates.append((score, len(candidates), sentence))
+    selected = []
+    total = 0
+    for score, index, sentence in sorted(candidates, key=lambda item: (-item[0], item[1])):
+        if any(existing == sentence for _, existing in selected):
+            continue
+        length = len(sentence) + (1 if selected else 0)
+        if total + length > 420:
+            continue
+        selected.append((index, sentence))
+        total += length
+        if len(selected) == 3:
+            break
+    return " ".join(sentence for _, sentence in sorted(selected))
+
+
+
 def normalize_article(article):
     primary, matches, section = classify_article(article)
     # A news item keeps one ID while carrying both market and stock tags.
@@ -292,6 +335,7 @@ def normalize_article(article):
         "content_source": "api_detail" if article.get("detail_checked") else "news_list",
         "body_available": bool(body) and may_publish_body,
         "body": body if may_publish_body else "",
+        "list_excerpt": extract_body_highlights(body, article.get("title")) if may_publish_body else "",
         "detail_status": _text(article.get("detail_checked")),
         # Full source article bodies are never copied into publicly readable Pages JSON.
         "source": source,
