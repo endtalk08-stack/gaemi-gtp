@@ -237,10 +237,12 @@
         list.textContent = '순위를 불러오는 중이야.';
       }
       rankingRequestInFlight = true;
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 10000);
       nextRankingReadAt = Date.now() + 15000;
       try {
-        const response = await fetch('https://quotes.gaemigtp.com/market/trading-value?market=us', { cache: 'no-store' });
-        if (!response.ok) throw new Error('market ranking unavailable');
+        const response = await fetch('https://quotes.gaemigtp.com/market/trading-value?market=us', { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) throw new Error(`TOP20 HTTP ${response.status}`);
         const result = await response.json();
         if (id !== requestId) return;
         if (result.ok !== true || !Array.isArray(result.items) || !result.items.length)
@@ -392,7 +394,8 @@
         // The initial list is ready: request the current quote now instead of
         // waiting for the next timer tick or relying on a panel-open CSS class.
         void readLatestQuotes();
-      } catch (_) {
+      } catch (error) {
+        console.warn('TOP20 request failed:', error);
         rankingFailureCount += 1;
         nextRankingReadAt = Date.now() + Math.min(300000, 15000 * 2 ** (rankingFailureCount - 1));
         if (id === requestId && title) title.textContent = titles[tab] + ' · 갱신 실패';
@@ -400,6 +403,7 @@
           list.textContent = '순위 원천 데이터를 가져오지 못했어.';
         }
       } finally {
+        window.clearTimeout(timeout);
         rankingRequestInFlight = false;
       }
     };
@@ -520,8 +524,9 @@
     sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
       if (button.disabled) return;
       button.addEventListener('click', () => {
-        ++requestId; // Cancel stale ranking/issue responses only when the view changes.
-        tab = button.dataset.infoTabAction;
+        const nextTab = button.dataset.infoTabAction;
+        if (tab !== nextTab) ++requestId;
+        tab = nextTab;
         customOrder = readOrder();
         changeSorted = false;
         void showUsRanking();
