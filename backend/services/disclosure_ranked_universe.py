@@ -1,8 +1,7 @@
 """Find disclosure candidates without restoring deleted popularity/ranking feeds.
 
 DigitalOcean collects DART/SEC. The existing tracked stock names provide KR
-candidates; the already-stored Kiwoom US trading-value Top 20 provides changing
-US candidates. Only official DART corp codes / SEC CIKs can register a new stock.
+candidates. Only official DART corp codes / SEC CIKs can register a new stock.
 On provider failure, retain the previously validated stock mappings.
 """
 import io
@@ -14,7 +13,7 @@ import zipfile
 
 
 def _candidate_symbols(engine):
-    """Read tracked tickers and the existing Neon Top 20; never fetch rankings."""
+    """Read tracked tickers; never fetch rankings or query Neon TOP20."""
     candidates = {"KR": set(), "US": set()}
     tracked = getattr(engine, "TICKERS", {}) or {}
     for raw in tracked.values():
@@ -24,20 +23,6 @@ def _candidate_symbols(engine):
         elif re.fullmatch(r"[A-Z.]{1,10}", ticker):
             candidates["US"].add(ticker)
 
-    try:
-        from .kiwoom_us_value_board import read_us_trading_value_board
-        rows = read_us_trading_value_board(limit=20)
-        if rows is None:
-            print("DISCLOSURE_US_TOP20_UNAVAILABLE", flush=True)
-        else:
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                ticker = str(row.get("analysis_symbol") or row.get("symbol") or "").upper().strip()
-                if re.fullmatch(r"[A-Z.]{1,10}", ticker):
-                    candidates["US"].add(ticker)
-    except Exception as exc:
-        print("DISCLOSURE_US_TOP20_ERROR", type(exc).__name__, flush=True)
     return candidates
 
 
