@@ -186,5 +186,49 @@ class DetailTests(unittest.TestCase):
         self.assertEqual(stats["summarized"], 1)
 
 
+
+class BodyHighlightsTests(unittest.TestCase):
+    def test_summary_uses_original_article_sentences_only(self):
+        from backend.services.tradingview_news_page import extract_body_highlights
+        body = (
+            "엔비디아는 데이터센터용 차세대 칩을 공개했다. "
+            "시장에서는 엔비디아 매출이 30% 증가할 것으로 예상한다. "
+            "이번 신제품에는 효율성을 높이는 기술이 적용됐다."
+            "\\n\\n법적 고지: 결과는 달라질 수 있다."
+        )
+        result = extract_body_highlights(body, "엔비디아 매출 30% 증가")
+        self.assertIn("엔비디아", result)
+        self.assertIn("30%", result)
+        self.assertNotIn("법적 고지", result)
+        self.assertLessEqual(len(result), 420)
+        self.assertEqual(extract_body_highlights(""), "")
+
+    def test_r2_list_excerpt_is_based_on_body_not_description(self):
+        from backend.services.tradingview_news_page import normalize_article
+        row = normalize_article({
+            "id": "sample-1",
+            "title": "엔비디아 데이터센터 제품 발표",
+            "news_categories": ["overall"],
+            "detail_body": "엔비디아가 데이터센터용 신제품을 발표했다. 출하 시기는 내년으로 예정돼 있다.",
+            "detail_publication_allowed": True,
+            "detail_rights_confirmed": True,
+        })
+        self.assertTrue(row["body_available"])
+        self.assertIn("엔비디아", row["list_excerpt"])
+        self.assertEqual(row["summary"], "")
+        self.assertEqual(row["description"], "")
+
+    def test_no_publication_rights_does_not_expose_private_body(self):
+        from backend.services.tradingview_news_page import normalize_article
+        row = normalize_article({
+            "id": "sample-2",
+            "title": "엔비디아 데이터센터 제품 발표",
+            "news_categories": ["overall"],
+            "detail_body": "엔비디아가 데이터센터용 신제품을 발표했다.",
+        })
+        self.assertEqual(row["body"], "")
+        self.assertEqual(row["list_excerpt"], "")
+
+
 if __name__ == "__main__":
     unittest.main()
