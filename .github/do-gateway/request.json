@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/services/r2_news_uploader.py","target":"backend/services/r2_news_uploader.py"}
+{"operation":"deploy","path":"backend/kiwoom_us_daily_collector.py","target":"backend/kiwoom_us_daily_collector.py"}
