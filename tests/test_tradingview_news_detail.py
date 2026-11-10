@@ -194,7 +194,7 @@ class BodyHighlightsTests(unittest.TestCase):
             "엔비디아는 데이터센터용 차세대 칩을 공개했다. "
             "시장에서는 엔비디아 매출이 30% 증가할 것으로 예상한다. "
             "이번 신제품에는 효율성을 높이는 기술이 적용됐다."
-            "\\n\\n법적 고지: 결과는 달라질 수 있다."
+            "\n\n법적 고지: 결과는 달라질 수 있다."
         )
         result = extract_body_highlights(body, "엔비디아 매출 30% 증가")
         self.assertIn("엔비디아", result)
