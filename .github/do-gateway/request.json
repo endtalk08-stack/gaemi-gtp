@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/inspect_news_runtime_options_readonly_20261108.py",
-  "request_id": "newsdetailbudget20261110x",
-  "timeout": 90
+  "operation": "deploy",
+  "path": "backend/services/tradingview_news_page.py",
+  "target": "backend/services/tradingview_news_page.py"
 }
