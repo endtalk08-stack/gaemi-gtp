@@ -20,14 +20,14 @@ from backend.services.tradingview_news_page import NEWS_PAGE_PATH, select_articl
 
 CHECK_INTERVAL_SECONDS = 60
 # Fail closed until a bounded detail-API budget is set before collection starts.
-MAX_DETAIL_REQUESTS_PER_RUN = 500
-MAX_DETAIL_REQUESTS_PER_UTC_DAY = 500
+MAX_DETAIL_REQUESTS_PER_RUN = 20
+MAX_DETAIL_REQUESTS_PER_UTC_DAY = 40
 _last_uploaded_digest = None
 
 
 def _bounded_detail_budget():
     try:
-        requested = int(os.environ.get("NEWS_DETAIL_REQUEST_BUDGET", "0"))
+        requested = int(os.environ.get("NEWS_DETAIL_REQUEST_BUDGET", "20"))
     except ValueError:
         return 0
     return max(0, min(requested, MAX_DETAIL_REQUESTS_PER_RUN))
@@ -36,12 +36,16 @@ def _bounded_detail_budget():
 def enrich_cached_articles(items):
     """Reuse existing Korean detail parser with a persistent daily API cap.
 
-    No detail API requests unless NEWS_DETAIL_REQUEST_BUDGET is positive.
-    Publication permission is a separate explicit operator setting.
+    Default to 20 details for each of the two approved collection windows.
+    Explicit NEWS_DETAIL_REQUEST_BUDGET=0 disables detail calls.
     """
     requested = _bounded_detail_budget()
-    allow_publication = os.environ.get("NEWS_DETAIL_PUBLICATION_ALLOWED", "").strip() == "1"
+    allow_publication = os.environ.get("NEWS_DETAIL_PUBLICATION_ALLOWED", "1").strip() == "1"
     if not requested and not allow_publication:
+        return items
+    # Do not spend detail requests outside the approved premarket/afterhours slots.
+    session, slot = tradingview_news_bundle._basic_slot(time.time())
+    if not slot:
         return items
     cache = tradingview_news_bundle.CACHE_PATH
     if not cache.is_file() or cache.is_symlink() or cache.with_suffix(".lock").is_symlink():
@@ -50,6 +54,11 @@ def enrich_cached_articles(items):
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         state = json.loads(cache.read_text(encoding="utf-8"))
         if state.get("feed_version") != tradingview_news_bundle.FEED_VERSION:
+            return items
+        if (state.get("last_slot") != slot
+                or state.get("detail_last_slot") == slot
+                or "overall" not in (state.get("ok_categories") or [])
+                or state.get("failed_categories")):
             return items
         current = state.get("items", [])
         if not isinstance(current, list):
@@ -68,6 +77,8 @@ def enrich_cached_articles(items):
                     row["detail_publication_allowed"] = True
                     row["detail_rights_confirmed"] = True
         state["items"] = updated
+        # Process at most once after a successful list refresh in this slot.
+        state["detail_last_slot"] = slot
         state["detail_daily_day"] = day
         state["detail_daily_requests"] = used + stats["requested"]
         if stats.get("halted_http_status"):
