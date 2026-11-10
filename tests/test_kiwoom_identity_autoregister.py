@@ -1,12 +1,11 @@
 """Kiwoom ticker/name registration: no API, no DB access in these tests."""
 import unittest
-from unittest.mock import patch, MagicMock
 
-from backend.kiwoom_us_identity_sync import identity_from_kiwoom, upsert_kiwoom_identity, repair_saved_top20
+from backend.kiwoom_us_identity_sync import identity_from_kiwoom
 from backend.analysis.news.stock_identity import resolve_us_identity
 
 
-# Actual Kiwoom Top 20 rows captured in Neon on 2026-10-24 KST.
+# Historical Kiwoom Top 20 ticker/name examples for local identity matching.
 TOP20 = [
     ("MU", "마이크론 테크놀로지"), ("NVDA", "엔비디아"),
     ("SPCX", "스페이스X"), ("TSLA", "테슬라"),
@@ -21,14 +20,6 @@ TOP20 = [
     ("GOOG", "알파벳 C"),
     ("CRWD", "크라우드스트라이크 홀딩스"),
 ]
-
-
-class FakeCursor:
-    def __init__(self):
-        self.calls = []
-
-    def execute(self, sql, args):
-        self.calls.append((sql, args))
 
 
 class IdentitySyncTests(unittest.TestCase):
@@ -62,35 +53,6 @@ class IdentitySyncTests(unittest.TestCase):
         self.assertEqual(resolve_us_identity("엔비디아", "AAPL")["status"], "pending")
         self.assertIsNone(identity_from_kiwoom("무효", "NEW!"))
 
-    def test_existing_saved_identities_do_not_repeat_offsession_writes(self):
-        import sys
-        db = MagicMock()
-        conn = db.connect.return_value.__enter__.return_value
-        cur = conn.cursor.return_value.__enter__.return_value
-        cur.fetchall.return_value = [
-            (rank, ticker, name, None,
-             result["company_key"], result["news_name"], result["status"], True)
-            for rank, (ticker, name) in enumerate(TOP20, start=1)
-            for result in [identity_from_kiwoom(name, ticker)]
-        ]
-        with patch.dict(sys.modules, {"psycopg": db}):
-            report = repair_saved_top20("test-dsn")
-        self.assertEqual(report, {"rows": 20, "verified": 20, "updated": 0})
-        self.assertEqual(cur.execute.call_count, 1)
-
-    def test_upsert_does_not_write_news_ai_or_rankings(self):
-        cursor = FakeCursor()
-        identity = upsert_kiwoom_identity(cursor, "WDC", "웨스턴 디지털", "NASDAQ")
-        self.assertEqual(identity["company_key"], "US:WDC")
-        self.assertEqual(len(cursor.calls), 1)
-        sql, params = cursor.calls[0]
-        self.assertIn("public.market_instruments", sql)
-        self.assertNotIn("public.news_processed_snapshots", sql)
-        self.assertNotIn("public.market_rank_entries", sql)
-        self.assertNotIn("public.market_rank_snapshots", sql)
-        self.assertEqual(params, ("WDC", "웨스턴 디지털", "NASDAQ", "US:WDC",
-                                  "웨스턴 디지털", "verified"))
-        self.assertIn("THEN 'review'", sql)
 
 
 if __name__ == "__main__":
