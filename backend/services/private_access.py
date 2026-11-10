@@ -87,15 +87,6 @@ def install_private_access(app, frontend_dir):
         # Do not require browser preview cookies for the dedicated DO sender.
         if request.method == "POST" and request.path == "/internal/market/us-price-push":
             return None
-        # The news worker may read only the retained US trading-value ranking route.
-        # This is not a login session and never grants access to other paths.
-        if (request.method == "GET"
-                and request.path == "/market/trading-value"):
-            shared_token = os.getenv("NEWS_WORKER_RANKING_TOKEN", "").strip()
-            supplied_token = request.headers.get("X-Gaemi-News-Worker-Token", "")
-            if (len(shared_token) >= 32 and len(supplied_token) <= 512
-                    and hmac.compare_digest(supplied_token, shared_token)):
-                return None
         if _authorized():
             return None
         if request.path in {"/", "/index.html"}:
