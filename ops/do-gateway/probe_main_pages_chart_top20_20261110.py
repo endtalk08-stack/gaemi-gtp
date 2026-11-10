@@ -10,6 +10,7 @@ CHECKS = [
     ("chart_aapl", ORIGIN + "/market/us-daily-chart?symbol=AAPL", None),
     ("top20", "https://quotes.gaemigtp.com/market/trading-value?market=us", ORIGIN),
     ("chart_js", ORIGIN + "/shell/center-chat/widget-dock/widget-dock.js", None),
+    ("analysis_flow", ORIGIN + "/shell/center-chat/analysis-flow.js?v=20261110-r2-chart-independent-v1", None),
 ]
 for name, url, origin in CHECKS:
     headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json, text/html, */*"}
@@ -28,6 +29,10 @@ for name, url, origin in CHECKS:
                 result["title"] = b"gaemiGTP" in body
             elif name == "chart_js":
                 result["pages_chart_route"] = b"chartOrigin + '/market/us-daily-chart" in body
+            elif name == "analysis_flow":
+                text = body.decode("utf-8", "replace")
+                result["independent_chart"] = "Chart history is independent of analysis success" in text
+                result["chart_before_analysis"] = text.find("renderInlineChart?.(") < text.find("fetchAnalysisFromBackend(")
             else:
                 try:
                     data = json.loads(body)
