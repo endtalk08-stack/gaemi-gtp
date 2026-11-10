@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/probe_top20_network_readonly_20261110.py",
-  "request_id": "top20network20261110a",
-  "timeout": 120
+  "operation": "logs",
+  "unit": "gaemigtp-kiwoom-us-top20-https.service",
+  "lines": 80
 }
