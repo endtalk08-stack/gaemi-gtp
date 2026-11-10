@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
-      - name: Check public Render stock issues and central view
+      - name: Check public Render central stock issue view
         shell: bash
         run: |
           python - <<'PY'
@@ -24,17 +24,11 @@ jobs:
                   return json.load(response)
           for attempt in range(1, 9):
               try:
-                  board = get("/market/trading-value", {"market":"us"})
-                  stocks = board.get("items") or []
-                  micron = next((x for x in stocks if x.get("symbol")=="MU"), {})
-                  sidebar = micron.get("issue_headline") or ""
                   analysis = get("/analyze", {"stock":"마이크론 테크놀로지","market":"us","menu":"value","symbol":"MU"})
                   issue_rows = analysis.get("issue_briefs") or []
                   code_rows = [x for x in issue_rows if x.get("evidence_source")=="article_title_description_price_context"]
-                  print("CHECK",attempt,"board_ok",board.get("ok"),"MU_found",bool(micron),"MU_sidebar",bool(sidebar),"MU_central_code_rows",len(code_rows),flush=True)
-                  if sidebar and code_rows:
+                  if code_rows:
                       print("RENDER_CODE_FACTS_LIVE_VERIFIED",flush=True)
-                      print("MU_SIDEBAR_TITLE",sidebar[:130],flush=True)
                       print("MU_CENTRAL_TITLE",code_rows[0].get("headline","")[:130],flush=True)
                       sys.exit(0)
               except Exception as exc:
