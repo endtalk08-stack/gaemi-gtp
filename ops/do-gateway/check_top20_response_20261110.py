@@ -21,3 +21,14 @@ for port in sorted(ports):
     if port.isdigit():
         check("local", "http://127.0.0.1:" + port + route)
 check("external", "https://quotes.gaemigtp.com" + route)
+
+for label, extra in [("origin_tls", ["--resolve","quotes.gaemigtp.com:443:127.0.0.1","-k"]), ("cloudflare", [])]:
+    result = subprocess.run(["curl","--noproxy","*","-sS","--max-time","8","-i","-H","Origin: "+origin,*extra,"https://quotes.gaemigtp.com"+route],capture_output=True,text=True)
+    head, _, body = result.stdout.partition("\n\n")
+    headers = [line for line in head.splitlines() if line.lower().startswith(("http/","server:","cf-ray:","cf-mitigated:","content-type:","access-control-allow-origin:"))]
+    print("EDGE_PROBE",label,result.returncode,headers,flush=True)
+    try:
+        parsed = json.loads(body)
+        print("EDGE_BODY",label,len(parsed.get("items") or []),parsed.get("error"),flush=True)
+    except ValueError:
+        print("EDGE_BODY",label,re.findall(r"<title>([^<]+)|error code:? (\\d+)|Error (\\d{4})",body,re.I)[:5],flush=True)
