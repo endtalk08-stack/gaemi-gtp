@@ -121,7 +121,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   let resolveDeferred = null;
   const fetch = async (url, opts) => {
     calls.push({ url, opts });
-    if (url.endsWith('/market/trading-value?market=us')) {
+    if (url === 'https://quotes.gaemigtp.com/market/trading-value?market=us') {
       return { ok: true, json: async () => ({ ok: true, items: valueRows }) };
     }
     if (url.endsWith('/market/issue-headlines')) {
@@ -158,7 +158,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
   const app = setup();
   await flush();
-  assert.ok(app.calls[0].url.endsWith('/market/trading-value?market=us'));
+  assert.ok(app.calls[0].url === 'https://quotes.gaemigtp.com/market/trading-value?market=us');
   const before = app.list.querySelectorAll(':scope > button[data-original-index]');
   assert.equal(before.length, 2);
   assert.equal(before[0].querySelector('[data-stock-issue]').textContent, '');
@@ -231,7 +231,7 @@ test('switching tabs immediately restores TOP20 without another Neon read', asyn
   await flush();
   const originalRows = app.list.querySelectorAll(':scope > button[data-original-index]');
   const rankingRequests = () => app.calls.filter((call) =>
-    call.url.endsWith('/market/trading-value?market=us')).length;
+    call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us').length;
   assert.equal(originalRows.length, 2);
   assert.equal(rankingRequests(), 1);
 
