@@ -16,7 +16,7 @@ import time
 from backend.providers import tradingview_news_bundle
 from backend.providers.tradingview_news_detail import enrich_articles
 from backend.services.r2_news_uploader import upload_file
-from backend.services.tradingview_news_page import NEWS_PAGE_PATH, write_snapshot
+from backend.services.tradingview_news_page import NEWS_PAGE_PATH, select_articles, write_snapshot
 
 CHECK_INTERVAL_SECONDS = 60
 # Fail closed until a bounded detail-API budget is set before collection starts.
@@ -54,6 +54,8 @@ def enrich_cached_articles(items):
         current = state.get("items", [])
         if not isinstance(current, list):
             return items
+        # Apply the same event filter and duplicate removal before paid detail lookups.
+        current = select_articles(current)
         day = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
         used = max(0, int(state.get("detail_daily_requests", 0) or 0)) if state.get("detail_daily_day") == day else 0
         halted_today = state.get("detail_halted_day") == day
@@ -82,7 +84,7 @@ def run_once():
     if not os.environ.get("TRADINGVIEW_API_KEY", "").strip():
         print("[tradingview-news-worker] missing TRADINGVIEW_API_KEY", flush=True)
         return 0
-    items = tradingview_news_bundle.refresh_news_cache()
+    items = select_articles(tradingview_news_bundle.refresh_news_cache())
     items = enrich_cached_articles(items)
     global _last_uploaded_digest
     snapshot = write_snapshot(items)
