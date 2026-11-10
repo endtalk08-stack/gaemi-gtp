@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install R2 uploader dependency
+        run: python -m pip install requests
       - name: Syntax check
         run: python -m py_compile backend/tradingview_news_worker.py backend/services/tradingview_news_page.py backend/providers/tradingview_news_detail.py tests/test_tradingview_news_detail.py
       - name: Mock-only selected news and detail request tests
