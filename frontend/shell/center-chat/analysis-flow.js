@@ -724,6 +724,10 @@
 
       if (ctx.getAnalysisController() === controller) ctx.setAnalysisController(null);
 
+      // The US TOP20 chart is independent of optional analysis. Do not append
+      // the unrelated analysis-failure box below a successfully selected chart.
+      if (selection?.market === 'us' && selection?.menu === 'value' && !result.ok) return;
+
       if (!result.ok || sections.length === 0) {
         const notFoundSection = sections.find((section) => section?.id === 'analysis-error');
         if (notFoundSection) {
