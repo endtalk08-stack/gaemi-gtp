@@ -36,7 +36,7 @@ async function top20() {
   try {
     response=await fetch(TOP20_URL,{
       headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0"},
-      redirect:"error",
+      redirect:"manual",
       signal:AbortSignal.timeout(8000)
     });
   } catch (error) {
