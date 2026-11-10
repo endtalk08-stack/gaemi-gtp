@@ -335,9 +335,9 @@ class TwiceDailyActivationTests(unittest.TestCase):
                 return rows, {"requested": 1, "bodies": 0, "summarized": 0,
                               "blocked": 0, "failed": 0, "skipped": 0, "halted_http_status": None}
             with mock.patch.object(worker.tradingview_news_bundle, "_basic_slot",
-                                   return_value=("premarket", "20261110:premarket")), \\
-                 mock.patch.object(worker.tradingview_news_bundle, "CACHE_PATH", cache), \\
-                 mock.patch.object(worker.tradingview_news_bundle, "_write", side_effect=persist), \\
+                                   return_value=("premarket", "20261110:premarket")), \
+                 mock.patch.object(worker.tradingview_news_bundle, "CACHE_PATH", cache), \
+                 mock.patch.object(worker.tradingview_news_bundle, "_write", side_effect=persist), \
                  mock.patch.object(worker, "enrich_articles", side_effect=fake_enrich) as mocked:
                 first = worker.enrich_cached_articles(state["items"])
                 self.assertEqual([r["id"] for r in first], ["one"])
@@ -363,8 +363,8 @@ class TwiceDailyActivationTests(unittest.TestCase):
                            "relatedSymbols":[{"symbol":"NASDAQ:NVDA"}]}],
             }), encoding="utf-8")
             with mock.patch.object(worker.tradingview_news_bundle, "_basic_slot",
-                                   return_value=("premarket", "20261110:premarket")), \\
-                 mock.patch.object(worker.tradingview_news_bundle, "CACHE_PATH", cache), \\
+                                   return_value=("premarket", "20261110:premarket")), \
+                 mock.patch.object(worker.tradingview_news_bundle, "CACHE_PATH", cache), \
                  mock.patch.object(worker, "enrich_articles", side_effect=AssertionError("API call")):
                 self.assertEqual(len(worker.enrich_cached_articles([{"id": "one"}])), 1)
 
