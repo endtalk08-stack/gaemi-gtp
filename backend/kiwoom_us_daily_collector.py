@@ -6,7 +6,6 @@ import time
 from zoneinfo import ZoneInfo
 import psycopg
 from backend.providers.kiwoom_us_quotes import fetch_us_daily_chart, issue_access_token
-from backend.kiwoom_us_top20_api import read_top20
 
 SOURCE = 'kiwoom:usa06012'
 
@@ -65,32 +64,27 @@ def main(*, bootstrap=False):
     dsn = os.environ.get('NEWS_DATABASE_URL', '').strip()
     if not dsn:
         raise RuntimeError('chart_database_url_missing')
-    # The ranked universe comes from the DigitalOcean local Kiwoom snapshot.
-    # Neon stores candle history only; it is not a TOP20 source.
-    rows = read_top20()["items"]
-    ranked = [
-        (item["symbol"], item["exchange"])
-        for item in rows
-        if str(item.get("company_key") or "").startswith("US:")
-        and item.get("exchange") in ("ND", "NY", "NA")
-    ]
-    matches = []
-    if ranked:
-        values_sql = ",".join(["(%s,%s)"] * len(ranked))
-        params = [field for pair in ranked for field in pair]
-        query = """
-            SELECT t.symbol,t.exchange,MAX(c.session_date),COUNT(c.session_date),
-                   MAX(c.fetched_at)
-              FROM (VALUES """ + values_sql + """) AS t(symbol,exchange)
-              LEFT JOIN public.us_daily_candles c
-                ON c.market='US' AND c.symbol=t.symbol AND c.source='kiwoom:usa06012'
-             GROUP BY t.symbol,t.exchange
-             ORDER BY t.symbol
-        """
-        with psycopg.connect(dsn, connect_timeout=7) as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, params)
-                matches = cur.fetchall()
+    with psycopg.connect(dsn, connect_timeout=7) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                WITH ranked AS (
+                  SELECT e.symbol FROM public.market_rank_entries e
+                  WHERE e.market='US' AND e.snapshot_id=(
+                    SELECT id FROM public.market_rank_snapshots
+                    WHERE source='kiwoom' AND market='US' AND rank_type='trading_value'
+                    ORDER BY captured_at DESC,id DESC LIMIT 1)
+                  ORDER BY e.rank LIMIT 20
+                )
+                SELECT i.symbol,i.exchange,MAX(c.session_date),COUNT(c.session_date),MAX(c.fetched_at)
+                FROM ranked t JOIN public.market_instruments i
+                  ON i.market='US' AND i.symbol=t.symbol
+                LEFT JOIN public.us_daily_candles c
+                  ON c.market='US' AND c.symbol=i.symbol AND c.source='kiwoom:usa06012'
+                WHERE i.is_active AND i.identity_status='verified'
+                  AND i.company_key LIKE 'US:%' AND i.exchange IN ('ND','NY','NA')
+                GROUP BY i.symbol,i.exchange ORDER BY i.symbol
+            """)
+            matches = cur.fetchall()
     today = ny.date()
     token = None
     failed = 0
@@ -141,6 +135,14 @@ def main(*, bootstrap=False):
         finally:
             time.sleep(0.4)
     print('CHART_REFRESH_DONE symbols=%s failed=%s' % (len(matches),failed), flush=True)
+    # Existing post-close timer handles this once-per-session metadata archive.
+    # A metadata failure must never break the daily candle refresh.
+    if not bootstrap:
+        try:
+            from backend.services.us_top20_metadata_sync import sync_once_after_close
+            print('US_TOP20_META_SYNC=' + sync_once_after_close(dsn, now=now), flush=True)
+        except Exception as exc:
+            print('US_TOP20_META_SYNC_ERROR=' + type(exc).__name__, flush=True)
     if failed:
         raise SystemExit(1)
 
