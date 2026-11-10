@@ -1,5 +1,6 @@
 // Frontend is served by GitHub Pages; analysis API runs on Render.
 const BACKEND_URL = window.location.hostname.endsWith('github.io')
+  || window.location.hostname === 'gaemigtp-main.pages.dev'
   ? 'https://gaemi-gtp.onrender.com'
   : window.location.origin;
     let activeAnalysisController = null;
