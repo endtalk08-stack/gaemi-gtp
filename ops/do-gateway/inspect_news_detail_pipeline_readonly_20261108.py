@@ -30,4 +30,24 @@ for unit in ("gaemigtp-news.service","gaemigtp-tradingview-news.service","gaemig
  p=subprocess.run(["systemctl","is-active",unit],capture_output=True,text=True)
  q=subprocess.run(["systemctl","is-enabled",unit],capture_output=True,text=True)
  print("UNIT="+unit+" ACTIVE="+p.stdout.strip()+" ENABLED="+q.stdout.strip())
+# Inspect only the allowed news settings; never emit tokens or full env lines.
+unit = "gaemigtp-tradingview-news.service"
+env_path = pathlib.Path("/etc/gaemigtp/news-worker.env")
+print("DETAIL_SERVICE_CONFIG_BEGIN=1")
+if env_path.is_file() and not env_path.is_symlink():
+ try:
+  values={}
+  for line in env_path.read_text(encoding="utf-8").splitlines():
+   raw=line.strip()
+   if raw.startswith("export "):raw=raw[7:].strip()
+   if not raw or raw.startswith("#") or "=" not in raw:continue
+   k,v=raw.split("=",1)
+   if k.strip() in {"NEWS_DETAIL_REQUEST_BUDGET","NEWS_DETAIL_PUBLICATION_ALLOWED","TRADINGVIEW_NEWS_MODE"}:
+    values[k.strip()]=v.strip().strip('"').strip("'")
+  for k in ("NEWS_DETAIL_REQUEST_BUDGET","NEWS_DETAIL_PUBLICATION_ALLOWED","TRADINGVIEW_NEWS_MODE"):
+   v=values.get(k)
+   print("SERVICE_"+k+"="+str(v if v is not None else "[unset]"))
+ except Exception as exc: print("SERVICE_CONFIG_ERROR="+type(exc).__name__)
+else:print("SERVICE_ENV_NOT_READABLE=1")
+print("DETAIL_SERVICE_CONFIG_END=1")
 print("NEWS_AUDIT_END=1")
