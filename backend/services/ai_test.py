@@ -532,15 +532,14 @@ def _context(stock, data):
 def _refresh_us_live_chat_quote(stock, selection, context):
     """Give both chat models only verified US prices, not provider/status chatter.
 
-    Prefer the current short-lived quote; use the same recent saved quote that
-    the site's US ranking/analysis can display when markets are closed.
+    Use only the current short-lived validated quote. Never substitute saved
+    Neon TOP20 rows when the live stream is absent.
     """
     if not stock or not isinstance(context, dict):
         return context
     from .engine import TICKERS
     from .market_rankings import analysis_ticker_for_selection
     from .us_price_push import read_fresh_us_quote
-    from .kiwoom_us_value_board import read_recent_saved_us_quote
 
     ticker = (analysis_ticker_for_selection(selection)
               if selection and selection.get("market") == "us" else None)
@@ -551,7 +550,7 @@ def _refresh_us_live_chat_quote(stock, selection, context):
         return context
 
     fresh_quote = read_fresh_us_quote(ticker)
-    quote = fresh_quote or read_recent_saved_us_quote(ticker)
+    quote = fresh_quote
     metrics = dict(context.get("price_metrics") or {})
     for field in ("current", "change_pct", "rise_to_52w_high_pct", "quote_source", "quote_received_at_ms"):
         metrics.pop(field, None)
