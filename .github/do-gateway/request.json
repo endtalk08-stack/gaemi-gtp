@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/check_top20_response_20261110.py","request_id":"checktop20rendernov10","timeout":60}
+{"operation":"deploy","path":"backend/kiwoom_us_top20_api.py","target":"backend/kiwoom_us_top20_api.py"}
