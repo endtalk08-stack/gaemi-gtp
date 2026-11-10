@@ -287,5 +287,87 @@ class SelectedNewsTests(unittest.TestCase):
         self.assertEqual(rows[0]["detail_body"], "실적 발표 본문입니다.")
 
 
+
+
+class TwiceDailyActivationTests(unittest.TestCase):
+    def test_default_budget_is_limited_and_explicit_zero_stops_calls(self):
+        from unittest import mock
+        from backend.tradingview_news_worker import _bounded_detail_budget
+        with mock.patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(_bounded_detail_budget(), 20)
+        with mock.patch.dict("os.environ", {"NEWS_DETAIL_REQUEST_BUDGET": "0"}):
+            self.assertEqual(_bounded_detail_budget(), 0)
+        with mock.patch.dict("os.environ", {"NEWS_DETAIL_REQUEST_BUDGET": "1000"}):
+            self.assertEqual(_bounded_detail_budget(), 20)
+
+    def test_outside_collection_windows_never_invokes_detail_api(self):
+        from unittest import mock
+        from backend import tradingview_news_worker as worker
+        with mock.patch.object(worker.tradingview_news_bundle, "_basic_slot", return_value=(None, None)):
+            with mock.patch.object(worker, "enrich_articles", side_effect=AssertionError("API must not be called")):
+                self.assertEqual(worker.enrich_cached_articles([{"id": "one"}]), [{"id": "one"}])
+
+    def test_successful_slot_only_calls_detail_once_and_keeps_cache_selection(self):
+        from unittest import mock
+        from pathlib import Path
+        from backend import tradingview_news_worker as worker
+        import tempfile
+        import json
+        state = {
+            "feed_version": worker.tradingview_news_bundle.FEED_VERSION,
+            "last_slot": "20261110:premarket",
+            "ok_categories": ["overall"],
+            "failed_categories": [],
+            "items": [
+                {"id": "one", "title": "엔비디아 실적 발표", "news_categories": ["overall"],
+                 "relatedSymbols": [{"symbol": "NASDAQ:NVDA"}]},
+                {"id": "ignored", "title": "가을 축제 안내", "news_categories": ["overall"]},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as root:
+            cache = Path(root) / "cache.json"
+            cache.write_text(json.dumps(state), encoding="utf-8")
+            def persist(updated):
+                cache.write_text(json.dumps(updated), encoding="utf-8")
+            def fake_enrich(rows, *, max_requests):
+                self.assertEqual([r["id"] for r in rows], ["one"])
+                self.assertEqual(max_requests, 20)
+                return rows, {"requested": 1, "bodies": 0, "summarized": 0,
+                              "blocked": 0, "failed": 0, "skipped": 0, "halted_http_status": None}
+            with mock.patch.object(worker.tradingview_news_bundle, "_basic_slot",
+                                   return_value=("premarket", "20261110:premarket")), \\
+                 mock.patch.object(worker.tradingview_news_bundle, "CACHE_PATH", cache), \\
+                 mock.patch.object(worker.tradingview_news_bundle, "_write", side_effect=persist), \\
+                 mock.patch.object(worker, "enrich_articles", side_effect=fake_enrich) as mocked:
+                first = worker.enrich_cached_articles(state["items"])
+                self.assertEqual([r["id"] for r in first], ["one"])
+                self.assertEqual(json.loads(cache.read_text())["detail_last_slot"], "20261110:premarket")
+                self.assertEqual(json.loads(cache.read_text())["detail_daily_requests"], 1)
+                worker.enrich_cached_articles(first)
+                self.assertEqual(mocked.call_count, 1)
+
+    def test_failed_list_collection_does_not_call_detail_api(self):
+        from unittest import mock
+        from pathlib import Path
+        from backend import tradingview_news_worker as worker
+        import tempfile, json
+        with tempfile.TemporaryDirectory() as root:
+            cache = Path(root) / "cache.json"
+            cache.write_text(json.dumps({
+                "feed_version": worker.tradingview_news_bundle.FEED_VERSION,
+                "last_slot": "20261110:premarket",
+                "ok_categories": [],
+                "failed_categories": ["overall"],
+                "items": [{"id":"one", "title":"엔비디아 실적 발표",
+                           "news_categories":["overall"],
+                           "relatedSymbols":[{"symbol":"NASDAQ:NVDA"}]}],
+            }), encoding="utf-8")
+            with mock.patch.object(worker.tradingview_news_bundle, "_basic_slot",
+                                   return_value=("premarket", "20261110:premarket")), \\
+                 mock.patch.object(worker.tradingview_news_bundle, "CACHE_PATH", cache), \\
+                 mock.patch.object(worker, "enrich_articles", side_effect=AssertionError("API call")):
+                self.assertEqual(len(worker.enrich_cached_articles([{"id": "one"}])), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
