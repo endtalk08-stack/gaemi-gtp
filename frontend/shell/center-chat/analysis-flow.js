@@ -696,15 +696,17 @@
       const fetchPromise = window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend(stockName, controller.signal, session.marketSelection);
       ctx.setPendingAnalysis({ stock: stockName, promise: fetchPromise });
       const loadingDelayPromise = new Promise(resolve => setTimeout(resolve, 4000));
-      const [result] = await Promise.all([fetchPromise, loadingDelayPromise]);
-      if (ctx.getPendingAnalysis()?.promise === fetchPromise) ctx.setPendingAnalysis(null);
-      if (requestId !== ctx.getActiveAnalysisRequestId() || result.aborted) {
+      // Preserve the original loading phase, but never wait for the unrelated
+      // analysis API before starting the R2 chart. Check both request and session
+      // so a quick stock switch cannot display the previous stock's chart.
+      await loadingDelayPromise;
+      if (requestId !== ctx.getActiveAnalysisRequestId() || ctx.getSession()?.id !== session.id) {
         loadingDiv.remove();
         return;
       }
       loadingDiv.remove();
 
-      // Chart begins only after the original quote-loading phase finishes; R2 history is separate from analysis errors.
+      // Chart begins after the quote-loading phase, independently of analysis API success.
       const selection = session.marketSelection;
       if (selection?.market === 'us' && selection?.menu === 'value'
           && /^[A-Z0-9.\\-]{1,20}$/.test(String(selection.symbol || ''))) {
@@ -715,6 +717,9 @@
         window.GaemiGTPWidgetDock?.renderInlineChart?.(chartHost, selection.symbol, selection.change_pct);
       }
 
+      const result = await fetchPromise;
+      if (ctx.getPendingAnalysis()?.promise === fetchPromise) ctx.setPendingAnalysis(null);
+      if (requestId !== ctx.getActiveAnalysisRequestId() || ctx.getSession()?.id !== session.id || result.aborted) return;
       const sections = result.sections || [];
 
       if (ctx.getAnalysisController() === controller) ctx.setAnalysisController(null);
