@@ -1,6 +1,6 @@
 import json, re, subprocess, urllib.request
 route = "/market/trading-value?market=us"
-origin = "https://gaemigtp.com"
+origin = "https://gaemi-gtp.onrender.com"
 def check(label, url):
     try:
         req = urllib.request.Request(url, headers={"Origin": origin, "Accept": "application/json"})
