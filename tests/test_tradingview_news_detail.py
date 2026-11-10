@@ -230,5 +230,62 @@ class BodyHighlightsTests(unittest.TestCase):
         self.assertEqual(row["list_excerpt"], "")
 
 
+
+class SelectedNewsTests(unittest.TestCase):
+    def test_only_classified_news_reaches_detail_queue(self):
+        from backend.services.tradingview_news_page import select_articles
+        items = [
+            {"id": "stock-1", "title": "엔비디아 실적 발표",
+             "news_categories": ["overall"],
+             "relatedSymbols": [{"symbol": "NASDAQ:NVDA"}]},
+            {"id": "market-1", "title": "미국 소비자물가지수 CPI 발표",
+             "news_categories": ["overall"]},
+            {"id": "ignored-1", "title": "홍보 행사에 참석한 연예인",
+             "news_categories": ["overall"]},
+        ]
+        self.assertEqual([x["id"] for x in select_articles(items)],
+                         ["stock-1", "market-1"])
+
+    def test_identical_headlines_keep_an_existing_body_without_requery(self):
+        from backend.services.tradingview_news_page import select_articles, build_snapshot
+        items = [
+            {"id": "new-id", "title": "엔비디아 실적 발표", "news_categories": ["overall"],
+             "relatedSymbols": [{"symbol": "NASDAQ:NVDA"}]},
+            {"id": "old-id", "title": "엔비디아 실적 발표", "news_categories": ["overall"],
+             "relatedSymbols": [{"symbol": "NASDAQ:NVDA"}],
+             "detail_body": "엔비디아는 실적이 크게 늘었다고 발표했다.",
+             "detail_publication_allowed": True, "detail_rights_confirmed": True},
+        ]
+        selected = select_articles(items)
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(selected[0]["id"], "old-id")
+        self.assertEqual(build_snapshot(items)["count"], 1)
+
+    def test_selected_detail_calls_only_selected_ids_with_mock_api(self):
+        from backend.services.tradingview_news_page import select_articles
+        from backend.providers.tradingview_news_detail import enrich_articles
+        calls = []
+        def fake(req, timeout):
+            calls.append(req.full_url)
+            return FakeResponse({"success": True, "data": {
+                "astDescription": {"type": "p", "children": ["실적 발표 본문입니다."]}}})
+        items = [
+            {"id": "selected-1", "title": "엔비디아 실적 발표",
+             "news_categories": ["overall"],
+             "relatedSymbols": [{"symbol": "NASDAQ:NVDA"}]},
+            {"id": "selected-1", "title": "엔비디아 실적 발표",
+             "news_categories": ["overall"],
+             "relatedSymbols": [{"symbol": "NASDAQ:NVDA"}]},
+            {"id": "ignored-1", "title": "홍보 행사 안내",
+             "news_categories": ["overall"]},
+        ]
+        rows, stats = enrich_articles(select_articles(items), max_requests=5,
+                                     api_key="fake", opener=fake)
+        self.assertEqual(stats["requested"], 1)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("selected-1", calls[0])
+        self.assertEqual(rows[0]["detail_body"], "실적 발표 본문입니다.")
+
+
 if __name__ == "__main__":
     unittest.main()
