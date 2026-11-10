@@ -2400,10 +2400,6 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
                 volume_profile = None
                 print(f"[미국 주가] {ticker_symbol} 조회 실패 - 가짜 가격 사용 안 함")
 
-        # 마지막으로 저장된 키움 시세도 등락률이 검증되어 있다면
-        # 일반 상승/하락 멘트를 유지한다. 현재가나 등락률 숫자는 출력하지 않는다.
-        saved_us_quote = (not is_krw and
-                          price_result.get("quote_source") == "kiwoom-neon-snapshot")
         if is_krw:
             status_emoji, title_word = '📰', '국내 뉴스·공시'
             intro_ment = f"{raw_name} 뉴스·공시 확인"
@@ -2418,7 +2414,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
         # 뉴스와 공시는 기존처럼 한 칸(빈 줄) 간격을 유지한다.
         # 뉴스/공시는 아래의 구조화된 클릭형 목록(paired_news_items / disclosures / us_filings)에서
         # 한 번만 표시한다. 본문에 같은 내용을 다시 넣으면 화면에 중복 출력된다.
-        price_tags = list(price_result.get("price_tags") or []) if current_price > 0 and not saved_us_quote else []
+        price_tags = list(price_result.get("price_tags") or []) if current_price > 0 else []
         tags_str = "   ".join(price_tags)
 
         # The sidebar already displays price and daily change. Keep the
@@ -2436,7 +2432,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
                           else f"{status_emoji} 오늘은 왜 {title_word}?"),
                 "content": "\n\n".join(first_content_parts),
                 "tags": ([f"#{raw_name}", "#실시간속보"]
-                         if current_price > 0 and not saved_us_quote
+                         if current_price > 0
                          else [f"#{raw_name}"])
             }
         ]

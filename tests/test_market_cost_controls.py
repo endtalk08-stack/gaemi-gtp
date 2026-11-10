@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 ROOT=Path(os.getenv('MARKET_TEST_ROOT',str(Path(__file__).resolve().parents[1])))
 sys.path.insert(0,str(ROOT))
 from backend.services.market_data_cache import MarketReadCache,cached_market_json
-from backend.services import kiwoom_us_value_board as board
 
 def load_collector():
     provider=types.ModuleType('backend.providers.kiwoom_us_quotes')
@@ -39,15 +38,6 @@ class Controls(unittest.TestCase):
             for _ in range(10):cache.get_or_load('a',load,ttl=60,empty_ttl=15)
         with patch('backend.services.market_data_cache.time.monotonic',return_value=116):cache.get_or_load('a',load,ttl=60,empty_ttl=15)
         self.assertEqual(len(calls),2)
-    def test_rank_cache_isolation_from_live_price_overlay(self):
-        board._BOARD_CACHE.clear()
-        with patch.object(board,'_read_us_trading_value_board_uncached',return_value=[{'symbol':'A','price':1}]) as load:
-            first=board.read_us_trading_value_board();first[0]['price']=99
-            self.assertEqual(board.read_us_trading_value_board()[0]['price'],1);self.assertEqual(load.call_count,1)
-    def test_invalid_rank_limit_does_not_touch_db(self):
-        with patch.object(board,'_read_us_trading_value_board_uncached') as load:
-            with self.assertRaises(ValueError):board.read_us_trading_value_board(100)
-            load.assert_not_called()
     def test_short_ipo_history_uses_incremental_window(self):
         c=load_collector();today=dt.date(2026,10,28)
         self.assertEqual(c.history_start(today,today-dt.timedelta(days=1),8),today-dt.timedelta(days=5))

@@ -5,7 +5,6 @@ from zoneinfo import ZoneInfo
 from ..analysis.price import build_price_indicators, build_price_result
 from ..providers.market_price import fetch_daily_price_history
 from .us_price_push import read_fresh_us_quote
-from .kiwoom_us_value_board import read_recent_saved_us_quote
 
 
 _SPACER = "\u00a0\u00a0\u00a0"
@@ -162,16 +161,12 @@ def fetch_stock_price_result(*, is_krw, ticker_symbol, clean_code=None):
     # If the tick is missing/stale, never mislabel yesterday's close as live.
     quote = read_fresh_us_quote(ticker_symbol)
     source = "kiwoom-direct" if quote else "kiwoom-unavailable"
-    if quote is None:
-        quote = read_recent_saved_us_quote(ticker_symbol)
-        if quote:
-            source = "kiwoom-neon-snapshot"
     return _build_stock_price_result(
         is_krw=False,
         ticker_symbol=ticker_symbol,
         current=quote["price"] if quote else None,
         # Use the same signed FE tick as the left sidebar, including its
-        # trading-session high/low; stale Neon snapshots have no day range.
+        # trading-session high/low; no DB snapshot fallback.
         high=quote.get("high") if quote and source == "kiwoom-direct" else None,
         low=quote.get("low") if quote and source == "kiwoom-direct" else None,
         change_pct=quote.get("change_pct") if quote else None,

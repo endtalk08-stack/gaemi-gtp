@@ -4,7 +4,6 @@ on:
     paths:
       - app.py
       - backend/services/market_data_cache.py
-      - backend/services/kiwoom_us_value_board.py
       - backend/services/market_issue_headlines.py
       - backend/kiwoom_us_daily_collector.py
       - frontend/shell/left-market-sidebar/market-sidebar.js
@@ -28,4 +27,4 @@ jobs:
       - run: python tests/test_market_cost_controls.py
       - run: node tests/test_market_polling_cost.cjs
       - run: node tests/test_chart_refresh.cjs
-      - run: python -m py_compile app.py backend/services/market_data_cache.py backend/services/kiwoom_us_value_board.py backend/services/market_issue_headlines.py backend/kiwoom_us_daily_collector.py
+      - run: python -m py_compile app.py backend/services/market_data_cache.py backend/services/market_issue_headlines.py backend/kiwoom_us_daily_collector.py
