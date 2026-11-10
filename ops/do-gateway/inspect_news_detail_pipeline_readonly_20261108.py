@@ -24,6 +24,11 @@ if cache.is_file() and not cache.is_symlink():
   print("CACHE_LAST_SLOT="+str(obj.get("last_slot","")))
   print("CACHE_MODE="+str(obj.get("mode","")))
   print("CACHE_FEED_VERSION="+str(obj.get("feed_version","")))
+  for field in ("body","articleBody","astDescription","detail_body","detail_summary","summary","content","description","shortDescription","excerpt"):
+   print("CACHE_FIELD_"+field+"="+str(sum(bool(x.get(field)) for x in rows if isinstance(x,dict))))
+  from collections import Counter
+  print("CACHE_CHECKED_STATUS="+json.dumps(dict(Counter(str(x.get("detail_checked") or "[none]") for x in rows if isinstance(x,dict))),sort_keys=True))
+
  except Exception as exc: print("CACHE_READ_ERROR="+type(exc).__name__)
 else:print("CACHE_PRESENT=False")
 for unit in ("gaemigtp-news.service","gaemigtp-tradingview-news.service","gaemigtp-tradingview-news.timer"):
@@ -34,7 +39,7 @@ for unit in ("gaemigtp-news.service","gaemigtp-tradingview-news.service","gaemig
 unit = "gaemigtp-tradingview-news.service"
 env_path = pathlib.Path("/etc/gaemigtp/news-worker.env")
 print("DETAIL_SERVICE_CONFIG_BEGIN=1")
-if env_path.is_file() and not env_path.is_symlink():
+if env_path.is_file() and not env_path.is_symlink() and os.access(env_path,os.R_OK):
  try:
   values={}
   for line in env_path.read_text(encoding="utf-8").splitlines():
