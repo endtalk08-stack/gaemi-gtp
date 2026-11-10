@@ -1,3 +1,5 @@
 {
-  "operation": "status"
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_identity_sync.py",
+  "target": "backend/kiwoom_us_identity_sync.py"
 }
