@@ -1,5 +1,4 @@
 {
-  "operation": "deploy",
-  "path": "backend/kiwoom_us_top20_api.py",
-  "target": "backend/kiwoom_us_top20_api.py"
+  "operation": "restart",
+  "unit": "gaemigtp-kiwoom-us-top20-https.service"
 }
