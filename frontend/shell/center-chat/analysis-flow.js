@@ -735,7 +735,7 @@
           `;
           chatArea.appendChild(state);
         } else {
-          window.GaemiGTPAnalysisStatus.renderAnalysisStatus(chatArea, stockName, result.ok);
+          window.GaemiGTPAnalysisStatus.renderAnalysisStatus(chatArea, stockName, result.ok, result.error);
         }
         chatArea.scrollTop = 0;
         return;
