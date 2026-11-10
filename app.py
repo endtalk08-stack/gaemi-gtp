@@ -64,51 +64,6 @@ def market_us_close():
     return jsonify({"ok": True, "available": bool(brief), **(brief or {})})
 
 
-@app.get("/market/trading-value")
-def market_trading_value():
-    """Serve the existing DigitalOcean Kiwoom TOP20; never query Neon or Kiwoom here."""
-    market = str(request.args.get("market", "kr") or "").strip().lower()
-    if market != "us":
-        return jsonify({"ok": False, "error": "invalid_market", "items": []}), 400
-
-    import json
-    from urllib.request import Request, urlopen
-
-    upstream_url = "https://quotes.gaemigtp.com/market/trading-value?market=us"
-    try:
-        req = Request(upstream_url, headers={"Accept": "application/json"})
-        with urlopen(req, timeout=8) as upstream:
-            raw = upstream.read(128001)
-        if len(raw) > 128000:
-            raise ValueError("oversized_top20")
-        payload = json.loads(raw.decode("utf-8"))
-        if (not isinstance(payload, dict) or payload.get("ok") is not True
-                or payload.get("source") != "kiwoom"
-                or payload.get("market") != "us"):
-            raise ValueError("invalid_top20_metadata")
-        rows = payload.get("items")
-        if (not isinstance(rows, list) or len(rows) != 20
-                or any(not isinstance(row, dict) or row.get("rank") != i
-                       or not isinstance(row.get("symbol"), str)
-                       or not isinstance(row.get("name"), str)
-                       for i, row in enumerate(rows, 1))
-                or len({row["symbol"] for row in rows}) != 20):
-            raise ValueError("invalid_top20_rows")
-    except (OSError, TimeoutError, ValueError, UnicodeError) as exc:
-        print("[market ranking] DigitalOcean TOP20 unavailable: " + type(exc).__name__, flush=True)
-        response = jsonify({"ok": False, "market": "us", "items": [], "error": "source_unavailable"})
-        response.headers["Cache-Control"] = "no-store"
-        return response, 502
-
-    response = jsonify({
-        "ok": True, "market": "us", "source": "kiwoom", "currency": "USD",
-        "captured_at": payload.get("captured_at"), "items": rows,
-    })
-    response.headers["X-Gaemi-US-Value-Provider"] = "kiwoom-digitalocean-https"
-    response.headers["Cache-Control"] = "no-store"
-    return response
-
-
 @app.post("/internal/market/us-price-push")
 def market_us_price_push():
     """Signed, direct DO -> Render price relay. No database writes or external calls."""
