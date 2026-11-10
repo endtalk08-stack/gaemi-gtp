@@ -103,6 +103,28 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+
+class BoundedTLSServer(ThreadingHTTPServer):
+    """Do TLS handshakes with a timeout, not on the listening socket.
+
+    A stalled client must not prevent the entire TOP20 HTTPS listener from
+    accepting later requests. No market, storage or authentication changes.
+    """
+    request_queue_size = 128
+    daemon_threads = True
+
+    def get_request(self):
+        sock, address = self.socket.accept()
+        sock.settimeout(4)
+        try:
+            wrapped = self.ssl_context.wrap_socket(sock, server_side=True)
+            wrapped.settimeout(10)
+            return wrapped, address
+        except OSError:
+            sock.close()
+            raise
+
+
 def main():
     import sys
     if sys.argv[1:] not in ([], ["--tls"]):
@@ -110,7 +132,8 @@ def main():
     tls = sys.argv[1:] == ["--tls"]
     # Plain HTTP remains loopback-only; the separately managed TLS listener is public.
     host, port = ("0.0.0.0", 443) if tls else (ADDRESS, PORT)
-    with ThreadingHTTPServer((host, port), Handler) as server:
+    server_class = BoundedTLSServer if tls else ThreadingHTTPServer
+    with server_class((host, port), Handler) as server:
         if tls:
             import ssl
             cert_dir = Path("/var/lib/gaemigtp-news")
@@ -120,7 +143,7 @@ def main():
                 certfile=str(cert_dir / "quotes-origin.crt"),
                 keyfile=str(cert_dir / "quotes-origin.key"),
             )
-            server.socket = ctx.wrap_socket(server.socket, server_side=True)
+            server.ssl_context = ctx
         server.serve_forever()
 
 
