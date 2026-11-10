@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-kiwoom-us-top20-https.service"}
+{"operation":"run","path":"ops/do-gateway/check_top20_response_20261110.py","request_id":"checkrendercorsapplied","timeout":60}
