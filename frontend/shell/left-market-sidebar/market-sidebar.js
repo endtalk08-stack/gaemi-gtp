@@ -128,11 +128,14 @@
     let lastRankingSignature = '';
     let cachedRankingRows = [];
     let quoteRequestInFlight = false;
+    let nextQuoteReadAt = 0;
     let nextRankingReadAt = 0;
     let rankingRequestInFlight = false;
     let rankingFailureCount = 0;
     const sidebarActive = () => document.visibilityState === 'visible'
-      && document.body.classList.contains('left-market-open')
+      && (document.body.classList.contains('left-market-open')
+        || (document.body.classList.contains('left-home-open')
+          && sidebar.parentElement?.id === 'leftSidebarHomeSectionContent'))
       && !(window.innerWidth < 1024 && document.body.classList.contains('right-panel-open'));
     const orderKey = () => 'gaemiGTP_market_sidebar_order_us_' + tab + '_v1';
     const readOrder = () => {
@@ -341,7 +344,7 @@
           nameGroup.append(rank, name);
           top.append(nameGroup, price);
 
-          // Show industry in the former turnover slot; keep price change at right.
+          // Keep industry and turnover in the existing second row.
           const secondRow = document.createElement('div');
           secondRow.className = 'market-stock-second';
           const industry = document.createElement('span');
@@ -367,6 +370,192 @@
           const industryLabel = document.createElement('span');
           industryLabel.className = 'market-stock-industry-label';
           industryLabel.textContent = typeof item.industry === 'string' ? item.industry : '';
+          const turnover = typeof item.trading_value_text === 'string' ? item.trading_value_text
+            : (typeof item.trading_value === 'number' && Number.isFinite(item.trading_value)
+              ? '
+          const change = document.createElement('span');
+          const pct = item.change_pct;
+          change.dataset.marketChange = 'true';
+          change.className = 'market-stock-change' +
+            (pct > 0 ? ' text-rose-500' : pct < 0 ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
+          change.textContent = typeof pct === 'number' && Number.isFinite(pct)
+            ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '';
+          secondRow.append(industry, change);
+
+          // Dedicate the full third row to a single-line AI issue headline.
+          const thirdRow = document.createElement('div');
+          thirdRow.className = 'market-stock-third';
+          const issue = document.createElement('span');
+          issue.dataset.stockIssue = 'true';
+          issue.className = 'font-semibold text-[#64748b] dark:text-[#a1a1aa] text-right truncate';
+          issue.style.fontSize = '13px';
+          issue.textContent = sidebarIssueTitle(item.issue_headline);
+          thirdRow.append(issue);
+          content.append(top, secondRow, thirdRow);
+          button.append(grip, stockMark(item), content);
+          list.appendChild(button);
+        });
+        applyChangeSort();
+        // The initial list is ready: request the current quote now instead of
+        // waiting for the next timer tick or relying on a panel-open CSS class.
+        void readLatestQuotes();
+      } catch (error) {
+        console.warn('TOP20 request failed:', error);
+        rankingFailureCount += 1;
+        nextRankingReadAt = Date.now() + Math.min(300000, 15000 * 2 ** (rankingFailureCount - 1));
+        if (id === requestId && title) title.textContent = titles[tab] + ' · 갱신 실패';
+        if (id === requestId && !list.querySelector('button[data-original-index]')) {
+          list.textContent = '순위 원천 데이터를 가져오지 못했어.';
+        }
+      } finally {
+        window.clearTimeout(timeout);
+        rankingRequestInFlight = false;
+      }
+    };
+
+    // Reuse one existing 3-second Render memory poll for sidebar, QQQ, chart and chat.
+    const qqqWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('qqq') === true;
+    const quoteConsumersActive = () => qqqWidgetActive()
+      || window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
+    const readLatestQuotes = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const paintRanking = sidebarActive() && tab === 'value' && !!list?.querySelector('button[data-original-index]');
+      if (quoteRequestInFlight || Date.now() < nextQuoteReadAt || (!paintRanking && !quoteConsumersActive())) return;
+      quoteRequestInFlight = true;
+      try {
+        const response = await fetch(backendUrl + '/market/us-live-quotes', { cache: 'no-store' });
+        if (response.status === 503) nextQuoteReadAt = Date.now() + 60000;
+        if (!response.ok) throw new Error('quotes unavailable');
+        const data = await response.json();
+        if (data.ok !== true || !Array.isArray(data.items)) return;
+        // Share exactly these quotes with the active chart/chat. No extra HTTP read.
+        window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
+          detail: { items: data.items }
+        }));
+        // In-browser fan-out only: existing sidebar request is also the widget feed.
+        if (qqqWidgetActive()) {
+          const qqq = data.items.find(row => row && row.symbol === 'QQQ') || null;
+          window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: qqq } }));
+        }
+        if (!paintRanking || tab !== 'value') return;
+        const bySymbol = new Map([...list.querySelectorAll(':scope > button[data-original-index]')]
+          .map((button) => [button.dataset.stockSymbol, button]));
+        let updated = 0;
+        data.items.forEach((quote) => {
+          const button = bySymbol.get(String(quote.symbol || ''));
+          if (!button) return;
+          if (typeof quote.price === 'number' && Number.isFinite(quote.price)) {
+            const price = button.querySelector('[data-market-price]');
+            if (price) price.textContent = '$' + quote.price.toLocaleString('en-US', { maximumFractionDigits: 2 });
+            button.dataset.currentPrice = String(quote.price);
+          }
+          if (typeof quote.change_pct === 'number' && Number.isFinite(quote.change_pct)) {
+            const change = button.querySelector('[data-market-change]');
+            if (change) {
+              change.textContent = (quote.change_pct > 0 ? '+' : '') + quote.change_pct.toFixed(2) + '%';
+              change.className = 'market-stock-change' +
+                (quote.change_pct > 0 ? ' text-rose-500' : quote.change_pct < 0
+                  ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
+            }
+            button.dataset.changePct = String(quote.change_pct);
+            button.dataset.currentChangePct = String(quote.change_pct);
+          }
+          updated++;
+        });
+        if (updated && changeSorted && !draggedRow) applyChangeSort();
+      } catch (_) {
+        window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
+          detail: { items: [] }
+        }));
+        // A broken source must never leave the QQQ widget labeled "live".
+        if (qqqWidgetActive()) {
+          window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: null } }));
+        }
+        // Keep the sidebar's previous display on transient failure.
+      } finally {
+        quoteRequestInFlight = false;
+      }
+    };
+
+    // Also refresh when the user returns to this tab after it was backgrounded.
+    // Keep background reads off to avoid unnecessary database usage.
+    const refreshOnReturn = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (sidebarActive() && tab === 'value') void showUsRanking();
+      if (sidebarActive() || quoteConsumersActive()) void readLatestQuotes();
+    };
+    document.addEventListener('visibilitychange', refreshOnReturn);
+    window.addEventListener('focus', refreshOnReturn);
+
+    // Only refresh the analyzed stock's existing DB-backed issue title.
+    // Never recollect news, rerank stocks, or replace the displayed list.
+    const refreshAnalyzedIssue = async (event) => {
+      const detail = event.detail || {};
+      const name = String(detail.name || '').trim();
+      if (!name || tab !== 'value') return;
+      if (detail.market && detail.market !== market) return;
+      const button = [...list.querySelectorAll(':scope > button[data-original-index]')]
+        .find((row) => row.dataset.stockName === name &&
+          (!detail.symbol || row.dataset.stockSymbol === String(detail.symbol)));
+      if (!button) return;
+      const currentRequestId = requestId;
+      try {
+        const response = await fetch(backendUrl + '/market/issue-headlines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market, items: [{ name, symbol: button.dataset.stockSymbol }] })
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (currentRequestId !== requestId || !list.contains(button)) return;
+        const updated = data.ok === true && Array.isArray(data.items) ? data.items[0] : null;
+        if (!updated || updated.name !== name || updated.symbol !== button.dataset.stockSymbol) return;
+        const issue = button.querySelector('[data-stock-issue]');
+        if (issue) issue.textContent = sidebarIssueTitle(updated.headline);
+      } catch (_) {
+        // Keep the previous headline on transient read failures.
+      }
+    };
+    window.addEventListener('gaemi:analysis-issues-ready', (event) => {
+      void refreshAnalyzedIssue(event);
+    });
+
+    changeSortButton?.addEventListener('click', () => {
+      if (tab !== 'value') return;
+      changeSorted = !changeSorted;
+      applyChangeSort();
+    });
+
+    bindStaticSelection('[data-info-tab-action]', 1);
+    sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
+      if (button.disabled) return;
+      button.addEventListener('click', () => {
+        const nextTab = button.dataset.infoTabAction;
+        if (tab !== nextTab) ++requestId;
+        tab = nextTab;
+        customOrder = readOrder();
+        changeSorted = false;
+        void showUsRanking();
+      });
+    });
+    sidebar.dataset.marketControlsBound = 'true';
+    window.GaemiGTPMarketSidebar.refreshLiveQuotes = refreshOnReturn;
+    // Closed panels and background tabs consume no ranking or quote reads.
+    if (sidebarActive()) void showUsRanking();
+    window.setInterval(() => {
+      if (draggedRow || document.visibilityState !== 'visible') return;
+      if (sidebarActive() && tab === 'value') void showUsRanking();
+      if (sidebarActive() || quoteConsumersActive()) void readLatestQuotes();
+    }, 3000);
+  }
+
+  document.addEventListener('DOMContentLoaded', bindMarketControls);
+
+  window.toggleLeftSidebar = toggle;
+  window.GaemiGTPMarketSidebar = { toggle, bindMarketControls };
+}());
+ + item.trading_value.toLocaleString('en-US') : '');
+          industryLabel.textContent = [industryLabel.textContent, turnover].filter(Boolean).join(' · ');
           industry.append(watchStar, industryLabel);
           const change = document.createElement('span');
           const pct = item.change_pct;
