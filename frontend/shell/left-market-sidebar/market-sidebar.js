@@ -119,6 +119,7 @@
     const title = sidebar.querySelector('#rightListTitle');
     const changeSortButton = sidebar.querySelector('#rightListMetric');
     const backendUrl = window.location.hostname.endsWith('github.io')
+      || window.location.hostname === 'gaemigtp-main.pages.dev'
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
     const market = 'us';
     let tab = 'value';
