@@ -35,6 +35,9 @@ try:
     print("SNAPSHOT_EXCHANGE_PRESENT",
           sum(bool(r.get("exchange")) for r in rows), flush=True)
     print("SNAPSHOT_CAPTURED", str(data.get("captured_at"))[:40], flush=True)
+    # Public ranking values only; never print credentials or provider payloads.
+    public_rows = [{k: row.get(k) for k in ("rank", "symbol", "name", "exchange", "trading_value", "volume")} for row in rows]
+    print("SNAPSHOT_PUBLIC_JSON", json.dumps({"captured_at":data.get("captured_at"), "items":public_rows}, ensure_ascii=False, separators=(",",":")), flush=True)
 except (OSError, ValueError, TypeError, AssertionError) as exc:
     print("SNAPSHOT_ERROR", type(exc).__name__, flush=True)
 
@@ -42,10 +45,10 @@ for path in (
     Path("/etc/gaemigtp/news-worker.env"),
     Path("/var/lib/gaemigtp-news/r2.env"),
 ):
-    if not path.is_file():
-        print("ENV_FILE", path.name, "absent", flush=True)
-        continue
     try:
+        if not path.is_file():
+            print("ENV_FILE", path.name, "absent", flush=True)
+            continue
         raw = path.read_text(encoding="utf-8")
         found = set()
         for line in raw.splitlines():
