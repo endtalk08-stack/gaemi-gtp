@@ -88,42 +88,42 @@ def sync_once_after_close(dsn: str, *, now: dt.datetime | None = None) -> str:
                  GROUP BY s.id ORDER BY s.captured_at DESC LIMIT 1
             """, (start, end))
             existing = cur.fetchone()
-            if existing:
-                if existing[1] == 20:
-                    return "already_saved_today"
+            if existing and existing[1] != 20:
                 raise RuntimeError("existing_incomplete_daily_snapshot")
-            cur.execute("""
-                INSERT INTO public.market_instruments
-                    (market, symbol, display_name, exchange)
-                SELECT 'US', x.symbol, x.name, x.exchange
-                  FROM jsonb_to_recordset(%s::jsonb)
-                    AS x(rank int, symbol text, name text, exchange text,
-                         trading_value numeric, volume bigint)
-                ON CONFLICT (market,symbol) DO NOTHING
-            """, (payload,))
-            cur.execute("""
-                INSERT INTO public.market_rank_snapshots
-                    (source,market,rank_type,captured_at,source_payload)
-                VALUES ('kiwoom','US','trading_value',%s,%s::jsonb)
-                ON CONFLICT (source,market,rank_type,captured_at) DO NOTHING
-                RETURNING id
-            """, (captured, json.dumps({"schema_version": 1, "count": 20})))
-            added = cur.fetchone()
-            if not added:
-                raise RuntimeError("daily_snapshot_write_conflict")
-            snapshot_id = added[0]
-            cur.execute("""
-                INSERT INTO public.market_rank_entries
-                    (snapshot_id,rank,market,symbol,display_name,trading_value,volume)
-                SELECT %s,x.rank,'US',x.symbol,x.name,x.trading_value,x.volume
-                  FROM jsonb_to_recordset(%s::jsonb)
-                    AS x(rank smallint,symbol text,name text,exchange text,
-                         trading_value numeric,volume bigint)
-                ON CONFLICT (snapshot_id,rank) DO NOTHING
-            """, (snapshot_id, payload))
-            cur.execute("SELECT COUNT(*) FROM public.market_rank_entries WHERE snapshot_id=%s", (snapshot_id,))
-            if cur.fetchone()[0] != 20:
-                raise RuntimeError("daily_snapshot_not_atomic")
+            saved_today = bool(existing)
+            if not saved_today:
+                cur.execute("""
+                    INSERT INTO public.market_instruments
+                        (market, symbol, display_name, exchange)
+                    SELECT 'US', x.symbol, x.name, x.exchange
+                      FROM jsonb_to_recordset(%s::jsonb)
+                        AS x(rank int, symbol text, name text, exchange text,
+                             trading_value numeric, volume bigint)
+                    ON CONFLICT (market,symbol) DO NOTHING
+                """, (payload,))
+                cur.execute("""
+                    INSERT INTO public.market_rank_snapshots
+                        (source,market,rank_type,captured_at,source_payload)
+                    VALUES ('kiwoom','US','trading_value',%s,%s::jsonb)
+                    ON CONFLICT (source,market,rank_type,captured_at) DO NOTHING
+                    RETURNING id
+                """, (captured, json.dumps({"schema_version": 1, "count": 20})))
+                added = cur.fetchone()
+                if not added:
+                    raise RuntimeError("daily_snapshot_write_conflict")
+                snapshot_id = added[0]
+                cur.execute("""
+                    INSERT INTO public.market_rank_entries
+                        (snapshot_id,rank,market,symbol,display_name,trading_value,volume)
+                    SELECT %s,x.rank,'US',x.symbol,x.name,x.trading_value,x.volume
+                      FROM jsonb_to_recordset(%s::jsonb)
+                        AS x(rank smallint,symbol text,name text,exchange text,
+                             trading_value numeric,volume bigint)
+                    ON CONFLICT (snapshot_id,rank) DO NOTHING
+                """, (snapshot_id, payload))
+                cur.execute("SELECT COUNT(*) FROM public.market_rank_entries WHERE snapshot_id=%s", (snapshot_id,))
+                if cur.fetchone()[0] != 20:
+                    raise RuntimeError("daily_snapshot_not_atomic")
             cur.execute("""
                 SELECT symbol,exchange,sector FROM public.market_instruments
                  WHERE market='US' AND sector IS NOT NULL AND btrim(sector)<>''
@@ -136,7 +136,7 @@ def sync_once_after_close(dsn: str, *, now: dt.datetime | None = None) -> str:
     # Publishing an unchanged 5-KB JSON once/day is cheap; credentials are optional.
     # A missing R2 credential never prevents the verified Neon record or charts.
     if not (os.getenv("R2_ACCESS_KEY_ID") and os.getenv("R2_SECRET_ACCESS_KEY")):
-        return "saved_20_r2_credentials_unavailable"
+        return "already_saved_today_r2_credentials_unavailable" if saved_today else "saved_20_r2_credentials_unavailable"
     from backend.services.r2_news_uploader import upload_file
     output = {
         "schema_version": 1, "source": "neon", "market": "US",
@@ -150,6 +150,8 @@ def sync_once_after_close(dsn: str, *, now: dt.datetime | None = None) -> str:
             filename = handle.name
             json.dump(output, handle, ensure_ascii=False, separators=(",", ":"))
         success = upload_file(Path(filename), object_key=R2_OBJECT)
+        if saved_today:
+            return "already_saved_today_r2_updated" if success else "already_saved_today_r2_upload_failed"
         return "saved_20_r2_updated" if success else "saved_20_r2_upload_failed"
     finally:
         if filename:
