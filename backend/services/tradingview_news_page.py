@@ -195,8 +195,7 @@ def classify_article(article):
         return {"code": "major_index", "label": "주요지수"}, market_matches, "market"
     if market_matches:
         return market_matches[0], market_matches, "market"
-    if "overall" in source_categories or "futures" in source_categories:
-        return {"code": "market_trend", "label": "시장동향"}, [], "market"
+    # The overall feed by itself does not qualify a story for publication.
     return {"code": "other", "label": "기타"}, [], "other"
 
 
@@ -290,10 +289,6 @@ def normalize_article(article):
     ]
     if section == "other" and market_evidence:
         primary, matches, section = market_evidence[0], market_matches, "market"
-    elif section == "other" and "overall" in (article.get("news_categories") or []):
-        # Do not silently discard an overall-feed story merely because it
-        # has a US equity symbol but no one of the 14 stock-event keywords.
-        primary, matches, section = {"code": "market_trend", "label": "시장동향"}, market_matches, "market"
     stock_matches = matches if section == "stock" else []
     market_primary = (
         next((m for m in market_matches
@@ -355,12 +350,47 @@ def normalize_article(article):
     }
 
 
+
+def select_articles(items):
+    """Select only displayable news before any article-detail request.
+
+    Exact matching headlines are deduplicated even when TradingView returns
+    different article IDs. Prefer an existing full body so it is not fetched again.
+    """
+    selected = {}
+    seen_ids = set()
+    for article in items or []:
+        if not isinstance(article, dict):
+            continue
+        title = _text(article.get("title"))
+        if not title:
+            continue
+        id_key = str(article.get("id") or article.get("newsId") or "").strip()
+        if id_key and id_key in seen_ids:
+            continue
+        normalized = normalize_article(article)
+        if normalized["event_category"]["code"] == "other":
+            continue
+        if id_key:
+            seen_ids.add(id_key)
+        title_key = title.casefold()
+        previous = selected.get(title_key)
+        if previous is None:
+            selected[title_key] = article
+            continue
+        # Retain previously retrieved details for duplicate headlines.
+        current_body = str(article.get("detail_body") or "")
+        previous_body = str(previous.get("detail_body") or "")
+        if len(current_body) > len(previous_body):
+            selected[title_key] = article
+    return list(selected.values())
+
+
+
 def build_snapshot(items, *, generated_at=None):
     rows = []
     seen = set()
-    for article in list(items or []):
-        if not isinstance(article, dict):
-            continue
+    for article in select_articles(items):
         row = normalize_article(article)
         if not row["title"] or row["event_category"]["code"] == "other":
             continue
