@@ -128,6 +128,34 @@
     let draggedRow = null;
     let lastRankingSignature = '';
     let cachedRankingRows = [];
+    let industryBySymbol = new Map();
+    let industryPromise = null;
+    const applyIndustryLabels = () => {
+      list?.querySelectorAll(':scope > button[data-original-index]')?.forEach((button) => {
+        const label = button.querySelector('[data-market-industry]');
+        if (!label) return;
+        label.textContent = industryBySymbol.get(button.dataset.stockSymbol) || '';
+      });
+    };
+    const loadIndustryLabels = () => {
+      if (industryPromise) return industryPromise;
+      // One small R2 metadata read per visible page session; never query Neon here.
+      industryPromise = fetch('/stocks/us/instruments.json', { cache: 'default' })
+        .then((response) => {
+          if (!response.ok) throw new Error('industry R2 unavailable');
+          return response.json();
+        })
+        .then((data) => {
+          if (!Array.isArray(data?.items)) throw new Error('invalid industry metadata');
+          industryBySymbol = new Map(data.items
+            .filter((item) => typeof item?.symbol === 'string' &&
+              typeof item?.industry === 'string' && item.industry.trim())
+            .map((item) => [item.symbol, item.industry.trim()]));
+          applyIndustryLabels();
+        })
+        .catch(() => { industryPromise = null; });
+      return industryPromise;
+    };
     let quoteRequestInFlight = false;
     let nextQuoteReadAt = 0;
     let nextRankingReadAt = 0;
@@ -370,11 +398,10 @@
           });
           const industryLabel = document.createElement('span');
           industryLabel.className = 'market-stock-industry-label';
-          industryLabel.textContent = typeof item.industry === 'string' ? item.industry : '';
-          const turnover = typeof item.trading_value_text === 'string' ? item.trading_value_text
-            : (typeof item.trading_value === 'number' && Number.isFinite(item.trading_value)
-              ? '$' + item.trading_value.toLocaleString('en-US') : '');
-          industryLabel.textContent = [industryLabel.textContent, turnover].filter(Boolean).join(' · ');
+          industryLabel.dataset.marketIndustry = 'true';
+          // Turnover still determines ranking; show only verified industry metadata.
+          industryLabel.textContent = industryBySymbol.get(String(item.symbol || '')) ||
+            (typeof item.industry === 'string' ? item.industry : '');
           industry.append(watchStar, industryLabel);
           const change = document.createElement('span');
           const pct = item.change_pct;
@@ -399,6 +426,7 @@
           list.appendChild(button);
         });
         applyChangeSort();
+        void loadIndustryLabels();
         // The initial list is ready: request the current quote now instead of
         // waiting for the next timer tick or relying on a panel-open CSS class.
         void readLatestQuotes();
