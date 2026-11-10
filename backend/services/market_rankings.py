@@ -246,68 +246,6 @@ def _normalize_kr_stock_rows(raw, limit):
     return items
 
 
-def _read_kiwoom_us_value_rows():
-    """Render reads the existing DigitalOcean-collected Neon Top 20 snapshot.
-
-    No market-data HTTP calls, provider tokens, ranking guesses or database writes.
-    """
-    dsn = os.environ.get("NEWS_DATABASE_URL", "").strip()
-    if not dsn:
-        return None
-    try:
-        import psycopg
-        with psycopg.connect(dsn, connect_timeout=3) as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT e.rank, e.symbol, e.display_name,
-                           e.price, e.change_rate, e.trading_value, e.volume,
-                           i.sector, i.company_key, i.news_name, i.identity_status
-                      FROM public.market_rank_entries e
-                      JOIN public.market_instruments i
-                        ON i.market=e.market AND i.symbol=e.symbol
-                     WHERE e.market='US' AND e.snapshot_id=(
-                        SELECT s.id FROM public.market_rank_snapshots s
-                         WHERE s.source='kiwoom' AND s.market='US'
-                           AND s.rank_type='trading_value'
-                         ORDER BY s.captured_at DESC,s.id DESC LIMIT 1
-                     )
-                     ORDER BY e.rank LIMIT 20
-                """)
-                records = cur.fetchall()
-    except Exception as exc:
-        print("[market rank] kiwoom snapshot read failed: " + type(exc).__name__, flush=True)
-        return None
-    # Reject an incomplete source list rather than replacing it with Naver.
-    if len(records) != 20 or [int(row[0]) for row in records] != list(range(1, 21)):
-        return None
-    items = []
-    for rank, symbol, name, price, change, amount, volume, sector, company_key, news_name, status in records:
-        stock_price = _number(price)
-        pct = _number(change)
-        if not symbol or not name or stock_price is None or stock_price <= 0 or pct is None:
-            return None
-        items.append({
-            "rank": int(rank), "name": str(name), "symbol": str(symbol),
-            "analysis_symbol": str(symbol), "industry": str(sector) if sector else None,
-            # Keep the worker-registered identity; only verified keys may bind news.
-            "company_key": str(company_key) if company_key else None,
-            "news_name": str(news_name) if news_name else None,
-            "identity_status": str(status) if status else None,
-            "price": stock_price, "change_pct": pct,
-            "trading_value": _number(amount),
-            "trading_value_text": None, "volume": int(volume) if volume is not None else None,
-        })
-    return items
-
-
-def build_us_trading_value_result(limit=20):
-    """Read DigitalOcean's Kiwoom-ranked rows from Neon; never collect on Render."""
-    rows = _read_kiwoom_us_value_rows()
-    if rows is None:
-        return None
-    _remember_market_result("us", "value", rows)
-    return rows[:max(0, min(int(limit), 20))]
-
 
 def _normalize_us_stock_rows(raw, limit):
     if raw is None:
