@@ -41,6 +41,20 @@ try:
 except (OSError, ValueError, TypeError, AssertionError) as exc:
     print("SNAPSHOT_ERROR", type(exc).__name__, flush=True)
 
+
+# Never overwrite deployed collectors without a matching source fingerprint.
+for relative in ("backend/kiwoom_us_daily_collector.py",
+                 "backend/services/r2_news_uploader.py",
+                 "backend/providers/kiwoom_us_industry.py"):
+    p = Path("/opt/gaemigtp-news/app") / relative
+    try:
+        result = subprocess.run(("git", "hash-object", "--", str(p)),
+                                capture_output=True, text=True, timeout=5)
+        print("DEPLOYED_BLOB", relative,
+              result.stdout.strip() if result.returncode == 0 else "unavailable", flush=True)
+    except (OSError, subprocess.TimeoutExpired):
+        print("DEPLOYED_BLOB", relative, "unavailable", flush=True)
+
 for path in (
     Path("/etc/gaemigtp/news-worker.env"),
     Path("/var/lib/gaemigtp-news/r2.env"),
