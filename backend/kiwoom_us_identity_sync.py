@@ -1,7 +1,7 @@
-"""Kiwoom rank ticker/name -> Neon identity registration (no news or AI calls).
+"""Kiwoom ticker/name matching for DigitalOcean local TOP20 (no DB calls).
 
 Only exact ticker/name pairs observed in the provider's completed Top 20 may
-be registered. New listings receive a ticker-specific key, never a fuzzy
+be matched locally. New listings receive a ticker-specific key, never a fuzzy
 alias of an existing company's news. Known ticker/name conflicts stay pending.
 """
 from backend.analysis.news.stock_identity import (
@@ -37,78 +37,3 @@ def identity_from_kiwoom(name, symbol):
     return {"company_key": "US:" + ticker, "news_name": name,
             "status": "verified", "ticker": ticker}
 
-
-def upsert_kiwoom_identity(cur, symbol, name, exchange=None):
-    identity = identity_from_kiwoom(name, symbol)
-    if identity is None:
-        raise ValueError("invalid_kiwoom_identity")
-    cur.execute(
-        """INSERT INTO public.market_instruments
-           (market,symbol,display_name,exchange,company_key,news_name,identity_status,
-            is_active,last_seen_at)
-           VALUES ('US',%s,%s,%s,%s,%s,%s,true,NOW())
-           ON CONFLICT (market,symbol) DO UPDATE SET
-             display_name=EXCLUDED.display_name,
-             last_seen_at=NOW(),is_active=true,
-             exchange=COALESCE(EXCLUDED.exchange,market_instruments.exchange),
-             company_key=CASE
-               WHEN market_instruments.identity_status='verified'
-                 AND (EXCLUDED.identity_status<>'verified'
-                      OR market_instruments.company_key<>EXCLUDED.company_key)
-               THEN market_instruments.company_key ELSE EXCLUDED.company_key END,
-             news_name=CASE
-               WHEN market_instruments.identity_status='verified'
-                 AND (EXCLUDED.identity_status<>'verified'
-                      OR market_instruments.company_key<>EXCLUDED.company_key)
-               THEN market_instruments.news_name ELSE EXCLUDED.news_name END,
-             identity_status=CASE
-               WHEN market_instruments.identity_status='verified'
-                 AND (EXCLUDED.identity_status<>'verified'
-                      OR market_instruments.company_key<>EXCLUDED.company_key)
-               THEN 'review' ELSE EXCLUDED.identity_status END""",
-        (identity["ticker"], name, exchange, identity["company_key"],
-         identity["news_name"], identity["status"]),
-    )
-    return identity
-
-
-def repair_saved_top20(database_url):
-    """Fill identities from already stored Kiwoom data; no provider requests."""
-    import psycopg
-    with psycopg.connect(database_url, connect_timeout=7) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """SELECT e.rank,e.symbol,e.display_name,e.entry_payload->>'exchange',
-                          i.company_key,i.news_name,i.identity_status,i.is_active
-                   FROM public.market_rank_entries e
-                   LEFT JOIN public.market_instruments i ON
-                       i.market='US' AND i.symbol=e.symbol
-                   WHERE e.market='US' AND e.snapshot_id=(
-                       SELECT id FROM public.market_rank_snapshots
-                       WHERE source='kiwoom' AND market='US'
-                         AND rank_type='trading_value'
-                       ORDER BY captured_at DESC,id DESC LIMIT 1
-                   ) ORDER BY e.rank"""
-            )
-            rows = cur.fetchall()
-            if len(rows) != 20 or [row[0] for row in rows] != list(range(1, 21)):
-                raise ValueError("incomplete_saved_kiwoom_top20")
-            if len({row[1] for row in rows}) != 20:
-                raise ValueError("duplicate_kiwoom_ticker")
-            verified = 0
-            updated = 0
-            for _, symbol, name, exchange, company_key, news_name, status, active in rows:
-                identity = identity_from_kiwoom(name, symbol)
-                if identity is None:
-                    raise ValueError("invalid_saved_kiwoom_identity")
-                verified += identity["status"] == "verified"
-                # Outside the US session the existing timer still fires each
-                # minute. Avoid 20 unnecessary Neon writes every minute.
-                if (company_key, news_name, status, active) == (
-                    identity["company_key"], identity["news_name"], identity["status"], True
-                ):
-                    continue
-                upsert_kiwoom_identity(cur, symbol, name, exchange)
-                updated += 1
-        conn.commit()
-    return {"rows": len(rows), "verified": verified, "updated": updated}
