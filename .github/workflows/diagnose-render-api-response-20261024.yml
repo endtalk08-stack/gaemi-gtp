@@ -16,7 +16,6 @@ jobs:
           import urllib.request, urllib.parse
           base='https://gaemi-gtp.onrender.com'
           for path,params in [
-              ('/market/trading-value',{'market':'us'}),
               ('/analyze',{'stock':'마이크론 테크놀로지','market':'us','menu':'value','symbol':'MU'}),
               ('/',{})]:
               url=base+path+('?' + urllib.parse.urlencode(params) if params else '')
