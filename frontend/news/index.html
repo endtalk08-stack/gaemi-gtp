@@ -305,23 +305,23 @@ function filterNews(){
  vis=INIT;renderNews();
 }
 function listBodyExcerpt(n){
- const direct=String(n.list_excerpt||"").replace(/\\s+/g," ").trim();
+ const direct=String(n.list_excerpt||"").replace(/\s+/g," ").trim();
  if(direct)return direct;
  const body=String(n.body||"");
  if(!body.trim())return "";
- const chunks=body.split(/\\n\\s*\\n+/);
+ const chunks=body.split(/\n\s*\n+/);
  const picked=[];
  let size=0;
  for(const chunk of chunks){
-  const paragraph=chunk.replace(/\\s+/g," ").trim();
+  const paragraph=chunk.replace(/\s+/g," ").trim();
   if(!paragraph||paragraph.length>2500)continue;
-  const sentences=paragraph.match(/[^.!?。]+[.!?。]+(?=\\s|$)|[^.!?。]+$/g)||[paragraph];
+  const sentences=paragraph.match(/[^.!?。]+[.!?。]+(?=\s|$)|[^.!?。]+$/g)||[paragraph];
   for(const raw of sentences){
    const sentence=raw.trim();
    if(sentence.length<12||sentence.length>300)continue;
    if(/^(?:면책|법적 고지|회사 소개|forward-looking|about |관련 문의)/i.test(sentence))continue;
-   if((sentence.match(/\\d+(?:[,.]\\d+)*/g)||[]).length>=12)continue;
-   if((sentence.match(/\\$[\\d,]+/g)||[]).length>=3)continue;
+   if((sentence.match(/\d+(?:[,.]\d+)*/g)||[]).length>=12)continue;
+   if((sentence.match(/\$[\d,]+/g)||[]).length>=3)continue;
    if(picked.includes(sentence))continue;
    if(size+sentence.length+(picked.length?1:0)>420)continue;
    picked.push(sentence);size+=sentence.length+1;
