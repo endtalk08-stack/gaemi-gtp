@@ -270,7 +270,10 @@
       if (cached && Date.now() - cached.at < CHART_HISTORY_TTL) {
         data = cached.data;
       } else {
-        const response = await fetch(BACKEND_URL + '/market/us-daily-chart?symbol=' +
+        // Only the new Pages site reads chart history from R2; Render remains unchanged.
+        const chartOrigin = window.location.hostname === 'gaemigtp-main.pages.dev'
+          ? window.location.origin : BACKEND_URL;
+        const response = await fetch(chartOrigin + '/market/us-daily-chart?symbol=' +
           encodeURIComponent(symbol), { cache: 'default', signal: controller.signal });
         data = await response.json();
         responseOk = response.ok;
