@@ -336,7 +336,8 @@ function renderNews(){
  list.innerHTML=filtered.slice(0,vis).map(n=>
   '<article class="news-item" tabindex="0" role="button" data-id="'+escapeHTML(n._index)+'">'+
   '<div class="news-card-head"><div class="news-tags"><span class="news-category">'+escapeHTML(majorCategory(n))+'</span><span class="news-category">'+escapeHTML(displayCategory(n))+'</span></div><span class="news-source">'+escapeHTML(n.source||"출처 미확인")+'</span></div>'+
-  '<div class="news-title">'+escapeHTML(n.title)+'</div>'+\n  (listBodyExcerpt(n)?'<p class="news-summary">'+escapeHTML(listBodyExcerpt(n))+'</p>':'')+
+  '<div class="news-title">'+escapeHTML(n.title)+'</div>'+
+  (listBodyExcerpt(n)?'<p class="news-summary">'+escapeHTML(listBodyExcerpt(n))+'</p>':'')+
   // News list: titles only. Keep summary/body data for the article detail view.
   '<div class="news-card-foot"><span class="news-time">'+escapeHTML(timeLabel(n.published_at))+'</span></div></article>').join("");
  more.classList.toggle("hidden",vis>=filtered.length);
