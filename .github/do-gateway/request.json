@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/services/us_top20_metadata_sync.py","target":"backend/services/us_top20_metadata_sync.py"}
+{"operation":"run","path":"ops/do-gateway/test_top20_r2_duplicate_offline_20261111.py","request_id":"top20r2regression1111a","timeout":90}
