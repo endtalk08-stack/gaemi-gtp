@@ -110,6 +110,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     location: { hostname: 'gaemi-gtp.onrender.com', origin: 'https://gaemi-gtp.onrender.com' },
     // Fake browser: acknowledge polling without starting a background timer.
     setInterval() { return 1; },
+    setTimeout() { return 1; },
+    clearTimeout() {},
     addEventListener(name, fn) { (listeners[name] ||= []).push(fn); },
     dispatchEvent(event) { for (const fn of listeners[event.type] || []) fn(event); }
   };
@@ -141,6 +143,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   };
   vm.runInNewContext(stockMarksSource, { window });
   vm.runInNewContext(sidebarSource, {
+    AbortController,
     window, document, fetch, console, localStorage,
     Date: { now: () => mockNow },
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } }
