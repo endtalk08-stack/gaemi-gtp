@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-value.service",
-  "lines": 45
+  "operation": "run",
+  "path": "ops/do-gateway/check_top20_response_20261110.py",
+  "request_id": "checktop20nov10",
+  "timeout": 60
 }
