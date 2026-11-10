@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/test_top20_r2_duplicate_offline_20261111.py","request_id":"top20r2regression1111b","timeout":90}
+{"operation":"deploy","path":"ops/systemd/gaemigtp-kiwoom-us-daily.service","target":"ops/systemd/gaemigtp-kiwoom-us-daily.service"}
