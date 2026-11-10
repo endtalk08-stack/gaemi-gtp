@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/probe_top20_listener_readonly_20261110.py",
-  "request_id": "top20listener20261110a",
-  "timeout": 60
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_top20_api.py",
+  "target": "backend/kiwoom_us_top20_api.py"
 }
