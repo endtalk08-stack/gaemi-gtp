@@ -19,6 +19,7 @@ ALLOWED_ORIGINS = {
     "https://gaemigtp.com",
     "https://www.gaemigtp.com",
     "https://gaemigtp-news.pages.dev",
+    "https://gaemigtp-main.pages.dev",
 }
 SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
 
