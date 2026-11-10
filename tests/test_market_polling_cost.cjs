@@ -3,8 +3,8 @@ let now=100000,chart=false;const calls=[],intervals=[],events={};const classes=n
 const list={addEventListener(){},querySelector(){return null;},querySelectorAll(){return[];},replaceChildren(){},textContent:''};
 const sidebar={dataset:{},querySelector(s){return s==='#marketRankingList'?list:null;},querySelectorAll(){return[];}};
 const document={visibilityState:'visible',body:{classList:{contains:x=>classes.has(x)}},getElementById:x=>x==='leftMarketSidebar'?sidebar:null,addEventListener:(n,f)=>events[n]=f};
-const window={innerWidth:1200,location:{hostname:'localhost',origin:'http://local'},addEventListener(){},dispatchEvent(){},setInterval:f=>intervals.push(f),GaemiGTPWidgetDock:{isActive:()=>false,isInlineChartActive:()=>chart}};
-const context={window,document,localStorage:{getItem:()=>null},Date:class extends Date{static now(){return now;}},console,CustomEvent:class{},fetch:async u=>{calls.push(u);return {ok:false};}};
+const window={innerWidth:1200,location:{hostname:'localhost',origin:'http://local'},addEventListener(){},dispatchEvent(){},setInterval:f=>intervals.push(f),setTimeout:()=>1,clearTimeout(){},GaemiGTPWidgetDock:{isActive:()=>false,isInlineChartActive:()=>chart}};
+const context={AbortController,window,document,localStorage:{getItem:()=>null},Date:class extends Date{static now(){return now;}},console,CustomEvent:class{},fetch:async u=>{calls.push(u);return {ok:false};}};
 vm.runInNewContext(fs.readFileSync(__dirname+'/../frontend/shell/left-market-sidebar/market-sidebar.js','utf8'),context);
 const flush=()=>new Promise(r=>setImmediate(r));
 (async()=>{
