@@ -1,7 +1,9 @@
 """Offline TOP20 metadata idempotence regression test. No network or DB writes."""
 import datetime as dt
 import json
+import sys
 from unittest.mock import patch
+sys.path.insert(0, '/opt/gaemigtp-news/app')
 
 from backend.services import us_top20_metadata_sync as m
 from backend.services import r2_news_uploader
