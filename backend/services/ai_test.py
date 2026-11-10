@@ -137,16 +137,16 @@ def _market_ranking_reply(question):
     rows = get_market_menu_rows(market, menu)
     if not rows:
         from .market_rankings import (
-            build_kr_trading_value_result, build_us_trading_value_result,
+            build_kr_trading_value_result,
             build_kr_popular_result, build_us_popular_result,
         )
         builder = {
             ("kr", "value"): build_kr_trading_value_result,
-            ("us", "value"): build_us_trading_value_result,
             ("kr", "popular"): build_kr_popular_result,
             ("us", "popular"): build_us_popular_result,
-        }[(market, menu)]
-        builder(limit=20)
+        }.get((market, menu))
+        if builder is not None:
+            builder(limit=20)
         rows = get_market_menu_rows(market, menu)
     label = ("미국" if market == "us" else "국내") + (" 거래대금" if menu == "value" else " 인기순위")
     if not rows:
