@@ -425,7 +425,7 @@
       if (quoteRequestInFlight || (!paintRanking && !quoteConsumersActive())) return;
       quoteRequestInFlight = true;
       try {
-        const response = await fetch(backendUrl + '/market/us-live-quotes', { cache: 'no-store' });
+        const response = await fetch('https://quotes.gaemigtp.com/market/us-live-quotes', { cache: 'no-store' });
         if (!response.ok) throw new Error('quotes unavailable');
         const data = await response.json();
         if (data.ok !== true || !Array.isArray(data.items)) return;
