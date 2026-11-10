@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.private_access import install_private_access
-from backend.services.market_rankings import (build_kr_trading_value_result, build_us_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
+from backend.services.market_rankings import (build_kr_trading_value_result, build_kr_popular_result, build_us_popular_result, get_market_selection, analysis_ticker_for_selection)
 from backend.services.market_issue_headlines import get_market_issue_headlines
 
 from backend.services.engine import analyze_stock, fetch_dart_disclosure_detail, fetch_dart_executive_shareholdings, fetch_us_official_filings, get_live_calendar_data, start_calendar_warmup
@@ -79,8 +79,11 @@ def market_trading_value():
     market = str(request.args.get("market", "kr") or "").strip().lower()
     if market not in ("kr", "us"):
         return jsonify({"ok": False, "error": "invalid_market", "items": []}), 400
-    builder = build_us_trading_value_result if market == "us" else build_kr_trading_value_result
-    items = builder(limit=20)
+    # US TOP20 must come from the DigitalOcean local Kiwoom API, never Neon.
+    # Do not revive the legacy database path as a fallback.
+    if market == "us":
+        return jsonify({"ok": False, "items": [], "error": "digitalocean_top20_route_not_connected"}), 503
+    items = build_kr_trading_value_result(limit=20)
     if items is None:
         return jsonify({"ok": False, "items": [], "error": "source_unavailable"}), 502
     issue_rows = [{"name": item.get("name"), "symbol": item.get("symbol")} for item in items]
