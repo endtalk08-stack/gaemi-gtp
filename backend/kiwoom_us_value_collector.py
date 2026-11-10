@@ -8,7 +8,6 @@ import os
 from zoneinfo import ZoneInfo
 
 from backend.providers.kiwoom_us_rankings import fetch_us_trading_value_top
-from backend.kiwoom_us_identity_sync import repair_saved_top20
 
 
 def _write_local_news_top20(rows, captured_at, *, target_path=None):
@@ -71,15 +70,7 @@ def main():
     import sys
     from pathlib import Path
     if len(sys.argv) > 1:
-        if sys.argv[1:] != ["--identity-repair"]:
-            raise ValueError("unsupported_collector_argument")
-        database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
-        if not database_url:
-            raise ValueError("database_url_missing")
-        report = repair_saved_top20(database_url)
-        print("KIWOOM_US_IDENTITY_REPAIRED=%s verified=%s" %
-              (report["rows"], report["verified"]), flush=True)
-        return 0
+        raise ValueError("unsupported_collector_argument")
 
     ny = dt.datetime.now(ZoneInfo("America/New_York"))
     in_session = (ny.weekday() < 4 or
