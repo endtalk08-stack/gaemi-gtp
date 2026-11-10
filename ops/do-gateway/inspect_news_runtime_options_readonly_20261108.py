@@ -23,4 +23,11 @@ for k in keys:
 for unit in ("gaemigtp-news.service","gaemigtp-tradingview-news.service"):
  p=subprocess.run(["systemctl","is-active",unit],capture_output=True,text=True)
  print("RUNTIME_UNIT="+unit+" ACTIVE="+p.stdout.strip())
+# The gateway's systemd-run already loads the same news-worker.env.
+# Print only bounded non-secret settings, never API tokens or environment dumps.
+import os
+v=os.environ.get("NEWS_DETAIL_REQUEST_BUDGET","[unset]").strip()
+print("EFFECTIVE_NEWS_DETAIL_REQUEST_BUDGET="+v if (v=="[unset]" or (v.isascii() and v.isdigit() and len(v)<8)) else "EFFECTIVE_NEWS_DETAIL_REQUEST_BUDGET=[invalid]")
+w=os.environ.get("NEWS_DETAIL_PUBLICATION_ALLOWED","[unset]").strip()
+print("EFFECTIVE_NEWS_DETAIL_PUBLICATION_ALLOWED="+w if w in ("0","1","[unset]") else "EFFECTIVE_NEWS_DETAIL_PUBLICATION_ALLOWED=[other]")
 print("NEWS_RUNTIME_OPTIONS_INSPECT_OK=1")
