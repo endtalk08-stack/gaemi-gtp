@@ -22,7 +22,7 @@ try:
     p.make_chart("../FOO",rows)
     raise AssertionError("symbol validation failed")
 except ValueError: pass
-assert u.re.fullmatch(r"(?:news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}|charts/us/[A-Z][A-Z0-9.-]{0,14}/daily)\\.json","charts/us/NVDA/daily.json")
+assert u.re.fullmatch(r"(?:news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}|charts/us/[A-Z][A-Z0-9.-]{0,14}/daily)\.json","charts/us/NVDA/daily.json")
 class Cur:
     def __enter__(self):return self
     def __exit__(self,*args):return False
