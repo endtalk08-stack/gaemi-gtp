@@ -10,6 +10,8 @@ Group=gaemigtp-news
 WorkingDirectory=/opt/gaemigtp-news/app
 EnvironmentFile=/etc/gaemigtp/kiwoom.env
 EnvironmentFile=/etc/gaemigtp/news-worker.env
+# Use the existing R2 credential file, without creating new secrets.
+EnvironmentFile=-/var/lib/gaemigtp-news/r2.env
 ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_us_daily_collector --bootstrap
 TimeoutStartSec=240
 NoNewPrivileges=true
