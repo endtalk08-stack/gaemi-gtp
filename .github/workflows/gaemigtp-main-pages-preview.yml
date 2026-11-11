@@ -1,0 +1,43 @@
+name: gaemigtp-main Pages preview
+on:
+  push:
+    branches: [ops/gaemigtp-main-pages-preview]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gaemigtp-main-pages-preview
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/ops/gaemigtp-main-pages-preview'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Pages inputs
+        run: |
+          test -s frontend/index.html
+          test -s functions/market/us-daily-chart.js
+          node --check frontend/shell/right-panel/right-panel-tabs.js
+      - name: Deploy to existing Pages project preview
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch github-pages-preview
+      - name: Verify preview and R2-backed chart
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          case "$PREVIEW_URL" in
+            https://*.gaemigtp-main.pages.dev) ;;
+            *) exit 1 ;;
+          esac
+          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/" -o "$RUNNER_TEMP/pages-index.html"
+          cmp frontend/index.html "$RUNNER_TEMP/pages-index.html"
+          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/market/us-daily-chart?symbol=NVDA" |
+            jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
