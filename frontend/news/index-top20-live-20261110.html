@@ -288,7 +288,7 @@ function category(n){
  const title=safeText(n.title).toLowerCase();
  const actualVsEstimate=/(?:전망치|예상치|추정치)\s*(?:를|을)?\s*(?:상회|하회|웃돌|밑돌|초과|미달|넘었|못\s*미쳤)|(?:beat|miss(?:ed|es)?|tops?|exceeds?)\s+(?:revenue\s+)?(?:forecast|estimates?|expectations?)/i.test(title);
  const forwardGuidance=/(?:가이던스|향후\s*전망|다음\s*분기.{0,18}전망|연간.{0,18}전망|(?:매출|실적|이익)\s*전망|전망\s*(?:상향|하향|조정)|guidance|outlook|forecast)/i.test(title);
- if((code==="earnings"||code==="guidance"||stored==="실적 발표"||stored==="실적 전망")&&actualVsEstimate)return "실적 발표";
+ if(actualVsEstimate&&n.news_section==="stock")return "실적 발표";
  if(forwardGuidance&&(code==="earnings"||code==="guidance"||stored==="실적 발표"||stored==="실적 전망"))return "실적 전망";
  return code==="guidance"?"실적 전망":stored;
 }
@@ -318,8 +318,8 @@ function inCategory(n){
   return codes.includes(primary)||
    (Array.isArray(matches)&&matches.some(x=>codes.includes(x?.code)));
  }
- if(minor==="실적 발표"||minor==="실적 전망")return category(n)===minor;
- return category(n)===minor||(Array.isArray(n.event_matches)&&n.event_matches.some(x=>x?.label===minor));
+ // A stock news item belongs to its ONE primary category, never all keyword matches.
+ return category(n)===minor;
 }
 function renderCategoryTabs(){
  // Keep the original four-row menu layout, only update selection state.
