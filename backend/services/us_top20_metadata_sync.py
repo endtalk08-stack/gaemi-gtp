@@ -124,6 +124,17 @@ def sync_once_after_close(dsn: str, *, now: dt.datetime | None = None) -> str:
                 cur.execute("SELECT COUNT(*) FROM public.market_rank_entries WHERE snapshot_id=%s", (snapshot_id,))
                 if cur.fetchone()[0] != 20:
                     raise RuntimeError("daily_snapshot_not_atomic")
+            # Repair only missing exchange codes using this exact Kiwoom Top20 source.
+            # Existing known exchange values and company/news identity stay untouched.
+            cur.execute("""
+                UPDATE public.market_instruments AS i
+                   SET exchange = x.exchange
+                  FROM jsonb_to_recordset(%s::jsonb)
+                       AS x(symbol text, exchange text)
+                 WHERE i.market='US' AND i.symbol=x.symbol
+                   AND i.exchange IS NULL
+                   AND x.exchange IN ('ND','NY','NA')
+            """, (payload,))
             cur.execute("""
                 SELECT symbol,exchange,sector FROM public.market_instruments
                  WHERE market='US' AND sector IS NOT NULL AND btrim(sector)<>''
