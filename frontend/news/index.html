@@ -259,7 +259,17 @@ const safeText=v=>String(v??"").trim();
 const getFavs=()=>{try{const v=JSON.parse(localStorage.getItem(FAV_KEY)||"[]");return Array.isArray(v)?v:[]}catch{return[]}};
 const saveFavs=f=>{try{localStorage.setItem(FAV_KEY,JSON.stringify(f))}catch{}};
 const isFav=t=>getFavs().includes(t);
-const category=n=>n.event_category?.code==="guidance"?"실적 전망":safeText(n.event_category?.label||n.category||"시장동향");
+// Keep reported earnings and future guidance in distinct lists, including older R2 snapshots.
+function category(n){
+ const stored=safeText(n.event_category?.label||n.category||"시장동향");
+ const code=n.event_category?.code;
+ const title=safeText(n.title).toLowerCase();
+ const actualVsEstimate=/(?:전망치|예상치|추정치)\s*(?:를|을)?\s*(?:상회|하회|웃돌|밑돌|초과|미달|넘었|못\s*미쳤)|(?:beat|miss(?:ed|es)?|tops?|exceeds?)\s+(?:revenue\s+)?(?:forecast|estimates?|expectations?)/i.test(title);
+ const forwardGuidance=/(?:가이던스|향후\s*전망|다음\s*분기.{0,18}전망|연간.{0,18}전망|(?:매출|실적|이익)\s*전망|전망\s*(?:상향|하향|조정)|guidance|outlook|forecast)/i.test(title);
+ if((code==="earnings"||code==="guidance"||stored==="실적 발표"||stored==="실적 전망")&&actualVsEstimate)return "실적 발표";
+ if(forwardGuidance&&(code==="earnings"||code==="guidance"||stored==="실적 발표"||stored==="실적 전망"))return "실적 전망";
+ return code==="guidance"?"실적 전망":stored;
+}
 const stockSection=n=>Array.isArray(n.news_sections)?n.news_sections.includes("stock"):n.news_section==="stock"||(n.news_section!=="market"&&stockCatSet.has(category(n)))||category(n)==="종목";
 const marketSection=n=>Array.isArray(n.news_sections)?n.news_sections.includes("market"):n.news_section==="market"||(n.news_section!=="stock"&&marketCatSet.has(category(n)));
 const majorCategory=n=>major==="증시"?"증시":major==="종목"?"종목":n.news_section==="stock"?"종목":n.news_section==="market"?"증시":stockCatSet.has(category(n))?"종목":"증시";
@@ -286,6 +296,7 @@ function inCategory(n){
   return codes.includes(primary)||
    (Array.isArray(matches)&&matches.some(x=>codes.includes(x?.code)));
  }
+ if(minor==="실적 발표"||minor==="실적 전망")return category(n)===minor;
  return category(n)===minor||(Array.isArray(n.event_matches)&&n.event_matches.some(x=>x?.label===minor));
 }
 function renderCategoryTabs(){
