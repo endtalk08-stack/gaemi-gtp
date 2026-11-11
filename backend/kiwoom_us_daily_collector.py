@@ -142,15 +142,15 @@ def main(*, bootstrap=False):
             print('US_TOP20_META_SYNC=' + sync_once_after_close(dsn, now=now), flush=True)
         except Exception as exc:
             print('US_TOP20_META_SYNC_ERROR=' + type(exc).__name__, flush=True)
-    # Export the already-stored candles to R2 after the existing post-close Neon refresh.
-    # Never request Kiwoom again or block the original collector on R2 failures.
-    if not bootstrap:
-        try:
-            from backend.services.us_daily_r2_publisher import publish_verified_top20
-            summary = publish_verified_top20(dsn)
-            print('CHART_R2_PUBLISH_STATUS=' + summary['status'], flush=True)
-        except Exception as exc:
-            print('CHART_R2_PUBLISH_ERROR=' + type(exc).__name__, flush=True)
+    # Export already-stored Neon candles after *both* post-close and bootstrap runs.
+    # Bootstrap previously skipped this, leaving new entrants without an R2 chart.
+    # Keep R2 failure independent from original Kiwoom/Neon collection.
+    try:
+        from backend.services.us_daily_r2_publisher import publish_verified_top20
+        summary = publish_verified_top20(dsn)
+        print('CHART_R2_PUBLISH_STATUS=' + summary['status'], flush=True)
+    except Exception as exc:
+        print('CHART_R2_PUBLISH_ERROR=' + type(exc).__name__, flush=True)
     if failed:
         raise SystemExit(1)
 
