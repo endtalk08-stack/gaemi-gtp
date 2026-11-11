@@ -706,20 +706,30 @@
       }
       loadingDiv.remove();
 
-      // Chart begins after the quote-loading phase, independently of analysis API success.
+      // Keep the chart and first-reply controls independent of analysis API success.
       const selection = session.marketSelection;
-      if (selection?.market === 'us' && selection?.menu === 'value'
-          && /^[A-Z0-9.\\-]{1,20}$/.test(String(selection.symbol || ''))) {
+      const isUsValueChart = selection?.market === 'us' && selection?.menu === 'value'
+        && /^[A-Z0-9.\\-]{1,20}$/.test(String(selection.symbol || ''));
+      const chartReplyData = {};
+      if (isUsValueChart) {
         const chartHost = document.createElement('section');
         chartHost.className = 'us-daily-chart us-daily-chart--inline';
         chartHost.setAttribute('aria-label', selection.name + ' 일봉');
         chatArea.appendChild(chartHost);
         window.GaemiGTPWidgetDock?.renderInlineChart?.(chartHost, selection.symbol, selection.change_pct);
+        // Reuse existing actions and #US-market/#why/#fortune followups.
+        // The first Top20 section is hidden by typeNextSection; no duplicate text.
+        startTypewriterFlow(stockName, [{
+          id: 'why-up',
+          content: (selection.name || stockName) + ' (' + selection.symbol + ') · 키움 일봉'
+        }], chartReplyData, requestId);
       }
 
       const result = await fetchPromise;
       if (ctx.getPendingAnalysis()?.promise === fetchPromise) ctx.setPendingAnalysis(null);
       if (requestId !== ctx.getActiveAnalysisRequestId() || ctx.getSession()?.id !== session.id || result.aborted) return;
+      // Keep existing choice callbacks bound to the same evidence object.
+      if (isUsValueChart && result && typeof result === 'object') Object.assign(chartReplyData, result);
       const sections = result.sections || [];
 
       if (ctx.getAnalysisController() === controller) ctx.setAnalysisController(null);
@@ -771,7 +781,7 @@
         sections: sections.map(({ id, title, content }) => ({ id, title, content }))
       });
       window.GaemiGTPApp?.saveChatHistory?.();
-      startTypewriterFlow(stockName, sections, result, requestId);
+      if (!isUsValueChart) startTypewriterFlow(stockName, sections, result, requestId);
     }
 
 
