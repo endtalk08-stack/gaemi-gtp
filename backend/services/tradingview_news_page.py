@@ -170,6 +170,21 @@ def classify_article(article):
         for code, label, terms in CATEGORY_RULES
         if any(str(term).lower() in haystack for term in terms)
     ] if stock_source else []
+    # Earnings results and future guidance are mutually exclusive on the news page.
+    # "Beat revenue forecast/expectations" describes reported results, not a
+    # change to management's future revenue guidance.
+    matched_codes = {entry["code"] for entry in stock_matches}
+    if {"earnings", "guidance"} <= matched_codes:
+        actual_result = bool(re.search(
+            r"(?:전망치|예상치|추정치)\\s*(?:를|을)?\\s*(?:상회|하회|웃돌|밑돌|초과|미달|넘었|못\\s*미쳤)"
+            r"|(?:beat|miss(?:ed|es)?|tops?|exceeds?)\\s+(?:revenue\\s+)?(?:forecast|estimates?|expectations?)",
+            haystack,
+        ))
+        chosen_code = "earnings" if actual_result else "guidance"
+        stock_matches = [entry for entry in stock_matches
+                         if entry["code"] not in {"earnings", "guidance"}
+                         or entry["code"] == chosen_code]
+        stock_matches.sort(key=lambda entry: entry["code"] != chosen_code)
     # An explicit stock feed / US equity association takes precedence over
     # broad words like "stocks" and "market" in a company headline.
     if stock_source:
