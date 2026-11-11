@@ -1,4 +1,4 @@
-"""Refresh only current verified Top20 daily candles after the New York close."""
+"""Refresh current Top20 daily candles after the New York close."""
 import datetime as dt
 import math
 import os
@@ -80,8 +80,7 @@ def main(*, bootstrap=False):
                   ON i.market='US' AND i.symbol=t.symbol
                 LEFT JOIN public.us_daily_candles c
                   ON c.market='US' AND c.symbol=i.symbol AND c.source='kiwoom:usa06012'
-                WHERE i.is_active AND i.identity_status='verified'
-                  AND i.company_key LIKE 'US:%' AND i.exchange IN ('ND','NY','NA')
+                WHERE i.is_active AND i.exchange IN ('ND','NY','NA')
                 GROUP BY i.symbol,i.exchange ORDER BY i.symbol
             """)
             matches = cur.fetchall()
