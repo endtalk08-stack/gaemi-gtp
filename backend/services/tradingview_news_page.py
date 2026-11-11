@@ -170,21 +170,27 @@ def classify_article(article):
         for code, label, terms in CATEGORY_RULES
         if any(str(term).lower() in haystack for term in terms)
     ] if stock_source else []
-    # Earnings results and future guidance are mutually exclusive on the news page.
-    # "Beat revenue forecast/expectations" describes reported results, not a
-    # change to management's future revenue guidance.
-    matched_codes = {entry["code"] for entry in stock_matches}
-    if {"earnings", "guidance"} <= matched_codes:
-        actual_result = bool(re.search(
-            r"(?:전망치|예상치|추정치)\s*(?:를|을)?\s*(?:상회|하회|웃돌|밑돌|초과|미달|넘었|못\s*미쳤)"
-            r"|(?:beat|miss(?:ed|es)?|tops?|exceeds?)\s+(?:revenue\s+)?(?:forecast|estimates?|expectations?)",
-            haystack,
-        ))
-        chosen_code = "earnings" if actual_result else "guidance"
-        stock_matches = [entry for entry in stock_matches
-                         if entry["code"] not in {"earnings", "guidance"}
-                         or entry["code"] == chosen_code]
-        stock_matches.sort(key=lambda entry: entry["code"] != chosen_code)
+    # Only one main stock event drives the public category. A result beating
+    # an analyst's estimate is already-reported earnings, NOT forward guidance;
+    # production/shipments mentioned in the same headline are not a second category.
+    reported_beat = bool(re.search(
+        r"(?:실적|매출|이익|영업이익|순이익)?\s*(?:전망치|예상치|추정치)\s*(?:를|을)?\s*"
+        r"(?:상회|하회|웃돌|밑돌|초과|미달|넘었|못\s*미쳤)"
+        r"|(?:beat|miss(?:ed|es)?|tops?|exceeds?)\s+(?:revenue\s+)?"
+        r"(?:forecast|estimates?|expectations?)",
+        haystack,
+    ))
+    if stock_source and reported_beat:
+        stock_matches = [{"code": "earnings", "label": "실적 발표"}] + [
+            match for match in stock_matches if match["code"] not in {
+                "earnings", "guidance", "operations"
+            }
+        ]
+    elif stock_source and any(match["code"] == "guidance" for match in stock_matches):
+        # A future guidance update takes priority over production/sales words.
+        stock_matches = [match for match in stock_matches
+                         if match["code"] not in {"earnings", "operations"}]
+        stock_matches.sort(key=lambda match: match["code"] != "guidance")
     # An explicit stock feed / US equity association takes precedence over
     # broad words like "stocks" and "market" in a company headline.
     if stock_source:
