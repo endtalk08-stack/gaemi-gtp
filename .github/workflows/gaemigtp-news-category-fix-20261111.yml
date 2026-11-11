@@ -1,0 +1,95 @@
+name: News category exclusive display fix (preview then production)
+on:
+  push:
+    branches: [fix/tradingview-earnings-guidance-exclusive-20261111]
+    paths: [.github/workflows/gaemigtp-news-category-fix-20261111.yml]
+permissions:
+  contents: read
+concurrency:
+  group: gaemigtp-news-category-fix-20261111
+  cancel-in-progress: false
+jobs:
+  news-category-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Confirm exact classifier on real article titles
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/services/tradingview_news_page.py
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('frontend/news/index.html','utf8');
+          const f=html.match(/function category\(n\)\{[\s\S]*?\n\}/);
+          if(!f)throw Error('category function absent');
+          const category=new Function('safeText',f[0]+';return category;')(v=>String(v??'').trim());
+          const cases=[
+            ['분석가들, 옥시덴탈의 4분기 원유 생산량 가이던스(전망치) 부진 지적','guidance','실적 전망','실적 전망'],
+            ['옥시덴털, 유가 상승이 생산량 감소를 상쇄하며 실적 전망치를 상회','operations','사업 성과','실적 발표'],
+            ['테슬라 연간 판매량 15% 증가','operations','사업 성과','사업 성과'],
+            ['애플 연간 매출 전망 상향','guidance','실적 전망','실적 전망'],
+            ['애플 4분기 실적 발표','earnings','실적 발표','실적 발표']
+          ];
+          for(const [title,code,label,expected] of cases) {
+            const result=category({title,news_section:'stock',event_category:{code,label}});
+            if(result!==expected)throw Error(title+': '+result+' != '+expected);
+          }
+          if(!html.includes('return category(n)===minor;'))throw Error('single-category filter missing');
+          console.log('CATEGORY_CLASSIFICATION_TESTS_PASS');
+          NODE
+      - name: Preserve exact live HTML and patch only classification
+        run: |
+          set -euo pipefail
+          mkdir -p _news-deploy-site
+          curl -fsSL --max-time 18 --retry 2 'https://gaemigtp-news.pages.dev/' -o _news-deploy-site/index.html
+          test -s _news-deploy-site/index.html
+          sha256sum _news-deploy-site/index.html
+          python ops/news_category_exclusive_patch_20261111.py frontend/news/index.html _news-deploy-site/index.html
+          grep -Fq 'Only the primary stock category' _news-deploy-site/index.html
+      - name: Deploy existing news Pages preview with existing Functions
+        id: preview
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy _news-deploy-site --project-name gaemigtp-news --branch news-category-review-20261111
+      - name: Verify preview HTML and existing R2 route
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.deployment-url }}
+        run: |
+          set -euo pipefail
+          test -n "$PREVIEW_URL"
+          curl -fsSL --retry 4 --retry-delay 2 --max-time 20 "$PREVIEW_URL/" -o /tmp/news-preview.html
+          grep -Fq 'Only the primary stock category' /tmp/news-preview.html
+          curl -fsSL --retry 4 --retry-delay 2 --max-time 20 "$PREVIEW_URL/news/latest.json" -o /tmp/news-preview.json
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/news-preview.json'))
+          assert data.get('ok') is True and isinstance(data.get('items'),list)
+          print('NEWS_PREVIEW_R2_PASS',len(data['items']))
+          PY
+      - name: Deploy verified live HTML to existing news production Pages
+        id: production
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy _news-deploy-site --project-name gaemigtp-news --branch ops/do-ssh-deploy-setup-20261017
+      - name: Verify production HTML and R2 after deploy
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 6 --retry-delay 3 --max-time 20 'https://gaemigtp-news.pages.dev/' -o /tmp/news-production.html
+          grep -Fq 'Only the primary stock category' /tmp/news-production.html
+          curl -fsSL --retry 6 --retry-delay 3 --max-time 20 'https://gaemigtp-news.pages.dev/news/latest.json' -o /tmp/news-production.json
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/news-production.json'))
+          assert data.get('ok') is True and isinstance(data.get('items'),list)
+          print('NEWS_PRODUCTION_R2_PASS',len(data['items']))
+          PY
