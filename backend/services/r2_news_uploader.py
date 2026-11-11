@@ -29,7 +29,7 @@ def _sign(key: bytes, msg: str) -> bytes:
 def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
     # Keep the existing news page key unchanged. Stock feeds use separate objects.
     if object_key not in (OBJECT_KEY, 'stocks/us/instruments.json') and not re.fullmatch(
-        r"(?:news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}|charts/us/[A-Z][A-Z0-9.-]{0,14}/daily)\\.json", object_key
+        r"(?:news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}|charts/us/[A-Z][A-Z0-9.-]{0,14}/daily)\.json", object_key
     ):
         raise ValueError("invalid_r2_news_object_key")
     access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
