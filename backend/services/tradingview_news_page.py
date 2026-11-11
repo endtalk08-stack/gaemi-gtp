@@ -176,8 +176,8 @@ def classify_article(article):
     matched_codes = {entry["code"] for entry in stock_matches}
     if {"earnings", "guidance"} <= matched_codes:
         actual_result = bool(re.search(
-            r"(?:전망치|예상치|추정치)\\s*(?:를|을)?\\s*(?:상회|하회|웃돌|밑돌|초과|미달|넘었|못\\s*미쳤)"
-            r"|(?:beat|miss(?:ed|es)?|tops?|exceeds?)\\s+(?:revenue\\s+)?(?:forecast|estimates?|expectations?)",
+            r"(?:전망치|예상치|추정치)\s*(?:를|을)?\s*(?:상회|하회|웃돌|밑돌|초과|미달|넘었|못\s*미쳤)"
+            r"|(?:beat|miss(?:ed|es)?|tops?|exceeds?)\s+(?:revenue\s+)?(?:forecast|estimates?|expectations?)",
             haystack,
         ))
         chosen_code = "earnings" if actual_result else "guidance"
