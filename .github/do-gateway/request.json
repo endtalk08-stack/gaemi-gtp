@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/services/us_daily_r2_publisher.py","target":"backend/services/us_daily_r2_publisher.py"}
+{"operation":"run","path":"ops/do-gateway/probe_us_top20_exchange_readonly_20261111.py","request_id":"gevtickerprobe1111a","timeout":60}
