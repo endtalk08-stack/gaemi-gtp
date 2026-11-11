@@ -64,7 +64,6 @@ def publish_verified_top20(dsn: str) -> dict:
                     JOIN latest_rank s ON e.snapshot_id=s.id
                     JOIN public.market_instruments i ON i.market='US' AND i.symbol=e.symbol
                     WHERE e.rank BETWEEN 1 AND 20 AND i.is_active
-                      AND i.identity_status='verified' AND i.company_key LIKE 'US:%'
                       AND i.exchange IN ('ND','NY','NA')
                 ), ranked_candles AS (
                     SELECT c.symbol,c.session_date,c.open,c.high,c.low,c.close,c.volume,
