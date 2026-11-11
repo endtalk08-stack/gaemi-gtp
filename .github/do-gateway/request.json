@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/services/r2_news_uploader.py","target":"backend/services/r2_news_uploader.py"}
+{"operation":"run","path":"ops/do-gateway/test_us_daily_r2_publisher_offline_20261111.py","request_id":"usdailychartoffline1111b","timeout":90}
