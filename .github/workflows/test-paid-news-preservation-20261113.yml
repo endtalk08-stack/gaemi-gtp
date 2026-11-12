@@ -1,0 +1,27 @@
+name: Paid news preservation regression tests
+on:
+  push:
+    branches: [fix/tradingview-paid-news-preservation-20261113]
+    paths:
+      - backend/tradingview_news_worker.py
+      - backend/services/tradingview_news_page.py
+      - backend/services/r2_news_uploader.py
+      - tests/test_news_paid_content_preservation.py
+      - .github/workflows/test-paid-news-preservation-20261113.yml
+permissions:
+  contents: read
+jobs:
+  offline-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install requests
+      - name: Offline parser, preservation and immutable R2 archive tests
+        run: |
+          python -m py_compile backend/tradingview_news_worker.py backend/services/tradingview_news_page.py backend/services/r2_news_uploader.py tests/test_news_paid_content_preservation.py
+          python -m unittest discover -s tests -p 'test_news_paid_content_preservation.py' -v
+          python -m unittest discover -s tests -p 'test_tradingview_news_detail.py' -v
