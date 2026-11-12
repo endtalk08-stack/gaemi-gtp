@@ -33,7 +33,11 @@ def read_recovered_news_snapshot(*, object_key: str = "news/recovered/20261109.j
     Fixed path only: this function never accesses arbitrary remote URLs/objects.
     Fail closed when credentials, signature or saved JSON is invalid.
     """
-    if object_key != "news/recovered/20261109.json":
+    approved_snapshots = {
+        "news/recovered/20261109.json": 24,
+        "news/archive/20261112/ddc51420ed55217c2088705ff0a3a3397ba98a4ebc3e5749850bb421ecaf224f.json": 106,
+    }
+    if object_key not in approved_snapshots:
         raise ValueError("invalid_recovery_key")
     access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
     secret_key = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
@@ -84,7 +88,7 @@ def read_recovered_news_snapshot(*, object_key: str = "news/recovered/20261109.j
     data = response.json()
     if (not isinstance(data, dict) or data.get("ok") is not True
             or not isinstance(data.get("items"), list)
-            or len(data["items"]) != 24):
+            or len(data["items"]) != approved_snapshots[object_key]):
         raise ValueError("invalid_recovery_snapshot")
     return data
 
