@@ -46,14 +46,14 @@ def read_recovered_news_snapshot(*, object_key: str = "news/recovered/20261109.j
     host = f"{ACCOUNT_ID}.r2.cloudflarestorage.com"
     uri = f"/{BUCKET}/" + "/".join(quote(part, safe="-_.~") for part in object_key.split("/"))
     headers_canonical = (
-        f"host:{host}\\n"
-        f"x-amz-content-sha256:{empty_hash}\\n"
-        f"x-amz-date:{amz_date}\\n"
+        f"host:{host}\n"
+        f"x-amz-content-sha256:{empty_hash}\n"
+        f"x-amz-date:{amz_date}\n"
     )
     signed_headers = "host;x-amz-content-sha256;x-amz-date"
-    canonical = "\\n".join(("GET", uri, "", headers_canonical, signed_headers, empty_hash))
+    canonical = "\n".join(("GET", uri, "", headers_canonical, signed_headers, empty_hash))
     scope = f"{day}/auto/s3/aws4_request"
-    to_sign = "\\n".join((
+    to_sign = "\n".join((
         "AWS4-HMAC-SHA256", amz_date, scope,
         hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
     ))
