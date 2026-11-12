@@ -420,11 +420,56 @@ def build_snapshot(items, *, generated_at=None):
     }
 
 
+def preserve_saved_article_content(snapshot, previous):
+    """Never replace a verified, previously published article field with blank.
+
+    Match by exact article ID only; do not mix content between similarly
+    titled articles. The latest feed controls *which* articles are displayed.
+    """
+    if not isinstance(previous, dict) or not isinstance(previous.get("items"), list):
+        return snapshot
+    previous_by_id = {
+        str(row["id"]): row for row in previous["items"]
+        if isinstance(row, dict) and row.get("id")
+    }
+    for row in snapshot["items"]:
+        old = previous_by_id.get(str(row.get("id") or ""))
+        if not old:
+            continue
+        for field in ("body", "list_excerpt", "summary", "description"):
+            if not str(row.get(field) or "").strip() and str(old.get(field) or "").strip():
+                row[field] = old[field]
+        if row.get("body") and old.get("body_available") is True:
+            row["body_available"] = True
+            if not row.get("detail_status") and old.get("detail_status"):
+                row["detail_status"] = old["detail_status"]
+            if row.get("content_source") == "news_list":
+                row["content_source"] = old.get("content_source", "api_detail")
+    return snapshot
+
+
 def write_snapshot(items, *, path=NEWS_PAGE_PATH):
     snapshot = build_snapshot(items)
     path = Path(path)
     if not path.parent.is_dir() or path.parent.is_symlink() or path.is_symlink():
         raise ValueError("unsafe_news_page_path")
+    # Safe local continuity even if an API refresh returns only headlines.
+    # Never treat a corrupt previous snapshot as an empty one and wipe it.
+    if path.exists():
+        if not path.is_file():
+            raise ValueError("unsafe_previous_news_snapshot")
+        previous = json.loads(path.read_text(encoding="utf-8"))
+        if (not isinstance(previous, dict)
+                or previous.get("ok") is not True
+                or not isinstance(previous.get("items"), list)):
+            raise ValueError("invalid_previous_news_snapshot")
+        snapshot = preserve_saved_article_content(snapshot, previous)
+        # No news change: keep the same file/content hash, and avoid R2
+        # archive writes once a minute for a changed generated_at timestamp.
+        if (previous.get("source") == snapshot["source"]
+                and previous.get("taxonomy") == snapshot["taxonomy"]
+                and previous.get("items") == snapshot["items"]):
+            return previous
     name = None
     try:
         with tempfile.NamedTemporaryFile(
