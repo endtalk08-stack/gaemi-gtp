@@ -23,6 +23,37 @@ CHECK_INTERVAL_SECONDS = 60
 MAX_DETAIL_REQUESTS_PER_RUN = 20
 MAX_DETAIL_REQUESTS_PER_UTC_DAY = 40
 _last_uploaded_digest = None
+_archived_file_hashes = set()
+
+
+def archive_existing_news_snapshot():
+    """Archive paid news content BEFORE a newer public index can replace it.
+
+    Only uses existing local/R2 data; no TradingView/API calls.
+    Fail closed: a failed archive must not be followed by an index overwrite.
+    """
+    path = NEWS_PAGE_PATH
+    if not path.is_file() or path.is_symlink():
+        return
+    body = path.read_bytes()
+    digest = hashlib.sha256(body).hexdigest()
+    if digest in _archived_file_hashes:
+        return
+    # Content-addressed; a restarted process cannot overwrite an old archive.
+    try:
+        data = json.loads(body)
+        if data.get("ok") is not True or not isinstance(data.get("items"), list):
+            raise ValueError("invalid_news_snapshot_before_archive")
+        stamp = dt.datetime.fromisoformat(data["generated_at"].replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            raise ValueError("archive_timestamp_timezone_missing")
+        day = stamp.astimezone(dt.timezone.utc).strftime("%Y%m%d")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("invalid_news_snapshot_before_archive") from exc
+    archive_key = f"news/archive/{day}/{digest}.json"
+    if not upload_file(path, object_key=archive_key):
+        raise RuntimeError("news_archive_failed_refuse_latest_overwrite")
+    _archived_file_hashes.add(digest)
 
 
 def _bounded_detail_budget():
@@ -98,7 +129,10 @@ def run_once():
     items = select_articles(tradingview_news_bundle.refresh_news_cache())
     items = enrich_cached_articles(items)
     global _last_uploaded_digest
+    # Preserve both the prior and next successful snapshot in existing R2.
+    archive_existing_news_snapshot()
     snapshot = write_snapshot(items)
+    archive_existing_news_snapshot()
     print(
         "[tradingview-news-worker] page_snapshot items=%s" % snapshot["count"],
         flush=True,
