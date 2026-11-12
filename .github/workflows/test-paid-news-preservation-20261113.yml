@@ -10,6 +10,7 @@ on:
       - .github/workflows/test-paid-news-preservation-20261113.yml
 permissions:
   contents: read
+  statuses: write
 jobs:
   offline-regression:
     runs-on: ubuntu-latest
@@ -25,3 +26,31 @@ jobs:
           python -m py_compile backend/tradingview_news_worker.py backend/services/tradingview_news_page.py backend/services/r2_news_uploader.py tests/test_news_paid_content_preservation.py
           python -m unittest discover -s tests -p 'test_news_paid_content_preservation.py' -v
           python -m unittest discover -s tests -p 'test_tradingview_news_detail.py' -v
+      - name: Record regression result on this commit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+          JOB_RESULT: ${{ job.status }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          result=os.environ["JOB_RESULT"]
+          data=json.dumps({
+              "state": "success" if result == "success" else "failure",
+              "context": "gaemi/news-paid-preservation-tests",
+              "description": "Offline paid news preservation tests: "+result,
+              "target_url": "https://github.com/"+os.environ["REPO"]+"/actions/runs/"+os.environ["RUN_ID"],
+          }).encode()
+          req=urllib.request.Request(
+              "https://api.github.com/repos/"+os.environ["REPO"]+"/statuses/"+os.environ["COMMIT_SHA"],
+              data=data, method="POST", headers={
+                  "Authorization": "Bearer "+os.environ["GH_TOKEN"],
+                  "Accept": "application/vnd.github+json",
+                  "Content-Type": "application/json",
+              })
+          with urllib.request.urlopen(req,timeout=15) as response:
+              print("NEWS_PRESERVATION_CI_STATUS="+result+" HTTP="+str(response.status))
+          PY
