@@ -126,11 +126,13 @@ def run_once():
     if not os.environ.get("TRADINGVIEW_API_KEY", "").strip():
         print("[tradingview-news-worker] missing TRADINGVIEW_API_KEY", flush=True)
         return 0
+    # First protect the last paid result: never make new API requests when
+    # the existing saved article texts cannot be archived safely.
+    archive_existing_news_snapshot()
     items = select_articles(tradingview_news_bundle.refresh_news_cache())
     items = enrich_cached_articles(items)
     global _last_uploaded_digest
-    # Preserve both the prior and next successful snapshot in existing R2.
-    archive_existing_news_snapshot()
+    # Archive the updated snapshot before making it the public latest.
     snapshot = write_snapshot(items)
     archive_existing_news_snapshot()
     print(
