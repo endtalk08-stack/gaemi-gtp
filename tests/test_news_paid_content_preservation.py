@@ -111,9 +111,9 @@ class PaidNewsPreservationTests(unittest.TestCase):
             before = json.loads(file.read_text(encoding="utf-8"))
             def fake_read(*, object_key):
                 return backup_2 if object_key.endswith("20261109.json") else backup_1
-            with mock.patch.object(worker, "NEWS_PAGE_PATH", file), \\
-                 mock.patch.object(worker, "_archived_file_hashes", set()), \\
-                 mock.patch.object(worker, "archive_existing_news_snapshot"), \\
+            with mock.patch.object(worker, "NEWS_PAGE_PATH", file), \
+                 mock.patch.object(worker, "_archived_file_hashes", set()), \
+                 mock.patch.object(worker, "archive_existing_news_snapshot"), \
                  mock.patch.object(worker, "read_recovered_news_snapshot", side_effect=fake_read) as read:
                 self.assertTrue(worker.restore_historical_paid_news())
                 self.assertEqual(read.call_count, 2)
@@ -133,8 +133,8 @@ class PaidNewsPreservationTests(unittest.TestCase):
             file = Path(tmp) / "news.json"
             news.write_snapshot([article("today")], path=file)
             before = file.read_bytes()
-            with mock.patch.object(worker, "NEWS_PAGE_PATH", file), \\
-                 mock.patch.object(worker, "archive_existing_news_snapshot"), \\
+            with mock.patch.object(worker, "NEWS_PAGE_PATH", file), \
+                 mock.patch.object(worker, "archive_existing_news_snapshot"), \
                  mock.patch.object(worker, "read_recovered_news_snapshot", side_effect=RuntimeError("r2 unavailable")):
                 with self.assertRaises(RuntimeError):
                     worker.restore_historical_paid_news()
@@ -146,7 +146,7 @@ class PaidNewsPreservationTests(unittest.TestCase):
         fake = mock.Mock(status_code=200)
         fake.content = b'{"ok":true,"items":[]}'
         fake.json.return_value = {"ok": True, "items": []}
-        with mock.patch.dict("os.environ", {"R2_ACCESS_KEY_ID": "fake", "R2_SECRET_ACCESS_KEY": "fake"}), \\
+        with mock.patch.dict("os.environ", {"R2_ACCESS_KEY_ID": "fake", "R2_SECRET_ACCESS_KEY": "fake"}), \
              mock.patch.object(r2.requests, "get", return_value=fake):
             with self.assertRaises(ValueError):
                 r2.read_recovered_news_snapshot()
