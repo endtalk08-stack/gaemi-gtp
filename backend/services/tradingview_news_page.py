@@ -464,6 +464,12 @@ def write_snapshot(items, *, path=NEWS_PAGE_PATH):
                 or not isinstance(previous.get("items"), list)):
             raise ValueError("invalid_previous_news_snapshot")
         snapshot = preserve_saved_article_content(snapshot, previous)
+        # No news change: keep the same file/content hash, and avoid R2
+        # archive writes once a minute for a changed generated_at timestamp.
+        if (previous.get("source") == snapshot["source"]
+                and previous.get("taxonomy") == snapshot["taxonomy"]
+                and previous.get("items") == snapshot["items"]):
+            return previous
     name = None
     try:
         with tempfile.NamedTemporaryFile(
