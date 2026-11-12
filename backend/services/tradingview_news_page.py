@@ -424,7 +424,7 @@ def preserve_saved_article_content(snapshot, previous):
     """Never replace a verified, previously published article field with blank.
 
     Match by exact article ID only; do not mix content between similarly
-    titled articles. The latest feed controls *which* articles are displayed.
+    titled articles. Keep the older paid rows when they leave the 48h feed.
     """
     if not isinstance(previous, dict) or not isinstance(previous.get("items"), list):
         return snapshot
@@ -445,6 +445,26 @@ def preserve_saved_article_content(snapshot, previous):
                 row["detail_status"] = old["detail_status"]
             if row.get("content_source") == "news_list":
                 row["content_source"] = old.get("content_source", "api_detail")
+    # The API's 48-hour listing is not the retention policy for paid content.
+    # Keep older public records even when they fall outside the collection cache.
+    new_ids = {str(row.get("id")) for row in snapshot["items"] if row.get("id")}
+    missing = [
+        row for row in previous["items"]
+        if isinstance(row, dict) and row.get("id")
+        and str(row["id"]) not in new_ids
+    ]
+    snapshot["items"].extend(missing)
+    snapshot["items"].sort(
+        key=lambda row: str(row.get("published_at") or ""), reverse=True
+    )
+    snapshot["items"] = snapshot["items"][:MAX_PAGE_ITEMS]
+    snapshot["count"] = len(snapshot["items"])
+    counts = {}
+    for row in snapshot["items"]:
+        cat = row.get("event_category") or {}
+        code = cat.get("code") if isinstance(cat, dict) else ""
+        counts[code or "other"] = counts.get(code or "other", 0) + 1
+    snapshot["category_counts"] = counts
     return snapshot
 
 
