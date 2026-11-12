@@ -59,7 +59,7 @@ def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
     )
     if archive:
         canonical_headers = canonical_headers.replace(
-            f"host:{host}\\n", f"host:{host}\\nif-none-match:*\\n"
+            f"host:{host}\n", f"host:{host}\nif-none-match:*\n"
         )
     signed_headers = ("content-type;host;"
                       + ("if-none-match;" if archive else "")
