@@ -79,7 +79,7 @@ class PaidNewsPreservationTests(unittest.TestCase):
                     worker.archive_existing_news_snapshot()
                 self.assertEqual(file.read_bytes(), original)
                 key = upload.call_args.kwargs["object_key"]
-                self.assertRegex(key, r"^news/archive/\\d{8}/[0-9a-f]{64}\\.json$")
+                self.assertRegex(key, r"^news/archive/\d{8}/[0-9a-f]{64}\.json$")
                 self.assertEqual(key.split("/")[-1], hashlib.sha256(original).hexdigest() + ".json")
 
     def test_archiving_same_file_twice_does_not_repeat_r2_upload(self):
