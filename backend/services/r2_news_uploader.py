@@ -29,7 +29,7 @@ def _sign(key: bytes, msg: str) -> bytes:
 def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
     # Keep the existing news page key unchanged. Stock feeds use separate objects.
     if object_key not in (OBJECT_KEY, 'stocks/us/instruments.json') and not re.fullmatch(
-        r"(?:news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}|charts/us/[A-Z][A-Z0-9.-]{0,14}/daily)\.json", object_key
+        r"(?:news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}|charts/us/[A-Z][A-Z0-9.-]{0,14}/daily|news/archive/[0-9]{8}/[0-9a-f]{64})\.json", object_key
     ):
         raise ValueError("invalid_r2_news_object_key")
     access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
@@ -40,6 +40,10 @@ def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
 
     body = Path(path).read_bytes()
     payload_hash = hashlib.sha256(body).hexdigest()
+    # Archive writes are content-addressed and must never overwrite history.
+    archive = object_key.startswith("news/archive/")
+    if archive and object_key.rsplit("/", 1)[-1] != payload_hash + ".json":
+        raise ValueError("archive_content_hash_mismatch")
     now = dt.datetime.now(dt.timezone.utc)
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     date_stamp = now.strftime("%Y%m%d")
@@ -53,7 +57,13 @@ def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
         f"x-amz-content-sha256:{payload_hash}\n"
         f"x-amz-date:{amz_date}\n"
     )
-    signed_headers = "content-type;host;x-amz-content-sha256;x-amz-date"
+    if archive:
+        canonical_headers = canonical_headers.replace(
+            f"host:{host}\n", f"host:{host}\nif-none-match:*\n"
+        )
+    signed_headers = ("content-type;host;"
+                      + ("if-none-match;" if archive else "")
+                      + "x-amz-content-sha256;x-amz-date")
     canonical_request = "\n".join((
         "PUT",
         canonical_uri,
@@ -92,9 +102,14 @@ def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
             "Host": host,
             "x-amz-content-sha256": payload_hash,
             "x-amz-date": amz_date,
+            **({"If-None-Match": "*"} if archive else {}),
         },
         timeout=TIMEOUT_SECONDS,
     )
+    if archive and response.status_code == 412:
+        # Existing immutable copy: do not replace it on a worker restart.
+        print(f"[r2-news] archive_exists key={object_key}", flush=True)
+        return True
     if response.status_code // 100 != 2:
         code = ""
         try:
