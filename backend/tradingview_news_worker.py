@@ -11,12 +11,15 @@ import fcntl
 import hashlib
 import json
 import os
+import tempfile
 import time
 
 from backend.providers import tradingview_news_bundle
 from backend.providers.tradingview_news_detail import enrich_articles
-from backend.services.r2_news_uploader import upload_file
-from backend.services.tradingview_news_page import NEWS_PAGE_PATH, select_articles, write_snapshot
+from backend.services.r2_news_uploader import upload_file, read_recovered_news_snapshot
+from backend.services.tradingview_news_page import (
+    NEWS_PAGE_PATH, select_articles, write_snapshot, preserve_saved_article_content,
+)
 
 CHECK_INTERVAL_SECONDS = 60
 # Fail closed until a bounded detail-API budget is set before collection starts.
@@ -54,6 +57,54 @@ def archive_existing_news_snapshot():
     if not upload_file(path, object_key=archive_key):
         raise RuntimeError("news_archive_failed_refuse_latest_overwrite")
     _archived_file_hashes.add(digest)
+
+
+
+def restore_historical_paid_news():
+    """Bring back saved, previously paid article bodies by exact article ID.
+
+    One-time startup operation. No paid news API requests; failure blocks
+    fresh publishing so that no previously saved content is discarded.
+    """
+    path = NEWS_PAGE_PATH
+    if not path.is_file() or path.is_symlink() or path.parent.is_symlink():
+        raise ValueError("missing_or_unsafe_news_snapshot_for_recovery")
+    current = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(current, dict) or current.get("ok") is not True or not isinstance(current.get("items"), list):
+        raise ValueError("invalid_current_snapshot_for_recovery")
+    before_ids = {str(x.get("id")) for x in current["items"] if isinstance(x, dict) and x.get("id")}
+    # Protect the current local snapshot in R2 before modifying it.
+    archive_existing_news_snapshot()
+    keys = (
+        "news/archive/20261112/ddc51420ed55217c2088705ff0a3a3397ba98a4ebc3e5749850bb421ecaf224f.json",
+        "news/recovered/20261109.json",
+    )
+    for key in keys:
+        saved = read_recovered_news_snapshot(object_key=key)
+        current = preserve_saved_article_content(current, saved)
+    restored_ids = {str(x.get("id")) for x in current["items"] if isinstance(x, dict) and x.get("id")}
+    newly_recovered = len(restored_ids - before_ids)
+    if newly_recovered:
+        # Same atomic persistence policy as write_snapshot. Never truncate the
+        # existing file when any R2 read or JSON validation fails.
+        name = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=str(path.parent),
+                prefix=".tv-news-recovery-", delete=False,
+            ) as file:
+                name = file.name
+                os.fchmod(file.fileno(), 0o600)
+                json.dump(current, file, ensure_ascii=False, separators=(",", ":"))
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(name, path)
+        finally:
+            if name and os.path.exists(name):
+                os.unlink(name)
+    print("[tradingview-news-worker] prior_articles_recovered=%s total=%s" %
+          (newly_recovered, current["count"]), flush=True)
+    return True
 
 
 def _bounded_detail_budget():
@@ -167,8 +218,11 @@ def main():
         ),
         flush=True,
     )
+    historic_recovered = False
     while True:
         try:
+            if not historic_recovered:
+                historic_recovered = restore_historical_paid_news()
             run_once()
         except Exception as exc:
             print(
