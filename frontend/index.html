@@ -9,7 +9,7 @@
   (function () {
     const preview = 'https://gaemi-gtp.onrender.com';
     const hostname = window.location.hostname;
-    if (hostname === 'gaemi-gtp.onrender.com' || hostname === 'localhost' || hostname === '127.0.0.1') return;
+    if (hostname === 'gaemi-gtp.onrender.com' || hostname === 'gaemigtp-main.pages.dev' || hostname === 'localhost' || hostname === '127.0.0.1') return;
     document.documentElement.classList.add('gaemi-private-preview-check');
     fetch(preview + '/dev-access/status', {cache:'no-store'})
       .then(response => { if (!response.ok) throw new Error('status_unavailable'); return response.json(); })
