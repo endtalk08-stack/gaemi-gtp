@@ -1,4 +1,4 @@
-name: gaemigtp-main Pages production - detach right panel news
+name: gaemigtp-main Pages production - header News Chat
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
@@ -26,6 +26,9 @@ jobs:
           grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' frontend/index.html
           grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
           grep -Fq '20261114-r2-industry-v1' frontend/index.html
+          grep -Fq 'aria-label="메인 화면"' frontend/index.html
+          grep -Fq 'News</span>' frontend/index.html
+          grep -Fq '>Chat</button>' frontend/index.html
           node --check frontend/shell/right-panel/right-panel-tabs.js
           ! grep -Fq 'data-panel-workspace-view="news"' frontend/shell/right-panel/right-panel-tabs.js
           ! grep -Fq 'renderTradingViewNewsPage' frontend/shell/right-panel/right-panel-tabs.js
