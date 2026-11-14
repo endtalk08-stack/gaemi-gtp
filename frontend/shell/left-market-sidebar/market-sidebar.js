@@ -209,7 +209,7 @@
       if (!sidebarActive()) return;
       if (!list) return;
       const titles = {
-        realtime: '실시간 · AI 분석 순서',
+        realtime: '',
         value: '거래대금 TOP 20',
         gain: '상승률 TOP 20',
         loss: '하락률 TOP 20'
@@ -226,12 +226,8 @@
         list.replaceChildren(...cachedRankingRows);
         applyChangeSort();
       }
-      // These three new tabs are menu placeholders, not inferred market rankings.
-      // Realtime will list completed AI analysis in priority order once its data source exists.
       if (tab !== 'value') {
-        list.textContent = tab === 'realtime'
-          ? 'AI 분석 결과 연결 전이야.'
-          : '시장 전체 순위 데이터 연결 전이야.';
+        list.textContent = '';
         return;
       }
       if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
