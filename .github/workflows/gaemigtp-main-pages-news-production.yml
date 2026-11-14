@@ -1,4 +1,4 @@
-name: gaemigtp-main Pages production - restore news menu
+name: gaemigtp-main Pages production - detach right panel news
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check menu restoration and Pages inputs
+      - name: Check news detachment and Pages inputs
         run: |
           test -s frontend/index.html
           test -s functions/market/us-daily-chart.js
@@ -27,8 +27,10 @@ jobs:
           grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
           grep -Fq '20261114-r2-industry-v1' frontend/index.html
           node --check frontend/shell/right-panel/right-panel-tabs.js
-          grep -q 'data-panel-workspace-view="news"' frontend/shell/right-panel/right-panel-tabs.js
-          grep -q 'right-panel-tabs.js?v=20261111-restore-news-menu-only-v1' frontend/index.html
+          ! grep -Fq 'data-panel-workspace-view="news"' frontend/shell/right-panel/right-panel-tabs.js
+          ! grep -Fq 'renderTradingViewNewsPage' frontend/shell/right-panel/right-panel-tabs.js
+          grep -Fq 'data-panel-workspace-view="disclosures"' frontend/shell/right-panel/right-panel-tabs.js
+          grep -q 'right-panel-tabs.js?v=20261114-detach-right-news-v1' frontend/index.html
       - name: Deploy to existing Pages project production
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -38,7 +40,9 @@ jobs:
           command: pages deploy frontend --project-name gaemigtp-main --branch main
       - name: Verify production HTML and R2 chart
         run: |
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/?news-restore=20261111" -o "$RUNNER_TEMP/production-index.html"
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/?news-detached=20261114" -o "$RUNNER_TEMP/production-index.html"
           cmp frontend/index.html "$RUNNER_TEMP/production-index.html"
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/stocks/us/instruments.json" |\n            jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'\n          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/us-daily-chart?symbol=NVDA" |
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/stocks/us/instruments.json" |
+            jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
