@@ -1,4 +1,4 @@
-name: News major headlines carousel (existing preview then production)
+name: Restore news page before major-news carousel (preview then production)
 on:
   push:
     branches: [fix/tradingview-earnings-guidance-exclusive-20261111]
@@ -16,194 +16,68 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Confirm exact classifier on real article titles
-        run: |
-          set -euo pipefail
-          python -m py_compile backend/services/tradingview_news_page.py
-          node <<'NODE'
-          const fs=require('fs');
-          const html=fs.readFileSync('frontend/news/index.html','utf8');
-          const f=html.match(/function category\(n\)\{[\s\S]*?\n\}/);
-          if(!f)throw Error('category function absent');
-          const category=new Function('safeText',f[0]+';return category;')(v=>String(v??'').trim());
-          const cases=[
-            ['분석가들, 옥시덴탈의 4분기 원유 생산량 가이던스(전망치) 부진 지적','guidance','실적 전망','실적 전망'],
-            ['옥시덴털, 유가 상승이 생산량 감소를 상쇄하며 실적 전망치를 상회','operations','사업 성과','실적 발표'],
-            ['테슬라 연간 판매량 15% 증가','operations','사업 성과','사업 성과'],
-            ['애플 연간 매출 전망 상향','guidance','실적 전망','실적 전망'],
-            ['애플 4분기 실적 발표','earnings','실적 발표','실적 발표']
-          ];
-          for(const [title,code,label,expected] of cases) {
-            const result=category({title,news_section:'stock',event_category:{code,label}});
-            if(result!==expected)throw Error(title+': '+result+' != '+expected);
-          }
-          if(!html.includes('return category(n)===minor;'))throw Error('single-category filter missing');
-          console.log('CATEGORY_CLASSIFICATION_TESTS_PASS');
-          NODE
-      - name: Preserve exact live HTML and insert major news carousel
+      - name: Download exact prior production and validate only carousel changed
         run: |
           set -euo pipefail
           mkdir -p _news-deploy-site
-          curl -fsSL --max-time 18 --retry 2 'https://gaemigtp-news.pages.dev/' -o _news-deploy-site/index.html
-          test -s _news-deploy-site/index.html
-          sha256sum _news-deploy-site/index.html
+          curl -fsSL --retry 3 --max-time 25 'https://fd295125.gaemigtp-news.pages.dev/' -o _news-deploy-site/index.html
+          curl -fsSL --retry 3 --max-time 25 'https://gaemigtp-news.pages.dev/' -o /tmp/current-news.html
           python - <<'PY'
           from pathlib import Path
           import re
-          p=Path("_news-deploy-site/index.html")
-          s=p.read_text(encoding="utf-8")
-          assert 'const NEWS_URL=' in s and 'function openDetail(' in s and 'news.forEach((n,i)=>n._index=i);' in s, "LIVE_NEWS_SCRIPT_DRIFT"
-          assert 'id="categoryTabs"' in s and '<div class="news-list" id="newsList"></div>' in s, "LIVE_NEWS_LAYOUT_DRIFT"
-          assert 'id="highlightsSection"' not in s, "ALREADY_HIGHLIGHTS_PRESENT"
-          css=r"""
-          /* Major news carousel: based on user's news_compact_v6 layout; isolated styles. */
-          #highlightsSection{margin:0 0 30px}
-          #highlightsSection .hl-header{display:flex;justify-content:space-between;align-items:center;margin:0 0 15px;font-size:18px;font-weight:700;color:var(--txt)}
-          #highlightsSection .hl-header span{color:var(--sub);font-size:12px;font-weight:400}
-          #highlightsSection .hl-carousel{display:flex;align-items:center;gap:8px}
-          #highlightsSection .c-arrow{width:32px;height:32px;border-radius:50%;background:var(--card);border:1px solid var(--bd);color:var(--txt);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-          #highlightsSection .c-arrow:disabled{opacity:.25;cursor:default}
-          #highlightsSection .c-arrow svg{width:16px;height:16px;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;fill:none}
-          #highlightsSection .c-viewport{flex:1;min-width:0}
-          #highlightsSection .c-track{display:grid;grid-template-columns:1fr;gap:8px}
-          #highlightsSection .hl-card{width:100%;min-height:54px;display:flex;align-items:center;text-align:left;background:var(--card);border:0;border-radius:8px;padding:10px 14px;cursor:pointer;color:var(--sub)}
-          #highlightsSection .hl-card:hover,#highlightsSection .c-arrow:not(:disabled):hover{background:var(--hover)}
-          #highlightsSection .hl-title{font-size:14px;font-weight:700;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-          #highlightsSection .c-dots{display:flex;justify-content:center;gap:6px;margin-top:12px}
-          #highlightsSection .c-dot{width:6px;height:6px;border:0;border-radius:50%;background:#3a3a3a;cursor:pointer;padding:0}
-          #highlightsSection .c-dot.active{background:#8ab4f8;width:18px;border-radius:3px}
-          #highlightsSection .hl-empty{padding:16px;text-align:center;color:var(--sub);font-size:13px}
-          @media(max-width:480px){#highlightsSection .c-arrow{width:28px;height:28px}#highlightsSection .c-arrow svg{width:14px;height:14px}}
-          """
-          html=r"""
-          <section class="hl-section" id="highlightsSection" aria-label="주요뉴스">
-            <div class="hl-header"><div>주요뉴스 &gt;</div><span id="hlCounter">0 / 0</span></div>
-            <div class="hl-carousel">
-              <button type="button" class="c-arrow" id="hlPrev" aria-label="이전 주요뉴스" disabled><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-              <div class="c-viewport"><div class="c-track" id="hlTrack"><div class="hl-empty">주요뉴스를 불러오는 중…</div></div></div>
-              <button type="button" class="c-arrow" id="hlNext" aria-label="다음 주요뉴스" disabled><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
-            </div>
-            <div class="c-dots" id="hlDots" aria-label="주요뉴스 페이지"></div>
-          </section>
-          """
-          js=r"""
-          // Highlights derive only from the existing R2 items; no example articles or extra API calls.
-          const HL_PER=3,HL_MAX=12;
-          let hlPage=0,hlItems=[];
-          function hlScore(n){
-           const code=String(n.event_category?.code||n.market_event_category?.code||"");
-           const high=new Set(["earnings","guidance","contract","contracts","merger","acquisition","clinical","approval","fed","economic","policy","tariff","market_close","major_index"]);
-           const medium=new Set(["analyst","operations","product","technology","financial","sector","international","rates_bonds","market_trend"]);
-           const eventScore=high.has(code)?40:medium.has(code)?26:14;
-           const broad=marketSection(n)?25:stockSection(n)?19:8;
-           const age=(Date.now()-Date.parse(n.published_at||""))/86400000;
-           const fresh=Number.isFinite(age)?(age<1?15:age<2?11:age<4?6:2):0;
-           const evidence=(Array.isArray(n.symbols)&&n.symbols.length?6:0)+(/\d+(?:[,.]\d+)*\s*(?:%|달러|원|억|조|bp)\b/i.test(n.title||"")?5:0);
-           return eventScore+broad+fresh+evidence;
-          }
-          function pickHighlights(){
-           const keys=new Set(),groups={stock:0,market:0};
-           const sorted=[...news].sort((a,b)=>hlScore(b)-hlScore(a)||Date.parse(b.published_at||0)-Date.parse(a.published_at||0));
-           const result=[];
-           for(const n of sorted){
-            if(result.length>=HL_MAX)break;
-            const titleKey=String(n.title||"").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu,"");
-            const kind=stockSection(n)?"stock":"market";
-            const primary=String(n.symbols?.[0]||"");
-            const event=String(n.event_category?.code||n.market_event_category?.code||"");
-            const day=String(n.published_at||"").slice(0,10);
-            const eventKey=primary&&event&&day?kind+":"+primary+":"+event+":"+day:"";
-            if(!titleKey||keys.has("t:"+titleKey)||(eventKey&&keys.has("e:"+eventKey)))continue;
-            if(groups[kind]>=8)continue;
-            keys.add("t:"+titleKey);if(eventKey)keys.add("e:"+eventKey);
-            result.push(n);groups[kind]++;
-           }
-           return result;
-          }
-          function renderHighlights(){
-           hlItems=pickHighlights();
-           const pages=Math.ceil(hlItems.length/HL_PER);
-           hlPage=Math.max(0,Math.min(hlPage,pages-1));
-           const current=hlItems.slice(hlPage*HL_PER,(hlPage+1)*HL_PER);
-           el("hlTrack").innerHTML=current.length?current.map(n=>
-            '<button type="button" class="hl-card" data-hl-id="'+escapeHTML(n._index)+'"><span class="hl-title">'+escapeHTML(n.title)+'</span></button>'
-           ).join(""):'<div class="hl-empty">표시할 주요뉴스가 없습니다</div>';
-           el("hlCounter").textContent=pages?(hlPage+1)+" / "+pages:"0 / 0";
-           el("hlPrev").disabled=hlPage<=0;
-           el("hlNext").disabled=hlPage>=pages-1;
-           el("hlDots").innerHTML=Array.from({length:pages},(_,i)=>
-            '<button type="button" class="c-dot'+(i===hlPage?' active':'')+'" data-hl-page="'+i+'" aria-label="주요뉴스 '+(i+1)+'페이지" aria-current="'+(i===hlPage)+'"></button>'
-           ).join("");
-          }
-          document.addEventListener("DOMContentLoaded",()=>{
-           el("highlightsSection").addEventListener("click",e=>{
-            const row=e.target.closest("[data-hl-id]");if(row){openDetail(row.dataset.hlId);return;}
-            const dot=e.target.closest("[data-hl-page]");if(dot){hlPage=Number(dot.dataset.hlPage);renderHighlights();return;}
-            if(e.target.closest("#hlPrev")&&!el("hlPrev").disabled){hlPage--;renderHighlights();}
-            if(e.target.closest("#hlNext")&&!el("hlNext").disabled){hlPage++;renderHighlights();}
-           });
-          });
-          """
-          assert s.count("</style>")==1 and s.count('<div class="news-list" id="newsList"></div>')==1, "HTML_ANCHOR_DRIFT"
-          assert s.count("news.forEach((n,i)=>n._index=i);")==1, "SORT_ANCHOR_DRIFT:"+str(s.count("news.forEach((n,i)=>n._index=i);"))
-          assert s.count("</script>")>=1 and s.rfind("function openDetail(")<s.rfind("</script>"), "JS_SCRIPT_ORDER_DRIFT"
-          s=s.replace("</style>",css+"\n</style>",1)
-          s=s.replace('<div class="news-list" id="newsList"></div>',html+'\n<div class="news-list" id="newsList"></div>',1)
-          s=s.replace("news.forEach((n,i)=>n._index=i);","news.forEach((n,i)=>n._index=i);\n  renderHighlights();",1)
-          pos=s.rfind("</script>")
-          s=s[:pos]+js+"\n"+s[pos:]
-          p.write_text(s,encoding="utf-8")
-          print("HIGHLIGHTS_INSERTED_IN_LIVE_HTML",len(s))
+          old=Path('_news-deploy-site/index.html').read_text(encoding='utf-8')
+          now=Path('/tmp/current-news.html').read_text(encoding='utf-8')
+          assert 'id="highlightsSection"' in now and 'id="highlightsSection"' not in old, 'unexpected prior/current carousel state'
+          for marker in ('id="categoryTabs"','id="newsList"','NEWS_R2_URL','function openDetail(', 'Only the primary stock category'):
+              assert marker in old and marker in now, 'baseline or current missing '+marker
+          assert now.count('/* Major news carousel:')==1, 'carousel CSS marker drift'
+          assert now.count('<section class="hl-section" id="highlightsSection"')==1, 'carousel HTML marker drift'
+          assert now.count('// Highlights derive only from the existing R2 items;')==1, 'carousel JS marker drift'
+          # Reverse the four narrowly scoped insertions and require byte-for-byte equality
+          restored=now
+          restored=re.sub(r'/\* Major news carousel:.*?(?=</style>)','',restored,count=1,flags=re.S)
+          restored=re.sub(r'\n<section class="hl-section" id="highlightsSection".*?</section>\n','',restored,count=1,flags=re.S)
+          restored=restored.replace('news.forEach((n,i)=>n._index=i);\n  renderHighlights();','news.forEach((n,i)=>n._index=i);',1)
+          restored=re.sub(r'\n// Highlights derive only from the existing R2 items;.*?(?=</script>)','',restored,count=1,flags=re.S)
+          assert restored==old, 'CURRENT_PRODUCTION_HAS_OTHER_CHANGES: refusing rollback'
+          print('EXACT_PRE_CAROUSEL_PRODUCTION_MATCH_CONFIRMED',len(old))
           PY
           node <<'NODE'
-          const fs=require('fs'),html=fs.readFileSync('_news-deploy-site/index.html','utf8');
-          const start=html.lastIndexOf('<script>'),end=html.lastIndexOf('</script>');
-          if(start<0||end<start)throw Error('NEWS_SCRIPT_MISSING');
-          new Function(html.slice(start+8,end));
-          for(const text of ['id="highlightsSection"','id="hlTrack"','renderHighlights();','data-hl-id'])if(!html.includes(text))throw Error('HIGHLIGHTS_MISSING_'+text);
-          console.log('HIGHLIGHTS_SYNTAX_AND_MARKUP_PASS');
+          const fs=require('fs'),s=fs.readFileSync('_news-deploy-site/index.html','utf8');
+          const a=s.lastIndexOf('<script>'),b=s.lastIndexOf('</script>');
+          if(a<0||b<=a) throw Error('missing script');
+          new Function(s.slice(a+8,b));
+          if(s.includes('id="highlightsSection"'))throw Error('carousel remains');
+          console.log('PREVIOUS_NEWS_SCRIPT_VALID');
           NODE
-      - name: Deploy existing news Pages preview with existing Functions
+      - name: Preview existing Pages project, no new site
         id: preview
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
-          command: pages deploy _news-deploy-site --project-name gaemigtp-news --branch news-highlights-preview-20261114
-      - name: Verify preview HTML and existing R2 route
+          command: pages deploy _news-deploy-site --project-name gaemigtp-news --branch news-highlights-rollback-20261114
+      - name: Verify preview markup and R2 route
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.deployment-url }}
         run: |
           set -euo pipefail
           test -n "$PREVIEW_URL"
-          curl -fsSL --retry 4 --retry-delay 2 --max-time 20 "$PREVIEW_URL/" -o /tmp/news-preview.html
-          grep -Fq 'id="highlightsSection"' /tmp/news-preview.html
-          curl -fsSL --retry 4 --retry-delay 2 --max-time 20 "$PREVIEW_URL/news/latest.json" -o /tmp/news-preview.json
-          python - <<'PY'
-          import json
-          data=json.load(open('/tmp/news-preview.json'))
-          assert data.get('ok') is True and isinstance(data.get('items'),list)
-          print('NEWS_PREVIEW_R2_PASS',len(data['items']))
-          PY
-      - name: Deploy verified live HTML to existing news production Pages
+          curl -fsSL --retry 4 --max-time 20 "$PREVIEW_URL/" -o /tmp/rollback-preview.html
+          cmp _news-deploy-site/index.html /tmp/rollback-preview.html
+          ! grep -Fq 'id="highlightsSection"' /tmp/rollback-preview.html
+          curl -fsSL --retry 4 --max-time 20 "$PREVIEW_URL/news/latest.json" | python -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True and isinstance(d.get("items"),list);print("PREVIEW_R2_OK",len(d["items"]))'
+      - name: Restore existing production Pages project
         id: production
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
           command: pages deploy _news-deploy-site --project-name gaemigtp-news --branch ops/do-ssh-deploy-setup-20261017
-      - name: Verify production HTML and R2 after deploy
+      - name: Verify restored production HTML and R2
         run: |
           set -euo pipefail
-          curl -fsSL --retry 6 --retry-delay 3 --max-time 20 'https://gaemigtp-news.pages.dev/' -o /tmp/news-production.html
-          grep -Fq 'id="highlightsSection"' /tmp/news-production.html
-          curl -fsSL --retry 6 --retry-delay 3 --max-time 20 'https://gaemigtp-news.pages.dev/news/latest.json' -o /tmp/news-production.json
-          python - <<'PY'
-          import json
-          data=json.load(open('/tmp/news-production.json'))
-          assert data.get('ok') is True and isinstance(data.get('items'),list)
-          print('NEWS_PRODUCTION_R2_PASS',len(data['items']))
-          PY
+          curl -fsSL --retry 6 --retry-delay 3 --max-time 20 'https://gaemigtp-news.pages.dev/?rollback=20261114' -o /tmp/rollback-production.html
+          cmp _news-deploy-site/index.html /tmp/rollback-production.html
+          ! grep -Fq 'id="highlightsSection"' /tmp/rollback-production.html
+          curl -fsSL --retry 6 --max-time 20 'https://gaemigtp-news.pages.dev/news/latest.json' | python -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True and isinstance(d.get("items"),list);print("PRODUCTION_R2_OK",len(d["items"]))'
