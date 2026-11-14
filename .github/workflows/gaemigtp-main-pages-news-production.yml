@@ -1,4 +1,4 @@
-name: gaemigtp-main Pages production - header News Chat
+name: gaemigtp-main Pages production - centered News Chat
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
@@ -27,6 +27,7 @@ jobs:
           grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
           grep -Fq '20261114-r2-industry-v1' frontend/index.html
           grep -Fq 'aria-label="메인 화면"' frontend/index.html
+          test "$(grep -Fc 'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2' frontend/index.html)" -eq 2
           grep -Fq 'News</span>' frontend/index.html
           grep -Fq '>Chat</button>' frontend/index.html
           node --check frontend/shell/right-panel/right-panel-tabs.js
