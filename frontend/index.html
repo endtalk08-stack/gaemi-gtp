@@ -203,7 +203,7 @@
     <header class="gaemi-app-header relative z-50 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-3">
         <button type="button" data-left-sidebar-toggle data-left-sidebar-top="hero" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-full cursor-pointer" aria-label="왼쪽 메뉴 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
-        <span class="gaemi-app-header__brand cursor-pointer" onclick="resetToHome()">gaemiGTP</span>
+        <nav class="flex items-center gap-3" aria-label="메인 화면"><span class="text-sm text-[#94a3b8] dark:text-[#71717a]" title="뉴스 화면 연결 예정">News</span><button type="button" onclick="resetToHome()" class="gaemi-app-header__brand cursor-pointer" aria-current="page">Chat</button></nav>
       </div>
       <div class="flex items-center gap-1">
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] pointer-events-auto flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] gtp-dark-hover-text transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
@@ -288,7 +288,7 @@
     <header class="gaemi-app-header gaemi-chat-top flex items-center justify-between shrink-0 z-10">
       <div class="flex items-center gap-3">
         <button type="button" data-left-sidebar-toggle data-left-sidebar-top="workspace" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-full cursor-pointer" aria-label="왼쪽 사이드바 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
-        <button type="button" onclick="resetToHome()" class="gaemi-app-header__brand cursor-pointer hover:opacity-80 transition" aria-label="메인으로 이동">gaemiGTP</button>
+        <nav class="flex items-center gap-3" aria-label="메인 화면"><span class="text-sm text-[#94a3b8] dark:text-[#71717a]" title="뉴스 화면 연결 예정">News</span><button type="button" onclick="resetToHome()" class="gaemi-app-header__brand cursor-pointer hover:opacity-80 transition" aria-current="page">Chat</button></nav>
       </div>
       <div class="flex items-center gap-1">
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] gtp-dark-hover-text transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
