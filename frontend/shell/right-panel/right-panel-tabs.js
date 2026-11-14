@@ -13,7 +13,7 @@
   let relatedNewsItems = [];
   let relatedDisclosureItems = [];
   let disclosuresRenderVersion = 0;
-  const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '대시보드', icon: 'layout-dashboard' }, news: { label: '뉴스', icon: 'newspaper' }, disclosures: { label: '공시', icon: 'file-text' } };
+  const PANEL_WORKSPACE_VIEWS = { 'panel-workspace': { label: '대시보드', icon: 'layout-dashboard' }, disclosures: { label: '공시', icon: 'file-text' } };
 
   function normalizeLegacyPanelWorkspaceDom() {
     const legacyView = document.getElementById('rightPanelTabView-dashboard');
@@ -55,7 +55,6 @@
     const root = document.getElementById('rightPanelWorkspace'); if (!root) return;
     if (!panelWorkspaceView) { root.innerHTML = ''; return; }
     if (panelWorkspaceView === 'panel-workspace') { root.innerHTML = '<section id="rightPanelGrid" aria-label="대시보드"></section>'; if (window.GaemiGTPPanelWorkspace && typeof window.GaemiGTPPanelWorkspace.mount === 'function') window.GaemiGTPPanelWorkspace.mount(root); return; }
-    if (panelWorkspaceView === 'news') { renderTradingViewNewsPage(); return; }
     if (panelWorkspaceView === 'disclosures') { renderRelatedDisclosuresPanel(); return; }
   }
   function renderTabs() {
@@ -64,7 +63,7 @@
       if (tab.id === 'panel-workspace') {
         const wrap = document.createElement('div'); wrap.className = 'right-panel-workspace-menu-wrap';
         const button = document.createElement('button'); button.type = 'button'; button.className = 'right-panel-tab-add'; button.dataset.panelWorkspaceMenuToggle = 'true'; button.setAttribute('aria-label', '패널 메뉴'); button.setAttribute('aria-expanded', 'false'); button.title = '패널 메뉴'; button.innerHTML = '<i data-lucide="ellipsis"></i>'; wrap.appendChild(button);
-        const menu = document.createElement('div'); menu.className = 'right-panel-tab-menu right-panel-workspace-menu'; menu.dataset.panelWorkspaceMenu = 'true'; menu.hidden = true; menu.innerHTML = `<button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="panel-workspace"><span>대시보드</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="news"><span>뉴스</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="disclosures"><span>공시</span></button>`; wrap.appendChild(menu); list.appendChild(wrap); return;
+        const menu = document.createElement('div'); menu.className = 'right-panel-tab-menu right-panel-workspace-menu'; menu.dataset.panelWorkspaceMenu = 'true'; menu.hidden = true; menu.innerHTML = `<button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="panel-workspace"><span>대시보드</span></button><button type="button" class="right-panel-tab-menu__item" data-panel-workspace-view="disclosures"><span>공시</span></button>`; wrap.appendChild(menu); list.appendChild(wrap); return;
       }
       const button = document.createElement('button'); button.type = 'button'; button.className = `right-panel-tab${activeTabId === tab.id ? ' is-active' : ''}`; button.dataset.rightPanelTab = tab.id; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', activeTabId === tab.id ? 'true' : 'false'); button.title = tab.label;
       const label = document.createElement('span'); label.className = 'right-panel-tab__label'; label.textContent = tab.label; button.appendChild(label);
@@ -150,19 +149,6 @@
       }).format(new Date(value));
     } catch (_) { return String(value); }
   }
-  function renderTradingViewNewsPage() {
-    const root = document.getElementById('rightPanelWorkspace');
-    if (!root) return;
-    if (root.querySelector('#rightPanelTradingViewNews')) return;
-    const frame = document.createElement('iframe');
-    frame.id = 'rightPanelTradingViewNews';
-    frame.title = 'TradingView 독립 뉴스페이지';
-    frame.src = 'https://gaemigtp-news.pages.dev/';
-    frame.loading = 'lazy';
-    frame.style.cssText = 'display:block;width:100%;height:100%;min-height:0;border:0;background:transparent;';
-    root.replaceChildren(frame);
-  }
-
   function renderRelatedNewsPanel() {
     const root = document.getElementById('rightPanelWorkspace');
     if (!root) return;
