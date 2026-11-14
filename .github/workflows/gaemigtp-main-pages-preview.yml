@@ -39,5 +39,5 @@ jobs:
           esac
           curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/" -o "$RUNNER_TEMP/pages-index.html"
           cmp frontend/index.html "$RUNNER_TEMP/pages-index.html"
-          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/market/us-daily-chart?symbol=NVDA" |
+          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/stocks/us/instruments.json" |\n            jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'\n          grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/pages-index.html"\n          grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' "$RUNNER_TEMP/pages-index.html"\n          grep -Fq '52주 신고가 신저가 종목 알려줘' "$RUNNER_TEMP/pages-index.html"\n          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
