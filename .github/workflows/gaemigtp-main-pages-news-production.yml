@@ -21,6 +21,11 @@ jobs:
         run: |
           test -s frontend/index.html
           test -s functions/market/us-daily-chart.js
+          test -s functions/stocks/us/instruments.json.js
+          grep -Fq '오늘 미국 상승 테마 뭐야?' frontend/index.html
+          grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' frontend/index.html
+          grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
+          grep -Fq '20261114-r2-industry-v1' frontend/index.html
           node --check frontend/shell/right-panel/right-panel-tabs.js
           grep -q 'data-panel-workspace-view="news"' frontend/shell/right-panel/right-panel-tabs.js
           grep -q 'right-panel-tabs.js?v=20261111-restore-news-menu-only-v1' frontend/index.html
@@ -35,5 +40,5 @@ jobs:
         run: |
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/?news-restore=20261111" -o "$RUNNER_TEMP/production-index.html"
           cmp frontend/index.html "$RUNNER_TEMP/production-index.html"
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/us-daily-chart?symbol=NVDA" |
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/stocks/us/instruments.json" |\n            jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'\n          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
