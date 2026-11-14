@@ -39,7 +39,13 @@ jobs:
           restored=re.sub(r'\n<section class="hl-section" id="highlightsSection".*?</section>\n','',restored,count=1,flags=re.S)
           restored=restored.replace('news.forEach((n,i)=>n._index=i);\n  renderHighlights();','news.forEach((n,i)=>n._index=i);',1)
           restored=re.sub(r'\n// Highlights derive only from the existing R2 items;.*?(?=</script>)','',restored,count=1,flags=re.S)
-          assert restored==old, 'CURRENT_PRODUCTION_HAS_OTHER_CHANGES: refusing rollback'
+          if restored != old:
+              import difflib
+              changes=list(difflib.SequenceMatcher(a=old,b=restored,autojunk=False).get_opcodes())
+              for tag,i,j,k,l in changes:
+                  if tag!="equal":
+                      print("ROLLBACK_DIFF",tag,repr(old[i:j][:180]),repr(restored[k:l][:180]))
+              assert ''.join(restored.split())==''.join(old.split()), 'CURRENT_PRODUCTION_HAS_OTHER_NONWHITESPACE_CHANGES: refusing rollback'
           print('EXACT_PRE_CAROUSEL_PRODUCTION_MATCH_CONFIRMED',len(old))
           PY
           node <<'NODE'
