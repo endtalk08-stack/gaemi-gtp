@@ -148,19 +148,21 @@ jobs:
           });
           """
           assert s.count("</style>")==1 and s.count('<div class="news-list" id="newsList"></div>')==1, "HTML_ANCHOR_DRIFT"
-          assert s.count("</script>")==1 and s.count("news.forEach((n,i)=>n._index=i);")==1, "JS_ANCHOR_DRIFT"
+          assert s.count("news.forEach((n,i)=>n._index=i);")==1, "SORT_ANCHOR_DRIFT:"+str(s.count("news.forEach((n,i)=>n._index=i);"))
+          assert s.count("</script>")>=1 and s.rfind("function openDetail(")<s.rfind("</script>"), "JS_SCRIPT_ORDER_DRIFT"
           s=s.replace("</style>",css+"\n</style>",1)
           s=s.replace('<div class="news-list" id="newsList"></div>',html+'\n<div class="news-list" id="newsList"></div>',1)
           s=s.replace("news.forEach((n,i)=>n._index=i);","news.forEach((n,i)=>n._index=i);\n  renderHighlights();",1)
-          s=s.replace("</script>",js+"\n</script>",1)
+          pos=s.rfind("</script>")
+          s=s[:pos]+js+"\n"+s[pos:]
           p.write_text(s,encoding="utf-8")
           print("HIGHLIGHTS_INSERTED_IN_LIVE_HTML",len(s))
           PY
           node <<'NODE'
           const fs=require('fs'),html=fs.readFileSync('_news-deploy-site/index.html','utf8');
-          const part=html.match(/<script>([\s\S]*?)<\/script>/);
-          if(!part)throw Error('NEWS_SCRIPT_MISSING');
-          new Function(part[1]);
+          const start=html.lastIndexOf('<script>'),end=html.lastIndexOf('</script>');
+          if(start<0||end<start)throw Error('NEWS_SCRIPT_MISSING');
+          new Function(html.slice(start+8,end));
           for(const text of ['id="highlightsSection"','id="hlTrack"','renderHighlights();','data-hl-id'])if(!html.includes(text))throw Error('HIGHLIGHTS_MISSING_'+text);
           console.log('HIGHLIGHTS_SYNTAX_AND_MARKUP_PASS');
           NODE
