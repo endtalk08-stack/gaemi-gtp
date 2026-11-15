@@ -2,11 +2,6 @@ name: DigitalOcean disclosures 24h refresh
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - ops/do-ssh-deploy-setup-20261017
-    paths:
-      - .github/workflows/do-disclosures-refresh.yml
 
 permissions:
   contents: read
