@@ -7,9 +7,6 @@ on:
       - ops/do-ssh-deploy-setup-20261017
     paths:
       - .github/workflows/do-disclosures-refresh.yml
-  schedule:
-    # 08:20 KST and 18:20 KST, after respective market sessions.
-    - cron: '20 9,23 * * *'
 
 permissions:
   contents: read
