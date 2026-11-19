@@ -199,7 +199,7 @@ case "$action" in
     ;;
   kiwoom-qqq-probe)
     [[ $# == 3 ]] || fail "qqq_probe_requires_id_sha_timeout"
-    [[ "$1" == "qqqfeprobe20261119" ]] || fail "qqq_probe_unapproved_request"
+    [[ "$1" == "qqqfeprobe20261119b" ]] || fail "qqq_probe_unapproved_request"
     [[ "$2" == "6d40674dc4fc33be915c3574057faf2e1384794f" ]] || fail "qqq_probe_unapproved_payload"
     [[ "$3" == "40" ]] || fail "qqq_probe_unapproved_timeout"
     [[ -f /etc/gaemigtp/kiwoom.env && ! -L /etc/gaemigtp/kiwoom.env ]] || fail "qqq_probe_kiwoom_env_missing"
