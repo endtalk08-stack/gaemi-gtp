@@ -14,6 +14,73 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
 RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
+
+_US_INDUSTRY_CACHE_LOCK = threading.Lock()
+_US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
+_US_INDUSTRY_STOCK_CACHE = {}
+_US_INDUSTRY_MAP_TTL = 30
+_US_INDUSTRY_STOCK_TTL = 20
+
+
+def _safe_industry_error(exc):
+    value = str(exc)
+    return value if re.fullmatch(r"[a-z0-9_]{1,90}", value) else type(exc).__name__
+
+
+def _get_us_industry_map():
+    from backend.providers.kiwoom_us_industries import fetch_us_industry_map
+
+    now = time.monotonic()
+    with _US_INDUSTRY_CACHE_LOCK:
+        cached = _US_INDUSTRY_MAP_CACHE["data"]
+        if cached is not None and now < _US_INDUSTRY_MAP_CACHE["expires_at"]:
+            return dict(cached)
+        try:
+            result = fetch_us_industry_map()
+        except Exception:
+            if cached is not None:
+                stale = dict(cached)
+                stale["stale"] = True
+                return stale
+            raise
+        _US_INDUSTRY_MAP_CACHE["data"] = dict(result)
+        _US_INDUSTRY_MAP_CACHE["expires_at"] = now + _US_INDUSTRY_MAP_TTL
+        return dict(result)
+
+
+def _get_us_industry_stocks(industry_code, sort):
+    from backend.providers.kiwoom_us_industries import fetch_us_industry_stocks
+
+    if sort not in ("change", "value"):
+        raise ValueError("invalid_industry_sort")
+    sector_map = _get_us_industry_map()
+    valid_codes = {
+        str(item.get("code"))
+        for item in sector_map.get("items", [])
+        if isinstance(item, dict) and item.get("code")
+    }
+    if industry_code not in valid_codes:
+        raise ValueError("invalid_industry_code")
+
+    key = (industry_code, sort)
+    now = time.monotonic()
+    with _US_INDUSTRY_CACHE_LOCK:
+        cached = _US_INDUSTRY_STOCK_CACHE.get(key)
+        if cached and now < cached["expires_at"]:
+            return dict(cached["data"])
+        try:
+            result = fetch_us_industry_stocks(industry_code, sort)
+        except Exception:
+            if cached:
+                stale = dict(cached["data"])
+                stale["stale"] = True
+                return stale
+            raise
+        _US_INDUSTRY_STOCK_CACHE[key] = {
+            "expires_at": now + _US_INDUSTRY_STOCK_TTL,
+            "data": dict(result),
+        }
+        return dict(result)
 ADDRESS = "127.0.0.1"
 PORT = 8765
 ALLOWED_ORIGINS = {
@@ -226,6 +293,28 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_qqq_websocket()
         if path.path == "/health":
             return self._json(200, {"ok": True, "service": "kiwoom-us-top20-api"})
+        if path.path == "/market/us-industries":
+            if not getattr(self.server, "qqq_feed_enabled", False):
+                return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
+            try:
+                from backend.providers.kiwoom_us_industries import KiwoomReadOnlyError
+                result = _get_us_industry_map()
+            except Exception as exc:
+                return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
+            return self._json(200, result)
+        if path.path == "/market/us-industry-stocks":
+            if not getattr(self.server, "qqq_feed_enabled", False):
+                return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
+            params = parse_qs(path.query)
+            industry_code = str((params.get("code") or [""])[0]).strip()
+            sort = str((params.get("sort") or ["change"])[0]).strip()
+            try:
+                result = _get_us_industry_stocks(industry_code, sort)
+            except ValueError:
+                return self._json(400, {"ok": False, "error": "invalid_industry_request", "items": []})
+            except Exception as exc:
+                return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
+            return self._json(200, result)
         if path.path != "/market/trading-value" or parse_qs(path.query).get("market") != ["us"]:
             return self._json(404, {"ok": False, "error": "not_found", "items": []})
         try:
