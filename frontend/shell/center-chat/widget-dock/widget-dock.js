@@ -25,9 +25,9 @@
   function readState() {
     try {
       const saved = localStorage.getItem(STATE_KEY);
-      if (saved === null) return ['qqq'];
+      if (saved === null) return [];
       const value = JSON.parse(saved);
-      if (!Array.isArray(value)) return ['qqq'];
+      if (!Array.isArray(value)) return [];
       // 이전 버전의 코스피 위젯 ID를 새 명확한 ID로 한 번만 이관한다.
       return value
         .map(id => (id === 'why-up' || id === 'kospi') ? 'qqq' : id)
@@ -77,7 +77,7 @@
       .then(response => response.ok ? response.json() : null)
       .then(data => { qqqReasons = data?.ok && Array.isArray(data.items) ? data.items : []; })
       .catch(() => { qqqReasons = []; })
-      .finally(updateQqqCard);
+      .finally(updateQqqViews);
   }
 
   function updateQqqReason(card, quote, fresh) {
@@ -156,6 +156,19 @@
     updateQqqReason(card, quote, fresh);
   }
 
+  function updateMarketQqqReason() {
+    const row = document.querySelector('[data-market-qqq]');
+    if (!row) return;
+    const quote = qqqCurrent;
+    const fresh = quote?.stale === false && Date.now() - quote.received_at_ms <= 25000;
+    updateQqqReason(row, quote, fresh);
+  }
+
+  function updateQqqViews() {
+    updateQqqCard();
+    updateMarketQqqReason();
+  }
+
   function onQqqQuote(event) {
     const quote = event.detail?.quote;
     if (!quote || quote.symbol !== 'QQQ' || typeof quote.price !== 'number'
@@ -165,7 +178,7 @@
       || quote.received_at_ms > Date.now() + 5000
       || Date.now() - quote.received_at_ms > 86400000) {
       qqqCurrent = null;
-      updateQqqCard();
+      updateQqqViews();
       return;
     }
     qqqCurrent = quote;
@@ -180,7 +193,7 @@
       if (qqqPoints.length > MAX_QQQ_POINTS) qqqPoints.shift();
       qqqLastReceivedMs = quote.received_at_ms;
     }
-    updateQqqCard();
+    updateQqqViews();
   }
 
   function render() {
@@ -192,8 +205,8 @@
       if (id === 'qqq') {
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="QQQ 위젯 삭제" title="위젯 삭제">
-            <i data-lucide="x" class="w-3 h-3"></i>
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="QQQ 왼쪽으로 이동" title="왼쪽으로 이동">
+            <i data-lucide="panel-left" class="w-3 h-3"></i>
           </button>
           <div class="central-widget-card__kospi-title"><span>QQQ</span><span class="central-widget-card__kospi-market-name">나스닥</span></div>
           <div class="central-widget-card__kospi-body" aria-label="QQQ 키움 실시간 체결가 차트">
@@ -469,13 +482,22 @@
 
   function add(id) {
     if (id === 'chart' || !catalog()[id] || activeIds.includes(id)) return false;
-    activeIds.push(id); saveState(); render(); return true;
+    activeIds.push(id);
+    saveState();
+    if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
+    render();
+    return true;
   }
   function remove(id) {
     const next = activeIds.filter(item => item !== id);
     const changed = next.length !== activeIds.length;
     activeIds = next;
-    if (changed) { saveState(); render(); window.GaemiGTPPluginSidebar?.render?.(); }
+    if (changed) {
+      saveState();
+      render();
+      if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
+      window.GaemiGTPPluginSidebar?.render?.();
+    }
     return changed;
   }
   function initialize() {
@@ -492,10 +514,14 @@
     window.addEventListener('gaemi:us-live-quotes', onUsLiveQuotes);
     dock.addEventListener('click', event => {
       const button = event.target.closest('[data-central-widget-remove]');
-      if (button) remove(button.dataset.centralWidgetRemove);
+      if (!button) return;
+      const id = button.dataset.centralWidgetRemove;
+      if (id === 'qqq') window.GaemiGTPMarketSidebar?.openMarketTab?.();
+      remove(id);
+      if (id === 'qqq') document.querySelector('[data-market-qqq] button')?.focus();
     });
   }
   document.addEventListener('DOMContentLoaded', initialize);
-  window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive };
+  window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason };
 }());
 
