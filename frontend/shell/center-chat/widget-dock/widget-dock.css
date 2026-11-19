@@ -166,16 +166,17 @@
 .central-widget-card--qqq-muted .central-widget-card__sparkline polygon { opacity: .2; }
 
 
-/* QQQ typography and compact layout: consistent labels, prominent quote. */
+/* QQQ typography: every visible text element uses the same size and weight. */
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-title,
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market-name,
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market strong,
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-change {
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 18px !important;
+}
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-title {
   gap: 6px;
-  font-size: 14px;
-  line-height: 18px;
-}
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market-name {
-  color: inherit;
-  font-size: inherit;
-  font-weight: inherit;
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-body {
   grid-template-columns: minmax(0, 1fr) 54px;
@@ -192,15 +193,6 @@
   align-items: flex-start;
   justify-content: center;
   gap: 0;
-}
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market strong {
-  font-size: 22px;
-  line-height: 24px;
-}
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-change {
-  font-size: 14px;
-  line-height: 16px;
-  font-weight: 600;
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__sparkline {
   grid-column: 2;
