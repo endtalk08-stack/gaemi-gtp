@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/inspect_kiwoom_units_readonly_20261119.py",
-  "request_id": "kiwoomunitscheck20261119",
-  "timeout": 60
+  "operation": "status"
 }
