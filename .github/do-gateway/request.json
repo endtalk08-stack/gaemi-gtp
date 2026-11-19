@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/qqq_public_ws_check_once_20261119.py",
-  "request_id": "qqqpublicwscheck20261119",
-  "timeout": 40
+  "path": "ops/do-gateway/probe_qqq_public_websocket_readonly_20261119.py",
+  "request_id": "qqqpublicwscheck2_20261119",
+  "timeout": 60
 }
