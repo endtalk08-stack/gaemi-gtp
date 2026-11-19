@@ -90,7 +90,7 @@ def historical():
         return {"available": False, "sysstat_utility": bool(sadf), "sysstat_archives": len(paths)}
     windows = {
         "before": (dt.datetime(2026, 11, 19, 14, 55, tzinfo=UTC), dt.datetime(2026, 11, 19, 15, 5, tzinfo=UTC)),
-        "after": (dt.datetime(2026, 11, 19, 15, 18, tzinfo=UTC), dt.datetime(2026, 11, 19, 15, 28, tzinfo=UTC)),
+        "after": (dt.datetime(2026, 11, 19, 15, 29, tzinfo=UTC), dt.datetime(2026, 11, 19, 15, 31, tzinfo=UTC)),
     }
     result = {label: [] for label in windows}
     for path in paths:
@@ -126,40 +126,4 @@ def historical():
                         })
     return {"available": bool(result["before"] and result["after"]), "windows": result}
 
-start_at = dt.datetime.now(UTC)
-start_connections = connections()
-samples = [sample()]
-for _ in range(6):
-    time.sleep(5)
-    samples.append(sample())
-end_connections = connections()
-end_at = dt.datetime.now(UTC)
-first, end = samples[0], samples[-1]
-elapsed = end["at"] - first["at"]
-n_cpu = os.cpu_count() or 1
-same_service = bool(first["service_pid"]) and first["service_pid"] == end["service_pid"]
-service_cpu_ns = rate(first["service_cpu"], end["service_cpu"], elapsed) if same_service else None
-used = [x["mem_total"] - x["mem_available"] for x in samples]
-net = {direction: round(sum(max(0, end["net"][key][idx] - values[idx])
-                            for key, values in first["net"].items() if key in end["net"]) / elapsed / 1024, 2)
-       for idx, direction in enumerate(("rx_kib_s", "tx_kib_s"))}
-cpu_points = [percent(previous, current) for previous, current in zip(samples, samples[1:])]
-svc_rates = {direction: rate(first[key], end[key], elapsed)
-             for key, direction in (("service_rx", "rx_bytes_sec"), ("service_tx", "tx_bytes_sec"))}
-out = {
-    "start": start_at.isoformat(), "end": end_at.isoformat(), "seconds": round(elapsed, 2),
-    "host": {"cpus": n_cpu, "cpu_avg_pct": round(percent(first, end), 2),
-             "cpu_peak_5s_pct": round(max(p for p in cpu_points if p is not None), 2),
-             "memory_total_mib": round(end["mem_total"] / MIB, 2), "memory_avg_mib": avg_mib(used),
-             "memory_peak_mib": peak_mib(used), "swap_peak_mib": peak_mib([x["swap_used"] for x in samples]),
-             "net": net},
-    "quote_service": {"process_stable": same_service,
-                      "cpu_avg_pct_1core": round(service_cpu_ns / 1e7, 3) if service_cpu_ns is not None else None,
-                      "cgroup_memory_avg_mib": avg_mib([x["service_mem"] for x in samples]),
-                      "rss_avg_mib": avg_mib([x["service_rss"] for x in samples]),
-                      "rss_peak_mib": peak_mib([x["service_rss"] for x in samples]),
-                      "port443_established_start_end": [start_connections, end_connections],
-                      "network_accounting": svc_rates if same_service else {}},
-    "historical": historical(),
-}
-print("QUOTE_RESOURCE_MEASUREMENT=" + json.dumps(out, separators=(",", ":")), flush=True)
+print("QUOTE_HISTORY_COMPARISON=" + json.dumps(historical(), separators=(",", ":")), flush=True)
