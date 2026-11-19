@@ -99,3 +99,108 @@ def _ranked_symbols(snapshot_path=None):
     if ranks != set(range(1, 21)):
         raise ValueError("incomplete_local_kiwoom_top20")
     return data.get("captured_at"), selected
+
+async def run_qqq_fe_stream(on_quote):
+    """Keep one read-only QQQ FE subscription and publish ticks to a memory callback.
+
+    The caller owns storage and client fan-out. No DB, disk, REST quote polling,
+    account, order, or ranking calls are made here.
+    """
+    import asyncio
+    from backend.providers.kiwoom_us_quotes import issue_access_token
+
+    try:
+        from websockets.asyncio.client import connect
+    except ImportError:
+        from websockets.client import connect
+
+    selected = {"QQQ": "ND"}
+    retry_delay = 5
+    while True:
+        if not _open_us_session():
+            await asyncio.sleep(60)
+            continue
+        try:
+            token = issue_access_token()
+            async with connect(
+                URL, open_timeout=8, close_timeout=2,
+                ping_interval=None, max_size=131072,
+            ) as ws:
+                await ws.send(json.dumps({"trnm": "LOGIN", "token": token}))
+                login_ok = False
+                for _ in range(5):
+                    try:
+                        raw = await asyncio.wait_for(ws.recv(), timeout=7)
+                    except asyncio.TimeoutError:
+                        continue
+                    if isinstance(raw, bytes):
+                        raw = raw.decode("utf-8", errors="replace")
+                    frame = json.loads(raw)
+                    if not isinstance(frame, dict):
+                        continue
+                    trnm = str(frame.get("trnm", "")).upper()
+                    if trnm == "PING":
+                        await ws.send(json.dumps(frame))
+                    elif trnm == "LOGIN":
+                        login_ok = str(frame.get("return_code", "")) in ("0", "0000")
+                        break
+                if not login_ok:
+                    raise RuntimeError("kiwoom_qqq_login_not_confirmed")
+
+                await ws.send(json.dumps({
+                    "trnm": "REG", "grp_no": "1", "refresh": "1",
+                    "data": [{"item": [{"jmcode": "QQQ", "stex_tp": "ND"}],
+                              "type": ["FE"]}],
+                }))
+                registered = False
+                deadline = asyncio.get_running_loop().time() + 10
+                while asyncio.get_running_loop().time() < deadline:
+                    try:
+                        raw = await asyncio.wait_for(ws.recv(), timeout=3)
+                    except asyncio.TimeoutError:
+                        continue
+                    if isinstance(raw, bytes):
+                        raw = raw.decode("utf-8", errors="replace")
+                    frame = json.loads(raw)
+                    if not isinstance(frame, dict):
+                        continue
+                    trnm = str(frame.get("trnm", "")).upper()
+                    if trnm == "PING":
+                        await ws.send(json.dumps(frame))
+                    elif trnm == "REG":
+                        registered = str(frame.get("return_code", "")) in ("0", "0000")
+                        break
+                if not registered:
+                    raise RuntimeError("kiwoom_qqq_registration_not_confirmed")
+
+                print("KIWOOM_QQQ_FE_CONNECTED", flush=True)
+                retry_delay = 5
+                while True:
+                    raw = await ws.recv()
+                    if isinstance(raw, bytes):
+                        raw = raw.decode("utf-8", errors="replace")
+                    frame = json.loads(raw)
+                    if not isinstance(frame, dict):
+                        continue
+                    if str(frame.get("trnm", "")).upper() == "PING":
+                        await ws.send(json.dumps(frame))
+                        continue
+                    updates = _parse_price_event(frame, selected)
+                    quote = updates.get("QQQ")
+                    if quote is None:
+                        continue
+                    price, change_pct, high, low = quote
+                    on_quote({
+                        "symbol": "QQQ",
+                        "price": price,
+                        "change_pct": change_pct,
+                        "high": high,
+                        "low": low,
+                    })
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print("KIWOOM_QQQ_FE_RECONNECT=" + type(exc).__name__, flush=True)
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(60, retry_delay * 2)
+
