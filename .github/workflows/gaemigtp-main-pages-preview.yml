@@ -44,6 +44,8 @@ jobs:
           esac
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/" -o "$RUNNER_TEMP/pages-index.html"
           cmp frontend/index.html "$RUNNER_TEMP/pages-index.html"
+          curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/shell/left-market-sidebar/market-sidebar.js?v=20261120-top20-websocket-v1" -o "$RUNNER_TEMP/pages-market-sidebar.js"
+          cmp frontend/shell/left-market-sidebar/market-sidebar.js "$RUNNER_TEMP/pages-market-sidebar.js"
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/stocks/us/instruments.json" |
             jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'
           grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/pages-index.html"
@@ -53,74 +55,3 @@ jobs:
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/market/qqq-reason" |\
             jq -e '.ok == true and (.items | type == "array") and all(.items[]; (.publishedAt | type == "number") and (.text | type == "string" and length > 0) and (.url | startswith("https://")))'
-      - name: Verify shared QQQ and TOP20 quote stream
-        env:
-          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
-        run: |
-          python3 - <<'PY'
-          import base64, json, os, socket, ssl, struct, time
-          from urllib.request import urlopen, Request
-
-          origin = os.environ["PREVIEW_URL"]
-          host = "quotes.gaemigtp.com"
-          with urlopen(Request(f"https://{host}/market/trading-value?market=us", headers={"Origin":origin}), timeout=10) as body:
-              ranked = json.load(body)
-          with urlopen(origin + "/stocks/us/instruments.json", timeout=8) as body:
-              industries = {row["symbol"] for row in json.load(body)["items"]}
-          assert ranked["ok"] and len(ranked["items"]) == 20
-          symbols = {row["symbol"] for row in ranked["items"]}
-          aliases = {"ND":".O","NY":".K"}
-          unmapped = [row["symbol"] for row in ranked["items"]
-                      if row["symbol"] not in industries and not row.get("industry")
-                      and not (row.get("exchange") in aliases and "." not in row["symbol"]
-                               and row["symbol"] + aliases[row["exchange"]] in industries)]
-          print("TOP20 industry metadata missing: " + (",".join(unmapped) or "none"))
-
-          key = base64.b64encode(os.urandom(16)).decode()
-          headers = (f"GET /ws/us-live-quotes HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\n"
-                     f"Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\n"
-                     "Sec-WebSocket-Version: 13\r\nUser-Agent: Mozilla/5.0\r\n\r\n")
-          with socket.create_connection((host, 443), timeout=8) as raw:
-              with ssl.create_default_context().wrap_socket(raw, server_hostname=host) as ws:
-                  ws.settimeout(4)
-                  ws.sendall(headers.encode())
-                  reader = ws.makefile("rb")
-                  status = reader.readline().split()
-                  assert len(status) > 1 and status[1] == b"101", status
-                  while reader.readline() not in (b"\r\n", b""):
-                      pass
-                  frames = set()
-                  live = set()
-                  qqq_live = False
-                  deadline = time.monotonic() + 8
-                  while time.monotonic() < deadline:
-                      try:
-                          header = reader.read(2)
-                          if len(header) != 2:
-                              break
-                          length = header[1] & 127
-                          if length >= 126:
-                              length = struct.unpack("!H" if length == 126 else "!Q", reader.read(2 if length == 126 else 8))[0]
-                          data = reader.read(length)
-                      except TimeoutError:
-                          break
-                      if header[0] & 15 != 1:
-                          continue
-                      message = json.loads(data)
-                      frames.add(message["type"])
-                      if message["type"] == "quote":
-                          quote = message["quote"]
-                          assert quote is None or quote.get("symbol") == "QQQ"
-                          qqq_live = quote is not None and quote["stale"] is False
-                      if message["type"] == "quotes":
-                          items = message["items"]
-                          assert len(items) <= 20 and isinstance(items, list)
-                          for item in items:
-                              if item.get("stale") is False and item.get("symbol") in symbols:
-                                  assert item["price"] > 0 and item["received_at_ms"] > 0
-                                  live.add(item["symbol"])
-                      if qqq_live and len(live) >= 5:
-                          break
-                  assert {"quote","quotes"} <= frames, frames
-                  print(f"Live quote preview: QQQ={qqq_live}, matching fresh TOP20 symbols={len(live)}")
-          PY

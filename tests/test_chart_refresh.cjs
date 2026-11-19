@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const listeners={},timers=new Map();let id=0,calls=0,fail=false,pending=false,now=1000000;
 class Node {constructor(tag){this.tag=tag;this.children=[];this.style={};this.dataset={};this.isConnected=true;this.clientWidth=560;}setAttribute(){}addEventListener(){}append(...v){this.children.push(...v);}replaceChildren(...v){this.children=v;}remove(){}getBoundingClientRect(){return {width:560};}querySelector(tag){return this.children.flatMap(x=>[x,...x.children]).find(x=>x.tag===tag)||null;}getContext(){return new Proxy({}, {get:(t,k)=>t[k]||(()=>{}),set:(t,k,v)=>(t[k]=v,true)});}}
 const document={hidden:false,createElement:t=>new Node(t),addEventListener:(n,f)=>listeners[n]=f};
-const window={devicePixelRatio:1,addEventListener(){}};
+const window={devicePixelRatio:1,location:{hostname:'gaemigtp-main.pages.dev',origin:'https://gaemigtp-main.pages.dev'},addEventListener(){}};
 const context={window,document,localStorage:{},BACKEND_URL:'',AbortController,Date:class extends Date { static now(){return now;} },Intl,Number,Array,Boolean,Math,console,setTimeout:(f,ms)=>{timers.set(++id,{f,ms});return id;},clearTimeout:i=>timers.delete(i),fetch:async()=>{calls++;if(fail)throw Error('network');return {ok:true,json:async()=>({ok:true,name:'NU',rows:pending?[]:[{date:'2026-10-26',open:1,high:2,low:1,close:2,volume:10}]})};}};
 vm.runInNewContext(fs.readFileSync(__dirname+'/../frontend/shell/center-chat/widget-dock/widget-dock.js','utf8'),context);
 (async()=>{
