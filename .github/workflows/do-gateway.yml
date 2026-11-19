@@ -32,7 +32,7 @@ jobs:
           import json, os, pathlib, re, subprocess
           req=json.loads(pathlib.Path('.github/do-gateway/request.json').read_text())
           op=req.get("operation")
-          if op not in ("status","logs","restart","stop-tradingview-news","enable-tradingview-news","link-news-r2-env","deploy","run","upgrade","enable-timer","enable-top20-api","enable-top20-https","remove-render-price-relay","kiwoom-verify","kiwoom-daily-backfill","kiwoom-qqq-probe","alpaca-price-remove","alpaca-news-verify","cleanup"):
+          if op not in ("status","logs","restart","stop-tradingview-news","enable-tradingview-news","link-news-r2-env","deploy","run","upgrade","enable-timer","enable-top20-api","enable-top20-https","remove-render-price-relay","kiwoom-verify","kiwoom-daily-backfill","alpaca-price-remove","alpaca-news-verify","cleanup"):
               raise ValueError("invalid operation")
           allowed={
               "status":{"operation"},
@@ -52,7 +52,6 @@ jobs:
               "deploy":{"operation","path","target"},
               "run":{"operation","path","request_id","timeout"},
               "kiwoom-daily-backfill":{"operation","path","request_id","timeout"},
-              "kiwoom-qqq-probe":{"operation","path","request_id","timeout"},
               "upgrade":{"operation","path"},
           }[op]
           if set(req)!=allowed:
@@ -68,7 +67,7 @@ jobs:
               if type(n)!=int or not 1<=n<=300:
                   raise ValueError("invalid lines")
               out["arg2"]=str(n)
-          if op in ("deploy","run","upgrade","kiwoom-daily-backfill","kiwoom-qqq-probe"):
+          if op in ("deploy","run","upgrade","kiwoom-daily-backfill"):
               path=req["path"]
               if (not isinstance(path,str) or not re.fullmatch(r'[A-Za-z0-9_./-]{1,220}',path)
                   or '..' in path or '//' in path or path.startswith('/')):
@@ -84,19 +83,13 @@ jobs:
                       raise ValueError("invalid deployment path")
                   out.update(arg1=target,arg2=sha)
               if op=="upgrade": out["arg1"]=sha
-              if op in ("run","kiwoom-daily-backfill","kiwoom-qqq-probe"):
+              if op in ("run","kiwoom-daily-backfill"):
                   if op=="kiwoom-daily-backfill":
                       if (path!="ops/do-gateway/us_daily_backfill_20261026_once.py"
                               or sha!="bd1c64a8ae0eb9f25214dbacea723bc4e5025db9"
                               or req["request_id"]!="usdaily20261026recover3"
                               or req["timeout"]!=900):
                           raise ValueError("unapproved one-time Kiwoom recovery")
-                  if op=="kiwoom-qqq-probe":
-                      if (path!="ops/do-gateway/qqq_fe_probe_once_20261119.py"
-                              or sha!="0ce2c8e14da5bf724bba4b5bb27072e68b21fa92"
-                              or req["request_id"]!="qqqfeprobe20261119c"
-                              or req["timeout"]!=40):
-                          raise ValueError("unapproved one-time QQQ Kiwoom probe")
                   if not path.endswith('.py'):
                       raise ValueError("only python jobs")
                   key=req["request_id"]
