@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/probe_quote_resources_readonly_20261120.py",
+  "request_id": "quoteresources20261120",
+  "timeout": 75
 }
