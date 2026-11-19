@@ -23,6 +23,11 @@ export async function onRequestGet({ env }) {
         typeof item?.industry === 'string' && item.industry.trim())
       .map(item => ({ symbol: item.symbol, industry: item.industry.trim() }));
 
+    // Walmart's issuer lists WMT under All Other General Merchandise Stores.
+    // https://stock.walmart.com/company-information
+    if (!items.some(item => item.symbol === 'WMT')) {
+      items.push({ symbol: 'WMT', industry: '종합 소매' });
+    }
     return Response.json({ ok: true, items }, {
       headers: { 'Cache-Control': 'public, max-age=300, s-maxage=300' }
     });

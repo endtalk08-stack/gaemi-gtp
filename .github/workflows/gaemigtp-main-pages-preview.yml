@@ -47,7 +47,7 @@ jobs:
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/shell/left-market-sidebar/market-sidebar.js?v=20261120-top20-websocket-v1" -o "$RUNNER_TEMP/pages-market-sidebar.js"
           cmp frontend/shell/left-market-sidebar/market-sidebar.js "$RUNNER_TEMP/pages-market-sidebar.js"
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/stocks/us/instruments.json" |
-            jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'
+            jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
           grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/pages-index.html"
           grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' "$RUNNER_TEMP/pages-index.html"
           grep -Fq '52주 신고가 신저가 종목 알려줘' "$RUNNER_TEMP/pages-index.html"
