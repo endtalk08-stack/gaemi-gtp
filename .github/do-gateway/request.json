@@ -1,4 +1,6 @@
 {
-  "operation": "upgrade",
-  "path": "ops/do-gateway/gaemi-do-gateway"
+  "operation": "run",
+  "path": "ops/do-gateway/probe_qqq_public_websocket_readonly_20261119.py",
+  "request_id": "qqqprodorigin20261119",
+  "timeout": 60
 }
