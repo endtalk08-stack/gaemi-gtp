@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/check_kiwoom_config.py",
+  "request_id": "usindcfg20261120",
+  "timeout": 30
 }
