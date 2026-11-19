@@ -44,6 +44,9 @@
   let qqqSessionKey = '';
   let qqqCurrent = null;
   const MAX_QQQ_POINTS = 120;
+  const QQQ_REASON_REFRESH_MS = 300000;
+  let qqqReasons = [];
+  let qqqReasonRefreshAt = 0;
 
   function easternTradingWindow(timestampMs) {
     // These labels describe the US/Eastern clock window, not a verified exchange session.
@@ -63,6 +66,39 @@
       else if (minuteOfDay >= 16 * 60 && minuteOfDay < 20 * 60) period = '애프터';
     }
     return { period, key: key + ':' + period };
+  }
+
+
+  function refreshQqqReasons() {
+    const reasonUrl = root()?.dataset.qqqReasonUrl;
+    if (!reasonUrl || document.hidden || Date.now() < qqqReasonRefreshAt) return;
+    qqqReasonRefreshAt = Date.now() + QQQ_REASON_REFRESH_MS;
+    fetch(reasonUrl, { signal: AbortSignal.timeout(8000) })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => { qqqReasons = data?.ok && Array.isArray(data.items) ? data.items : []; })
+      .catch(() => { qqqReasons = []; })
+      .finally(updateQqqCard);
+  }
+
+  function updateQqqReason(card, quote, fresh) {
+    const node = card.querySelector('[data-qqq-reason]');
+    const session = fresh && quote.change_pct > 0 ? easternTradingWindow(quote.received_at_ms) : null;
+    node.hidden = !session || session.period === '장외';
+    if (node.hidden) return;
+    const reason = qqqReasons.find(item => Number.isFinite(item?.publishedAt)
+      && item.publishedAt <= quote.received_at_ms
+      && easternTradingWindow(item.publishedAt).key === session.key
+      && typeof item.text === 'string' && typeof item.url === 'string' && item.url.startsWith('https://'));
+    const text = reason?.text || '상승 이유 미확인';
+    if (node.textContent !== text) node.textContent = text;
+    if (reason) {
+      node.href = reason.url;
+      node.title = text + ' · ' + reason.source;
+    } else {
+      node.removeAttribute('href');
+      node.removeAttribute('title');
+    }
+    refreshQqqReasons();
   }
 
   function drawQqqChart(card) {
@@ -109,6 +145,7 @@
       chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && percent !== null && percent < 0);
     }
     drawQqqChart(card);
+    updateQqqReason(card, quote, fresh);
   }
 
   function onQqqQuote(event) {
@@ -166,6 +203,7 @@
               <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>—</strong><span data-kospi-change class="central-widget-card__kospi-change">—%</span></div>
             </div>
           </div>
+          <a class="central-widget-card__kospi-reason" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a>
         </article>`;
       }
       if (id === 'night-futures') {
