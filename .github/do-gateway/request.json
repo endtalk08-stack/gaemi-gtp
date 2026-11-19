@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_relay_env_names_readonly_20261119.py",
-  "request_id": "relayenvnames20261119",
-  "timeout": 35
+  "operation": "status"
 }
