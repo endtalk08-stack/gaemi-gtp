@@ -1,0 +1,65 @@
+name: gaemigtp-main Pages production - centered News Chat
+# QQQ card and sourced reason verification: 2026-11-19
+on:
+  push:
+    branches: [ops/gaemigtp-main-pages-preview]
+    paths:
+      - .github/workflows/gaemigtp-main-pages-news-production.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gaemigtp-main-pages-news-production
+  cancel-in-progress: false
+
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check news detachment and Pages inputs
+        run: |
+          test -s frontend/index.html
+          test -s functions/market/us-daily-chart.js
+          test -s functions/stocks/us/instruments.json.js
+          grep -Fq '오늘 미국 상승 테마 뭐야?' frontend/index.html
+          grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' frontend/index.html
+          grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
+          grep -Fq '20261114-r2-industry-v1' frontend/index.html
+          grep -Fq 'aria-label="메인 화면"' frontend/index.html
+          test "$(grep -Fc 'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2' frontend/index.html)" -eq 2
+          grep -Fq 'News</span>' frontend/index.html
+          grep -Fq '>Chat</button>' frontend/index.html
+          node --check frontend/shell/right-panel/right-panel-tabs.js
+          node --check frontend/shell/left-market-sidebar/market-sidebar.js
+          node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq "window.addEventListener('gaemi:qqq-quote', onQqqQuote)" frontend/shell/center-chat/widget-dock/widget-dock.js
+          ! grep -Fq 'data-panel-workspace-view="news"' frontend/shell/right-panel/right-panel-tabs.js
+          ! grep -Fq 'renderTradingViewNewsPage' frontend/shell/right-panel/right-panel-tabs.js
+          grep -Fq 'data-panel-workspace-view="disclosures"' frontend/shell/right-panel/right-panel-tabs.js
+          grep -q 'right-panel-tabs.js?v=20261114-detach-right-news-v1' frontend/index.html
+      - name: Deploy to existing Pages project production
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch main
+      - name: Verify production HTML and R2 chart
+        run: |
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/" -o "$RUNNER_TEMP/production-index.html"
+          grep -Fq 'widget-dock.css?v=20261119-qqq-reason-v3' "$RUNNER_TEMP/production-index.html"
+          grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/production-index.html"
+          grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' "$RUNNER_TEMP/production-index.html"
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/center-chat/widget-dock/widget-dock.css?v=20261119-qqq-reason-v3" -o "$RUNNER_TEMP/production-widget-dock.css"
+          grep -Fq -- '--qqq-text: #bfc3cb' "$RUNNER_TEMP/production-widget-dock.css"
+          grep -Fq 'widget-dock.js?v=20261119-qqq-reason-v3' "$RUNNER_TEMP/production-index.html"
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/qqq-reason" |
+            jq -e '.ok == true and (.items | type == "array")'
+          grep -Fq "font-size: 14px !important;" "$RUNNER_TEMP/production-widget-dock.css"
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/stocks/us/instruments.json" |
+            jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/us-daily-chart?symbol=NVDA" |
+            jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
