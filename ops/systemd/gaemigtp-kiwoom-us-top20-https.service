@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 User=gaemigtp-news
 Group=gaemigtp-news
+EnvironmentFile=/etc/gaemigtp/kiwoom.env
 WorkingDirectory=/opt/gaemigtp-news/app
 ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_us_top20_api --tls
 Restart=on-failure
