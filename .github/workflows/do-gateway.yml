@@ -94,7 +94,7 @@ jobs:
                   if op=="kiwoom-qqq-probe":
                       if (path!="ops/do-gateway/qqq_fe_probe_once_20261119.py"
                               or sha!="6d40674dc4fc33be915c3574057faf2e1384794f"
-                              or req["request_id"]!="qqqfeprobe20261119"
+                              or req["request_id"]!="qqqfeprobe20261119b"
                               or req["timeout"]!=40):
                           raise ValueError("unapproved one-time QQQ Kiwoom probe")
                   if not path.endswith('.py'):
