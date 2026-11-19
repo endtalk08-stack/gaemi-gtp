@@ -1,5 +1,5 @@
 name: gaemigtp-main Pages production - centered News Chat
-# QQQ card display refresh: 2026-11-19
+# QQQ typography refresh: 2026-11-19
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
