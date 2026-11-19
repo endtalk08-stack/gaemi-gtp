@@ -249,9 +249,9 @@
       if (!list) return;
       const titles = {
         realtime: '시장 시세',
+        industry: '업종',
         value: '거래대금 TOP 20',
-        gain: '상승률 TOP 20',
-        loss: '하락률 TOP 20'
+        marketcap: '시가총액'
       };
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
@@ -270,7 +270,9 @@
         return;
       }
       if (tab !== 'value') {
-        list.textContent = '시장 전체 순위 데이터 연결 전이야.';
+        list.textContent = tab === 'industry'
+          ? '업종맵 데이터 연결 전이야.'
+          : '시가총액 데이터 연결 전이야.';
         return;
       }
       if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
