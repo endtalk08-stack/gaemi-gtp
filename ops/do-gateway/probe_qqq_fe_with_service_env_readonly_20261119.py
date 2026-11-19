@@ -104,7 +104,7 @@ def main():
         p=subprocess.run(command,capture_output=True,text=True,timeout=50)
         output=(p.stdout or "")+(p.stderr or "")
         for line in output.splitlines():
-            if line.startswith(("QQQ_","Running as unit")):
+            if line.startswith(("QQQ_","Running as unit","Failed","Job for","systemd-run:")):
                 print(line[:300],flush=True)
         print("QQQ_SYSTEMD_PROBE_EXIT="+str(p.returncode),flush=True)
         return p.returncode
