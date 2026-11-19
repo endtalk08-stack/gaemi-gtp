@@ -31,6 +31,10 @@ jobs:
           grep -Fq 'News</span>' frontend/index.html
           grep -Fq '>Chat</button>' frontend/index.html
           node --check frontend/shell/right-panel/right-panel-tabs.js
+          node --check frontend/shell/left-market-sidebar/market-sidebar.js
+          node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq "window.addEventListener('gaemi:qqq-quote', onQqqQuote)" frontend/shell/center-chat/widget-dock/widget-dock.js
           ! grep -Fq 'data-panel-workspace-view="news"' frontend/shell/right-panel/right-panel-tabs.js
           ! grep -Fq 'renderTradingViewNewsPage' frontend/shell/right-panel/right-panel-tabs.js
           grep -Fq 'data-panel-workspace-view="disclosures"' frontend/shell/right-panel/right-panel-tabs.js
