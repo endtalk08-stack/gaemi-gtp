@@ -542,8 +542,6 @@
         stopQqqSocket();
       }
     };
-    document.addEventListener('visibilitychange', syncQqqSocket);
-    window.addEventListener('focus', syncQqqSocket);
     window.setTimeout(syncQqqSocket, 50);
     let liveQuotes = [];
     const freshQuote = (quote, now) => quote && quote.stale === false
@@ -590,9 +588,9 @@
     // Also refresh when the user returns to this tab after it was backgrounded.
     // Keep background reads off to avoid unnecessary database usage.
     const refreshOnReturn = () => {
+      syncQqqSocket();
       if (document.visibilityState !== 'visible') return;
       if (sidebarActive() && tab === 'value') void showUsRanking();
-      syncQqqSocket();
       paintLiveQuotes();
     };
     document.addEventListener('visibilitychange', refreshOnReturn);

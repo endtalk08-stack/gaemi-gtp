@@ -42,16 +42,16 @@ jobs:
             https://*.gaemigtp-main.pages.dev) ;;
             *) exit 1 ;;
           esac
-          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/" -o "$RUNNER_TEMP/pages-index.html"
+          curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/" -o "$RUNNER_TEMP/pages-index.html"
           cmp frontend/index.html "$RUNNER_TEMP/pages-index.html"
-          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/stocks/us/instruments.json" |
+          curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/stocks/us/instruments.json" |
             jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'
           grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/pages-index.html"
           grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' "$RUNNER_TEMP/pages-index.html"
           grep -Fq '52주 신고가 신저가 종목 알려줘' "$RUNNER_TEMP/pages-index.html"
-          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/market/us-daily-chart?symbol=NVDA" |
+          curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
-          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/market/qqq-reason" |\
+          curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/market/qqq-reason" |\
             jq -e '.ok == true and (.items | type == "array") and all(.items[]; (.publishedAt | type == "number") and (.text | type == "string" and length > 0) and (.url | startswith("https://")))'
       - name: Verify shared QQQ and TOP20 quote stream
         env:
