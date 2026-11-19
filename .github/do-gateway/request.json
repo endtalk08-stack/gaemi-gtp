@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/inspect_gateway_permissions_readonly_20261119.py",
-  "request_id": "gatewayperms20261119",
-  "timeout": 45
+  "operation": "kiwoom-verify"
 }
