@@ -1,7 +1,8 @@
-"""Read-only HTTP adapter for the existing DigitalOcean Kiwoom US TOP20 file.
+"""DigitalOcean TOP20 HTTPS origin plus a memory-only QQQ Kiwoom FE WebSocket.
 
-No Kiwoom calls, Render, Neon, R2, Redis, AI, or news worker.
-Binds to loopback; HTTPS reverse proxy must be configured separately.
+The existing local TOP20 snapshot/API remains unchanged. Only the public TLS
+process starts one QQQ FE subscription; quotes stay in process memory and are
+streamed to Pages clients without Neon, Redis, R2, or news-worker dependencies.
 """
 import base64
 import hashlib
@@ -9,7 +10,6 @@ import json
 import os
 import re
 import select
-import socket
 import struct
 import threading
 import time
@@ -79,6 +79,48 @@ def _qqq_snapshot():
     if quote is not None:
         quote["stale"] = int(time.time() * 1000) - quote["received_at_ms"] > _QQQ_STALE_MS
     return quote
+
+
+def _recv_exact(sock, length):
+    chunks = []
+    remaining = length
+    while remaining:
+        chunk = sock.recv(remaining)
+        if not chunk:
+            return None
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
+def _read_websocket_control_frame(sock):
+    header = _recv_exact(sock, 2)
+    if not header:
+        return None, None
+    opcode = header[0] & 0x0F
+    masked = bool(header[1] & 0x80)
+    length = header[1] & 0x7F
+    if length == 126:
+        extended = _recv_exact(sock, 2)
+        if not extended:
+            return None, None
+        length = struct.unpack("!H", extended)[0]
+    elif length == 127:
+        extended = _recv_exact(sock, 8)
+        if not extended:
+            return None, None
+        length = struct.unpack("!Q", extended)[0]
+    if length > 125:
+        return opcode, b""
+    mask = _recv_exact(sock, 4) if masked else None
+    if masked and not mask:
+        return None, None
+    payload = _recv_exact(sock, length) if length else b""
+    if payload is None:
+        return None, None
+    if mask:
+        payload = bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
+    return opcode, payload
 
 
 def _websocket_text_frame(payload, opcode=0x1):
@@ -183,6 +225,7 @@ class Handler(BaseHTTPRequestHandler):
         key = self.headers.get("Sec-WebSocket-Key", "")
         if (self.headers.get("Upgrade", "").lower() != "websocket"
                 or "upgrade" not in self.headers.get("Connection", "").lower()
+                or self.headers.get("Sec-WebSocket-Version") != "13"
                 or not key):
             return self._json(400, {"ok": False, "error": "websocket_upgrade_required"})
         try:
@@ -222,12 +265,19 @@ class Handler(BaseHTTPRequestHandler):
                     last_heartbeat = now
                 with _QQQ_CHANGED:
                     _QQQ_CHANGED.wait(timeout=1.0)
-                readable, _, _ = select.select([self.connection], [], [], 0)
+                readable = self.connection.pending() > 0
+                if not readable:
+                    readable, _, _ = select.select([self.connection], [], [], 0)
+                    readable = bool(readable)
                 if readable:
-                    incoming = self.connection.recv(4096)
-                    if not incoming or (incoming[0] & 0x0F) == 0x8:
+                    opcode, payload = _read_websocket_control_frame(self.connection)
+                    if opcode is None or opcode == 0x8:
+                        if opcode == 0x8:
+                            self.connection.sendall(_websocket_text_frame(payload or b"", opcode=0x8))
                         break
-        except (OSError, ValueError, select.error):
+                    if opcode == 0x9:
+                        self.connection.sendall(_websocket_text_frame(payload or b"", opcode=0xA))
+        except (OSError, ValueError):
             pass
         finally:
             _QQQ_WS_CLIENTS.release()
@@ -252,11 +302,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class BoundedTLSServer(ThreadingHTTPServer):
-    """Do TLS handshakes with a timeout, not on the listening socket.
-
-    A stalled client must not prevent the entire TOP20 HTTPS listener from
-    accepting later requests. No market, storage or authentication changes.
-    """
+    """Bound TLS handshakes so a stalled client cannot block the TOP20 origin."""
     request_queue_size = 128
     daemon_threads = True
 
