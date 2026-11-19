@@ -97,9 +97,9 @@
       && easternTradingWindow(item.publishedAt).key === session.key
       && typeof item.text === 'string' && item.text.trim()
       && typeof item.url === 'string' && item.url.startsWith('https://'));
-    node.hidden = false;
+    node.hidden = !reason;
     if (!reason) {
-      node.textContent = '상승 이유 미확인';
+      node.textContent = '';
       node.removeAttribute('href');
       node.removeAttribute('title');
       refreshQqqReasons();
