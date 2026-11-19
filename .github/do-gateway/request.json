@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/probe_qqq_fe_readonly_20261119.py",
-  "request_id": "qqqfeprobe3_20261119",
-  "timeout": 60
+  "path": "ops/do-gateway/check_kiwoom_config.py",
+  "request_id": "qqqconfigcheck20261119",
+  "timeout": 45
 }
