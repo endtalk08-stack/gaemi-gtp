@@ -5,7 +5,10 @@ Logs only allowlisted market values; never tokens, headers or full frames.
 import asyncio
 import datetime as dt
 import json
+import sys
+from pathlib import Path
 from zoneinfo import ZoneInfo
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 from backend.providers.kiwoom_us_quotes import issue_access_token
 
 WS_URI = "wss://api.kiwoom.com:10000/api/us/websocket"
