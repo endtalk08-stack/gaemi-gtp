@@ -444,10 +444,92 @@
       }
     };
 
-    // Reuse one existing 3-second Render memory poll for sidebar, QQQ, chart and chat.
+    // QQQ uses one shared DigitalOcean WebSocket; the existing snapshot poll
+    // remains only for an open market sidebar or an active inline stock chart.
     const qqqWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('qqq') === true;
-    const quoteConsumersActive = () => qqqWidgetActive()
-      || window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
+    const quoteConsumersActive = () =>
+      window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
+    let qqqSocket = null;
+    let qqqSocketGeneration = 0;
+    let qqqReconnectTimer = null;
+    let qqqReconnectDelay = 1000;
+    const qqqSocketWanted = () =>
+      document.visibilityState === 'visible' && qqqWidgetActive();
+    const dispatchQqqQuote = (quote) => {
+      window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', {
+        detail: { quote: quote || null }
+      }));
+    };
+    const stopQqqSocket = () => {
+      qqqSocketGeneration += 1;
+      if (qqqReconnectTimer !== null) {
+        window.clearTimeout(qqqReconnectTimer);
+        qqqReconnectTimer = null;
+      }
+      const socket = qqqSocket;
+      qqqSocket = null;
+      if (socket && socket.readyState < window.WebSocket.CLOSING) {
+        try { socket.close(1000, 'QQQ widget inactive'); } catch (_) {}
+      }
+      dispatchQqqQuote(null);
+    };
+    const scheduleQqqReconnect = (generation) => {
+      if (!qqqSocketWanted() || generation !== qqqSocketGeneration || qqqReconnectTimer !== null) return;
+      const delay = qqqReconnectDelay;
+      qqqReconnectDelay = Math.min(30000, qqqReconnectDelay * 2);
+      qqqReconnectTimer = window.setTimeout(() => {
+        qqqReconnectTimer = null;
+        if (generation === qqqSocketGeneration) openQqqSocket();
+      }, delay);
+    };
+    const openQqqSocket = () => {
+      if (!qqqSocketWanted() || !window.WebSocket) return;
+      if (qqqSocket && qqqSocket.readyState < window.WebSocket.CLOSING) return;
+      const generation = ++qqqSocketGeneration;
+      let socket;
+      try {
+        socket = new window.WebSocket('wss://quotes.gaemigtp.com/ws/us-live-quotes');
+      } catch (_) {
+        scheduleQqqReconnect(generation);
+        return;
+      }
+      qqqSocket = socket;
+      socket.onopen = () => {
+        if (generation !== qqqSocketGeneration || !qqqSocketWanted()) {
+          try { socket.close(1000, 'QQQ widget inactive'); } catch (_) {}
+          return;
+        }
+        qqqReconnectDelay = 1000;
+      };
+      socket.onmessage = (event) => {
+        if (generation !== qqqSocketGeneration) return;
+        try {
+          const message = JSON.parse(event.data);
+          if (message?.type === 'quote') dispatchQqqQuote(message.quote || null);
+        } catch (_) {
+          // Ignore malformed frames; the next valid quote will refresh the card.
+        }
+      };
+      socket.onerror = () => {
+        try { socket.close(); } catch (_) {}
+      };
+      socket.onclose = () => {
+        if (qqqSocket === socket) qqqSocket = null;
+        if (generation !== qqqSocketGeneration) return;
+        dispatchQqqQuote(null);
+        scheduleQqqReconnect(generation);
+      };
+    };
+    const syncQqqSocket = () => {
+      if (qqqSocketWanted()) {
+        if (!qqqSocket && qqqReconnectTimer === null) openQqqSocket();
+      } else if (qqqSocket || qqqReconnectTimer !== null) {
+        stopQqqSocket();
+      }
+    };
+    document.addEventListener('visibilitychange', syncQqqSocket);
+    window.addEventListener('focus', syncQqqSocket);
+    window.setTimeout(syncQqqSocket, 50);
     const readLatestQuotes = async () => {
       if (document.visibilityState !== 'visible') return;
       const paintRanking = sidebarActive() && tab === 'value' && !!list?.querySelector('button[data-original-index]');
@@ -462,11 +544,6 @@
         window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
           detail: { items: data.items }
         }));
-        // In-browser fan-out only: existing sidebar request is also the widget feed.
-        if (qqqWidgetActive()) {
-          const qqq = data.items.find(row => row && row.symbol === 'QQQ') || null;
-          window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: qqq } }));
-        }
         if (!paintRanking || tab !== 'value') return;
         const bySymbol = new Map([...list.querySelectorAll(':scope > button[data-original-index]')]
           .map((button) => [button.dataset.stockSymbol, button]));
@@ -497,10 +574,6 @@
         window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
           detail: { items: [] }
         }));
-        // A broken source must never leave the QQQ widget labeled "live".
-        if (qqqWidgetActive()) {
-          window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: null } }));
-        }
         // Keep the sidebar's previous display on transient failure.
       } finally {
         quoteRequestInFlight = false;
@@ -573,7 +646,9 @@
     // Closed panels and background tabs consume no ranking or quote reads.
     if (sidebarActive()) void showUsRanking();
     window.setInterval(() => {
-      if (draggedRow || document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') return;
+      syncQqqSocket();
+      if (draggedRow) return;
       if (sidebarActive() && tab === 'value') void showUsRanking();
       if (sidebarActive() || quoteConsumersActive()) void readLatestQuotes();
     }, 3000);
