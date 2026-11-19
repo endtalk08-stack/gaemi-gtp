@@ -127,6 +127,24 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(sent[0][1]["json"]["inds_cd"], "001")
         self.assertEqual(result["items"][0]["trading_value"], 1234500.0)
 
+    def test_default_sort_is_trading_value(self):
+        sent = []
+
+        def post(url, **kwargs):
+            sent.append((url, kwargs))
+            return FakeResponse({"return_code": 0, "result_list": [
+                {"stk_cd": "AAA", "stk_nm": "A Company", "stex_tp": "ND",
+                 "cur_prc": "10", "flu_rt": "1.5", "acc_trde_qty": "500",
+                 "trde_prica": "1234.5"},
+            ]})
+
+        with patch.object(sectors, "issue_access_token", return_value="MOCK_TOKEN"), patch.object(sectors.requests, "post", side_effect=post):
+            result = sectors.fetch_us_industry_stocks("001")
+
+        self.assertEqual(result["sort"], "value")
+        self.assertEqual(sent[0][1]["headers"]["api-id"], "usa20540")
+        self.assertEqual(result["items"][0]["trading_value"], 1234500.0)
+
     def test_invalid_code_and_sort_are_rejected_before_network(self):
         with patch.object(sectors.requests, "post", side_effect=AssertionError("network not allowed")):
             with self.assertRaises(ValueError):

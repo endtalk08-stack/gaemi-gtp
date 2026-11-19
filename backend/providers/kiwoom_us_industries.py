@@ -220,7 +220,7 @@ def fetch_us_industry_map(*, token=None):
     }
 
 
-def fetch_us_industry_stocks(industry_code, sort="change", *, token=None, limit=36):
+def fetch_us_industry_stocks(industry_code, sort="value", *, token=None, limit=36):
     """Fetch only the selected industry's source-ranked stock page."""
     code = _industry_code(industry_code)
     if sort not in ("change", "value"):

@@ -307,7 +307,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
             params = parse_qs(path.query)
             industry_code = str((params.get("code") or [""])[0]).strip()
-            sort = str((params.get("sort") or ["change"])[0]).strip()
+            sort = str((params.get("sort") or ["value"])[0]).strip()
             try:
                 result = _get_us_industry_stocks(industry_code, sort)
             except ValueError:
