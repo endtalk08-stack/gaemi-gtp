@@ -1,3 +1,5 @@
 {
-  "operation": "status"
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_live_prices.py",
+  "target": "backend/kiwoom_us_live_prices.py"
 }

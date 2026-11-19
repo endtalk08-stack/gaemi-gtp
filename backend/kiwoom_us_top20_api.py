@@ -1,9 +1,4 @@
-"""DigitalOcean TOP20 HTTPS origin plus a memory-only QQQ Kiwoom FE WebSocket.
-
-The existing local TOP20 snapshot/API remains unchanged. Only the public TLS
-process starts one QQQ FE subscription; quotes stay in process memory and are
-streamed to Pages clients without Neon, Redis, R2, or news-worker dependencies.
-"""
+"""Serve the existing Kiwoom TOP20 ranking and the in-memory US quote stream."""
 import base64
 import hashlib
 import json
@@ -33,6 +28,8 @@ SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
 _QQQ_LOCK = threading.Lock()
 _QQQ_CHANGED = threading.Condition(_QQQ_LOCK)
 _QQQ_QUOTE = None
+_TOP20_SYMBOLS = frozenset()
+_TOP20_QUOTES = {}
 _QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
 _QQQ_STALE_MS = 25000
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -51,26 +48,49 @@ def _origin_allowed(origin):
         return False
 
 
-def _publish_qqq_quote(quote):
+def _publish_live_quote(quote):
     global _QQQ_QUOTE
     if not isinstance(quote, dict):
         return
+    symbol = quote.get("symbol")
     price = quote.get("price")
     change = quote.get("change_pct")
-    if (quote.get("symbol") != "QQQ" or type(price) not in (int, float)
+    if (not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol) or type(price) not in (int, float)
             or not 0 < price < 10000000):
         return
     if change is not None and (type(change) not in (int, float)
                                or not -100 < change < 10000):
         change = None
     safe = {
-        "symbol": "QQQ", "price": float(price),
+        "symbol": symbol, "price": float(price),
         "change_pct": float(change) if change is not None else None,
         "received_at_ms": int(time.time() * 1000), "stale": False,
     }
     with _QQQ_CHANGED:
-        _QQQ_QUOTE = safe
+        if symbol == "QQQ":
+            _QQQ_QUOTE = safe
+        if symbol in _TOP20_SYMBOLS:
+            _TOP20_QUOTES[symbol] = safe
+        if symbol == "QQQ" or symbol in _TOP20_SYMBOLS:
+            _QQQ_CHANGED.notify_all()
+
+
+def _set_top20_symbols(symbols):
+    global _TOP20_SYMBOLS
+    with _QQQ_CHANGED:
+        _TOP20_SYMBOLS = frozenset(symbols)
+        for symbol in _TOP20_QUOTES.keys() - _TOP20_SYMBOLS:
+            del _TOP20_QUOTES[symbol]
+        if "QQQ" in _TOP20_SYMBOLS and _QQQ_QUOTE is not None:
+            _TOP20_QUOTES["QQQ"] = _QQQ_QUOTE
         _QQQ_CHANGED.notify_all()
+
+
+def _top20_snapshot():
+    now_ms = int(time.time() * 1000)
+    with _QQQ_LOCK:
+        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
+                for quote in _TOP20_QUOTES.values()]
 
 
 def _qqq_snapshot():
@@ -140,7 +160,7 @@ def _start_qqq_feed():
     from backend.kiwoom_us_live_prices import run_qqq_fe_stream
 
     def runner():
-        asyncio.run(run_qqq_fe_stream(_publish_qqq_quote))
+        asyncio.run(run_qqq_fe_stream(_publish_live_quote, on_top20=_set_top20_symbols))
 
     thread = threading.Thread(target=runner, name="kiwoom-qqq-fe", daemon=True)
     thread.start()
@@ -250,6 +270,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush()
             last_signature = object()
             last_heartbeat = 0.0
+            last_top20_at = 0.0
+            last_top20_message = None
             while True:
                 quote = _qqq_snapshot()
                 signature = ((quote["received_at_ms"], quote["stale"])
@@ -263,6 +285,15 @@ class Handler(BaseHTTPRequestHandler):
                     self.connection.sendall(_websocket_text_frame(payload))
                     last_signature = signature
                     last_heartbeat = now
+                if now - last_top20_at >= 0.5:
+                    latest = json.dumps(
+                        {"type": "quotes", "items": _top20_snapshot()},
+                        separators=(",", ":"), allow_nan=False,
+                    ).encode("utf-8")
+                    if latest != last_top20_message:
+                        self.connection.sendall(_websocket_text_frame(latest))
+                        last_top20_message = latest
+                    last_top20_at = now
                 with _QQQ_CHANGED:
                     _QQQ_CHANGED.wait(timeout=1.0)
                 readable = self.connection.pending() > 0
