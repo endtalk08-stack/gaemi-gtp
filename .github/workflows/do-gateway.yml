@@ -93,7 +93,7 @@ jobs:
                           raise ValueError("unapproved one-time Kiwoom recovery")
                   if op=="kiwoom-qqq-probe":
                       if (path!="ops/do-gateway/qqq_fe_probe_once_20261119.py"
-                              or sha!="6d40674dc4fc33be915c3574057faf2e1384794f"
+                              or sha!="0ce2c8e14da5bf724bba4b5bb27072e68b21fa92"
                               or req["request_id"]!="qqqfeprobe20261119b"
                               or req["timeout"]!=40):
                           raise ValueError("unapproved one-time QQQ Kiwoom probe")
