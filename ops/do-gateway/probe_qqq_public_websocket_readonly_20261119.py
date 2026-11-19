@@ -1,7 +1,7 @@
 """Public-path verification: existing TOP20 HTTPS plus the new QQQ WebSocket."""
 import asyncio, json, urllib.request
 
-TOP20_URL="https://quotes.gaemigtp.com/market/trading-value?market=us"
+TOP20_URL="http://127.0.0.1:8765/market/trading-value?market=us"
 WS_URL="wss://quotes.gaemigtp.com/ws/us-live-quotes"
 ORIGIN="https://40e589a3.gaemigtp-main.pages.dev"
 
@@ -11,7 +11,7 @@ def check_top20():
     items=data.get("items")
     if response.status != 200 or data.get("ok") is not True or not isinstance(items,list) or len(items)!=20:
         raise RuntimeError("existing_top20_endpoint_failed")
-    print("QQQ_TEST_TOP20=ok count=20",flush=True)
+    print("QQQ_TEST_TOP20_LOCAL=ok count=20",flush=True)
 
 async def check_ws():
     try:
