@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/inspect_qqq_feed_readonly_20261119.py",
+  "request_id": "qqqfeedinspect20261119",
+  "timeout": 120
 }
