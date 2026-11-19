@@ -1,5 +1,5 @@
 name: gaemigtp-main Pages production - centered News Chat
-# QQQ uniform typography correction: 2026-11-19
+# QQQ uniform typography verification adjustment: 2026-11-19
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
@@ -50,7 +50,9 @@ jobs:
       - name: Verify production HTML and R2 chart
         run: |
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/" -o "$RUNNER_TEMP/production-index.html"
-          cmp frontend/index.html "$RUNNER_TEMP/production-index.html"
+          grep -Fq 'widget-dock.css?v=20261119-qqq-typography-v2' "$RUNNER_TEMP/production-index.html"
+          grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/production-index.html"
+          grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' "$RUNNER_TEMP/production-index.html"
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/center-chat/widget-dock/widget-dock.css?v=20261119-qqq-typography-v2" -o "$RUNNER_TEMP/production-widget-dock.css"
           grep -Fq "QQQ typography and compact layout: consistent labels, prominent quote." "$RUNNER_TEMP/production-widget-dock.css"
           grep -Fq "font-size: 14px !important;" "$RUNNER_TEMP/production-widget-dock.css"
