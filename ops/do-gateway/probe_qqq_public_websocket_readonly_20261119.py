@@ -3,7 +3,7 @@ import asyncio, json, urllib.request
 
 TOP20_URL="http://127.0.0.1:8765/market/trading-value?market=us"
 WS_URL="wss://quotes.gaemigtp.com/ws/us-live-quotes"
-ORIGIN="https://40e589a3.gaemigtp-main.pages.dev"
+ORIGIN="https://gaemigtp-main.pages.dev"
 
 def check_top20():
     with urllib.request.urlopen(TOP20_URL, timeout=10) as response:
