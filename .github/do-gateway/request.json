@@ -1,5 +1,4 @@
 {
-  "operation": "deploy",
-  "path": "ops/systemd/gaemigtp-kiwoom-us-top20-https.service",
-  "target": "ops/systemd/gaemigtp-kiwoom-us-top20-https.service"
+  "operation": "restart",
+  "unit": "gaemigtp-kiwoom-us-top20-https.service"
 }
