@@ -1,4 +1,6 @@
 {
-  "operation": "upgrade",
-  "path": "ops/do-gateway/gaemi-do-gateway"
+  "operation": "kiwoom-qqq-probe",
+  "path": "ops/do-gateway/qqq_fe_probe_once_20261119.py",
+  "request_id": "qqqfeprobe20261119c",
+  "timeout": 40
 }
