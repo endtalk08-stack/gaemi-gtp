@@ -1,6 +1,5 @@
 """Read-only inspection of the active Kiwoom US live-price collector.
-Prints unit/process metadata and bounded source excerpts only; never reads env values,
-credentials, account data, orders, positions, databases, or market endpoints.
+No environment values, credentials, orders, positions, databases, or market requests.
 """
 import hashlib
 import re
@@ -8,8 +7,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path("/opt/gaemigtp-news/app")
-TOKENS = ("kiwoom", "websocket", "price", "quote", "top20", "market")
-NEEDLES = ("REG", "FE", "kiwoom_us", "websocket", "TOP20", "selected", "symbols")
+TOKENS = ("kiwoom", "websocket", "price", "quote", "top20", "market", "relay")
 
 def run(args):
     try:
@@ -19,52 +17,40 @@ def run(args):
         return 99, type(exc).__name__
 
 print("QQQ_READONLY_INSPECT_BEGIN", flush=True)
-rc, units = run(["systemctl", "list-units", "--type=service", "--all", "--no-legend", "--plain"])
+_, units = run(["systemctl", "list-units", "--type=service", "--all", "--no-legend", "--plain"])
 for line in units.splitlines():
-    low = line.lower()
-    if "gaemigtp" in low and any(t in low for t in TOKENS):
+    if "gaemigtp" in line.lower():
         print("UNIT", line[:300], flush=True)
 
-rc, processes = run(["ps", "-eo", "pid=,comm=,args="])
+_, processes = run(["ps", "-eo", "pid=,comm="])
 for line in processes.splitlines():
-    low = line.lower()
-    if "python" in low and any(t in low for t in ("kiwoom", "websocket", "price", "quote", "top20")):
-        # Do not print arbitrary arguments or environment-like values.
-        parts = line.strip().split(None, 2)
-        if len(parts) >= 2:
-            print("PROCESS", parts[0], parts[1], flush=True)
-
-candidates = []
-for base in (ROOT / "backend", ROOT / "ops"):
-    if not base.exists() or base.is_symlink():
+    parts=line.strip().split(None,1)
+    if len(parts)!=2: continue
+    pid,comm=parts
+    if comm.lower() not in ("python","python3","gunicorn","uvicorn"):
         continue
-    for path in base.rglob("*.py"):
-        if path.is_symlink() or not path.is_file():
-            continue
-        if any(t in path.name.lower() for t in TOKENS):
-            candidates.append(path)
-for path in sorted(set(candidates))[:100]:
     try:
-        raw = path.read_bytes()
-        if len(raw) > 300000:
-            continue
-        src = raw.decode("utf-8")
+        cgroup=Path("/proc",pid,"cgroup").read_text()[:500].replace("\n",";")
+        exe=Path("/proc",pid,"exe").resolve()
+        print("PYPROC",pid,"COMM",comm,"EXE",str(exe),"CGROUP",cgroup,flush=True)
     except Exception:
-        continue
-    low = src.lower()
-    if not any(n.lower() in low for n in NEEDLES):
-        continue
-    print("SOURCE", str(path.relative_to(ROOT)), "SHA256", hashlib.sha256(raw).hexdigest(), flush=True)
-    lines = src.splitlines()
-    hits = [i for i, line in enumerate(lines) if any(n.lower() in line.lower() for n in NEEDLES)]
-    shown = set()
-    for i in hits[:16]:
-        for j in range(max(0, i-2), min(len(lines), i+3)):
-            if j not in shown:
-                # Exclude possible credentials or secret assignments.
-                line = lines[j]
-                if re.search(r"(secret|appkey|api.?key|token|password)", line, re.I) and "=" in line:
-                    line = re.sub(r"(=).*", r"= [REDACTED]", line)
-                print("  L" + str(j+1), line[:220], flush=True)
-                shown.add(j)
-print("QQQ_READONLY_INSPECT_END", flush=True)
+        pass
+
+for base in (ROOT / "backend", ROOT / "ops"):
+    if not base.exists() or base.is_symlink(): continue
+    for path in sorted(base.rglob("*.py")):
+        if path.is_symlink() or not path.is_file(): continue
+        if not any(t in path.name.lower() for t in TOKENS): continue
+        try:
+            raw=path.read_bytes()
+            if len(raw)>300000: continue
+            src=raw.decode("utf-8")
+        except Exception: continue
+        print("SOURCE",str(path.relative_to(ROOT)),"SHA256",hashlib.sha256(raw).hexdigest(),flush=True)
+        for i,line in enumerate(src.splitlines(),1):
+            if any(t in line.lower() for t in ("websocket","trnm","reg","fe","top20","symbol","relay")):
+                if re.search(r"(secret|appkey|api.?key|token|password)",line,re.I) and "=" in line:
+                    line=re.sub(r"(=).*",r"= [REDACTED]",line)
+                print("  L"+str(i),line[:220],flush=True)
+                if i>350: break
+print("QQQ_READONLY_INSPECT_END",flush=True)
