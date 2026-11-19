@@ -1,6 +1,6 @@
 {
-  "operation": "kiwoom-qqq-probe",
-  "path": "ops/do-gateway/qqq_fe_probe_once_20261119.py",
-  "request_id": "qqqfeprobe20261119c",
-  "timeout": 40
+  "operation": "run",
+  "path": "ops/do-gateway/check_relay_env_names_readonly_20261119.py",
+  "request_id": "relayenvnames20261119",
+  "timeout": 35
 }
