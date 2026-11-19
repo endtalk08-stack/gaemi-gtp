@@ -173,8 +173,9 @@
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-title,
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market-name,
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market strong,
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-change,
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-reason {
-  color: var(--qqq-text) !important;
+  color: var(--qqq-text);
   font-size: 14px !important;
   font-weight: 400 !important;
   line-height: 18px !important;
@@ -191,13 +192,13 @@
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market {
   justify-content: flex-start;
-  gap: 0;
+  gap: 8px;
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__sparkline {
   grid-column: 2;
   grid-row: 1;
   width: 100%;
-  height: 24px;
+  height: 22px;
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-reason {
   display: block;
