@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service",
-  "lines": 80
+  "operation": "run",
+  "path": "ops/do-gateway/probe_qqq_public_websocket_readonly_20261119.py",
+  "request_id": "qqqpublicwscheck20261119",
+  "timeout": 60
 }
