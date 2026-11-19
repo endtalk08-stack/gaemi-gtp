@@ -1,5 +1,5 @@
 name: gaemigtp-main Pages production - centered News Chat
-# QQQ typography refresh: 2026-11-19
+# QQQ uniform typography correction: 2026-11-19
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
@@ -51,9 +51,9 @@ jobs:
         run: |
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/" -o "$RUNNER_TEMP/production-index.html"
           cmp frontend/index.html "$RUNNER_TEMP/production-index.html"
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/center-chat/widget-dock/widget-dock.css?v=20261119-qqq-typography-v1" -o "$RUNNER_TEMP/production-widget-dock.css"
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/center-chat/widget-dock/widget-dock.css?v=20261119-qqq-typography-v2" -o "$RUNNER_TEMP/production-widget-dock.css"
           grep -Fq "QQQ typography and compact layout: consistent labels, prominent quote." "$RUNNER_TEMP/production-widget-dock.css"
-          grep -Fq "font-size: 22px;" "$RUNNER_TEMP/production-widget-dock.css"
+          grep -Fq "font-size: 14px !important;" "$RUNNER_TEMP/production-widget-dock.css"
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/stocks/us/instruments.json" |
             jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/us-daily-chart?symbol=NVDA" |
