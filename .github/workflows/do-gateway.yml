@@ -68,7 +68,7 @@ jobs:
               if type(n)!=int or not 1<=n<=300:
                   raise ValueError("invalid lines")
               out["arg2"]=str(n)
-          if op in ("deploy","run","upgrade","kiwoom-daily-backfill"):
+          if op in ("deploy","run","upgrade","kiwoom-daily-backfill","kiwoom-qqq-probe"):
               path=req["path"]
               if (not isinstance(path,str) or not re.fullmatch(r'[A-Za-z0-9_./-]{1,220}',path)
                   or '..' in path or '//' in path or path.startswith('/')):
