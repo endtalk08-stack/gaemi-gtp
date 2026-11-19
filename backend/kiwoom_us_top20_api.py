@@ -3,9 +3,16 @@
 No Kiwoom calls, Render, Neon, R2, Redis, AI, or news worker.
 Binds to loopback; HTTPS reverse proxy must be configured separately.
 """
+import base64
+import hashlib
 import json
 import os
 import re
+import select
+import socket
+import struct
+import threading
+import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,6 +29,81 @@ ALLOWED_ORIGINS = {
     "https://gaemigtp-main.pages.dev",
 }
 SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
+
+_QQQ_LOCK = threading.Lock()
+_QQQ_CHANGED = threading.Condition(_QQQ_LOCK)
+_QQQ_QUOTE = None
+_QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
+_QQQ_STALE_MS = 25000
+_WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+
+def _origin_allowed(origin):
+    if origin in ALLOWED_ORIGINS:
+        return True
+    try:
+        parsed = urlsplit(origin)
+        host = (parsed.hostname or "").lower()
+        return (parsed.scheme == "https" and
+                (host == "gaemigtp-main.pages.dev" or
+                 host.endswith(".gaemigtp-main.pages.dev")))
+    except (TypeError, ValueError):
+        return False
+
+
+def _publish_qqq_quote(quote):
+    global _QQQ_QUOTE
+    if not isinstance(quote, dict):
+        return
+    price = quote.get("price")
+    change = quote.get("change_pct")
+    if (quote.get("symbol") != "QQQ" or type(price) not in (int, float)
+            or not 0 < price < 10000000):
+        return
+    if change is not None and (type(change) not in (int, float)
+                               or not -100 < change < 10000):
+        change = None
+    safe = {
+        "symbol": "QQQ", "price": float(price),
+        "change_pct": float(change) if change is not None else None,
+        "received_at_ms": int(time.time() * 1000), "stale": False,
+    }
+    with _QQQ_CHANGED:
+        _QQQ_QUOTE = safe
+        _QQQ_CHANGED.notify_all()
+
+
+def _qqq_snapshot():
+    with _QQQ_LOCK:
+        quote = dict(_QQQ_QUOTE) if _QQQ_QUOTE else None
+    if quote is not None:
+        quote["stale"] = int(time.time() * 1000) - quote["received_at_ms"] > _QQQ_STALE_MS
+    return quote
+
+
+def _websocket_text_frame(payload, opcode=0x1):
+    length = len(payload)
+    first = 0x80 | opcode
+    if length < 126:
+        header = bytes((first, length))
+    elif length <= 65535:
+        header = bytes((first, 126)) + struct.pack("!H", length)
+    else:
+        header = bytes((first, 127)) + struct.pack("!Q", length)
+    return header + payload
+
+
+def _start_qqq_feed():
+    import asyncio
+    from backend.kiwoom_us_live_prices import run_qqq_fe_stream
+
+    def runner():
+        asyncio.run(run_qqq_fe_stream(_publish_qqq_quote))
+
+    thread = threading.Thread(target=runner, name="kiwoom-qqq-fe", daemon=True)
+    thread.start()
+    print("KIWOOM_QQQ_FE_THREAD_STARTED", flush=True)
+
 
 
 def read_top20(path=RANKING_FILE):
@@ -74,8 +156,12 @@ def read_top20(path=RANKING_FILE):
 
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def do_GET(self):
         path = urlsplit(self.path)
+        if path.path == "/ws/us-live-quotes":
+            return self._serve_qqq_websocket()
         if path.path == "/health":
             return self._json(200, {"ok": True, "service": "kiwoom-us-top20-api"})
         if path.path != "/market/trading-value" or parse_qs(path.query).get("market") != ["us"]:
@@ -87,6 +173,65 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(503, {"ok": False, "items": [], "error": type(exc).__name__})
         self._json(200, result)
 
+
+    def _serve_qqq_websocket(self):
+        if not getattr(self.server, "qqq_feed_enabled", False):
+            return self._json(503, {"ok": False, "error": "qqq_feed_unavailable"})
+        origin = self.headers.get("Origin", "")
+        if not _origin_allowed(origin):
+            return self._json(403, {"ok": False, "error": "origin_not_allowed"})
+        key = self.headers.get("Sec-WebSocket-Key", "")
+        if (self.headers.get("Upgrade", "").lower() != "websocket"
+                or "upgrade" not in self.headers.get("Connection", "").lower()
+                or not key):
+            return self._json(400, {"ok": False, "error": "websocket_upgrade_required"})
+        try:
+            decoded_key = base64.b64decode(key, validate=True)
+        except (ValueError, TypeError):
+            return self._json(400, {"ok": False, "error": "invalid_websocket_key"})
+        if len(decoded_key) != 16:
+            return self._json(400, {"ok": False, "error": "invalid_websocket_key"})
+        if not _QQQ_WS_CLIENTS.acquire(blocking=False):
+            return self._json(503, {"ok": False, "error": "websocket_capacity_reached"})
+
+        try:
+            accept = base64.b64encode(
+                hashlib.sha1((key + _WS_GUID).encode("ascii")).digest()
+            ).decode("ascii")
+            self.close_connection = True
+            self.send_response(101)
+            self.send_header("Upgrade", "websocket")
+            self.send_header("Connection", "Upgrade")
+            self.send_header("Sec-WebSocket-Accept", accept)
+            self.end_headers()
+            self.wfile.flush()
+            last_signature = object()
+            last_heartbeat = 0.0
+            while True:
+                quote = _qqq_snapshot()
+                signature = ((quote["received_at_ms"], quote["stale"])
+                             if quote is not None else None)
+                now = time.monotonic()
+                if signature != last_signature or now - last_heartbeat >= 10:
+                    payload = json.dumps(
+                        {"type": "quote", "quote": quote},
+                        separators=(",", ":"), allow_nan=False,
+                    ).encode("utf-8")
+                    self.connection.sendall(_websocket_text_frame(payload))
+                    last_signature = signature
+                    last_heartbeat = now
+                with _QQQ_CHANGED:
+                    _QQQ_CHANGED.wait(timeout=1.0)
+                readable, _, _ = select.select([self.connection], [], [], 0)
+                if readable:
+                    incoming = self.connection.recv(4096)
+                    if not incoming or (incoming[0] & 0x0F) == 0x8:
+                        break
+        except (OSError, ValueError, select.error):
+            pass
+        finally:
+            _QQQ_WS_CLIENTS.release()
+
     def _json(self, status, payload):
         data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
@@ -95,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "public, max-age=15" if status == 200 else "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         origin = self.headers.get("Origin", "")
-        if origin in ALLOWED_ORIGINS:
+        if _origin_allowed(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
         self.end_headers()
@@ -146,6 +291,9 @@ def main():
                 keyfile=str(cert_dir / "quotes-origin.key"),
             )
             server.ssl_context = ctx
+        server.qqq_feed_enabled = tls
+        if tls:
+            _start_qqq_feed()
         server.serve_forever()
 
 
