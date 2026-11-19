@@ -92,7 +92,6 @@
     if (!card) return;
     const priceNode = card.querySelector('[data-kospi-price]');
     const pctNode = card.querySelector('[data-kospi-change]');
-    const reasonNode = card.querySelector('.central-widget-card__kospi-reason span');
     const chartNode = card.querySelector('.central-widget-card__sparkline');
     const quote = qqqCurrent;
     const valid = quote && Number.isFinite(quote.price) && quote.price > 0;
@@ -108,11 +107,6 @@
       pctNode.classList.toggle('central-widget-card__kospi-change--down', fresh && percent !== null && percent < 0);
       chartNode?.classList.toggle('central-widget-card__sparkline--up', fresh && percent !== null && percent > 0);
       chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && percent !== null && percent < 0);
-    }
-    if (reasonNode) {
-      if (!valid) reasonNode.textContent = 'QQQ 수신 대기';
-      else if (!fresh) reasonNode.textContent = '시세 지연';
-      else reasonNode.textContent = easternTradingWindow(quote.received_at_ms).period + ' · 실시간';
     }
     drawQqqChart(card);
   }
@@ -156,7 +150,7 @@
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="QQQ 위젯 삭제" title="위젯 삭제">
             <i data-lucide="x" class="w-3 h-3"></i>
           </button>
-          <div class="central-widget-card__kospi-title">QQQ</div>
+          <div class="central-widget-card__kospi-title"><span>QQQ</span><span class="central-widget-card__kospi-market-name">나스닥</span></div>
           <div class="central-widget-card__kospi-body" aria-label="QQQ 키움 실시간 체결가 차트">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
               <defs>
@@ -170,7 +164,6 @@
             </svg>
             <div class="central-widget-card__kospi-copy">
               <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>—</strong><span data-kospi-change class="central-widget-card__kospi-change">—%</span></div>
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-reason"><span>데이터 미연결</span></div>
             </div>
           </div>
         </article>`;
