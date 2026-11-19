@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
 sys.path.insert(0, "/opt/gaemigtp-news/app")
-from backend.providers.kiwoom_us_quotes import issue_access_token
+from backend.providers.kiwoom_us_quotes import issue_access_token, KiwoomReadOnlyError
 
 WS_URI = "wss://api.kiwoom.com:10000/api/us/websocket"
 SYMBOL = "QQQ"
@@ -92,6 +92,9 @@ def main():
         token=issue_access_token()
         print("QQQ_FE_OAUTH_OK=true",flush=True)
         return asyncio.run(probe(token))
+    except KiwoomReadOnlyError as exc:
+        print("QQQ_FE_PROBE_ERROR="+str(exc),flush=True)
+        return 7
     except Exception as exc:
         print("QQQ_FE_PROBE_ERROR="+type(exc).__name__,flush=True)
         return 7
