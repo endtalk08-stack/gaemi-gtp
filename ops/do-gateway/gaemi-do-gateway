@@ -212,16 +212,16 @@ case "$action" in
     install -d -o root -g root -m 0700 /var/lib/gaemi-gateway
     record="/var/lib/gaemi-gateway/run-$1"
     [[ ! -e "$record" ]] || fail "qqq_probe_duplicate_request"
-    printf '%s\\n' "$(date -u +%FT%TZ) $2" > "$record"
+    printf '%s\n' "$(date -u +%FT%TZ) $2" > "$record"
     install -d -o gaemigtp-news -g gaemigtp-news -m 0700 /run/gaemi-gateway
     job="/run/gaemi-gateway/job-$1.py"
     install -o gaemigtp-news -g gaemigtp-news -m 0500 -- "$inbox" "$job"
     trap 'rm -f "$job"' EXIT
-    systemd-run --quiet --wait --pipe --collect \\
-      --unit="gaemi-kiwoom-qqq-probe-$(date -u +%s)" \\
-      -p User=gaemigtp-news -p Group=gaemigtp-news \\
-      -p WorkingDirectory="$app" -p EnvironmentFile=/etc/gaemigtp/kiwoom.env \\
-      -p TimeoutStartSec="$3" \\
+    systemd-run --quiet --wait --pipe --collect \
+      --unit="gaemi-kiwoom-qqq-probe-$(date -u +%s)" \
+      -p User=gaemigtp-news -p Group=gaemigtp-news \
+      -p WorkingDirectory="$app" -p EnvironmentFile=/etc/gaemigtp/kiwoom.env \
+      -p TimeoutStartSec="$3" \
       /opt/gaemigtp-news/venv/bin/python "$job"
     echo "KIWOOM_QQQ_PROBE_PASS"
     ;;
