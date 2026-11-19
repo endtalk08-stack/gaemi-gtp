@@ -165,6 +165,50 @@
 .central-widget-card--qqq-muted .central-widget-card__sparkline { color: var(--gtp-faint); }
 .central-widget-card--qqq-muted .central-widget-card__sparkline polygon { opacity: .2; }
 
+
+/* QQQ typography and compact layout: consistent labels, prominent quote. */
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-title {
+  gap: 6px;
+  font-size: 14px;
+  line-height: 18px;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market-name {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-body {
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 8px;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-copy {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market strong {
+  font-size: 22px;
+  line-height: 24px;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-change {
+  font-size: 14px;
+  line-height: 16px;
+  font-weight: 600;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__sparkline {
+  grid-column: 2;
+  grid-row: 1;
+  width: 54px;
+  height: 32px;
+}
+
 /* US verified Top-20 daily candles, independent of the QQQ widget. */
 .central-widget-card--chart { grid-column: 1 / -1; min-width: 0; }
 .us-daily-chart { min-height: 272px; padding-top: 10px; font-size: 12px; color: #64748b; }
