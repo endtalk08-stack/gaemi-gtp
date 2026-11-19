@@ -6,8 +6,7 @@ import urllib.request
 origin = "https://gaemigtp-main.pages.dev"
 with urllib.request.urlopen("http://127.0.0.1:8765/market/trading-value?market=us", timeout=8) as body:
     ranked = json.load(body)
-with urllib.request.urlopen(origin + "/stocks/us/instruments.json", timeout=8) as body:
-    industries = {x["symbol"] for x in json.load(body)["items"]}
+industries = set(["AAPL","AAPL.O","AMAT","AMAT.O","AMD","AMD.O","AMZN","AMZN.O","ASML","ASML.O","AVGO","AVGO.O","BA","BABA","BE","BRZE.O","CLX","CRCL.K","CRDO","CRWD","CRWV","CRWV.O","CSCO","DELL","DELL.K","EQIX","FER","GE","GEV","GMAB","GOOG","GOOG.O","GOOGL","GOOGL.O","HOOD","HSBC","IBM","INTC","INTC.O","IONQ.K","IREN","IREN.O","JNJ","JPM","KEYS","LITE","LITE.O","LLY","LRCX","LRCX.O","LULU.O","MELI","META","META.O","MRNA","MRNA.O","MRVL","MRVL.O","MSFT","MSFT.O","MSTR","MU","MU.O","NBIS","NBIS.O","NFLX.O","NOW","NVDA","NVDA.O","NVS","ORCL","ORCL.K","PANW","PG","PLTR","PLTR.O","RBNE.O","RKLB.O","SAP","SKHY","SKHY.O","SLN.O","SMCI.O","SMR","SNDK","SNDK.O","SOFI","SPCX","SPCX.O","STX","TSLA","TSLA.O","TSM","UBER","V","WDC","XXII.O"])
 assert ranked["ok"] and len(ranked["items"]) == 20
 symbols = {row["symbol"] for row in ranked["items"]}
 aliases = {"ND": ".O", "NY": ".K"}
