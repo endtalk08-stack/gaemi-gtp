@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/audit_top20_https_predeploy_readonly_20261119.py",
-  "request_id": "top20httpsaudit20261119",
-  "timeout": 45
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_live_prices.py",
+  "target": "backend/kiwoom_us_live_prices.py"
 }
