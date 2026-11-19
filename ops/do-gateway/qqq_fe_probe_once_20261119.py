@@ -3,7 +3,10 @@ import asyncio
 import datetime as dt
 import json
 import os
+import sys
 from zoneinfo import ZoneInfo
+
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 
 from backend.providers.kiwoom_us_quotes import credentials_configured, issue_access_token
 
