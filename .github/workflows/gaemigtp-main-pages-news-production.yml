@@ -26,7 +26,7 @@ jobs:
           grep -Fq '오늘 미국 상승 테마 뭐야?' frontend/index.html
           grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' frontend/index.html
           grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
-          grep -Fq '20261114-r2-industry-v1' frontend/index.html
+          grep -Fq '20261120-top20-websocket-v1' frontend/index.html
           grep -Fq 'aria-label="메인 화면"' frontend/index.html
           test "$(grep -Fc 'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2' frontend/index.html)" -eq 2
           grep -Fq 'News</span>' frontend/index.html
@@ -56,12 +56,15 @@ jobs:
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/center-chat/widget-dock/widget-dock.css?v=20261119-qqq-reason-v3" -o "$RUNNER_TEMP/production-widget-dock.css"
           grep -Fq -- '--qqq-text: #bfc3cb' "$RUNNER_TEMP/production-widget-dock.css"
           grep -Fq 'widget-dock.js?v=20261119-qqq-reason-v4' "$RUNNER_TEMP/production-index.html"
+          grep -Fq 'market-sidebar.js?v=20261120-top20-websocket-v1' "$RUNNER_TEMP/production-index.html"
+          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/left-market-sidebar/market-sidebar.js?v=20261120-top20-websocket-v1" -o "$RUNNER_TEMP/production-market-sidebar.js"
+          cmp frontend/shell/left-market-sidebar/market-sidebar.js "$RUNNER_TEMP/production-market-sidebar.js"
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/center-chat/widget-dock/widget-dock.js?v=20261119-qqq-reason-v4" -o "$RUNNER_TEMP/production-widget-dock.js"
           cmp frontend/shell/center-chat/widget-dock/widget-dock.js "$RUNNER_TEMP/production-widget-dock.js"
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/qqq-reason" |
             jq -e '.ok == true and (.items | type == "array")'
           grep -Fq "font-size: 14px !important;" "$RUNNER_TEMP/production-widget-dock.css"
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/stocks/us/instruments.json" |
-            jq -e '.ok == true and ([.items[] | select(.symbol == "NVDA" and (.industry | length > 0))] | length) == 1'
+            jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
           curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
