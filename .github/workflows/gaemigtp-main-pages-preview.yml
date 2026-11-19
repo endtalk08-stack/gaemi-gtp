@@ -24,6 +24,9 @@ jobs:
           node --check frontend/shell/right-panel/right-panel-tabs.js
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          grep -Fq 'data-qqq-reason' frontend/shell/center-chat/widget-dock/widget-dock.js
+          ! grep -Fq 'data-kospi-change' frontend/shell/center-chat/widget-dock/widget-dock.js
+          grep -Fq '#bfc3cb' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
       - name: Deploy to existing Pages project preview
         id: deploy
@@ -49,3 +52,5 @@ jobs:
           grep -Fq '52주 신고가 신저가 종목 알려줘' "$RUNNER_TEMP/pages-index.html"
           curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
+          curl -fsS --retry 3 --max-time 20 "$PREVIEW_URL/market/qqq-reason" |\
+            jq -e '.ok == true and (.items | type == "array") and all(.items[]; (.publishedAt | type == "number") and (.text | type == "string" and length > 0) and (.url | startswith("https://")))'
