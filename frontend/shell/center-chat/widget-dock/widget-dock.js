@@ -82,22 +82,33 @@
 
   function updateQqqReason(card, quote, fresh) {
     const node = card.querySelector('[data-qqq-reason]');
-    const session = fresh && quote.change_pct > 0 ? easternTradingWindow(quote.received_at_ms) : null;
-    node.hidden = !session || session.period === '장외';
-    if (node.hidden) return;
+    if (!node) return;
+    const session = fresh && Number.isFinite(quote?.change_pct) && quote.change_pct > 0
+      ? easternTradingWindow(quote.received_at_ms) : null;
+    if (!session || session.period === '장외') {
+      node.hidden = true;
+      node.textContent = '';
+      node.removeAttribute('href');
+      node.removeAttribute('title');
+      return;
+    }
     const reason = qqqReasons.find(item => Number.isFinite(item?.publishedAt)
       && item.publishedAt <= quote.received_at_ms
       && easternTradingWindow(item.publishedAt).key === session.key
-      && typeof item.text === 'string' && typeof item.url === 'string' && item.url.startsWith('https://'));
-    const text = reason?.text || '상승 이유 미확인';
-    if (node.textContent !== text) node.textContent = text;
-    if (reason) {
-      node.href = reason.url;
-      node.title = text + ' · ' + reason.source;
-    } else {
+      && typeof item.text === 'string' && item.text.trim()
+      && typeof item.url === 'string' && item.url.startsWith('https://'));
+    if (!reason) {
+      node.hidden = true;
+      node.textContent = '';
       node.removeAttribute('href');
       node.removeAttribute('title');
+      refreshQqqReasons();
+      return;
     }
+    node.hidden = false;
+    if (node.textContent !== reason.text) node.textContent = reason.text;
+    node.href = reason.url;
+    node.title = reason.text + ' · ' + reason.source;
     refreshQqqReasons();
   }
 
@@ -127,23 +138,17 @@
     const card = body()?.querySelector('[data-central-widget-id="qqq"]');
     if (!card) return;
     const priceNode = card.querySelector('[data-kospi-price]');
-    const pctNode = card.querySelector('[data-kospi-change]');
     const chartNode = card.querySelector('.central-widget-card__sparkline');
     const quote = qqqCurrent;
     const valid = quote && Number.isFinite(quote.price) && quote.price > 0;
     const fresh = valid && !quote.stale && Date.now() - quote.received_at_ms <= 25000;
+    const change = valid && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
     if (priceNode) priceNode.textContent = valid
       ? quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '—';
-    if (pctNode) {
-      const percent = valid && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
-      pctNode.textContent = percent === null ? '—%' : (percent > 0 ? '+' : '') + percent.toFixed(2) + '%';
-      pctNode.classList.toggle('central-widget-card__kospi-change--up', fresh && percent !== null && percent > 0);
-      pctNode.classList.toggle('central-widget-card__kospi-change--down', fresh && percent !== null && percent < 0);
-      chartNode?.classList.toggle('central-widget-card__sparkline--up', fresh && percent !== null && percent > 0);
-      chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && percent !== null && percent < 0);
-    }
+    chartNode?.classList.toggle('central-widget-card__sparkline--up', fresh && change !== null && change > 0);
+    chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && change !== null && change < 0);
     drawQqqChart(card);
     updateQqqReason(card, quote, fresh);
   }
@@ -200,7 +205,7 @@
               <polyline data-kospi-sparkline points=""></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>—</strong><span data-kospi-change class="central-widget-card__kospi-change">—%</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>—</strong></div>
             </div>
           </div>
           <a class="central-widget-card__kospi-reason" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a>
