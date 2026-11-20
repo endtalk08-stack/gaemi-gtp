@@ -149,7 +149,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     if (url === '/stocks/us/instruments.json') {
       return { ok: true, json: async () => ({ ok: true, items: [] }) };
     }
-    if (url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1') {
+    if (url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap') {
       return { ok: true, json: async () => ({
         ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
         items: [
@@ -209,7 +209,7 @@ test('industry tab renders available API groups and only two market-cap leaders'
   app.industryTab.click();
   await flush();
   assert.ok(app.calls.slice(callsBeforeTab).some((call) =>
-    call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
+    call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap'));
   assert.equal(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
   assert.equal(app.list.children.length, 4);

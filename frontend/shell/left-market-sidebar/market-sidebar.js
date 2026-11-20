@@ -334,7 +334,7 @@
       industryMapPromise = (async () => {
         // Industry membership and market-cap ranking come from the existing
         // DigitalOcean Kiwoom industry endpoint. Never derive this map from TOP20.
-        const response = await fetch(quoteApiBase + '/market/us-industries?include_stocks=1', {
+        const response = await fetch(quoteApiBase + '/market/us-industries?include_stocks=1&view=heatmap', {
           cache: 'no-store'
         });
         if (!response.ok) throw new Error('us_industries_http_' + response.status);
