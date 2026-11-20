@@ -1,14 +1,7 @@
 name: gaemigtp-main Pages production - centered News Chat
 # QQQ card and sourced reason verification: 2026-11-19
 on:
-  push:
-    branches: [ops/gaemigtp-main-pages-preview]
-    paths:
-      - .github/workflows/gaemigtp-main-pages-news-production.yml
-      - frontend/index.html
-      - frontend/shell/left-market-sidebar/market-sidebar.js
-      - frontend/shell/left-market-sidebar/market-sidebar.css
-      - tests/test_sidebar_issue_sync.cjs
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -19,6 +12,7 @@ concurrency:
 
 jobs:
   production:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

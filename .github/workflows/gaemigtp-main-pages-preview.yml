@@ -1,5 +1,9 @@
 name: gaemigtp-main Pages preview
 on:
+  push:
+    branches: [ops/gaemigtp-main-pages-preview]
+    paths:
+      - .github/workflows/gaemigtp-main-pages-preview.yml
   workflow_dispatch:
 
 permissions:
@@ -64,3 +68,8 @@ jobs:
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/market/qqq-reason" |\
             jq -e '.ok == true and (.items | type == "array") and all(.items[]; (.publishedAt | type == "number") and (.text | type == "string" and length > 0) and (.url | startswith("https://")))'
+
+      - name: Publish verified preview link
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: printf '[Open the gaemigtp-main preview](%s)\n' "$PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
