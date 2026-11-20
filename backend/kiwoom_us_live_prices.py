@@ -87,7 +87,7 @@ def _ranked_symbols(snapshot_path=None):
         exchange = row.get("exchange")
         if (type(rank) is not int or not 1 <= rank <= 20 or rank in ranks
                 or not isinstance(symbol, str)
-                or not re.fullmatch(r"[A-Z0-9.\\-]{1,20}", symbol)
+                or not re.fullmatch(r"[A-Z0-9.\-]{1,20}", symbol)
                 or symbol in selected or exchange not in EXCHANGES):
             raise ValueError("invalid_local_kiwoom_row")
         ranks.add(rank)
@@ -121,7 +121,7 @@ async def _register_fe(ws, group, symbols, *, refresh, on_tick=None):
     return False
 
 
-async def run_qqq_fe_stream(on_quote, *, on_top20=None):
+async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_industry_symbols=None):
     """Share one Kiwoom connection, keeping QQQ in a separate subscription group."""
     from backend.providers.kiwoom_us_quotes import issue_access_token
 
@@ -165,8 +165,10 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None):
                 print("KIWOOM_QQQ_FE_CONNECTED", flush=True)
                 retry_delay = 5
                 ranked = {}
+                industry_ranked = {}
                 selected = qqq
                 next_ranking_check = 0.0
+                next_industry_check = 0.0
                 loop = asyncio.get_running_loop()
 
                 def publish(frame):
@@ -186,12 +188,50 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None):
                             top20 = {symbol: exchange for symbol, exchange in wanted.items() if symbol != "QQQ"}
                             if await _register_fe(ws, "2", top20, refresh="0", on_tick=publish):
                                 ranked = wanted
-                                selected = {**top20, **qqq}
+                                selected = {**top20, **industry_ranked, **qqq}
                                 on_top20(set(wanted))
                                 print("KIWOOM_TOP20_FE_REGISTERED=" + str(len(wanted)), flush=True)
                             else:
                                 print("KIWOOM_TOP20_FE_REGISTRATION_FAILED", flush=True)
                                 next_ranking_check = loop.time() + 120
+
+                    # The 22 sector leaders share this same Kiwoom WebSocket
+                    # session in group 3. Market-cap membership is cached for
+                    # 30 minutes; live FE ticks are kept only in process memory.
+                    if get_industry_symbols is not None and loop.time() >= next_industry_check:
+                        next_industry_check = loop.time() + 1800
+                        try:
+                            raw_industry = await asyncio.to_thread(get_industry_symbols)
+                            if not isinstance(raw_industry, dict):
+                                raise ValueError("invalid_industry_symbols")
+                            wanted_industry = {
+                                symbol: exchange
+                                for symbol, exchange in raw_industry.items()
+                                if isinstance(symbol, str)
+                                and re.fullmatch(r"[A-Z0-9.\\-]{1,20}", symbol)
+                                and exchange in EXCHANGES
+                            }
+                            if wanted_industry and wanted_industry != industry_ranked:
+                                if await _register_fe(
+                                    ws, "3", wanted_industry,
+                                    refresh="1" if not industry_ranked else "0",
+                                    on_tick=publish,
+                                ):
+                                    industry_ranked = wanted_industry
+                                    top20 = {
+                                        symbol: exchange for symbol, exchange in ranked.items()
+                                        if symbol != "QQQ"
+                                    }
+                                    selected = {**top20, **industry_ranked, **qqq}
+                                    if on_industry is not None:
+                                        on_industry(set(industry_ranked))
+                                    print("KIWOOM_INDUSTRY_FE_REGISTERED=" + str(len(industry_ranked)), flush=True)
+                                else:
+                                    print("KIWOOM_INDUSTRY_FE_REGISTRATION_FAILED", flush=True)
+                                    next_industry_check = loop.time() + 120
+                        except Exception as exc:
+                            print("KIWOOM_INDUSTRY_FE_REFRESH_FAILED=" + type(exc).__name__, flush=True)
+                            next_industry_check = loop.time() + 120
 
                     try:
                         frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
