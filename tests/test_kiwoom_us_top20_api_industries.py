@@ -1,8 +1,15 @@
 """No-network tests for the in-memory US industry quote integration."""
+import asyncio
+import json
+import sys
+import threading
 import unittest
+from types import ModuleType
 from unittest.mock import patch
 
+from backend import kiwoom_us_live_prices as live
 from backend import kiwoom_us_top20_api as api
+from backend.providers import kiwoom_us_quotes
 
 
 class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
@@ -85,6 +92,88 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         self.assertEqual([row["symbol"] for row in api._top20_snapshot()], ["AAA"])
         self.assertEqual({row["symbol"] for row in api._industry_snapshot()}, {"AAA", "BBB"})
 
+
+class KiwoomUSIndustryStreamTests(unittest.IsolatedAsyncioTestCase):
+    async def test_qqq_and_top20_ticks_continue_while_industry_lookup_is_pending(self):
+        loop = asyncio.get_running_loop()
+        lookup_started = asyncio.Event()
+        release_lookup = threading.Event()
+        existing_ticks = asyncio.Event()
+        group_three_registered = asyncio.Event()
+        updates = {}
+        sent = []
+        frames = asyncio.Queue()
+
+        def fetch_industry():
+            loop.call_soon_threadsafe(lookup_started.set)
+            if not release_lookup.wait(timeout=4):
+                raise TimeoutError("test lookup was not released")
+            return {"TSM": "NY", "BAD\\NAME": "NY"}
+
+        def on_quote(quote):
+            updates[quote["symbol"]] = quote["price"]
+            if {"QQQ", "NVDA"} <= updates.keys():
+                existing_ticks.set()
+
+        class Feed:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return None
+
+            async def recv(self):
+                return await frames.get()
+
+            async def send(self, value):
+                message = json.loads(value)
+                sent.append(message)
+                kind = message["trnm"]
+                if kind in ("LOGIN", "REG"):
+                    frames.put_nowait(json.dumps({"trnm": kind, "return_code": 0}))
+
+        mock_client = ModuleType("websockets.asyncio.client")
+        mock_client.connect = lambda *args, **kwargs: Feed()
+
+        with (
+            patch.dict(sys.modules, {"websockets.asyncio.client": mock_client}),
+            patch.object(kiwoom_us_quotes, "issue_access_token", return_value="LOCAL_TEST"),
+            patch.object(live, "_open_us_session", return_value=True),
+            patch.object(live, "_ranked_symbols", return_value=(None, {"NVDA": "ND"})),
+        ):
+            task = asyncio.create_task(live.run_qqq_fe_stream(
+                on_quote,
+                on_top20=lambda _: None,
+                on_industry=lambda _: group_three_registered.set(),
+                get_industry_symbols=fetch_industry,
+            ))
+            try:
+                await asyncio.wait_for(lookup_started.wait(), timeout=1)
+                frames.put_nowait(json.dumps({
+                    "trnm": "REAL",
+                    "data": [
+                        {"type": "FE", "item": "QQQ", "values": {"10": "500"}},
+                        {"type": "FE", "item": "NVDA", "values": {"10": "150"}},
+                    ],
+                }))
+                await asyncio.wait_for(existing_ticks.wait(), timeout=1)
+                self.assertEqual(updates, {"QQQ": 500, "NVDA": 150})
+                self.assertFalse(group_three_registered.is_set())
+                release_lookup.set()
+
+                async def wake_reader():
+                    while not group_three_registered.is_set():
+                        frames.put_nowait(json.dumps({"trnm": "PING"}))
+                        await asyncio.sleep(0.01)
+
+                await asyncio.wait_for(wake_reader(), timeout=1)
+                groups = [message for message in sent if message["trnm"] == "REG"]
+                self.assertEqual([message["grp_no"] for message in groups], ["1", "2", "3"])
+                self.assertEqual(groups[-1]["data"][0]["item"], [{"jmcode": "TSM", "stex_tp": "NY"}])
+            finally:
+                release_lookup.set()
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
 if __name__ == "__main__":
     unittest.main()

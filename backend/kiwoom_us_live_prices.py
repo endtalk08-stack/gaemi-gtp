@@ -131,6 +131,8 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
         from websockets.client import connect
 
     qqq = {"QQQ": "ND"}
+    loop = asyncio.get_running_loop()
+    pending_industry_refresh = None
     retry_delay = 5
     while True:
         if not _open_us_session():
@@ -169,7 +171,6 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                 selected = qqq
                 next_ranking_check = 0.0
                 next_industry_check = 0.0
-                loop = asyncio.get_running_loop()
 
                 def publish(frame):
                     for symbol, (price, change_pct, high, low) in _parse_price_event(frame, selected).items():
@@ -197,18 +198,26 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
 
                     # The 22 sector leaders share this same Kiwoom WebSocket
                     # session in group 3. Market-cap membership is cached for
-                    # 30 minutes; live FE ticks are kept only in process memory.
-                    if get_industry_symbols is not None and loop.time() >= next_industry_check:
+                    # 30 minutes; the lookup runs while the socket keeps
+                    # receiving QQQ and TOP20 trade ticks.
+                    if (get_industry_symbols is not None
+                            and pending_industry_refresh is None
+                            and loop.time() >= next_industry_check):
+                        pending_industry_refresh = loop.run_in_executor(None, get_industry_symbols)
+
+                    if pending_industry_refresh is not None and pending_industry_refresh.done():
+                        refresh = pending_industry_refresh
+                        pending_industry_refresh = None
                         next_industry_check = loop.time() + 1800
                         try:
-                            raw_industry = await asyncio.to_thread(get_industry_symbols)
+                            raw_industry = refresh.result()
                             if not isinstance(raw_industry, dict):
                                 raise ValueError("invalid_industry_symbols")
                             wanted_industry = {
                                 symbol: exchange
                                 for symbol, exchange in raw_industry.items()
                                 if isinstance(symbol, str)
-                                and re.fullmatch(r"[A-Z0-9.\\-]{1,20}", symbol)
+                                and re.fullmatch(r"[A-Z0-9.-]{1,20}", symbol)
                                 and exchange in EXCHANGES
                             }
                             if wanted_industry and wanted_industry != industry_ranked:
@@ -242,6 +251,9 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                     else:
                         publish(frame)
         except asyncio.CancelledError:
+            if pending_industry_refresh is not None:
+                pending_industry_refresh.cancel()
+                await asyncio.gather(pending_industry_refresh, return_exceptions=True)
             raise
         except Exception as exc:
             print("KIWOOM_QQQ_FE_RECONNECT=" + type(exc).__name__, flush=True)
