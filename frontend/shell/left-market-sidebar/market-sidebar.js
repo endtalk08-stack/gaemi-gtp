@@ -95,7 +95,7 @@
     const sidebar = document.getElementById('leftMarketSidebar');
     if (!sidebar || sidebar.dataset.marketControlsBound === 'true') return;
 
-    function bindStaticSelection(selector, defaultIndex = 0) {
+    function bindStaticSelection(selector, selectedTab) {
       const buttons = [...sidebar.querySelectorAll(selector)].filter((button) => !button.disabled);
       buttons.forEach((button) => {
         button.addEventListener('click', () => {
@@ -111,7 +111,7 @@
           });
         });
       });
-      buttons.forEach((button, index) => button.setAttribute('aria-pressed', String(index === defaultIndex)));
+      buttons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.infoTabAction === selectedTab)));
     }
 
     // Only US market data is requested; static sample rows have been removed.
@@ -714,7 +714,7 @@
       applyChangeSort();
     });
 
-    bindStaticSelection('[data-info-tab-action]', 1);
+    bindStaticSelection('[data-info-tab-action]', tab);
     sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
       if (button.disabled) return;
       button.addEventListener('click', () => {
