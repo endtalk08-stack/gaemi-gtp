@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/inspect_kiwoom_market_cap_readonly.py",
-  "request_id": "inspectkiwoomcap20261120",
+  "path": "ops/do-gateway/inspect_market_api_wiring.py",
+  "request_id": "inspectmarketwiring20261120",
   "timeout": 120
 }
