@@ -247,6 +247,57 @@
         list.appendChild(row);
       });
     };
+    const industrySymbolKey = (value) =>
+      String(value || '').trim().toUpperCase().replace(/\\.(O|N)$/u, '');
+    const buildIndustryMap = (ranking, metadata) => {
+      if (ranking?.ok !== true || !Array.isArray(ranking.items)) {
+        throw new Error('invalid_us_trading_value');
+      }
+      if (metadata?.ok !== true || !Array.isArray(metadata.items)) {
+        throw new Error('invalid_us_industry_metadata');
+      }
+      const labels = new Map();
+      for (const item of metadata.items) {
+        const key = industrySymbolKey(item?.symbol);
+        const label = typeof item?.industry === 'string' ? item.industry.trim() : '';
+        if (key && label) labels.set(key, label);
+      }
+      const groups = new Map();
+      for (const row of ranking.items) {
+        const symbol = String(row?.symbol || '').trim().toUpperCase();
+        const name = typeof row?.name === 'string' ? row.name.trim() : '';
+        if (!symbol || !name) continue;
+        const industry = (typeof row.industry === 'string' && row.industry.trim())
+          || labels.get(industrySymbolKey(symbol));
+        if (!industry) continue;
+        let group = groups.get(industry);
+        if (!group) {
+          group = { name: industry, stocks: [], tradingValue: 0, firstRank: Number.MAX_SAFE_INTEGER };
+          groups.set(industry, group);
+        }
+        const rank = Number(row.rank);
+        const value = Number(row.trading_value);
+        group.stocks.push({
+          name, symbol, rank: Number.isFinite(rank) && rank > 0 ? rank : group.stocks.length + 1,
+          change_pct: typeof row.change_pct === 'number' && Number.isFinite(row.change_pct)
+            ? row.change_pct : null,
+          trading_value: Number.isFinite(value) && value > 0 ? value : null
+        });
+        if (Number.isFinite(value) && value > 0) group.tradingValue += value;
+        if (Number.isFinite(rank) && rank > 0) group.firstRank = Math.min(group.firstRank, rank);
+      }
+      const items = [...groups.values()]
+        .map((group) => ({
+          name: group.name,
+          stocks: group.stocks.sort((a, b) => a.rank - b.rank).slice(0, 3),
+          tradingValue: group.tradingValue,
+          firstRank: group.firstRank
+        }))
+        .sort((a, b) => b.tradingValue - a.tradingValue || a.firstRank - b.firstRank)
+        .slice(0, 9)
+        .map(({ name, stocks }) => ({ name, stocks }));
+      return { ok: true, items };
+    };
     const loadIndustryMap = async (id) => {
       if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) {
         if (id === requestId) renderIndustryMap(industryMapData);
@@ -257,18 +308,27 @@
           const data = await industryMapPromise;
           if (id === requestId && data) renderIndustryMap(data);
         } catch (_) {
-          if (id === requestId) list.textContent = '업종맵 데이터를 불러오지 못했어.';
+          if (id === requestId) list.textContent = '업종 분류 또는 거래대금 데이터를 불러오지 못했어.';
         }
         return;
       }
       list.classList?.remove?.('etf-marketcap-list');
       list.classList?.add?.('industry-map-list');
-      list.textContent = '시가총액 기준 업종맵을 불러오는 중이야.';
+      list.textContent = '미국 업종별 거래대금 상위 종목을 불러오는 중이야.';
       industryMapPromise = (async () => {
-        const response = await fetch(quoteApiBase + '/market/us-industries?include_stocks=1', { cache: 'no-store' });
-        if (!response.ok) throw new Error('industry_map_http_' + response.status);
-        const data = await response.json();
-        if (data?.ok !== true || !Array.isArray(data.items)) throw new Error('invalid_industry_map');
+        // The old /market/us-industries endpoint is not implemented by the
+        // quote service. Build the map from the two existing, verified sources:
+        // Kiwoom US TOP20 and the Pages R2 industry-label snapshot.
+        const [rankingResponse, metadataResponse] = await Promise.all([
+          fetch(quoteApiBase + '/market/trading-value?market=us', { cache: 'no-store' }),
+          fetch('/stocks/us/instruments.json', { cache: 'default' })
+        ]);
+        if (!rankingResponse.ok) throw new Error('us_trading_value_http_' + rankingResponse.status);
+        if (!metadataResponse.ok) throw new Error('us_industry_metadata_http_' + metadataResponse.status);
+        const [ranking, metadata] = await Promise.all([
+          rankingResponse.json(), metadataResponse.json()
+        ]);
+        const data = buildIndustryMap(ranking, metadata);
         industryMapData = data;
         industryMapFetchedAt = Date.now();
         return data;
@@ -277,7 +337,7 @@
         const data = await industryMapPromise;
         if (id === requestId) renderIndustryMap(data);
       } catch (_) {
-        if (id === requestId) list.textContent = '업종맵 데이터를 불러오지 못했어.';
+        if (id === requestId) list.textContent = '업종 분류 또는 거래대금 데이터를 불러오지 못했어.';
       } finally {
         industryMapPromise = null;
       }
@@ -448,7 +508,7 @@
       const id = ++requestId;
       const titles = {
         realtime: '시장 시세',
-        industry: '시가총액 업종맵',
+        industry: '미국 업종맵 · 거래대금 TOP20',
         value: '거래대금 TOP 20',
         etf: 'ETF 시가총액 TOP 20'
       };
