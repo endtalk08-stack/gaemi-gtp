@@ -293,7 +293,7 @@
 }
 
 
-/* Market heatmap: eleven sector tiles with two live leaders for the selected sector. */
+/* Market heatmap with up to two leaders for the selected industry. */
 #marketRankingList.industry-map-list {
   display: flex;
   flex-direction: column;
@@ -361,9 +361,21 @@
   text-align: center;
   white-space: nowrap;
 }
-.industry-map-sector.is-up .industry-map-sector-change { color: #e27b8a; }
-.industry-map-sector.is-down .industry-map-sector-change { color: #78aee0; }
-.industry-map-sector.is-flat .industry-map-sector-change { color: var(--gtp-muted); }
+.industry-map-sector.is-up,
+.industry-map-sector.is-down,
+.industry-map-stock.is-up,
+.industry-map-stock.is-down {
+  --industry-tile-text: #fff;
+}
+.industry-map-sector.is-flat,
+.industry-map-stock.is-flat {
+  background-color: var(--gtp-surface-2);
+}
+.industry-map-sector.is-unavailable,
+.industry-map-stock.is-unavailable {
+  border-style: dashed;
+  color: var(--gtp-muted);
+}
 .industry-map-selected-header {
   display: flex;
   align-items: center;
@@ -449,9 +461,12 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.industry-map-stock.is-up .industry-map-stock-change { color: #e27b8a; }
-.industry-map-stock.is-down .industry-map-stock-change { color: #78aee0; }
-.industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
+.industry-map-sector-name,
+.industry-map-sector-change,
+.industry-map-stock-name,
+.industry-map-stock-change {
+  color: var(--industry-tile-text, inherit);
+}
 @media (max-width: 420px) {
   #marketRankingList.industry-map-list { gap: 8px; }
   .industry-map-sector { min-height: 49px; padding: 5px 3px; }

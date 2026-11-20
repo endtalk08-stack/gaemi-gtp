@@ -177,44 +177,40 @@
     const formatChange = (value) => Number.isFinite(value)
       ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
     const mapTileColor = (value) => {
-      if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.08 };
-      const strength = Math.min(0.34, 0.08 + Math.log1p(Math.abs(value)) * 0.075);
-      return value > 0
-        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: strength }
-        : { tone: 'is-down', rgb: '57, 119, 177', alpha: strength };
+      if (!Number.isFinite(value)) return { tone: 'is-unavailable' };
+      if (value === 0) return { tone: 'is-flat' };
+      const up = value > 0;
+      const intensity = Math.min(Math.abs(value) / 6, 1);
+      const hue = up ? 350 : 216;
+      const saturation = 65 + 23 * intensity;
+      const lightness = 30 + 15 * intensity;
+      return {
+        tone: up ? 'is-up' : 'is-down',
+        background: `hsl(${hue} ${saturation}% ${lightness}%)`,
+        border: `hsl(${hue} ${saturation}% ${lightness + 12}%)`
+      };
     };
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
       list.classList?.add?.('industry-map-list');
       list.replaceChildren();
-      // These eleven display groups are matched to official Kiwoom industry codes.
-      // Only the two largest companies returned for the selected group are shown.
-      const expectedIndustries = [
-        { key: 'energy', name: '에너지' },
-        { key: 'finance', name: '금융' },
-        { key: 'consumer_staples', name: '필수소비재' },
-        { key: 'industrials', name: '산업재' },
-        { key: 'internet_platforms', name: '인터넷플랫폼' },
-        { key: 'software', name: '소프트웨어' },
-        { key: 'communication', name: '커뮤니케이션' },
-        { key: 'healthcare', name: '헬스케어' },
-        { key: 'consumer_discretionary', name: '경기소비재' },
-        { key: 'it_hardware', name: 'IT하드웨어' },
-        { key: 'semiconductors', name: '반도체' }
-      ];
-      const byIndustry = new Map(items
-        .filter((sector) => sector && typeof sector.key === 'string')
-        .map((sector) => [sector.key, sector]));
-      const visibleSectors = expectedIndustries.map(({ key, name }) => {
-        const sector = byIndustry.get(key) || { key, name, change_pct: null, stocks: [] };
-        return {
+      const visibleSectors = items
+        .filter((sector) => typeof sector?.key === 'string' && sector.key.trim()
+          && typeof sector.name === 'string' && sector.name.trim())
+        .map((sector) => ({
           sector,
           stocks: (Array.isArray(sector.stocks) ? sector.stocks : [])
-            .filter((stock) => stock && typeof stock.name === 'string' && stock.name.trim()
+            .filter((stock) => typeof stock?.name === 'string' && stock.name.trim()
               && typeof stock.symbol === 'string' && stock.symbol.trim())
             .slice(0, 2)
-        };
-      });
+        }))
+        .filter(({ sector, stocks }) => Number.isFinite(sector.change_pct) || stocks.length > 0);
+
+      if (!visibleSectors.length) {
+        selectedIndustryKey = null;
+        list.textContent = '표시할 업종 데이터가 없어.';
+        return;
+      }
       // Highest percentage first; missing percentages stay at the bottom.
       visibleSectors.sort((a, b) => {
         const av = Number.isFinite(a.sector.change_pct) ? a.sector.change_pct : -Infinity;
@@ -241,8 +237,8 @@
           + (sector.key === selectedIndustryKey ? ' is-selected' : '');
         tile.dataset.industryKey = sector.key;
         tile.style.gridColumn = index < 2 ? 'span 3' : 'span 2';
-        tile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + Math.min(0.30, color.alpha + 0.045).toFixed(3) + ')';
-        tile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.62, color.alpha + 0.20).toFixed(3) + ')';
+        tile.style.backgroundColor = color.background || '';
+        tile.style.borderColor = color.border || '';
         tile.setAttribute('aria-pressed', String(sector.key === selectedIndustryKey));
         const name = document.createElement('span');
         name.className = 'industry-map-sector-name';
@@ -287,8 +283,8 @@
         stockTile.type = 'button';
         stockTile.className = 'industry-map-stock ' + color.tone;
         stockTile.dataset.industrySymbol = stock.symbol;
-        stockTile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
-        stockTile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
+        stockTile.style.backgroundColor = color.background || '';
+        stockTile.style.borderColor = color.border || '';
         stockTile.title = stock.name + ' ' + formatChange(pct);
         const name = document.createElement('span');
         name.className = 'industry-map-stock-name';
@@ -317,7 +313,7 @@
       const direction = document.createElement('span');
       direction.textContent = '상승 · 빨강 / 하락 · 파랑';
       const source = document.createElement('span');
-      source.textContent = '키움 실시간';
+      source.textContent = '키움';
       legend.append(direction, source);
       list.append(heading, heatmap, selectedHeader, stocks, legend);
       paintLiveQuotes();
@@ -841,10 +837,10 @@
           const color = mapTileColor(quote.change_pct);
           const change = tile.querySelector('.industry-map-stock-change');
           if (change) change.textContent = formatChange(quote.change_pct);
-          tile.classList.remove('is-up', 'is-down', 'is-flat');
+          tile.classList.remove('is-up', 'is-down', 'is-flat', 'is-unavailable');
           tile.classList.add(color.tone);
-          tile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
-          tile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
+          tile.style.backgroundColor = color.background || '';
+          tile.style.borderColor = color.border || '';
           tile.title = (tile.querySelector('.industry-map-stock-name')?.textContent || '')
             + ' ' + formatChange(quote.change_pct);
         });

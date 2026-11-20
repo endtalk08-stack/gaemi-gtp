@@ -158,9 +158,15 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
             { name: '브로드컴', symbol: 'AVGO.O', rank: 2, change_pct: -0.5, market_cap_usd: 900 },
             { name: 'AMD', symbol: 'AMD.O', rank: 3, change_pct: 0.1, market_cap_usd: 800 }
           ] },
-          { key: 'it_hardware', name: 'IT하드웨어', change_pct: -1.25, stocks: [
-            { name: '애플', symbol: 'AAPL.O', rank: 1, change_pct: -1.25, market_cap_usd: 900 }
-          ] }
+          { key: 'defense', name: '방산·항공우주', change_pct: -1.25, stocks: [
+            { name: '록히드 마틴', symbol: 'LMT.N', rank: 1, change_pct: -1.25 }
+          ] },
+          { key: 'biotech_pharma', name: '바이오·제약', change_pct: 0, stocks: [] },
+          { key: 'ev', name: '자동차·전기차', change_pct: -5.48, stocks: [] },
+          { key: 'healthcare', name: '헬스케어', change_pct: null, stocks: [
+            { name: '애보트', symbol: 'ABT.N', rank: 1, change_pct: null }
+          ] },
+          { key: 'internet_platforms', name: '인터넷플랫폼', change_pct: null, stocks: [] }
         ]
       }) };
     }
@@ -196,7 +202,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   };
 }
 
-test('industry tab renders the eleven-sector heatmap and only two market-cap leaders', async () => {
+test('industry tab renders available API groups and only two market-cap leaders', async () => {
   const app = setup();
   await flush();
   const callsBeforeTab = app.calls.length;
@@ -209,8 +215,17 @@ test('industry tab renders the eleven-sector heatmap and only two market-cap lea
   assert.equal(app.list.children.length, 5);
   assert.equal(app.list.children[0].textContent, '증시 동향');
   const heatmap = app.list.children[1];
-  assert.equal(heatmap.children.length, 11);
-  assert.equal(heatmap.children[0].dataset.industryKey, 'semiconductors');
+  assert.deepEqual(heatmap.children.map((tile) => tile.dataset.industryKey),
+    ['semiconductors', 'biotech_pharma', 'defense', 'ev', 'healthcare']);
+  const [rising, flat, weakerDrop, strongerDrop, missingReturn] = heatmap.children;
+  assert.match(rising.style.backgroundColor, /^hsl\(350 /);
+  assert.match(weakerDrop.style.backgroundColor, /^hsl\(216 /);
+  const saturation = (tile) => Number(tile.style.backgroundColor.split(' ')[1].replace('%', ''));
+  assert.ok(saturation(strongerDrop) > saturation(weakerDrop));
+  assert.match(flat.className, /is-flat/);
+  assert.equal(flat.children[1].textContent, '0.00%');
+  assert.match(missingReturn.className, /is-unavailable/);
+  assert.equal(missingReturn.children[1].textContent, '—');
   assert.equal(heatmap.children[0].children[0].textContent, '반도체');
   assert.equal(heatmap.children[0].children[1].textContent, '+2.50%');
   assert.equal(app.list.children[2].children[0].textContent, '반도체');
@@ -221,9 +236,9 @@ test('industry tab renders the eleven-sector heatmap and only two market-cap lea
   assert.equal(stocks.children[0].children[0].textContent, '엔비디아');
   assert.equal(stocks.children[0].children[1].textContent, '+2.50%');
   assert.equal(stocks.children[1].children[0].textContent, '브로드컴');
-  heatmap.children.find((tile) => tile.dataset.industryKey === 'it_hardware').click();
-  assert.equal(app.list.children[2].children[0].textContent, 'IT하드웨어');
-  assert.equal(app.list.children[3].children[0].children[0].textContent, '애플');
+  weakerDrop.click();
+  assert.equal(app.list.children[2].children[0].textContent, '방산·항공우주');
+  assert.equal(app.list.children[3].children[0].children[0].textContent, '록히드 마틴');
 });
 
 test('industry leader tiles update from the existing shared live WebSocket', async () => {
