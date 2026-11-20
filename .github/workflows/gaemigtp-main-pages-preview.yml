@@ -46,6 +46,7 @@ jobs:
             *) exit 1 ;;
           esac
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/" -o "$RUNNER_TEMP/pages-index.html"
+          cmp frontend/index.html "$RUNNER_TEMP/pages-index.html"
           grep -Fq 'data-info-tab-action="industry"' "$RUNNER_TEMP/pages-index.html"
           grep -Fq 'data-info-tab-action="realtime"' "$RUNNER_TEMP/pages-index.html"
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/shell/left-market-sidebar/market-sidebar.js?v=20261120-top20-websocket-v1" -o "$RUNNER_TEMP/pages-market-sidebar.js"

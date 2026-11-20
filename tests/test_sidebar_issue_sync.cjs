@@ -124,6 +124,12 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   let resolveDeferred = null;
   const fetch = async (url, opts) => {
     calls.push({ url, opts });
+    if (url === 'https://quotes.gaemigtp.com/market/trading-value?market=us') {
+      return { ok: true, json: async () => ({ ok: true, items: valueRows }) };
+    }
+    if (url === '/stocks/us/instruments.json') {
+      return { ok: true, json: async () => ({ ok: true, items: [] }) };
+    }
     if (url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1') {
       return { ok: true, json: async () => ({
         ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
@@ -131,8 +137,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
           { name: '반도체', stocks: [
             { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, market_cap_usd: 1000 },
           ] },
-          { name: '기술', stocks: [
-            { name: '애플', symbol: 'AAPL.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
+          { name: '바이오·제약', stocks: [
+            { name: '일라이 릴리', symbol: 'LLY.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
           ] }
         ]
       }) };
@@ -172,25 +178,31 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
 test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never TOP20', async () => {
   const app = setup();
   await flush();
+  const callsBeforeTab = app.calls.length;
   app.industryTab.click();
   await flush();
-  assert.ok(app.calls.some((call) =>
+  assert.ok(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
-  assert.equal(app.calls.some((call) =>
+  assert.equal(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
-  assert.equal(app.list.children.length, 2);
-  assert.equal(app.list.children[0].children[0].children[0].textContent, '반도체');
-  assert.equal(app.list.children[0].children[0].children[1].textContent, '—',
+  assert.equal(app.list.children.length, 18);
+  const [sector, stocks, missingSector, missingStocks] = app.list.children;
+  assert.equal(sector.children[0].textContent, '반도체');
+  assert.equal(sector.children[1].textContent, '—',
     'missing sector return should be shown as unavailable');
-  assert.match(app.list.children[0].className, /is-flat/);
-  assert.equal(app.list.children[0].children[1].children[0].children[1].textContent, '엔비디아');
-  assert.equal(app.list.children[0].children[1].children[0].children[2].textContent, '+2.50%');
-  assert.match(app.list.children[0].children[1].children[0].className, /is-up/);
-  assert.equal(app.list.children[1].children[0].children[0].textContent, '기술');
-  assert.equal(app.list.children[1].children[1].children[0].children[1].textContent, '애플');
-  assert.equal(app.list.children[1].children[1].children[0].children[2].textContent, '-1.25%');
-  assert.match(app.list.children[1].className, /is-flat/);
-  assert.match(app.list.children[1].children[1].children[0].className, /is-down/);
+  assert.match(sector.className, /is-flat/);
+  assert.equal(stocks.children[0].children[0].textContent, '엔비디아');
+  assert.equal(stocks.children[0].children[1].textContent, '+2.50%');
+  assert.match(stocks.children[0].className, /is-up/);
+  assert.equal(missingSector.children[0].textContent, 'AI·데이터센터');
+  assert.equal(missingStocks.children[0].textContent, '상위 종목 데이터 없음');
+  const pharmaSector = app.list.children.find(
+    (item) => item.children[0]?.textContent === '바이오·제약');
+  const pharmaStock = app.list.children[app.list.children.indexOf(pharmaSector) + 1].children[0];
+  assert.match(pharmaSector.className, /is-flat/);
+  assert.equal(pharmaStock.children[0].textContent, '일라이 릴리');
+  assert.equal(pharmaStock.children[1].textContent, '-1.25%');
+  assert.match(pharmaStock.className, /is-down/);
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
