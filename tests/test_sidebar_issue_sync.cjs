@@ -44,14 +44,25 @@ class Element {
     if (selector === ':scope > button[data-original-index]') {
       return this.children.filter((item) => item.tagName === 'button' && 'originalIndex' in item.dataset);
     }
+    if (selector === '.industry-map-stock[data-industry-symbol]') {
+      const found = [];
+      const visit = (node) => {
+        if (String(node.className || '').includes('industry-map-stock') && node.dataset.industrySymbol) found.push(node);
+        for (const child of node.children) visit(child);
+      };
+      visit(this);
+      return found;
+    }
     return [];
   }
   querySelector(selector) {
     const key = selector === '[data-market-rank]' ? 'marketRank' :
       selector === '[data-stock-issue]' ? 'stockIssue' : null;
-    if (!key) return null;
+    const className = selector === '.industry-map-stock-change' ? 'industry-map-stock-change' :
+      selector === '.industry-map-stock-name' ? 'industry-map-stock-name' : null;
     const search = (node) => {
-      if (node.dataset[key]) return node;
+      if (key && node.dataset[key]) return node;
+      if (className && String(node.className || '').split(' ').includes(className)) return node;
       for (const child of node.children) {
         const found = search(child);
         if (found) return found;
@@ -106,7 +117,15 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     addEventListener(name, fn) { documentListeners[name] = fn; }
   };
   const listeners = {};
+  const sockets = [];
+  class MockWebSocket {
+    static CLOSING = 2;
+    static CLOSED = 3;
+    constructor(url) { this.url = url; this.readyState = 0; sockets.push(this); }
+    close() { this.readyState = 3; this.onclose?.(); }
+  }
   const window = {
+    WebSocket: MockWebSocket,
     innerWidth: 1200,
     location: { hostname: 'gaemi-gtp.onrender.com', origin: 'https://gaemi-gtp.onrender.com' },
     // Fake browser: acknowledge polling without starting a background timer.
@@ -128,11 +147,13 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
       return { ok: true, json: async () => ({
         ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
         items: [
-          { name: '반도체', stocks: [
+          { key: 'semiconductors', name: '반도체', change_pct: 2.5, stocks: [
             { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, market_cap_usd: 1000 },
+            { name: '브로드컴', symbol: 'AVGO.O', rank: 2, change_pct: -0.5, market_cap_usd: 900 },
+            { name: 'AMD', symbol: 'AMD.O', rank: 3, change_pct: 0.1, market_cap_usd: 800 }
           ] },
-          { name: '기술', stocks: [
-            { name: '애플', symbol: 'AAPL.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
+          { key: 'it_hardware', name: 'IT하드웨어', change_pct: -1.25, stocks: [
+            { name: '애플', symbol: 'AAPL.O', rank: 1, change_pct: -1.25, market_cap_usd: 900 }
           ] }
         ]
       }) };
@@ -161,7 +182,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   });
   documentListeners.DOMContentLoaded();
   return {
-    list, realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages,
+    list, realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages, sockets,
     replaceValueRows(rows) { mockNow += 61_000; valueRows = rows; valueTab.click(); },
     advanceTime(milliseconds) { mockNow += milliseconds; },
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
@@ -169,7 +190,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   };
 }
 
-test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never TOP20', async () => {
+test('industry tab renders the eleven-sector heatmap and only two market-cap leaders', async () => {
   const app = setup();
   await flush();
   app.industryTab.click();
@@ -178,19 +199,44 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
   assert.equal(app.calls.some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
-  assert.equal(app.list.children.length, 2);
-  assert.equal(app.list.children[0].children[0].children[0].textContent, '반도체');
-  assert.equal(app.list.children[0].children[0].children[1].textContent, '—',
-    'missing sector return should be shown as unavailable');
-  assert.match(app.list.children[0].className, /is-flat/);
-  assert.equal(app.list.children[0].children[1].children[0].children[1].textContent, '엔비디아');
-  assert.equal(app.list.children[0].children[1].children[0].children[2].textContent, '+2.50%');
-  assert.match(app.list.children[0].children[1].children[0].className, /is-up/);
-  assert.equal(app.list.children[1].children[0].children[0].textContent, '기술');
-  assert.equal(app.list.children[1].children[1].children[0].children[1].textContent, '애플');
-  assert.equal(app.list.children[1].children[1].children[0].children[2].textContent, '-1.25%');
-  assert.match(app.list.children[1].className, /is-flat/);
-  assert.match(app.list.children[1].children[1].children[0].className, /is-down/);
+  assert.equal(app.list.children.length, 4);
+  assert.equal(app.list.children[0].textContent, '증시 동향');
+  const heatmap = app.list.children[1];
+  assert.equal(heatmap.children.length, 11);
+  assert.equal(heatmap.children[0].dataset.industryKey, 'semiconductors');
+  assert.equal(heatmap.children[0].children[0].textContent, '반도체');
+  assert.equal(heatmap.children[0].children[1].textContent, '+2.50%');
+  assert.equal(app.list.children[2].children[0].textContent, '반도체');
+  assert.equal(app.list.children[2].children[1].textContent, '2개 종목');
+  const stocks = app.list.children[3];
+  assert.equal(stocks.children.length, 2, 'show at most two market-cap leaders');
+  assert.equal(stocks.children[0].dataset.industrySymbol, 'NVDA.O');
+  assert.equal(stocks.children[0].children[0].textContent, '엔비디아');
+  assert.equal(stocks.children[0].children[1].textContent, '+2.50%');
+  assert.equal(stocks.children[1].children[0].textContent, '브로드컴');
+  heatmap.children.find((tile) => tile.dataset.industryKey === 'it_hardware').click();
+  assert.equal(app.list.children[2].children[0].textContent, 'IT하드웨어');
+  assert.equal(app.list.children[3].children[0].children[0].textContent, '애플');
+});
+
+test('industry leader tiles update from the existing shared live WebSocket', async () => {
+  const app = setup();
+  await flush();
+  app.industryTab.click();
+  await flush();
+  assert.equal(app.sockets.length, 1);
+  const socket = app.sockets[0];
+  assert.equal(socket.url, 'wss://quotes.gaemigtp.com/ws/us-live-quotes');
+  socket.onopen();
+  socket.onmessage({ data: JSON.stringify({
+    type: 'quotes',
+    items: [{
+      symbol: 'NVDA.O', price: 180.25, change_pct: 4.2,
+      received_at_ms: 1_000_000, stale: false
+    }]
+  }) });
+  await flush();
+  assert.equal(app.list.children[3].children[0].children[1].textContent, '+4.20%');
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
