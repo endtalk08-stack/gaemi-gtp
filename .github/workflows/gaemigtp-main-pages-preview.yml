@@ -1,7 +1,5 @@
 name: gaemigtp-main Pages preview
 on:
-  push:
-    branches: [ops/gaemigtp-main-pages-preview]
   workflow_dispatch:
 
 permissions:
