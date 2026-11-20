@@ -293,31 +293,25 @@
 }
 
 
-/* Compact horizontal heatmap: one sector row with three market-cap-ranked stocks. */
+/* Separate sector header boxes and stock boxes; no nested card borders. */
 #marketRankingList.industry-map-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 4px;
+  gap: 3px;
   padding: 2px 0 10px;
 }
 .industry-map-sector {
   box-sizing: border-box;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 3px;
-  min-width: 0;
-  padding: 4px 5px 5px;
-  border: 1px solid var(--gtp-border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.industry-map-sector-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  width: 100%;
   min-width: 0;
-  min-height: 19px;
+  min-height: 23px;
+  padding: 3px 6px;
+  border: 1px solid var(--gtp-border);
+  border-radius: 2px;
   line-height: 1.1;
 }
 .industry-map-sector-name {
@@ -348,6 +342,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 3px;
   min-width: 0;
+  margin-bottom: 2px;
 }
 .industry-map-stock {
   box-sizing: border-box;
@@ -357,7 +352,7 @@
   justify-content: center;
   gap: 3px;
   min-width: 0;
-  min-height: 39px;
+  min-height: 38px;
   padding: 4px 3px;
   border: 1px solid var(--gtp-border);
   border-radius: 2px;
@@ -396,11 +391,11 @@
 .industry-map-stock.is-down .industry-map-stock-change { color: #78aee0; }
 .industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
 @media (max-width: 420px) {
-  #marketRankingList.industry-map-list { gap: 3px; }
-  .industry-map-sector { padding: 3px 4px 4px; gap: 2px; }
+  #marketRankingList.industry-map-list { gap: 2px; }
+  .industry-map-sector { min-height: 22px; padding: 3px 5px; }
   .industry-map-sector-name { font-size: 11px; }
   .industry-map-sector-change { font-size: 15px; }
-  .industry-map-stock { min-height: 36px; padding: 3px 2px; }
+  .industry-map-stock { min-height: 35px; padding: 3px 2px; }
   .industry-map-stock-name { font-size: 10px; }
   .industry-map-stock-change { font-size: 12px; }
 }
