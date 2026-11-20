@@ -293,82 +293,77 @@
 }
 
 
-/* TradingView-style compact square industry heatmap. Sector and stock returns color independently. */
+/* Compact horizontal heatmap: one sector row with three market-cap-ranked stocks. */
 #marketRankingList.industry-map-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  padding-bottom: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 2px 0 10px;
 }
 .industry-map-sector {
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
   min-width: 0;
-  aspect-ratio: 1 / 1;
-  padding: 8px;
+  padding: 4px 5px 5px;
   border: 1px solid var(--gtp-border);
   border-radius: 2px;
   overflow: hidden;
 }
 .industry-map-sector-heading {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 3px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   min-width: 0;
-  min-height: 34px;
+  min-height: 19px;
+  line-height: 1.1;
 }
 .industry-map-sector-name {
   display: block;
-  max-width: 100%;
+  min-width: 0;
   color: var(--gtp-text);
   font-size: 12px;
-  font-weight: 750;
-  line-height: 1.2;
+  font-weight: 800;
+  line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .industry-map-sector-change {
+  flex: 0 0 auto;
   color: var(--gtp-text);
-  font-size: 17px;
-  font-weight: 850;
-  line-height: 1.1;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.industry-map-sector.is-up .industry-map-sector-change { color: #c34d5a; }
-.industry-map-sector.is-down .industry-map-sector-change { color: #4f83b5; }
+.industry-map-sector.is-up .industry-map-sector-change { color: #e27b8a; }
+.industry-map-sector.is-down .industry-map-sector-change { color: #78aee0; }
 .industry-map-sector.is-flat .industry-map-sector-change { color: var(--gtp-muted); }
 .industry-map-stocks {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  flex: 1;
-  min-height: 0;
-}
-.industry-map-stock,
-.industry-map-stock-empty {
-  box-sizing: border-box;
-  display: grid;
-  grid-template-columns: 15px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
   min-width: 0;
-  min-height: 0;
-  padding: 4px 5px;
+}
+.industry-map-stock {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 39px;
+  padding: 4px 3px;
   border: 1px solid var(--gtp-border);
   border-radius: 2px;
   color: var(--gtp-text);
-  text-align: left;
+  text-align: center;
   overflow: hidden;
-}
-.industry-map-stock {
   cursor: pointer;
   transition: filter .12s ease, border-color .12s ease;
 }
@@ -377,45 +372,35 @@
   outline: 2px solid var(--gtp-accent, #64748b);
   outline-offset: 1px;
 }
-.industry-map-stock-rank {
-  color: var(--gtp-muted);
-  font-size: 9px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
 .industry-map-stock-name {
   display: block;
+  width: 100%;
   min-width: 0;
   color: var(--gtp-text);
-  font-size: 10px;
-  font-weight: 750;
+  font-size: 11px;
+  font-weight: 800;
   line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .industry-map-stock-change {
-  font-size: 10px;
-  font-weight: 850;
-  line-height: 1.15;
+  display: block;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.industry-map-stock.is-up .industry-map-stock-change { color: #c34d5a; }
-.industry-map-stock.is-down .industry-map-stock-change { color: #4f83b5; }
+.industry-map-stock.is-up .industry-map-stock-change { color: #e27b8a; }
+.industry-map-stock.is-down .industry-map-stock-change { color: #78aee0; }
 .industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
-.industry-map-stock-empty {
-  display: flex;
-  justify-content: center;
-  color: var(--gtp-faint);
-  font-size: 10px;
-}
 @media (max-width: 420px) {
-  #marketRankingList.industry-map-list { gap: 4px; }
-  .industry-map-sector { padding: 6px; gap: 5px; }
-  .industry-map-sector-name { font-size: 10px; }
+  #marketRankingList.industry-map-list { gap: 3px; }
+  .industry-map-sector { padding: 3px 4px 4px; gap: 2px; }
+  .industry-map-sector-name { font-size: 11px; }
   .industry-map-sector-change { font-size: 15px; }
-  .industry-map-stock { grid-template-columns: 12px minmax(0, 1fr) auto; gap: 2px; padding-inline: 3px; }
-  .industry-map-stock-name, .industry-map-stock-change { font-size: 9px; }
+  .industry-map-stock { min-height: 36px; padding: 3px 2px; }
+  .industry-map-stock-name { font-size: 10px; }
+  .industry-map-stock-change { font-size: 12px; }
 }
-
