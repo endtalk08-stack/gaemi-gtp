@@ -199,7 +199,7 @@ test('industry tab renders the eleven-sector heatmap and only two market-cap lea
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
   assert.equal(app.calls.some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
-  assert.equal(app.list.children.length, 4);
+  assert.equal(app.list.children.length, 5);
   assert.equal(app.list.children[0].textContent, '증시 동향');
   const heatmap = app.list.children[1];
   assert.equal(heatmap.children.length, 11);
