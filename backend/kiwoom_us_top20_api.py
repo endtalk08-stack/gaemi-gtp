@@ -19,7 +19,7 @@ _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
 _US_INDUSTRY_MAP_TTL = 60
-_US_INDUSTRY_STOCK_TTL = 60
+_US_INDUSTRY_STOCK_TTL = 1800
 
 
 def _safe_industry_error(exc):
@@ -75,7 +75,7 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap"):
         if cached and now < cached["expires_at"]:
             return dict(cached["data"])
         try:
-            result = fetch_us_industry_stocks(codes, sort, limit=3 if sort == "marketcap" else 36)
+            result = fetch_us_industry_stocks(codes, sort, limit=2 if sort == "marketcap" else 36)
         except Exception:
             if cached:
                 stale = dict(cached["data"])
@@ -101,12 +101,29 @@ def _get_us_industry_map_with_stocks():
         if row.get("codes") or row.get("code"):
             try:
                 stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap")
-                row["stocks"] = stock_result.get("items", [])[:3]
+                row["stocks"] = stock_result.get("items", [])[:2]
             except Exception as exc:
                 row["stocks_error"] = _safe_industry_error(exc)
         result["items"].append(row)
     result["sort"] = "marketcap"
     return result
+
+
+def get_us_industry_symbols():
+    """Return the at-most-22 cached market-cap leaders for the live FE feed."""
+    result = _get_us_industry_map_with_stocks()
+    symbols = {}
+    for sector in result.get("items", []):
+        if not isinstance(sector, dict):
+            continue
+        for stock in sector.get("stocks", []):
+            if not isinstance(stock, dict):
+                continue
+            symbol = str(stock.get("symbol") or "").strip().upper()
+            exchange = str(stock.get("exchange") or "").strip().upper()
+            if SYMBOL.fullmatch(symbol) and exchange in ("ND", "NY", "NA"):
+                symbols[symbol] = exchange
+    return symbols
 
 
 ADDRESS = "127.0.0.1"
@@ -125,7 +142,9 @@ _QQQ_LOCK = threading.Lock()
 _QQQ_CHANGED = threading.Condition(_QQQ_LOCK)
 _QQQ_QUOTE = None
 _TOP20_SYMBOLS = frozenset()
+_INDUSTRY_SYMBOLS = frozenset()
 _TOP20_QUOTES = {}
+_INDUSTRY_QUOTES = {}
 _QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
 _QQQ_STALE_MS = 25000
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -167,7 +186,9 @@ def _publish_live_quote(quote):
             _QQQ_QUOTE = safe
         if symbol in _TOP20_SYMBOLS:
             _TOP20_QUOTES[symbol] = safe
-        if symbol == "QQQ" or symbol in _TOP20_SYMBOLS:
+        if symbol in _INDUSTRY_SYMBOLS:
+            _INDUSTRY_QUOTES[symbol] = safe
+        if symbol == "QQQ" or symbol in _TOP20_SYMBOLS or symbol in _INDUSTRY_SYMBOLS:
             _QQQ_CHANGED.notify_all()
 
 
@@ -182,11 +203,26 @@ def _set_top20_symbols(symbols):
         _QQQ_CHANGED.notify_all()
 
 
+def _set_industry_symbols(symbols):
+    global _INDUSTRY_SYMBOLS
+    clean = frozenset(
+        symbol for symbol in symbols
+        if isinstance(symbol, str) and SYMBOL.fullmatch(symbol)
+    )
+    with _QQQ_CHANGED:
+        _INDUSTRY_SYMBOLS = clean
+        for symbol in _INDUSTRY_QUOTES.keys() - _INDUSTRY_SYMBOLS:
+            del _INDUSTRY_QUOTES[symbol]
+        _QQQ_CHANGED.notify_all()
+
+
 def _top20_snapshot():
+    """Return one deduplicated in-memory snapshot for TOP20 and industry leaders."""
     now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
+        combined = {**_INDUSTRY_QUOTES, **_TOP20_QUOTES}
         return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
-                for quote in _TOP20_QUOTES.values()]
+                for quote in combined.values()]
 
 
 def _qqq_snapshot():
@@ -256,7 +292,12 @@ def _start_qqq_feed():
     from backend.kiwoom_us_live_prices import run_qqq_fe_stream
 
     def runner():
-        asyncio.run(run_qqq_fe_stream(_publish_live_quote, on_top20=_set_top20_symbols))
+        asyncio.run(run_qqq_fe_stream(
+            _publish_live_quote,
+            on_top20=_set_top20_symbols,
+            on_industry=_set_industry_symbols,
+            get_industry_symbols=get_us_industry_symbols,
+        ))
 
     thread = threading.Thread(target=runner, name="kiwoom-qqq-fe", daemon=True)
     thread.start()
