@@ -443,7 +443,7 @@ def fetch_us_internet_platform_group():
             return None
         members.append(representative)
 
-    leaders = sorted(members, key=lambda item: item["market_cap_usd"], reverse=True)[:2]
+    leaders = sorted(members, key=lambda item: item["market_cap_usd"], reverse=True)
     return {
         "display_name": "인터넷플랫폼 대표 종목군",
         "description": "알파벳·메타·넷플릭스 3개 기업의 등락률 평균",
