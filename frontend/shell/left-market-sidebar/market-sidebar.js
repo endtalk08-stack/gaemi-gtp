@@ -186,16 +186,30 @@
       const items = Array.isArray(data?.items) ? data.items : [];
       list.classList?.add?.('industry-map-list');
       list.replaceChildren();
-      const visibleSectors = items.map((sector) => ({
-        sector,
-        stocks: (Array.isArray(sector.stocks) ? sector.stocks : [])
-          .filter((stock) => stock && typeof stock.name === 'string' && stock.name.trim())
-          .slice(0, 3)
-      })).filter((entry) => entry.stocks.length > 0);
-      if (!visibleSectors.length) {
-        list.textContent = '업종맵 데이터를 찾을 수 없어.';
-        return;
-      }
+      // Keep the nine agreed map categories visible even when a source
+      // snapshot has no constituents for a category. Never invent stock rows.
+      const expectedIndustries = [
+        '반도체', 'AI·데이터센터', '소프트웨어', '인터넷·플랫폼',
+        '금융', '바이오·제약', '헬스케어', '자동차·전기차', '방산·항공우주'
+      ];
+      const byIndustry = new Map(items
+        .filter((sector) => sector && typeof sector.name === 'string')
+        .map((sector) => [sector.name.trim(), sector]));
+      const visibleSectors = expectedIndustries.map((name) => {
+        const sector = byIndustry.get(name) || { name, change_pct: null, stocks: [] };
+        return {
+          sector,
+          stocks: (Array.isArray(sector.stocks) ? sector.stocks : [])
+            .filter((stock) => stock && typeof stock.name === 'string' && stock.name.trim())
+            .slice(0, 3)
+        };
+      });
+      // Highest percentage first; missing percentages stay at the bottom.
+      visibleSectors.sort((a, b) => {
+        const av = Number.isFinite(a.sector.change_pct) ? a.sector.change_pct : -Infinity;
+        const bv = Number.isFinite(b.sector.change_pct) ? b.sector.change_pct : -Infinity;
+        return bv - av;
+      });
       visibleSectors.forEach(({ sector, stocks: ranked }) => {
         const sectorPct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
           ? sector.change_pct : null;
@@ -214,6 +228,12 @@
         heading.append(label, change);
         const stocks = document.createElement('div');
         stocks.className = 'industry-map-stocks';
+        if (!ranked.length) {
+          const empty = document.createElement('div');
+          empty.className = 'industry-map-empty';
+          empty.textContent = '상위 종목 데이터 없음';
+          stocks.appendChild(empty);
+        }
         ranked.forEach((stock) => {
           const pct = typeof stock.change_pct === 'number' && Number.isFinite(stock.change_pct)
             ? stock.change_pct : null;
