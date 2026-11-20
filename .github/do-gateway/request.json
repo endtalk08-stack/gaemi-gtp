@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/probe_internet_platform_kiwoom_readonly_20261120.py",
-  "request_id": "kiwoomplatformverify20261120a",
+  "path": "ops/do-gateway/check_industry_release_baseline_20261120.py",
+  "request_id": "industryreleasebaseline20261120",
   "timeout": 45
 }
