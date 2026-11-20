@@ -67,6 +67,7 @@ jobs:
           command: pages deploy frontend --project-name gaemigtp-main --branch main
       - name: Verify production HTML and R2 chart
         run: |
+          set -x
           for attempt in 1 2 3 4 5 6 7 8; do
             if curl -fsS --max-time 12 "https://gaemigtp-main.pages.dev/" -o "$RUNNER_TEMP/production-index.html" &&
               cmp -s frontend/index.html "$RUNNER_TEMP/production-index.html"; then
