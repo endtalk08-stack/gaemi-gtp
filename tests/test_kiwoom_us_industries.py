@@ -126,7 +126,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(sent[0][1]["headers"]["api-id"], "usa20540")
         self.assertEqual(result["items"][0]["trading_value"], 1234500.0)
 
-    def test_marketcap_sort_uses_usa20541_and_orders_by_market_cap(self):
+    def test_marketcap_sort_uses_usa20550_and_orders_by_market_cap(self):
         sent = []
 
         def post(url, **kwargs):
@@ -134,6 +134,8 @@ class KiwoomUSIndustryTests(unittest.TestCase):
             code = kwargs["json"]["inds_cd"]
             records = {
                 "001": [
+                    {"stk_cd": "NOCAP", "stk_nm": "시가총액 누락", "stex_tp": "ND",
+                     "cur_prc": "300", "flu_rt": "9.0", "rank": "1"},
                     {"stk_cd": "NVDA", "stk_nm": "엔비디아", "stex_tp": "ND",
                      "cur_prc": "100", "flu_rt": "1.5", "mac": "1000", "rank": "2"},
                     {"stk_cd": "AVGO", "stk_nm": "브로드컴", "stex_tp": "ND",
@@ -151,7 +153,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
             result = sectors.fetch_us_industry_stocks(["001", "002"], "marketcap", limit=3)
 
         self.assertEqual(len(sent), 2)
-        self.assertTrue(all(item[1]["headers"]["api-id"] == "usa20541" for item in sent))
+        self.assertTrue(all(item[1]["headers"]["api-id"] == "usa20550" for item in sent))
         self.assertEqual(result["items"][0]["symbol"], "AVGO")
         self.assertEqual(result["items"][0]["market_cap_usd"], 1200000.0)
         self.assertEqual(result["items"][1]["symbol"], "NVDA")
@@ -164,7 +166,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
              ]})) as post:
             result = sectors.fetch_us_industry_stocks("001")
         self.assertEqual(result["sort"], "marketcap")
-        self.assertEqual(post.call_args.kwargs["headers"]["api-id"], "usa20541")
+        self.assertEqual(post.call_args.kwargs["headers"]["api-id"], "usa20550")
 
     def test_etf_marketcap_uses_usa20551(self):
         with patch.object(sectors, "issue_access_token", return_value="MOCK_TOKEN"), \
