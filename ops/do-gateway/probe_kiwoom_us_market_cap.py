@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """One read-only Kiwoom usa20550 probe; prints sanitized market fields only."""
 import json
+import sys
 import requests
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 from backend.providers.kiwoom_us_quotes import issue_access_token, KiwoomReadOnlyError
 
 URL = "https://api.kiwoom.com/api/us/rkinfo"
