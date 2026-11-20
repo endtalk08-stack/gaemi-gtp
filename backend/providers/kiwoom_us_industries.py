@@ -158,7 +158,7 @@ def _industry_code(value):
 
 
 def fetch_us_industry_map(*, token=None):
-    """Return the nine display groups matched to Kiwoom's official industry codes."""
+    """Return the eleven display groups matched to Kiwoom's official industry codes."""
     access_token = token or _access_token()
     official = _call("usa10101", {"gubun": "1"}, token=access_token).get("list")
     performance = _call(
