@@ -173,93 +173,146 @@
     let industryMapData = null;
     let industryMapFetchedAt = 0;
     let industryMapPromise = null;
+    let selectedIndustryKey = null;
     const formatChange = (value) => Number.isFinite(value)
       ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
     const mapTileColor = (value) => {
-      if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.08 };
-      const strength = Math.min(0.34, 0.08 + Math.log1p(Math.abs(value)) * 0.075);
-      return value > 0
-        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: strength }
-        : { tone: 'is-down', rgb: '57, 119, 177', alpha: strength };
+      if (!Number.isFinite(value)) return { tone: 'is-unavailable' };
+      if (value === 0) return { tone: 'is-flat' };
+      const up = value > 0;
+      const intensity = Math.min(Math.abs(value) / 6, 1);
+      const hue = up ? 350 : 216;
+      const saturation = 65 + 23 * intensity;
+      const lightness = 30 + 15 * intensity;
+      return {
+        tone: up ? 'is-up' : 'is-down',
+        background: `hsl(${hue} ${saturation}% ${lightness}%)`,
+        border: `hsl(${hue} ${saturation}% ${lightness + 12}%)`
+      };
     };
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
       list.classList?.add?.('industry-map-list');
       list.replaceChildren();
       const visibleSectors = items
-        .filter((sector) => typeof sector?.name === 'string' && sector.name.trim())
+        .filter((sector) => typeof sector?.key === 'string' && sector.key.trim()
+          && typeof sector.name === 'string' && sector.name.trim())
         .map((sector) => ({
           sector,
           stocks: (Array.isArray(sector.stocks) ? sector.stocks : [])
-            .filter((stock) => stock && typeof stock.name === 'string' && stock.name.trim())
-            .slice(0, 3)
-        }));
+            .filter((stock) => typeof stock?.name === 'string' && stock.name.trim()
+              && typeof stock.symbol === 'string' && stock.symbol.trim())
+            .slice(0, 2)
+        }))
+        .filter(({ sector, stocks }) => Number.isFinite(sector.change_pct) || stocks.length > 0);
+
+      if (!visibleSectors.length) {
+        selectedIndustryKey = null;
+        list.textContent = '표시할 업종 데이터가 없어.';
+        return;
+      }
       // Highest percentage first; missing percentages stay at the bottom.
       visibleSectors.sort((a, b) => {
         const av = Number.isFinite(a.sector.change_pct) ? a.sector.change_pct : -Infinity;
         const bv = Number.isFinite(b.sector.change_pct) ? b.sector.change_pct : -Infinity;
         return bv - av;
       });
-      visibleSectors.forEach(({ sector, stocks: ranked }) => {
-        const sectorPct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
+      if (!selectedIndustryKey || !visibleSectors.some((item) => item.sector.key === selectedIndustryKey)) {
+        selectedIndustryKey = visibleSectors.find((item) => item.stocks.length)?.sector.key
+          || visibleSectors[0]?.sector.key || null;
+      }
+
+      const heading = document.createElement('div');
+      heading.className = 'industry-map-title';
+      heading.textContent = '증시 동향';
+      const heatmap = document.createElement('div');
+      heatmap.className = 'industry-map-heatmap';
+      visibleSectors.forEach(({ sector }, index) => {
+        const pct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
           ? sector.change_pct : null;
-        const sectorColor = mapTileColor(sectorPct);
-        // Sector header and stock tiles are siblings: never nest boxes inside a sector box.
-        const heading = document.createElement('div');
-        heading.className = 'industry-map-sector ' + sectorColor.tone;
-        heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.30, sectorColor.alpha + 0.045).toFixed(3) + ')';
-        heading.style.borderColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.62, sectorColor.alpha + 0.20).toFixed(3) + ')';
-        const label = document.createElement('span');
-        label.className = 'industry-map-sector-name';
-        label.textContent = String(sector.name || '업종');
+        const color = mapTileColor(pct);
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'industry-map-sector ' + color.tone
+          + (sector.key === selectedIndustryKey ? ' is-selected' : '');
+        tile.dataset.industryKey = sector.key;
+        if (typeof sector.description === 'string') tile.title = sector.description;
+        tile.style.gridColumn = index < 2 ? 'span 3' : 'span 2';
+        tile.style.backgroundColor = color.background || '';
+        tile.style.borderColor = color.border || '';
+        tile.setAttribute('aria-pressed', String(sector.key === selectedIndustryKey));
+        const name = document.createElement('span');
+        name.className = 'industry-map-sector-name';
+        name.textContent = String(sector.name || '업종');
         const change = document.createElement('span');
         change.className = 'industry-map-sector-change';
-        change.textContent = formatChange(sectorPct);
-        heading.append(label, change);
-        const stocks = document.createElement('div');
-        stocks.className = 'industry-map-stocks';
-        if (!ranked.length) {
-          const empty = document.createElement('div');
-          empty.className = 'industry-map-empty';
-          empty.textContent = '상위 종목 데이터 없음';
-          stocks.appendChild(empty);
-        }
-        ranked.forEach((stock) => {
-          const pct = typeof stock.change_pct === 'number' && Number.isFinite(stock.change_pct)
-            ? stock.change_pct : null;
-          const color = mapTileColor(pct);
-          const stockTile = document.createElement('button');
-          stockTile.type = 'button';
-          stockTile.className = 'industry-map-stock ' + color.tone;
-          stockTile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
-          stockTile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
-          stockTile.title = stock.name + ' ' + formatChange(pct);
-          const name = document.createElement('span');
-          name.className = 'industry-map-stock-name';
-          name.textContent = stock.name;
-          const stockChange = document.createElement('span');
-          stockChange.className = 'industry-map-stock-change';
-          stockChange.textContent = formatChange(pct);
-          stockTile.append(name, stockChange);
-          stockTile.addEventListener('click', () => {
-            window.openStockInChat?.(stock.name, {
-              market: 'us',
-              menu: 'industry',
-              name: stock.name,
-              symbol: stock.symbol,
-              rank: stock.rank,
-              industry: sector.name,
-              change_pct: pct,
-              currency: 'USD',
-              source: 'kiwoom'
-            });
-          });
-          stocks.appendChild(stockTile);
+        change.textContent = formatChange(pct);
+        tile.append(name, change);
+        tile.addEventListener('click', () => {
+          if (selectedIndustryKey === sector.key) return;
+          selectedIndustryKey = sector.key;
+          renderIndustryMap(data);
         });
-        list.append(heading, stocks);
+        heatmap.appendChild(tile);
       });
+
+      const selected = visibleSectors.find((item) => item.sector.key === selectedIndustryKey)
+        || visibleSectors[0];
+      const selectedHeader = document.createElement('div');
+      selectedHeader.className = 'industry-map-selected-header';
+      const selectedName = document.createElement('span');
+      selectedName.className = 'industry-map-selected-name';
+      selectedName.textContent = selected?.sector.display_name || selected?.sector.name || '업종';
+      const selectedCount = document.createElement('span');
+      selectedCount.className = 'industry-map-selected-count';
+      selectedCount.textContent = (selected?.stocks.length || 0) + '개 종목';
+      selectedHeader.append(selectedName, selectedCount);
+
+      const stocks = document.createElement('div');
+      stocks.className = 'industry-map-stocks';
+      if (!selected || !selected.stocks.length) {
+        const empty = document.createElement('div');
+        empty.className = 'industry-map-empty';
+        empty.textContent = '시가총액 상위 종목 데이터 없음';
+        stocks.appendChild(empty);
+      }
+      (selected?.stocks || []).forEach((stock) => {
+        const pct = typeof stock.change_pct === 'number' && Number.isFinite(stock.change_pct)
+          ? stock.change_pct : null;
+        const color = mapTileColor(pct);
+        const stockTile = document.createElement('button');
+        stockTile.type = 'button';
+        stockTile.className = 'industry-map-stock ' + color.tone;
+        stockTile.dataset.industrySymbol = stock.symbol;
+        stockTile.style.backgroundColor = color.background || '';
+        stockTile.style.borderColor = color.border || '';
+        stockTile.title = stock.name + ' ' + formatChange(pct);
+        const name = document.createElement('span');
+        name.className = 'industry-map-stock-name';
+        name.textContent = stock.name;
+        const stockChange = document.createElement('span');
+        stockChange.className = 'industry-map-stock-change';
+        stockChange.textContent = formatChange(pct);
+        stockTile.append(name, stockChange);
+        stockTile.addEventListener('click', () => {
+          window.openStockInChat?.(stock.name, {
+            market: 'us',
+            menu: 'industry',
+            name: stock.name,
+            symbol: stock.symbol,
+            rank: stock.rank,
+            industry: selected.sector.name,
+            change_pct: pct,
+            currency: 'USD',
+            source: 'kiwoom'
+          });
+        });
+        stocks.appendChild(stockTile);
+      });
+      list.append(heading, heatmap, selectedHeader, stocks);
+      paintLiveQuotes();
     };
-    const loadIndustryMap = async (id) => {
+        const loadIndustryMap = async (id) => {
       if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) {
         if (id === requestId) renderIndustryMap(industryMapData);
         return;
@@ -269,7 +322,11 @@
           const data = await industryMapPromise;
           if (id === requestId && data) renderIndustryMap(data);
         } catch (_) {
-          if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+          industryMapFetchedAt = Date.now();
+          if (id === requestId) {
+            if (industryMapData) renderIndustryMap(industryMapData);
+            else list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+          }
         }
         return;
       }
@@ -294,7 +351,11 @@
         const data = await industryMapPromise;
         if (id === requestId) renderIndustryMap(data);
       } catch (_) {
-        if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+        industryMapFetchedAt = Date.now();
+        if (id === requestId) {
+          if (industryMapData) renderIndustryMap(industryMapData);
+          else list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+        }
       } finally {
         industryMapPromise = null;
       }
@@ -669,7 +730,7 @@
     let qqqReconnectDelay = 1000;
     const qqqSocketWanted = () =>
       document.visibilityState === 'visible'
-      && (qqqWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime')) || quoteConsumersActive());
+      && (qqqWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
       marketQqqQuote = quote?.symbol === 'QQQ' ? quote : null;
       paintMarketQqq();
@@ -690,6 +751,7 @@
       }
       dispatchQqqQuote(null);
       publishLiveQuotes([]);
+      publishIndustryLiveQuotes([]);
     };
     const scheduleQqqReconnect = (generation) => {
       if (!qqqSocketWanted() || generation !== qqqSocketGeneration || qqqReconnectTimer !== null) return;
@@ -725,6 +787,7 @@
           const message = JSON.parse(event.data);
           if (message?.type === 'quote') dispatchQqqQuote(message.quote || null);
           if (message?.type === 'quotes' && Array.isArray(message.items)) publishLiveQuotes(message.items);
+          if (message?.type === 'industry-quotes' && Array.isArray(message.items)) publishIndustryLiveQuotes(message.items);
         } catch (_) {
           // Ignore malformed frames; the next valid quote will refresh the card.
         }
@@ -749,13 +812,35 @@
     };
     window.setTimeout(syncQqqSocket, 50);
     let liveQuotes = [];
+    let industryLiveQuotes = [];
     const freshQuote = (quote, now) => quote && quote.stale === false
       && typeof quote.symbol === 'string' && Number.isFinite(quote.price) && quote.price > 0
       && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= now + 5000
       && now - quote.received_at_ms <= 25000;
     const paintLiveQuotes = () => {
-      if (!sidebarActive() || tab !== 'value' || !list) return;
+      if (!sidebarActive() || !list) return;
       const now = Date.now();
+      if (tab === 'industry') {
+        const bySymbol = new Map([...list.querySelectorAll('.industry-map-stock[data-industry-symbol]')]
+          .map((tile) => [tile.dataset.industrySymbol, tile]));
+        industryLiveQuotes.forEach((quote) => {
+          if (!freshQuote(quote, now) || typeof quote.change_pct !== 'number'
+              || !Number.isFinite(quote.change_pct)) return;
+          const tile = bySymbol.get(String(quote.symbol || ''));
+          if (!tile) return;
+          const color = mapTileColor(quote.change_pct);
+          const change = tile.querySelector('.industry-map-stock-change');
+          if (change) change.textContent = formatChange(quote.change_pct);
+          tile.classList.remove('is-up', 'is-down', 'is-flat', 'is-unavailable');
+          tile.classList.add(color.tone);
+          tile.style.backgroundColor = color.background || '';
+          tile.style.borderColor = color.border || '';
+          tile.title = (tile.querySelector('.industry-map-stock-name')?.textContent || '')
+            + ' ' + formatChange(quote.change_pct);
+        });
+        return;
+      }
+      if (tab !== 'value') return;
       const bySymbol = new Map([...list.querySelectorAll(':scope > button[data-original-index]')]
         .map((button) => [button.dataset.stockSymbol, button]));
       let updated = 0;
@@ -787,6 +872,11 @@
       window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
         detail: { items: liveQuotes }
       }));
+      paintLiveQuotes();
+    };
+    const publishIndustryLiveQuotes = items => {
+      const now = Date.now();
+      industryLiveQuotes = items.filter(quote => freshQuote(quote, now));
       paintLiveQuotes();
     };
 
@@ -874,6 +964,8 @@
       paintMarketQqq();
       if (draggedRow) return;
       if (sidebarActive() && tab === 'value') void showUsRanking();
+      if (sidebarActive() && tab === 'industry' && industryMapData
+          && Date.now() - industryMapFetchedAt >= mapCacheTtl) void showUsRanking();
     }, 3000);
   }
 
