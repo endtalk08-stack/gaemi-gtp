@@ -20,8 +20,6 @@ _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
 _US_INDUSTRY_MAP_TTL = 60
 _US_INDUSTRY_STOCK_TTL = 60
-_US_ETF_MARKETCAP_TTL = 60
-_US_ETF_MARKETCAP_CACHE = {"expires_at": 0.0, "data": None}
 
 
 def _safe_industry_error(exc):
@@ -109,27 +107,6 @@ def _get_us_industry_map_with_stocks():
         result["items"].append(row)
     result["sort"] = "marketcap"
     return result
-
-
-def _get_us_etf_marketcap():
-    from backend.providers.kiwoom_us_industries import fetch_us_etf_marketcap
-
-    now = time.monotonic()
-    with _US_INDUSTRY_CACHE_LOCK:
-        cached = _US_ETF_MARKETCAP_CACHE["data"]
-        if cached is not None and now < _US_ETF_MARKETCAP_CACHE["expires_at"]:
-            return dict(cached)
-        try:
-            result = fetch_us_etf_marketcap(limit=20)
-        except Exception:
-            if cached is not None:
-                stale = dict(cached)
-                stale["stale"] = True
-                return stale
-            raise
-        _US_ETF_MARKETCAP_CACHE["data"] = dict(result)
-        _US_ETF_MARKETCAP_CACHE["expires_at"] = now + _US_ETF_MARKETCAP_TTL
-        return dict(result)
 
 
 ADDRESS = "127.0.0.1"
@@ -349,30 +326,8 @@ class Handler(BaseHTTPRequestHandler):
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
             try:
-                from backend.providers.kiwoom_us_industries import KiwoomReadOnlyError
                 params = parse_qs(path.query)
                 result = _get_us_industry_map_with_stocks() if params.get("include_stocks") == ["1"] else _get_us_industry_map()
-            except Exception as exc:
-                return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
-            return self._json(200, result)
-        if path.path == "/market/us-industry-stocks":
-            if not getattr(self.server, "qqq_feed_enabled", False):
-                return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
-            params = parse_qs(path.query)
-            industry_key_or_code = str((params.get("key") or params.get("code") or [""])[0]).strip()
-            sort = str((params.get("sort") or ["marketcap"])[0]).strip()
-            try:
-                result = _get_us_industry_stocks(industry_key_or_code, sort)
-            except ValueError:
-                return self._json(400, {"ok": False, "error": "invalid_industry_request", "items": []})
-            except Exception as exc:
-                return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
-            return self._json(200, result)
-        if path.path == "/market/us-etf-marketcap":
-            if not getattr(self.server, "qqq_feed_enabled", False):
-                return self._json(503, {"ok": False, "error": "etf_api_unavailable", "items": []})
-            try:
-                result = _get_us_etf_marketcap()
             except Exception as exc:
                 return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
             return self._json(200, result)
