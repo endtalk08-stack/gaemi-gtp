@@ -30,7 +30,7 @@ jobs:
           grep -Fq '오늘 미국 상승 테마 뭐야?' frontend/index.html
           grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' frontend/index.html
           grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
-          grep -Fq '20261120-top20-websocket-v1' frontend/index.html
+          grep -Fq 'market-sidebar.js?v=20261120-market-qqq-v1' frontend/index.html
           grep -Fq 'aria-label="메인 화면"' frontend/index.html
           test "$(grep -Fc 'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2' frontend/index.html)" -eq 2
           grep -Fq 'News</span>' frontend/index.html
