@@ -187,8 +187,8 @@
     };
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items.slice(0, 9) : [];
-      list.classList.remove('etf-marketcap-list');
-      list.classList.add('industry-map-list');
+      list.classList?.remove?.('etf-marketcap-list');
+      list.classList?.add?.('industry-map-list');
       list.replaceChildren();
       if (!items.length) {
         list.textContent = '업종맵 데이터를 찾을 수 없어.';
@@ -261,8 +261,8 @@
         }
         return;
       }
-      list.classList.remove('etf-marketcap-list');
-      list.classList.add('industry-map-list');
+      list.classList?.remove?.('etf-marketcap-list');
+      list.classList?.add?.('industry-map-list');
       list.textContent = '시가총액 기준 업종맵을 불러오는 중이야.';
       industryMapPromise = (async () => {
         const response = await fetch(quoteApiBase + '/market/us-industries?include_stocks=1', { cache: 'no-store' });
@@ -290,8 +290,8 @@
     };
     const renderEtfMarketcap = (data) => {
       const items = Array.isArray(data?.items) ? data.items.slice(0, 20) : [];
-      list.classList.remove('industry-map-list');
-      list.classList.add('etf-marketcap-list');
+      list.classList?.remove?.('industry-map-list');
+      list.classList?.add?.('etf-marketcap-list');
       list.replaceChildren();
       if (!items.length) {
         list.textContent = 'ETF 시가총액 데이터가 없어.';
@@ -345,8 +345,8 @@
         }
         return;
       }
-      list.classList.remove('industry-map-list');
-      list.classList.add('etf-marketcap-list');
+      list.classList?.remove?.('industry-map-list');
+      list.classList?.add?.('etf-marketcap-list');
       list.textContent = 'ETF 시가총액 순위를 불러오는 중이야.';
       etfMarketcapPromise = (async () => {
         const response = await fetch(quoteApiBase + '/market/us-etf-marketcap', { cache: 'no-store' });
@@ -454,7 +454,7 @@
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
-      list.classList.remove('industry-map-list', 'etf-marketcap-list');
+      list.classList?.remove?.('industry-map-list', 'etf-marketcap-list');
       if (tab !== 'value') {
         const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
         if (displayedRows.length) cachedRankingRows = displayedRows;
