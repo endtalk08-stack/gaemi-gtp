@@ -276,15 +276,7 @@ def _build_us_industry_map(official, performance, groups):
             ),
         })
 
-    items.sort(
-        key=lambda item: (
-            item["change_pct"] is not None,
-            item["change_pct"] if item["change_pct"] is not None else float("-inf"),
-        ),
-        reverse=True,
-    )
-    for rank, item in enumerate(items, 1):
-        item["rank"] = rank
+    items = rank_us_industry_rows(items)
 
     complete = all(item["mapping_status"] == "matched" for item in items)
     return {
@@ -296,6 +288,18 @@ def _build_us_industry_map(official, performance, groups):
         "unmatched_official_industries": unmatched[:60],
         "items": items,
     }
+
+
+def rank_us_industry_rows(items):
+    ranked = sorted(
+        items,
+        key=lambda item: (
+            item["change_pct"] is not None,
+            item["change_pct"] if item["change_pct"] is not None else float("-inf"),
+        ),
+        reverse=True,
+    )
+    return [{**item, "rank": rank} for rank, item in enumerate(ranked, 1)]
 
 
 def _industry_codes(value):
@@ -414,6 +418,43 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
         "sort": sort,
         "fetched_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "items": rows,
+    }
+
+
+def fetch_us_internet_platform_group():
+    """Average the three approved issuers using Kiwoom market-cap ranking data."""
+    # In Kiwoom's catalog 370 is Media. Only the approved issuers count
+    # toward this representative group, and Alphabet counts once.
+    aliases_by_issuer = (("GOOG", "GOOGL"), ("META",), ("NFLX",))
+    allowed_symbols = {symbol for aliases in aliases_by_issuer for symbol in aliases}
+    ranking = fetch_us_industry_stocks("370", "marketcap")
+    by_symbol = {}
+    for row in ranking["items"]:
+        symbol = row["symbol"].removesuffix(".O")
+        if symbol in allowed_symbols and row["exchange"] == "ND":
+            by_symbol.setdefault(symbol, {**row, "symbol": symbol})
+
+    members = []
+    for aliases in aliases_by_issuer:
+        representative = next((
+            by_symbol[symbol] for symbol in aliases
+            if symbol in by_symbol and by_symbol[symbol]["change_pct"] is not None
+        ), None)
+        if representative is None:
+            return None
+        members.append(representative)
+
+    leaders = sorted(members, key=lambda item: item["market_cap_usd"], reverse=True)[:2]
+    return {
+        "display_name": "인터넷플랫폼 대표 종목군",
+        "description": "알파벳·메타·넷플릭스 3개 기업의 등락률 평균",
+        "change_pct": math.fsum(member["change_pct"] for member in members) / len(members),
+        "change_method": "equal_weighted_representative_company_returns",
+        "mapping_status": "matched",
+        "source": ranking["source"],
+        "fetched_at": ranking["fetched_at"],
+        "member_symbols": [member["symbol"] for member in members],
+        "stocks": [{**row, "rank": rank} for rank, row in enumerate(leaders, 1)],
     }
 
 

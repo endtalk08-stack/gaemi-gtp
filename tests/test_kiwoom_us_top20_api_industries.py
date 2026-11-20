@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from backend import kiwoom_us_live_prices as live
 from backend import kiwoom_us_top20_api as api
-from backend.providers import kiwoom_us_quotes
+from backend.providers import kiwoom_us_industries, kiwoom_us_quotes
 
 
 class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
@@ -45,12 +45,16 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
             {"key": "internet_platforms", "mapping_status": "unmatched"},
         ]}
         stocks = [{"symbol": "LMT"}, {"symbol": "BA"}, {"symbol": "RTX"}]
-        with patch.object(api, "_get_us_industry_maps", return_value={
-            "legacy": legacy, "heatmap": heatmap,
-        }), patch.object(api, "_get_us_industry_stocks", return_value={"items": stocks}) as fetch:
+        with (
+            patch.object(api, "_get_us_industry_maps", return_value={"legacy": legacy, "heatmap": heatmap}),
+            patch.object(api, "_get_us_industry_stocks", return_value={"items": stocks}) as fetch,
+            patch.object(api, "_get_us_internet_platform_group", return_value=None) as platform,
+        ):
             default = api._get_us_industry_map_with_stocks()
+            platform.assert_not_called()
             requested = api._get_us_industry_map_with_stocks("heatmap")
 
+        platform.assert_called_once_with()
         self.assertNotIn("heatmap_ready", default)
         self.assertEqual(default["items"][0]["stocks"], stocks)
         self.assertFalse(requested["heatmap_ready"])
@@ -74,6 +78,45 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         fetch.assert_called_once_with("energy", "marketcap", sector_map={
             "items": [sector], "view": "heatmap", "heatmap_ready": True, "heatmap_missing": [],
         })
+
+    def test_representative_platform_completes_heatmap_and_reuses_its_ranked_stocks(self):
+        items = [
+            {"key": key, "name": name, "change_pct": -1.0, "mapping_status": "matched"}
+            for key, name, _ in kiwoom_us_industries.INDUSTRY_GROUPS
+        ]
+        platform = next(item for item in items if item["key"] == "internet_platforms")
+        platform.update(change_pct=None, mapping_status="unmatched")
+        leaders = [{"symbol": "GOOG", "exchange": "ND"}, {"symbol": "META", "exchange": "ND"}]
+        representative = {"change_pct": 1.5, "mapping_status": "matched", "stocks": leaders}
+        with (
+            patch.object(api, "_get_us_industry_maps", return_value={
+                "legacy": {"items": []}, "heatmap": {"items": items, "mapping_complete": False},
+            }),
+            patch.object(api, "_get_us_internet_platform_group", return_value=representative),
+            patch.object(api, "_get_us_industry_stocks") as fetch,
+        ):
+            result = api._get_us_industry_map_with_stocks("heatmap")
+
+        self.assertTrue(result["heatmap_ready"])
+        self.assertTrue(result["mapping_complete"])
+        self.assertEqual(len(result["items"]), 11)
+        self.assertEqual(result["items"][0]["key"], "internet_platforms")
+        self.assertEqual(result["items"][0]["rank"], 1)
+        self.assertEqual(result["items"][0]["stocks"], leaders)
+        self.assertEqual(platform["mapping_status"], "unmatched")
+        fetch.assert_not_called()
+
+    def test_platform_lookup_reuses_the_sixty_second_cache_even_when_incomplete(self):
+        with (
+            patch.dict(api._US_PLATFORM_CACHE, {"expires_at": 0.0, "data": None}),
+            patch.object(kiwoom_us_industries, "fetch_us_internet_platform_group", return_value=None) as fetch,
+            patch.object(api.time, "monotonic", side_effect=[100, 100, 159, 160, 160]),
+        ):
+            self.assertIsNone(api._get_us_internet_platform_group())
+            self.assertIsNone(api._get_us_internet_platform_group())
+            self.assertEqual(fetch.call_count, 1)
+            self.assertIsNone(api._get_us_internet_platform_group())
+            self.assertEqual(fetch.call_count, 2)
 
     def test_top20_and_industry_quote_snapshots_keep_separate_payloads(self):
         api._TOP20_SYMBOLS = frozenset({"AAA"})

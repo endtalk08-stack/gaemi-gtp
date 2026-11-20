@@ -225,6 +225,37 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(result["sort"], "marketcap")
         self.assertEqual(post.call_args.kwargs["headers"]["api-id"], "usa20550")
 
+    def test_internet_platform_uses_three_kiwoom_issuers_and_counts_alphabet_once(self):
+        records = [
+            {"stk_cd": "GOOGL", "stex_tp": "ND", "stk_nm": "알파벳 A", "mac": "5000", "flu_rt": "9"},
+            {"stk_cd": "GOOG", "stex_tp": "ND", "stk_nm": "알파벳 C", "mac": "4700", "flu_rt": "3"},
+            {"stk_cd": "META.O", "stex_tp": "ND", "stk_nm": "메타", "mac": "3500", "flu_rt": "-1"},
+            {"stk_cd": "NFLX", "stex_tp": "ND", "stk_nm": "넷플릭스", "mac": "1700", "flu_rt": "1"},
+            {"stk_cd": "DIS", "stex_tp": "NY", "stk_nm": "디즈니", "mac": "2700", "flu_rt": "5"},
+        ]
+        with (
+            patch.object(sectors, "_access_token", return_value="LOCAL_TEST"),
+            patch.object(sectors, "_call", return_value={"result_list": records}) as call,
+        ):
+            group = sectors.fetch_us_internet_platform_group()
+        self.assertEqual(call.call_args.args[0], "usa20550")
+        self.assertEqual(call.call_args.args[1]["inds_cd"], "370")
+        self.assertEqual(call.call_count, 1)
+        self.assertEqual(group["member_symbols"], ["GOOG", "META", "NFLX"])
+        self.assertEqual(group["change_pct"], 1.0)
+        self.assertEqual([row["symbol"] for row in group["stocks"]], ["GOOG", "META"])
+        self.assertEqual([row["rank"] for row in group["stocks"]], [1, 2])
+        self.assertEqual(group["source"], "kiwoom:usa20550")
+
+    def test_internet_platform_does_not_calculate_from_two_issuers(self):
+        with patch.object(sectors, "fetch_us_industry_stocks", return_value={"items": [
+            {"symbol": "GOOG", "exchange": "ND", "change_pct": 0},
+            {"symbol": "GOOGL", "exchange": "ND", "change_pct": 3},
+            {"symbol": "META", "exchange": "ND", "change_pct": -3},
+            {"symbol": "NFLX", "exchange": "ND", "change_pct": None},
+        ]}):
+            self.assertIsNone(sectors.fetch_us_internet_platform_group())
+
     def test_etf_marketcap_uses_usa20551(self):
         with patch.object(sectors, "issue_access_token", return_value="MOCK_TOKEN"), \
              patch.object(sectors.requests, "post", return_value=FakeResponse({"return_code": 0, "result_list": [

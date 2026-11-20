@@ -18,6 +18,8 @@ RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
+_US_PLATFORM_CACHE_LOCK = threading.Lock()
+_US_PLATFORM_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_MAP_TTL = 60
 _US_INDUSTRY_STOCK_TTL = 1800
 
@@ -46,6 +48,20 @@ def _get_us_industry_maps():
         return dict(result)
 
 
+def _get_us_internet_platform_group():
+    from backend.providers.kiwoom_us_industries import fetch_us_internet_platform_group
+    from backend.providers.kiwoom_us_quotes import KiwoomReadOnlyError
+
+    with _US_PLATFORM_CACHE_LOCK:
+        if time.monotonic() >= _US_PLATFORM_CACHE["expires_at"]:
+            try:
+                _US_PLATFORM_CACHE["data"] = fetch_us_internet_platform_group()
+            except KiwoomReadOnlyError:
+                _US_PLATFORM_CACHE["data"] = None
+            _US_PLATFORM_CACHE["expires_at"] = time.monotonic() + _US_INDUSTRY_MAP_TTL
+        return _US_PLATFORM_CACHE["data"]
+
+
 def _get_us_industry_map(view="legacy"):
     maps = _get_us_industry_maps()
     if view != "heatmap":
@@ -56,9 +72,20 @@ def _get_us_industry_map(view="legacy"):
         item["key"] for item in heatmap["items"]
         if item["mapping_status"] != "matched"
     ]
+    if missing == ["internet_platforms"]:
+        platform = _get_us_internet_platform_group()
+        if platform is not None:
+            from backend.providers.kiwoom_us_industries import rank_us_industry_rows
+
+            items = [
+                {**item, **platform} if item["key"] == "internet_platforms" else item
+                for item in heatmap["items"]
+            ]
+            heatmap = {**heatmap, "items": rank_us_industry_rows(items), "mapping_complete": True}
+            missing = []
     selected = "legacy" if missing else "heatmap"
     return {
-        **maps[selected],
+        **(maps["legacy"] if missing else heatmap),
         "view": selected,
         "heatmap_ready": not missing,
         "heatmap_missing": missing,
@@ -116,8 +143,8 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         if not isinstance(item, dict):
             continue
         row = dict(item)
-        row["stocks"] = []
-        if row.get("codes") or row.get("code"):
+        row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:limit]]
+        if not row["stocks"] and (row.get("codes") or row.get("code")):
             try:
                 stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap", sector_map=source)
                 row["stocks"] = stock_result.get("items", [])[:limit]
