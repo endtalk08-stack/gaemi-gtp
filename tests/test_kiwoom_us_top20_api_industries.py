@@ -46,7 +46,7 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         fetch.assert_called_once_with("energy", "marketcap")
         self.assertEqual(result["items"][0]["stocks"], stocks[:2])
 
-    def test_live_quote_snapshot_combines_top20_and_industry_without_duplicates(self):
+    def test_top20_and_industry_quote_snapshots_keep_separate_payloads(self):
         api._TOP20_SYMBOLS = frozenset({"AAA"})
         api._INDUSTRY_SYMBOLS = frozenset({"AAA", "BBB"})
         top20 = {
@@ -60,9 +60,8 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         api._TOP20_QUOTES["AAA"] = top20
         api._INDUSTRY_QUOTES["AAA"] = top20
         api._INDUSTRY_QUOTES["BBB"] = industry
-        rows = api._top20_snapshot()
-        self.assertEqual({row["symbol"] for row in rows}, {"AAA", "BBB"})
-        self.assertEqual(len(rows), 2)
+        self.assertEqual([row["symbol"] for row in api._top20_snapshot()], ["AAA"])
+        self.assertEqual({row["symbol"] for row in api._industry_snapshot()}, {"AAA", "BBB"})
 
 
 if __name__ == "__main__":
