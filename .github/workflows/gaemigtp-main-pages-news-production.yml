@@ -41,7 +41,10 @@ jobs:
           grep -Fq 'industry-map-sector' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq 'industry-map-stock' frontend/shell/left-market-sidebar/market-sidebar.js
           test -s frontend/shell/left-market-sidebar/market-sidebar.css
-          grep -Fq 'aspect-ratio: 1 / 1' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq 'grid-template-columns: minmax(0, 1fr)' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq 'grid-template-columns: repeat(3, minmax(0, 1fr))' frontend/shell/left-market-sidebar/market-sidebar.css
+          ! grep -Fq 'industry-map-stock-rank' frontend/shell/left-market-sidebar/market-sidebar.js
+          ! grep -Fq 'rank.textContent' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq '.industry-map-sector.is-up' frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq '.industry-map-sector.is-down' frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq '.industry-map-stock.is-up' frontend/shell/left-market-sidebar/market-sidebar.css
