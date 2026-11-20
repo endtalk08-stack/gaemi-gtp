@@ -1,4 +1,6 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service"
+  "operation": "run",
+  "path": "ops/do-gateway/verify_industry_release_20261120.py",
+  "request_id": "industryreleaseactual20261120",
+  "timeout": 45
 }
