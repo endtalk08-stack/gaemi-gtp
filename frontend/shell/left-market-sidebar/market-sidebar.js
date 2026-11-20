@@ -445,6 +445,7 @@
     const showUsRanking = async () => {
       if (!sidebarActive()) return;
       if (!list) return;
+      const id = ++requestId;
       const titles = {
         realtime: '시장 시세',
         industry: '시가총액 업종맵',
@@ -478,7 +479,6 @@
       }
       if (tab !== 'value') return;
       if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
-      const id = ++requestId;
       if (!list.querySelectorAll(':scope > button[data-original-index]').length) {
         list.textContent = '순위를 불러오는 중이야.';
       }
@@ -921,7 +921,6 @@
       if (button.disabled) return;
       button.addEventListener('click', () => {
         const nextTab = button.dataset.infoTabAction;
-        if (tab !== nextTab) ++requestId;
         tab = nextTab;
         customOrder = readOrder();
         changeSorted = false;
