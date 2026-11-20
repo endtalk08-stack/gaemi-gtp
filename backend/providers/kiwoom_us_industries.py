@@ -34,9 +34,23 @@ API_PATHS = {
 EXCHANGES = {"NA", "ND", "NY"}
 EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
 
-# Nine gaemiGTP map groups. They are matched only against Kiwoom's official
-# inds_nm / inds_enm values; unmatched groups remain explicitly empty.
+# Eleven display groups based on official Kiwoom industry codes. The labels
+# match the sidebar heatmap; unmapped official codes remain unclassified.
 INDUSTRY_GROUPS = (
+    ("energy", "에너지", ("에너지", "energy", "oil & gas", "oil and gas", "renewable energy", "energy equipment", "energy services")),
+    ("finance", "금융", ("금융", "financials", "financial", "banks", "banking", "insurance", "capital markets", "consumer finance", "diversified financials", "financial services")),
+    ("consumer_staples", "필수소비재", ("필수소비재", "consumer staples", "consumer defensive", "food products", "beverages", "household products", "personal products", "food retail", "food & staples retail", "tobacco")),
+    ("industrials", "산업재", ("산업재", "industrials", "industrial", "aerospace defense", "aerospace & defense", "construction", "machinery", "transportation", "commercial services", "electrical equipment", "building products", "professional services", "trading companies")),
+    ("internet_platforms", "인터넷플랫폼", ("인터넷플랫폼", "인터넷 플랫폼", "internet platforms", "internet platform", "internet software", "interactive media", "internet retail", "e-commerce", "ecommerce", "online marketplaces", "internet services")),
+    ("software", "소프트웨어", ("소프트웨어", "software", "application software", "systems software", "it services", "information technology services")),
+    ("communication", "커뮤니케이션", ("커뮤니케이션", "communication services", "telecommunications", "telecommunication services", "wireless telecommunication", "media", "entertainment", "broadcasting", "cable services", "telecom")),
+    ("healthcare", "헬스케어", ("헬스케어", "healthcare", "health care", "biotechnology", "biotech", "pharmaceutical", "pharma", "medical devices", "medical equipment", "health care providers", "health care services", "life sciences tools")),
+    ("consumer_discretionary", "경기소비재", ("경기소비재", "consumer discretionary", "consumer cyclical", "automobiles", "auto manufacturers", "auto components", "retail", "apparel", "restaurants", "hotels", "leisure", "consumer durables", "specialty retail", "household durables")),
+    ("it_hardware", "IT하드웨어", ("it hardware", "technology hardware", "hardware", "storage & peripherals", "computers", "electronic equipment", "communications equipment", "technology equipment", "computer hardware", "electronic components")),
+    ("semiconductors", "반도체", ("반도체", "semiconductors", "semiconductor", "semiconductor equipment", "chip equipment", "integrated circuits")),
+)
+
+LEGACY_INDUSTRY_GROUPS = (
     ("semiconductors", "반도체", ("반도체", "semiconductors", "semiconductor")),
     ("ai_datacenter", "AI 데이터센터", ("ai data center", "data center", "datacenter", "데이터센터")),
     ("software", "소프트웨어", ("소프트웨어", "software")),
@@ -48,15 +62,35 @@ INDUSTRY_GROUPS = (
     ("defense", "방산·항공우주", ("방산", "항공우주", "aerospace defense", "aerospace", "defense", "defence")),
 )
 
+# Codes observed in Kiwoom's US industry list. Mixed retail, materials, real
+# estate and utilities stay outside the requested heatmap groups.
+_HEATMAP_OFFICIAL_CODES = {
+    "energy": ("10",),
+    "finance": ("610", "620", "640"),
+    "consumer_staples": ("410", "420", "430"),
+    "industrials": ("210", "220", "230", "240", "250", "260", "270", "280", "290"),
+    "software": ("720",),
+    "communication": ("370", "810", "820"),
+    "healthcare": ("510", "520", "530"),
+    "consumer_discretionary": ("310", "320", "330", "340", "350", "360"),
+    "it_hardware": ("730", "740"),
+    "semiconductors": ("710",),
+}
+_HEATMAP_GROUP_BY_CODE = {
+    code: group for group, codes in _HEATMAP_OFFICIAL_CODES.items() for code in codes
+}
+_OUTSIDE_HEATMAP_CODES = {"110", "120", "130", "140", "380", "630", "910", "920", "930"}
+
+
 
 def _normalize_name(value):
     return re.sub(r"[^0-9a-z가-힣]+", "", str(value or "").casefold())
 
 
-def _group_for_official_industry(*names):
+def _group_for_official_industry(*names, groups=INDUSTRY_GROUPS):
     normalized_names = [_normalize_name(value) for value in names if value]
     candidates = []
-    for key, _label, aliases in INDUSTRY_GROUPS:
+    for key, _label, aliases in groups:
         for alias in aliases:
             normalized_alias = _normalize_name(alias)
             if normalized_alias and any(normalized_alias in value for value in normalized_names):
@@ -156,7 +190,12 @@ def _industry_code(value):
 
 
 def fetch_us_industry_map(*, token=None):
-    """Return the nine display groups matched to Kiwoom's official industry codes."""
+    """Preserve the existing industry classification for current callers."""
+    return fetch_us_industry_maps(token=token)["legacy"]
+
+
+def fetch_us_industry_maps(*, token=None):
+    """Build both classifications from the same pair of Kiwoom responses."""
     access_token = token or _access_token()
     official = _call("usa10101", {"gubun": "1"}, token=access_token).get("list")
     performance = _call(
@@ -165,7 +204,15 @@ def fetch_us_industry_map(*, token=None):
     if not isinstance(official, list) or not isinstance(performance, list):
         raise KiwoomReadOnlyError("kiwoom_industry_records_missing")
 
-    matched = {key: [] for key, _label, _aliases in INDUSTRY_GROUPS}
+    return {
+        "legacy": _build_us_industry_map(official, performance, LEGACY_INDUSTRY_GROUPS),
+        "heatmap": _build_us_industry_map(official, performance, INDUSTRY_GROUPS),
+    }
+
+
+def _build_us_industry_map(official, performance, groups):
+    is_heatmap = groups is INDUSTRY_GROUPS
+    matched = {key: [] for key, _label, _aliases in groups}
     unmatched = []
     for row in official:
         if not isinstance(row, dict):
@@ -175,7 +222,12 @@ def fetch_us_industry_map(*, token=None):
         english = str(row.get("inds_enm") or "").strip()
         if not code or not name:
             continue
-        group = _group_for_official_industry(name, english)
+        if is_heatmap and code in _OUTSIDE_HEATMAP_CODES:
+            group = None
+        elif is_heatmap and code in _HEATMAP_GROUP_BY_CODE:
+            group = _HEATMAP_GROUP_BY_CODE[code]
+        else:
+            group = _group_for_official_industry(name, english, groups=groups)
         if group:
             matched[group].append({
                 "code": code,
@@ -194,7 +246,7 @@ def fetch_us_industry_map(*, token=None):
             perf_by_code[code] = row
 
     items = []
-    for key, label, _aliases in INDUSTRY_GROUPS:
+    for key, label, _aliases in groups:
         matches = matched[key]
         codes = list(dict.fromkeys(match["code"] for match in matches))
         perf_rows = [perf_by_code[code] for code in codes if code in perf_by_code]
@@ -217,21 +269,14 @@ def fetch_us_industry_map(*, token=None):
                 "equal_weighted_official_industry_returns" if len(codes) > 1 else None
             ),
             "mapping_status": (
-                "matched" if codes and len(perf_rows) == len(codes) else
+                "matched" if codes and len(perf_rows) == len(codes)
+                and (not is_heatmap or all(_number(row.get("perf_1d")) is not None for row in perf_rows)) else
                 "performance_missing" if codes else
                 "unmatched"
             ),
         })
 
-    items.sort(
-        key=lambda item: (
-            item["change_pct"] is not None,
-            item["change_pct"] if item["change_pct"] is not None else float("-inf"),
-        ),
-        reverse=True,
-    )
-    for rank, item in enumerate(items, 1):
-        item["rank"] = rank
+    items = rank_us_industry_rows(items)
 
     complete = all(item["mapping_status"] == "matched" for item in items)
     return {
@@ -243,6 +288,18 @@ def fetch_us_industry_map(*, token=None):
         "unmatched_official_industries": unmatched[:60],
         "items": items,
     }
+
+
+def rank_us_industry_rows(items):
+    ranked = sorted(
+        items,
+        key=lambda item: (
+            item["change_pct"] is not None,
+            item["change_pct"] if item["change_pct"] is not None else float("-inf"),
+        ),
+        reverse=True,
+    )
+    return [{**item, "rank": rank} for rank, item in enumerate(ranked, 1)]
 
 
 def _industry_codes(value):
@@ -258,8 +315,8 @@ def _rank_number(value):
     return int(number) if number is not None and number >= 0 else None
 
 
-def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, limit=36):
-    """Fetch official industry stocks, ordered by market cap, turnover, or change."""
+def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, limit=36, symbols=None):
+    """Fetch official industry stocks, optionally filtering bare tickers before ranking."""
     codes = _industry_codes(industry_codes)
     if sort not in ("change", "value", "marketcap"):
         raise ValueError("invalid_industry_sort")
@@ -295,6 +352,8 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 continue
             symbol = str(record.get("stk_cd") or "").strip().upper()
             if not re.fullmatch(r"[A-Z0-9.-]{1,20}", symbol):
+                continue
+            if symbols is not None and symbol.removesuffix(".O") not in symbols:
                 continue
             exchange_raw = str(record.get("stex_tp") or "").strip().upper()
             exchange = EXCHANGE_CODES.get(exchange_raw, exchange_raw)
@@ -361,6 +420,40 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
         "sort": sort,
         "fetched_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "items": rows,
+    }
+
+
+def fetch_us_internet_platform_group():
+    """Average the three approved issuers using Kiwoom market-cap ranking data."""
+    # In Kiwoom's catalog 370 is Media. Only the approved issuers count
+    # toward this representative group, and Alphabet counts once.
+    aliases_by_issuer = (("GOOG", "GOOGL"), ("META",), ("NFLX",))
+    allowed_symbols = {symbol for aliases in aliases_by_issuer for symbol in aliases}
+    ranking = fetch_us_industry_stocks("370", "marketcap", symbols=allowed_symbols)
+    by_symbol = {}
+    for row in ranking["items"]:
+        symbol = row["symbol"].removesuffix(".O")
+        if row["exchange"] == "ND" and row["change_pct"] is not None:
+            by_symbol.setdefault(symbol, {**row, "symbol": symbol})
+
+    members = []
+    for aliases in aliases_by_issuer:
+        representative = next((by_symbol[symbol] for symbol in aliases if symbol in by_symbol), None)
+        if representative is None:
+            return None
+        members.append(representative)
+
+    leaders = sorted(members, key=lambda item: item["market_cap_usd"], reverse=True)[:2]
+    return {
+        "display_name": "인터넷플랫폼 대표 종목군",
+        "description": "알파벳·메타·넷플릭스 3개 기업의 등락률 평균",
+        "change_pct": math.fsum(member["change_pct"] for member in members) / len(members),
+        "change_method": "equal_weighted_representative_company_returns",
+        "mapping_status": "matched",
+        "source": ranking["source"],
+        "fetched_at": ranking["fetched_at"],
+        "member_symbols": [member["symbol"] for member in members],
+        "stocks": [{**row, "rank": rank} for rank, row in enumerate(leaders, 1)],
     }
 
 
