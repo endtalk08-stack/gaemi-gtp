@@ -34,18 +34,20 @@ API_PATHS = {
 EXCHANGES = {"NA", "ND", "NY"}
 EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
 
-# Nine gaemiGTP map groups. They are matched only against Kiwoom's official
-# inds_nm / inds_enm values; unmatched groups remain explicitly empty.
+# Eleven display groups based on official Kiwoom industry codes. The labels
+# match the sidebar heatmap; unmapped official codes remain unclassified.
 INDUSTRY_GROUPS = (
-    ("semiconductors", "반도체", ("반도체", "semiconductors", "semiconductor")),
-    ("ai_datacenter", "AI 데이터센터", ("ai data center", "data center", "datacenter", "데이터센터")),
-    ("software", "소프트웨어", ("소프트웨어", "software")),
-    ("internet_platforms", "인터넷플랫폼", ("인터넷플랫폼", "인터넷 플랫폼", "internet platforms", "internet platform", "internet software", "interactive media", "e-commerce")),
-    ("finance", "금융", ("금융", "finance", "financial", "financials", "bank", "banks", "capital markets", "insurance")),
-    ("biotech_pharma", "바이오·제약", ("바이오", "제약", "biotech", "biotechnology", "pharma", "pharmaceutical", "drug manufacturers")),
-    ("healthcare", "헬스케어", ("헬스케어", "healthcare", "health care", "medical devices", "medical equipment", "health care equipment", "health care services", "health care providers")),
-    ("ev", "자동차·전기차", ("전기차", "electric vehicle", "electric vehicles", "automobile", "automobiles", "auto components", "auto manufacturers")),
-    ("defense", "방산·항공우주", ("방산", "항공우주", "aerospace defense", "aerospace", "defense", "defence")),
+    ("energy", "에너지", ("에너지", "energy", "oil & gas", "oil and gas", "renewable energy", "energy equipment", "energy services")),
+    ("finance", "금융", ("금융", "financials", "financial", "banks", "banking", "insurance", "capital markets", "consumer finance", "diversified financials", "financial services")),
+    ("consumer_staples", "필수소비재", ("필수소비재", "consumer staples", "consumer defensive", "food products", "beverages", "household products", "personal products", "food retail", "food & staples retail", "tobacco")),
+    ("industrials", "산업재", ("산업재", "industrials", "industrial", "aerospace defense", "aerospace & defense", "construction", "machinery", "transportation", "commercial services", "electrical equipment", "building products", "professional services", "trading companies")),
+    ("internet_platforms", "인터넷플랫폼", ("인터넷플랫폼", "인터넷 플랫폼", "internet platforms", "internet platform", "internet software", "interactive media", "internet retail", "e-commerce", "ecommerce", "online marketplaces", "internet services")),
+    ("software", "소프트웨어", ("소프트웨어", "software", "application software", "systems software", "software services", "it services", "information technology services")),
+    ("communication", "커뮤니케이션", ("커뮤니케이션", "communication services", "telecommunications", "telecommunication services", "wireless telecommunication", "media", "entertainment", "broadcasting", "cable services", "telecom")),
+    ("healthcare", "헬스케어", ("헬스케어", "healthcare", "health care", "biotechnology", "biotech", "pharmaceutical", "pharma", "medical devices", "medical equipment", "health care providers", "health care services", "life sciences tools")),
+    ("consumer_discretionary", "경기소비재", ("경기소비재", "consumer discretionary", "consumer cyclical", "automobiles", "auto manufacturers", "auto components", "retail", "apparel", "restaurants", "hotels", "leisure", "consumer durables", "specialty retail", "household durables")),
+    ("it_hardware", "IT하드웨어", ("it hardware", "technology hardware", "hardware", "storage & peripherals", "computers", "electronic equipment", "communications equipment", "technology equipment", "computer hardware", "electronic components")),
+    ("semiconductors", "반도체", ("반도체", "semiconductors", "semiconductor", "semiconductor equipment", "chip equipment", "integrated circuits")),
 )
 
 
