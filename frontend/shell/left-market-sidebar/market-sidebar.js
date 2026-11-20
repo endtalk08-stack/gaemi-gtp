@@ -184,7 +184,6 @@
     };
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items.slice(0, 9) : [];
-      list.classList?.remove?.('etf-marketcap-list');
       list.classList?.add?.('industry-map-list');
       list.replaceChildren();
       if (!items.length) {
@@ -309,7 +308,6 @@
         }
         return;
       }
-      list.classList?.remove?.('etf-marketcap-list');
       list.classList?.add?.('industry-map-list');
       list.textContent = '미국 업종별 거래대금 상위 종목을 불러오는 중이야.';
       industryMapPromise = (async () => {
