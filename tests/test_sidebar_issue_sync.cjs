@@ -212,7 +212,7 @@ test('industry tab renders available API groups and only two market-cap leaders'
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
   assert.equal(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
-  assert.equal(app.list.children.length, 5);
+  assert.equal(app.list.children.length, 4);
   assert.equal(app.list.children[0].textContent, '증시 동향');
   const heatmap = app.list.children[1];
   assert.deepEqual(heatmap.children.map((tile) => tile.dataset.industryKey),

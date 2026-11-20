@@ -308,14 +308,7 @@
         });
         stocks.appendChild(stockTile);
       });
-      const legend = document.createElement('div');
-      legend.className = 'industry-map-legend';
-      const direction = document.createElement('span');
-      direction.textContent = '상승 · 빨강 / 하락 · 파랑';
-      const source = document.createElement('span');
-      source.textContent = '키움';
-      legend.append(direction, source);
-      list.append(heading, heatmap, selectedHeader, stocks, legend);
+      list.append(heading, heatmap, selectedHeader, stocks);
       paintLiveQuotes();
     };
         const loadIndustryMap = async (id) => {
