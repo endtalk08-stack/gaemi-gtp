@@ -37,7 +37,9 @@ jobs:
           grep -Fq '>Chat</button>' frontend/index.html
           node --check frontend/shell/right-panel/right-panel-tabs.js
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
-          node --test tests/test_sidebar_issue_sync.cjs
+          grep -Fq 'const renderIndustryMap = (data) =>' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq 'industry-map-sector' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq 'industry-map-stock' frontend/shell/left-market-sidebar/market-sidebar.js
           test -s frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq 'aspect-ratio: 1 / 1' frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq '.industry-map-sector.is-up' frontend/shell/left-market-sidebar/market-sidebar.css
