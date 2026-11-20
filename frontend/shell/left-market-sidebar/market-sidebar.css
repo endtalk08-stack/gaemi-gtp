@@ -409,21 +409,20 @@
 .industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
 @media (min-width: 1024px) {
   .industry-map-row {
-    --industry-first-stock-size: 44px;
+    --industry-first-stock-height: 44px;
     --industry-second-stock-height: 40px;
     --industry-third-stock-height: 36px;
-    grid-template-columns: minmax(0, 1fr) var(--industry-first-stock-size) repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .industry-map-row .industry-map-sector {
     grid-template-columns: minmax(0, 1fr);
     align-content: center;
     gap: 3px;
-    min-height: var(--industry-first-stock-size);
+    min-height: var(--industry-first-stock-height);
     padding: 4px;
   }
   .industry-map-row .industry-map-stocks {
     grid-column: span 3;
-    grid-template-columns: var(--industry-first-stock-size) repeat(2, minmax(0, 1fr));
     align-items: end;
     margin-bottom: 0;
   }
@@ -433,11 +432,7 @@
     gap: 2px;
   }
   .industry-map-row .industry-map-stock:nth-child(1) {
-    height: var(--industry-first-stock-size);
-    padding-inline: 1px;
-  }
-  .industry-map-row .industry-map-stock:nth-child(1) .industry-map-stock-change {
-    font-size: 11px;
+    height: var(--industry-first-stock-height);
   }
   .industry-map-row .industry-map-stock:nth-child(2) {
     height: var(--industry-second-stock-height);
@@ -448,11 +443,8 @@
 }
 @media (min-width: 1024px) and (max-height: 720px) {
   .industry-map-row {
-    --industry-first-stock-size: 40px;
+    --industry-first-stock-height: 40px;
     --industry-second-stock-height: 38px;
-  }
-  .industry-map-row .industry-map-stock:nth-child(1) .industry-map-stock-change {
-    font-size: 10px;
   }
 }
 @media (max-width: 420px) {
