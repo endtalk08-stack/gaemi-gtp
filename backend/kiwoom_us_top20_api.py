@@ -100,7 +100,7 @@ def _get_us_industry_map_with_stocks():
             continue
         row = dict(item)
         row["stocks"] = []
-        if row.get("mapping_status") == "matched" and (row.get("codes") or row.get("code")):
+        if row.get("codes") or row.get("code"):
             try:
                 stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap")
                 row["stocks"] = stock_result.get("items", [])[:3]

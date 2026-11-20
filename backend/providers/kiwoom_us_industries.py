@@ -43,8 +43,8 @@ INDUSTRY_GROUPS = (
     ("finance", "금융", ("금융", "finance", "financial", "financials", "bank", "banks", "capital markets", "insurance")),
     ("biotech_pharma", "바이오·제약", ("바이오", "제약", "biotech", "biotechnology", "pharma", "pharmaceutical", "drug manufacturers")),
     ("healthcare", "헬스케어", ("헬스케어", "healthcare", "health care", "medical devices", "medical equipment", "health care equipment", "health care services", "health care providers")),
-    ("ev", "전기차", ("전기차", "electric vehicle", "electric vehicles", "automobile", "automobiles", "auto components", "auto manufacturers")),
-    ("defense", "방산", ("방산", "aerospace defense", "aerospace", "defense", "defence")),
+    ("ev", "자동차·전기차", ("전기차", "electric vehicle", "electric vehicles", "ev", "automobile", "automobiles", "auto components", "auto manufacturers")),
+    ("defense", "방산·항공우주", ("방산", "항공우주", "aerospace defense", "aerospace", "defense", "defence")),
 )
 
 
@@ -86,11 +86,23 @@ def _access_token():
         return token
 
 
+_API_RATE_LOCK = threading.Lock()
+_LAST_API_CALL_AT = 0.0
+_MIN_API_CALL_INTERVAL = 0.22  # Stay below Kiwoom's 5 read-TR/sec limit.
+
+
 def _call(api_id, body, *, token=None):
+    global _LAST_API_CALL_AT
     path = API_PATHS.get(api_id)
     if not path or not isinstance(body, dict):
         raise KiwoomReadOnlyError("kiwoom_industry_api_not_allowed")
     access_token = token or _access_token()
+    with _API_RATE_LOCK:
+        now = time.monotonic()
+        wait = _MIN_API_CALL_INTERVAL - (now - _LAST_API_CALL_AT)
+        if wait > 0:
+            time.sleep(wait)
+        _LAST_API_CALL_AT = time.monotonic()
     try:
         response = requests.post(
             API_ORIGIN + path,
