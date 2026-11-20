@@ -136,7 +136,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
           ] },
           { name: '기술', stocks: [
             { name: '애플', symbol: 'AAPL.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
-          ] }
+          ] },
+          { name: 'AI 데이터센터', mapping_status: 'unmatched', stocks: [] }
         ]
       }) };
     }
@@ -183,13 +184,14 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
   assert.equal(industryRequests.some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
-  assert.equal(app.list.children.length, 2);
+  assert.equal(app.list.children.length, 3);
   assert.equal(app.list.children[0].children[0].textContent, '반도체');
   assert.equal(app.list.children[0].children[1].children[0].children[0].textContent, '엔비디아');
   assert.equal(app.list.children[0].children[1].children[0].children[1].textContent, '+2.50%');
   assert.equal(app.list.children[1].children[0].textContent, '기술');
   assert.equal(app.list.children[1].children[1].children[0].children[0].textContent, '애플');
   assert.equal(app.list.children[1].children[1].children[0].children[1].textContent, '-1.25%');
+  assert.equal(app.list.children[2].children[1].children[0].textContent, '키움 업종 미분류');
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {

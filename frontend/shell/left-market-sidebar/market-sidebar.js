@@ -198,6 +198,16 @@
         label.textContent = String(sector.name || '업종');
         const stocks = document.createElement('div');
         stocks.className = 'industry-map-stocks';
+        if (sector.mapping_status === 'unmatched') {
+          const empty = document.createElement('div');
+          empty.className = 'industry-map-stock-empty';
+          empty.style.gridColumn = '1 / -1';
+          empty.textContent = '키움 업종 미분류';
+          stocks.appendChild(empty);
+          row.append(label, stocks);
+          list.appendChild(row);
+          return;
+        }
         const ranked = Array.isArray(sector.stocks) ? sector.stocks.slice(0, 3) : [];
         for (let index = 0; index < 3; index += 1) {
           const stock = ranked[index];
