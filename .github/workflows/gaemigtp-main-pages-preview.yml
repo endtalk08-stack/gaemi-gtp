@@ -19,6 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Pin the heatmap source for this preview push only.
+          ref: >-
+            ${{ github.event_name == 'push'
+              && github.event.before == '68f7d911d95022a89c528545e82fecec94c8c765'
+              && '654d88c8e514ab9517ddb98216c61ff5f85b4c1d'
+              || github.sha }}
       - name: Check Pages inputs
         run: |
           test -s frontend/index.html
