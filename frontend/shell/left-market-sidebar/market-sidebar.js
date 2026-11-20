@@ -173,9 +173,6 @@
     let industryMapData = null;
     let industryMapFetchedAt = 0;
     let industryMapPromise = null;
-    let etfMarketcapData = null;
-    let etfMarketcapFetchedAt = 0;
-    let etfMarketcapPromise = null;
     const formatChange = (value) => Number.isFinite(value)
       ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
     const mapTileColor = (value) => {
@@ -342,90 +339,6 @@
         industryMapPromise = null;
       }
     };
-    const formatMarketCap = (value) => {
-      if (!Number.isFinite(value) || value <= 0) return '시가총액 —';
-      if (value >= 1e12) return '시가총액 $' + (value / 1e12).toFixed(2) + 'T';
-      if (value >= 1e9) return '시가총액 $' + (value / 1e9).toFixed(1) + 'B';
-      return '시가총액 $' + (value / 1e6).toFixed(0) + 'M';
-    };
-    const renderEtfMarketcap = (data) => {
-      const items = Array.isArray(data?.items) ? data.items.slice(0, 20) : [];
-      list.classList?.remove?.('industry-map-list');
-      list.classList?.add?.('etf-marketcap-list');
-      list.replaceChildren();
-      if (!items.length) {
-        list.textContent = 'ETF 시가총액 데이터가 없어.';
-        return;
-      }
-      items.forEach((item, index) => {
-        const row = document.createElement('button');
-        row.type = 'button';
-        row.className = 'etf-marketcap-row';
-        const rank = document.createElement('span');
-        rank.className = 'etf-marketcap-rank';
-        rank.textContent = String(item.rank || index + 1).padStart(2, '0');
-        const name = document.createElement('span');
-        name.className = 'etf-marketcap-name';
-        name.textContent = String(item.name || '이름 확인 필요');
-        const marketCap = document.createElement('span');
-        marketCap.className = 'etf-marketcap-value';
-        marketCap.textContent = formatMarketCap(item.market_cap_usd);
-        const change = document.createElement('span');
-        change.className = 'etf-marketcap-change ' +
-          (item.change_pct > 0 ? 'is-up' : item.change_pct < 0 ? 'is-down' : 'is-flat');
-        change.textContent = formatChange(item.change_pct);
-        row.append(rank, name, change, marketCap);
-        row.addEventListener('click', () => {
-          window.openStockInChat?.(item.name, {
-            market: 'us',
-            menu: 'etf',
-            name: item.name,
-            symbol: item.symbol,
-            rank: item.rank || index + 1,
-            change_pct: item.change_pct,
-            market_cap: item.market_cap_usd,
-            currency: 'USD',
-            source: 'kiwoom'
-          });
-        });
-        list.appendChild(row);
-      });
-    };
-    const loadEtfMarketcap = async (id) => {
-      if (etfMarketcapData && Date.now() - etfMarketcapFetchedAt < mapCacheTtl) {
-        if (id === requestId) renderEtfMarketcap(etfMarketcapData);
-        return;
-      }
-      if (etfMarketcapPromise) {
-        try {
-          const data = await etfMarketcapPromise;
-          if (id === requestId && data) renderEtfMarketcap(data);
-        } catch (_) {
-          if (id === requestId) list.textContent = 'ETF 데이터를 불러오지 못했어.';
-        }
-        return;
-      }
-      list.classList?.remove?.('industry-map-list');
-      list.classList?.add?.('etf-marketcap-list');
-      list.textContent = 'ETF 시가총액 순위를 불러오는 중이야.';
-      etfMarketcapPromise = (async () => {
-        const response = await fetch(quoteApiBase + '/market/us-etf-marketcap', { cache: 'no-store' });
-        if (!response.ok) throw new Error('etf_marketcap_http_' + response.status);
-        const data = await response.json();
-        if (data?.ok !== true || !Array.isArray(data.items)) throw new Error('invalid_etf_marketcap');
-        etfMarketcapData = data;
-        etfMarketcapFetchedAt = Date.now();
-        return data;
-      })();
-      try {
-        const data = await etfMarketcapPromise;
-        if (id === requestId) renderEtfMarketcap(data);
-      } catch (_) {
-        if (id === requestId) list.textContent = 'ETF 데이터를 불러오지 못했어.';
-      } finally {
-        etfMarketcapPromise = null;
-      }
-    };
     let nextRankingReadAt = 0;
     let rankingRequestInFlight = false;
     let rankingFailureCount = 0;
@@ -510,12 +423,11 @@
         realtime: '시장 시세',
         industry: '미국 업종맵 · 거래대금 TOP20',
         value: '거래대금 TOP 20',
-        etf: 'ETF 시가총액 TOP 20'
       };
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
-      list.classList?.remove?.('industry-map-list', 'etf-marketcap-list');
+      list.classList?.remove?.('industry-map-list');
       if (tab !== 'value') {
         const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
         if (displayedRows.length) cachedRankingRows = displayedRows;
@@ -531,10 +443,6 @@
       }
       if (tab === 'industry') {
         await loadIndustryMap(id);
-        return;
-      }
-      if (tab === 'etf') {
-        await loadEtfMarketcap(id);
         return;
       }
       if (tab !== 'value') return;
@@ -927,7 +835,7 @@
     const refreshOnReturn = () => {
       syncQqqSocket();
       if (document.visibilityState !== 'visible') return;
-      if (sidebarActive() && ['value', 'realtime', 'industry', 'etf'].includes(tab)) void showUsRanking();
+      if (sidebarActive() && ['value', 'realtime', 'industry'].includes(tab)) void showUsRanking();
       paintLiveQuotes();
     };
     window.addEventListener('gaemi:qqq-placement', () => {
