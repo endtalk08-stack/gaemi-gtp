@@ -9,8 +9,14 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
           params.set('menu', marketSelection.menu);
           params.set('symbol', marketSelection.symbol);
         }
-        const response = await fetch(`${BACKEND_URL}/analyze?${params}`, { signal });
-        if (!response.ok) throw new Error('서버 에러');
+        const endpoint = window.location.hostname === 'gaemigtp-main.pages.dev'
+          ? window.location.origin : BACKEND_URL;
+        const response = await fetch(`${endpoint}/analyze?${params}`, {
+          signal, credentials: endpoint === window.location.origin ? 'same-origin' : 'omit',
+          cache: 'no-store'
+        });
+        if (response.status === 401) return { sections: [], ok: false, error: 'private_access_required' };
+        if (!response.ok) return { sections: [], ok: false, error: 'analysis_http_' + response.status };
         const data = await response.json();
         // 기존 뉴스/공시 수집 로직은 그대로 두고, 서버가 내려주는
         // 구조화 데이터만 프론트까지 전달한다. (표시용 변경만)
@@ -24,10 +30,11 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
           keyword_storyboard: Array.isArray(data.keyword_storyboard) ? data.keyword_storyboard : [],
           disclosures: Array.isArray(data.disclosures) ? data.disclosures : [],
           us_filings: Array.isArray(data.us_filings) ? data.us_filings : [],
-          ok: data.ok !== false
+          ok: data.ok !== false,
+          error: data.error || null
         };
       } catch (err) {
         if (err?.name === 'AbortError') return { sections: [], ok: false, aborted: true };
-        return { sections: [], ok: false };
+        return { sections: [], ok: false, error: 'analysis_request_failed' };
       }
     };

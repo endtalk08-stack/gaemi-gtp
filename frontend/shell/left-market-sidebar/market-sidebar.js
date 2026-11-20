@@ -119,6 +119,7 @@
     const title = sidebar.querySelector('#rightListTitle');
     const changeSortButton = sidebar.querySelector('#rightListMetric');
     const backendUrl = window.location.hostname.endsWith('github.io')
+      || window.location.hostname === 'gaemigtp-main.pages.dev'
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
     const market = 'us';
     let tab = 'value';
@@ -127,8 +128,177 @@
     let draggedRow = null;
     let lastRankingSignature = '';
     let cachedRankingRows = [];
-    let quoteRequestInFlight = false;
-    let nextQuoteReadAt = 0;
+    let marketQqqQuote = null;
+    const industryBySymbol = new Map();
+    const rankingIndustryBySymbol = new Map();
+    let industryPromise = null;
+    let nextIndustryReadAt = 0;
+    const industryFor = (symbol, exchange, fallback = '') => {
+      const suffix = exchange === 'ND' ? '.O' : exchange === 'NY' ? '.K' : '';
+      return industryBySymbol.get(symbol)
+        || (suffix && !symbol.includes('.') && industryBySymbol.get(symbol + suffix))
+        || fallback || rankingIndustryBySymbol.get(symbol) || '';
+    };
+    const applyIndustryLabels = () => {
+      list?.querySelectorAll(':scope > button[data-original-index]')?.forEach((button) => {
+        const label = button.querySelector('[data-market-industry]');
+        if (!label) return;
+        const industry = industryFor(button.dataset.stockSymbol, button.dataset.stockExchange, label.textContent);
+        if (industry) label.textContent = industry;
+      });
+    };
+    const loadIndustryLabels = () => {
+      if (industryPromise || Date.now() < nextIndustryReadAt) return industryPromise;
+      nextIndustryReadAt = Date.now() + 300000;
+      industryPromise = fetch('/stocks/us/instruments.json', { cache: 'default' })
+        .then((response) => {
+          if (!response.ok) throw new Error('industry R2 unavailable');
+          return response.json();
+        })
+        .then((data) => {
+          if (!Array.isArray(data?.items)) throw new Error('invalid industry metadata');
+          for (const item of data.items) {
+            if (typeof item?.symbol === 'string' && typeof item?.industry === 'string' && item.industry.trim()) {
+              industryBySymbol.set(item.symbol, item.industry.trim());
+            }
+          }
+          applyIndustryLabels();
+        })
+        .catch(() => { nextIndustryReadAt = Date.now() + 60000; })
+        .finally(() => { industryPromise = null; });
+      return industryPromise;
+    };
+    const quoteApiBase = 'https://quotes.gaemigtp.com';
+    const mapCacheTtl = 60000;
+    let industryMapData = null;
+    let industryMapFetchedAt = 0;
+    let industryMapPromise = null;
+    const formatChange = (value) => Number.isFinite(value)
+      ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
+    const mapTileColor = (value) => {
+      if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.08 };
+      const strength = Math.min(0.34, 0.08 + Math.log1p(Math.abs(value)) * 0.075);
+      return value > 0
+        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: strength }
+        : { tone: 'is-down', rgb: '57, 119, 177', alpha: strength };
+    };
+    const renderIndustryMap = (data) => {
+      const items = Array.isArray(data?.items) ? data.items : [];
+      list.classList?.add?.('industry-map-list');
+      list.replaceChildren();
+      const visibleSectors = items
+        .filter((sector) => typeof sector?.name === 'string' && sector.name.trim())
+        .map((sector) => ({
+          sector,
+          stocks: (Array.isArray(sector.stocks) ? sector.stocks : [])
+            .filter((stock) => stock && typeof stock.name === 'string' && stock.name.trim())
+            .slice(0, 3)
+        }));
+      // Highest percentage first; missing percentages stay at the bottom.
+      visibleSectors.sort((a, b) => {
+        const av = Number.isFinite(a.sector.change_pct) ? a.sector.change_pct : -Infinity;
+        const bv = Number.isFinite(b.sector.change_pct) ? b.sector.change_pct : -Infinity;
+        return bv - av;
+      });
+      visibleSectors.forEach(({ sector, stocks: ranked }) => {
+        const sectorPct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
+          ? sector.change_pct : null;
+        const sectorColor = mapTileColor(sectorPct);
+        // Sector header and stock tiles are siblings: never nest boxes inside a sector box.
+        const heading = document.createElement('div');
+        heading.className = 'industry-map-sector ' + sectorColor.tone;
+        heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.30, sectorColor.alpha + 0.045).toFixed(3) + ')';
+        heading.style.borderColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.62, sectorColor.alpha + 0.20).toFixed(3) + ')';
+        const label = document.createElement('span');
+        label.className = 'industry-map-sector-name';
+        label.textContent = String(sector.name || '업종');
+        const change = document.createElement('span');
+        change.className = 'industry-map-sector-change';
+        change.textContent = formatChange(sectorPct);
+        heading.append(label, change);
+        const stocks = document.createElement('div');
+        stocks.className = 'industry-map-stocks';
+        if (!ranked.length) {
+          const empty = document.createElement('div');
+          empty.className = 'industry-map-empty';
+          empty.textContent = '상위 종목 데이터 없음';
+          stocks.appendChild(empty);
+        }
+        ranked.forEach((stock) => {
+          const pct = typeof stock.change_pct === 'number' && Number.isFinite(stock.change_pct)
+            ? stock.change_pct : null;
+          const color = mapTileColor(pct);
+          const stockTile = document.createElement('button');
+          stockTile.type = 'button';
+          stockTile.className = 'industry-map-stock ' + color.tone;
+          stockTile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
+          stockTile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
+          stockTile.title = stock.name + ' ' + formatChange(pct);
+          const name = document.createElement('span');
+          name.className = 'industry-map-stock-name';
+          name.textContent = stock.name;
+          const stockChange = document.createElement('span');
+          stockChange.className = 'industry-map-stock-change';
+          stockChange.textContent = formatChange(pct);
+          stockTile.append(name, stockChange);
+          stockTile.addEventListener('click', () => {
+            window.openStockInChat?.(stock.name, {
+              market: 'us',
+              menu: 'industry',
+              name: stock.name,
+              symbol: stock.symbol,
+              rank: stock.rank,
+              industry: sector.name,
+              change_pct: pct,
+              currency: 'USD',
+              source: 'kiwoom'
+            });
+          });
+          stocks.appendChild(stockTile);
+        });
+        list.append(heading, stocks);
+      });
+    };
+    const loadIndustryMap = async (id) => {
+      if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) {
+        if (id === requestId) renderIndustryMap(industryMapData);
+        return;
+      }
+      if (industryMapPromise) {
+        try {
+          const data = await industryMapPromise;
+          if (id === requestId && data) renderIndustryMap(data);
+        } catch (_) {
+          if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+        }
+        return;
+      }
+      list.classList?.add?.('industry-map-list');
+      list.textContent = '미국 업종별 시가총액 상위 종목을 불러오는 중이야.';
+      industryMapPromise = (async () => {
+        // Industry membership and market-cap ranking come from the existing
+        // DigitalOcean Kiwoom industry endpoint. Never derive this map from TOP20.
+        const response = await fetch(quoteApiBase + '/market/us-industries?include_stocks=1&view=heatmap', {
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('us_industries_http_' + response.status);
+        const data = await response.json();
+        if (data?.ok !== true || !Array.isArray(data.items)) {
+          throw new Error('invalid_us_industry_marketcap');
+        }
+        industryMapData = data;
+        industryMapFetchedAt = Date.now();
+        return data;
+      })();
+      try {
+        const data = await industryMapPromise;
+        if (id === requestId) renderIndustryMap(data);
+      } catch (_) {
+        if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+      } finally {
+        industryMapPromise = null;
+      }
+    };
     let nextRankingReadAt = 0;
     let rankingRequestInFlight = false;
     let rankingFailureCount = 0;
@@ -208,15 +378,16 @@
     const showUsRanking = async () => {
       if (!sidebarActive()) return;
       if (!list) return;
+      const id = ++requestId;
       const titles = {
-        realtime: '',
+        realtime: '시장 시세',
+        industry: '미국 업종맵 · 시가총액 상위',
         value: '거래대금 TOP 20',
-        gain: '상승률 TOP 20',
-        loss: '하락률 TOP 20'
       };
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
+      list.classList?.remove?.('industry-map-list');
       if (tab !== 'value') {
         const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
         if (displayedRows.length) cachedRankingRows = displayedRows;
@@ -226,12 +397,16 @@
         list.replaceChildren(...cachedRankingRows);
         applyChangeSort();
       }
-      if (tab !== 'value') {
-        list.textContent = '';
+      if (tab === 'realtime') {
+        renderMarketQqq();
         return;
       }
+      if (tab === 'industry') {
+        await loadIndustryMap(id);
+        return;
+      }
+      if (tab !== 'value') return;
       if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
-      const id = ++requestId;
       if (!list.querySelectorAll(':scope > button[data-original-index]').length) {
         list.textContent = '순위를 불러오는 중이야.';
       }
@@ -251,11 +426,13 @@
         customOrder = []; // A refreshed ranking supersedes a manually saved layout.
         if (title) title.textContent = titles[tab];
         const signature = JSON.stringify(result.items.map((row) => [
-          row.symbol, row.name, row.rank, row.price, row.change_pct, row.trading_value, row.trading_value_text, row.industry, row.issue_headline
+          row.symbol, row.name, row.exchange, row.rank, row.price, row.change_pct, row.trading_value, row.trading_value_text, row.industry, row.issue_headline
         ]));
         if (signature === lastRankingSignature &&
             list.querySelector('button[data-original-index]')) {
           applyChangeSort();
+          void loadIndustryLabels();
+          paintLiveQuotes();
           return;
         }
         lastRankingSignature = signature;
@@ -264,6 +441,7 @@
           const button = document.createElement('button');
           button.dataset.stockName = String(item.name || '');
           button.dataset.stockSymbol = String(item.symbol || '');
+          button.dataset.stockExchange = String(item.exchange || '');
           button.dataset.originalIndex = String(index);
           button.dataset.rowId = String(item.symbol || item.name || index);
           button.dataset.originalRank = String(item.rank || index + 1);
@@ -365,11 +543,11 @@
           });
           const industryLabel = document.createElement('span');
           industryLabel.className = 'market-stock-industry-label';
-          industryLabel.textContent = typeof item.industry === 'string' ? item.industry : '';
-          const turnover = typeof item.trading_value_text === 'string' ? item.trading_value_text
-            : (typeof item.trading_value === 'number' && Number.isFinite(item.trading_value)
-              ? '$' + item.trading_value.toLocaleString('en-US') : '');
-          industryLabel.textContent = [industryLabel.textContent, turnover].filter(Boolean).join(' · ');
+          industryLabel.dataset.marketIndustry = 'true';
+          // Turnover still determines ranking; show only verified industry metadata.
+          const rankingIndustry = typeof item.industry === 'string' ? item.industry.trim() : '';
+          if (rankingIndustry) rankingIndustryBySymbol.set(button.dataset.stockSymbol, rankingIndustry);
+          industryLabel.textContent = industryFor(button.dataset.stockSymbol, button.dataset.stockExchange);
           industry.append(watchStar, industryLabel);
           const change = document.createElement('span');
           const pct = item.change_pct;
@@ -394,9 +572,9 @@
           list.appendChild(button);
         });
         applyChangeSort();
-        // The initial list is ready: request the current quote now instead of
-        // waiting for the next timer tick or relying on a panel-open CSS class.
-        void readLatestQuotes();
+        void loadIndustryLabels();
+        paintLiveQuotes();
+        syncQqqSocket();
       } catch (error) {
         console.warn('TOP20 request failed:', error);
         rankingFailureCount += 1;
@@ -411,76 +589,219 @@
       }
     };
 
-    // Reuse one existing 3-second Render memory poll for sidebar, QQQ, chart and chat.
+    // Share one DigitalOcean socket between QQQ, the visible ranking, and the chart.
     const qqqWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('qqq') === true;
-    const quoteConsumersActive = () => qqqWidgetActive()
-      || window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
-    const readLatestQuotes = async () => {
-      if (document.visibilityState !== 'visible') return;
-      const paintRanking = sidebarActive() && tab === 'value' && !!list?.querySelector('button[data-original-index]');
-      if (quoteRequestInFlight || (!paintRanking && !quoteConsumersActive())) return;
-      quoteRequestInFlight = true;
-      try {
-        const response = await fetch(backendUrl + '/market/us-live-quotes', { cache: 'no-store' });
-        if (!response.ok) throw new Error('quotes unavailable');
-        const data = await response.json();
-        if (data.ok !== true || !Array.isArray(data.items)) return;
-        // Share exactly these quotes with the active chart/chat. No extra HTTP read.
-        window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
-          detail: { items: data.items }
-        }));
-        // In-browser fan-out only: existing sidebar request is also the widget feed.
-        if (qqqWidgetActive()) {
-          const qqq = data.items.find(row => row && row.symbol === 'QQQ') || null;
-          window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: qqq } }));
-        }
-        if (!paintRanking || tab !== 'value') return;
-        const bySymbol = new Map([...list.querySelectorAll(':scope > button[data-original-index]')]
-          .map((button) => [button.dataset.stockSymbol, button]));
-        let updated = 0;
-        data.items.forEach((quote) => {
-          const button = bySymbol.get(String(quote.symbol || ''));
-          if (!button) return;
-          if (typeof quote.price === 'number' && Number.isFinite(quote.price)) {
-            const price = button.querySelector('[data-market-price]');
-            if (price) price.textContent = '$' + quote.price.toLocaleString('en-US', { maximumFractionDigits: 2 });
-            button.dataset.currentPrice = String(quote.price);
-          }
-          if (typeof quote.change_pct === 'number' && Number.isFinite(quote.change_pct)) {
-            const change = button.querySelector('[data-market-change]');
-            if (change) {
-              change.textContent = (quote.change_pct > 0 ? '+' : '') + quote.change_pct.toFixed(2) + '%';
-              change.className = 'market-stock-change' +
-                (quote.change_pct > 0 ? ' text-rose-500' : quote.change_pct < 0
-                  ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
-            }
-            button.dataset.changePct = String(quote.change_pct);
-            button.dataset.currentChangePct = String(quote.change_pct);
-          }
-          updated++;
-        });
-        if (updated && changeSorted && !draggedRow) applyChangeSort();
-      } catch (_) {
-        window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
-          detail: { items: [] }
-        }));
-        // A broken source must never leave the QQQ widget labeled "live".
-        if (qqqWidgetActive()) {
-          window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', { detail: { quote: null } }));
-        }
-        // Keep the sidebar's previous display on transient failure.
-      } finally {
-        quoteRequestInFlight = false;
+    const paintMarketQqq = () => {
+      const row = list?.querySelector('[data-market-qqq]');
+      if (!row) return;
+      const quote = marketQqqQuote;
+      const fresh = freshQuote(quote, Date.now());
+      const change = fresh && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
+      row.querySelector('[data-market-qqq-price]').textContent = fresh
+        ? '$' + quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '—';
+      const rate = row.querySelector('[data-market-qqq-change]');
+      rate.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+      rate.classList.toggle('text-rose-500', change > 0);
+      rate.classList.toggle('text-sky-500', change < 0);
+    };
+    const moveQqqToChat = () => {
+      if (!window.GaemiGTPWidgetDock?.add?.('qqq')) return;
+      window.enterChatWorkspace?.();
+      if (window.innerWidth < 1024) {
+        if (document.body.classList.contains('left-market-open')) toggle();
+        if (document.body.classList.contains('left-home-open')) window.closeLeftSidebarHome?.();
       }
+      applyState();
+      document.querySelector('[data-central-widget-id="qqq"] button')?.focus();
+    };
+    const qqqDragType = 'application/x-gaemi-qqq';
+    const renderMarketQqq = () => {
+      if (qqqWidgetActive()) {
+        list.textContent = 'QQQ는 가운데에 표시 중이야.';
+        return;
+      }
+      const row = document.createElement('article');
+      row.className = 'market-stock-row';
+      row.dataset.marketQqq = 'true';
+      const grip = document.createElement('button');
+      grip.type = 'button';
+      grip.className = 'market-stock-grip border-0 bg-transparent p-0';
+      grip.textContent = '⠿';
+      grip.title = 'QQQ 가운데로 이동';
+      grip.setAttribute('aria-label', 'QQQ 가운데로 이동');
+      grip.draggable = true;
+      grip.addEventListener('click', moveQqqToChat);
+      grip.addEventListener('dragstart', event => {
+        if (!event.dataTransfer) return;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData(qqqDragType, 'QQQ');
+      });
+      const content = document.createElement('div');
+      content.className = 'market-stock-content';
+      content.innerHTML = `
+        <div class="market-stock-top"><span class="market-stock-name">QQQ</span><span class="market-stock-price" data-market-qqq-price>—</span></div>
+        <div class="market-stock-second"><span class="market-stock-turnover">나스닥</span><span class="market-stock-change" data-market-qqq-change>—</span></div>
+        <div class="market-stock-third"><a class="truncate text-current" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a></div>`;
+      row.append(grip, stockMark({ symbol: 'QQQ' }), content);
+      list.replaceChildren(row);
+      paintMarketQqq();
+      window.GaemiGTPWidgetDock?.updateMarketQqqReason?.();
+    };
+    for (const id of ['mainHeroView', 'centralWidgetDock', 'chatArea']) {
+      const target = document.getElementById(id);
+      target?.addEventListener('dragover', event => {
+        if (!event.dataTransfer?.types.includes(qqqDragType)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      });
+      target?.addEventListener('drop', event => {
+        if (event.dataTransfer?.getData(qqqDragType) !== 'QQQ') return;
+        event.preventDefault();
+        moveQqqToChat();
+      });
+    }
+    const quoteConsumersActive = () =>
+      window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
+    let qqqSocket = null;
+    let qqqSocketGeneration = 0;
+    let qqqReconnectTimer = null;
+    let qqqReconnectDelay = 1000;
+    const qqqSocketWanted = () =>
+      document.visibilityState === 'visible'
+      && (qqqWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime')) || quoteConsumersActive());
+    const dispatchQqqQuote = (quote) => {
+      marketQqqQuote = quote?.symbol === 'QQQ' ? quote : null;
+      paintMarketQqq();
+      window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', {
+        detail: { quote: quote || null }
+      }));
+    };
+    const stopQqqSocket = () => {
+      qqqSocketGeneration += 1;
+      if (qqqReconnectTimer !== null) {
+        window.clearTimeout(qqqReconnectTimer);
+        qqqReconnectTimer = null;
+      }
+      const socket = qqqSocket;
+      qqqSocket = null;
+      if (socket && socket.readyState < window.WebSocket.CLOSING) {
+        try { socket.close(1000, 'QQQ widget inactive'); } catch (_) {}
+      }
+      dispatchQqqQuote(null);
+      publishLiveQuotes([]);
+    };
+    const scheduleQqqReconnect = (generation) => {
+      if (!qqqSocketWanted() || generation !== qqqSocketGeneration || qqqReconnectTimer !== null) return;
+      const delay = qqqReconnectDelay;
+      qqqReconnectDelay = Math.min(30000, qqqReconnectDelay * 2);
+      qqqReconnectTimer = window.setTimeout(() => {
+        qqqReconnectTimer = null;
+        if (generation === qqqSocketGeneration) openQqqSocket();
+      }, delay);
+    };
+    const openQqqSocket = () => {
+      if (!qqqSocketWanted() || !window.WebSocket) return;
+      if (qqqSocket && qqqSocket.readyState < window.WebSocket.CLOSING) return;
+      const generation = ++qqqSocketGeneration;
+      let socket;
+      try {
+        socket = new window.WebSocket('wss://quotes.gaemigtp.com/ws/us-live-quotes');
+      } catch (_) {
+        scheduleQqqReconnect(generation);
+        return;
+      }
+      qqqSocket = socket;
+      socket.onopen = () => {
+        if (generation !== qqqSocketGeneration || !qqqSocketWanted()) {
+          try { socket.close(1000, 'QQQ widget inactive'); } catch (_) {}
+          return;
+        }
+        qqqReconnectDelay = 1000;
+      };
+      socket.onmessage = (event) => {
+        if (generation !== qqqSocketGeneration) return;
+        try {
+          const message = JSON.parse(event.data);
+          if (message?.type === 'quote') dispatchQqqQuote(message.quote || null);
+          if (message?.type === 'quotes' && Array.isArray(message.items)) publishLiveQuotes(message.items);
+        } catch (_) {
+          // Ignore malformed frames; the next valid quote will refresh the card.
+        }
+      };
+      socket.onerror = () => {
+        try { socket.close(); } catch (_) {}
+      };
+      socket.onclose = () => {
+        if (qqqSocket === socket) qqqSocket = null;
+        if (generation !== qqqSocketGeneration) return;
+        dispatchQqqQuote(null);
+        publishLiveQuotes([]);
+        scheduleQqqReconnect(generation);
+      };
+    };
+    const syncQqqSocket = () => {
+      if (qqqSocketWanted()) {
+        if (!qqqSocket && qqqReconnectTimer === null) openQqqSocket();
+      } else if (qqqSocket || qqqReconnectTimer !== null) {
+        stopQqqSocket();
+      }
+    };
+    window.setTimeout(syncQqqSocket, 50);
+    let liveQuotes = [];
+    const freshQuote = (quote, now) => quote && quote.stale === false
+      && typeof quote.symbol === 'string' && Number.isFinite(quote.price) && quote.price > 0
+      && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= now + 5000
+      && now - quote.received_at_ms <= 25000;
+    const paintLiveQuotes = () => {
+      if (!sidebarActive() || tab !== 'value' || !list) return;
+      const now = Date.now();
+      const bySymbol = new Map([...list.querySelectorAll(':scope > button[data-original-index]')]
+        .map((button) => [button.dataset.stockSymbol, button]));
+      let updated = 0;
+      liveQuotes.forEach((quote) => {
+        if (!freshQuote(quote, now)) return;
+        const button = bySymbol.get(String(quote.symbol || ''));
+        if (!button) return;
+        const price = button.querySelector('[data-market-price]');
+        if (price) price.textContent = '$' + quote.price.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        button.dataset.currentPrice = String(quote.price);
+        if (typeof quote.change_pct === 'number' && Number.isFinite(quote.change_pct)) {
+          const change = button.querySelector('[data-market-change]');
+          if (change) {
+            change.textContent = (quote.change_pct > 0 ? '+' : '') + quote.change_pct.toFixed(2) + '%';
+            change.className = 'market-stock-change' +
+              (quote.change_pct > 0 ? ' text-rose-500' : quote.change_pct < 0
+                ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
+          }
+          button.dataset.changePct = String(quote.change_pct);
+          button.dataset.currentChangePct = String(quote.change_pct);
+        }
+        updated++;
+      });
+      if (updated && changeSorted && !draggedRow) applyChangeSort();
+    };
+    const publishLiveQuotes = items => {
+      const now = Date.now();
+      liveQuotes = items.filter(quote => freshQuote(quote, now));
+      window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
+        detail: { items: liveQuotes }
+      }));
+      paintLiveQuotes();
     };
 
     // Also refresh when the user returns to this tab after it was backgrounded.
     // Keep background reads off to avoid unnecessary database usage.
     const refreshOnReturn = () => {
+      syncQqqSocket();
       if (document.visibilityState !== 'visible') return;
-      if (sidebarActive() && tab === 'value') void showUsRanking();
-      if (sidebarActive() || quoteConsumersActive()) void readLatestQuotes();
+      if (sidebarActive() && ['value', 'realtime', 'industry'].includes(tab)) void showUsRanking();
+      paintLiveQuotes();
     };
+    window.addEventListener('gaemi:qqq-placement', () => {
+      if (sidebarActive() && tab === 'realtime') void showUsRanking();
+      syncQqqSocket();
+    });
     document.addEventListener('visibilitychange', refreshOnReturn);
     window.addEventListener('focus', refreshOnReturn);
 
@@ -523,26 +844,36 @@
       applyChangeSort();
     });
 
-    bindStaticSelection('[data-info-tab-action]', 1);
+    bindStaticSelection('[data-info-tab-action]', 2);
     sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
       if (button.disabled) return;
       button.addEventListener('click', () => {
         const nextTab = button.dataset.infoTabAction;
-        if (tab !== nextTab) ++requestId;
         tab = nextTab;
         customOrder = readOrder();
         changeSorted = false;
         void showUsRanking();
+        syncQqqSocket();
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
     window.GaemiGTPMarketSidebar.refreshLiveQuotes = refreshOnReturn;
+    window.GaemiGTPMarketSidebar.openMarketTab = () => {
+      if (!sidebarActive() && sidebar.parentElement?.id === 'leftSidebarHomeSectionContent') {
+        window.openLeftSidebarSection?.('market');
+      } else if (!sidebarActive() && !document.body.classList.contains('left-market-open')) {
+        toggle();
+      }
+      sidebar.querySelector('[data-info-tab-action="realtime"]')?.click();
+    };
     // Closed panels and background tabs consume no ranking or quote reads.
     if (sidebarActive()) void showUsRanking();
     window.setInterval(() => {
-      if (draggedRow || document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') return;
+      syncQqqSocket();
+      paintMarketQqq();
+      if (draggedRow) return;
       if (sidebarActive() && tab === 'value') void showUsRanking();
-      if (sidebarActive() || quoteConsumersActive()) void readLatestQuotes();
     }, 3000);
   }
 

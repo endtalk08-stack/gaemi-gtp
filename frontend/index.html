@@ -20,12 +20,12 @@
   <link rel="stylesheet" href="css/sketch-pad.css?v=20261005-v1">
   <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261012-sidebar-recent-v1">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20261005-header-system-v1">
-  <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261026-soft-gray-v2">
+  <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261120-industry-separated-boxes-v4">
   <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20261005-border-system-v1">
   <link rel="stylesheet" href="shell/right-panel/right-panel-tabs.css?v=20261005-news-density-v1">
   <link rel="stylesheet" href="pages/dashboard/dashboard.css?v=20260927-v86-scroll">
-  <link rel="stylesheet" href="shell/center-chat/widget-dock/widget-dock.css?v=20261119-qqq-typography-v2" />
+  <link rel="stylesheet" href="shell/center-chat/widget-dock/widget-dock.css?v=20261119-qqq-reason-v3" />
   <link rel="stylesheet" href="widgets/analysis-section/analysis-section.css?v=20260926-v2" />
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] gtp-dark-text flex h-[100dvh] w-screen overflow-hidden select-none left-home-closed left-market-closed left-context-closed left-plugin-closed right-panel-closed">
@@ -129,11 +129,10 @@
 
       <!-- 정보 종류 -->
       <div class="px-4 pt-2 pb-1">
-        <div id="rightInfoTabs" class="grid grid-cols-4 text-[13px] font-bold">
-          <button type="button" data-info-tab="realtime" data-info-tab-action="realtime" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">실시간</button>
+        <div id="rightInfoTabs" class="grid grid-cols-3 text-[13px] font-bold">
+          <button type="button" data-info-tab="realtime" data-info-tab-action="realtime" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">시장</button>
+          <button type="button" data-info-tab="industry" data-info-tab-action="industry" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">업종</button>
           <button type="button" data-info-tab="value" data-info-tab-action="value" class="right-info-tab py-2 text-[#0f172a] gtp-dark-text bg-[#eef2f7] dark:bg-[#272a31] rounded-md">거래대금</button>
-          <button type="button" data-info-tab="gain" data-info-tab-action="gain" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">상승률</button>
-          <button type="button" data-info-tab="loss" data-info-tab-action="loss" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">하락률</button>
         </div>
       </div>
 
@@ -181,9 +180,10 @@
   <!-- 메인 히어로 첫 화면 -->
   <div id="mainHeroView" class="absolute inset-0 z-30 bg-[#f8fafc] dark:bg-[#0f1013] text-[#0f172a] gtp-dark-text flex flex-col justify-between overflow-hidden">
     <header class="gaemi-app-header relative z-50 flex items-center justify-between shrink-0">
+      <nav class="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 rounded-full bg-[#e9ebef] p-1 dark:bg-[#25262b]" aria-label="메인 화면"><span class="rounded-full px-4 py-1.5 text-sm font-medium text-[#717680] dark:text-[#999ba2]" title="뉴스 화면 연결 예정">News</span><button type="button" onclick="resetToHome()" class="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-[#25282d] shadow-sm dark:bg-[#41434a] dark:text-[#f5f5f6]" aria-current="page">Chat</button></nav>
       <div class="flex items-center gap-3">
         <button type="button" data-left-sidebar-toggle data-left-sidebar-top="hero" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-full cursor-pointer" aria-label="왼쪽 메뉴 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
-        <span class="gaemi-app-header__brand cursor-pointer" onclick="resetToHome()">gaemiGTP</span>
+        
       </div>
       <div class="flex items-center gap-1">
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] pointer-events-auto flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] gtp-dark-hover-text transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
@@ -221,7 +221,7 @@
                 <i data-lucide="star" aria-hidden="true"></i><span>관심종목</span>
               </button>
               <button type="button" class="gaemi-home-tool" onclick="openLeftSidebarSection('market')">
-                <i data-lucide="activity" aria-hidden="true"></i><span>실시간</span>
+                <i data-lucide="activity" aria-hidden="true"></i><span>시장</span>
               </button>
               <button type="button" class="gaemi-home-tool" onclick="showLeftSidebarHomeSection('home')">
                 <i data-lucide="folder-kanban" aria-hidden="true"></i><span>프로젝트</span>
@@ -265,10 +265,11 @@
     <div class="gaemi-home-spacer" aria-hidden="true"></div>
   </div>
 
-    <header class="gaemi-app-header gaemi-chat-top flex items-center justify-between shrink-0 z-10">
+    <header class="gaemi-app-header gaemi-chat-top relative flex items-center justify-between shrink-0 z-10">
+      <nav class="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 rounded-full bg-[#e9ebef] p-1 dark:bg-[#25262b]" aria-label="메인 화면"><span class="rounded-full px-4 py-1.5 text-sm font-medium text-[#717680] dark:text-[#999ba2]" title="뉴스 화면 연결 예정">News</span><button type="button" onclick="resetToHome()" class="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-[#25282d] shadow-sm dark:bg-[#41434a] dark:text-[#f5f5f6]" aria-current="page">Chat</button></nav>
       <div class="flex items-center gap-3">
         <button type="button" data-left-sidebar-toggle data-left-sidebar-top="workspace" class="icon-hit text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-full cursor-pointer" aria-label="왼쪽 사이드바 열기"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
-        <button type="button" onclick="resetToHome()" class="gaemi-app-header__brand cursor-pointer hover:opacity-80 transition" aria-label="메인으로 이동">gaemiGTP</button>
+        
       </div>
       <div class="flex items-center gap-1">
         <button type="button" onclick="toggleTheme()" class="theme-toggle icon-hit relative z-[70] flex items-center justify-center rounded-full text-[#64748b] dark:text-[#a1a1aa] hover:bg-[#f1f5f9] dark:hover:bg-[#282a30] hover:text-[#0f172a] gtp-dark-hover-text transition cursor-pointer" aria-label="라이트/다크 모드 전환" title="라이트/다크 모드 전환"><i data-theme-icon data-lucide="sun" class="w-4 h-4"></i></button>
@@ -276,7 +277,7 @@
       </div>
     </header>
 
-    <section id="centralWidgetDock" class="central-widget-dock" aria-label="중앙 위젯">
+    <section id="centralWidgetDock" data-qqq-reason-url="/market/qqq-reason" class="central-widget-dock" aria-label="중앙 위젯">
       <div id="centralWidgetDockBody" class="central-widget-dock__body"></div>
     </section>
 
@@ -398,14 +399,14 @@
   <script src="shell/left-panel/left-panel-resizer.js?v=20260927-left-fixed"></script>
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260927-sidebar-home"></script>
   <script src="shell/left-market-sidebar/stock-marks.js?v=20261022-visible-logos-v2"></script>
-  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261110-direct-top20-v4"></script>
+  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261121-industry-data-v1"></script>
   <script src="pages/watchlist/watchlist.js?v=20261005-type-v1"></script>
-  <script src="shell/right-panel/right-panel-tabs.js?v=20261110-news-menu-overseas-removed-v2"></script>
+  <script src="shell/right-panel/right-panel-tabs.js?v=20261114-detach-right-news-v1"></script>
   <script src="widgets/catalog/catalog.js?v=20261024-qqq-layout-v1"></script>
   <script src="widgets/analysis-data/analysis-data.js?v=20261020-disclosures-split-v1"></script>
   <script src="widgets/analysis-section/analysis-section.js?v=20261006-news-cancel-v1"></script>
   <script src="shell/left-plugin-sidebar/plugin-sidebar.js?v=20261003-chat-entry-v2"></script>
-  <script src="shell/center-chat/widget-dock/widget-dock.js?v=20261027-auto-chart-refresh-v1"></script>
+  <script src="shell/center-chat/widget-dock/widget-dock.js?v=20261120-market-qqq-v1"></script>
   <script src="shell/left-sidebar-home/left-sidebar-home.js?v=20261018-mode-sessions-v1"></script>
   <script src="theme/theme.js?v=20260924-v712"></script>
   <script src="pages/dashboard/dashboard.js?v=20260925-v85-full"></script>
@@ -427,7 +428,7 @@
   <script src="shell/center-chat/search-controls.js?v=20261018-mode-sessions-v1"></script>
   <script src="shell/center-chat/us-close-reply.js?v=20261021-us-close-free-text-v2"></script>
   <script src="shell/center-chat/ai-chat.js?v=20261024-visible-actions-v1"></script>
-  <script src="shell/center-chat/analysis-flow.js?v=20261027-chart-after-loading-v1"></script>
+  <script src="shell/center-chat/analysis-flow.js?v=20261111-chart-followups-v1"></script>
   <script src="js/app.js?v=20261021-mode-fresh-chat-v1"></script>
 </body>
 </html>

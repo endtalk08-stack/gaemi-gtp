@@ -1,7 +1,7 @@
 // gaemiGTP - 분석 상태 표시 전용
     window.GaemiGTPAnalysisStatus = window.GaemiGTPAnalysisStatus || {};
 
-window.GaemiGTPAnalysisStatus.renderAnalysisStatus = function(chatArea, stockName, ok) {
+window.GaemiGTPAnalysisStatus.renderAnalysisStatus = function(chatArea, stockName, ok, error = null) {
       const state = document.createElement('div');
       state.className = 'analysis-state animate-fade';
       state.innerHTML = ok ? `
@@ -17,6 +17,15 @@ window.GaemiGTPAnalysisStatus.renderAnalysisStatus = function(chatArea, stockNam
         <div class="font-black text-base text-[#0f172a] gtp-dark-text">분석 데이터를 불러오지 못했습니다</div>
         <div class="mt-1 text-xs text-[#64748b] dark:text-[#a1a1aa]">잠시 후 다시 시도해주세요.</div>
       `;
+      if (!ok && error === 'private_access_required' && window.location.hostname === 'gaemigtp-main.pages.dev') {
+        const description = state.querySelector('.mt-1');
+        if (description) description.textContent = '분석 서버에 관리자 로그인이 필요합니다.';
+        const link = document.createElement('a');
+        link.href = '/private-login.html';
+        link.textContent = '기존 관리자 계정으로 로그인';
+        link.className = 'inline-block mt-3 text-sm underline text-sky-400';
+        state.appendChild(link);
+      }
       chatArea.appendChild(state);
       if (window.lucide) lucide.createIcons();
       return state;

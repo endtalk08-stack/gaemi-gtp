@@ -696,16 +696,47 @@
       const fetchPromise = window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend(stockName, controller.signal, session.marketSelection);
       ctx.setPendingAnalysis({ stock: stockName, promise: fetchPromise });
       const loadingDelayPromise = new Promise(resolve => setTimeout(resolve, 4000));
-      const [result] = await Promise.all([fetchPromise, loadingDelayPromise]);
-      if (ctx.getPendingAnalysis()?.promise === fetchPromise) ctx.setPendingAnalysis(null);
-      if (requestId !== ctx.getActiveAnalysisRequestId() || result.aborted) {
+      // Preserve the original loading phase, but never wait for the unrelated
+      // analysis API before starting the R2 chart. Check both request and session
+      // so a quick stock switch cannot display the previous stock's chart.
+      await loadingDelayPromise;
+      if (requestId !== ctx.getActiveAnalysisRequestId() || ctx.getSession()?.id !== session.id) {
         loadingDiv.remove();
         return;
       }
       loadingDiv.remove();
+
+      // Keep the chart and first-reply controls independent of analysis API success.
+      const selection = session.marketSelection;
+      const isUsValueChart = selection?.market === 'us' && selection?.menu === 'value'
+        && /^[A-Z0-9.\\-]{1,20}$/.test(String(selection.symbol || ''));
+      const chartReplyData = {};
+      if (isUsValueChart) {
+        const chartHost = document.createElement('section');
+        chartHost.className = 'us-daily-chart us-daily-chart--inline';
+        chartHost.setAttribute('aria-label', selection.name + ' 일봉');
+        chatArea.appendChild(chartHost);
+        window.GaemiGTPWidgetDock?.renderInlineChart?.(chartHost, selection.symbol, selection.change_pct);
+        // Reuse existing actions and #US-market/#why/#fortune followups.
+        // The first Top20 section is hidden by typeNextSection; no duplicate text.
+        startTypewriterFlow(stockName, [{
+          id: 'why-up',
+          content: (selection.name || stockName) + ' (' + selection.symbol + ') · 키움 일봉'
+        }], chartReplyData, requestId);
+      }
+
+      const result = await fetchPromise;
+      if (ctx.getPendingAnalysis()?.promise === fetchPromise) ctx.setPendingAnalysis(null);
+      if (requestId !== ctx.getActiveAnalysisRequestId() || ctx.getSession()?.id !== session.id || result.aborted) return;
+      // Keep existing choice callbacks bound to the same evidence object.
+      if (isUsValueChart && result && typeof result === 'object') Object.assign(chartReplyData, result);
       const sections = result.sections || [];
 
       if (ctx.getAnalysisController() === controller) ctx.setAnalysisController(null);
+
+      // The US TOP20 chart is independent of optional analysis. Do not append
+      // the unrelated analysis-failure box below a successfully selected chart.
+      if (selection?.market === 'us' && selection?.menu === 'value' && !result.ok) return;
 
       if (!result.ok || sections.length === 0) {
         const notFoundSection = sections.find((section) => section?.id === 'analysis-error');
@@ -718,7 +749,7 @@
           `;
           chatArea.appendChild(state);
         } else {
-          window.GaemiGTPAnalysisStatus.renderAnalysisStatus(chatArea, stockName, result.ok);
+          window.GaemiGTPAnalysisStatus.renderAnalysisStatus(chatArea, stockName, result.ok, result.error);
         }
         chatArea.scrollTop = 0;
         return;
@@ -750,18 +781,7 @@
         sections: sections.map(({ id, title, content }) => ({ id, title, content }))
       });
       window.GaemiGTPApp?.saveChatHistory?.();
-      // Render verified US TOP 20 candles in the conversation, immediately
-      // below the selected stock name and before the analysis response.
-      const selection = session.marketSelection;
-      if (selection?.market === 'us' && selection?.menu === 'value'
-          && /^[A-Z0-9.\\-]{1,20}$/.test(String(selection.symbol || ''))) {
-        const chartHost = document.createElement('section');
-        chartHost.className = 'us-daily-chart us-daily-chart--inline';
-        chartHost.setAttribute('aria-label', selection.name + ' 일봉');
-        chatArea.appendChild(chartHost);
-        window.GaemiGTPWidgetDock?.renderInlineChart?.(chartHost, selection.symbol, selection.change_pct);
-      }
-      startTypewriterFlow(stockName, sections, result, requestId);
+      if (!isUsValueChart) startTypewriterFlow(stockName, sections, result, requestId);
     }
 
 

@@ -25,9 +25,9 @@
   function readState() {
     try {
       const saved = localStorage.getItem(STATE_KEY);
-      if (saved === null) return ['qqq'];
+      if (saved === null) return [];
       const value = JSON.parse(saved);
-      if (!Array.isArray(value)) return ['qqq'];
+      if (!Array.isArray(value)) return [];
       // 이전 버전의 코스피 위젯 ID를 새 명확한 ID로 한 번만 이관한다.
       return value
         .map(id => (id === 'why-up' || id === 'kospi') ? 'qqq' : id)
@@ -44,6 +44,9 @@
   let qqqSessionKey = '';
   let qqqCurrent = null;
   const MAX_QQQ_POINTS = 120;
+  const QQQ_REASON_REFRESH_MS = 300000;
+  let qqqReasons = [];
+  let qqqReasonRefreshAt = 0;
 
   function easternTradingWindow(timestampMs) {
     // These labels describe the US/Eastern clock window, not a verified exchange session.
@@ -63,6 +66,49 @@
       else if (minuteOfDay >= 16 * 60 && minuteOfDay < 20 * 60) period = '애프터';
     }
     return { period, key: key + ':' + period };
+  }
+
+
+  function refreshQqqReasons() {
+    const reasonUrl = root()?.dataset.qqqReasonUrl;
+    if (!reasonUrl || document.hidden || Date.now() < qqqReasonRefreshAt) return;
+    qqqReasonRefreshAt = Date.now() + QQQ_REASON_REFRESH_MS;
+    fetch(reasonUrl, { signal: AbortSignal.timeout(8000) })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => { qqqReasons = data?.ok && Array.isArray(data.items) ? data.items : []; })
+      .catch(() => { qqqReasons = []; })
+      .finally(updateQqqViews);
+  }
+
+  function updateQqqReason(card, quote, fresh) {
+    const node = card.querySelector('[data-qqq-reason]');
+    if (!node) return;
+    const session = fresh && Number.isFinite(quote?.change_pct) && quote.change_pct > 0
+      ? easternTradingWindow(quote.received_at_ms) : null;
+    if (!session || session.period === '장외') {
+      node.hidden = true;
+      node.textContent = '';
+      node.removeAttribute('href');
+      node.removeAttribute('title');
+      return;
+    }
+    const reason = qqqReasons.find(item => Number.isFinite(item?.publishedAt)
+      && item.publishedAt <= quote.received_at_ms
+      && easternTradingWindow(item.publishedAt).key === session.key
+      && typeof item.text === 'string' && item.text.trim()
+      && typeof item.url === 'string' && item.url.startsWith('https://'));
+    node.hidden = !reason;
+    if (!reason) {
+      node.textContent = '';
+      node.removeAttribute('href');
+      node.removeAttribute('title');
+      refreshQqqReasons();
+      return;
+    }
+    if (node.textContent !== reason.text) node.textContent = reason.text;
+    node.href = reason.url;
+    node.title = reason.text + ' · ' + reason.source;
+    refreshQqqReasons();
   }
 
   function drawQqqChart(card) {
@@ -91,24 +137,36 @@
     const card = body()?.querySelector('[data-central-widget-id="qqq"]');
     if (!card) return;
     const priceNode = card.querySelector('[data-kospi-price]');
-    const pctNode = card.querySelector('[data-kospi-change]');
+    const changeNode = card.querySelector('[data-kospi-change]');
     const chartNode = card.querySelector('.central-widget-card__sparkline');
     const quote = qqqCurrent;
     const valid = quote && Number.isFinite(quote.price) && quote.price > 0;
     const fresh = valid && !quote.stale && Date.now() - quote.received_at_ms <= 25000;
+    const change = valid && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
     if (priceNode) priceNode.textContent = valid
       ? quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '—';
-    if (pctNode) {
-      const percent = valid && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
-      pctNode.textContent = percent === null ? '—%' : (percent > 0 ? '+' : '') + percent.toFixed(2) + '%';
-      pctNode.classList.toggle('central-widget-card__kospi-change--up', fresh && percent !== null && percent > 0);
-      pctNode.classList.toggle('central-widget-card__kospi-change--down', fresh && percent !== null && percent < 0);
-      chartNode?.classList.toggle('central-widget-card__sparkline--up', fresh && percent !== null && percent > 0);
-      chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && percent !== null && percent < 0);
-    }
+    changeNode.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+    changeNode.classList.toggle('central-widget-card__kospi-change--up', fresh && change > 0);
+    changeNode.classList.toggle('central-widget-card__kospi-change--down', fresh && change < 0);
+    chartNode?.classList.toggle('central-widget-card__sparkline--up', fresh && change !== null && change > 0);
+    chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && change !== null && change < 0);
     drawQqqChart(card);
+    updateQqqReason(card, quote, fresh);
+  }
+
+  function updateMarketQqqReason() {
+    const row = document.querySelector('[data-market-qqq]');
+    if (!row) return;
+    const quote = qqqCurrent;
+    const fresh = quote?.stale === false && Date.now() - quote.received_at_ms <= 25000;
+    updateQqqReason(row, quote, fresh);
+  }
+
+  function updateQqqViews() {
+    updateQqqCard();
+    updateMarketQqqReason();
   }
 
   function onQqqQuote(event) {
@@ -120,7 +178,7 @@
       || quote.received_at_ms > Date.now() + 5000
       || Date.now() - quote.received_at_ms > 86400000) {
       qqqCurrent = null;
-      updateQqqCard();
+      updateQqqViews();
       return;
     }
     qqqCurrent = quote;
@@ -135,7 +193,7 @@
       if (qqqPoints.length > MAX_QQQ_POINTS) qqqPoints.shift();
       qqqLastReceivedMs = quote.received_at_ms;
     }
-    updateQqqCard();
+    updateQqqViews();
   }
 
   function render() {
@@ -147,8 +205,8 @@
       if (id === 'qqq') {
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="QQQ 위젯 삭제" title="위젯 삭제">
-            <i data-lucide="x" class="w-3 h-3"></i>
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="QQQ 왼쪽으로 이동" title="왼쪽으로 이동">
+            <i data-lucide="panel-left" class="w-3 h-3"></i>
           </button>
           <div class="central-widget-card__kospi-title"><span>QQQ</span><span class="central-widget-card__kospi-market-name">나스닥</span></div>
           <div class="central-widget-card__kospi-body" aria-label="QQQ 키움 실시간 체결가 차트">
@@ -163,9 +221,10 @@
               <polyline data-kospi-sparkline points=""></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>—</strong><span data-kospi-change class="central-widget-card__kospi-change">—%</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>—</strong><span class="central-widget-card__kospi-change" data-kospi-change>—</span></div>
             </div>
           </div>
+          <a class="central-widget-card__kospi-reason" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a>
         </article>`;
       }
       if (id === 'night-futures') {
@@ -263,7 +322,10 @@
       if (cached && Date.now() - cached.at < CHART_HISTORY_TTL) {
         data = cached.data;
       } else {
-        const response = await fetch(BACKEND_URL + '/market/us-daily-chart?symbol=' +
+        // Only the new Pages site reads chart history from R2; Render remains unchanged.
+        const chartOrigin = window.location.hostname === 'gaemigtp-main.pages.dev'
+          ? window.location.origin : BACKEND_URL;
+        const response = await fetch(chartOrigin + '/market/us-daily-chart?symbol=' +
           encodeURIComponent(symbol), { cache: 'default', signal: controller.signal });
         data = await response.json();
         responseOk = response.ok;
@@ -420,13 +482,22 @@
 
   function add(id) {
     if (id === 'chart' || !catalog()[id] || activeIds.includes(id)) return false;
-    activeIds.push(id); saveState(); render(); return true;
+    activeIds.push(id);
+    saveState();
+    if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
+    render();
+    return true;
   }
   function remove(id) {
     const next = activeIds.filter(item => item !== id);
     const changed = next.length !== activeIds.length;
     activeIds = next;
-    if (changed) { saveState(); render(); window.GaemiGTPPluginSidebar?.render?.(); }
+    if (changed) {
+      saveState();
+      render();
+      if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
+      window.GaemiGTPPluginSidebar?.render?.();
+    }
     return changed;
   }
   function initialize() {
@@ -443,10 +514,14 @@
     window.addEventListener('gaemi:us-live-quotes', onUsLiveQuotes);
     dock.addEventListener('click', event => {
       const button = event.target.closest('[data-central-widget-remove]');
-      if (button) remove(button.dataset.centralWidgetRemove);
+      if (!button) return;
+      const id = button.dataset.centralWidgetRemove;
+      if (id === 'qqq') window.GaemiGTPMarketSidebar?.openMarketTab?.();
+      remove(id);
+      if (id === 'qqq') document.querySelector('[data-market-qqq] button')?.focus();
     });
   }
   document.addEventListener('DOMContentLoaded', initialize);
-  window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive };
+  window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason };
 }());
 

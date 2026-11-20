@@ -166,11 +166,16 @@
 .central-widget-card--qqq-muted .central-widget-card__sparkline polygon { opacity: .2; }
 
 
-/* QQQ typography: every visible text element uses the same size and weight. */
+/* QQQ card: one calm gray tone and one consistent text size. */
+.central-widget-card[data-central-widget-id="qqq"] {
+  --qqq-text: #bfc3cb;
+}
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-title,
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market-name,
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market strong,
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-change {
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-change,
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-reason {
+  color: var(--qqq-text);
   font-size: 14px !important;
   font-weight: 400 !important;
   line-height: 18px !important;
@@ -179,26 +184,32 @@
   gap: 6px;
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-body {
-  grid-template-columns: minmax(0, 1fr) 54px;
-  gap: 8px;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, 54px);
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-copy {
   grid-column: 1;
   grid-row: 1;
-  display: flex;
-  align-items: center;
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market {
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 0;
+  justify-content: flex-start;
+  gap: 8px;
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__sparkline {
   grid-column: 2;
   grid-row: 1;
-  width: 54px;
-  height: 32px;
+  width: 100%;
+  height: 22px;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-reason {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-reason[hidden] {
+  display: none;
 }
 
 /* US verified Top-20 daily candles, independent of the QQQ widget. */
