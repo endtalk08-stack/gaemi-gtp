@@ -126,7 +126,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(sent[0][1]["headers"]["api-id"], "usa20540")
         self.assertEqual(result["items"][0]["trading_value"], 1234500.0)
 
-    def test_marketcap_sort_uses_usa20550_and_orders_by_market_cap(self):
+    def test_marketcap_sort_uses_usa20541_and_orders_by_market_cap(self):
         sent = []
 
         def post(url, **kwargs):
@@ -151,7 +151,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
             result = sectors.fetch_us_industry_stocks(["001", "002"], "marketcap", limit=3)
 
         self.assertEqual(len(sent), 2)
-        self.assertTrue(all(item[1]["headers"]["api-id"] == "usa20550" for item in sent))
+        self.assertTrue(all(item[1]["headers"]["api-id"] == "usa20541" for item in sent))
         self.assertEqual(result["items"][0]["symbol"], "AVGO")
         self.assertEqual(result["items"][0]["market_cap_usd"], 1200000.0)
         self.assertEqual(result["items"][1]["symbol"], "NVDA")
@@ -164,7 +164,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
              ]})) as post:
             result = sectors.fetch_us_industry_stocks("001")
         self.assertEqual(result["sort"], "marketcap")
-        self.assertEqual(post.call_args.kwargs["headers"]["api-id"], "usa20550")
+        self.assertEqual(post.call_args.kwargs["headers"]["api-id"], "usa20541")
 
     def test_etf_marketcap_uses_usa20551(self):
         with patch.object(sectors, "issue_access_token", return_value="MOCK_TOKEN"), \
