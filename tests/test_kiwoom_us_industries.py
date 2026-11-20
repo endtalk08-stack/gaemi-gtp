@@ -22,7 +22,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
     def test_sector_map_uses_nine_display_groups_and_official_codes(self):
         names = [
             ("반도체", "Semiconductors & Semiconductor Equipment"),
-            ("IT 하드웨어", "Technology Hardware & Equipment"),
+            ("AI 데이터센터", "AI Data Centers"),
             ("소프트웨어", "Software"),
             ("인터넷 플랫폼", "Internet Software & Services"),
             ("금융", "Financials"),
@@ -63,6 +63,13 @@ class KiwoomUSIndustryTests(unittest.TestCase):
             "finance", "biotech_pharma", "healthcare", "ev", "defense",
         })
         self.assertEqual(next(item for item in result["items"] if item["key"] == "defense")["change_pct"], 9.0)
+
+    def test_broad_official_groups_do_not_become_ev_or_ai_datacenter(self):
+        self.assertIsNone(sectors._group_for_official_industry("음식료 소매", "Food & Beverages"))
+        self.assertIsNone(sectors._group_for_official_industry("컴퓨터 및 전자장비", "Computers"))
+        self.assertIsNone(sectors._group_for_official_industry("기계 및 전기장비", "Industrial Machinery & Equipment"))
+        self.assertEqual(sectors._group_for_official_industry("자동차", "Automobiles"), "ev")
+        self.assertEqual(sectors._group_for_official_industry("AI 데이터센터", "AI Data Centers"), "ai_datacenter")
 
     def test_multiple_official_codes_are_combined_without_guessing(self):
         official = [
