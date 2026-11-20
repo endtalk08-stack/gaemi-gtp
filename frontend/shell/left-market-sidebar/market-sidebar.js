@@ -200,12 +200,11 @@
         const sectorPct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
           ? sector.change_pct : null;
         const sectorColor = mapTileColor(sectorPct);
-        const tile = document.createElement('section');
-        tile.className = 'industry-map-sector ' + sectorColor.tone;
-        tile.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.30, sectorColor.alpha + 0.045).toFixed(3) + ')';
-        tile.style.borderColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.62, sectorColor.alpha + 0.20).toFixed(3) + ')';
+        // Sector header and stock tiles are siblings: never nest boxes inside a sector box.
         const heading = document.createElement('div');
-        heading.className = 'industry-map-sector-heading';
+        heading.className = 'industry-map-sector ' + sectorColor.tone;
+        heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.30, sectorColor.alpha + 0.045).toFixed(3) + ')';
+        heading.style.borderColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.62, sectorColor.alpha + 0.20).toFixed(3) + ')';
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
@@ -247,8 +246,7 @@
           });
           stocks.appendChild(stockTile);
         });
-        tile.append(heading, stocks);
-        list.appendChild(tile);
+        list.append(heading, stocks);
       });
     };
     const loadIndustryMap = async (id) => {
