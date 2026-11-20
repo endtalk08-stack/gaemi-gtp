@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/inspect_gateway_deploy_behavior.py",
+  "request_id": "inspectgatewaydeploy20261120",
+  "timeout": 60
 }
