@@ -19,17 +19,19 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         sectors._ACCESS_TOKEN = None
         sectors._ACCESS_TOKEN_EXPIRES_AT = 0
 
-    def test_sector_map_uses_nine_display_groups_and_official_codes(self):
+    def test_sector_map_uses_eleven_display_groups_and_official_codes(self):
         names = [
-            ("반도체", "Semiconductors & Semiconductor Equipment"),
-            ("AI 데이터센터", "AI Data Centers"),
-            ("소프트웨어", "Software"),
-            ("인터넷 플랫폼", "Internet Software & Services"),
+            ("에너지", "Energy"),
             ("금융", "Financials"),
-            ("바이오", "Biotechnology"),
-            ("헬스케어", "Healthcare Equipment & Services"),
-            ("자동차", "Automobiles & Components"),
-            ("방산", "Aerospace & Defense"),
+            ("필수소비재", "Consumer Staples"),
+            ("산업재", "Industrials"),
+            ("인터넷 플랫폼", "Internet Platforms"),
+            ("소프트웨어", "Software"),
+            ("커뮤니케이션", "Communication Services"),
+            ("헬스케어", "Health Care Equipment & Services"),
+            ("경기소비재", "Consumer Discretionary"),
+            ("IT 하드웨어", "Technology Hardware & Equipment"),
+            ("반도체", "Semiconductors & Semiconductor Equipment"),
         ]
         official = [
             {"inds_cd": str(index).zfill(3), "inds_nm": name, "inds_enm": english}
@@ -56,20 +58,43 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(sent[0][1]["headers"]["api-id"], "usa10101")
         self.assertEqual(sent[0][1]["json"], {"gubun": "1"})
         self.assertEqual(sent[1][1]["headers"]["api-id"], "usa23000")
-        self.assertEqual(len(result["items"]), 9)
+        self.assertEqual(len(result["items"]), 11)
         self.assertTrue(result["mapping_complete"])
         self.assertEqual({item["key"] for item in result["items"]}, {
-            "semiconductors", "ai_datacenter", "software", "internet_platforms",
-            "finance", "biotech_pharma", "healthcare", "ev", "defense",
+            "energy", "finance", "consumer_staples", "industrials",
+            "internet_platforms", "software", "communication", "healthcare",
+            "consumer_discretionary", "it_hardware", "semiconductors",
         })
-        self.assertEqual(next(item for item in result["items"] if item["key"] == "defense")["change_pct"], 9.0)
+        self.assertEqual(next(item for item in result["items"] if item["key"] == "semiconductors")["change_pct"], 11.0)
 
-    def test_broad_official_groups_do_not_become_ev_or_ai_datacenter(self):
-        self.assertIsNone(sectors._group_for_official_industry("음식료 소매", "Food & Beverages"))
-        self.assertIsNone(sectors._group_for_official_industry("컴퓨터 및 전자장비", "Computers"))
-        self.assertIsNone(sectors._group_for_official_industry("기계 및 전기장비", "Industrial Machinery & Equipment"))
-        self.assertEqual(sectors._group_for_official_industry("자동차", "Automobiles"), "ev")
-        self.assertEqual(sectors._group_for_official_industry("AI 데이터센터", "AI Data Centers"), "ai_datacenter")
+    def test_official_names_map_to_the_eleven_heatmap_groups(self):
+        expected = (
+            ("Energy", "energy"),
+            ("Banks", "finance"),
+            ("Consumer Staples", "consumer_staples"),
+            ("Industrials", "industrials"),
+            ("Internet Software & Services", "internet_platforms"),
+            ("Software", "software"),
+            ("Communication Services", "communication"),
+            ("Health Care Equipment & Services", "healthcare"),
+            ("Automobiles & Components", "consumer_discretionary"),
+            ("Technology Hardware & Equipment", "it_hardware"),
+            ("Semiconductors & Semiconductor Equipment", "semiconductors"),
+        )
+        for official_name, expected_group in expected:
+            with self.subTest(official_name=official_name):
+                self.assertEqual(
+                    sectors._group_for_official_industry(official_name),
+                    expected_group,
+                )
+
+    def test_unrelated_official_names_are_not_guessed(self):
+        self.assertIsNone(sectors._group_for_official_industry("Utilities", "Utilities"))
+        self.assertIsNone(sectors._group_for_official_industry("Real Estate", "Real Estate"))
+        self.assertEqual(
+            sectors._group_for_official_industry("Interactive Media & Services"),
+            "internet_platforms",
+        )
 
     def test_multiple_official_codes_are_combined_without_guessing(self):
         official = [
