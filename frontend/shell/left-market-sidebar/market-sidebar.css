@@ -328,7 +328,7 @@
 .industry-map-sector-change {
   flex: 0 0 auto;
   color: var(--gtp-text);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 900;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -352,8 +352,8 @@
   justify-content: center;
   gap: 3px;
   min-width: 0;
-  min-height: 38px;
-  padding: 4px 3px;
+  min-height: 46px;
+  padding: 6px 4px;
   border: 1px solid var(--gtp-border);
   border-radius: 2px;
   color: var(--gtp-text);
@@ -372,7 +372,7 @@
   width: 100%;
   min-width: 0;
   color: var(--gtp-text);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1.15;
   white-space: nowrap;
@@ -381,7 +381,7 @@
 }
 .industry-map-stock-change {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   line-height: 1;
   white-space: nowrap;
@@ -395,7 +395,7 @@
   .industry-map-sector { min-height: 22px; padding: 3px 5px; }
   .industry-map-sector-name { font-size: 11px; }
   .industry-map-sector-change { font-size: 15px; }
-  .industry-map-stock { min-height: 35px; padding: 3px 2px; }
-  .industry-map-stock-name { font-size: 10px; }
-  .industry-map-stock-change { font-size: 12px; }
+  .industry-map-stock { min-height: 44px; padding: 5px 3px; }
+  .industry-map-stock-name { font-size: 12px; }
+  .industry-map-stock-change { font-size: 14px; }
 }
