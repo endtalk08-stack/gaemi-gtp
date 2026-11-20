@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="css/sketch-pad.css?v=20261005-v1">
   <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261012-sidebar-recent-v1">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20261005-header-system-v1">
-  <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261120-industry-separated-boxes-v4">
+  <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261120-industry-heatmap-live-v1">
   <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20261005-border-system-v1">
   <link rel="stylesheet" href="shell/right-panel/right-panel-tabs.css?v=20261005-news-density-v1">
@@ -53,7 +53,7 @@
 
     <div id="leftSidebarHomeMenu" class="left-sidebar-home__dropdown hidden" role="menu" aria-label="사이드바 메뉴">
       <button type="button" role="menuitem" onclick="showLeftSidebarHomeSection()"><span>메인</span></button>
-      <button type="button" role="menuitem" onclick="openLeftSidebarSection('market')"><span>실시간</span></button>
+      <button type="button" role="menuitem" onclick="openLeftSidebarSection('market')"><span>시장</span></button>
       <button type="button" role="menuitem" onclick="openLeftSidebarSection('context')"><span>관심종목</span></button>
       <button type="button" role="menuitem" onclick="openLeftSidebarSection('plugin')"><span>플러그인</span></button>
     </div>
@@ -119,7 +119,7 @@
       <div class="market-sidebar-header">
         <div class="flex items-center justify-between gap-3 w-full">
           <div class="flex items-center gap-2 min-w-0 whitespace-nowrap">
-            <div class="market-sidebar-title">실시간</div>
+            <div class="market-sidebar-title">시장</div>
           </div>
           <button type="button" onclick="toggleLeftSidebar()" class="market-sidebar-close" aria-label="시장정보 닫기" title="시장정보 닫기">
             <i data-lucide="x" class="w-4 h-4"></i>
@@ -399,7 +399,7 @@
   <script src="shell/left-panel/left-panel-resizer.js?v=20260927-left-fixed"></script>
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260927-sidebar-home"></script>
   <script src="shell/left-market-sidebar/stock-marks.js?v=20261022-visible-logos-v2"></script>
-  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261120-industry-separated-boxes-v4"></script>
+  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261120-industry-heatmap-live-v1"></script>
   <script src="pages/watchlist/watchlist.js?v=20261005-type-v1"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20261114-detach-right-news-v1"></script>
   <script src="widgets/catalog/catalog.js?v=20261024-qqq-layout-v1"></script>
