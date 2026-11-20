@@ -376,64 +376,11 @@
 }
 .industry-map-stock.is-up .industry-map-stock-change,
 .etf-marketcap-change.is-up { color: #c34d5a; }
-.industry-map-stock.is-down .industry-map-stock-change,
-.etf-marketcap-change.is-down { color: #4f83b5; }
-.industry-map-stock.is-flat .industry-map-stock-change,
-.etf-marketcap-change.is-flat { color: var(--gtp-muted); }
+.industry-map-stock.is-down .industry-map-stock-change { color: #4f83b5; }
+.industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
 .industry-map-stock-empty {
   color: var(--gtp-faint);
   font-size: 11px;
-}
-#marketRankingList.etf-marketcap-list {
-  display: grid;
-  gap: 6px;
-  padding-bottom: 14px;
-}
-.etf-marketcap-row {
-  width: 100%;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  align-items: center;
-  column-gap: 8px;
-  row-gap: 3px;
-  padding: 8px 10px;
-  border: 1px solid var(--gtp-border);
-  border-radius: 9px;
-  background: var(--gtp-surface-2);
-  color: var(--gtp-text);
-  text-align: left;
-  cursor: pointer;
-}
-.etf-marketcap-row:hover { border-color: var(--gtp-accent, #64748b); }
-.etf-marketcap-rank {
-  grid-row: 1 / span 2;
-  color: var(--gtp-faint);
-  font-size: 11px;
-  font-weight: 700;
-}
-.etf-marketcap-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 750;
-}
-.etf-marketcap-change {
-  grid-column: 3;
-  grid-row: 1;
-  font-size: 12px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-.etf-marketcap-value {
-  grid-column: 2 / span 2;
-  grid-row: 2;
-  color: var(--gtp-muted);
-  font-size: 10px;
-  font-weight: 600;
 }
 @media (max-width: 420px) {
   .industry-map-sector { grid-template-columns: 55px minmax(0, 1fr); gap: 3px; }
