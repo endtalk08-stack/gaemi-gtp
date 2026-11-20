@@ -127,7 +127,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     calls.push({ url, opts });
     if (url === 'https://quotes.gaemigtp.com/market/trading-value?market=us') {
       const industryRows = [
-        { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, trading_value: 500 }
+        { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, trading_value: 500 },
+        { name: '애플', symbol: 'AAPL.N', rank: 2, change_pct: -1.25, trading_value: 300 }
       ];
       return { ok: true, json: async () => ({
         ok: true, source: 'kiwoom', items: industryFixtureEnabled ? industryRows : valueRows
@@ -135,7 +136,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     }
     if (url === '/stocks/us/instruments.json') {
       return { ok: true, json: async () => ({ ok: true, items: [
-        { symbol: 'NVDA', industry: '반도체' }
+        { symbol: 'NVDA', industry: '반도체' },
+        { symbol: 'AAPL', industry: '기술' }
       ] }) };
     }
     if (url.endsWith('/market/issue-headlines')) {
@@ -180,10 +182,13 @@ test('industry tab matches Kiwoom .O tickers to R2 symbols and renders the secto
   assert.ok(app.calls.some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'));
   assert.ok(app.calls.some((call) => call.url === '/stocks/us/instruments.json'));
-  assert.equal(app.list.children.length, 1);
+  assert.equal(app.list.children.length, 2);
   assert.equal(app.list.children[0].children[0].textContent, '반도체');
   assert.equal(app.list.children[0].children[1].children[0].children[0].textContent, '엔비디아');
   assert.equal(app.list.children[0].children[1].children[0].children[1].textContent, '+2.50%');
+  assert.equal(app.list.children[1].children[0].textContent, '기술');
+  assert.equal(app.list.children[1].children[1].children[0].children[0].textContent, '애플');
+  assert.equal(app.list.children[1].children[1].children[0].children[1].textContent, '-1.25%');
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
