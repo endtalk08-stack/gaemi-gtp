@@ -5,6 +5,7 @@ Uses only official Kiwoom TRs:
 - usa23000: period returns by industry
 - usa23100: top/bottom stocks within an industry
 - usa20540: trading-value ranking within an industry
+- usa20550: market-cap ranking within an industry
 
 No Naver/Yahoo classification, no database writes, and no account/order APIs.
 """
@@ -27,7 +28,7 @@ API_PATHS = {
     "usa23000": "/api/us/sect",
     "usa23100": "/api/us/sect",
     "usa20540": "/api/us/rkinfo",
-    "usa20541": "/api/us/rkinfo",
+    "usa20550": "/api/us/rkinfo",
     "usa20551": "/api/us/rkinfo",
 }
 EXCHANGES = {"NA", "ND", "NY"}
@@ -269,7 +270,7 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
     api_id = {
         "change": "usa23100",
         "value": "usa20540",
-        "marketcap": "usa20541",
+        "marketcap": "usa20550",
     }[sort]
     rows_by_symbol = {}
     for code in codes:
@@ -311,6 +312,8 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
             trading_value = raw_value * 1000 if raw_value is not None and raw_value >= 0 else None
             raw_market_cap = _number(record.get("mac"))
             market_cap_usd = raw_market_cap * 1000 if raw_market_cap is not None and raw_market_cap >= 0 else None
+            if sort == "marketcap" and (market_cap_usd is None or market_cap_usd <= 0):
+                continue
             source_rank = _rank_number(record.get("rank"))
             row = {
                 "symbol": symbol,
