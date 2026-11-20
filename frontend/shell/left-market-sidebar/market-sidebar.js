@@ -168,6 +168,121 @@
         .finally(() => { industryPromise = null; });
       return industryPromise;
     };
+    const quoteApiBase = 'https://quotes.gaemigtp.com';
+    const mapCacheTtl = 60000;
+    let industryMapData = null;
+    let industryMapFetchedAt = 0;
+    let industryMapPromise = null;
+    const formatChange = (value) => Number.isFinite(value)
+      ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
+    const mapTileColor = (value) => {
+      if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.08 };
+      const strength = Math.min(0.34, 0.08 + Math.log1p(Math.abs(value)) * 0.075);
+      return value > 0
+        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: strength }
+        : { tone: 'is-down', rgb: '57, 119, 177', alpha: strength };
+    };
+    const renderIndustryMap = (data) => {
+      const items = Array.isArray(data?.items) ? data.items.slice(0, 9) : [];
+      list.classList?.add?.('industry-map-list');
+      list.replaceChildren();
+      if (!items.length) {
+        list.textContent = '업종맵 데이터를 찾을 수 없어.';
+        return;
+      }
+      items.forEach((sector) => {
+        const row = document.createElement('section');
+        row.className = 'industry-map-sector';
+        const label = document.createElement('div');
+        label.className = 'industry-map-sector-name';
+        label.textContent = String(sector.name || '업종');
+        const stocks = document.createElement('div');
+        stocks.className = 'industry-map-stocks';
+        const ranked = Array.isArray(sector.stocks) ? sector.stocks.slice(0, 3) : [];
+        for (let index = 0; index < 3; index += 1) {
+          const stock = ranked[index];
+          if (!stock || typeof stock.name !== 'string' || !stock.name.trim()) {
+            const empty = document.createElement('div');
+            empty.className = 'industry-map-stock-empty';
+            empty.textContent = '—';
+            stocks.appendChild(empty);
+            continue;
+          }
+          const pct = typeof stock.change_pct === 'number' && Number.isFinite(stock.change_pct)
+            ? stock.change_pct : null;
+          const color = mapTileColor(pct);
+          const tile = document.createElement('button');
+          tile.type = 'button';
+          tile.className = 'industry-map-stock ' + color.tone;
+          tile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
+          tile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
+          tile.title = stock.name + ' ' + formatChange(pct);
+          const name = document.createElement('span');
+          name.className = 'industry-map-stock-name';
+          name.textContent = stock.name;
+          const change = document.createElement('span');
+          change.className = 'industry-map-stock-change';
+          change.textContent = formatChange(pct);
+          tile.append(name, change);
+          tile.addEventListener('click', () => {
+            window.openStockInChat?.(stock.name, {
+              market: 'us',
+              menu: 'industry',
+              name: stock.name,
+              symbol: stock.symbol,
+              rank: stock.rank,
+              industry: sector.name,
+              change_pct: pct,
+              currency: 'USD',
+              source: 'kiwoom'
+            });
+          });
+          stocks.appendChild(tile);
+        }
+        row.append(label, stocks);
+        list.appendChild(row);
+      });
+    };
+    const loadIndustryMap = async (id) => {
+      if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) {
+        if (id === requestId) renderIndustryMap(industryMapData);
+        return;
+      }
+      if (industryMapPromise) {
+        try {
+          const data = await industryMapPromise;
+          if (id === requestId && data) renderIndustryMap(data);
+        } catch (_) {
+          if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+        }
+        return;
+      }
+      list.classList?.add?.('industry-map-list');
+      list.textContent = '미국 업종별 시가총액 상위 종목을 불러오는 중이야.';
+      industryMapPromise = (async () => {
+        // Industry membership and market-cap ranking come from the existing
+        // DigitalOcean Kiwoom industry endpoint. Never derive this map from TOP20.
+        const response = await fetch(quoteApiBase + '/market/us-industries?include_stocks=1', {
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('us_industries_http_' + response.status);
+        const data = await response.json();
+        if (data?.ok !== true || !Array.isArray(data.items)) {
+          throw new Error('invalid_us_industry_marketcap');
+        }
+        industryMapData = data;
+        industryMapFetchedAt = Date.now();
+        return data;
+      })();
+      try {
+        const data = await industryMapPromise;
+        if (id === requestId) renderIndustryMap(data);
+      } catch (_) {
+        if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+      } finally {
+        industryMapPromise = null;
+      }
+    };
     let nextRankingReadAt = 0;
     let rankingRequestInFlight = false;
     let rankingFailureCount = 0;
@@ -249,12 +364,13 @@
       if (!list) return;
       const titles = {
         realtime: '시장 시세',
-        industry: '업종',
+        industry: '미국 업종맵 · 시가총액 상위',
         value: '거래대금 TOP 20',
         marketcap: '시가총액'
       };
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
+      list.classList?.remove?.('industry-map-list');
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
       if (tab !== 'value') {
         const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
@@ -269,10 +385,12 @@
         renderMarketQqq();
         return;
       }
+      if (tab === 'industry') {
+        await loadIndustryMap(requestId);
+        return;
+      }
       if (tab !== 'value') {
-        list.textContent = tab === 'industry'
-          ? '업종맵 데이터 연결 전이야.'
-          : '시가총액 데이터 연결 전이야.';
+        list.textContent = '시가총액 데이터 연결 전이야.';
         return;
       }
       if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
@@ -665,7 +783,7 @@
     const refreshOnReturn = () => {
       syncQqqSocket();
       if (document.visibilityState !== 'visible') return;
-      if (sidebarActive() && (tab === 'value' || tab === 'realtime')) void showUsRanking();
+      if (sidebarActive() && ['value', 'realtime', 'industry'].includes(tab)) void showUsRanking();
       paintLiveQuotes();
     };
     window.addEventListener('gaemi:qqq-placement', () => {

@@ -291,3 +291,100 @@
 .dark #leftMarketSidebar .market-stock-logo {
   background: #d3d7de;
 }
+
+
+/* Equal-size 9-sector map: each row stays compact and shows only Korean name + daily return. */
+#marketRankingList.industry-map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-bottom: 14px;
+}
+.industry-map-sector {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 4px;
+  min-width: 0;
+  min-height: 60px;
+}
+.industry-map-sector-name {
+  min-width: 0;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 3px;
+  border: 1px solid var(--gtp-border);
+  border-radius: 8px;
+  background: var(--gtp-surface-2);
+  color: var(--gtp-text);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.industry-map-stocks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+.industry-map-stock,
+.industry-map-stock-empty {
+  min-width: 0;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 3px;
+  border: 1px solid var(--gtp-border);
+  border-radius: 8px;
+  background: var(--gtp-surface-2);
+  color: var(--gtp-text);
+  text-align: center;
+  overflow: hidden;
+}
+.industry-map-stock {
+  cursor: pointer;
+  transition: filter .12s ease, border-color .12s ease;
+}
+.industry-map-stock:hover { filter: brightness(.94); }
+.industry-map-stock:focus-visible {
+  outline: 2px solid var(--gtp-accent, #64748b);
+  outline-offset: 1px;
+}
+.industry-map-stock-name {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  color: var(--gtp-text);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.industry-map-stock-change {
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.industry-map-stock.is-up .industry-map-stock-change { color: #c34d5a; }
+.industry-map-stock.is-down .industry-map-stock-change { color: #4f83b5; }
+.industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
+.industry-map-stock-empty {
+  color: var(--gtp-faint);
+  font-size: 11px;
+}
+@media (max-width: 420px) {
+  .industry-map-sector { grid-template-columns: 55px minmax(0, 1fr); gap: 3px; }
+  .industry-map-stocks { gap: 3px; }
+  .industry-map-stock, .industry-map-stock-empty { padding-inline: 2px; }
+  .industry-map-stock-name { font-size: 9px; }
+  .industry-map-stock-change { font-size: 10px; }
+}
