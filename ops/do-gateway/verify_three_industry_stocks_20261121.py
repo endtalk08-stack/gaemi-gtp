@@ -9,6 +9,23 @@ CERT = Path("/var/lib/gaemigtp-news/quotes-origin.crt")
 
 def main():
     result = {}
+    try:
+        import sys
+        sys.path.insert(0, "/opt/gaemigtp-news/app")
+        from backend.providers.kiwoom_us_industries import fetch_us_industry_stocks
+        probe = fetch_us_industry_stocks(
+            "370", "marketcap", symbols={"GOOG", "GOOGL", "META", "NFLX"}
+        )
+        result["platform_probe"] = {
+            "source": probe.get("source"),
+            "count": len(probe.get("items", [])),
+            "items": [
+                {key: row.get(key) for key in ("symbol", "exchange", "market_cap_usd", "change_pct")}
+                for row in probe.get("items", [])
+            ],
+        }
+    except Exception as exc:
+        result["platform_probe_error"] = type(exc).__name__
     connection = http.client.HTTPSConnection("127.0.0.1", 443, context=ssl._create_unverified_context(), timeout=18)
     try:
         connection.connect()
