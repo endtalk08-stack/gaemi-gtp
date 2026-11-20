@@ -1,0 +1,101 @@
+name: gaemigtp-main Pages production - centered News Chat
+# QQQ card and sourced reason verification: 2026-11-19
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'functions/**'
+      - '.github/workflows/gaemigtp-main-pages-news-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gaemigtp-main-pages-news-production
+  cancel-in-progress: false
+
+jobs:
+  production:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check news detachment and Pages inputs
+        run: |
+          test -s frontend/index.html
+          test -s functions/market/us-daily-chart.js
+          test -s functions/stocks/us/instruments.json.js
+          grep -Fq '오늘 미국 상승 테마 뭐야?' frontend/index.html
+          grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' frontend/index.html
+          grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
+          grep -Eq 'market-sidebar\.js\?v=[^\"]+' frontend/index.html
+          grep -Fq 'aria-label="메인 화면"' frontend/index.html
+          test "$(grep -Fc 'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2' frontend/index.html)" -eq 2
+          grep -Fq 'News</span>' frontend/index.html
+          grep -Fq '>Chat</button>' frontend/index.html
+          node --check frontend/shell/right-panel/right-panel-tabs.js
+          node --check frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq 'const renderIndustryMap = (data) =>' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq 'industry-map-sector' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq 'industry-map-stock' frontend/shell/left-market-sidebar/market-sidebar.js
+          test -s frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq 'grid-template-columns: minmax(0, 1fr)' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq 'grid-template-columns: repeat(3, minmax(0, 1fr))' frontend/shell/left-market-sidebar/market-sidebar.css
+          ! grep -Fq 'industry-map-stock-rank' frontend/shell/left-market-sidebar/market-sidebar.js
+          ! grep -Fq 'rank.textContent' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq '.industry-map-sector.is-up' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq '.industry-map-sector.is-down' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq '.industry-map-stock.is-up' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq '.industry-map-stock.is-down' frontend/shell/left-market-sidebar/market-sidebar.css
+          node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq "window.addEventListener('gaemi:qqq-quote', onQqqQuote)" frontend/shell/center-chat/widget-dock/widget-dock.js
+          ! grep -Fq 'data-panel-workspace-view="news"' frontend/shell/right-panel/right-panel-tabs.js
+          ! grep -Fq 'renderTradingViewNewsPage' frontend/shell/right-panel/right-panel-tabs.js
+          grep -Fq 'data-panel-workspace-view="disclosures"' frontend/shell/right-panel/right-panel-tabs.js
+          grep -q 'right-panel-tabs.js?v=20261114-detach-right-news-v1' frontend/index.html
+      - name: Deploy to existing Pages project production
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        env:
+          npm_config_yes: "true"
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch main
+      - name: Verify production HTML, assets and R2 endpoints
+        run: |
+          site=https://gaemigtp-main.pages.dev
+
+          verify_asset() {
+            local path="$1" source="$2" output="$RUNNER_TEMP/production-${2##*/}"
+            local attempt
+            for attempt in {1..8}; do
+              if curl -fsS --max-time 12 -H 'Cache-Control: no-cache' "$site/$path" -o "$output" &&
+                cmp -s "$source" "$output"; then
+                echo "Verified $path"
+                return 0
+              fi
+              sleep 3
+            done
+            echo "::error::Production asset differs from the deployed commit: $path"
+            return 1
+          }
+
+          asset_path() {
+            grep -oE "shell/[^\" ]*/$1\\?v=[^\" ]+" frontend/index.html
+          }
+
+          verify_asset '' frontend/index.html
+          verify_asset "$(asset_path 'market-sidebar[.]css')" frontend/shell/left-market-sidebar/market-sidebar.css
+          verify_asset "$(asset_path 'market-sidebar[.]js')" frontend/shell/left-market-sidebar/market-sidebar.js
+          verify_asset "$(asset_path 'widget-dock[.]css')" frontend/shell/center-chat/widget-dock/widget-dock.css
+          verify_asset "$(asset_path 'widget-dock[.]js')" frontend/shell/center-chat/widget-dock/widget-dock.js
+          curl -fsS --retry 3 --max-time 20 "$site/market/qqq-reason" |
+            jq -e '.ok == true and (.items | type == "array")'
+          curl -fsS --retry 3 --max-time 20 "$site/stocks/us/instruments.json?v=20261120-top20-websocket-v1" |
+            jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
+          curl -fsS --retry 3 --max-time 20 "$site/market/us-daily-chart?symbol=NVDA" |
+            jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
