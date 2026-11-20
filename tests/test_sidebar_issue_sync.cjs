@@ -121,24 +121,21 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     { name: '일라이 릴리', symbol: 'LLY', mark_ticker: 'LLY', identity_status: 'verified', issue_headline: '' },
     { name: '테슬라', symbol: 'TSLA.O', mark_ticker: 'TSLA', identity_status: 'verified', issue_headline: '기존 이슈' }
   ];
-  let industryFixtureEnabled = false;
   let resolveDeferred = null;
   const fetch = async (url, opts) => {
     calls.push({ url, opts });
-    if (url === 'https://quotes.gaemigtp.com/market/trading-value?market=us') {
-      const industryRows = [
-        { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, trading_value: 500 },
-        { name: '애플', symbol: 'AAPL.N', rank: 2, change_pct: -1.25, trading_value: 300 }
-      ];
+    if (url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1') {
       return { ok: true, json: async () => ({
-        ok: true, source: 'kiwoom', items: industryFixtureEnabled ? industryRows : valueRows
+        ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
+        items: [
+          { name: '반도체', stocks: [
+            { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, market_cap_usd: 1000 },
+          ] },
+          { name: '기술', stocks: [
+            { name: '애플', symbol: 'AAPL.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
+          ] }
+        ]
       }) };
-    }
-    if (url === '/stocks/us/instruments.json') {
-      return { ok: true, json: async () => ({ ok: true, items: [
-        { symbol: 'NVDA', industry: '반도체' },
-        { symbol: 'AAPL', industry: '기술' }
-      ] }) };
     }
     if (url.endsWith('/market/issue-headlines')) {
       const request = JSON.parse(opts.body);
@@ -166,22 +163,21 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   return {
     list, realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages,
     replaceValueRows(rows) { mockNow += 61_000; valueRows = rows; valueTab.click(); },
-    enableIndustryMapFixture() { industryFixtureEnabled = true; },
     advanceTime(milliseconds) { mockNow += milliseconds; },
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
   };
 }
 
-test('industry tab matches Kiwoom .O tickers to R2 symbols and renders the sector map', async () => {
+test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never TOP20', async () => {
   const app = setup();
   await flush();
-  app.enableIndustryMapFixture();
   app.industryTab.click();
   await flush();
   assert.ok(app.calls.some((call) =>
-    call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'));
-  assert.ok(app.calls.some((call) => call.url === '/stocks/us/instruments.json'));
+    call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
+  assert.equal(app.calls.some((call) =>
+    call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
   assert.equal(app.list.children.length, 2);
   assert.equal(app.list.children[0].children[0].textContent, '반도체');
   assert.equal(app.list.children[0].children[1].children[0].children[0].textContent, '엔비디아');
