@@ -56,6 +56,8 @@ jobs:
       - name: Deploy to existing Pages project production
         id: deploy
         uses: cloudflare/wrangler-action@v3
+        env:
+          npm_config_yes: "true"
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
