@@ -1,5 +1,5 @@
 {
   "operation": "deploy",
-  "path": "backend/kiwoom_us_live_prices.py",
-  "target": "backend/kiwoom_us_live_prices.py"
+  "path": "backend/kiwoom_us_top20_api.py",
+  "target": "backend/kiwoom_us_top20_api.py"
 }

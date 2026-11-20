@@ -18,8 +18,10 @@ RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
+_US_PLATFORM_CACHE_LOCK = threading.Lock()
+_US_PLATFORM_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_MAP_TTL = 60
-_US_INDUSTRY_STOCK_TTL = 60
+_US_INDUSTRY_STOCK_TTL = 1800
 
 
 def _safe_industry_error(exc):
@@ -27,8 +29,8 @@ def _safe_industry_error(exc):
     return value if re.fullmatch(r"[a-z0-9_]{1,90}", value) else type(exc).__name__
 
 
-def _get_us_industry_map():
-    from backend.providers.kiwoom_us_industries import fetch_us_industry_map
+def _get_us_industry_maps():
+    from backend.providers.kiwoom_us_industries import fetch_us_industry_maps
 
     now = time.monotonic()
     with _US_INDUSTRY_CACHE_LOCK:
@@ -36,24 +38,67 @@ def _get_us_industry_map():
         if cached is not None and now < _US_INDUSTRY_MAP_CACHE["expires_at"]:
             return dict(cached)
         try:
-            result = fetch_us_industry_map()
+            result = fetch_us_industry_maps()
         except Exception:
             if cached is not None:
-                stale = dict(cached)
-                stale["stale"] = True
-                return stale
+                return {name: {**data, "stale": True} for name, data in cached.items()}
             raise
         _US_INDUSTRY_MAP_CACHE["data"] = dict(result)
         _US_INDUSTRY_MAP_CACHE["expires_at"] = now + _US_INDUSTRY_MAP_TTL
         return dict(result)
 
 
-def _get_us_industry_stocks(industry_key_or_code, sort="marketcap"):
+def _get_us_internet_platform_group():
+    from backend.providers.kiwoom_us_industries import fetch_us_internet_platform_group
+    from backend.providers.kiwoom_us_quotes import KiwoomReadOnlyError
+
+    with _US_PLATFORM_CACHE_LOCK:
+        if time.monotonic() >= _US_PLATFORM_CACHE["expires_at"]:
+            try:
+                _US_PLATFORM_CACHE["data"] = fetch_us_internet_platform_group()
+            except KiwoomReadOnlyError:
+                _US_PLATFORM_CACHE["data"] = None
+            _US_PLATFORM_CACHE["expires_at"] = time.monotonic() + _US_INDUSTRY_MAP_TTL
+        return _US_PLATFORM_CACHE["data"]
+
+
+def _get_us_industry_map(view="legacy"):
+    maps = _get_us_industry_maps()
+    if view != "heatmap":
+        return dict(maps["legacy"])
+
+    heatmap = maps["heatmap"]
+    missing = [
+        item["key"] for item in heatmap["items"]
+        if item["mapping_status"] != "matched"
+    ]
+    if missing == ["internet_platforms"]:
+        platform = _get_us_internet_platform_group()
+        if platform is not None:
+            from backend.providers.kiwoom_us_industries import rank_us_industry_rows
+
+            items = [
+                {**item, **platform} if item["key"] == "internet_platforms" else item
+                for item in heatmap["items"]
+            ]
+            heatmap = {**heatmap, "items": rank_us_industry_rows(items), "mapping_complete": True}
+            missing = []
+    selected = "legacy" if missing else "heatmap"
+    return {
+        **(maps["legacy"] if missing else heatmap),
+        "view": selected,
+        "heatmap_ready": not missing,
+        "heatmap_missing": missing,
+    }
+
+
+def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_map=None):
     from backend.providers.kiwoom_us_industries import fetch_us_industry_stocks
 
     if sort not in ("change", "value", "marketcap"):
         raise ValueError("invalid_industry_sort")
-    sector_map = _get_us_industry_map()
+    if sector_map is None:
+        sector_map = _get_us_industry_map()
     selected = next((
         item for item in sector_map.get("items", [])
         if isinstance(item, dict) and (
@@ -89,24 +134,42 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap"):
         return dict(result)
 
 
-def _get_us_industry_map_with_stocks():
-    source = _get_us_industry_map()
+def _get_us_industry_map_with_stocks(view="legacy"):
+    source = _get_us_industry_map(view)
+    limit = 2 if source.get("view") == "heatmap" else 3
     result = dict(source)
     result["items"] = []
     for item in source.get("items", []):
         if not isinstance(item, dict):
             continue
         row = dict(item)
-        row["stocks"] = []
-        if row.get("codes") or row.get("code"):
+        row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:limit]]
+        if not row["stocks"] and (row.get("codes") or row.get("code")):
             try:
-                stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap")
-                row["stocks"] = stock_result.get("items", [])[:3]
+                stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap", sector_map=source)
+                row["stocks"] = stock_result.get("items", [])[:limit]
             except Exception as exc:
                 row["stocks_error"] = _safe_industry_error(exc)
         result["items"].append(row)
     result["sort"] = "marketcap"
     return result
+
+
+def get_us_industry_symbols():
+    """Return the at-most-22 cached market-cap leaders for the live FE feed."""
+    result = _get_us_industry_map_with_stocks("heatmap")
+    symbols = {}
+    for sector in result.get("items", []):
+        if not isinstance(sector, dict):
+            continue
+        for stock in sector.get("stocks", [])[:2]:
+            if not isinstance(stock, dict):
+                continue
+            symbol = str(stock.get("symbol") or "").strip().upper()
+            exchange = str(stock.get("exchange") or "").strip().upper()
+            if SYMBOL.fullmatch(symbol) and exchange in ("ND", "NY", "NA"):
+                symbols[symbol] = exchange
+    return symbols
 
 
 ADDRESS = "127.0.0.1"
@@ -125,7 +188,9 @@ _QQQ_LOCK = threading.Lock()
 _QQQ_CHANGED = threading.Condition(_QQQ_LOCK)
 _QQQ_QUOTE = None
 _TOP20_SYMBOLS = frozenset()
+_INDUSTRY_SYMBOLS = frozenset()
 _TOP20_QUOTES = {}
+_INDUSTRY_QUOTES = {}
 _QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
 _QQQ_STALE_MS = 25000
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -167,7 +232,9 @@ def _publish_live_quote(quote):
             _QQQ_QUOTE = safe
         if symbol in _TOP20_SYMBOLS:
             _TOP20_QUOTES[symbol] = safe
-        if symbol == "QQQ" or symbol in _TOP20_SYMBOLS:
+        if symbol in _INDUSTRY_SYMBOLS:
+            _INDUSTRY_QUOTES[symbol] = safe
+        if symbol == "QQQ" or symbol in _TOP20_SYMBOLS or symbol in _INDUSTRY_SYMBOLS:
             _QQQ_CHANGED.notify_all()
 
 
@@ -182,11 +249,31 @@ def _set_top20_symbols(symbols):
         _QQQ_CHANGED.notify_all()
 
 
+def _set_industry_symbols(symbols):
+    global _INDUSTRY_SYMBOLS
+    clean = frozenset(
+        symbol for symbol in symbols
+        if isinstance(symbol, str) and SYMBOL.fullmatch(symbol)
+    )
+    with _QQQ_CHANGED:
+        _INDUSTRY_SYMBOLS = clean
+        for symbol in _INDUSTRY_QUOTES.keys() - _INDUSTRY_SYMBOLS:
+            del _INDUSTRY_QUOTES[symbol]
+        _QQQ_CHANGED.notify_all()
+
+
 def _top20_snapshot():
     now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
         return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
                 for quote in _TOP20_QUOTES.values()]
+
+
+def _industry_snapshot():
+    now_ms = int(time.time() * 1000)
+    with _QQQ_LOCK:
+        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
+                for quote in _INDUSTRY_QUOTES.values()]
 
 
 def _qqq_snapshot():
@@ -256,7 +343,12 @@ def _start_qqq_feed():
     from backend.kiwoom_us_live_prices import run_qqq_fe_stream
 
     def runner():
-        asyncio.run(run_qqq_fe_stream(_publish_live_quote, on_top20=_set_top20_symbols))
+        asyncio.run(run_qqq_fe_stream(
+            _publish_live_quote,
+            on_top20=_set_top20_symbols,
+            on_industry=_set_industry_symbols,
+            get_industry_symbols=get_us_industry_symbols,
+        ))
 
     thread = threading.Thread(target=runner, name="kiwoom-qqq-fe", daemon=True)
     thread.start()
@@ -327,7 +419,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
             try:
                 params = parse_qs(path.query)
-                result = _get_us_industry_map_with_stocks() if params.get("include_stocks") == ["1"] else _get_us_industry_map()
+                view = "heatmap" if params.get("view") == ["heatmap"] else "legacy"
+                result = (_get_us_industry_map_with_stocks(view)
+                          if params.get("include_stocks") == ["1"] else _get_us_industry_map(view))
             except Exception as exc:
                 return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
             return self._json(200, result)
@@ -377,6 +471,7 @@ class Handler(BaseHTTPRequestHandler):
             last_heartbeat = 0.0
             last_top20_at = 0.0
             last_top20_message = None
+            last_industry_message = None
             while True:
                 quote = _qqq_snapshot()
                 signature = ((quote["received_at_ms"], quote["stale"])
@@ -398,6 +493,13 @@ class Handler(BaseHTTPRequestHandler):
                     if latest != last_top20_message:
                         self.connection.sendall(_websocket_text_frame(latest))
                         last_top20_message = latest
+                    latest_industry = json.dumps(
+                        {"type": "industry-quotes", "items": _industry_snapshot()},
+                        separators=(",", ":"), allow_nan=False,
+                    ).encode("utf-8")
+                    if latest_industry != last_industry_message:
+                        self.connection.sendall(_websocket_text_frame(latest_industry))
+                        last_industry_message = latest_industry
                     last_top20_at = now
                 with _QQQ_CHANGED:
                     _QQQ_CHANGED.wait(timeout=1.0)
