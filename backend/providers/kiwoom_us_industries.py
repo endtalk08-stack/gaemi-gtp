@@ -50,15 +50,47 @@ INDUSTRY_GROUPS = (
     ("semiconductors", "반도체", ("반도체", "semiconductors", "semiconductor", "semiconductor equipment", "chip equipment", "integrated circuits")),
 )
 
+LEGACY_INDUSTRY_GROUPS = (
+    ("semiconductors", "반도체", ("반도체", "semiconductors", "semiconductor")),
+    ("ai_datacenter", "AI 데이터센터", ("ai data center", "data center", "datacenter", "데이터센터")),
+    ("software", "소프트웨어", ("소프트웨어", "software")),
+    ("internet_platforms", "인터넷플랫폼", ("인터넷플랫폼", "인터넷 플랫폼", "internet platforms", "internet platform", "internet software", "interactive media", "e-commerce")),
+    ("finance", "금융", ("금융", "finance", "financial", "financials", "bank", "banks", "capital markets", "insurance")),
+    ("biotech_pharma", "바이오·제약", ("바이오", "제약", "biotech", "biotechnology", "pharma", "pharmaceutical", "drug manufacturers")),
+    ("healthcare", "헬스케어", ("헬스케어", "healthcare", "health care", "medical devices", "medical equipment", "health care equipment", "health care services", "health care providers")),
+    ("ev", "자동차·전기차", ("전기차", "electric vehicle", "electric vehicles", "automobile", "automobiles", "auto components", "auto manufacturers")),
+    ("defense", "방산·항공우주", ("방산", "항공우주", "aerospace defense", "aerospace", "defense", "defence")),
+)
+
+# Codes observed in Kiwoom's US industry list. Mixed retail, materials, real
+# estate and utilities stay outside the requested heatmap groups.
+_HEATMAP_OFFICIAL_CODES = {
+    "energy": ("10",),
+    "finance": ("610", "620", "640"),
+    "consumer_staples": ("410", "420", "430"),
+    "industrials": ("210", "220", "230", "240", "250", "260", "270", "280", "290"),
+    "software": ("720",),
+    "communication": ("370", "810", "820"),
+    "healthcare": ("510", "520", "530"),
+    "consumer_discretionary": ("310", "320", "330", "340", "350", "360"),
+    "it_hardware": ("730", "740"),
+    "semiconductors": ("710",),
+}
+_HEATMAP_GROUP_BY_CODE = {
+    code: group for group, codes in _HEATMAP_OFFICIAL_CODES.items() for code in codes
+}
+_OUTSIDE_HEATMAP_CODES = {"110", "120", "130", "140", "380", "630", "910", "920", "930"}
+
+
 
 def _normalize_name(value):
     return re.sub(r"[^0-9a-z가-힣]+", "", str(value or "").casefold())
 
 
-def _group_for_official_industry(*names):
+def _group_for_official_industry(*names, groups=INDUSTRY_GROUPS):
     normalized_names = [_normalize_name(value) for value in names if value]
     candidates = []
-    for key, _label, aliases in INDUSTRY_GROUPS:
+    for key, _label, aliases in groups:
         for alias in aliases:
             normalized_alias = _normalize_name(alias)
             if normalized_alias and any(normalized_alias in value for value in normalized_names):
@@ -158,7 +190,12 @@ def _industry_code(value):
 
 
 def fetch_us_industry_map(*, token=None):
-    """Return the eleven display groups matched to Kiwoom's official industry codes."""
+    """Preserve the existing industry classification for current callers."""
+    return fetch_us_industry_maps(token=token)["legacy"]
+
+
+def fetch_us_industry_maps(*, token=None):
+    """Build both classifications from the same pair of Kiwoom responses."""
     access_token = token or _access_token()
     official = _call("usa10101", {"gubun": "1"}, token=access_token).get("list")
     performance = _call(
@@ -167,7 +204,15 @@ def fetch_us_industry_map(*, token=None):
     if not isinstance(official, list) or not isinstance(performance, list):
         raise KiwoomReadOnlyError("kiwoom_industry_records_missing")
 
-    matched = {key: [] for key, _label, _aliases in INDUSTRY_GROUPS}
+    return {
+        "legacy": _build_us_industry_map(official, performance, LEGACY_INDUSTRY_GROUPS),
+        "heatmap": _build_us_industry_map(official, performance, INDUSTRY_GROUPS),
+    }
+
+
+def _build_us_industry_map(official, performance, groups):
+    is_heatmap = groups is INDUSTRY_GROUPS
+    matched = {key: [] for key, _label, _aliases in groups}
     unmatched = []
     for row in official:
         if not isinstance(row, dict):
@@ -177,7 +222,12 @@ def fetch_us_industry_map(*, token=None):
         english = str(row.get("inds_enm") or "").strip()
         if not code or not name:
             continue
-        group = _group_for_official_industry(name, english)
+        if is_heatmap and code in _OUTSIDE_HEATMAP_CODES:
+            group = None
+        elif is_heatmap and code in _HEATMAP_GROUP_BY_CODE:
+            group = _HEATMAP_GROUP_BY_CODE[code]
+        else:
+            group = _group_for_official_industry(name, english, groups=groups)
         if group:
             matched[group].append({
                 "code": code,
@@ -196,7 +246,7 @@ def fetch_us_industry_map(*, token=None):
             perf_by_code[code] = row
 
     items = []
-    for key, label, _aliases in INDUSTRY_GROUPS:
+    for key, label, _aliases in groups:
         matches = matched[key]
         codes = list(dict.fromkeys(match["code"] for match in matches))
         perf_rows = [perf_by_code[code] for code in codes if code in perf_by_code]
@@ -219,7 +269,8 @@ def fetch_us_industry_map(*, token=None):
                 "equal_weighted_official_industry_returns" if len(codes) > 1 else None
             ),
             "mapping_status": (
-                "matched" if codes and len(perf_rows) == len(codes) else
+                "matched" if codes and len(perf_rows) == len(codes)
+                and (not is_heatmap or all(_number(row.get("perf_1d")) is not None for row in perf_rows)) else
                 "performance_missing" if codes else
                 "unmatched"
             ),

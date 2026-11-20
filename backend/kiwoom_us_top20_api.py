@@ -27,8 +27,8 @@ def _safe_industry_error(exc):
     return value if re.fullmatch(r"[a-z0-9_]{1,90}", value) else type(exc).__name__
 
 
-def _get_us_industry_map():
-    from backend.providers.kiwoom_us_industries import fetch_us_industry_map
+def _get_us_industry_maps():
+    from backend.providers.kiwoom_us_industries import fetch_us_industry_maps
 
     now = time.monotonic()
     with _US_INDUSTRY_CACHE_LOCK:
@@ -36,24 +36,42 @@ def _get_us_industry_map():
         if cached is not None and now < _US_INDUSTRY_MAP_CACHE["expires_at"]:
             return dict(cached)
         try:
-            result = fetch_us_industry_map()
+            result = fetch_us_industry_maps()
         except Exception:
             if cached is not None:
-                stale = dict(cached)
-                stale["stale"] = True
-                return stale
+                return {name: {**data, "stale": True} for name, data in cached.items()}
             raise
         _US_INDUSTRY_MAP_CACHE["data"] = dict(result)
         _US_INDUSTRY_MAP_CACHE["expires_at"] = now + _US_INDUSTRY_MAP_TTL
         return dict(result)
 
 
-def _get_us_industry_stocks(industry_key_or_code, sort="marketcap"):
+def _get_us_industry_map(view="legacy"):
+    maps = _get_us_industry_maps()
+    if view != "heatmap":
+        return dict(maps["legacy"])
+
+    heatmap = maps["heatmap"]
+    missing = [
+        item["key"] for item in heatmap["items"]
+        if item["mapping_status"] != "matched"
+    ]
+    selected = "legacy" if missing else "heatmap"
+    return {
+        **maps[selected],
+        "view": selected,
+        "heatmap_ready": not missing,
+        "heatmap_missing": missing,
+    }
+
+
+def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_map=None):
     from backend.providers.kiwoom_us_industries import fetch_us_industry_stocks
 
     if sort not in ("change", "value", "marketcap"):
         raise ValueError("invalid_industry_sort")
-    sector_map = _get_us_industry_map()
+    if sector_map is None:
+        sector_map = _get_us_industry_map()
     selected = next((
         item for item in sector_map.get("items", [])
         if isinstance(item, dict) and (
@@ -75,7 +93,7 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap"):
         if cached and now < cached["expires_at"]:
             return dict(cached["data"])
         try:
-            result = fetch_us_industry_stocks(codes, sort, limit=2 if sort == "marketcap" else 36)
+            result = fetch_us_industry_stocks(codes, sort, limit=3 if sort == "marketcap" else 36)
         except Exception:
             if cached:
                 stale = dict(cached["data"])
@@ -89,8 +107,9 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap"):
         return dict(result)
 
 
-def _get_us_industry_map_with_stocks():
-    source = _get_us_industry_map()
+def _get_us_industry_map_with_stocks(view="legacy"):
+    source = _get_us_industry_map(view)
+    limit = 2 if source.get("view") == "heatmap" else 3
     result = dict(source)
     result["items"] = []
     for item in source.get("items", []):
@@ -100,8 +119,8 @@ def _get_us_industry_map_with_stocks():
         row["stocks"] = []
         if row.get("codes") or row.get("code"):
             try:
-                stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap")
-                row["stocks"] = stock_result.get("items", [])[:2]
+                stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap", sector_map=source)
+                row["stocks"] = stock_result.get("items", [])[:limit]
             except Exception as exc:
                 row["stocks_error"] = _safe_industry_error(exc)
         result["items"].append(row)
@@ -111,12 +130,12 @@ def _get_us_industry_map_with_stocks():
 
 def get_us_industry_symbols():
     """Return the at-most-22 cached market-cap leaders for the live FE feed."""
-    result = _get_us_industry_map_with_stocks()
+    result = _get_us_industry_map_with_stocks("heatmap")
     symbols = {}
     for sector in result.get("items", []):
         if not isinstance(sector, dict):
             continue
-        for stock in sector.get("stocks", []):
+        for stock in sector.get("stocks", [])[:2]:
             if not isinstance(stock, dict):
                 continue
             symbol = str(stock.get("symbol") or "").strip().upper()
@@ -373,7 +392,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
             try:
                 params = parse_qs(path.query)
-                result = _get_us_industry_map_with_stocks() if params.get("include_stocks") == ["1"] else _get_us_industry_map()
+                view = "heatmap" if params.get("view") == ["heatmap"] else "legacy"
+                result = (_get_us_industry_map_with_stocks(view)
+                          if params.get("include_stocks") == ["1"] else _get_us_industry_map(view))
             except Exception as exc:
                 return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
             return self._json(200, result)

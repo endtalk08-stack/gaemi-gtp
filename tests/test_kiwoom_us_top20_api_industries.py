@@ -31,20 +31,42 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
                 "NVDA": "ND", "AVGO": "ND", "WMT": "NY"
             })
 
-    def test_industry_map_keeps_only_two_market_cap_leaders_per_group(self):
-        stocks = [
-            {"symbol": "AAA", "name": "A"},
-            {"symbol": "BBB", "name": "B"},
-            {"symbol": "CCC", "name": "C"},
-        ]
-        with patch.object(api, "_get_us_industry_map", return_value={
-            "ok": True, "items": [{"key": "energy", "codes": ["001"]}]
-        }), patch.object(api, "_get_us_industry_stocks", return_value={
-            "items": stocks
-        }) as fetch:
-            result = api._get_us_industry_map_with_stocks()
-        fetch.assert_called_once_with("energy", "marketcap")
+    def test_incomplete_heatmap_keeps_existing_industry_keys_and_stocks(self):
+        legacy = {"ok": True, "items": [{"key": "defense", "codes": ["210"]}]}
+        heatmap = {"items": [
+            {"key": "industrials", "mapping_status": "matched"},
+            {"key": "internet_platforms", "mapping_status": "unmatched"},
+        ]}
+        stocks = [{"symbol": "LMT"}, {"symbol": "BA"}, {"symbol": "RTX"}]
+        with patch.object(api, "_get_us_industry_maps", return_value={
+            "legacy": legacy, "heatmap": heatmap,
+        }), patch.object(api, "_get_us_industry_stocks", return_value={"items": stocks}) as fetch:
+            default = api._get_us_industry_map_with_stocks()
+            requested = api._get_us_industry_map_with_stocks("heatmap")
+
+        self.assertNotIn("heatmap_ready", default)
+        self.assertEqual(default["items"][0]["stocks"], stocks)
+        self.assertFalse(requested["heatmap_ready"])
+        self.assertEqual(requested["heatmap_missing"], ["internet_platforms"])
+        self.assertEqual(requested["view"], "legacy")
+        self.assertEqual(requested["items"], default["items"])
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(fetch.call_args.args, ("defense", "marketcap"))
+
+    def test_ready_heatmap_keeps_only_two_market_cap_leaders(self):
+        sector = {"key": "energy", "codes": ["10"], "mapping_status": "matched"}
+        stocks = [{"symbol": "AAA"}, {"symbol": "BBB"}, {"symbol": "CCC"}]
+        with patch.object(api, "_get_us_industry_maps", return_value={
+            "legacy": {"items": []}, "heatmap": {"items": [sector]},
+        }), patch.object(api, "_get_us_industry_stocks", return_value={"items": stocks}) as fetch:
+            result = api._get_us_industry_map_with_stocks("heatmap")
+
+        self.assertTrue(result["heatmap_ready"])
+        self.assertEqual(result["view"], "heatmap")
         self.assertEqual(result["items"][0]["stocks"], stocks[:2])
+        fetch.assert_called_once_with("energy", "marketcap", sector_map={
+            "items": [sector], "view": "heatmap", "heatmap_ready": True, "heatmap_missing": [],
+        })
 
     def test_top20_and_industry_quote_snapshots_keep_separate_payloads(self):
         api._TOP20_SYMBOLS = frozenset({"AAA"})

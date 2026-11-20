@@ -52,7 +52,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
 
         with patch.object(sectors, "issue_access_token", return_value="MOCK_TOKEN"), \
              patch.object(sectors.requests, "post", side_effect=post):
-            result = sectors.fetch_us_industry_map()
+            result = sectors.fetch_us_industry_maps()["heatmap"]
 
         self.assertEqual(len(sent), 2)
         self.assertEqual(sent[0][1]["headers"]["api-id"], "usa10101")
@@ -110,12 +110,37 @@ class KiwoomUSIndustryTests(unittest.TestCase):
                  FakeResponse({"return_code": 0, "list": official}),
                  FakeResponse({"return_code": 0, "result_list": performance}),
              ]):
-            result = sectors.fetch_us_industry_map()
+            result = sectors.fetch_us_industry_maps()["heatmap"]
         finance = next(item for item in result["items"] if item["key"] == "finance")
         self.assertEqual(finance["codes"], ["001", "002"])
         self.assertEqual(finance["change_pct"], 2.0)
         self.assertEqual(finance["change_method"], "equal_weighted_official_industry_returns")
         self.assertEqual(finance["mapping_status"], "matched")
+
+    def test_observed_codes_resolve_without_reassigning_mixed_industries(self):
+        official = [
+            {"inds_cd": "340", "inds_nm": "가정용 내구재", "inds_enm": "Household Products"},
+            {"inds_cd": "120", "inds_nm": "건축자재", "inds_enm": "Construction Materials"},
+            {"inds_cd": "380", "inds_nm": "도/소매", "inds_enm": "Wholesale and Retail"},
+        ]
+        performance = [{"inds_cd": "340", "perf_1d": "1.5"}]
+        result = sectors._build_us_industry_map(official, performance, sectors.INDUSTRY_GROUPS)
+        by_key = {item["key"]: item for item in result["items"]}
+        self.assertEqual(by_key["consumer_discretionary"]["codes"], ["340"])
+        self.assertEqual(by_key["consumer_discretionary"]["change_pct"], 1.5)
+        self.assertEqual(by_key["consumer_staples"]["codes"], [])
+        self.assertEqual(by_key["industrials"]["codes"], [])
+        self.assertEqual(by_key["internet_platforms"]["mapping_status"], "unmatched")
+        self.assertEqual({item["code"] for item in result["unmatched_official_industries"]}, {"120", "380"})
+
+    def test_heatmap_marks_missing_return_even_when_an_upstream_row_exists(self):
+        official = [{"inds_cd": "710", "inds_nm": "반도체", "inds_enm": "Semiconductors"}]
+        performance = [{"inds_cd": "710", "perf_1d": "", "perf_5d": "1.5"}]
+        result = sectors._build_us_industry_map(official, performance, sectors.INDUSTRY_GROUPS)
+        item = next(item for item in result["items"] if item["key"] == "semiconductors")
+        self.assertEqual(item["mapping_status"], "performance_missing")
+        self.assertIsNone(item["change_pct"])
+        self.assertFalse(result["mapping_complete"])
 
     def test_change_sort_uses_usa23100_for_selected_industry(self):
         sent = []
