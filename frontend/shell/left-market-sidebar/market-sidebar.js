@@ -184,6 +184,7 @@
     };
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
+      const changeValue = (item) => Number.isFinite(item.change_pct) ? item.change_pct : -Infinity;
       list.classList?.add?.('industry-map-list');
       list.replaceChildren();
       const visibleSectors = items
@@ -193,18 +194,15 @@
           stocks: (Array.isArray(sector.stocks) ? sector.stocks : [])
             .filter((stock) => stock && typeof stock.name === 'string' && stock.name.trim())
             .slice(0, 3)
+            .sort((a, b) => changeValue(b) - changeValue(a))
         }));
-      // Highest percentage first; missing percentages stay at the bottom.
-      visibleSectors.sort((a, b) => {
-        const av = Number.isFinite(a.sector.change_pct) ? a.sector.change_pct : -Infinity;
-        const bv = Number.isFinite(b.sector.change_pct) ? b.sector.change_pct : -Infinity;
-        return bv - av;
-      });
+      visibleSectors.sort((a, b) => changeValue(b.sector) - changeValue(a.sector));
       visibleSectors.forEach(({ sector, stocks: ranked }) => {
         const sectorPct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
           ? sector.change_pct : null;
         const sectorColor = mapTileColor(sectorPct);
-        // Sector header and stock tiles are siblings: never nest boxes inside a sector box.
+        const row = document.createElement('div');
+        row.className = 'industry-map-row';
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone;
         heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.30, sectorColor.alpha + 0.045).toFixed(3) + ')';
@@ -212,6 +210,7 @@
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
+        label.title = label.textContent;
         const change = document.createElement('span');
         change.className = 'industry-map-sector-change';
         change.textContent = formatChange(sectorPct);
@@ -256,7 +255,8 @@
           });
           stocks.appendChild(stockTile);
         });
-        list.append(heading, stocks);
+        row.append(heading, stocks);
+        list.appendChild(row);
       });
     };
     const loadIndustryMap = async (id) => {
