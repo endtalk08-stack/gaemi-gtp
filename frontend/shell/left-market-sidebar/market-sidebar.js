@@ -186,24 +186,14 @@
       const items = Array.isArray(data?.items) ? data.items : [];
       list.classList?.add?.('industry-map-list');
       list.replaceChildren();
-      // Keep the nine agreed map categories visible even when a source
-      // snapshot has no constituents for a category. Never invent stock rows.
-      const expectedIndustries = [
-        '반도체', 'AI·데이터센터', '소프트웨어', '인터넷·플랫폼',
-        '금융', '바이오·제약', '헬스케어', '자동차·전기차', '방산·항공우주'
-      ];
-      const byIndustry = new Map(items
-        .filter((sector) => sector && typeof sector.name === 'string')
-        .map((sector) => [sector.name.trim(), sector]));
-      const visibleSectors = expectedIndustries.map((name) => {
-        const sector = byIndustry.get(name) || { name, change_pct: null, stocks: [] };
-        return {
+      const visibleSectors = items
+        .filter((sector) => typeof sector?.name === 'string' && sector.name.trim())
+        .map((sector) => ({
           sector,
           stocks: (Array.isArray(sector.stocks) ? sector.stocks : [])
             .filter((stock) => stock && typeof stock.name === 'string' && stock.name.trim())
             .slice(0, 3)
-        };
-      });
+        }));
       // Highest percentage first; missing percentages stay at the bottom.
       visibleSectors.sort((a, b) => {
         const av = Number.isFinite(a.sector.change_pct) ? a.sector.change_pct : -Infinity;
@@ -288,7 +278,7 @@
       industryMapPromise = (async () => {
         // Industry membership and market-cap ranking come from the existing
         // DigitalOcean Kiwoom industry endpoint. Never derive this map from TOP20.
-        const response = await fetch(quoteApiBase + '/market/us-industries?include_stocks=1', {
+        const response = await fetch(quoteApiBase + '/market/us-industries?include_stocks=1&view=heatmap', {
           cache: 'no-store'
         });
         if (!response.ok) throw new Error('us_industries_http_' + response.status);
