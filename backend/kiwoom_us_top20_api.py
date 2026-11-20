@@ -18,8 +18,10 @@ RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
-_US_INDUSTRY_MAP_TTL = 30
-_US_INDUSTRY_STOCK_TTL = 20
+_US_INDUSTRY_MAP_TTL = 60
+_US_INDUSTRY_STOCK_TTL = 60
+_US_ETF_MARKETCAP_TTL = 60
+_US_ETF_MARKETCAP_CACHE = {"expires_at": 0.0, "data": None}
 
 
 def _safe_industry_error(exc):
@@ -48,28 +50,34 @@ def _get_us_industry_map():
         return dict(result)
 
 
-def _get_us_industry_stocks(industry_code, sort):
+def _get_us_industry_stocks(industry_key_or_code, sort="marketcap"):
     from backend.providers.kiwoom_us_industries import fetch_us_industry_stocks
 
-    if sort not in ("change", "value"):
+    if sort not in ("change", "value", "marketcap"):
         raise ValueError("invalid_industry_sort")
     sector_map = _get_us_industry_map()
-    valid_codes = {
-        str(item.get("code"))
-        for item in sector_map.get("items", [])
-        if isinstance(item, dict) and item.get("code")
-    }
-    if industry_code not in valid_codes:
+    selected = next((
+        item for item in sector_map.get("items", [])
+        if isinstance(item, dict) and (
+            str(item.get("key") or "") == industry_key_or_code
+            or str(item.get("code") or "") == industry_key_or_code
+            or industry_key_or_code in [str(code) for code in (item.get("codes") or [])]
+        )
+    ), None)
+    if selected is None:
+        raise ValueError("invalid_industry_code")
+    codes = selected.get("codes") or ([selected.get("code")] if selected.get("code") else [])
+    if not codes:
         raise ValueError("invalid_industry_code")
 
-    key = (industry_code, sort)
+    key = (tuple(str(code) for code in codes), sort)
     now = time.monotonic()
     with _US_INDUSTRY_CACHE_LOCK:
         cached = _US_INDUSTRY_STOCK_CACHE.get(key)
         if cached and now < cached["expires_at"]:
             return dict(cached["data"])
         try:
-            result = fetch_us_industry_stocks(industry_code, sort)
+            result = fetch_us_industry_stocks(codes, sort, limit=3 if sort == "marketcap" else 36)
         except Exception:
             if cached:
                 stale = dict(cached["data"])
@@ -81,6 +89,49 @@ def _get_us_industry_stocks(industry_code, sort):
             "data": dict(result),
         }
         return dict(result)
+
+
+def _get_us_industry_map_with_stocks():
+    source = _get_us_industry_map()
+    result = dict(source)
+    result["items"] = []
+    for item in source.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        row = dict(item)
+        row["stocks"] = []
+        if row.get("mapping_status") == "matched" and (row.get("codes") or row.get("code")):
+            try:
+                stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap")
+                row["stocks"] = stock_result.get("items", [])[:3]
+            except Exception as exc:
+                row["stocks_error"] = _safe_industry_error(exc)
+        result["items"].append(row)
+    result["sort"] = "marketcap"
+    return result
+
+
+def _get_us_etf_marketcap():
+    from backend.providers.kiwoom_us_industries import fetch_us_etf_marketcap
+
+    now = time.monotonic()
+    with _US_INDUSTRY_CACHE_LOCK:
+        cached = _US_ETF_MARKETCAP_CACHE["data"]
+        if cached is not None and now < _US_ETF_MARKETCAP_CACHE["expires_at"]:
+            return dict(cached)
+        try:
+            result = fetch_us_etf_marketcap(limit=20)
+        except Exception:
+            if cached is not None:
+                stale = dict(cached)
+                stale["stale"] = True
+                return stale
+            raise
+        _US_ETF_MARKETCAP_CACHE["data"] = dict(result)
+        _US_ETF_MARKETCAP_CACHE["expires_at"] = now + _US_ETF_MARKETCAP_TTL
+        return dict(result)
+
+
 ADDRESS = "127.0.0.1"
 PORT = 8765
 ALLOWED_ORIGINS = {
@@ -89,6 +140,7 @@ ALLOWED_ORIGINS = {
     "https://www.gaemigtp.com",
     "https://gaemigtp-news.pages.dev",
     "https://gaemigtp-main.pages.dev",
+    "https://github-pages-preview.gaemigtp-main.pages.dev",
 }
 SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
 
@@ -298,7 +350,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
             try:
                 from backend.providers.kiwoom_us_industries import KiwoomReadOnlyError
-                result = _get_us_industry_map()
+                params = parse_qs(path.query)
+                result = _get_us_industry_map_with_stocks() if params.get("include_stocks") == ["1"] else _get_us_industry_map()
             except Exception as exc:
                 return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
             return self._json(200, result)
@@ -306,12 +359,20 @@ class Handler(BaseHTTPRequestHandler):
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
             params = parse_qs(path.query)
-            industry_code = str((params.get("code") or [""])[0]).strip()
-            sort = str((params.get("sort") or ["value"])[0]).strip()
+            industry_key_or_code = str((params.get("key") or params.get("code") or [""])[0]).strip()
+            sort = str((params.get("sort") or ["marketcap"])[0]).strip()
             try:
-                result = _get_us_industry_stocks(industry_code, sort)
+                result = _get_us_industry_stocks(industry_key_or_code, sort)
             except ValueError:
                 return self._json(400, {"ok": False, "error": "invalid_industry_request", "items": []})
+            except Exception as exc:
+                return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
+            return self._json(200, result)
+        if path.path == "/market/us-etf-marketcap":
+            if not getattr(self.server, "qqq_feed_enabled", False):
+                return self._json(503, {"ok": False, "error": "etf_api_unavailable", "items": []})
+            try:
+                result = _get_us_etf_marketcap()
             except Exception as exc:
                 return self._json(503, {"ok": False, "error": _safe_industry_error(exc), "items": []})
             return self._json(200, result)
