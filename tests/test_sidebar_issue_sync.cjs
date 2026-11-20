@@ -143,6 +143,12 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   let resolveDeferred = null;
   const fetch = async (url, opts) => {
     calls.push({ url, opts });
+    if (url === 'https://quotes.gaemigtp.com/market/trading-value?market=us') {
+      return { ok: true, json: async () => ({ ok: true, items: valueRows }) };
+    }
+    if (url === '/stocks/us/instruments.json') {
+      return { ok: true, json: async () => ({ ok: true, items: [] }) };
+    }
     if (url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1') {
       return { ok: true, json: async () => ({
         ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
@@ -193,11 +199,12 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
 test('industry tab renders the eleven-sector heatmap and only two market-cap leaders', async () => {
   const app = setup();
   await flush();
+  const callsBeforeTab = app.calls.length;
   app.industryTab.click();
   await flush();
-  assert.ok(app.calls.some((call) =>
+  assert.ok(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
-  assert.equal(app.calls.some((call) =>
+  assert.equal(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
   assert.equal(app.list.children.length, 5);
   assert.equal(app.list.children[0].textContent, '증시 동향');
