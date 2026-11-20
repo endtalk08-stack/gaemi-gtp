@@ -229,7 +229,7 @@ test('industry leader tiles update from the existing shared live WebSocket', asy
   assert.equal(socket.url, 'wss://quotes.gaemigtp.com/ws/us-live-quotes');
   socket.onopen();
   socket.onmessage({ data: JSON.stringify({
-    type: 'quotes',
+    type: 'industry-quotes',
     items: [{
       symbol: 'NVDA.O', price: 180.25, change_pct: 4.2,
       received_at_ms: 1_000_000, stale: false
