@@ -325,7 +325,11 @@
           const data = await industryMapPromise;
           if (id === requestId && data) renderIndustryMap(data);
         } catch (_) {
-          if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+          industryMapFetchedAt = Date.now();
+          if (id === requestId) {
+            if (industryMapData) renderIndustryMap(industryMapData);
+            else list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+          }
         }
         return;
       }
@@ -350,7 +354,11 @@
         const data = await industryMapPromise;
         if (id === requestId) renderIndustryMap(data);
       } catch (_) {
-        if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+        industryMapFetchedAt = Date.now();
+        if (id === requestId) {
+          if (industryMapData) renderIndustryMap(industryMapData);
+          else list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+        }
       } finally {
         industryMapPromise = null;
       }
@@ -959,7 +967,7 @@
       paintMarketQqq();
       if (draggedRow) return;
       if (sidebarActive() && tab === 'value') void showUsRanking();
-      if (sidebarActive() && tab === 'industry'
+      if (sidebarActive() && tab === 'industry' && industryMapData
           && Date.now() - industryMapFetchedAt >= mapCacheTtl) void showUsRanking();
     }, 3000);
   }
