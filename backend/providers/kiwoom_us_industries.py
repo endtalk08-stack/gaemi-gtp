@@ -38,13 +38,13 @@ EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
 # inds_nm / inds_enm values; unmatched groups remain explicitly empty.
 INDUSTRY_GROUPS = (
     ("semiconductors", "반도체", ("반도체", "semiconductors", "semiconductor")),
-    ("ai_datacenter", "AI 데이터센터", ("ai data center", "data center", "datacenter", "it hardware", "technology hardware", "electronic equipment", "electrical equipment", "데이터센터", "it하드웨어", "전자장비", "전기장비")),
+    ("ai_datacenter", "AI 데이터센터", ("ai data center", "data center", "datacenter", "데이터센터")),
     ("software", "소프트웨어", ("소프트웨어", "software")),
     ("internet_platforms", "인터넷플랫폼", ("인터넷플랫폼", "인터넷 플랫폼", "internet platforms", "internet platform", "internet software", "interactive media", "e-commerce")),
     ("finance", "금융", ("금융", "finance", "financial", "financials", "bank", "banks", "capital markets", "insurance")),
     ("biotech_pharma", "바이오·제약", ("바이오", "제약", "biotech", "biotechnology", "pharma", "pharmaceutical", "drug manufacturers")),
     ("healthcare", "헬스케어", ("헬스케어", "healthcare", "health care", "medical devices", "medical equipment", "health care equipment", "health care services", "health care providers")),
-    ("ev", "자동차·전기차", ("전기차", "electric vehicle", "electric vehicles", "ev", "automobile", "automobiles", "auto components", "auto manufacturers")),
+    ("ev", "자동차·전기차", ("전기차", "electric vehicle", "electric vehicles", "automobile", "automobiles", "auto components", "auto manufacturers")),
     ("defense", "방산·항공우주", ("방산", "항공우주", "aerospace defense", "aerospace", "defense", "defence")),
 )
 
