@@ -50,9 +50,15 @@ jobs:
           cmp frontend/shell/left-market-sidebar/market-sidebar.js "$RUNNER_TEMP/pages-market-sidebar.js"
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/stocks/us/instruments.json" |
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
-          INDUSTRY_HTTP=$(curl -sS --retry 2 --retry-all-errors --retry-delay 2 --max-time 20 -o "$RUNNER_TEMP/industry-map.json" -w '%{http_code}' "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1")
+          set +e
+          INDUSTRY_HTTP=$(curl -sS --retry 1 --retry-all-errors --retry-delay 1 --max-time 15 -o "$RUNNER_TEMP/industry-map.json" -w '%{http_code}' "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1" 2>"$RUNNER_TEMP/industry-map-curl.err")
+          INDUSTRY_CURL_EXIT=$?
+          set -e
+          echo "Industry map API curl exit: $INDUSTRY_CURL_EXIT"
           echo "Industry map API HTTP: $INDUSTRY_HTTP"
-          cat "$RUNNER_TEMP/industry-map.json"
+          cat "$RUNNER_TEMP/industry-map-curl.err"
+          if test -f "$RUNNER_TEMP/industry-map.json"; then cat "$RUNNER_TEMP/industry-map.json"; fi
+          test "$INDUSTRY_CURL_EXIT" = "0"
           test "$INDUSTRY_HTTP" = "200"
           jq -e '.ok == true and (.items | type == "array" and length > 0) and any(.items[]; (.name | type == "string" and length > 0) and (.stocks | type == "array" and length > 0))' "$RUNNER_TEMP/industry-map.json"
           grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/pages-index.html"
