@@ -409,7 +409,9 @@
 .industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
 @media (min-width: 1024px) {
   .industry-map-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .industry-map-row:first-child { min-height: 56px; }
+  .industry-map-row:nth-child(1) { grid-auto-rows: minmax(56px, auto); }
+  .industry-map-row:nth-child(2) { grid-auto-rows: minmax(52px, auto); }
+  .industry-map-row:nth-child(3) { grid-auto-rows: minmax(48px, auto); }
   .industry-map-row .industry-map-sector {
     grid-template-columns: minmax(0, 1fr);
     align-content: center;
