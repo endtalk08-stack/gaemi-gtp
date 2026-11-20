@@ -374,8 +374,7 @@
   line-height: 1.15;
   white-space: nowrap;
 }
-.industry-map-stock.is-up .industry-map-stock-change,
-.etf-marketcap-change.is-up { color: #c34d5a; }
+.industry-map-stock.is-up .industry-map-stock-change { color: #c34d5a; }
 .industry-map-stock.is-down .industry-map-stock-change { color: #4f83b5; }
 .industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
 .industry-map-stock-empty {
