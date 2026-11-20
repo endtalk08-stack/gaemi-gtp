@@ -236,6 +236,7 @@
         tile.className = 'industry-map-sector ' + color.tone
           + (sector.key === selectedIndustryKey ? ' is-selected' : '');
         tile.dataset.industryKey = sector.key;
+        if (typeof sector.description === 'string') tile.title = sector.description;
         tile.style.gridColumn = index < 2 ? 'span 3' : 'span 2';
         tile.style.backgroundColor = color.background || '';
         tile.style.borderColor = color.border || '';
@@ -261,7 +262,7 @@
       selectedHeader.className = 'industry-map-selected-header';
       const selectedName = document.createElement('span');
       selectedName.className = 'industry-map-selected-name';
-      selectedName.textContent = selected?.sector.name || '업종';
+      selectedName.textContent = selected?.sector.display_name || selected?.sector.name || '업종';
       const selectedCount = document.createElement('span');
       selectedCount.className = 'industry-map-selected-count';
       selectedCount.textContent = (selected?.stocks.length || 0) + '개 종목';

@@ -75,7 +75,7 @@ class Element {
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {}) {
+function setup({ deferred = false, initialOrder = [], sidebarOpen = true, industryItems } = {}) {
   let mockNow = 1_000_000;
   const storage = new Map([[
     'gaemiGTP_market_sidebar_order_us_value_v1', JSON.stringify(initialOrder)
@@ -152,7 +152,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     if (url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap') {
       return { ok: true, json: async () => ({
         ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
-        items: [
+        items: industryItems || [
           { key: 'semiconductors', name: '반도체', change_pct: 2.5, stocks: [
             { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, market_cap_usd: 1000 },
             { name: '브로드컴', symbol: 'AVGO.O', rank: 2, change_pct: -0.5, market_cap_usd: 900 },
@@ -239,6 +239,29 @@ test('industry tab renders available API groups and only two market-cap leaders'
   weakerDrop.click();
   assert.equal(app.list.children[2].children[0].textContent, '방산·항공우주');
   assert.equal(app.list.children[3].children[0].children[0].textContent, '록히드 마틴');
+});
+
+test('internet platform identifies its representative group and keeps the two ranked cards', async () => {
+  const app = setup({ industryItems: [{
+    key: 'internet_platforms',
+    name: '인터넷플랫폼',
+    display_name: '인터넷플랫폼 대표 종목군',
+    description: '알파벳·메타·넷플릭스 3개 기업의 등락률 평균',
+    change_pct: 1.5,
+    stocks: [
+      { symbol: 'GOOG', name: '알파벳', change_pct: 1.0, rank: 1 },
+      { symbol: 'META', name: '메타', change_pct: 2.0, rank: 2 },
+    ],
+  }] });
+  await flush();
+  app.industryTab.click();
+  await flush();
+  const tile = app.list.children[1].children[0];
+  assert.equal(tile.children[0].textContent, '인터넷플랫폼');
+  assert.equal(tile.children[1].textContent, '+1.50%');
+  assert.equal(tile.title, '알파벳·메타·넷플릭스 3개 기업의 등락률 평균');
+  assert.equal(app.list.children[2].children[0].textContent, '인터넷플랫폼 대표 종목군');
+  assert.deepEqual(app.list.children[3].children.map((stock) => stock.dataset.industrySymbol), ['GOOG', 'META']);
 });
 
 test('industry leader tiles update from the existing shared live WebSocket', async () => {
