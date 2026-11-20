@@ -262,7 +262,9 @@ test('switching tabs immediately restores TOP20 without another Neon read', asyn
   app.realtimeTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
-  assert.match(app.list.textContent, /AI 분석 결과 연결 전/);
+  assert.equal(app.list.children.length, 1);
+  assert.equal(app.list.children[0].dataset.marketQqq, 'true',
+    'realtime tab should render the QQQ market card');
   app.valueTab.click();
   await flush();
   const restoredRows = app.list.querySelectorAll(':scope > button[data-original-index]');
