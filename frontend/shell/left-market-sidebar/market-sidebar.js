@@ -244,7 +244,7 @@
       });
     };
     const industrySymbolKey = (value) =>
-      String(value || '').trim().toUpperCase().replace(/\\.(O|N)$/u, '');
+      String(value || '').trim().toUpperCase().replace(/\.(O|N)$/u, '');
     const buildIndustryMap = (ranking, metadata) => {
       if (ranking?.ok !== true || !Array.isArray(ranking.items)) {
         throw new Error('invalid_us_trading_value');
