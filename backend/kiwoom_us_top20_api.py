@@ -136,7 +136,7 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
 
 def _get_us_industry_map_with_stocks(view="legacy"):
     source = _get_us_industry_map(view)
-    limit = 2 if source.get("view") == "heatmap" else 3
+    limit = 3
     result = dict(source)
     result["items"] = []
     for item in source.get("items", []):
