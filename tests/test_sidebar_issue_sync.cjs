@@ -216,7 +216,9 @@ test('stale lookup must not write to a rebuilt sidebar', async () => {
   app.resolvePost();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
-  assert.match(app.list.textContent, /AI 분석 결과 연결 전/);
+  assert.equal(app.list.children.length, 1);
+  assert.equal(app.list.children[0].dataset.marketQqq, 'true',
+    'switching to realtime must keep the current QQQ market card');
 });
 
 test('central analysis announces only completed and populated briefs', () => {
