@@ -315,8 +315,8 @@ def _rank_number(value):
     return int(number) if number is not None and number >= 0 else None
 
 
-def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, limit=36):
-    """Fetch official industry stocks, ordered by market cap, turnover, or change."""
+def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, limit=36, symbols=None):
+    """Fetch official industry stocks, optionally filtering bare tickers before ranking."""
     codes = _industry_codes(industry_codes)
     if sort not in ("change", "value", "marketcap"):
         raise ValueError("invalid_industry_sort")
@@ -352,6 +352,8 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 continue
             symbol = str(record.get("stk_cd") or "").strip().upper()
             if not re.fullmatch(r"[A-Z0-9.-]{1,20}", symbol):
+                continue
+            if symbols is not None and symbol.removesuffix(".O") not in symbols:
                 continue
             exchange_raw = str(record.get("stex_tp") or "").strip().upper()
             exchange = EXCHANGE_CODES.get(exchange_raw, exchange_raw)
@@ -427,19 +429,16 @@ def fetch_us_internet_platform_group():
     # toward this representative group, and Alphabet counts once.
     aliases_by_issuer = (("GOOG", "GOOGL"), ("META",), ("NFLX",))
     allowed_symbols = {symbol for aliases in aliases_by_issuer for symbol in aliases}
-    ranking = fetch_us_industry_stocks("370", "marketcap")
+    ranking = fetch_us_industry_stocks("370", "marketcap", symbols=allowed_symbols)
     by_symbol = {}
     for row in ranking["items"]:
         symbol = row["symbol"].removesuffix(".O")
-        if symbol in allowed_symbols and row["exchange"] == "ND":
+        if row["exchange"] == "ND" and row["change_pct"] is not None:
             by_symbol.setdefault(symbol, {**row, "symbol": symbol})
 
     members = []
     for aliases in aliases_by_issuer:
-        representative = next((
-            by_symbol[symbol] for symbol in aliases
-            if symbol in by_symbol and by_symbol[symbol]["change_pct"] is not None
-        ), None)
+        representative = next((by_symbol[symbol] for symbol in aliases if symbol in by_symbol), None)
         if representative is None:
             return None
         members.append(representative)

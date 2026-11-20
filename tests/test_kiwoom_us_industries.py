@@ -231,7 +231,10 @@ class KiwoomUSIndustryTests(unittest.TestCase):
             {"stk_cd": "GOOG", "stex_tp": "ND", "stk_nm": "알파벳 C", "mac": "4700", "flu_rt": "3"},
             {"stk_cd": "META.O", "stex_tp": "ND", "stk_nm": "메타", "mac": "3500", "flu_rt": "-1"},
             {"stk_cd": "NFLX", "stex_tp": "ND", "stk_nm": "넷플릭스", "mac": "1700", "flu_rt": "1"},
-            {"stk_cd": "DIS", "stex_tp": "NY", "stk_nm": "디즈니", "mac": "2700", "flu_rt": "5"},
+        ] + [
+            {"stk_cd": f"MEDIA{index}", "stex_tp": "NY", "stk_nm": "기타 미디어",
+             "mac": "6000", "flu_rt": "5"}
+            for index in range(36)
         ]
         with (
             patch.object(sectors, "_access_token", return_value="LOCAL_TEST"),
@@ -246,6 +249,22 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual([row["symbol"] for row in group["stocks"]], ["GOOG", "META"])
         self.assertEqual([row["rank"] for row in group["stocks"]], [1, 2])
         self.assertEqual(group["source"], "kiwoom:usa20550")
+
+    def test_internet_platform_falls_back_to_alphabet_class_a_with_a_flat_quote(self):
+        records = [
+            {"stk_cd": "GOOG", "stex_tp": "ND", "stk_nm": "알파벳 C", "mac": "5000"},
+            {"stk_cd": "GOOGL.O", "stex_tp": "ND", "stk_nm": "알파벳 A", "mac": "4700", "flu_rt": "0"},
+            {"stk_cd": "META", "stex_tp": "ND", "stk_nm": "메타", "mac": "3500", "flu_rt": "-2"},
+            {"stk_cd": "NFLX", "stex_tp": "ND", "stk_nm": "넷플릭스", "mac": "1700", "flu_rt": "2"},
+        ]
+        with (
+            patch.object(sectors, "_access_token", return_value="LOCAL_TEST"),
+            patch.object(sectors, "_call", return_value={"result_list": records}),
+        ):
+            group = sectors.fetch_us_internet_platform_group()
+
+        self.assertEqual(group["member_symbols"], ["GOOGL", "META", "NFLX"])
+        self.assertEqual(group["change_pct"], 0)
 
     def test_internet_platform_does_not_calculate_from_two_issuers(self):
         with patch.object(sectors, "fetch_us_industry_stocks", return_value={"items": [
