@@ -23,8 +23,8 @@ jobs:
           # Pin the heatmap source for this preview push only.
           ref: >-
             ${{ github.event_name == 'push'
-              && github.event.before == 'b3d4027096c0f4f88b5a9688c897dfb08d11b6a3'
-              && '3588974ac7ef6deb82cb366f1ff47ac6667f3ca8'
+              && github.event.before == '94d9d2adefd6f389f49753f4931f646cd668e662'
+              && '55880e7fea992ee37c8645e1b3adf490827dbd1c'
               || github.sha }}
       - name: Check Pages inputs
         run: |
