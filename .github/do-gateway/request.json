@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/inspect_existing_industry_provider.py",
-  "request_id": "inspectexistingindustry20261120",
+  "path": "ops/do-gateway/dump_market_backend_sources.py",
+  "request_id": "dumpmarketbackend20261120",
   "timeout": 120
 }
