@@ -27,7 +27,7 @@ API_PATHS = {
     "usa23000": "/api/us/sect",
     "usa23100": "/api/us/sect",
     "usa20540": "/api/us/rkinfo",
-    "usa20550": "/api/us/rkinfo",
+    "usa20541": "/api/us/rkinfo",
     "usa20551": "/api/us/rkinfo",
 }
 EXCHANGES = {"NA", "ND", "NY"}
@@ -269,7 +269,7 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
     api_id = {
         "change": "usa23100",
         "value": "usa20540",
-        "marketcap": "usa20550",
+        "marketcap": "usa20541",
     }[sort]
     rows_by_symbol = {}
     for code in codes:
