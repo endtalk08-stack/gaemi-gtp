@@ -39,7 +39,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         ]
         performance = [
             {"inds_cd": str(index).zfill(3), "perf_1d": str(index), "perf_5d": "1.25", "perf_1m": "2.50"}
-            for index in range(1, 10)
+            for index in range(1, 12)
         ]
         sent = []
 
