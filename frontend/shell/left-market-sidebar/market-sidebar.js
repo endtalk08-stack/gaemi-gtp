@@ -746,6 +746,7 @@
       }
       dispatchQqqQuote(null);
       publishLiveQuotes([]);
+      publishIndustryLiveQuotes([]);
     };
     const scheduleQqqReconnect = (generation) => {
       if (!qqqSocketWanted() || generation !== qqqSocketGeneration || qqqReconnectTimer !== null) return;
@@ -781,6 +782,7 @@
           const message = JSON.parse(event.data);
           if (message?.type === 'quote') dispatchQqqQuote(message.quote || null);
           if (message?.type === 'quotes' && Array.isArray(message.items)) publishLiveQuotes(message.items);
+          if (message?.type === 'industry-quotes' && Array.isArray(message.items)) publishIndustryLiveQuotes(message.items);
         } catch (_) {
           // Ignore malformed frames; the next valid quote will refresh the card.
         }
@@ -805,6 +807,7 @@
     };
     window.setTimeout(syncQqqSocket, 50);
     let liveQuotes = [];
+    let industryLiveQuotes = [];
     const freshQuote = (quote, now) => quote && quote.stale === false
       && typeof quote.symbol === 'string' && Number.isFinite(quote.price) && quote.price > 0
       && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= now + 5000
@@ -815,7 +818,7 @@
       if (tab === 'industry') {
         const bySymbol = new Map([...list.querySelectorAll('.industry-map-stock[data-industry-symbol]')]
           .map((tile) => [tile.dataset.industrySymbol, tile]));
-        liveQuotes.forEach((quote) => {
+        industryLiveQuotes.forEach((quote) => {
           if (!freshQuote(quote, now) || typeof quote.change_pct !== 'number'
               || !Number.isFinite(quote.change_pct)) return;
           const tile = bySymbol.get(String(quote.symbol || ''));
@@ -864,6 +867,11 @@
       window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
         detail: { items: liveQuotes }
       }));
+      paintLiveQuotes();
+    };
+    const publishIndustryLiveQuotes = items => {
+      const now = Date.now();
+      industryLiveQuotes = items.filter(quote => freshQuote(quote, now));
       paintLiveQuotes();
     };
 
