@@ -25,6 +25,7 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
             {"stocks": [
                 {"symbol": "NVDA", "exchange": "ND"},
                 {"symbol": "AVGO", "exchange": "ND"},
+                {"symbol": "AMD", "exchange": "ND"},
             ]},
             {"stocks": [
                 {"symbol": "NVDA", "exchange": "ND"},
@@ -64,9 +65,9 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         self.assertEqual(fetch.call_count, 2)
         self.assertEqual(fetch.call_args.args, ("defense", "marketcap"))
 
-    def test_ready_heatmap_keeps_only_two_market_cap_leaders(self):
+    def test_ready_heatmap_keeps_three_market_cap_leaders(self):
         sector = {"key": "energy", "codes": ["10"], "mapping_status": "matched"}
-        stocks = [{"symbol": "AAA"}, {"symbol": "BBB"}, {"symbol": "CCC"}]
+        stocks = [{"symbol": symbol} for symbol in ("AAA", "BBB", "CCC", "DDD")]
         with patch.object(api, "_get_us_industry_maps", return_value={
             "legacy": {"items": []}, "heatmap": {"items": [sector]},
         }), patch.object(api, "_get_us_industry_stocks", return_value={"items": stocks}) as fetch:
@@ -74,7 +75,7 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
 
         self.assertTrue(result["heatmap_ready"])
         self.assertEqual(result["view"], "heatmap")
-        self.assertEqual(result["items"][0]["stocks"], stocks[:2])
+        self.assertEqual(result["items"][0]["stocks"], stocks[:3])
         fetch.assert_called_once_with("energy", "marketcap", sector_map={
             "items": [sector], "view": "heatmap", "heatmap_ready": True, "heatmap_missing": [],
         })
@@ -86,7 +87,7 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         ]
         platform = next(item for item in items if item["key"] == "internet_platforms")
         platform.update(change_pct=None, mapping_status="unmatched")
-        leaders = [{"symbol": "GOOG", "exchange": "ND"}, {"symbol": "META", "exchange": "ND"}]
+        leaders = [{"symbol": symbol, "exchange": "ND"} for symbol in ("GOOG", "META", "NFLX")]
         representative = {"change_pct": 1.5, "mapping_status": "matched", "stocks": leaders}
         with (
             patch.object(api, "_get_us_industry_maps", return_value={

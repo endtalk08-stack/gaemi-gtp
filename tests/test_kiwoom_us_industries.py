@@ -246,8 +246,8 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(call.call_count, 1)
         self.assertEqual(group["member_symbols"], ["GOOG", "META", "NFLX"])
         self.assertEqual(group["change_pct"], 1.0)
-        self.assertEqual([row["symbol"] for row in group["stocks"]], ["GOOG", "META"])
-        self.assertEqual([row["rank"] for row in group["stocks"]], [1, 2])
+        self.assertEqual([row["symbol"] for row in group["stocks"]], ["GOOG", "META", "NFLX"])
+        self.assertEqual([row["rank"] for row in group["stocks"]], [1, 2, 3])
         self.assertEqual(group["source"], "kiwoom:usa20550")
 
     def test_internet_platform_falls_back_to_alphabet_class_a_with_a_flat_quote(self):
