@@ -179,12 +179,18 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.equal(app.calls.some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
   assert.equal(app.list.children.length, 2);
-  assert.equal(app.list.children[0].children[0].textContent, '반도체');
-  assert.equal(app.list.children[0].children[1].children[0].children[0].textContent, '엔비디아');
-  assert.equal(app.list.children[0].children[1].children[0].children[1].textContent, '+2.50%');
-  assert.equal(app.list.children[1].children[0].textContent, '기술');
-  assert.equal(app.list.children[1].children[1].children[0].children[0].textContent, '애플');
-  assert.equal(app.list.children[1].children[1].children[0].children[1].textContent, '-1.25%');
+  assert.equal(app.list.children[0].children[0].children[0].textContent, '반도체');
+  assert.equal(app.list.children[0].children[0].children[1].textContent, '—',
+    'missing sector return should be shown as unavailable');
+  assert.match(app.list.children[0].className, /is-flat/);
+  assert.equal(app.list.children[0].children[1].children[0].children[1].textContent, '엔비디아');
+  assert.equal(app.list.children[0].children[1].children[0].children[2].textContent, '+2.50%');
+  assert.match(app.list.children[0].children[1].children[0].className, /is-up/);
+  assert.equal(app.list.children[1].children[0].children[0].textContent, '기술');
+  assert.equal(app.list.children[1].children[1].children[0].children[1].textContent, '애플');
+  assert.equal(app.list.children[1].children[1].children[0].children[2].textContent, '-1.25%');
+  assert.match(app.list.children[1].className, /is-flat/);
+  assert.match(app.list.children[1].children[1].children[0].className, /is-down/);
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
