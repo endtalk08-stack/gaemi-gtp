@@ -168,6 +168,204 @@
         .finally(() => { industryPromise = null; });
       return industryPromise;
     };
+    const quoteApiBase = 'https://quotes.gaemigtp.com';
+    const mapCacheTtl = 60000;
+    let industryMapData = null;
+    let industryMapFetchedAt = 0;
+    let industryMapPromise = null;
+    let etfMarketcapData = null;
+    let etfMarketcapFetchedAt = 0;
+    let etfMarketcapPromise = null;
+    const formatChange = (value) => Number.isFinite(value)
+      ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
+    const mapTileColor = (value) => {
+      if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.08 };
+      const strength = Math.min(0.34, 0.08 + Math.log1p(Math.abs(value)) * 0.075);
+      return value > 0
+        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: strength }
+        : { tone: 'is-down', rgb: '57, 119, 177', alpha: strength };
+    };
+    const renderIndustryMap = (data) => {
+      const items = Array.isArray(data?.items) ? data.items.slice(0, 9) : [];
+      list.classList.remove('etf-marketcap-list');
+      list.classList.add('industry-map-list');
+      list.replaceChildren();
+      if (!items.length) {
+        list.textContent = '업종맵 데이터를 찾을 수 없어.';
+        return;
+      }
+      items.forEach((sector) => {
+        const row = document.createElement('section');
+        row.className = 'industry-map-sector';
+        const label = document.createElement('div');
+        label.className = 'industry-map-sector-name';
+        label.textContent = String(sector.name || '업종');
+        const stocks = document.createElement('div');
+        stocks.className = 'industry-map-stocks';
+        const ranked = Array.isArray(sector.stocks) ? sector.stocks.slice(0, 3) : [];
+        for (let index = 0; index < 3; index += 1) {
+          const stock = ranked[index];
+          if (!stock || typeof stock.name !== 'string' || !stock.name.trim()) {
+            const empty = document.createElement('div');
+            empty.className = 'industry-map-stock-empty';
+            empty.textContent = '—';
+            stocks.appendChild(empty);
+            continue;
+          }
+          const pct = typeof stock.change_pct === 'number' && Number.isFinite(stock.change_pct)
+            ? stock.change_pct : null;
+          const color = mapTileColor(pct);
+          const tile = document.createElement('button');
+          tile.type = 'button';
+          tile.className = 'industry-map-stock ' + color.tone;
+          tile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
+          tile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
+          tile.title = stock.name + ' ' + formatChange(pct);
+          const name = document.createElement('span');
+          name.className = 'industry-map-stock-name';
+          name.textContent = stock.name;
+          const change = document.createElement('span');
+          change.className = 'industry-map-stock-change';
+          change.textContent = formatChange(pct);
+          tile.append(name, change);
+          tile.addEventListener('click', () => {
+            window.openStockInChat?.(stock.name, {
+              market: 'us',
+              menu: 'industry',
+              name: stock.name,
+              symbol: stock.symbol,
+              rank: stock.rank,
+              industry: sector.name,
+              change_pct: pct,
+              currency: 'USD',
+              source: 'kiwoom'
+            });
+          });
+          stocks.appendChild(tile);
+        }
+        row.append(label, stocks);
+        list.appendChild(row);
+      });
+    };
+    const loadIndustryMap = async (id) => {
+      if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) {
+        if (id === requestId) renderIndustryMap(industryMapData);
+        return;
+      }
+      if (industryMapPromise) {
+        try {
+          const data = await industryMapPromise;
+          if (id === requestId && data) renderIndustryMap(data);
+        } catch (_) {
+          if (id === requestId) list.textContent = '업종맵 데이터를 불러오지 못했어.';
+        }
+        return;
+      }
+      list.classList.remove('etf-marketcap-list');
+      list.classList.add('industry-map-list');
+      list.textContent = '시가총액 기준 업종맵을 불러오는 중이야.';
+      industryMapPromise = (async () => {
+        const response = await fetch(quoteApiBase + '/market/us-industries?include_stocks=1', { cache: 'no-store' });
+        if (!response.ok) throw new Error('industry_map_http_' + response.status);
+        const data = await response.json();
+        if (data?.ok !== true || !Array.isArray(data.items)) throw new Error('invalid_industry_map');
+        industryMapData = data;
+        industryMapFetchedAt = Date.now();
+        return data;
+      })();
+      try {
+        const data = await industryMapPromise;
+        if (id === requestId) renderIndustryMap(data);
+      } catch (_) {
+        if (id === requestId) list.textContent = '업종맵 데이터를 불러오지 못했어.';
+      } finally {
+        industryMapPromise = null;
+      }
+    };
+    const formatMarketCap = (value) => {
+      if (!Number.isFinite(value) || value <= 0) return '시가총액 —';
+      if (value >= 1e12) return '시가총액 $' + (value / 1e12).toFixed(2) + 'T';
+      if (value >= 1e9) return '시가총액 $' + (value / 1e9).toFixed(1) + 'B';
+      return '시가총액 $' + (value / 1e6).toFixed(0) + 'M';
+    };
+    const renderEtfMarketcap = (data) => {
+      const items = Array.isArray(data?.items) ? data.items.slice(0, 20) : [];
+      list.classList.remove('industry-map-list');
+      list.classList.add('etf-marketcap-list');
+      list.replaceChildren();
+      if (!items.length) {
+        list.textContent = 'ETF 시가총액 데이터가 없어.';
+        return;
+      }
+      items.forEach((item, index) => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'etf-marketcap-row';
+        const rank = document.createElement('span');
+        rank.className = 'etf-marketcap-rank';
+        rank.textContent = String(item.rank || index + 1).padStart(2, '0');
+        const name = document.createElement('span');
+        name.className = 'etf-marketcap-name';
+        name.textContent = String(item.name || '이름 확인 필요');
+        const marketCap = document.createElement('span');
+        marketCap.className = 'etf-marketcap-value';
+        marketCap.textContent = formatMarketCap(item.market_cap_usd);
+        const change = document.createElement('span');
+        change.className = 'etf-marketcap-change ' +
+          (item.change_pct > 0 ? 'is-up' : item.change_pct < 0 ? 'is-down' : 'is-flat');
+        change.textContent = formatChange(item.change_pct);
+        row.append(rank, name, change, marketCap);
+        row.addEventListener('click', () => {
+          window.openStockInChat?.(item.name, {
+            market: 'us',
+            menu: 'etf',
+            name: item.name,
+            symbol: item.symbol,
+            rank: item.rank || index + 1,
+            change_pct: item.change_pct,
+            market_cap: item.market_cap_usd,
+            currency: 'USD',
+            source: 'kiwoom'
+          });
+        });
+        list.appendChild(row);
+      });
+    };
+    const loadEtfMarketcap = async (id) => {
+      if (etfMarketcapData && Date.now() - etfMarketcapFetchedAt < mapCacheTtl) {
+        if (id === requestId) renderEtfMarketcap(etfMarketcapData);
+        return;
+      }
+      if (etfMarketcapPromise) {
+        try {
+          const data = await etfMarketcapPromise;
+          if (id === requestId && data) renderEtfMarketcap(data);
+        } catch (_) {
+          if (id === requestId) list.textContent = 'ETF 데이터를 불러오지 못했어.';
+        }
+        return;
+      }
+      list.classList.remove('industry-map-list');
+      list.classList.add('etf-marketcap-list');
+      list.textContent = 'ETF 시가총액 순위를 불러오는 중이야.';
+      etfMarketcapPromise = (async () => {
+        const response = await fetch(quoteApiBase + '/market/us-etf-marketcap', { cache: 'no-store' });
+        if (!response.ok) throw new Error('etf_marketcap_http_' + response.status);
+        const data = await response.json();
+        if (data?.ok !== true || !Array.isArray(data.items)) throw new Error('invalid_etf_marketcap');
+        etfMarketcapData = data;
+        etfMarketcapFetchedAt = Date.now();
+        return data;
+      })();
+      try {
+        const data = await etfMarketcapPromise;
+        if (id === requestId) renderEtfMarketcap(data);
+      } catch (_) {
+        if (id === requestId) list.textContent = 'ETF 데이터를 불러오지 못했어.';
+      } finally {
+        etfMarketcapPromise = null;
+      }
+    };
     let nextRankingReadAt = 0;
     let rankingRequestInFlight = false;
     let rankingFailureCount = 0;
@@ -249,13 +447,14 @@
       if (!list) return;
       const titles = {
         realtime: '시장 시세',
-        industry: '업종',
+        industry: '시가총액 업종맵',
         value: '거래대금 TOP 20',
-        marketcap: '시가총액'
+        etf: 'ETF 시가총액 TOP 20'
       };
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
+      list.classList.remove('industry-map-list', 'etf-marketcap-list');
       if (tab !== 'value') {
         const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
         if (displayedRows.length) cachedRankingRows = displayedRows;
@@ -269,12 +468,15 @@
         renderMarketQqq();
         return;
       }
-      if (tab !== 'value') {
-        list.textContent = tab === 'industry'
-          ? '업종맵 데이터 연결 전이야.'
-          : '시가총액 데이터 연결 전이야.';
+      if (tab === 'industry') {
+        await loadIndustryMap(id);
         return;
       }
+      if (tab === 'etf') {
+        await loadEtfMarketcap(id);
+        return;
+      }
+      if (tab !== 'value') return;
       if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
       const id = ++requestId;
       if (!list.querySelectorAll(':scope > button[data-original-index]').length) {
@@ -665,7 +867,7 @@
     const refreshOnReturn = () => {
       syncQqqSocket();
       if (document.visibilityState !== 'visible') return;
-      if (sidebarActive() && (tab === 'value' || tab === 'realtime')) void showUsRanking();
+      if (sidebarActive() && ['value', 'realtime', 'industry', 'etf'].includes(tab)) void showUsRanking();
       paintLiveQuotes();
     };
     window.addEventListener('gaemi:qqq-placement', () => {
@@ -714,7 +916,7 @@
       applyChangeSort();
     });
 
-    bindStaticSelection('[data-info-tab-action]', 1);
+    bindStaticSelection('[data-info-tab-action]', 2);
     sidebar.querySelectorAll('[data-info-tab-action]').forEach((button) => {
       if (button.disabled) return;
       button.addEventListener('click', () => {
