@@ -23,6 +23,7 @@ jobs:
           test -s functions/market/us-daily-chart.js
           node --check frontend/shell/right-panel/right-panel-tabs.js
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
+          node --test tests/test_sidebar_issue_sync.cjs
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
           grep -Fq 'data-qqq-reason' frontend/shell/center-chat/widget-dock/widget-dock.js
           grep -Fq '#bfc3cb' frontend/shell/center-chat/widget-dock/widget-dock.css
@@ -48,6 +49,8 @@ jobs:
           cmp frontend/shell/left-market-sidebar/market-sidebar.js "$RUNNER_TEMP/pages-market-sidebar.js"
           curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/stocks/us/instruments.json" |
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
+          curl -fsS --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1" |
+            jq -e '.ok == true and (.items | type == "array" and length > 0) and any(.items[]; (.name | type == "string" and length > 0) and (.stocks | type == "array" and length > 0))'
           grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/pages-index.html"
           grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' "$RUNNER_TEMP/pages-index.html"
           grep -Fq '52주 신고가 신저가 종목 알려줘' "$RUNNER_TEMP/pages-index.html"
