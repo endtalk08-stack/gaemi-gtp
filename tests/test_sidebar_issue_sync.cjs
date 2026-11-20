@@ -121,15 +121,21 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     { name: '일라이 릴리', symbol: 'LLY', mark_ticker: 'LLY', identity_status: 'verified', issue_headline: '' },
     { name: '테슬라', symbol: 'TSLA.O', mark_ticker: 'TSLA', identity_status: 'verified', issue_headline: '기존 이슈' }
   ];
+  let industryFixtureEnabled = false;
   let resolveDeferred = null;
   const fetch = async (url, opts) => {
     calls.push({ url, opts });
     if (url === 'https://quotes.gaemigtp.com/market/trading-value?market=us') {
-      return { ok: true, json: async () => ({ ok: true, items: valueRows }) };
+      const industryRows = [
+        { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, trading_value: 500 }
+      ];
+      return { ok: true, json: async () => ({
+        ok: true, source: 'kiwoom', items: industryFixtureEnabled ? industryRows : valueRows
+      }) };
     }
-    if (url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1') {
+    if (url === '/stocks/us/instruments.json') {
       return { ok: true, json: async () => ({ ok: true, items: [
-        { name: '반도체', stocks: [{ name: '엔비디아', symbol: 'NVDA', rank: 1, change_pct: 2.5 }] }
+        { symbol: 'NVDA', industry: '반도체' }
       ] }) };
     }
     if (url.endsWith('/market/issue-headlines')) {
@@ -158,19 +164,22 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   return {
     list, realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages,
     replaceValueRows(rows) { mockNow += 61_000; valueRows = rows; valueTab.click(); },
+    enableIndustryMapFixture() { industryFixtureEnabled = true; },
     advanceTime(milliseconds) { mockNow += milliseconds; },
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
     resolvePost() { assert.ok(resolveDeferred); resolveDeferred(); }
   };
 }
 
-test('industry tab loads and renders the sector map without a request-ID error', async () => {
+test('industry tab matches Kiwoom .O tickers to R2 symbols and renders the sector map', async () => {
   const app = setup();
   await flush();
+  app.enableIndustryMapFixture();
   app.industryTab.click();
   await flush();
   assert.ok(app.calls.some((call) =>
-    call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
+    call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'));
+  assert.ok(app.calls.some((call) => call.url === '/stocks/us/instruments.json'));
   assert.equal(app.list.children.length, 1);
   assert.equal(app.list.children[0].children[0].textContent, '반도체');
   assert.equal(app.list.children[0].children[1].children[0].children[0].textContent, '엔비디아');
