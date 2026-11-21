@@ -42,7 +42,7 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
     def test_incomplete_heatmap_keeps_existing_industry_keys_and_stocks(self):
         legacy = {"ok": True, "items": [{"key": "defense", "codes": ["210"]}]}
         heatmap = {"items": [
-            {"key": "industrials", "mapping_status": "matched"},
+            {"key": "industrials", "codes": ["210"], "mapping_status": "matched"},
             {"key": "internet_platforms", "mapping_status": "unmatched"},
         ]}
         stocks = [{"symbol": "LMT"}, {"symbol": "BA"}, {"symbol": "RTX"}]
@@ -64,7 +64,7 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         self.assertEqual([item["key"] for item in requested["items"]], ["industrials", "internet_platforms"])
         self.assertEqual(requested["items"][0]["stocks"], stocks)
         self.assertEqual(requested["items"][1]["stocks"], [])
-        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(fetch.call_count, 2)
         self.assertEqual(fetch.call_args.args, ("industrials", "marketcap"))
 
     def test_ready_heatmap_keeps_three_market_cap_leaders(self):
