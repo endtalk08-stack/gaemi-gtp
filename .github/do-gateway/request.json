@@ -1,5 +1,5 @@
 {
   "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service",
-  "lines": 80
+  "unit": "gaemigtp-kiwoom-us-top20-api.service",
+  "lines": 300
 }
