@@ -75,6 +75,38 @@ def main():
             "symbol": SYMBOL, "count": len(rows), "first_date": rows[0]["date"],
             "last_date": rows[-1]["date"], "source": chart["source"],
         }, ensure_ascii=False), flush=True)
+
+        # Read the existing local industry API only; do not query TOP20 or submit orders.
+        import urllib.request
+        industry_url = "http://127.0.0.1:8765/market/us-industries?include_stocks=1&view=heatmap"
+        try:
+            with urllib.request.urlopen(industry_url, timeout=8) as response:
+                industry_data = json.load(response)
+            groups = industry_data.get("items", []) if isinstance(industry_data, dict) else []
+            summary = [{
+                "key": item.get("key"), "name": item.get("name"),
+                "mapping_status": item.get("mapping_status"),
+                "stock_count": len(item.get("stocks", [])),
+                "stocks": [{
+                    "symbol": stock.get("symbol"),
+                    "price": stock.get("price"),
+                    "change_pct": stock.get("change_pct"),
+                    "stale": stock.get("stale"),
+                } for stock in item.get("stocks", [])[:3]],
+            } for item in groups if isinstance(item, dict)]
+            print("KIWOOM_VERIFY_INDUSTRIES=" + json.dumps({
+                "http_status": response.status if hasattr(response, "status") else 200,
+                "view": industry_data.get("view"),
+                "heatmap_ready": industry_data.get("heatmap_ready"),
+                "heatmap_missing": industry_data.get("heatmap_missing"),
+                "group_count": len(summary), "groups": summary,
+            }, ensure_ascii=False), flush=True)
+            if len(summary) != 11 or any(item["stock_count"] < 3 for item in summary):
+                print("KIWOOM_VERIFY_INDUSTRIES_INCOMPLETE", flush=True)
+                return 7
+        except Exception as industry_exc:
+            print("KIWOOM_VERIFY_INDUSTRIES_ERROR=" + type(industry_exc).__name__, flush=True)
+            return 8
         return 0
     except KiwoomReadOnlyError as exc:
         print("KIWOOM_VERIFY_ERROR=" + str(exc), flush=True)
