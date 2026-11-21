@@ -1,5 +1,3 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service",
-  "lines": 100
+  "operation": "status"
 }
