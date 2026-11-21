@@ -8,7 +8,11 @@ import re
 
 import requests
 
-from backend.providers.kiwoom_us_quotes import issue_access_token, KiwoomReadOnlyError
+from backend.providers.kiwoom_us_quotes import (
+    issue_access_token,
+    KiwoomReadOnlyError,
+    wait_for_us_read_slot,
+)
 
 US_RANKING_PATH = "https://api.kiwoom.com/api/us/rkinfo"
 RANKING_ID = "usa20540"
@@ -79,6 +83,7 @@ def fetch_us_trading_value_top(limit=20, *, token=None):
     if type(limit) is not int or not 1 <= limit <= 20:
         raise ValueError("invalid_rank_limit")
     access_token = token or issue_access_token()
+    wait_for_us_read_slot()
     try:
         response = requests.post(
             US_RANKING_PATH, json=RANKING_REQUEST,
