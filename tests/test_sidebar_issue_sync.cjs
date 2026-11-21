@@ -155,10 +155,16 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
           { key: 'bitcoin_related', name: '비트코인 관련 종목', stocks: [
             { name: '코인베이스', symbol: 'COIN.O', market_cap_usd: 600 },
           ] },
+          { key: 'communication', name: '커뮤니케이션', stocks: [
+            { name: '알파벳 Class A', symbol: 'GOOGL.O', issuer_key: 'US:ALPHABET', market_cap_usd: 850 },
+            { name: '메타', symbol: 'META.O', issuer_key: 'US:META', market_cap_usd: 800 },
+            { name: '알파벳 Class C', symbol: 'GOOG.O', issuer_key: 'US:ALPHABET', market_cap_usd: 900 },
+            { name: '넷플릭스', symbol: 'NFLX.O', issuer_key: 'US:NETFLIX', market_cap_usd: 700 },
+          ] },
           ...[
             ['energy','에너지'],['finance','금융'],['consumer_staples','필수소비재'],
             ['industrials','산업재'],['internet_platforms','인터넷플랫폼'],['software','소프트웨어'],
-            ['communication','커뮤니케이션'],['consumer_discretionary','경기소비재'],['it_hardware','IT하드웨어']
+            ['consumer_discretionary','경기소비재'],['it_hardware','IT하드웨어']
           ].map(([key,name]) => ({ key, name, stocks: [] }))
         ]
       }) };
@@ -218,6 +224,8 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.equal(healthcare.children[0].children[1].textContent, 'XLV');
   assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
   assert.equal(healthcare.children[1].children[0].children[1].textContent, '-1.25%');
+  assert.deepEqual(rowFor('커뮤니케이션').children[1].children.map((tile) => tile.children[0].textContent),
+    ['알파벳 Class C', '메타', '넷플릭스']);
   const utilities = rowFor('유틸리티');
   assert.equal(utilities.children[0].children[1].textContent, 'XLU');
   assert.equal(utilities.children[1].children[0].textContent, '상위 종목 데이터 없음');

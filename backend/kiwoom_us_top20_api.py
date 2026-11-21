@@ -119,7 +119,7 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
         if cached and now < cached["expires_at"]:
             return dict(cached["data"])
         try:
-            result = fetch_us_industry_stocks(codes, sort, limit=3 if sort == "marketcap" else 36)
+            result = fetch_us_industry_stocks(codes, sort, limit=12 if sort == "marketcap" else 36)
         except Exception:
             if cached:
                 stale = dict(cached["data"])

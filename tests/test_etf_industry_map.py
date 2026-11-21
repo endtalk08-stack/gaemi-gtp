@@ -6,6 +6,20 @@ from backend.kiwoom_us_live_prices import _industry_only_symbols
 
 
 class EtfIndustryMapTests(unittest.TestCase):
+    def test_share_classes_take_one_market_cap_slot_and_refill_third(self):
+        records = [
+            {"stk_cd": "GOOG", "stk_nm": "알파벳 Class C", "stk_enm": "Alphabet Inc Class C", "stex_tp": "2", "mac": "900"},
+            {"stk_cd": "GOOGL", "stk_nm": "알파벳 Class A", "stk_enm": "Alphabet Inc Class A", "stex_tp": "2", "mac": "850"},
+            {"stk_cd": "META", "stk_nm": "메타", "stk_enm": "Meta Platforms", "stex_tp": "2", "mac": "800"},
+            {"stk_cd": "NFLX", "stk_nm": "넷플릭스", "stk_enm": "Netflix", "stex_tp": "2", "mac": "700"},
+        ]
+        with patch.object(industries, "_call", return_value={"result_list": records}):
+            rows = industries.fetch_us_industry_stocks("370", token="test", limit=3)["items"]
+        self.assertEqual([row["symbol"] for row in rows], ["GOOG", "META", "NFLX"])
+        self.assertEqual([row["rank"] for row in rows], [1, 2, 3])
+        self.assertEqual(industries._issuer_key("BRK.A", "Berkshire Hathaway A", ""),
+                         industries._issuer_key("BRK.B", "Berkshire Hathaway B", ""))
+
     def test_shared_market_quotes_are_subscribed_once(self):
         self.assertEqual(_industry_only_symbols(
             {"QQQ": "ND", "NVDA": "ND", "XLU": "NA", "COIN": "ND"},

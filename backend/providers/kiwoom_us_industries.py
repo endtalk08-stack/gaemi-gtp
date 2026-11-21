@@ -359,6 +359,18 @@ def _rank_number(value):
     return int(number) if number is not None and number >= 0 else None
 
 
+def _issuer_key(symbol, english_name, name):
+    """Use the company, not a share class, as one ranking slot."""
+    ticker = str(symbol or "").upper().removesuffix(".O").removesuffix(".N").removesuffix(".K")
+    if ticker in {"GOOG", "GOOGL"}:
+        return "US:ALPHABET"
+    if ticker in {"BRK.A", "BRK.B"}:
+        return "US:BERKSHIRE"
+    label = str(english_name or name or "").strip().casefold()
+    label = re.sub(r"(?:\s|[,.-])+(?:class|cl|series)\s+[a-z](?:\s+(?:common\s+)?stock)?\s*$", "", label)
+    return "NAME:" + _normalize_name(label) if label else "TICKER:" + ticker
+
+
 def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, limit=36, symbols=None):
     """Fetch official industry stocks, optionally filtering bare tickers before ranking."""
     codes = _industry_codes(industry_codes)
@@ -422,6 +434,7 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 "symbol": symbol,
                 "name": name,
                 "english_name": str(record.get("stk_enm") or "").strip()[:100],
+                "issuer_key": _issuer_key(symbol, record.get("stk_enm"), name),
                 "exchange": exchange,
                 "price": price,
                 "change_pct": change_pct,
@@ -452,6 +465,16 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
             ),
             reverse=True,
         )
+    if sort == "marketcap":
+        seen_issuers = set()
+        unique_rows = []
+        for row in rows:
+            issuer = row["issuer_key"]
+            if issuer in seen_issuers:
+                continue
+            seen_issuers.add(issuer)
+            unique_rows.append(row)
+        rows = unique_rows
     rows = rows[:limit]
     for rank, row in enumerate(rows, 1):
         row["rank"] = rank

@@ -228,14 +228,16 @@
         const sources = sourceKeys.map((sourceKey) => byIndustry.get(sourceKey)).filter(Boolean);
         const sourceStocks = sources.flatMap((source) =>
           Array.isArray(source.stocks) ? source.stocks : []);
-        const seenSymbols = new Set();
-        const stocks = sourceStocks.filter((stock) => {
+        const seenIssuers = new Set();
+        const stocks = sourceStocks.sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).filter((stock) => {
           if (!stock || typeof stock.name !== 'string' || !stock.name.trim()) return false;
           const symbolKey = String(stock.symbol || stock.name).trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
-          if (seenSymbols.has(symbolKey)) return false;
-          seenSymbols.add(symbolKey);
+          const issuerKey = stock.issuer_key || (['GOOG', 'GOOGL'].includes(symbolKey) ? 'US:ALPHABET'
+            : ['BRK.A', 'BRK.B'].includes(symbolKey) ? 'US:BERKSHIRE' : symbolKey);
+          if (seenIssuers.has(issuerKey)) return false;
+          seenIssuers.add(issuerKey);
           return true;
-        }).sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3);
+        }).slice(0, 3);
         const changes = sources.map((source) => source.change_pct).filter(Number.isFinite);
         const changePct = changes.length
           ? changes.reduce((total, value) => total + value, 0) / changes.length : null;
