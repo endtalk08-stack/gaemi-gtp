@@ -19,6 +19,7 @@ import requests
 
 from backend.providers.kiwoom_us_quotes import (
     KiwoomReadOnlyError,
+    fetch_us_quote,
     issue_access_token,
 )
 
@@ -618,6 +619,66 @@ def fetch_us_etf_exchanges(*, token=None):
             break
         continuation = next_key
     return symbols
+
+
+def fetch_us_etf_quotes(*, token=None):
+    """Return read-only prices and daily changes for the fourteen heatmap ETFs."""
+    access_token = token or _access_token()
+    quotes = {}
+    captured_at_ms = int(time.time() * 1000)
+
+    # One official ETF market-cap TR supplies most ETF quotes in one request.
+    try:
+        snapshot = fetch_us_etf_marketcap(token=access_token, limit=100)
+        for row in snapshot.get("items", []):
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("symbol") or "").strip().upper()
+            price = _positive_price(row.get("price"))
+            change_pct = _number(row.get("change_pct"))
+            if symbol not in ETF_TICKERS or price is None or change_pct is None:
+                continue
+            quotes[symbol] = {
+                "symbol": symbol,
+                "exchange": row.get("exchange"),
+                "price": price,
+                "change_pct": change_pct,
+                "received_at_ms": captured_at_ms,
+                "source": "kiwoom:usa20551",
+            }
+    except KiwoomReadOnlyError:
+        pass
+
+    # Fill only missing agreed ETFs, using the verified exchange list and
+    # the existing read-only single-symbol quote TR.
+    missing = ETF_TICKERS.difference(quotes)
+    if missing:
+        try:
+            exchanges = fetch_us_etf_exchanges(token=access_token)
+        except KiwoomReadOnlyError:
+            exchanges = {}
+        for symbol in sorted(missing):
+            exchange = exchanges.get(symbol)
+            if exchange not in EXCHANGES:
+                continue
+            try:
+                quote = fetch_us_quote(symbol, exchange, token=access_token)
+            except (KiwoomReadOnlyError, ValueError):
+                continue
+            price = _positive_price(quote.get("current"))
+            change_pct = _number(quote.get("change_pct"))
+            if price is None or change_pct is None:
+                continue
+            quotes[symbol] = {
+                "symbol": symbol,
+                "exchange": exchange,
+                "price": price,
+                "change_pct": change_pct,
+                "received_at_ms": captured_at_ms,
+                "source": "kiwoom:usa20100",
+            }
+
+    return [quotes[symbol] for symbol in sorted(quotes)]
 
 
 def fetch_us_bitcoin_related_stocks(*, token=None):
