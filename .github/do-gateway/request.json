@@ -1,4 +1,6 @@
 {
-  "operation": "upgrade",
-  "path": "ops/do-gateway/gaemi-do-gateway"
+  "operation": "run",
+  "path": "ops/do-gateway/verify_etf_rest_20261122.py",
+  "request_id": "etf-exchanges-92e15ff-20261122",
+  "timeout": 240
 }
