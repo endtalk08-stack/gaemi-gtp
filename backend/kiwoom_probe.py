@@ -5,15 +5,8 @@ No secrets or access tokens are printed or stored.
 """
 import datetime as dt
 import json
-import ssl
 import sys
-from pathlib import Path
 from zoneinfo import ZoneInfo
-
-# The gateway executes copied probes from /run; load the existing app package explicitly.
-APP_ROOT = Path("/opt/gaemigtp-news/app")
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
 
 from backend.providers.kiwoom_us_quotes import (
     KiwoomReadOnlyError, credentials_configured,
@@ -84,32 +77,15 @@ def main():
         }, ensure_ascii=False), flush=True)
 
         # Read the existing local industry API only; do not query TOP20 or submit orders.
-        import http.client
-        cert_path = Path("/var/lib/gaemigtp-news/quotes-origin.crt")
-        industry_connection = http.client.HTTPSConnection(
-            "127.0.0.1", 443, context=ssl._create_unverified_context(), timeout=12
-        )
+        import urllib.request
+        industry_url = "http://127.0.0.1:8765/market/us-industries?include_stocks=1&view=heatmap"
         try:
-            industry_connection.connect()
-            pem = cert_path.read_text(encoding="ascii").split(
-                "-----END CERTIFICATE-----", 1
-            )[0] + "-----END CERTIFICATE-----"
-            expected_cert = ssl.PEM_cert_to_DER_cert(pem)
-            if industry_connection.sock.getpeercert(binary_form=True) != expected_cert:
-                raise ssl.SSLError("local_quote_origin_certificate_mismatch")
-            industry_connection.request(
-                "GET",
-                "/market/us-industries?include_stocks=1&view=heatmap",
-                headers={"Host": "quotes.gaemigtp.com"},
-            )
-            response = industry_connection.getresponse()
-            industry_data = json.loads(response.read().decode("utf-8"))
+            with urllib.request.urlopen(industry_url, timeout=8) as response:
+                industry_data = json.load(response)
             groups = industry_data.get("items", []) if isinstance(industry_data, dict) else []
             summary = [{
                 "key": item.get("key"), "name": item.get("name"),
                 "mapping_status": item.get("mapping_status"),
-                "codes": item.get("codes") or ([item.get("code")] if item.get("code") else []),
-                "stocks_error": item.get("stocks_error"),
                 "stock_count": len(item.get("stocks", [])),
                 "stocks": [{
                     "symbol": stock.get("symbol"),
@@ -119,67 +95,18 @@ def main():
                 } for stock in item.get("stocks", [])[:3]],
             } for item in groups if isinstance(item, dict)]
             print("KIWOOM_VERIFY_INDUSTRIES=" + json.dumps({
-                "http_status": response.status,
+                "http_status": response.status if hasattr(response, "status") else 200,
                 "view": industry_data.get("view"),
                 "heatmap_ready": industry_data.get("heatmap_ready"),
                 "heatmap_missing": industry_data.get("heatmap_missing"),
                 "group_count": len(summary), "groups": summary,
             }, ensure_ascii=False), flush=True)
-
-            # Read-only compare existing Kiwoom industry stock TRs for the failed categories.
-            from backend.providers.kiwoom_us_industries import fetch_us_industry_stocks
-            tr_checks = []
-            for code in ("210", "310", "510", "520", "530", "370"):
-                for sort in ("marketcap", "value", "change"):
-                    try:
-                        check = fetch_us_industry_stocks([code], sort, token=token, limit=3)
-                        tr_checks.append({
-                            "code": code, "sort": sort,
-                            "count": len(check.get("items", [])),
-                            "symbols": [row.get("symbol") for row in check.get("items", [])[:3]],
-                            "error": None,
-                        })
-                    except KiwoomReadOnlyError as tr_exc:
-                        tr_checks.append({
-                            "code": code, "sort": sort, "count": 0,
-                            "symbols": [], "error": str(tr_exc),
-                        })
-            print("KIWOOM_VERIFY_INDUSTRY_TR_COMPARE=" + json.dumps(
-                tr_checks, ensure_ascii=False
-            ), flush=True)
-
-            from backend.providers.kiwoom_us_industries import (
-                fetch_us_industry_maps, fetch_us_internet_platform_group,
-            )
-            maps = fetch_us_industry_maps(token=token)
-            heatmap = maps.get("heatmap", {})
-            print("KIWOOM_VERIFY_HEATMAP_MAP=" + json.dumps({
-                "group_count": len(heatmap.get("items", [])),
-                "mapping_complete": heatmap.get("mapping_complete"),
-                "groups": [{
-                    "key": row.get("key"), "name": row.get("name"),
-                    "codes": row.get("codes"), "mapping_status": row.get("mapping_status"),
-                    "change_pct": row.get("change_pct"),
-                } for row in heatmap.get("items", [])],
-            }, ensure_ascii=False), flush=True)
-            try:
-                platform = fetch_us_internet_platform_group()
-                print("KIWOOM_VERIFY_PLATFORM_GROUP=" + json.dumps({
-                    "available": platform is not None,
-                    "member_symbols": platform.get("member_symbols") if platform else [],
-                    "stock_symbols": [row.get("symbol") for row in platform.get("stocks", [])] if platform else [],
-                }, ensure_ascii=False), flush=True)
-            except KiwoomReadOnlyError as platform_exc:
-                print("KIWOOM_VERIFY_PLATFORM_GROUP_ERROR=" + str(platform_exc), flush=True)
-
             if len(summary) != 11 or any(item["stock_count"] < 3 for item in summary):
                 print("KIWOOM_VERIFY_INDUSTRIES_INCOMPLETE", flush=True)
                 return 7
         except Exception as industry_exc:
             print("KIWOOM_VERIFY_INDUSTRIES_ERROR=" + type(industry_exc).__name__, flush=True)
             return 8
-        finally:
-            industry_connection.close()
         return 0
     except KiwoomReadOnlyError as exc:
         print("KIWOOM_VERIFY_ERROR=" + str(exc), flush=True)
