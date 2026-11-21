@@ -198,22 +198,22 @@
       // Present the agreed 11 GICS sectors. Merge existing Kiwoom subgroups
       // into Information Technology and Communication Services without changing the API.
       const expectedIndustries = [
-        { key: 'information_technology', name: '정보기술', etf: 'XLK', sourceKeys: ['software', 'it_hardware', 'semiconductors'], fallbackStocks: [['엔비디아', 'NVDA'], ['애플', 'AAPL'], ['마이크로소프트', 'MSFT']] },
-        { key: 'healthcare', name: '헬스케어', etf: 'XLV', sourceKeys: ['healthcare'], fallbackStocks: [['일라이릴리', 'LLY'], ['존슨앤드존슨', 'JNJ'], ['애브비', 'ABBV']] },
-        { key: 'finance', name: '금융', etf: 'XLF', sourceKeys: ['finance'], fallbackStocks: [['버크셔해서웨이', 'BRK.B'], ['JP모건', 'JPM'], ['비자', 'V']] },
-        { key: 'consumer_discretionary', name: '경기소비재', etf: 'XLY', sourceKeys: ['consumer_discretionary'], fallbackStocks: [['아마존', 'AMZN'], ['테슬라', 'TSLA'], ['홈디포', 'HD']] },
-        { key: 'communication_services', name: '커뮤니케이션', etf: 'XLC', sourceKeys: ['communication', 'internet_platforms'], fallbackStocks: [['메타', 'META'], ['알파벳', 'GOOGL'], ['넷플릭스', 'NFLX']] },
-        { key: 'industrials', name: '산업재', etf: 'XLI', sourceKeys: ['industrials'], fallbackStocks: [['GE에어로스페이스', 'GE'], ['캐터필러', 'CAT'], ['RTX', 'RTX']] },
-        { key: 'consumer_staples', name: '필수소비재', etf: 'XLP', sourceKeys: ['consumer_staples'], fallbackStocks: [['월마트', 'WMT'], ['코스트코', 'COST'], ['P&G', 'PG']] },
-        { key: 'energy', name: '에너지', etf: 'XLE', sourceKeys: ['energy'], fallbackStocks: [['엑슨모빌', 'XOM'], ['셰브론', 'CVX'], ['코노코필립스', 'COP']] },
-        { key: 'utilities', name: '유틸리티', etf: 'XLU', sourceKeys: [], themeTone: 'utilities', fallbackStocks: [['넥스트에라', 'NEE'], ['서던컴퍼니', 'SO'], ['듀크에너지', 'DUK']] },
-        { key: 'real_estate', name: '부동산', etf: 'XLRE', sourceKeys: [], themeTone: 'realestate', fallbackStocks: [['웰타워', 'WELL'], ['프로로지스', 'PLD'], ['이퀴닉스', 'EQIX']] },
-        { key: 'materials', name: '소재', etf: 'XLB', sourceKeys: [], themeTone: 'materials', fallbackStocks: [['린데', 'LIN'], ['뉴몬트', 'NEM'], ['프리포트맥모란', 'FCX']] }
+        { key: 'information_technology', name: '정보기술', sourceKeys: ['software', 'it_hardware', 'semiconductors'], fallbackStocks: [['엔비디아', 'NVDA'], ['애플', 'AAPL'], ['마이크로소프트', 'MSFT']] },
+        { key: 'healthcare', name: '헬스케어', sourceKeys: ['healthcare'], fallbackStocks: [['일라이릴리', 'LLY'], ['존슨앤드존슨', 'JNJ'], ['애브비', 'ABBV']] },
+        { key: 'finance', name: '금융', sourceKeys: ['finance'], fallbackStocks: [['버크셔해서웨이', 'BRK.B'], ['JP모건', 'JPM'], ['비자', 'V']] },
+        { key: 'consumer_discretionary', name: '경기소비재', sourceKeys: ['consumer_discretionary'], fallbackStocks: [['아마존', 'AMZN'], ['테슬라', 'TSLA'], ['홈디포', 'HD']] },
+        { key: 'communication_services', name: '커뮤니케이션', sourceKeys: ['communication', 'internet_platforms'], fallbackStocks: [['메타', 'META'], ['알파벳', 'GOOGL'], ['넷플릭스', 'NFLX']] },
+        { key: 'industrials', name: '산업재', sourceKeys: ['industrials'], fallbackStocks: [['GE에어로스페이스', 'GE'], ['캐터필러', 'CAT'], ['RTX', 'RTX']] },
+        { key: 'consumer_staples', name: '필수소비재', sourceKeys: ['consumer_staples'], fallbackStocks: [['월마트', 'WMT'], ['코스트코', 'COST'], ['P&G', 'PG']] },
+        { key: 'energy', name: '에너지', sourceKeys: ['energy'], fallbackStocks: [['엑슨모빌', 'XOM'], ['셰브론', 'CVX'], ['코노코필립스', 'COP']] },
+        { key: 'utilities', name: '유틸리티', sourceKeys: [], themeTone: 'utilities', fallbackStocks: [['넥스트에라', 'NEE'], ['서던컴퍼니', 'SO'], ['듀크에너지', 'DUK']] },
+        { key: 'real_estate', name: '부동산', sourceKeys: [], themeTone: 'realestate', fallbackStocks: [['웰타워', 'WELL'], ['프로로지스', 'PLD'], ['이퀴닉스', 'EQIX']] },
+        { key: 'materials', name: '소재', sourceKeys: [], themeTone: 'materials', fallbackStocks: [['린데', 'LIN'], ['뉴몬트', 'NEM'], ['프리포트맥모란', 'FCX']] }
       ];
       const byIndustry = new Map(items
         .filter((sector) => sector && typeof sector.key === 'string')
         .map((sector) => [sector.key, sector]));
-      const visibleSectors = expectedIndustries.map(({ key, name, etf, sourceKeys, fallbackStocks, themeTone }) => {
+      const visibleSectors = expectedIndustries.map(({ key, name, sourceKeys, fallbackStocks, themeTone }) => {
         const sources = sourceKeys.map((sourceKey) => byIndustry.get(sourceKey)).filter(Boolean);
         const sourceStocks = sources.flatMap((source) =>
           Array.isArray(source.stocks) ? source.stocks : []);
@@ -235,7 +235,7 @@
           ? changes.reduce((total, value) => total + value, 0) / changes.length : null;
         return {
           sector: {
-            key, name, etf, change_pct: changePct,
+            key, name, change_pct: changePct,
             hideChange: changes.length === 0,
             ...(themeTone ? { themeTone } : {})
           },
@@ -245,7 +245,7 @@
       visibleSectors.sort((a, b) => changeValue(b.sector) - changeValue(a.sector));
       const supplementalThemes = [
         {
-          sector: { key: 'theme_semiconductors', name: '반도체', etf: 'SOXX', themeTone: 'semiconductor', hideChange: true },
+          sector: { key: 'theme_semiconductors', name: '반도체', themeTone: 'semiconductor', hideChange: true },
           stocks: [
             { name: 'AMD', symbol: 'AMD', themeTone: 'semiconductor', showSymbol: true, hideChange: true },
             { name: '브로드컴', symbol: 'AVGO', themeTone: 'semiconductor', showSymbol: true, hideChange: true },
@@ -253,7 +253,7 @@
           ]
         },
         {
-          sector: { key: 'theme_biotech', name: '바이오', etf: 'XBI', themeTone: 'biotech', hideChange: true },
+          sector: { key: 'theme_biotech', name: '바이오', themeTone: 'biotech', hideChange: true },
           stocks: [
             { name: '모더나', symbol: 'MRNA', themeTone: 'biotech', showSymbol: true, hideChange: true },
             { name: '리제네론', symbol: 'REGN', themeTone: 'biotech', showSymbol: true, hideChange: true },
@@ -261,7 +261,7 @@
           ]
         },
         {
-          sector: { key: 'theme_bitcoin', name: '비트코인', etf: 'IBIT', themeTone: 'bitcoin', hideChange: true },
+          sector: { key: 'theme_bitcoin', name: '비트코인', themeTone: 'bitcoin', hideChange: true },
           stocks: [
             { name: '코인베이스', symbol: 'COIN', themeTone: 'bitcoin', showSymbol: true, hideChange: true },
             { name: '스트래티지', symbol: 'MSTR', themeTone: 'bitcoin', showSymbol: true, hideChange: true },
@@ -284,17 +284,11 @@
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
         label.title = label.textContent;
-        const etf = sector.etf ? document.createElement('span') : null;
-        if (etf) {
-          etf.className = 'industry-map-sector-etf';
-          etf.textContent = sector.etf;
-        }
         const change = document.createElement('span');
         change.className = 'industry-map-sector-change';
         change.textContent = formatChange(sectorPct);
         change.hidden = sector.hideChange === true;
         heading.append(label);
-        if (etf) heading.append(etf);
         if (!change.hidden) heading.append(change);
         const stocks = document.createElement('div');
         stocks.className = 'industry-map-stocks';
