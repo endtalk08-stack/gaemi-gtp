@@ -325,7 +325,7 @@
   min-width: 0;
   min-height: 46px;
   padding: 4px;
-  border: 1px solid var(--gtp-border);
+  border: 0;
   border-radius: 2px;
   line-height: 1.1;
 }
@@ -384,13 +384,13 @@
   min-width: 0;
   min-height: 46px;
   padding: 6px 4px;
-  border: 1px solid var(--gtp-border);
+  border: 0;
   border-radius: 2px;
   color: var(--gtp-text);
   text-align: center;
   overflow: hidden;
   cursor: pointer;
-  transition: filter .12s ease, border-color .12s ease;
+  transition: filter .12s ease;
 }
 .industry-map-stock:hover { filter: brightness(.94); }
 .industry-map-stock:focus-visible {
