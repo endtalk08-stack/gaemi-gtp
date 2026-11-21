@@ -5,6 +5,7 @@ No secrets or access tokens are printed or stored.
 """
 import datetime as dt
 import json
+import ssl
 import sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -83,11 +84,26 @@ def main():
         }, ensure_ascii=False), flush=True)
 
         # Read the existing local industry API only; do not query TOP20 or submit orders.
-        import urllib.request
-        industry_url = "http://127.0.0.1:8765/market/us-industries?include_stocks=1&view=heatmap"
+        import http.client
+        cert_path = Path("/var/lib/gaemigtp-news/quotes-origin.crt")
+        industry_connection = http.client.HTTPSConnection(
+            "127.0.0.1", 443, context=ssl._create_unverified_context(), timeout=12
+        )
         try:
-            with urllib.request.urlopen(industry_url, timeout=8) as response:
-                industry_data = json.load(response)
+            industry_connection.connect()
+            pem = cert_path.read_text(encoding="ascii").split(
+                "-----END CERTIFICATE-----", 1
+            )[0] + "-----END CERTIFICATE-----"
+            expected_cert = ssl.PEM_cert_to_DER_cert(pem)
+            if industry_connection.sock.getpeercert(binary_form=True) != expected_cert:
+                raise ssl.SSLError("local_quote_origin_certificate_mismatch")
+            industry_connection.request(
+                "GET",
+                "/market/us-industries?include_stocks=1&view=heatmap",
+                headers={"Host": "quotes.gaemigtp.com"},
+            )
+            response = industry_connection.getresponse()
+            industry_data = json.loads(response.read().decode("utf-8"))
             groups = industry_data.get("items", []) if isinstance(industry_data, dict) else []
             summary = [{
                 "key": item.get("key"), "name": item.get("name"),
@@ -101,7 +117,7 @@ def main():
                 } for stock in item.get("stocks", [])[:3]],
             } for item in groups if isinstance(item, dict)]
             print("KIWOOM_VERIFY_INDUSTRIES=" + json.dumps({
-                "http_status": response.status if hasattr(response, "status") else 200,
+                "http_status": response.status,
                 "view": industry_data.get("view"),
                 "heatmap_ready": industry_data.get("heatmap_ready"),
                 "heatmap_missing": industry_data.get("heatmap_missing"),
@@ -113,6 +129,8 @@ def main():
         except Exception as industry_exc:
             print("KIWOOM_VERIFY_INDUSTRIES_ERROR=" + type(industry_exc).__name__, flush=True)
             return 8
+        finally:
+            industry_connection.close()
         return 0
     except KiwoomReadOnlyError as exc:
         print("KIWOOM_VERIFY_ERROR=" + str(exc), flush=True)
