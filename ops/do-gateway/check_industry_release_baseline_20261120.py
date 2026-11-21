@@ -1,6 +1,8 @@
 """Check the current quote deployment and its existing Kiwoom industry catalog."""
 import hashlib
 import json
+import math
+import ssl
 import subprocess
 import urllib.error
 import urllib.request
@@ -33,18 +35,57 @@ def main():
 
     catalog = {}
     try:
-        client = urllib.request.build_opener(NoRedirect())
-        with client.open("https://quotes.gaemigtp.com/market/us-industries", timeout=15) as response:
+        url = "https://127.0.0.1/market/us-industries?include_stocks=1&view=heatmap"
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Origin": "https://gaemigtp-main.pages.dev",
+                "Accept": "application/json",
+            },
+        )
+        context = ssl._create_unverified_context()
+        client = urllib.request.build_opener(
+            NoRedirect(),
+            urllib.request.HTTPSHandler(context=context),
+        )
+        with client.open(request, timeout=30) as response:
             catalog = json.load(response)
+            http_status = response.status
+        quotes = catalog.get("etf_quotes")
+        quote_rows = quotes if isinstance(quotes, list) else []
+        expected = {
+            "XLK", "XLV", "XLF", "XLY", "XLC", "XLI", "XLP",
+            "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT",
+        }
+        symbols = {
+            str(row.get("symbol") or "").upper()
+            for row in quote_rows if isinstance(row, dict)
+        }
+        invalid = sorted(
+            str(row.get("symbol") or "")
+            for row in quote_rows
+            if not isinstance(row, dict)
+            or not isinstance(row.get("price"), (int, float))
+            or not math.isfinite(row.get("price"))
+            or row.get("price") <= 0
+            or not isinstance(row.get("change_pct"), (int, float))
+            or not math.isfinite(row.get("change_pct"))
+            or not isinstance(row.get("received_at_ms"), int)
+        )
         result["catalog"] = {
+            "http_status": http_status,
             "ok": catalog.get("ok") is True,
             "source": catalog.get("source"),
             "fetched_at": catalog.get("fetched_at"),
             "groups": [row.get("key") for row in catalog.get("items", []) if row.get("codes")],
-            "media_370": any(
-                str(row.get("code")) == "370"
-                for row in catalog.get("unmatched_official_industries", [])
-            ),
+            "etf_quote_count": len(quote_rows),
+            "etf_symbols": sorted(symbols),
+            "etf_missing_symbols": sorted(expected - symbols),
+            "etf_invalid_quote_symbols": invalid,
+            "etf_sources": sorted({
+                str(row.get("source") or "")
+                for row in quote_rows if isinstance(row, dict)
+            }),
         }
     except urllib.error.HTTPError as exc:
         result["catalog"] = {"http_status": exc.code}
