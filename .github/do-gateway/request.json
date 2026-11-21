@@ -1,3 +1,6 @@
 {
-  "operation": "kiwoom-verify"
+  "operation": "run",
+  "path": "ops/do-gateway/verify_three_industry_stocks_20261121.py",
+  "request_id": "platformprobe20261121c",
+  "timeout": 60
 }
