@@ -174,9 +174,22 @@
     let industryMapFetchedAt = 0;
     let industryMapPromise = null;
     let industryLiveQuotes = [];
+    let industryRestQuotes = [];
     const industrySymbol = (symbol) => String(symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
-    const industryQuoteFor = (symbol) => industryLiveQuotes.find((quote) =>
-      industrySymbol(quote.symbol) === industrySymbol(symbol) && freshQuote(quote, Date.now()));
+    const industryQuoteFor = (symbol) => {
+      const now = Date.now();
+      const key = industrySymbol(symbol);
+      const live = industryLiveQuotes.find((quote) =>
+        industrySymbol(quote.symbol) === key && freshQuote(quote, now));
+      if (live) return live;
+      return industryRestQuotes.find((quote) =>
+        industrySymbol(quote.symbol) === key
+        && Number.isFinite(quote.price) && quote.price > 0
+        && Number.isFinite(quote.change_pct)
+        && Number.isFinite(quote.received_at_ms)
+        && quote.received_at_ms <= now + 5000
+        && now - quote.received_at_ms <= 24 * 60 * 60 * 1000);
+    };
     const formatChange = (value) => Number.isFinite(value)
       ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
     const mapTileColor = (value) => {
@@ -196,6 +209,9 @@
     })[theme] || mapTileColor(null);
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
+      if (Array.isArray(data?.etf_quotes) && data.etf_quotes.length) {
+        industryRestQuotes = data.etf_quotes;
+      }
       // Select companies by market cap first; order only the selected three by return.
       const orderSelectedStocks = (stocks) => [...stocks].sort((a, b) => {
         const rise = (stock) => {
