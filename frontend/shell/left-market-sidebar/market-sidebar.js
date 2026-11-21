@@ -853,10 +853,13 @@
     };
     window.setTimeout(syncQqqSocket, 50);
     let liveQuotes = [];
-    const freshQuote = (quote, now) => quote && quote.stale === false
-      && typeof quote.symbol === 'string' && Number.isFinite(quote.price) && quote.price > 0
-      && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= now + 5000
-      && now - quote.received_at_ms <= 25000;
+    const freshQuote = (quote, now) => {
+      const maxAge = quote?.source === 'kiwoom:rest' ? 65000 : 25000;
+      return quote && quote.stale === false
+        && typeof quote.symbol === 'string' && Number.isFinite(quote.price) && quote.price > 0
+        && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= now + 5000
+        && now - quote.received_at_ms <= maxAge;
+    };
     const paintLiveQuotes = () => {
       if (!sidebarActive() || tab !== 'value' || !list) return;
       const now = Date.now();
