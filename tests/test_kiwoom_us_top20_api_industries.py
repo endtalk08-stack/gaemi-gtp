@@ -60,10 +60,12 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         self.assertEqual(default["items"][0]["stocks"], stocks)
         self.assertFalse(requested["heatmap_ready"])
         self.assertEqual(requested["heatmap_missing"], ["internet_platforms"])
-        self.assertEqual(requested["view"], "legacy")
-        self.assertEqual(requested["items"], default["items"])
-        self.assertEqual(fetch.call_count, 2)
-        self.assertEqual(fetch.call_args.args, ("defense", "marketcap"))
+        self.assertEqual(requested["view"], "heatmap")
+        self.assertEqual([item["key"] for item in requested["items"]], ["industrials", "internet_platforms"])
+        self.assertEqual(requested["items"][0]["stocks"], stocks)
+        self.assertEqual(requested["items"][1]["stocks"], [])
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(fetch.call_args.args, ("industrials", "marketcap"))
 
     def test_ready_heatmap_keeps_three_market_cap_leaders(self):
         sector = {"key": "energy", "codes": ["10"], "mapping_status": "matched"}
