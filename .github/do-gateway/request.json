@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/verify_etf_rest_20261122.py",
-  "request_id": "etf-exchanges-92e15ff-20261122",
-  "timeout": 240
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_live_prices.py",
+  "target": "backend/kiwoom_us_live_prices.py"
 }
