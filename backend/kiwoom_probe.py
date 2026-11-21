@@ -125,6 +125,29 @@ def main():
                 "heatmap_missing": industry_data.get("heatmap_missing"),
                 "group_count": len(summary), "groups": summary,
             }, ensure_ascii=False), flush=True)
+
+            # Read-only compare existing Kiwoom industry stock TRs for the failed categories.
+            from backend.providers.kiwoom_us_industries import fetch_us_industry_stocks
+            tr_checks = []
+            for code in ("210", "310", "510", "520", "530", "370"):
+                for sort in ("marketcap", "value", "change"):
+                    try:
+                        check = fetch_us_industry_stocks([code], sort, token=token, limit=3)
+                        tr_checks.append({
+                            "code": code, "sort": sort,
+                            "count": len(check.get("items", [])),
+                            "symbols": [row.get("symbol") for row in check.get("items", [])[:3]],
+                            "error": None,
+                        })
+                    except KiwoomReadOnlyError as tr_exc:
+                        tr_checks.append({
+                            "code": code, "sort": sort, "count": 0,
+                            "symbols": [], "error": str(tr_exc),
+                        })
+            print("KIWOOM_VERIFY_INDUSTRY_TR_COMPARE=" + json.dumps(
+                tr_checks, ensure_ascii=False
+            ), flush=True)
+
             if len(summary) != 11 or any(item["stock_count"] < 3 for item in summary):
                 print("KIWOOM_VERIFY_INDUSTRIES_INCOMPLETE", flush=True)
                 return 7
