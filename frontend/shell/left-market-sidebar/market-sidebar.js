@@ -182,6 +182,11 @@
         ? { tone: 'is-up', rgb: '194, 65, 78', alpha: strength }
         : { tone: 'is-down', rgb: '57, 119, 177', alpha: strength };
     };
+    const themeTileColor = (theme) => ({
+      semiconductor: { tone: 'is-flat', rgb: '94, 126, 158', alpha: 0.18 },
+      biotech: { tone: 'is-flat', rgb: '143, 116, 155', alpha: 0.18 },
+      bitcoin: { tone: 'is-flat', rgb: '163, 137, 91', alpha: 0.18 }
+    })[theme] || mapTileColor(null);
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
       const changeValue = (item) => Number.isFinite(item.change_pct) ? item.change_pct : -Infinity;
@@ -220,24 +225,59 @@
         };
       });
       visibleSectors.sort((a, b) => changeValue(b.sector) - changeValue(a.sector));
-      visibleSectors.forEach(({ sector, stocks: ranked }) => {
+      const supplementalThemes = [
+        {
+          sector: { key: 'theme_semiconductors', name: '반도체', etf: 'SOXX', themeTone: 'semiconductor', hideChange: true },
+          stocks: [
+            { name: 'AMD', symbol: 'AMD', themeTone: 'semiconductor', showSymbol: true, hideChange: true },
+            { name: '브로드컴', symbol: 'AVGO', themeTone: 'semiconductor', showSymbol: true, hideChange: true },
+            { name: '마이크론', symbol: 'MU', themeTone: 'semiconductor', showSymbol: true, hideChange: true }
+          ]
+        },
+        {
+          sector: { key: 'theme_biotech', name: '바이오', etf: 'XBI', themeTone: 'biotech', hideChange: true },
+          stocks: [
+            { name: '모더나', symbol: 'MRNA', themeTone: 'biotech', showSymbol: true, hideChange: true },
+            { name: '리제네론', symbol: 'REGN', themeTone: 'biotech', showSymbol: true, hideChange: true },
+            { name: '바이오젠', symbol: 'BIIB', themeTone: 'biotech', showSymbol: true, hideChange: true }
+          ]
+        },
+        {
+          sector: { key: 'theme_bitcoin', name: '비트코인', etf: 'IBIT', themeTone: 'bitcoin', hideChange: true },
+          stocks: [
+            { name: '코인베이스', symbol: 'COIN', themeTone: 'bitcoin', showSymbol: true, hideChange: true },
+            { name: '스트래티지', symbol: 'MSTR', themeTone: 'bitcoin', showSymbol: true, hideChange: true },
+            { name: '마라홀딩스', symbol: 'MARA', themeTone: 'bitcoin', showSymbol: true, hideChange: true }
+          ]
+        }
+      ];
+      [...visibleSectors, ...supplementalThemes].forEach(({ sector, stocks: ranked }) => {
         const sectorPct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
           ? sector.change_pct : null;
-        const sectorColor = mapTileColor(sectorPct);
+        const sectorColor = sector.themeTone ? themeTileColor(sector.themeTone) : mapTileColor(sectorPct);
         const row = document.createElement('div');
         row.className = 'industry-map-row';
         const heading = document.createElement('div');
-        heading.className = 'industry-map-sector ' + sectorColor.tone;
+        heading.className = 'industry-map-sector ' + sectorColor.tone
+          + (sector.themeTone ? ' industry-map-sector-theme' : '');
         heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.30, sectorColor.alpha + 0.045).toFixed(3) + ')';
         heading.style.borderColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.62, sectorColor.alpha + 0.20).toFixed(3) + ')';
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
         label.title = label.textContent;
+        const etf = sector.etf ? document.createElement('span') : null;
+        if (etf) {
+          etf.className = 'industry-map-sector-etf';
+          etf.textContent = sector.etf;
+        }
         const change = document.createElement('span');
         change.className = 'industry-map-sector-change';
         change.textContent = formatChange(sectorPct);
-        heading.append(label, change);
+        change.hidden = sector.hideChange === true;
+        heading.append(label);
+        if (etf) heading.append(etf);
+        if (!change.hidden) heading.append(change);
         const stocks = document.createElement('div');
         stocks.className = 'industry-map-stocks';
         if (!ranked.length) {
@@ -249,20 +289,31 @@
         ranked.forEach((stock) => {
           const pct = typeof stock.change_pct === 'number' && Number.isFinite(stock.change_pct)
             ? stock.change_pct : null;
-          const color = mapTileColor(pct);
+          const color = stock.themeTone ? themeTileColor(stock.themeTone) : mapTileColor(pct);
           const stockTile = document.createElement('button');
           stockTile.type = 'button';
-          stockTile.className = 'industry-map-stock ' + color.tone;
+          stockTile.className = 'industry-map-stock ' + color.tone
+            + (stock.themeTone ? ' industry-map-stock-theme' : '');
           stockTile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
           stockTile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
-          stockTile.title = stock.name + ' ' + formatChange(pct);
+          stockTile.title = stock.name + (stock.symbol ? ' (' + stock.symbol + ')' : '')
+            + (stock.hideChange ? '' : ' ' + formatChange(pct));
           const name = document.createElement('span');
           name.className = 'industry-map-stock-name';
           name.textContent = stock.name;
-          const stockChange = document.createElement('span');
-          stockChange.className = 'industry-map-stock-change';
-          stockChange.textContent = formatChange(pct);
-          stockTile.append(name, stockChange);
+          stockTile.append(name);
+          if (stock.showSymbol && stock.symbol) {
+            const symbol = document.createElement('span');
+            symbol.className = 'industry-map-stock-symbol';
+            symbol.textContent = stock.symbol;
+            stockTile.append(symbol);
+          }
+          if (stock.hideChange !== true) {
+            const stockChange = document.createElement('span');
+            stockChange.className = 'industry-map-stock-change';
+            stockChange.textContent = formatChange(pct);
+            stockTile.append(stockChange);
+          }
           stockTile.addEventListener('click', () => {
             window.openStockInChat?.(stock.name, {
               market: 'us',
@@ -291,13 +342,10 @@
         try {
           const data = await industryMapPromise;
           if (id === requestId && data) renderIndustryMap(data);
-        } catch (_) {
-          if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
-        }
+        } catch (_) {}
         return;
       }
       list.classList?.add?.('industry-map-list');
-      list.textContent = '미국 업종별 시가총액 상위 종목을 불러오는 중이야.';
       industryMapPromise = (async () => {
         // Industry membership and market-cap ranking come from the existing
         // DigitalOcean Kiwoom industry endpoint. Never derive this map from TOP20.
@@ -317,7 +365,7 @@
         const data = await industryMapPromise;
         if (id === requestId) renderIndustryMap(data);
       } catch (_) {
-        if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+        // Keep the sidebar free of transient loading/error copy.
       } finally {
         industryMapPromise = null;
       }
@@ -430,9 +478,6 @@
       }
       if (tab !== 'value') return;
       if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
-      if (!list.querySelectorAll(':scope > button[data-original-index]').length) {
-        list.textContent = '순위를 불러오는 중이야.';
-      }
       rankingRequestInFlight = true;
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 10000);
@@ -602,10 +647,7 @@
         console.warn('TOP20 request failed:', error);
         rankingFailureCount += 1;
         nextRankingReadAt = Date.now() + Math.min(300000, 15000 * 2 ** (rankingFailureCount - 1));
-        if (id === requestId && title) title.textContent = titles[tab] + ' · 갱신 실패';
-        if (id === requestId && !list.querySelector('button[data-original-index]')) {
-          list.textContent = '순위 원천 데이터를 가져오지 못했어.';
-        }
+        // Keep the sidebar free of transient loading/error copy.
       } finally {
         window.clearTimeout(timeout);
         rankingRequestInFlight = false;

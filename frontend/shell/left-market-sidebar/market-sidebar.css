@@ -351,6 +351,15 @@
   text-align: center;
   white-space: nowrap;
 }
+.industry-map-sector-etf {
+  display: block;
+  color: var(--gtp-muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: .02em;
+  text-align: center;
+}
 .industry-map-sector.is-up .industry-map-sector-change { color: #e27b8a; }
 .industry-map-sector.is-down .industry-map-sector-change { color: #78aee0; }
 .industry-map-sector.is-flat .industry-map-sector-change { color: var(--gtp-muted); }
@@ -390,7 +399,7 @@
   text-align: center;
   overflow: hidden;
   cursor: pointer;
-  transition: filter .12s ease, border-color .12s ease;
+  transition: filter .12s ease;
 }
 .industry-map-stock:hover { filter: brightness(.94); }
 .industry-map-stock:focus-visible {
@@ -408,6 +417,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.industry-map-stock-symbol {
+  display: block;
+  color: var(--gtp-muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 .industry-map-stock-change {
   display: block;
