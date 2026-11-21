@@ -20,6 +20,7 @@ import requests
 from backend.providers.kiwoom_us_quotes import (
     KiwoomReadOnlyError,
     issue_access_token,
+    wait_for_us_read_slot,
 )
 
 API_ORIGIN = "https://api.kiwoom.com"
@@ -121,23 +122,12 @@ def _access_token():
         return token
 
 
-_API_RATE_LOCK = threading.Lock()
-_LAST_API_CALL_AT = 0.0
-_MIN_API_CALL_INTERVAL = 0.22  # Stay below Kiwoom's 5 read-TR/sec limit.
-
-
 def _call(api_id, body, *, token=None):
-    global _LAST_API_CALL_AT
     path = API_PATHS.get(api_id)
     if not path or not isinstance(body, dict):
         raise KiwoomReadOnlyError("kiwoom_industry_api_not_allowed")
     access_token = token or _access_token()
-    with _API_RATE_LOCK:
-        now = time.monotonic()
-        wait = _MIN_API_CALL_INTERVAL - (now - _LAST_API_CALL_AT)
-        if wait > 0:
-            time.sleep(wait)
-        _LAST_API_CALL_AT = time.monotonic()
+    wait_for_us_read_slot()
     try:
         response = requests.post(
             API_ORIGIN + path,
