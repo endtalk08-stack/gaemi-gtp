@@ -209,9 +209,12 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.ok(app.list.children.every((row) =>
     !row.children[0].children.some((child) => child.className === 'industry-map-sector-etf')));
   assert.equal(themeRows[0].children[1].children.length, 3);
-  assert.equal(themeRows[0].children[1].children[0].children[1].textContent, 'AMD');
-  assert.equal(themeRows[1].children[1].children[0].children[1].textContent, 'MRNA');
-  assert.equal(themeRows[2].children[1].children[0].children[1].textContent, 'COIN');
+  // Stock tiles show the Korean name only; no ticker text is rendered.
+  themeRows.forEach((row) => row.children[1].children.forEach((tile) =>
+    assert.ok(!tile.children.some((c) => c.className === 'industry-map-stock-symbol'))));
+  assert.equal(themeRows[0].children[1].children[0].children[0].textContent, 'AMD');
+  assert.equal(themeRows[1].children[1].children[0].children[0].textContent, '모더나');
+  assert.equal(themeRows[2].children[1].children[0].children[0].textContent, '코인베이스');
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {

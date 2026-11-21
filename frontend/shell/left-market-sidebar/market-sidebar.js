@@ -314,12 +314,6 @@
           name.className = 'industry-map-stock-name';
           name.textContent = stock.name;
           stockTile.append(name);
-          if (stock.showSymbol && stock.symbol) {
-            const symbol = document.createElement('span');
-            symbol.className = 'industry-map-stock-symbol';
-            symbol.textContent = stock.symbol;
-            stockTile.append(symbol);
-          }
           if (stock.hideChange !== true) {
             const stockChange = document.createElement('span');
             stockChange.className = 'industry-map-stock-change';
