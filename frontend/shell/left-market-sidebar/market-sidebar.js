@@ -299,16 +299,13 @@
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
         label.title = label.textContent;
-        const etfLabel = document.createElement('span');
-        etfLabel.className = 'industry-map-sector-etf';
-        etfLabel.textContent = etf;
         const etfPrice = document.createElement('span');
         etfPrice.className = 'industry-map-sector-etf';
         etfPrice.textContent = etfQuote ? '$' + etfQuote.price.toFixed(2) : '—';
         const change = document.createElement('span');
         change.className = 'industry-map-sector-change';
         change.textContent = formatChange(sectorPct);
-        heading.append(label, etfLabel, etfPrice, change);
+        heading.append(label, etfPrice, change);
         const stocks = document.createElement('div');
         stocks.className = 'industry-map-stocks';
         if (!ranked.length) {
@@ -328,8 +325,7 @@
             + (stock.themeTone ? ' industry-map-stock-theme' : '');
           stockTile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
           stockTile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
-          stockTile.title = stock.name + (stock.symbol ? ' (' + stock.symbol + ')' : '')
-            + (stock.hideChange ? '' : ' ' + formatChange(pct));
+          stockTile.title = stock.name + (stock.hideChange ? '' : ' ' + formatChange(pct));
           stockTile.dataset.industrySymbol = industrySymbol(stock.symbol);
           const name = document.createElement('span');
           name.className = 'industry-map-stock-name';
