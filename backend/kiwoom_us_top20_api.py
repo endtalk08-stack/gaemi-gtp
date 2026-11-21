@@ -198,7 +198,7 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                 bitcoin_stocks = cached["data"] if cached else []
         bitcoin_stocks = [{**stock, "change_pct": None} for stock in bitcoin_stocks]
         result["items"].append({"key": "bitcoin_related", "name": "비트코인 관련 종목",
-                                "stocks": bitcoin_stocks, "source": "kiwoom:websocket"})
+                                "stocks": bitcoin_stocks, "source": "kiwoom:usa20100"})
         result["etf_quotes"] = _get_us_industry_etf_quotes()
     result["sort"] = "marketcap"
     return result
