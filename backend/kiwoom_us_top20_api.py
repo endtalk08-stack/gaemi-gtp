@@ -18,8 +18,6 @@ RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
-_US_INDUSTRY_ETF_CACHE_LOCK = threading.Lock()
-_US_INDUSTRY_ETF_CACHE = {"expires_at": 0.0, "data": []}
 _US_PLATFORM_CACHE_LOCK = threading.Lock()
 _US_PLATFORM_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_MAP_TTL = 60
@@ -137,30 +135,26 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
 
 
 def _get_us_industry_etf_quotes():
-    from backend.providers.kiwoom_us_industries import fetch_us_etf_quotes
+    """Expose ETF percentage changes only from the live WebSocket feed."""
+    from backend.providers.kiwoom_us_industries import ETF_TICKERS
 
-    now = time.monotonic()
-    with _US_INDUSTRY_ETF_CACHE_LOCK:
-        cached = _US_INDUSTRY_ETF_CACHE["data"]
-        if cached and now < _US_INDUSTRY_ETF_CACHE["expires_at"]:
-            return [dict(item) for item in cached]
-        try:
-            quotes = fetch_us_etf_quotes()
-        except Exception:
-            return [dict(item) for item in cached] if cached else []
-
-        clean = [
-            dict(item) for item in quotes
-            if isinstance(item, dict)
-            and isinstance(item.get("symbol"), str)
-            and isinstance(item.get("price"), (int, float))
-            and item.get("price") > 0
-            and isinstance(item.get("change_pct"), (int, float))
-            and isinstance(item.get("received_at_ms"), int)
-        ]
-        _US_INDUSTRY_ETF_CACHE["data"] = clean
-        _US_INDUSTRY_ETF_CACHE["expires_at"] = now + (1800 if clean else 300)
-        return [dict(item) for item in clean]
+    now_ms = int(time.time() * 1000)
+    with _QQQ_LOCK:
+        live = {
+            symbol: dict(quote)
+            for symbol, quote in _ETF_QUOTES.items()
+            if now_ms - quote["received_at_ms"] <= _QQQ_STALE_MS
+        }
+    return [
+        {
+            "symbol": symbol,
+            "change_pct": live[symbol].get("change_pct") if symbol in live else None,
+            "received_at_ms": live[symbol].get("received_at_ms") if symbol in live else 0,
+            "stale": symbol not in live,
+            "source": "kiwoom:websocket",
+        }
+        for symbol in sorted(ETF_TICKERS)
+    ]
 
 
 def _get_us_industry_map_with_stocks(view="legacy"):
@@ -205,8 +199,8 @@ def _get_us_industry_map_with_stocks(view="legacy"):
     return result
 
 
-def get_us_industry_symbols():
-    """Return ranked sector stocks and verified ETF symbols for one FE feed."""
+def get_us_industry_stock_symbols():
+    """Return only the top-three market-cap stocks from each heatmap sector."""
     result = _get_us_industry_map_with_stocks("heatmap")
     symbols = {}
     for sector in result.get("items", []):
@@ -219,13 +213,14 @@ def get_us_industry_symbols():
             exchange = str(stock.get("exchange") or "").strip().upper()
             if SYMBOL.fullmatch(symbol) and exchange in ("ND", "NY", "NA"):
                 symbols[symbol] = exchange
-    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
-    try:
-        etf_symbols = fetch_us_etf_exchanges()
-    except Exception:
-        etf_symbols = {}  # Keep stock updates when the ETF lookup fails.
-    symbols.update(etf_symbols)
     return symbols
+
+
+def get_us_etf_symbols():
+    """Return ETF-only ticker/exchange membership for its independent FE group."""
+    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
+
+    return fetch_us_etf_exchanges()
 
 
 ADDRESS = "127.0.0.1"
@@ -245,8 +240,10 @@ _QQQ_CHANGED = threading.Condition(_QQQ_LOCK)
 _QQQ_QUOTE = None
 _TOP20_SYMBOLS = frozenset()
 _INDUSTRY_SYMBOLS = frozenset()
+_ETF_SYMBOLS = frozenset()
 _TOP20_QUOTES = {}
 _INDUSTRY_QUOTES = {}
+_ETF_QUOTES = {}
 _QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
 _QQQ_STALE_MS = 25000
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -290,7 +287,10 @@ def _publish_live_quote(quote):
             _TOP20_QUOTES[symbol] = safe
         if symbol in _INDUSTRY_SYMBOLS:
             _INDUSTRY_QUOTES[symbol] = safe
-        if symbol == "QQQ" or symbol in _TOP20_SYMBOLS or symbol in _INDUSTRY_SYMBOLS:
+        if symbol in _ETF_SYMBOLS:
+            _ETF_QUOTES[symbol] = safe
+        if (symbol == "QQQ" or symbol in _TOP20_SYMBOLS
+                or symbol in _INDUSTRY_SYMBOLS or symbol in _ETF_SYMBOLS):
             _QQQ_CHANGED.notify_all()
 
 
@@ -318,6 +318,19 @@ def _set_industry_symbols(symbols):
         _QQQ_CHANGED.notify_all()
 
 
+def _set_etf_symbols(symbols):
+    global _ETF_SYMBOLS
+    clean = frozenset(
+        symbol for symbol in symbols
+        if isinstance(symbol, str) and SYMBOL.fullmatch(symbol)
+    )
+    with _QQQ_CHANGED:
+        _ETF_SYMBOLS = clean
+        for symbol in _ETF_QUOTES.keys() - _ETF_SYMBOLS:
+            del _ETF_QUOTES[symbol]
+        _QQQ_CHANGED.notify_all()
+
+
 def _top20_snapshot():
     now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
@@ -330,6 +343,13 @@ def _industry_snapshot():
     with _QQQ_LOCK:
         return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
                 for quote in _INDUSTRY_QUOTES.values()]
+
+
+def _etf_snapshot():
+    now_ms = int(time.time() * 1000)
+    with _QQQ_LOCK:
+        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
+                for quote in _ETF_QUOTES.values()]
 
 
 def _qqq_snapshot():
@@ -403,7 +423,9 @@ def _start_qqq_feed():
             _publish_live_quote,
             on_top20=_set_top20_symbols,
             on_industry=_set_industry_symbols,
-            get_industry_symbols=get_us_industry_symbols,
+            on_etf=_set_etf_symbols,
+            get_industry_symbols=get_us_industry_stock_symbols,
+            get_etf_symbols=get_us_etf_symbols,
         ))
 
     thread = threading.Thread(target=runner, name="kiwoom-qqq-fe", daemon=True)
@@ -550,7 +572,7 @@ class Handler(BaseHTTPRequestHandler):
                         self.connection.sendall(_websocket_text_frame(latest))
                         last_top20_message = latest
                     latest_industry = json.dumps(
-                        {"type": "industry-quotes", "items": _industry_snapshot()},
+                        {"type": "industry-quotes", "items": _industry_snapshot() + _etf_snapshot()},
                         separators=(",", ":"), allow_nan=False,
                     ).encode("utf-8")
                     if latest_industry != last_industry_message:
