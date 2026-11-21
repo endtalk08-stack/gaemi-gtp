@@ -122,39 +122,82 @@ def _access_token():
         return token
 
 
+_AUTH_RETRY_RETURN_CODES = {8005, 8031, 8103}
+
+
+def _embedded_return_code(message):
+    match = re.search(r"\\[(\\d{3,5}):|CODE=(\\d{3,5})", str(message or ""))
+    if not match:
+        return None
+    return int(match.group(1) or match.group(2))
+
+
+def _refresh_access_token():
+    global _ACCESS_TOKEN, _ACCESS_TOKEN_EXPIRES_AT
+    token_value = issue_access_token()
+    with _TOKEN_LOCK:
+        _ACCESS_TOKEN = token_value
+        _ACCESS_TOKEN_EXPIRES_AT = time.monotonic() + 23 * 60 * 60
+    return token_value
+
+
 def _call(api_id, body, *, token=None):
     path = API_PATHS.get(api_id)
     if not path or not isinstance(body, dict):
         raise KiwoomReadOnlyError("kiwoom_industry_api_not_allowed")
     access_token = token or _access_token()
-    wait_for_us_read_slot()
-    try:
-        response = requests.post(
-            API_ORIGIN + path,
-            json=body,
-            headers={
-                "Content-Type": "application/json;charset=UTF-8",
-                "authorization": "Bearer " + access_token,
-                "api-id": api_id,
-            },
-            timeout=8,
-            allow_redirects=False,
+
+    for attempt in range(2):
+        wait_for_us_read_slot()
+        try:
+            response = requests.post(
+                API_ORIGIN + path,
+                json=body,
+                headers={
+                    "Content-Type": "application/json;charset=UTF-8",
+                    "authorization": "Bearer " + access_token,
+                    "api-id": api_id,
+                },
+                timeout=8,
+                allow_redirects=False,
+            )
+        except requests.RequestException:
+            raise KiwoomReadOnlyError("kiwoom_industry_request_failed") from None
+
+        if response.status_code == 401:
+            if attempt == 0:
+                access_token = _refresh_access_token()
+                continue
+            raise KiwoomReadOnlyError("kiwoom_industry_auth_retry_failed")
+        if response.status_code != 200:
+            raise KiwoomReadOnlyError("kiwoom_industry_http_" + str(int(response.status_code)))
+        try:
+            data = response.json()
+        except ValueError:
+            raise KiwoomReadOnlyError("kiwoom_industry_response_invalid") from None
+        if not isinstance(data, dict):
+            raise KiwoomReadOnlyError("kiwoom_industry_response_invalid")
+
+        code = str(data.get("return_code", 0))
+        if code in ("0", "0000"):
+            return data
+
+        embedded_code = _embedded_return_code(data.get("return_msg"))
+        if attempt == 0 and (
+            code in ("8005", "8031", "8103")
+            or embedded_code in _AUTH_RETRY_RETURN_CODES
+        ):
+            access_token = _refresh_access_token()
+            continue
+
+        safe_code = (
+            str(embedded_code) if embedded_code is not None
+            else code if re.fullmatch(r"-?[0-9]{1,6}", code)
+            else "unknown"
         )
-    except requests.RequestException:
-        raise KiwoomReadOnlyError("kiwoom_industry_request_failed") from None
-    if response.status_code != 200:
-        raise KiwoomReadOnlyError("kiwoom_industry_http_" + str(int(response.status_code)))
-    try:
-        data = response.json()
-    except ValueError:
-        raise KiwoomReadOnlyError("kiwoom_industry_response_invalid") from None
-    if not isinstance(data, dict):
-        raise KiwoomReadOnlyError("kiwoom_industry_response_invalid")
-    code = str(data.get("return_code", 0))
-    if code not in ("0", "0000"):
-        safe_code = code if re.fullmatch(r"-?[0-9]{1,6}", code) else "unknown"
         raise KiwoomReadOnlyError("kiwoom_industry_rejected_code_" + safe_code)
-    return data
+
+    raise KiwoomReadOnlyError("kiwoom_industry_auth_retry_failed")
 
 
 def _number(value):
@@ -186,10 +229,9 @@ def fetch_us_industry_map(*, token=None):
 
 def fetch_us_industry_maps(*, token=None):
     """Build both classifications from the same pair of Kiwoom responses."""
-    access_token = token or _access_token()
-    official = _call("usa10101", {"gubun": "1"}, token=access_token).get("list")
+    official = _call("usa10101", {"gubun": "1"}, token=token).get("list")
     performance = _call(
-        "usa23000", {"stex_tp": "0", "inds_cd": "0"}, token=access_token
+        "usa23000", {"stex_tp": "0", "inds_cd": "0"}
     ).get("result_list")
     if not isinstance(official, list) or not isinstance(performance, list):
         raise KiwoomReadOnlyError("kiwoom_industry_records_missing")
@@ -312,8 +354,6 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
         raise ValueError("invalid_industry_sort")
     if type(limit) is not int or not 1 <= limit <= 36:
         raise ValueError("invalid_industry_limit")
-    access_token = token or _access_token()
-
     api_id = {
         "change": "usa23100",
         "value": "usa20540",
@@ -335,7 +375,7 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 "trde_prica_cnd": "0",
             }
         try:
-            records = _call(api_id, body, token=access_token).get("result_list")
+            records = _call(api_id, body, token=token).get("result_list")
         except KiwoomReadOnlyError:
             # One rejected official code must not discard successful sibling
             # codes in the same display group.
