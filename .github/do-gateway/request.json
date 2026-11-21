@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service",
-  "lines": 160
+  "operation": "run",
+  "path": "ops/do-gateway/verify_etf_rest_20261122.py",
+  "request_id": "etfmapdiag1122a",
+  "timeout": 120
 }
