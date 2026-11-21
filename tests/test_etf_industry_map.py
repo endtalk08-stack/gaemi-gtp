@@ -41,13 +41,26 @@ class EtfIndustryMapTests(unittest.TestCase):
                           "semiconductors": ["710"], "biotech": ["530"]})
 
     def test_etf_exchange_comes_from_official_list(self):
-        with patch.object(industries, "_call", return_value={"list": [
-            {"code": "XLU", "stex_tp": "NA", "etn": "N"},
-            {"code": "IBIT", "stex_tp": "ND", "etn": "N"},
-            {"code": "SOMEETN", "stex_tp": "NY", "etn": "Y"},
-        ]}) as call:
-            self.assertEqual(industries.fetch_us_etf_exchanges(token="test"),
-                             {"XLU": "NA", "IBIT": "ND"})
+        expected = {
+            "IBIT": "ND", "SOXX": "ND", "XBI": "NY", "XLB": "NY",
+            "XLC": "NY", "XLE": "NY", "XLF": "NY", "XLI": "NY",
+            "XLK": "NY", "XLP": "NY", "XLRE": "NY", "XLU": "NY",
+            "XLV": "NY", "XLY": "NY",
+        }
+        records = [
+            {"stk_cd": symbol, "stex_tp": exchange, "etn": "N"}
+            for symbol, exchange in expected.items()
+        ]
+        records.extend([
+            {"stk_cd": "SOMEETN", "stex_tp": "NY", "etn": "Y"},
+            # The obsolete field must not be treated as a Kiwoom ticker.
+            {"code": "XLV", "stex_tp": "ND", "etn": "N"},
+        ])
+        with patch.object(industries, "_call", return_value={"list": records}) as call:
+            actual = industries.fetch_us_etf_exchanges(token="test")
+        self.assertEqual(actual, expected)
+        self.assertEqual(len(actual), 14)
+        self.assertEqual(set(actual), set(industries.ETF_TICKERS))
         call.assert_called_once_with("usa10104", {"stex_tp": "%"}, token="test")
 
     def test_bitcoin_related_companies_are_ranked_by_market_cap(self):
