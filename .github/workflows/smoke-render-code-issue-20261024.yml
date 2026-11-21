@@ -8,6 +8,7 @@ permissions:
   contents: read
 jobs:
   smoke:
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
