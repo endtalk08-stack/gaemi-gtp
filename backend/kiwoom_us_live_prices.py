@@ -96,6 +96,12 @@ def _ranked_symbols(snapshot_path=None):
         raise ValueError("incomplete_local_kiwoom_top20")
     return data.get("captured_at"), selected
 
+
+def _industry_only_symbols(industry, ranked):
+    """Keep shared QQQ/TOP20 symbols in their existing FE subscription groups."""
+    return {symbol: exchange for symbol, exchange in industry.items()
+            if symbol != "QQQ" and symbol not in ranked}
+
 async def _register_fe(ws, group, symbols, *, refresh, on_tick=None):
     await ws.send(json.dumps({
         "trnm": "REG", "grp_no": group, "refresh": refresh,
@@ -168,6 +174,7 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                 retry_delay = 5
                 ranked = {}
                 industry_ranked = {}
+                industry_registered = {}
                 selected = qqq
                 next_ranking_check = 0.0
                 next_industry_check = 0.0
@@ -191,6 +198,7 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                                 ranked = wanted
                                 selected = {**top20, **industry_ranked, **qqq}
                                 on_top20(set(wanted))
+                                next_industry_check = 0.0
                                 print("KIWOOM_TOP20_FE_REGISTERED=" + str(len(wanted)), flush=True)
                             else:
                                 print("KIWOOM_TOP20_FE_REGISTRATION_FAILED", flush=True)
@@ -220,13 +228,16 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                                 and re.fullmatch(r"[A-Z0-9.-]{1,20}", symbol)
                                 and exchange in EXCHANGES
                             }
-                            if wanted_industry and wanted_industry != industry_ranked:
+                            subscribed_industry = _industry_only_symbols(wanted_industry, ranked)
+                            if wanted_industry and (wanted_industry != industry_ranked
+                                                    or subscribed_industry != industry_registered):
                                 if await _register_fe(
-                                    ws, "3", wanted_industry,
-                                    refresh="1" if not industry_ranked else "0",
+                                    ws, "3", subscribed_industry,
+                                    refresh="1" if not industry_registered else "0",
                                     on_tick=publish,
                                 ):
                                     industry_ranked = wanted_industry
+                                    industry_registered = subscribed_industry
                                     top20 = {
                                         symbol: exchange for symbol, exchange in ranked.items()
                                         if symbol != "QQQ"
