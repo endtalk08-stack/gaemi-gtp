@@ -197,6 +197,15 @@
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
       const changeValue = (item) => Number.isFinite(item.change_pct) ? item.change_pct : -Infinity;
+      // Select companies by market cap first; order only the selected three by return.
+      const orderSelectedStocks = (stocks) => [...stocks].sort((a, b) => {
+        const rise = (stock) => {
+          const live = industryQuoteFor(stock.symbol);
+          return Number.isFinite(live?.change_pct) ? live.change_pct
+            : Number.isFinite(stock.change_pct) ? stock.change_pct : -Infinity;
+        };
+        return rise(b) - rise(a) || (b.market_cap_usd || 0) - (a.market_cap_usd || 0);
+      });
       const sectorEtfs = {
         information_technology: 'XLK', healthcare: 'XLV', finance: 'XLF',
         consumer_discretionary: 'XLY', communication_services: 'XLC',
@@ -247,25 +256,25 @@
             hideChange: changes.length === 0,
             ...(themeTone ? { themeTone } : {})
           },
-          stocks
+          stocks: orderSelectedStocks(stocks)
         };
       });
       visibleSectors.sort((a, b) => changeValue(b.sector) - changeValue(a.sector));
       const supplementalThemes = [
         {
           sector: { key: 'theme_semiconductors', name: '반도체', themeTone: 'semiconductor', hideChange: true },
-          stocks: [...(byIndustry.get('semiconductors')?.stocks || [])]
-            .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3)
+          stocks: orderSelectedStocks([...(byIndustry.get('semiconductors')?.stocks || [])]
+            .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
         },
         {
           sector: { key: 'theme_biotech', name: '바이오', themeTone: 'biotech', hideChange: true },
-          stocks: [...(byIndustry.get('biotech')?.stocks || [])]
-            .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3)
+          stocks: orderSelectedStocks([...(byIndustry.get('biotech')?.stocks || [])]
+            .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
         },
         {
           sector: { key: 'theme_bitcoin', name: '비트코인', themeTone: 'bitcoin', hideChange: true },
-          stocks: [...(byIndustry.get('bitcoin_related')?.stocks || [])]
-            .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3)
+          stocks: orderSelectedStocks([...(byIndustry.get('bitcoin_related')?.stocks || [])]
+            .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
         }
       ];
       [...visibleSectors, ...supplementalThemes].forEach(({ sector, stocks: ranked }) => {

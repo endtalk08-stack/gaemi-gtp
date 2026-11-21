@@ -142,9 +142,10 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
         ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
         items: [
           { key: 'semiconductors', name: '반도체', change_pct: 1.8, stocks: [
-            { name: 'AMD', symbol: 'AMD.O', change_pct: 1, market_cap_usd: 100 },
+            { name: 'AMD', symbol: 'AMD.O', change_pct: 5, market_cap_usd: 100 },
             { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, market_cap_usd: 1000 },
             { name: '브로드컴', symbol: 'AVGO.O', change_pct: 1.5, market_cap_usd: 500 },
+            { name: '마이크론', symbol: 'MU.O', change_pct: 20, market_cap_usd: 50 },
           ] },
           { key: 'healthcare', name: '헬스케어', change_pct: -0.8, stocks: [
             { name: '일라이 릴리', symbol: 'LLY.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
@@ -218,8 +219,9 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   const technology = rowFor('정보기술');
   assert.equal(technology.children[0].children[1].textContent, 'XLK');
   assert.equal(technology.children[0].children[3].textContent, '—');
-  assert.equal(technology.children[1].children[0].children[0].textContent, '엔비디아');
-  assert.equal(technology.children[1].children[0].children[1].textContent, '+2.50%');
+  assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
+    ['AMD', '엔비디아', '브로드컴']);
+  assert.equal(technology.children[1].children[0].children[1].textContent, '+5.00%');
   const healthcare = rowFor('헬스케어');
   assert.equal(healthcare.children[0].children[1].textContent, 'XLV');
   assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
@@ -239,7 +241,7 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   themeRows.forEach((row) => row.children[1].children.forEach((tile) =>
     assert.ok(!tile.children.some((c) => c.className === 'industry-map-stock-symbol'))));
   assert.deepEqual(themeRows[0].children[1].children.map((tile) => tile.children[0].textContent),
-    ['엔비디아', '브로드컴', 'AMD']);
+    ['AMD', '엔비디아', '브로드컴']);
   assert.equal(themeRows[1].children[1].children[0].children[0].textContent, '모더나');
   assert.equal(themeRows[2].children[1].children[0].children[0].textContent, '코인베이스');
 });
@@ -257,7 +259,9 @@ test('industry map consumes fresh Kiwoom websocket quotes for its selected stock
       received_at_ms: 1_000_000, stale: false },
   ]);
   const technology = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '정보기술');
-  assert.equal(technology.children[1].children[0].children[1].textContent, '-3.20%');
+  assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
+    ['AMD', '브로드컴', '엔비디아']);
+  assert.equal(technology.children[1].children[2].children[1].textContent, '-3.20%');
   assert.equal(technology.children[0].children[1].textContent, 'XLK');
   assert.equal(technology.children[0].children[2].textContent, '$150.00');
   assert.equal(technology.children[0].children[3].textContent, '+1.75%');
