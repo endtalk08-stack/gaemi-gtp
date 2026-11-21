@@ -330,6 +330,7 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
         "marketcap": "usa20550",
     }[sort]
     rows_by_symbol = {}
+    failed_codes = []
     for code in codes:
         if sort == "change":
             body = {"stex_tp": "0", "sort_tp": "1", "inds_cd": code}
@@ -343,9 +344,16 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 "pric_cnd": "0",
                 "trde_prica_cnd": "0",
             }
-        records = _call(api_id, body, token=access_token).get("result_list")
+        try:
+            records = _call(api_id, body, token=access_token).get("result_list")
+        except KiwoomReadOnlyError:
+            # One rejected official code must not discard successful sibling
+            # codes in the same display group.
+            failed_codes.append(code)
+            continue
         if not isinstance(records, list):
-            raise KiwoomReadOnlyError("kiwoom_industry_stock_records_missing")
+            failed_codes.append(code)
+            continue
 
         for record in records:
             if not isinstance(record, dict):
@@ -395,6 +403,8 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 rows_by_symbol[symbol] = row
 
     rows = list(rows_by_symbol.values())
+    if not rows:
+        raise KiwoomReadOnlyError("kiwoom_industry_all_codes_unavailable")
     if sort == "change":
         rows.sort(key=lambda row: row["change_pct"] if row["change_pct"] is not None else float("-inf"), reverse=True)
     elif sort == "value":
@@ -417,6 +427,7 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
         "source": "kiwoom:" + api_id,
         "industry_code": codes[0] if len(codes) == 1 else None,
         "industry_codes": codes,
+        "failed_industry_codes": failed_codes,
         "sort": sort,
         "fetched_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "items": rows,
