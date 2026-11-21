@@ -1048,19 +1048,71 @@ def load_candidate(module_name, source):
     return module
 
 
+
+def compact(row):
+    keys = ("code", "stk_cd", "stex_tp", "etn", "mkgb", "isEtf")
+    return {key: str(row[key])[:60] for key in keys if key in row}
+
+
+def response_rows(data):
+    rows = data.get("list")
+    return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+
+def matching_symbol(row, choices, re):
+    code = str(row.get("code") or row.get("stk_cd") or "").strip().upper()
+    parts = set(re.split(r"[^A-Z0-9]+", code))
+    matches = choices & parts
+    return next(iter(matches)) if len(matches) == 1 else None
+
+
 def verify(provider, token):
-    etfs = provider.fetch_us_etf_exchanges(token=token)
-    finance_codes = provider._HEATMAP_OFFICIAL_CODES["finance"]
-    rows = provider.fetch_us_industry_stocks(finance_codes, token=token, limit=3)["items"]
-    stocks = [{key: row[key] for key in ("symbol", "issuer_key", "market_cap_usd", "rank")}
-              for row in rows]
+    from collections import Counter
+    import re
+
+    choices = provider.ETF_TICKERS
+    baseline = {}
+    try:
+        data = provider._call_once("usa10104", {"stex_tp": "%"}, token=token)
+        rows = response_rows(data)
+        counts = Counter(str(row.get("stex_tp", ""))[:20] for row in rows)
+        tagged = [compact(row) for row in rows if matching_symbol(row, choices, re)]
+        baseline = {
+            "row_count": len(rows),
+            "response_fields": sorted(data)[:20],
+            "exchange_counts": dict(counts),
+            "etn_counts": dict(Counter(str(row.get("etn", ""))[:20] for row in rows)),
+            "has_next_page": data.get("_cont_yn") == "Y",
+            "examples": [compact(row) for row in rows[:5]],
+            "exact_ticker_examples": tagged[:28],
+        }
+    except provider.KiwoomReadOnlyError as exc:
+        baseline = {"error": str(exc)}
+
+    provider.API_PATHS["usa10098"] = "/api/us/stkinfo"
+    looked_up = {}
+    mappings = {}
+    for ticker in sorted(choices):
+        try:
+            data = provider._call_once("usa10098", {"stk_cd": ticker}, token=token)
+        except provider.KiwoomReadOnlyError as exc:
+            looked_up[ticker] = {"error": str(exc)}
+            continue
+        rows = response_rows(data)
+        matched = [row for row in rows if matching_symbol(row, {ticker}, re)]
+        looked_up[ticker] = {"row_count": len(rows), "rows": [compact(row) for row in (matched or rows)[:4]]}
+        exchanges = {str(row.get("stex_tp", "")).strip().upper() for row in matched}
+        exchanges = {provider.EXCHANGE_CODES.get(code, code) for code in exchanges}
+        valid = exchanges & provider.EXCHANGES
+        if len(valid) == 1:
+            mappings[ticker] = next(iter(valid))
+
     return {
-        "candidate_base": BASE_COMMIT,
-        "candidate_patch_sha256": PATCH_SHA256,
-        "verified_etfs": dict(sorted(etfs.items())),
-        "missing_etfs": sorted(provider.ETF_TICKERS - etfs.keys()),
-        "finance": stocks,
-        "finance_unique_companies": len({row["issuer_key"] for row in stocks}),
+        "source": {"list": "kiwoom:usa10104", "lookup": "kiwoom:usa10098"},
+        "raw_first_list_page": baseline,
+        "ticker_lookup": looked_up,
+        "verified_exchanges": mappings,
+        "unresolved_tickers": sorted(choices - mappings.keys()),
     }
 
 
@@ -1068,8 +1120,8 @@ def main():
     quotes = load_candidate("backend.providers.kiwoom_us_quotes", QUOTES_SOURCE)
     provider = load_candidate("backend.providers.kiwoom_us_industries", INDUSTRIES_SOURCE)
     result = verify(provider, quotes.issue_access_token())
-    print("KIWOOM_ETF_REST_VERIFICATION=" + json.dumps(result, allow_nan=False), flush=True)
-    return 0 if not result["missing_etfs"] and result["finance_unique_companies"] == 3 else 1
+    print("KIWOOM_ETF_EXCHANGE_DIAGNOSTIC=" + json.dumps(result, ensure_ascii=False, allow_nan=False), flush=True)
+    return int(bool(result["unresolved_tickers"]))
 
 
 if __name__ == "__main__":

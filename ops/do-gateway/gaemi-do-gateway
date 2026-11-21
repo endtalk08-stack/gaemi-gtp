@@ -318,8 +318,8 @@ PY
     [[ -f "$inbox" && ! -L "$inbox" ]] || fail "payload_missing"
     [[ "$(blob_sha "$inbox")" == "$2" ]] || fail "payload_sha_mismatch"
     job_env="$envfile"
-    if [[ "$1" == "etf-rest-92e15ff-20261122-r2" ]]; then
-      [[ "$2" == "f5cf95d47b64f1b7d3e844df1d444d474f43aa9d" && "$3" == "300" ]] || fail "etf_rest_verification_payload_mismatch"
+    if [[ "$1" == "etf-exchanges-92e15ff-20261122" ]]; then
+      [[ "$2" == "183cd76bbedfc76de0946276287982a7ffb35197" && "$3" == "240" ]] || fail "etf_exchange_diagnostic_payload_mismatch"
       job_env=/etc/gaemigtp/kiwoom.env
       [[ -f "$job_env" && ! -L "$job_env" ]] || fail "kiwoom_credentials_not_installed"
       [[ "$(stat -c %U:%G "$job_env")" == "root:root" ]] || fail "kiwoom_credentials_wrong_owner"
