@@ -353,6 +353,9 @@
 }
 .industry-map-sector-etf {
   display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--gtp-muted);
   font-size: 9px;
   font-weight: 700;
