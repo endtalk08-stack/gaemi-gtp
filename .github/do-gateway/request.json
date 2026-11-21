@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_industry_release_baseline_20261120.py",
-  "request_id": "etf-baseline-20261122-01",
-  "timeout": 60
+  "operation": "deploy",
+  "path": "backend/providers/kiwoom_us_industries.py",
+  "target": "backend/providers/kiwoom_us_industries.py"
 }
