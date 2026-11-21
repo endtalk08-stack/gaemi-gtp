@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-tradingview-news.service",
-  "lines": 300
+  "operation": "run",
+  "path": "ops/do-gateway/verify_r2_read_once_20261106.py",
+  "request_id": "tvnewsr2read1122",
+  "timeout": 60
 }
