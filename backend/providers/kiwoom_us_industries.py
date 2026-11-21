@@ -379,6 +379,8 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
             records = _call(api_id, body, token=request_token).get("result_list")
             request_token = None
         except KiwoomReadOnlyError:
+            # _call may have refreshed the cached token before its one retry.
+            request_token = None
             # One rejected official code must not discard successful sibling
             # codes in the same display group.
             failed_codes.append(code)
