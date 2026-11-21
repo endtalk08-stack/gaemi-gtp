@@ -1,4 +1,4 @@
-name: gaemigtp-main Pages preview
+name: gaemigtp-main Pages preview # candidate d3a80ee
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
