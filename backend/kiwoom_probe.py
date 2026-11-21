@@ -6,7 +6,13 @@ No secrets or access tokens are printed or stored.
 import datetime as dt
 import json
 import sys
+from pathlib import Path
 from zoneinfo import ZoneInfo
+
+# The gateway executes copied probes from /run; load the existing app package explicitly.
+APP_ROOT = Path("/opt/gaemigtp-news/app")
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
 
 from backend.providers.kiwoom_us_quotes import (
     KiwoomReadOnlyError, credentials_configured,
