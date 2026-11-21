@@ -20,12 +20,13 @@ import requests
 from backend.providers.kiwoom_us_quotes import (
     KiwoomReadOnlyError,
     issue_access_token,
-    wait_for_us_read_slot,
 )
 
 API_ORIGIN = "https://api.kiwoom.com"
 API_PATHS = {
     "usa10101": "/api/us/stkinfo",
+    "usa10104": "/api/us/stkinfo",
+    "usa20100": "/api/us/mrkcond",
     "usa23000": "/api/us/sect",
     "usa23100": "/api/us/sect",
     "usa20540": "/api/us/rkinfo",
@@ -34,10 +35,17 @@ API_PATHS = {
 }
 EXCHANGES = {"NA", "ND", "NY"}
 EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
+ETF_TICKERS = frozenset({"XLK", "XLV", "XLF", "XLY", "XLC", "XLI", "XLP",
+                         "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT"})
+BITCOIN_COMPANIES = ("COIN", "MSTR", "MARA", "RIOT", "CLSK")
 
 # Eleven display groups based on official Kiwoom industry codes. The labels
 # match the sidebar heatmap; unmapped official codes remain unclassified.
 INDUSTRY_GROUPS = (
+    ("utilities", "유틸리티", ("유틸리티", "공익사업", "전기", "가스", "utilities", "electric utilities", "gas utilities", "water utilities")),
+    ("real_estate", "부동산", ("부동산", "리츠", "real estate", "reit")),
+    ("materials", "소재", ("소재", "화학", "건축자재", "금속", "광업", "materials", "chemicals", "construction materials", "metals", "mining")),
+    ("biotech", "바이오", ("바이오", "biotechnology", "biotech")),
     ("energy", "에너지", ("에너지", "energy", "oil & gas", "oil and gas", "renewable energy", "energy equipment", "energy services")),
     ("finance", "금융", ("금융", "financials", "financial", "banks", "banking", "insurance", "capital markets", "consumer finance", "diversified financials", "financial services")),
     ("consumer_staples", "필수소비재", ("필수소비재", "consumer staples", "consumer defensive", "food products", "beverages", "household products", "personal products", "food retail", "food & staples retail", "tobacco")),
@@ -80,7 +88,7 @@ _HEATMAP_OFFICIAL_CODES = {
 _HEATMAP_GROUP_BY_CODE = {
     code: group for group, codes in _HEATMAP_OFFICIAL_CODES.items() for code in codes
 }
-_OUTSIDE_HEATMAP_CODES = {"110", "120", "130", "140", "380", "630", "910", "920", "930"}
+_OUTSIDE_HEATMAP_CODES = {"380"}
 
 
 
@@ -122,98 +130,75 @@ def _access_token():
         return token
 
 
-_AUTH_RETRY_RETURN_CODES = {8005, 8031, 8103}
+_API_RATE_LOCK = threading.Lock()
+_LAST_API_CALL_AT = 0.0
+_MIN_API_CALL_INTERVAL = 0.22  # Stay below Kiwoom's 5 read-TR/sec limit.
 
 
-def _embedded_return_code(message):
-    match = re.search(r"\[(\d{3,5}):|CODE=(\d{3,5})", str(message or ""))
-    if not match:
-        return None
-    return int(match.group(1) or match.group(2))
+_CALL_MAX_ATTEMPTS = 3  # First try + 2 retries; Kiwoom TR rejections are often transient.
+_CALL_RETRY_BACKOFF = 0.4  # Seconds added per extra attempt, on top of the rate-limit wait.
 
 
-def _refresh_access_token():
-    global _ACCESS_TOKEN, _ACCESS_TOKEN_EXPIRES_AT
-    token_value = issue_access_token()
-    with _TOKEN_LOCK:
-        _ACCESS_TOKEN = token_value
-        _ACCESS_TOKEN_EXPIRES_AT = time.monotonic() + 23 * 60 * 60
-    return token_value
-
-
-_CALL_MAX_ATTEMPTS = 3  # First try + 2 retries for transient Kiwoom TR rejections.
-_CALL_RETRY_BACKOFF = 0.4  # Keep the existing per-request rate limit; add a short retry backoff.
-
-
-def _call(api_id, body, *, token=None):
+def _call(api_id, body, *, token=None, continuation=None):
     last_error = None
     for attempt in range(_CALL_MAX_ATTEMPTS):
         if attempt:
             time.sleep(_CALL_RETRY_BACKOFF * attempt)
         try:
-            return _call_once(api_id, body, token=token)
+            if continuation is None:
+                return _call_once(api_id, body, token=token)
+            return _call_once(api_id, body, token=token, continuation=continuation)
         except KiwoomReadOnlyError as exc:
             last_error = exc
     raise last_error
 
 
-def _call_once(api_id, body, *, token=None):
+def _call_once(api_id, body, *, token=None, continuation=None):
+    global _LAST_API_CALL_AT
     path = API_PATHS.get(api_id)
     if not path or not isinstance(body, dict):
         raise KiwoomReadOnlyError("kiwoom_industry_api_not_allowed")
     access_token = token or _access_token()
-
-    for attempt in range(2):
-        wait_for_us_read_slot()
-        try:
-            response = requests.post(
-                API_ORIGIN + path,
-                json=body,
-                headers={
-                    "Content-Type": "application/json;charset=UTF-8",
-                    "authorization": "Bearer " + access_token,
-                    "api-id": api_id,
-                },
-                timeout=8,
-                allow_redirects=False,
-            )
-        except requests.RequestException:
-            raise KiwoomReadOnlyError("kiwoom_industry_request_failed") from None
-
-        if response.status_code == 401:
-            if attempt == 0:
-                access_token = _refresh_access_token()
-                continue
-            raise KiwoomReadOnlyError("kiwoom_industry_auth_retry_failed")
-        if response.status_code != 200:
-            raise KiwoomReadOnlyError("kiwoom_industry_http_" + str(int(response.status_code)))
-        try:
-            data = response.json()
-        except ValueError:
-            raise KiwoomReadOnlyError("kiwoom_industry_response_invalid") from None
-        if not isinstance(data, dict):
-            raise KiwoomReadOnlyError("kiwoom_industry_response_invalid")
-
-        code = str(data.get("return_code", 0))
-        if code in ("0", "0000"):
-            return data
-
-        embedded_code = _embedded_return_code(data.get("return_msg"))
-        if attempt == 0 and (
-            code in ("8005", "8031", "8103")
-            or embedded_code in _AUTH_RETRY_RETURN_CODES
-        ):
-            access_token = _refresh_access_token()
-            continue
-
-        safe_code = (
-            str(embedded_code) if embedded_code is not None
-            else code if re.fullmatch(r"-?[0-9]{1,6}", code)
-            else "unknown"
+    with _API_RATE_LOCK:
+        now = time.monotonic()
+        wait = _MIN_API_CALL_INTERVAL - (now - _LAST_API_CALL_AT)
+        if wait > 0:
+            time.sleep(wait)
+        _LAST_API_CALL_AT = time.monotonic()
+    headers = {
+        "Content-Type": "application/json;charset=UTF-8",
+        "authorization": "Bearer " + access_token,
+        "api-id": api_id,
+    }
+    if continuation is not None:
+        headers["cont-yn"] = "Y"
+        headers["next-key"] = continuation
+    try:
+        response = requests.post(
+            API_ORIGIN + path,
+            json=body,
+            headers=headers,
+            timeout=8,
+            allow_redirects=False,
         )
+    except requests.RequestException:
+        raise KiwoomReadOnlyError("kiwoom_industry_request_failed") from None
+    if response.status_code != 200:
+        raise KiwoomReadOnlyError("kiwoom_industry_http_" + str(int(response.status_code)))
+    try:
+        data = response.json()
+    except ValueError:
+        raise KiwoomReadOnlyError("kiwoom_industry_response_invalid") from None
+    if not isinstance(data, dict):
+        raise KiwoomReadOnlyError("kiwoom_industry_response_invalid")
+    code = str(data.get("return_code", 0))
+    if code not in ("0", "0000"):
+        safe_code = code if re.fullmatch(r"-?[0-9]{1,6}", code) else "unknown"
         raise KiwoomReadOnlyError("kiwoom_industry_rejected_code_" + safe_code)
-
-    raise KiwoomReadOnlyError("kiwoom_industry_auth_retry_failed")
+    if api_id == "usa10104":
+        data = {**data, "_cont_yn": response.headers.get("cont-yn", ""),
+                "_next_key": response.headers.get("next-key", "")}
+    return data
 
 
 def _number(value):
@@ -245,9 +230,10 @@ def fetch_us_industry_map(*, token=None):
 
 def fetch_us_industry_maps(*, token=None):
     """Build both classifications from the same pair of Kiwoom responses."""
-    official = _call("usa10101", {"gubun": "1"}, token=token).get("list")
+    access_token = token or _access_token()
+    official = _call("usa10101", {"gubun": "1"}, token=access_token).get("list")
     performance = _call(
-        "usa23000", {"stex_tp": "0", "inds_cd": "0"}
+        "usa23000", {"stex_tp": "0", "inds_cd": "0"}, token=access_token
     ).get("result_list")
     if not isinstance(official, list) or not isinstance(performance, list):
         raise KiwoomReadOnlyError("kiwoom_industry_records_missing")
@@ -270,7 +256,17 @@ def _build_us_industry_map(official, performance, groups):
         english = str(row.get("inds_enm") or "").strip()
         if not code or not name:
             continue
-        if is_heatmap and code in _OUTSIDE_HEATMAP_CODES:
+        if is_heatmap and code in {"110", "120", "130", "140", "630", "910", "920", "930"}:
+            # Validate the label from usa10101 instead of guessing from the code.
+            expected = ("materials" if code in {"110", "120", "130", "140"}
+                        else "real_estate" if code == "630" else "utilities")
+            matched_name = _group_for_official_industry(name, english, groups=groups)
+            group = expected if matched_name == expected else None
+        elif is_heatmap and code in {"510", "520", "530"} and any(
+                term in _normalize_name(name + " " + english)
+                for term in ("바이오", "biotech", "biotechnology")):
+            group = "biotech"
+        elif is_heatmap and code in _OUTSIDE_HEATMAP_CODES:
             group = None
         elif is_heatmap and code in _HEATMAP_GROUP_BY_CODE:
             group = _HEATMAP_GROUP_BY_CODE[code]
@@ -363,6 +359,18 @@ def _rank_number(value):
     return int(number) if number is not None and number >= 0 else None
 
 
+def _issuer_key(symbol, english_name, name):
+    """Use the company, not a share class, as one ranking slot."""
+    ticker = str(symbol or "").upper().removesuffix(".O").removesuffix(".N").removesuffix(".K")
+    if ticker in {"GOOG", "GOOGL"}:
+        return "US:ALPHABET"
+    if ticker in {"BRK.A", "BRK.B"}:
+        return "US:BERKSHIRE"
+    label = str(english_name or name or "").strip().casefold()
+    label = re.sub(r"(?:\s|[,.-])+(?:class|cl|series)\s+[a-z](?:\s+(?:common\s+)?stock)?\s*$", "", label)
+    return "NAME:" + _normalize_name(label) if label else "TICKER:" + ticker
+
+
 def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, limit=36, symbols=None):
     """Fetch official industry stocks, optionally filtering bare tickers before ranking."""
     codes = _industry_codes(industry_codes)
@@ -370,14 +378,14 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
         raise ValueError("invalid_industry_sort")
     if type(limit) is not int or not 1 <= limit <= 36:
         raise ValueError("invalid_industry_limit")
+    access_token = token or _access_token()
+
     api_id = {
         "change": "usa23100",
         "value": "usa20540",
         "marketcap": "usa20550",
     }[sort]
     rows_by_symbol = {}
-    failed_codes = []
-    request_token = token
     for code in codes:
         if sort == "change":
             body = {"stex_tp": "0", "sort_tp": "1", "inds_cd": code}
@@ -391,19 +399,9 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 "pric_cnd": "0",
                 "trde_prica_cnd": "0",
             }
-        try:
-            records = _call(api_id, body, token=request_token).get("result_list")
-            request_token = None
-        except KiwoomReadOnlyError:
-            # _call may have refreshed the cached token before its one retry.
-            request_token = None
-            # One rejected official code must not discard successful sibling
-            # codes in the same display group.
-            failed_codes.append(code)
-            continue
+        records = _call(api_id, body, token=access_token).get("result_list")
         if not isinstance(records, list):
-            failed_codes.append(code)
-            continue
+            raise KiwoomReadOnlyError("kiwoom_industry_stock_records_missing")
 
         for record in records:
             if not isinstance(record, dict):
@@ -436,6 +434,7 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 "symbol": symbol,
                 "name": name,
                 "english_name": str(record.get("stk_enm") or "").strip()[:100],
+                "issuer_key": _issuer_key(symbol, record.get("stk_enm"), name),
                 "exchange": exchange,
                 "price": price,
                 "change_pct": change_pct,
@@ -453,8 +452,6 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 rows_by_symbol[symbol] = row
 
     rows = list(rows_by_symbol.values())
-    if not rows:
-        raise KiwoomReadOnlyError("kiwoom_industry_all_codes_unavailable")
     if sort == "change":
         rows.sort(key=lambda row: row["change_pct"] if row["change_pct"] is not None else float("-inf"), reverse=True)
     elif sort == "value":
@@ -468,6 +465,16 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
             ),
             reverse=True,
         )
+    if sort == "marketcap":
+        seen_issuers = set()
+        unique_rows = []
+        for row in rows:
+            issuer = row["issuer_key"]
+            if issuer in seen_issuers:
+                continue
+            seen_issuers.add(issuer)
+            unique_rows.append(row)
+        rows = unique_rows
     rows = rows[:limit]
     for rank, row in enumerate(rows, 1):
         row["rank"] = rank
@@ -477,7 +484,6 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
         "source": "kiwoom:" + api_id,
         "industry_code": codes[0] if len(codes) == 1 else None,
         "industry_codes": codes,
-        "failed_industry_codes": failed_codes,
         "sort": sort,
         "fetched_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "items": rows,
@@ -583,3 +589,55 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
         "fetched_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "items": rows,
     }
+
+
+def fetch_us_etf_exchanges(*, token=None):
+    """Verify the agreed ETF ticker/exchange pairs against Kiwoom usa10104."""
+    symbols = {}
+    continuation = None
+    for _ in range(40):
+        kwargs = {"token": token}
+        if continuation is not None:
+            kwargs["continuation"] = continuation
+        data = _call("usa10104", {"stex_tp": "%"}, **kwargs)
+        records = data.get("list")
+        if not isinstance(records, list):
+            raise KiwoomReadOnlyError("kiwoom_etf_list_missing")
+        for row in records:
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("stk_cd") or "").strip().upper()
+            exchange = EXCHANGE_CODES.get(str(row.get("stex_tp") or "").strip().upper(),
+                                          str(row.get("stex_tp") or "").strip().upper())
+            if symbol in ETF_TICKERS and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
+                symbols[symbol] = exchange
+        if symbols.keys() >= ETF_TICKERS or data.get("_cont_yn") != "Y":
+            break
+        next_key = str(data.get("_next_key") or "")
+        if not next_key or next_key == continuation:
+            break
+        continuation = next_key
+    return symbols
+
+
+def fetch_us_bitcoin_related_stocks(*, token=None):
+    """Rank a bounded, explicit universe of related listed companies by cap."""
+    access_token = token or _access_token()
+    rows = []
+    for symbol in BITCOIN_COMPANIES:
+        try:
+            record = _call("usa20100", {"stex_tp": "ND", "stk_cd": symbol}, token=access_token)
+        except KiwoomReadOnlyError:
+            continue
+        exchange = str(record.get("stex_tp") or "").strip().upper()
+        market_cap = _number(record.get("mac"))
+        name = str(record.get("stk_nm") or record.get("stk_enm") or "").strip()
+        if (str(record.get("stk_cd") or "").strip().upper() != symbol
+                or exchange != "ND" or not name or market_cap is None or market_cap <= 0):
+            continue
+        rows.append({"symbol": symbol, "exchange": exchange, "name": name,
+                     "market_cap_usd": market_cap * 1000,
+                     "change_pct": _number(record.get("flu_rt")),
+                     "price": _positive_price(record.get("cur_prc"))})
+    rows.sort(key=lambda row: row["market_cap_usd"], reverse=True)
+    return [{**row, "rank": index} for index, row in enumerate(rows[:3], 1)]
