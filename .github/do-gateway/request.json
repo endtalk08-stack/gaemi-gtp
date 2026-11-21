@@ -1,5 +1,5 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service",
-  "lines": 100
+  "operation": "deploy",
+  "path": "backend/kiwoom_probe.py",
+  "target": "backend/kiwoom_probe.py"
 }
