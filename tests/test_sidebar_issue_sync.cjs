@@ -217,19 +217,19 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   const rowFor = (name) => app.list.children.find((row) =>
     row.children[0]?.children[0]?.textContent === name);
   const technology = rowFor('정보기술');
-  assert.equal(technology.children[0].children[1].textContent, 'XLK');
-  assert.equal(technology.children[0].children[3].textContent, '—');
+  assert.equal(technology.children[0].children[1].textContent, '—');
+  assert.equal(technology.children[0].children[2].textContent, '—');
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
     ['AMD', '엔비디아', '브로드컴']);
   assert.equal(technology.children[1].children[0].children[1].textContent, '+5.00%');
   const healthcare = rowFor('헬스케어');
-  assert.equal(healthcare.children[0].children[1].textContent, 'XLV');
+  assert.equal(healthcare.children[0].children[1].textContent, '—');
   assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
   assert.equal(healthcare.children[1].children[0].children[1].textContent, '-1.25%');
   assert.deepEqual(rowFor('커뮤니케이션').children[1].children.map((tile) => tile.children[0].textContent),
     ['알파벳 Class C', '메타', '넷플릭스']);
   const utilities = rowFor('유틸리티');
-  assert.equal(utilities.children[0].children[1].textContent, 'XLU');
+  assert.equal(utilities.children[0].children[1].textContent, '—');
   assert.equal(utilities.children[1].children[0].textContent, '상위 종목 데이터 없음');
   const themeRows = app.list.children.filter((row) =>
     ['반도체', '바이오', '비트코인'].includes(row.children[0]?.children[0]?.textContent));
@@ -262,9 +262,8 @@ test('industry map consumes fresh Kiwoom websocket quotes for its selected stock
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
     ['AMD', '브로드컴', '엔비디아']);
   assert.equal(technology.children[1].children[2].children[1].textContent, '-3.20%');
-  assert.equal(technology.children[0].children[1].textContent, 'XLK');
-  assert.equal(technology.children[0].children[2].textContent, '$150.00');
-  assert.equal(technology.children[0].children[3].textContent, '+1.75%');
+  assert.equal(technology.children[0].children[1].textContent, '$150.00');
+  assert.equal(technology.children[0].children[2].textContent, '+1.75%');
 });
 
 test('industry tiles follow fresh ETF returns and reorder on quote updates', async () => {
