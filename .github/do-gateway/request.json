@@ -1,3 +1,5 @@
 {
-  "operation": "kiwoom-verify"
+  "operation": "deploy",
+  "path": "backend/kiwoom_probe.py",
+  "target": "backend/kiwoom_probe.py"
 }
