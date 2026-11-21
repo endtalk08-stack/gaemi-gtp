@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/verify_etf_rest_20261122.py",
-  "request_id": "etfwsprobe20261122",
-  "timeout": 240
+  "path": "ops/do-gateway/check_kiwoom_config.py",
+  "request_id": "kiwoomconfig20261122",
+  "timeout": 60
 }
