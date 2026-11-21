@@ -7,6 +7,7 @@ The module is not imported by existing news/price workers unless explicitly requ
 import datetime as dt
 import os
 import re
+import threading
 import time
 import requests
 
@@ -20,6 +21,27 @@ US_INDEX_SYMBOLS = {"DJI", "IXIC", "INX", "NDX"}
 
 class KiwoomReadOnlyError(RuntimeError):
     pass
+
+
+_US_READ_RATE_LOCK = threading.Lock()
+_US_READ_LAST_CALL_AT = 0.0
+
+
+def wait_for_us_read_slot():
+    """Share one per-process US REST read limiter across existing providers.
+
+    Kiwoom allows 5 reads/sec normally but only 3 reads/sec from 09:00-10:00 KST.
+    Use a small safety margin and never let independent provider locks race.
+    """
+    global _US_READ_LAST_CALL_AT
+    kst = dt.datetime.now(dt.timezone(dt.timedelta(hours=9)))
+    interval = 0.36 if 9 <= kst.hour < 10 else 0.21
+    with _US_READ_RATE_LOCK:
+        now = time.monotonic()
+        wait = interval - (now - _US_READ_LAST_CALL_AT)
+        if wait > 0:
+            time.sleep(wait)
+        _US_READ_LAST_CALL_AT = time.monotonic()
 
 
 def credentials_configured():
@@ -37,6 +59,8 @@ def _request(path, body, headers=None, *, with_continuation=False):
         _validate_chart_request(api_id, body)
     elif path != "/oauth2/token":
         raise KiwoomReadOnlyError("kiwoom_unsupported_api_path")
+    if path != "/oauth2/token":
+        wait_for_us_read_slot()
     try:
         response = requests.post(
             API_ORIGIN + path,
