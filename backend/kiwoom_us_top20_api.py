@@ -18,6 +18,8 @@ RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
+_US_INDUSTRY_ETF_CACHE_LOCK = threading.Lock()
+_US_INDUSTRY_ETF_CACHE = {"expires_at": 0.0, "data": []}
 _US_PLATFORM_CACHE_LOCK = threading.Lock()
 _US_PLATFORM_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_MAP_TTL = 60
@@ -133,6 +135,34 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
         return dict(result)
 
 
+
+def _get_us_industry_etf_quotes():
+    from backend.providers.kiwoom_us_industries import fetch_us_etf_quotes
+
+    now = time.monotonic()
+    with _US_INDUSTRY_ETF_CACHE_LOCK:
+        cached = _US_INDUSTRY_ETF_CACHE["data"]
+        if cached and now < _US_INDUSTRY_ETF_CACHE["expires_at"]:
+            return [dict(item) for item in cached]
+        try:
+            quotes = fetch_us_etf_quotes()
+        except Exception:
+            return [dict(item) for item in cached] if cached else []
+
+        clean = [
+            dict(item) for item in quotes
+            if isinstance(item, dict)
+            and isinstance(item.get("symbol"), str)
+            and isinstance(item.get("price"), (int, float))
+            and item.get("price") > 0
+            and isinstance(item.get("change_pct"), (int, float))
+            and isinstance(item.get("received_at_ms"), int)
+        ]
+        _US_INDUSTRY_ETF_CACHE["data"] = clean
+        _US_INDUSTRY_ETF_CACHE["expires_at"] = now + (1800 if clean else 300)
+        return [dict(item) for item in clean]
+
+
 def _get_us_industry_map_with_stocks(view="legacy"):
     source = _get_us_industry_map(view)
     limit = 3
@@ -170,6 +200,7 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                 bitcoin_stocks = cached["data"] if cached else []
         result["items"].append({"key": "bitcoin_related", "name": "비트코인 관련 종목",
                                 "stocks": bitcoin_stocks, "source": "kiwoom:usa20100"})
+        result["etf_quotes"] = _get_us_industry_etf_quotes()
     result["sort"] = "marketcap"
     return result
 
