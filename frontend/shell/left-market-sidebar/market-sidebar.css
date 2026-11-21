@@ -452,6 +452,8 @@
   }
 }
 @media (max-width: 420px) {
+  .industry-map-sector-etf,
+  .industry-map-stock-symbol { font-size: 8px; }
   #marketRankingList.industry-map-list,
   .industry-map-row { gap: 2px; }
   .industry-map-sector { min-height: 44px; padding: 5px 3px; }

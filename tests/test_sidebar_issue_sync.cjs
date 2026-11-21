@@ -190,7 +190,7 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap'));
   assert.equal(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
-  assert.equal(app.list.children.length, 11);
+  assert.equal(app.list.children.length, 14);
   const rowFor = (name) => app.list.children.find((row) =>
     row.children[0]?.children[0]?.textContent === name);
   const semiconductor = rowFor('반도체');
@@ -202,7 +202,14 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
   assert.equal(healthcare.children[1].children[0].children[1].textContent, '-1.25%');
   assert.equal(rowFor('에너지').children[1].children[0].textContent, '상위 종목 데이터 없음');
-  assert.equal(app.list.children.length, 11);
+  assert.equal(app.list.children.length, 14);
+  const themeRows = app.list.children.filter((row) =>
+    ['SOXX', 'XBI', 'IBIT'].includes(row.children[0]?.children[1]?.textContent));
+  assert.deepEqual(themeRows.map((row) => row.children[0].children[1].textContent), ['SOXX', 'XBI', 'IBIT']);
+  assert.equal(themeRows[0].children[1].children.length, 3);
+  assert.equal(themeRows[0].children[1].children[0].children[1].textContent, 'AMD');
+  assert.equal(themeRows[1].children[1].children[0].children[1].textContent, 'MRNA');
+  assert.equal(themeRows[2].children[1].children[0].children[1].textContent, 'COIN');
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
