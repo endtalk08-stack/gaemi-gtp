@@ -267,6 +267,21 @@ test('industry map consumes fresh Kiwoom websocket quotes for its selected stock
   assert.equal(technology.children[0].children[3].textContent, '+1.75%');
 });
 
+test('industry tiles follow fresh ETF returns and reorder on quote updates', async () => {
+  const app = setup();
+  await flush();
+  app.industryTab.click();
+  await flush();
+  const quote = (symbol, change_pct, stale = false) =>
+    ({ symbol, price: 100, change_pct, received_at_ms: 1_000_000, stale });
+  const firstNames = () => app.list.children.slice(0, 3)
+    .map((row) => row.children[0].children[0].textContent);
+  app.industryQuotes([quote('XBI', 3), quote('XLK', 1.75), quote('XLU', -2), quote('XLF', 9, true)]);
+  assert.deepEqual(firstNames(), ['바이오', '정보기술', '유틸리티']);
+  app.industryQuotes([quote('XLU', 4), quote('XBI', 3), quote('XLK', 1.75)]);
+  assert.deepEqual(firstNames(), ['유틸리티', '바이오', '정보기술']);
+});
+
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
   const app = setup();
   await flush();

@@ -196,7 +196,6 @@
     })[theme] || mapTileColor(null);
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
-      const changeValue = (item) => Number.isFinite(item.change_pct) ? item.change_pct : -Infinity;
       // Select companies by market cap first; order only the selected three by return.
       const orderSelectedStocks = (stocks) => [...stocks].sort((a, b) => {
         const rise = (stock) => {
@@ -259,7 +258,6 @@
           stocks: orderSelectedStocks(stocks)
         };
       });
-      visibleSectors.sort((a, b) => changeValue(b.sector) - changeValue(a.sector));
       const supplementalThemes = [
         {
           sector: { key: 'theme_semiconductors', name: '반도체', themeTone: 'semiconductor', hideChange: true },
@@ -277,7 +275,15 @@
             .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
         }
       ];
-      [...visibleSectors, ...supplementalThemes].forEach(({ sector, stocks: ranked }) => {
+      const etfChange = ({ sector }) => {
+        const quote = industryQuoteFor(sectorEtfs[sector.key]);
+        return Number.isFinite(quote?.change_pct) ? quote.change_pct : -Infinity;
+      };
+      [...visibleSectors, ...supplementalThemes].sort((a, b) => {
+        const left = etfChange(a);
+        const right = etfChange(b);
+        return left === right ? 0 : right - left;
+      }).forEach(({ sector, stocks: ranked }) => {
         const etf = sectorEtfs[sector.key];
         const etfQuote = industryQuoteFor(etf);
         const sectorPct = etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null;
