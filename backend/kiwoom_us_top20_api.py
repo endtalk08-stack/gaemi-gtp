@@ -83,10 +83,9 @@ def _get_us_industry_map(view="legacy"):
             ]
             heatmap = {**heatmap, "items": rank_us_industry_rows(items), "mapping_complete": True}
             missing = []
-    selected = "legacy" if missing else "heatmap"
     return {
-        **(maps["legacy"] if missing else heatmap),
-        "view": selected,
+        **heatmap,
+        "view": "heatmap",
         "heatmap_ready": not missing,
         "heatmap_missing": missing,
     }
@@ -151,12 +150,32 @@ def _get_us_industry_map_with_stocks(view="legacy"):
             except Exception as exc:
                 row["stocks_error"] = _safe_industry_error(exc)
         result["items"].append(row)
+    if view == "heatmap":
+        from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
+        key = ("bitcoin_related", "marketcap")
+        now = time.monotonic()
+        with _US_INDUSTRY_CACHE_LOCK:
+            cached = _US_INDUSTRY_STOCK_CACHE.get(key)
+        if cached and now < cached["expires_at"]:
+            bitcoin_stocks = cached["data"]
+        else:
+            try:
+                bitcoin_stocks = fetch_us_bitcoin_related_stocks()
+                with _US_INDUSTRY_CACHE_LOCK:
+                    _US_INDUSTRY_STOCK_CACHE[key] = {
+                        "expires_at": now + _US_INDUSTRY_STOCK_TTL,
+                        "data": bitcoin_stocks,
+                    }
+            except Exception:
+                bitcoin_stocks = cached["data"] if cached else []
+        result["items"].append({"key": "bitcoin_related", "name": "비트코인 관련 종목",
+                                "stocks": bitcoin_stocks, "source": "kiwoom:usa20100"})
     result["sort"] = "marketcap"
     return result
 
 
 def get_us_industry_symbols():
-    """Return the at-most-22 cached market-cap leaders for the live FE feed."""
+    """Return ranked sector stocks and verified ETF symbols for one FE feed."""
     result = _get_us_industry_map_with_stocks("heatmap")
     symbols = {}
     for sector in result.get("items", []):
@@ -169,6 +188,12 @@ def get_us_industry_symbols():
             exchange = str(stock.get("exchange") or "").strip().upper()
             if SYMBOL.fullmatch(symbol) and exchange in ("ND", "NY", "NA"):
                 symbols[symbol] = exchange
+    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
+    try:
+        etf_symbols = fetch_us_etf_exchanges()
+    except Exception:
+        etf_symbols = {}  # Keep stock updates when the ETF lookup fails.
+    symbols.update(etf_symbols)
     return symbols
 
 

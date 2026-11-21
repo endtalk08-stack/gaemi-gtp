@@ -25,6 +25,8 @@ from backend.providers.kiwoom_us_quotes import (
 API_ORIGIN = "https://api.kiwoom.com"
 API_PATHS = {
     "usa10101": "/api/us/stkinfo",
+    "usa10104": "/api/us/stkinfo",
+    "usa20100": "/api/us/mrkcond",
     "usa23000": "/api/us/sect",
     "usa23100": "/api/us/sect",
     "usa20540": "/api/us/rkinfo",
@@ -33,10 +35,17 @@ API_PATHS = {
 }
 EXCHANGES = {"NA", "ND", "NY"}
 EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
+ETF_TICKERS = frozenset({"XLK", "XLV", "XLF", "XLY", "XLC", "XLI", "XLP",
+                         "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT"})
+BITCOIN_COMPANIES = ("COIN", "MSTR", "MARA", "RIOT", "CLSK")
 
 # Eleven display groups based on official Kiwoom industry codes. The labels
 # match the sidebar heatmap; unmapped official codes remain unclassified.
 INDUSTRY_GROUPS = (
+    ("utilities", "유틸리티", ("유틸리티", "공익사업", "전기", "가스", "utilities", "electric utilities", "gas utilities", "water utilities")),
+    ("real_estate", "부동산", ("부동산", "리츠", "real estate", "reit")),
+    ("materials", "소재", ("소재", "화학", "건축자재", "금속", "광업", "materials", "chemicals", "construction materials", "metals", "mining")),
+    ("biotech", "바이오", ("바이오", "biotechnology", "biotech")),
     ("energy", "에너지", ("에너지", "energy", "oil & gas", "oil and gas", "renewable energy", "energy equipment", "energy services")),
     ("finance", "금융", ("금융", "financials", "financial", "banks", "banking", "insurance", "capital markets", "consumer finance", "diversified financials", "financial services")),
     ("consumer_staples", "필수소비재", ("필수소비재", "consumer staples", "consumer defensive", "food products", "beverages", "household products", "personal products", "food retail", "food & staples retail", "tobacco")),
@@ -79,7 +88,7 @@ _HEATMAP_OFFICIAL_CODES = {
 _HEATMAP_GROUP_BY_CODE = {
     code: group for group, codes in _HEATMAP_OFFICIAL_CODES.items() for code in codes
 }
-_OUTSIDE_HEATMAP_CODES = {"110", "120", "130", "140", "380", "630", "910", "920", "930"}
+_OUTSIDE_HEATMAP_CODES = {"380"}
 
 
 
@@ -130,19 +139,21 @@ _CALL_MAX_ATTEMPTS = 3  # First try + 2 retries; Kiwoom TR rejections are often 
 _CALL_RETRY_BACKOFF = 0.4  # Seconds added per extra attempt, on top of the rate-limit wait.
 
 
-def _call(api_id, body, *, token=None):
+def _call(api_id, body, *, token=None, continuation=None):
     last_error = None
     for attempt in range(_CALL_MAX_ATTEMPTS):
         if attempt:
             time.sleep(_CALL_RETRY_BACKOFF * attempt)
         try:
-            return _call_once(api_id, body, token=token)
+            if continuation is None:
+                return _call_once(api_id, body, token=token)
+            return _call_once(api_id, body, token=token, continuation=continuation)
         except KiwoomReadOnlyError as exc:
             last_error = exc
     raise last_error
 
 
-def _call_once(api_id, body, *, token=None):
+def _call_once(api_id, body, *, token=None, continuation=None):
     global _LAST_API_CALL_AT
     path = API_PATHS.get(api_id)
     if not path or not isinstance(body, dict):
@@ -154,15 +165,19 @@ def _call_once(api_id, body, *, token=None):
         if wait > 0:
             time.sleep(wait)
         _LAST_API_CALL_AT = time.monotonic()
+    headers = {
+        "Content-Type": "application/json;charset=UTF-8",
+        "authorization": "Bearer " + access_token,
+        "api-id": api_id,
+    }
+    if continuation is not None:
+        headers["cont-yn"] = "Y"
+        headers["next-key"] = continuation
     try:
         response = requests.post(
             API_ORIGIN + path,
             json=body,
-            headers={
-                "Content-Type": "application/json;charset=UTF-8",
-                "authorization": "Bearer " + access_token,
-                "api-id": api_id,
-            },
+            headers=headers,
             timeout=8,
             allow_redirects=False,
         )
@@ -180,6 +195,9 @@ def _call_once(api_id, body, *, token=None):
     if code not in ("0", "0000"):
         safe_code = code if re.fullmatch(r"-?[0-9]{1,6}", code) else "unknown"
         raise KiwoomReadOnlyError("kiwoom_industry_rejected_code_" + safe_code)
+    if api_id == "usa10104":
+        data = {**data, "_cont_yn": response.headers.get("cont-yn", ""),
+                "_next_key": response.headers.get("next-key", "")}
     return data
 
 
@@ -238,7 +256,17 @@ def _build_us_industry_map(official, performance, groups):
         english = str(row.get("inds_enm") or "").strip()
         if not code or not name:
             continue
-        if is_heatmap and code in _OUTSIDE_HEATMAP_CODES:
+        if is_heatmap and code in {"110", "120", "130", "140", "630", "910", "920", "930"}:
+            # Validate the label from usa10101 instead of guessing from the code.
+            expected = ("materials" if code in {"110", "120", "130", "140"}
+                        else "real_estate" if code == "630" else "utilities")
+            matched_name = _group_for_official_industry(name, english, groups=groups)
+            group = expected if matched_name == expected else None
+        elif is_heatmap and code in {"510", "520", "530"} and any(
+                term in _normalize_name(name + " " + english)
+                for term in ("바이오", "biotech", "biotechnology")):
+            group = "biotech"
+        elif is_heatmap and code in _OUTSIDE_HEATMAP_CODES:
             group = None
         elif is_heatmap and code in _HEATMAP_GROUP_BY_CODE:
             group = _HEATMAP_GROUP_BY_CODE[code]
@@ -538,3 +566,55 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
         "fetched_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "items": rows,
     }
+
+
+def fetch_us_etf_exchanges(*, token=None):
+    """Verify the agreed ETF ticker/exchange pairs against Kiwoom usa10104."""
+    symbols = {}
+    continuation = None
+    for _ in range(40):
+        kwargs = {"token": token}
+        if continuation is not None:
+            kwargs["continuation"] = continuation
+        data = _call("usa10104", {"stex_tp": "%"}, **kwargs)
+        records = data.get("list")
+        if not isinstance(records, list):
+            raise KiwoomReadOnlyError("kiwoom_etf_list_missing")
+        for row in records:
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("code") or "").strip().upper()
+            exchange = EXCHANGE_CODES.get(str(row.get("stex_tp") or "").strip().upper(),
+                                          str(row.get("stex_tp") or "").strip().upper())
+            if symbol in ETF_TICKERS and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
+                symbols[symbol] = exchange
+        if symbols.keys() >= ETF_TICKERS or data.get("_cont_yn") != "Y":
+            break
+        next_key = str(data.get("_next_key") or "")
+        if not next_key or next_key == continuation:
+            break
+        continuation = next_key
+    return symbols
+
+
+def fetch_us_bitcoin_related_stocks(*, token=None):
+    """Rank a bounded, explicit universe of related listed companies by cap."""
+    access_token = token or _access_token()
+    rows = []
+    for symbol in BITCOIN_COMPANIES:
+        try:
+            record = _call("usa20100", {"stex_tp": "ND", "stk_cd": symbol}, token=access_token)
+        except KiwoomReadOnlyError:
+            continue
+        exchange = str(record.get("stex_tp") or "").strip().upper()
+        market_cap = _number(record.get("mac"))
+        name = str(record.get("stk_nm") or record.get("stk_enm") or "").strip()
+        if (str(record.get("stk_cd") or "").strip().upper() != symbol
+                or exchange != "ND" or not name or market_cap is None or market_cap <= 0):
+            continue
+        rows.append({"symbol": symbol, "exchange": exchange, "name": name,
+                     "market_cap_usd": market_cap * 1000,
+                     "change_pct": _number(record.get("flu_rt")),
+                     "price": _positive_price(record.get("cur_prc"))})
+    rows.sort(key=lambda row: row["market_cap_usd"], reverse=True)
+    return [{**row, "rank": index} for index, row in enumerate(rows[:3], 1)]
