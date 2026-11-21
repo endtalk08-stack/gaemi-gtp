@@ -133,6 +133,15 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(by_key["internet_platforms"]["mapping_status"], "unmatched")
         self.assertEqual({item["code"] for item in result["unmatched_official_industries"]}, {"120", "380"})
 
+    def test_industry_reads_use_the_shared_kiwoom_us_rate_limiter(self):
+        with (
+            patch.object(sectors, "_access_token", return_value="LOCAL_TEST"),
+            patch.object(sectors, "wait_for_us_read_slot") as rate_limit,
+            patch.object(sectors, "_call", return_value={"result_list": []}),
+        ):
+            sectors.fetch_us_industry_stocks("510", "marketcap")
+        rate_limit.assert_called_once_with()
+
     def test_rejected_official_code_does_not_discard_successful_sibling_codes(self):
         def call(api_id, body, *, token=None):
             if body["inds_cd"] == "510":
