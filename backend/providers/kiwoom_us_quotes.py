@@ -309,7 +309,9 @@ def fetch_us_daily_chart(symbol, exchange, start_date, *, end_date=None, token=N
     if type(start_date) is not dt.date:
         raise ValueError("invalid_chart_start_date")
     if end_date is None:
-        end_date = start_date
+        # Default to the current KST date so callers asking for history from
+        # start_date do not silently receive a one-day empty range.
+        end_date = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).date()
     if type(end_date) is not dt.date or end_date < start_date:
         raise ValueError("invalid_chart_end_date")
     if type(max_pages) is not int or not 1 <= max_pages <= 10:
@@ -317,7 +319,7 @@ def fetch_us_daily_chart(symbol, exchange, start_date, *, end_date=None, token=N
     request = {
         "stex_tp": exchange,
         "stk_cd": symbol,
-        "strt_dt": end_date.strftime("%Y%m%d"),
+        "strt_dt": start_date.strftime("%Y%m%d"),
         "upd_stkpc_tp": "1",
         "exrt_appl_tp": "0",
     }
