@@ -184,11 +184,10 @@
       if (live) return live;
       return industryRestQuotes.find((quote) =>
         industrySymbol(quote.symbol) === key
-        && Number.isFinite(quote.price) && quote.price > 0
         && Number.isFinite(quote.change_pct)
         && Number.isFinite(quote.received_at_ms)
         && quote.received_at_ms <= now + 5000
-        && now - quote.received_at_ms <= 24 * 60 * 60 * 1000);
+        && now - quote.received_at_ms <= 72 * 60 * 60 * 1000);
     };
     const formatChange = (value) => Number.isFinite(value)
       ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
@@ -315,13 +314,10 @@
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
         label.title = label.textContent;
-        const etfPrice = document.createElement('span');
-        etfPrice.className = 'industry-map-sector-etf';
-        etfPrice.textContent = etfQuote ? '$' + etfQuote.price.toFixed(2) : '—';
         const change = document.createElement('span');
         change.className = 'industry-map-sector-change';
         change.textContent = formatChange(sectorPct);
-        heading.append(label, etfPrice, change);
+        heading.append(label, change);
         const stocks = document.createElement('div');
         stocks.className = 'industry-map-stocks';
         if (!ranked.length) {
