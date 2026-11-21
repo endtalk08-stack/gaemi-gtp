@@ -36,7 +36,7 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         ]}
         with patch.object(api, "_get_us_industry_map_with_stocks", return_value=source):
             self.assertEqual(api.get_us_industry_symbols(), {
-                "NVDA": "ND", "AVGO": "ND", "WMT": "NY"
+                "NVDA": "ND", "AVGO": "ND", "AMD": "ND", "WMT": "NY"
             })
 
     def test_incomplete_heatmap_keeps_existing_industry_keys_and_stocks(self):
