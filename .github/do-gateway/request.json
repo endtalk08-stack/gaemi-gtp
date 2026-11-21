@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "backend/kiwoom_probe.py",
-  "request_id": "indprobe20261121b",
-  "timeout": 120
+  "operation": "kiwoom-verify"
 }
