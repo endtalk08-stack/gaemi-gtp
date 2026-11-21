@@ -187,16 +187,38 @@
       const changeValue = (item) => Number.isFinite(item.change_pct) ? item.change_pct : -Infinity;
       list.classList?.add?.('industry-map-list');
       list.replaceChildren();
-      // Restore the original complete live industry list from DigitalOcean.
-      const visibleSectors = items
-        .filter((sector) => typeof sector?.name === 'string' && sector.name.trim())
-        .map((sector) => ({
+      // Keep the agreed eleven industry rows fixed; live Kiwoom data fills each row.
+      const expectedIndustries = [
+        { key: 'energy', name: '에너지' },
+        { key: 'finance', name: '금융' },
+        { key: 'consumer_staples', name: '필수소비재' },
+        { key: 'industrials', name: '산업재' },
+        { key: 'internet_platforms', name: '인터넷플랫폼' },
+        { key: 'software', name: '소프트웨어' },
+        { key: 'communication', name: '커뮤니케이션' },
+        { key: 'healthcare', name: '헬스케어' },
+        { key: 'consumer_discretionary', name: '경기소비재' },
+        { key: 'it_hardware', name: 'IT하드웨어' },
+        { key: 'semiconductors', name: '반도체' }
+      ];
+      const byIndustry = new Map(items
+        .filter((sector) => sector && typeof sector.key === 'string')
+        .map((sector) => [sector.key, sector]));
+      const visibleSectors = expectedIndustries.map(({ key, name }) => {
+        const source = byIndustry.get(key);
+        const sector = {
+          ...(source || {}),
+          key,
+          name: typeof source?.name === 'string' && source.name.trim() ? source.name : name
+        };
+        return {
           sector,
-          stocks: (Array.isArray(sector.stocks) ? sector.stocks : [])
+          stocks: (Array.isArray(source?.stocks) ? source.stocks : [])
             .filter((stock) => stock && typeof stock.name === 'string' && stock.name.trim())
             .slice(0, 3)
             .sort((a, b) => changeValue(b) - changeValue(a))
-        }));
+        };
+      });
       visibleSectors.sort((a, b) => changeValue(b.sector) - changeValue(a.sector));
       visibleSectors.forEach(({ sector, stocks: ranked }) => {
         const sectorPct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
