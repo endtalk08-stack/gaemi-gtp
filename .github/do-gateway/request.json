@@ -1,3 +1,4 @@
 {
-  "operation": "kiwoom-verify"
+  "operation": "upgrade",
+  "path": "ops/do-gateway/gaemi-do-gateway"
 }
