@@ -316,7 +316,7 @@
   min-width: 0;
   min-height: 46px;
   padding: 4px;
-  border: 1px solid var(--gtp-border);
+  border: 0;
   border-radius: 2px;
   line-height: 1.1;
 }
@@ -375,7 +375,7 @@
   min-width: 0;
   min-height: 46px;
   padding: 6px 4px;
-  border: 1px solid var(--gtp-border);
+  border: 0;
   border-radius: 2px;
   color: var(--gtp-text);
   text-align: center;
