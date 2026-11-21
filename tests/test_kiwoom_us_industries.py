@@ -133,6 +133,22 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(by_key["internet_platforms"]["mapping_status"], "unmatched")
         self.assertEqual({item["code"] for item in result["unmatched_official_industries"]}, {"120", "380"})
 
+    def test_rejected_official_code_does_not_discard_successful_sibling_codes(self):
+        def call(api_id, body, *, token=None):
+            if body["inds_cd"] == "510":
+                raise sectors.KiwoomReadOnlyError("kiwoom_industry_rejected_code_3")
+            return {"result_list": [{
+                "stk_cd": "PFE", "stk_nm": "Pfizer", "stex_tp": "NY",
+                "cur_prc": "25", "flu_rt": "1.2", "mac": "1000",
+            }]}
+
+        with patch.object(sectors, "_access_token", return_value="LOCAL_TEST"), \\
+             patch.object(sectors, "_call", side_effect=call):
+            result = sectors.fetch_us_industry_stocks(["510", "520"], "marketcap")
+
+        self.assertEqual(result["failed_industry_codes"], ["510"])
+        self.assertEqual([row["symbol"] for row in result["items"]], ["PFE"])
+
     def test_heatmap_marks_missing_return_even_when_an_upstream_row_exists(self):
         official = [{"inds_cd": "710", "inds_nm": "반도체", "inds_enm": "Semiconductors"}]
         performance = [{"inds_cd": "710", "perf_1d": "", "perf_5d": "1.5"}]
