@@ -279,6 +279,11 @@ _INDUSTRY_QUOTES = {}
 _ETF_QUOTES = {}
 _QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
 _QQQ_STALE_MS = 25000
+_QQQ_REST_STALE_MS = 65000
+_QQQ_REST_CACHE_LOCK = threading.Lock()
+_QQQ_REST_CACHE = {"expires_at": 0.0, "data": None}
+_QQQ_REST_TTL = 60
+_QQQ_REST_RETRY_TTL = 15
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
@@ -312,6 +317,7 @@ def _publish_live_quote(quote):
         "symbol": symbol, "price": float(price),
         "change_pct": float(change) if change is not None else None,
         "received_at_ms": int(time.time() * 1000), "stale": False,
+        "source": "kiwoom:websocket",
     }
     with _QQQ_CHANGED:
         if symbol == "QQQ":
@@ -385,11 +391,56 @@ def _etf_snapshot():
                 for quote in _ETF_QUOTES.values()]
 
 
+def _get_qqq_rest_snapshot():
+    """Fetch one cached QQQ REST snapshot as a fallback for the live FE stream."""
+    now = time.monotonic()
+    with _QQQ_REST_CACHE_LOCK:
+        cached = _QQQ_REST_CACHE["data"]
+        if cached is not None and now < _QQQ_REST_CACHE["expires_at"]:
+            return dict(cached)
+        try:
+            from backend.providers.kiwoom_us_quotes import fetch_us_quote
+
+            result = fetch_us_quote("QQQ", "ND")
+            price = result.get("current") if isinstance(result, dict) else None
+            change = result.get("change_pct") if isinstance(result, dict) else None
+            if isinstance(price, bool) or not isinstance(price, (int, float)) or not 0 < price < 10000000:
+                raise ValueError("qqq_rest_price_missing")
+            if (isinstance(change, bool) or
+                    (change is not None and (not isinstance(change, (int, float))
+                                             or not -100 < change < 10000))):
+                change = None
+            quote = {
+                "symbol": "QQQ",
+                "price": float(price),
+                "change_pct": float(change) if change is not None else None,
+                "received_at_ms": int(time.time() * 1000),
+                "stale": False,
+                "source": "kiwoom:rest",
+            }
+            _QQQ_REST_CACHE["data"] = quote
+            _QQQ_REST_CACHE["expires_at"] = now + _QQQ_REST_TTL
+            return dict(quote)
+        except Exception:
+            _QQQ_REST_CACHE["expires_at"] = now + _QQQ_REST_RETRY_TTL
+            return dict(cached) if cached is not None else None
+
+
 def _qqq_snapshot():
+    now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
-        quote = dict(_QQQ_QUOTE) if _QQQ_QUOTE else None
-    if quote is not None:
-        quote["stale"] = int(time.time() * 1000) - quote["received_at_ms"] > _QQQ_STALE_MS
+        live = dict(_QQQ_QUOTE) if _QQQ_QUOTE else None
+    if live is not None and now_ms - live["received_at_ms"] <= _QQQ_STALE_MS:
+        live["stale"] = False
+        return live
+
+    fallback = _get_qqq_rest_snapshot()
+    candidates = [quote for quote in (live, fallback) if quote is not None]
+    if not candidates:
+        return None
+    quote = max(candidates, key=lambda item: item["received_at_ms"])
+    max_age = _QQQ_REST_STALE_MS if quote.get("source") == "kiwoom:rest" else _QQQ_STALE_MS
+    quote["stale"] = now_ms - quote["received_at_ms"] > max_age
     return quote
 
 
