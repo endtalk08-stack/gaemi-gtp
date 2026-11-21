@@ -156,13 +156,13 @@ def _get_us_industry_map_with_stocks(view="legacy"):
 
 
 def get_us_industry_symbols():
-    """Return the at-most-22 cached market-cap leaders for the live FE feed."""
+    """Return up to 33 cached market-cap leaders for the live FE feed."""
     result = _get_us_industry_map_with_stocks("heatmap")
     symbols = {}
     for sector in result.get("items", []):
         if not isinstance(sector, dict):
             continue
-        for stock in sector.get("stocks", [])[:2]:
+        for stock in sector.get("stocks", [])[:3]:
             if not isinstance(stock, dict):
                 continue
             symbol = str(stock.get("symbol") or "").strip().upper()
