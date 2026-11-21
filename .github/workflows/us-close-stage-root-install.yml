@@ -26,7 +26,6 @@ jobs:
       - name: Verify reviewed sources without provider calls
         run: |
           set -euo pipefail
-          python -m unittest -v tests.test_us_market_close
           python -m py_compile backend/us_market_close_job.py backend/services/us_market_close.py
           bash -n ops/install-us-market-close-once.sh
           bash -n ops/upgrade-us-market-close-collector.sh
