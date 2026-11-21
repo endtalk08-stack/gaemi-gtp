@@ -18,6 +18,9 @@ RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
+_US_INDUSTRY_ETF_CACHE_LOCK = threading.Lock()
+_US_INDUSTRY_ETF_CACHE = {"expires_at": 0.0, "data": []}
+_US_INDUSTRY_ETF_TTL = 60
 _US_PLATFORM_CACHE_LOCK = threading.Lock()
 _US_PLATFORM_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_MAP_TTL = 60
@@ -135,8 +138,34 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
 
 
 def _get_us_industry_etf_quotes():
-    """Expose ETF percentage changes only from the live WebSocket feed."""
-    from backend.providers.kiwoom_us_industries import ETF_TICKERS
+    """Prefer live WebSocket ticks; use a short-lived REST snapshot outside live hours."""
+    from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_quotes
+
+    now = time.monotonic()
+    with _US_INDUSTRY_ETF_CACHE_LOCK:
+        cached = _US_INDUSTRY_ETF_CACHE["data"]
+        if not cached or now >= _US_INDUSTRY_ETF_CACHE["expires_at"]:
+            try:
+                fetched = fetch_us_etf_quotes()
+                clean = [
+                    {
+                        "symbol": item["symbol"],
+                        "change_pct": item["change_pct"],
+                        "received_at_ms": item["received_at_ms"],
+                        "source": item.get("source", "kiwoom:rest"),
+                    }
+                    for item in fetched
+                    if isinstance(item, dict)
+                    and item.get("symbol") in ETF_TICKERS
+                    and isinstance(item.get("change_pct"), (int, float))
+                    and isinstance(item.get("received_at_ms"), int)
+                ]
+                if clean:
+                    _US_INDUSTRY_ETF_CACHE["data"] = clean
+                    _US_INDUSTRY_ETF_CACHE["expires_at"] = now + _US_INDUSTRY_ETF_TTL
+                    cached = clean
+            except Exception:
+                pass
 
     now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
@@ -145,13 +174,17 @@ def _get_us_industry_etf_quotes():
             for symbol, quote in _ETF_QUOTES.items()
             if now_ms - quote["received_at_ms"] <= _QQQ_STALE_MS
         }
+    fallback = {
+        item["symbol"]: item for item in cached
+        if now_ms - item["received_at_ms"] <= 72 * 60 * 60 * 1000
+    }
     return [
         {
             "symbol": symbol,
-            "change_pct": live[symbol].get("change_pct") if symbol in live else None,
-            "received_at_ms": live[symbol].get("received_at_ms") if symbol in live else 0,
+            "change_pct": (live.get(symbol) or fallback.get(symbol) or {}).get("change_pct"),
+            "received_at_ms": (live.get(symbol) or fallback.get(symbol) or {}).get("received_at_ms", 0),
             "stale": symbol not in live,
-            "source": "kiwoom:websocket",
+            "source": "kiwoom:websocket" if symbol in live else "kiwoom:rest",
         }
         for symbol in sorted(ETF_TICKERS)
     ]
@@ -173,10 +206,6 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                 row["stocks"] = stock_result.get("items", [])[:limit]
             except Exception as exc:
                 row["stocks_error"] = _safe_industry_error(exc)
-        if view == "heatmap":
-            # The live menu gets every displayed stock return from FE WebSocket ticks.
-            # Keep REST market-cap data for membership only; never surface its cached return.
-            row["stocks"] = [{**stock, "change_pct": None} for stock in row["stocks"]]
         result["items"].append(row)
     if view == "heatmap":
         from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
@@ -196,7 +225,6 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                     }
             except Exception:
                 bitcoin_stocks = cached["data"] if cached else []
-        bitcoin_stocks = [{**stock, "change_pct": None} for stock in bitcoin_stocks]
         result["items"].append({"key": "bitcoin_related", "name": "비트코인 관련 종목",
                                 "stocks": bitcoin_stocks, "source": "kiwoom:usa20100"})
         result["etf_quotes"] = _get_us_industry_etf_quotes()
