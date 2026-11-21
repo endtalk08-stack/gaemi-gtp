@@ -143,7 +143,7 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         ]
         with (
             patch.object(sectors, "issue_access_token", side_effect=["OLD_TOKEN", "NEW_TOKEN"]) as issue,
-            patch.object(sectors, "wait_for_us_read_slot"),
+            patch.object(sectors, "wait_for_us_read_slot") as rate_limit,
             patch.object(sectors.requests, "post", side_effect=responses) as post,
         ):
             result = sectors._call(
@@ -154,20 +154,9 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(result["result_list"], [])
         self.assertEqual(issue.call_count, 2)
         self.assertEqual(post.call_count, 2)
+        self.assertEqual(rate_limit.call_count, 2)
         self.assertEqual(post.call_args_list[0].kwargs["headers"]["authorization"], "Bearer OLD_TOKEN")
         self.assertEqual(post.call_args_list[1].kwargs["headers"]["authorization"], "Bearer NEW_TOKEN")
-
-    def test_industry_reads_use_the_shared_kiwoom_us_rate_limiter(self):
-        with (
-            patch.object(sectors, "_access_token", return_value="LOCAL_TEST"),
-            patch.object(sectors, "wait_for_us_read_slot") as rate_limit,
-            patch.object(sectors, "_call", return_value={"result_list": [{
-                "stk_cd": "NVDA", "stk_nm": "NVIDIA", "stex_tp": "ND",
-                "cur_prc": "150", "flu_rt": "1.0", "mac": "1000",
-            }]}),
-        ):
-            sectors.fetch_us_industry_stocks("510", "marketcap")
-        rate_limit.assert_called_once_with()
 
     def test_rejected_official_code_does_not_discard_successful_sibling_codes(self):
         def call(api_id, body, *, token=None):
