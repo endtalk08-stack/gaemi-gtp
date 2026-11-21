@@ -1,6 +1,6 @@
 {
   "operation": "run",
   "path": "ops/do-gateway/verify_etf_rest_20261122.py",
-  "request_id": "etfmapdiag1122b",
-  "timeout": 120
+  "request_id": "etf-exchanges-92e15ff-20261122",
+  "timeout": 240
 }
