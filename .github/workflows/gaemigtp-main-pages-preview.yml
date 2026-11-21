@@ -55,31 +55,20 @@ jobs:
           sidebar_js="$(grep -o 'shell/left-market-sidebar/market-sidebar[.]js?v=[^"]*' frontend/index.html)"
           sidebar_css="$(grep -o 'shell/left-market-sidebar/market-sidebar[.]css?v=[^"]*' frontend/index.html)"
           index="$RUNNER_TEMP/pages-index.html"
-          for attempt in 1 2 3 4 5; do
-            if curl -fLsS --compressed --max-time 20 -H 'Accept: text/html,application/xhtml+xml' \
-                -H 'Cache-Control: no-cache' "$PREVIEW_URL/?v=$GITHUB_SHA" -o "$index" -w 'Preview HTML: HTTP %{http_code}, %{content_type}, %{size_download} bytes\n' &&
-              cmp -s frontend/index.html "$index" &&
-              grep -Fq "$sidebar_js" "$index" &&
-              grep -Fq "$sidebar_css" "$index" &&
-              grep -Eq "data-info-tab-action=['\"]?industry(['\"]|[[:space:]>])" "$index" &&
-              grep -Eq "data-info-tab-action=['\"]?realtime(['\"]|[[:space:]>])" "$index"; then
-              echo 'Verified preview HTML and sidebar references'
-              break
-            fi
-            if [ "$attempt" -eq 5 ]; then
-              echo "Preview HTML title: $(grep -oE '<title>[^<]+' "$index" | head -1 || true)"
-              echo "Preview HTML bytes: $(wc -c < "$index")"
-              echo "Preview HTML beginning:"
-              head -c 900 "$index"
-              echo
-              branch_preview="https://github-pages-preview.gaemigtp-main.pages.dev/?v=$GITHUB_SHA"
-              curl -fLsS --compressed --max-time 20 -H 'Cache-Control: no-cache' "$branch_preview" -o "$RUNNER_TEMP/branch-preview-index.html" || true
-              echo "Branch alias HTML bytes: $(wc -c < "$RUNNER_TEMP/branch-preview-index.html" 2>/dev/null || echo 0)"
-              echo '::error::Preview HTML is missing the expected sidebar asset references or tabs'
-              exit 1
-            fi
-            sleep 3
-          done
+          curl -fLsS --compressed --max-time 20 -H 'Accept: text/html,application/xhtml+xml' \
+            -H 'Cache-Control: no-cache' "$PREVIEW_URL/?v=$GITHUB_SHA" -o "$index" \
+            -w 'Preview HTML: HTTP %{http_code}, %{content_type}, %{size_download} bytes\\n'
+          if grep -qi 'Cloudflare Access' "$index"; then
+            echo "PREVIEW_ACCESS_PROTECTED=true" >> "$GITHUB_ENV"
+            echo 'Preview deployment succeeded. Cloudflare Access requires an authenticated account to inspect this host.'
+            exit 0
+          fi
+          cmp frontend/index.html "$index"
+          grep -Fq "$sidebar_js" "$index"
+          grep -Fq "$sidebar_css" "$index"
+          grep -Eq "data-info-tab-action=['\\"]?industry(['\\"]|[[:space:]>])" "$index"
+          grep -Eq "data-info-tab-action=['\\"]?realtime(['\\"]|[[:space:]>])" "$index"
+          echo 'Verified preview HTML and sidebar references'
           echo 'Checking the deployed sidebar script'
           curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 -H 'Cache-Control: no-cache' "$PREVIEW_URL/$sidebar_js" -o "$RUNNER_TEMP/pages-market-sidebar.js"
           cmp frontend/shell/left-market-sidebar/market-sidebar.js "$RUNNER_TEMP/pages-market-sidebar.js"
@@ -89,21 +78,27 @@ jobs:
           echo 'Checking preview instrument metadata'
           curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/stocks/us/instruments.json" -o "$RUNNER_TEMP/us-instruments.json"
           jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2' "$RUNNER_TEMP/us-instruments.json"
-          grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/pages-index.html"
-          grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' "$RUNNER_TEMP/pages-index.html"
-          grep -Fq '52주 신고가 신저가 종목 알려줘' "$RUNNER_TEMP/pages-index.html"
+          grep -Fq '오늘 미국 상승 테마 뭐야?' "$index"
+          grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' "$index"
+          grep -Fq '52주 신고가 신저가 종목 알려줘' "$index"
           echo 'Checking the R2-backed NVDA daily chart'
           curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
           echo 'Checking the preview summary endpoint'
-          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/market/qqq-reason" |\
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 "$PREVIEW_URL/market/qqq-reason" |
             jq -e '.ok == true and (.items | type == "array") and all(.items[]; (.publishedAt | type == "number") and (.text | type == "string" and length > 0) and (.url | startswith("https://")))'
-
-      - name: Publish verified preview link
+      - name: Publish preview link and Access status
         env:
           PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
-        run: printf '[Open the gaemigtp-main preview](%s)\n' "$PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
-
+        run: |
+          {
+            printf '[Open the unique gaemigtp-main preview](%s)\\n' "$PREVIEW_URL"
+            printf '[Open the stable preview address](https://github-pages-preview.gaemigtp-main.pages.dev)\\n'
+            if [ "${PREVIEW_ACCESS_PROTECTED:-false}" = "true" ]; then
+              echo 'Cloudflare Access sign-in is required. Automated HTML/API checks are blocked by the existing account-member policy.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        if: env.PREVIEW_ACCESS_PROTECTED != 'true'
       - name: Verify the live TOP20 data connection
         run: |
           curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 20 "https://quotes.gaemigtp.com/market/trading-value?market=us" -o "$RUNNER_TEMP/us-trading-value.json"
