@@ -141,7 +141,23 @@ def _refresh_access_token():
     return token_value
 
 
+_CALL_MAX_ATTEMPTS = 3  # First try + 2 retries for transient Kiwoom TR rejections.
+_CALL_RETRY_BACKOFF = 0.4  # Keep the existing per-request rate limit; add a short retry backoff.
+
+
 def _call(api_id, body, *, token=None):
+    last_error = None
+    for attempt in range(_CALL_MAX_ATTEMPTS):
+        if attempt:
+            time.sleep(_CALL_RETRY_BACKOFF * attempt)
+        try:
+            return _call_once(api_id, body, token=token)
+        except KiwoomReadOnlyError as exc:
+            last_error = exc
+    raise last_error
+
+
+def _call_once(api_id, body, *, token=None):
     path = API_PATHS.get(api_id)
     if not path or not isinstance(body, dict):
         raise KiwoomReadOnlyError("kiwoom_industry_api_not_allowed")
