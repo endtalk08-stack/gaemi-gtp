@@ -84,9 +84,11 @@ def _get_us_industry_map(view="legacy"):
                 {**item, **platform} if item["key"] == "internet_platforms" else item
                 for item in heatmap["items"]
             ]
+            ranked_items = rank_us_industry_rows(items)
             heatmap = {
                 **heatmap,
-                "items": rank_us_industry_rows(items),
+                "items": ranked_items,
+                "mapping_complete": all(item["mapping_status"] == "matched" for item in ranked_items),
             }
             missing = [
                 item["key"] for item in heatmap["items"]
