@@ -1,6 +1,4 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/verify_industry_only_20261121.py",
-  "request_id": "indonly20261121",
-  "timeout": 60
+  "operation": "upgrade",
+  "path": "ops/do-gateway/gaemi-do-gateway"
 }
