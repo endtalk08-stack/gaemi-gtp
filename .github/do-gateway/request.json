@@ -1,5 +1,6 @@
 {
-  "operation": "deploy",
+  "operation": "run",
   "path": "backend/kiwoom_probe.py",
-  "target": "backend/kiwoom_probe.py"
+  "request_id": "indprobe20261121",
+  "timeout": 120
 }
