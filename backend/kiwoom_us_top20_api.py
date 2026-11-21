@@ -173,6 +173,10 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                 row["stocks"] = stock_result.get("items", [])[:limit]
             except Exception as exc:
                 row["stocks_error"] = _safe_industry_error(exc)
+        if view == "heatmap":
+            # The live menu gets every displayed stock return from FE WebSocket ticks.
+            # Keep REST market-cap data for membership only; never surface its cached return.
+            row["stocks"] = [{**stock, "change_pct": None} for stock in row["stocks"]]
         result["items"].append(row)
     if view == "heatmap":
         from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
@@ -192,8 +196,9 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                     }
             except Exception:
                 bitcoin_stocks = cached["data"] if cached else []
+        bitcoin_stocks = [{**stock, "change_pct": None} for stock in bitcoin_stocks]
         result["items"].append({"key": "bitcoin_related", "name": "비트코인 관련 종목",
-                                "stocks": bitcoin_stocks, "source": "kiwoom:usa20100"})
+                                "stocks": bitcoin_stocks, "source": "kiwoom:websocket"})
         result["etf_quotes"] = _get_us_industry_etf_quotes()
     result["sort"] = "marketcap"
     return result
