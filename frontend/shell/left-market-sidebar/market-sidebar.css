@@ -293,12 +293,18 @@
 }
 
 
-/* Separate sector header boxes and stock boxes; no nested card borders. */
+/* Keep separate sector and stock cards within each industry row. */
 #marketRankingList.industry-map-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 3px;
   padding: 2px 0 10px;
+}
+.industry-map-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+  min-width: 0;
 }
 .industry-map-sector {
   box-sizing: border-box;
@@ -401,8 +407,26 @@
 .industry-map-stock.is-up .industry-map-stock-change { color: #e27b8a; }
 .industry-map-stock.is-down .industry-map-stock-change { color: #78aee0; }
 .industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
+@media (min-width: 1024px) {
+  .industry-map-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .industry-map-row:nth-child(1) { grid-auto-rows: minmax(56px, auto); }
+  .industry-map-row:nth-child(2) { grid-auto-rows: minmax(52px, auto); }
+  .industry-map-row:nth-child(3) { grid-auto-rows: minmax(48px, auto); }
+  .industry-map-row .industry-map-sector {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 3px;
+    min-height: 46px;
+    padding: 4px;
+  }
+  .industry-map-row .industry-map-stocks {
+    grid-column: span 3;
+    margin-bottom: 0;
+  }
+}
 @media (max-width: 420px) {
-  #marketRankingList.industry-map-list { gap: 2px; }
+  #marketRankingList.industry-map-list,
+  .industry-map-row { gap: 2px; }
   .industry-map-sector { min-height: 22px; padding: 3px 5px; }
   .industry-map-sector-name { font-size: 11px; }
   .industry-map-sector-change { font-size: 15px; }
