@@ -72,10 +72,7 @@ def _get_us_industry_map(view="legacy"):
         item["key"] for item in heatmap["items"]
         if item["mapping_status"] != "matched"
     ]
-    # The heatmap is an explicit eleven-group contract. A missing mapping or
-    # quote must remain visible as an incomplete group; never silently replace
-    # the requested eleven groups with the unrelated legacy nine-group view.
-    if "internet_platforms" in missing:
+    if missing == ["internet_platforms"]:
         platform = _get_us_internet_platform_group()
         if platform is not None:
             from backend.providers.kiwoom_us_industries import rank_us_industry_rows
@@ -84,16 +81,8 @@ def _get_us_industry_map(view="legacy"):
                 {**item, **platform} if item["key"] == "internet_platforms" else item
                 for item in heatmap["items"]
             ]
-            ranked_items = rank_us_industry_rows(items)
-            heatmap = {
-                **heatmap,
-                "items": ranked_items,
-                "mapping_complete": all(item["mapping_status"] == "matched" for item in ranked_items),
-            }
-            missing = [
-                item["key"] for item in heatmap["items"]
-                if item["mapping_status"] != "matched"
-            ]
+            heatmap = {**heatmap, "items": rank_us_industry_rows(items), "mapping_complete": True}
+            missing = []
     return {
         **heatmap,
         "view": "heatmap",
@@ -130,7 +119,7 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
         if cached and now < cached["expires_at"]:
             return dict(cached["data"])
         try:
-            result = fetch_us_industry_stocks(codes, sort, limit=3 if sort == "marketcap" else 36)
+            result = fetch_us_industry_stocks(codes, sort, limit=12 if sort == "marketcap" else 36)
         except Exception:
             if cached:
                 stale = dict(cached["data"])
@@ -161,12 +150,32 @@ def _get_us_industry_map_with_stocks(view="legacy"):
             except Exception as exc:
                 row["stocks_error"] = _safe_industry_error(exc)
         result["items"].append(row)
+    if view == "heatmap":
+        from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
+        key = ("bitcoin_related", "marketcap")
+        now = time.monotonic()
+        with _US_INDUSTRY_CACHE_LOCK:
+            cached = _US_INDUSTRY_STOCK_CACHE.get(key)
+        if cached and now < cached["expires_at"]:
+            bitcoin_stocks = cached["data"]
+        else:
+            try:
+                bitcoin_stocks = fetch_us_bitcoin_related_stocks()
+                with _US_INDUSTRY_CACHE_LOCK:
+                    _US_INDUSTRY_STOCK_CACHE[key] = {
+                        "expires_at": now + _US_INDUSTRY_STOCK_TTL,
+                        "data": bitcoin_stocks,
+                    }
+            except Exception:
+                bitcoin_stocks = cached["data"] if cached else []
+        result["items"].append({"key": "bitcoin_related", "name": "비트코인 관련 종목",
+                                "stocks": bitcoin_stocks, "source": "kiwoom:usa20100"})
     result["sort"] = "marketcap"
     return result
 
 
 def get_us_industry_symbols():
-    """Return up to 33 cached market-cap leaders for the live FE feed."""
+    """Return ranked sector stocks and verified ETF symbols for one FE feed."""
     result = _get_us_industry_map_with_stocks("heatmap")
     symbols = {}
     for sector in result.get("items", []):
@@ -179,6 +188,12 @@ def get_us_industry_symbols():
             exchange = str(stock.get("exchange") or "").strip().upper()
             if SYMBOL.fullmatch(symbol) and exchange in ("ND", "NY", "NA"):
                 symbols[symbol] = exchange
+    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
+    try:
+        etf_symbols = fetch_us_etf_exchanges()
+    except Exception:
+        etf_symbols = {}  # Keep stock updates when the ETF lookup fails.
+    symbols.update(etf_symbols)
     return symbols
 
 
