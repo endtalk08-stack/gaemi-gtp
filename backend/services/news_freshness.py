@@ -29,6 +29,47 @@ def _article_date(value):
     return parsed.astimezone(timezone.utc)
 
 
+
+def read_recent_us_code_issue_history(symbols):
+    """Read cited, append-only CODE issues once for chat or a whole TOP20 sidebar.
+
+    This function never writes or processes news. A missing migration or Neon
+    outage leaves the existing snapshot reader operational.
+    """
+    import os
+    from backend.analysis.news.stock_identity import normalize_us_ticker
+
+    tickers = list(dict.fromkeys(
+        ticker for value in symbols or []
+        if (ticker := normalize_us_ticker(value))
+    ))
+    url = os.environ.get("NEWS_DATABASE_URL", "").strip()
+    if not url or not tickers:
+        return {}
+    try:
+        import psycopg
+        with psycopg.connect(url, connect_timeout=3) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT symbol, issue_brief
+                    FROM public.news_issue_history
+                    WHERE market='US' AND channel='code'
+                      AND symbol=ANY(%s)
+                      AND published_at >= now()-interval '24 hours'
+                      AND published_at <= now()
+                    ORDER BY symbol, published_at DESC, first_saved_at DESC
+                """, (tickers,))
+                records = cur.fetchall()
+        found = {}
+        for symbol, brief in records:
+            if isinstance(brief, dict):
+                found.setdefault(symbol, []).append(brief)
+        return found
+    except Exception as exc:
+        print("[issue-history] read unavailable: " + type(exc).__name__, flush=True)
+        return {}
+
+
 ISSUE_MODES = frozenset(("auto", "ai", "code", "both"))
 
 
