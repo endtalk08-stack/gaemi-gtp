@@ -306,6 +306,15 @@
   gap: 3px;
   min-width: 0;
 }
+/* Responsive heatmap sizing: only the first three rows scale with tile width. */
+.industry-map-row:nth-child(1) { aspect-ratio: 4 / 1; }
+.industry-map-row:nth-child(2) { aspect-ratio: 5 / 1; }
+.industry-map-row:nth-child(3) { aspect-ratio: 6 / 1; }
+.industry-map-row:nth-child(-n+3) .industry-map-sector,
+.industry-map-row:nth-child(-n+3) .industry-map-stock {
+  min-height: 0;
+  height: 100%;
+}
 .industry-map-sector {
   box-sizing: border-box;
   display: grid;
@@ -413,9 +422,6 @@
 .industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
 @media (min-width: 1024px) {
   .industry-map-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .industry-map-row:nth-child(1) { grid-auto-rows: minmax(56px, auto); }
-  .industry-map-row:nth-child(2) { grid-auto-rows: minmax(52px, auto); }
-  .industry-map-row:nth-child(3) { grid-auto-rows: minmax(48px, auto); }
   .industry-map-row .industry-map-sector {
     grid-template-columns: minmax(0, 1fr);
     align-content: center;
