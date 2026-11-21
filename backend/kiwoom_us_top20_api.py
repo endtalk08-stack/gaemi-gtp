@@ -72,7 +72,10 @@ def _get_us_industry_map(view="legacy"):
         item["key"] for item in heatmap["items"]
         if item["mapping_status"] != "matched"
     ]
-    if missing == ["internet_platforms"]:
+    # The heatmap is an explicit eleven-group contract. A missing mapping or
+    # quote must remain visible as an incomplete group; never silently replace
+    # the requested eleven groups with the unrelated legacy nine-group view.
+    if "internet_platforms" in missing:
         platform = _get_us_internet_platform_group()
         if platform is not None:
             from backend.providers.kiwoom_us_industries import rank_us_industry_rows
@@ -81,12 +84,17 @@ def _get_us_industry_map(view="legacy"):
                 {**item, **platform} if item["key"] == "internet_platforms" else item
                 for item in heatmap["items"]
             ]
-            heatmap = {**heatmap, "items": rank_us_industry_rows(items), "mapping_complete": True}
-            missing = []
-    selected = "legacy" if missing else "heatmap"
+            heatmap = {
+                **heatmap,
+                "items": rank_us_industry_rows(items),
+            }
+            missing = [
+                item["key"] for item in heatmap["items"]
+                if item["mapping_status"] != "matched"
+            ]
     return {
-        **(maps["legacy"] if missing else heatmap),
-        "view": selected,
+        **heatmap,
+        "view": "heatmap",
         "heatmap_ready": not missing,
         "heatmap_missing": missing,
     }
