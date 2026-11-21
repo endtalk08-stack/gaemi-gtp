@@ -126,7 +126,23 @@ _LAST_API_CALL_AT = 0.0
 _MIN_API_CALL_INTERVAL = 0.22  # Stay below Kiwoom's 5 read-TR/sec limit.
 
 
+_CALL_MAX_ATTEMPTS = 3  # First try + 2 retries; Kiwoom TR rejections are often transient.
+_CALL_RETRY_BACKOFF = 0.4  # Seconds added per extra attempt, on top of the rate-limit wait.
+
+
 def _call(api_id, body, *, token=None):
+    last_error = None
+    for attempt in range(_CALL_MAX_ATTEMPTS):
+        if attempt:
+            time.sleep(_CALL_RETRY_BACKOFF * attempt)
+        try:
+            return _call_once(api_id, body, token=token)
+        except KiwoomReadOnlyError as exc:
+            last_error = exc
+    raise last_error
+
+
+def _call_once(api_id, body, *, token=None):
     global _LAST_API_CALL_AT
     path = API_PATHS.get(api_id)
     if not path or not isinstance(body, dict):
