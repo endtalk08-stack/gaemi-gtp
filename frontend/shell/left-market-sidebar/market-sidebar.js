@@ -291,13 +291,10 @@
         try {
           const data = await industryMapPromise;
           if (id === requestId && data) renderIndustryMap(data);
-        } catch (_) {
-          if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
-        }
+        } catch (_) {}
         return;
       }
       list.classList?.add?.('industry-map-list');
-      list.textContent = '미국 업종별 시가총액 상위 종목을 불러오는 중이야.';
       industryMapPromise = (async () => {
         // Industry membership and market-cap ranking come from the existing
         // DigitalOcean Kiwoom industry endpoint. Never derive this map from TOP20.
@@ -317,7 +314,7 @@
         const data = await industryMapPromise;
         if (id === requestId) renderIndustryMap(data);
       } catch (_) {
-        if (id === requestId) list.textContent = '업종별 시가총액 데이터를 불러오지 못했어.';
+        // Keep the sidebar free of transient loading/error copy.
       } finally {
         industryMapPromise = null;
       }
@@ -430,9 +427,6 @@
       }
       if (tab !== 'value') return;
       if (rankingRequestInFlight || Date.now() < nextRankingReadAt) return;
-      if (!list.querySelectorAll(':scope > button[data-original-index]').length) {
-        list.textContent = '순위를 불러오는 중이야.';
-      }
       rankingRequestInFlight = true;
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 10000);
@@ -602,10 +596,7 @@
         console.warn('TOP20 request failed:', error);
         rankingFailureCount += 1;
         nextRankingReadAt = Date.now() + Math.min(300000, 15000 * 2 ** (rankingFailureCount - 1));
-        if (id === requestId && title) title.textContent = titles[tab] + ' · 갱신 실패';
-        if (id === requestId && !list.querySelector('button[data-original-index]')) {
-          list.textContent = '순위 원천 데이터를 가져오지 못했어.';
-        }
+        // Keep the sidebar free of transient loading/error copy.
       } finally {
         window.clearTimeout(timeout);
         rankingRequestInFlight = false;
