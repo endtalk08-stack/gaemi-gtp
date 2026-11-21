@@ -133,6 +133,14 @@
     fill.setAttribute('points', '1,27 ' + points + ' 71,27');
   }
 
+  function isQqqQuoteFresh(quote) {
+    const maxAge = quote?.source === 'kiwoom:rest' ? 65000 : 25000;
+    return quote?.stale === false
+      && Number.isFinite(quote.received_at_ms)
+      && quote.received_at_ms <= Date.now() + 5000
+      && Date.now() - quote.received_at_ms <= maxAge;
+  }
+
   function updateQqqCard() {
     const card = body()?.querySelector('[data-central-widget-id="qqq"]');
     if (!card) return;
@@ -141,7 +149,7 @@
     const chartNode = card.querySelector('.central-widget-card__sparkline');
     const quote = qqqCurrent;
     const valid = quote && Number.isFinite(quote.price) && quote.price > 0;
-    const fresh = valid && !quote.stale && Date.now() - quote.received_at_ms <= 25000;
+    const fresh = valid && isQqqQuoteFresh(quote);
     const change = valid && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
     if (priceNode) priceNode.textContent = valid
@@ -160,7 +168,7 @@
     const row = document.querySelector('[data-market-qqq]');
     if (!row) return;
     const quote = qqqCurrent;
-    const fresh = quote?.stale === false && Date.now() - quote.received_at_ms <= 25000;
+    const fresh = isQqqQuoteFresh(quote);
     updateQqqReason(row, quote, fresh);
   }
 
@@ -182,7 +190,7 @@
       return;
     }
     qqqCurrent = quote;
-    const fresh = quote.stale === false && Date.now() - quote.received_at_ms <= 25000;
+    const fresh = isQqqQuoteFresh(quote);
     if (fresh && quote.received_at_ms > qqqLastReceivedMs) {
       const { key } = easternTradingWindow(quote.received_at_ms);
       if (key !== qqqSessionKey) {
