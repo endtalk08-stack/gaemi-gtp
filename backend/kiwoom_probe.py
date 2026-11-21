@@ -148,6 +148,30 @@ def main():
                 tr_checks, ensure_ascii=False
             ), flush=True)
 
+            from backend.providers.kiwoom_us_industries import (
+                fetch_us_industry_maps, fetch_us_internet_platform_group,
+            )
+            maps = fetch_us_industry_maps(token=token)
+            heatmap = maps.get("heatmap", {})
+            print("KIWOOM_VERIFY_HEATMAP_MAP=" + json.dumps({
+                "group_count": len(heatmap.get("items", [])),
+                "mapping_complete": heatmap.get("mapping_complete"),
+                "groups": [{
+                    "key": row.get("key"), "name": row.get("name"),
+                    "codes": row.get("codes"), "mapping_status": row.get("mapping_status"),
+                    "change_pct": row.get("change_pct"),
+                } for row in heatmap.get("items", [])],
+            }, ensure_ascii=False), flush=True)
+            try:
+                platform = fetch_us_internet_platform_group()
+                print("KIWOOM_VERIFY_PLATFORM_GROUP=" + json.dumps({
+                    "available": platform is not None,
+                    "member_symbols": platform.get("member_symbols") if platform else [],
+                    "stock_symbols": [row.get("symbol") for row in platform.get("stocks", [])] if platform else [],
+                }, ensure_ascii=False), flush=True)
+            except KiwoomReadOnlyError as platform_exc:
+                print("KIWOOM_VERIFY_PLATFORM_GROUP_ERROR=" + str(platform_exc), flush=True)
+
             if len(summary) != 11 or any(item["stock_count"] < 3 for item in summary):
                 print("KIWOOM_VERIFY_INDUSTRIES_INCOMPLETE", flush=True)
                 return 7
