@@ -184,27 +184,48 @@
     };
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
+      const changeValue = (item) => Number.isFinite(item.change_pct) ? item.change_pct : -Infinity;
       list.classList?.add?.('industry-map-list');
       list.replaceChildren();
-      const visibleSectors = items
-        .filter((sector) => typeof sector?.name === 'string' && sector.name.trim())
-        .map((sector) => ({
+      // Keep the agreed eleven industry rows fixed; live Kiwoom data fills each row.
+      const expectedIndustries = [
+        { key: 'energy', name: '에너지' },
+        { key: 'finance', name: '금융' },
+        { key: 'consumer_staples', name: '필수소비재' },
+        { key: 'industrials', name: '산업재' },
+        { key: 'internet_platforms', name: '인터넷플랫폼' },
+        { key: 'software', name: '소프트웨어' },
+        { key: 'communication', name: '커뮤니케이션' },
+        { key: 'healthcare', name: '헬스케어' },
+        { key: 'consumer_discretionary', name: '경기소비재' },
+        { key: 'it_hardware', name: 'IT하드웨어' },
+        { key: 'semiconductors', name: '반도체' }
+      ];
+      const byIndustry = new Map(items
+        .filter((sector) => sector && typeof sector.key === 'string')
+        .map((sector) => [sector.key, sector]));
+      const visibleSectors = expectedIndustries.map(({ key, name }) => {
+        const source = byIndustry.get(key);
+        const sector = {
+          ...(source || {}),
+          key,
+          name: typeof source?.name === 'string' && source.name.trim() ? source.name : name
+        };
+        return {
           sector,
-          stocks: (Array.isArray(sector.stocks) ? sector.stocks : [])
+          stocks: (Array.isArray(source?.stocks) ? source.stocks : [])
             .filter((stock) => stock && typeof stock.name === 'string' && stock.name.trim())
             .slice(0, 3)
-        }));
-      // Highest percentage first; missing percentages stay at the bottom.
-      visibleSectors.sort((a, b) => {
-        const av = Number.isFinite(a.sector.change_pct) ? a.sector.change_pct : -Infinity;
-        const bv = Number.isFinite(b.sector.change_pct) ? b.sector.change_pct : -Infinity;
-        return bv - av;
+            .sort((a, b) => changeValue(b) - changeValue(a))
+        };
       });
+      visibleSectors.sort((a, b) => changeValue(b.sector) - changeValue(a.sector));
       visibleSectors.forEach(({ sector, stocks: ranked }) => {
         const sectorPct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
           ? sector.change_pct : null;
         const sectorColor = mapTileColor(sectorPct);
-        // Sector header and stock tiles are siblings: never nest boxes inside a sector box.
+        const row = document.createElement('div');
+        row.className = 'industry-map-row';
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone;
         heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.30, sectorColor.alpha + 0.045).toFixed(3) + ')';
@@ -212,6 +233,7 @@
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
+        label.title = label.textContent;
         const change = document.createElement('span');
         change.className = 'industry-map-sector-change';
         change.textContent = formatChange(sectorPct);
@@ -256,7 +278,8 @@
           });
           stocks.appendChild(stockTile);
         });
-        list.append(heading, stocks);
+        row.append(heading, stocks);
+        list.appendChild(row);
       });
     };
     const loadIndustryMap = async (id) => {
