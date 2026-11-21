@@ -39,12 +39,17 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
                 "NVDA": "ND", "AVGO": "ND", "AMD": "ND", "WMT": "NY"
             })
 
-    def test_incomplete_heatmap_keeps_existing_industry_keys_and_stocks(self):
+    def test_incomplete_heatmap_keeps_all_eleven_groups_and_stocks(self):
         legacy = {"ok": True, "items": [{"key": "defense", "codes": ["210"]}]}
-        heatmap = {"items": [
-            {"key": "industrials", "codes": ["210"], "mapping_status": "matched"},
-            {"key": "internet_platforms", "mapping_status": "unmatched"},
-        ]}
+        heatmap_items = [
+            {
+                "key": key, "name": name,
+                "codes": [] if key == "internet_platforms" else [str(index)],
+                "mapping_status": "unmatched" if key == "internet_platforms" else "matched",
+            }
+            for index, (key, name, _aliases) in enumerate(kiwoom_us_industries.INDUSTRY_GROUPS, 1)
+        ]
+        heatmap = {"items": heatmap_items}
         stocks = [{"symbol": "LMT"}, {"symbol": "BA"}, {"symbol": "RTX"}]
         with (
             patch.object(api, "_get_us_industry_maps", return_value={"legacy": legacy, "heatmap": heatmap}),
@@ -61,11 +66,15 @@ class KiwoomUSIndustryLiveApiTests(unittest.TestCase):
         self.assertFalse(requested["heatmap_ready"])
         self.assertEqual(requested["heatmap_missing"], ["internet_platforms"])
         self.assertEqual(requested["view"], "heatmap")
-        self.assertEqual([item["key"] for item in requested["items"]], ["industrials", "internet_platforms"])
+        self.assertEqual(len(requested["items"]), 11)
+        self.assertEqual(
+            [item["key"] for item in requested["items"]],
+            [key for key, _name, _aliases in kiwoom_us_industries.INDUSTRY_GROUPS],
+        )
         self.assertEqual(requested["items"][0]["stocks"], stocks)
-        self.assertEqual(requested["items"][1]["stocks"], [])
-        self.assertEqual(fetch.call_count, 2)
-        self.assertEqual(fetch.call_args.args, ("industrials", "marketcap"))
+        self.assertEqual(requested["items"][4]["stocks"], [])
+        self.assertEqual(fetch.call_count, 11)
+        self.assertEqual(fetch.call_args.args, ("semiconductors", "marketcap"))
 
     def test_ready_heatmap_keeps_three_market_cap_leaders(self):
         sector = {"key": "energy", "codes": ["10"], "mapping_status": "matched"}
