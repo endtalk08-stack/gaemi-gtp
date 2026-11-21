@@ -351,6 +351,18 @@
   text-align: center;
   white-space: nowrap;
 }
+.industry-map-sector-etf {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--gtp-muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: .02em;
+  text-align: center;
+}
 .industry-map-sector.is-up .industry-map-sector-change { color: #e27b8a; }
 .industry-map-sector.is-down .industry-map-sector-change { color: #78aee0; }
 .industry-map-sector.is-flat .industry-map-sector-change { color: var(--gtp-muted); }
@@ -409,6 +421,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.industry-map-stock-symbol {
+  display: block;
+  color: var(--gtp-muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
 .industry-map-stock-change {
   display: block;
   font-size: 14px;
@@ -435,6 +455,8 @@
   }
 }
 @media (max-width: 420px) {
+  .industry-map-sector-etf,
+  .industry-map-stock-symbol { font-size: 8px; }
   #marketRankingList.industry-map-list,
   .industry-map-row { gap: 2px; }
   .industry-map-sector { min-height: 44px; padding: 5px 3px; }
