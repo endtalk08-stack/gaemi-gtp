@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """Read-only Kiwoom ETF and finance checks against the staged candidate."""
 import json
-import os
-import subprocess
 import sys
-from pathlib import Path
 from types import ModuleType
 
 sys.dont_write_bytecode = True
@@ -1119,29 +1116,7 @@ def verify(provider, token):
     }
 
 
-def _load_running_service_credentials():
-    pid = subprocess.check_output(
-        ["systemctl", "show", "-p", "MainPID", "--value",
-         "gaemigtp-kiwoom-us-top20-https.service"],
-        text=True, timeout=5,
-    ).strip()
-    if not pid.isdigit() or pid == "0":
-        raise RuntimeError("kiwoom_quote_service_not_running")
-    raw = Path("/proc", pid, "environ").read_bytes()
-    values = {}
-    for entry in raw.split(b"\\0"):
-        if b"=" in entry:
-            key, value = entry.split(b"=", 1)
-            if key in (b"GAEMI_KIWOOM_APP_KEY", b"GAEMI_KIWOOM_APP_SECRET"):
-                values[key.decode("ascii")] = value.decode("utf-8")
-    for key in ("GAEMI_KIWOOM_APP_KEY", "GAEMI_KIWOOM_APP_SECRET"):
-        if not values.get(key):
-            raise RuntimeError("kiwoom_quote_service_credentials_missing")
-        os.environ[key] = values[key]
-
-
 def main():
-    _load_running_service_credentials()
     quotes = load_candidate("backend.providers.kiwoom_us_quotes", QUOTES_SOURCE)
     provider = load_candidate("backend.providers.kiwoom_us_industries", INDUSTRIES_SOURCE)
     result = verify(provider, quotes.issue_access_token())
