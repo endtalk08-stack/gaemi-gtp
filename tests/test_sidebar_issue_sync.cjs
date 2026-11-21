@@ -134,13 +134,17 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
       return { ok: true, json: async () => ({
         ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
         items: [
-          { key: 'semiconductors', name: '반도체', stocks: [
+          { key: 'semiconductors', name: '반도체', change_pct: 1.8, stocks: [
             { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, market_cap_usd: 1000 },
           ] },
-          { key: 'healthcare', name: '헬스케어', stocks: [
+          { key: 'healthcare', name: '헬스케어', change_pct: -0.8, stocks: [
             { name: '일라이 릴리', symbol: 'LLY.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
           ] },
-          ...['헬스케어','금융','필수소비재','산업재','인터넷플랫폼','소프트웨어','커뮤니케이션','경기소비재','IT하드웨어'].map((name) => ({ name, stocks: [] }))
+          ...[
+            ['energy','에너지'],['finance','금융'],['consumer_staples','필수소비재'],
+            ['industrials','산업재'],['internet_platforms','인터넷플랫폼'],['software','소프트웨어'],
+            ['communication','커뮤니케이션'],['consumer_discretionary','경기소비재'],['it_hardware','IT하드웨어']
+          ].map(([key,name]) => ({ key, name, stocks: [] }))
         ]
       }) };
     }
@@ -186,28 +190,19 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap'));
   assert.equal(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
-  assert.equal(app.list.children.length, 22);
-  const semiconductorIndex = app.list.children.findIndex(
-    (item) => item.children[0]?.textContent === '반도체');
-  const sector = app.list.children[semiconductorIndex];
-  const stocks = app.list.children[semiconductorIndex + 1];
-  assert.equal(sector.children[1].textContent, '—',
-    'missing sector return should be shown as unavailable');
-  assert.match(sector.className, /is-flat/);
-  assert.equal(stocks.children[0].children[0].textContent, '엔비디아');
-  assert.equal(stocks.children[0].children[1].textContent, '+2.50%');
-  assert.match(stocks.children[0].className, /is-up/);
-  const emptySectorIndex = app.list.children.findIndex(
-    (item) => item.children[0]?.textContent === '에너지');
-  assert.equal(app.list.children[emptySectorIndex + 1].children[0].textContent, '상위 종목 데이터 없음');
-  const pharmaSectorIndex = app.list.children.findIndex(
-    (item) => item.children[0]?.textContent === '헬스케어');
-  const pharmaSector = app.list.children[pharmaSectorIndex];
-  const pharmaStock = app.list.children[pharmaSectorIndex + 1].children[0];
-  assert.match(pharmaSector.className, /is-flat/);
-  assert.equal(pharmaStock.children[0].textContent, '일라이 릴리');
-  assert.equal(pharmaStock.children[1].textContent, '-1.25%');
-  assert.match(pharmaStock.className, /is-down/);
+  assert.equal(app.list.children.length, 11);
+  const rowFor = (name) => app.list.children.find((row) =>
+    row.children[0]?.children[0]?.textContent === name);
+  const semiconductor = rowFor('반도체');
+  assert.equal(semiconductor.children[0].children[1].textContent, '+1.80%');
+  assert.equal(semiconductor.children[1].children[0].children[0].textContent, '엔비디아');
+  assert.equal(semiconductor.children[1].children[0].children[1].textContent, '+2.50%');
+  const healthcare = rowFor('헬스케어');
+  assert.equal(healthcare.children[0].children[1].textContent, '-0.80%');
+  assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
+  assert.equal(healthcare.children[1].children[0].children[1].textContent, '-1.25%');
+  assert.equal(rowFor('에너지').children[1].children[0].textContent, '상위 종목 데이터 없음');
+  assert.equal(app.list.children.length, 11);
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
