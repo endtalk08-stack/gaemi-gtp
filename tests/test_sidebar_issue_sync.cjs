@@ -194,24 +194,20 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   const rowFor = (name) => app.list.children.find((row) =>
     row.children[0]?.children[0]?.textContent === name);
   const technology = rowFor('정보기술');
-  assert.equal(technology.children[0].children[1].textContent, 'XLK');
-  assert.equal(technology.children[0].children[2].textContent, '+1.80%');
+  assert.equal(technology.children[0].children[1].textContent, '+1.80%');
   assert.equal(technology.children[1].children[0].children[0].textContent, '엔비디아');
   assert.equal(technology.children[1].children[0].children[1].textContent, '+2.50%');
   const healthcare = rowFor('헬스케어');
-  assert.equal(healthcare.children[0].children[1].textContent, 'XLV');
-  assert.equal(healthcare.children[0].children[2].textContent, '-0.80%');
+  assert.equal(healthcare.children[0].children[1].textContent, '-0.80%');
   assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
   assert.equal(healthcare.children[1].children[0].children[1].textContent, '-1.25%');
   const utilities = rowFor('유틸리티');
-  assert.equal(utilities.children[0].children[1].textContent, 'XLU');
-  assert.equal(utilities.children[1].children.length, 3);
-  const expectedEtfs = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLU', 'XLRE', 'XLB', 'SOXX', 'XBI', 'IBIT'];
-  const displayedEtfs = app.list.children.map((row) => row.children[0]?.children[1]?.textContent).filter(Boolean);
-  assert.deepEqual([...displayedEtfs].sort(), [...expectedEtfs].sort());
+  assert.equal(utilities.children[0].children.length, 1);
   const themeRows = app.list.children.filter((row) =>
-    ['SOXX', 'XBI', 'IBIT'].includes(row.children[0]?.children[1]?.textContent));
-  assert.deepEqual(themeRows.map((row) => row.children[0].children[1].textContent), ['SOXX', 'XBI', 'IBIT']);
+    ['반도체', '바이오', '비트코인'].includes(row.children[0]?.children[0]?.textContent));
+  assert.deepEqual(themeRows.map((row) => row.children[0].children[0].textContent), ['반도체', '바이오', '비트코인']);
+  assert.ok(app.list.children.every((row) =>
+    !row.children[0].children.some((child) => child.className === 'industry-map-sector-etf')));
   assert.equal(themeRows[0].children[1].children.length, 3);
   assert.equal(themeRows[0].children[1].children[0].children[1].textContent, 'AMD');
   assert.equal(themeRows[1].children[1].children[0].children[1].textContent, 'MRNA');
