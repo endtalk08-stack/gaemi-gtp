@@ -607,7 +607,7 @@ def fetch_us_etf_exchanges(*, token=None):
         for row in records:
             if not isinstance(row, dict):
                 continue
-            symbol = str(row.get("code") or "").strip().upper()
+            symbol = str(row.get("stk_cd") or "").strip().upper()
             exchange = EXCHANGE_CODES.get(str(row.get("stex_tp") or "").strip().upper(),
                                           str(row.get("stex_tp") or "").strip().upper())
             if symbol in ETF_TICKERS and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
