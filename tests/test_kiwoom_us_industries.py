@@ -137,7 +137,10 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         with (
             patch.object(sectors, "_access_token", return_value="LOCAL_TEST"),
             patch.object(sectors, "wait_for_us_read_slot") as rate_limit,
-            patch.object(sectors, "_call", return_value={"result_list": []}),
+            patch.object(sectors, "_call", return_value={"result_list": [{
+                "stk_cd": "NVDA", "stk_nm": "NVIDIA", "stex_tp": "ND",
+                "cur_prc": "150", "flu_rt": "1.0", "mac": "1000",
+            }]}),
         ):
             sectors.fetch_us_industry_stocks("510", "marketcap")
         rate_limit.assert_called_once_with()
