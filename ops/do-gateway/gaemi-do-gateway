@@ -317,7 +317,15 @@ PY
     valid_timeout "$3" || fail "invalid_timeout"
     [[ -f "$inbox" && ! -L "$inbox" ]] || fail "payload_missing"
     [[ "$(blob_sha "$inbox")" == "$2" ]] || fail "payload_sha_mismatch"
-    [[ -r "$envfile" ]] || fail "environment_missing"
+    job_env="$envfile"
+    if [[ "$1" == "etf-rest-92e15ff-20261122-r2" ]]; then
+      [[ "$2" == "f5cf95d47b64f1b7d3e844df1d444d474f43aa9d" && "$3" == "300" ]] || fail "etf_rest_verification_payload_mismatch"
+      job_env=/etc/gaemigtp/kiwoom.env
+      [[ -f "$job_env" && ! -L "$job_env" ]] || fail "kiwoom_credentials_not_installed"
+      [[ "$(stat -c %U:%G "$job_env")" == "root:root" ]] || fail "kiwoom_credentials_wrong_owner"
+      [[ "$(stat -c %a "$job_env")" == "600" ]] || fail "kiwoom_credentials_wrong_permissions"
+    fi
+    [[ -r "$job_env" ]] || fail "environment_missing"
     id gaemigtp-news >/dev/null || fail "service_user_missing"
     exec 9>/run/lock/gaemi-gateway.lock
     flock -n 9 || fail "concurrent_operation"
@@ -333,7 +341,7 @@ PY
     unit="gaemi-gateway-$1"
     systemd-run --quiet --wait --pipe --collect \
       --unit="$unit" -p User=gaemigtp-news -p Group=gaemigtp-news \
-      -p WorkingDirectory="$app" -p EnvironmentFile="$envfile" \
+      -p WorkingDirectory="$app" -p EnvironmentFile="$job_env" \
       -p TimeoutStartSec="$3" \
       /opt/gaemigtp-news/venv/bin/python "$job"
     echo "GAEMI_JOB_OK=$1"
