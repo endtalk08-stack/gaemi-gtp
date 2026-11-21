@@ -193,16 +193,22 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.equal(app.list.children.length, 14);
   const rowFor = (name) => app.list.children.find((row) =>
     row.children[0]?.children[0]?.textContent === name);
-  const semiconductor = rowFor('반도체');
-  assert.equal(semiconductor.children[0].children[1].textContent, '+1.80%');
-  assert.equal(semiconductor.children[1].children[0].children[0].textContent, '엔비디아');
-  assert.equal(semiconductor.children[1].children[0].children[1].textContent, '+2.50%');
+  const technology = rowFor('정보기술');
+  assert.equal(technology.children[0].children[1].textContent, 'XLK');
+  assert.equal(technology.children[0].children[2].textContent, '+1.80%');
+  assert.equal(technology.children[1].children[0].children[0].textContent, '엔비디아');
+  assert.equal(technology.children[1].children[0].children[1].textContent, '+2.50%');
   const healthcare = rowFor('헬스케어');
-  assert.equal(healthcare.children[0].children[1].textContent, '-0.80%');
+  assert.equal(healthcare.children[0].children[1].textContent, 'XLV');
+  assert.equal(healthcare.children[0].children[2].textContent, '-0.80%');
   assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
   assert.equal(healthcare.children[1].children[0].children[1].textContent, '-1.25%');
-  assert.equal(rowFor('에너지').children[1].children[0].textContent, '상위 종목 데이터 없음');
-  assert.equal(app.list.children.length, 14);
+  const utilities = rowFor('유틸리티');
+  assert.equal(utilities.children[0].children[1].textContent, 'XLU');
+  assert.equal(utilities.children[1].children.length, 3);
+  const expectedEtfs = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLU', 'XLRE', 'XLB', 'SOXX', 'XBI', 'IBIT'];
+  const displayedEtfs = app.list.children.map((row) => row.children[0]?.children[1]?.textContent).filter(Boolean);
+  assert.deepEqual([...displayedEtfs].sort(), [...expectedEtfs].sort());
   const themeRows = app.list.children.filter((row) =>
     ['SOXX', 'XBI', 'IBIT'].includes(row.children[0]?.children[1]?.textContent));
   assert.deepEqual(themeRows.map((row) => row.children[0].children[1].textContent), ['SOXX', 'XBI', 'IBIT']);
