@@ -130,7 +130,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     if (url === '/stocks/us/instruments.json') {
       return { ok: true, json: async () => ({ ok: true, items: [] }) };
     }
-    if (url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1') {
+    if (url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap') {
       return { ok: true, json: async () => ({
         ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
         items: [
@@ -139,7 +139,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
           ] },
           { name: '바이오·제약', stocks: [
             { name: '일라이 릴리', symbol: 'LLY.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
-          ] }
+          ] },
+          ...['헬스케어','금융','필수소비재','산업재','인터넷플랫폼','소프트웨어','커뮤니케이션','경기소비재','IT하드웨어'].map((name) => ({ name, stocks: [] }))
         ]
       }) };
     }
@@ -185,7 +186,7 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1'));
   assert.equal(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
-  assert.equal(app.list.children.length, 18);
+  assert.equal(app.list.children.length, 22);
   const [sector, stocks, missingSector, missingStocks] = app.list.children;
   assert.equal(sector.children[0].textContent, '반도체');
   assert.equal(sector.children[1].textContent, '—',
@@ -194,7 +195,7 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.equal(stocks.children[0].children[0].textContent, '엔비디아');
   assert.equal(stocks.children[0].children[1].textContent, '+2.50%');
   assert.match(stocks.children[0].className, /is-up/);
-  assert.equal(missingSector.children[0].textContent, 'AI·데이터센터');
+  assert.equal(missingSector.children[0].textContent, '헬스케어');
   assert.equal(missingStocks.children[0].textContent, '상위 종목 데이터 없음');
   const pharmaSector = app.list.children.find(
     (item) => item.children[0]?.textContent === '바이오·제약');
