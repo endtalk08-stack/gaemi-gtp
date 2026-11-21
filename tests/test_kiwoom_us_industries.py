@@ -142,8 +142,10 @@ class KiwoomUSIndustryTests(unittest.TestCase):
                 "cur_prc": "25", "flu_rt": "1.2", "mac": "1000",
             }]}
 
-        with patch.object(sectors, "_access_token", return_value="LOCAL_TEST"), \\
-             patch.object(sectors, "_call", side_effect=call):
+        with (
+            patch.object(sectors, "_access_token", return_value="LOCAL_TEST"),
+            patch.object(sectors, "_call", side_effect=call),
+        ):
             result = sectors.fetch_us_industry_stocks(["510", "520"], "marketcap")
 
         self.assertEqual(result["failed_industry_codes"], ["510"])
