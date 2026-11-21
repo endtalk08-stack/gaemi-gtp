@@ -67,6 +67,14 @@ jobs:
               break
             fi
             if [ "$attempt" -eq 5 ]; then
+              echo "Preview HTML title: $(grep -oE '<title>[^<]+' "$index" | head -1 || true)"
+              echo "Preview HTML bytes: $(wc -c < "$index")"
+              echo "Preview HTML beginning:"
+              head -c 900 "$index"
+              echo
+              branch_preview="https://github-pages-preview.gaemigtp-main.pages.dev/?v=$GITHUB_SHA"
+              curl -fLsS --compressed --max-time 20 -H 'Cache-Control: no-cache' "$branch_preview" -o "$RUNNER_TEMP/branch-preview-index.html" || true
+              echo "Branch alias HTML bytes: $(wc -c < "$RUNNER_TEMP/branch-preview-index.html" 2>/dev/null || echo 0)"
               echo '::error::Preview HTML is missing the expected sidebar asset references or tabs'
               exit 1
             fi
