@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only Kiwoom ETF and finance checks against the staged candidate."""
+"""Read-only Kiwoom ETF REST and FE WebSocket verification against the staged candidate."""
 import json
 import sys
 from types import ModuleType
@@ -1116,12 +1116,145 @@ def verify(provider, token):
     }
 
 
+def probe_etf_websocket(token, exchanges):
+    """Read-only LOGIN + FE registration for the fourteen verified ETFs."""
+    import asyncio
+
+    expected = {
+        "XLK", "XLV", "XLF", "XLY", "XLC", "XLI", "XLP",
+        "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT",
+    }
+    if set(exchanges) != expected:
+        return {"error": "etf_exchange_map_incomplete", "mapped_count": len(exchanges)}
+
+    async def run():
+        try:
+            from websockets.asyncio.client import connect
+        except ImportError:
+            from websockets.client import connect
+
+        result = {
+            "mapped_count": len(exchanges),
+            "login_ack": False,
+            "registration_ack": False,
+            "registered_tickers": sorted(exchanges),
+            "real_frames": 0,
+            "fe_events": 0,
+            "tick_symbols": {},
+        }
+        async with connect(
+            "wss://api.kiwoom.com:10000/api/us/websocket",
+            open_timeout=8, close_timeout=2, ping_interval=None, max_size=131072,
+        ) as ws:
+            await ws.send(json.dumps({"trnm": "LOGIN", "token": token}))
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + 12
+            while loop.time() < deadline:
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=min(3, deadline-loop.time()))
+                except asyncio.TimeoutError:
+                    continue
+                if isinstance(raw, bytes):
+                    raw = raw.decode("utf-8", errors="replace")
+                try:
+                    frame = json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(frame, dict):
+                    continue
+                trnm = str(frame.get("trnm") or "").upper()
+                if trnm == "PING":
+                    await ws.send(json.dumps(frame))
+                elif trnm == "LOGIN":
+                    result["login_ack"] = str(frame.get("return_code", "")) in ("0", "0000")
+                    break
+
+            if not result["login_ack"]:
+                result["result"] = "login_not_confirmed"
+                return result
+
+            items = [
+                {"jmcode": symbol, "stex_tp": exchange}
+                for symbol, exchange in sorted(exchanges.items())
+            ]
+            await ws.send(json.dumps({
+                "trnm": "REG", "grp_no": "1", "refresh": "1",
+                "data": [{"item": items, "type": ["FE"]}],
+            }))
+            deadline = loop.time() + 15
+            while loop.time() < deadline and not result["registration_ack"]:
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=min(3, deadline-loop.time()))
+                except asyncio.TimeoutError:
+                    continue
+                if isinstance(raw, bytes):
+                    raw = raw.decode("utf-8", errors="replace")
+                try:
+                    frame = json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(frame, dict):
+                    continue
+                trnm = str(frame.get("trnm") or "").upper()
+                if trnm == "PING":
+                    await ws.send(json.dumps(frame))
+                elif trnm == "REG":
+                    result["registration_ack"] = str(frame.get("return_code", "")) in ("0", "0000")
+                elif trnm == "REAL":
+                    result["real_frames"] += 1
+                    rows = frame.get("data")
+                    if not isinstance(rows, list):
+                        continue
+                    for row in rows[:50]:
+                        if not isinstance(row, dict) or str(row.get("type") or "").upper() != "FE":
+                            continue
+                        result["fe_events"] += 1
+                        raw_symbol = str(row.get("item") or "").strip().upper()
+                        symbol = raw_symbol
+                        for separator in (".", ":"):
+                            if separator in symbol:
+                                parts = symbol.split(separator)
+                                symbol = parts[0] if parts[0] in exchanges else parts[-1]
+                                break
+                        if symbol not in exchanges:
+                            continue
+                        values = row.get("values")
+                        if not isinstance(values, dict):
+                            continue
+                        def number(value):
+                            try:
+                                parsed = float(str(value).strip().replace(",", ""))
+                                return parsed if -1e12 < parsed < 1e12 else None
+                            except (TypeError, ValueError):
+                                return None
+                        result["tick_symbols"][symbol] = {
+                            "price": abs(number(values.get("10"))) if number(values.get("10")) not in (None, 0) else None,
+                            "change_pct": number(values.get("12")),
+                        }
+
+            if not result["registration_ack"]:
+                result["result"] = "registration_not_confirmed"
+            else:
+                result["result"] = "live_ticks_received" if result["tick_symbols"] else "registered_no_tick_in_window"
+        return result
+
+    try:
+        return asyncio.run(run())
+    except Exception as exc:
+        return {"error_type": type(exc).__name__, "result": "websocket_probe_error"}
+
+
 def main():
     quotes = load_candidate("backend.providers.kiwoom_us_quotes", QUOTES_SOURCE)
     provider = load_candidate("backend.providers.kiwoom_us_industries", INDUSTRIES_SOURCE)
-    result = verify(provider, quotes.issue_access_token())
+    token = quotes.issue_access_token()
+    result = verify(provider, token)
     print("KIWOOM_ETF_EXCHANGE_DIAGNOSTIC=" + json.dumps(result, ensure_ascii=False, allow_nan=False), flush=True)
-    return int(bool(result["unresolved_tickers"]))
+    if result["unresolved_tickers"]:
+        return 1
+    websocket = probe_etf_websocket(token, result["verified_exchanges"])
+    print("KIWOOM_ETF_WEBSOCKET_PROBE=" + json.dumps(websocket, ensure_ascii=False, allow_nan=False), flush=True)
+    return int(not websocket.get("registration_ack"))
 
 
 if __name__ == "__main__":
