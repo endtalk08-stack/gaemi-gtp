@@ -108,6 +108,8 @@ def main():
             summary = [{
                 "key": item.get("key"), "name": item.get("name"),
                 "mapping_status": item.get("mapping_status"),
+                "codes": item.get("codes") or ([item.get("code")] if item.get("code") else []),
+                "stocks_error": item.get("stocks_error"),
                 "stock_count": len(item.get("stocks", [])),
                 "stocks": [{
                     "symbol": stock.get("symbol"),
