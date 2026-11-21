@@ -103,3 +103,16 @@ jobs:
                 (.symbol | ascii_upcase) == $symbol and
                 (.industry | type == "string" and length > 0)))
           ' "$RUNNER_TEMP/us-trading-value.json"
+
+      - name: Verify live 11-industry data and three stocks per industry
+        run: |
+          curl -fLsS --compressed --retry 2 --retry-all-errors --retry-delay 2 --max-time 30 \
+            "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap" \
+            -o "$RUNNER_TEMP/us-industries.json"
+          jq -e '
+            .ok == true and .heatmap_ready == true and
+            (.items | type == "array" and length == 11) and
+            all(.items[]; (.stocks | type == "array" and length >= 3))
+          ' "$RUNNER_TEMP/us-industries.json"
+          echo "Verified all 11 industries have at least three Kiwoom-ranked stocks"
+
