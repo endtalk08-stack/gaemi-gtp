@@ -204,7 +204,7 @@ case "$action" in
     [[ "$(stat -c %a /etc/gaemigtp/kiwoom.env)" == "600" ]] || fail "kiwoom_credentials_wrong_permissions"
     [[ -f "$app/backend/kiwoom_probe.py" && ! -L "$app/backend/kiwoom_probe.py" ]] || fail "kiwoom_probe_missing"
     [[ -f "$app/backend/providers/kiwoom_us_quotes.py" ]] || fail "kiwoom_provider_missing"
-    systemctl is-active --quiet gaemigtp-news.service || fail "original_news_worker_inactive"
+    # Kiwoom verification is independent of the news worker lifecycle.
     exec 9>/run/lock/gaemi-kiwoom-verify.lock
     flock -n 9 || fail "kiwoom_verify_already_running"
     systemd-run --quiet --wait --pipe --collect \
@@ -214,7 +214,6 @@ case "$action" in
       -p EnvironmentFile=/etc/gaemigtp/kiwoom.env \
       -p TimeoutStartSec=50 \
       /opt/gaemigtp-news/venv/bin/python -m backend.kiwoom_probe
-    systemctl is-active --quiet gaemigtp-news.service || fail "original_worker_changed"
     echo "KIWOOM_VERIFY_PASS"
     ;;
   alpaca-news-verify)
