@@ -92,14 +92,14 @@ jobs:
           PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
           {
-            printf '[Open the unique gaemigtp-main preview](%s)\\n' "$PREVIEW_URL"
-            printf '[Open the stable preview address](https://github-pages-preview.gaemigtp-main.pages.dev)\\n'
+            printf '[Open the unique gaemigtp-main preview](%s)\n' "$PREVIEW_URL"
+            printf '[Open the stable preview address](https://github-pages-preview.gaemigtp-main.pages.dev)\n'
             if [ "${PREVIEW_ACCESS_PROTECTED:-false}" = "true" ]; then
               echo 'Cloudflare Access sign-in is required. Automated HTML/API checks are blocked by the existing account-member policy.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-        if: env.PREVIEW_ACCESS_PROTECTED != 'true'
       - name: Verify the live TOP20 data connection
+        if: env.PREVIEW_ACCESS_PROTECTED != 'true'
         run: |
           curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 20 "https://quotes.gaemigtp.com/market/trading-value?market=us" -o "$RUNNER_TEMP/us-trading-value.json"
           jq -e --slurpfile metadata "$RUNNER_TEMP/us-instruments.json" '
