@@ -133,6 +133,30 @@ class KiwoomUSIndustryTests(unittest.TestCase):
         self.assertEqual(by_key["internet_platforms"]["mapping_status"], "unmatched")
         self.assertEqual({item["code"] for item in result["unmatched_official_industries"]}, {"120", "380"})
 
+    def test_embedded_token_expiry_refreshes_once_and_retries(self):
+        responses = [
+            FakeResponse({
+                "return_code": 3,
+                "return_msg": "인증에 실패했습니다[8005:Token이 유효하지 않습니다]",
+            }),
+            FakeResponse({"return_code": 0, "result_list": []}),
+        ]
+        with (
+            patch.object(sectors, "issue_access_token", side_effect=["OLD_TOKEN", "NEW_TOKEN"]) as issue,
+            patch.object(sectors, "wait_for_us_read_slot"),
+            patch.object(sectors.requests, "post", side_effect=responses) as post,
+        ):
+            result = sectors._call(
+                "usa20550",
+                {"stex_tp": "0", "inds_cd": "510", "stk_tp": "1"},
+            )
+
+        self.assertEqual(result["result_list"], [])
+        self.assertEqual(issue.call_count, 2)
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(post.call_args_list[0].kwargs["headers"]["authorization"], "Bearer OLD_TOKEN")
+        self.assertEqual(post.call_args_list[1].kwargs["headers"]["authorization"], "Bearer NEW_TOKEN")
+
     def test_industry_reads_use_the_shared_kiwoom_us_rate_limiter(self):
         with (
             patch.object(sectors, "_access_token", return_value="LOCAL_TEST"),
