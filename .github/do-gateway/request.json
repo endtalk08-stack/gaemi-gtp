@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_industry_release_baseline_20261120.py",
-  "request_id": "etf-quote-check-20261122",
-  "timeout": 90
+  "operation": "logs",
+  "unit": "gaemigtp-kiwoom-us-top20-https.service",
+  "lines": 100
 }
