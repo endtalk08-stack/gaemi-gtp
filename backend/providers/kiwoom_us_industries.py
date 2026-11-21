@@ -126,7 +126,7 @@ _AUTH_RETRY_RETURN_CODES = {8005, 8031, 8103}
 
 
 def _embedded_return_code(message):
-    match = re.search(r"\\[(\\d{3,5}):|CODE=(\\d{3,5})", str(message or ""))
+    match = re.search(r"\[(\d{3,5}):|CODE=(\d{3,5})", str(message or ""))
     if not match:
         return None
     return int(match.group(1) or match.group(2))
@@ -361,6 +361,7 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
     }[sort]
     rows_by_symbol = {}
     failed_codes = []
+    request_token = token
     for code in codes:
         if sort == "change":
             body = {"stex_tp": "0", "sort_tp": "1", "inds_cd": code}
@@ -375,7 +376,8 @@ def fetch_us_industry_stocks(industry_codes, sort="marketcap", *, token=None, li
                 "trde_prica_cnd": "0",
             }
         try:
-            records = _call(api_id, body, token=token).get("result_list")
+            records = _call(api_id, body, token=request_token).get("result_list")
+            request_token = None
         except KiwoomReadOnlyError:
             # One rejected official code must not discard successful sibling
             # codes in the same display group.
