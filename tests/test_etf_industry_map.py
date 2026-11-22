@@ -12,6 +12,7 @@ class EtfIndustryMapTests(unittest.TestCase):
     def test_heatmap_overlaps_independent_stock_reads_and_keeps_order(self):
         barrier = threading.Barrier(3)
         source = {"items": [{"key": key, "codes": [key]} for key in ("one", "two", "three")]}
+        api._US_INDUSTRY_STOCK_CACHE.clear()
 
         def fetch(codes, sort, *, limit):
             barrier.wait(timeout=2)
@@ -45,6 +46,30 @@ class EtfIndustryMapTests(unittest.TestCase):
                 results = [first.result(), second.result()]
         self.assertEqual(calls.call_count, 1)
         self.assertTrue(all(result["items"] for result in results))
+
+    def test_heatmap_overlaps_etf_bitcoin_and_sector_reads(self):
+        barrier = threading.Barrier(3)
+        source = {"items": [{"key": "one", "codes": ["one"]}]}
+        api._US_INDUSTRY_STOCK_CACHE.clear()
+
+        def sector(*_args, **_kwargs):
+            barrier.wait(timeout=2)
+            return {"items": []}
+
+        def etf():
+            barrier.wait(timeout=2)
+            return []
+
+        def bitcoin():
+            barrier.wait(timeout=2)
+            return []
+
+        with patch.object(api, "_get_us_industry_map", return_value=source), \
+             patch.object(industries, "fetch_us_industry_stocks", side_effect=sector), \
+             patch.object(industries, "fetch_us_bitcoin_related_stocks", side_effect=bitcoin), \
+             patch.object(api, "_get_us_industry_etf_quotes", side_effect=etf):
+            result = api._get_us_industry_map_with_stocks("heatmap")
+        self.assertEqual(result["items"][0]["key"], "one")
 
     def test_anthropic_requires_verified_kiwoom_ticker_and_market_cap(self):
         record = {"stk_cd": "ANT", "stex_tp": "ND", "mac": "1200000",
