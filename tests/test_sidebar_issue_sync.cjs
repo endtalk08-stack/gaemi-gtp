@@ -218,7 +218,7 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
     row.children[0]?.children[0]?.textContent === name);
   const technology = rowFor('정보기술');
   assert.equal(technology.children[0].children[1].textContent, '—');
-  assert.equal(technology.children[0].children[2].textContent, '—');
+  assert.equal(technology.children[0].children.length, 2);
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
     ['AMD', '엔비디아', '브로드컴']);
   assert.equal(technology.children[1].children[0].children[1].textContent, '+5.00%');
@@ -235,7 +235,8 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
     ['반도체', '바이오', '비트코인'].includes(row.children[0]?.children[0]?.textContent));
   assert.deepEqual(themeRows.map((row) => row.children[0].children[0].textContent), ['반도체', '바이오', '비트코인']);
   assert.ok(app.list.children.every((row) =>
-    row.children[0].children.some((child) => child.className === 'industry-map-sector-etf')));
+    row.children[0].children.some((child) => child.className === 'industry-map-sector-name')
+      && row.children[0].children.some((child) => child.className === 'industry-map-sector-change')));
   assert.equal(themeRows[0].children[1].children.length, 3);
   // Stock tiles show the Korean name only; no ticker text is rendered.
   themeRows.forEach((row) => row.children[1].children.forEach((tile) =>
@@ -262,8 +263,10 @@ test('industry map consumes fresh Kiwoom websocket quotes for its selected stock
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
     ['AMD', '브로드컴', '엔비디아']);
   assert.equal(technology.children[1].children[2].children[1].textContent, '-3.20%');
-  assert.equal(technology.children[0].children[1].textContent, '$150.00');
-  assert.equal(technology.children[0].children[2].textContent, '+1.75%');
+  assert.equal(technology.children[0].children.length, 2);
+  assert.equal(technology.children[0].children[1].textContent, '+1.75%');
+  const semiconductor = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '반도체');
+  assert.ok(semiconductor.children[1].children.some((tile) => tile.children[0].textContent === '엔비디아'));
 });
 
 test('industry tiles follow fresh ETF returns and reorder on quote updates', async () => {
