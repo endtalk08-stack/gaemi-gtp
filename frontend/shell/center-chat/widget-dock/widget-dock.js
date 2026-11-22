@@ -221,7 +221,8 @@
       const quote = items.find(item => item.symbol === symbol);
       if (quote && Number.isFinite(quote.price)
           && quote.price > 0 && isQqqQuoteFresh(quote)) state.current = quote;
-      if (state.current && quote.received_at_ms > state.lastReceivedMs) {
+      if (quote && Number.isFinite(quote.received_at_ms)
+          && state.current && quote.received_at_ms > state.lastReceivedMs) {
         const { key } = easternTradingWindow(quote.received_at_ms);
         if (key !== state.sessionKey) {
           state.points.length = 0;
