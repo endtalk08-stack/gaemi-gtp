@@ -144,9 +144,10 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
 
 
 
-def _get_us_industry_etf_quotes():
+def _get_us_industry_etf_quotes(symbols=None):
     """Use live ticks first and share REST fallback results across requests."""
-    from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_quotes
+    from backend.providers.kiwoom_us_industries import ETF_TICKERS, MARKET_WIDGET_ETF_TICKERS, fetch_us_etf_quotes
+    requested = ETF_TICKERS if symbols is None else MARKET_WIDGET_ETF_TICKERS.intersection(symbols)
 
     def current_ticks():
         return {quote["symbol"]: quote for quote in _etf_snapshot()
@@ -154,12 +155,12 @@ def _get_us_industry_etf_quotes():
 
     live = current_ticks()
     fallback = {}
-    if ETF_TICKERS.difference(live):
+    if requested.difference(live):
         with _US_INDUSTRY_ETF_CACHE_LOCK:
             # Ticks or cached results may have arrived while this request waited.
             live = current_ticks()
             now = time.monotonic()
-            missing = ETF_TICKERS.difference(live)
+            missing = requested.difference(live)
             due = {symbol for symbol in missing
                    if now >= _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))[0]}
             if due:
@@ -186,7 +187,7 @@ def _get_us_industry_etf_quotes():
         live = current_ticks()
 
     result = []
-    for symbol in sorted(ETF_TICKERS):
+    for symbol in sorted(requested):
         quote = live.get(symbol) or fallback.get(symbol) or {}
         result.append({
             "symbol": symbol,
@@ -298,9 +299,10 @@ def get_us_industry_stock_symbols():
 
 def get_us_etf_symbols():
     """Return ETF-only ticker/exchange membership for its independent FE group."""
-    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
+    from backend.providers.kiwoom_us_industries import (ETF_TICKERS, MARKET_WIDGET_ETF_TICKERS,
+                                                        fetch_us_etf_exchanges)
 
-    return fetch_us_etf_exchanges()
+    return fetch_us_etf_exchanges(tickers=ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS)
 
 
 ADDRESS = "127.0.0.1"
@@ -627,7 +629,7 @@ class Handler(BaseHTTPRequestHandler):
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "items": []})
             return self._json(200, {"ok": True, "items": [
-                quote for quote in _get_us_industry_etf_quotes()
+                quote for quote in _get_us_industry_etf_quotes(symbols={"SPY", "DIA"})
                 if quote.get("symbol") in ("SPY", "DIA")
             ]})
         if path.path == "/market/us-industries":
