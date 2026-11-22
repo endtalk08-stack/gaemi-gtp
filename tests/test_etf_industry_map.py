@@ -113,6 +113,22 @@ class EtfIndustryMapTests(unittest.TestCase):
         self.assertEqual(set(actual), set(industries.ETF_TICKERS))
         call.assert_called_once_with("usa10104", {"stex_tp": "%"}, token="test")
 
+    def test_missing_etf_quotes_overlap_without_extra_calls(self):
+        symbols = ("DIA", "SPY", "XLK")
+        barrier = threading.Barrier(len(symbols))
+
+        def quote(symbol, exchange, *, token):
+            barrier.wait(timeout=2)
+            return {"current": "100", "change_pct": "1"}
+
+        with patch.object(industries, "ETF_TICKERS", frozenset(symbols)), \
+             patch.object(industries, "fetch_us_etf_marketcap", return_value={"items": []}), \
+             patch.object(industries, "fetch_us_etf_exchanges", return_value=dict.fromkeys(symbols, "NY")), \
+             patch.object(industries, "fetch_us_quote", side_effect=quote) as calls:
+            rows = industries.fetch_us_etf_quotes(token="test")
+        self.assertEqual([row["symbol"] for row in rows], list(symbols))
+        self.assertEqual(calls.call_count, len(symbols))
+
     def test_bitcoin_related_companies_are_ranked_by_market_cap(self):
         caps = {"COIN": 10, "MSTR": 50, "MARA": 5, "RIOT": 20, "CLSK": 1}
 
