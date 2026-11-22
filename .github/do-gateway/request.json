@@ -1,3 +1,5 @@
 {
-  "operation": "status"
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_top20_api.py",
+  "target": "/opt/gaemigtp-news/app/backend/kiwoom_us_top20_api.py"
 }
