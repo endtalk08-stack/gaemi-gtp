@@ -10,6 +10,7 @@ Uses only official Kiwoom TRs:
 No Naver/Yahoo classification, no database writes, and no account/order APIs.
 """
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 import math
 import re
 import threading
@@ -663,19 +664,19 @@ def fetch_us_etf_quotes(*, token=None, symbols=None):
             exchanges = fetch_us_etf_exchanges(token=access_token, tickers=missing)
         except KiwoomReadOnlyError:
             exchanges = {}
-        for symbol in sorted(missing):
+        def read_missing(symbol):
             exchange = exchanges.get(symbol)
             if exchange not in EXCHANGES:
-                continue
+                return None
             try:
                 quote = fetch_us_quote(symbol, exchange, token=access_token)
             except (KiwoomReadOnlyError, ValueError):
-                continue
+                return None
             price = _positive_price(quote.get("current"))
             change_pct = _number(quote.get("change_pct"))
             if price is None or change_pct is None:
-                continue
-            quotes[symbol] = {
+                return None
+            return {
                 "symbol": symbol,
                 "exchange": exchange,
                 "price": price,
@@ -683,6 +684,10 @@ def fetch_us_etf_quotes(*, token=None, symbols=None):
                 "received_at_ms": captured_at_ms,
                 "source": "kiwoom:usa20100",
             }
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            for row in pool.map(read_missing, sorted(missing)):
+                if row:
+                    quotes[row["symbol"]] = row
 
     return [quotes[symbol] for symbol in sorted(quotes)]
 
