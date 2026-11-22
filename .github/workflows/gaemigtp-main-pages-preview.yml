@@ -1,4 +1,4 @@
-name: gaemigtp-main Pages preview # restore 11:52 industry map layout
+name: gaemigtp-main Pages preview # restore 11:52 industry map; percent-only tests aligned
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
