@@ -594,7 +594,7 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
 
 def fetch_us_etf_exchanges(*, token=None, tickers=None):
     """Verify requested ETF ticker/exchange pairs against Kiwoom usa10104."""
-    requested = ETF_TICKERS if tickers is None else ETF_TICKERS.intersection(tickers)
+    requested = ETF_TICKERS if tickers is None else frozenset(tickers)
     if not requested:
         return {}
     symbols = {}

@@ -276,9 +276,9 @@ def get_us_industry_stock_symbols():
 
 def get_us_etf_symbols():
     """Return ETF-only ticker/exchange membership for its independent FE group."""
-    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
+    from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_exchanges
 
-    return fetch_us_etf_exchanges()
+    return fetch_us_etf_exchanges(tickers=ETF_TICKERS | {"SPY", "DIA"})
 
 
 ADDRESS = "127.0.0.1"
