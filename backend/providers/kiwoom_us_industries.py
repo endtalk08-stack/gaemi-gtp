@@ -10,7 +10,6 @@ Uses only official Kiwoom TRs:
 No Naver/Yahoo classification, no database writes, and no account/order APIs.
 """
 import datetime as dt
-from concurrent.futures import ThreadPoolExecutor
 import math
 import re
 import threading
@@ -39,7 +38,6 @@ EXCHANGES = {"NA", "ND", "NY"}
 EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
 ETF_TICKERS = frozenset({"XLK", "XLV", "XLF", "XLY", "XLC", "XLI", "XLP",
                          "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT"})
-MARKET_WIDGET_ETF_TICKERS = frozenset({"SPY", "DIA"})
 BITCOIN_COMPANIES = ("COIN", "MSTR", "MARA", "RIOT", "CLSK")
 
 # Eleven display groups based on official Kiwoom industry codes. The labels
@@ -596,7 +594,7 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
 
 def fetch_us_etf_exchanges(*, token=None, tickers=None):
     """Verify requested ETF ticker/exchange pairs against Kiwoom usa10104."""
-    requested = ETF_TICKERS if tickers is None else (ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS).intersection(tickers)
+    requested = ETF_TICKERS if tickers is None else ETF_TICKERS.intersection(tickers)
     if not requested:
         return {}
     symbols = {}
@@ -628,7 +626,7 @@ def fetch_us_etf_exchanges(*, token=None, tickers=None):
 
 def fetch_us_etf_quotes(*, token=None, symbols=None):
     """Return read-only prices and daily changes for the requested heatmap ETFs."""
-    requested = ETF_TICKERS if symbols is None else (ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS).intersection(symbols)
+    requested = ETF_TICKERS if symbols is None else ETF_TICKERS.intersection(symbols)
     if not requested:
         return []
     access_token = token or _access_token()
@@ -665,19 +663,19 @@ def fetch_us_etf_quotes(*, token=None, symbols=None):
             exchanges = fetch_us_etf_exchanges(token=access_token, tickers=missing)
         except KiwoomReadOnlyError:
             exchanges = {}
-        def read_missing(symbol):
+        for symbol in sorted(missing):
             exchange = exchanges.get(symbol)
             if exchange not in EXCHANGES:
-                return None
+                continue
             try:
                 quote = fetch_us_quote(symbol, exchange, token=access_token)
             except (KiwoomReadOnlyError, ValueError):
-                return None
+                continue
             price = _positive_price(quote.get("current"))
             change_pct = _number(quote.get("change_pct"))
             if price is None or change_pct is None:
-                return None
-            return {
+                continue
+            quotes[symbol] = {
                 "symbol": symbol,
                 "exchange": exchange,
                 "price": price,
@@ -685,10 +683,6 @@ def fetch_us_etf_quotes(*, token=None, symbols=None):
                 "received_at_ms": captured_at_ms,
                 "source": "kiwoom:usa20100",
             }
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            for row in pool.map(read_missing, sorted(missing)):
-                if row:
-                    quotes[row["symbol"]] = row
 
     return [quotes[symbol] for symbol in sorted(quotes)]
 

@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_industry_release_baseline_20261120.py",
-  "request_id": "spy-dia-group1-before-20261123",
-  "timeout": 90
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_live_prices.py",
+  "target": "backend/kiwoom_us_live_prices.py"
 }

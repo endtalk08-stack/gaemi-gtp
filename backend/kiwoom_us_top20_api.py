@@ -1,6 +1,5 @@
 """Serve the existing Kiwoom TOP20 ranking and the in-memory US quote stream."""
 import base64
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import math
@@ -15,12 +14,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
+from backend.kiwoom_us_live_prices import MARKET_WIDGET_ETF_EXCHANGES
+
 RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 
 _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
-_US_INDUSTRY_STOCK_LOCKS = {}
 _US_INDUSTRY_ETF_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_ETF_CACHE = {}
 _US_INDUSTRY_ETF_TTL = 60
@@ -119,12 +119,9 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
         raise ValueError("invalid_industry_code")
 
     key = (tuple(str(code) for code in codes), sort)
+    now = time.monotonic()
     with _US_INDUSTRY_CACHE_LOCK:
-        lock = _US_INDUSTRY_STOCK_LOCKS.setdefault(key, threading.Lock())
-    with lock:
-        now = time.monotonic()
-        with _US_INDUSTRY_CACHE_LOCK:
-            cached = _US_INDUSTRY_STOCK_CACHE.get(key)
+        cached = _US_INDUSTRY_STOCK_CACHE.get(key)
         if cached and now < cached["expires_at"]:
             return dict(cached["data"])
         try:
@@ -135,19 +132,17 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
                 stale["stale"] = True
                 return stale
             raise
-        with _US_INDUSTRY_CACHE_LOCK:
-            _US_INDUSTRY_STOCK_CACHE[key] = {
-                "expires_at": time.monotonic() + _US_INDUSTRY_STOCK_TTL,
-                "data": dict(result),
-            }
+        _US_INDUSTRY_STOCK_CACHE[key] = {
+            "expires_at": now + _US_INDUSTRY_STOCK_TTL,
+            "data": dict(result),
+        }
         return dict(result)
 
 
 
-def _get_us_industry_etf_quotes(symbols=None):
+def _get_us_industry_etf_quotes():
     """Use live ticks first and share REST fallback results across requests."""
-    from backend.providers.kiwoom_us_industries import ETF_TICKERS, MARKET_WIDGET_ETF_TICKERS, fetch_us_etf_quotes
-    requested = ETF_TICKERS if symbols is None else MARKET_WIDGET_ETF_TICKERS.intersection(symbols)
+    from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_quotes
 
     def current_ticks():
         return {quote["symbol"]: quote for quote in _etf_snapshot()
@@ -155,12 +150,12 @@ def _get_us_industry_etf_quotes(symbols=None):
 
     live = current_ticks()
     fallback = {}
-    if requested.difference(live):
+    if ETF_TICKERS.difference(live):
         with _US_INDUSTRY_ETF_CACHE_LOCK:
             # Ticks or cached results may have arrived while this request waited.
             live = current_ticks()
             now = time.monotonic()
-            missing = requested.difference(live)
+            missing = ETF_TICKERS.difference(live)
             due = {symbol for symbol in missing
                    if now >= _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))[0]}
             if due:
@@ -187,11 +182,10 @@ def _get_us_industry_etf_quotes(symbols=None):
         live = current_ticks()
 
     result = []
-    for symbol in sorted(requested):
+    for symbol in sorted(ETF_TICKERS):
         quote = live.get(symbol) or fallback.get(symbol) or {}
         result.append({
             "symbol": symbol,
-            "price": quote.get("price"),
             "change_pct": quote.get("change_pct"),
             "received_at_ms": quote.get("received_at_ms", 0),
             "stale": symbol not in live,
@@ -205,9 +199,9 @@ def _get_us_industry_map_with_stocks(view="legacy"):
     limit = 3
     result = dict(source)
     result["items"] = []
-    def add_stocks(item):
+    for item in source.get("items", []):
         if not isinstance(item, dict):
-            return None
+            continue
         row = dict(item)
         candidate_limit = 4 if view == "heatmap" and row.get("key") in ("biotech", "software") else limit
         row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:candidate_limit]]
@@ -238,8 +232,8 @@ def _get_us_industry_map_with_stocks(view="legacy"):
             if anthropic and not any(str(stock.get("symbol", "")).upper().split(".")[0] == "ANT"
                                      for stock in row["stocks"]):
                 row["stocks"].append(dict(anthropic))
-        return row
-    def get_bitcoin_stocks():
+        result["items"].append(row)
+    if view == "heatmap":
         from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
         key = ("bitcoin_related", "marketcap")
         now = time.monotonic()
@@ -250,31 +244,16 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         else:
             try:
                 bitcoin_stocks = fetch_us_bitcoin_related_stocks()
-                if not bitcoin_stocks and cached and cached["data"]:
-                    bitcoin_stocks = cached["data"]
                 with _US_INDUSTRY_CACHE_LOCK:
                     _US_INDUSTRY_STOCK_CACHE[key] = {
-                        "expires_at": time.monotonic() + (_US_INDUSTRY_STOCK_TTL if bitcoin_stocks else 60),
+                        "expires_at": now + _US_INDUSTRY_STOCK_TTL,
                         "data": bitcoin_stocks,
                     }
             except Exception:
                 bitcoin_stocks = cached["data"] if cached else []
-        return bitcoin_stocks
-
-    if view == "heatmap":
-        # Overlap independent quote and stock reads. Kiwoom's shared 0.22s
-        # limiter still bounds all call starts; this adds no extra TRs.
-        with ThreadPoolExecutor(max_workers=5) as pool:
-            etf_future = pool.submit(_get_us_industry_etf_quotes)
-            bitcoin_future = pool.submit(get_bitcoin_stocks)
-            result["items"] = [row for row in pool.map(add_stocks, source.get("items", [])) if row]
-            bitcoin_stocks = bitcoin_future.result()
-            etf_quotes = etf_future.result()
         result["items"].append({"key": "bitcoin_related", "name": "비트코인 관련 종목",
                                 "stocks": bitcoin_stocks, "source": "kiwoom:usa20100"})
-        result["etf_quotes"] = etf_quotes
-    else:
-        result["items"] = [row for row in map(add_stocks, source.get("items", [])) if row]
+        result["etf_quotes"] = _get_us_industry_etf_quotes()
     result["sort"] = "marketcap"
     return result
 
@@ -299,10 +278,9 @@ def get_us_industry_stock_symbols():
 
 def get_us_etf_symbols():
     """Return ETF-only ticker/exchange membership for its independent FE group."""
-    from backend.providers.kiwoom_us_industries import (ETF_TICKERS, MARKET_WIDGET_ETF_TICKERS,
-                                                        fetch_us_etf_exchanges)
+    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
 
-    return fetch_us_etf_exchanges(tickers=ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS)
+    return fetch_us_etf_exchanges()
 
 
 ADDRESS = "127.0.0.1"
@@ -326,6 +304,10 @@ _ETF_SYMBOLS = frozenset()
 _TOP20_QUOTES = {}
 _INDUSTRY_QUOTES = {}
 _ETF_QUOTES = {}
+_MARKET_WIDGET_QUOTES = {}
+_MARKET_WIDGET_REST_LOCK = threading.Lock()
+_MARKET_WIDGET_REST_CACHE = {}
+_MARKET_WIDGET_REST_MAX_AGE_MS = 30 * 60 * 1000
 _QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
 _QQQ_STALE_MS = 25000
 _QQQ_REST_STALE_MS = 65000
@@ -371,6 +353,8 @@ def _publish_live_quote(quote):
     with _QQQ_CHANGED:
         if symbol == "QQQ":
             _QQQ_QUOTE = safe
+        if symbol in MARKET_WIDGET_ETF_EXCHANGES:
+            _MARKET_WIDGET_QUOTES[symbol] = safe
         if symbol in _TOP20_SYMBOLS:
             _TOP20_QUOTES[symbol] = safe
         if symbol in _INDUSTRY_SYMBOLS:
@@ -378,7 +362,8 @@ def _publish_live_quote(quote):
         if symbol in _ETF_SYMBOLS:
             _ETF_QUOTES[symbol] = safe
         if (symbol == "QQQ" or symbol in _TOP20_SYMBOLS
-                or symbol in _INDUSTRY_SYMBOLS or symbol in _ETF_SYMBOLS):
+                or symbol in _INDUSTRY_SYMBOLS or symbol in _ETF_SYMBOLS
+                or symbol in MARKET_WIDGET_ETF_EXCHANGES):
             _QQQ_CHANGED.notify_all()
 
 
@@ -473,6 +458,44 @@ def _get_qqq_rest_snapshot():
         except Exception:
             _QQQ_REST_CACHE["expires_at"] = now + _QQQ_REST_RETRY_TTL
             return dict(cached) if cached is not None else None
+
+
+def _market_widget_snapshot():
+    now_ms = int(time.time() * 1000)
+    with _QQQ_LOCK:
+        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
+                for quote in _MARKET_WIDGET_QUOTES.values()]
+
+
+def _get_market_widget_quotes():
+    """Return current ticks or cached Kiwoom REST prices for SPY and DIA."""
+    from backend.providers.kiwoom_us_quotes import fetch_us_quote
+
+    live = {quote["symbol"]: quote for quote in _market_widget_snapshot()
+            if not quote["stale"] and quote["change_pct"] is not None}
+    for symbol in MARKET_WIDGET_ETF_EXCHANGES.keys() - live.keys():
+        with _MARKET_WIDGET_REST_LOCK:
+            refresh_at, quote = _MARKET_WIDGET_REST_CACHE.get(symbol, (0.0, None))
+            if time.monotonic() >= refresh_at:
+                try:
+                    result = fetch_us_quote(symbol, MARKET_WIDGET_ETF_EXCHANGES[symbol])
+                    price, change = result["current"], result["change_pct"]
+                    if (type(price) not in (int, float) or not 0 < price < 10000000
+                            or type(change) not in (int, float) or not -100 < change < 10000):
+                        raise ValueError("market_widget_rest_quote_missing")
+                except Exception:
+                    refresh_at = time.monotonic() + _QQQ_REST_RETRY_TTL
+                else:
+                    refresh_at = time.monotonic() + _QQQ_REST_TTL
+                    quote = {
+                        "symbol": symbol, "price": float(price), "change_pct": float(change),
+                        "received_at_ms": int(time.time() * 1000), "stale": False,
+                        "source": "kiwoom:rest",
+                    }
+                _MARKET_WIDGET_REST_CACHE[symbol] = (refresh_at, quote)
+            if quote and int(time.time() * 1000) - quote["received_at_ms"] < _MARKET_WIDGET_REST_MAX_AGE_MS:
+                live[symbol] = dict(quote)
+    return [live[symbol] for symbol in sorted(live)]
 
 
 def _qqq_snapshot():
@@ -628,10 +651,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.path == "/market/us-etf-quotes":
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "items": []})
-            return self._json(200, {"ok": True, "items": [
-                quote for quote in _get_us_industry_etf_quotes(symbols={"SPY", "DIA"})
-                if quote.get("symbol") in ("SPY", "DIA")
-            ]})
+            return self._json(200, {"ok": True, "items": _get_market_widget_quotes()})
         if path.path == "/market/us-industries":
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
@@ -690,6 +710,7 @@ class Handler(BaseHTTPRequestHandler):
             last_top20_at = 0.0
             last_top20_message = None
             last_industry_message = None
+            last_market_widget_message = None
             while True:
                 quote = _qqq_snapshot()
                 signature = ((quote["received_at_ms"], quote["stale"])
@@ -718,6 +739,13 @@ class Handler(BaseHTTPRequestHandler):
                     if latest_industry != last_industry_message:
                         self.connection.sendall(_websocket_text_frame(latest_industry))
                         last_industry_message = latest_industry
+                    latest_market_widgets = json.dumps(
+                        {"type": "market-etf-quotes", "items": _market_widget_snapshot()},
+                        separators=(",", ":"), allow_nan=False,
+                    ).encode("utf-8")
+                    if latest_market_widgets != last_market_widget_message:
+                        self.connection.sendall(_websocket_text_frame(latest_market_widgets))
+                        last_market_widget_message = latest_market_widgets
                     last_top20_at = now
                 with _QQQ_CHANGED:
                     _QQQ_CHANGED.wait(timeout=1.0)

@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 URL = "wss://api.kiwoom.com:10000/api/us/websocket"
 EXCHANGES = {"ND", "NY", "NA"}
+MARKET_WIDGET_ETF_EXCHANGES = {"SPY": "NY", "DIA": "NY"}
 LOCAL_TOP20_PATH = "/var/lib/gaemigtp-news/kiwoom-us-top20-news.json"
 
 def _open_us_session():
@@ -100,7 +101,7 @@ def _ranked_symbols(snapshot_path=None):
 def _industry_only_symbols(industry, ranked):
     """Keep shared QQQ/TOP20 symbols in their existing FE subscription groups."""
     return {symbol: exchange for symbol, exchange in industry.items()
-            if symbol != "QQQ" and symbol not in ranked}
+             if symbol != "QQQ" and symbol not in ranked}
 
 async def _register_fe(ws, group, symbols, *, refresh, on_tick=None):
     await ws.send(json.dumps({
@@ -144,6 +145,7 @@ async def run_qqq_fe_stream(
     pending_industry_refresh = None
     pending_etf_refresh = None
     retry_delay = 5
+    widget_registration_retry_at = 0.0
     while True:
         if not _open_us_session():
             await asyncio.sleep(60)
@@ -171,8 +173,20 @@ async def run_qqq_fe_stream(
                         break
                 if not login_ok:
                     raise RuntimeError("kiwoom_qqq_login_not_confirmed")
-                if not await _register_fe(ws, "1", qqq, refresh="1"):
+                group1_symbols = dict(qqq)
+                with_market_widgets = loop.time() >= widget_registration_retry_at
+                if with_market_widgets:
+                    group1_symbols.update(MARKET_WIDGET_ETF_EXCHANGES)
+                    widget_registration_retry_at = loop.time() + 120
+                if not await _register_fe(ws, "1", group1_symbols, refresh="1"):
+                    if with_market_widgets:
+                        # Reconnect before retrying QQQ so a late REG reply
+                        # cannot be mistaken for the reply to the next request.
+                        print("KIWOOM_MARKET_WIDGET_FE_REGISTRATION_FAILED", flush=True)
+                        continue
                     raise RuntimeError("kiwoom_qqq_registration_not_confirmed")
+                if with_market_widgets:
+                    widget_registration_retry_at = 0.0
 
                 print("KIWOOM_QQQ_FE_CONNECTED", flush=True)
                 retry_delay = 5
@@ -181,7 +195,7 @@ async def run_qqq_fe_stream(
                 industry_registered = {}
                 etf_ranked = {}
                 etf_registered = {}
-                selected = qqq
+                selected = group1_symbols
                 next_ranking_check = 0.0
                 next_industry_check = 0.0
                 next_etf_check = 0.0
@@ -203,7 +217,7 @@ async def run_qqq_fe_stream(
                             top20 = {symbol: exchange for symbol, exchange in wanted.items() if symbol != "QQQ"}
                             if await _register_fe(ws, "2", top20, refresh="0", on_tick=publish):
                                 ranked = wanted
-                                selected = {**top20, **industry_ranked, **etf_ranked, **qqq}
+                                selected = {**top20, **industry_ranked, **etf_ranked, **group1_symbols}
                                 on_top20(set(wanted))
                                 next_industry_check = 0.0
                                 print("KIWOOM_TOP20_FE_REGISTERED=" + str(len(wanted)), flush=True)
@@ -232,6 +246,7 @@ async def run_qqq_fe_stream(
                                 if isinstance(symbol, str)
                                 and re.fullmatch(r"[A-Z0-9.-]{1,20}", symbol)
                                 and exchange in EXCHANGES
+                                and symbol not in MARKET_WIDGET_ETF_EXCHANGES
                             }
                             subscribed_industry = _industry_only_symbols(wanted_industry, ranked)
                             if wanted_industry and (wanted_industry != industry_ranked
@@ -247,7 +262,7 @@ async def run_qqq_fe_stream(
                                         symbol: exchange for symbol, exchange in ranked.items()
                                         if symbol != "QQQ"
                                     }
-                                    selected = {**top20, **industry_ranked, **etf_ranked, **qqq}
+                                    selected = {**top20, **industry_ranked, **etf_ranked, **group1_symbols}
                                     if on_industry is not None:
                                         on_industry(set(industry_registered))
                                     print("KIWOOM_INDUSTRY_STOCK_FE_REGISTERED=" + str(len(industry_registered)), flush=True)
@@ -294,7 +309,7 @@ async def run_qqq_fe_stream(
                                         symbol: exchange for symbol, exchange in ranked.items()
                                         if symbol != "QQQ"
                                     }
-                                    selected = {**top20, **industry_ranked, **etf_ranked, **qqq}
+                                    selected = {**top20, **industry_ranked, **etf_ranked, **group1_symbols}
                                     if on_etf is not None:
                                         on_etf(set(etf_registered))
                                     print("KIWOOM_ETF_FE_REGISTERED=" + str(len(etf_registered)), flush=True)
