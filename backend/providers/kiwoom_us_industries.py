@@ -38,7 +38,6 @@ EXCHANGES = {"NA", "ND", "NY"}
 EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
 ETF_TICKERS = frozenset({"XLK", "XLV", "XLF", "XLY", "XLC", "XLI", "XLP",
                          "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT"})
-MARKET_WIDGET_ETF_TICKERS = frozenset({"SPY", "DIA"})
 BITCOIN_COMPANIES = ("COIN", "MSTR", "MARA", "RIOT", "CLSK")
 
 # Eleven display groups based on official Kiwoom industry codes. The labels
@@ -595,7 +594,7 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
 
 def fetch_us_etf_exchanges(*, token=None, tickers=None):
     """Verify requested ETF ticker/exchange pairs against Kiwoom usa10104."""
-    requested = ETF_TICKERS if tickers is None else frozenset(tickers)
+    requested = ETF_TICKERS if tickers is None else ETF_TICKERS.intersection(tickers)
     if not requested:
         return {}
     symbols = {}
@@ -627,8 +626,7 @@ def fetch_us_etf_exchanges(*, token=None, tickers=None):
 
 def fetch_us_etf_quotes(*, token=None, symbols=None):
     """Return read-only prices and daily changes for the requested heatmap ETFs."""
-    allowed = ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS
-    requested = ETF_TICKERS if symbols is None else allowed.intersection(symbols)
+    requested = ETF_TICKERS if symbols is None else ETF_TICKERS.intersection(symbols)
     if not requested:
         return []
     access_token = token or _access_token()
