@@ -775,7 +775,8 @@
     let qqqReconnectDelay = 1000;
     const qqqSocketWanted = () =>
       document.visibilityState === 'visible'
-      && (qqqWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime' || tab === 'industry')) || quoteConsumersActive());
+      && (qqqWidgetActive() || window.GaemiGTPWidgetDock?.isActive?.('spy')
+        || window.GaemiGTPWidgetDock?.isActive?.('dia') || (sidebarActive() && (tab === 'value' || tab === 'realtime' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
       marketQqqQuote = quote?.symbol === 'QQQ' ? quote : null;
       paintMarketQqq();
@@ -832,9 +833,6 @@
           const message = JSON.parse(event.data);
           if (message?.type === 'quote') dispatchQqqQuote(message.quote || null);
           if (message?.type === 'quotes' && Array.isArray(message.items)) publishLiveQuotes(message.items);
-          if (message?.type === 'market-widget-quotes' && Array.isArray(message.items)) {
-            window.dispatchEvent(new CustomEvent('gaemi:market-widget-quotes', { detail: { items: message.items } }));
-          }
           if (message?.type === 'industry-quotes' && Array.isArray(message.items)) publishIndustryQuotes(message.items);
         } catch (_) {
           // Ignore malformed frames; the next valid quote will refresh the card.
@@ -902,6 +900,7 @@
       paintLiveQuotes();
     };
     const publishIndustryQuotes = items => {
+      window.dispatchEvent(new CustomEvent('gaemi:market-widget-quotes', { detail: { items } }));
       industryLiveQuotes = items.filter(quote => freshQuote(quote, Date.now()));
       if (sidebarActive() && tab === 'industry' && industryMapData) renderIndustryMap(industryMapData);
     };
@@ -918,6 +917,7 @@
       if (sidebarActive() && tab === 'realtime') void showUsRanking();
       syncQqqSocket();
     });
+    window.addEventListener('gaemi:etf-widget-placement', syncQqqSocket);
     document.addEventListener('visibilitychange', refreshOnReturn);
     window.addEventListener('focus', refreshOnReturn);
 
