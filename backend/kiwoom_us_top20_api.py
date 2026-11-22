@@ -309,6 +309,11 @@ _QQQ_REST_CACHE_LOCK = threading.Lock()
 _QQQ_REST_CACHE = {"expires_at": 0.0, "data": None}
 _QQQ_REST_TTL = 60
 _QQQ_REST_RETRY_TTL = 15
+_ETF_WIDGET_REST_CACHE_LOCK = threading.Lock()
+_ETF_WIDGET_REST_CACHE = {"expires_at": 0.0, "data": {}}
+_ETF_WIDGET_REST_REFRESHING = False
+_ETF_WIDGET_REST_TTL = 60
+_ETF_WIDGET_REST_RETRY_TTL = 15
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
@@ -409,11 +414,84 @@ def _industry_snapshot():
                 for quote in _INDUSTRY_QUOTES.values()]
 
 
+def _refresh_etf_widget_rest_cache():
+    global _ETF_WIDGET_REST_REFRESHING
+    try:
+        from backend.providers.kiwoom_us_industries import fetch_us_etf_quotes
+
+        rows = fetch_us_etf_quotes(symbols={"SPY", "DIA"})
+        fetched = {}
+        captured_at_ms = int(time.time() * 1000)
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            symbol = row.get("symbol")
+            price = row.get("price")
+            change = row.get("change_pct")
+            received_at_ms = row.get("received_at_ms")
+            if (symbol not in ("SPY", "DIA") or type(price) not in (int, float)
+                    or not 0 < price < 10000000):
+                continue
+            if (change is not None and
+                    (type(change) not in (int, float) or not -100 < change < 10000)):
+                change = None
+            if type(received_at_ms) not in (int, float) or received_at_ms <= 0:
+                received_at_ms = captured_at_ms
+            fetched[symbol] = {
+                "symbol": symbol,
+                "price": float(price),
+                "change_pct": float(change) if change is not None else None,
+                "received_at_ms": int(received_at_ms),
+                "stale": False,
+                "source": "kiwoom:rest",
+            }
+        with _ETF_WIDGET_REST_CACHE_LOCK:
+            cached = dict(_ETF_WIDGET_REST_CACHE["data"])
+            cached.update(fetched)
+            _ETF_WIDGET_REST_CACHE["data"] = cached
+            _ETF_WIDGET_REST_CACHE["expires_at"] = (
+                time.monotonic() + (_ETF_WIDGET_REST_TTL if fetched else _ETF_WIDGET_REST_RETRY_TTL)
+            )
+            _ETF_WIDGET_REST_REFRESHING = False
+    except Exception:
+        with _ETF_WIDGET_REST_CACHE_LOCK:
+            _ETF_WIDGET_REST_CACHE["expires_at"] = time.monotonic() + _ETF_WIDGET_REST_RETRY_TTL
+            _ETF_WIDGET_REST_REFRESHING = False
+
+
+def _get_etf_widget_rest_snapshot():
+    global _ETF_WIDGET_REST_REFRESHING
+    now = time.monotonic()
+    with _ETF_WIDGET_REST_CACHE_LOCK:
+        if now >= _ETF_WIDGET_REST_CACHE["expires_at"] and not _ETF_WIDGET_REST_REFRESHING:
+            _ETF_WIDGET_REST_REFRESHING = True
+            threading.Thread(
+                target=_refresh_etf_widget_rest_cache,
+                name="kiwoom-etf-widget-rest",
+                daemon=True,
+            ).start()
+        cached = [dict(quote) for quote in _ETF_WIDGET_REST_CACHE["data"].values()]
+    now_ms = int(time.time() * 1000)
+    return [
+        dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_REST_STALE_MS)
+        for quote in cached
+    ]
+
+
 def _etf_snapshot():
     now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
-        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
-                for quote in _ETF_QUOTES.values()]
+        live = {
+            quote["symbol"]: dict(
+                quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS
+            )
+            for quote in _ETF_QUOTES.values()
+        }
+    for quote in _get_etf_widget_rest_snapshot():
+        current = live.get(quote["symbol"])
+        if current is None or current["stale"]:
+            live[quote["symbol"]] = quote
+    return list(live.values())
 
 
 def _get_qqq_rest_snapshot():
