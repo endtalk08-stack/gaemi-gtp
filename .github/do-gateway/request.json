@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/verify_three_industry_stocks_20261121.py",
-  "request_id": "industrymapverify20261122",
-  "timeout": 60
+  "path": "ops/do-gateway/inspect_ant_gild_industry_20261122.py",
+  "request_id": "antgildverify20261122",
+  "timeout": 90
 }
