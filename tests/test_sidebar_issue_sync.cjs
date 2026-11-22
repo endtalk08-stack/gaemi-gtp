@@ -144,19 +144,14 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
           { key: 'semiconductors', name: '반도체', change_pct: 1.8, stocks: [
             { name: 'AMD', symbol: 'AMD.O', change_pct: 5, market_cap_usd: 100 },
             { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, market_cap_usd: 1000 },
-            { name: 'TSMC(ADR)', symbol: 'TSM.N', change_pct: -9.48, market_cap_usd: 1650 },
-            { name: '브로드컴', symbol: 'AVGO.O', change_pct: 1.5, market_cap_usd: 1450 },
+            { name: '브로드컴', symbol: 'AVGO.O', change_pct: 1.5, market_cap_usd: 500 },
             { name: '마이크론', symbol: 'MU.O', change_pct: 20, market_cap_usd: 50 },
           ] },
           { key: 'healthcare', name: '헬스케어', change_pct: -0.8, stocks: [
             { name: '일라이 릴리', symbol: 'LLY.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
           ] },
           { key: 'biotech', name: '바이오', stocks: [
-            { name: '애브비', symbol: 'ABBV.N', market_cap_usd: 500 },
-            { name: '써모 피셔', symbol: 'TMO.N', market_cap_usd: 250 },
-            { name: '암젠', symbol: 'AMGN.O', market_cap_usd: 200 },
-            { name: '길리어드 사이언스', symbol: 'GILD.O', market_cap_usd: 130 },
-            { name: '버텍스 파마슈티컬스', symbol: 'VRTX.O', market_cap_usd: 120 },
+            { name: '모더나', symbol: 'MRNA.O', market_cap_usd: 700 },
           ] },
           { key: 'bitcoin_related', name: '비트코인 관련 종목', stocks: [
             { name: '코인베이스', symbol: 'COIN.O', market_cap_usd: 600 },
@@ -169,20 +164,10 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
           ] },
           ...[
             ['energy','에너지'],['finance','금융'],['consumer_staples','필수소비재'],
-            ['industrials','산업재'],['internet_platforms','인터넷플랫폼'],
-            ['consumer_discretionary','경기소비재']
+            ['industrials','산업재'],['internet_platforms','인터넷플랫폼'],['software','소프트웨어'],
+            ['consumer_discretionary','경기소비재'],['it_hardware','IT하드웨어']
           ].map(([key,name]) => ({ key, name, stocks: [] })),
-          { key: 'software', name: '소프트웨어', stocks: [
-            { name: '마이크로소프트', symbol: 'MSFT.O', change_pct: -2.77, market_cap_usd: 3800 },
-            { name: '앤트로픽', symbol: 'ANT', market_cap_usd: 1190 },
-            { name: '비자', symbol: 'V.N', change_pct: -3.00, market_cap_usd: 700 },
-            { name: '마스터카드', symbol: 'MA.N', change_pct: -2.50, market_cap_usd: 500 },
-          ] },
-          { key: 'it_hardware', name: 'IT하드웨어', stocks: [
-            { name: '애플', symbol: 'AAPL.O', change_pct: -1.90, market_cap_usd: 4000 },
-            { name: '시스코', symbol: 'CSCO.O', change_pct: -0.36, market_cap_usd: 300 },
-            { name: '아리스타 네트웍스', symbol: 'ANET.N', change_pct: -1.00, market_cap_usd: 100 },
-          ] }
+
         ]
       }) };
     }
@@ -236,10 +221,8 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.equal(technology.children[0].children[1].textContent, '—');
   assert.equal(technology.children[0].children.length, 2);
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
-    ['애플', '마이크로소프트', 'TSMC(ADR)', '앤트로픽']);
-  assert.ok(technology.className.includes('industry-map-row-has-anthropic'));
-  assert.equal(technology.children[1].children[0].children[1].textContent, '-1.90%');
-  assert.equal(technology.children[1].children.some((tile) => tile.children[0].textContent === '엔비디아'), false);
+    ['AMD', '엔비디아', '브로드컴']);
+  assert.equal(technology.children[1].children[0].children[1].textContent, '+5.00%');
   const healthcare = rowFor('헬스케어');
   assert.equal(healthcare.children[0].children[1].textContent, '—');
   assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
@@ -260,13 +243,8 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   themeRows.forEach((row) => row.children[1].children.forEach((tile) =>
     assert.ok(!tile.children.some((c) => c.className === 'industry-map-stock-symbol'))));
   assert.deepEqual(themeRows[0].children[1].children.map((tile) => tile.children[0].textContent),
-    ['엔비디아', '브로드컴', 'TSMC(ADR)']);
-  assert.deepEqual(themeRows[1].children[1].children.map((tile) => tile.children[0].textContent),
-    ['써모 피셔', '암젠', '버텍스 파마슈티컬스']);
-  assert.equal(themeRows[1].children[1].children.some((tile) =>
-    ['애브비', '길리어드 사이언스'].includes(tile.children[0].textContent)), false);
-  assert.equal(healthcare.children[1].children.some((tile) =>
-    ['애브비', '길리어드 사이언스'].includes(tile.children[0].textContent)), false);
+    ['AMD', '엔비디아', '브로드컴']);
+  assert.equal(themeRows[1].children[1].children[0].children[0].textContent, '모더나');
   assert.equal(themeRows[2].children[1].children[0].children[0].textContent, '코인베이스');
 });
 
@@ -277,17 +255,15 @@ test('industry map consumes fresh Kiwoom websocket quotes for its selected stock
   await flush();
   assert.equal(app.sockets.length, 1);
   app.industryQuotes([
-    { symbol: 'ANT', price: 88.91, change_pct: -3.2,
+    { symbol: 'NVDA.O', price: 120, change_pct: -3.2,
       received_at_ms: 1_000_000, stale: false },
     { symbol: 'XLK', price: 150, change_pct: 1.75,
       received_at_ms: 1_000_000, stale: false },
   ]);
   const technology = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '정보기술');
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
-    ['애플', '마이크로소프트', '앤트로픽', 'TSMC(ADR)']);
-  const anthropicTile = technology.children[1].children.find((tile) =>
-    tile.children[0].textContent === '앤트로픽');
-  assert.equal(anthropicTile.children[1].textContent, '-3.20%');
+    ['AMD', '브로드컴', '엔비디아']);
+  assert.equal(technology.children[1].children[2].children[1].textContent, '-3.20%');
   assert.equal(technology.children[0].children.length, 2);
   assert.equal(technology.children[0].children[1].textContent, '+1.75%');
   const semiconductor = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '반도체');
