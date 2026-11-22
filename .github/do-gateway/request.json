@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/inspect_ant_gild_industry_20261122.py",
-  "request_id": "antgildverify20261122b",
-  "timeout": 90
+  "operation": "status"
 }

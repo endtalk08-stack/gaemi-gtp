@@ -211,7 +211,7 @@ async def run_qqq_fe_stream(
                                 print("KIWOOM_TOP20_FE_REGISTRATION_FAILED", flush=True)
                                 next_ranking_check = loop.time() + 120
 
-                    # Group 3 contains only the three market-cap-selected stocks per sector.
+                    # Group 3 includes one backfill candidate for the software/biotech map deduplication.
                     # The 30-minute check refreshes membership, never quote values.
                     if (get_industry_symbols is not None
                             and pending_industry_refresh is None
