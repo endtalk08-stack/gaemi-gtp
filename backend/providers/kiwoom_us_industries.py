@@ -592,8 +592,11 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
     }
 
 
-def fetch_us_etf_exchanges(*, token=None):
-    """Verify the agreed ETF ticker/exchange pairs against Kiwoom usa10104."""
+def fetch_us_etf_exchanges(*, token=None, tickers=None):
+    """Verify requested ETF ticker/exchange pairs against Kiwoom usa10104."""
+    requested = ETF_TICKERS if tickers is None else ETF_TICKERS.intersection(tickers)
+    if not requested:
+        return {}
     symbols = {}
     continuation = None
     for _ in range(40):
@@ -610,9 +613,9 @@ def fetch_us_etf_exchanges(*, token=None):
             symbol = str(row.get("stk_cd") or "").strip().upper()
             exchange = EXCHANGE_CODES.get(str(row.get("stex_tp") or "").strip().upper(),
                                           str(row.get("stex_tp") or "").strip().upper())
-            if symbol in ETF_TICKERS and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
+            if symbol in requested and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
                 symbols[symbol] = exchange
-        if symbols.keys() >= ETF_TICKERS or data.get("_cont_yn") != "Y":
+        if symbols.keys() >= requested or data.get("_cont_yn") != "Y":
             break
         next_key = str(data.get("_next_key") or "")
         if not next_key or next_key == continuation:
@@ -621,8 +624,11 @@ def fetch_us_etf_exchanges(*, token=None):
     return symbols
 
 
-def fetch_us_etf_quotes(*, token=None):
-    """Return read-only prices and daily changes for the fourteen heatmap ETFs."""
+def fetch_us_etf_quotes(*, token=None, symbols=None):
+    """Return read-only prices and daily changes for the requested heatmap ETFs."""
+    requested = ETF_TICKERS if symbols is None else ETF_TICKERS.intersection(symbols)
+    if not requested:
+        return []
     access_token = token or _access_token()
     quotes = {}
     captured_at_ms = int(time.time() * 1000)
@@ -636,7 +642,7 @@ def fetch_us_etf_quotes(*, token=None):
             symbol = str(row.get("symbol") or "").strip().upper()
             price = _positive_price(row.get("price"))
             change_pct = _number(row.get("change_pct"))
-            if symbol not in ETF_TICKERS or price is None or change_pct is None:
+            if symbol not in requested or price is None or change_pct is None:
                 continue
             quotes[symbol] = {
                 "symbol": symbol,
@@ -651,10 +657,10 @@ def fetch_us_etf_quotes(*, token=None):
 
     # Fill only missing agreed ETFs, using the verified exchange list and
     # the existing read-only single-symbol quote TR.
-    missing = ETF_TICKERS.difference(quotes)
+    missing = requested.difference(quotes)
     if missing:
         try:
-            exchanges = fetch_us_etf_exchanges(token=access_token)
+            exchanges = fetch_us_etf_exchanges(token=access_token, tickers=missing)
         except KiwoomReadOnlyError:
             exchanges = {}
         for symbol in sorted(missing):
