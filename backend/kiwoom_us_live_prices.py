@@ -136,7 +136,8 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
     except ImportError:
         from websockets.client import connect
 
-    qqq = {"QQQ": "ND"}
+    # QQQ, SPY and DIA share the existing dedicated market-widget FE group.
+    qqq = {"QQQ": "ND", "SPY": "NY", "DIA": "NY"}
     loop = asyncio.get_running_loop()
     pending_industry_refresh = None
     retry_delay = 5
