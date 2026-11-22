@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # Preview the exact candidate branch based on current main.
-          ref: fix/industry-map-ant-gild-20261122
+          ref: fix/industry-map-ant-visible-20261122
       - name: Check Pages inputs
         run: |
           test -s frontend/index.html
@@ -36,6 +36,8 @@ jobs:
           grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq "key === 'information_technology' && symbolKey === 'NVDA'" frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq "['ABBV', 'GILD']" frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq 'industry-map-row-has-anthropic' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq 'grid-template-columns: repeat(4, minmax(0, 1fr))' frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq '앤트로픽' tests/test_sidebar_issue_sync.cjs
           grep -Fq '길리어드 사이언스' tests/test_sidebar_issue_sync.cjs
           grep -Fq '버텍스 파마슈티컬스' tests/test_sidebar_issue_sync.cjs
