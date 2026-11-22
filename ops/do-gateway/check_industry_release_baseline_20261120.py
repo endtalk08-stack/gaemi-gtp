@@ -4,6 +4,7 @@ import json
 import math
 import ssl
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -35,6 +36,7 @@ def main():
 
     catalog = {}
     try:
+        started_at = time.monotonic()
         url = "https://127.0.0.1/market/us-industries?include_stocks=1&view=heatmap"
         request = urllib.request.Request(
             url,
@@ -72,11 +74,14 @@ def main():
         )
         result["catalog"] = {
             "http_status": http_status,
+            "elapsed_ms": round((time.monotonic() - started_at) * 1000),
             "ok": catalog.get("ok") is True,
             "source": catalog.get("source"),
             "fetched_at": catalog.get("fetched_at"),
             "groups": [row.get("key") for row in catalog.get("items", []) if row.get("codes")],
             "etf_quote_count": len(quote_rows),
+            "bitcoin_stock_count": next((len(row.get("stocks", [])) for row in catalog.get("items", [])
+                                         if row.get("key") == "bitcoin_related"), None),
             "etf_symbols": sorted(symbols),
             "etf_missing_symbols": sorted(expected - symbols),
             "etf_invalid_quote_symbols": invalid,
