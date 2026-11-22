@@ -1,4 +1,4 @@
-name: gaemigtp-main Pages preview # ANT fourth IT tile candidate; 2026-11-22
+name: gaemigtp-main Pages preview # restore 11:52 industry map layout
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # Preview the exact candidate branch based on current main.
-          ref: fix/industry-map-ant-visible-20261122
+          ref: fix/industry-map-restore-1152-20261122
       - name: Check Pages inputs
         run: |
           test -s frontend/index.html
@@ -34,14 +34,12 @@ jobs:
           grep -Fq 'data-qqq-reason' frontend/shell/center-chat/widget-dock/widget-dock.js
           grep -Fq '#bfc3cb' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
-          grep -Fq "key === 'information_technology' && symbolKey === 'NVDA'" frontend/shell/left-market-sidebar/market-sidebar.js
-          grep -Fq "['ABBV', 'GILD']" frontend/shell/left-market-sidebar/market-sidebar.js
-          grep -Fq 'industry-map-row-has-anthropic' frontend/shell/left-market-sidebar/market-sidebar.js
-          grep -Fq 'grid-template-columns: repeat(4, minmax(0, 1fr))' frontend/shell/left-market-sidebar/market-sidebar.css
-          grep -Fq '앤트로픽' tests/test_sidebar_issue_sync.cjs
-          grep -Fq '길리어드 사이언스' tests/test_sidebar_issue_sync.cjs
-          grep -Fq '버텍스 파마슈티컬스' tests/test_sidebar_issue_sync.cjs
-          grep -Fq 'industry-map-sector-change' tests/test_sidebar_issue_sync.cjs
+          ! grep -Fq "key === 'information_technology' && symbolKey === 'NVDA'" frontend/shell/left-market-sidebar/market-sidebar.js
+          ! grep -Fq "['ABBV', 'GILD']" frontend/shell/left-market-sidebar/market-sidebar.js
+          ! grep -Fq 'industry-map-row-has-anthropic' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq 'grid-template-columns: repeat(3, minmax(0, 1fr))' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq "['AMD', '엔비디아', '브로드컴']" tests/test_sidebar_issue_sync.cjs
+          grep -Fq '모더나' tests/test_sidebar_issue_sync.cjs
       - name: Deploy to existing Pages project preview
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -116,7 +114,7 @@ jobs:
                 (.industry | type == "string" and length > 0)))
           ' "$RUNNER_TEMP/us-trading-value.json"
 
-      - name: Verify live industry candidates and replacements
+      - name: Verify restored live industry map data
         run: |
           curl -fLsS --compressed --retry 2 --retry-all-errors --retry-delay 2 --max-time 45 \
             "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap" \
@@ -126,10 +124,9 @@ jobs:
             .ok == true and .heatmap_ready == true and
             (.items | type == "array" and length == 16) and
             all(.items[]; (.stocks | type == "array" and length >= 3)) and
-            any(.items[]; .key == "software" and any(.stocks[]; .symbol == "ANT")) and
-            any(.items[]; .key == "biotech" and any(.stocks[]; .symbol == "VRTX")) and
-            all(.items[]; .key != "biotech" or all(.stocks[]; .symbol != "ABBV" and .symbol != "GILD")) and
+            any(.items[]; .key == "software" and (.stocks | length >= 3)) and
+            any(.items[]; .key == "biotech" and (.stocks | length >= 3)) and
             any(.items[]; .key == "semiconductors" and any(.stocks[]; .symbol == "NVDA"))
           ' "$RUNNER_TEMP/us-industries.json"
-          echo "Verified ANT in software, VRTX biotech backfill, and NVDA in semiconductors"
+          echo "Verified three-stock industry data and NVDA semiconductor membership"
 
