@@ -697,6 +697,7 @@
 
     // Share one DigitalOcean socket between QQQ, the visible ranking, and the chart.
     const qqqWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('qqq') === true;
+    const marketEtfWidgetActive = () => ['spy', 'dia'].some(id => window.GaemiGTPWidgetDock?.isActive?.(id) === true);
     const paintMarketQqq = () => {
       const row = list?.querySelector('[data-market-qqq]');
       if (!row) return;
@@ -775,7 +776,7 @@
     let qqqReconnectDelay = 1000;
     const qqqSocketWanted = () =>
       document.visibilityState === 'visible'
-      && (qqqWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime' || tab === 'industry')) || quoteConsumersActive());
+      && (qqqWidgetActive() || marketEtfWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
       marketQqqQuote = quote?.symbol === 'QQQ' ? quote : null;
       paintMarketQqq();
@@ -900,6 +901,9 @@
     };
     const publishIndustryQuotes = items => {
       industryLiveQuotes = items.filter(quote => freshQuote(quote, Date.now()));
+      window.dispatchEvent(new CustomEvent('gaemi:market-etf-quotes', {
+        detail: { items: industryLiveQuotes.filter(quote => quote.symbol === 'SPY' || quote.symbol === 'DIA') }
+      }));
       if (sidebarActive() && tab === 'industry' && industryMapData) renderIndustryMap(industryMapData);
     };
 
@@ -915,6 +919,7 @@
       if (sidebarActive() && tab === 'realtime') void showUsRanking();
       syncQqqSocket();
     });
+    window.addEventListener('gaemi:market-widget-placement', syncQqqSocket);
     document.addEventListener('visibilitychange', refreshOnReturn);
     window.addEventListener('focus', refreshOnReturn);
 
