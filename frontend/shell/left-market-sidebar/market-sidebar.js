@@ -832,6 +832,9 @@
           const message = JSON.parse(event.data);
           if (message?.type === 'quote') dispatchQqqQuote(message.quote || null);
           if (message?.type === 'quotes' && Array.isArray(message.items)) publishLiveQuotes(message.items);
+          if (message?.type === 'market-widget-quotes' && Array.isArray(message.items)) {
+            window.dispatchEvent(new CustomEvent('gaemi:market-widget-quotes', { detail: { items: message.items } }));
+          }
           if (message?.type === 'industry-quotes' && Array.isArray(message.items)) publishIndustryQuotes(message.items);
         } catch (_) {
           // Ignore malformed frames; the next valid quote will refresh the card.
