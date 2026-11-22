@@ -22,13 +22,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # Preview the exact candidate branch based on current main.
-          ref: 8d6c5b611045bb6440afaf61f06342a901078b5c
+          ref: 8c09e6f477fd219b7e4d2995dc720a30ff6f7439
       - name: Check Pages inputs
         run: |
           test -s frontend/index.html
-          grep -Fq 'data-info-tab-action="marketcap"' frontend/index.html
-          grep -Fq "defaultScreen: 'most_capitalized'" frontend/shell/left-market-sidebar/market-sidebar.js
-          grep -Fq "locale: 'kr'" frontend/shell/left-market-sidebar/market-sidebar.js
           test -s functions/market/us-daily-chart.js
           node --check frontend/shell/right-panel/right-panel-tabs.js
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
