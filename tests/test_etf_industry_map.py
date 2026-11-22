@@ -1,11 +1,76 @@
 import unittest
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 from backend.providers import kiwoom_us_industries as industries
+from backend import kiwoom_us_top20_api as api
 from backend.kiwoom_us_live_prices import _industry_only_symbols
 
 
 class EtfIndustryMapTests(unittest.TestCase):
+    def test_heatmap_overlaps_independent_stock_reads_and_keeps_order(self):
+        barrier = threading.Barrier(3)
+        source = {"items": [{"key": key, "codes": [key]} for key in ("one", "two", "three")]}
+        api._US_INDUSTRY_STOCK_CACHE.clear()
+
+        def fetch(codes, sort, *, limit):
+            barrier.wait(timeout=2)
+            return {"items": [{"name": codes[0], "symbol": codes[0], "market_cap_usd": 1}]}
+
+        with patch.object(api, "_get_us_industry_map", return_value=source), \
+             patch.object(industries, "fetch_us_industry_stocks", side_effect=fetch) as calls, \
+             patch.object(industries, "fetch_us_bitcoin_related_stocks", return_value=[]), \
+             patch.object(api, "_get_us_industry_etf_quotes", return_value=[]):
+            result = api._get_us_industry_map_with_stocks("heatmap")
+        self.assertEqual([item["key"] for item in result["items"][:3]], ["one", "two", "three"])
+        self.assertEqual(calls.call_count, 3)
+
+    def test_same_sector_concurrent_reads_share_one_kiwoom_call(self):
+        source = {"items": [{"key": "one", "codes": ["one"]}]}
+        api._US_INDUSTRY_STOCK_CACHE.clear()
+        entered = threading.Event()
+        release = threading.Event()
+
+        def read(_codes, _sort, *, limit):
+            entered.set()
+            self.assertTrue(release.wait(timeout=2))
+            return {"items": [{"symbol": "ONE"}]}
+
+        with patch.object(industries, "fetch_us_industry_stocks", side_effect=read) as calls:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(api._get_us_industry_stocks, "one", sector_map=source)
+                self.assertTrue(entered.wait(timeout=2))
+                second = pool.submit(api._get_us_industry_stocks, "one", sector_map=source)
+                release.set()
+                results = [first.result(), second.result()]
+        self.assertEqual(calls.call_count, 1)
+        self.assertTrue(all(result["items"] for result in results))
+
+    def test_heatmap_overlaps_etf_bitcoin_and_sector_reads(self):
+        barrier = threading.Barrier(3)
+        source = {"items": [{"key": "one", "codes": ["one"]}]}
+        api._US_INDUSTRY_STOCK_CACHE.clear()
+
+        def sector(*_args, **_kwargs):
+            barrier.wait(timeout=2)
+            return {"items": []}
+
+        def etf():
+            barrier.wait(timeout=2)
+            return []
+
+        def bitcoin():
+            barrier.wait(timeout=2)
+            return []
+
+        with patch.object(api, "_get_us_industry_map", return_value=source), \
+             patch.object(industries, "fetch_us_industry_stocks", side_effect=sector), \
+             patch.object(industries, "fetch_us_bitcoin_related_stocks", side_effect=bitcoin), \
+             patch.object(api, "_get_us_industry_etf_quotes", side_effect=etf):
+            result = api._get_us_industry_map_with_stocks("heatmap")
+        self.assertEqual(result["items"][0]["key"], "one")
+
     def test_anthropic_requires_verified_kiwoom_ticker_and_market_cap(self):
         record = {"stk_cd": "ANT", "stex_tp": "ND", "mac": "1200000",
                   "cur_prc": "90", "flu_rt": "2.5"}
@@ -72,6 +137,22 @@ class EtfIndustryMapTests(unittest.TestCase):
         self.assertEqual(len(actual), 16)
         self.assertEqual(set(actual), set(industries.ETF_TICKERS))
         call.assert_called_once_with("usa10104", {"stex_tp": "%"}, token="test")
+
+    def test_missing_etf_quotes_overlap_without_extra_calls(self):
+        symbols = ("DIA", "SPY", "XLK")
+        barrier = threading.Barrier(len(symbols))
+
+        def quote(symbol, exchange, *, token):
+            barrier.wait(timeout=2)
+            return {"current": "100", "change_pct": "1"}
+
+        with patch.object(industries, "ETF_TICKERS", frozenset(symbols)), \
+             patch.object(industries, "fetch_us_etf_marketcap", return_value={"items": []}), \
+             patch.object(industries, "fetch_us_etf_exchanges", return_value=dict.fromkeys(symbols, "NY")), \
+             patch.object(industries, "fetch_us_quote", side_effect=quote) as calls:
+            rows = industries.fetch_us_etf_quotes(token="test")
+        self.assertEqual([row["symbol"] for row in rows], list(symbols))
+        self.assertEqual(calls.call_count, len(symbols))
 
     def test_bitcoin_related_companies_are_ranked_by_market_cap(self):
         caps = {"COIN": 10, "MSTR": 50, "MARA": 5, "RIOT": 20, "CLSK": 1}
