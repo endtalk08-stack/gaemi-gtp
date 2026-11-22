@@ -65,12 +65,10 @@ def main():
             str(row.get("symbol") or "")
             for row in quote_rows
             if not isinstance(row, dict)
-            or not isinstance(row.get("price"), (int, float))
-            or not math.isfinite(row.get("price"))
-            or row.get("price") <= 0
             or not isinstance(row.get("change_pct"), (int, float))
             or not math.isfinite(row.get("change_pct"))
             or not isinstance(row.get("received_at_ms"), int)
+            or row["received_at_ms"] <= 0
         )
         result["catalog"] = {
             "http_status": http_status,
