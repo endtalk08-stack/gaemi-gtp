@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_spy_dia_snapshot_20261122.py",
-  "request_id": "spy-dia-tls-check-20261122",
-  "timeout": 90
+  "operation": "status"
 }
