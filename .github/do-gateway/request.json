@@ -1,4 +1,6 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service"
+  "operation": "run",
+  "path": "ops/do-gateway/check_spy_dia_snapshot_20261122.py",
+  "request_id": "spy-dia-snapshot-check-20261122",
+  "timeout": 90
 }
