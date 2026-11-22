@@ -199,7 +199,7 @@
     marketEtfSnapshotAt = Date.now();
     try {
       const response = await fetch('https://quotes.gaemigtp.com/market/us-etf-quotes', {
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(20000)
       });
       if (!response.ok) return;
       const data = await response.json();
