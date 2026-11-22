@@ -259,6 +259,7 @@
             : ['BRK.A', 'BRK.B'].includes(symbolKey) ? 'US:BERKSHIRE' : symbolKey);
           // NVDA is represented by the dedicated semiconductor theme, not twice in IT.
           if (key === 'information_technology' && symbolKey === 'NVDA') return false;
+          if (key === 'healthcare' && ['ABBV', 'GILD'].includes(symbolKey)) return false;
           if (seenIssuers.has(issuerKey)) return false;
           seenIssuers.add(issuerKey);
           return true;
@@ -284,7 +285,9 @@
         {
           sector: { key: 'theme_biotech', name: '바이오', themeTone: 'biotech', hideChange: true },
           stocks: orderSelectedStocks([...(byIndustry.get('biotech')?.stocks || [])]
-            .filter((stock) => String(stock.symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '') !== 'ABBV')
+            .filter((stock) => !['ABBV', 'GILD'].includes(
+              String(stock.symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '')
+            ))
             .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
         },
         {

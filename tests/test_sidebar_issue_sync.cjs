@@ -155,6 +155,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
             { name: '써모 피셔', symbol: 'TMO.N', market_cap_usd: 250 },
             { name: '암젠', symbol: 'AMGN.O', market_cap_usd: 200 },
             { name: '길리어드 사이언스', symbol: 'GILD.O', market_cap_usd: 130 },
+            { name: '버텍스 파마슈티컬스', symbol: 'VRTX.O', market_cap_usd: 120 },
           ] },
           { key: 'bitcoin_related', name: '비트코인 관련 종목', stocks: [
             { name: '코인베이스', symbol: 'COIN.O', market_cap_usd: 600 },
@@ -172,7 +173,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
           ].map(([key,name]) => ({ key, name, stocks: [] })),
           { key: 'software', name: '소프트웨어', stocks: [
             { name: '마이크로소프트', symbol: 'MSFT.O', change_pct: -2.77, market_cap_usd: 3800 },
-            { name: '앤트로픽', symbol: 'ANT', change_pct: -8.50, market_cap_usd: 1190 },
+            { name: '앤트로픽', symbol: 'ANT', market_cap_usd: 1190 },
             { name: '비자', symbol: 'V.N', change_pct: -3.00, market_cap_usd: 700 },
             { name: '마스터카드', symbol: 'MA.N', change_pct: -2.50, market_cap_usd: 500 },
           ] },
@@ -259,8 +260,11 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.deepEqual(themeRows[0].children[1].children.map((tile) => tile.children[0].textContent),
     ['AMD', '엔비디아', '브로드컴']);
   assert.deepEqual(themeRows[1].children[1].children.map((tile) => tile.children[0].textContent),
-    ['써모 피셔', '암젠', '길리어드 사이언스']);
-  assert.equal(themeRows[1].children[1].children.some((tile) => tile.children[0].textContent === '애브비'), false);
+    ['써모 피셔', '암젠', '버텍스 파마슈티컬스']);
+  assert.equal(themeRows[1].children[1].children.some((tile) =>
+    ['애브비', '길리어드 사이언스'].includes(tile.children[0].textContent)), false);
+  assert.equal(healthcare.children[1].children.some((tile) =>
+    ['애브비', '길리어드 사이언스'].includes(tile.children[0].textContent)), false);
   assert.equal(themeRows[2].children[1].children[0].children[0].textContent, '코인베이스');
 });
 
