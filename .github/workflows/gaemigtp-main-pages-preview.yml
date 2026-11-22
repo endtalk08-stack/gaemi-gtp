@@ -35,9 +35,10 @@ jobs:
           grep -Fq '#bfc3cb' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq "key === 'information_technology' && symbolKey === 'NVDA'" frontend/shell/left-market-sidebar/market-sidebar.js
-          grep -Fq "!== 'ABBV'" frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq "['ABBV', 'GILD']" frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq '앤트로픽' tests/test_sidebar_issue_sync.cjs
           grep -Fq '길리어드 사이언스' tests/test_sidebar_issue_sync.cjs
+          grep -Fq '버텍스 파마슈티컬스' tests/test_sidebar_issue_sync.cjs
           grep -Fq 'industry-map-sector-change' tests/test_sidebar_issue_sync.cjs
       - name: Deploy to existing Pages project preview
         id: deploy
@@ -113,18 +114,20 @@ jobs:
                 (.industry | type == "string" and length > 0)))
           ' "$RUNNER_TEMP/us-trading-value.json"
 
-      - name: Verify live industry candidates for ANT and GILD
+      - name: Verify live industry candidates and replacements
         run: |
           curl -fLsS --compressed --retry 2 --retry-all-errors --retry-delay 2 --max-time 45 \
             "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap" \
             -o "$RUNNER_TEMP/us-industries.json"
+          jq -r '.items[] | select(.key == "software" or .key == "biotech") | "\(.key)=\([.stocks[].symbol] | join(","))"' "$RUNNER_TEMP/us-industries.json"
           jq -e '
             .ok == true and .heatmap_ready == true and
             (.items | type == "array" and length == 16) and
             all(.items[]; (.stocks | type == "array" and length >= 3)) and
             any(.items[]; .key == "software" and any(.stocks[]; .symbol == "ANT")) and
-            any(.items[]; .key == "biotech" and any(.stocks[]; .symbol == "GILD")) and
+            any(.items[]; .key == "biotech" and any(.stocks[]; .symbol == "VRTX")) and
+            all(.items[]; .key != "biotech" or all(.stocks[]; .symbol != "ABBV" and .symbol != "GILD")) and
             any(.items[]; .key == "semiconductors" and any(.stocks[]; .symbol == "NVDA"))
           ' "$RUNNER_TEMP/us-industries.json"
-          echo "Verified ANT in software, GILD in biotech, and NVDA in semiconductors"
+          echo "Verified ANT in software, VRTX biotech backfill, and NVDA in semiconductors"
 
