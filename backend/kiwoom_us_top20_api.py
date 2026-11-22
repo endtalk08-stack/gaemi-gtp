@@ -171,13 +171,35 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         if not isinstance(item, dict):
             continue
         row = dict(item)
-        row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:limit]]
+        candidate_limit = 4 if view == "heatmap" and row.get("key") in ("biotech", "software") else limit
+        row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:candidate_limit]]
         if not row["stocks"] and (row.get("codes") or row.get("code")):
             try:
                 stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap", sector_map=source)
-                row["stocks"] = stock_result.get("items", [])[:limit]
+                row["stocks"] = stock_result.get("items", [])[:candidate_limit]
             except Exception as exc:
                 row["stocks_error"] = _safe_industry_error(exc)
+        if view == "heatmap" and row.get("key") == "software":
+            # One cached official lookup for the requested ANT slot; no fixed quote.
+            key = ("anthropic", "marketcap")
+            now = time.monotonic()
+            with _US_INDUSTRY_CACHE_LOCK:
+                cached = _US_INDUSTRY_STOCK_CACHE.get(key)
+            if cached and now < cached["expires_at"]:
+                anthropic = cached["data"]
+            else:
+                from backend.providers.kiwoom_us_industries import fetch_us_anthropic_stock
+                try:
+                    anthropic = fetch_us_anthropic_stock()
+                except Exception:
+                    anthropic = cached["data"] if cached else None
+                with _US_INDUSTRY_CACHE_LOCK:
+                    _US_INDUSTRY_STOCK_CACHE[key] = {
+                        "expires_at": now + _US_INDUSTRY_STOCK_TTL, "data": anthropic,
+                    }
+            if anthropic and not any(str(stock.get("symbol", "")).upper().split(".")[0] == "ANT"
+                                     for stock in row["stocks"]):
+                row["stocks"].append(dict(anthropic))
         result["items"].append(row)
     if view == "heatmap":
         from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
@@ -211,7 +233,8 @@ def get_us_industry_symbols():
     for sector in result.get("items", []):
         if not isinstance(sector, dict):
             continue
-        for stock in sector.get("stocks", [])[:3]:
+        stock_limit = 5 if sector.get("key") == "software" else 4 if sector.get("key") == "biotech" else 3
+        for stock in sector.get("stocks", [])[:stock_limit]:
             if not isinstance(stock, dict):
                 continue
             symbol = str(stock.get("symbol") or "").strip().upper()
