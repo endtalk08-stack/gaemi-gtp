@@ -492,6 +492,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_qqq_websocket()
         if path.path == "/health":
             return self._json(200, {"ok": True, "service": "kiwoom-us-top20-api"})
+        if path.path == "/market/us-etf-quotes":
+            if not getattr(self.server, "qqq_feed_enabled", False):
+                return self._json(503, {"ok": False, "items": []})
+            return self._json(200, {"ok": True, "items": [
+                quote for quote in _get_us_industry_etf_quotes()
+                if quote.get("symbol") in ("SPY", "DIA")
+            ]})
         if path.path == "/market/us-industries":
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
