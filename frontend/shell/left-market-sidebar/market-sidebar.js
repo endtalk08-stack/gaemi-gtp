@@ -252,28 +252,15 @@
         const sourceStocks = sources.flatMap((source) =>
           Array.isArray(source.stocks) ? source.stocks : []);
         const seenIssuers = new Set();
-        const uniqueStocks = sourceStocks.sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).filter((stock) => {
+        const stocks = sourceStocks.sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).filter((stock) => {
           if (!stock || typeof stock.name !== 'string' || !stock.name.trim()) return false;
           const symbolKey = String(stock.symbol || stock.name).trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
           const issuerKey = stock.issuer_key || (['GOOG', 'GOOGL'].includes(symbolKey) ? 'US:ALPHABET'
             : ['BRK.A', 'BRK.B'].includes(symbolKey) ? 'US:BERKSHIRE' : symbolKey);
-          // NVDA is represented by the dedicated semiconductor theme, not twice in IT.
-          if (key === 'information_technology' && symbolKey === 'NVDA') return false;
-          if (key === 'healthcare' && ['ABBV', 'GILD'].includes(symbolKey)) return false;
           if (seenIssuers.has(issuerKey)) return false;
           seenIssuers.add(issuerKey);
           return true;
-        });
-        const topStocks = uniqueStocks.slice(0, 3);
-        // Anthropic is an explicitly requested newly listed AI company. Keep the
-        // three largest IT names and show ANT as a fourth, separately visible tile.
-        const anthropic = key === 'information_technology'
-          ? uniqueStocks.find((stock) =>
-            String(stock.symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '') === 'ANT')
-          : null;
-        const stocks = anthropic && !topStocks.some((stock) =>
-          String(stock.symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '') === 'ANT')
-          ? [...topStocks, anthropic] : topStocks;
+        }).slice(0, 3);
         const changes = sources.map((source) => source.change_pct).filter(Number.isFinite);
         const changePct = changes.length
           ? changes.reduce((total, value) => total + value, 0) / changes.length : null;
@@ -295,9 +282,6 @@
         {
           sector: { key: 'theme_biotech', name: '바이오', themeTone: 'biotech', hideChange: true },
           stocks: orderSelectedStocks([...(byIndustry.get('biotech')?.stocks || [])]
-            .filter((stock) => !['ABBV', 'GILD'].includes(
-              String(stock.symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '')
-            ))
             .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
         },
         {
@@ -320,10 +304,7 @@
         const sectorPct = etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null;
         const sectorColor = mapTileColor(sectorPct);
         const row = document.createElement('div');
-        row.className = 'industry-map-row'
-          + (sector.key === 'information_technology' && ranked.some((stock) =>
-            String(stock.symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '') === 'ANT')
-            ? ' industry-map-row-has-anthropic' : '');
+        row.className = 'industry-map-row';
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone
           + (sector.themeTone ? ' industry-map-sector-theme' : '');
@@ -872,13 +853,10 @@
     };
     window.setTimeout(syncQqqSocket, 50);
     let liveQuotes = [];
-    const freshQuote = (quote, now) => {
-      const maxAge = quote?.source === 'kiwoom:rest' ? 65000 : 25000;
-      return quote && quote.stale === false
-        && typeof quote.symbol === 'string' && Number.isFinite(quote.price) && quote.price > 0
-        && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= now + 5000
-        && now - quote.received_at_ms <= maxAge;
-    };
+    const freshQuote = (quote, now) => quote && quote.stale === false
+      && typeof quote.symbol === 'string' && Number.isFinite(quote.price) && quote.price > 0
+      && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= now + 5000
+      && now - quote.received_at_ms <= 25000;
     const paintLiveQuotes = () => {
       if (!sidebarActive() || tab !== 'value' || !list) return;
       const now = Date.now();
