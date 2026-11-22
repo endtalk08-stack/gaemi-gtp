@@ -250,7 +250,8 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
     ['반도체', '바이오', '비트코인'].includes(row.children[0]?.children[0]?.textContent));
   assert.deepEqual(themeRows.map((row) => row.children[0].children[0].textContent), ['반도체', '바이오', '비트코인']);
   assert.ok(app.list.children.every((row) =>
-    row.children[0].children.some((child) => child.className === 'industry-map-sector-etf')));
+    row.children[0].children.some((child) => child.className === 'industry-map-sector-name')
+      && row.children[0].children.some((child) => child.className === 'industry-map-sector-change')));
   assert.equal(themeRows[0].children[1].children.length, 3);
   // Stock tiles show the Korean name only; no ticker text is rendered.
   themeRows.forEach((row) => row.children[1].children.forEach((tile) =>
