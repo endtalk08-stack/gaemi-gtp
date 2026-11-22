@@ -166,7 +166,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
             ['energy','에너지'],['finance','금융'],['consumer_staples','필수소비재'],
             ['industrials','산업재'],['internet_platforms','인터넷플랫폼'],['software','소프트웨어'],
             ['consumer_discretionary','경기소비재'],['it_hardware','IT하드웨어']
-          ].map(([key,name]) => ({ key, name, stocks: [] }))
+          ].map(([key,name]) => ({ key, name, stocks: [] })),
+
         ]
       }) };
     }
