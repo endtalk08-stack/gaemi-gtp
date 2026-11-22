@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/check_industry_release_baseline_20261120.py",
-  "request_id": "spy-dia-etf-catalog-20261122",
+  "path": "ops/do-gateway/inspect_spy_dia_etfs_20261122.py",
+  "request_id": "spy-dia-etf-diagnostic-20261122",
   "timeout": 90
 }
