@@ -592,10 +592,8 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
     }
 
 
-def fetch_us_etf_exchanges(*, token=None, tickers=ETF_TICKERS):
-    """Verify ETF ticker/exchange pairs against Kiwoom usa10104."""
-    if not tickers:
-        return {}
+def fetch_us_etf_exchanges(*, token=None):
+    """Verify the agreed ETF ticker/exchange pairs against Kiwoom usa10104."""
     symbols = {}
     continuation = None
     for _ in range(40):
@@ -612,9 +610,9 @@ def fetch_us_etf_exchanges(*, token=None, tickers=ETF_TICKERS):
             symbol = str(row.get("stk_cd") or "").strip().upper()
             exchange = EXCHANGE_CODES.get(str(row.get("stex_tp") or "").strip().upper(),
                                           str(row.get("stex_tp") or "").strip().upper())
-            if symbol in tickers and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
+            if symbol in ETF_TICKERS and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
                 symbols[symbol] = exchange
-        if symbols.keys() >= tickers or data.get("_cont_yn") != "Y":
+        if symbols.keys() >= ETF_TICKERS or data.get("_cont_yn") != "Y":
             break
         next_key = str(data.get("_next_key") or "")
         if not next_key or next_key == continuation:

@@ -241,9 +241,9 @@ def get_us_industry_symbols():
             exchange = str(stock.get("exchange") or "").strip().upper()
             if SYMBOL.fullmatch(symbol) and exchange in ("ND", "NY", "NA"):
                 symbols[symbol] = exchange
-    from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_exchanges
+    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
     try:
-        etf_symbols = fetch_us_etf_exchanges(tickers=ETF_TICKERS | {"SPY", "DIA"})
+        etf_symbols = fetch_us_etf_exchanges()
     except Exception:
         etf_symbols = {}  # Keep stock updates when the ETF lookup fails.
     symbols.update(etf_symbols)
