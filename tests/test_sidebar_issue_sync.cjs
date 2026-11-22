@@ -260,7 +260,7 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   themeRows.forEach((row) => row.children[1].children.forEach((tile) =>
     assert.ok(!tile.children.some((c) => c.className === 'industry-map-stock-symbol'))));
   assert.deepEqual(themeRows[0].children[1].children.map((tile) => tile.children[0].textContent),
-    ['AMD', '엔비디아', '브로드컴']);
+    ['엔비디아', '브로드컴', 'TSMC(ADR)']);
   assert.deepEqual(themeRows[1].children[1].children.map((tile) => tile.children[0].textContent),
     ['써모 피셔', '암젠', '버텍스 파마슈티컬스']);
   assert.equal(themeRows[1].children[1].children.some((tile) =>
