@@ -210,14 +210,7 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                 row["stocks"].append(dict(anthropic))
         return row
 
-    # Kiwoom enforces the existing 0.22s global call interval. A small pool
-    # overlaps network waits while retaining response order and call count.
-    if view == "heatmap":
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            result["items"] = [row for row in pool.map(add_stocks, source.get("items", [])) if row]
-    else:
-        result["items"] = [row for row in map(add_stocks, source.get("items", [])) if row]
-    if view == "heatmap":
+    def get_bitcoin_stocks():
         from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
         key = ("bitcoin_related", "marketcap")
         now = time.monotonic()
@@ -237,9 +230,21 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                     }
             except Exception:
                 bitcoin_stocks = cached["data"] if cached else []
+        return bitcoin_stocks
+
+    # Kiwoom's existing 0.22s global call interval still bounds call starts.
+    if view == "heatmap":
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            etf_future = pool.submit(_get_us_industry_etf_quotes)
+            bitcoin_future = pool.submit(get_bitcoin_stocks)
+            result["items"] = [row for row in pool.map(add_stocks, source.get("items", [])) if row]
+            bitcoin_stocks = bitcoin_future.result()
+            etf_quotes = etf_future.result()
         result["items"].append({"key": "bitcoin_related", "name": "비트코인 관련 종목",
                                 "stocks": bitcoin_stocks, "source": "kiwoom:usa20100"})
-        result["etf_quotes"] = _get_us_industry_etf_quotes()
+        result["etf_quotes"] = etf_quotes
+    else:
+        result["items"] = [row for row in map(add_stocks, source.get("items", [])) if row]
     result["sort"] = "marketcap"
     return result
 
