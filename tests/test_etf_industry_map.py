@@ -6,6 +6,16 @@ from backend.kiwoom_us_live_prices import _industry_only_symbols
 
 
 class EtfIndustryMapTests(unittest.TestCase):
+    def test_anthropic_requires_verified_kiwoom_ticker_and_market_cap(self):
+        record = {"stk_cd": "ANT", "stex_tp": "ND", "mac": "1200000",
+                  "cur_prc": "90", "flu_rt": "2.5"}
+        with patch.object(industries, "_call", return_value=record) as call:
+            stock = industries.fetch_us_anthropic_stock(token="test")
+        self.assertEqual((stock["symbol"], stock["change_pct"]), ("ANT", 2.5))
+        call.assert_called_once_with("usa20100", {"stex_tp": "ND", "stk_cd": "ANT"}, token="test")
+        with patch.object(industries, "_call", return_value={**record, "stk_cd": "OTHER"}):
+            self.assertIsNone(industries.fetch_us_anthropic_stock(token="test"))
+
     def test_share_classes_take_one_market_cap_slot_and_refill_third(self):
         records = [
             {"stk_cd": "GOOG", "stk_nm": "알파벳 Class C", "stk_enm": "Alphabet Inc Class C", "stex_tp": "2", "mac": "900"},
