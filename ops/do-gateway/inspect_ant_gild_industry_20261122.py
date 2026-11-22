@@ -1,5 +1,7 @@
 """Read-only check for newly listed ANT and the next biotech market-cap candidate."""
 import json
+import sys
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 from backend.providers.kiwoom_us_industries import fetch_us_industry_maps, fetch_us_industry_stocks
 from backend.providers.kiwoom_us_industry import fetch_us_stock_industry
 from backend.providers.kiwoom_us_quotes import fetch_us_quote
