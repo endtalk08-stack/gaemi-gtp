@@ -279,11 +279,12 @@
         const label = labels[id];
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}">
+          ${id === 'qqq' ? '<button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="qqq" aria-label="QQQ 왼쪽으로 이동" title="왼쪽으로 이동"><i data-lucide="panel-left" class="w-3 h-3"></i></button>' : ''}
           <div class="central-widget-card__kospi-title"><span>${id.toUpperCase()}</span><span class="central-widget-card__kospi-market-name">${label}</span></div>
           <div class="central-widget-card__kospi-body" aria-label="${id.toUpperCase()} 키움 실시간 체결가 차트">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
               <defs>
-                <linearGradient id="marketSparklineGradient-${id}" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="kospiSparklineGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stop-color="currentColor" stop-opacity="0.28"></stop>
                   <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
                 </linearGradient>
