@@ -204,6 +204,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   return {
     list, realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages, sockets,
     industryQuotes(items) { sockets.at(-1).onmessage({ data: JSON.stringify({ type: 'industry-quotes', items }) }); },
+    onMarketEtfQuotes(fn) { (listeners['gaemi:market-etf-quotes'] ||= []).push(fn); },
     replaceValueRows(rows) { mockNow += 61_000; valueRows = rows; valueTab.click(); },
     advanceTime(milliseconds) { mockNow += milliseconds; },
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
@@ -256,6 +257,21 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.deepEqual(themeRows[1].children[1].children.map((tile) => tile.children[0].textContent),
     ['모더나', '길리어드', '리제네론']);
   assert.equal(themeRows[2].children[1].children[0].children[0].textContent, '코인베이스');
+});
+
+test('SPY and DIA use the shared Kiwoom ETF socket without new polling', async () => {
+  const app = setup();
+  await flush();
+  const received = [];
+  app.onMarketEtfQuotes(event => received.push(event.detail.items));
+  const reads = app.calls.length;
+  app.industryQuotes([
+    { symbol: 'SPY', price: 600, change_pct: 0.5, received_at_ms: 1_000_000, stale: false },
+    { symbol: 'DIA', price: 450, change_pct: -0.4, received_at_ms: 1_000_000, stale: false },
+    { symbol: 'XLK', price: 100, change_pct: 1, received_at_ms: 1_000_000, stale: false }
+  ]);
+  assert.deepEqual(Array.from(received.at(-1), quote => quote.symbol), ['SPY', 'DIA']);
+  assert.equal(app.calls.length, reads);
 });
 
 test('industry map consumes fresh Kiwoom websocket quotes for its selected stock', async () => {

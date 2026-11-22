@@ -55,7 +55,7 @@ class EtfIndustryMapTests(unittest.TestCase):
             "IBIT": "ND", "SOXX": "ND", "XBI": "NY", "XLB": "NY",
             "XLC": "NY", "XLE": "NY", "XLF": "NY", "XLI": "NY",
             "XLK": "NY", "XLP": "NY", "XLRE": "NY", "XLU": "NY",
-            "XLV": "NY", "XLY": "NY",
+            "XLV": "NY", "XLY": "NY", "SPY": "NY", "DIA": "NY",
         }
         records = [
             {"stk_cd": symbol, "stex_tp": exchange, "etn": "N"}
@@ -69,7 +69,7 @@ class EtfIndustryMapTests(unittest.TestCase):
         with patch.object(industries, "_call", return_value={"list": records}) as call:
             actual = industries.fetch_us_etf_exchanges(token="test")
         self.assertEqual(actual, expected)
-        self.assertEqual(len(actual), 14)
+        self.assertEqual(len(actual), 16)
         self.assertEqual(set(actual), set(industries.ETF_TICKERS))
         call.assert_called_once_with("usa10104", {"stex_tp": "%"}, token="test")
 

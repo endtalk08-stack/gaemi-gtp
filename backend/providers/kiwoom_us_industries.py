@@ -37,7 +37,7 @@ API_PATHS = {
 EXCHANGES = {"NA", "ND", "NY"}
 EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
 ETF_TICKERS = frozenset({"XLK", "XLV", "XLF", "XLY", "XLC", "XLI", "XLP",
-                         "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT"})
+                         "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT", "SPY", "DIA"})
 BITCOIN_COMPANIES = ("COIN", "MSTR", "MARA", "RIOT", "CLSK")
 
 # Eleven display groups based on official Kiwoom industry codes. The labels

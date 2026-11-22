@@ -43,6 +43,9 @@
   let qqqLastReceivedMs = 0;
   let qqqSessionKey = '';
   let qqqCurrent = null;
+  const marketEtfs = Object.fromEntries(['SPY', 'DIA'].map(symbol => [symbol, {
+    points: [], lastReceivedMs: 0, sessionKey: '', current: null
+  }]));
   const MAX_QQQ_POINTS = 120;
   const QQQ_REASON_REFRESH_MS = 300000;
   let qqqReasons = [];
@@ -111,21 +114,21 @@
     refreshQqqReasons();
   }
 
-  function drawQqqChart(card) {
+  function drawQqqChart(card, chartPoints = qqqPoints) {
     const line = card.querySelector('[data-kospi-sparkline]');
     const fill = card.querySelector('[data-kospi-sparkline-fill]');
     if (!line || !fill) return;
-    if (qqqPoints.length < 2) {
+    if (chartPoints.length < 2) {
       line.setAttribute('points', '');
       fill.setAttribute('points', '');
       return;
     }
-    const lows = qqqPoints.map(point => point.price);
+    const lows = chartPoints.map(point => point.price);
     const lowest = Math.min(...lows);
     const highest = Math.max(...lows);
     const span = highest - lowest;
-    const points = qqqPoints.map((point, index) => {
-      const x = 1 + (index / (qqqPoints.length - 1)) * 70;
+    const points = chartPoints.map((point, index) => {
+      const x = 1 + (index / (chartPoints.length - 1)) * 70;
       const y = span === 0 ? 14 : 25 - ((point.price - lowest) / span) * 22;
       return x.toFixed(1) + ',' + y.toFixed(1);
     }).join(' ');
@@ -162,6 +165,46 @@
     chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && change !== null && change < 0);
     drawQqqChart(card);
     updateQqqReason(card, quote, fresh);
+  }
+
+  function updateMarketEtfCard(symbol) {
+    const card = body()?.querySelector('[data-central-widget-id="' + symbol.toLowerCase() + '"]');
+    if (!card) return;
+    const state = marketEtfs[symbol];
+    const quote = state.current;
+    const fresh = quote && isQqqQuoteFresh(quote);
+    const change = fresh && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
+    card.classList.toggle('central-widget-card--qqq-muted', !fresh);
+    card.querySelector('[data-kospi-price]').textContent = fresh
+      ? quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+    const changeNode = card.querySelector('[data-kospi-change]');
+    changeNode.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+    changeNode.classList.toggle('central-widget-card__kospi-change--up', change > 0);
+    changeNode.classList.toggle('central-widget-card__kospi-change--down', change < 0);
+    const chart = card.querySelector('.central-widget-card__sparkline');
+    chart.classList.toggle('central-widget-card__sparkline--up', change > 0);
+    chart.classList.toggle('central-widget-card__sparkline--down', change < 0);
+    drawQqqChart(card, state.points);
+  }
+
+  function onMarketEtfQuotes(event) {
+    const items = Array.isArray(event.detail?.items) ? event.detail.items : [];
+    for (const [symbol, state] of Object.entries(marketEtfs)) {
+      const quote = items.find(item => item.symbol === symbol);
+      state.current = quote && Number.isFinite(quote.price)
+        && quote.price > 0 && isQqqQuoteFresh(quote) ? quote : null;
+      if (state.current && quote.received_at_ms > state.lastReceivedMs) {
+        const { key } = easternTradingWindow(quote.received_at_ms);
+        if (key !== state.sessionKey) {
+          state.points.length = 0;
+          state.sessionKey = key;
+        }
+        state.points.push({ receivedAt: quote.received_at_ms, price: quote.price });
+        if (state.points.length > MAX_QQQ_POINTS) state.points.shift();
+        state.lastReceivedMs = quote.received_at_ms;
+      }
+      updateMarketEtfCard(symbol);
+    }
   }
 
   function updateMarketQqqReason() {
@@ -210,17 +253,19 @@
     if (!dock || !bodyEl) return;
     bodyEl.innerHTML = activeIds.map(id => {
       const meta = catalog()[id];
-      if (id === 'qqq') {
+      if (id === 'qqq' || id === 'spy' || id === 'dia') {
+        const isEtf = id !== 'qqq';
+        const symbol = id.toUpperCase();
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="QQQ 왼쪽으로 이동" title="왼쪽으로 이동">
-            <i data-lucide="panel-left" class="w-3 h-3"></i>
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="${symbol} ${isEtf ? '위젯 삭제' : '왼쪽으로 이동'}" title="${isEtf ? '위젯 삭제' : '왼쪽으로 이동'}">
+            <i data-lucide="${isEtf ? 'x' : 'panel-left'}" class="w-3 h-3"></i>
           </button>
-          <div class="central-widget-card__kospi-title"><span>QQQ</span><span class="central-widget-card__kospi-market-name">나스닥</span></div>
-          <div class="central-widget-card__kospi-body" aria-label="QQQ 키움 실시간 체결가 차트">
+          <div class="central-widget-card__kospi-title"><span>${symbol}</span><span class="central-widget-card__kospi-market-name">${id === 'spy' ? 'S&P 500' : id === 'dia' ? '다우' : '나스닥'}</span></div>
+          <div class="central-widget-card__kospi-body" aria-label="${symbol} 키움 실시간 체결가 차트">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
               <defs>
-                <linearGradient id="kospiSparklineGradient" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="${isEtf ? id : 'kospi'}SparklineGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stop-color="currentColor" stop-opacity="0.28"></stop>
                   <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
                 </linearGradient>
@@ -232,7 +277,7 @@
               <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>—</strong><span class="central-widget-card__kospi-change" data-kospi-change>—</span></div>
             </div>
           </div>
-          <a class="central-widget-card__kospi-reason" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a>
+          ${isEtf ? '' : '<a class="central-widget-card__kospi-reason" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a>'}
         </article>`;
       }
       if (id === 'night-futures') {
@@ -258,6 +303,9 @@
     });
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('qqq')) updateQqqCard();
+    for (const symbol of Object.keys(marketEtfs)) {
+      if (activeIds.includes(symbol.toLowerCase())) updateMarketEtfCard(symbol);
+    }
 
   }
   function setChartSelection(symbol) {
@@ -493,6 +541,7 @@
     activeIds.push(id);
     saveState();
     if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
+    if (id === 'spy' || id === 'dia') window.dispatchEvent(new CustomEvent('gaemi:market-widget-placement'));
     render();
     return true;
   }
@@ -504,6 +553,7 @@
       saveState();
       render();
       if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
+      if (id === 'spy' || id === 'dia') window.dispatchEvent(new CustomEvent('gaemi:market-widget-placement'));
       window.GaemiGTPPluginSidebar?.render?.();
     }
     return changed;
@@ -519,6 +569,7 @@
         loadChart(active.target, active.symbol, null);
     });
     window.addEventListener('gaemi:qqq-quote', onQqqQuote);
+    window.addEventListener('gaemi:market-etf-quotes', onMarketEtfQuotes);
     window.addEventListener('gaemi:us-live-quotes', onUsLiveQuotes);
     dock.addEventListener('click', event => {
       const button = event.target.closest('[data-central-widget-remove]');
