@@ -1,6 +1,4 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/inspect_spy_dia_etfs_20261122.py",
-  "request_id": "spy-dia-etf-diagnostic-20261122",
-  "timeout": 90
+  "operation": "restart",
+  "unit": "gaemigtp-kiwoom-us-top20-https.service"
 }
