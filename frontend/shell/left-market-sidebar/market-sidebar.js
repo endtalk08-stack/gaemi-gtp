@@ -777,7 +777,8 @@
     let qqqReconnectDelay = 1000;
     const qqqSocketWanted = () =>
       document.visibilityState === 'visible'
-      && (qqqWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime' || tab === 'industry')) || quoteConsumersActive());
+      && (qqqWidgetActive() || window.GaemiGTPWidgetDock?.isActive?.('spy')
+        || window.GaemiGTPWidgetDock?.isActive?.('dia') || (sidebarActive() && (tab === 'value' || tab === 'realtime' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
       marketQqqQuote = quote?.symbol === 'QQQ' ? quote : null;
       paintMarketQqq();
@@ -901,6 +902,7 @@
       paintLiveQuotes();
     };
     const publishIndustryQuotes = items => {
+      window.dispatchEvent(new CustomEvent('gaemi:market-widget-quotes', { detail: { items } }));
       industryLiveQuotes = items.filter(quote => freshQuote(quote, Date.now()));
       if (sidebarActive() && tab === 'industry' && industryMapData) renderIndustryMap(industryMapData);
     };
@@ -917,6 +919,7 @@
       if (sidebarActive() && tab === 'realtime') void showUsRanking();
       syncQqqSocket();
     });
+    window.addEventListener('gaemi:etf-widget-placement', syncQqqSocket);
     document.addEventListener('visibilitychange', refreshOnReturn);
     window.addEventListener('focus', refreshOnReturn);
 

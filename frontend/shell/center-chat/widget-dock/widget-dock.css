@@ -167,40 +167,40 @@
 
 
 /* QQQ card: one calm gray tone and one consistent text size. */
-.central-widget-card[data-central-widget-id="qqq"] {
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) {
   --qqq-text: #bfc3cb;
 }
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-title,
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market-name,
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market strong,
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-change,
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-reason {
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-title,
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-market-name,
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-market strong,
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-change,
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-reason {
   color: var(--qqq-text);
   font-size: 14px !important;
   font-weight: 400 !important;
   line-height: 18px !important;
 }
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-title {
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-title {
   gap: 6px;
 }
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-body {
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-body {
   grid-template-columns: minmax(max-content, 1fr) minmax(0, 54px);
 }
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-copy {
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-copy {
   grid-column: 1;
   grid-row: 1;
 }
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market {
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-market {
   justify-content: flex-start;
   gap: 8px;
 }
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__sparkline {
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__sparkline {
   grid-column: 2;
   grid-row: 1;
   width: 100%;
   height: 22px;
 }
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-reason {
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-reason {
   display: block;
   margin-top: 2px;
   overflow: hidden;
@@ -208,7 +208,7 @@
   white-space: nowrap;
   text-decoration: none;
 }
-.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-reason[hidden] {
+.central-widget-card:is([data-central-widget-id="qqq"], [data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-reason[hidden] {
   display: none;
 }
 
