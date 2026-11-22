@@ -798,6 +798,7 @@
       dispatchQqqQuote(null);
       publishLiveQuotes([]);
       publishIndustryQuotes([]);
+      publishMarketEtfQuotes([]);
     };
     const scheduleQqqReconnect = (generation) => {
       if (!qqqSocketWanted() || generation !== qqqSocketGeneration || qqqReconnectTimer !== null) return;
@@ -834,6 +835,7 @@
           if (message?.type === 'quote') dispatchQqqQuote(message.quote || null);
           if (message?.type === 'quotes' && Array.isArray(message.items)) publishLiveQuotes(message.items);
           if (message?.type === 'industry-quotes' && Array.isArray(message.items)) publishIndustryQuotes(message.items);
+          if (message?.type === 'market-etf-quotes' && Array.isArray(message.items)) publishMarketEtfQuotes(message.items);
         } catch (_) {
           // Ignore malformed frames; the next valid quote will refresh the card.
         }
@@ -847,6 +849,7 @@
         dispatchQqqQuote(null);
         publishLiveQuotes([]);
         publishIndustryQuotes([]);
+        publishMarketEtfQuotes([]);
         scheduleQqqReconnect(generation);
       };
     };
@@ -901,10 +904,14 @@
     };
     const publishIndustryQuotes = items => {
       industryLiveQuotes = items.filter(quote => freshQuote(quote, Date.now()));
-      window.dispatchEvent(new CustomEvent('gaemi:market-etf-quotes', {
-        detail: { items: industryLiveQuotes.filter(quote => quote.symbol === 'SPY' || quote.symbol === 'DIA') }
-      }));
       if (sidebarActive() && tab === 'industry' && industryMapData) renderIndustryMap(industryMapData);
+    };
+    const publishMarketEtfQuotes = items => {
+      const now = Date.now();
+      window.dispatchEvent(new CustomEvent('gaemi:market-etf-quotes', {
+        detail: { items: items.filter(quote => freshQuote(quote, now) &&
+          (quote.symbol === 'SPY' || quote.symbol === 'DIA')) }
+      }));
     };
 
     // Also refresh when the user returns to this tab after it was backgrounded.

@@ -204,6 +204,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   return {
     list, realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages, sockets,
     industryQuotes(items) { sockets.at(-1).onmessage({ data: JSON.stringify({ type: 'industry-quotes', items }) }); },
+    marketEtfQuotes(items) { sockets.at(-1).onmessage({ data: JSON.stringify({ type: 'market-etf-quotes', items }) }); },
     onMarketEtfQuotes(fn) { (listeners['gaemi:market-etf-quotes'] ||= []).push(fn); },
     replaceValueRows(rows) { mockNow += 61_000; valueRows = rows; valueTab.click(); },
     advanceTime(milliseconds) { mockNow += milliseconds; },
@@ -259,18 +260,26 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.equal(themeRows[2].children[1].children[0].children[0].textContent, '코인베이스');
 });
 
-test('SPY and DIA use the shared Kiwoom ETF socket without new polling', async () => {
+test('SPY and DIA use their own message on the existing quote socket', async () => {
   const app = setup();
+  await flush();
+  app.industryTab.click();
   await flush();
   const received = [];
   app.onMarketEtfQuotes(event => received.push(event.detail.items));
   const reads = app.calls.length;
-  app.industryQuotes([
+  const quotes = [
     { symbol: 'SPY', price: 600, change_pct: 0.5, received_at_ms: 1_000_000, stale: false },
     { symbol: 'DIA', price: 450, change_pct: -0.4, received_at_ms: 1_000_000, stale: false },
     { symbol: 'XLK', price: 100, change_pct: 1, received_at_ms: 1_000_000, stale: false }
-  ]);
+  ];
+  app.industryQuotes(quotes);
+  assert.equal(received.length, 0);
+  const firstSector = app.list.children[0];
+  assert.ok(firstSector);
+  app.marketEtfQuotes(quotes);
   assert.deepEqual(Array.from(received.at(-1), quote => quote.symbol), ['SPY', 'DIA']);
+  assert.equal(app.list.children[0], firstSector);
   assert.equal(app.calls.length, reads);
 });
 
