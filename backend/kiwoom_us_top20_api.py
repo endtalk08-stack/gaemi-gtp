@@ -265,6 +265,8 @@ SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
 _QQQ_LOCK = threading.Lock()
 _QQQ_CHANGED = threading.Condition(_QQQ_LOCK)
 _QQQ_QUOTE = None
+_MARKET_WIDGET_SYMBOLS = frozenset({"SPY", "DIA"})
+_MARKET_WIDGET_QUOTES = {}
 _TOP20_SYMBOLS = frozenset()
 _INDUSTRY_SYMBOLS = frozenset()
 _TOP20_QUOTES = {}
@@ -308,11 +310,13 @@ def _publish_live_quote(quote):
     with _QQQ_CHANGED:
         if symbol == "QQQ":
             _QQQ_QUOTE = safe
+        if symbol in _MARKET_WIDGET_SYMBOLS:
+            _MARKET_WIDGET_QUOTES[symbol] = safe
         if symbol in _TOP20_SYMBOLS:
             _TOP20_QUOTES[symbol] = safe
         if symbol in _INDUSTRY_SYMBOLS:
             _INDUSTRY_QUOTES[symbol] = safe
-        if symbol == "QQQ" or symbol in _TOP20_SYMBOLS or symbol in _INDUSTRY_SYMBOLS:
+        if symbol == "QQQ" or symbol in _MARKET_WIDGET_SYMBOLS or symbol in _TOP20_SYMBOLS or symbol in _INDUSTRY_SYMBOLS:
             _QQQ_CHANGED.notify_all()
 
 
@@ -345,6 +349,13 @@ def _top20_snapshot():
     with _QQQ_LOCK:
         return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
                 for quote in _TOP20_QUOTES.values()]
+
+
+def _market_widget_snapshot():
+    now_ms = int(time.time() * 1000)
+    with _QQQ_LOCK:
+        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
+                for quote in _MARKET_WIDGET_QUOTES.values()]
 
 
 def _industry_snapshot():
@@ -550,6 +561,7 @@ class Handler(BaseHTTPRequestHandler):
             last_top20_at = 0.0
             last_top20_message = None
             last_industry_message = None
+            last_market_widget_message = None
             while True:
                 quote = _qqq_snapshot()
                 signature = ((quote["received_at_ms"], quote["stale"])
@@ -578,6 +590,13 @@ class Handler(BaseHTTPRequestHandler):
                     if latest_industry != last_industry_message:
                         self.connection.sendall(_websocket_text_frame(latest_industry))
                         last_industry_message = latest_industry
+                    latest_market_widgets = json.dumps(
+                        {"type": "market-widget-quotes", "items": _market_widget_snapshot()},
+                        separators=(",", ":"), allow_nan=False,
+                    ).encode("utf-8")
+                    if latest_market_widgets != last_market_widget_message:
+                        self.connection.sendall(_websocket_text_frame(latest_market_widgets))
+                        last_market_widget_message = latest_market_widgets
                     last_top20_at = now
                 with _QQQ_CHANGED:
                     _QQQ_CHANGED.wait(timeout=1.0)
