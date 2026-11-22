@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_industry_release_baseline_20261120.py",
-  "request_id": "industry-verify-20261123",
-  "timeout": 180
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_top20_api.py",
+  "target": "backend/kiwoom_us_top20_api.py"
 }
