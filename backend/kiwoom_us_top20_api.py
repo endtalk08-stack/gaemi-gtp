@@ -1,5 +1,6 @@
 """Serve the existing Kiwoom TOP20 ranking and the in-memory US quote stream."""
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import math
@@ -19,6 +20,7 @@ RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
+_US_INDUSTRY_STOCK_LOCKS = {}
 _US_INDUSTRY_ETF_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_ETF_CACHE = {}
 _US_INDUSTRY_ETF_TTL = 60
@@ -117,9 +119,12 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
         raise ValueError("invalid_industry_code")
 
     key = (tuple(str(code) for code in codes), sort)
-    now = time.monotonic()
     with _US_INDUSTRY_CACHE_LOCK:
-        cached = _US_INDUSTRY_STOCK_CACHE.get(key)
+        lock = _US_INDUSTRY_STOCK_LOCKS.setdefault(key, threading.Lock())
+    with lock:
+        now = time.monotonic()
+        with _US_INDUSTRY_CACHE_LOCK:
+            cached = _US_INDUSTRY_STOCK_CACHE.get(key)
         if cached and now < cached["expires_at"]:
             return dict(cached["data"])
         try:
@@ -130,10 +135,11 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
                 stale["stale"] = True
                 return stale
             raise
-        _US_INDUSTRY_STOCK_CACHE[key] = {
-            "expires_at": now + _US_INDUSTRY_STOCK_TTL,
-            "data": dict(result),
-        }
+        with _US_INDUSTRY_CACHE_LOCK:
+            _US_INDUSTRY_STOCK_CACHE[key] = {
+                "expires_at": time.monotonic() + _US_INDUSTRY_STOCK_TTL,
+                "data": dict(result),
+            }
         return dict(result)
 
 
@@ -198,9 +204,9 @@ def _get_us_industry_map_with_stocks(view="legacy"):
     limit = 3
     result = dict(source)
     result["items"] = []
-    for item in source.get("items", []):
+    def add_stocks(item):
         if not isinstance(item, dict):
-            continue
+            return None
         row = dict(item)
         candidate_limit = 4 if view == "heatmap" and row.get("key") in ("biotech", "software") else limit
         row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:candidate_limit]]
@@ -231,7 +237,12 @@ def _get_us_industry_map_with_stocks(view="legacy"):
             if anthropic and not any(str(stock.get("symbol", "")).upper().split(".")[0] == "ANT"
                                      for stock in row["stocks"]):
                 row["stocks"].append(dict(anthropic))
-        result["items"].append(row)
+        return row
+    if view == "heatmap":
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            result["items"] = [row for row in pool.map(add_stocks, source.get("items", [])) if row]
+    else:
+        result["items"] = [row for row in map(add_stocks, source.get("items", [])) if row]
     if view == "heatmap":
         from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
         key = ("bitcoin_related", "marketcap")
@@ -243,9 +254,11 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         else:
             try:
                 bitcoin_stocks = fetch_us_bitcoin_related_stocks()
+                if not bitcoin_stocks and cached and cached["data"]:
+                    bitcoin_stocks = cached["data"]
                 with _US_INDUSTRY_CACHE_LOCK:
                     _US_INDUSTRY_STOCK_CACHE[key] = {
-                        "expires_at": now + _US_INDUSTRY_STOCK_TTL,
+                        "expires_at": time.monotonic() + (_US_INDUSTRY_STOCK_TTL if bitcoin_stocks else 60),
                         "data": bitcoin_stocks,
                     }
             except Exception:
