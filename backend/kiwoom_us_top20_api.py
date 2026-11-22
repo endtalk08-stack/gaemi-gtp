@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import json
+import math
 import os
 import re
 import select
@@ -19,7 +20,7 @@ _US_INDUSTRY_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
 _US_INDUSTRY_ETF_CACHE_LOCK = threading.Lock()
-_US_INDUSTRY_ETF_CACHE = {"expires_at": 0.0, "data": []}
+_US_INDUSTRY_ETF_CACHE = {}
 _US_INDUSTRY_ETF_TTL = 60
 _US_PLATFORM_CACHE_LOCK = threading.Lock()
 _US_PLATFORM_CACHE = {"expires_at": 0.0, "data": None}
@@ -138,56 +139,57 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
 
 
 def _get_us_industry_etf_quotes():
-    """Prefer live WebSocket ticks; use a short-lived REST snapshot outside live hours."""
+    """Use live ticks first and share REST fallback results across requests."""
     from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_quotes
 
-    now = time.monotonic()
-    with _US_INDUSTRY_ETF_CACHE_LOCK:
-        cached = _US_INDUSTRY_ETF_CACHE["data"]
-        if not cached or now >= _US_INDUSTRY_ETF_CACHE["expires_at"]:
-            try:
-                fetched = fetch_us_etf_quotes()
-                clean = [
-                    {
-                        "symbol": item["symbol"],
-                        "change_pct": item["change_pct"],
-                        "received_at_ms": item["received_at_ms"],
-                        "source": item.get("source", "kiwoom:rest"),
-                    }
-                    for item in fetched
-                    if isinstance(item, dict)
-                    and item.get("symbol") in ETF_TICKERS
-                    and isinstance(item.get("change_pct"), (int, float))
-                    and isinstance(item.get("received_at_ms"), int)
-                ]
-                if clean:
-                    _US_INDUSTRY_ETF_CACHE["data"] = clean
-                    _US_INDUSTRY_ETF_CACHE["expires_at"] = now + _US_INDUSTRY_ETF_TTL
-                    cached = clean
-            except Exception:
-                pass
+    def current_ticks():
+        return {quote["symbol"]: quote for quote in _etf_snapshot()
+                if not quote["stale"] and quote["change_pct"] is not None}
 
-    now_ms = int(time.time() * 1000)
-    with _QQQ_LOCK:
-        live = {
-            symbol: dict(quote)
-            for symbol, quote in _ETF_QUOTES.items()
-            if now_ms - quote["received_at_ms"] <= _QQQ_STALE_MS
-        }
-    fallback = {
-        item["symbol"]: item for item in cached
-        if now_ms - item["received_at_ms"] <= 72 * 60 * 60 * 1000
-    }
-    return [
-        {
+    live = current_ticks()
+    fallback = {}
+    if ETF_TICKERS.difference(live):
+        with _US_INDUSTRY_ETF_CACHE_LOCK:
+            # Ticks or cached results may have arrived while this request waited.
+            live = current_ticks()
+            now = time.monotonic()
+            missing = ETF_TICKERS.difference(live)
+            due = {symbol for symbol in missing
+                   if now >= _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))[0]}
+            if due:
+                try:
+                    fetched = {
+                        item["symbol"]: item
+                        for item in fetch_us_etf_quotes(symbols=due)
+                        if isinstance(item, dict)
+                        and item.get("symbol") in due
+                        and type(item.get("change_pct")) in (int, float)
+                        and math.isfinite(item["change_pct"])
+                        and isinstance(item.get("received_at_ms"), int)
+                    }
+                except Exception:
+                    fetched = {}
+                refresh_at = time.monotonic() + _US_INDUSTRY_ETF_TTL
+                for symbol in due:
+                    _, previous = _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))
+                    _US_INDUSTRY_ETF_CACHE[symbol] = (refresh_at, fetched.get(symbol, previous))
+
+            now_ms = int(time.time() * 1000)
+            fallback = {symbol: quote for symbol, (_, quote) in _US_INDUSTRY_ETF_CACHE.items()
+                        if quote and now_ms - quote["received_at_ms"] <= 72 * 60 * 60 * 1000}
+        live = current_ticks()
+
+    result = []
+    for symbol in sorted(ETF_TICKERS):
+        quote = live.get(symbol) or fallback.get(symbol) or {}
+        result.append({
             "symbol": symbol,
-            "change_pct": (live.get(symbol) or fallback.get(symbol) or {}).get("change_pct"),
-            "received_at_ms": (live.get(symbol) or fallback.get(symbol) or {}).get("received_at_ms", 0),
+            "change_pct": quote.get("change_pct"),
+            "received_at_ms": quote.get("received_at_ms", 0),
             "stale": symbol not in live,
             "source": "kiwoom:websocket" if symbol in live else "kiwoom:rest",
-        }
-        for symbol in sorted(ETF_TICKERS)
-    ]
+        })
+    return result
 
 
 def _get_us_industry_map_with_stocks(view="legacy"):
