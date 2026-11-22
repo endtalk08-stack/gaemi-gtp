@@ -38,7 +38,8 @@ API_PATHS = {
 EXCHANGES = {"NA", "ND", "NY"}
 EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
 ETF_TICKERS = frozenset({"XLK", "XLV", "XLF", "XLY", "XLC", "XLI", "XLP",
-                         "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT", "SPY", "DIA"})
+                         "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT"})
+MARKET_WIDGET_ETF_TICKERS = frozenset({"SPY", "DIA"})
 BITCOIN_COMPANIES = ("COIN", "MSTR", "MARA", "RIOT", "CLSK")
 
 # Eleven display groups based on official Kiwoom industry codes. The labels
@@ -593,8 +594,9 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
     }
 
 
-def fetch_us_etf_exchanges(*, token=None):
+def fetch_us_etf_exchanges(*, token=None, tickers=None):
     """Verify the agreed ETF ticker/exchange pairs against Kiwoom usa10104."""
+    requested = ETF_TICKERS if tickers is None else (ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS).intersection(tickers)
     symbols = {}
     continuation = None
     for _ in range(40):
@@ -611,9 +613,9 @@ def fetch_us_etf_exchanges(*, token=None):
             symbol = str(row.get("stk_cd") or "").strip().upper()
             exchange = EXCHANGE_CODES.get(str(row.get("stex_tp") or "").strip().upper(),
                                           str(row.get("stex_tp") or "").strip().upper())
-            if symbol in ETF_TICKERS and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
+            if symbol in requested and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
                 symbols[symbol] = exchange
-        if symbols.keys() >= ETF_TICKERS or data.get("_cont_yn") != "Y":
+        if symbols.keys() >= requested or data.get("_cont_yn") != "Y":
             break
         next_key = str(data.get("_next_key") or "")
         if not next_key or next_key == continuation:
@@ -622,12 +624,15 @@ def fetch_us_etf_exchanges(*, token=None):
     return symbols
 
 
-def fetch_us_etf_quotes(*, token=None):
+def fetch_us_etf_quotes(*, token=None, symbols=None):
     """Return the latest read-only quote snapshot for the fourteen map ETFs.
 
     Prefer the single ETF market-cap ranking response. Only query individual
     ETFs when the ranking response omits one of the agreed symbols.
     """
+    requested = ETF_TICKERS if symbols is None else (ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS).intersection(symbols)
+    if not requested:
+        return []
     access_token = token or _access_token()
     quotes = {}
     captured_at_ms = int(time.time() * 1000)
@@ -640,7 +645,7 @@ def fetch_us_etf_quotes(*, token=None):
             symbol = str(row.get("symbol") or "").strip().upper()
             price = _positive_price(row.get("price"))
             change_pct = _number(row.get("change_pct"))
-            if symbol not in ETF_TICKERS or price is None or change_pct is None:
+            if symbol not in requested or price is None or change_pct is None:
                 continue
             quotes[symbol] = {
                 "symbol": symbol,
@@ -653,10 +658,10 @@ def fetch_us_etf_quotes(*, token=None):
     except KiwoomReadOnlyError:
         pass
 
-    missing = ETF_TICKERS.difference(quotes)
+    missing = requested.difference(quotes)
     if missing:
         try:
-            exchanges = fetch_us_etf_exchanges(token=access_token)
+            exchanges = fetch_us_etf_exchanges(token=access_token, tickers=missing)
         except KiwoomReadOnlyError:
             exchanges = {}
         def read_missing(symbol):

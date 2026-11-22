@@ -21,7 +21,7 @@ _US_INDUSTRY_MAP_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_STOCK_CACHE = {}
 _US_INDUSTRY_STOCK_LOCKS = {}
 _US_INDUSTRY_ETF_CACHE_LOCK = threading.Lock()
-_US_INDUSTRY_ETF_CACHE = {"expires_at": 0.0, "data": []}
+_US_INDUSTRY_ETF_CACHE = {}
 _US_PLATFORM_CACHE_LOCK = threading.Lock()
 _US_PLATFORM_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_MAP_TTL = 60
@@ -143,16 +143,20 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
         return dict(result)
 
 
-def _get_us_industry_etf_quotes():
-    from backend.providers.kiwoom_us_industries import fetch_us_etf_quotes
+def _get_us_industry_etf_quotes(symbols=None):
+    from backend.providers.kiwoom_us_industries import (ETF_TICKERS, MARKET_WIDGET_ETF_TICKERS,
+                                                        fetch_us_etf_quotes)
+    requested = ETF_TICKERS if symbols is None else MARKET_WIDGET_ETF_TICKERS.intersection(symbols)
+    cache_key = "industry" if symbols is None else "widget"
 
     now = time.monotonic()
     with _US_INDUSTRY_ETF_CACHE_LOCK:
-        cached = _US_INDUSTRY_ETF_CACHE["data"]
-        if cached and now < _US_INDUSTRY_ETF_CACHE["expires_at"]:
+        entry = _US_INDUSTRY_ETF_CACHE.get(cache_key, {"expires_at": 0.0, "data": []})
+        cached = entry["data"]
+        if cached and now < entry["expires_at"]:
             return [dict(item) for item in cached]
         try:
-            quotes = fetch_us_etf_quotes()
+            quotes = fetch_us_etf_quotes(symbols=requested)
         except Exception:
             return [dict(item) for item in cached] if cached else []
 
@@ -165,8 +169,8 @@ def _get_us_industry_etf_quotes():
             and isinstance(item.get("change_pct"), (int, float))
             and isinstance(item.get("received_at_ms"), int)
         ]
-        _US_INDUSTRY_ETF_CACHE["data"] = clean
-        _US_INDUSTRY_ETF_CACHE["expires_at"] = now + (1800 if clean else 300)
+        _US_INDUSTRY_ETF_CACHE[cache_key] = {"data": clean,
+                                              "expires_at": time.monotonic() + (1800 if clean else 300)}
         return [dict(item) for item in clean]
 
 
@@ -264,9 +268,10 @@ def get_us_industry_symbols():
             exchange = str(stock.get("exchange") or "").strip().upper()
             if SYMBOL.fullmatch(symbol) and exchange in ("ND", "NY", "NA"):
                 symbols[symbol] = exchange
-    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
+    from backend.providers.kiwoom_us_industries import (ETF_TICKERS, MARKET_WIDGET_ETF_TICKERS,
+                                                        fetch_us_etf_exchanges)
     try:
-        etf_symbols = fetch_us_etf_exchanges()
+        etf_symbols = fetch_us_etf_exchanges(tickers=ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS)
     except Exception:
         etf_symbols = {}  # Keep stock updates when the ETF lookup fails.
     symbols.update(etf_symbols)
@@ -519,7 +524,7 @@ class Handler(BaseHTTPRequestHandler):
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "items": []})
             return self._json(200, {"ok": True, "items": [
-                quote for quote in _get_us_industry_etf_quotes()
+                quote for quote in _get_us_industry_etf_quotes(symbols={"SPY", "DIA"})
                 if quote.get("symbol") in ("SPY", "DIA")
             ]})
         if path.path == "/market/us-industries":
