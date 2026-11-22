@@ -46,6 +46,7 @@
   const marketEtfs = Object.fromEntries(['SPY', 'DIA'].map(symbol => [symbol, {
     points: [], lastReceivedMs: 0, sessionKey: '', current: null
   }]));
+  let marketEtfSnapshotAt = 0;
   const MAX_QQQ_POINTS = 120;
   const QQQ_REASON_REFRESH_MS = 300000;
   let qqqReasons = [];
@@ -172,13 +173,18 @@
     if (!card) return;
     const state = marketEtfs[symbol];
     const quote = state.current;
-    const fresh = quote && isQqqQuoteFresh(quote);
+    const recentSnapshot = quote?.source === 'kiwoom:rest'
+      && quote.stale === false && Number.isFinite(quote.received_at_ms)
+      && Date.now() - quote.received_at_ms >= 0
+      && Date.now() - quote.received_at_ms < 1800000;
+    const fresh = quote && (recentSnapshot || isQqqQuoteFresh(quote));
     const change = fresh && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
     card.querySelector('[data-kospi-price]').textContent = fresh
       ? quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
     const changeNode = card.querySelector('[data-kospi-change]');
-    changeNode.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+    changeNode.textContent = change === null ? '—' : (recentSnapshot ? '최근 ' : '')
+      + (change > 0 ? '+' : '') + change.toFixed(2) + '%';
     changeNode.classList.toggle('central-widget-card__kospi-change--up', change > 0);
     changeNode.classList.toggle('central-widget-card__kospi-change--down', change < 0);
     const chart = card.querySelector('.central-widget-card__sparkline');
@@ -187,12 +193,35 @@
     drawQqqChart(card, state.points);
   }
 
+  async function refreshMarketEtfSnapshot() {
+    if (document.hidden || !Object.keys(marketEtfs).some(symbol => activeIds.includes(symbol.toLowerCase()))
+        || Date.now() - marketEtfSnapshotAt < 120000) return;
+    marketEtfSnapshotAt = Date.now();
+    try {
+      const response = await fetch('https://quotes.gaemigtp.com/market/us-etf-quotes', {
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (!data?.ok || !Array.isArray(data.items)) return;
+      for (const [symbol, state] of Object.entries(marketEtfs)) {
+        const quote = data.items.find(item => item.symbol === symbol);
+        if (quote && Number.isFinite(quote.price) && quote.price > 0
+            && Number.isFinite(quote.change_pct) && Number.isFinite(quote.received_at_ms)
+            && (!state.current || !isQqqQuoteFresh(state.current))) {
+          state.current = { ...quote, stale: false, source: 'kiwoom:rest' };
+          updateMarketEtfCard(symbol);
+        }
+      }
+    } catch (_) {}
+  }
+
   function onMarketEtfQuotes(event) {
     const items = Array.isArray(event.detail?.items) ? event.detail.items : [];
     for (const [symbol, state] of Object.entries(marketEtfs)) {
       const quote = items.find(item => item.symbol === symbol);
-      state.current = quote && Number.isFinite(quote.price)
-        && quote.price > 0 && isQqqQuoteFresh(quote) ? quote : null;
+      if (quote && Number.isFinite(quote.price)
+          && quote.price > 0 && isQqqQuoteFresh(quote)) state.current = quote;
       if (state.current && quote.received_at_ms > state.lastReceivedMs) {
         const { key } = easternTradingWindow(quote.received_at_ms);
         if (key !== state.sessionKey) {
@@ -541,7 +570,10 @@
     activeIds.push(id);
     saveState();
     if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
-    if (id === 'spy' || id === 'dia') window.dispatchEvent(new CustomEvent('gaemi:market-widget-placement'));
+    if (id === 'spy' || id === 'dia') {
+      window.dispatchEvent(new CustomEvent('gaemi:market-widget-placement'));
+      void refreshMarketEtfSnapshot();
+    }
     render();
     return true;
   }
@@ -570,6 +602,9 @@
     });
     window.addEventListener('gaemi:qqq-quote', onQqqQuote);
     window.addEventListener('gaemi:market-etf-quotes', onMarketEtfQuotes);
+    document.addEventListener('visibilitychange', refreshMarketEtfSnapshot);
+    setInterval(refreshMarketEtfSnapshot, 120000);
+    void refreshMarketEtfSnapshot();
     window.addEventListener('gaemi:us-live-quotes', onUsLiveQuotes);
     dock.addEventListener('click', event => {
       const button = event.target.closest('[data-central-widget-remove]');
