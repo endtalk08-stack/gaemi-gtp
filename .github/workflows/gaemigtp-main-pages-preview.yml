@@ -1,4 +1,4 @@
-name: gaemigtp-main Pages preview # candidate d3a80ee; corrected 11-row DOM test
+name: gaemigtp-main Pages preview # ANT fourth IT tile candidate; 2026-11-22
 on:
   push:
     branches: [ops/gaemigtp-main-pages-preview]
