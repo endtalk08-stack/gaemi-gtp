@@ -184,6 +184,7 @@ def _get_us_industry_etf_quotes():
         quote = live.get(symbol) or fallback.get(symbol) or {}
         result.append({
             "symbol": symbol,
+            "price": quote.get("price"),
             "change_pct": quote.get("change_pct"),
             "received_at_ms": quote.get("received_at_ms", 0),
             "stale": symbol not in live,
