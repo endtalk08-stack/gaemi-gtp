@@ -315,7 +315,7 @@
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone
           + (sector.themeTone ? ' industry-map-sector-theme' : '');
-        heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.30, sectorColor.alpha + 0.045).toFixed(3) + ')';
+        heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + sectorColor.alpha.toFixed(3) + ')';
         heading.style.borderColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.62, sectorColor.alpha + 0.20).toFixed(3) + ')';
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
