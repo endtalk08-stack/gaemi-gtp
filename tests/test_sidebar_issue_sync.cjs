@@ -147,11 +147,18 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
             { name: '브로드컴', symbol: 'AVGO.O', change_pct: 1.5, market_cap_usd: 500 },
             { name: '마이크론', symbol: 'MU.O', change_pct: 20, market_cap_usd: 50 },
           ] },
+          { key: 'software', name: '소프트웨어', stocks: [
+            { name: '앤스로픽', symbol: 'ANT.O', change_pct: 3, market_cap_usd: 30 },
+          ] },
           { key: 'healthcare', name: '헬스케어', change_pct: -0.8, stocks: [
             { name: '일라이 릴리', symbol: 'LLY.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
+            { name: '애브비', symbol: 'ABBV.N', change_pct: 1, market_cap_usd: 800 },
           ] },
           { key: 'biotech', name: '바이오', stocks: [
             { name: '모더나', symbol: 'MRNA.O', market_cap_usd: 700 },
+            { name: '애브비', symbol: 'ABBV.N', market_cap_usd: 800 },
+            { name: '길리어드', symbol: 'GILD.O', market_cap_usd: 600 },
+            { name: '리제네론', symbol: 'REGN.O', market_cap_usd: 500 },
           ] },
           { key: 'bitcoin_related', name: '비트코인 관련 종목', stocks: [
             { name: '코인베이스', symbol: 'COIN.O', market_cap_usd: 600 },
@@ -164,7 +171,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
           ] },
           ...[
             ['energy','에너지'],['finance','금융'],['consumer_staples','필수소비재'],
-            ['industrials','산업재'],['internet_platforms','인터넷플랫폼'],['software','소프트웨어'],
+            ['industrials','산업재'],['internet_platforms','인터넷플랫폼'],
             ['consumer_discretionary','경기소비재'],['it_hardware','IT하드웨어']
           ].map(([key,name]) => ({ key, name, stocks: [] })),
 
@@ -221,12 +228,13 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.equal(technology.children[0].children[1].textContent, '—');
   assert.equal(technology.children[0].children.length, 2);
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
-    ['AMD', '엔비디아', '브로드컴']);
+    ['AMD', '앤스로픽', '브로드컴']);
   assert.equal(technology.children[1].children[0].children[1].textContent, '+5.00%');
   const healthcare = rowFor('헬스케어');
   assert.equal(healthcare.children[0].children[1].textContent, '—');
-  assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
-  assert.equal(healthcare.children[1].children[0].children[1].textContent, '-1.25%');
+  assert.deepEqual(healthcare.children[1].children.map((tile) => tile.children[0].textContent),
+    ['애브비', '일라이 릴리', '모더나']);
+  assert.equal(healthcare.children[1].children[1].children[1].textContent, '-1.25%');
   assert.deepEqual(rowFor('커뮤니케이션').children[1].children.map((tile) => tile.children[0].textContent),
     ['알파벳 Class C', '메타', '넷플릭스']);
   const utilities = rowFor('유틸리티');
@@ -245,6 +253,8 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.deepEqual(themeRows[0].children[1].children.map((tile) => tile.children[0].textContent),
     ['AMD', '엔비디아', '브로드컴']);
   assert.equal(themeRows[1].children[1].children[0].children[0].textContent, '모더나');
+  assert.deepEqual(themeRows[1].children[1].children.map((tile) => tile.children[0].textContent),
+    ['모더나', '길리어드', '리제네론']);
   assert.equal(themeRows[2].children[1].children[0].children[0].textContent, '코인베이스');
 });
 
@@ -262,12 +272,13 @@ test('industry map consumes fresh Kiwoom websocket quotes for its selected stock
   ]);
   const technology = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '정보기술');
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
-    ['AMD', '브로드컴', '엔비디아']);
-  assert.equal(technology.children[1].children[2].children[1].textContent, '-3.20%');
+    ['AMD', '앤스로픽', '브로드컴']);
+  assert.equal(technology.children[1].children[1].children[1].textContent, '+3.00%');
   assert.equal(technology.children[0].children.length, 2);
   assert.equal(technology.children[0].children[1].textContent, '+1.75%');
   const semiconductor = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '반도체');
   assert.ok(semiconductor.children[1].children.some((tile) => tile.children[0].textContent === '엔비디아'));
+  assert.equal(semiconductor.children[1].children[2].children[1].textContent, '-3.20%');
 });
 
 test('industry tiles follow fresh ETF returns and reorder on quote updates', async () => {
