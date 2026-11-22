@@ -33,8 +33,6 @@ ANTHROPIC_LISTING_FALLBACK = {
     "symbol": "ANT",
     "name": "앤트로픽",
     "exchange": "ND",
-    "price": 88.91,
-    "change_pct": -8.50,
     "market_cap_usd": 1_190_000_000_000.0,
     "issuer_key": "US:ANTHROPIC",
     "market_cap_source": "stockanalysis.com",
@@ -217,7 +215,7 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         row = dict(item)
         # Keep a fourth candidate for software/biotech so the frontend can
         # remove the duplicate ticker and backfill the next market-cap name.
-        candidate_limit = 4 if row.get("key") in ("software", "biotech") else limit
+        candidate_limit = 5 if row.get("key") in ("software", "biotech") else limit
         row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:candidate_limit]]
         if not row["stocks"] and (row.get("codes") or row.get("code")):
             try:
@@ -239,6 +237,24 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                 ),
                 reverse=True,
             )[:candidate_limit]
+        elif row.get("key") == "biotech":
+            # The requested replacement removes AbbVie and Gilead from the
+            # biotech theme; backfill the next market-cap leaders instead.
+            stocks = [
+                dict(stock) for stock in row.get("stocks", [])
+                if str(stock.get("symbol") or "").strip().upper().removesuffix(".O").removesuffix(".N")
+                not in {"ABBV", "GILD"}
+            ]
+            row["stocks"] = sorted(
+                stocks,
+                key=lambda stock: (
+                    float(stock.get("market_cap_usd"))
+                    if isinstance(stock.get("market_cap_usd"), (int, float))
+                    and math.isfinite(float(stock.get("market_cap_usd")))
+                    else 0.0
+                ),
+                reverse=True,
+            )[:3]
         result["items"].append(row)
     if view == "heatmap":
         from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
@@ -272,7 +288,7 @@ def get_us_industry_stock_symbols():
     for sector in result.get("items", []):
         if not isinstance(sector, dict):
             continue
-        stock_limit = 4 if sector.get("key") in ("software", "biotech") else 3
+        stock_limit = 4 if sector.get("key") == "software" else 3
         for stock in sector.get("stocks", [])[:stock_limit]:
             if not isinstance(stock, dict):
                 continue
