@@ -21,8 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Preview the tested SPY/DIA candidate.
-          ref: 4008090a54102ac0ae714f0bca3acbfa4814afc8
+          # Preview the exact candidate branch based on current main.
+          ref: fix/industry-map-dedup-ant-20261122
       - name: Check Pages inputs
         run: |
           test -s frontend/index.html
