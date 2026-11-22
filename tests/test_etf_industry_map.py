@@ -133,10 +133,28 @@ class EtfIndustryMapTests(unittest.TestCase):
         ])
         with patch.object(industries, "_call", return_value={"list": records}) as call:
             actual = industries.fetch_us_etf_exchanges(token="test")
-        self.assertEqual(actual, expected)
-        self.assertEqual(len(actual), 16)
+        self.assertEqual(actual, {symbol: exchange for symbol, exchange in expected.items()
+                                  if symbol in industries.ETF_TICKERS})
+        self.assertEqual(len(actual), 14)
         self.assertEqual(set(actual), set(industries.ETF_TICKERS))
         call.assert_called_once_with("usa10104", {"stex_tp": "%"}, token="test")
+        with patch.object(industries, "_call", return_value={"list": records}):
+            widgets = industries.fetch_us_etf_exchanges(token="test", tickers={"SPY", "DIA"})
+        self.assertEqual(widgets, {"SPY": "NY", "DIA": "NY"})
+
+    def test_map_and_widget_quotes_are_requested_separately(self):
+        api._US_INDUSTRY_ETF_CACHE.clear()
+
+        def quotes(*, symbols):
+            return [{"symbol": symbol, "price": 100, "change_pct": 1,
+                     "received_at_ms": 1763850000000} for symbol in symbols]
+
+        with patch.object(industries, "fetch_us_etf_quotes", side_effect=quotes) as fetch:
+            industry = api._get_us_industry_etf_quotes()
+            widgets = api._get_us_industry_etf_quotes(symbols={"SPY", "DIA"})
+        self.assertEqual({row["symbol"] for row in industry}, industries.ETF_TICKERS)
+        self.assertEqual({row["symbol"] for row in widgets}, {"SPY", "DIA"})
+        self.assertEqual(fetch.call_count, 2)
 
     def test_missing_etf_quotes_overlap_without_extra_calls(self):
         symbols = ("DIA", "SPY", "XLK")
