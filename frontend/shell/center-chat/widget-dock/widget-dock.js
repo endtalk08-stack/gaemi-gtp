@@ -320,7 +320,8 @@
       window.GaemiGTPAnalysisWidgets?.mount?.(node.dataset.centralWidgetMount, node);
     });
     if (window.lucide) window.lucide.createIcons();
-    ['QQQ', 'SPY', 'DIA'].forEach(updateMarketWidgetCard);
+    updateQqqCard();
+    ['SPY', 'DIA'].forEach(updateMarketWidgetCard);
 
   }
   function setChartSelection(symbol) {
