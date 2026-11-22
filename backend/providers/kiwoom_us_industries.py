@@ -703,3 +703,18 @@ def fetch_us_bitcoin_related_stocks(*, token=None):
                      "price": _positive_price(record.get("cur_prc"))})
     rows.sort(key=lambda row: row["market_cap_usd"], reverse=True)
     return [{**row, "rank": index} for index, row in enumerate(rows[:3], 1)]
+
+
+def fetch_us_anthropic_stock(*, token=None):
+    """Verify ANT against Kiwoom before adding it to the requested IT slot."""
+    record = _call("usa20100", {"stex_tp": "ND", "stk_cd": "ANT"},
+                   token=token or _access_token())
+    cap = _number(record.get("mac"))
+    if (str(record.get("stk_cd") or "").strip().upper() != "ANT"
+            or str(record.get("stex_tp") or "").strip().upper() != "ND"
+            or cap is None or cap <= 0):
+        return None
+    return {"symbol": "ANT", "exchange": "ND", "name": "앤스로픽",
+            "issuer_key": "US:ANTHROPIC", "market_cap_usd": cap * 1000,
+            "change_pct": _number(record.get("flu_rt")),
+            "price": _positive_price(record.get("cur_prc"))}
