@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/check_industry_release_baseline_20261120.py",
-  "request_id": "industryreleasecheck20261122",
+  "path": "ops/do-gateway/verify_three_industry_stocks_20261121.py",
+  "request_id": "industryantfinal20261122",
   "timeout": 90
 }
