@@ -183,8 +183,7 @@
     card.querySelector('[data-kospi-price]').textContent = fresh
       ? quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
     const changeNode = card.querySelector('[data-kospi-change]');
-    changeNode.textContent = change === null ? '—' : (recentSnapshot ? '최근 ' : '')
-      + (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+    changeNode.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
     changeNode.classList.toggle('central-widget-card__kospi-change--up', change > 0);
     changeNode.classList.toggle('central-widget-card__kospi-change--down', change < 0);
     const chart = card.querySelector('.central-widget-card__sparkline');
