@@ -21,12 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Pin the heatmap source for this preview push only.
-          ref: >-
-            ${{ github.event_name == 'push'
-              && github.event.before == '94d9d2adefd6f389f49753f4931f646cd668e662'
-              && '55880e7fea992ee37c8645e1b3adf490827dbd1c'
-              || github.sha }}
+          # Preview the exact candidate branch based on current main.
+          ref: fix/industry-map-ant-gild-20261122
       - name: Check Pages inputs
         run: |
           test -s frontend/index.html
@@ -38,6 +34,8 @@ jobs:
           grep -Fq 'data-qqq-reason' frontend/shell/center-chat/widget-dock/widget-dock.js
           grep -Fq '#bfc3cb' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq "key === 'information_technology' && symbolKey === 'NVDA'" frontend/shell/left-market-sidebar/market-sidebar.js
+          grep -Fq "!== 'ABBV'" frontend/shell/left-market-sidebar/market-sidebar.js
       - name: Deploy to existing Pages project preview
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -112,15 +110,18 @@ jobs:
                 (.industry | type == "string" and length > 0)))
           ' "$RUNNER_TEMP/us-trading-value.json"
 
-      - name: Verify live 11-industry data and three stocks per industry
+      - name: Verify live industry candidates for ANT and GILD
         run: |
-          curl -fLsS --compressed --retry 2 --retry-all-errors --retry-delay 2 --max-time 30 \
+          curl -fLsS --compressed --retry 2 --retry-all-errors --retry-delay 2 --max-time 45 \
             "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap" \
             -o "$RUNNER_TEMP/us-industries.json"
           jq -e '
             .ok == true and .heatmap_ready == true and
-            (.items | type == "array" and length == 11) and
-            all(.items[]; (.stocks | type == "array" and length >= 3))
+            (.items | type == "array" and length == 16) and
+            all(.items[]; (.stocks | type == "array" and length >= 3)) and
+            any(.items[]; .key == "software" and any(.stocks[]; .symbol == "ANT")) and
+            any(.items[]; .key == "biotech" and any(.stocks[]; .symbol == "GILD")) and
+            any(.items[]; .key == "semiconductors" and any(.stocks[]; .symbol == "NVDA"))
           ' "$RUNNER_TEMP/us-industries.json"
-          echo "Verified all 11 industries have at least three Kiwoom-ranked stocks"
+          echo "Verified ANT in software, GILD in biotech, and NVDA in semiconductors"
 
