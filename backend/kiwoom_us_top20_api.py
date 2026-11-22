@@ -27,18 +27,6 @@ _US_PLATFORM_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_MAP_TTL = 60
 _US_INDUSTRY_STOCK_TTL = 1800
 
-# Nasdaq-listed Anthropic is not yet returned by Kiwoom's software-industry
-# ranking. Keep a dated market-cap fallback until the official ranking includes ANT.
-ANTHROPIC_LISTING_FALLBACK = {
-    "symbol": "ANT",
-    "name": "앤트로픽",
-    "exchange": "ND",
-    "market_cap_usd": 1_190_000_000_000.0,
-    "issuer_key": "US:ANTHROPIC",
-    "market_cap_source": "stockanalysis.com",
-    "market_cap_as_of": "2026-11-20",
-}
-
 
 def _safe_industry_error(exc):
     value = str(exc)
@@ -213,48 +201,13 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         if not isinstance(item, dict):
             continue
         row = dict(item)
-        # Keep a fourth candidate for software/biotech so the frontend can
-        # remove the duplicate ticker and backfill the next market-cap name.
-        candidate_limit = 5 if row.get("key") in ("software", "biotech") else limit
-        row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:candidate_limit]]
+        row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:limit]]
         if not row["stocks"] and (row.get("codes") or row.get("code")):
             try:
                 stock_result = _get_us_industry_stocks(str(row.get("key") or ""), "marketcap", sector_map=source)
-                row["stocks"] = stock_result.get("items", [])[:candidate_limit]
+                row["stocks"] = stock_result.get("items", [])[:limit]
             except Exception as exc:
                 row["stocks_error"] = _safe_industry_error(exc)
-        if row.get("key") == "software":
-            stocks = [dict(stock) for stock in row.get("stocks", [])]
-            if not any(str(stock.get("symbol") or "").strip().upper() == "ANT" for stock in stocks):
-                stocks.append(dict(ANTHROPIC_LISTING_FALLBACK))
-            row["stocks"] = sorted(
-                stocks,
-                key=lambda stock: (
-                    float(stock.get("market_cap_usd"))
-                    if isinstance(stock.get("market_cap_usd"), (int, float))
-                    and math.isfinite(float(stock.get("market_cap_usd")))
-                    else 0.0
-                ),
-                reverse=True,
-            )[:candidate_limit]
-        elif row.get("key") == "biotech":
-            # The requested replacement removes AbbVie and Gilead from the
-            # biotech theme; backfill the next market-cap leaders instead.
-            stocks = [
-                dict(stock) for stock in row.get("stocks", [])
-                if str(stock.get("symbol") or "").strip().upper().removesuffix(".O").removesuffix(".N")
-                not in {"ABBV", "GILD"}
-            ]
-            row["stocks"] = sorted(
-                stocks,
-                key=lambda stock: (
-                    float(stock.get("market_cap_usd"))
-                    if isinstance(stock.get("market_cap_usd"), (int, float))
-                    and math.isfinite(float(stock.get("market_cap_usd")))
-                    else 0.0
-                ),
-                reverse=True,
-            )[:3]
         result["items"].append(row)
     if view == "heatmap":
         from backend.providers.kiwoom_us_industries import fetch_us_bitcoin_related_stocks
@@ -282,14 +235,13 @@ def _get_us_industry_map_with_stocks(view="legacy"):
 
 
 def get_us_industry_stock_symbols():
-    """Return visible market-cap leaders plus one backfill candidate for software/biotech."""
+    """Return only the top-three market-cap stocks from each heatmap sector."""
     result = _get_us_industry_map_with_stocks("heatmap")
     symbols = {}
     for sector in result.get("items", []):
         if not isinstance(sector, dict):
             continue
-        stock_limit = 4 if sector.get("key") == "software" else 3
-        for stock in sector.get("stocks", [])[:stock_limit]:
+        for stock in sector.get("stocks", [])[:3]:
             if not isinstance(stock, dict):
                 continue
             symbol = str(stock.get("symbol") or "").strip().upper()
