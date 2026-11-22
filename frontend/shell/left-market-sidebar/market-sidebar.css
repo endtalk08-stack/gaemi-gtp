@@ -376,6 +376,20 @@
 .industry-map-row .industry-map-stocks {
   grid-column: span 3;
 }
+/* Preserve the three largest IT stocks and add the requested ANT listing. */
+.industry-map-row-has-anthropic {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.industry-map-row-has-anthropic .industry-map-stocks {
+  grid-column: span 4;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.industry-map-row-has-anthropic .industry-map-stock-name {
+  font-size: 10px;
+}
+.industry-map-row-has-anthropic .industry-map-stock-change {
+  font-size: 12px;
+}
 .industry-map-empty {
   grid-column: 1 / -1;
   min-height: 28px;

@@ -144,7 +144,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
           { key: 'semiconductors', name: '반도체', change_pct: 1.8, stocks: [
             { name: 'AMD', symbol: 'AMD.O', change_pct: 5, market_cap_usd: 100 },
             { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, market_cap_usd: 1000 },
-            { name: '브로드컴', symbol: 'AVGO.O', change_pct: 1.5, market_cap_usd: 500 },
+            { name: 'TSMC(ADR)', symbol: 'TSM.N', change_pct: -9.48, market_cap_usd: 1650 },
+            { name: '브로드컴', symbol: 'AVGO.O', change_pct: 1.5, market_cap_usd: 1450 },
             { name: '마이크론', symbol: 'MU.O', change_pct: 20, market_cap_usd: 50 },
           ] },
           { key: 'healthcare', name: '헬스케어', change_pct: -0.8, stocks: [
@@ -235,7 +236,8 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   assert.equal(technology.children[0].children[1].textContent, '—');
   assert.equal(technology.children[0].children.length, 2);
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
-    ['애플', '마이크로소프트', '앤트로픽']);
+    ['애플', '마이크로소프트', 'TSMC(ADR)', '앤트로픽']);
+  assert.ok(technology.className.includes('industry-map-row-has-anthropic'));
   assert.equal(technology.children[1].children[0].children[1].textContent, '-1.90%');
   assert.equal(technology.children[1].children.some((tile) => tile.children[0].textContent === '엔비디아'), false);
   const healthcare = rowFor('헬스케어');
@@ -282,8 +284,10 @@ test('industry map consumes fresh Kiwoom websocket quotes for its selected stock
   ]);
   const technology = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '정보기술');
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
-    ['애플', '마이크로소프트', '앤트로픽']);
-  assert.equal(technology.children[1].children[2].children[1].textContent, '-3.20%');
+    ['애플', '마이크로소프트', '앤트로픽', 'TSMC(ADR)']);
+  const anthropicTile = technology.children[1].children.find((tile) =>
+    tile.children[0].textContent === '앤트로픽');
+  assert.equal(anthropicTile.children[1].textContent, '-3.20%');
   assert.equal(technology.children[0].children.length, 2);
   assert.equal(technology.children[0].children[1].textContent, '+1.75%');
   const semiconductor = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '반도체');
