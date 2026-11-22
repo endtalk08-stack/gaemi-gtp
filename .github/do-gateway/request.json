@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_industry_release_baseline_20261120.py",
-  "request_id": "etf-isolation-20261123",
-  "timeout": 180
+  "operation": "status"
 }
