@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_industry_release_baseline_20261120.py",
-  "request_id": "industryrollbackverify20261122",
-  "timeout": 90
+  "operation": "status"
 }
