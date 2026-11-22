@@ -1,6 +1,6 @@
 {
   "operation": "run",
   "path": "ops/do-gateway/verify_three_industry_stocks_20261121.py",
-  "request_id": "industrymapfinalverify20261122",
+  "request_id": "industrymapfinalverify2-20261122",
   "timeout": 60
 }
