@@ -95,6 +95,16 @@ def main():
     except (OSError, ValueError) as exc:
         result["catalog"] = {"error": type(exc).__name__}
 
+    try:
+        request = urllib.request.Request("https://127.0.0.1/market/us-etf-quotes",
+                                         headers={"Origin": "https://gaemigtp-main.pages.dev"})
+        with urllib.request.urlopen(request, context=ssl._create_unverified_context(), timeout=20) as response:
+            widget_data = json.load(response)
+        result["widget_etfs"] = {"ok": widget_data.get("ok"),
+                                 "symbols": sorted(row.get("symbol") for row in widget_data.get("items", []))}
+    except (OSError, ValueError) as exc:
+        result["widget_etfs"] = {"error": type(exc).__name__}
+
     print("INDUSTRY_RELEASE_BASELINE=" + json.dumps(result), flush=True)
 
 
