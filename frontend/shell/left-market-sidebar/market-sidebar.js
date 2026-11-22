@@ -376,10 +376,8 @@
       });
     };
     const loadIndustryMap = async (id) => {
-      if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) {
-        if (id === requestId) renderIndustryMap(industryMapData);
-        return;
-      }
+      if (industryMapData && id === requestId) renderIndustryMap(industryMapData);
+      if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) return;
       if (industryMapPromise) {
         try {
           const data = await industryMapPromise;
@@ -500,8 +498,8 @@
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
-      list.classList?.remove?.('industry-map-list');
-      if (tab !== 'value') {
+      if (tab !== 'industry') list.classList?.remove?.('industry-map-list');
+      if (tab !== 'value' && !(tab === 'industry' && industryMapData)) {
         const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
         if (displayedRows.length) cachedRankingRows = displayedRows;
         list.replaceChildren();
@@ -515,8 +513,8 @@
         return;
       }
       if (tab === 'industry') {
-        await loadIndustryMap(id);
         syncQqqSocket();
+        await loadIndustryMap(id);
         return;
       }
       if (tab !== 'value') return;
