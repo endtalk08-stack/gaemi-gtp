@@ -252,7 +252,7 @@
         const sourceStocks = sources.flatMap((source) =>
           Array.isArray(source.stocks) ? source.stocks : []);
         const seenIssuers = new Set();
-        const stocks = sourceStocks.sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).filter((stock) => {
+        const uniqueStocks = sourceStocks.sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).filter((stock) => {
           if (!stock || typeof stock.name !== 'string' || !stock.name.trim()) return false;
           const symbolKey = String(stock.symbol || stock.name).trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
           const issuerKey = stock.issuer_key || (['GOOG', 'GOOGL'].includes(symbolKey) ? 'US:ALPHABET'
@@ -263,7 +263,17 @@
           if (seenIssuers.has(issuerKey)) return false;
           seenIssuers.add(issuerKey);
           return true;
-        }).slice(0, 3);
+        });
+        const topStocks = uniqueStocks.slice(0, 3);
+        // Anthropic is an explicitly requested newly listed AI company. Keep the
+        // three largest IT names and show ANT as a fourth, separately visible tile.
+        const anthropic = key === 'information_technology'
+          ? uniqueStocks.find((stock) =>
+            String(stock.symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '') === 'ANT')
+          : null;
+        const stocks = anthropic && !topStocks.some((stock) =>
+          String(stock.symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '') === 'ANT')
+          ? [...topStocks, anthropic] : topStocks;
         const changes = sources.map((source) => source.change_pct).filter(Number.isFinite);
         const changePct = changes.length
           ? changes.reduce((total, value) => total + value, 0) / changes.length : null;
@@ -310,7 +320,10 @@
         const sectorPct = etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null;
         const sectorColor = mapTileColor(sectorPct);
         const row = document.createElement('div');
-        row.className = 'industry-map-row';
+        row.className = 'industry-map-row'
+          + (sector.key === 'information_technology' && ranked.some((stock) =>
+            String(stock.symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '') === 'ANT')
+            ? ' industry-map-row-has-anthropic' : '');
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone
           + (sector.themeTone ? ' industry-map-sector-theme' : '');
