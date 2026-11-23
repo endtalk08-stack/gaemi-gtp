@@ -177,6 +177,10 @@
     let industryLiveQuotes = [];
     let industryRestQuotes = [];
     const industryLastVerifiedQuotes = new Map();
+    const industryEtfSymbols = new Set([
+      'XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP',
+      'XLE', 'XLU', 'XLRE', 'XLB', 'SOXX', 'XBI', 'IBIT'
+    ]);
     // Last displayed change-% text per sector/stock, so a re-render can tell
     // whether the printed number actually moved and flash the badge only then
     // (not on every 20s/websocket re-render when nothing changed).
@@ -184,6 +188,30 @@
     const industryFlashStockPrev = new Map();
     const flashClassFor = (tone) => tone === 'is-up' ? 'flash-up' : tone === 'is-down' ? 'flash-down' : 'flash-flat';
     const industrySymbol = (symbol) => String(symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
+    // Keep one last valid quote per ETF, including quiet/stale WebSocket
+    // snapshots. A subscribed ticker may have no new trade for hours.
+    const rememberIndustryEtfQuotes = (items, source) => {
+      if (!Array.isArray(items)) return;
+      const now = Date.now();
+      items.forEach((quote) => {
+        const symbol = industrySymbol(quote?.symbol);
+        if (!industryEtfSymbols.has(symbol)
+            || !Number.isFinite(quote?.price) || quote.price <= 0
+            || !Number.isFinite(quote?.change_pct)
+            || !Number.isFinite(quote?.received_at_ms)
+            || quote.received_at_ms > now + 5000
+            || now - quote.received_at_ms > 72 * 60 * 60 * 1000) return;
+        const previous = industryLastVerifiedQuotes.get(symbol);
+        const fromWebSocket = source === 'websocket';
+        // A fresh REST snapshot must not override a confirmed live FE rate.
+        // After a day, allow a newer REST close to replace an older session.
+        if (previous?.fromWebSocket && !fromWebSocket
+            && now - previous.received_at_ms < 24 * 60 * 60 * 1000) return;
+        if (previous?.fromWebSocket === fromWebSocket
+            && previous.received_at_ms > quote.received_at_ms) return;
+        industryLastVerifiedQuotes.set(symbol, { ...quote, fromWebSocket });
+      });
+    };
     const industryQuoteFor = (symbol) => {
       const now = Date.now();
       const key = industrySymbol(symbol);
@@ -200,7 +228,7 @@
       // changing) should replace it -- never just the clock running out.
       const retained = industryLastVerifiedQuotes.get(key);
       const referenceDate = marketQqqQuote?.reference_close_date;
-      if (retained && (!referenceDate || retained.reference_close_date === referenceDate)) return retained;
+      if (retained && (!referenceDate || !retained.reference_close_date || retained.reference_close_date === referenceDate)) return retained;
       return industryRestQuotes.find((quote) =>
         industrySymbol(quote.symbol) === key
         && Number.isFinite(quote.change_pct)
@@ -222,13 +250,15 @@
         });
         if (!response.ok) throw new Error('industry_etf_rates_unavailable');
         const data = await response.json();
-        if (data?.ok !== true || !Array.isArray(data.items) || data.items.length !== 14)
-          throw new Error('invalid_industry_etf_rates');
-        // One verified quote per ETF. Preserve the stock membership and ordering.
+        const etfItems = Array.isArray(data?.items)
+          ? data.items.filter((quote) => industryEtfSymbols.has(industrySymbol(quote?.symbol))) : [];
+        if (data?.ok !== true || !etfItems.length) throw new Error('invalid_industry_etf_rates');
+        // Partial responses update only valid ETFs. Keep the last rate for absent ETFs.
         if (!sidebarActive() || tab !== 'industry') return;
-        industryRestQuotes = data.items;
+        rememberIndustryEtfQuotes(etfItems, 'rest');
+        industryRestQuotes = etfItems;
         if (industryMapData) {
-          industryMapData = { ...industryMapData, etf_quotes: data.items };
+          industryMapData = { ...industryMapData, etf_quotes: etfItems };
           renderIndustryMap(industryMapData);
         }
       } catch (_) {
@@ -267,6 +297,7 @@
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
       if (Array.isArray(data?.etf_quotes) && data.etf_quotes.length) {
+        rememberIndustryEtfQuotes(data.etf_quotes, 'rest');
         industryRestQuotes = data.etf_quotes;
       }
       // Select companies by market cap first; order only the selected three by return.
@@ -941,9 +972,11 @@
     const publishIndustryQuotes = items => {
       const now = Date.now();
       industryLiveQuotes = items.filter(quote => freshQuote(quote, now));
+      rememberIndustryEtfQuotes(items, 'websocket');
       // A confirmed close-based percentage is still useful when an individual
       // stock has not traded again in the past 25 seconds.
       items.forEach(quote => {
+        if (industryEtfSymbols.has(industrySymbol(quote?.symbol))) return;
         if (Number.isFinite(quote?.change_pct) && quote.reference_close_date
             && Number.isFinite(quote.received_at_ms)
             && quote.received_at_ms <= now + 5000
