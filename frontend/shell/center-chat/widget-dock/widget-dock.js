@@ -292,8 +292,8 @@
         const symbol = id.toUpperCase();
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="${symbol} ${isEtf ? '위젯 삭제' : '왼쪽으로 이동'}" title="${isEtf ? '위젯 삭제' : '왼쪽으로 이동'}">
-            <i data-lucide="${isEtf ? 'x' : 'panel-left'}" class="w-3 h-3"></i>
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="${symbol} 위젯 삭제" title="위젯 삭제">
+            <i data-lucide="x" class="w-3 h-3"></i>
           </button>
           <div class="central-widget-card__kospi-title"><span>${symbol}</span><span class="central-widget-card__kospi-market-name">${id === 'spy' ? 'S&P 500' : id === 'dia' ? '다우' : '나스닥'}</span></div>
           <div class="central-widget-card__kospi-body" aria-label="${symbol} 키움 실시간 체결가 차트">
@@ -615,9 +615,7 @@
       const button = event.target.closest('[data-central-widget-remove]');
       if (!button) return;
       const id = button.dataset.centralWidgetRemove;
-      if (id === 'qqq') window.GaemiGTPMarketSidebar?.openMarketTab?.();
       remove(id);
-      if (id === 'qqq') document.querySelector('[data-market-qqq] button')?.focus();
     });
   }
   document.addEventListener('DOMContentLoaded', initialize);
