@@ -1,4 +1,6 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service"
+  "operation": "run",
+  "path": "ops/do-gateway/check_missing_reference_20261123.py",
+  "request_id": "usmissingafterfix20261123b",
+  "timeout": 180
 }
