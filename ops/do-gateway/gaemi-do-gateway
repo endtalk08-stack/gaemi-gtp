@@ -124,8 +124,8 @@ import os, pathlib, re, tempfile
 root = pathlib.Path('/etc/gaemigtp')
 removed = []
 keys = {'NEWS_DATABASE_URL', 'DISCLOSURE_NEON_READ', 'DISCLOSURE_NEON_ONLY'}
-for path in root.glob('*.env'):
-    if path.is_symlink() or not path.is_file():
+for path in root.iterdir():
+    if '.env' not in path.name or path.is_symlink() or not path.is_file():
         continue
     old = path.read_text(encoding='utf-8')
     kept = []
