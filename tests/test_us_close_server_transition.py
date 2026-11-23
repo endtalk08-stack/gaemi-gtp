@@ -2,6 +2,7 @@
 import datetime as dt
 import json
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -119,9 +120,11 @@ class UsCloseHandoffTests(unittest.TestCase):
         for sym in ("SPY", "DIA"):
             self.assertTrue(api._us_close_remember(self.quote(sym, 500.0, 1.6), now=CAPTURE))
         original = api._us_close_get
-        with patch.object(api, "_us_close_get", side_effect=lambda sym: original(sym, now=HOLD)), \
-             patch.object(api, "_market_widget_snapshot", return_value=[]), \
-             patch("backend.providers.kiwoom_us_quotes.fetch_us_quote", side_effect=AssertionError("unnecessary REST")):
+        fake_quotes = types.ModuleType("backend.providers.kiwoom_us_quotes")
+        fake_quotes.fetch_us_quote = lambda *_: self.fail("REST must not run for stored close")
+        with patch.dict("sys.modules", {"backend.providers.kiwoom_us_quotes": fake_quotes}), \
+             patch.object(api, "_us_close_get", side_effect=lambda sym: original(sym, now=HOLD)), \
+             patch.object(api, "_market_widget_snapshot", return_value=[]):
             rows = api._get_market_widget_quotes()
         self.assertEqual([row["symbol"] for row in rows], ["DIA", "SPY"])
         self.assertTrue(all(row["change_pct"] == 1.6 and row["price"] == 500.0 for row in rows))
