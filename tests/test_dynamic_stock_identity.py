@@ -6,7 +6,6 @@ from backend.analysis.news.stock_identity import (
     resolve_us_identity, news_snapshot_names, normalize_us_ticker,
 )
 from backend.analysis.news.catalog import canonical_us_news_name
-from backend.services.stock_identity_store import register_us_ranking_instruments
 from backend.services import market_issue_headlines
 from backend.services import news_result
 
@@ -119,54 +118,29 @@ class IdentityTests(unittest.TestCase):
 
     def test_company_share_classes_keep_original_snapshot_fallback(self):
         from backend.services.news_identity_registry import resolve_us_news_identity
-        with patch("backend.services.news_identity_registry._registry", return_value=()):
-            result = resolve_us_news_identity("알파벳 Class C")
+        result = resolve_us_news_identity("알파벳 Class C")
         self.assertIn("알파벳 Class A", result["snapshot_names"])
         self.assertEqual(result["ticker"], "GOOG")
 
     def test_conflicting_ticker_never_cross_joins_stock_news(self):
         from backend.services.news_identity_registry import resolve_us_news_identity
-        with patch("backend.services.news_identity_registry._registry", return_value=()):
-            result = resolve_us_news_identity("알파벳 Class A", "AAPL.O")
+        result = resolve_us_news_identity("알파벳 Class A", "AAPL.O")
         self.assertEqual(result["status"], "pending")
         self.assertEqual(result["search_terms"], ["알파벳 Class A"])
         self.assertEqual(result["snapshot_names"], ["알파벳 Class A"])
 
-    def test_sidebar_marks_follow_existing_neon_ticker_registry(self):
-        """Verified registry identities remain strict without deleted ranking enrichers."""
+    def test_local_verified_catalog_resolves_share_classes_without_database(self):
         from backend.services.news_identity_registry import resolve_us_news_identity
-        registry = (
-            {"ticker": "GOOGL", "label": "알파벳 Class A", "news": "알파벳",
-             "key": "US:ALPHABET", "status": "verified"},
-            {"ticker": "GOOG", "label": "알파벳 Class C", "news": "알파벳",
-             "key": "US:ALPHABET", "status": "verified"},
-            {"ticker": "NEW", "label": "미등록 상장사", "news": "미등록 상장사",
-             "key": "US:NEW", "status": "pending"},
-            {"ticker": "AAPL", "label": "Apple", "news": "애플",
-             "key": "US:AAPL", "status": "verified"},
-        )
-        stocks = [
-            {"name": "알파벳 Class A", "symbol": "GOOGL.O"},
-            {"name": "알파벳 Class C", "symbol": "GOOG.O"},
-            {"name": "미등록 상장사", "symbol": "NEW.O"},
-            {"name": "Apple", "symbol": "AAPL.O"},
-        ]
-        with patch("backend.services.news_identity_registry._registry",
-                   return_value=registry) as read_registry:
-            identities = [
-                resolve_us_news_identity(item["name"], symbol=item["symbol"])
-                for item in stocks
-            ]
-        self.assertEqual(read_registry.call_count, len(stocks))
-        self.assertEqual([item["status"] for item in identities],
-                         ["verified", "verified", "pending", "verified"])
-        self.assertEqual([item["company_key"] for item in identities[:2]],
-                         ["US:ALPHABET", "US:ALPHABET"])
-        self.assertEqual([item["ticker"] for item in identities[:2]],
-                         ["GOOGL", "GOOG"])
-        self.assertEqual(identities[2]["snapshot_names"], ["미등록 상장사"])
-        self.assertEqual(identities[3]["ticker"], "AAPL")
-        self.assertEqual(identities[3]["news_name"], "애플")
+        a = resolve_us_news_identity("알파벳 Class A", "GOOGL.O")
+        c = resolve_us_news_identity("알파벳 Class C", "GOOG.O")
+        self.assertEqual(a["status"], "verified")
+        self.assertEqual(c["status"], "verified")
+        self.assertEqual(a["company_key"], c["company_key"])
+        self.assertEqual(a["ticker"], "GOOGL")
+        self.assertEqual(c["ticker"], "GOOG")
+        pending = resolve_us_news_identity("미등록 상장사", "NEW.O")
+        self.assertEqual(pending["status"], "pending")
+        self.assertEqual(pending["snapshot_names"], ["미등록 상장사"])
 
     def test_logo_lookup_does_not_change_pending_news_identity(self):
         """Pending tickers retain their own news; logos are checked separately."""
@@ -176,12 +150,10 @@ class IdentityTests(unittest.TestCase):
             {"name": "블룸 에너지", "symbol": "BE"},
             {"name": "어플라이드 머티어리얼즈", "symbol": "AMAT.O"},
         ]
-        with patch("backend.services.news_identity_registry._registry",
-                   return_value=()):
-            identities = [
-                resolve_us_news_identity(item["name"], symbol=item["symbol"])
-                for item in sources
-            ]
+        identities = [
+            resolve_us_news_identity(item["name"], symbol=item["symbol"])
+            for item in sources
+        ]
         self.assertEqual([row["ticker"] for row in identities],
                          ["LRCX", "BE", "AMAT"])
         self.assertEqual([row["status"] for row in identities],
@@ -191,10 +163,6 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual([row["news_name"] for row in identities],
                          [item["name"] for item in sources])
 
-    def test_registration_does_not_run_without_connection(self):
-        with patch.dict("os.environ", {"NEWS_DATABASE_URL": ""}):
-            self.assertEqual(register_us_ranking_instruments(
-                [{"name":"신규", "symbol":"NEW.O"}]),0)
 
 
 if __name__ == "__main__":
