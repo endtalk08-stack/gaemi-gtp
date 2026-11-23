@@ -1,0 +1,48 @@
+name: gaemigtp-main 30-minute US close transition preview
+
+on:
+  push:
+    branches: [ops/regular-close-30m-hold-20261124]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check isolated US close transition
+        run: |
+          node --check frontend/shell/us-regular-close-hold.js
+          node --check frontend/shell/left-market-sidebar/market-sidebar.js
+          node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          node --test tests/test_us_regular_close_handoff.cjs
+          node --test tests/test_market_three_last_quotes.cjs
+          node --test tests/test_market_polling_cost.cjs
+          node --test tests/test_sidebar_issue_sync.cjs
+          grep -Fq 'shell/us-regular-close-hold.js?v=20261124-close30m-v1' frontend/index.html
+          grep -Fq 'market-sidebar.js?v=20261124-close30m-v1' frontend/index.html
+          grep -Fq 'widget-dock.js?v=20261124-close30m-v1' frontend/index.html
+          test -s functions/market/qqq-reason.js
+          test -s functions/market/us-daily-chart.js
+      - name: Deploy existing Pages preview with Functions
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        env:
+          npm_config_yes: "true"
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch close30m-preview-20261124
+      - name: Confirm preview URL
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          case "$PREVIEW_URL" in
+            https://*.gaemigtp-main.pages.dev) ;;
+            *) echo "::error::Invalid preview deployment"; exit 1 ;;
+          esac
+          echo "[Preview]($PREVIEW_URL)" >> "$GITHUB_STEP_SUMMARY"
