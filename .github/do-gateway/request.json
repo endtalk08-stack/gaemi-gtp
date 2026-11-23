@@ -1,4 +1,4 @@
 {
   "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service"
+  "unit": "gaemigtp-kiwoom-us-top20-https.service"
 }
