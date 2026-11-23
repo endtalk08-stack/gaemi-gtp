@@ -193,7 +193,7 @@ def _get_us_industry_etf_quotes():
         quote = live.get(symbol) or fallback.get(symbol) or {}
         result.append({
             "symbol": symbol,
-            "change_pct": quote.get("change_pct"),
+            "change_pct": quote.get("change_pct") if symbol in live else None,
             "received_at_ms": quote.get("received_at_ms", 0),
             "stale": symbol not in live,
             "source": "kiwoom:websocket" if symbol in live else "kiwoom:rest",
@@ -276,6 +276,10 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         result["etf_quotes"] = etf_quotes
     else:
         result["items"] = [row for row in map(add_stocks, source.get("items", [])) if row]
+    for row in result["items"]:
+        row["change_pct"] = None
+        for stock in row.get("stocks", []):
+            stock["change_pct"] = None
     result["sort"] = "marketcap"
     return result
 
@@ -368,7 +372,8 @@ def _publish_live_quote(quote):
         change = None
     safe = {
         "symbol": symbol, "price": float(price),
-        "change_pct": float(change) if change is not None else None,
+        "change_pct": float(change) if change is not None and quote.get("reference_close_date") else None,
+        "reference_close_date": quote.get("reference_close_date"),
         "received_at_ms": int(time.time() * 1000), "stale": False,
         "source": "kiwoom:websocket",
     }
@@ -459,17 +464,15 @@ def _get_qqq_rest_snapshot():
 
             result = fetch_us_quote("QQQ", "ND")
             price = result.get("current") if isinstance(result, dict) else None
-            change = result.get("change_pct") if isinstance(result, dict) else None
+            from backend.us_quote_change import validated_change
             if isinstance(price, bool) or not isinstance(price, (int, float)) or not 0 < price < 10000000:
                 raise ValueError("qqq_rest_price_missing")
-            if (isinstance(change, bool) or
-                    (change is not None and (not isinstance(change, (int, float))
-                                             or not -100 < change < 10000))):
-                change = None
+            change, close_date = validated_change("QQQ", "ND", float(price))
             quote = {
                 "symbol": "QQQ",
                 "price": float(price),
                 "change_pct": float(change) if change is not None else None,
+                "reference_close_date": close_date,
                 "received_at_ms": int(time.time() * 1000),
                 "stale": False,
                 "source": "kiwoom:rest",
@@ -494,23 +497,27 @@ def _get_market_widget_quotes():
     from backend.providers.kiwoom_us_quotes import fetch_us_quote
 
     live = {quote["symbol"]: quote for quote in _market_widget_snapshot()
-            if not quote["stale"] and quote["change_pct"] is not None}
+            if not quote["stale"]}
     for symbol in MARKET_WIDGET_ETF_EXCHANGES.keys() - live.keys():
         with _MARKET_WIDGET_REST_LOCK:
             refresh_at, quote = _MARKET_WIDGET_REST_CACHE.get(symbol, (0.0, None))
             if time.monotonic() >= refresh_at:
                 try:
                     result = fetch_us_quote(symbol, MARKET_WIDGET_ETF_EXCHANGES[symbol])
-                    price, change = result["current"], result["change_pct"]
-                    if (type(price) not in (int, float) or not 0 < price < 10000000
-                            or type(change) not in (int, float) or not -100 < change < 10000):
+                    price = result["current"]
+                    if type(price) not in (int, float) or not 0 < price < 10000000:
+                        raise ValueError("market_widget_rest_quote_missing")
+                    from backend.us_quote_change import validated_change
+                    change, close_date = validated_change(symbol, MARKET_WIDGET_ETF_EXCHANGES[symbol], float(price))
+                    if change is not None and not -100 < change < 10000:
                         raise ValueError("market_widget_rest_quote_missing")
                 except Exception:
                     refresh_at = time.monotonic() + _QQQ_REST_RETRY_TTL
                 else:
                     refresh_at = time.monotonic() + _QQQ_REST_TTL
                     quote = {
-                        "symbol": symbol, "price": float(price), "change_pct": float(change),
+                        "symbol": symbol, "price": float(price), "change_pct": change,
+                        "reference_close_date": close_date,
                         "received_at_ms": int(time.time() * 1000), "stale": False,
                         "source": "kiwoom:rest",
                     }
@@ -644,7 +651,7 @@ def read_top20(path=RANKING_FILE):
             "exchange": row.get("exchange"),
             "company_key": row.get("company_key"),
             "price": row.get("price"),
-            "change_pct": row.get("change_pct"),
+            "change_pct": None,
             "trading_value": row.get("trading_value"),
             "volume": row.get("volume"),
         }
