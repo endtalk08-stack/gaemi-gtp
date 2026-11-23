@@ -1,6 +1,6 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_etf_rest_fetch_20261123.py",
-  "request_id": "check_etf_rest_fetch_20261123",
-  "timeout": 60
+  "operation": "logs",
+  "service": "gaemigtp-kiwoom-us-top20-api.service",
+  "lines": 400,
+  "request_id": "check_etf_logs_20261123"
 }
