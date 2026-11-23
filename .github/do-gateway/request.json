@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_rest_quote_ages_20261124.py",
-  "request_id": "restageaudit20261124a",
-  "timeout": 90
+  "operation": "logs",
+  "unit": "gaemigtp-kiwoom-us-top20-https.service",
+  "lines": 300
 }
