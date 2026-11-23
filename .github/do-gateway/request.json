@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/quote_live_check_20261123.py",
-  "request_id": "verifybaseline20261124a",
+  "path": "ops/do-gateway/quote_yahoo_probe_20261123.py",
+  "request_id": "verifyyahoo20261124a",
   "timeout": 90
 }
