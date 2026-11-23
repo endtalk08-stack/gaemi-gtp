@@ -180,7 +180,8 @@
       const now = Date.now();
       const key = industrySymbol(symbol);
       const live = industryLiveQuotes.find((quote) =>
-        industrySymbol(quote.symbol) === key && freshQuote(quote, now));
+        industrySymbol(quote.symbol) === key && freshQuote(quote, now)
+        && Number.isFinite(quote.change_pct));
       if (live) return live;
       return industryRestQuotes.find((quote) =>
         industrySymbol(quote.symbol) === key
@@ -188,6 +189,35 @@
         && Number.isFinite(quote.received_at_ms)
         && quote.received_at_ms <= now + 5000
         && now - quote.received_at_ms <= 72 * 60 * 60 * 1000);
+    };
+    // Refresh ETF percentages without reloading the slow stock/industry membership map.
+    let nextEtfRateRefreshAt = 0;
+    let etfRateRefreshInFlight = false;
+    const refreshIndustryEtfRates = async () => {
+      if (tab !== 'industry' || !sidebarActive()
+          || etfRateRefreshInFlight || Date.now() < nextEtfRateRefreshAt) return;
+      nextEtfRateRefreshAt = Date.now() + 20000;
+      etfRateRefreshInFlight = true;
+      try {
+        const response = await fetch(quoteApiBase + '/market/us-industry-etf-quotes', {
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('industry_etf_rates_unavailable');
+        const data = await response.json();
+        if (data?.ok !== true || !Array.isArray(data.items) || data.items.length !== 14)
+          throw new Error('invalid_industry_etf_rates');
+        // One verified quote per ETF. Preserve the stock membership and ordering.
+        if (!sidebarActive() || tab !== 'industry') return;
+        industryRestQuotes = data.items;
+        if (industryMapData) {
+          industryMapData = { ...industryMapData, etf_quotes: data.items };
+          renderIndustryMap(industryMapData);
+        }
+      } catch (_) {
+        nextEtfRateRefreshAt = Date.now() + 10000;
+      } finally {
+        etfRateRefreshInFlight = false;
+      }
     };
     const formatChange = (value) => Number.isFinite(value)
       ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
@@ -515,6 +545,7 @@
       if (tab === 'industry') {
         syncQqqSocket();
         await loadIndustryMap(id);
+        void refreshIndustryEtfRates();
         return;
       }
       if (tab !== 'value') return;
@@ -914,7 +945,10 @@
     };
     const publishIndustryQuotes = items => {
       industryLiveQuotes = items.filter(quote => freshQuote(quote, Date.now()));
-      if (sidebarActive() && tab === 'industry' && industryMapData) renderIndustryMap(industryMapData);
+      if (sidebarActive() && tab === 'industry' && industryMapData) {
+        renderIndustryMap(industryMapData);
+        void refreshIndustryEtfRates();
+      }
     };
     const publishMarketEtfQuotes = items => {
       const now = Date.now();
