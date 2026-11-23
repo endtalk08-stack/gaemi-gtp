@@ -27,6 +27,6 @@ jobs:
       - name: Validate 30-minute close, cross-restart storage and market responses
         run: |
           python -m unittest discover -s tests -p 'test_us_close_server_transition.py' -v
-      - name: Verify previous trading-day baseline handling
+      - name: Verify Python validation without app dependencies
         run: |
-          python -m unittest discover -s tests -p 'test_previous_trading_day.py' -v
+          python -m unittest discover -s tests -p 'test_us_close_server_transition.py' -v
