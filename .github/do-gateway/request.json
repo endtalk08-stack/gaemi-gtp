@@ -1,4 +1,6 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service"
+  "operation": "run",
+  "path": "ops/do-gateway/quote_close_sources_20261123.py",
+  "request_id": "quotecloses20261123a",
+  "timeout": 60
 }
