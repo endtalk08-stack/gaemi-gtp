@@ -169,8 +169,14 @@ def _get_us_industry_etf_quotes(symbols=None):
             and isinstance(item.get("change_pct"), (int, float))
             and isinstance(item.get("received_at_ms"), int)
         ]
+        # A partial snapshot (some ETFs missing a quote this round) must not be
+        # frozen in place for the full 30 minutes, or those sectors stay stuck
+        # showing no change rate until the long TTL finally expires. Only a
+        # complete set of the requested tickers earns the long TTL; anything
+        # short of that is retried again soon.
+        is_complete = {item["symbol"] for item in clean} >= requested
         _US_INDUSTRY_ETF_CACHE[cache_key] = {"data": clean,
-                                              "expires_at": time.monotonic() + (1800 if clean else 300)}
+                                              "expires_at": time.monotonic() + (1800 if is_complete else 300)}
         return [dict(item) for item in clean]
 
 

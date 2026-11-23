@@ -1,3 +1,4 @@
+import time
 import unittest
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -155,6 +156,24 @@ class EtfIndustryMapTests(unittest.TestCase):
         self.assertEqual({row["symbol"] for row in industry}, industries.ETF_TICKERS)
         self.assertEqual({row["symbol"] for row in widgets}, {"SPY", "DIA"})
         self.assertEqual(fetch.call_count, 2)
+
+    def test_partial_etf_quotes_are_retried_soon_not_frozen_for_30_minutes(self):
+        # A snapshot missing some sector ETFs (e.g. XLY, XLC, XLI, XLRE, XLB)
+        # must get a short retry window, not the 30-minute TTL reserved for a
+        # complete set -- otherwise those sectors show no change rate until
+        # the long TTL finally expires.
+        api._US_INDUSTRY_ETF_CACHE.clear()
+        partial = industries.ETF_TICKERS - {"XLY", "XLC", "XLI", "XLRE", "XLB"}
+
+        def quotes(*, symbols):
+            return [{"symbol": symbol, "price": 100, "change_pct": 1,
+                     "received_at_ms": 1763850000000} for symbol in symbols if symbol in partial]
+
+        with patch.object(industries, "fetch_us_etf_quotes", side_effect=quotes):
+            result = api._get_us_industry_etf_quotes()
+        self.assertEqual({row["symbol"] for row in result}, partial)
+        entry = api._US_INDUSTRY_ETF_CACHE["industry"]
+        self.assertLessEqual(entry["expires_at"] - time.monotonic(), 300)
 
     def test_missing_etf_quotes_overlap_without_extra_calls(self):
         symbols = ("DIA", "SPY", "XLK")
