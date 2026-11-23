@@ -1,0 +1,52 @@
+name: gaemigtp-main industry tile colors preview
+
+on:
+  push:
+    branches:
+      - ops/gaemigtp-industry-colors-preview-20261124
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check isolated industry color change
+        run: |
+          test -s frontend/index.html
+          test -s functions/market/us-daily-chart.js
+          test -s functions/market/qqq-reason.js
+          node --check frontend/shell/left-market-sidebar/market-sidebar.js
+          node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          node --test tests/test_sidebar_issue_sync.cjs
+          grep -Fq 'market-sidebar.css?v=20261124-industry-quick-order-colors-v1' frontend/index.html
+          grep -Fq '.industry-map-sector.is-up, .industry-map-stock.is-up { background-color: #302126; }' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq '.industry-map-sector.is-down, .industry-map-stock.is-down { background-color: #1c2434; }' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq '.industry-map-stock.is-up .industry-map-stock-change { color: #e26677; }' frontend/shell/left-market-sidebar/market-sidebar.css
+          grep -Fq '.industry-map-stock.is-down .industry-map-stock-change { color: #6d9de0; }' frontend/shell/left-market-sidebar/market-sidebar.css
+      - name: Deploy existing Pages preview with Functions
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch industry-colors-preview-20261124
+      - name: Verify deployed preview stylesheet
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          case "$PREVIEW_URL" in https://*.gaemigtp-main.pages.dev) ;; *) exit 1 ;; esac
+          asset='shell/left-market-sidebar/market-sidebar.css?v=20261124-industry-quick-order-colors-v1'
+          for attempt in 1 2 3 4 5; do
+            if curl -fLsS --compressed --max-time 20 -H 'Cache-Control: no-cache' "$PREVIEW_URL/$asset" -o /tmp/preview-industry.css && cmp -s frontend/shell/left-market-sidebar/market-sidebar.css /tmp/preview-industry.css; then
+              echo "Preview stylesheet verified on $PREVIEW_URL"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Preview asset not accessible or differs from branch"
+          exit 1
