@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service",
-  "lines": 300
+  "operation": "run",
+  "path": "ops/do-gateway/check_restart_cause_20261123.py",
+  "request_id": "check_restart_cause_20261123",
+  "timeout": 60
 }
