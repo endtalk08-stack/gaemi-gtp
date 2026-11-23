@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/compare_kiwoom_close_20261123.py",
+  "request_id": "kiwoomclosecompare20261123a",
+  "timeout": 240
 }
