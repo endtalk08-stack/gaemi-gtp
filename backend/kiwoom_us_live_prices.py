@@ -267,7 +267,8 @@ async def run_qqq_fe_stream(
                                     }
                                     selected = {**top20, **industry_ranked, **etf_ranked, **group1_symbols}
                                     if on_industry is not None:
-                                        on_industry(set(industry_registered))
+                                        # Publish all sector members, including symbols already subscribed in TOP20.
+                                        on_industry(set(industry_ranked))
                                     print("KIWOOM_INDUSTRY_STOCK_FE_REGISTERED=" + str(len(industry_registered)), flush=True)
                                 else:
                                     print("KIWOOM_INDUSTRY_STOCK_FE_REGISTRATION_FAILED", flush=True)
