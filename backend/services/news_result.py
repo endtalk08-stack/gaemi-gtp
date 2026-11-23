@@ -879,62 +879,24 @@ def _sanitize_news_display_briefs(result, *, market=None):
     return result
 
 
-def _read_worker_news_snapshot(stock_name, *, market, limit, storyboard_limit, display_timezone):
-    """Read the DigitalOcean worker's valid 24h output before doing web/API work."""
-    database_url = os.environ.get("NEWS_DATABASE_URL", "").strip()
-    if not database_url:
-        return None
-    try:
-        import psycopg
-        with psycopg.connect(database_url, connect_timeout=3) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT result_payload
-                    FROM public.news_processed_snapshots
-                    WHERE market=%s AND stock_name=%s
-                      AND result_limit=%s AND storyboard_limit=%s
-                      AND display_timezone=%s AND expires_at>now()
-                    LIMIT 1
-                    """,
-                    (market, str(stock_name), int(limit), int(storyboard_limit),
-                     display_timezone),
-                )
-                row = cur.fetchone()
-        result = row[0] if row else None
-        if isinstance(result, str):
-            result = json.loads(result)
-        if not isinstance(result, dict) or result.get("_news_status") == "error":
-            return None
-        if not isinstance(result.get("issue_briefs"), list):
-            return None
-        return result
-    except Exception as exc:
-        print("[processed news] worker snapshot unavailable: "
-              + type(exc).__name__, flush=True)
-        return None
-
-
 def get_shared_stock_news_result(stock_name, *, market, limit=50, storyboard_limit=3,
                                  display_timezone="Asia/Seoul", symbol=None, issue_mode="auto"):
-    """Read the existing DigitalOcean snapshot only; never collect or save news."""
-    names = (resolve_us_news_identity(stock_name, symbol=symbol)["snapshot_names"]
-             if market in ("미국", "us") else [str(stock_name)])
-    worker_result = None
-    for candidate_name in names:
-        worker_result = _read_worker_news_snapshot(
-            candidate_name, market=market, limit=limit,
+    """Build the shared stock-news result from the existing Naver pipeline.
+
+    Results are held only in process memory by the news-feed cache; no Neon
+    snapshot read or write is performed.
+    """
+    try:
+        result = build_stock_news_result(
+            stock_name,
+            market=market,
+            limit=limit,
             storyboard_limit=storyboard_limit,
             display_timezone=display_timezone,
         )
-        if worker_result is not None:
-            break
-    if worker_result is None:
+        if market in ("미국", "us"):
+            result = clean_us_snapshot(result, issue_mode=issue_mode, format_titles=False)
+        return _sanitize_news_display_briefs(result, market=market)
+    except Exception as exc:
+        print("[processed news] live result unavailable: " + type(exc).__name__, flush=True)
         return {**_empty_news_result(), "_news_status": "unavailable"}
-    worker_result = copy.deepcopy(worker_result)
-    if market in ("미국", "us"):
-        worker_result = clean_us_snapshot(worker_result, issue_mode=issue_mode,
-                                          format_titles=False)
-    return _sanitize_news_display_briefs(worker_result, market=market)
-
-
