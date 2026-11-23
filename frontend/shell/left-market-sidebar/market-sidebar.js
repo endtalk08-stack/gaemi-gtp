@@ -191,11 +191,16 @@
         industrySymbol(quote.symbol) === key && freshQuote(quote, now)
         && Number.isFinite(quote.change_pct));
       if (live) return live;
-      // A quiet stock must keep its last verified return for this close session.
+      // A quiet ETF/stock keeps its last verified return for the rest of this
+      // close session -- no 30-minute expiry. The Kiwoom feed is genuinely
+      // subscribed (confirmed: all 14 sector ETFs register successfully on
+      // startup); a thin pre-market sector just not trading again for a
+      // while doesn't mean its last known move stopped being true. Only a
+      // new tick (live, above) or a new session (reference_close_date
+      // changing) should replace it -- never just the clock running out.
       const retained = industryLastVerifiedQuotes.get(key);
       const referenceDate = marketQqqQuote?.reference_close_date;
-      if (retained && (!referenceDate || retained.reference_close_date === referenceDate)
-          && now - retained.received_at_ms <= 30 * 60 * 1000) return retained;
+      if (retained && (!referenceDate || retained.reference_close_date === referenceDate)) return retained;
       return industryRestQuotes.find((quote) =>
         industrySymbol(quote.symbol) === key
         && Number.isFinite(quote.change_pct)
