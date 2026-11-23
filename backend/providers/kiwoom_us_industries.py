@@ -594,9 +594,31 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
     }
 
 
+_ETF_EXCHANGE_CACHE_LOCK = threading.Lock()
+_ETF_EXCHANGE_CACHE = {}  # symbol -> exchange
+_ETF_EXCHANGE_CACHE_EXPIRES_AT = 0.0
+_ETF_EXCHANGE_CACHE_TTL = 24 * 60 * 60  # A listed ETF's exchange essentially never changes.
+
+
 def fetch_us_etf_exchanges(*, token=None, tickers=None):
-    """Verify the agreed ETF ticker/exchange pairs against Kiwoom usa10104."""
+    """Verify the agreed ETF ticker/exchange pairs against Kiwoom usa10104.
+
+    This pages through Kiwoom's *entire* exchange listing (up to 40 pages) to
+    resolve a handful of tickers, so the result is cached for a day instead of
+    being re-scanned from scratch every time a quote call finds one ETF
+    missing from the cheaper market-cap ranking snapshot.
+    """
     requested = ETF_TICKERS if tickers is None else (ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS).intersection(tickers)
+    global _ETF_EXCHANGE_CACHE_EXPIRES_AT
+    now = time.monotonic()
+    with _ETF_EXCHANGE_CACHE_LOCK:
+        if now < _ETF_EXCHANGE_CACHE_EXPIRES_AT and requested <= _ETF_EXCHANGE_CACHE.keys():
+            return {symbol: _ETF_EXCHANGE_CACHE[symbol] for symbol in requested}
+    # Always scan for the full ticker universe, not just whatever subset this
+    # particular call needs: this walk already pages through Kiwoom's entire
+    # exchange listing, so one scan should refill the cache for every ticker,
+    # not just the handful the caller happened to be missing this round.
+    scan_universe = ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS
     symbols = {}
     continuation = None
     for _ in range(40):
@@ -613,15 +635,23 @@ def fetch_us_etf_exchanges(*, token=None, tickers=None):
             symbol = str(row.get("stk_cd") or "").strip().upper()
             exchange = EXCHANGE_CODES.get(str(row.get("stex_tp") or "").strip().upper(),
                                           str(row.get("stex_tp") or "").strip().upper())
-            if symbol in requested and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
+            if symbol in scan_universe and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
                 symbols[symbol] = exchange
-        if symbols.keys() >= requested or data.get("_cont_yn") != "Y":
+        if symbols.keys() >= scan_universe or data.get("_cont_yn") != "Y":
             break
         next_key = str(data.get("_next_key") or "")
         if not next_key or next_key == continuation:
             break
         continuation = next_key
-    return symbols
+    if symbols:
+        with _ETF_EXCHANGE_CACHE_LOCK:
+            _ETF_EXCHANGE_CACHE.update(symbols)
+            # Only a scan that ran to completion (found everything, or Kiwoom
+            # had no more pages) earns the long TTL; a partial result (e.g. a
+            # transient Kiwoom hiccup cut it short) should be retried soon.
+            is_complete = symbols.keys() >= scan_universe
+            _ETF_EXCHANGE_CACHE_EXPIRES_AT = now + (_ETF_EXCHANGE_CACHE_TTL if is_complete else 60)
+    return {symbol: symbols[symbol] for symbol in requested if symbol in symbols}
 
 
 def fetch_us_etf_quotes(*, token=None, symbols=None):

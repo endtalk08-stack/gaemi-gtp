@@ -117,6 +117,8 @@ class EtfIndustryMapTests(unittest.TestCase):
                           "semiconductors": ["710"], "biotech": ["530"]})
 
     def test_etf_exchange_comes_from_official_list(self):
+        industries._ETF_EXCHANGE_CACHE.clear()
+        industries._ETF_EXCHANGE_CACHE_EXPIRES_AT = 0.0
         expected = {
             "IBIT": "ND", "SOXX": "ND", "XBI": "NY", "XLB": "NY",
             "XLC": "NY", "XLE": "NY", "XLF": "NY", "XLI": "NY",
@@ -139,9 +141,32 @@ class EtfIndustryMapTests(unittest.TestCase):
         self.assertEqual(len(actual), 14)
         self.assertEqual(set(actual), set(industries.ETF_TICKERS))
         call.assert_called_once_with("usa10104", {"stex_tp": "%"}, token="test")
-        with patch.object(industries, "_call", return_value={"list": records}):
+        with patch.object(industries, "_call", return_value={"list": records}) as second_call:
             widgets = industries.fetch_us_etf_exchanges(token="test", tickers={"SPY", "DIA"})
         self.assertEqual(widgets, {"SPY": "NY", "DIA": "NY"})
+        # The first scan already walked Kiwoom's entire exchange listing and
+        # found every ticker (including SPY/DIA); a later lookup for a
+        # different subset must be served from that cache, not trigger
+        # another expensive 40-page scan.
+        second_call.assert_not_called()
+
+    def test_etf_exchange_scan_result_is_cached_for_other_missing_subsets(self):
+        # The expensive full-listing scan (up to 40 Kiwoom pages) must only
+        # run once per day: a later call asking about a *different* missing
+        # ticker than the one that triggered the first scan should still be
+        # served from cache instead of re-scanning from scratch. This is the
+        # fix for the "업종 로딩 10~20초" slowdown -- previously each missing
+        # ETF re-triggered its own full scan.
+        industries._ETF_EXCHANGE_CACHE.clear()
+        industries._ETF_EXCHANGE_CACHE_EXPIRES_AT = 0.0
+        records = [{"stk_cd": symbol, "stex_tp": "1", "etn": "N"}
+                   for symbol in (industries.ETF_TICKERS | industries.MARKET_WIDGET_ETF_TICKERS)]
+        with patch.object(industries, "_call", return_value={"list": records}) as call:
+            first = industries.fetch_us_etf_exchanges(token="test", tickers={"XLY"})
+            second = industries.fetch_us_etf_exchanges(token="test", tickers={"XLC"})
+        self.assertEqual(first, {"XLY": "NY"})
+        self.assertEqual(second, {"XLC": "NY"})
+        call.assert_called_once_with("usa10104", {"stex_tp": "%"}, token="test")
 
     def test_map_and_widget_quotes_are_requested_separately(self):
         api._US_INDUSTRY_ETF_CACHE.clear()
