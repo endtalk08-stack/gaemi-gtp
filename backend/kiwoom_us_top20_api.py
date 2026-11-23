@@ -566,7 +566,8 @@ def _us_close_get(symbol, now=None):
             "price": row["price"], "change_pct": row["change_pct"],
             "reference_close_date": row["reference_close_date"],
             "reference_close_session": row["reference_close_date"],
-            "received_at_ms": int(now.timestamp() * 1000),
+            # Advance freshness once per 10 seconds, not every browser poll.
+            "received_at_ms": (int(now.timestamp() * 1000) // 10000) * 10000,
             "stale": False, "source": "kiwoom:regular-last-verified",
             "market_session": "last_regular_tick",
         }
