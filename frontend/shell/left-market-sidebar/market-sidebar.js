@@ -296,9 +296,9 @@
       const orderSelectedStocks = (stocks) => [...stocks].sort((a, b) => {
         const rise = (stock) => {
           const live = industryQuoteFor(stock.symbol);
+          const fallbackRate = regularCloseHold()?.rate(stock.symbol, stock.change_pct) ?? stock.change_pct;
           return Number.isFinite(live?.change_pct) ? live.change_pct
-            : Number.isFinite(regularCloseHold()?.rate(stock.symbol, stock.change_pct))
-              ? regularCloseHold().rate(stock.symbol, stock.change_pct) : -Infinity;
+            : Number.isFinite(fallbackRate) ? fallbackRate : -Infinity;
         };
         return rise(b) - rise(a) || (b.market_cap_usd || 0) - (a.market_cap_usd || 0);
       });
