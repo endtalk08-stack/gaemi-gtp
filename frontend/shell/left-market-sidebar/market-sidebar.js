@@ -228,12 +228,15 @@
     };
     const formatChange = (value) => Number.isFinite(value)
       ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
+    // One fixed shade per direction -- not scaled by how big the move is --
+    // so every up tile matches every other up tile, every down tile matches
+    // every other down tile, and the only other difference is the sector
+    // boost applied separately below.
     const mapTileColor = (value) => {
       if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.08 };
-      const strength = Math.min(0.34, 0.08 + Math.log1p(Math.abs(value)) * 0.075);
       return value > 0
-        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: strength }
-        : { tone: 'is-down', rgb: '57, 119, 177', alpha: strength };
+        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: 0.20 }
+        : { tone: 'is-down', rgb: '57, 119, 177', alpha: 0.20 };
     };
     const themeTileColor = (theme) => ({
       utilities: { tone: 'is-flat', rgb: '106, 132, 146', alpha: 0.17 },
