@@ -33,9 +33,9 @@ class VerifiedQuoteChangeTests(unittest.TestCase):
             pool.submit.return_value = completed
             baseline.validated_change("QQQ", "ND", 625.31, now=monday)
             percent, date = baseline.validated_change("QQQ", "ND", 625.31, now=monday)
-        self.assertAlmostEqual(percent, 2.771, places=2)
-        self.assertEqual(date, "2026-11-20")
-        pool.submit.assert_called_once()
+        self.assertIsNone(percent)
+        self.assertIsNone(date)
+        pool.submit.assert_not_called()
 
     def test_after_close_never_substitutes_old_session(self):
         friday = dt.datetime(2026, 11, 20, 16, 5, tzinfo=ZoneInfo("America/New_York"))
