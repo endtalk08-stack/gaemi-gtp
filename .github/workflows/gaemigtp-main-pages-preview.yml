@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # Preview the exact candidate branch based on current main.
-          ref: ba23e8cca74e7380312a30322663831f0d863115
+          ref: e8885b244bf0f30f744b89903b0d3b32d9ed8355
       - name: Check Pages inputs
         run: |
           test -s frontend/index.html
