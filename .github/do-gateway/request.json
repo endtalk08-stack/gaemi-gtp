@@ -1,5 +1,5 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service",
-  "lines": 300
+  "operation": "deploy",
+  "path": "backend/us_quote_change.py",
+  "target": "backend/us_quote_change.py"
 }
