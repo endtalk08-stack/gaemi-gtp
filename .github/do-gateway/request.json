@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service",
-  "lines": 80
+  "operation": "run",
+  "path": "ops/do-gateway/check_index_quote_consistency_20261123b.py",
+  "request_id": "idxconsist1123b",
+  "timeout": 60
 }
