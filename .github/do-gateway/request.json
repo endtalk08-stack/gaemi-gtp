@@ -1,5 +1,3 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-us-market-close.service",
-  "lines": 160
+  "operation": "status"
 }
