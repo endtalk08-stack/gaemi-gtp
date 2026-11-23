@@ -41,6 +41,14 @@
 
 위의 `deploy`는 GitHub 체크아웃된 파일의 Git blob 해시를 서버에 함께 제출한다. 요청 파일을 변경하기 전에 대상 소스가 반드시 `main`에 있어야 한다. 복사·재시작 권한과 실제 대상 경로는 서버의 `gaemi-do-gateway`가 최종 심사한다.
 
+## GitHub Environment 배포 브랜치 허용 확인 (2026-11-24)
+
+**현재 추가 설정 필요:** `digitalocean-news-worker` Environment의 사용자 지정 Deployment branches 정책에는 `ops/do-ssh-deploy-setup-20261017`만 등록되어 있다. 따라서 `main`에서 시작한 첫 읽기 전용 상태 조회(실행 45279068400)가 **SSH 단계 이전**에 거부되었다.
+
+GitHub 저장소 **Settings → Environments → digitalocean-news-worker → Deployment branches and tags**에서 기존 브랜치를 삭제하지 말고 **`main`을 추가 허용**해야 한다. 기존 Environment Secrets는 그대로 재사용할 수 있으며, 키를 새로 만들거나 브라우저에 복사할 필요는 없다.
+
+이 설정을 수정한 뒤 GitHub Actions → DigitalOcean project management gateway → **Run workflow** → `main`에서 읽기 전용 `status`로 연결 성공을 재검증한다. 연결 성공 전에는 `deploy` 또는 `restart`를 진행하지 않는다.
+
 ## 운영 시 주의
 
 - 서버 배포와 서비스 재시작은 별개다. 각각의 요청과 성공 여부를 GitHub Actions 실행 기록으로 확인한다.
