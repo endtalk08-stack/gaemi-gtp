@@ -653,8 +653,8 @@ def fetch_us_etf_quotes(*, token=None, symbols=None):
                 "received_at_ms": captured_at_ms,
                 "source": "kiwoom:usa20551",
             }
-    except KiwoomReadOnlyError:
-        pass
+    except KiwoomReadOnlyError as exc:
+        print("ETF_MARKETCAP_TR_FAILED", repr(exc), flush=True)
 
     # Fill only missing agreed ETFs, using the verified exchange list and
     # the existing read-only single-symbol quote TR.
@@ -662,7 +662,8 @@ def fetch_us_etf_quotes(*, token=None, symbols=None):
     if missing:
         try:
             exchanges = fetch_us_etf_exchanges(token=access_token, tickers=missing)
-        except KiwoomReadOnlyError:
+        except KiwoomReadOnlyError as exc:
+            print("ETF_EXCHANGE_LOOKUP_FAILED", sorted(missing), repr(exc), flush=True)
             exchanges = {}
         def read_missing(symbol):
             exchange = exchanges.get(symbol)
@@ -670,11 +671,15 @@ def fetch_us_etf_quotes(*, token=None, symbols=None):
                 return None
             try:
                 quote = fetch_us_quote(symbol, exchange, token=access_token)
-            except (KiwoomReadOnlyError, ValueError):
+            except (KiwoomReadOnlyError, ValueError) as exc:
+                print("ETF_SINGLE_QUOTE_FAILED", symbol, exchange, repr(exc), flush=True)
                 return None
             price = _positive_price(quote.get("current"))
             change_pct = _number(quote.get("change_pct"))
             if price is None or change_pct is None:
+                print("ETF_SINGLE_QUOTE_INCOMPLETE", symbol, exchange,
+                      "price=" + repr(quote.get("current")),
+                      "change_pct=" + repr(quote.get("change_pct")), flush=True)
                 return None
             return {
                 "symbol": symbol,

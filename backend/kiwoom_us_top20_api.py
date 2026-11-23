@@ -180,9 +180,10 @@ def _get_us_industry_etf_quotes():
                    if now >= _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))[0]}
             if due:
                 try:
+                    raw_items = fetch_us_etf_quotes(symbols=due)
                     fetched = {
                         item["symbol"]: item
-                        for item in fetch_us_etf_quotes(symbols=due)
+                        for item in raw_items
                         if isinstance(item, dict)
                         and item.get("symbol") in due
                         and type(item.get("price")) in (int, float)
@@ -190,7 +191,11 @@ def _get_us_industry_etf_quotes():
                         and item.get("exchange") in ("NY", "ND", "NA")
                         and isinstance(item.get("received_at_ms"), int)
                     }
-                except Exception:
+                    if due.difference(fetched):
+                        print("ETF_REST_FALLBACK_MISSING", sorted(due.difference(fetched)),
+                              "raw=", raw_items, flush=True)
+                except Exception as exc:
+                    print("ETF_REST_FALLBACK_FAILED", sorted(due), repr(exc), flush=True)
                     fetched = {}
                 refresh_at = time.monotonic() + _US_INDUSTRY_ETF_TTL
                 for symbol in due:
