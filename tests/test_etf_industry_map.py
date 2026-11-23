@@ -200,6 +200,30 @@ class EtfIndustryMapTests(unittest.TestCase):
         entry = api._US_INDUSTRY_ETF_CACHE["industry"]
         self.assertLessEqual(entry["expires_at"] - time.monotonic(), 300)
 
+    def test_live_websocket_tick_wins_over_rest_snapshot(self):
+        # The same live Kiwoom feed that drives QQQ and the TOP20 list also
+        # carries ETF ticks (see get_us_industry_symbols -> _set_industry_symbols).
+        # _get_us_industry_etf_quotes must prefer a fresh live tick over
+        # whatever the REST snapshot says for that symbol -- this is the fix
+        # for ETF headings (e.g. SOXX) showing a stale/wrong sign while the
+        # live feed (and NVDA, SOXX's largest holding) showed the real move.
+        api._US_INDUSTRY_ETF_CACHE.clear()
+        api._INDUSTRY_QUOTES.clear()
+        api._INDUSTRY_QUOTES["SOXX"] = {
+            "price": 140.0, "change_pct": 5.5, "received_at_ms": int(time.time() * 1000),
+        }
+
+        def rest_quotes(*, symbols):
+            return [{"symbol": "SOXX", "price": 130.2, "change_pct": -5.62,
+                     "received_at_ms": int(time.time() * 1000)}]
+
+        with patch.object(industries, "fetch_us_etf_quotes", side_effect=rest_quotes):
+            result = api._get_us_industry_etf_quotes()
+        by_symbol = {row["symbol"]: row for row in result}
+        self.assertEqual(by_symbol["SOXX"]["change_pct"], 5.5)
+        self.assertEqual(by_symbol["SOXX"]["source"], "kiwoom:websocket")
+        api._INDUSTRY_QUOTES.clear()
+
     def test_missing_etf_quotes_overlap_without_extra_calls(self):
         symbols = ("DIA", "SPY", "XLK")
         barrier = threading.Barrier(len(symbols))

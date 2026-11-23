@@ -154,30 +154,51 @@ def _get_us_industry_etf_quotes(symbols=None):
         entry = _US_INDUSTRY_ETF_CACHE.get(cache_key, {"expires_at": 0.0, "data": []})
         cached = entry["data"]
         if cached and now < entry["expires_at"]:
-            return [dict(item) for item in cached]
-        try:
-            quotes = fetch_us_etf_quotes(symbols=requested)
-        except Exception:
-            return [dict(item) for item in cached] if cached else []
+            rest = [dict(item) for item in cached]
+        else:
+            try:
+                quotes = fetch_us_etf_quotes(symbols=requested)
+            except Exception:
+                quotes = []
+            clean = [
+                dict(item) for item in quotes
+                if isinstance(item, dict)
+                and isinstance(item.get("symbol"), str)
+                and isinstance(item.get("price"), (int, float))
+                and item.get("price") > 0
+                and isinstance(item.get("change_pct"), (int, float))
+                and isinstance(item.get("received_at_ms"), int)
+            ]
+            if clean:
+                # A partial snapshot (some ETFs missing a quote this round) must
+                # not be frozen in place for the full 30 minutes, or those
+                # sectors stay stuck showing no change rate until the long TTL
+                # finally expires. Only a complete set of the requested tickers
+                # earns the long TTL; anything short of that is retried soon.
+                is_complete = {item["symbol"] for item in clean} >= requested
+                _US_INDUSTRY_ETF_CACHE[cache_key] = {
+                    "data": clean, "expires_at": time.monotonic() + (1800 if is_complete else 300)}
+                rest = clean
+            else:
+                rest = [dict(item) for item in cached] if cached else []
 
-        clean = [
-            dict(item) for item in quotes
-            if isinstance(item, dict)
-            and isinstance(item.get("symbol"), str)
-            and isinstance(item.get("price"), (int, float))
-            and item.get("price") > 0
-            and isinstance(item.get("change_pct"), (int, float))
-            and isinstance(item.get("received_at_ms"), int)
-        ]
-        # A partial snapshot (some ETFs missing a quote this round) must not be
-        # frozen in place for the full 30 minutes, or those sectors stay stuck
-        # showing no change rate until the long TTL finally expires. Only a
-        # complete set of the requested tickers earns the long TTL; anything
-        # short of that is retried again soon.
-        is_complete = {item["symbol"] for item in clean} >= requested
-        _US_INDUSTRY_ETF_CACHE[cache_key] = {"data": clean,
-                                              "expires_at": time.monotonic() + (1800 if is_complete else 300)}
-        return [dict(item) for item in clean]
+    # Prefer the same live Kiwoom WS feed that QQQ and the TOP20 list use over
+    # the REST snapshot above: it is the real-time source this page relied on
+    # before, and (unlike the REST fallback's per-symbol lookup) it isn't
+    # tied to "current trading quote only, not necessarily the official
+    # session close". A live, non-stale tick always wins over a REST one.
+    now_ms = int(time.time() * 1000)
+    with _QQQ_LOCK:
+        live = {
+            symbol: {"symbol": symbol, "price": quote["price"], "change_pct": quote["change_pct"],
+                     "received_at_ms": quote["received_at_ms"], "source": "kiwoom:websocket"}
+            for symbol, quote in _INDUSTRY_QUOTES.items()
+            if symbol in requested and quote.get("change_pct") is not None
+            and now_ms - quote["received_at_ms"] <= _QQQ_STALE_MS
+        }
+    merged = {item["symbol"]: item for item in rest}
+    merged.update(live)
+    return [merged[symbol] for symbol in sorted(merged)]
 
 
 def _get_us_industry_map_with_stocks(view="legacy"):
