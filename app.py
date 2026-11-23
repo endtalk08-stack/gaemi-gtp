@@ -12,9 +12,7 @@ from backend.services.market_rankings import get_market_selection, analysis_tick
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.news_result import get_shared_stock_news_result
 from backend.services.news_freshness import issue_mode_for_question, normalize_issue_mode
-from backend.services.market_data_cache import cached_market_json
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
-from backend.services.us_market_close import read_brief
 
 from backend.services.engine import analyze_stock
 
@@ -55,13 +53,8 @@ def health():
 
 @app.get("/api/market/us-close")
 def market_us_close():
-    """Only read a completed 24h US close brief; never collect or invoke AI."""
-    try:
-        brief = read_brief()
-    except Exception as exc:
-        print("[us market close] db read failed: " + type(exc).__name__, flush=True)
-        return jsonify({"ok": False, "error": "market_close_unavailable"}), 503
-    return jsonify({"ok": True, "available": bool(brief), **(brief or {})})
+    """Legacy close-summary endpoint kept inert after retiring Neon storage."""
+    return jsonify({"ok": True, "available": False})
 
 
 @app.post("/internal/market/us-price-push")
@@ -137,59 +130,6 @@ def stock_news_issues():
         "issue_briefs": result.get("issue_briefs", []),
         "issue_channels": result.get("issue_channels", {}),
     })
-
-
-@app.get("/market/us-daily-chart")
-@cached_market_json(ttl=300, error_ttl=15)
-def market_us_daily_chart():
-    """Read existing daily candles for any verified US stock, regardless of live rank."""
-    import re
-    import psycopg
-    symbol = str(request.args.get("symbol", "") or "").strip().upper()
-    if not re.fullmatch(r"[A-Z0-9.\\-]{1,20}", symbol):
-        return jsonify({"ok": False, "error": "invalid_symbol", "rows": []}), 400
-    dsn = os.environ.get("NEWS_DATABASE_URL", "").strip()
-    if not dsn:
-        return jsonify({"ok": False, "error": "chart_source_unavailable", "rows": []}), 503
-    try:
-        with psycopg.connect(dsn, connect_timeout=3) as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT i.display_name, i.company_key, e.rank
-                    FROM public.market_instruments i
-                    LEFT JOIN public.market_rank_entries e
-                      ON e.market=i.market AND e.symbol=i.symbol
-                      AND e.snapshot_id=(
-                        SELECT s.id FROM public.market_rank_snapshots s
-                        WHERE s.source='kiwoom' AND s.market='US'
-                          AND s.rank_type='trading_value'
-                        ORDER BY s.captured_at DESC,s.id DESC LIMIT 1)
-                    WHERE i.market='US' AND i.symbol=%s AND i.is_active
-                      AND i.identity_status='verified' AND i.company_key LIKE 'US:%%'
-                    LIMIT 1
-                """, (symbol,))
-                identity = cur.fetchone()
-                if not identity:
-                    return jsonify({"ok": False, "error": "not_verified_symbol", "rows": []}), 404
-                cur.execute("""
-                    SELECT session_date,open,high,low,close,volume
-                    FROM public.us_daily_candles
-                    WHERE market='US' AND symbol=%s AND source='kiwoom:usa06012'
-                    ORDER BY session_date DESC LIMIT 120
-                """, (symbol,))
-                rows = cur.fetchall()
-        return jsonify({"ok": bool(rows), "symbol": symbol,
-                        "name": identity[0], "company_key": identity[1],
-                        "rank": identity[2], "source": "kiwoom:usa06012",
-                        "rows": [{
-                            "date": str(day), "open": float(o), "high": float(h),
-                            "low": float(l), "close": float(c),
-                            "volume": int(v) if v is not None else None
-                        } for day,o,h,l,c,v in reversed(rows)],
-                        "error": None if rows else "chart_not_collected"})
-    except Exception as exc:
-        print("[chart] Neon read failed: " + type(exc).__name__, flush=True)
-        return jsonify({"ok": False, "error": "chart_source_unavailable", "rows": []}), 503
 
 
 @app.get("/analyze")

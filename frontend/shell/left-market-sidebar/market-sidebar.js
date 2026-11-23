@@ -173,63 +173,174 @@
     let industryMapData = null;
     let industryMapFetchedAt = 0;
     let industryMapPromise = null;
+    let industryWarmupRetryScheduled = false;
+    let industryLiveQuotes = [];
+    let industryRestQuotes = [];
+    const industryLastVerifiedQuotes = new Map();
+    const industryEtfSymbols = new Set([
+      'XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP',
+      'XLE', 'XLU', 'XLRE', 'XLB', 'SOXX', 'XBI', 'IBIT'
+    ]);
+    // Last displayed change-% text per sector/stock, so a re-render can tell
+    // whether the printed number actually moved and flash the badge only then
+    // (not on every 20s/websocket re-render when nothing changed).
+    const industryFlashSectorPrev = new Map();
+    const industryFlashStockPrev = new Map();
+    const flashClassFor = (tone) => tone === 'is-up' ? 'flash-up' : tone === 'is-down' ? 'flash-down' : 'flash-flat';
+    const industrySymbol = (symbol) => String(symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
+    // Keep one last valid quote per ETF, including quiet/stale WebSocket
+    // snapshots. A subscribed ticker may have no new trade for hours.
+    const rememberIndustryEtfQuotes = (items, source) => {
+      if (!Array.isArray(items)) return;
+      const now = Date.now();
+      items.forEach((quote) => {
+        const symbol = industrySymbol(quote?.symbol);
+        if (!industryEtfSymbols.has(symbol)
+            || !Number.isFinite(quote?.price) || quote.price <= 0
+            || !Number.isFinite(quote?.change_pct)
+            || !Number.isFinite(quote?.received_at_ms)
+            || quote.received_at_ms > now + 5000
+            || now - quote.received_at_ms > 72 * 60 * 60 * 1000) return;
+        const previous = industryLastVerifiedQuotes.get(symbol);
+        const fromWebSocket = source === 'websocket';
+        // A fresh REST snapshot must not override a confirmed live FE rate.
+        // After a day, allow a newer REST close to replace an older session.
+        if (previous?.fromWebSocket && !fromWebSocket
+            && now - previous.received_at_ms < 24 * 60 * 60 * 1000) return;
+        if (previous?.fromWebSocket === fromWebSocket
+            && previous.received_at_ms > quote.received_at_ms) return;
+        industryLastVerifiedQuotes.set(symbol, { ...quote, fromWebSocket });
+      });
+    };
+    const industryQuoteFor = (symbol) => {
+      const now = Date.now();
+      const key = industrySymbol(symbol);
+      const live = industryLiveQuotes.find((quote) =>
+        industrySymbol(quote.symbol) === key && freshQuote(quote, now)
+        && Number.isFinite(quote.change_pct));
+      if (live) return live;
+      // A quiet ETF/stock keeps its last verified return for the rest of this
+      // close session -- no 30-minute expiry. The Kiwoom feed is genuinely
+      // subscribed (confirmed: all 14 sector ETFs register successfully on
+      // startup); a thin pre-market sector just not trading again for a
+      // while doesn't mean its last known move stopped being true. Only a
+      // new tick (live, above) or a new session (reference_close_date
+      // changing) should replace it -- never just the clock running out.
+      const retained = industryLastVerifiedQuotes.get(key);
+      const referenceDate = marketQqqQuote?.reference_close_date;
+      if (retained && (!referenceDate || !retained.reference_close_date || retained.reference_close_date === referenceDate)) return retained;
+      return industryRestQuotes.find((quote) =>
+        industrySymbol(quote.symbol) === key
+        && Number.isFinite(quote.change_pct)
+        && Number.isFinite(quote.received_at_ms)
+        && quote.received_at_ms <= now + 5000
+        && now - quote.received_at_ms <= 72 * 60 * 60 * 1000);
+    };
+    // Refresh ETF percentages without reloading the slow stock/industry membership map.
+    let nextEtfRateRefreshAt = 0;
+    let etfRateRefreshInFlight = false;
+    const refreshIndustryEtfRates = async () => {
+      if (tab !== 'industry' || !sidebarActive()
+          || etfRateRefreshInFlight || Date.now() < nextEtfRateRefreshAt) return;
+      nextEtfRateRefreshAt = Date.now() + 20000;
+      etfRateRefreshInFlight = true;
+      try {
+        const response = await fetch(quoteApiBase + '/market/us-industry-etf-quotes', {
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('industry_etf_rates_unavailable');
+        const data = await response.json();
+        const etfItems = Array.isArray(data?.items)
+          ? data.items.filter((quote) => industryEtfSymbols.has(industrySymbol(quote?.symbol))) : [];
+        if (data?.ok !== true || !etfItems.length) throw new Error('invalid_industry_etf_rates');
+        // Partial responses update only valid ETFs. Keep the last rate for absent ETFs.
+        if (!sidebarActive() || tab !== 'industry') return;
+        rememberIndustryEtfQuotes(etfItems, 'rest');
+        industryRestQuotes = etfItems;
+        if (industryMapData) {
+          industryMapData = { ...industryMapData, etf_quotes: etfItems };
+          renderIndustryMap(industryMapData);
+        }
+      } catch (_) {
+        nextEtfRateRefreshAt = Date.now() + 10000;
+      } finally {
+        etfRateRefreshInFlight = false;
+      }
+    };
     const formatChange = (value) => Number.isFinite(value)
       ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
+    // One fixed shade per direction -- not scaled by how big the move is --
+    // so every up tile matches every other up tile, every down tile matches
+    // every other down tile, and the only other difference is the sector
+    // boost applied separately below.
     const mapTileColor = (value) => {
-      if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.08 };
-      const strength = Math.min(0.34, 0.08 + Math.log1p(Math.abs(value)) * 0.075);
-      return value > 0
-        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: strength }
-        : { tone: 'is-down', rgb: '57, 119, 177', alpha: strength };
+      // Match the trading-value list: the tile surface stays charcoal;
+      // only the percentage text carries direction color.
+      if (!Number.isFinite(value) || Math.abs(value) < 0.005) return { tone: 'is-flat' };
+      return value > 0 ? { tone: 'is-up' } : { tone: 'is-down' };
     };
-    const themeTileColor = (theme) => ({
-      utilities: { tone: 'is-flat', rgb: '106, 132, 146', alpha: 0.17 },
-      realestate: { tone: 'is-flat', rgb: '123, 128, 148', alpha: 0.17 },
-      materials: { tone: 'is-flat', rgb: '142, 129, 106', alpha: 0.17 },
-      semiconductor: { tone: 'is-flat', rgb: '94, 126, 158', alpha: 0.18 },
-      biotech: { tone: 'is-flat', rgb: '143, 116, 155', alpha: 0.18 },
-      bitcoin: { tone: 'is-flat', rgb: '163, 137, 91', alpha: 0.18 }
-    })[theme] || mapTileColor(null);
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
-      const changeValue = (item) => Number.isFinite(item.change_pct) ? item.change_pct : -Infinity;
+      if (Array.isArray(data?.etf_quotes) && data.etf_quotes.length) {
+        rememberIndustryEtfQuotes(data.etf_quotes, 'rest');
+        industryRestQuotes = data.etf_quotes;
+      }
+      // Select companies by market cap first; order only the selected three by return.
+      const orderSelectedStocks = (stocks) => [...stocks].sort((a, b) => {
+        const rise = (stock) => {
+          const live = industryQuoteFor(stock.symbol);
+          return Number.isFinite(live?.change_pct) ? live.change_pct
+            : Number.isFinite(stock.change_pct) ? stock.change_pct : -Infinity;
+        };
+        return rise(b) - rise(a) || (b.market_cap_usd || 0) - (a.market_cap_usd || 0);
+      });
+      const sectorEtfs = {
+        information_technology: 'XLK', healthcare: 'XLV', finance: 'XLF',
+        consumer_discretionary: 'XLY', communication_services: 'XLC',
+        industrials: 'XLI', consumer_staples: 'XLP', energy: 'XLE',
+        utilities: 'XLU', real_estate: 'XLRE', materials: 'XLB',
+        theme_semiconductors: 'SOXX', theme_biotech: 'XBI', theme_bitcoin: 'IBIT'
+      };
       list.classList?.add?.('industry-map-list');
       list.replaceChildren();
       // Present the agreed 11 GICS sectors. Merge existing Kiwoom subgroups
       // into Information Technology and Communication Services without changing the API.
       const expectedIndustries = [
-        { key: 'information_technology', name: '정보기술', sourceKeys: ['software', 'it_hardware', 'semiconductors'], fallbackStocks: [['엔비디아', 'NVDA'], ['애플', 'AAPL'], ['마이크로소프트', 'MSFT']] },
-        { key: 'healthcare', name: '헬스케어', sourceKeys: ['healthcare'], fallbackStocks: [['일라이릴리', 'LLY'], ['존슨앤드존슨', 'JNJ'], ['애브비', 'ABBV']] },
-        { key: 'finance', name: '금융', sourceKeys: ['finance'], fallbackStocks: [['버크셔해서웨이', 'BRK.B'], ['JP모건', 'JPM'], ['비자', 'V']] },
-        { key: 'consumer_discretionary', name: '경기소비재', sourceKeys: ['consumer_discretionary'], fallbackStocks: [['아마존', 'AMZN'], ['테슬라', 'TSLA'], ['홈디포', 'HD']] },
-        { key: 'communication_services', name: '커뮤니케이션', sourceKeys: ['communication', 'internet_platforms'], fallbackStocks: [['메타', 'META'], ['알파벳', 'GOOGL'], ['넷플릭스', 'NFLX']] },
-        { key: 'industrials', name: '산업재', sourceKeys: ['industrials'], fallbackStocks: [['GE에어로스페이스', 'GE'], ['캐터필러', 'CAT'], ['RTX', 'RTX']] },
-        { key: 'consumer_staples', name: '필수소비재', sourceKeys: ['consumer_staples'], fallbackStocks: [['월마트', 'WMT'], ['코스트코', 'COST'], ['P&G', 'PG']] },
-        { key: 'energy', name: '에너지', sourceKeys: ['energy'], fallbackStocks: [['엑슨모빌', 'XOM'], ['셰브론', 'CVX'], ['코노코필립스', 'COP']] },
-        { key: 'utilities', name: '유틸리티', sourceKeys: [], themeTone: 'utilities', fallbackStocks: [['넥스트에라', 'NEE'], ['서던컴퍼니', 'SO'], ['듀크에너지', 'DUK']] },
-        { key: 'real_estate', name: '부동산', sourceKeys: [], themeTone: 'realestate', fallbackStocks: [['웰타워', 'WELL'], ['프로로지스', 'PLD'], ['이퀴닉스', 'EQIX']] },
-        { key: 'materials', name: '소재', sourceKeys: [], themeTone: 'materials', fallbackStocks: [['린데', 'LIN'], ['뉴몬트', 'NEM'], ['프리포트맥모란', 'FCX']] }
+        { key: 'information_technology', name: '정보기술', sourceKeys: ['software', 'it_hardware', 'semiconductors'] },
+        { key: 'healthcare', name: '헬스케어', sourceKeys: ['healthcare', 'biotech'] },
+        { key: 'finance', name: '금융', sourceKeys: ['finance'] },
+        { key: 'consumer_discretionary', name: '경기소비재', sourceKeys: ['consumer_discretionary'] },
+        { key: 'communication_services', name: '커뮤니케이션', sourceKeys: ['communication', 'internet_platforms'] },
+        { key: 'industrials', name: '산업재', sourceKeys: ['industrials'] },
+        { key: 'consumer_staples', name: '필수소비재', sourceKeys: ['consumer_staples'] },
+        { key: 'energy', name: '에너지', sourceKeys: ['energy'] },
+        { key: 'utilities', name: '유틸리티', sourceKeys: ['utilities'], themeTone: 'utilities' },
+        { key: 'real_estate', name: '부동산', sourceKeys: ['real_estate'], themeTone: 'realestate' },
+        { key: 'materials', name: '소재', sourceKeys: ['materials'], themeTone: 'materials' }
       ];
       const byIndustry = new Map(items
         .filter((sector) => sector && typeof sector.key === 'string')
         .map((sector) => [sector.key, sector]));
-      const visibleSectors = expectedIndustries.map(({ key, name, sourceKeys, fallbackStocks, themeTone }) => {
+      const visibleSectors = expectedIndustries.map(({ key, name, sourceKeys, themeTone }) => {
         const sources = sourceKeys.map((sourceKey) => byIndustry.get(sourceKey)).filter(Boolean);
         const sourceStocks = sources.flatMap((source) =>
           Array.isArray(source.stocks) ? source.stocks : []);
-        const fallback = fallbackStocks.map(([stockName, symbol]) => ({
-          name: stockName, symbol, showSymbol: true, hideChange: true,
-          ...(themeTone ? { themeTone } : {})
-        }));
-        const candidates = [...sourceStocks, ...fallback];
-        const seenSymbols = new Set();
-        const stocks = candidates.filter((stock) => {
+        const seenIssuers = new Set();
+        const candidates = sourceStocks.sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).filter((stock) => {
           if (!stock || typeof stock.name !== 'string' || !stock.name.trim()) return false;
           const symbolKey = String(stock.symbol || stock.name).trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
-          if (seenSymbols.has(symbolKey)) return false;
-          seenSymbols.add(symbolKey);
+          const issuerKey = stock.issuer_key || (['GOOG', 'GOOGL'].includes(symbolKey) ? 'US:ALPHABET'
+            : ['BRK.A', 'BRK.B'].includes(symbolKey) ? 'US:BERKSHIRE' : symbolKey);
+          if (key === 'information_technology' && symbolKey === 'NVDA') return false;
+          if (seenIssuers.has(issuerKey)) return false;
+          seenIssuers.add(issuerKey);
           return true;
-        }).sort((a, b) => changeValue(b) - changeValue(a)).slice(0, 3);
+        });
+        const stocks = candidates.slice(0, 3);
+        if (key === 'information_technology') {
+          const anthropic = candidates.find((stock) => industrySymbol(stock.symbol) === 'ANT');
+          if (anthropic && !stocks.includes(anthropic)) stocks.splice(2, 1, anthropic);
+        }
         const changes = sources.map((source) => source.change_pct).filter(Number.isFinite);
         const changePct = changes.length
           ? changes.reduce((total, value) => total + value, 0) / changes.length : null;
@@ -239,57 +350,63 @@
             hideChange: changes.length === 0,
             ...(themeTone ? { themeTone } : {})
           },
-          stocks
+          stocks: orderSelectedStocks(stocks)
         };
       });
-      visibleSectors.sort((a, b) => changeValue(b.sector) - changeValue(a.sector));
       const supplementalThemes = [
         {
           sector: { key: 'theme_semiconductors', name: '반도체', themeTone: 'semiconductor', hideChange: true },
-          stocks: [
-            { name: 'AMD', symbol: 'AMD', themeTone: 'semiconductor', showSymbol: true, hideChange: true },
-            { name: '브로드컴', symbol: 'AVGO', themeTone: 'semiconductor', showSymbol: true, hideChange: true },
-            { name: '마이크론', symbol: 'MU', themeTone: 'semiconductor', showSymbol: true, hideChange: true }
-          ]
+          stocks: orderSelectedStocks([...(byIndustry.get('semiconductors')?.stocks || [])]
+            .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
         },
         {
           sector: { key: 'theme_biotech', name: '바이오', themeTone: 'biotech', hideChange: true },
-          stocks: [
-            { name: '모더나', symbol: 'MRNA', themeTone: 'biotech', showSymbol: true, hideChange: true },
-            { name: '리제네론', symbol: 'REGN', themeTone: 'biotech', showSymbol: true, hideChange: true },
-            { name: '바이오젠', symbol: 'BIIB', themeTone: 'biotech', showSymbol: true, hideChange: true }
-          ]
+          stocks: orderSelectedStocks([...(byIndustry.get('biotech')?.stocks || [])]
+            .filter((stock) => industrySymbol(stock.symbol) !== 'ABBV')
+            .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
         },
         {
           sector: { key: 'theme_bitcoin', name: '비트코인', themeTone: 'bitcoin', hideChange: true },
-          stocks: [
-            { name: '코인베이스', symbol: 'COIN', themeTone: 'bitcoin', showSymbol: true, hideChange: true },
-            { name: '스트래티지', symbol: 'MSTR', themeTone: 'bitcoin', showSymbol: true, hideChange: true },
-            { name: '마라홀딩스', symbol: 'MARA', themeTone: 'bitcoin', showSymbol: true, hideChange: true }
-          ]
+          stocks: orderSelectedStocks([...(byIndustry.get('bitcoin_related')?.stocks || [])]
+            .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
         }
       ];
-      [...visibleSectors, ...supplementalThemes].forEach(({ sector, stocks: ranked }) => {
-        const sectorPct = typeof sector.change_pct === 'number' && Number.isFinite(sector.change_pct)
-          ? sector.change_pct : null;
-        const sectorColor = sector.themeTone ? themeTileColor(sector.themeTone) : mapTileColor(sectorPct);
+      const etfChange = ({ sector }) => {
+        const quote = industryQuoteFor(sectorEtfs[sector.key]);
+        return Number.isFinite(quote?.change_pct) ? quote.change_pct : -Infinity;
+      };
+      [...visibleSectors, ...supplementalThemes].sort((a, b) => {
+        const left = etfChange(a);
+        const right = etfChange(b);
+        return left === right ? 0 : right - left;
+      }).forEach(({ sector, stocks: ranked }) => {
+        const etf = sectorEtfs[sector.key];
+        const etfQuote = industryQuoteFor(etf);
+        const sectorPct = etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null;
+        // Sector and stock tiles share the trading-value charcoal surface.
+        // Direction is shown by the percentage text; only actual changes flash.
+        const sectorColor = mapTileColor(sectorPct);
         const row = document.createElement('div');
         row.className = 'industry-map-row';
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone
           + (sector.themeTone ? ' industry-map-sector-theme' : '');
-        heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.30, sectorColor.alpha + 0.045).toFixed(3) + ')';
-        heading.style.borderColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.62, sectorColor.alpha + 0.20).toFixed(3) + ')';
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
         label.title = label.textContent;
         const change = document.createElement('span');
         change.className = 'industry-map-sector-change';
-        change.textContent = formatChange(sectorPct);
-        change.hidden = sector.hideChange === true;
-        heading.append(label);
-        if (!change.hidden) heading.append(change);
+        const sectorChangeText = formatChange(sectorPct);
+        change.textContent = sectorChangeText;
+        const prevSectorChangeText = industryFlashSectorPrev.get(sector.key);
+        if (prevSectorChangeText !== undefined && sectorChangeText !== '—'
+            && sectorChangeText !== prevSectorChangeText) {
+          // Briefly flash the tile in the direction color, then return to charcoal.
+          heading.classList.add(flashClassFor(sectorColor.tone));
+        }
+        industryFlashSectorPrev.set(sector.key, sectorChangeText);
+        heading.append(label, change);
         const stocks = document.createElement('div');
         stocks.className = 'industry-map-stocks';
         if (!ranked.length) {
@@ -299,25 +416,33 @@
           stocks.appendChild(empty);
         }
         ranked.forEach((stock) => {
-          const pct = typeof stock.change_pct === 'number' && Number.isFinite(stock.change_pct)
-            ? stock.change_pct : null;
-          const color = stock.themeTone ? themeTileColor(stock.themeTone) : mapTileColor(pct);
+          const live = industryQuoteFor(stock.symbol);
+          const pct = live && Number.isFinite(live.change_pct) ? live.change_pct
+            : stock.hideChange ? null : Number.isFinite(stock.change_pct) ? stock.change_pct : null;
+          const color = mapTileColor(pct);
           const stockTile = document.createElement('button');
           stockTile.type = 'button';
           stockTile.className = 'industry-map-stock ' + color.tone
             + (stock.themeTone ? ' industry-map-stock-theme' : '');
-          stockTile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
-          stockTile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
-          stockTile.title = stock.name + (stock.symbol ? ' (' + stock.symbol + ')' : '')
-            + (stock.hideChange ? '' : ' ' + formatChange(pct));
+          stockTile.title = stock.name + (stock.hideChange ? '' : ' ' + formatChange(pct));
+          stockTile.dataset.industrySymbol = industrySymbol(stock.symbol);
           const name = document.createElement('span');
           name.className = 'industry-map-stock-name';
           name.textContent = stock.name;
           stockTile.append(name);
-          if (stock.hideChange !== true) {
+          if (stock.hideChange !== true || live) {
             const stockChange = document.createElement('span');
             stockChange.className = 'industry-map-stock-change';
-            stockChange.textContent = formatChange(pct);
+            const stockChangeText = formatChange(pct);
+            stockChange.textContent = stockChangeText;
+            const stockFlashKey = industrySymbol(stock.symbol);
+            const prevStockChangeText = industryFlashStockPrev.get(stockFlashKey);
+            if (prevStockChangeText !== undefined && stockChangeText !== '—'
+                && stockChangeText !== prevStockChangeText) {
+              // Briefly flash the tile in the direction color, then return to charcoal.
+              stockTile.classList.add(flashClassFor(color.tone));
+            }
+            industryFlashStockPrev.set(stockFlashKey, stockChangeText);
             stockTile.append(stockChange);
           }
           stockTile.addEventListener('click', () => {
@@ -340,10 +465,8 @@
       });
     };
     const loadIndustryMap = async (id) => {
-      if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) {
-        if (id === requestId) renderIndustryMap(industryMapData);
-        return;
-      }
+      if (industryMapData && id === requestId) renderIndustryMap(industryMapData);
+      if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) return;
       if (industryMapPromise) {
         try {
           const data = await industryMapPromise;
@@ -370,6 +493,17 @@
       try {
         const data = await industryMapPromise;
         if (id === requestId) renderIndustryMap(data);
+        // The Kiwoom prices arrive with the map; only the once-a-day close
+        // lookups may still be finishing. Reuse the same map endpoint once.
+        if (!industryWarmupRetryScheduled && data?.items?.some(sector =>
+            sector?.stocks?.some(stock => !Number.isFinite(stock?.change_pct)))) {
+          industryWarmupRetryScheduled = true;
+          window.setTimeout(() => {
+            if (tab !== 'industry' || !sidebarActive()) return;
+            industryMapFetchedAt = 0;
+            void loadIndustryMap(requestId);
+          }, 10000);
+        }
       } catch (_) {
         // Keep the sidebar free of transient loading/error copy.
       } finally {
@@ -464,8 +598,8 @@
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
-      list.classList?.remove?.('industry-map-list');
-      if (tab !== 'value') {
+      if (tab !== 'industry') list.classList?.remove?.('industry-map-list');
+      if (tab !== 'value' && !(tab === 'industry' && industryMapData)) {
         const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
         if (displayedRows.length) cachedRankingRows = displayedRows;
         list.replaceChildren();
@@ -475,11 +609,14 @@
         applyChangeSort();
       }
       if (tab === 'realtime') {
-        renderMarketQqq();
+        // QQQ is a plugin-only live quote card, not a duplicate market-row.
+        list.replaceChildren();
         return;
       }
       if (tab === 'industry') {
+        syncQqqSocket();
         await loadIndustryMap(id);
+        void refreshIndustryEtfRates();
         return;
       }
       if (tab !== 'value') return;
@@ -662,76 +799,7 @@
 
     // Share one DigitalOcean socket between QQQ, the visible ranking, and the chart.
     const qqqWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('qqq') === true;
-    const paintMarketQqq = () => {
-      const row = list?.querySelector('[data-market-qqq]');
-      if (!row) return;
-      const quote = marketQqqQuote;
-      const fresh = freshQuote(quote, Date.now());
-      const change = fresh && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
-      row.querySelector('[data-market-qqq-price]').textContent = fresh
-        ? '$' + quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        : '—';
-      const rate = row.querySelector('[data-market-qqq-change]');
-      rate.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
-      rate.classList.toggle('text-rose-500', change > 0);
-      rate.classList.toggle('text-sky-500', change < 0);
-    };
-    const moveQqqToChat = () => {
-      if (!window.GaemiGTPWidgetDock?.add?.('qqq')) return;
-      window.enterChatWorkspace?.();
-      if (window.innerWidth < 1024) {
-        if (document.body.classList.contains('left-market-open')) toggle();
-        if (document.body.classList.contains('left-home-open')) window.closeLeftSidebarHome?.();
-      }
-      applyState();
-      document.querySelector('[data-central-widget-id="qqq"] button')?.focus();
-    };
-    const qqqDragType = 'application/x-gaemi-qqq';
-    const renderMarketQqq = () => {
-      if (qqqWidgetActive()) {
-        list.textContent = 'QQQ는 가운데에 표시 중이야.';
-        return;
-      }
-      const row = document.createElement('article');
-      row.className = 'market-stock-row';
-      row.dataset.marketQqq = 'true';
-      const grip = document.createElement('button');
-      grip.type = 'button';
-      grip.className = 'market-stock-grip border-0 bg-transparent p-0';
-      grip.textContent = '⠿';
-      grip.title = 'QQQ 가운데로 이동';
-      grip.setAttribute('aria-label', 'QQQ 가운데로 이동');
-      grip.draggable = true;
-      grip.addEventListener('click', moveQqqToChat);
-      grip.addEventListener('dragstart', event => {
-        if (!event.dataTransfer) return;
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData(qqqDragType, 'QQQ');
-      });
-      const content = document.createElement('div');
-      content.className = 'market-stock-content';
-      content.innerHTML = `
-        <div class="market-stock-top"><span class="market-stock-name">QQQ</span><span class="market-stock-price" data-market-qqq-price>—</span></div>
-        <div class="market-stock-second"><span class="market-stock-turnover">나스닥</span><span class="market-stock-change" data-market-qqq-change>—</span></div>
-        <div class="market-stock-third"><a class="truncate text-current" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a></div>`;
-      row.append(grip, stockMark({ symbol: 'QQQ' }), content);
-      list.replaceChildren(row);
-      paintMarketQqq();
-      window.GaemiGTPWidgetDock?.updateMarketQqqReason?.();
-    };
-    for (const id of ['mainHeroView', 'centralWidgetDock', 'chatArea']) {
-      const target = document.getElementById(id);
-      target?.addEventListener('dragover', event => {
-        if (!event.dataTransfer?.types.includes(qqqDragType)) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-      });
-      target?.addEventListener('drop', event => {
-        if (event.dataTransfer?.getData(qqqDragType) !== 'QQQ') return;
-        event.preventDefault();
-        moveQqqToChat();
-      });
-    }
+    const marketEtfWidgetActive = () => ['spy', 'dia'].some(id => window.GaemiGTPWidgetDock?.isActive?.(id) === true);
     const quoteConsumersActive = () =>
       window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
     let qqqSocket = null;
@@ -740,12 +808,15 @@
     let qqqReconnectDelay = 1000;
     const qqqSocketWanted = () =>
       document.visibilityState === 'visible'
-      && (qqqWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime')) || quoteConsumersActive());
+      && (qqqWidgetActive() || marketEtfWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
-      marketQqqQuote = quote?.symbol === 'QQQ' ? quote : null;
-      paintMarketQqq();
+      if (quote?.symbol === 'QQQ') {
+        marketQqqQuote = quote;
+      } else if (!marketQqqQuote || Date.now() - marketQqqQuote.received_at_ms > 180000) {
+        marketQqqQuote = null;
+      }
       window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', {
-        detail: { quote: quote || null }
+        detail: { quote: marketQqqQuote || null }
       }));
     };
     const stopQqqSocket = () => {
@@ -761,6 +832,8 @@
       }
       dispatchQqqQuote(null);
       publishLiveQuotes([]);
+      publishIndustryQuotes([]);
+      publishMarketEtfQuotes([]);
     };
     const scheduleQqqReconnect = (generation) => {
       if (!qqqSocketWanted() || generation !== qqqSocketGeneration || qqqReconnectTimer !== null) return;
@@ -796,6 +869,8 @@
           const message = JSON.parse(event.data);
           if (message?.type === 'quote') dispatchQqqQuote(message.quote || null);
           if (message?.type === 'quotes' && Array.isArray(message.items)) publishLiveQuotes(message.items);
+          if (message?.type === 'industry-quotes' && Array.isArray(message.items)) publishIndustryQuotes(message.items);
+          if (message?.type === 'market-etf-quotes' && Array.isArray(message.items)) publishMarketEtfQuotes(message.items);
         } catch (_) {
           // Ignore malformed frames; the next valid quote will refresh the card.
         }
@@ -808,6 +883,8 @@
         if (generation !== qqqSocketGeneration) return;
         dispatchQqqQuote(null);
         publishLiveQuotes([]);
+        publishIndustryQuotes([]);
+        publishMarketEtfQuotes([]);
         scheduleQqqReconnect(generation);
       };
     };
@@ -847,6 +924,15 @@
           }
           button.dataset.changePct = String(quote.change_pct);
           button.dataset.currentChangePct = String(quote.change_pct);
+          if (quote.reference_close_date) button.dataset.referenceCloseDate = quote.reference_close_date;
+        } else if (button.dataset.referenceCloseDate && marketQqqQuote?.reference_close_date
+                   && button.dataset.referenceCloseDate !== marketQqqQuote.reference_close_date) {
+          // Only clear a rate when the reference closing session really changed.
+          const change = button.querySelector('[data-market-change]');
+          if (change) change.textContent = '—';
+          button.dataset.changePct = '-Infinity';
+          button.dataset.currentChangePct = '';
+          button.dataset.referenceCloseDate = '';
         }
         updated++;
       });
@@ -860,6 +946,33 @@
       }));
       paintLiveQuotes();
     };
+    const publishIndustryQuotes = items => {
+      const now = Date.now();
+      industryLiveQuotes = items.filter(quote => freshQuote(quote, now));
+      rememberIndustryEtfQuotes(items, 'websocket');
+      // A confirmed close-based percentage is still useful when an individual
+      // stock has not traded again in the past 25 seconds.
+      items.forEach(quote => {
+        if (industryEtfSymbols.has(industrySymbol(quote?.symbol))) return;
+        if (Number.isFinite(quote?.change_pct) && quote.reference_close_date
+            && Number.isFinite(quote.received_at_ms)
+            && quote.received_at_ms <= now + 5000
+            && now - quote.received_at_ms <= 30 * 60 * 1000) {
+          industryLastVerifiedQuotes.set(industrySymbol(quote.symbol), quote);
+        }
+      });
+      if (sidebarActive() && tab === 'industry' && industryMapData) {
+        renderIndustryMap(industryMapData);
+        void refreshIndustryEtfRates();
+      }
+    };
+    const publishMarketEtfQuotes = items => {
+      const now = Date.now();
+      window.dispatchEvent(new CustomEvent('gaemi:market-etf-quotes', {
+        detail: { items: items.filter(quote => freshQuote(quote, now) &&
+          (quote.symbol === 'SPY' || quote.symbol === 'DIA')) }
+      }));
+    };
 
     // Also refresh when the user returns to this tab after it was backgrounded.
     // Keep background reads off to avoid unnecessary database usage.
@@ -869,10 +982,8 @@
       if (sidebarActive() && ['value', 'realtime', 'industry'].includes(tab)) void showUsRanking();
       paintLiveQuotes();
     };
-    window.addEventListener('gaemi:qqq-placement', () => {
-      if (sidebarActive() && tab === 'realtime') void showUsRanking();
-      syncQqqSocket();
-    });
+    window.addEventListener('gaemi:qqq-placement', syncQqqSocket);
+    window.addEventListener('gaemi:market-widget-placement', syncQqqSocket);
     document.addEventListener('visibilitychange', refreshOnReturn);
     window.addEventListener('focus', refreshOnReturn);
 
@@ -929,20 +1040,11 @@
     });
     sidebar.dataset.marketControlsBound = 'true';
     window.GaemiGTPMarketSidebar.refreshLiveQuotes = refreshOnReturn;
-    window.GaemiGTPMarketSidebar.openMarketTab = () => {
-      if (!sidebarActive() && sidebar.parentElement?.id === 'leftSidebarHomeSectionContent') {
-        window.openLeftSidebarSection?.('market');
-      } else if (!sidebarActive() && !document.body.classList.contains('left-market-open')) {
-        toggle();
-      }
-      sidebar.querySelector('[data-info-tab-action="realtime"]')?.click();
-    };
     // Closed panels and background tabs consume no ranking or quote reads.
     if (sidebarActive()) void showUsRanking();
     window.setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       syncQqqSocket();
-      paintMarketQqq();
       if (draggedRow) return;
       if (sidebarActive() && tab === 'value') void showUsRanking();
     }, 3000);

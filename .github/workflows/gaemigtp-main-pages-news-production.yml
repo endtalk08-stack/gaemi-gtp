@@ -1,6 +1,12 @@
 name: gaemigtp-main Pages production - centered News Chat
 # QQQ card and sourced reason verification: 2026-11-19
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'functions/**'
+      - '.github/workflows/gaemigtp-main-pages-news-production.yml'
   workflow_dispatch:
 
 permissions:
@@ -12,7 +18,7 @@ concurrency:
 
 jobs:
   production:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,7 +30,7 @@ jobs:
           grep -Fq '오늘 미국 상승 테마 뭐야?' frontend/index.html
           grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' frontend/index.html
           grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
-          grep -Fq 'market-sidebar.js?v=20261120-industry-separated-boxes-v4' frontend/index.html
+          grep -Eq 'market-sidebar\.js\?v=[^\"]+' frontend/index.html
           grep -Fq 'aria-label="메인 화면"' frontend/index.html
           test "$(grep -Fc 'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2' frontend/index.html)" -eq 2
           grep -Fq 'News</span>' frontend/index.html
@@ -59,35 +65,37 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
           command: pages deploy frontend --project-name gaemigtp-main --branch main
-      - name: Verify production HTML and R2 chart
+      - name: Verify production HTML, assets and R2 endpoints
         run: |
-          set -x
-          for attempt in 1 2 3 4 5 6 7 8; do
-            if curl -fsS --max-time 12 "https://gaemigtp-main.pages.dev/" -o "$RUNNER_TEMP/production-index.html" &&
-              cmp -s frontend/index.html "$RUNNER_TEMP/production-index.html"; then
-              break
-            fi
-            sleep 3
-          done
-          cmp frontend/index.html "$RUNNER_TEMP/production-index.html"
-          grep -Fq 'widget-dock.css?v=20261119-qqq-reason-v3' "$RUNNER_TEMP/production-index.html"
-          grep -Fq '오늘 미국 상승 테마 뭐야?' "$RUNNER_TEMP/production-index.html"
-          grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' "$RUNNER_TEMP/production-index.html"
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/center-chat/widget-dock/widget-dock.css?v=20261119-qqq-reason-v3" -o "$RUNNER_TEMP/production-widget-dock.css"
-          grep -Fq -- '--qqq-text: #bfc3cb' "$RUNNER_TEMP/production-widget-dock.css"
-          grep -Fq 'widget-dock.js?v=20261120-market-qqq-v1' "$RUNNER_TEMP/production-index.html"
-          grep -Fq 'market-sidebar.js?v=20261120-industry-separated-boxes-v4' "$RUNNER_TEMP/production-index.html"
-          grep -Fq 'market-sidebar.css?v=20261120-industry-separated-boxes-v4' "$RUNNER_TEMP/production-index.html"
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/left-market-sidebar/market-sidebar.css?v=20261120-industry-separated-boxes-v4" -o "$RUNNER_TEMP/production-market-sidebar.css"
-          cmp frontend/shell/left-market-sidebar/market-sidebar.css "$RUNNER_TEMP/production-market-sidebar.css"
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/left-market-sidebar/market-sidebar.js?v=20261120-industry-separated-boxes-v4" -o "$RUNNER_TEMP/production-market-sidebar.js"
-          cmp frontend/shell/left-market-sidebar/market-sidebar.js "$RUNNER_TEMP/production-market-sidebar.js"
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/shell/center-chat/widget-dock/widget-dock.js?v=20261120-market-qqq-v1" -o "$RUNNER_TEMP/production-widget-dock.js"
-          cmp frontend/shell/center-chat/widget-dock/widget-dock.js "$RUNNER_TEMP/production-widget-dock.js"
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/qqq-reason" |
+          site=https://gaemigtp-main.pages.dev
+
+          verify_asset() {
+            local path="$1" source="$2" output="$RUNNER_TEMP/production-${2##*/}"
+            local attempt
+            for attempt in {1..8}; do
+              if curl -fsS --max-time 12 -H 'Cache-Control: no-cache' "$site/$path" -o "$output" &&
+                cmp -s "$source" "$output"; then
+                echo "Verified $path"
+                return 0
+              fi
+              sleep 3
+            done
+            echo "::error::Production asset differs from the deployed commit: $path"
+            return 1
+          }
+
+          asset_path() {
+            grep -oE "shell/[^\" ]*/$1\\?v=[^\" ]+" frontend/index.html
+          }
+
+          verify_asset '' frontend/index.html
+          verify_asset "$(asset_path 'market-sidebar[.]css')" frontend/shell/left-market-sidebar/market-sidebar.css
+          verify_asset "$(asset_path 'market-sidebar[.]js')" frontend/shell/left-market-sidebar/market-sidebar.js
+          verify_asset "$(asset_path 'widget-dock[.]css')" frontend/shell/center-chat/widget-dock/widget-dock.css
+          verify_asset "$(asset_path 'widget-dock[.]js')" frontend/shell/center-chat/widget-dock/widget-dock.js
+          curl -fsS --retry 3 --max-time 20 "$site/market/qqq-reason" |
             jq -e '.ok == true and (.items | type == "array")'
-          grep -Fq "font-size: 14px !important;" "$RUNNER_TEMP/production-widget-dock.css"
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/stocks/us/instruments.json?v=20261120-top20-websocket-v1" |
+          curl -fsS --retry 3 --max-time 20 "$site/stocks/us/instruments.json?v=20261120-top20-websocket-v1" |
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/market/us-daily-chart?symbol=NVDA" |
+          curl -fsS --retry 3 --max-time 20 "$site/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'

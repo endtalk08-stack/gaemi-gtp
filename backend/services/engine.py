@@ -1366,13 +1366,6 @@ def _fetch_kr_official_disclosures_uncached(stock_code, days=7, max_results=3):
 
 def fetch_kr_official_disclosures(stock_code, days=7, max_results=3):
     """DART 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
-    if days == 1 and max_results == 0 and os.getenv("DISCLOSURE_NEON_READ") == "1":
-        from .disclosure_transfer import read_snapshot
-        snapshot = read_snapshot("KR", stock_code)
-        if snapshot is not None:
-            return snapshot
-        if os.getenv("DISCLOSURE_NEON_ONLY") == "1":
-            return []
     if not OPENDART_API_KEY or not stock_code:
         return []
     stock_code = str(stock_code).strip()
@@ -1987,14 +1980,6 @@ def _fetch_us_official_filings_uncached(ticker_symbol, days=7, max_results=3, co
 def fetch_us_official_filings(ticker_symbol, days=7, max_results=3, complete_window=False):
     """SEC 조회를 종목별로 단일화해 동시 요청 중복을 막는다."""
     ticker_symbol = str(ticker_symbol or "").upper().strip()
-    if (days == 1 and max_results == 30 and complete_window
-            and os.getenv("DISCLOSURE_NEON_READ") == "1"):
-        from .disclosure_transfer import read_snapshot
-        snapshot = read_snapshot("US", ticker_symbol)
-        if snapshot is not None:
-            return snapshot
-        if os.getenv("DISCLOSURE_NEON_ONLY") == "1":
-            return []
     if not ticker_symbol or ticker_symbol not in US_CIKS:
         return []
     cache_key = (ticker_symbol, days, max_results, complete_window)
@@ -2291,8 +2276,6 @@ def _stock_intro_ment(raw_name, change_pct):
 
 
 def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_market_override=False, issue_mode='auto'):
-    # Render may only consume disclosure snapshots produced by DigitalOcean.
-    from .disclosure_transfer import read_snapshot
     raw_name = str(raw_name or 'SK하이닉스').strip()
     ticker_symbol = ticker_symbol_override or TICKERS.get(raw_name)
     clean_code = None
@@ -2367,7 +2350,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
             news_result = _attach_news_price_reactions(news_result)
             _trace_stage("news done", stage_started)
 
-            kr_official_disclosures = read_snapshot("KR", clean_code) or []
+            kr_official_disclosures = fetch_kr_official_disclosures(clean_code, days=1, max_results=3)
 
         # 2. 미국 주식
         else:
@@ -2392,7 +2375,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
             )
             news_result = _attach_news_price_reactions(news_result)
 
-            us_filings_raw = read_snapshot("US", ticker_symbol) or []
+            us_filings_raw = fetch_us_official_filings(ticker_symbol, days=1, max_results=30, complete_window=True)
 
             current_price = price_result["current_price"]
             change_pct = price_result["change_pct"]
@@ -2533,9 +2516,8 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
                     "panel_extra_detail": item.get("panel_extra_detail", {}),
                     "snapshot_only": item.get("snapshot_only", False),
                 })
-        # One DO/Neon 24-hour dataset feeds two independent views:
-        # panel shows the rolling day, central chat shows local calendar today.
-        from .disclosure_transfer import today_filings
+        # Keep the panel and central chat on the same exchange-local date window.
+        from .disclosure_dates import today_filings
         panel_disclosures = disclosures
         panel_us_filings = us_filings
         if is_krw:

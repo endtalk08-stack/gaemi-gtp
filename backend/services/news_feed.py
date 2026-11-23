@@ -13,7 +13,6 @@ from email.utils import parsedate_to_datetime
 
 from backend.analysis.news.catalog import STOCK_UNIVERSE, canonical_us_news_name
 from backend.providers import naver_news, official_company_news, sec_filings
-from .news_metadata_store import read_cached_news, save_async, _retained_news
 
 _CACHE = {}
 _CACHE_TTL = 120
@@ -144,79 +143,25 @@ def _item_age_ok(item):
     return now - dt <= datetime.timedelta(days=MAX_NEWS_AGE_DAYS)
 
 
-def _refresh_query(cache_key, query, display, start, previously_stored):
-    """Refresh a storage-backed news query without delaying the current viewer."""
-    try:
-        fresh = naver_news.search_news(
-            query, display=display, start=start, raise_on_error=False,
-        )
-        if not isinstance(fresh, list) or not fresh:
-            return
-        merged = _retained_news(previously_stored, fresh)
-        if merged:
-            with _CACHE_LOCK:
-                _CACHE[cache_key] = (
-                    time.time(), merged[:max(20, min(int(display), 100))],
-                )
-        save_async(fresh, query, display, start)
-    except Exception as exc:
-        print("[news cache] refresh_failed type=" + type(exc).__name__, flush=True)
-    finally:
-        with _REFRESH_LOCK:
-            _REFRESH_PENDING.discard(cache_key)
-
-
-def _schedule_refresh(cache_key, query, display, start, stored):
-    with _REFRESH_LOCK:
-        if cache_key in _REFRESH_PENDING:
-            return
-        _REFRESH_PENDING.add(cache_key)
-    try:
-        _REFRESH_POOL.submit(
-            _refresh_query, cache_key, query, display, start, list(stored),
-        )
-    except RuntimeError:
-        with _REFRESH_LOCK:
-            _REFRESH_PENDING.discard(cache_key)
-
-
 def _fetch_query(query, display=20, start=1, *, raise_on_error=False):
-    # Render only reads news already held in Neon; collection runs on DO.
-    if os.getenv('GAEMIGTP_NEWS_WORKER') != '1':
-        return read_cached_news(query, display, start)
+    """Fetch from Naver and keep only a short process-local response cache."""
     cache_key = (query, int(display), int(start))
     now = time.time()
     with _CACHE_LOCK:
         cached = _CACHE.get(cache_key)
         if cached and now - cached[0] <= _CACHE_TTL:
             return list(cached[1])
-
-    # Shared storage is read before the original provider. No changes to
-    # the UI or AI caller; they still receive the same provider-shaped rows.
-    try:
-        stored = read_cached_news(query, display, start)
-    except Exception as exc:
-        print("[news cache] storage_read_failed type=" + type(exc).__name__, flush=True)
-        stored = []
-    if stored:
-        with _CACHE_LOCK:
-            _CACHE[cache_key] = (now, list(stored))
-        _schedule_refresh(cache_key, query, display, start, stored)
-        return list(stored)
-
-    # First request, or unconfigured storage: preserve the existing behavior.
     rows = naver_news.search_news(
         query, display=display, start=start, raise_on_error=raise_on_error,
     )
     if not isinstance(rows, list):
         rows = []
     with _CACHE_LOCK:
-        _CACHE[cache_key] = (now, list(rows))
-    if rows:
-        try:
-            save_async(rows, query, display, start)
-        except Exception:
-            pass
+        _CACHE[cache_key] = (time.time(), list(rows))
+        if len(_CACHE) > 256:
+            oldest = sorted(_CACHE, key=lambda key: _CACHE[key][0])[:64]
+            for key in oldest:
+                _CACHE.pop(key, None)
     return rows
 
 

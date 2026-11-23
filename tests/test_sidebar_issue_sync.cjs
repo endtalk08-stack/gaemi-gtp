@@ -106,7 +106,14 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     addEventListener(name, fn) { documentListeners[name] = fn; }
   };
   const listeners = {};
+  const sockets = [];
+  class MockWebSocket {
+    static CLOSING = 2;
+    constructor(url) { this.url = url; this.readyState = 1; sockets.push(this); }
+    close() { this.readyState = 3; this.onclose?.(); }
+  }
   const window = {
+    WebSocket: MockWebSocket,
     innerWidth: 1200,
     location: { hostname: 'gaemi-gtp.onrender.com', origin: 'https://gaemi-gtp.onrender.com' },
     // Fake browser: acknowledge polling without starting a background timer.
@@ -135,16 +142,39 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
         ok: true, source: 'kiwoom:usa10101+usa23000', sort: 'marketcap',
         items: [
           { key: 'semiconductors', name: '반도체', change_pct: 1.8, stocks: [
+            { name: 'AMD', symbol: 'AMD.O', change_pct: 5, market_cap_usd: 100 },
             { name: '엔비디아', symbol: 'NVDA.O', rank: 1, change_pct: 2.5, market_cap_usd: 1000 },
+            { name: '브로드컴', symbol: 'AVGO.O', change_pct: 1.5, market_cap_usd: 500 },
+            { name: '마이크론', symbol: 'MU.O', change_pct: 20, market_cap_usd: 50 },
+          ] },
+          { key: 'software', name: '소프트웨어', stocks: [
+            { name: '앤스로픽', symbol: 'ANT.O', change_pct: 3, market_cap_usd: 30 },
           ] },
           { key: 'healthcare', name: '헬스케어', change_pct: -0.8, stocks: [
             { name: '일라이 릴리', symbol: 'LLY.N', rank: 1, change_pct: -1.25, market_cap_usd: 900 },
+            { name: '애브비', symbol: 'ABBV.N', change_pct: 1, market_cap_usd: 800 },
+          ] },
+          { key: 'biotech', name: '바이오', stocks: [
+            { name: '모더나', symbol: 'MRNA.O', market_cap_usd: 700 },
+            { name: '애브비', symbol: 'ABBV.N', market_cap_usd: 800 },
+            { name: '길리어드', symbol: 'GILD.O', market_cap_usd: 600 },
+            { name: '리제네론', symbol: 'REGN.O', market_cap_usd: 500 },
+          ] },
+          { key: 'bitcoin_related', name: '비트코인 관련 종목', stocks: [
+            { name: '코인베이스', symbol: 'COIN.O', market_cap_usd: 600 },
+          ] },
+          { key: 'communication', name: '커뮤니케이션', stocks: [
+            { name: '알파벳 Class A', symbol: 'GOOGL.O', issuer_key: 'US:ALPHABET', market_cap_usd: 850 },
+            { name: '메타', symbol: 'META.O', issuer_key: 'US:META', market_cap_usd: 800 },
+            { name: '알파벳 Class C', symbol: 'GOOG.O', issuer_key: 'US:ALPHABET', market_cap_usd: 900 },
+            { name: '넷플릭스', symbol: 'NFLX.O', issuer_key: 'US:NETFLIX', market_cap_usd: 700 },
           ] },
           ...[
             ['energy','에너지'],['finance','금융'],['consumer_staples','필수소비재'],
-            ['industrials','산업재'],['internet_platforms','인터넷플랫폼'],['software','소프트웨어'],
-            ['communication','커뮤니케이션'],['consumer_discretionary','경기소비재'],['it_hardware','IT하드웨어']
-          ].map(([key,name]) => ({ key, name, stocks: [] }))
+            ['industrials','산업재'],['internet_platforms','인터넷플랫폼'],
+            ['consumer_discretionary','경기소비재'],['it_hardware','IT하드웨어']
+          ].map(([key,name]) => ({ key, name, stocks: [] })),
+
         ]
       }) };
     }
@@ -172,7 +202,10 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   });
   documentListeners.DOMContentLoaded();
   return {
-    list, realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages,
+    list, realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages, sockets,
+    industryQuotes(items) { sockets.at(-1).onmessage({ data: JSON.stringify({ type: 'industry-quotes', items }) }); },
+    marketEtfQuotes(items) { sockets.at(-1).onmessage({ data: JSON.stringify({ type: 'market-etf-quotes', items }) }); },
+    onMarketEtfQuotes(fn) { (listeners['gaemi:market-etf-quotes'] ||= []).push(fn); },
     replaceValueRows(rows) { mockNow += 61_000; valueRows = rows; valueTab.click(); },
     advanceTime(milliseconds) { mockNow += milliseconds; },
     event(detail) { for (const handler of listeners['gaemi:analysis-issues-ready'] || []) handler({ detail }); },
@@ -194,27 +227,98 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   const rowFor = (name) => app.list.children.find((row) =>
     row.children[0]?.children[0]?.textContent === name);
   const technology = rowFor('정보기술');
-  assert.equal(technology.children[0].children[1].textContent, '+1.80%');
-  assert.equal(technology.children[1].children[0].children[0].textContent, '엔비디아');
-  assert.equal(technology.children[1].children[0].children[1].textContent, '+2.50%');
+  assert.equal(technology.children[0].children[1].textContent, '—');
+  assert.equal(technology.children[0].children.length, 2);
+  assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
+    ['AMD', '앤스로픽', '브로드컴']);
+  assert.equal(technology.children[1].children[0].children[1].textContent, '+5.00%');
   const healthcare = rowFor('헬스케어');
-  assert.equal(healthcare.children[0].children[1].textContent, '-0.80%');
-  assert.equal(healthcare.children[1].children[0].children[0].textContent, '일라이 릴리');
-  assert.equal(healthcare.children[1].children[0].children[1].textContent, '-1.25%');
+  assert.equal(healthcare.children[0].children[1].textContent, '—');
+  assert.deepEqual(healthcare.children[1].children.map((tile) => tile.children[0].textContent),
+    ['애브비', '일라이 릴리', '모더나']);
+  assert.equal(healthcare.children[1].children[1].children[1].textContent, '-1.25%');
+  assert.deepEqual(rowFor('커뮤니케이션').children[1].children.map((tile) => tile.children[0].textContent),
+    ['알파벳 Class C', '메타', '넷플릭스']);
   const utilities = rowFor('유틸리티');
-  assert.equal(utilities.children[0].children.length, 1);
+  assert.equal(utilities.children[0].children[1].textContent, '—');
+  assert.equal(utilities.children[1].children[0].textContent, '상위 종목 데이터 없음');
   const themeRows = app.list.children.filter((row) =>
     ['반도체', '바이오', '비트코인'].includes(row.children[0]?.children[0]?.textContent));
   assert.deepEqual(themeRows.map((row) => row.children[0].children[0].textContent), ['반도체', '바이오', '비트코인']);
   assert.ok(app.list.children.every((row) =>
-    !row.children[0].children.some((child) => child.className === 'industry-map-sector-etf')));
+    row.children[0].children.some((child) => child.className === 'industry-map-sector-name')
+      && row.children[0].children.some((child) => child.className === 'industry-map-sector-change')));
   assert.equal(themeRows[0].children[1].children.length, 3);
   // Stock tiles show the Korean name only; no ticker text is rendered.
   themeRows.forEach((row) => row.children[1].children.forEach((tile) =>
     assert.ok(!tile.children.some((c) => c.className === 'industry-map-stock-symbol'))));
-  assert.equal(themeRows[0].children[1].children[0].children[0].textContent, 'AMD');
+  assert.deepEqual(themeRows[0].children[1].children.map((tile) => tile.children[0].textContent),
+    ['AMD', '엔비디아', '브로드컴']);
   assert.equal(themeRows[1].children[1].children[0].children[0].textContent, '모더나');
+  assert.deepEqual(themeRows[1].children[1].children.map((tile) => tile.children[0].textContent),
+    ['모더나', '길리어드', '리제네론']);
   assert.equal(themeRows[2].children[1].children[0].children[0].textContent, '코인베이스');
+});
+
+test('SPY and DIA use their own message on the existing quote socket', async () => {
+  const app = setup();
+  await flush();
+  app.industryTab.click();
+  await flush();
+  const received = [];
+  app.onMarketEtfQuotes(event => received.push(event.detail.items));
+  const reads = app.calls.length;
+  const quotes = [
+    { symbol: 'SPY', price: 600, change_pct: 0.5, received_at_ms: 1_000_000, stale: false },
+    { symbol: 'DIA', price: 450, change_pct: -0.4, received_at_ms: 1_000_000, stale: false },
+    { symbol: 'XLK', price: 100, change_pct: 1, received_at_ms: 1_000_000, stale: false }
+  ];
+  app.industryQuotes(quotes);
+  assert.equal(received.length, 0);
+  const firstSector = app.list.children[0];
+  assert.ok(firstSector);
+  app.marketEtfQuotes(quotes);
+  assert.deepEqual(Array.from(received.at(-1), quote => quote.symbol), ['SPY', 'DIA']);
+  assert.equal(app.list.children[0], firstSector);
+  assert.equal(app.calls.length, reads);
+});
+
+test('industry map consumes fresh Kiwoom websocket quotes for its selected stock', async () => {
+  const app = setup();
+  await flush();
+  app.industryTab.click();
+  await flush();
+  assert.equal(app.sockets.length, 1);
+  app.industryQuotes([
+    { symbol: 'NVDA.O', price: 120, change_pct: -3.2,
+      received_at_ms: 1_000_000, stale: false },
+    { symbol: 'XLK', price: 150, change_pct: 1.75,
+      received_at_ms: 1_000_000, stale: false },
+  ]);
+  const technology = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '정보기술');
+  assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
+    ['AMD', '앤스로픽', '브로드컴']);
+  assert.equal(technology.children[1].children[1].children[1].textContent, '+3.00%');
+  assert.equal(technology.children[0].children.length, 2);
+  assert.equal(technology.children[0].children[1].textContent, '+1.75%');
+  const semiconductor = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '반도체');
+  assert.ok(semiconductor.children[1].children.some((tile) => tile.children[0].textContent === '엔비디아'));
+  assert.equal(semiconductor.children[1].children[2].children[1].textContent, '-3.20%');
+});
+
+test('industry tiles follow fresh ETF returns and reorder on quote updates', async () => {
+  const app = setup();
+  await flush();
+  app.industryTab.click();
+  await flush();
+  const quote = (symbol, change_pct, stale = false) =>
+    ({ symbol, price: 100, change_pct, received_at_ms: 1_000_000, stale });
+  const firstNames = () => app.list.children.slice(0, 3)
+    .map((row) => row.children[0].children[0].textContent);
+  app.industryQuotes([quote('XBI', 3), quote('XLK', 1.75), quote('XLU', -2), quote('XLF', 9, true)]);
+  assert.deepEqual(firstNames(), ['바이오', '정보기술', '유틸리티']);
+  app.industryQuotes([quote('XLU', 4), quote('XBI', 3), quote('XLK', 1.75)]);
+  assert.deepEqual(firstNames(), ['유틸리티', '바이오', '정보기술']);
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
@@ -246,7 +350,7 @@ test('unrelated analysis and wrong market do not make requests', async () => {
   assert.equal(app.calls.length, n);
 });
 
-test('stale lookup must not write to a rebuilt sidebar', async () => {
+test('stale lookup must not write to the market tab without QQQ', async () => {
   const app = setup({ deferred: true });
   await flush();
   app.event({ name: '일라이 릴리', market: 'us', symbol: 'LLY' });
@@ -256,9 +360,8 @@ test('stale lookup must not write to a rebuilt sidebar', async () => {
   app.resolvePost();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
-  assert.equal(app.list.children.length, 1);
-  assert.equal(app.list.children[0].dataset.marketQqq, 'true',
-    'switching to realtime must keep the current QQQ market card');
+  assert.equal(app.list.children.length, 0,
+    'market tab must no longer render a duplicate QQQ card');
 });
 
 test('central analysis announces only completed and populated briefs', () => {
@@ -290,7 +393,7 @@ test('market cards show stock logo slot and allow keyboard reorder without chang
     ['TSLA.O', 'LLY']);
 });
 
-test('switching tabs immediately restores TOP20 without another Neon read', async () => {
+test('switching from QQQ-free market tab immediately restores TOP20 without another Neon read', async () => {
   const app = setup();
   await flush();
   const originalRows = app.list.querySelectorAll(':scope > button[data-original-index]');
@@ -302,9 +405,8 @@ test('switching tabs immediately restores TOP20 without another Neon read', asyn
   app.realtimeTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
-  assert.equal(app.list.children.length, 1);
-  assert.equal(app.list.children[0].dataset.marketQqq, 'true',
-    'realtime tab should render the QQQ market card');
+  assert.equal(app.list.children.length, 0,
+    'QQQ is a plugin-only widget; the market tab stays empty');
   app.valueTab.click();
   await flush();
   const restoredRows = app.list.querySelectorAll(':scope > button[data-original-index]');

@@ -150,6 +150,22 @@
 
 .central-widget-card__kospi-change--up { color: #ff4d67 !important; }
 .central-widget-card__kospi-change--down { color: #3b82f6 !important; }
+.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-market {
+  justify-content: space-between;
+  gap: 4px;
+}
+.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__sparkline {
+  display: none;
+}
+.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-change {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.4px;
+}
 .central-widget-card__sparkline polygon {
   fill: url(#kospiSparklineGradient);
   stroke: none;
@@ -210,6 +226,33 @@
 }
 .central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-reason[hidden] {
   display: none;
+}
+
+/* QQQ uses the same value layout as the SPY and DIA cards. */
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market-name {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__sparkline {
+  display: none;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market {
+  justify-content: space-between;
+  gap: 4px;
+}
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-market strong,
+.central-widget-card[data-central-widget-id="qqq"] .central-widget-card__kospi-change {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  line-height: 24px !important;
+  letter-spacing: -.4px;
 }
 
 /* US verified Top-20 daily candles, independent of the QQQ widget. */
