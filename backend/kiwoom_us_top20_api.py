@@ -289,10 +289,21 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         result["etf_quotes"] = etf_quotes
     else:
         result["items"] = [row for row in map(add_stocks, source.get("items", [])) if row]
+    # Reuse today's already-verified tick rates; never replace them with a
+    # vendor percentage calculated from a different regular-close session.
+    from backend.us_quote_change import _target
+    session_key = _target(datetime.now(timezone.utc))[0].isoformat()
+    with _QQQ_LOCK:
+        confirmed = {quote["symbol"]: quote for quote in
+                     list(_INDUSTRY_QUOTES.values()) + list(_TOP20_QUOTES.values())
+                     if quote.get("reference_close_session") == session_key
+                     and type(quote.get("change_pct")) in (int, float)}
     for row in result["items"]:
         row["change_pct"] = None
         for stock in row.get("stocks", []):
-            stock["change_pct"] = None
+            symbol = str(stock.get("symbol") or "").upper().split(".")[0]
+            quote = confirmed.get(symbol)
+            stock["change_pct"] = quote["change_pct"] if quote else None
     result["sort"] = "marketcap"
     return result
 
@@ -383,14 +394,29 @@ def _publish_live_quote(quote):
     if change is not None and (type(change) not in (int, float)
                                or not -100 < change < 10000):
         change = None
+    from backend.us_quote_change import _target
+    session_key = _target(datetime.now(timezone.utc))[0].isoformat()
     safe = {
         "symbol": symbol, "price": float(price),
         "change_pct": float(change) if change is not None and quote.get("reference_close_date") else None,
         "reference_close_date": quote.get("reference_close_date"),
+        "reference_close_session": session_key,
         "received_at_ms": int(time.time() * 1000), "stale": False,
         "source": "kiwoom:websocket",
     }
     with _QQQ_CHANGED:
+        if safe["change_pct"] is None:
+            # A pending close lookup must not erase a valid rate from this same session.
+            existing = (_TOP20_QUOTES.get(symbol) or _INDUSTRY_QUOTES.get(symbol)
+                        or _ETF_QUOTES.get(symbol) or _MARKET_WIDGET_QUOTES.get(symbol)
+                        or (_QQQ_QUOTE if symbol == "QQQ" else None))
+            if (existing and existing.get("reference_close_session") == session_key
+                    and type(existing.get("change_pct")) in (int, float)
+                    and type(existing.get("price")) in (int, float)
+                    and existing["price"] > 0 and existing["change_pct"] > -100):
+                close_price = existing["price"] / (1 + existing["change_pct"] / 100)
+                safe["change_pct"] = (safe["price"] / close_price - 1) * 100
+                safe["reference_close_date"] = existing.get("reference_close_date")
         if symbol == "QQQ":
             _QQQ_QUOTE = safe
         if symbol in MARKET_WIDGET_ETF_EXCHANGES:
@@ -647,6 +673,12 @@ def read_top20(path=RANKING_FILE):
         raise ValueError("top20_incomplete")
     seen = set()
     items = []
+    from backend.us_quote_change import _target
+    session_key = _target(datetime.now(timezone.utc))[0].isoformat()
+    with _QQQ_LOCK:
+        confirmed = {symbol: quote for symbol, quote in _TOP20_QUOTES.items()
+                     if quote.get("reference_close_session") == session_key
+                     and type(quote.get("change_pct")) in (int, float)}
     for index, row in enumerate(rows, 1):
         if not isinstance(row, dict):
             raise ValueError("top20_invalid_row")
@@ -663,8 +695,9 @@ def read_top20(path=RANKING_FILE):
             "name": name,
             "exchange": row.get("exchange"),
             "company_key": row.get("company_key"),
-            "price": row.get("price"),
-            "change_pct": None,
+            "price": confirmed[symbol]["price"] if symbol in confirmed else row.get("price"),
+            "change_pct": confirmed[symbol]["change_pct"] if symbol in confirmed else None,
+            "reference_close_date": confirmed[symbol]["reference_close_date"] if symbol in confirmed else None,
             "trading_value": row.get("trading_value"),
             "volume": row.get("volume"),
         }
