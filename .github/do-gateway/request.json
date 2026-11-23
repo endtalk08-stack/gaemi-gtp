@@ -1,4 +1,5 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service"
+  "operation": "deploy",
+  "path": "backend/us_quote_change.py",
+  "target": "backend/us_quote_change.py"
 }
