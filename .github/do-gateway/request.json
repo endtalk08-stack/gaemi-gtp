@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/audit_us_rate_resume_20261123.py",
-  "request_id": "usrateaudit20261123e",
-  "timeout": 180
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_top20_api.py",
+  "target": "backend/kiwoom_us_top20_api.py"
 }
