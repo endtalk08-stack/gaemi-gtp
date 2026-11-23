@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_service_unit_20261123.py",
-  "request_id": "check_service_unit_20261123",
-  "timeout": 60
+  "operation": "logs",
+  "unit": "gaemigtp-kiwoom-us-top20-https.service",
+  "lines": 300
 }
