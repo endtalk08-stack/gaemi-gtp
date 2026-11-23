@@ -343,13 +343,16 @@
 }
 .industry-map-sector-change {
   flex: 0 0 auto;
+  display: inline-block;
   color: var(--gtp-text);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 900;
   line-height: 1;
   font-variant-numeric: tabular-nums;
   text-align: center;
   white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 999px;
 }
 .industry-map-sector-etf {
   display: block;
@@ -363,9 +366,9 @@
   letter-spacing: .02em;
   text-align: center;
 }
-.industry-map-sector.is-up .industry-map-sector-change { color: #e27b8a; }
-.industry-map-sector.is-down .industry-map-sector-change { color: #78aee0; }
-.industry-map-sector.is-flat .industry-map-sector-change { color: var(--gtp-muted); }
+.industry-map-sector.is-up .industry-map-sector-change { color: #fff; background: #c2414e; }
+.industry-map-sector.is-down .industry-map-sector-change { color: #fff; background: #3977b1; }
+.industry-map-sector.is-flat .industry-map-sector-change { color: var(--gtp-muted); background: rgba(128, 132, 140, .18); }
 .industry-map-stocks {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -430,16 +433,18 @@
   font-variant-numeric: tabular-nums;
 }
 .industry-map-stock-change {
-  display: block;
-  font-size: 14px;
+  display: inline-block;
+  font-size: 12px;
   font-weight: 900;
   line-height: 1;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border-radius: 999px;
 }
-.industry-map-stock.is-up .industry-map-stock-change { color: #e27b8a; }
-.industry-map-stock.is-down .industry-map-stock-change { color: #78aee0; }
-.industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
+.industry-map-stock.is-up .industry-map-stock-change { color: #fff; background: #c2414e; }
+.industry-map-stock.is-down .industry-map-stock-change { color: #fff; background: #3977b1; }
+.industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); background: rgba(128, 132, 140, .18); }
 @media (min-width: 1024px) {
   .industry-map-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .industry-map-row .industry-map-sector {
