@@ -397,7 +397,7 @@ def _publish_live_quote(quote):
     from backend.us_quote_change import _target
     session_key = _target(datetime.now(timezone.utc))[0].isoformat()
     safe = {
-        "symbol": symbol, "price": float(price),
+        "symbol": symbol, "exchange": quote.get("exchange"), "price": float(price),
         "change_pct": float(change) if change is not None and quote.get("reference_close_date") else None,
         "reference_close_date": quote.get("reference_close_date"),
         "reference_close_session": session_key,
@@ -470,25 +470,36 @@ def _set_etf_symbols(symbols):
         _QQQ_CHANGED.notify_all()
 
 
-def _top20_snapshot():
+def _feed_snapshot(store):
+    """Fill completed close lookups using the last Kiwoom tick, without another tick."""
     now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
-        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
-                for quote in _TOP20_QUOTES.values()]
+        quotes = [dict(quote) for quote in store.values()]
+    from backend.us_quote_change import _target, validated_change
+    session = _target(datetime.now(timezone.utc))[0].isoformat()
+    for quote in quotes:
+        if quote.get("reference_close_session") != session:
+            quote["change_pct"] = None
+            quote["reference_close_date"] = None
+        elif quote.get("change_pct") is None and quote.get("exchange") in ("ND", "NY", "NA"):
+            percent, close_date = validated_change(quote["symbol"], quote["exchange"], quote["price"])
+            if type(percent) in (int, float) and math.isfinite(percent):
+                quote["change_pct"] = percent
+                quote["reference_close_date"] = close_date
+        quote["stale"] = now_ms - quote["received_at_ms"] > _QQQ_STALE_MS
+    return quotes
+
+
+def _top20_snapshot():
+    return _feed_snapshot(_TOP20_QUOTES)
 
 
 def _industry_snapshot():
-    now_ms = int(time.time() * 1000)
-    with _QQQ_LOCK:
-        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
-                for quote in _INDUSTRY_QUOTES.values()]
+    return _feed_snapshot(_INDUSTRY_QUOTES)
 
 
 def _etf_snapshot():
-    now_ms = int(time.time() * 1000)
-    with _QQQ_LOCK:
-        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
-                for quote in _ETF_QUOTES.values()]
+    return _feed_snapshot(_ETF_QUOTES)
 
 
 def _get_qqq_rest_snapshot():
@@ -525,10 +536,7 @@ def _get_qqq_rest_snapshot():
 
 
 def _market_widget_snapshot():
-    now_ms = int(time.time() * 1000)
-    with _QQQ_LOCK:
-        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
-                for quote in _MARKET_WIDGET_QUOTES.values()]
+    return _feed_snapshot(_MARKET_WIDGET_QUOTES)
 
 
 def _get_market_widget_quotes():
