@@ -291,7 +291,7 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         result["items"] = [row for row in map(add_stocks, source.get("items", [])) if row]
     # Reuse today's already-verified tick rates; never replace them with a
     # vendor percentage calculated from a different regular-close session.
-    from backend.us_quote_change import _target
+    from backend.us_quote_change import _target, validated_change
     session_key = _target(datetime.now(timezone.utc))[0].isoformat()
     with _QQQ_LOCK:
         confirmed = {quote["symbol"]: quote for quote in
@@ -303,7 +303,18 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         for stock in row.get("stocks", []):
             symbol = str(stock.get("symbol") or "").upper().split(".")[0]
             quote = confirmed.get(symbol)
-            stock["change_pct"] = quote["change_pct"] if quote else None
+            if quote:
+                stock["change_pct"] = quote["change_pct"]
+                stock["reference_close_date"] = quote.get("reference_close_date")
+            else:
+                stock["change_pct"] = None
+                price, exchange = stock.get("price"), stock.get("exchange")
+                if type(price) in (int, float) and 0 < price < 10000000 and exchange in ("ND", "NY", "NA"):
+                    # The current price was already supplied by Kiwoom with the industry map.
+                    # Yahoo only supplies the cached preceding regular close (no additional Kiwoom request).
+                    percent, close_date = validated_change(symbol, exchange, price)
+                    stock["change_pct"] = percent
+                    stock["reference_close_date"] = close_date
     result["sort"] = "marketcap"
     return result
 
@@ -681,7 +692,7 @@ def read_top20(path=RANKING_FILE):
         raise ValueError("top20_incomplete")
     seen = set()
     items = []
-    from backend.us_quote_change import _target
+    from backend.us_quote_change import _target, validated_change
     session_key = _target(datetime.now(timezone.utc))[0].isoformat()
     with _QQQ_LOCK:
         confirmed = {symbol: quote for symbol, quote in _TOP20_QUOTES.items()
@@ -697,15 +708,25 @@ def read_top20(path=RANKING_FILE):
         name = row.get("name")
         if not isinstance(name, str) or not name.strip():
             raise ValueError("top20_invalid_name")
+        if symbol in confirmed:
+            current_price = confirmed[symbol]["price"]
+            current_pct = confirmed[symbol]["change_pct"]
+            close_date = confirmed[symbol].get("reference_close_date")
+        else:
+            current_price = row.get("price")
+            current_pct, close_date = None, None
+            exchange = row.get("exchange")
+            if type(current_price) in (int, float) and 0 < current_price < 10000000 and exchange in ("ND", "NY", "NA"):
+                current_pct, close_date = validated_change(symbol, exchange, current_price)
         item = {
             "rank": index,
             "symbol": symbol,
             "name": name,
             "exchange": row.get("exchange"),
             "company_key": row.get("company_key"),
-            "price": confirmed[symbol]["price"] if symbol in confirmed else row.get("price"),
-            "change_pct": confirmed[symbol]["change_pct"] if symbol in confirmed else None,
-            "reference_close_date": confirmed[symbol]["reference_close_date"] if symbol in confirmed else None,
+            "price": current_price,
+            "change_pct": current_pct,
+            "reference_close_date": close_date,
             "trading_value": row.get("trading_value"),
             "volume": row.get("volume"),
         }
