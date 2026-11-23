@@ -233,10 +233,10 @@
     // every other down tile, and the only other difference is the sector
     // boost applied separately below.
     const mapTileColor = (value) => {
-      if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.08 };
+      if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.07 };
       return value > 0
-        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: 0.20 }
-        : { tone: 'is-down', rgb: '57, 119, 177', alpha: 0.20 };
+        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: 0.13 }
+        : { tone: 'is-down', rgb: '57, 119, 177', alpha: 0.13 };
     };
     const themeTileColor = (theme) => ({
       utilities: { tone: 'is-flat', rgb: '106, 132, 146', alpha: 0.17 },
@@ -353,7 +353,7 @@
         // underneath them (same hue/direction, just more saturated), so the
         // category level is visually distinct from the stock level at a glance.
         const sectorBaseColor = mapTileColor(sectorPct);
-        const sectorColor = { ...sectorBaseColor, alpha: Math.min(0.46, sectorBaseColor.alpha + 0.12) };
+        const sectorColor = { ...sectorBaseColor, alpha: Math.min(0.46, sectorBaseColor.alpha + 0.29) };
         const row = document.createElement('div');
         row.className = 'industry-map-row';
         const heading = document.createElement('div');
