@@ -7,6 +7,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import hmac
+import math
 import os
 import re
 from pathlib import Path
@@ -91,6 +92,88 @@ def read_recovered_news_snapshot(*, object_key: str = "news/recovered/20261109.j
             or len(data["items"]) != approved_snapshots[object_key]):
         raise ValueError("invalid_recovery_snapshot")
     return data
+
+
+
+def read_r2_json(object_key: str, *, max_bytes: int = 1_500_000):
+    """Read only the existing allow-listed US chart/instrument JSON from R2."""
+    if (object_key != "stocks/us/instruments.json"
+            and not re.fullmatch(r"charts/us/[A-Z][A-Z0-9.-]{0,14}/daily\\.json", object_key)):
+        raise ValueError("invalid_r2_read_key")
+    access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
+    secret_key = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
+    if not access_key or not secret_key:
+        raise RuntimeError("r2_read_credentials_missing")
+    now = dt.datetime.now(dt.timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    day = now.strftime("%Y%m%d")
+    empty_hash = hashlib.sha256(b"").hexdigest()
+    host = f"{ACCOUNT_ID}.r2.cloudflarestorage.com"
+    uri = f"/{BUCKET}/" + "/".join(quote(part, safe="-_.~") for part in object_key.split("/"))
+    canonical_headers = f"host:{host}\\n" f"x-amz-content-sha256:{empty_hash}\\n" f"x-amz-date:{amz_date}\\n"
+    signed_headers = "host;x-amz-content-sha256;x-amz-date"
+    canonical = "\\n".join(("GET", uri, "", canonical_headers, signed_headers, empty_hash))
+    scope = f"{day}/auto/s3/aws4_request"
+    to_sign = "\\n".join(("AWS4-HMAC-SHA256", amz_date, scope,
+                            hashlib.sha256(canonical.encode("utf-8")).hexdigest()))
+    key = _sign(("AWS4" + secret_key).encode("utf-8"), day)
+    key = _sign(key, "auto")
+    key = _sign(key, "s3")
+    key = _sign(key, "aws4_request")
+    signature = hmac.new(key, to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+    authorization = ("AWS4-HMAC-SHA256 "
+                     f"Credential={access_key}/{scope}, "
+                     f"SignedHeaders={signed_headers}, Signature={signature}")
+    response = requests.get(
+        ENDPOINT + uri,
+        headers={"Authorization": authorization, "Host": host,
+                 "x-amz-content-sha256": empty_hash, "x-amz-date": amz_date},
+        timeout=TIMEOUT_SECONDS,
+    )
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        raise RuntimeError("r2_read_failed_status_" + str(response.status_code))
+    if len(response.content) > max_bytes:
+        raise ValueError("r2_object_too_large")
+    data = response.json()
+    if not isinstance(data, dict):
+        raise ValueError("invalid_r2_json_object")
+    return data
+
+
+def read_daily_chart(symbol: str):
+    """Read one allow-listed daily chart from R2; no database fallback."""
+    symbol = str(symbol or "").strip().upper()
+    if not re.fullmatch(r"[A-Z][A-Z0-9.-]{0,14}", symbol):
+        raise ValueError("invalid_chart_symbol")
+    data = read_r2_json(f"charts/us/{symbol}/daily.json")
+    if data is None:
+        return None
+    candles = data.get("candles")
+    if (data.get("schema_version") != 1 or data.get("market") != "US"
+            or data.get("symbol") != symbol or data.get("interval") != "daily"
+            or not isinstance(candles, list) or not candles
+            or data.get("count") != len(candles)):
+        raise ValueError("invalid_r2_daily_chart")
+    previous = ""
+    for row in candles:
+        if not isinstance(row, dict) or not re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", str(row.get("date") or "")):
+            raise ValueError("invalid_r2_daily_candle")
+        if row["date"] <= previous:
+            raise ValueError("invalid_r2_daily_order")
+        previous = row["date"]
+        prices = [row.get(k) for k in ("open", "high", "low", "close")]
+        if any(type(v) not in (int, float) or not math.isfinite(v) or v <= 0 for v in prices):
+            raise ValueError("invalid_r2_daily_price")
+        o, h, l, c = prices
+        if l > min(o, c) or max(o, c) > h:
+            raise ValueError("invalid_r2_daily_ohlc")
+        volume = row.get("volume")
+        if volume is not None and (type(volume) is not int or volume < 0):
+            raise ValueError("invalid_r2_daily_volume")
+    return data
+
 
 
 def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
