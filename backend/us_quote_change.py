@@ -18,10 +18,8 @@ _CACHE = {}
 def _target(now):
     local = now.astimezone(_NY)
     day = local.date()
-    # After the regular close, do not substitute yesterday's close while
-    # today's official record is still being published.
-    if local.weekday() < 5 and local.time() >= dt.time(16):
-        return day, True
+    # Keep the completed session's move relative to its preceding regular close.
+    # The next trading day uses that completed close as its new baseline.
     return day - dt.timedelta(days=1), False
 
 
