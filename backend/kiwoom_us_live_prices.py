@@ -204,7 +204,7 @@ async def run_qqq_fe_stream(
                     from backend.us_quote_change import validated_change
                     for symbol, (price, change_pct, high, low) in _parse_price_event(frame, selected).items():
                         verified_pct, close_date = validated_change(symbol, selected[symbol], price)
-                        on_quote({"symbol": symbol, "price": price, "change_pct": verified_pct,
+                        on_quote({"symbol": symbol, "exchange": selected[symbol], "price": price, "change_pct": verified_pct,
                                   "reference_close_date": close_date,
                                   "high": high, "low": low})
 
