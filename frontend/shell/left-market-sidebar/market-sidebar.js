@@ -756,7 +756,7 @@
     let qqqReconnectDelay = 1000;
     const qqqSocketWanted = () =>
       document.visibilityState === 'visible'
-      && (qqqWidgetActive() || marketEtfWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime' || tab === 'industry')) || quoteConsumersActive());
+      && (qqqWidgetActive() || marketEtfWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
       if (quote?.symbol === 'QQQ') {
         marketQqqQuote = quote;
