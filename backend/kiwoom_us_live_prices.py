@@ -180,8 +180,11 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                 next_industry_check = 0.0
 
                 def publish(frame):
+                    from backend.us_quote_change import validated_change
                     for symbol, (price, change_pct, high, low) in _parse_price_event(frame, selected).items():
-                        on_quote({"symbol": symbol, "price": price, "change_pct": change_pct,
+                        verified_pct, close_date = validated_change(symbol, selected[symbol], price)
+                        on_quote({"symbol": symbol, "price": price, "change_pct": verified_pct,
+                                  "reference_close_date": close_date,
                                   "high": high, "low": low})
 
                 while _open_us_session():

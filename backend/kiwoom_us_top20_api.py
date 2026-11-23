@@ -166,9 +166,10 @@ def _get_us_industry_etf_quotes(symbols=None):
             and isinstance(item.get("symbol"), str)
             and isinstance(item.get("price"), (int, float))
             and item.get("price") > 0
-            and isinstance(item.get("change_pct"), (int, float))
             and isinstance(item.get("received_at_ms"), int)
         ]
+        for item in clean:
+            item["change_pct"] = None
         _US_INDUSTRY_ETF_CACHE[cache_key] = {"data": clean,
                                               "expires_at": time.monotonic() + (1800 if clean else 300)}
         return [dict(item) for item in clean]
@@ -249,6 +250,14 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         result["etf_quotes"] = etf_quotes
     else:
         result["items"] = [row for row in map(add_stocks, source.get("items", [])) if row]
+    # Rankings and REST snapshots do not identify the regular-close reference
+    # for their percentages. The live feed supplies verified rates separately.
+    for row in result["items"]:
+        row["change_pct"] = None
+        for stock in row.get("stocks", []):
+            stock["change_pct"] = None
+    for quote in result.get("etf_quotes", []):
+        quote["change_pct"] = None
     result["sort"] = "marketcap"
     return result
 
@@ -330,7 +339,8 @@ def _publish_live_quote(quote):
         change = None
     safe = {
         "symbol": symbol, "price": float(price),
-        "change_pct": float(change) if change is not None else None,
+        "change_pct": float(change) if change is not None and quote.get("reference_close_date") else None,
+        "reference_close_date": quote.get("reference_close_date"),
         "received_at_ms": int(time.time() * 1000), "stale": False,
     }
     with _QQQ_CHANGED:
@@ -494,7 +504,7 @@ def read_top20(path=RANKING_FILE):
             "exchange": row.get("exchange"),
             "company_key": row.get("company_key"),
             "price": row.get("price"),
-            "change_pct": row.get("change_pct"),
+            "change_pct": None,  # Ranking snapshot has no verified close date.
             "trading_value": row.get("trading_value"),
             "volume": row.get("volume"),
         }

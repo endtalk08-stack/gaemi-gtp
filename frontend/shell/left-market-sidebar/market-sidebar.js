@@ -889,6 +889,16 @@
           }
           button.dataset.changePct = String(quote.change_pct);
           button.dataset.currentChangePct = String(quote.change_pct);
+        } else {
+          // A new session may have a price before its regular-close baseline.
+          // Never retain the previous session's percentage beside that price.
+          const change = button.querySelector('[data-market-change]');
+          if (change) {
+            change.textContent = '—';
+            change.className = 'market-stock-change';
+          }
+          button.dataset.changePct = '-Infinity';
+          button.dataset.currentChangePct = '';
         }
         updated++;
       });
