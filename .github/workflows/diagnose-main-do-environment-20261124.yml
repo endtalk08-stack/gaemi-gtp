@@ -1,0 +1,41 @@
+name: Diagnose main DigitalOcean gateway deployment protections
+on:
+  push:
+    branches: [ops/diagnose-main-do-gateway-20261124]
+permissions:
+  contents: read
+  checks: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check annotations and environment branch policy without SSH
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DO_HOST: ${{ secrets.DO_HOST }}
+          SSH_KEY: ${{ secrets.NEWS_DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.NEWS_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$DO_HOST" && -n "$SSH_KEY" && -n "$SSH_KNOWN_HOSTS" ]]; then
+            echo 'Repo-scope SSH references: present'
+          else
+            echo 'Repo-scope SSH references: incomplete (may be environment-scoped)'
+          fi
+          url="https://api.github.com/repos/$GITHUB_REPOSITORY"
+          echo 'Prior GitHub job diagnostics:'
+          response=$(curl -sS --max-time 15 -w '\nHTTP:%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$url/check-runs/138058416045/annotations")
+          status="${response##*HTTP:}"
+          echo "Annotation API status: $status"
+          if [[ "$status" == "200" ]]; then
+            echo "$response" | sed '$d' | jq -r '.[] | "Annotation: " + (.message // "none")' | head -15
+          fi
+          echo 'Environment policy:'
+          response=$(curl -sS --max-time 15 -w '\nHTTP:%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$url/environments/digitalocean-news-worker")
+          status="${response##*HTTP:}"
+          echo "Environment API status: $status"
+          if [[ "$status" == "200" ]]; then
+            echo "$response" | sed '$d' | jq -c '{deployment_branch_policy, protection_rules}'
+          fi
