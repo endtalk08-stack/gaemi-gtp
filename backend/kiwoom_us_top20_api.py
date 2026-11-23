@@ -139,9 +139,22 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
                 stale["stale"] = True
                 return stale
             raise
+
+        items = result.get("items") if isinstance(result, dict) else None
+        if not items and cached and cached["data"].get("items"):
+            # A successful-but-empty response (Kiwoom briefly has nothing to
+            # rank for this sector) must not evict a good previous snapshot or
+            # freeze "no stocks" for the full 30-minute TTL -- serve the last
+            # good list, marked stale, and retry again soon.
+            with _US_INDUSTRY_CACHE_LOCK:
+                _US_INDUSTRY_STOCK_CACHE[key] = {"expires_at": time.monotonic() + 60, "data": cached["data"]}
+            stale = dict(cached["data"])
+            stale["stale"] = True
+            return stale
+
         with _US_INDUSTRY_CACHE_LOCK:
             _US_INDUSTRY_STOCK_CACHE[key] = {
-                "expires_at": time.monotonic() + _US_INDUSTRY_STOCK_TTL,
+                "expires_at": time.monotonic() + (_US_INDUSTRY_STOCK_TTL if items else 60),
                 "data": dict(result),
             }
         return dict(result)
