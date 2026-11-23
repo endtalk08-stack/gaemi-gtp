@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 _NY = ZoneInfo("America/New_York")
 _LOCK = threading.Lock()
-_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="us-close-baseline")
+_POOL = ThreadPoolExecutor(max_workers=6, thread_name_prefix="us-close-baseline")
 _CACHE = {}
 
 
