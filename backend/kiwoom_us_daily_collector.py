@@ -1,13 +1,22 @@
-"""Refresh current Top20 daily candles after the New York close."""
-import datetime as dt
-import math
-import os
-import time
-from zoneinfo import ZoneInfo
-import psycopg
-from backend.providers.kiwoom_us_quotes import fetch_us_daily_chart, issue_access_token
+"""Refresh current Kiwoom US Top20 daily candles directly into R2.
 
-SOURCE = 'kiwoom:usa06012'
+R2 is the only persistent chart store. No Neon/Postgres connection or mirror.
+"""
+import datetime as dt
+import json
+import math
+import time
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from backend.providers.kiwoom_us_quotes import fetch_us_daily_chart, issue_access_token
+from backend.services.r2_news_uploader import read_daily_chart
+from backend.services.us_daily_r2_publisher import publish_chart
+from backend.services.us_top20_metadata_sync import sync_once_after_close
+
+SOURCE = "kiwoom:usa06012"
+RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
+NY = ZoneInfo("America/New_York")
 
 
 def history_start(today, latest, count):
@@ -17,14 +26,15 @@ def history_start(today, latest, count):
 
 def valid_candle(row, start, end):
     try:
-        day = dt.date.fromisoformat(row['date'])
-        prices = [row[k] for k in ('open', 'high', 'low', 'close')]
+        day = dt.date.fromisoformat(row["date"])
+        prices = [row[k] for k in ("open", "high", "low", "close")]
         if any(type(v) not in (int, float) or not math.isfinite(v) or v <= 0 for v in prices):
             return False
         opening, high, low, close = prices
-        volume = row.get('volume')
-        return (start <= day <= end and low <= min(opening, close) <= max(opening, close) <= high
-                and (volume is None or (type(volume) in (int, float) and math.isfinite(volume) and volume >= 0)))
+        volume = row.get("volume")
+        return (start <= day <= end and low <= min(opening, close)
+                and max(opening, close) <= high
+                and (volume is None or (type(volume) is int and volume >= 0)))
     except (ValueError, TypeError, KeyError):
         return False
 
@@ -33,130 +43,101 @@ def refresh_window(ny):
     return ny.weekday() < 5 and ny.time() >= dt.time(16, 15)
 
 
-def already_refreshed(now, latest, fetched):
-    if latest is None or fetched is None:
+def _ranking_rows():
+    if RANKING_FILE.is_symlink() or not RANKING_FILE.is_file():
+        raise RuntimeError("local_top20_missing")
+    data = json.loads(RANKING_FILE.read_text(encoding="utf-8"))
+    rows = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(rows, list) or len(rows) != 20:
+        raise RuntimeError("local_top20_incomplete")
+    if [row.get("rank") for row in rows] != list(range(1, 21)):
+        raise RuntimeError("local_top20_invalid_rank")
+    return rows
+
+
+def _expected_session(ny_date):
+    expected = ny_date
+    while expected.weekday() >= 5:
+        expected -= dt.timedelta(days=1)
+    return expected
+
+
+def already_refreshed(now, chart):
+    if not chart:
         return False
-    ny = now.astimezone(ZoneInfo('America/New_York'))
-    expected = ny.date() if ny.time() >= dt.time(16) else ny.date() - dt.timedelta(days=1)
-    while expected.weekday() >= 5:
-        expected -= dt.timedelta(days=1)
-    close = dt.datetime.combine(expected, dt.time(16, 15), ZoneInfo('America/New_York'))
-    return latest >= expected and fetched >= close.astimezone(dt.timezone.utc)
-
-
-def needs_bootstrap(now, latest):
-    """Only new entries or reentries missing a completed session need backfill."""
-    if latest is None:
-        return True
-    ny = now.astimezone(ZoneInfo('America/New_York'))
-    expected = ny.date() if ny.time() >= dt.time(16, 15) else ny.date() - dt.timedelta(days=1)
-    while expected.weekday() >= 5:
-        expected -= dt.timedelta(days=1)
-    return latest < expected
+    ny = now.astimezone(NY)
+    generated = chart.get("generated_at")
+    if generated:
+        try:
+            stamp = dt.datetime.fromisoformat(str(generated).replace("Z", "+00:00"))
+            if stamp.tzinfo and stamp.astimezone(NY).date() == ny.date() and stamp.astimezone(NY).time() >= dt.time(16, 15):
+                return True
+        except ValueError:
+            pass
+    try:
+        latest = dt.date.fromisoformat(str(chart.get("last_date") or ""))
+    except ValueError:
+        return False
+    return latest >= _expected_session(ny.date())
 
 
 def main(*, bootstrap=False):
     now = dt.datetime.now(dt.timezone.utc)
-    ny = now.astimezone(ZoneInfo('America/New_York'))
+    ny = now.astimezone(NY)
     if not bootstrap and not refresh_window(ny):
-        print('CHART_REFRESH_SKIP=outside_post_close_window', flush=True)
+        print("CHART_REFRESH_SKIP=outside_post_close_window", flush=True)
         return
-    dsn = os.environ.get('NEWS_DATABASE_URL', '').strip()
-    if not dsn:
-        raise RuntimeError('chart_database_url_missing')
-    with psycopg.connect(dsn, connect_timeout=7) as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                WITH ranked AS (
-                  SELECT e.symbol FROM public.market_rank_entries e
-                  WHERE e.market='US' AND e.snapshot_id=(
-                    SELECT id FROM public.market_rank_snapshots
-                    WHERE source='kiwoom' AND market='US' AND rank_type='trading_value'
-                    ORDER BY captured_at DESC,id DESC LIMIT 1)
-                  ORDER BY e.rank LIMIT 20
-                )
-                SELECT i.symbol,i.exchange,MAX(c.session_date),COUNT(c.session_date),MAX(c.fetched_at)
-                FROM ranked t JOIN public.market_instruments i
-                  ON i.market='US' AND i.symbol=t.symbol
-                LEFT JOIN public.us_daily_candles c
-                  ON c.market='US' AND c.symbol=i.symbol AND c.source='kiwoom:usa06012'
-                WHERE i.is_active AND i.exchange IN ('ND','NY','NA')
-                GROUP BY i.symbol,i.exchange ORDER BY i.symbol
-            """)
-            matches = cur.fetchall()
-    today = ny.date()
+    matches = _ranking_rows()
     token = None
     failed = 0
-    for symbol, exchange, latest, count, fetched in matches:
-        if bootstrap and not needs_bootstrap(now, latest):
+    for item in matches:
+        symbol = str(item.get("symbol") or "").strip().upper()
+        exchange = str(item.get("exchange") or "").strip().upper()
+        if not symbol or exchange not in ("ND", "NY", "NA"):
+            failed += 1
+            print("CHART_R2_RETRY kind=invalid_top20_identity", flush=True)
             continue
-        if not bootstrap and already_refreshed(now, latest, fetched):
-            continue
-        start = history_start(today, latest, count)
         try:
+            existing = read_daily_chart(symbol)
+            if not bootstrap and already_refreshed(now, existing):
+                print("CHART_R2_SKIP symbol=%s reason=already_current" % symbol, flush=True)
+                continue
+            old_rows = existing.get("candles", []) if isinstance(existing, dict) else []
+            old_by_date = {str(row["date"]): dict(row) for row in old_rows if isinstance(row, dict)}
+            latest = dt.date.fromisoformat(max(old_by_date)) if old_by_date else None
+            start = history_start(ny.date(), latest, len(old_by_date))
             if token is None:
                 token = issue_access_token()
-            result = fetch_us_daily_chart(symbol, exchange, start, end_date=today, token=token, max_pages=10)
-            rows = result.get('rows')
-            if (result.get('ticker') != symbol or result.get('source') != SOURCE
+            result = fetch_us_daily_chart(symbol, exchange, start, end_date=ny.date(),
+                                          token=token, max_pages=10)
+            rows = result.get("rows")
+            if (result.get("ticker") != symbol or result.get("source") != SOURCE
                     or not isinstance(rows, list) or not rows
-                    or not all(valid_candle(r, start, today) for r in rows)):
-                raise ValueError('invalid_chart_result')
-            with psycopg.connect(dsn, connect_timeout=7) as conn:
-                with conn.cursor() as cur:
-                    for row in rows:
-                        cur.execute("""
-                            INSERT INTO public.us_daily_candles
-                              (market,symbol,session_date,open,high,low,close,volume,source)
-                            VALUES ('US',%s,%s,%s,%s,%s,%s,%s,%s)
-                            ON CONFLICT (market,symbol,session_date) DO UPDATE SET
-                              open=EXCLUDED.open,high=EXCLUDED.high,low=EXCLUDED.low,
-                              close=EXCLUDED.close,volume=EXCLUDED.volume,
-                              source=EXCLUDED.source,fetched_at=now()
-                            WHERE us_daily_candles.source=EXCLUDED.source
-                              AND (us_daily_candles.open,us_daily_candles.high,us_daily_candles.low,
-                                   us_daily_candles.close,us_daily_candles.volume)
-                                  IS DISTINCT FROM
-                                  (EXCLUDED.open,EXCLUDED.high,EXCLUDED.low,EXCLUDED.close,EXCLUDED.volume)
-                        """, (symbol,row['date'],row['open'],row['high'],row['low'],row['close'],
-                              int(row['volume']) if row.get('volume') is not None else None,SOURCE))
-                    cur.execute("""UPDATE public.us_daily_candles SET fetched_at=now()
-                                   WHERE market='US' AND symbol=%s AND source=%s
-                                     AND session_date=(SELECT MAX(session_date) FROM public.us_daily_candles
-                                         WHERE market='US' AND symbol=%s AND source=%s)""",
-                                (symbol,SOURCE,symbol,SOURCE))
-                conn.commit()
-            print('CHART_REFRESH_OK symbol=%s rows=%s' % (symbol,len(rows)), flush=True)
+                    or not all(valid_candle(row, start, ny.date()) for row in rows)):
+                raise ValueError("invalid_chart_result")
+            for row in rows:
+                old_by_date[row["date"]] = dict(row)
+            merged = [old_by_date[key] for key in sorted(old_by_date)][-180:]
+            if not publish_chart(symbol, merged):
+                raise RuntimeError("r2_upload_failed")
+            print("CHART_R2_OK symbol=%s rows=%s" % (symbol, len(merged)), flush=True)
         except Exception as exc:
-            # Never emit credentials, provider payloads, or connection strings.
             failed += 1
-            print('CHART_REFRESH_RETRY symbol=%s kind=%s' % (symbol,type(exc).__name__), flush=True)
+            print("CHART_R2_RETRY symbol=%s kind=%s" % (symbol, type(exc).__name__), flush=True)
         finally:
             time.sleep(0.4)
-    print('CHART_REFRESH_DONE symbols=%s failed=%s' % (len(matches),failed), flush=True)
-    # Existing post-close timer handles this once-per-session metadata archive.
-    # A metadata failure must never break the daily candle refresh.
-    if not bootstrap:
-        try:
-            from backend.services.us_top20_metadata_sync import sync_once_after_close
-            print('US_TOP20_META_SYNC=' + sync_once_after_close(dsn, now=now), flush=True)
-        except Exception as exc:
-            print('US_TOP20_META_SYNC_ERROR=' + type(exc).__name__, flush=True)
-    # Export already-stored Neon candles after *both* post-close and bootstrap runs.
-    # Bootstrap previously skipped this, leaving new entrants without an R2 chart.
-    # Keep R2 failure independent from original Kiwoom/Neon collection.
     try:
-        from backend.services.us_daily_r2_publisher import publish_verified_top20
-        summary = publish_verified_top20(dsn)
-        print('CHART_R2_PUBLISH_STATUS=' + summary['status'], flush=True)
+        print("US_TOP20_R2_SYNC=" + sync_once_after_close(now=now), flush=True)
     except Exception as exc:
-        print('CHART_R2_PUBLISH_ERROR=' + type(exc).__name__, flush=True)
+        failed += 1
+        print("US_TOP20_R2_SYNC_ERROR=" + type(exc).__name__, flush=True)
+    print("CHART_R2_DONE symbols=%s failed=%s" % (len(matches), failed), flush=True)
     if failed:
         raise SystemExit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--bootstrap', action='store_true', help='One-time current TOP20 chart initialization')
+    parser.add_argument("--bootstrap", action="store_true", help="One-time current TOP20 chart initialization")
     main(bootstrap=parser.parse_args().bootstrap)
