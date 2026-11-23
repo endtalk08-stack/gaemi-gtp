@@ -1,0 +1,50 @@
+# DigitalOcean 운영 게이트웨이 (main)
+
+## 고정된 배포 통로
+
+- 저장소: `endtalk08-stack/gaemi-gtp`
+- 브랜치: `main`
+- GitHub Actions: `.github/workflows/do-gateway.yml`
+- 작업 요청: `.github/do-gateway/request.json`
+- GitHub Environment: `digitalocean-news-worker` (기존 설정 재사용)
+- SSH: 기존 `DO_HOST`, `NEWS_DEPLOY_SSH_KEY`, `NEWS_SSH_KNOWN_HOSTS`만 사용
+- 서버 제한 계정: `gaemi-deploy`
+- 원격 실행: `sudo -n /usr/local/sbin/gaemi-do-gateway` (서버측 명령 화이트리스트)
+- 애플리케이션 경로: `/opt/gaemigtp-news/app`
+
+## 언제 실행되나
+
+1. GitHub Actions 화면에서 **DigitalOcean project management gateway** → **Run workflow**를 실행하면 **읽기 전용 상태 조회(status)**만 수행한다.
+2. `main`의 **`.github/do-gateway/request.json` 파일을 명시적으로 수정해 push**하면 해당 요청을 검증 후 실행한다. 배포·재시작은 반드시 이 단계로 별도 요청해야 한다.
+3. 보통의 `main` 커밋, `backend/**` 변경, `frontend/**` 변경, Cloudflare Pages 배포만으로 DigitalOcean은 **배포되거나 재시작되지 않는다**.
+4. 기존 `ops/do-ssh-deploy-setup-20261017` 브랜치와 그 임시 진단 도구는 옮기거나 삭제하지 않는다. 재사용할 운영 코드는 검증해서 `main`에 올리고, 단발성 작업 스크립트는 작업 브랜치에 둔다.
+
+## 운영 요청 예시 (한 번에 한 명령)
+
+작업 파일은 실제 실행될 요청 하나만 담아야 하며, 허용된 필드만 사용할 수 있다.
+
+```json
+{"operation":"status"}
+```
+
+```json
+{"operation":"logs","unit":"gaemigtp-kiwoom-us-top20-https.service","lines":100}
+```
+
+```json
+{"operation":"deploy","path":"backend/kiwoom_us_top20_api.py","target":"backend/kiwoom_us_top20_api.py"}
+```
+
+```json
+{"operation":"restart","unit":"gaemigtp-kiwoom-us-top20-https.service"}
+```
+
+위의 `deploy`는 GitHub 체크아웃된 파일의 Git blob 해시를 서버에 함께 제출한다. 요청 파일을 변경하기 전에 대상 소스가 반드시 `main`에 있어야 한다. 복사·재시작 권한과 실제 대상 경로는 서버의 `gaemi-do-gateway`가 최종 심사한다.
+
+## 운영 시 주의
+
+- 서버 배포와 서비스 재시작은 별개다. 각각의 요청과 성공 여부를 GitHub Actions 실행 기록으로 확인한다.
+- 서버 반영 전 소스 검증 및 가능한 회귀 테스트를 실행한다. 변경 전 서버 파일과 서비스 상태를 확인한다.
+- API 토큰·비밀번호·SSH 키 값을 저장소나 요청 JSON에 넣지 않는다.
+- 원격 게이트웨이는 기존 서버에 이미 설치되어 있어야 한다. `main`에 워크플로를 복구하는 것 자체는 서버 설정이나 시세 데이터를 수정하지 않는다.
+- `gaemigtp`(하이픈 없는 별도 HTS 저장소), HTS 자동매매·Supabase·주문 관련 시스템은 이 배포 경로의 대상이 아니다.
