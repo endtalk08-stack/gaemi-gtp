@@ -46,6 +46,7 @@
   const marketEtfs = Object.fromEntries(['SPY', 'DIA'].map(symbol => [symbol, {
     points: [], lastReceivedMs: 0, sessionKey: '', current: null
   }]));
+  const regularCloseHold = () => window.GaemiGTPRegularCloseHold;
   let marketEtfSnapshotAt = 0;
   const MAX_QQQ_POINTS = 120;
   const QQQ_REASON_REFRESH_MS = 300000;
@@ -178,9 +179,11 @@
     const priceNode = card.querySelector('[data-kospi-price]');
     const changeNode = card.querySelector('[data-kospi-change]');
     const chartNode = card.querySelector('.central-widget-card__sparkline');
-    const quote = qqqCurrent;
+    const held = regularCloseHold()?.held('QQQ');
+    const quote = held || qqqCurrent;
     const valid = marketQuoteWithinWindow(quote, 'QQQ');
-    const fresh = valid && isQqqQuoteFresh(quote);
+    const fresh = valid && (Boolean(held) || isQqqQuoteFresh(quote));
+    card.title = held ? '정규장 종료 전 마지막 확인 시세 · 30분 전환 구간' : '';
     const change = valid && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
     if (priceNode) priceNode.textContent = valid
@@ -192,19 +195,21 @@
     chartNode?.classList.toggle('central-widget-card__sparkline--up', fresh && change !== null && change > 0);
     chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && change !== null && change < 0);
     drawQqqChart(card);
-    updateQqqReason(card, quote, fresh);
+    updateQqqReason(card, quote, fresh && !held);
   }
 
   function updateMarketEtfCard(symbol) {
     const card = body()?.querySelector('[data-central-widget-id="' + symbol.toLowerCase() + '"]');
     if (!card) return;
     const state = marketEtfs[symbol];
-    const quote = state.current;
+    const held = regularCloseHold()?.held(symbol);
+    const quote = held || state.current;
+    card.title = held ? '정규장 종료 전 마지막 확인 시세 · 30분 전환 구간' : '';
     const recentSnapshot = quote?.source === 'kiwoom:rest'
       && quote.stale === false && Number.isFinite(quote.received_at_ms)
       && Date.now() - quote.received_at_ms >= 0
       && Date.now() - quote.received_at_ms < 1800000;
-    const fresh = quote && (recentSnapshot || isQqqQuoteFresh(quote));
+    const fresh = quote && (Boolean(held) || recentSnapshot || isQqqQuoteFresh(quote));
     const recentTick = quote && Number.isFinite(quote.price) && quote.price > 0
       && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= Date.now() + 5000
       && Date.now() - quote.received_at_ms <= 180000;
@@ -239,6 +244,7 @@
       if (!data?.ok || !Array.isArray(data.items)) return;
       for (const [symbol, state] of Object.entries(marketEtfs)) {
         const quote = data.items.find(item => item.symbol === symbol);
+        if (quote) regularCloseHold()?.remember(quote);
         if (quote && Number.isFinite(quote.price) && quote.price > 0
             && Number.isFinite(quote.change_pct) && Number.isFinite(quote.received_at_ms)
             && (!state.current || !isQqqQuoteFresh(state.current))) {
@@ -254,6 +260,7 @@
     const items = Array.isArray(event.detail?.items) ? event.detail.items : [];
     for (const [symbol, state] of Object.entries(marketEtfs)) {
       const quote = items.find(item => item.symbol === symbol);
+      if (quote) regularCloseHold()?.remember(quote);
       if (quote && Number.isFinite(quote.price)
           && quote.price > 0 && isQqqQuoteFresh(quote))
         state.current = retainMarketQuote(state.current, quote, symbol);
@@ -276,7 +283,7 @@
     const row = document.querySelector('[data-market-qqq]');
     if (!row) return;
     const quote = qqqCurrent;
-    const fresh = isQqqQuoteFresh(quote);
+    const fresh = !regularCloseHold()?.held('QQQ') && isQqqQuoteFresh(quote);
     updateQqqReason(row, quote, fresh);
   }
 
@@ -287,6 +294,7 @@
 
   function onQqqQuote(event) {
     const quote = event.detail?.quote;
+    regularCloseHold()?.remember(quote);
     if (!marketQuoteWithinWindow(quote, 'QQQ')) {
       // Connection loss/stale heartbeat is not a new market close.
       qqqCurrent = retainMarketQuote(qqqCurrent, null, 'QQQ');
