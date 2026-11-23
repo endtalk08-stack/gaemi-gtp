@@ -29,7 +29,9 @@ ISSUE_PROMPT = (
 
 # Do not import or invoke the actual closing publisher: it reserves/publishes DB rows.
 # Main-branch source is checked against the live DO values before shipping the lab.
-from .us_market_close import MODEL as CLOSE_MODEL, US_CLOSE_PROMPT, US_CLOSE_QUESTION
+CLOSE_MODEL = "openai/gpt-oss-120b"
+US_CLOSE_PROMPT = "쉽게 설명 반말로 대답해"
+US_CLOSE_QUESTION = "미국장은 어땠어?"
 
 CONFIG = {
     "issue": {
