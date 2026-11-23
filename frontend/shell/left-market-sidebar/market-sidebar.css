@@ -364,8 +364,8 @@
   letter-spacing: .02em;
   text-align: center;
 }
-.industry-map-sector.is-up .industry-map-sector-change { color: #f43f5e; }
-.industry-map-sector.is-down .industry-map-sector-change { color: #0ea5e9; }
+.industry-map-sector.is-up .industry-map-sector-change { color: #f0a0aa; }
+.industry-map-sector.is-down .industry-map-sector-change { color: #9dbee3; }
 .industry-map-sector.is-flat .industry-map-sector-change { color: #a1a1aa; }
 .industry-map-stocks {
   display: grid;
@@ -439,8 +439,11 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.industry-map-stock.is-up .industry-map-stock-change { color: #f43f5e; }
-.industry-map-stock.is-down .industry-map-stock-change { color: #0ea5e9; }
+.industry-map-stock.is-up .industry-map-stock-change { color: #f0a0aa; }
+.industry-map-stock.is-down .industry-map-stock-change { color: #9dbee3; }
+/* Fixed rose-brown and slate-blue tile surfaces; no magnitude-based tint. */
+.industry-map-sector.is-up, .industry-map-stock.is-up { background-color: #493039; }
+.industry-map-sector.is-down, .industry-map-stock.is-down { background-color: #303d4d; }
 .industry-map-stock.is-flat .industry-map-stock-change { color: #a1a1aa; }
 @media (min-width: 1024px) {
   .industry-map-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -468,8 +471,8 @@
   .industry-map-stock-name { font-size: 12px; }
   .industry-map-stock-change { font-size: 14px; }
 }
-/* Flash the tile only when its displayed percentage changes.
-   Every tile returns to the same trading-value charcoal (#202228). */
+/* Flash only when the displayed percentage changes; restore its direction's
+   normal rose-brown/slate-blue surface (or neutral charcoal for flat). */
 .industry-map-sector.flash-up, .industry-map-stock.flash-up {
   animation: gtp-tile-flash-up .9s ease-out;
 }
@@ -480,12 +483,12 @@
   animation: gtp-tile-flash-flat .9s ease-out;
 }
 @keyframes gtp-tile-flash-up {
-  from { background-color: #7f1d2d; }
-  to { background-color: #202228; }
+  from { background-color: #70454f; }
+  to { background-color: #493039; }
 }
 @keyframes gtp-tile-flash-down {
-  from { background-color: #17456b; }
-  to { background-color: #202228; }
+  from { background-color: #506781; }
+  to { background-color: #303d4d; }
 }
 @keyframes gtp-tile-flash-flat {
   from { background-color: #50545c; }
