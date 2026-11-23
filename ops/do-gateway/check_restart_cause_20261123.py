@@ -14,11 +14,16 @@ import subprocess
 
 result = subprocess.run(
     ["journalctl", "--no-pager", "-u", "gaemigtp-kiwoom-us-top20-api.service",
-     "--since", "-6 hours"],
+     "--since", "6 hours ago"],
     capture_output=True, text=True, timeout=30,
 )
+print("RETURNCODE", result.returncode, flush=True)
+print("STDERR", repr(result.stderr[:500]), flush=True)
 lines = result.stdout.splitlines()
 print("TOTAL_LINES_LAST_6H", len(lines), flush=True)
+if lines:
+    print("FIRST_LINE", lines[0][:160], flush=True)
+    print("LAST_LINE", lines[-1][:160], flush=True)
 
 starts = [l for l in lines if "Started gaemigtp-kiwoom-us-top20-api" in l]
 stops = [l for l in lines if "Stopping gaemigtp-kiwoom-us-top20-api" in l]
