@@ -188,12 +188,14 @@
     const industryFlashStockPrev = new Map();
     const flashClassFor = (tone) => tone === 'is-up' ? 'flash-up' : tone === 'is-down' ? 'flash-down' : 'flash-flat';
     const industrySymbol = (symbol) => String(symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
+    const regularCloseHold = () => window.GaemiGTPRegularCloseHold;
     // Keep one last valid quote per ETF, including quiet/stale WebSocket
     // snapshots. A subscribed ticker may have no new trade for hours.
     const rememberIndustryEtfQuotes = (items, source) => {
       if (!Array.isArray(items)) return;
       const now = Date.now();
       items.forEach((quote) => {
+        regularCloseHold()?.remember(quote);
         const symbol = industrySymbol(quote?.symbol);
         // A stale-only first packet is not a verified last-good value.
         // If a prior value exists, leave it untouched when the feed marks it stale.
@@ -218,6 +220,8 @@
     const industryQuoteFor = (symbol) => {
       const now = Date.now();
       const key = industrySymbol(symbol);
+      const held = regularCloseHold()?.held(key);
+      if (held) return held;
       const live = industryLiveQuotes.find((quote) =>
         industrySymbol(quote.symbol) === key && freshQuote(quote, now)
         && Number.isFinite(quote.change_pct));
@@ -293,7 +297,8 @@
         const rise = (stock) => {
           const live = industryQuoteFor(stock.symbol);
           return Number.isFinite(live?.change_pct) ? live.change_pct
-            : Number.isFinite(stock.change_pct) ? stock.change_pct : -Infinity;
+            : Number.isFinite(regularCloseHold()?.rate(stock.symbol, stock.change_pct))
+              ? regularCloseHold().rate(stock.symbol, stock.change_pct) : -Infinity;
         };
         return rise(b) - rise(a) || (b.market_cap_usd || 0) - (a.market_cap_usd || 0);
       });
@@ -420,7 +425,9 @@
         }
         ranked.forEach((stock) => {
           const live = industryQuoteFor(stock.symbol);
-          const pct = live && Number.isFinite(live.change_pct) ? live.change_pct
+          const held = regularCloseHold()?.held(industrySymbol(stock.symbol));
+          const pct = held ? held.change_pct
+            : live && Number.isFinite(live.change_pct) ? live.change_pct
             : stock.hideChange ? null : Number.isFinite(stock.change_pct) ? stock.change_pct : null;
           const color = mapTileColor(pct);
           const stockTile = document.createElement('button');
@@ -651,7 +658,11 @@
         }
         lastRankingSignature = signature;
         list.replaceChildren();
-        result.items.forEach((item, index) => {
+        result.items.forEach((sourceItem, index) => {
+          const closed = regularCloseHold()?.held(String(sourceItem.symbol || ''));
+          const item = closed
+            ? { ...sourceItem, price: closed.price, change_pct: closed.change_pct }
+            : sourceItem;
           const button = document.createElement('button');
           button.dataset.stockName = String(item.name || '');
           button.dataset.stockSymbol = String(item.symbol || '');
@@ -814,6 +825,7 @@
       && (qqqWidgetActive() || marketEtfWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
       if (quote?.symbol === 'QQQ') {
+        regularCloseHold()?.remember(quote);
         marketQqqQuote = quote;
       } else if (!marketQqqQuote || Date.now() - marketQqqQuote.received_at_ms > 180000) {
         marketQqqQuote = null;
@@ -910,7 +922,26 @@
       const bySymbol = new Map([...list.querySelectorAll(':scope > button[data-original-index]')]
         .map((button) => [button.dataset.stockSymbol, button]));
       let updated = 0;
+      // Repaint the last verified regular quote after a ranking refresh too.
+      for (const [symbol, button] of bySymbol.entries()) {
+        const held = regularCloseHold()?.held(symbol);
+        if (!held) continue;
+        const price = button.querySelector('[data-market-price]');
+        if (price) price.textContent = '$' + held.price.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        button.dataset.currentPrice = String(held.price);
+        const change = button.querySelector('[data-market-change]');
+        if (change) {
+          change.textContent = (held.change_pct > 0 ? '+' : '') + held.change_pct.toFixed(2) + '%';
+          change.className = 'market-stock-change' +
+            (held.change_pct > 0 ? ' text-rose-500' : held.change_pct < 0
+              ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
+        }
+        button.dataset.changePct = String(held.change_pct);
+        button.dataset.currentChangePct = String(held.change_pct);
+        updated++;
+      }
       liveQuotes.forEach((quote) => {
+        if (regularCloseHold()?.held(String(quote.symbol || ''))) return;
         if (!freshQuote(quote, now)) return;
         const button = bySymbol.get(String(quote.symbol || ''));
         if (!button) return;
@@ -942,6 +973,7 @@
       if (updated && changeSorted && !draggedRow) applyChangeSort();
     };
     const publishLiveQuotes = items => {
+      items.forEach(quote => regularCloseHold()?.remember(quote));
       const now = Date.now();
       liveQuotes = items.filter(quote => freshQuote(quote, now));
       window.dispatchEvent(new CustomEvent('gaemi:us-live-quotes', {
@@ -950,6 +982,7 @@
       paintLiveQuotes();
     };
     const publishIndustryQuotes = items => {
+      items.forEach(quote => regularCloseHold()?.remember(quote));
       const now = Date.now();
       industryLiveQuotes = items.filter(quote => freshQuote(quote, now));
       rememberIndustryEtfQuotes(items, 'websocket');
@@ -970,6 +1003,7 @@
       }
     };
     const publishMarketEtfQuotes = items => {
+      items.forEach(quote => regularCloseHold()?.remember(quote));
       const now = Date.now();
       window.dispatchEvent(new CustomEvent('gaemi:market-etf-quotes', {
         detail: { items: items.filter(quote => freshQuote(quote, now) &&
