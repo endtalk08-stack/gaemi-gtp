@@ -18,9 +18,9 @@ _CACHE = {}
 def _target(now):
     local = now.astimezone(_NY)
     day = local.date()
-    # Keep the current trading day's change through the 20:00 ET after-market close.
-    # The next session begins with the completed day's close as its baseline.
-    if local.weekday() < 5 and local.time() >= dt.time(20):
+    # After the regular close, do not substitute yesterday's close while
+    # today's official record is still being published.
+    if local.weekday() < 5 and local.time() >= dt.time(16):
         return day, True
     return day - dt.timedelta(days=1), False
 
@@ -78,6 +78,9 @@ def validated_change(symbol, exchange, price, *, now=None):
     """
     now = now or dt.datetime.now(dt.timezone.utc)
     local = now.astimezone(_NY)
+    # Daily candles can still be partial immediately after the closing bell.
+    if local.weekday() < 5 and dt.time(16) <= local.time() < dt.time(16, 30):
+        return None, None
     target, exact = _target(now)
     key = (symbol, exchange, target, exact)
     with _LOCK:
