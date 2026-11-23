@@ -24,11 +24,18 @@ for (const [symbol, price, pct] of [
   ['QQQ', 650.2, 3.2], ['SPY', 725.2, 2.4], ['DIA', 497.9, 1.6],
   ['NVDA', 165.06, 30.93], ['XLK', 300.01, 9.87]
 ]) assert.equal(hold.remember(quote(symbol, price, pct)), true);
+const cachedEtf = quote('IWM', 242.19, 1.35, now - 29 * 60 * 1000);
+cachedEtf.source = 'kiwoom:usa20551';
+assert.equal(hold.remember(cachedEtf), true, 'allow 30m-old verified REST ETF quotes');
+const expiredEtf = quote('XLV', 100.00, 0.1, now - 35 * 60 * 1000);
+expiredEtf.source = 'kiwoom:usa20551';
+assert.equal(hold.remember(expiredEtf), false, 'never accept an older REST snapshot');
 assert.equal(hold.held('QQQ'), null, 'no close freeze during normal session');
 // after-close missing rates and new-session near-zero values may not overwrite
 now = Date.parse('2026-11-23T21:04:00Z');
 assert.equal(hold.held('QQQ').change_pct, 3.2);
 assert.equal(hold.held('NVDA').change_pct, 30.93);
+assert.equal(hold.held('IWM').change_pct, 1.35);
 assert.equal(hold.rate('XLK', null), 9.87);
 const resolved = hold.resolve('SPY', quote('SPY', 728.5, 0.05));
 assert.equal(resolved.price, 725.2);
