@@ -1,1 +1,6 @@
-{"operation":"status"}
+{
+  "operation": "run",
+  "path": "ops/do-gateway/quote_baseline_inspect_20261123.py",
+  "request_id": "quoteinspect20261123a",
+  "timeout": 60
+}
