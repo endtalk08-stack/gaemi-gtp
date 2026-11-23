@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/diagnose_live_quote_gap_20261124.py",
-  "request_id": "livequotediag20261124a",
-  "timeout": 180
+  "path": "ops/do-gateway/check_public_ws_frames_20261124.py",
+  "request_id": "wsquotegap20261124a",
+  "timeout": 90
 }
