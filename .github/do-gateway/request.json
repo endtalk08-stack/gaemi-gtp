@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service",
-  "lines": 30
+  "operation": "run",
+  "path": "ops/do-gateway/verify_live_fix_20261123.py",
+  "request_id": "verify_rollback_20261123",
+  "timeout": 60
 }
