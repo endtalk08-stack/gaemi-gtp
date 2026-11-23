@@ -24,7 +24,7 @@ while b'\r\n\r\n' not in response:
     response += sock.recv(4096)
 header, payload = response.split(b'\r\n\r\n', 1)
 print('WEBSOCKET_UPGRADE', header.split(b'\r\n', 1)[0].decode(), flush=True)
-for _ in range(5):
+for _ in range(30):
     while len(payload) < 2:
         payload += sock.recv(4096)
     size = payload[1] & 127
@@ -44,7 +44,7 @@ for _ in range(5):
     message = json.loads(payload[head:head + size])
     payload = payload[head + size:]
     selected = [item for item in ([message.get('quote')] if message.get('type') == 'quote' else message.get('items') or [])
-                if item and item.get('symbol') in ('QQQ', 'NVDA', 'XLK')]
+                if item and item.get('symbol') in ('QQQ', 'NVDA', 'XLK', 'SPY', 'DIA')]
     print('FRAME', message.get('type'), [(x.get('symbol'), x.get('price'), x.get('change_pct'),
            x.get('reference_close_date'), x.get('stale')) for x in selected], flush=True)
 sock.close()
