@@ -1,6 +1,4 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/quote_live_check_20261123.py",
-  "request_id": "quotelivecheck20261123c",
-  "timeout": 60
+  "operation": "restart",
+  "unit": "gaemigtp-kiwoom-us-top20-api.service"
 }
