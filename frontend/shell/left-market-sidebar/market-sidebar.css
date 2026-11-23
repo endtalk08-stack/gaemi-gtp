@@ -327,6 +327,7 @@
   padding: 4px;
   border: 0;
   border-radius: 2px;
+  background-color: #202228;
   line-height: 1.1;
 }
 .industry-map-sector-name {
@@ -363,9 +364,9 @@
   letter-spacing: .02em;
   text-align: center;
 }
-.industry-map-sector.is-up .industry-map-sector-change { color: #e27b8a; }
-.industry-map-sector.is-down .industry-map-sector-change { color: #78aee0; }
-.industry-map-sector.is-flat .industry-map-sector-change { color: var(--gtp-muted); }
+.industry-map-sector.is-up .industry-map-sector-change { color: #f43f5e; }
+.industry-map-sector.is-down .industry-map-sector-change { color: #0ea5e9; }
+.industry-map-sector.is-flat .industry-map-sector-change { color: #a1a1aa; }
 .industry-map-stocks {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -398,6 +399,7 @@
   padding: 6px 4px;
   border: 0;
   border-radius: 2px;
+  background-color: #202228;
   color: var(--gtp-text);
   text-align: center;
   overflow: hidden;
@@ -437,9 +439,9 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.industry-map-stock.is-up .industry-map-stock-change { color: #e27b8a; }
-.industry-map-stock.is-down .industry-map-stock-change { color: #78aee0; }
-.industry-map-stock.is-flat .industry-map-stock-change { color: var(--gtp-muted); }
+.industry-map-stock.is-up .industry-map-stock-change { color: #f43f5e; }
+.industry-map-stock.is-down .industry-map-stock-change { color: #0ea5e9; }
+.industry-map-stock.is-flat .industry-map-stock-change { color: #a1a1aa; }
 @media (min-width: 1024px) {
   .industry-map-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .industry-map-row .industry-map-sector {
@@ -466,14 +468,8 @@
   .industry-map-stock-name { font-size: 12px; }
   .industry-map-stock-change { font-size: 14px; }
 }
-/* Flash the whole tile background for a beat when its printed change-%
-   actually moves (not on every quiet re-render). CSS animations win over
-   the tile's own inline background-color/border-color for their duration,
-   so this works without JS needing to know the resting shade; once the
-   animation ends, the inline style (set every render) takes back over with
-   no visible pop, because the keyframe's end value matches that resting
-   tint. Tiles already use a plain, slightly-rounded rectangle (2px) --
-   intentionally not a pill -- so the flash keeps that same shape. */
+/* Flash the tile only when its displayed percentage changes.
+   Every tile returns to the same trading-value charcoal (#202228). */
 .industry-map-sector.flash-up, .industry-map-stock.flash-up {
   animation: gtp-tile-flash-up .9s ease-out;
 }
@@ -484,14 +480,14 @@
   animation: gtp-tile-flash-flat .9s ease-out;
 }
 @keyframes gtp-tile-flash-up {
-  from { background-color: rgba(194, 65, 78, .85); border-color: rgba(194, 65, 78, .9); }
-  to { background-color: rgba(194, 65, 78, .13); border-color: rgba(194, 65, 78, .33); }
+  from { background-color: #7f1d2d; }
+  to { background-color: #202228; }
 }
 @keyframes gtp-tile-flash-down {
-  from { background-color: rgba(57, 119, 177, .85); border-color: rgba(57, 119, 177, .9); }
-  to { background-color: rgba(57, 119, 177, .13); border-color: rgba(57, 119, 177, .33); }
+  from { background-color: #17456b; }
+  to { background-color: #202228; }
 }
 @keyframes gtp-tile-flash-flat {
-  from { background-color: rgba(128, 132, 140, .55); border-color: rgba(128, 132, 140, .6); }
-  to { background-color: rgba(128, 132, 140, .07); border-color: rgba(128, 132, 140, .2); }
+  from { background-color: #50545c; }
+  to { background-color: #202228; }
 }

@@ -195,6 +195,9 @@
       const now = Date.now();
       items.forEach((quote) => {
         const symbol = industrySymbol(quote?.symbol);
+        // A stale-only first packet is not a verified last-good value.
+        // If a prior value exists, leave it untouched when the feed marks it stale.
+        if (quote?.stale === true) return;
         if (!industryEtfSymbols.has(symbol)
             || !Number.isFinite(quote?.price) || quote.price <= 0
             || !Number.isFinite(quote?.change_pct)
@@ -274,26 +277,11 @@
     // every other down tile, and the only other difference is the sector
     // boost applied separately below.
     const mapTileColor = (value) => {
-      // Treat anything that displays as "0.00%" (e.g. an ETF with no print
-      // yet today, showing the prior close) as flat/gray -- not red or blue.
-      // formatChange rounds to 2 decimals, so match that threshold here;
-      // otherwise a value like -0.0000003 reads as "-0.00%" but still paints
-      // a (barely visible, but present) down-colored tile.
-      if (!Number.isFinite(value) || Math.abs(value) < 0.005) {
-        return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.07 };
-      }
-      return value > 0
-        ? { tone: 'is-up', rgb: '194, 65, 78', alpha: 0.13 }
-        : { tone: 'is-down', rgb: '57, 119, 177', alpha: 0.13 };
+      // Match the trading-value list: the tile surface stays charcoal;
+      // only the percentage text carries direction color.
+      if (!Number.isFinite(value) || Math.abs(value) < 0.005) return { tone: 'is-flat' };
+      return value > 0 ? { tone: 'is-up' } : { tone: 'is-down' };
     };
-    const themeTileColor = (theme) => ({
-      utilities: { tone: 'is-flat', rgb: '106, 132, 146', alpha: 0.17 },
-      realestate: { tone: 'is-flat', rgb: '123, 128, 148', alpha: 0.17 },
-      materials: { tone: 'is-flat', rgb: '142, 129, 106', alpha: 0.17 },
-      semiconductor: { tone: 'is-flat', rgb: '94, 126, 158', alpha: 0.18 },
-      biotech: { tone: 'is-flat', rgb: '143, 116, 155', alpha: 0.18 },
-      bitcoin: { tone: 'is-flat', rgb: '163, 137, 91', alpha: 0.18 }
-    })[theme] || mapTileColor(null);
     const renderIndustryMap = (data) => {
       const items = Array.isArray(data?.items) ? data.items : [];
       if (Array.isArray(data?.etf_quotes) && data.etf_quotes.length) {
@@ -398,16 +386,14 @@
         const etf = sectorEtfs[sector.key];
         const etfQuote = industryQuoteFor(etf);
         const sectorPct = etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null;
-        // Same color intensity as stock tiles -- only direction (up/down)
-        // differs; sector vs. stock is not shown through color strength.
+        // Sector and stock tiles share the trading-value charcoal surface.
+        // Direction is shown by the percentage text; only actual changes flash.
         const sectorColor = mapTileColor(sectorPct);
         const row = document.createElement('div');
         row.className = 'industry-map-row';
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone
           + (sector.themeTone ? ' industry-map-sector-theme' : '');
-        heading.style.backgroundColor = 'rgba(' + sectorColor.rgb + ', ' + sectorColor.alpha.toFixed(3) + ')';
-        heading.style.borderColor = 'rgba(' + sectorColor.rgb + ', ' + Math.min(0.62, sectorColor.alpha + 0.20).toFixed(3) + ')';
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
@@ -419,9 +405,7 @@
         const prevSectorChangeText = industryFlashSectorPrev.get(sector.key);
         if (prevSectorChangeText !== undefined && sectorChangeText !== '—'
             && sectorChangeText !== prevSectorChangeText) {
-          // Flash the whole tile's background, not just the number -- a brief,
-          // more saturated pulse of the same up/down/flat color that settles
-          // back into the tile's resting tint.
+          // Briefly flash the tile in the direction color, then return to charcoal.
           heading.classList.add(flashClassFor(sectorColor.tone));
         }
         industryFlashSectorPrev.set(sector.key, sectorChangeText);
@@ -443,8 +427,6 @@
           stockTile.type = 'button';
           stockTile.className = 'industry-map-stock ' + color.tone
             + (stock.themeTone ? ' industry-map-stock-theme' : '');
-          stockTile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
-          stockTile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
           stockTile.title = stock.name + (stock.hideChange ? '' : ' ' + formatChange(pct));
           stockTile.dataset.industrySymbol = industrySymbol(stock.symbol);
           const name = document.createElement('span');
@@ -460,9 +442,7 @@
             const prevStockChangeText = industryFlashStockPrev.get(stockFlashKey);
             if (prevStockChangeText !== undefined && stockChangeText !== '—'
                 && stockChangeText !== prevStockChangeText) {
-              // Flash the whole tile's background (not just the number) --
-              // matches the tile's own up/down/flat tone, just more saturated
-              // for a beat, then settles back into the resting tint.
+              // Briefly flash the tile in the direction color, then return to charcoal.
               stockTile.classList.add(flashClassFor(color.tone));
             }
             industryFlashStockPrev.set(stockFlashKey, stockChangeText);
