@@ -177,6 +177,12 @@
     let industryLiveQuotes = [];
     let industryRestQuotes = [];
     const industryLastVerifiedQuotes = new Map();
+    // Last displayed change-% text per sector/stock, so a re-render can tell
+    // whether the printed number actually moved and flash the badge only then
+    // (not on every 20s/websocket re-render when nothing changed).
+    const industryFlashSectorPrev = new Map();
+    const industryFlashStockPrev = new Map();
+    const flashClassFor = (tone) => tone === 'is-up' ? 'flash-up' : tone === 'is-down' ? 'flash-down' : 'flash-flat';
     const industrySymbol = (symbol) => String(symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
     const industryQuoteFor = (symbol) => {
       const now = Date.now();
@@ -372,7 +378,17 @@
         label.title = label.textContent;
         const change = document.createElement('span');
         change.className = 'industry-map-sector-change';
-        change.textContent = formatChange(sectorPct);
+        const sectorChangeText = formatChange(sectorPct);
+        change.textContent = sectorChangeText;
+        const prevSectorChangeText = industryFlashSectorPrev.get(sector.key);
+        if (prevSectorChangeText !== undefined && sectorChangeText !== '—'
+            && sectorChangeText !== prevSectorChangeText) {
+          // Flash the whole tile's background, not just the number -- a brief,
+          // more saturated pulse of the same up/down/flat color that settles
+          // back into the tile's resting tint.
+          heading.classList.add(flashClassFor(sectorColor.tone));
+        }
+        industryFlashSectorPrev.set(sector.key, sectorChangeText);
         heading.append(label, change);
         const stocks = document.createElement('div');
         stocks.className = 'industry-map-stocks';
@@ -402,7 +418,18 @@
           if (stock.hideChange !== true || live) {
             const stockChange = document.createElement('span');
             stockChange.className = 'industry-map-stock-change';
-            stockChange.textContent = formatChange(pct);
+            const stockChangeText = formatChange(pct);
+            stockChange.textContent = stockChangeText;
+            const stockFlashKey = industrySymbol(stock.symbol);
+            const prevStockChangeText = industryFlashStockPrev.get(stockFlashKey);
+            if (prevStockChangeText !== undefined && stockChangeText !== '—'
+                && stockChangeText !== prevStockChangeText) {
+              // Flash the whole tile's background (not just the number) --
+              // matches the tile's own up/down/flat tone, just more saturated
+              // for a beat, then settles back into the resting tint.
+              stockTile.classList.add(flashClassFor(color.tone));
+            }
+            industryFlashStockPrev.set(stockFlashKey, stockChangeText);
             stockTile.append(stockChange);
           }
           stockTile.addEventListener('click', () => {

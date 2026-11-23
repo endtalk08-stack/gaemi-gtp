@@ -466,3 +466,32 @@
   .industry-map-stock-name { font-size: 12px; }
   .industry-map-stock-change { font-size: 14px; }
 }
+/* Flash the whole tile background for a beat when its printed change-%
+   actually moves (not on every quiet re-render). CSS animations win over
+   the tile's own inline background-color/border-color for their duration,
+   so this works without JS needing to know the resting shade; once the
+   animation ends, the inline style (set every render) takes back over with
+   no visible pop, because the keyframe's end value matches that resting
+   tint. Tiles already use a plain, slightly-rounded rectangle (2px) --
+   intentionally not a pill -- so the flash keeps that same shape. */
+.industry-map-sector.flash-up, .industry-map-stock.flash-up {
+  animation: gtp-tile-flash-up .9s ease-out;
+}
+.industry-map-sector.flash-down, .industry-map-stock.flash-down {
+  animation: gtp-tile-flash-down .9s ease-out;
+}
+.industry-map-sector.flash-flat, .industry-map-stock.flash-flat {
+  animation: gtp-tile-flash-flat .9s ease-out;
+}
+@keyframes gtp-tile-flash-up {
+  from { background-color: rgba(194, 65, 78, .85); border-color: rgba(194, 65, 78, .9); }
+  to { background-color: rgba(194, 65, 78, .13); border-color: rgba(194, 65, 78, .33); }
+}
+@keyframes gtp-tile-flash-down {
+  from { background-color: rgba(57, 119, 177, .85); border-color: rgba(57, 119, 177, .9); }
+  to { background-color: rgba(57, 119, 177, .13); border-color: rgba(57, 119, 177, .33); }
+}
+@keyframes gtp-tile-flash-flat {
+  from { background-color: rgba(128, 132, 140, .55); border-color: rgba(128, 132, 140, .6); }
+  to { background-color: rgba(128, 132, 140, .07); border-color: rgba(128, 132, 140, .2); }
+}
