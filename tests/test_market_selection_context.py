@@ -70,11 +70,11 @@ class MarketSelectionContextTests(unittest.TestCase):
                           side_effect=AssertionError("unused domestic quote")) as quote, \
              patch.object(engine, "get_shared_stock_news_result",
                           return_value={"issue_briefs": [], "paired_news_items": []}) as news, \
-             patch("backend.services.disclosure_transfer.read_snapshot", return_value=[]) as filings:
+             patch.object(engine, "fetch_kr_official_disclosures", return_value=[]) as filings:
             result = engine.analyze_stock("삼성전자")
         quote.assert_not_called()
         news.assert_called_once()
-        filings.assert_called_once_with("KR", "005930")
+        filings.assert_called_once_with("005930", days=1, max_results=3)
         self.assertNotEqual(result.get("ok"), False)
         self.assertEqual(result["price_snapshot"]["current"], 0)
         self.assertEqual(result["disclosures"], [])
