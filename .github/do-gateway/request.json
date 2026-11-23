@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/verify_live_fix_20261123.py",
-  "request_id": "verify_live_fix_20261123",
-  "timeout": 60
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_top20_api.py",
+  "target": "backend/kiwoom_us_top20_api.py"
 }

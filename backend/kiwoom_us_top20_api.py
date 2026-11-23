@@ -3,6 +3,7 @@ import base64
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
+import math
 import os
 import re
 import select
@@ -14,6 +15,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
+from backend.kiwoom_us_live_prices import MARKET_WIDGET_ETF_EXCHANGES
+
 RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 
 _US_INDUSTRY_CACHE_LOCK = threading.Lock()
@@ -22,6 +25,7 @@ _US_INDUSTRY_STOCK_CACHE = {}
 _US_INDUSTRY_STOCK_LOCKS = {}
 _US_INDUSTRY_ETF_CACHE_LOCK = threading.Lock()
 _US_INDUSTRY_ETF_CACHE = {}
+_US_INDUSTRY_ETF_TTL = 60
 _US_PLATFORM_CACHE_LOCK = threading.Lock()
 _US_PLATFORM_CACHE = {"expires_at": 0.0, "data": None}
 _US_INDUSTRY_MAP_TTL = 60
@@ -143,63 +147,72 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
         return dict(result)
 
 
-def _get_us_industry_etf_quotes(symbols=None):
-    from backend.providers.kiwoom_us_industries import (ETF_TICKERS, MARKET_WIDGET_ETF_TICKERS,
-                                                        fetch_us_etf_quotes)
-    requested = ETF_TICKERS if symbols is None else MARKET_WIDGET_ETF_TICKERS.intersection(symbols)
-    cache_key = "industry" if symbols is None else "widget"
+def _get_us_industry_etf_quotes():
+    """Use verified live ticks, then compute missing ETF rates from Kiwoom REST prices."""
+    from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_quotes
+    from backend.us_quote_change import validated_change
 
-    now = time.monotonic()
-    with _US_INDUSTRY_ETF_CACHE_LOCK:
-        entry = _US_INDUSTRY_ETF_CACHE.get(cache_key, {"expires_at": 0.0, "data": []})
-        cached = entry["data"]
-        if cached and now < entry["expires_at"]:
-            rest = [dict(item) for item in cached]
+    def current_ticks():
+        return {quote["symbol"]: quote for quote in _etf_snapshot()
+                if not quote["stale"] and quote["change_pct"] is not None}
+
+    live = current_ticks()
+    fallback = {}
+    if ETF_TICKERS.difference(live):
+        with _US_INDUSTRY_ETF_CACHE_LOCK:
+            live = current_ticks()
+            now = time.monotonic()
+            missing = ETF_TICKERS.difference(live)
+            due = {symbol for symbol in missing
+                   if now >= _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))[0]}
+            if due:
+                try:
+                    fetched = {
+                        item["symbol"]: item
+                        for item in fetch_us_etf_quotes(symbols=due)
+                        if isinstance(item, dict)
+                        and item.get("symbol") in due
+                        and type(item.get("price")) in (int, float)
+                        and math.isfinite(item["price"]) and item["price"] > 0
+                        and item.get("exchange") in ("NY", "ND", "NA")
+                        and isinstance(item.get("received_at_ms"), int)
+                    }
+                except Exception:
+                    fetched = {}
+                refresh_at = time.monotonic() + _US_INDUSTRY_ETF_TTL
+                for symbol in due:
+                    _, previous = _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))
+                    _US_INDUSTRY_ETF_CACHE[symbol] = (refresh_at, fetched.get(symbol, previous))
+            now_ms = int(time.time() * 1000)
+            # Never display yesterday's REST price as a live ETF move.
+            fallback = {symbol: quote for symbol, (_, quote) in _US_INDUSTRY_ETF_CACHE.items()
+                        if quote and 0 <= now_ms - quote["received_at_ms"] <= 120000}
+        live = current_ticks()
+
+    result = []
+    for symbol in sorted(ETF_TICKERS):
+        quote = live.get(symbol) or fallback.get(symbol) or {}
+        if symbol in live:
+            percent = quote.get("change_pct")
+            close_date = quote.get("reference_close_date")
         else:
-            try:
-                quotes = fetch_us_etf_quotes(symbols=requested)
-            except Exception:
-                quotes = []
-            clean = [
-                dict(item) for item in quotes
-                if isinstance(item, dict)
-                and isinstance(item.get("symbol"), str)
-                and isinstance(item.get("price"), (int, float))
-                and item.get("price") > 0
-                and isinstance(item.get("change_pct"), (int, float))
-                and isinstance(item.get("received_at_ms"), int)
-            ]
-            if clean:
-                # A partial snapshot (some ETFs missing a quote this round) must
-                # not be frozen in place for the full 30 minutes, or those
-                # sectors stay stuck showing no change rate until the long TTL
-                # finally expires. Only a complete set of the requested tickers
-                # earns the long TTL; anything short of that is retried soon.
-                is_complete = {item["symbol"] for item in clean} >= requested
-                _US_INDUSTRY_ETF_CACHE[cache_key] = {
-                    "data": clean, "expires_at": time.monotonic() + (1800 if is_complete else 300)}
-                rest = clean
-            else:
-                rest = [dict(item) for item in cached] if cached else []
-
-    # Prefer the same live Kiwoom WS feed that QQQ and the TOP20 list use over
-    # the REST snapshot above: it is the real-time source this page relied on
-    # before, and (unlike the REST fallback's per-symbol lookup) it isn't
-    # tied to "current trading quote only, not necessarily the official
-    # session close". A live, non-stale tick always wins over a REST one.
-    now_ms = int(time.time() * 1000)
-    with _QQQ_LOCK:
-        live = {
-            symbol: {"symbol": symbol, "price": quote["price"], "change_pct": quote["change_pct"],
-                     "received_at_ms": quote["received_at_ms"], "source": "kiwoom:websocket"}
-            for symbol, quote in _INDUSTRY_QUOTES.items()
-            if symbol in requested and quote.get("change_pct") is not None
-            and now_ms - quote["received_at_ms"] <= _QQQ_STALE_MS
-        }
-    merged = {item["symbol"]: item for item in rest}
-    merged.update(live)
-    return [merged[symbol] for symbol in sorted(merged)]
-
+            percent, close_date = None, None
+            if quote.get("price") and quote.get("exchange"):
+                try:
+                    # Yahoo supplies only the previous regular close; current price is Kiwoom.
+                    percent, close_date = validated_change(
+                        symbol, quote["exchange"], quote["price"])
+                except (ValueError, TypeError, ArithmeticError):
+                    pass
+        result.append({
+            "symbol": symbol,
+            "change_pct": percent,
+            "reference_close_date": close_date,
+            "received_at_ms": quote.get("received_at_ms", 0),
+            "stale": symbol not in live,
+            "source": "kiwoom:websocket" if symbol in live else "kiwoom:rest",
+        })
+    return result
 
 def _get_us_industry_map_with_stocks(view="legacy"):
     source = _get_us_industry_map(view)
@@ -276,12 +289,38 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         result["etf_quotes"] = etf_quotes
     else:
         result["items"] = [row for row in map(add_stocks, source.get("items", [])) if row]
+    # Reuse today's already-verified tick rates; never replace them with a
+    # vendor percentage calculated from a different regular-close session.
+    from backend.us_quote_change import _target, validated_change
+    session_key = _target(datetime.now(timezone.utc))[0].isoformat()
+    with _QQQ_LOCK:
+        confirmed = {quote["symbol"]: quote for quote in
+                     list(_INDUSTRY_QUOTES.values()) + list(_TOP20_QUOTES.values())
+                     if quote.get("reference_close_session") == session_key
+                     and type(quote.get("change_pct")) in (int, float)}
+    for row in result["items"]:
+        row["change_pct"] = None
+        for stock in row.get("stocks", []):
+            symbol = str(stock.get("symbol") or "").upper().split(".")[0]
+            quote = confirmed.get(symbol)
+            if quote:
+                stock["change_pct"] = quote["change_pct"]
+                stock["reference_close_date"] = quote.get("reference_close_date")
+            else:
+                stock["change_pct"] = None
+                price, exchange = stock.get("price"), stock.get("exchange")
+                if type(price) in (int, float) and 0 < price < 10000000 and exchange in ("ND", "NY", "NA"):
+                    # The current price was already supplied by Kiwoom with the industry map.
+                    # Yahoo only supplies the cached preceding regular close (no additional Kiwoom request).
+                    percent, close_date = validated_change(symbol, exchange, price)
+                    stock["change_pct"] = percent
+                    stock["reference_close_date"] = close_date
     result["sort"] = "marketcap"
     return result
 
 
-def get_us_industry_symbols():
-    """Return ranked sector stocks and verified ETF symbols for one FE feed."""
+def get_us_industry_stock_symbols():
+    """Return only the top-three market-cap stocks from each heatmap sector."""
     result = _get_us_industry_map_with_stocks("heatmap")
     symbols = {}
     for sector in result.get("items", []):
@@ -295,14 +334,14 @@ def get_us_industry_symbols():
             exchange = str(stock.get("exchange") or "").strip().upper()
             if SYMBOL.fullmatch(symbol) and exchange in ("ND", "NY", "NA"):
                 symbols[symbol] = exchange
-    from backend.providers.kiwoom_us_industries import (ETF_TICKERS, MARKET_WIDGET_ETF_TICKERS,
-                                                        fetch_us_etf_exchanges)
-    try:
-        etf_symbols = fetch_us_etf_exchanges(tickers=ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS)
-    except Exception:
-        etf_symbols = {}  # Keep stock updates when the ETF lookup fails.
-    symbols.update(etf_symbols)
     return symbols
+
+
+def get_us_etf_symbols():
+    """Return ETF-only ticker/exchange membership for its independent FE group."""
+    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
+
+    return fetch_us_etf_exchanges()
 
 
 ADDRESS = "127.0.0.1"
@@ -322,10 +361,21 @@ _QQQ_CHANGED = threading.Condition(_QQQ_LOCK)
 _QQQ_QUOTE = None
 _TOP20_SYMBOLS = frozenset()
 _INDUSTRY_SYMBOLS = frozenset()
+_ETF_SYMBOLS = frozenset()
 _TOP20_QUOTES = {}
 _INDUSTRY_QUOTES = {}
+_ETF_QUOTES = {}
+_MARKET_WIDGET_QUOTES = {}
+_MARKET_WIDGET_REST_LOCK = threading.Lock()
+_MARKET_WIDGET_REST_CACHE = {}
+_MARKET_WIDGET_REST_MAX_AGE_MS = 30 * 60 * 1000
 _QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
 _QQQ_STALE_MS = 25000
+_QQQ_REST_STALE_MS = 65000
+_QQQ_REST_CACHE_LOCK = threading.Lock()
+_QQQ_REST_CACHE = {"expires_at": 0.0, "data": None}
+_QQQ_REST_TTL = 60
+_QQQ_REST_RETRY_TTL = 15
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
@@ -355,19 +405,42 @@ def _publish_live_quote(quote):
     if change is not None and (type(change) not in (int, float)
                                or not -100 < change < 10000):
         change = None
+    from backend.us_quote_change import _target
+    session_key = _target(datetime.now(timezone.utc))[0].isoformat()
     safe = {
-        "symbol": symbol, "price": float(price),
-        "change_pct": float(change) if change is not None else None,
+        "symbol": symbol, "exchange": quote.get("exchange"), "price": float(price),
+        "change_pct": float(change) if change is not None and quote.get("reference_close_date") else None,
+        "reference_close_date": quote.get("reference_close_date"),
+        "reference_close_session": session_key,
         "received_at_ms": int(time.time() * 1000), "stale": False,
+        "source": "kiwoom:websocket",
     }
     with _QQQ_CHANGED:
+        if safe["change_pct"] is None:
+            # A pending close lookup must not erase a valid rate from this same session.
+            existing = (_TOP20_QUOTES.get(symbol) or _INDUSTRY_QUOTES.get(symbol)
+                        or _ETF_QUOTES.get(symbol) or _MARKET_WIDGET_QUOTES.get(symbol)
+                        or (_QQQ_QUOTE if symbol == "QQQ" else None))
+            if (existing and existing.get("reference_close_session") == session_key
+                    and type(existing.get("change_pct")) in (int, float)
+                    and type(existing.get("price")) in (int, float)
+                    and existing["price"] > 0 and existing["change_pct"] > -100):
+                close_price = existing["price"] / (1 + existing["change_pct"] / 100)
+                safe["change_pct"] = (safe["price"] / close_price - 1) * 100
+                safe["reference_close_date"] = existing.get("reference_close_date")
         if symbol == "QQQ":
             _QQQ_QUOTE = safe
+        if symbol in MARKET_WIDGET_ETF_EXCHANGES:
+            _MARKET_WIDGET_QUOTES[symbol] = safe
         if symbol in _TOP20_SYMBOLS:
             _TOP20_QUOTES[symbol] = safe
         if symbol in _INDUSTRY_SYMBOLS:
             _INDUSTRY_QUOTES[symbol] = safe
-        if symbol == "QQQ" or symbol in _TOP20_SYMBOLS or symbol in _INDUSTRY_SYMBOLS:
+        if symbol in _ETF_SYMBOLS:
+            _ETF_QUOTES[symbol] = safe
+        if (symbol == "QQQ" or symbol in _TOP20_SYMBOLS
+                or symbol in _INDUSTRY_SYMBOLS or symbol in _ETF_SYMBOLS
+                or symbol in MARKET_WIDGET_ETF_EXCHANGES):
             _QQQ_CHANGED.notify_all()
 
 
@@ -395,25 +468,138 @@ def _set_industry_symbols(symbols):
         _QQQ_CHANGED.notify_all()
 
 
-def _top20_snapshot():
+def _set_etf_symbols(symbols):
+    global _ETF_SYMBOLS
+    clean = frozenset(
+        symbol for symbol in symbols
+        if isinstance(symbol, str) and SYMBOL.fullmatch(symbol)
+    )
+    with _QQQ_CHANGED:
+        _ETF_SYMBOLS = clean
+        for symbol in _ETF_QUOTES.keys() - _ETF_SYMBOLS:
+            del _ETF_QUOTES[symbol]
+        _QQQ_CHANGED.notify_all()
+
+
+def _feed_snapshot(store):
+    """Fill completed close lookups using the last Kiwoom tick, without another tick."""
     now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
-        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
-                for quote in _TOP20_QUOTES.values()]
+        quotes = [dict(quote) for quote in store.values()]
+    from backend.us_quote_change import _target, validated_change
+    session = _target(datetime.now(timezone.utc))[0].isoformat()
+    for quote in quotes:
+        if quote.get("reference_close_session") != session:
+            quote["change_pct"] = None
+            quote["reference_close_date"] = None
+        elif quote.get("change_pct") is None and quote.get("exchange") in ("ND", "NY", "NA"):
+            percent, close_date = validated_change(quote["symbol"], quote["exchange"], quote["price"])
+            if type(percent) in (int, float) and math.isfinite(percent):
+                quote["change_pct"] = percent
+                quote["reference_close_date"] = close_date
+        quote["stale"] = now_ms - quote["received_at_ms"] > _QQQ_STALE_MS
+    return quotes
+
+
+def _top20_snapshot():
+    return _feed_snapshot(_TOP20_QUOTES)
 
 
 def _industry_snapshot():
-    now_ms = int(time.time() * 1000)
-    with _QQQ_LOCK:
-        return [dict(quote, stale=now_ms - quote["received_at_ms"] > _QQQ_STALE_MS)
-                for quote in _INDUSTRY_QUOTES.values()]
+    return _feed_snapshot(_INDUSTRY_QUOTES)
+
+
+def _etf_snapshot():
+    return _feed_snapshot(_ETF_QUOTES)
+
+
+def _get_qqq_rest_snapshot():
+    """Fetch one cached QQQ REST snapshot as a fallback for the live FE stream."""
+    now = time.monotonic()
+    with _QQQ_REST_CACHE_LOCK:
+        cached = _QQQ_REST_CACHE["data"]
+        if cached is not None and now < _QQQ_REST_CACHE["expires_at"]:
+            return dict(cached)
+        try:
+            from backend.providers.kiwoom_us_quotes import fetch_us_quote
+
+            result = fetch_us_quote("QQQ", "ND")
+            price = result.get("current") if isinstance(result, dict) else None
+            from backend.us_quote_change import validated_change
+            if isinstance(price, bool) or not isinstance(price, (int, float)) or not 0 < price < 10000000:
+                raise ValueError("qqq_rest_price_missing")
+            change, close_date = validated_change("QQQ", "ND", float(price))
+            quote = {
+                "symbol": "QQQ",
+                "price": float(price),
+                "change_pct": float(change) if change is not None else None,
+                "reference_close_date": close_date,
+                "received_at_ms": int(time.time() * 1000),
+                "stale": False,
+                "source": "kiwoom:rest",
+            }
+            _QQQ_REST_CACHE["data"] = quote
+            _QQQ_REST_CACHE["expires_at"] = now + _QQQ_REST_TTL
+            return dict(quote)
+        except Exception:
+            _QQQ_REST_CACHE["expires_at"] = now + _QQQ_REST_RETRY_TTL
+            return dict(cached) if cached is not None else None
+
+
+def _market_widget_snapshot():
+    return _feed_snapshot(_MARKET_WIDGET_QUOTES)
+
+
+def _get_market_widget_quotes():
+    """Return current ticks or cached Kiwoom REST prices for SPY and DIA."""
+    from backend.providers.kiwoom_us_quotes import fetch_us_quote
+
+    live = {quote["symbol"]: quote for quote in _market_widget_snapshot()
+            if not quote["stale"]}
+    for symbol in MARKET_WIDGET_ETF_EXCHANGES.keys() - live.keys():
+        with _MARKET_WIDGET_REST_LOCK:
+            refresh_at, quote = _MARKET_WIDGET_REST_CACHE.get(symbol, (0.0, None))
+            if time.monotonic() >= refresh_at:
+                try:
+                    result = fetch_us_quote(symbol, MARKET_WIDGET_ETF_EXCHANGES[symbol])
+                    price = result["current"]
+                    if type(price) not in (int, float) or not 0 < price < 10000000:
+                        raise ValueError("market_widget_rest_quote_missing")
+                    from backend.us_quote_change import validated_change
+                    change, close_date = validated_change(symbol, MARKET_WIDGET_ETF_EXCHANGES[symbol], float(price))
+                    if change is not None and not -100 < change < 10000:
+                        raise ValueError("market_widget_rest_quote_missing")
+                except Exception:
+                    refresh_at = time.monotonic() + _QQQ_REST_RETRY_TTL
+                else:
+                    refresh_at = time.monotonic() + _QQQ_REST_TTL
+                    quote = {
+                        "symbol": symbol, "price": float(price), "change_pct": change,
+                        "reference_close_date": close_date,
+                        "received_at_ms": int(time.time() * 1000), "stale": False,
+                        "source": "kiwoom:rest",
+                    }
+                _MARKET_WIDGET_REST_CACHE[symbol] = (refresh_at, quote)
+            if quote and int(time.time() * 1000) - quote["received_at_ms"] < _MARKET_WIDGET_REST_MAX_AGE_MS:
+                live[symbol] = dict(quote)
+    return [live[symbol] for symbol in sorted(live)]
 
 
 def _qqq_snapshot():
+    now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
-        quote = dict(_QQQ_QUOTE) if _QQQ_QUOTE else None
-    if quote is not None:
-        quote["stale"] = int(time.time() * 1000) - quote["received_at_ms"] > _QQQ_STALE_MS
+        live = dict(_QQQ_QUOTE) if _QQQ_QUOTE else None
+    if live is not None and now_ms - live["received_at_ms"] <= _QQQ_STALE_MS:
+        live["stale"] = False
+        return live
+
+    fallback = _get_qqq_rest_snapshot()
+    candidates = [quote for quote in (live, fallback) if quote is not None]
+    if not candidates:
+        return None
+    quote = max(candidates, key=lambda item: item["received_at_ms"])
+    max_age = _QQQ_REST_STALE_MS if quote.get("source") == "kiwoom:rest" else _QQQ_STALE_MS
+    quote["stale"] = now_ms - quote["received_at_ms"] > max_age
     return quote
 
 
@@ -480,7 +666,9 @@ def _start_qqq_feed():
             _publish_live_quote,
             on_top20=_set_top20_symbols,
             on_industry=_set_industry_symbols,
-            get_industry_symbols=get_us_industry_symbols,
+            on_etf=_set_etf_symbols,
+            get_industry_symbols=get_us_industry_stock_symbols,
+            get_etf_symbols=get_us_etf_symbols,
         ))
 
     thread = threading.Thread(target=runner, name="kiwoom-qqq-fe", daemon=True)
@@ -504,6 +692,12 @@ def read_top20(path=RANKING_FILE):
         raise ValueError("top20_incomplete")
     seen = set()
     items = []
+    from backend.us_quote_change import _target, validated_change
+    session_key = _target(datetime.now(timezone.utc))[0].isoformat()
+    with _QQQ_LOCK:
+        confirmed = {symbol: quote for symbol, quote in _TOP20_QUOTES.items()
+                     if quote.get("reference_close_session") == session_key
+                     and type(quote.get("change_pct")) in (int, float)}
     for index, row in enumerate(rows, 1):
         if not isinstance(row, dict):
             raise ValueError("top20_invalid_row")
@@ -514,14 +708,25 @@ def read_top20(path=RANKING_FILE):
         name = row.get("name")
         if not isinstance(name, str) or not name.strip():
             raise ValueError("top20_invalid_name")
+        if symbol in confirmed:
+            current_price = confirmed[symbol]["price"]
+            current_pct = confirmed[symbol]["change_pct"]
+            close_date = confirmed[symbol].get("reference_close_date")
+        else:
+            current_price = row.get("price")
+            current_pct, close_date = None, None
+            exchange = row.get("exchange")
+            if type(current_price) in (int, float) and 0 < current_price < 10000000 and exchange in ("ND", "NY", "NA"):
+                current_pct, close_date = validated_change(symbol, exchange, current_price)
         item = {
             "rank": index,
             "symbol": symbol,
             "name": name,
             "exchange": row.get("exchange"),
             "company_key": row.get("company_key"),
-            "price": row.get("price"),
-            "change_pct": row.get("change_pct"),
+            "price": current_price,
+            "change_pct": current_pct,
+            "reference_close_date": close_date,
             "trading_value": row.get("trading_value"),
             "volume": row.get("volume"),
         }
@@ -547,17 +752,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_qqq_websocket()
         if path.path == "/health":
             return self._json(200, {"ok": True, "service": "kiwoom-us-top20-api"})
-        if path.path == "/market/us-etf-quotes":
-            if not getattr(self.server, "qqq_feed_enabled", False):
-                return self._json(503, {"ok": False, "items": []})
-            return self._json(200, {"ok": True, "items": [
-                quote for quote in _get_us_industry_etf_quotes(symbols={"SPY", "DIA"})
-                if quote.get("symbol") in ("SPY", "DIA")
-            ]})
         if path.path == "/market/us-industry-etf-quotes":
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "items": []})
             return self._json(200, {"ok": True, "items": _get_us_industry_etf_quotes()})
+        if path.path == "/market/us-etf-quotes":
+            if not getattr(self.server, "qqq_feed_enabled", False):
+                return self._json(503, {"ok": False, "items": []})
+            return self._json(200, {"ok": True, "items": _get_market_widget_quotes()})
         if path.path == "/market/us-industries":
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "error": "industry_api_unavailable", "items": []})
@@ -616,6 +818,7 @@ class Handler(BaseHTTPRequestHandler):
             last_top20_at = 0.0
             last_top20_message = None
             last_industry_message = None
+            last_market_widget_message = None
             while True:
                 quote = _qqq_snapshot()
                 signature = ((quote["received_at_ms"], quote["stale"])
@@ -638,12 +841,19 @@ class Handler(BaseHTTPRequestHandler):
                         self.connection.sendall(_websocket_text_frame(latest))
                         last_top20_message = latest
                     latest_industry = json.dumps(
-                        {"type": "industry-quotes", "items": _industry_snapshot()},
+                        {"type": "industry-quotes", "items": _industry_snapshot() + _etf_snapshot()},
                         separators=(",", ":"), allow_nan=False,
                     ).encode("utf-8")
                     if latest_industry != last_industry_message:
                         self.connection.sendall(_websocket_text_frame(latest_industry))
                         last_industry_message = latest_industry
+                    latest_market_widgets = json.dumps(
+                        {"type": "market-etf-quotes", "items": _market_widget_snapshot()},
+                        separators=(",", ":"), allow_nan=False,
+                    ).encode("utf-8")
+                    if latest_market_widgets != last_market_widget_message:
+                        self.connection.sendall(_websocket_text_frame(latest_market_widgets))
+                        last_market_widget_message = latest_market_widgets
                     last_top20_at = now
                 with _QQQ_CHANGED:
                     _QQQ_CHANGED.wait(timeout=1.0)
