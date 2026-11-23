@@ -5,6 +5,8 @@ import ssl
 import time
 from zoneinfo import ZoneInfo
 from urllib.request import urlopen
+import sys
+sys.path.insert(0, '/opt/gaemigtp-news/app')
 from backend import us_quote_change as changes
 
 print("AUDIT_AT_UTC", dt.datetime.now(dt.timezone.utc).isoformat(), flush=True)
