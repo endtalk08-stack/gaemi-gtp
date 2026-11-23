@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/check_materials_consistency_20261123.py",
-  "request_id": "check_materials_consistency_recheck_20261123",
+  "path": "ops/do-gateway/check_etf_live_state_20261123.py",
+  "request_id": "check_etf_live_state_20261123",
   "timeout": 60
 }
