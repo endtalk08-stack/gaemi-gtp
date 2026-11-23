@@ -148,8 +148,9 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
 
 
 def _get_us_industry_etf_quotes():
-    """Use live ticks first and share REST fallback results across requests."""
+    """Use verified live ticks, then compute missing ETF rates from Kiwoom REST prices."""
     from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_quotes
+    from backend.us_quote_change import validated_change
 
     def current_ticks():
         return {quote["symbol"]: quote for quote in _etf_snapshot()
@@ -159,7 +160,6 @@ def _get_us_industry_etf_quotes():
     fallback = {}
     if ETF_TICKERS.difference(live):
         with _US_INDUSTRY_ETF_CACHE_LOCK:
-            # Ticks or cached results may have arrived while this request waited.
             live = current_ticks()
             now = time.monotonic()
             missing = ETF_TICKERS.difference(live)
@@ -172,8 +172,9 @@ def _get_us_industry_etf_quotes():
                         for item in fetch_us_etf_quotes(symbols=due)
                         if isinstance(item, dict)
                         and item.get("symbol") in due
-                        and type(item.get("change_pct")) in (int, float)
-                        and math.isfinite(item["change_pct"])
+                        and type(item.get("price")) in (int, float)
+                        and math.isfinite(item["price"]) and item["price"] > 0
+                        and item.get("exchange") in ("NY", "ND", "NA")
                         and isinstance(item.get("received_at_ms"), int)
                     }
                 except Exception:
@@ -182,24 +183,36 @@ def _get_us_industry_etf_quotes():
                 for symbol in due:
                     _, previous = _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))
                     _US_INDUSTRY_ETF_CACHE[symbol] = (refresh_at, fetched.get(symbol, previous))
-
             now_ms = int(time.time() * 1000)
+            # Never display yesterday's REST price as a live ETF move.
             fallback = {symbol: quote for symbol, (_, quote) in _US_INDUSTRY_ETF_CACHE.items()
-                        if quote and now_ms - quote["received_at_ms"] <= 72 * 60 * 60 * 1000}
+                        if quote and 0 <= now_ms - quote["received_at_ms"] <= 120000}
         live = current_ticks()
 
     result = []
     for symbol in sorted(ETF_TICKERS):
         quote = live.get(symbol) or fallback.get(symbol) or {}
+        if symbol in live:
+            percent = quote.get("change_pct")
+            close_date = quote.get("reference_close_date")
+        else:
+            percent, close_date = None, None
+            if quote.get("price") and quote.get("exchange"):
+                try:
+                    # Yahoo supplies only the previous regular close; current price is Kiwoom.
+                    percent, close_date = validated_change(
+                        symbol, quote["exchange"], quote["price"])
+                except (ValueError, TypeError, ArithmeticError):
+                    pass
         result.append({
             "symbol": symbol,
-            "change_pct": quote.get("change_pct") if symbol in live else None,
+            "change_pct": percent,
+            "reference_close_date": close_date,
             "received_at_ms": quote.get("received_at_ms", 0),
             "stale": symbol not in live,
             "source": "kiwoom:websocket" if symbol in live else "kiwoom:rest",
         })
     return result
-
 
 def _get_us_industry_map_with_stocks(view="legacy"):
     source = _get_us_industry_map(view)
