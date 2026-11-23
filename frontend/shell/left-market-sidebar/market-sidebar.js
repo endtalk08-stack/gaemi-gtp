@@ -557,7 +557,8 @@
         applyChangeSort();
       }
       if (tab === 'realtime') {
-        renderMarketQqq();
+        // QQQ is a plugin-only live quote card, not a duplicate market-row.
+        list.replaceChildren();
         return;
       }
       if (tab === 'industry') {
@@ -747,81 +748,6 @@
     // Share one DigitalOcean socket between QQQ, the visible ranking, and the chart.
     const qqqWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('qqq') === true;
     const marketEtfWidgetActive = () => ['spy', 'dia'].some(id => window.GaemiGTPWidgetDock?.isActive?.(id) === true);
-    const paintMarketQqq = () => {
-      const row = list?.querySelector('[data-market-qqq]');
-      if (!row) return;
-      const quote = marketQqqQuote;
-      const now = Date.now();
-      const fresh = freshQuote(quote, now);
-      const retained = quote && Number.isFinite(quote.price) && quote.price > 0
-        && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= now + 5000
-        && now - quote.received_at_ms <= 180000;
-      const visible = fresh || retained;
-      const change = visible && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
-      row.querySelector('[data-market-qqq-price]').textContent = visible
-        ? '$' + quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        : '—';
-      const rate = row.querySelector('[data-market-qqq-change]');
-      rate.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
-      rate.classList.toggle('text-rose-500', change > 0);
-      rate.classList.toggle('text-sky-500', change < 0);
-    };
-    const moveQqqToChat = () => {
-      if (!window.GaemiGTPWidgetDock?.add?.('qqq')) return;
-      window.enterChatWorkspace?.();
-      if (window.innerWidth < 1024) {
-        if (document.body.classList.contains('left-market-open')) toggle();
-        if (document.body.classList.contains('left-home-open')) window.closeLeftSidebarHome?.();
-      }
-      applyState();
-      document.querySelector('[data-central-widget-id="qqq"] button')?.focus();
-    };
-    const qqqDragType = 'application/x-gaemi-qqq';
-    const renderMarketQqq = () => {
-      if (qqqWidgetActive()) {
-        list.textContent = 'QQQ는 가운데에 표시 중이야.';
-        return;
-      }
-      const row = document.createElement('article');
-      row.className = 'market-stock-row';
-      row.dataset.marketQqq = 'true';
-      const grip = document.createElement('button');
-      grip.type = 'button';
-      grip.className = 'market-stock-grip border-0 bg-transparent p-0';
-      grip.textContent = '⠿';
-      grip.title = 'QQQ 가운데로 이동';
-      grip.setAttribute('aria-label', 'QQQ 가운데로 이동');
-      grip.draggable = true;
-      grip.addEventListener('click', moveQqqToChat);
-      grip.addEventListener('dragstart', event => {
-        if (!event.dataTransfer) return;
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData(qqqDragType, 'QQQ');
-      });
-      const content = document.createElement('div');
-      content.className = 'market-stock-content';
-      content.innerHTML = `
-        <div class="market-stock-top"><span class="market-stock-name">QQQ</span><span class="market-stock-price" data-market-qqq-price>—</span></div>
-        <div class="market-stock-second"><span class="market-stock-turnover">나스닥</span><span class="market-stock-change" data-market-qqq-change>—</span></div>
-        <div class="market-stock-third"><a class="truncate text-current" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a></div>`;
-      row.append(grip, stockMark({ symbol: 'QQQ' }), content);
-      list.replaceChildren(row);
-      paintMarketQqq();
-      window.GaemiGTPWidgetDock?.updateMarketQqqReason?.();
-    };
-    for (const id of ['mainHeroView', 'centralWidgetDock', 'chatArea']) {
-      const target = document.getElementById(id);
-      target?.addEventListener('dragover', event => {
-        if (!event.dataTransfer?.types.includes(qqqDragType)) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-      });
-      target?.addEventListener('drop', event => {
-        if (event.dataTransfer?.getData(qqqDragType) !== 'QQQ') return;
-        event.preventDefault();
-        moveQqqToChat();
-      });
-    }
     const quoteConsumersActive = () =>
       window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
     let qqqSocket = null;
@@ -837,7 +763,6 @@
       } else if (!marketQqqQuote || Date.now() - marketQqqQuote.received_at_ms > 180000) {
         marketQqqQuote = null;
       }
-      paintMarketQqq();
       window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', {
         detail: { quote: marketQqqQuote || null }
       }));
@@ -1003,10 +928,7 @@
       if (sidebarActive() && ['value', 'realtime', 'industry'].includes(tab)) void showUsRanking();
       paintLiveQuotes();
     };
-    window.addEventListener('gaemi:qqq-placement', () => {
-      if (sidebarActive() && tab === 'realtime') void showUsRanking();
-      syncQqqSocket();
-    });
+    window.addEventListener('gaemi:qqq-placement', syncQqqSocket);
     window.addEventListener('gaemi:market-widget-placement', syncQqqSocket);
     document.addEventListener('visibilitychange', refreshOnReturn);
     window.addEventListener('focus', refreshOnReturn);
@@ -1064,20 +986,11 @@
     });
     sidebar.dataset.marketControlsBound = 'true';
     window.GaemiGTPMarketSidebar.refreshLiveQuotes = refreshOnReturn;
-    window.GaemiGTPMarketSidebar.openMarketTab = () => {
-      if (!sidebarActive() && sidebar.parentElement?.id === 'leftSidebarHomeSectionContent') {
-        window.openLeftSidebarSection?.('market');
-      } else if (!sidebarActive() && !document.body.classList.contains('left-market-open')) {
-        toggle();
-      }
-      sidebar.querySelector('[data-info-tab-action="realtime"]')?.click();
-    };
     // Closed panels and background tabs consume no ranking or quote reads.
     if (sidebarActive()) void showUsRanking();
     window.setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       syncQqqSocket();
-      paintMarketQqq();
       if (draggedRow) return;
       if (sidebarActive() && tab === 'value') void showUsRanking();
     }, 3000);
