@@ -137,33 +137,6 @@
     fill.setAttribute('points', '1,27 ' + points + ' 71,27');
   }
 
-  // The three central ETF cards share one bounded last-verified snapshot.
-  // Never combine a new price with an older percentage: keep the entire
-  // observed price/change pair until another complete pair arrives.
-  // This is the last verified quote, not a claim of an official closing auction.
-  const MARKET_LAST_VERIFIED_MS = 72 * 60 * 60 * 1000;
-  function marketQuoteWithinWindow(quote, symbol) {
-    const age = Date.now() - quote?.received_at_ms;
-    return quote?.symbol === symbol
-      && Number.isFinite(quote.price) && quote.price > 0
-      && Number.isFinite(quote.received_at_ms)
-      && age >= -5000 && age <= MARKET_LAST_VERIFIED_MS;
-  }
-  function marketQuoteComplete(quote, symbol) {
-    return marketQuoteWithinWindow(quote, symbol)
-      && Number.isFinite(quote.change_pct);
-  }
-  function retainMarketQuote(previous, incoming, symbol) {
-    const lastGood = marketQuoteComplete(previous, symbol) ? previous : null;
-    const nextGood = marketQuoteComplete(incoming, symbol) ? incoming : null;
-    if (nextGood && (!lastGood || nextGood.received_at_ms >= lastGood.received_at_ms))
-      return nextGood;
-    // If a late/partial feed packet omits change_pct, it must not replace a
-    // previously verified pair with a price/rate mismatch.
-    if (lastGood) return lastGood;
-    return marketQuoteWithinWindow(incoming, symbol) ? incoming : null;
-  }
-
   function isQqqQuoteFresh(quote) {
     const maxAge = quote?.source === 'kiwoom:rest' ? 65000 : 25000;
     return quote?.stale === false
@@ -179,7 +152,7 @@
     const changeNode = card.querySelector('[data-kospi-change]');
     const chartNode = card.querySelector('.central-widget-card__sparkline');
     const quote = qqqCurrent;
-    const valid = marketQuoteWithinWindow(quote, 'QQQ');
+    const valid = quote && Number.isFinite(quote.price) && quote.price > 0;
     const fresh = valid && isQqqQuoteFresh(quote);
     const change = valid && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
@@ -209,10 +182,8 @@
       && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= Date.now() + 5000
       && Date.now() - quote.received_at_ms <= 180000;
     // Muted while waiting for a new tick, but do not blank a valid recent price.
-    const lastVerified = marketQuoteComplete(quote, symbol);
-    const display = marketQuoteWithinWindow(quote, symbol)
-      && (lastVerified || fresh || recentTick);
-    const change = display && lastVerified ? quote.change_pct : null;
+    const display = fresh || recentTick;
+    const change = display && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
     card.querySelector('[data-kospi-price]').textContent = display
       ? quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
@@ -242,8 +213,7 @@
         if (quote && Number.isFinite(quote.price) && quote.price > 0
             && Number.isFinite(quote.change_pct) && Number.isFinite(quote.received_at_ms)
             && (!state.current || !isQqqQuoteFresh(state.current))) {
-          state.current = retainMarketQuote(
-            state.current, { ...quote, stale: false, source: 'kiwoom:rest' }, symbol);
+          state.current = { ...quote, stale: false, source: 'kiwoom:rest' };
           updateMarketEtfCard(symbol);
         }
       }
@@ -255,8 +225,7 @@
     for (const [symbol, state] of Object.entries(marketEtfs)) {
       const quote = items.find(item => item.symbol === symbol);
       if (quote && Number.isFinite(quote.price)
-          && quote.price > 0 && isQqqQuoteFresh(quote))
-        state.current = retainMarketQuote(state.current, quote, symbol);
+          && quote.price > 0 && isQqqQuoteFresh(quote)) state.current = quote;
       if (quote && Number.isFinite(quote.received_at_ms)
           && state.current && quote.received_at_ms > state.lastReceivedMs) {
         const { key } = easternTradingWindow(quote.received_at_ms);
@@ -287,13 +256,17 @@
 
   function onQqqQuote(event) {
     const quote = event.detail?.quote;
-    if (!marketQuoteWithinWindow(quote, 'QQQ')) {
-      // Connection loss/stale heartbeat is not a new market close.
-      qqqCurrent = retainMarketQuote(qqqCurrent, null, 'QQQ');
+    if (!quote || quote.symbol !== 'QQQ' || typeof quote.price !== 'number'
+      || !Number.isFinite(quote.price) || quote.price <= 0
+      || typeof quote.received_at_ms !== 'number'
+      || !Number.isFinite(quote.received_at_ms)
+      || quote.received_at_ms > Date.now() + 5000
+      || Date.now() - quote.received_at_ms > 86400000) {
+      qqqCurrent = null;
       updateQqqViews();
       return;
     }
-    qqqCurrent = retainMarketQuote(qqqCurrent, quote, 'QQQ');
+    qqqCurrent = quote;
     const fresh = isQqqQuoteFresh(quote);
     if (fresh && quote.received_at_ms > qqqLastReceivedMs) {
       const { key } = easternTradingWindow(quote.received_at_ms);
