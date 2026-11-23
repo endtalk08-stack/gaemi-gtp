@@ -11,6 +11,8 @@ _NY = ZoneInfo("America/New_York")
 _LOCK = threading.Lock()
 _POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="us-close-baseline")
 _CACHE = {}
+# Dated Kiwoom QQQ close disagreed with independently verified regular close.
+REGULAR_CLOSE_VERIFIED = False
 
 
 def _target(now):
@@ -48,9 +50,9 @@ def validated_change(symbol, exchange, price, *, now=None):
     One pending read per symbol/session; failures retry after five minutes.
     Prices continue streaming while the read-only baseline is unavailable.
     """
-    # The dated Kiwoom daily record has disagreed with the official regular close
-    # in live QQQ verification. Suppress rates until the price source is reconciled.
-    return None, None
+    # Suppress rates until the close source is reconciled and checked in live data.
+    if not REGULAR_CLOSE_VERIFIED:
+        return None, None
     now = now or dt.datetime.now(dt.timezone.utc)
     target, exact = _target(now)
     key = (symbol, exchange, target, exact)
