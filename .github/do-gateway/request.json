@@ -1,6 +1,5 @@
 {
   "operation": "logs",
-  "service": "gaemigtp-kiwoom-us-top20-api.service",
-  "lines": 400,
-  "request_id": "check_etf_logs_20261123"
+  "unit": "gaemigtp-kiwoom-us-top20-api.service",
+  "lines": 300
 }
