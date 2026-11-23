@@ -1,5 +1,5 @@
 {
   "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-daily.service",
-  "lines": 100
+  "unit": "gaemigtp-us-market-close.service",
+  "lines": 160
 }
