@@ -54,16 +54,24 @@
     const p = eastern(now);
     if (!isCapturing(p) || !validQuote(quote)) return false;
     const observed = eastern(quote.received_at_ms);
-    if (!observed || observed.day !== p.day || !isCapturing(observed)
+    // The SPY/DIA REST endpoint is legitimately cached for up to 30 minutes.
+    // Keep its last confirmed regular-session pair rather than treating a
+    // 15:30 snapshot seen at 15:58 as a new trade or discarding it entirely.
+    const restSnapshot = /^kiwoom:usa20/.test(String(quote.source || ''));
+    const maxAge = restSnapshot ? 31 * 60 * 1000 : MAX_QUOTE_AGE_MS;
+    const regularObserved = isWeekday(observed)
+      && observed.minute >= (restSnapshot ? 15 * 60 : CAPTURE_START)
+      && observed.minute < REGULAR_END;
+    if (!observed || observed.day !== p.day || !regularObserved
         || now - quote.received_at_ms < -5000
-        || now - quote.received_at_ms > MAX_QUOTE_AGE_MS) return false;
+        || now - quote.received_at_ms > maxAge) return false;
     if (state.day !== p.day) state = { day: p.day, entries: {} };
     const prior = state.entries[quote.symbol];
     if (prior && Number.isFinite(prior.received_at_ms)
         && prior.received_at_ms > quote.received_at_ms) return false;
     state.entries[quote.symbol] = {
       symbol: quote.symbol, price: quote.price, change_pct: quote.change_pct,
-      received_at_ms: quote.received_at_ms,
+      received_at_ms: quote.received_at_ms, checked_at_ms: now,
       reference_close_date: typeof quote.reference_close_date === 'string'
         ? quote.reference_close_date : null
     };
@@ -88,7 +96,11 @@
     const q = state.entries[symbol];
     if (!q || !validQuote(q)) return null;
     const observed = eastern(q.received_at_ms);
-    return observed?.day === p.day && isCapturing(observed) ? { ...q } : null;
+    const checked = eastern(q.checked_at_ms);
+    return observed?.day === p.day && isWeekday(observed)
+      && observed.minute >= 15 * 60 && observed.minute < REGULAR_END
+      && checked?.day === p.day && isCapturing(checked)
+      ? { ...q } : null;
   }
 
   function resolve(symbol, incoming) {
