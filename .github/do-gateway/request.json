@@ -1,6 +1,4 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/audit_us_rate_resume_20261123.py",
-  "request_id": "usrateaudit20261123c",
-  "timeout": 180
+  "operation": "restart",
+  "unit": "gaemigtp-kiwoom-us-top20-https.service"
 }
