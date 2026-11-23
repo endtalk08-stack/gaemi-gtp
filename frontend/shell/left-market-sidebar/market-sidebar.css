@@ -334,7 +334,7 @@
   display: block;
   min-width: 0;
   color: #b8bbc3;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.15;
   text-align: center;
@@ -418,7 +418,7 @@
   width: 100%;
   min-width: 0;
   color: #b8bbc3;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.15;
   white-space: nowrap;
@@ -469,10 +469,10 @@
   #marketRankingList.industry-map-list,
   .industry-map-row { gap: 2px; }
   .industry-map-sector { min-height: 44px; padding: 5px 3px; }
-  .industry-map-sector-name { font-size: 11px; }
+  .industry-map-sector-name { font-size: 14px; }
   .industry-map-sector-change { font-size: 15px; }
   .industry-map-stock { min-height: 44px; padding: 5px 3px; }
-  .industry-map-stock-name { font-size: 12px; }
+  .industry-map-stock-name { font-size: 14px; }
   .industry-map-stock-change { font-size: 15px; }
 }
 /* Flash only when the displayed percentage changes; restore its direction's
