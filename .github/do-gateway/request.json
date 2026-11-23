@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/quote_live_check_20261123.py",
-  "request_id": "quotelivecheck20261123a",
-  "timeout": 60
+  "operation": "deploy",
+  "path": "backend/us_quote_change.py",
+  "target": "backend/us_quote_change.py"
 }
