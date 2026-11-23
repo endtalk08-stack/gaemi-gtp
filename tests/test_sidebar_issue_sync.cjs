@@ -350,7 +350,7 @@ test('unrelated analysis and wrong market do not make requests', async () => {
   assert.equal(app.calls.length, n);
 });
 
-test('stale lookup must not write to a rebuilt sidebar', async () => {
+test('stale lookup must not write to the market tab without QQQ', async () => {
   const app = setup({ deferred: true });
   await flush();
   app.event({ name: '일라이 릴리', market: 'us', symbol: 'LLY' });
@@ -360,9 +360,8 @@ test('stale lookup must not write to a rebuilt sidebar', async () => {
   app.resolvePost();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
-  assert.equal(app.list.children.length, 1);
-  assert.equal(app.list.children[0].dataset.marketQqq, 'true',
-    'switching to realtime must keep the current QQQ market card');
+  assert.equal(app.list.children.length, 0,
+    'market tab must no longer render a duplicate QQQ card');
 });
 
 test('central analysis announces only completed and populated briefs', () => {
@@ -394,7 +393,7 @@ test('market cards show stock logo slot and allow keyboard reorder without chang
     ['TSLA.O', 'LLY']);
 });
 
-test('switching tabs immediately restores TOP20 without another Neon read', async () => {
+test('switching from QQQ-free market tab immediately restores TOP20 without another Neon read', async () => {
   const app = setup();
   await flush();
   const originalRows = app.list.querySelectorAll(':scope > button[data-original-index]');
@@ -406,9 +405,8 @@ test('switching tabs immediately restores TOP20 without another Neon read', asyn
   app.realtimeTab.click();
   await flush();
   assert.equal(app.list.querySelectorAll(':scope > button[data-original-index]').length, 0);
-  assert.equal(app.list.children.length, 1);
-  assert.equal(app.list.children[0].dataset.marketQqq, 'true',
-    'realtime tab should render the QQQ market card');
+  assert.equal(app.list.children.length, 0,
+    'QQQ is a plugin-only widget; the market tab stays empty');
   app.valueTab.click();
   await flush();
   const restoredRows = app.list.querySelectorAll(':scope > button[data-original-index]');
