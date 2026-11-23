@@ -1,0 +1,47 @@
+name: gaemigtp-main QQQ SPY DIA last-verified preview
+
+on:
+  push:
+    branches: [ops/market-three-last-quotes-20261124]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify isolated QQQ SPY DIA changes
+        run: |
+          test -s frontend/index.html
+          test -s frontend/shell/center-chat/widget-dock/widget-dock.js
+          test -s frontend/shell/left-market-sidebar/market-sidebar.js
+          test -s functions/market/qqq-reason.js
+          test -s functions/market/us-daily-chart.js
+          grep -Fq 'widget-dock.js?v=20261124-etf-last-verified-v1' frontend/index.html
+          node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          node --check frontend/shell/left-market-sidebar/market-sidebar.js
+          node --test tests/test_market_three_last_quotes.cjs
+          node --test tests/test_market_polling_cost.cjs
+          node --test tests/test_sidebar_issue_sync.cjs
+      - name: Preview deploy existing Pages static + Functions
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        env:
+          npm_config_yes: 'true'
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch market-three-last-quotes-preview
+      - name: Confirm preview deployment
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          case "$PREVIEW_URL" in
+            https://*.gaemigtp-main.pages.dev) ;;
+            *) echo "::error::Preview URL absent"; exit 1 ;;
+          esac
+          echo "[Pages preview deployment]($PREVIEW_URL)" >> "$GITHUB_STEP_SUMMARY"
