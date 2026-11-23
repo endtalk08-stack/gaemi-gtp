@@ -75,7 +75,7 @@
     }
     // One small, bounded public market snapshot; persistence survives a reload
     // during the 30-minute transition and is ignored outside that interval.
-    if (now - lastSavedMs >= 5000) {
+    if (!prior || now - lastSavedMs >= 5000) {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); lastSavedMs = now; } catch (_) {}
     }
     return true;
