@@ -175,6 +175,7 @@
     let industryMapPromise = null;
     let industryLiveQuotes = [];
     let industryRestQuotes = [];
+    const industryLastVerifiedQuotes = new Map();
     const industrySymbol = (symbol) => String(symbol || '').trim().toUpperCase().replace(/\.(?:O|N|K)$/, '');
     const industryQuoteFor = (symbol) => {
       const now = Date.now();
@@ -183,6 +184,11 @@
         industrySymbol(quote.symbol) === key && freshQuote(quote, now)
         && Number.isFinite(quote.change_pct));
       if (live) return live;
+      // A quiet stock must keep its last verified return for this close session.
+      const retained = industryLastVerifiedQuotes.get(key);
+      const referenceDate = marketQqqQuote?.reference_close_date;
+      if (retained && (!referenceDate || retained.reference_close_date === referenceDate)
+          && now - retained.received_at_ms <= 12 * 60 * 60 * 1000) return retained;
       return industryRestQuotes.find((quote) =>
         industrySymbol(quote.symbol) === key
         && Number.isFinite(quote.change_pct)
@@ -920,16 +926,15 @@
           }
           button.dataset.changePct = String(quote.change_pct);
           button.dataset.currentChangePct = String(quote.change_pct);
-        } else {
-          // A new session may have a price before its regular-close baseline.
-          // Never retain the previous session's percentage beside that price.
+          if (quote.reference_close_date) button.dataset.referenceCloseDate = quote.reference_close_date;
+        } else if (button.dataset.referenceCloseDate && marketQqqQuote?.reference_close_date
+                   && button.dataset.referenceCloseDate !== marketQqqQuote.reference_close_date) {
+          // Only clear a rate when the reference closing session really changed.
           const change = button.querySelector('[data-market-change]');
-          if (change) {
-            change.textContent = '—';
-            change.className = 'market-stock-change';
-          }
+          if (change) change.textContent = '—';
           button.dataset.changePct = '-Infinity';
           button.dataset.currentChangePct = '';
+          button.dataset.referenceCloseDate = '';
         }
         updated++;
       });
@@ -944,7 +949,13 @@
       paintLiveQuotes();
     };
     const publishIndustryQuotes = items => {
-      industryLiveQuotes = items.filter(quote => freshQuote(quote, Date.now()));
+      const now = Date.now();
+      industryLiveQuotes = items.filter(quote => freshQuote(quote, now));
+      industryLiveQuotes.forEach(quote => {
+        if (Number.isFinite(quote.change_pct) && quote.reference_close_date) {
+          industryLastVerifiedQuotes.set(industrySymbol(quote.symbol), quote);
+        }
+      });
       if (sidebarActive() && tab === 'industry' && industryMapData) {
         renderIndustryMap(industryMapData);
         void refreshIndustryEtfRates();
