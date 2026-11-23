@@ -333,7 +333,7 @@
 .industry-map-sector-name {
   display: block;
   min-width: 0;
-  color: var(--gtp-text);
+  color: #b8bbc3;
   font-size: 12px;
   font-weight: 800;
   line-height: 1.15;
@@ -345,7 +345,7 @@
 .industry-map-sector-change {
   flex: 0 0 auto;
   color: var(--gtp-text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -357,15 +357,15 @@
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--gtp-muted);
+  color: #9298a3;
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: .02em;
   text-align: center;
 }
-.industry-map-sector.is-up .industry-map-sector-change { color: #f0a0aa; }
-.industry-map-sector.is-down .industry-map-sector-change { color: #9dbee3; }
+.industry-map-sector.is-up .industry-map-sector-change { color: #ffc3cc; }
+.industry-map-sector.is-down .industry-map-sector-change { color: #c1dbf7; }
 .industry-map-sector.is-flat .industry-map-sector-change { color: #a1a1aa; }
 .industry-map-stocks {
   display: grid;
@@ -415,7 +415,7 @@
   display: block;
   width: 100%;
   min-width: 0;
-  color: var(--gtp-text);
+  color: #b8bbc3;
   font-size: 12px;
   font-weight: 800;
   line-height: 1.15;
@@ -425,7 +425,7 @@
 }
 .industry-map-stock-symbol {
   display: block;
-  color: var(--gtp-muted);
+  color: #9298a3;
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
@@ -433,14 +433,14 @@
 }
 .industry-map-stock-change {
   display: block;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
   line-height: 1;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.industry-map-stock.is-up .industry-map-stock-change { color: #f0a0aa; }
-.industry-map-stock.is-down .industry-map-stock-change { color: #9dbee3; }
+.industry-map-stock.is-up .industry-map-stock-change { color: #ffc3cc; }
+.industry-map-stock.is-down .industry-map-stock-change { color: #c1dbf7; }
 /* Fixed rose-brown and slate-blue tile surfaces; no magnitude-based tint. */
 .industry-map-sector.is-up, .industry-map-stock.is-up { background-color: #493039; }
 .industry-map-sector.is-down, .industry-map-stock.is-down { background-color: #303d4d; }
@@ -469,7 +469,7 @@
   .industry-map-sector-change { font-size: 15px; }
   .industry-map-stock { min-height: 44px; padding: 5px 3px; }
   .industry-map-stock-name { font-size: 12px; }
-  .industry-map-stock-change { font-size: 14px; }
+  .industry-map-stock-change { font-size: 15px; }
 }
 /* Flash only when the displayed percentage changes; restore its direction's
    normal rose-brown/slate-blue surface (or neutral charcoal for flat). */
