@@ -178,9 +178,14 @@
       && Date.now() - quote.received_at_ms >= 0
       && Date.now() - quote.received_at_ms < 1800000;
     const fresh = quote && (recentSnapshot || isQqqQuoteFresh(quote));
-    const change = fresh && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
+    const recentTick = quote && Number.isFinite(quote.price) && quote.price > 0
+      && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= Date.now() + 5000
+      && Date.now() - quote.received_at_ms <= 180000;
+    // Muted while waiting for a new tick, but do not blank a valid recent price.
+    const display = fresh || recentTick;
+    const change = display && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
-    card.querySelector('[data-kospi-price]').textContent = fresh
+    card.querySelector('[data-kospi-price]').textContent = display
       ? quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
     const changeNode = card.querySelector('[data-kospi-change]');
     changeNode.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
