@@ -48,6 +48,9 @@ def validated_change(symbol, exchange, price, *, now=None):
     One pending read per symbol/session; failures retry after five minutes.
     Prices continue streaming while the read-only baseline is unavailable.
     """
+    # The dated Kiwoom daily record has disagreed with the official regular close
+    # in live QQQ verification. Suppress rates until the price source is reconciled.
+    return None, None
     now = now or dt.datetime.now(dt.timezone.utc)
     target, exact = _target(now)
     key = (symbol, exchange, target, exact)
