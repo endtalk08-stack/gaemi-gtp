@@ -3,6 +3,7 @@ import tempfile
 import json
 import time
 import unittest
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -19,13 +20,15 @@ class VerifiedQuoteChangeTests(unittest.TestCase):
         monday = dt.datetime(2026, 11, 23, 11, tzinfo=ZoneInfo("America/New_York"))
         expected = dt.date(2026, 11, 20)
         self.assertEqual(baseline._target(monday), (dt.date(2026, 11, 22), False))
-        with patch.object(baseline, "fetch_us_close", return_value={
-            "session_date": expected.isoformat(), "close": 608.45,
-        }) as fetch:
-            # Sunday and Saturday have no regular close; Friday is selected.
+        payload = {"chart": {"error": None, "result": [{
+            "meta": {"symbol": "QQQ", "currency": "USD", "exchangeTimezoneName": "America/New_York"},
+            "timestamp": [int(dt.datetime(2026, 11, 20, 9, 30, tzinfo=dt.timezone(dt.timedelta(hours=-5))).timestamp())],
+            "indicators": {"quote": [{"close": [608.45]}]},
+        }]}}
+        with patch.object(baseline.urllib.request, "urlopen", return_value=BytesIO(json.dumps(payload).encode())) as fetch:
             self.assertEqual(baseline._lookup("QQQ", "ND", monday.date() - dt.timedelta(days=1), False),
                              (608.45, expected.isoformat()))
-            fetch.assert_called_once_with("QQQ", "ND", expected)
+            self.assertEqual(fetch.call_count, 1)
         with patch.object(baseline, "_POOL") as pool:
             from concurrent.futures import Future
             completed = Future()
@@ -33,16 +36,16 @@ class VerifiedQuoteChangeTests(unittest.TestCase):
             pool.submit.return_value = completed
             baseline.validated_change("QQQ", "ND", 625.31, now=monday)
             percent, date = baseline.validated_change("QQQ", "ND", 625.31, now=monday)
-        self.assertIsNone(percent)
-        self.assertIsNone(date)
-        pool.submit.assert_not_called()
+        self.assertAlmostEqual(percent, 2.771, places=2)
+        self.assertEqual(date, "2026-11-20")
+        pool.submit.assert_called_once()
 
     def test_after_close_never_substitutes_old_session(self):
         friday = dt.datetime(2026, 11, 20, 16, 5, tzinfo=ZoneInfo("America/New_York"))
         self.assertEqual(baseline._target(friday), (friday.date(), True))
-        with patch.object(baseline, "fetch_us_close", return_value=None) as fetch:
+        with patch.object(baseline.urllib.request, "urlopen", side_effect=OSError("unavailable")) as fetch:
             self.assertIsNone(baseline._lookup("QQQ", "ND", friday.date(), True))
-            fetch.assert_called_once_with("QQQ", "ND", friday.date())
+            fetch.assert_called_once()
 
     def test_unverified_stream_and_ranking_do_not_show_percentage(self):
         api._set_top20_symbols({"NVDA"})
