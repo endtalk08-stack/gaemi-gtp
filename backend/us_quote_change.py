@@ -31,7 +31,7 @@ def _lookup(symbol, exchange, target, exact):
     Yahoo chart is already used by the project for US price history. The
     2026-11-20 QQQ and NVDA closes matched independent historical records.
     """
-    yahoo_symbol = symbol.replace(".", "-")
+    yahoo_symbol = {"BRKB": "BRK-B", "BRKA": "BRK-A"}.get(symbol, symbol.replace(".", "-"))
     url = ("https://query1.finance.yahoo.com/v8/finance/chart/"
            + urllib.parse.quote(yahoo_symbol, safe="") + "?range=10d&interval=1d")
     try:
