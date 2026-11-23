@@ -386,8 +386,13 @@
           stockTile.type = 'button';
           stockTile.className = 'industry-map-stock ' + color.tone
             + (stock.themeTone ? ' industry-map-stock-theme' : '');
-          stockTile.style.backgroundColor = 'rgba(' + color.rgb + ', ' + color.alpha.toFixed(3) + ')';
-          stockTile.style.borderColor = 'rgba(' + color.rgb + ', ' + Math.min(0.58, color.alpha + 0.13).toFixed(3) + ')';
+          // No background fill at the stock level -- only the sector heading
+          // is filled. Direction still reads from the text color (is-up/
+          // is-down) and this thin border tint.
+          stockTile.style.backgroundColor = 'transparent';
+          stockTile.style.borderColor = 'rgba(' + color.rgb + ', 0.35)';
+          stockTile.style.borderWidth = '1px';
+          stockTile.style.borderStyle = 'solid';
           stockTile.title = stock.name + (stock.hideChange ? '' : ' ' + formatChange(pct));
           stockTile.dataset.industrySymbol = industrySymbol(stock.symbol);
           const name = document.createElement('span');
