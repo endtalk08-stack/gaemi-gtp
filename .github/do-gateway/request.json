@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-https.service",
-  "lines": 80
+  "operation": "run",
+  "path": "ops/do-gateway/check_sector_stocks_20261123.py",
+  "request_id": "check_sector_stocks_20261123b",
+  "timeout": 60
 }
