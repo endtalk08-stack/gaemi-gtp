@@ -233,7 +233,14 @@
     // every other down tile, and the only other difference is the sector
     // boost applied separately below.
     const mapTileColor = (value) => {
-      if (!Number.isFinite(value) || value === 0) return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.07 };
+      // Treat anything that displays as "0.00%" (e.g. an ETF with no print
+      // yet today, showing the prior close) as flat/gray -- not red or blue.
+      // formatChange rounds to 2 decimals, so match that threshold here;
+      // otherwise a value like -0.0000003 reads as "-0.00%" but still paints
+      // a (barely visible, but present) down-colored tile.
+      if (!Number.isFinite(value) || Math.abs(value) < 0.005) {
+        return { tone: 'is-flat', rgb: '128, 132, 140', alpha: 0.07 };
+      }
       return value > 0
         ? { tone: 'is-up', rgb: '194, 65, 78', alpha: 0.13 }
         : { tone: 'is-down', rgb: '57, 119, 177', alpha: 0.13 };
