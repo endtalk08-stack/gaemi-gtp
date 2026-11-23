@@ -173,6 +173,7 @@
     let industryMapData = null;
     let industryMapFetchedAt = 0;
     let industryMapPromise = null;
+    let industryWarmupRetryScheduled = false;
     let industryLiveQuotes = [];
     let industryRestQuotes = [];
     const industryLastVerifiedQuotes = new Map();
@@ -188,7 +189,7 @@
       const retained = industryLastVerifiedQuotes.get(key);
       const referenceDate = marketQqqQuote?.reference_close_date;
       if (retained && (!referenceDate || retained.reference_close_date === referenceDate)
-          && now - retained.received_at_ms <= 12 * 60 * 60 * 1000) return retained;
+          && now - retained.received_at_ms <= 30 * 60 * 1000) return retained;
       return industryRestQuotes.find((quote) =>
         industrySymbol(quote.symbol) === key
         && Number.isFinite(quote.change_pct)
@@ -440,6 +441,17 @@
       try {
         const data = await industryMapPromise;
         if (id === requestId) renderIndustryMap(data);
+        // The Kiwoom prices arrive with the map; only the once-a-day close
+        // lookups may still be finishing. Reuse the same map endpoint once.
+        if (!industryWarmupRetryScheduled && data?.items?.some(sector =>
+            sector?.stocks?.some(stock => !Number.isFinite(stock?.change_pct)))) {
+          industryWarmupRetryScheduled = true;
+          window.setTimeout(() => {
+            if (tab !== 'industry' || !sidebarActive()) return;
+            industryMapFetchedAt = 0;
+            void loadIndustryMap(requestId);
+          }, 10000);
+        }
       } catch (_) {
         // Keep the sidebar free of transient loading/error copy.
       } finally {
@@ -739,9 +751,14 @@
       const row = list?.querySelector('[data-market-qqq]');
       if (!row) return;
       const quote = marketQqqQuote;
-      const fresh = freshQuote(quote, Date.now());
-      const change = fresh && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
-      row.querySelector('[data-market-qqq-price]').textContent = fresh
+      const now = Date.now();
+      const fresh = freshQuote(quote, now);
+      const retained = quote && Number.isFinite(quote.price) && quote.price > 0
+        && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= now + 5000
+        && now - quote.received_at_ms <= 180000;
+      const visible = fresh || retained;
+      const change = visible && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
+      row.querySelector('[data-market-qqq-price]').textContent = visible
         ? '$' + quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         : '—';
       const rate = row.querySelector('[data-market-qqq-change]');
@@ -815,10 +832,14 @@
       document.visibilityState === 'visible'
       && (qqqWidgetActive() || marketEtfWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'realtime' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
-      marketQqqQuote = quote?.symbol === 'QQQ' ? quote : null;
+      if (quote?.symbol === 'QQQ') {
+        marketQqqQuote = quote;
+      } else if (!marketQqqQuote || Date.now() - marketQqqQuote.received_at_ms > 180000) {
+        marketQqqQuote = null;
+      }
       paintMarketQqq();
       window.dispatchEvent(new CustomEvent('gaemi:qqq-quote', {
-        detail: { quote: quote || null }
+        detail: { quote: marketQqqQuote || null }
       }));
     };
     const stopQqqSocket = () => {
@@ -951,8 +972,13 @@
     const publishIndustryQuotes = items => {
       const now = Date.now();
       industryLiveQuotes = items.filter(quote => freshQuote(quote, now));
-      industryLiveQuotes.forEach(quote => {
-        if (Number.isFinite(quote.change_pct) && quote.reference_close_date) {
+      // A confirmed close-based percentage is still useful when an individual
+      // stock has not traded again in the past 25 seconds.
+      items.forEach(quote => {
+        if (Number.isFinite(quote?.change_pct) && quote.reference_close_date
+            && Number.isFinite(quote.received_at_ms)
+            && quote.received_at_ms <= now + 5000
+            && now - quote.received_at_ms <= 30 * 60 * 1000) {
           industryLastVerifiedQuotes.set(industrySymbol(quote.symbol), quote);
         }
       });
