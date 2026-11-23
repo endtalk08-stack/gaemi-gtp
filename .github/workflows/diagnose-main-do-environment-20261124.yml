@@ -39,3 +39,10 @@ jobs:
           if [[ "$status" == "200" ]]; then
             echo "$response" | sed '$d' | jq -c '{deployment_branch_policy, protection_rules}'
           fi
+          echo 'Allowed deployment branch names:'
+          response=$(curl -sS --max-time 15 -w '\nHTTP:%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$url/environments/digitalocean-news-worker/deployment-branch-policies?per_page=100")
+          status="${response##*HTTP:}"
+          echo "Branch-policy API status: $status"
+          if [[ "$status" == "200" ]]; then
+            echo "$response" | sed '$d' | jq -r '.branch_policies[]?.name'
+          fi
