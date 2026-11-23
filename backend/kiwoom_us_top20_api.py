@@ -220,14 +220,25 @@ def _get_us_industry_etf_quotes():
                         symbol, quote["exchange"], quote["price"])
                 except (ValueError, TypeError, ArithmeticError):
                     pass
-        result.append({
+        item = {
             "symbol": symbol,
             "change_pct": percent,
             "reference_close_date": close_date,
             "received_at_ms": quote.get("received_at_ms", 0),
             "stale": symbol not in live,
             "source": "kiwoom:websocket" if symbol in live else "kiwoom:rest",
-        })
+        }
+        held = _us_close_get(symbol)
+        if held:
+            item.update({
+                "change_pct": held["change_pct"],
+                "reference_close_date": held["reference_close_date"],
+                "received_at_ms": held["received_at_ms"],
+                "stale": False,
+                "source": held["source"],
+                "market_session": held["market_session"],
+            })
+        result.append(item)
     return result
 
 def _get_us_industry_map_with_stocks(view="legacy"):
@@ -318,10 +329,12 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         row["change_pct"] = None
         for stock in row.get("stocks", []):
             symbol = str(stock.get("symbol") or "").upper().split(".")[0]
-            quote = confirmed.get(symbol)
+            quote = _us_close_get(symbol) or confirmed.get(symbol)
             if quote:
                 stock["change_pct"] = quote["change_pct"]
                 stock["reference_close_date"] = quote.get("reference_close_date")
+                if quote.get("market_session") == "last_regular_tick":
+                    stock["price"] = quote["price"]
             else:
                 stock["change_pct"] = None
                 price, exchange = stock.get("price"), stock.get("exchange")
@@ -624,6 +637,8 @@ def _publish_live_quote(quote):
                 or symbol in _INDUSTRY_SYMBOLS or symbol in _ETF_SYMBOLS
                 or symbol in MARKET_WIDGET_ETF_EXCHANGES):
             _QQQ_CHANGED.notify_all()
+    # Outside the quote lock: a short atomic disk write must not delay WS clients.
+    _us_close_remember(safe)
 
 
 def _set_top20_symbols(symbols):
@@ -671,6 +686,10 @@ def _feed_snapshot(store):
     from backend.us_quote_change import _target, validated_change
     session = _target(datetime.now(timezone.utc))[0].isoformat()
     for quote in quotes:
+        held = _us_close_get(quote["symbol"])
+        if held:
+            quote.update(held)
+            continue
         if quote.get("reference_close_session") != session:
             quote["change_pct"] = None
             quote["reference_close_date"] = None
@@ -680,6 +699,21 @@ def _feed_snapshot(store):
                 quote["change_pct"] = percent
                 quote["reference_close_date"] = close_date
         quote["stale"] = now_ms - quote["received_at_ms"] > _QQQ_STALE_MS
+    # The file also supplies a last verified quote after a process restart.
+    if _us_close_phase()[0] == "hold":
+        if store is _TOP20_QUOTES:
+            wanted = _TOP20_SYMBOLS
+        elif store is _INDUSTRY_QUOTES:
+            wanted = _INDUSTRY_SYMBOLS
+        elif store is _ETF_QUOTES:
+            wanted = _ETF_SYMBOLS
+        else:
+            wanted = frozenset(MARKET_WIDGET_ETF_EXCHANGES)
+        present = {item["symbol"] for item in quotes}
+        for symbol in wanted - present:
+            held = _us_close_get(symbol)
+            if held:
+                quotes.append(held)
     return quotes
 
 
@@ -738,6 +772,10 @@ def _get_market_widget_quotes():
 
     live = {quote["symbol"]: quote for quote in _market_widget_snapshot()
             if not quote["stale"]}
+    for symbol in MARKET_WIDGET_ETF_EXCHANGES:
+        held = _us_close_get(symbol)
+        if held:
+            live[symbol] = held
     for symbol in MARKET_WIDGET_ETF_EXCHANGES.keys() - live.keys():
         with _MARKET_WIDGET_REST_LOCK:
             refresh_at, quote = _MARKET_WIDGET_REST_CACHE.get(symbol, (0.0, None))
@@ -768,6 +806,9 @@ def _get_market_widget_quotes():
 
 
 def _qqq_snapshot():
+    held = _us_close_get("QQQ")
+    if held:
+        return held
     now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
         live = dict(_QQQ_QUOTE) if _QQQ_QUOTE else None
@@ -890,7 +931,12 @@ def read_top20(path=RANKING_FILE):
         name = row.get("name")
         if not isinstance(name, str) or not name.strip():
             raise ValueError("top20_invalid_name")
-        if symbol in confirmed:
+        held = _us_close_get(symbol)
+        if held:
+            current_price = held["price"]
+            current_pct = held["change_pct"]
+            close_date = held["reference_close_date"]
+        elif symbol in confirmed:
             current_price = confirmed[symbol]["price"]
             current_pct = confirmed[symbol]["change_pct"]
             close_date = confirmed[symbol].get("reference_close_date")
