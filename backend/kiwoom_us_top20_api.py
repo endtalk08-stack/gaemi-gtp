@@ -1,5 +1,7 @@
 """Serve the existing Kiwoom TOP20 ranking and the in-memory US quote stream."""
 import base64
+import fcntl
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
@@ -11,6 +13,7 @@ import struct
 import threading
 import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
@@ -180,10 +183,9 @@ def _get_us_industry_etf_quotes():
                    if now >= _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))[0]}
             if due:
                 try:
-                    raw_items = fetch_us_etf_quotes(symbols=due)
                     fetched = {
                         item["symbol"]: item
-                        for item in raw_items
+                        for item in fetch_us_etf_quotes(symbols=due)
                         if isinstance(item, dict)
                         and item.get("symbol") in due
                         and type(item.get("price")) in (int, float)
@@ -191,11 +193,7 @@ def _get_us_industry_etf_quotes():
                         and item.get("exchange") in ("NY", "ND", "NA")
                         and isinstance(item.get("received_at_ms"), int)
                     }
-                    if due.difference(fetched):
-                        print("ETF_REST_FALLBACK_MISSING", sorted(due.difference(fetched)),
-                              "raw=", raw_items, flush=True)
-                except Exception as exc:
-                    print("ETF_REST_FALLBACK_FAILED", sorted(due), repr(exc), flush=True)
+                except Exception:
                     fetched = {}
                 refresh_at = time.monotonic() + _US_INDUSTRY_ETF_TTL
                 for symbol in due:
@@ -395,6 +393,172 @@ _QQQ_REST_CACHE = {"expires_at": 0.0, "data": None}
 _QQQ_REST_TTL = 60
 _QQQ_REST_RETRY_TTL = 15
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+
+# Last *verified regular-session trade*, not the official closing-auction price.
+# This record is shared by the two read-only US quote API processes and survives
+# a service restart. Only public prices/rates are stored, never credentials.
+_US_CLOSE_NY = ZoneInfo("America/New_York")
+_US_CLOSE_FILE = Path("/var/lib/gaemigtp-news/us-regular-last-verified.json")
+_US_CLOSE_LOCK_FILE = Path("/var/lib/gaemigtp-news/us-regular-last-verified.lock")
+_US_CLOSE_LOCK = threading.RLock()
+_US_CLOSE_CACHE = {"day": "", "items": {}}
+_US_CLOSE_LAST_SAVE = 0.0
+_US_CLOSE_LAST_READ = 0.0
+_US_CLOSE_MAX_BYTES = 100000
+
+
+def _us_close_phase(now=None):
+    now = now or datetime.now(timezone.utc)
+    local = now.astimezone(_US_CLOSE_NY)
+    minute = local.hour * 60 + local.minute
+    if local.weekday() >= 5:
+        return "none", local.date().isoformat()
+    if 9 * 60 + 30 <= minute < 16 * 60:
+        return "capture", local.date().isoformat()
+    if 16 * 60 <= minute < 16 * 60 + 30:
+        return "hold", local.date().isoformat()
+    return "none", local.date().isoformat()
+
+
+def _us_close_read_disk():
+    try:
+        if (_US_CLOSE_FILE.is_symlink() or not _US_CLOSE_FILE.is_file()
+                or _US_CLOSE_FILE.stat().st_size > _US_CLOSE_MAX_BYTES):
+            return None
+        data = json.loads(_US_CLOSE_FILE.read_text(encoding="utf-8"))
+        if (not isinstance(data, dict) or not isinstance(data.get("day"), str)
+                or not isinstance(data.get("items"), dict)
+                or len(data["items"]) > 180):
+            return None
+        return data
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def _us_close_merge(incoming):
+    global _US_CLOSE_CACHE
+    if not incoming or incoming["day"] != _US_CLOSE_CACHE["day"]:
+        return
+    for symbol, item in incoming["items"].items():
+        if not SYMBOL.fullmatch(str(symbol)) or not isinstance(item, dict):
+            continue
+        old = _US_CLOSE_CACHE["items"].get(symbol)
+        if (old is None or
+                int(item.get("observed_at_ms") or 0) > int(old.get("observed_at_ms") or 0)):
+            _US_CLOSE_CACHE["items"][symbol] = item
+
+
+def _us_close_save():
+    global _US_CLOSE_LAST_SAVE
+    # Both the plain and TLS quote services use this same local file.
+    try:
+        fd = os.open(_US_CLOSE_LOCK_FILE, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            _us_close_merge(_us_close_read_disk())
+            payload = json.dumps(_US_CLOSE_CACHE, separators=(",", ":"), ensure_ascii=True)
+            if len(payload) > _US_CLOSE_MAX_BYTES:
+                return
+            tmp_name = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", encoding="utf-8", prefix=".us-regular-",
+                    suffix=".tmp", dir=str(_US_CLOSE_FILE.parent), delete=False
+                ) as tmp:
+                    tmp_name = tmp.name
+                    os.chmod(tmp_name, 0o600)
+                    tmp.write(payload)
+                    tmp.flush()
+                    os.fsync(tmp.fileno())
+                os.replace(tmp_name, _US_CLOSE_FILE)
+            finally:
+                if tmp_name and os.path.exists(tmp_name):
+                    os.unlink(tmp_name)
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+        _US_CLOSE_LAST_SAVE = time.monotonic()
+    except OSError:
+        # A write failure may not interrupt the live Kiwoom quote stream.
+        pass
+
+
+def _us_close_remember(quote, now=None):
+    global _US_CLOSE_CACHE
+    now = now or datetime.now(timezone.utc)
+    phase, day = _us_close_phase(now)
+    if phase != "capture" or not isinstance(quote, dict):
+        return False
+    symbol, price, pct = quote.get("symbol"), quote.get("price"), quote.get("change_pct")
+    date = quote.get("reference_close_date")
+    stamp = quote.get("received_at_ms")
+    if (not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol)
+            or type(price) not in (float, int) or not math.isfinite(price)
+            or not 0 < price < 10000000
+            or type(pct) not in (float, int) or not math.isfinite(pct)
+            or not -100 < pct < 10000
+            or not isinstance(date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date)
+            or date >= day
+            or type(stamp) is not int
+            or not 0 <= int(now.timestamp() * 1000) - stamp <= 120000):
+        return False
+    exchange = quote.get("exchange")
+    safe = {
+        "symbol": symbol, "price": float(price), "change_pct": float(pct),
+        "reference_close_date": date, "received_at_ms": stamp,
+        "observed_at_ms": stamp, "exchange": exchange if exchange in ("NY", "ND", "NA") else None,
+    }
+    with _US_CLOSE_LOCK:
+        if _US_CLOSE_CACHE["day"] != day:
+            _US_CLOSE_CACHE = {"day": day, "items": {}}
+        previous = _US_CLOSE_CACHE["items"].get(symbol)
+        if previous and int(previous.get("observed_at_ms") or 0) > stamp:
+            return False
+        _US_CLOSE_CACHE["items"][symbol] = safe
+        if time.monotonic() - _US_CLOSE_LAST_SAVE >= 6:
+            _us_close_save()
+    return True
+
+
+def _us_close_get(symbol, now=None):
+    global _US_CLOSE_CACHE, _US_CLOSE_LAST_READ
+    now = now or datetime.now(timezone.utc)
+    phase, day = _us_close_phase(now)
+    if phase != "hold" or not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol):
+        return None
+    with _US_CLOSE_LOCK:
+        if _US_CLOSE_CACHE["day"] != day:
+            _US_CLOSE_CACHE = {"day": day, "items": {}}
+            _US_CLOSE_LAST_READ = 0.0
+        if time.monotonic() - _US_CLOSE_LAST_READ >= 3:
+            _us_close_merge(_us_close_read_disk())
+            _US_CLOSE_LAST_READ = time.monotonic()
+        row = _US_CLOSE_CACHE["items"].get(symbol)
+        if not isinstance(row, dict):
+            return None
+        try:
+            observed = datetime.fromtimestamp(row["observed_at_ms"] / 1000, _US_CLOSE_NY)
+            if (observed.date().isoformat() != day or
+                    not (9 * 60 + 30 <= observed.hour * 60 + observed.minute < 16 * 60)
+                    or not (0 < row["price"] < 10000000)
+                    or not (-100 < row["change_pct"] < 10000)
+                    or not (isinstance(row.get("reference_close_date"), str)
+                            and row["reference_close_date"] < day)):
+                return None
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
+        return {
+            "symbol": symbol, "exchange": row.get("exchange"),
+            "price": row["price"], "change_pct": row["change_pct"],
+            "reference_close_date": row["reference_close_date"],
+            "reference_close_session": row["reference_close_date"],
+            "received_at_ms": int(now.timestamp() * 1000),
+            "stale": False, "source": "kiwoom:regular-last-verified",
+            "market_session": "last_regular_tick",
+        }
+
+
 
 
 def _origin_allowed(origin):
