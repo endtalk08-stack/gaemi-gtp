@@ -99,6 +99,33 @@ class UsCloseHandoffTests(unittest.TestCase):
             self.assertEqual(q["change_pct"], 3.21)
             self.assertFalse(q["stale"])
 
+    def test_websocket_feed_uses_complete_saved_regular_quote(self):
+        self.assertTrue(api._us_close_remember(self.quote(), now=CAPTURE))
+        original = api._us_close_get
+        current = {
+            "symbol": "QQQ", "exchange": "ND", "price": 651.50,
+            "change_pct": None, "reference_close_session": "2026-11-23",
+            "reference_close_date": None,
+            "received_at_ms": int(HOLD.timestamp() * 1000), "stale": False,
+        }
+        with patch.object(api, "_us_close_get", side_effect=lambda sym: original(sym, now=HOLD)):
+            out = api._feed_snapshot({"QQQ": current})
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["price"], 650.25)
+        self.assertEqual(out[0]["change_pct"], 3.21)
+        self.assertFalse(out[0]["stale"])
+
+    def test_spy_dia_do_not_issue_new_rest_reads_when_held(self):
+        for sym in ("SPY", "DIA"):
+            self.assertTrue(api._us_close_remember(self.quote(sym, 500.0, 1.6), now=CAPTURE))
+        original = api._us_close_get
+        with patch.object(api, "_us_close_get", side_effect=lambda sym: original(sym, now=HOLD)), \
+             patch.object(api, "_market_widget_snapshot", return_value=[]), \
+             patch("backend.providers.kiwoom_us_quotes.fetch_us_quote", side_effect=AssertionError("unnecessary REST")):
+            rows = api._get_market_widget_quotes()
+        self.assertEqual([row["symbol"] for row in rows], ["DIA", "SPY"])
+        self.assertTrue(all(row["change_pct"] == 1.6 and row["price"] == 500.0 for row in rows))
+
     def test_summer_daylight_savings_handoff(self):
         july = dt.datetime(2026, 7, 1, 19, 59, tzinfo=dt.timezone.utc)
         self.assertEqual(api._us_close_phase(july)[0], "capture")
