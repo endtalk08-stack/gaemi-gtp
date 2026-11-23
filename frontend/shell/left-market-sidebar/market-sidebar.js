@@ -346,7 +346,11 @@
         const etf = sectorEtfs[sector.key];
         const etfQuote = industryQuoteFor(etf);
         const sectorPct = etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null;
-        const sectorColor = mapTileColor(sectorPct);
+        // Sector headings get a stronger tint than the individual stock tiles
+        // underneath them (same hue/direction, just more saturated), so the
+        // category level is visually distinct from the stock level at a glance.
+        const sectorBaseColor = mapTileColor(sectorPct);
+        const sectorColor = { ...sectorBaseColor, alpha: Math.min(0.46, sectorBaseColor.alpha + 0.12) };
         const row = document.createElement('div');
         row.className = 'industry-map-row';
         const heading = document.createElement('div');
