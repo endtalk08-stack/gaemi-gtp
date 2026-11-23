@@ -4,7 +4,9 @@ on:
     branches: [ops/gaemigtp-main-pages-preview]
     paths:
       - .github/workflows/gaemigtp-main-pages-preview.yml
+      - frontend/index.html
       - frontend/shell/left-market-sidebar/market-sidebar.css
+      - frontend/shell/left-market-sidebar/market-sidebar.js
   workflow_dispatch:
 
 permissions:

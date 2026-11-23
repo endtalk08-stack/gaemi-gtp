@@ -195,6 +195,9 @@
       const now = Date.now();
       items.forEach((quote) => {
         const symbol = industrySymbol(quote?.symbol);
+        // A stale-only first packet is not a verified last-good value.
+        // If a prior value exists, leave it untouched when the feed marks it stale.
+        if (quote?.stale === true) return;
         if (!industryEtfSymbols.has(symbol)
             || !Number.isFinite(quote?.price) || quote.price <= 0
             || !Number.isFinite(quote?.change_pct)
