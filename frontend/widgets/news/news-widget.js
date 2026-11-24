@@ -61,6 +61,7 @@
           ${item.summary ? `<p class="gnw-summary">${escape(item.summary)}</p>` : ''}
           <time class="gnw-time">${escape(timeText(item))}</time>
         </button>`).join('')}
+        ${!rows.length ? '<div class="gnw-empty"><div class="gnw-empty-mark">⌕</div><div>표시할 뉴스 목록이 없습니다</div></div>' : ''}
       </div>
       ${matchesAll.length>visible ? '<button type="button" class="gnw-more" data-gnw-more>더보기</button>' : ''}
     `;
@@ -72,12 +73,13 @@
       const filtered=currentItems().filter(matches);
       if(!list) return;
       // Do not remount the search input while the user is typing.
-      list.innerHTML=filtered.slice(0,visible).map(item=>`<button type="button" class="gnw-item" data-gnw-open="${escape(item.id)}">
+      const filteredRows=filtered.slice(0,visible);
+      list.innerHTML=filteredRows.map(item=>`<button type="button" class="gnw-item" data-gnw-open="${escape(item.id)}">
         <div class="gnw-meta"><span class="gnw-tag">${escape(item.category)}</span><span class="gnw-source">${escape(item.source)}</span></div>
         <div class="gnw-title">${escape(item.title)}</div>
         ${item.summary ? `<p class="gnw-summary">${escape(item.summary)}</p>` : ''}
         <time class="gnw-time">${escape(timeText(item))}</time>
-      </button>`).join('');
+      </button>`).join('') || '<div class="gnw-empty"><div class="gnw-empty-mark">⌕</div><div>검색 결과가 없습니다</div></div>';
       host.querySelector('[data-gnw-more]')?.remove();
       if(filtered.length>visible) list.insertAdjacentHTML('afterend','<button type="button" class="gnw-more" data-gnw-more>더보기</button>');
     });
