@@ -133,6 +133,7 @@ jobs:
           ' "$RUNNER_TEMP/us-trading-value.json"
 
       - name: Verify restored live industry map data
+        if: env.PREVIEW_ACCESS_PROTECTED != 'true'
         run: |
           curl -fLsS --compressed --retry 2 --retry-all-errors --retry-delay 2 --max-time 45 \
             "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap" \
