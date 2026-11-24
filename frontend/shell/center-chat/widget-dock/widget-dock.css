@@ -13,6 +13,7 @@
 .central-widget-dock__body:empty { display: none; }
 
 .central-widget-card {
+  position: relative;
   min-height: 86px;
   padding: 10px 11px;
   border: none;
@@ -57,6 +58,7 @@
 }
 
 /* Market widgets — source data will be attached here. */
+/* Preview verification revision: preserve existing market widget styles. */
 .central-widget-card--kospi {
   position: relative;
   min-height: 86px;
@@ -67,8 +69,10 @@
 }
 .central-widget-card__close--overlay {
   position: absolute;
+  z-index: 5;
   top: 4px;
   right: 4px;
+  pointer-events: auto;
 }
 .central-widget-card__kospi-title {
   display: flex;
@@ -313,6 +317,14 @@
   text-align: center;
   overflow: visible;
   box-sizing: border-box;
+}
+.central-widget-card--news-caption > .central-widget-card__close--overlay {
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .central-widget-card__news-caption-title {
   color: var(--gtp-text);

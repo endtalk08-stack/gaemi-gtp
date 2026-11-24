@@ -297,13 +297,12 @@
       const meta = catalog()[id];
       if (id === 'news-feed') {
         return `<article class="central-widget-card central-widget-card--news-feed" data-central-widget-id="news-feed" aria-label="뉴스 위젯">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-feed" aria-label="뉴스 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
           <section class="gnw-root" data-gnw-root aria-label="뉴스 검색과 목록"></section>
         </article>`;
       }
       if (id === 'news-caption') {
         return `<article class="central-widget-card central-widget-card--news-caption" data-central-widget-id="news-caption" aria-label="속보 위젯">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-caption" aria-label="속보 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-caption" onclick="window.GaemiGTPWidgetDock.remove('news-caption')" aria-label="속보 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
           <div class="central-widget-card__news-caption-title" data-news-caption-title>${escapeHtml(captionHeadline)}</div>
         </article>`;
       }
@@ -312,7 +311,7 @@
         const symbol = id.toUpperCase();
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="${symbol} 위젯 삭제" title="위젯 삭제">
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${symbol} 위젯 삭제" title="위젯 삭제">
             <i data-lucide="x" class="w-3 h-3"></i>
           </button>
           <div class="central-widget-card__kospi-title"><span>${symbol}</span><span class="central-widget-card__kospi-market-name">${id === 'spy' ? 'S&P 500' : id === 'dia' ? '다우' : '나스닥'}</span></div>
@@ -338,7 +337,7 @@
         const title = '코스피200 야간선물';
         const detail = '야간선물 원천 데이터 연결 후 시세·등락률·흐름을 표시합니다.';
         return `<article class="central-widget-card central-widget-card--kospi" data-central-widget-id="${escapeHtml(id)}">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" aria-label="${escapeHtml(title)} 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${escapeHtml(title)} 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
           <div class="central-widget-card__kospi-title">${escapeHtml(title)}</div>
           <div class="central-widget-card__market-empty">${escapeHtml(detail)}</div>
         </article>`;
@@ -346,7 +345,7 @@
       return `<article class="central-widget-card" data-central-widget-id="${escapeHtml(id)}">
         <div class="central-widget-card__top">
           <div class="central-widget-card__name">${escapeHtml(meta.title)}</div>
-          <button type="button" class="central-widget-card__close" data-central-widget-remove="${escapeHtml(id)}" aria-label="${escapeHtml(meta.title)} 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
+          <button type="button" class="central-widget-card__close" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${escapeHtml(meta.title)} 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
         </div>
         <div class="central-widget-card__desc" data-central-widget-mount="${escapeHtml(id)}">${escapeHtml(meta.description)} · 데이터 준비 중</div>
       </article>`;
@@ -624,11 +623,6 @@
     // The plugin sidebar can initialize before the dock restores its saved widgets.
     // Re-sync its add/remove labels after the dock state is ready.
     window.GaemiGTPPluginSidebar?.render?.();
-    window.addEventListener('resize', fitNewsCaption);
-    document.fonts?.ready?.then(fitNewsCaption);
-    if (typeof ResizeObserver !== 'undefined') {
-      new ResizeObserver(fitNewsCaption).observe(dock);
-    }
     document.addEventListener('visibilitychange', () => {
       const active = inlineChart;
       if (!document.hidden && active?.target?.isConnected)
@@ -640,12 +634,7 @@
     setInterval(refreshMarketEtfSnapshot, 120000);
     void refreshMarketEtfSnapshot();
     window.addEventListener('gaemi:us-live-quotes', onUsLiveQuotes);
-    dock.addEventListener('click', event => {
-      const button = event.target.closest('[data-central-widget-remove]');
-      if (!button) return;
-      const id = button.dataset.centralWidgetRemove;
-      remove(id);
-    });
+    // Each card X button calls the same remove() action directly.
   }
   document.addEventListener('DOMContentLoaded', initialize);
   window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], setNewsHeadline, isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason };
