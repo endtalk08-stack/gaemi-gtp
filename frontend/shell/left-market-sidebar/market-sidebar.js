@@ -116,6 +116,7 @@
 
     // Only US market data is requested; static sample rows have been removed.
     const list = sidebar.querySelector('#marketRankingList');
+    // Ranking rows and the portable industry map are separate; only the map node moves between panels.
     const industryMapElement = sidebar.querySelector('#marketIndustryMap');
     const industrySlot = sidebar.querySelector('#marketIndustryWidgetSlot');
     const rankingSection = list?.parentElement;
