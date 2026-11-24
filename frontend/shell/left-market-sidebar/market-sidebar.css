@@ -517,3 +517,17 @@
   user-select: none;
 }
 .industry-map-sector[data-widget-drag-handle="industry"]:active { cursor: grabbing; }
+
+
+/* Keep every industry row the same compact height in every panel width.
+   The first three rows must not grow with their aspect ratio when moved to center/right. */
+#marketIndustryMap.industry-map-list .industry-map-row,
+#marketIndustryMap.industry-map-list .industry-map-row:nth-child(-n+3) {
+  aspect-ratio: auto !important;
+  min-height: 46px;
+}
+#marketIndustryMap.industry-map-list .industry-map-row:nth-child(-n+3) .industry-map-sector,
+#marketIndustryMap.industry-map-list .industry-map-row:nth-child(-n+3) .industry-map-stock {
+  height: auto !important;
+  min-height: 46px;
+}
