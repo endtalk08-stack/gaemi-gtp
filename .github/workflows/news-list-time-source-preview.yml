@@ -1,0 +1,43 @@
+name: News list clock and source preview
+on:
+  push:
+    branches: [fix/news-list-time-source-20261124]
+    paths:
+      - 'frontend/widgets/news/news-widget.js'
+      - 'frontend/index.html'
+      - '.github/workflows/news-list-time-source-preview.yml'
+permissions:
+  contents: read
+concurrency:
+  group: news-list-time-source-preview
+  cancel-in-progress: true
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate news list changes
+        run: |
+          set -e
+          node --check frontend/widgets/news/news-widget.js
+          grep -Fq "if (item.published_at)" frontend/widgets/news/news-widget.js
+          grep -Fq "hour12: false" frontend/widgets/news/news-widget.js
+          ! grep -Fq 'gnw-source">${escape(item.source)}' frontend/widgets/news/news-widget.js
+          grep -Fq 'list-clock-no-source-v1' frontend/index.html
+      - name: Deploy preview to existing Pages project
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch news-list-clock-preview
+      - name: Verify preview files
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          case "$PREVIEW_URL" in https://*.gaemigtp-main.pages.dev) ;; *) exit 1 ;; esac
+          curl -fLsS --max-time 25 "$PREVIEW_URL/index.html" -o "$RUNNER_TEMP/index.html"
+          grep -Fq 'list-clock-no-source-v1' "$RUNNER_TEMP/index.html"
+          curl -fLsS --max-time 25 "$PREVIEW_URL/widgets/news/news-widget.js?v=20261124-list-clock-no-source-v1" -o "$RUNNER_TEMP/news-widget.js"
+          grep -Fq "if (item.published_at)" "$RUNNER_TEMP/news-widget.js"
+          ! grep -Fq 'gnw-source">${escape(item.source)}' "$RUNNER_TEMP/news-widget.js"
