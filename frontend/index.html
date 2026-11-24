@@ -21,15 +21,15 @@
   <link rel="stylesheet" href="css/sketch-pad.css?v=20261005-v1">
   <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261012-sidebar-recent-v1">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20261005-header-system-v1">
-  <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261124-trading-borderless-v4">
+  <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261125-industry-widget-drag-v1">
 
   <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20261005-border-system-v1">
   <link rel="stylesheet" href="shell/right-panel/right-panel-tabs.css?v=20261005-news-density-v1">
   <link rel="stylesheet" href="pages/dashboard/dashboard.css?v=20260927-v86-scroll">
-  <link rel="stylesheet" href="shell/center-chat/widget-dock/widget-dock.css?v=20261124-news-caption-46px-v4" />
+  <link rel="stylesheet" href="shell/center-chat/widget-dock/widget-dock.css?v=20261125-widget-drag-v1" />
   <link rel="stylesheet" href="widgets/news/news-widget.css?v=20261124-news-detail-layout-v3" />
-  <link rel="stylesheet" href="widgets/industry/industry-widget.css?v=20261125-shared-v4" />
+  <link rel="stylesheet" href="widgets/industry/industry-widget.css?v=20261125-widget-drag-v1" />
   <link rel="stylesheet" href="widgets/analysis-section/analysis-section.css?v=20260926-v2" />
 </head>
 <body class="bg-[#f8fafc] dark:bg-[#121316] text-[#1e293b] gtp-dark-text flex h-[100dvh] w-screen overflow-hidden select-none left-home-closed left-market-closed left-context-closed left-plugin-closed right-panel-closed">
@@ -138,6 +138,10 @@
           <button type="button" data-info-tab="industry" data-info-tab-action="industry" class="right-info-tab py-2 text-[#64748b] dark:text-[#a1a1aa] hover:text-[#0f172a] gtp-dark-hover-text rounded-md">업종</button>
           <button type="button" data-info-tab="value" data-info-tab-action="value" class="right-info-tab py-2 text-[#0f172a] gtp-dark-text bg-[#eef2f7] dark:bg-[#272a31] rounded-md">거래대금</button>
         </div>
+      </div>
+
+      <div id="marketIndustryWidgetSlot" class="market-industry-widget-slot" data-widget-drop-zone="left" hidden aria-label="업종 위젯 위치">
+        <div id="marketIndustryMap" class="industry-map-list" aria-live="polite"></div>
       </div>
 
       <!-- 리스트 -->
@@ -409,7 +413,7 @@
   <script src="shell/left-panel/left-panel-resizer.js?v=20260927-left-fixed"></script>
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260927-sidebar-home"></script>
   <script src="shell/left-market-sidebar/stock-marks.js?v=20261022-visible-logos-v2"></script>
-  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261123-industry-charcoal-v1"></script>
+  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261125-industry-widget-drag-v1"></script>
 
   <script src="pages/watchlist/watchlist.js?v=20261005-type-v1"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20261114-detach-right-news-v1"></script>
@@ -418,8 +422,8 @@
   <script src="widgets/analysis-section/analysis-section.js?v=20261006-news-cancel-v1"></script>
   <script src="shell/left-plugin-sidebar/plugin-sidebar.js?v=20261124-plugin-actions-v3"></script>
   <script src="widgets/news/news-widget.js?v=20261124-news-clock-no-more-scroll-v5"></script>
-  <script src="widgets/industry/industry-widget.js?v=20261125-shared-v4"></script>
-  <script src="shell/center-chat/widget-dock/widget-dock.js?v=20261125-shared-v4"></script>
+  <script src="widgets/industry/industry-widget.js?v=20261125-widget-drag-v1"></script>
+  <script src="shell/center-chat/widget-dock/widget-dock.js?v=20261125-widget-drag-v1"></script>
   <script src="shell/left-sidebar-home/left-sidebar-home.js?v=20261018-mode-sessions-v1"></script>
   <script src="theme/theme.js?v=20260924-v712"></script>
   <script src="pages/dashboard/dashboard.js?v=20260925-v85-full"></script>
