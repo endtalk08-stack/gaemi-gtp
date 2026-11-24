@@ -42,8 +42,15 @@
         if (industrySlot?.parentElement === scroll) industrySlot.after(slot);
         else scroll.appendChild(slot);
       } else {
-        host.appendChild(slot);
+        // The legacy dashboard tab occupies a full viewport, even when empty.
+        // Keep portable widgets above it in the panel's own scrolling region.
+        host.prepend(slot);
       }
+    }
+    if (where === 'right') {
+      slot.style.maxHeight = 'none';
+      slot.style.overflow = 'visible';
+      if (host.firstElementChild !== slot) host.prepend(slot);
     }
     return slot;
   }
