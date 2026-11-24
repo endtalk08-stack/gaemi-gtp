@@ -17,13 +17,13 @@
         ${entries.map(([id, meta]) => {
           const used = active.includes(id);
           return `
-            <button type="button" class="plugin-widget-item" data-plugin-widget-id="${escapeHtml(id)}" ${used ? 'disabled' : ''}>
+            <button type="button" class="plugin-widget-item" data-plugin-widget-id="${escapeHtml(id)}" data-plugin-widget-action="${used ? 'remove' : 'add'}">
               <span class="plugin-widget-icon"><i data-lucide="${escapeHtml(meta.icon)}" class="w-4 h-4"></i></span>
               <span class="plugin-widget-meta">
                 <span class="plugin-widget-title">${escapeHtml(meta.title)}</span>
                 <span class="plugin-widget-desc">${escapeHtml(meta.description)}</span>
               </span>
-              <span class="plugin-widget-status">${used ? '사용 중' : '추가'}</span>
+              <span class="plugin-widget-status">${used ? '삭제' : '추가'}</span>
             </button>`;
         }).join('')}
       </div>`;
@@ -71,6 +71,12 @@
       const btn = event.target.closest('[data-plugin-widget-id]');
       if (!btn || btn.disabled) return;
       const id = btn.dataset.pluginWidgetId;
+      const action = btn.dataset.pluginWidgetAction;
+      if (action === 'remove') {
+        window.GaemiGTPWidgetDock?.remove?.(id);
+        render();
+        return;
+      }
       if (window.GaemiGTPWidgetDock?.add) {
         const added = window.GaemiGTPWidgetDock.add(id);
         if (added) window.enterChatWorkspace?.();
