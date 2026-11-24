@@ -282,37 +282,11 @@
     updateQqqViews();
   }
 
-  // Keep the complete headline on one line, fitting the font to the available width.
-  function fitNewsCaption() {
-    const title = body()?.querySelector('[data-news-caption-title]');
-    const card = title?.closest('.central-widget-card--news-caption');
-    if (!title || !card) return;
-    const style = getComputedStyle(card);
-    const room = card.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-    if (room <= 0) return;
-    const max = 15;
-    title.style.fontSize = max + 'px';
-    if (title.scrollWidth <= room) return;
-    // Scale only the caption text, never the other widgets or the News feed.
-    let low = 8, high = max;
-    for (let i = 0; i < 9; i++) {
-      const mid = (low + high) / 2;
-      title.style.fontSize = mid + 'px';
-      if (title.scrollWidth <= room) low = mid;
-      else high = mid;
-    }
-    title.style.fontSize = Math.max(8, low - 0.3).toFixed(1) + 'px';
-  }
-
-  // This is a presentation-only caption. News ingestion will send a title later.
+  // The one-line alert widget keeps the same fixed height and text size as the search bar.
   function setNewsHeadline(value) {
     captionHeadline = typeof value === 'string' ? value.trim().slice(0, 500) : '';
     const target = body()?.querySelector('[data-news-caption-title]');
-    if (target) {
-      target.textContent = captionHeadline || '속보 제목이 여기에 표시됩니다';
-      target.classList.toggle('is-placeholder', !captionHeadline);
-      fitNewsCaption();
-    }
+    if (target) target.textContent = captionHeadline;
   }
 
   function render() {
@@ -329,7 +303,7 @@
       if (id === 'news-caption') {
         return `<article class="central-widget-card central-widget-card--news-caption" data-central-widget-id="news-caption" aria-label="속보 위젯">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-caption" aria-label="속보 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
-          <div class="central-widget-card__news-caption-title ${captionHeadline ? '' : 'is-placeholder'}" data-news-caption-title>${escapeHtml(captionHeadline || '속보 제목이 여기에 표시됩니다')}</div>
+          <div class="central-widget-card__news-caption-title" data-news-caption-title>${escapeHtml(captionHeadline)}</div>
         </article>`;
       }
       if (id === 'qqq' || id === 'spy' || id === 'dia') {
@@ -382,7 +356,6 @@
     });
     window.GaemiGTPNewsWidget?.mount?.();
     if (window.lucide) window.lucide.createIcons();
-    fitNewsCaption();
     if (activeIds.includes('qqq')) updateQqqCard();
     for (const symbol of Object.keys(marketEtfs)) {
       if (activeIds.includes(symbol.toLowerCase())) updateMarketEtfCard(symbol);
