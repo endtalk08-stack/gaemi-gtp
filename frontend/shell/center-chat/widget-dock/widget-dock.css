@@ -317,7 +317,7 @@
 .central-widget-card__news-caption-title {
   color: var(--gtp-text);
   font-family: var(--gtp-font-family);
-  font-size: 30px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: -0.02em;
@@ -329,5 +329,5 @@
 .central-widget-card__news-caption-title.is-placeholder { color: var(--gtp-muted); }
 @media (max-width: 640px) {
   .central-widget-card--news-caption { min-height: 58px; padding: 10px 27px; border-radius: 0; }
-  .central-widget-card__news-caption-title { font-size: 22px; line-height: 1.4; }
+  .central-widget-card__news-caption-title { font-size: 15px; line-height: 1.4; }
 }
