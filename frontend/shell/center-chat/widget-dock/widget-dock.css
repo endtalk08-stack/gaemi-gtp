@@ -58,6 +58,7 @@
 }
 
 /* Market widgets — source data will be attached here. */
+/* Preview verification revision: preserve existing market widget styles. */
 .central-widget-card--kospi {
   position: relative;
   min-height: 86px;
