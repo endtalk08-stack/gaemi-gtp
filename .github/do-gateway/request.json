@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_etf_rest_20261122.py","request_id":"etf-exchanges-92e15ff-20261122","timeout":240}
+{"operation":"run","path":"ops/do-gateway/inspect_all_etf_quotes_20261125.py","request_id":"industryetfall20261125a","timeout":60}
