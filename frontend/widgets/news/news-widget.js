@@ -2,13 +2,7 @@
 (function () {
   'use strict';
   const CATEGORIES = ['전체','종목','업종·섹터','실적 발표','실적 전망','증권사 평가','계약·수주','제품·기술','정책·규제','연준·금리','경제지표'];
-  const DEMO = [
-    { id:'demo-1', category:'연준·금리', title:'연준 의장 긴급 기자회견… 시장 예상 뒤집어', source:'예시', time:'', summary:'뉴스 본문을 연결하면 이곳에 기사 내용이 표시됩니다.', tickers:['SPY','TLT'] },
-    { id:'demo-2', category:'종목', title:'테슬라, 신형 모델 Y 생산 일정 6개월 앞당긴다', source:'예시', time:'', summary:'검색과 분류, 제목과 내용, 상세 화면을 확인하는 디자인 예시입니다.', tickers:['TSLA'] },
-    { id:'demo-3', category:'경제지표', title:'미국 CPI 예상치 상회… 3.2% 기록', source:'예시', time:'', summary:'실제 실시간 뉴스와 연결된 데이터가 아닙니다.', tickers:['SPY'] }
-  ];
   let items = [];
-  let demo = true;
   let query = '';
   let selected = '전체';
   let detailId = null;
@@ -38,7 +32,7 @@
     if (Number.isNaN(date.getTime())) return '';
     return new Intl.DateTimeFormat('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Seoul'}).format(date);
   }
-  function currentItems() { return demo ? DEMO : items; }
+  function currentItems() { return items; }
   function matches(item) {
     const c=selected === '전체' || item.category === selected;
     const q=query.trim().toLowerCase();
@@ -47,16 +41,15 @@
   function renderList(host) {
     const matchesAll=currentItems().filter(matches);
     const rows=matchesAll.slice(0,visible);
-    const preview = demo ? '<p class="gnw-notice">디자인 예시 · 실제 뉴스가 아닙니다</p>' : '';
     host.innerHTML = `
       <div class="gnw-search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
         <input type="search" data-gnw-search placeholder="검색어를 입력하세요" aria-label="뉴스 검색" value="${escape(query)}">
+        <button type="button" class="gnw-close" data-central-widget-remove="news-feed" aria-label="뉴스 위젯 닫기" title="닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
       </div>
       <div class="gnw-categories" role="group" aria-label="뉴스 분류">
         ${CATEGORIES.map(c=>`<button type="button" data-gnw-cat="${escape(c)}" class="gnw-category${c===selected?' is-active':''}" aria-pressed="${c===selected?'true':'false'}">${escape(c)}</button>`).join('')}
       </div>
-      ${preview}
       <div class="gnw-list">
         ${rows.map(item=>`<button type="button" class="gnw-item" data-gnw-open="${escape(item.id)}">
           <div class="gnw-meta"><span class="gnw-tag">${escape(item.category)}</span><span class="gnw-source">${escape(item.source)}</span></div>
@@ -65,7 +58,6 @@
           <time class="gnw-time">${escape(timeText(item))}</time>
         </button>`).join('')}
       </div>
-      ${!rows.length ? '<div class="gnw-empty">조건에 맞는 뉴스가 없습니다.</div>' : ''}
       ${matchesAll.length>visible ? '<button type="button" class="gnw-more" data-gnw-more>더보기</button>' : ''}
     `;
     const search=host.querySelector('[data-gnw-search]');
@@ -82,8 +74,6 @@
         ${item.summary ? `<p class="gnw-summary">${escape(item.summary)}</p>` : ''}
         <time class="gnw-time">${escape(timeText(item))}</time>
       </button>`).join('');
-      host.querySelector('.gnw-empty')?.remove();
-      if (!filtered.length) list.insertAdjacentHTML('afterend','<div class="gnw-empty">조건에 맞는 뉴스가 없습니다.</div>');
       host.querySelector('[data-gnw-more]')?.remove();
       if(filtered.length>visible) list.insertAdjacentHTML('afterend','<button type="button" class="gnw-more" data-gnw-more>더보기</button>');
     });
@@ -94,7 +84,6 @@
     const chips=(arr)=>arr?.length ? arr.map(x=>`<span class="gnw-chip">${escape(x)}</span>`).join('') : '<span class="gnw-quiet">연결된 정보가 없습니다.</span>';
     host.innerHTML=`
       <button type="button" class="gnw-back" data-gnw-back aria-label="뉴스 목록으로 돌아가기">←</button>
-      ${demo ? '<p class="gnw-notice">디자인 예시 · 실제 뉴스가 아닙니다</p>' : ''}
       <div class="gnw-detail-card">
         <div class="gnw-meta"><span class="gnw-tag">${escape(item.category)}</span><time class="gnw-time">${escape(timeText(item))}</time></div>
         <h3 class="gnw-detail-title">${escape(item.title)}</h3>
@@ -115,7 +104,7 @@
   function mount() { render(); }
   function setItems(raw) {
     items=(Array.isArray(raw)?raw:[]).map(normalize).filter(Boolean).sort((a,b)=>(Date.parse(b.published_at)||0)-(Date.parse(a.published_at)||0));
-    demo=false;detailId=null;selected='전체';query='';visible=5;render();
+    detailId=null;selected='전체';query='';visible=5;render();
   }
   document.addEventListener('click',e=>{
     const host=e.target.closest('[data-gnw-root]');
