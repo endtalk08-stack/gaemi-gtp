@@ -163,20 +163,20 @@
   align-items: center;
   gap: 8px;
   padding: 9px 10px 9px 7px;
-  border: 1px solid var(--gtp-border);
+  border: 0;
   border-radius: 0;
   background: var(--gtp-surface);
   color: var(--gtp-text);
   text-align: left;
   cursor: pointer;
-  transition: border-color .15s ease, background-color .15s ease, opacity .15s ease;
+  transition: background-color .15s ease, opacity .15s ease;
 }
-#marketRankingList > .market-stock-row:hover {
-  border-color: var(--gtp-accent, #64748b);
+#marketRankingList > .market-stock-row:hover,
+#marketRankingList > .market-stock-row:focus-visible {
+  background: var(--gtp-hover);
 }
 #marketRankingList > .market-stock-row:focus-visible {
-  outline: 2px solid var(--gtp-accent, #2563eb);
-  outline-offset: 2px;
+  outline: none;
 }
 #marketRankingList > .market-stock-dragging { opacity: .45; }
 .market-stock-grip {
