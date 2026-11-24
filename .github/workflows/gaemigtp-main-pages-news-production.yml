@@ -85,6 +85,7 @@ jobs:
           grep -Fq 'overflow-y:auto' frontend/widgets/news/news-widget.css
           ! grep -Fq 'data-gnw-more' frontend/widgets/news/news-widget.js
           curl -fsS --retry 3 --max-time 20 https://gaemigtp-news.pages.dev/news/latest.json -o "$RUNNER_TEMP/news-source.json"
+          node -e 'const fs=require("node:fs");const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const a=Array.isArray(d.items)?d.items:[];const v=a.filter(x=>x&&typeof x.published_at==="string"&&!Number.isNaN(Date.parse(x.published_at)));console.log("R2 news timestamp coverage: "+v.length+"/"+a.length);if(!v.length)process.exit(1);' "$RUNNER_TEMP/news-source.json"
           jq -e '.ok == true and (.items | type == "array" and length > 0) and any(.items[]; (.published_at | type == "string" and length > 0))' "$RUNNER_TEMP/news-source.json"
 
   preview:
