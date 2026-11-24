@@ -7,7 +7,8 @@ const functionsRoot = path.join(REPOSITORY_ROOT, 'functions');
 const expectedFunctions = [
   'market/qqq-reason.js',
   'market/us-daily-chart.js',
-  'stocks/us/instruments.json.js'
+  'stocks/us/instruments.json.js',
+  'news/latest.json.js'
 ];
 for (const relative of expectedFunctions) {
   const fullPath = path.join(functionsRoot, ...relative.split('/'));

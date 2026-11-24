@@ -20,7 +20,7 @@ Both preview and production use the same workflow:
 `.github/workflows/gaemigtp-main-pages-news-production.yml`
 
 - Pull Request: deploy the exact PR merge commit to a Pages preview branch named `pr-<number>`.
-- Before merge: validate all local HTML/CSS/JS references, compare the current production's complete static asset set against the checked-out source, and build the Functions bundle.
+- Before merge: validate all local HTML/CSS/JS references, compare the current production's complete static asset set against the PR's base `main` commit, separating existing production drift from the candidate changes, and build the Functions bundle.
 - Deploy the PR snapshot to a preview branch. If Cloudflare Access redirects the preview hostname, the workflow identifies that condition and skips anonymous preview asset/API checks instead of reporting false file mismatches. The preview still requires a signed-in browser for human review.
 - After merge: deploy the exact `main` commit to the production branch and repeat the same checks.
 - A failed source check or production/production-deploy asset comparison blocks success. When preview is Access-protected, the limitation is explicitly reported; it is not counted as a successful anonymous preview verification.

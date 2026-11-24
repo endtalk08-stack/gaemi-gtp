@@ -34,9 +34,14 @@ jobs:
           node-version: 22
       - name: Validate every local frontend asset and Pages Function route
         run: node scripts/pages/verify-pages-inputs.mjs
-      - name: Verify current production assets against the checked-out source
+      - name: Verify current production assets against the PR base main commit
         if: github.event_name == 'pull_request'
-        run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch origin "$BASE_SHA" --depth=1
+          git worktree add --detach "$RUNNER_TEMP/main-baseline" FETCH_HEAD
+          node "$RUNNER_TEMP/main-baseline/scripts/pages/verify-pages-deployment.mjs" "https://gaemigtp-main.pages.dev"
       - name: Build Pages Functions from repository root
         run: npx --yes wrangler@4.167.0 pages functions build functions --project-directory . --outdir "$RUNNER_TEMP/pages-functions"
       - name: Preserve critical application checks
@@ -44,6 +49,7 @@ jobs:
           test -s frontend/index.html
           test -s functions/market/us-daily-chart.js
           test -s functions/stocks/us/instruments.json.js
+          test -s functions/news/latest.json.js
           grep -Fq '오늘 미국 상승 테마 뭐야?' frontend/index.html
           grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' frontend/index.html
           grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
@@ -73,6 +79,14 @@ jobs:
           ! grep -Fq 'renderTradingViewNewsPage' frontend/shell/right-panel/right-panel-tabs.js
           grep -Fq 'data-panel-workspace-view="disclosures"' frontend/shell/right-panel/right-panel-tabs.js
           grep -q 'right-panel-tabs.js?v=20261114-detach-right-news-v1' frontend/index.html
+          ! grep -Fq 'SOURCE_PREVIEW_ITEMS' frontend/widgets/news/news-widget.js
+          ! grep -Fq "return '21:00'" frontend/widgets/news/news-widget.js
+          grep -Fq "fetch('/news/latest.json'" frontend/widgets/news/news-widget.js
+          grep -Fq 'overflow-y:auto' frontend/widgets/news/news-widget.css
+          ! grep -Fq 'data-gnw-more' frontend/widgets/news/news-widget.js
+          curl -fsS --retry 3 --max-time 20 https://gaemigtp-news.pages.dev/news/latest.json -o "$RUNNER_TEMP/news-source.json"
+          node -e 'const fs=require("node:fs");const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const a=Array.isArray(d.items)?d.items:[];const v=a.filter(x=>x&&typeof x.published_at==="string"&&!Number.isNaN(Date.parse(x.published_at)));console.log("R2 news timestamp coverage: "+v.length+"/"+a.length);if(!v.length)process.exit(1);' "$RUNNER_TEMP/news-source.json"
+          jq -e '.ok == true and (.items | type == "array" and length > 0) and any(.items[]; (.published_at | type == "string" and length > 0))' "$RUNNER_TEMP/news-source.json"
 
   preview:
     needs: validate
@@ -133,6 +147,8 @@ jobs:
             jq -e '.ok == true and (.items | type == "array")'
           curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/stocks/us/instruments.json" |
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
+          curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/news/latest.json" |
+            jq -e '.ok == true and (.items | type == "array" and length > 0) and any(.items[]; (.published_at | type == "string" and length > 0))'
           curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
       - name: Publish preview URL and verification scope
@@ -186,5 +202,7 @@ jobs:
             jq -e '.ok == true and (.items | type == "array")'
           curl -fsS --retry 3 --max-time 20 "$site/stocks/us/instruments.json" |
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
+          curl -fsS --retry 3 --max-time 20 "$site/news/latest.json" |
+            jq -e '.ok == true and (.items | type == "array" and length > 0) and any(.items[]; (.published_at | type == "string" and length > 0))'
           curl -fsS --retry 3 --max-time 20 "$site/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
