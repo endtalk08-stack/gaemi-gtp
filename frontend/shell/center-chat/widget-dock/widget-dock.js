@@ -77,7 +77,6 @@
     if (where === 'left' && id === 'industry') {
       window.GaemiGTPMarketSidebar?.selectIndustryTab?.();
     }
-    if (where === 'center') window.enterChatWorkspace?.();
     window.GaemiGTPWorkspaceShellState?.apply?.();
     const dock = root();
     if (dock) dock.dataset.count = String(body().children.length);
