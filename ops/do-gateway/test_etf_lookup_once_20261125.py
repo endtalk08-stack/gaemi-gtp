@@ -1,5 +1,6 @@
-import json,time,hashlib
-from pathlib import Path
+import sys
+sys.path.insert(0,"/opt/gaemigtp-news/app")
+import json,time
 from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_exchanges
 print("ETF_TICKERS",sorted(ETF_TICKERS),flush=True)
 try:
