@@ -640,12 +640,15 @@
     setInterval(refreshMarketEtfSnapshot, 120000);
     void refreshMarketEtfSnapshot();
     window.addEventListener('gaemi:us-live-quotes', onUsLiveQuotes);
-    dock.addEventListener('click', event => {
-      const button = event.target.closest('[data-central-widget-remove]');
-      if (!button) return;
+    // Handle widget removal during capture so nested widget handlers cannot swallow the X click.
+    document.addEventListener('click', event => {
+      const button = event.target?.closest?.('[data-central-widget-remove]');
+      if (!button || !dock.contains(button)) return;
+      event.preventDefault();
+      event.stopPropagation();
       const id = button.dataset.centralWidgetRemove;
-      remove(id);
-    });
+      if (id) remove(id);
+    }, true);
   }
   document.addEventListener('DOMContentLoaded', initialize);
   window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], setNewsHeadline, isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason };
