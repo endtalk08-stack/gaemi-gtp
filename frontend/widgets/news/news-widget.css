@@ -84,3 +84,11 @@
   .gnw-category { flex:1 1 calc(33.333% - 6px); min-width:0; padding:7px 4px; }
   .gnw-item { padding:12px; }
 }
+
+
+/* In the right panel, let the panel itself scroll instead of nesting a viewport-limited news scroller. */
+#rightPanelContent > [data-portable-widget-slot="right"] .central-widget-card--news-feed .gnw-root {
+  max-height: none;
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
