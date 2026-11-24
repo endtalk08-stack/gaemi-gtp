@@ -199,6 +199,7 @@ async def run_qqq_fe_stream(
                 next_ranking_check = 0.0
                 next_industry_check = 0.0
                 next_etf_check = 0.0
+                seen_symbols = set()
 
                 def publish(frame):
                     from backend.us_quote_change import validated_change
@@ -207,6 +208,10 @@ async def run_qqq_fe_stream(
                         on_quote({"symbol": symbol, "exchange": selected[symbol], "price": price, "change_pct": verified_pct,
                                   "reference_close_date": close_date,
                                   "high": high, "low": low})
+                        if symbol not in seen_symbols:
+                            seen_symbols.add(symbol)
+                            if len(seen_symbols) in (1, 2, 10, 20, 40, 60):
+                                print("KIWOOM_FE_DISTINCT_TICKS=" + str(len(seen_symbols)), flush=True)
 
                 while _open_us_session():
                     if on_top20 is not None and loop.time() >= next_ranking_check:
@@ -218,10 +223,13 @@ async def run_qqq_fe_stream(
                         if wanted != ranked:
                             # Group 2 is only the trading-value stock ranking.
                             top20 = {symbol: exchange for symbol, exchange in wanted.items() if symbol != "QQQ"}
-                            if await _register_fe(ws, "2", top20, refresh="0", on_tick=publish):
+                            early_frames = []
+                            if await _register_fe(ws, "2", top20, refresh="0", on_tick=early_frames.append):
                                 ranked = wanted
                                 selected = {**top20, **industry_ranked, **etf_ranked, **group1_symbols}
-                                on_top20(set(wanted))
+                                on_top20(dict(wanted))
+                                for early in early_frames:
+                                    publish(early)
                                 next_industry_check = 0.0
                                 print("KIWOOM_TOP20_FE_REGISTERED=" + str(len(wanted)), flush=True)
                             else:
@@ -254,10 +262,11 @@ async def run_qqq_fe_stream(
                             subscribed_industry = _industry_only_symbols(wanted_industry, ranked)
                             if wanted_industry and (wanted_industry != industry_ranked
                                                     or subscribed_industry != industry_registered):
+                                early_frames = []
                                 if await _register_fe(
                                     ws, "3", subscribed_industry,
                                     refresh="1" if not industry_registered else "0",
-                                    on_tick=publish,
+                                    on_tick=early_frames.append,
                                 ):
                                     industry_ranked = wanted_industry
                                     industry_registered = subscribed_industry
@@ -267,8 +276,9 @@ async def run_qqq_fe_stream(
                                     }
                                     selected = {**top20, **industry_ranked, **etf_ranked, **group1_symbols}
                                     if on_industry is not None:
-                                        # Publish all sector members, including symbols already subscribed in TOP20.
-                                        on_industry(set(industry_ranked))
+                                        on_industry(dict(industry_ranked))
+                                    for early in early_frames:
+                                        publish(early)
                                     print("KIWOOM_INDUSTRY_STOCK_FE_REGISTERED=" + str(len(industry_registered)), flush=True)
                                 else:
                                     print("KIWOOM_INDUSTRY_STOCK_FE_REGISTRATION_FAILED", flush=True)
@@ -302,10 +312,11 @@ async def run_qqq_fe_stream(
                             if not wanted_etf:
                                 raise ValueError("empty_etf_symbols")
                             if wanted_etf != etf_ranked or wanted_etf != etf_registered:
+                                early_frames = []
                                 if await _register_fe(
                                     ws, "4", wanted_etf,
                                     refresh="1" if not etf_registered else "0",
-                                    on_tick=publish,
+                                    on_tick=early_frames.append,
                                 ):
                                     etf_ranked = wanted_etf
                                     etf_registered = wanted_etf
@@ -315,7 +326,9 @@ async def run_qqq_fe_stream(
                                     }
                                     selected = {**top20, **industry_ranked, **etf_ranked, **group1_symbols}
                                     if on_etf is not None:
-                                        on_etf(set(etf_registered))
+                                        on_etf(dict(etf_registered))
+                                    for early in early_frames:
+                                        publish(early)
                                     print("KIWOOM_ETF_FE_REGISTERED=" + str(len(etf_registered)), flush=True)
                                     next_etf_check = loop.time() + 86400
                                 else:
