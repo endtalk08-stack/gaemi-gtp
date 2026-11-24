@@ -13,6 +13,7 @@ _NY = ZoneInfo("America/New_York")
 _LOCK = threading.Lock()
 _POOL = ThreadPoolExecutor(max_workers=6, thread_name_prefix="us-close-baseline")
 _CACHE = {}
+_OFFICIAL_CACHE = {}
 
 
 def _target(now):
@@ -70,6 +71,25 @@ def _lookup(symbol, exchange, target, exact):
         return None
 
 
+def _verified_baseline(symbol, exchange, target, exact):
+    baseline = _lookup(symbol, exchange, target, exact)
+    if baseline is not None or not exact:
+        return baseline
+    # The dated regular-session record can be available before the daily
+    # chart updates. Never use usa20100's undated previous-close field.
+    from backend.providers.kiwoom_us_quotes import fetch_us_close
+    try:
+        record = fetch_us_close(symbol, exchange, target)
+        price = record.get("close") if record else None
+        if (record and record.get("session_date") == target.isoformat()
+                and type(price) in (int, float) and math.isfinite(price)
+                and 0 < price < 10000000):
+            return float(price), target.isoformat()
+    except (OSError, RuntimeError, ValueError, TypeError):
+        pass
+    return None
+
+
 def validated_change(symbol, exchange, price, *, now=None):
     """Return (percent, close date), or (None, None) until verified.
 
@@ -86,7 +106,7 @@ def validated_change(symbol, exchange, price, *, now=None):
     with _LOCK:
         entry = _CACHE.get(key)
         if entry is None:
-            entry = {"future": _POOL.submit(_lookup, symbol, exchange, target, exact), "retry": 0}
+            entry = {"future": _POOL.submit(_verified_baseline, symbol, exchange, target, exact), "retry": 0}
             _CACHE[key] = entry
             if len(_CACHE) > 250:
                 for old in list(_CACHE)[:100]:
@@ -98,8 +118,63 @@ def validated_change(symbol, exchange, price, *, now=None):
         baseline = future.result()
         if baseline is None:
             if time.monotonic() >= entry["retry"]:
-                entry["retry"] = time.monotonic() + 300
-                entry["future"] = _POOL.submit(_lookup, symbol, exchange, target, exact)
+                entry["retry"] = time.monotonic() + (10 if exact else 300)
+                entry["future"] = _POOL.submit(_verified_baseline, symbol, exchange, target, exact)
             return None, None
     close, date = baseline
     return (price / close - 1) * 100, date
+
+
+def _read_official_close(symbol, exchange, day):
+    """Get a dated regular close and independently verified preceding close."""
+    from backend.providers.kiwoom_us_quotes import fetch_us_close
+
+    try:
+        record = fetch_us_close(symbol, exchange, day)
+        if not record or record.get("session_date") != day.isoformat():
+            return None
+        price = record.get("close")
+        if type(price) not in (int, float) or not math.isfinite(price) or price <= 0:
+            return None
+        previous = _lookup(symbol, exchange, day - dt.timedelta(days=1), False)
+        if not previous or previous[1] >= day.isoformat():
+            return None
+        return (float(price), (price / previous[0] - 1) * 100, previous[1])
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError):
+        return None
+
+
+def official_close_quote(symbol, exchange, *, now=None):
+    """Return only the confirmed regular close during the 16:00–16:30 ET hold."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    local = now.astimezone(_NY)
+    if (local.weekday() >= 5 or
+            not dt.time(16) <= local.time() < dt.time(16, 30)):
+        return None
+    day = local.date()
+    key = (symbol, exchange, day)
+    with _LOCK:
+        entry = _OFFICIAL_CACHE.get(key)
+        if entry is None:
+            entry = {"future": _POOL.submit(_read_official_close, symbol, exchange, day), "retry": 0}
+            _OFFICIAL_CACHE[key] = entry
+            if len(_OFFICIAL_CACHE) > 250:
+                for old in list(_OFFICIAL_CACHE)[:100]:
+                    if old != key:
+                        _OFFICIAL_CACHE.pop(old, None)
+        future = entry["future"]
+        if not future.done():
+            return None
+        result = future.result()
+        if result is None:
+            if time.monotonic() >= entry["retry"]:
+                entry["retry"] = time.monotonic() + 30
+                entry["future"] = _POOL.submit(_read_official_close, symbol, exchange, day)
+            return None
+    price, change, close_date = result
+    return {"symbol": symbol, "exchange": exchange, "price": price,
+            "change_pct": change, "reference_close_date": close_date,
+            "reference_close_session": close_date,
+            "received_at_ms": int(now.timestamp() * 1000),
+            "stale": False, "source": "kiwoom:regular-close",
+            "market_session": "regular_close"}
