@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/inspect_us_close_runtime_20261124.py",
-  "request_id": "fingerprintpre20261124a",
+  "path": "ops/do-gateway/compare_installed_quote_sources_20261124.py",
+  "request_id": "comparequote20261124a",
   "timeout": 90
 }
