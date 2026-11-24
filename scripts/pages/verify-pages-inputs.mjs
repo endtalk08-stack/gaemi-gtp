@@ -30,4 +30,4 @@ if (await fs.stat(advancedWorker).then(() => true).catch(() => false)) {
 }
 console.log('Validated ' + assets.length + ' local frontend files referenced by index.html, CSS and JS.');
 console.log('Validated ' + functionFiles.length + ' Pages Function source files under repository-root functions/.');
-console.log('Static output: frontend/ ; Pages Functions source: functions/ ; deploy command must run from repository root.');
+console.log('Static output: frontend/ ; Pages Functions source: functions/ ; Wrangler must run from an isolated workspace root containing sibling frontend/ and functions/ directories.');

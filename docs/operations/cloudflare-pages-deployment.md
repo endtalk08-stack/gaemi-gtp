@@ -28,7 +28,7 @@ Both preview and production use the same workflow:
 
 Cloudflare Pages Direct Upload deploys a complete static output directory, not an isolated changed file. That is expected Pages behavior. The workflow uploads the checked-out `frontend/` snapshot and the root `functions/` directory as Pages Functions. Unmodified files are expected to remain byte-identical to the same Git commit.
 
-Do not run the deploy command from inside `frontend/`: Pages Functions must remain at the repository project root when Wrangler discovers them.
+The workflow copies `frontend/` and `functions/` unchanged into an isolated temporary workspace and runs Wrangler from that workspace root. This keeps Wrangler installation files outside the repository while preserving the required sibling layout for Pages Functions.
 
 ## Change discipline
 

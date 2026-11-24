@@ -80,6 +80,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Prepare isolated Pages deployment workspace
+        run: |
+          deploy_dir="$RUNNER_TEMP/gaemigtp-pages-deploy"
+          rm -rf "$deploy_dir"
+          mkdir -p "$deploy_dir"
+          cp -a frontend functions "$deploy_dir/"
+          diff -qr frontend "$deploy_dir/frontend"
+          diff -qr functions "$deploy_dir/functions"
       - name: Deploy the exact PR merge commit to Pages preview
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -89,6 +97,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
           wranglerVersion: "4.167.0"
+          workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
           command: pages deploy frontend --project-name gaemigtp-main --branch pr-${{ github.event.pull_request.number }} --commit-hash ${{ github.sha }}
       - name: Detect preview Access protection and verify assets when readable
         id: preview_check
@@ -146,6 +155,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Prepare isolated Pages deployment workspace
+        run: |
+          deploy_dir="$RUNNER_TEMP/gaemigtp-pages-deploy"
+          rm -rf "$deploy_dir"
+          mkdir -p "$deploy_dir"
+          cp -a frontend functions "$deploy_dir/"
+          diff -qr frontend "$deploy_dir/frontend"
+          diff -qr functions "$deploy_dir/functions"
       - name: Deploy the exact main commit to existing production Pages project
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -155,6 +172,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
           wranglerVersion: "4.167.0"
+          workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
           command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash ${{ github.sha }}
       - name: Verify every production asset byte-for-byte
         run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
