@@ -152,3 +152,17 @@ test('news widget in the right panel uses the panel scroll instead of its old vi
   assert.match(rule[1], /scrollbar-gutter:\s*auto/);
   assert.match(css, /\.gnw-root\s*\{[^}]*max-height:\s*calc\(100vh - 150px\)/s, 'center/left widget layout keeps its original height rule');
 });
+
+
+test('right panel keeps vertical scrolling enabled when portable widgets are present', () => {
+  const css = readFileSync('frontend/pages/panel-workspace/panel-workspace.css', 'utf8');
+  const override = css.match(/#rightPanelContent:has\(#rightPanelTabView-dashboard:not\(\[hidden\]\)\):has\(> \[data-portable-widget-slot="right"\]:not\(:empty\)\),[\s\S]*?\{([^}]*)\}/);
+  assert.ok(override, 'portable-widget override has enough specificity to beat the legacy dashboard overflow rule');
+  assert.match(override[1], /overflow-y:\s*auto\s*!important/);
+  assert.match(override[1], /overflow-x:\s*hidden\s*!important/);
+
+  const dashboardCss = readFileSync('frontend/pages/dashboard/dashboard.css', 'utf8');
+  assert.match(dashboardCss, /panel-workspace\/panel-workspace\.css\?v=20261125-portable-right-scroll/);
+  const html = readFileSync('frontend/index.html', 'utf8');
+  assert.match(html, /dashboard\.css\?v=20261125-portable-right-scroll/);
+});
