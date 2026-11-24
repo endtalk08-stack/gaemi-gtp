@@ -3,73 +3,178 @@
   'use strict';
 
   const STATE_KEY = 'gaemiGTP_central_widget_dock_v1';
+  const PLACEMENT_KEY = 'gaemiGTP_widget_placements_v1';
+  const DRAG_THRESHOLD = 8;
   let activeIds = [];
+  let dragState = null;
   const cards = new Map();
   const placements = new Map();
+
+  function readPlacements() {
+    try {
+      const value = JSON.parse(localStorage.getItem(PLACEMENT_KEY) || '{}');
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+      return Object.fromEntries(Object.entries(value).filter(([id, where]) =>
+        catalog()[id] && ['left', 'center', 'right'].includes(where)));
+    } catch (_) { return {}; }
+  }
+  function savePlacements() {
+    try { localStorage.setItem(PLACEMENT_KEY, JSON.stringify(Object.fromEntries(placements))); } catch (_) {}
+  }
+
+  function ensurePortableSlot(where, id) {
+    if (where === 'left' && id === 'industry') {
+      const industrySlot = document.getElementById('marketIndustryWidgetSlot');
+      if (industrySlot) return industrySlot;
+    }
+    const host = where === 'left'
+      ? document.getElementById('leftMarketSidebar')
+      : document.getElementById('rightPanelContent') || document.getElementById('rightPanel');
+    if (!host) return null;
+    let slot = host.querySelector('[data-portable-widget-slot="' + where + '"]');
+    if (!slot) {
+      slot = document.createElement('div');
+      slot.dataset.portableWidgetSlot = where;
+      slot.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:8px;min-width:0;flex-shrink:0;max-height:70vh;overflow:auto';
+      if (where === 'left') {
+        const scroll = host.querySelector('.flex-1.overflow-y-auto') || host;
+        const industrySlot = document.getElementById('marketIndustryWidgetSlot');
+        if (industrySlot?.parentElement === scroll) industrySlot.after(slot);
+        else scroll.appendChild(slot);
+      } else {
+        host.appendChild(slot);
+      }
+    }
+    return slot;
+  }
 
   function moveWidget(id, where) {
     if (!activeIds.includes(id) || !['left', 'center', 'right'].includes(where)) return false;
     const card = cards.get(id);
-    let target = body();
-    if (where !== 'center') {
-      const host = document.getElementById(where === 'left' ? 'leftMarketSidebar' : 'rightPanel');
-      if (!host) return false;
-      target = host.querySelector('[data-portable-widget-slot]');
-      if (!target) {
-        target = document.createElement('div');
-        target.dataset.portableWidgetSlot = where;
-        target.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:8px;min-width:0;flex-shrink:0;max-height:70vh;overflow:auto';
-      host.appendChild(target);
-      }
-      if (where === 'left') {
-        document.body.classList.remove('left-home-open', 'left-context-open', 'left-plugin-open');
-        if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
-      } else if (window.innerWidth < 1024) {
+    if (!card) return false;
+    const target = where === 'center' ? body() : ensurePortableSlot(where, id);
+    if (!target) return false;
+
+    if (where === 'left') {
+      document.body.classList.remove('left-home-open', 'left-context-open', 'left-plugin-open');
+      if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
+      document.body.classList.add('left-market-open');
+    } else if (where === 'right') {
+      if (window.innerWidth < 1024) {
         document.body.classList.remove('left-market-open', 'left-home-open', 'left-context-open', 'left-plugin-open');
       }
-      document.body.classList.add(where === 'left' ? 'left-market-open' : 'right-panel-open');
-      window.GaemiGTPWorkspaceShellState?.apply?.();
+      document.body.classList.add('right-panel-open');
+    } else if (window.innerWidth < 1024) {
+      document.body.classList.remove(
+        'left-market-open', 'left-home-open', 'left-context-open', 'left-plugin-open',
+        'right-panel-open', 'right-panel-maximized'
+      );
     }
-    if (!card || !target) return false;
+
     target.appendChild(card);
     placements.set(id, where);
-    card.querySelectorAll('[data-widget-move]').forEach(button => {
-      button.disabled = button.dataset.widgetMove === where;
-      button.setAttribute('aria-pressed', String(button.disabled));
-    });
-    root().dataset.count = String(body().children.length);
+    savePlacements();
+    if (where === 'left' && id === 'industry') {
+      window.GaemiGTPMarketSidebar?.selectIndustryTab?.();
+    }
+    if (where === 'center') window.enterChatWorkspace?.();
+    window.GaemiGTPWorkspaceShellState?.apply?.();
+    const dock = root();
+    if (dock) dock.dataset.count = String(body().children.length);
+    window.dispatchEvent(new CustomEvent('gaemi:widget-placement', { detail: { id, where } }));
     return true;
   }
 
-  function addMoveControls(card, id) {
-    const controls = document.createElement('details');
-    controls.style.cssText = 'position:absolute;right:28px;top:3px;z-index:10;background:var(--gtp-surface);font-size:11px';
-    controls.setAttribute('aria-label', '위젯 위치');
-    const summary = document.createElement('summary');
-    summary.textContent = '↔';
-    summary.setAttribute('aria-label', catalog()[id].title + ' 위치 이동 메뉴');
-    controls.appendChild(summary);
-    controls.addEventListener('toggle', () => { card.style.overflow = controls.open ? 'visible' : ''; });
-    for (const [where, label] of [['left', '왼쪽'], ['center', '중앙'], ['right', '오른쪽']]) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = label;
-      button.dataset.widgetMove = where;
-      button.style.cssText = 'font-size:11px;color:inherit;padding:2px 5px;border:1px solid #454851;border-radius:4px';
-      button.setAttribute('aria-label', catalog()[id].title + ' ' + label + '으로 이동');
-      button.addEventListener('click', () => { moveWidget(id, where); controls.open = false; });
-      controls.appendChild(button);
+  function addCardActions(card, id) {
+    if (id !== 'industry' || card.querySelector('[data-central-widget-remove="industry"]')) return;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '×';
+    close.className = 'central-widget-card__close central-widget-card__close--overlay';
+    close.dataset.centralWidgetRemove = 'industry';
+    close.setAttribute('aria-label', '업종 위젯 삭제');
+    close.addEventListener('click', () => remove(id));
+    card.appendChild(close);
+  }
+
+  function dropWhereAt(x, y) {
+    const point = document.elementFromPoint?.(x, y);
+    const zone = point?.closest?.('[data-widget-drop-zone]');
+    return zone?.dataset.widgetDropZone || '';
+  }
+
+  function highlightDropZone(where) {
+    document.querySelectorAll('[data-widget-drop-zone]').forEach(node => {
+      node.classList.toggle('is-widget-drop-target', Boolean(where) && node.dataset.widgetDropZone === where);
+    });
+  }
+
+  function dragSource(event) {
+    const origin = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+    if (!origin?.closest) return null;
+    const explicit = origin.closest('[data-widget-drag-handle]');
+    if (explicit) return { id: explicit.dataset.widgetDragHandle, handle: explicit };
+
+    const card = origin.closest('[data-central-widget-id]');
+    if (!card || origin.closest('button,a,input,textarea,select')) return null;
+    const bounds = card.getBoundingClientRect();
+    if (event.clientY > bounds.top + Math.min(34, bounds.height)) return null;
+    return { id: card.dataset.centralWidgetId, handle: card };
+  }
+
+  function clearWidgetDrag() {
+    dragState = null;
+    document.body.classList.remove('gaemi-widget-dragging');
+    highlightDropZone('');
+  }
+
+  function onWidgetPointerDown(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const source = dragSource(event);
+    if (!source || !catalog()[source.id]) return;
+    dragState = {
+      id: source.id,
+      handle: source.handle,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      dragging: false
+    };
+  }
+
+  function onWidgetPointerMove(event) {
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    const dx = event.clientX - dragState.startX;
+    const dy = event.clientY - dragState.startY;
+    if (!dragState.dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    dragState.dragging = true;
+    document.body.classList.add('gaemi-widget-dragging');
+    event.preventDefault();
+    highlightDropZone(dropWhereAt(event.clientX, event.clientY));
+  }
+
+  function onWidgetPointerUp(event) {
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    const current = dragState;
+    if (current.dragging) {
+      const where = dropWhereAt(event.clientX, event.clientY);
+      if (where && (where !== 'left' || activeIds.includes(current.id))) {
+        if (!activeIds.includes(current.id)) add(current.id);
+        moveWidget(current.id, where);
+      }
+      event.preventDefault();
     }
-    card.prepend(controls);
-    if (id === 'industry') {
-      const close = document.createElement('button');
-      close.type = 'button';
-      close.textContent = '×';
-      close.className = 'central-widget-card__close central-widget-card__close--overlay';
-      close.setAttribute('aria-label', '업종 위젯 삭제');
-      close.addEventListener('click', () => remove(id));
-      card.appendChild(close);
-    }
+    clearWidgetDrag();
+  }
+
+  function initializeWidgetDragging() {
+    document.getElementById('leftMarketSidebar')?.setAttribute('data-widget-drop-zone', 'left');
+    document.getElementById('mainContent')?.setAttribute('data-widget-drop-zone', 'center');
+    document.getElementById('rightPanel')?.setAttribute('data-widget-drop-zone', 'right');
+    document.addEventListener('pointerdown', onWidgetPointerDown, true);
+    document.addEventListener('pointermove', onWidgetPointerMove, true);
+    document.addEventListener('pointerup', onWidgetPointerUp, true);
+    document.addEventListener('pointercancel', clearWidgetDrag, true);
   }
   let captionHeadline = '';
   let chartSymbol = '';
@@ -427,7 +532,7 @@
     for (const card of Array.from(staging.children)) {
       const id = card.dataset.centralWidgetId;
       cards.set(id, card);
-      addMoveControls(card, id);
+      addCardActions(card, id);
       bodyEl.appendChild(card);
       moveWidget(id, placements.get(id) || 'center');
     }
@@ -440,6 +545,7 @@
       if (cards.has('news-feed')) cards.get('news-feed').dataset.newsMounted = 'true';
     }
     window.GaemiGTPIndustryWidget?.mount?.();
+    window.dispatchEvent(new CustomEvent('gaemi:widget-change'));
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('qqq')) updateQqqCard();
     for (const symbol of Object.keys(marketEtfs)) {
@@ -678,6 +784,7 @@
   function add(id) {
     if (id === 'chart' || !catalog()[id] || activeIds.includes(id)) return false;
     activeIds.push(id);
+    if (!placements.has(id)) placements.set(id, 'center');
     saveState();
     if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
     if (id === 'spy' || id === 'dia') {
@@ -685,6 +792,7 @@
       void refreshMarketEtfSnapshot();
     }
     render();
+    window.GaemiGTPPluginSidebar?.render?.();
     return true;
   }
   function remove(id) {
@@ -692,6 +800,8 @@
     const changed = next.length !== activeIds.length;
     activeIds = next;
     if (changed) {
+      placements.delete(id);
+      savePlacements();
       saveState();
       render();
       if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
@@ -704,6 +814,8 @@
     const dock = root();
     if (!dock || dock.dataset.bound === 'true') return;
     dock.dataset.bound = 'true';
+    initializeWidgetDragging();
+    Object.entries(readPlacements()).forEach(([id, where]) => placements.set(id, where));
     activeIds = readState(); render();
     // The plugin sidebar can initialize before the dock restores its saved widgets.
     // Re-sync its add/remove labels after the dock state is ready.
@@ -722,6 +834,12 @@
     // Each card X button calls the same remove() action directly.
   }
   document.addEventListener('DOMContentLoaded', initialize);
-  window.GaemiGTPWidgetDock = { initialize, add, remove, move: moveWidget, getActiveIds: () => [...activeIds], setNewsHeadline, isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason };
+  window.GaemiGTPWidgetDock = {
+    initialize, add, remove, move: moveWidget,
+    getActiveIds: () => [...activeIds],
+    getPlacement: id => placements.get(id) || 'center',
+    setNewsHeadline, isActive: id => activeIds.includes(id),
+    setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason
+  };
 }());
 
