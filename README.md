@@ -25,7 +25,7 @@
 - Cloudflare 대시보드의 수동 파일 업로드나 별도 Wrangler 명령으로 운영 배포하지 않는다.
 - 배포 시 저장소의 `frontend/`와 최상위 `functions/`를 임시 작업공간에 그대로 복사하고, 그 임시공간 루트에서 Wrangler를 실행한다. 원본 저장소에 Wrangler 설치 파일이나 node_modules가 생기지 않게 한다.
 - 기존 Pages 프로젝트 설정과 `DATA_R2` 바인딩을 새로 만들거나 변경하지 않는다.
-- 오래된 `ops/gaemigtp-main-pages-preview` 브랜치는 현재 `main`과 분기되어 있으므로 병합하거나 미리보기 기준으로 사용하지 않는다.
+- 과거 `ops/gaemigtp-main-pages-preview`, `feat/pages-r2-daily-chart-20261110`, `fix/pages-quote-chart-path-20261110`, `work/spy-dia-pages-preview-20261122` 브랜치는 현재 `main`과 분기되어 있으므로 통째로 병합하지 않는다. 필요한 변경은 개별 파일과 커밋을 현재 `main`과 대조한 뒤 재적용한다.
 - 운영 배포는 `main`의 단일 커밋을 기준으로 하며, 배포 후 모든 참조 파일이 해당 커밋의 파일과 일치해야 한다.
 
 ## 애플리케이션 구성

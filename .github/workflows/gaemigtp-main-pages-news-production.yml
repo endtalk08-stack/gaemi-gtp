@@ -34,6 +34,9 @@ jobs:
           node-version: 22
       - name: Validate every local frontend asset and Pages Function route
         run: node scripts/pages/verify-pages-inputs.mjs
+      - name: Verify current production assets against the checked-out source
+        if: github.event_name == 'pull_request'
+        run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
       - name: Build Pages Functions from repository root
         run: npx --yes wrangler@4.167.0 pages functions build functions --project-directory . --outdir "$RUNNER_TEMP/pages-functions"
       - name: Preserve critical application checks

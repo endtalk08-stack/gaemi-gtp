@@ -20,9 +20,10 @@ Both preview and production use the same workflow:
 `.github/workflows/gaemigtp-main-pages-news-production.yml`
 
 - Pull Request: deploy the exact PR merge commit to a Pages preview branch named `pr-<number>`.
-- Before merge: validate all local HTML/CSS/JS references, build the Functions bundle, compare every deployed static asset byte-for-byte, and smoke-test existing Function routes and R2 reads.
+- Before merge: validate all local HTML/CSS/JS references, compare the current production's complete static asset set against the checked-out source, and build the Functions bundle.
+- Deploy the PR snapshot to a preview branch. If Cloudflare Access redirects the preview hostname, the workflow identifies that condition and skips anonymous preview asset/API checks instead of reporting false file mismatches. The preview still requires a signed-in browser for human review.
 - After merge: deploy the exact `main` commit to the production branch and repeat the same checks.
-- A failed validation or asset/API comparison blocks the workflow from reporting success.
+- A failed source check or production/production-deploy asset comparison blocks success. When preview is Access-protected, the limitation is explicitly reported; it is not counted as a successful anonymous preview verification.
 
 ## Why deployment is a full snapshot
 
@@ -34,5 +35,5 @@ The workflow copies `frontend/` and `functions/` unchanged into an isolated temp
 
 - Make related file changes on one feature branch and commit them together once.
 - Do not issue separate production commits for HTML, JS, CSS, or version query strings.
-- Never merge the historical `ops/gaemigtp-main-pages-preview` branch into `main`; it is stale and diverged.
+- Do not merge historical work branches wholesale into `main`: `ops/gaemigtp-main-pages-preview`, `feat/pages-r2-daily-chart-20261110`, `fix/pages-quote-chart-path-20261110`, and `work/spy-dia-pages-preview-20261122` are historical/diverged. Reuse individual changes only after comparing them with current `main`.
 - Do not make dashboard-side edits to Pages output or bindings as a workaround.
