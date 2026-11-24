@@ -28,6 +28,12 @@
 .gnw-list { display:flex; flex-direction:column; gap:8px; }
 .gnw-item { display:flex; flex-direction:column; align-items:stretch; gap:8px; width:100%; min-width:0; padding:14px 16px; border:0; border-radius:0; background:var(--gtp-surface); color:var(--gtp-text); text-align:left; font-family:inherit; cursor:pointer; }
 .gnw-item:hover,.gnw-item:focus-visible { background:var(--gtp-hover); outline:none; }
+/* Only time, title, source and summary are visible on list cards. */
+.gnw-list-row { display:flex; align-items:baseline; justify-content:space-between; gap:16px; min-width:0; width:100%; }
+.gnw-list-heading { display:flex; align-items:baseline; gap:8px; flex:1 1 auto; min-width:0; }
+.gnw-list-time { flex:none; color:var(--gtp-muted); font-size:15px; line-height:1.5; font-weight:400; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.gnw-list-heading .gnw-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; overflow-wrap:normal; }
+.gnw-list-row .gnw-source { flex:0 1 auto; max-width:32%; text-align:right; }
 .gnw-meta { display:flex; justify-content:space-between; align-items:center; gap:10px; min-width:0; }
 .gnw-tag { padding:3px 7px; background:var(--gtp-hover); color:var(--gtp-text-2); border:0; border-radius:0; font-size:15px; line-height:20px; font-weight:500; white-space:nowrap; }
 .gnw-source { color:var(--gtp-muted); font-size:15px; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
