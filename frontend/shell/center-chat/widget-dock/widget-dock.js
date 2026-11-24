@@ -290,7 +290,7 @@
     const style = getComputedStyle(card);
     const room = card.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
     if (room <= 0) return;
-    const max = window.innerWidth <= 640 ? 22 : 30;
+    const max = 15;
     title.style.fontSize = max + 'px';
     if (title.scrollWidth <= room) return;
     // Scale only the caption text, never the other widgets or the News feed.
