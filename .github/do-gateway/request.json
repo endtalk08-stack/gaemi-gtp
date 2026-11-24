@@ -1,6 +1,1 @@
-{
-  "operation": "run",
-  "path": "ops/do-gateway/list_quote_state_candidates_20261124.py",
-  "request_id": "statesnapshot20261124a",
-  "timeout": 90
-}
+{"operation":"logs","unit":"gaemigtp-kiwoom-us-top20-https.service","lines":300}
