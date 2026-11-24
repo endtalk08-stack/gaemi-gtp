@@ -88,7 +88,7 @@
     const chips=(arr)=>arr?.length ? arr.map(x=>`<span class="gnw-chip">${escape(x)}</span>`).join('') : '';
     const paragraphs=String(item.body||'').split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
     const bodyHtml=paragraphs.length
-      ? `<div class="gnw-article-body">${paragraphs.map(p=>`<p>${escape(p).replaceAll('\n','<br>')}</p>`).join('')}</div>`
+      ? `<div class="gnw-article-body"><h4>기사 본문</h4>${paragraphs.map(p=>`<p>${escape(p).replaceAll('\n','<br>')}</p>`).join('')}</div>`
       : '';
     const stockRows=(item.tickers||[]).map(ticker=>{
       const active=favoriteTickers.has(ticker);
