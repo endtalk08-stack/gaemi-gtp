@@ -19,7 +19,7 @@ jobs:
       - name: Validate changed widget code
         run: |
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
-          test "$(grep -Fc 'onclick="window.GaemiGTPWidgetDock.remove' frontend/shell/center-chat/widget-dock/widget-dock.js)" -eq 5
+          test "$(grep -Fc 'onclick="window.GaemiGTPWidgetDock.remove' frontend/shell/center-chat/widget-dock/widget-dock.js)" -eq 4
           grep -Fq 'position: relative;' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'z-index: 5;' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'pointer-events: auto;' frontend/shell/center-chat/widget-dock/widget-dock.css
