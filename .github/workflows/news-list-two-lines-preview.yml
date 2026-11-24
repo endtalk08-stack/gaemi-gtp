@@ -25,7 +25,9 @@ jobs:
           grep -Fq 'rows.map(renderListItem)' frontend/widgets/news/news-widget.js
           grep -Fq 'filteredRows.map(renderListItem)' frontend/widgets/news/news-widget.js
           grep -Fq 'gnw-list-time' frontend/widgets/news/news-widget.css
-          grep -Fq 'news-list-two-lines-v1' frontend/index.html
+          grep -Fq 'gnw-detail-source' frontend/widgets/news/news-widget.js
+          grep -Fq 'justify-content:space-between' frontend/widgets/news/news-widget.css
+          grep -Fq 'news-detail-layout-v3' frontend/index.html
           grep -Fq 'data-gnw-open' frontend/widgets/news/news-widget.js
           grep -Fq "data-central-widget-remove=\"news-feed\"" frontend/widgets/news/news-widget.js
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
