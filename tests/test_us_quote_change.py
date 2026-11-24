@@ -15,6 +15,56 @@ from backend import kiwoom_us_top20_api as api
 class VerifiedQuoteChangeTests(unittest.TestCase):
     def setUp(self):
         baseline._CACHE.clear()
+        baseline._OFFICIAL_CACHE.clear()
+
+    def test_regular_close_hold_uses_dated_close_then_switches_off(self):
+        from concurrent.futures import Future
+        hold = dt.datetime(2026, 11, 23, 16, 5, tzinfo=ZoneInfo("America/New_York"))
+        after = hold.replace(minute=30)
+        completed = Future()
+        completed.set_result((102.5, 2.5, "2026-11-20"))
+        with patch.object(baseline, "_POOL") as pool:
+            pool.submit.return_value = completed
+            quote = baseline.official_close_quote("QQQ", "ND", now=hold)
+        self.assertEqual(quote["price"], 102.5)
+        self.assertEqual(quote["change_pct"], 2.5)
+        self.assertEqual(quote["reference_close_date"], "2026-11-20")
+        self.assertIsNone(baseline.official_close_quote("QQQ", "ND", now=after))
+
+    def test_dated_close_cannot_use_a_different_day(self):
+        from backend.providers import kiwoom_us_quotes
+        with patch.object(kiwoom_us_quotes, "fetch_us_close", return_value={
+                "session_date": "2026-11-20", "close": 102.5}), \
+             patch.object(baseline, "_lookup") as lookup:
+            self.assertIsNone(baseline._read_official_close("QQQ", "ND", dt.date(2026, 11, 23)))
+            lookup.assert_not_called()
+
+    def test_new_session_uses_dated_regular_close_when_chart_lags(self):
+        from backend.providers import kiwoom_us_quotes
+        now = dt.datetime(2026, 11, 23, 16, 30, tzinfo=ZoneInfo("America/New_York"))
+        with patch.object(baseline, "_lookup", return_value=None), \
+             patch.object(kiwoom_us_quotes, "fetch_us_close", return_value={
+                 "session_date": "2026-11-23", "close": 100.0}):
+            self.assertEqual(baseline._verified_baseline("QQQ", "ND", now.date(), True),
+                             (100.0, "2026-11-23"))
+        from concurrent.futures import Future
+        completed = Future()
+        completed.set_result((100.0, "2026-11-23"))
+        with patch.object(baseline, "_POOL") as pool:
+            pool.submit.return_value = completed
+            _, _ = baseline.validated_change("QQQ", "ND", 102.0, now=now)
+            rate, date = baseline.validated_change("QQQ", "ND", 102.0, now=now)
+        self.assertAlmostEqual(rate, 2.0)
+        self.assertEqual(date, "2026-11-23")
+
+    def test_market_snapshot_holds_close_without_live_tick(self):
+        hold = dt.datetime(2026, 11, 23, 16, 5, tzinfo=ZoneInfo("America/New_York"))
+        official = {"symbol": "QQQ", "exchange": "ND", "price": 102.5,
+                    "change_pct": 2.5, "reference_close_date": "2026-11-20",
+                    "received_at_ms": int(hold.timestamp() * 1000),
+                    "stale": False, "source": "kiwoom:regular-close"}
+        with patch.object(baseline, "official_close_quote", return_value=official):
+            self.assertEqual(api._us_close_get("QQQ", now=hold, exchange="ND"), official)
 
     def test_monday_day_market_uses_friday_regular_close(self):
         monday = dt.datetime(2026, 11, 23, 11, tzinfo=ZoneInfo("America/New_York"))
