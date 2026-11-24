@@ -22,6 +22,12 @@
         target.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:8px;min-width:0;flex-shrink:0;max-height:70vh;overflow:auto';
       host.appendChild(target);
       }
+      if (where === 'left') {
+        document.body.classList.remove('left-home-open', 'left-context-open', 'left-plugin-open');
+        if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
+      } else if (window.innerWidth < 1024) {
+        document.body.classList.remove('left-market-open', 'left-home-open', 'left-context-open', 'left-plugin-open');
+      }
       document.body.classList.add(where === 'left' ? 'left-market-open' : 'right-panel-open');
       window.GaemiGTPWorkspaceShellState?.apply?.();
     }
@@ -41,6 +47,12 @@
     const controls = document.createElement('div');
     card.style.height = 'auto';
     card.style.minHeight = '112px';
+    if (id === 'news-caption') {
+      card.style.flexDirection = 'column';
+      card.style.minHeight = '70px';
+      card.style.padding = '6px 28px 6px 8px';
+      card.querySelector('[data-news-caption-title]').style.whiteSpace = 'normal';
+    }
     controls.style.cssText = 'display:flex;gap:6px;padding:4px 28px 4px 6px;flex-wrap:wrap';
     controls.setAttribute('aria-label', '위젯 위치');
     for (const [where, label] of [['left', '왼쪽'], ['center', '중앙'], ['right', '오른쪽']]) {
@@ -415,7 +427,7 @@
       bodyEl.appendChild(card);
       moveWidget(id, placements.get(id) || 'center');
     }
-    dock.dataset.count = String(activeIds.length);
+    dock.dataset.count = String(bodyEl.children.length);
     document.querySelectorAll('[data-central-widget-mount]').forEach(node => {
       window.GaemiGTPAnalysisWidgets?.mount?.(node.dataset.centralWidgetMount, node);
     });
