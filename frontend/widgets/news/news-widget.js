@@ -411,7 +411,7 @@
     return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
   function listTimeText(item) {
-    // Prefer the real publication timestamp and display a consistent Korean clock time.
+    // Convert absolute publication timestamps to Korea time when available.
     if (item.published_at) {
       const date = new Date(item.published_at);
       if (!Number.isNaN(date.getTime())) {
@@ -420,11 +420,11 @@
         }).format(date);
       }
     }
-    // If the provider only supplies an absolute clock string, keep it.
+    // Keep the supplied time label (e.g. "방금 전", "1분 전") if no timestamp exists.
     const raw = String(item.time || '').trim();
-    const clock = raw.match(/(?:^|\\s)([01]?\\d|2[0-3]):([0-5]\\d)(?:\\s|$)/);
+    const clock = raw.match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$)/);
     if (clock) return clock[1].padStart(2, '0') + ':' + clock[2];
-    return '';
+    return raw;
   }
   function renderListItem(item) {
     const time = listTimeText(item);
