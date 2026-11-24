@@ -297,6 +297,7 @@
       const meta = catalog()[id];
       if (id === 'news-feed') {
         return `<article class="central-widget-card central-widget-card--news-feed" data-central-widget-id="news-feed" aria-label="뉴스 위젯">
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-feed" aria-label="뉴스 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
           <section class="gnw-root" data-gnw-root aria-label="뉴스 검색과 목록"></section>
         </article>`;
       }
