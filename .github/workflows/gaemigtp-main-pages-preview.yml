@@ -8,6 +8,8 @@ on:
       - frontend/shell/center-chat/widget-dock/widget-dock.css
       - frontend/shell/center-chat/widget-dock/widget-dock.js
       - frontend/widgets/catalog/catalog.js
+      - frontend/widgets/news/news-widget.js
+      - frontend/widgets/news/news-widget.css
       - frontend/shell/left-market-sidebar/market-sidebar.css
       - frontend/shell/left-market-sidebar/market-sidebar.js
   workflow_dispatch:
@@ -36,6 +38,8 @@ jobs:
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
           node --test tests/test_sidebar_issue_sync.cjs
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          node --check frontend/widgets/news/news-widget.js
+          ! grep -Fq '<iframe' frontend/shell/center-chat/widget-dock/widget-dock.js
           grep -Fq 'data-qqq-reason' frontend/shell/center-chat/widget-dock/widget-dock.js
           grep -Fq '#bfc3cb' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
@@ -93,6 +97,12 @@ jobs:
           cmp frontend/shell/center-chat/widget-dock/widget-dock.css "$RUNNER_TEMP/pages-widget-dock.css"
           curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 20 -H 'Cache-Control: no-cache' "$PREVIEW_URL/$catalog_js" -o "$RUNNER_TEMP/pages-widget-catalog.js"
           cmp frontend/widgets/catalog/catalog.js "$RUNNER_TEMP/pages-widget-catalog.js"
+          news_widget_js="$(grep -o 'widgets/news/news-widget[.]js?v=[^"]*' frontend/index.html)"
+          news_widget_css="$(grep -o 'widgets/news/news-widget[.]css?v=[^"]*' frontend/index.html)"
+          curl -fLsS --compressed --max-time 20 "$PREVIEW_URL/$news_widget_js" -o "$RUNNER_TEMP/news-widget.js"
+          cmp frontend/widgets/news/news-widget.js "$RUNNER_TEMP/news-widget.js"
+          curl -fLsS --compressed --max-time 20 "$PREVIEW_URL/$news_widget_css" -o "$RUNNER_TEMP/news-widget.css"
+          cmp frontend/widgets/news/news-widget.css "$RUNNER_TEMP/news-widget.css"
           grep -Fq 'https://gaemigtp-news.pages.dev/' frontend/shell/center-chat/widget-dock/widget-dock.js
           grep -Fq "'news-caption': { title: '속보'" frontend/widgets/catalog/catalog.js
           grep -Fq "'news-feed': { title: '뉴스'" frontend/widgets/catalog/catalog.js
