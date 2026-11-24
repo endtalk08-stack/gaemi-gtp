@@ -51,6 +51,9 @@
       const tb = Date.parse(b?.published_at || b?.publishedAt || '') || 0;
       return tb - ta;
     });
+    // Only a verified news title supplied to this feed may replace the caption placeholder.
+    const latest = rows.find(item => item && typeof item.title === 'string' && item.title.trim());
+    window.GaemiGTPWidgetDock?.setNewsHeadline?.(latest?.title || '');
     list.replaceChildren();
     rows.forEach(function (entry) {
       if (!entry || typeof entry.title !== 'string' || !entry.title.trim()) return;
