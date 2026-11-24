@@ -297,6 +297,7 @@
 
 /* Optional headline-only News caption. Spans the center width so video titles remain legible. */
 .central-widget-card--news-caption {
+  order: -1; /* Always place the caption before existing plugin cards, regardless of addition order. */
   position: relative;
   grid-column: 1 / -1;
   width: 100%;
