@@ -18,6 +18,9 @@ class Element {
     this.listeners = {};
     this.classList = { toggle() {}, add() {}, remove() {} };
     this.style = {};
+    this.hidden = false;
+    this.isConnected = true;
+    this.parentElement = null;
     this.textContent = '';
     this.innerHTML = '';
   }
@@ -26,20 +29,40 @@ class Element {
   setAttribute() {}
   append(...nodes) { for (const node of nodes) this.appendChild(node); }
   appendChild(child) {
+    if (child.parentElement) {
+      child.parentElement.children = child.parentElement.children.filter((node) => node !== child);
+    }
     this.children = this.children.filter((node) => node !== child);
     this.children.push(child);
+    child.parentElement = this;
     return child;
   }
   insertBefore(child, sibling) {
+    if (child.parentElement) {
+      child.parentElement.children = child.parentElement.children.filter((node) => node !== child);
+    }
     this.children = this.children.filter((node) => node !== child);
     const index = this.children.indexOf(sibling);
     if (index < 0) this.children.push(child);
     else this.children.splice(index, 0, child);
+    child.parentElement = this;
     return child;
   }
   focus() {}
-  replaceChildren(...nodes) { this.children = [...nodes]; }
-  contains(child) { return this.children.includes(child); }
+  replaceChildren(...nodes) {
+    this.children.forEach((node) => { if (node.parentElement === this) node.parentElement = null; });
+    this.children = [...nodes];
+    this.children.forEach((node) => { node.parentElement = this; });
+  }
+  contains(child) { return this.children.some((node) => node === child || node.contains?.(child)); }
+  getClientRects() {
+    let current = this;
+    while (current) {
+      if (current.hidden) return [];
+      current = current.parentElement;
+    }
+    return [1];
+  }
   querySelectorAll(selector) {
     if (selector === ':scope > button[data-original-index]') {
       return this.children.filter((item) => item.tagName === 'button' && 'originalIndex' in item.dataset);
@@ -74,8 +97,14 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
     setItem(key, value) { storage.set(key, value); }
   };
   const list = new Element('div');
+  const industryMap = new Element('div');
+  const industrySlot = new Element('div');
+  industrySlot.hidden = true;
+  industrySlot.appendChild(industryMap);
   const title = new Element();
   const metric = new Element();
+  const rankingSection = new Element();
+  rankingSection.append(title, metric, list);
   const subtitle = new Element();
   const realtimeTab = new Element('button'); realtimeTab.dataset.infoTabAction = 'realtime';
   const industryTab = new Element('button'); industryTab.dataset.infoTabAction = 'industry';
@@ -85,6 +114,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   const sidebar = new Element();
   sidebar.querySelector = (selector) => ({
     '#marketRankingList': list,
+    '#marketIndustryMap': industryMap,
+    '#marketIndustryWidgetSlot': industrySlot,
     '#rightListTitle': title,
     '#rightListMetric': metric,
     '.market-sidebar-subtitle': subtitle
@@ -202,7 +233,8 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   });
   documentListeners.DOMContentLoaded();
   return {
-    list, realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages, sockets,
+    list, industryMap, industrySlot, rankingSection,
+    realtimeTab, industryTab, valueTab, gainTab, lossTab, calls, storage, logoImages, sockets,
     industryQuotes(items) { sockets.at(-1).onmessage({ data: JSON.stringify({ type: 'industry-quotes', items }) }); },
     marketEtfQuotes(items) { sockets.at(-1).onmessage({ data: JSON.stringify({ type: 'market-etf-quotes', items }) }); },
     onMarketEtfQuotes(fn) { (listeners['gaemi:market-etf-quotes'] ||= []).push(fn); },
@@ -223,8 +255,8 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
     call.url === 'https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap'));
   assert.equal(app.calls.slice(callsBeforeTab).some((call) =>
     call.url === 'https://quotes.gaemigtp.com/market/trading-value?market=us'), false);
-  assert.equal(app.list.children.length, 14);
-  const rowFor = (name) => app.list.children.find((row) =>
+  assert.equal(app.industryMap.children.length, 14);
+  const rowFor = (name) => app.industryMap.children.find((row) =>
     row.children[0]?.children[0]?.textContent === name);
   const technology = rowFor('정보기술');
   assert.equal(technology.children[0].children[1].textContent, '—');
@@ -242,10 +274,10 @@ test('industry tab uses the dedicated Kiwoom industry market-cap endpoint, never
   const utilities = rowFor('유틸리티');
   assert.equal(utilities.children[0].children[1].textContent, '—');
   assert.equal(utilities.children[1].children[0].textContent, '상위 종목 데이터 없음');
-  const themeRows = app.list.children.filter((row) =>
+  const themeRows = app.industryMap.children.filter((row) =>
     ['반도체', '바이오', '비트코인'].includes(row.children[0]?.children[0]?.textContent));
   assert.deepEqual(themeRows.map((row) => row.children[0].children[0].textContent), ['반도체', '바이오', '비트코인']);
-  assert.ok(app.list.children.every((row) =>
+  assert.ok(app.industryMap.children.every((row) =>
     row.children[0].children.some((child) => child.className === 'industry-map-sector-name')
       && row.children[0].children.some((child) => child.className === 'industry-map-sector-change')));
   assert.equal(themeRows[0].children[1].children.length, 3);
@@ -275,11 +307,11 @@ test('SPY and DIA use their own message on the existing quote socket', async () 
   ];
   app.industryQuotes(quotes);
   assert.equal(received.length, 0);
-  const firstSector = app.list.children[0];
+  const firstSector = app.industryMap.children[0];
   assert.ok(firstSector);
   app.marketEtfQuotes(quotes);
   assert.deepEqual(Array.from(received.at(-1), quote => quote.symbol), ['SPY', 'DIA']);
-  assert.equal(app.list.children[0], firstSector);
+  assert.equal(app.industryMap.children[0], firstSector);
   assert.equal(app.calls.length, reads);
 });
 
@@ -295,13 +327,13 @@ test('industry map consumes fresh Kiwoom websocket quotes for its selected stock
     { symbol: 'XLK', price: 150, change_pct: 1.75,
       received_at_ms: 1_000_000, stale: false },
   ]);
-  const technology = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '정보기술');
+  const technology = app.industryMap.children.find((row) => row.children[0]?.children[0]?.textContent === '정보기술');
   assert.deepEqual(technology.children[1].children.map((tile) => tile.children[0].textContent),
     ['AMD', '앤스로픽', '브로드컴']);
   assert.equal(technology.children[1].children[1].children[1].textContent, '+3.00%');
   assert.equal(technology.children[0].children.length, 2);
   assert.equal(technology.children[0].children[1].textContent, '+1.75%');
-  const semiconductor = app.list.children.find((row) => row.children[0]?.children[0]?.textContent === '반도체');
+  const semiconductor = app.industryMap.children.find((row) => row.children[0]?.children[0]?.textContent === '반도체');
   assert.ok(semiconductor.children[1].children.some((tile) => tile.children[0].textContent === '엔비디아'));
   assert.equal(semiconductor.children[1].children[2].children[1].textContent, '-3.20%');
 });
@@ -313,7 +345,7 @@ test('industry tiles follow fresh ETF returns and reorder on quote updates', asy
   await flush();
   const quote = (symbol, change_pct, stale = false) =>
     ({ symbol, price: 100, change_pct, received_at_ms: 1_000_000, stale });
-  const firstNames = () => app.list.children.slice(0, 3)
+  const firstNames = () => app.industryMap.children.slice(0, 3)
     .map((row) => row.children[0].children[0].textContent);
   app.industryQuotes([quote('XBI', 3), quote('XLK', 1.75), quote('XLU', -2), quote('XLF', 9, true)]);
   assert.deepEqual(firstNames(), ['바이오', '정보기술', '유틸리티']);
