@@ -34,3 +34,12 @@
   min-height: 100%;
   overflow: visible;
 }
+
+
+/* Portable widgets are placed before the dashboard in rightPanelContent.
+   The dashboard's legacy overflow:hidden rule must not disable that panel scroll. */
+#rightPanelContent:has(#rightPanelTabView-panel-workspace:not([hidden])):has(> [data-portable-widget-slot="right"]:not(:empty)),
+#rightPanelContent:has(#rightPanelTabView-dashboard:not([hidden])):has(> [data-portable-widget-slot="right"]:not(:empty)) {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
