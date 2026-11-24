@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/verify_live_fix_20261123.py","request_id":"industryetfrest20261125a","timeout":120}
+{"operation":"run","path":"ops/do-gateway/quote_baseline_inspect_20261123.py","request_id":"industryetfhash20261125a","timeout":60}
