@@ -1,5 +1,7 @@
 """Serve the existing Kiwoom TOP20 ranking and the in-memory US quote stream."""
 import base64
+import fcntl
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
@@ -11,6 +13,7 @@ import struct
 import threading
 import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
@@ -217,14 +220,25 @@ def _get_us_industry_etf_quotes():
                         symbol, quote["exchange"], quote["price"])
                 except (ValueError, TypeError, ArithmeticError):
                     pass
-        result.append({
+        item = {
             "symbol": symbol,
             "change_pct": percent,
             "reference_close_date": close_date,
             "received_at_ms": quote.get("received_at_ms", 0),
             "stale": symbol not in live,
             "source": "kiwoom:websocket" if symbol in live else "kiwoom:rest",
-        })
+        }
+        held = _us_close_get(symbol, exchange=quote.get("exchange") or _CLOSE_EXCHANGES.get(symbol))
+        if held:
+            item.update({
+                "change_pct": held["change_pct"],
+                "reference_close_date": held["reference_close_date"],
+                "received_at_ms": held["received_at_ms"],
+                "stale": False,
+                "source": held["source"],
+                "market_session": held["market_session"],
+            })
+        result.append(item)
     return result
 
 def _get_us_industry_map_with_stocks(view="legacy"):
@@ -315,10 +329,12 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         row["change_pct"] = None
         for stock in row.get("stocks", []):
             symbol = str(stock.get("symbol") or "").upper().split(".")[0]
-            quote = confirmed.get(symbol)
+            quote = _us_close_get(symbol, exchange=stock.get("exchange")) or confirmed.get(symbol)
             if quote:
                 stock["change_pct"] = quote["change_pct"]
                 stock["reference_close_date"] = quote.get("reference_close_date")
+                if quote.get("market_session") == "last_regular_tick":
+                    stock["price"] = quote["price"]
             else:
                 stock["change_pct"] = None
                 price, exchange = stock.get("price"), stock.get("exchange")
@@ -375,6 +391,7 @@ _QQQ_QUOTE = None
 _TOP20_SYMBOLS = frozenset()
 _INDUSTRY_SYMBOLS = frozenset()
 _ETF_SYMBOLS = frozenset()
+_CLOSE_EXCHANGES = {}
 _TOP20_QUOTES = {}
 _INDUSTRY_QUOTES = {}
 _ETF_QUOTES = {}
@@ -390,6 +407,179 @@ _QQQ_REST_CACHE = {"expires_at": 0.0, "data": None}
 _QQQ_REST_TTL = 60
 _QQQ_REST_RETRY_TTL = 15
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+
+# Last *verified regular-session trade*, not the official closing-auction price.
+# This record is shared by the two read-only US quote API processes and survives
+# a service restart. Only public prices/rates are stored, never credentials.
+_US_CLOSE_NY = ZoneInfo("America/New_York")
+_US_CLOSE_FILE = Path("/var/lib/gaemigtp-news/us-regular-last-verified.json")
+_US_CLOSE_LOCK_FILE = Path("/var/lib/gaemigtp-news/us-regular-last-verified.lock")
+_US_CLOSE_LOCK = threading.RLock()
+_US_CLOSE_CACHE = {"day": "", "items": {}}
+_US_CLOSE_LAST_SAVE = 0.0
+_US_CLOSE_LAST_READ = 0.0
+_US_CLOSE_MAX_BYTES = 100000
+
+
+def _us_close_phase(now=None):
+    now = now or datetime.now(timezone.utc)
+    local = now.astimezone(_US_CLOSE_NY)
+    minute = local.hour * 60 + local.minute
+    if local.weekday() >= 5:
+        return "none", local.date().isoformat()
+    if 9 * 60 + 30 <= minute < 16 * 60:
+        return "capture", local.date().isoformat()
+    if 16 * 60 <= minute < 16 * 60 + 30:
+        return "hold", local.date().isoformat()
+    return "none", local.date().isoformat()
+
+
+def _us_close_read_disk():
+    try:
+        if (_US_CLOSE_FILE.is_symlink() or not _US_CLOSE_FILE.is_file()
+                or _US_CLOSE_FILE.stat().st_size > _US_CLOSE_MAX_BYTES):
+            return None
+        data = json.loads(_US_CLOSE_FILE.read_text(encoding="utf-8"))
+        if (not isinstance(data, dict) or not isinstance(data.get("day"), str)
+                or not isinstance(data.get("items"), dict)
+                or len(data["items"]) > 180):
+            return None
+        return data
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def _us_close_merge(incoming):
+    global _US_CLOSE_CACHE
+    if not incoming or incoming["day"] != _US_CLOSE_CACHE["day"]:
+        return
+    for symbol, item in incoming["items"].items():
+        if not SYMBOL.fullmatch(str(symbol)) or not isinstance(item, dict):
+            continue
+        old = _US_CLOSE_CACHE["items"].get(symbol)
+        if (old is None or
+                int(item.get("observed_at_ms") or 0) > int(old.get("observed_at_ms") or 0)):
+            _US_CLOSE_CACHE["items"][symbol] = item
+
+
+def _us_close_save():
+    global _US_CLOSE_LAST_SAVE
+    # Both the plain and TLS quote services use this same local file.
+    try:
+        fd = os.open(_US_CLOSE_LOCK_FILE, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            _us_close_merge(_us_close_read_disk())
+            payload = json.dumps(_US_CLOSE_CACHE, separators=(",", ":"), ensure_ascii=True)
+            if len(payload) > _US_CLOSE_MAX_BYTES:
+                return
+            tmp_name = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", encoding="utf-8", prefix=".us-regular-",
+                    suffix=".tmp", dir=str(_US_CLOSE_FILE.parent), delete=False
+                ) as tmp:
+                    tmp_name = tmp.name
+                    os.chmod(tmp_name, 0o600)
+                    tmp.write(payload)
+                    tmp.flush()
+                    os.fsync(tmp.fileno())
+                os.replace(tmp_name, _US_CLOSE_FILE)
+            finally:
+                if tmp_name and os.path.exists(tmp_name):
+                    os.unlink(tmp_name)
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+        _US_CLOSE_LAST_SAVE = time.monotonic()
+    except OSError:
+        # A write failure may not interrupt the live Kiwoom quote stream.
+        pass
+
+
+def _us_close_remember(quote, now=None):
+    global _US_CLOSE_CACHE
+    now = now or datetime.now(timezone.utc)
+    phase, day = _us_close_phase(now)
+    if phase != "capture" or not isinstance(quote, dict):
+        return False
+    symbol, price, pct = quote.get("symbol"), quote.get("price"), quote.get("change_pct")
+    date = quote.get("reference_close_date")
+    stamp = quote.get("received_at_ms")
+    if (not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol)
+            or type(price) not in (float, int) or not math.isfinite(price)
+            or not 0 < price < 10000000
+            or type(pct) not in (float, int) or not math.isfinite(pct)
+            or not -100 < pct < 10000
+            or not isinstance(date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date)
+            or date >= day
+            or type(stamp) is not int
+            or not 0 <= int(now.timestamp() * 1000) - stamp <= 120000):
+        return False
+    exchange = quote.get("exchange")
+    safe = {
+        "symbol": symbol, "price": float(price), "change_pct": float(pct),
+        "reference_close_date": date, "received_at_ms": stamp,
+        "observed_at_ms": stamp, "exchange": exchange if exchange in ("NY", "ND", "NA") else None,
+    }
+    with _US_CLOSE_LOCK:
+        if _US_CLOSE_CACHE["day"] != day:
+            _US_CLOSE_CACHE = {"day": day, "items": {}}
+        previous = _US_CLOSE_CACHE["items"].get(symbol)
+        if previous and int(previous.get("observed_at_ms") or 0) > stamp:
+            return False
+        _US_CLOSE_CACHE["items"][symbol] = safe
+        if time.monotonic() - _US_CLOSE_LAST_SAVE >= 6:
+            _us_close_save()
+    return True
+
+
+def _us_close_get(symbol, now=None, exchange=None):
+    global _US_CLOSE_CACHE, _US_CLOSE_LAST_READ
+    now = now or datetime.now(timezone.utc)
+    phase, day = _us_close_phase(now)
+    if phase != "hold" or not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol):
+        return None
+    # The dated Kiwoom daily record takes precedence over the last regular
+    # tick. Its previous-close reference is independently checked by Yahoo.
+    if exchange in ("ND", "NY", "NA"):
+        from backend.us_quote_change import official_close_quote
+        official = official_close_quote(symbol, exchange, now=now)
+        if official is not None:
+            return official
+    with _US_CLOSE_LOCK:
+        if _US_CLOSE_CACHE["day"] != day:
+            _US_CLOSE_CACHE = {"day": day, "items": {}}
+            _US_CLOSE_LAST_READ = 0.0
+        if time.monotonic() - _US_CLOSE_LAST_READ >= 3:
+            _us_close_merge(_us_close_read_disk())
+            _US_CLOSE_LAST_READ = time.monotonic()
+        row = _US_CLOSE_CACHE["items"].get(symbol)
+        if not isinstance(row, dict):
+            return None
+        try:
+            observed = datetime.fromtimestamp(row["observed_at_ms"] / 1000, _US_CLOSE_NY)
+            if (observed.date().isoformat() != day or
+                    not (9 * 60 + 30 <= observed.hour * 60 + observed.minute < 16 * 60)
+                    or not (0 < row["price"] < 10000000)
+                    or not (-100 < row["change_pct"] < 10000)
+                    or not (isinstance(row.get("reference_close_date"), str)
+                            and row["reference_close_date"] < day)):
+                return None
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
+        return {
+            "symbol": symbol, "exchange": row.get("exchange"),
+            "price": row["price"], "change_pct": row["change_pct"],
+            "reference_close_date": row["reference_close_date"],
+            "reference_close_session": row["reference_close_date"],
+            "received_at_ms": int(now.timestamp() * 1000),
+            "stale": False, "source": "kiwoom:regular-last-verified",
+            "market_session": "last_regular_tick",
+        }
+
+
 
 
 def _origin_allowed(origin):
@@ -455,11 +645,15 @@ def _publish_live_quote(quote):
                 or symbol in _INDUSTRY_SYMBOLS or symbol in _ETF_SYMBOLS
                 or symbol in MARKET_WIDGET_ETF_EXCHANGES):
             _QQQ_CHANGED.notify_all()
+    # Outside the quote lock: a short atomic disk write must not delay WS clients.
+    _us_close_remember(safe)
 
 
 def _set_top20_symbols(symbols):
     global _TOP20_SYMBOLS
     with _QQQ_CHANGED:
+        if isinstance(symbols, dict):
+            _CLOSE_EXCHANGES.update({s: e for s, e in symbols.items() if e in ("ND", "NY", "NA")})
         _TOP20_SYMBOLS = frozenset(symbols)
         for symbol in _TOP20_QUOTES.keys() - _TOP20_SYMBOLS:
             del _TOP20_QUOTES[symbol]
@@ -475,6 +669,8 @@ def _set_industry_symbols(symbols):
         if isinstance(symbol, str) and SYMBOL.fullmatch(symbol)
     )
     with _QQQ_CHANGED:
+        if isinstance(symbols, dict):
+            _CLOSE_EXCHANGES.update({s: e for s, e in symbols.items() if e in ("ND", "NY", "NA")})
         _INDUSTRY_SYMBOLS = clean
         for symbol in _INDUSTRY_QUOTES.keys() - _INDUSTRY_SYMBOLS:
             del _INDUSTRY_QUOTES[symbol]
@@ -488,6 +684,8 @@ def _set_etf_symbols(symbols):
         if isinstance(symbol, str) and SYMBOL.fullmatch(symbol)
     )
     with _QQQ_CHANGED:
+        if isinstance(symbols, dict):
+            _CLOSE_EXCHANGES.update({s: e for s, e in symbols.items() if e in ("ND", "NY", "NA")})
         _ETF_SYMBOLS = clean
         for symbol in _ETF_QUOTES.keys() - _ETF_SYMBOLS:
             del _ETF_QUOTES[symbol]
@@ -502,6 +700,10 @@ def _feed_snapshot(store):
     from backend.us_quote_change import _target, validated_change
     session = _target(datetime.now(timezone.utc))[0].isoformat()
     for quote in quotes:
+        held = _us_close_get(quote["symbol"], exchange=quote.get("exchange"))
+        if held:
+            quote.update(held)
+            continue
         if quote.get("reference_close_session") != session:
             quote["change_pct"] = None
             quote["reference_close_date"] = None
@@ -511,6 +713,21 @@ def _feed_snapshot(store):
                 quote["change_pct"] = percent
                 quote["reference_close_date"] = close_date
         quote["stale"] = now_ms - quote["received_at_ms"] > _QQQ_STALE_MS
+    # The file also supplies a last verified quote after a process restart.
+    if _us_close_phase()[0] == "hold":
+        if store is _TOP20_QUOTES:
+            wanted = _TOP20_SYMBOLS
+        elif store is _INDUSTRY_QUOTES:
+            wanted = _INDUSTRY_SYMBOLS
+        elif store is _ETF_QUOTES:
+            wanted = _ETF_SYMBOLS
+        else:
+            wanted = frozenset(MARKET_WIDGET_ETF_EXCHANGES)
+        present = {item["symbol"] for item in quotes}
+        for symbol in wanted - present:
+            held = _us_close_get(symbol, exchange=_CLOSE_EXCHANGES.get(symbol))
+            if held:
+                quotes.append(held)
     return quotes
 
 
@@ -569,6 +786,10 @@ def _get_market_widget_quotes():
 
     live = {quote["symbol"]: quote for quote in _market_widget_snapshot()
             if not quote["stale"]}
+    for symbol in MARKET_WIDGET_ETF_EXCHANGES:
+        held = _us_close_get(symbol, exchange=MARKET_WIDGET_ETF_EXCHANGES[symbol])
+        if held:
+            live[symbol] = held
     for symbol in MARKET_WIDGET_ETF_EXCHANGES.keys() - live.keys():
         with _MARKET_WIDGET_REST_LOCK:
             refresh_at, quote = _MARKET_WIDGET_REST_CACHE.get(symbol, (0.0, None))
@@ -599,6 +820,9 @@ def _get_market_widget_quotes():
 
 
 def _qqq_snapshot():
+    held = _us_close_get("QQQ", exchange="ND")
+    if held:
+        return held
     now_ms = int(time.time() * 1000)
     with _QQQ_LOCK:
         live = dict(_QQQ_QUOTE) if _QQQ_QUOTE else None
@@ -721,7 +945,12 @@ def read_top20(path=RANKING_FILE):
         name = row.get("name")
         if not isinstance(name, str) or not name.strip():
             raise ValueError("top20_invalid_name")
-        if symbol in confirmed:
+        held = _us_close_get(symbol, exchange=row.get("exchange"))
+        if held:
+            current_price = held["price"]
+            current_pct = held["change_pct"]
+            close_date = held["reference_close_date"]
+        elif symbol in confirmed:
             current_price = confirmed[symbol]["price"]
             current_pct = confirmed[symbol]["change_pct"]
             close_date = confirmed[symbol].get("reference_close_date")
