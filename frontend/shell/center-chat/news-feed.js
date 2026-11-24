@@ -20,6 +20,9 @@
     main.classList.add('is-news-view');
     feed.hidden = false;
     updateTabs(true);
+    // Hiding the hero changes which shared header controls must be visible.
+    // Reuse the existing shell-state sync; do not manipulate panel buttons here.
+    window.GaemiGTPWorkspaceShellState?.apply?.();
   }
 
   function showChat() {
