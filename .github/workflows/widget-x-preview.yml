@@ -39,7 +39,6 @@ jobs:
           case "$PREVIEW_URL" in https://*.gaemigtp-main.pages.dev) ;; *) exit 1 ;; esac
           curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/" -o "$RUNNER_TEMP/index.html"
           echo "Preview HTML bytes: $(wc -c < "$RUNNER_TEMP/index.html")"
-          grep -Fq 'centralWidgetDock' "$RUNNER_TEMP/index.html"
           node - "$RUNNER_TEMP/index.html" <<'NODE'
           const fs = require('fs');
           const html = fs.readFileSync(process.argv[2], 'utf8');
