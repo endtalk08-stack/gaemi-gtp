@@ -389,7 +389,7 @@
       title: raw.title.trim(),
       summary: String(raw.summary || raw.description || (raw.body ? String(raw.body).slice(0,220) : '')),
       body: String(raw.article_body || raw.content || raw.body || ''),
-      time: String(raw.time || ''), published_at: String(raw.published_at || raw.publishedAt || ''),
+      time: String(raw.time || ''), published_at: String(raw.published_at || raw.publishedAt || raw.pubDate || raw.date || ''),
       source: String(raw.source || raw.publisher || ''),
       url: typeof raw.url === 'string' && /^https:\/\//.test(raw.url) ? raw.url : '',
       tickers: Array.isArray(raw.tickers) ? raw.tickers.filter(x=>typeof x === 'string').slice(0,20) : [],
@@ -411,24 +411,23 @@
     return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
   function listTimeText(item) {
-    // Show the publication clock time in Korea (HH:mm), not elapsed text.
+    const raw = String(item.time || '').trim();
+    // Keep an existing relative label from the API.
+    if (/방금 전|\d+\s*(분|시간|일)\s*전/.test(raw)) return raw;
+    // Otherwise derive elapsed time from the publication timestamp.
     const candidates = [item.published_at, item.publishedAt, item.pubDate, item.date];
     for (const value of candidates) {
       if (!value) continue;
-      const date = new Date(value);
-      if (!Number.isNaN(date.getTime())) {
-        return new Intl.DateTimeFormat('ko-KR', {
-          timeZone: 'Asia/Seoul',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        }).format(date);
-      }
+      const published = new Date(value).getTime();
+      if (!Number.isFinite(published)) continue;
+      const minutes = Math.max(0, Math.floor((Date.now() - published) / 60000));
+      if (minutes < 1) return '방금 전';
+      if (minutes < 60) return minutes + '분 전';
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return hours + '시간 전';
+      return Math.floor(hours / 24) + '일 전';
     }
-    // If the API already supplies a clock string, retain it.
-    const raw = String(item.time || '').trim();
-    const match = raw.match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$)/);
-    return match ? match[1].padStart(2, '0') + ':' + match[2] : '';
+    return '';
   }
   function renderListItem(item) {
     const time = listTimeText(item);
