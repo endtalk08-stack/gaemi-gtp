@@ -321,6 +321,15 @@
     if (!dock || !bodyEl) return;
     bodyEl.innerHTML = activeIds.map(id => {
       const meta = catalog()[id];
+      if (id === 'news-feed') {
+        return `<article class="central-widget-card central-widget-card--news-feed" data-central-widget-id="news-feed" aria-label="뉴스 위젯">
+          <div class="central-widget-card__top central-widget-card__top--news">
+            <div class="central-widget-card__name">뉴스</div>
+            <button type="button" class="central-widget-card__close" data-central-widget-remove="news-feed" aria-label="뉴스 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
+          </div>
+          <iframe class="central-widget-card__news-frame" src="https://gaemigtp-news.pages.dev/" title="TradingView 뉴스" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </article>`;
+      }
       if (id === 'news-caption') {
         return `<article class="central-widget-card central-widget-card--news-caption" data-central-widget-id="news-caption" aria-label="뉴스 자막 위젯">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-caption" aria-label="뉴스 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
