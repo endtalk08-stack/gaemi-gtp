@@ -3,8 +3,20 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { JSDOM } = require('jsdom');
 
-test('widgets retain identity, live quotes and caption after panel moves', () => {
-  const dom = new JSDOM('<div id="leftMarketSidebar"></div><div id="rightPanel"></div><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section>', { url: 'https://example.test', runScripts: 'outside-only' });
+function dispatchPointer(window, target, type, x, y) {
+  const event = new window.Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    pointerId: { value: 1 },
+    pointerType: { value: 'mouse' },
+    button: { value: 0 },
+    clientX: { value: x },
+    clientY: { value: y }
+  });
+  target.dispatchEvent(event);
+}
+
+test('widgets keep identity and live content while moving without move buttons', () => {
+  const dom = new JSDOM('<aside id="leftMarketSidebar"><div class="flex-1 overflow-y-auto"></div></aside><main id="mainContent"><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section></main><aside id="rightPanel"><div id="rightPanelContent"></div></aside>', { url: 'https://example.test', runScripts: 'outside-only' });
   const w = dom.window;
   w.setInterval = () => 0;
   w.fetch = async () => ({ ok: false });
@@ -14,9 +26,14 @@ test('widgets retain identity, live quotes and caption after panel moves', () =>
   dock.initialize();
   dock.add('qqq');
   const card = w.document.querySelector('[data-central-widget-id="qqq"]');
+  assert.ok(card);
+  assert.equal(card.querySelector('[aria-label="위젯 위치"]'), null);
   for (const place of ['right', 'left', 'center']) {
     assert.equal(dock.move('qqq', place), true);
-    assert.equal(card.parentElement, place === 'center' ? w.document.getElementById('centralWidgetDockBody') : w.document.querySelector(`[data-portable-widget-slot="${place}"]`));
+    const slot = place === 'center'
+      ? w.document.getElementById('centralWidgetDockBody')
+      : w.document.querySelector('[data-portable-widget-slot="' + place + '"]');
+    assert.equal(card.parentElement, slot);
   }
   dock.move('qqq', 'right');
   dock.add('spy');
@@ -38,28 +55,46 @@ test('widgets retain identity, live quotes and caption after panel moves', () =>
   dom.window.close();
 });
 
-test('industry reuses the sidebar renderer without hiding or selecting sidebar menus', () => {
-  const dom = new JSDOM('<aside id="leftMarketSidebar"><button data-info-tab-action="industry" aria-pressed="true"></button><div id="original"><div id="marketRankingList"></div></div></aside><aside id="rightPanel"><div data-industry-widget-target="right"></div></aside><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section>', { url: 'https://example.test', runScripts: 'outside-only' });
+test('the existing semiconductor tile drags the same industry map into a panel', () => {
+  const dom = new JSDOM('<aside id="leftMarketSidebar"><div class="flex-1 overflow-y-auto"><button data-info-tab-action="industry">업종</button><div id="marketIndustryWidgetSlot" data-widget-drop-zone="left"><div id="marketIndustryMap"><div class="industry-map-sector" data-widget-drag-handle="industry">반도체</div></div></div><div id="rankingSection"><div id="marketRankingList"></div></div></div></aside><main id="mainContent"><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section></main><aside id="rightPanel"><div id="rightPanelContent"></div></aside>', { url: 'https://example.test', runScripts: 'outside-only' });
   const w = dom.window;
   w.setInterval = () => 0;
-  const mounted = new Set();
-  w.GaemiGTPMarketSidebar = { mountIndustryView: target => mounted.add(target), unmountIndustryView: target => mounted.delete(target) };
+  w.fetch = async () => ({ ok: false });
+  const menu = w.document.querySelector('[data-info-tab-action="industry"]');
+  const homeSlot = w.document.getElementById('marketIndustryWidgetSlot');
+  const map = w.document.getElementById('marketIndustryMap');
+  const handle = map.querySelector('[data-widget-drag-handle="industry"]');
   w.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
   w.eval(readFileSync('frontend/widgets/industry/industry-widget.js', 'utf8'));
   w.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
   const dock = w.GaemiGTPWidgetDock;
   dock.initialize();
-  dock.add('industry');
+
+  w.document.elementFromPoint = (x) => x > 50
+    ? w.document.getElementById('mainContent')
+    : w.document.getElementById('leftMarketSidebar');
+  dispatchPointer(w, handle, 'pointerdown', 10, 10);
+  dispatchPointer(w, w.document, 'pointermove', 100, 10);
+  dispatchPointer(w, w.document, 'pointerup', 100, 10);
+
+  assert.equal(dock.isActive('industry'), true);
   const widget = w.document.querySelector('[data-central-widget-id="industry"]');
+  const target = widget.querySelector('[data-industry-widget-target]');
   assert.ok(widget);
-  for (const place of ['right', 'left', 'center']) {
-    dock.move('industry', place);
-    assert.equal(w.document.querySelector('[data-central-widget-id="industry"]'), widget);
-    assert.equal(mounted.size, 1);
-    assert.equal(w.document.getElementById('original').hidden, false);
-  }
-  widget.querySelector('[aria-label="업종 위젯 삭제"]').click();
-  assert.equal(widget.isConnected, false);
-  assert.equal(w.document.getElementById('original').hidden, false);
+  assert.equal(widget.parentElement, w.document.getElementById('centralWidgetDockBody'));
+  assert.equal(target.firstElementChild, map);
+  assert.equal(map.querySelector('[data-widget-drag-handle="industry"]'), handle);
+  assert.equal(widget.querySelector('[aria-label="위젯 위치"]'), null);
+  assert.equal(menu.isConnected, true);
+
+  dock.move('industry', 'right');
+  assert.equal(widget.parentElement, w.document.querySelector('[data-portable-widget-slot="right"]'));
+  assert.equal(target.firstElementChild, map);
+  dock.move('industry', 'left');
+  assert.equal(widget.parentElement, homeSlot);
+  assert.equal(homeSlot.contains(map), true);
+  dock.remove('industry');
+  assert.equal(map.parentElement, homeSlot);
+  assert.equal(menu.isConnected, true);
   dom.window.close();
 });
