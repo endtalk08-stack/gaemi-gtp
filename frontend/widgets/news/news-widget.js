@@ -411,22 +411,22 @@
     return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
   function listTimeText(item) {
-    const raw = String(item.time || '').trim();
-    // Keep an existing relative label from the API.
-    if (/방금 전|\d+\s*(분|시간|일)\s*전/.test(raw)) return raw;
-    // Otherwise derive elapsed time from the publication timestamp.
+    // Prefer the actual publication timestamp, formatted as Korea local HH:mm.
     const candidates = [item.published_at, item.publishedAt, item.pubDate, item.date];
     for (const value of candidates) {
       if (!value) continue;
-      const published = new Date(value).getTime();
-      if (!Number.isFinite(published)) continue;
-      const minutes = Math.max(0, Math.floor((Date.now() - published) / 60000));
-      if (minutes < 1) return '방금 전';
-      if (minutes < 60) return minutes + '분 전';
-      const hours = Math.floor(minutes / 60);
-      if (hours < 24) return hours + '시간 전';
-      return Math.floor(hours / 24) + '일 전';
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) {
+        return new Intl.DateTimeFormat('ko-KR', {
+          timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false
+        }).format(date);
+      }
     }
+    // The feed may already provide the publication clock as HH:mm.
+    const raw = String(item.time || '').trim();
+    const clock = raw.match(/(?:^|\\s)([01]?\\d|2[0-3]):([0-5]\\d)(?:\\s|$)/);
+    if (clock) return clock[1].padStart(2, '0') + ':' + clock[2];
+    // Do not invent a clock time from relative labels such as "1분 전".
     return '';
   }
   function renderListItem(item) {
