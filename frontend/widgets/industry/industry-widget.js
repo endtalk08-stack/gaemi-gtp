@@ -346,7 +346,8 @@
       if (data?.ok !== true || !Array.isArray(data.items)) throw new Error('invalid_industry_etf');
       for (const quote of data.items) {
         const symbol = normalizeSymbol(quote?.symbol);
-        if (!symbol || quote.stale === true || !validPercent(quote.change_pct)) continue;
+        if (!symbol || !validPercent(quote.change_pct)) continue;
+        if (quote.stale === true) fetchError = true;
         const prior = etfRates.get(symbol);
         if (Number.isFinite(prior?.received_at_ms) && Number.isFinite(quote.received_at_ms)
           && quote.received_at_ms < prior.received_at_ms) continue;
