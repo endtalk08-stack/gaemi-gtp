@@ -35,7 +35,7 @@ jobs:
       - name: Validate every local frontend asset and Pages Function route
         run: node scripts/pages/verify-pages-inputs.mjs
       - name: Build Pages Functions from repository root
-        run: npx --yes wrangler@4 pages functions build functions --project-directory . --outdir "$RUNNER_TEMP/pages-functions"
+        run: npx --yes wrangler@4.167.0 pages functions build functions --project-directory . --outdir "$RUNNER_TEMP/pages-functions"
       - name: Preserve critical application checks
         run: |
           test -s frontend/index.html
@@ -88,6 +88,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
+          wranglerVersion: "4.167.0"
           command: pages deploy frontend --project-name gaemigtp-main --branch pr-${{ github.event.pull_request.number }} --commit-hash ${{ github.sha }}
       - name: Detect preview Access protection and verify assets when readable
         id: preview_check
@@ -95,7 +96,7 @@ jobs:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
           set +e
-          status="$(curl -sS --max-time 20 -H 'Cache-Control: no-cache' "$DEPLOYMENT_URL/" -o "$RUNNER_TEMP/preview-index.html" -w '%{http_code}')"
+          status="$(curl -sSL --max-redirs 5 --max-time 20 -H 'Cache-Control: no-cache' "$DEPLOYMENT_URL/" -o "$RUNNER_TEMP/preview-index.html" -w '%{http_code}')"
           curl_status=$?
           set -e
           if [ "$curl_status" -ne 0 ]; then
@@ -153,6 +154,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
+          wranglerVersion: "4.167.0"
           command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash ${{ github.sha }}
       - name: Verify every production asset byte-for-byte
         run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
