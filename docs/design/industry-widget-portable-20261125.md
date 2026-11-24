@@ -11,7 +11,7 @@
 
 | 책임 | 파일 | 확인 결과 |
 | --- | --- | --- |
-| 왼쪽 업종 | `frontend/shell/left-market-sidebar/market-sidebar.js` | 내부 `renderIndustryMap` 및 `loadIndustryMap`이 `#marketRankingList`를 사용 |
+| 왼쪽 업종 | `frontend/shell/left-market-sidebar/market-sidebar.js` | 내부 `renderIndustryMap`이 단일 `#marketIndustryMap` DOM 노드에 렌더링하고 `loadIndustryMap`이 기존 DigitalOcean API를 사용 |
 | 플러그인 목록 | `frontend/widgets/catalog/catalog.js` | QQQ, SPY, DIA, 야간선물, 속보, 뉴스 |
 | 플러그인 추가/삭제 | `frontend/shell/left-plugin-sidebar/plugin-sidebar.js` | `GaemiGTPWidgetDock.add/remove` 호출 |
 | 중앙 독 | `frontend/shell/center-chat/widget-dock/widget-dock.js` | 위젯 ID를 로컬 상태로 저장하고 다시 렌더링 |
@@ -39,7 +39,7 @@ IndustryWidget Controller (배치: left | center | right)
             |
        단 하나의 DOM 위젯
           /      |      \
- left: 업종 탭   center: WidgetDock   right: 패널 '업종' 뷰
+ left: 업종 탭   center: WidgetDock   right: 기존 패널 콘텐츠 슬롯
 ```
 
 - 별도 이동 버튼은 만들지 않는다. 왼쪽 배치에서는 기존 **반도체** 섹터 박스 자체를 잡아 끌고, 다른 위젯도 기존 제목 영역을 잡아 끌어 왼쪽/중앙/오른쪽 패널에 놓는다.
@@ -47,7 +47,7 @@ IndustryWidget Controller (배치: left | center | right)
 - **중앙:** `centralWidgetDockBody`에 전체 가로폭의 위젯 카드로 배치한다.
 - **오른쪽:** 기존 오른쪽 패널 콘텐츠 영역에 배치한다. 대시보드/공시 메뉴는 변경하지 않는다.
 - 기존 `#marketIndustryMap` DOM 노드를 그대로 이동한다. 왼쪽의 업종 탭/시장/거래대금 메뉴는 유지하고, 업종 맵을 복제 렌더링하지 않는다.
-- 플러그인에서 삭제하면 3영역에서 제거하고 기존 시장 목록을 복원한다.
+- 플러그인에서 삭제하면 카드만 제거하고, 동일한 업종 맵 DOM 노드를 왼쪽 원래 위치로 돌려놓는다.
 - 위치는 레이아웃 설정만 로컬 저장소에 기록한다. **PC-모바일 동기화는 이번 단계에 포함되지 않음**; 서버 계정 설정 도입은 별도 설계가 필요하다.
 
 ## 갱신 및 성능
