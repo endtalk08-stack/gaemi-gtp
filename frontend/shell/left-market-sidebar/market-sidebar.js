@@ -116,10 +116,9 @@
 
     // Only US market data is requested; static sample rows have been removed.
     const list = sidebar.querySelector('#marketRankingList');
-    const industryTargets = new Set();
-    const industryViewActive = () => document.visibilityState === 'visible' && (
-      (sidebarActive() && tab === 'industry') || [...industryTargets].some(target =>
-        target.isConnected && target.getClientRects().length > 0));
+    const industryMapElement = sidebar.querySelector('#marketIndustryMap');
+    const industrySlot = sidebar.querySelector('#marketIndustryWidgetSlot');
+    const rankingSection = list?.parentElement;
     const title = sidebar.querySelector('#rightListTitle');
     const changeSortButton = sidebar.querySelector('#rightListMetric');
     const backendUrl = window.location.hostname.endsWith('github.io')
@@ -127,6 +126,17 @@
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
     const market = 'us';
     let tab = 'value';
+    const syncIndustryTabLayout = () => {
+      const mapInLeftSlot = Boolean(industrySlot && industryMapElement
+        && industrySlot.contains(industryMapElement));
+      if (industrySlot) industrySlot.hidden = tab !== 'industry' || !mapInLeftSlot;
+      if (rankingSection) {
+        rankingSection.hidden = tab === 'industry';
+        rankingSection.style.display = tab === 'industry' ? 'none' : '';
+      }
+    };
+    const industryViewActive = () => document.visibilityState === 'visible'
+      && Boolean(industryMapElement?.isConnected && industryMapElement.getClientRects().length);
     let requestId = 0;
     let changeSorted = false;
     let draggedRow = null;
@@ -398,6 +408,10 @@
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone
           + (sector.themeTone ? ' industry-map-sector-theme' : '');
+        if (sector.key === 'theme_semiconductors') {
+          heading.dataset.widgetDragHandle = 'industry';
+          heading.setAttribute('aria-label', '반도체 박스를 끌어 위젯 이동');
+        }
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
@@ -472,11 +486,8 @@
       });
     };
     const renderIndustryMap = (data) => {
-      if (tab === 'industry') renderIndustryMapFor(data, list);
-      for (const target of industryTargets) {
-        if (!target.isConnected) { industryTargets.delete(target); continue; }
-        renderIndustryMapFor(data, target);
-      }
+      if (industryMapElement) renderIndustryMapFor(data, industryMapElement);
+      syncIndustryTabLayout();
     };
     const loadIndustryMap = async (id) => {
       if (industryMapData && id === requestId) renderIndustryMap(industryMapData);
@@ -488,7 +499,7 @@
         } catch (_) {}
         return;
       }
-      if (tab === 'industry') list.classList?.add?.('industry-map-list');
+      if (industryMapElement) industryMapElement.classList?.add?.('industry-map-list');
       industryMapPromise = (async () => {
         // Industry membership and market-cap ranking come from the existing
         // DigitalOcean Kiwoom industry endpoint. Never derive this map from TOP20.
@@ -616,8 +627,7 @@
       }
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
-      if (tab !== 'industry') list.classList?.remove?.('industry-map-list');
-      if (tab !== 'value' && !(tab === 'industry' && industryMapData)) {
+      if (tab !== 'value') {
         const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
         if (displayedRows.length) cachedRankingRows = displayedRows;
         list.replaceChildren();
@@ -626,6 +636,7 @@
         list.replaceChildren(...cachedRankingRows);
         applyChangeSort();
       }
+      syncIndustryTabLayout();
       if (tab === 'realtime') {
         // QQQ is a plugin-only live quote card, not a duplicate market-row.
         list.replaceChildren();
@@ -1052,22 +1063,22 @@
         tab = nextTab;
         customOrder = readOrder();
         changeSorted = false;
+        syncIndustryTabLayout();
         void showUsRanking();
         syncQqqSocket();
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
     window.GaemiGTPMarketSidebar.refreshLiveQuotes = refreshOnReturn;
-    window.GaemiGTPMarketSidebar.mountIndustryView = (target) => {
-      industryTargets.add(target);
-      if (industryMapData) renderIndustryMapFor(industryMapData, target);
-      if (industryViewActive()) {
-        void loadIndustryMap(requestId);
-        void refreshIndustryEtfRates();
-        syncQqqSocket();
-      }
+    window.GaemiGTPMarketSidebar.syncIndustryLayout = syncIndustryTabLayout;
+    window.GaemiGTPMarketSidebar.selectIndustryTab = () => {
+      const button = sidebar.querySelector('[data-info-tab-action="industry"]');
+      if (button && tab !== 'industry') button.click();
+      else syncIndustryTabLayout();
     };
-    window.GaemiGTPMarketSidebar.unmountIndustryView = target => industryTargets.delete(target);
+    window.addEventListener('gaemi:widget-placement', syncIndustryTabLayout);
+    window.addEventListener('gaemi:widget-change', syncIndustryTabLayout);
+    syncIndustryTabLayout();
     // Closed panels and background tabs consume no ranking or quote reads.
     if (sidebarActive()) void showUsRanking();
     window.setInterval(() => {
