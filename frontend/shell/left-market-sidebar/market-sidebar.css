@@ -165,7 +165,7 @@
   padding: 9px 10px 9px 7px;
   border: 1px solid var(--gtp-border);
   border-radius: 0;
-  background: var(--gtp-surface-2);
+  background: var(--gtp-surface);
   color: var(--gtp-text);
   text-align: left;
   cursor: pointer;
