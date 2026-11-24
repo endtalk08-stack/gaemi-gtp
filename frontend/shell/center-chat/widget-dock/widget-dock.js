@@ -309,7 +309,7 @@
     captionHeadline = typeof value === 'string' ? value.trim().slice(0, 500) : '';
     const target = body()?.querySelector('[data-news-caption-title]');
     if (target) {
-      target.textContent = captionHeadline || '뉴스 제목이 여기에 표시됩니다';
+      target.textContent = captionHeadline || '속보 제목이 여기에 표시됩니다';
       target.classList.toggle('is-placeholder', !captionHeadline);
       fitNewsCaption();
     }
@@ -331,8 +331,8 @@
         </article>`;
       }
       if (id === 'news-caption') {
-        return `<article class="central-widget-card central-widget-card--news-caption" data-central-widget-id="news-caption" aria-label="뉴스 자막 위젯">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-caption" aria-label="뉴스 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
+        return `<article class="central-widget-card central-widget-card--news-caption" data-central-widget-id="news-caption" aria-label="속보 위젯">
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-caption" aria-label="속보 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
           <div class="central-widget-card__news-caption-title ${captionHeadline ? '' : 'is-placeholder'}" data-news-caption-title>${escapeHtml(captionHeadline || '뉴스 제목이 여기에 표시됩니다')}</div>
         </article>`;
       }
