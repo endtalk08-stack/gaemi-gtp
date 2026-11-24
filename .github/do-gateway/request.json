@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/audit_us_quote_socket_20261123.py","request_id":"usquoteread20261124b","timeout":90}
+{"operation":"run","path":"ops/do-gateway/verify_us_quote_groups_20261124.py","request_id":"quotecheck20261124c","timeout":120}
