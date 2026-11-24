@@ -367,10 +367,33 @@ def get_us_industry_stock_symbols():
 
 
 def get_us_etf_symbols():
-    """Return ETF-only ticker/exchange membership for its independent FE group."""
-    from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
+    """Return the fixed, verified exchange mapping for the fourteen industry ETFs.
 
-    return fetch_us_etf_exchanges()
+    Their listing venues are stable. Resolving them through usa10104 on every
+    WebSocket reconnect caused the dedicated ETF subscription to fail; do not
+    make a full-market exchange-list request just to register these symbols.
+    """
+    from backend.providers.kiwoom_us_industries import ETF_TICKERS
+
+    exchanges = {
+        "IBIT": "ND",
+        "SOXX": "ND",
+        "XBI": "NY",
+        "XLB": "NY",
+        "XLC": "NY",
+        "XLE": "NY",
+        "XLF": "NY",
+        "XLI": "NY",
+        "XLK": "NY",
+        "XLP": "NY",
+        "XLRE": "NY",
+        "XLU": "NY",
+        "XLV": "NY",
+        "XLY": "NY",
+    }
+    if set(exchanges) != set(ETF_TICKERS):
+        raise RuntimeError("industry_etf_exchange_map_incomplete")
+    return {symbol: exchanges[symbol] for symbol in sorted(ETF_TICKERS)}
 
 
 ADDRESS = "127.0.0.1"
