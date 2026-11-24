@@ -411,15 +411,23 @@
     return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
   function listTimeText(item) {
+    // News list uses relative elapsed time, not a clock time.
+    if (item.published_at) {
+      const published = new Date(item.published_at).getTime();
+      if (Number.isFinite(published)) {
+        const minutes = Math.max(0, Math.floor((Date.now() - published) / 60000));
+        if (minutes < 1) return '방금 전';
+        if (minutes < 60) return minutes + '분 전';
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return hours + '시간 전';
+        const days = Math.floor(hours / 24);
+        return days + '일 전';
+      }
+    }
+    // Preserve a relative label already supplied by the news source.
     const raw = String(item.time || '').trim();
-    const clock = raw.match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$)/);
-    if (clock) return clock[1].padStart(2, '0') + ':' + clock[2];
-    // Keep relative timestamps from the source when no absolute publish time exists.
-    if (raw && !item.published_at) return raw;
-    if (!item.published_at) return '';
-    const date = new Date(item.published_at);
-    if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Seoul'}).format(date);
+    if (/방금 전|\\d+\\s*(분|시간|일)\\s*전/.test(raw)) return raw;
+    return '';
   }
   function renderListItem(item) {
     const time = listTimeText(item);
