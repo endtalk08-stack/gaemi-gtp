@@ -599,6 +599,7 @@
         value: '거래대금 TOP 20',
       };
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
+      if (title?.parentElement) title.parentElement.hidden = tab === 'industry';
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
       if (tab !== 'industry') list.classList?.remove?.('industry-map-list');
