@@ -48,7 +48,9 @@
 .gnw-back { border:0; border-radius:0; background:transparent; color:var(--gtp-muted); font-size:15px; line-height:20px; padding:5px 9px; margin-bottom:10px; cursor:pointer; }
 .gnw-back:hover { background:var(--gtp-hover); color:var(--gtp-text); }
 .gnw-detail-card { background:var(--gtp-surface); padding:16px; border:0; border-radius:0; }
-.gnw-detail-card > .gnw-meta { justify-content:flex-end; }
+.gnw-detail-card > .gnw-meta { justify-content:space-between; margin-top:4px; }
+.gnw-detail-card .gnw-detail-title { margin:0 0 10px; }
+.gnw-article-body { margin-top:12px; }
 .gnw-detail-title { margin:10px 0; color:var(--gtp-text); font-size:15px; line-height:1.5; font-weight:500; }
 .gnw-detail-source { font-size:15px; line-height:1.5; color:var(--gtp-muted); }
 .gnw-detail-summary { margin:14px 0 0; color:var(--gtp-text-2); font-size:15px; line-height:1.65; }
