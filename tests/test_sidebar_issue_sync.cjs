@@ -349,8 +349,11 @@ test('industry tiles follow fresh ETF returns and reorder on quote updates', asy
     .map((row) => row.children[0].children[0].textContent);
   app.industryQuotes([quote('XBI', 3), quote('XLK', 1.75), quote('XLU', -2), quote('XLF', 9, true)]);
   assert.deepEqual(firstNames(), ['바이오', '정보기술', '유틸리티']);
+  const handles = () => app.industryMap.children.filter(row => row.children[0].dataset.widgetDragHandle === 'industry').map(row => row.children[0].children[0].textContent);
+  assert.deepEqual(handles(), ['바이오']);
   app.industryQuotes([quote('XLU', 4), quote('XBI', 3), quote('XLK', 1.75)]);
   assert.deepEqual(firstNames(), ['유틸리티', '바이오', '정보기술']);
+  assert.deepEqual(handles(), ['유틸리티']);
 });
 
 test('newly stored Eli Lilly issue updates its sidebar row without fetching rankings again', async () => {
