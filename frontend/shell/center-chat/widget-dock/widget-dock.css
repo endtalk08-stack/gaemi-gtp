@@ -13,6 +13,7 @@
 .central-widget-dock__body:empty { display: none; }
 
 .central-widget-card {
+  position: relative;
   min-height: 86px;
   padding: 10px 11px;
   border: none;
@@ -67,8 +68,10 @@
 }
 .central-widget-card__close--overlay {
   position: absolute;
+  z-index: 5;
   top: 4px;
   right: 4px;
+  pointer-events: auto;
 }
 .central-widget-card__kospi-title {
   display: flex;
