@@ -397,7 +397,7 @@
         const left = etfChange(a);
         const right = etfChange(b);
         return left === right ? 0 : right - left;
-      }).forEach(({ sector, stocks: ranked }) => {
+      }).forEach(({ sector, stocks: ranked }, index) => {
         const etf = sectorEtfs[sector.key];
         const etfQuote = industryQuoteFor(etf);
         const sectorPct = etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null;
@@ -409,9 +409,9 @@
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone
           + (sector.themeTone ? ' industry-map-sector-theme' : '');
-        if (sector.key === 'theme_semiconductors') {
+        if (index === 0) {
           heading.dataset.widgetDragHandle = 'industry';
-          heading.setAttribute('aria-label', '반도체 박스를 끌어 위젯 이동');
+          heading.setAttribute('aria-label', `${sector.name} 박스를 끌어 위젯 이동`);
         }
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
