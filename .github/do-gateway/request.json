@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/check_quote_process_env_names_20261125.py","request_id":"etfprocenvnames1125","timeout":45}
+{"operation":"run","path":"ops/do-gateway/hash_live_etf_files_20261125.py","request_id":"hashliveetf1125","timeout":45}
