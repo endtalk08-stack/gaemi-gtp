@@ -89,11 +89,30 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
           command: pages deploy frontend --project-name gaemigtp-main --branch pr-${{ github.event.pull_request.number }} --commit-hash ${{ github.sha }}
-      - name: Verify every deployed preview asset byte-for-byte
+      - name: Detect preview Access protection and verify assets when readable
+        id: preview_check
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
-        run: node scripts/pages/verify-pages-deployment.mjs "$DEPLOYMENT_URL"
+        run: |
+          set +e
+          status="$(curl -sS --max-time 20 -H 'Cache-Control: no-cache' "$DEPLOYMENT_URL/" -o "$RUNNER_TEMP/preview-index.html" -w '%{http_code}')"
+          curl_status=$?
+          set -e
+          if [ "$curl_status" -ne 0 ]; then
+            echo "::error::Could not retrieve the Pages preview response."
+            exit 1
+          fi
+          if grep -Eqi 'Cloudflare Access|cloudflareaccess\.com|cf-access' "$RUNNER_TEMP/preview-index.html"; then
+            echo "protected=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Preview deployed, but Cloudflare Access blocks anonymous asset/API verification."
+          elif [ "$status" = "200" ]; then
+            node scripts/pages/verify-pages-deployment.mjs "$DEPLOYMENT_URL"
+          else
+            echo "::error::Preview returned HTTP $status."
+            exit 1
+          fi
       - name: Verify preview Pages Functions and existing R2 binding
+        if: steps.preview_check.outputs.protected != 'true'
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
@@ -103,6 +122,16 @@ jobs:
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
           curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
+      - name: Publish preview URL and verification scope
+        if: always()
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          ACCESS_PROTECTED: ${{ steps.preview_check.outputs.protected }}
+        run: |
+          echo "[Open the PR preview]($DEPLOYMENT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ACCESS_PROTECTED" = "true" ]; then
+            echo "Cloudflare Access blocked anonymous verification. Sign in to inspect the preview; production will run full byte-for-byte verification after merge." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   production:
     needs: validate
