@@ -471,8 +471,8 @@
     const chips=(arr)=>arr?.length ? arr.map(x=>`<span class="gnw-chip">${escape(x)}</span>`).join('') : '';
     const paragraphs=String(item.body||'').split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
     const bodyHtml=paragraphs.length
-      ? `<div class="gnw-article-body"><h4>기사 본문</h4>${paragraphs.map(p=>`<p>${escape(p).replaceAll('\n','<br>')}</p>`).join('')}</div>`
-      : '';
+      ? `<div class="gnw-article-body"><h4>기사 본문</h4>${paragraphs.map(p=>`<p>${escape(p).replaceAll('\\n','<br>')}</p>`).join('')}</div>`
+      : (item.summary ? `<div class="gnw-article-body"><p>${escape(item.summary)}</p></div>` : '');
     const stockRows=(item.tickers||[]).map(ticker=>{
       const active=favoriteTickers.has(ticker);
       return `<div class="gnw-stock-item">
@@ -485,10 +485,11 @@
     host.innerHTML=`
       <button type="button" class="gnw-back" data-gnw-back aria-label="뉴스 목록으로 돌아가기">←</button>
       <div class="gnw-detail-card">
-        <div class="gnw-meta"><time class="gnw-time">${escape(timeText(item))}</time></div>
         <h3 class="gnw-detail-title">${escape(item.title)}</h3>
-        ${item.source ? `<div class="gnw-detail-source">${escape(item.source)}</div>` : ''}
-        ${item.summary && !item.body ? `<p class="gnw-detail-summary">${escape(item.summary)}</p>` : ''}
+        <div class="gnw-meta">
+          ${item.source ? `<span class="gnw-detail-source">${escape(item.source)}</span>` : '<span></span>'}
+          <time class="gnw-time">${escape(timeText(item))}</time>
+        </div>
       </div>
       ${bodyHtml}
       ${item.issues?.length ? `<section class="gnw-detail-section"><h4>관련 이슈</h4><div class="gnw-chips">${chips(item.issues)}</div></section>` : ''}
