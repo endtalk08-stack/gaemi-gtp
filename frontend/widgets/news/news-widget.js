@@ -410,6 +410,28 @@
     const q=query.trim().toLowerCase();
     return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
+  function listTimeText(item) {
+    const raw = String(item.time || '').trim();
+    const clock = raw.match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$)/);
+    if (clock) return clock[1].padStart(2, '0') + ':' + clock[2];
+    if (!item.published_at) return '';
+    const date = new Date(item.published_at);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Seoul'}).format(date);
+  }
+  function renderListItem(item) {
+    const time = listTimeText(item);
+    return `<button type="button" class="gnw-item" data-gnw-open="${escape(item.id)}">
+      <div class="gnw-list-row">
+        <div class="gnw-list-heading">
+          ${time ? `<time class="gnw-list-time">${escape(time)}</time>` : ''}
+          <span class="gnw-title">${escape(item.title)}</span>
+        </div>
+        <span class="gnw-source">${escape(item.source)}</span>
+      </div>
+      <p class="gnw-summary">${escape(item.summary)}</p>
+    </button>`;
+  }
   function renderList(host) {
     const matchesAll=currentItems().filter(matches);
     const rows=matchesAll.slice(0,visible);
@@ -423,12 +445,7 @@
         ${CATEGORIES.map(c=>`<button type="button" data-gnw-cat="${escape(c)}" class="gnw-category${c===selected?' is-active':''}" aria-pressed="${c===selected?'true':'false'}">${escape(c)}</button>`).join('')}
       </div>
       <div class="gnw-list">
-        ${rows.map(item=>`<button type="button" class="gnw-item" data-gnw-open="${escape(item.id)}">
-          <div class="gnw-meta"><span class="gnw-tag">${escape(item.category)}</span><span class="gnw-source">${escape(item.source)}</span></div>
-          <div class="gnw-title">${escape(item.title)}</div>
-          ${item.summary ? `<p class="gnw-summary">${escape(item.summary)}</p>` : ''}
-          <time class="gnw-time">${escape(timeText(item))}</time>
-        </button>`).join('')}
+        ${rows.map(renderListItem).join('')}
       </div>
       ${matchesAll.length>visible ? '<button type="button" class="gnw-more" data-gnw-more>더보기</button>' : ''}
     `;
@@ -441,12 +458,7 @@
       if(!list) return;
       // Do not remount the search input while the user is typing.
       const filteredRows=filtered.slice(0,visible);
-      list.innerHTML=filteredRows.map(item=>`<button type="button" class="gnw-item" data-gnw-open="${escape(item.id)}">
-        <div class="gnw-meta"><span class="gnw-tag">${escape(item.category)}</span><span class="gnw-source">${escape(item.source)}</span></div>
-        <div class="gnw-title">${escape(item.title)}</div>
-        ${item.summary ? `<p class="gnw-summary">${escape(item.summary)}</p>` : ''}
-        <time class="gnw-time">${escape(timeText(item))}</time>
-      </button>`).join('') || '<div class="gnw-empty"><div class="gnw-empty-mark">⌕</div><div>검색 결과가 없습니다</div></div>';
+      list.innerHTML=filteredRows.map(renderListItem).join('') || '<div class="gnw-empty"><div class="gnw-empty-mark">⌕</div><div>검색 결과가 없습니다</div></div>';
       host.querySelector('[data-gnw-more]')?.remove();
       if(filtered.length>visible) list.insertAdjacentHTML('afterend','<button type="button" class="gnw-more" data-gnw-more>더보기</button>');
     });
