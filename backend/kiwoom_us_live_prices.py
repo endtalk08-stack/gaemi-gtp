@@ -127,7 +127,10 @@ async def _register_fe(ws, group, symbols, *, refresh, on_tick=None):
     return False
 
 
-async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_industry_symbols=None):
+async def run_qqq_fe_stream(
+    on_quote, *, on_top20=None, on_industry=None, on_etf=None,
+    get_industry_symbols=None, get_etf_symbols=None,
+):
     """Share one Kiwoom connection, keeping QQQ in a separate subscription group."""
     from backend.providers.kiwoom_us_quotes import issue_access_token
 
@@ -139,6 +142,7 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
     qqq = {"QQQ": "ND"}
     loop = asyncio.get_running_loop()
     pending_industry_refresh = None
+    pending_etf_refresh = None
     retry_delay = 5
     while True:
         if not _open_us_session():
@@ -175,9 +179,12 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                 ranked = {}
                 industry_ranked = {}
                 industry_registered = {}
+                etf_ranked = {}
+                etf_registered = {}
                 selected = qqq
                 next_ranking_check = 0.0
                 next_industry_check = 0.0
+                next_etf_check = 0.0
 
                 def publish(frame):
                     for symbol, (price, change_pct, high, low) in _parse_price_event(frame, selected).items():
@@ -196,7 +203,7 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                             top20 = {symbol: exchange for symbol, exchange in wanted.items() if symbol != "QQQ"}
                             if await _register_fe(ws, "2", top20, refresh="0", on_tick=publish):
                                 ranked = wanted
-                                selected = {**top20, **industry_ranked, **qqq}
+                                selected = {**top20, **industry_ranked, **etf_ranked, **qqq}
                                 on_top20(set(wanted))
                                 next_industry_check = 0.0
                                 print("KIWOOM_TOP20_FE_REGISTERED=" + str(len(wanted)), flush=True)
@@ -242,7 +249,7 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                                         symbol: exchange for symbol, exchange in ranked.items()
                                         if symbol != "QQQ"
                                     }
-                                    selected = {**top20, **industry_ranked, **qqq}
+                                    selected = {**top20, **industry_ranked, **etf_ranked, **qqq}
                                     if on_industry is not None:
                                         on_industry(set(industry_ranked))
                                     print("KIWOOM_INDUSTRY_FE_REGISTERED=" + str(len(industry_ranked)), flush=True)
@@ -253,6 +260,59 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                             print("KIWOOM_INDUSTRY_FE_REFRESH_FAILED=" + type(exc).__name__, flush=True)
                             next_industry_check = loop.time() + 120
 
+
+                    # Group 4 is reserved for the fourteen industry ETFs.
+                    # It is separate from sector constituent stocks and market widgets.
+                    if (get_etf_symbols is not None
+                            and pending_etf_refresh is None
+                            and loop.time() >= next_etf_check):
+                        pending_etf_refresh = loop.run_in_executor(None, get_etf_symbols)
+
+                    if pending_etf_refresh is not None and pending_etf_refresh.done():
+                        refresh = pending_etf_refresh
+                        pending_etf_refresh = None
+                        try:
+                            raw_etf = refresh.result()
+                            if not isinstance(raw_etf, dict):
+                                raise ValueError("invalid_etf_symbols")
+                            wanted_etf = {
+                                symbol: exchange
+                                for symbol, exchange in raw_etf.items()
+                                if isinstance(symbol, str)
+                                and re.fullmatch(r"[A-Z0-9.-]{1,20}", symbol)
+                                and exchange in EXCHANGES
+                            }
+                            if not wanted_etf:
+                                raise ValueError("empty_etf_symbols")
+                            if wanted_etf != etf_ranked or wanted_etf != etf_registered:
+                                early_frames = []
+                                if await _register_fe(
+                                    ws, "4", wanted_etf,
+                                    refresh="1" if not etf_registered else "0",
+                                    on_tick=early_frames.append,
+                                ):
+                                    etf_ranked = wanted_etf
+                                    etf_registered = wanted_etf
+                                    top20 = {
+                                        symbol: exchange for symbol, exchange in ranked.items()
+                                        if symbol != "QQQ"
+                                    }
+                                    selected = {**top20, **industry_ranked, **etf_ranked, **qqq}
+                                    if on_etf is not None:
+                                        on_etf(dict(etf_registered))
+                                    for early in early_frames:
+                                        publish(early)
+                                    print("KIWOOM_ETF_FE_REGISTERED=" + str(len(etf_registered)), flush=True)
+                                    next_etf_check = loop.time() + 86400
+                                else:
+                                    print("KIWOOM_ETF_FE_REGISTRATION_FAILED", flush=True)
+                                    next_etf_check = loop.time() + 120
+                            else:
+                                next_etf_check = loop.time() + 86400
+                        except Exception as exc:
+                            print("KIWOOM_ETF_FE_REFRESH_FAILED=" + type(exc).__name__, flush=True)
+                            next_etf_check = loop.time() + 120
+
                     try:
                         frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
                     except asyncio.TimeoutError:
@@ -262,9 +322,13 @@ async def run_qqq_fe_stream(on_quote, *, on_top20=None, on_industry=None, get_in
                     else:
                         publish(frame)
         except asyncio.CancelledError:
-            if pending_industry_refresh is not None:
-                pending_industry_refresh.cancel()
-                await asyncio.gather(pending_industry_refresh, return_exceptions=True)
+            for pending in (pending_industry_refresh, pending_etf_refresh):
+                if pending is not None:
+                    pending.cancel()
+            await asyncio.gather(
+                *(pending for pending in (pending_industry_refresh, pending_etf_refresh) if pending is not None),
+                return_exceptions=True,
+            )
             raise
         except Exception as exc:
             print("KIWOOM_QQQ_FE_RECONNECT=" + type(exc).__name__, flush=True)
