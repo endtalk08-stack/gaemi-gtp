@@ -10,5 +10,6 @@
     'spy': { title: 'SPY', icon: 'chart-no-axes-combined', description: 'S&P 500 ETF 실시간 시세' },
     'dia': { title: 'DIA', icon: 'chart-no-axes-combined', description: '다우 ETF 실시간 시세' },
     'night-futures': { title: '코스피200 야간선물', icon: 'moon-star', description: '야간 선물 흐름' },
+    'news-caption': { title: '뉴스', icon: 'newspaper', description: '큰 글씨의 제목 전용 자막' },
   });
 }());
