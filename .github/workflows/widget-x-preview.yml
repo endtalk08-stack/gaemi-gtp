@@ -5,6 +5,8 @@ on:
     paths:
       - frontend/shell/center-chat/widget-dock/widget-dock.js
       - frontend/shell/center-chat/widget-dock/widget-dock.css
+      - frontend/widgets/news/news-widget.js
+      - frontend/index.html
       - .github/workflows/widget-x-preview.yml
 permissions:
   contents: read
@@ -19,6 +21,9 @@ jobs:
       - name: Validate changed widget code
         run: |
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          node --check frontend/widgets/news/news-widget.js
+          ! grep -Fq 'fitNewsCaption' frontend/shell/center-chat/widget-dock/widget-dock.js
+          grep -Fq 'onclick="window.GaemiGTPWidgetDock.remove' frontend/widgets/news/news-widget.js
           test "$(grep -Fc 'onclick="window.GaemiGTPWidgetDock.remove' frontend/shell/center-chat/widget-dock/widget-dock.js)" -eq 4
           grep -Fq 'position: relative;' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'z-index: 5;' frontend/shell/center-chat/widget-dock/widget-dock.css
@@ -53,5 +58,5 @@ jobs:
           NODE
           js="$(cat "$RUNNER_TEMP/widget-js-path.txt")"
           curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/$js" -o "$RUNNER_TEMP/widget-dock.js"
-          test "$(grep -Fc 'onclick="window.GaemiGTPWidgetDock.remove' "$RUNNER_TEMP/widget-dock.js")" -eq 5
+          test "$(grep -Fc 'onclick="window.GaemiGTPWidgetDock.remove' "$RUNNER_TEMP/widget-dock.js")" -eq 4
           echo "Verified preview HTML and deployed X-click handler: $PREVIEW_URL/$js"
