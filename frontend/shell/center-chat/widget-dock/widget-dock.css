@@ -326,7 +326,6 @@
   max-width: 100%;
   min-width: 0;
 }
-.central-widget-card__news-caption-title.is-placeholder { color: var(--gtp-muted); }
 @media (max-width: 640px) {
   .central-widget-card--news-caption { min-height: 46px; height: 46px; padding: 0 27px; border-radius: 0; }
   .central-widget-card__news-caption-title { font-size: 15px; line-height: 18px; }
