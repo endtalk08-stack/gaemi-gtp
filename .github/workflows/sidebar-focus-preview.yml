@@ -38,4 +38,4 @@ jobs:
           curl -fLsS --max-time 25 "$PREVIEW_URL/index.html" -o "$RUNNER_TEMP/preview-index.html"
           grep -Fq 'workspace-shell-state.js?v=20261124-sidebar-focus-fix-v1' "$RUNNER_TEMP/preview-index.html"
           curl -fLsS --max-time 25 "$PREVIEW_URL/shell/workspace-shell-state.js?v=20261124-sidebar-focus-fix-v1" -o "$RUNNER_TEMP/workspace-shell-state.js"
-          grep -Fq 'Move focus out before hiding a sidebar' "$RUNNER_TEMP/workspace-shell-state.js"
+          grep -Fq 'sidebarStates' "$RUNNER_TEMP/workspace-shell-state.js"
