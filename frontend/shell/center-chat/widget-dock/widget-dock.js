@@ -643,6 +643,7 @@
     // Handle widget removal during capture so nested widget handlers cannot swallow the X click.
     // Preview verification revision: deployed script must contain this capture-phase handler.
     // Keep this handler limited to the widget dock's own remove controls.
+    // Access-protected preview: final visual click check is performed in the signed-in browser.
     document.addEventListener('click', event => {
       const button = event.target?.closest?.('[data-central-widget-remove]');
       if (!button || !dock.contains(button)) return;
