@@ -46,6 +46,7 @@
 .gnw-detail-source { font-size:15px; line-height:1.5; color:var(--gtp-muted); }
 .gnw-detail-summary { margin:14px 0 0; color:var(--gtp-text-2); font-size:15px; line-height:1.65; }
 .gnw-article-body { padding:4px 0 0; color:var(--gtp-text-2); font-size:15px; line-height:1.7; overflow-wrap:anywhere; }
+.gnw-article-body h4 { margin:0 0 10px; color:var(--gtp-muted); font-size:15px; line-height:1.5; font-weight:400; }
 .gnw-article-body p { margin:16px 0; font-size:15px; line-height:1.7; font-weight:400; }
 .gnw-detail-section { margin:20px 0; }
 .gnw-detail-section h4 { color:var(--gtp-muted); font-size:15px; line-height:1.5; margin:0 0 10px; font-weight:400; }
