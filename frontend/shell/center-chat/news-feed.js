@@ -30,7 +30,7 @@
   }
 
   function safeTime(value) {
-    if (typeof value === 'string' && /^\\d{2}:\\d{2}$/.test(value)) return value;
+    if (typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)) return value;
     const date = new Date(value);
     return Number.isFinite(date.getTime()) ?
       new Intl.DateTimeFormat('ko-KR', {hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul'}).format(date) : '';
