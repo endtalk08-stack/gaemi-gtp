@@ -34,11 +34,35 @@
     document.body.classList.toggle('left-plugin-closed', !pluginOpen);
     document.body.classList.toggle('right-panel-closed', !panelOpen);
 
-    if (home) home.setAttribute('aria-hidden', homeOpen ? 'false' : 'true');
-    if (market) market.setAttribute('aria-hidden', marketOpen ? 'false' : 'true');
-    if (context) context.setAttribute('aria-hidden', contextOpen ? 'false' : 'true');
-    if (plugin) plugin.setAttribute('aria-hidden', pluginOpen ? 'false' : 'true');
-    if (panel) panel.setAttribute('aria-hidden', panelOpen ? 'false' : 'true');
+    // Move focus out before hiding a sidebar from assistive technology.
+    // A focused descendant inside an aria-hidden panel causes browser accessibility warnings.
+    const sidebarStates = [
+      [home, homeOpen],
+      [market, marketOpen],
+      [context, contextOpen],
+      [plugin, pluginOpen],
+      [panel, panelOpen]
+    ];
+    const focusedPanel = sidebarStates.find(([el, isOpen]) =>
+      el && !isOpen && document.activeElement && el.contains(document.activeElement)
+    );
+    if (focusedPanel) {
+      const [el] = focusedPanel;
+      const fallback = document.querySelector(
+        '[data-left-sidebar-toggle]:not(.hidden), [data-panel-header-toggle]:not(.hidden)'
+      );
+      if (fallback && !el.contains(fallback)) fallback.focus({ preventScroll: true });
+      else if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+      }
+    }
+
+    sidebarStates.forEach(([el, isOpen]) => {
+      if (!el) return;
+      el.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+      // Prevent keyboard focus from entering a visually closed sidebar.
+      el.inert = !isOpen;
+    });
 
     document.querySelectorAll('[data-panel-maximize-icon="maximize"]').forEach(el => el.classList.toggle('hidden', panelMaximized));
     document.querySelectorAll('[data-panel-maximize-icon="restore"]').forEach(el => el.classList.toggle('hidden', !panelMaximized));
