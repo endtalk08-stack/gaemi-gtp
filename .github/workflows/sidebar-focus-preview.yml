@@ -4,6 +4,7 @@ on:
     branches: [fix/sidebar-focus-console-errors-20261124]
     paths:
       - 'frontend/shell/workspace-shell-state.js'
+      - 'frontend/index.html'
       - '.github/workflows/sidebar-focus-preview.yml'
 permissions:
   contents: read
