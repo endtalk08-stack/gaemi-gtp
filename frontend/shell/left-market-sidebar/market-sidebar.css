@@ -294,7 +294,7 @@
 
 
 /* Keep separate sector and stock cards within each industry row. */
-#marketRankingList.industry-map-list {
+.industry-map-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 3px;

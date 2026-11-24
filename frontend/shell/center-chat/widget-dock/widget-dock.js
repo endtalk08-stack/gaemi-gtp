@@ -9,7 +9,6 @@
 
   function moveWidget(id, where) {
     if (!activeIds.includes(id) || !['left', 'center', 'right'].includes(where)) return false;
-    if (id === 'industry') { window.GaemiGTPIndustryWidget?.move?.(where); return true; }
     const card = cards.get(id);
     let target = body();
     if (where !== 'center') {
@@ -43,18 +42,14 @@
   }
 
   function addMoveControls(card, id) {
-    if (id === 'industry') return;
-    const controls = document.createElement('div');
-    card.style.height = 'auto';
-    card.style.minHeight = '112px';
-    if (id === 'news-caption') {
-      card.style.flexDirection = 'column';
-      card.style.minHeight = '70px';
-      card.style.padding = '6px 28px 6px 8px';
-      card.querySelector('[data-news-caption-title]').style.whiteSpace = 'normal';
-    }
-    controls.style.cssText = 'display:flex;gap:6px;padding:4px 28px 4px 6px;flex-wrap:wrap';
+    const controls = document.createElement('details');
+    controls.style.cssText = 'position:absolute;right:28px;top:3px;z-index:10;background:var(--gtp-surface);font-size:11px';
     controls.setAttribute('aria-label', '위젯 위치');
+    const summary = document.createElement('summary');
+    summary.textContent = '↔';
+    summary.setAttribute('aria-label', catalog()[id].title + ' 위치 이동 메뉴');
+    controls.appendChild(summary);
+    controls.addEventListener('toggle', () => { card.style.overflow = controls.open ? 'visible' : ''; });
     for (const [where, label] of [['left', '왼쪽'], ['center', '중앙'], ['right', '오른쪽']]) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -62,10 +57,19 @@
       button.dataset.widgetMove = where;
       button.style.cssText = 'font-size:11px;color:inherit;padding:2px 5px;border:1px solid #454851;border-radius:4px';
       button.setAttribute('aria-label', catalog()[id].title + ' ' + label + '으로 이동');
-      button.addEventListener('click', () => moveWidget(id, where));
+      button.addEventListener('click', () => { moveWidget(id, where); controls.open = false; });
       controls.appendChild(button);
     }
     card.prepend(controls);
+    if (id === 'industry') {
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = '×';
+      close.className = 'central-widget-card__close central-widget-card__close--overlay';
+      close.setAttribute('aria-label', '업종 위젯 삭제');
+      close.addEventListener('click', () => remove(id));
+      card.appendChild(close);
+    }
   }
   let captionHeadline = '';
   let chartSymbol = '';

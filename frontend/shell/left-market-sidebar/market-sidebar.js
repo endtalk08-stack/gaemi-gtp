@@ -116,6 +116,10 @@
 
     // Only US market data is requested; static sample rows have been removed.
     const list = sidebar.querySelector('#marketRankingList');
+    const industryTargets = new Set();
+    const industryViewActive = () => document.visibilityState === 'visible' && (
+      (sidebarActive() && tab === 'industry') || [...industryTargets].some(target =>
+        target.isConnected && target.getClientRects().length > 0));
     const title = sidebar.querySelector('#rightListTitle');
     const changeSortButton = sidebar.querySelector('#rightListMetric');
     const backendUrl = window.location.hostname.endsWith('github.io')
@@ -243,7 +247,7 @@
     let nextEtfRateRefreshAt = 0;
     let etfRateRefreshInFlight = false;
     const refreshIndustryEtfRates = async () => {
-      if (tab !== 'industry' || !sidebarActive()
+      if (!industryViewActive()
           || etfRateRefreshInFlight || Date.now() < nextEtfRateRefreshAt) return;
       nextEtfRateRefreshAt = Date.now() + 20000;
       etfRateRefreshInFlight = true;
@@ -257,7 +261,7 @@
           ? data.items.filter((quote) => industryEtfSymbols.has(industrySymbol(quote?.symbol))) : [];
         if (data?.ok !== true || !etfItems.length) throw new Error('invalid_industry_etf_rates');
         // Partial responses update only valid ETFs. Keep the last rate for absent ETFs.
-        if (!sidebarActive() || tab !== 'industry') return;
+        if (!industryViewActive()) return;
         rememberIndustryEtfQuotes(etfItems, 'rest');
         industryRestQuotes = etfItems;
         if (industryMapData) {
@@ -282,7 +286,7 @@
       if (!Number.isFinite(value) || Math.abs(value) < 0.005) return { tone: 'is-flat' };
       return value > 0 ? { tone: 'is-up' } : { tone: 'is-down' };
     };
-    const renderIndustryMap = (data) => {
+    const renderIndustryMapFor = (data, list) => {
       const items = Array.isArray(data?.items) ? data.items : [];
       if (Array.isArray(data?.etf_quotes) && data.etf_quotes.length) {
         rememberIndustryEtfQuotes(data.etf_quotes, 'rest');
@@ -467,6 +471,13 @@
         list.appendChild(row);
       });
     };
+    const renderIndustryMap = (data) => {
+      if (tab === 'industry') renderIndustryMapFor(data, list);
+      for (const target of industryTargets) {
+        if (!target.isConnected) { industryTargets.delete(target); continue; }
+        renderIndustryMapFor(data, target);
+      }
+    };
     const loadIndustryMap = async (id) => {
       if (industryMapData && id === requestId) renderIndustryMap(industryMapData);
       if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) return;
@@ -477,7 +488,7 @@
         } catch (_) {}
         return;
       }
-      list.classList?.add?.('industry-map-list');
+      if (tab === 'industry') list.classList?.add?.('industry-map-list');
       industryMapPromise = (async () => {
         // Industry membership and market-cap ranking come from the existing
         // DigitalOcean Kiwoom industry endpoint. Never derive this map from TOP20.
@@ -502,7 +513,7 @@
             sector?.stocks?.some(stock => !Number.isFinite(stock?.change_pct)))) {
           industryWarmupRetryScheduled = true;
           window.setTimeout(() => {
-            if (tab !== 'industry' || !sidebarActive()) return;
+            if (!industryViewActive()) return;
             industryMapFetchedAt = 0;
             void loadIndustryMap(requestId);
           }, 10000);
@@ -815,7 +826,7 @@
     let qqqReconnectDelay = 1000;
     const qqqSocketWanted = () =>
       document.visibilityState === 'visible'
-      && (qqqWidgetActive() || marketEtfWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'industry')) || quoteConsumersActive());
+      && (qqqWidgetActive() || marketEtfWidgetActive() || industryViewActive() || (sidebarActive() && (tab === 'value' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
       if (quote?.symbol === 'QQQ') {
         marketQqqQuote = quote;
@@ -968,7 +979,7 @@
           industryLastVerifiedQuotes.set(industrySymbol(quote.symbol), quote);
         }
       });
-      if (sidebarActive() && tab === 'industry' && industryMapData) {
+      if (industryViewActive() && industryMapData) {
         renderIndustryMap(industryMapData);
         void refreshIndustryEtfRates();
       }
@@ -1047,11 +1058,25 @@
     });
     sidebar.dataset.marketControlsBound = 'true';
     window.GaemiGTPMarketSidebar.refreshLiveQuotes = refreshOnReturn;
+    window.GaemiGTPMarketSidebar.mountIndustryView = (target) => {
+      industryTargets.add(target);
+      if (industryMapData) renderIndustryMapFor(industryMapData, target);
+      if (industryViewActive()) {
+        void loadIndustryMap(requestId);
+        void refreshIndustryEtfRates();
+        syncQqqSocket();
+      }
+    };
+    window.GaemiGTPMarketSidebar.unmountIndustryView = target => industryTargets.delete(target);
     // Closed panels and background tabs consume no ranking or quote reads.
     if (sidebarActive()) void showUsRanking();
     window.setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       syncQqqSocket();
+      if (industryViewActive()) {
+        void loadIndustryMap(requestId);
+        void refreshIndustryEtfRates();
+      }
       if (draggedRow) return;
       if (sidebarActive() && tab === 'value') void showUsRanking();
     }, 3000);
