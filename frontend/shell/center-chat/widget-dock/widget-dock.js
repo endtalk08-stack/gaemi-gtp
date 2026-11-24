@@ -160,6 +160,7 @@
       if (where && (where !== 'left' || activeIds.includes(current.id))) {
         if (!activeIds.includes(current.id)) add(current.id);
         moveWidget(current.id, where);
+        if (where === 'center') window.enterChatWorkspace?.();
       }
       event.preventDefault();
     }
