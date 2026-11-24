@@ -282,6 +282,28 @@
     updateQqqViews();
   }
 
+  // Keep the complete headline on one line, fitting the font to the available width.
+  function fitNewsCaption() {
+    const title = body()?.querySelector('[data-news-caption-title]');
+    const card = title?.closest('.central-widget-card--news-caption');
+    if (!title || !card) return;
+    const style = getComputedStyle(card);
+    const room = card.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    if (room <= 0) return;
+    const max = window.innerWidth <= 640 ? 22 : 30;
+    title.style.fontSize = max + 'px';
+    if (title.scrollWidth <= room) return;
+    // Scale only the caption text, never the other widgets or the News feed.
+    let low = 8, high = max;
+    for (let i = 0; i < 9; i++) {
+      const mid = (low + high) / 2;
+      title.style.fontSize = mid + 'px';
+      if (title.scrollWidth <= room) low = mid;
+      else high = mid;
+    }
+    title.style.fontSize = Math.max(8, low - 0.3).toFixed(1) + 'px';
+  }
+
   // This is a presentation-only caption. News ingestion will send a title later.
   function setNewsHeadline(value) {
     captionHeadline = typeof value === 'string' ? value.trim().slice(0, 500) : '';
@@ -289,6 +311,7 @@
     if (target) {
       target.textContent = captionHeadline || '뉴스 제목이 여기에 표시됩니다';
       target.classList.toggle('is-placeholder', !captionHeadline);
+      fitNewsCaption();
     }
   }
 
@@ -353,6 +376,7 @@
       window.GaemiGTPAnalysisWidgets?.mount?.(node.dataset.centralWidgetMount, node);
     });
     if (window.lucide) window.lucide.createIcons();
+    fitNewsCaption();
     if (activeIds.includes('qqq')) updateQqqCard();
     for (const symbol of Object.keys(marketEtfs)) {
       if (activeIds.includes(symbol.toLowerCase())) updateMarketEtfCard(symbol);
@@ -617,6 +641,11 @@
     if (!dock || dock.dataset.bound === 'true') return;
     dock.dataset.bound = 'true';
     activeIds = readState(); render();
+    window.addEventListener('resize', fitNewsCaption);
+    document.fonts?.ready?.then(fitNewsCaption);
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(fitNewsCaption).observe(dock);
+    }
     document.addEventListener('visibilitychange', () => {
       const active = inlineChart;
       if (!document.hidden && active?.target?.isConnected)
