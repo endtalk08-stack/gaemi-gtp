@@ -37,3 +37,27 @@ test('widgets retain identity, live quotes and caption after panel moves', () =>
   assert.equal(dock.move('qqq', 'right'), false);
   dom.window.close();
 });
+
+test('industry uses one instance and restores the original sidebar on removal', () => {
+  const dom = new JSDOM('<aside id="leftMarketSidebar"><button data-info-tab-action="industry" aria-pressed="true"></button><div id="original"><div id="marketRankingList"></div></div></aside><aside id="rightPanel"><div data-industry-widget-target="right"></div></aside><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section>', { url: 'https://example.test', runScripts: 'outside-only' });
+  const w = dom.window;
+  w.setInterval = () => 0;
+  w.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
+  w.eval(readFileSync('frontend/widgets/industry/industry-widget.js', 'utf8'));
+  w.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
+  const dock = w.GaemiGTPWidgetDock;
+  dock.initialize();
+  dock.add('industry');
+  const widget = w.document.querySelector('.giw-widget');
+  assert.ok(widget);
+  for (const place of ['right', 'left', 'center']) {
+    dock.move('industry', place);
+    assert.equal(w.document.querySelector('.giw-widget'), widget);
+    assert.equal(widget.dataset.placement, place);
+    assert.equal(w.document.getElementById('original').hidden, place === 'left');
+  }
+  widget.querySelector('[aria-label="업종 위젯 삭제"]').click();
+  assert.equal(widget.isConnected, false);
+  assert.equal(w.document.getElementById('original').hidden, false);
+  dom.window.close();
+});
