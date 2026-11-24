@@ -411,23 +411,24 @@
     return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
   function listTimeText(item) {
-    // News list uses relative elapsed time, not a clock time.
-    if (item.published_at) {
-      const published = new Date(item.published_at).getTime();
-      if (Number.isFinite(published)) {
-        const minutes = Math.max(0, Math.floor((Date.now() - published) / 60000));
-        if (minutes < 1) return '방금 전';
-        if (minutes < 60) return minutes + '분 전';
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return hours + '시간 전';
-        const days = Math.floor(hours / 24);
-        return days + '일 전';
+    // Show the publication clock time in Korea (HH:mm), not elapsed text.
+    const candidates = [item.published_at, item.publishedAt, item.pubDate, item.date];
+    for (const value of candidates) {
+      if (!value) continue;
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) {
+        return new Intl.DateTimeFormat('ko-KR', {
+          timeZone: 'Asia/Seoul',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).format(date);
       }
     }
-    // Preserve a relative label already supplied by the news source.
+    // If the API already supplies a clock string, retain it.
     const raw = String(item.time || '').trim();
-    if (/방금 전|\\d+\\s*(분|시간|일)\\s*전/.test(raw)) return raw;
-    return '';
+    const match = raw.match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$)/);
+    return match ? match[1].padStart(2, '0') + ':' + match[2] : '';
   }
   function renderListItem(item) {
     const time = listTimeText(item);
