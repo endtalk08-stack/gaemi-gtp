@@ -1,16 +1,15 @@
-/* Tile appearance is inherited unchanged from market-sidebar.css. */
+/* The industry widget reuses the exact map element from the left sidebar. */
 .central-widget-card--industry {
   grid-column: 1 / -1;
   padding: 0;
   min-width: 0;
-  max-height: min(60vh, 640px);
+  max-height: min(70vh, 720px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.central-widget-card--industry > [aria-label="위젯 위치"] {
-  position: relative !important;
-  top: 0 !important;
-  right: 0 !important;
-  padding: 4px 30px 4px 8px;
-  background: var(--gtp-bg);
+.central-widget-card--industry > [data-industry-widget-target] {
+  min-width: 0;
+}
+.central-widget-card--industry #marketIndustryMap {
+  min-width: 0;
 }
