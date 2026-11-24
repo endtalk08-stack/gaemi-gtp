@@ -623,11 +623,6 @@
     // The plugin sidebar can initialize before the dock restores its saved widgets.
     // Re-sync its add/remove labels after the dock state is ready.
     window.GaemiGTPPluginSidebar?.render?.();
-    window.addEventListener('resize', fitNewsCaption);
-    document.fonts?.ready?.then(fitNewsCaption);
-    if (typeof ResizeObserver !== 'undefined') {
-      new ResizeObserver(fitNewsCaption).observe(dock);
-    }
     document.addEventListener('visibilitychange', () => {
       const active = inlineChart;
       if (!document.hidden && active?.target?.isConnected)
