@@ -81,7 +81,7 @@
   function renderDetail(host) {
     const item=currentItems().find(x=>x.id===detailId);
     if(!item){detailId=null;renderList(host);return;}
-    const chips=(arr)=>arr?.length ? arr.map(x=>`<span class="gnw-chip">${escape(x)}</span>`).join('') : '<span class="gnw-quiet">연결된 정보가 없습니다.</span>';
+    const chips=(arr)=>arr?.length ? arr.map(x=>`<span class="gnw-chip">${escape(x)}</span>`).join('') : '';
     host.innerHTML=`
       <button type="button" class="gnw-back" data-gnw-back aria-label="뉴스 목록으로 돌아가기">←</button>
       <div class="gnw-detail-card">
@@ -90,9 +90,9 @@
         <div class="gnw-detail-source">${escape(item.source)}</div>
         ${item.summary ? `<p class="gnw-detail-summary">${escape(item.summary)}</p>` : ''}
       </div>
-      <section class="gnw-detail-section"><h4>관련 이슈</h4><div class="gnw-chips">${chips(item.issues)}</div></section>
-      <section class="gnw-detail-section"><h4>관련 종목</h4><div class="gnw-chips">${chips(item.tickers)}</div></section>
-      <section class="gnw-detail-section"><h4>관련 산업·테마</h4><div class="gnw-chips">${chips(item.industries)}</div></section>
+      ${item.issues?.length ? `<section class="gnw-detail-section"><h4>관련 이슈</h4><div class="gnw-chips">${chips(item.issues)}</div></section>` : ''}
+      ${item.tickers?.length ? `<section class="gnw-detail-section"><h4>관련 종목</h4><div class="gnw-chips">${chips(item.tickers)}</div></section>` : ''}
+      ${item.industries?.length ? `<section class="gnw-detail-section"><h4>관련 산업·테마</h4><div class="gnw-chips">${chips(item.industries)}</div></section>` : ''}
       ${item.url ? `<a class="gnw-source-link" href="${escape(item.url)}" target="_blank" rel="noopener noreferrer">기사 원문 ↗</a>` : ''}
     `;
   }
