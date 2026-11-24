@@ -2,7 +2,17 @@
 (function () {
   'use strict';
   const CATEGORIES = ['전체','종목','업종·섹터','실적 발표','실적 전망','증권사 평가','계약·수주','제품·기술','정책·규제','연준·금리','경제지표'];
-  let items = [];
+  // Restore the three source-file design cards while live news data is not connected.
+  // These are NOT verified current reports; every card is explicitly labelled "샘플".
+  const SOURCE_SAMPLE_CARDS = [
+    { id:'sample-101', category:'연준·금리', source:'샘플', time:'', title:'연준 의장 긴급 기자회견… 시장 예상 뒤집어',
+      summary:'뉴스 본문을 연결하면 이곳에 기사 내용이 표시됩니다.', tickers:['SPY','TLT'] },
+    { id:'sample-4', category:'종목', source:'샘플', time:'', title:'테슬라, 신형 모델 Y 생산 일정 6개월 앞당긴다',
+      summary:'검색과 분류, 제목과 내용, 상세 화면을 확인하는 디자인 예시입니다.', tickers:['TSLA'] },
+    { id:'sample-103', category:'경제지표', source:'샘플', time:'', title:'미국 CPI 예상치 상회… 3.2% 기록',
+      summary:'실제 실시간 뉴스와 연결된 데이터가 아닙니다.', tickers:['SPY'] }
+  ];
+  let items = SOURCE_SAMPLE_CARDS;
   let query = '';
   let selected = '전체';
   let detailId = null;
