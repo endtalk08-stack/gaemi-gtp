@@ -35,4 +35,4 @@ if (failures.length) {
   for (const failure of failures) console.error(' - ' + failure);
   process.exit(1);
 }
-console.log('Verified ' + verified + '/' + assets.length + ' deployed frontend files byte-for-byte at ' + base.origin + '.');
+console.log('Verified all ' + verified + ' deployed frontend files byte-for-byte at ' + base.origin + '.');

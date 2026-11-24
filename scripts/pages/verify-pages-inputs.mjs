@@ -28,6 +28,6 @@ const advancedWorker = path.join(FRONTEND_ROOT, '_worker.js');
 if (await fs.stat(advancedWorker).then(() => true).catch(() => false)) {
   throw new Error('frontend/_worker.js would override the file-based functions/ routes; review before deploy.');
 }
-console.log('Validated ' + assets.length + ' local frontend files referenced by index.html, CSS and JS.');
+console.log('Validated ' + assets.length + ' files across frontend/ and all local HTML/CSS/JS references.');
 console.log('Validated ' + functionFiles.length + ' Pages Function source files under repository-root functions/.');
 console.log('Static output: frontend/ ; Pages Functions source: functions/ ; Wrangler must run from an isolated workspace root containing sibling frontend/ and functions/ directories.');
