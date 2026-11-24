@@ -200,10 +200,34 @@ async def run_qqq_fe_stream(
                 next_industry_check = 0.0
                 next_etf_check = 0.0
                 seen_symbols = set()
+                # Read-only diagnostics on the EXISTING Kiwoom connection.
+                # Never log token, raw trade values, or full response payloads.
+                _diag = {"frames": 0, "real": 0, "items": 0, "fe": 0, "parsed": 0}
+                _diag_next = loop.time() + 60
 
                 def publish(frame):
                     from backend.us_quote_change import validated_change
-                    for symbol, (price, change_pct, high, low) in _parse_price_event(frame, selected).items():
+                    if isinstance(frame, dict):
+                        _diag["frames"] += 1
+                        if str(frame.get("trnm", "")).upper() == "REAL":
+                            _diag["real"] += 1
+                            data = frame.get("data")
+                            if isinstance(data, list):
+                                _diag["items"] += len(data)
+                                _diag["fe"] += sum(1 for item in data if isinstance(item, dict) and item.get("type") == "FE")
+                            if _diag["real"] <= 3:
+                                sample = next((item for item in data if isinstance(item, dict)), {}) if isinstance(data, list) else {}
+                                values = sample.get("values")
+                                print("KIWOOM_FE_FRAME_SHAPE=" + json.dumps({
+                                    "trnm": str(frame.get("trnm", ""))[:20],
+                                    "data_type": type(data).__name__,
+                                    "type": str(sample.get("type", ""))[:12],
+                                    "item_format": str(sample.get("item", ""))[:32],
+                                    "keys": sorted(str(k)[:8] for k in values)[:30] if isinstance(values, dict) else [],
+                                }, separators=(",", ":")), flush=True)
+                    parsed = _parse_price_event(frame, selected)
+                    _diag["parsed"] += len(parsed)
+                    for symbol, (price, change_pct, high, low) in parsed.items():
                         verified_pct, close_date = validated_change(symbol, selected[symbol], price)
                         on_quote({"symbol": symbol, "exchange": selected[symbol], "price": price, "change_pct": verified_pct,
                                   "reference_close_date": close_date,
@@ -348,6 +372,11 @@ async def run_qqq_fe_stream(
                         await ws.send(json.dumps(frame))
                     else:
                         publish(frame)
+                    if loop.time() >= _diag_next:
+                        print("KIWOOM_FE_RX_COUNTS=" + json.dumps(_diag, separators=(",", ":"))
+                              + " selected=" + str(len(selected)), flush=True)
+                        _diag = {"frames": 0, "real": 0, "items": 0, "fe": 0, "parsed": 0}
+                        _diag_next = loop.time() + 60
         except asyncio.CancelledError:
             for pending in (pending_industry_refresh, pending_etf_refresh):
                 if pending is not None:
