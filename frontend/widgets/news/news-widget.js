@@ -414,6 +414,8 @@
     const raw = String(item.time || '').trim();
     const clock = raw.match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$)/);
     if (clock) return clock[1].padStart(2, '0') + ':' + clock[2];
+    // Keep relative timestamps from the source when no absolute publish time exists.
+    if (raw && !item.published_at) return raw;
     if (!item.published_at) return '';
     const date = new Date(item.published_at);
     if (Number.isNaN(date.getTime())) return '';
