@@ -327,13 +327,13 @@
             <div class="central-widget-card__name">뉴스</div>
             <button type="button" class="central-widget-card__close" data-central-widget-remove="news-feed" aria-label="뉴스 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
           </div>
-          <iframe class="central-widget-card__news-frame" src="https://gaemigtp-news.pages.dev/" title="TradingView 뉴스" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <section class="gnw-root" data-gnw-root aria-label="뉴스 검색과 목록"></section>
         </article>`;
       }
       if (id === 'news-caption') {
         return `<article class="central-widget-card central-widget-card--news-caption" data-central-widget-id="news-caption" aria-label="속보 위젯">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-caption" aria-label="속보 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
-          <div class="central-widget-card__news-caption-title ${captionHeadline ? '' : 'is-placeholder'}" data-news-caption-title>${escapeHtml(captionHeadline || '뉴스 제목이 여기에 표시됩니다')}</div>
+          <div class="central-widget-card__news-caption-title ${captionHeadline ? '' : 'is-placeholder'}" data-news-caption-title>${escapeHtml(captionHeadline || '속보 제목이 여기에 표시됩니다')}</div>
         </article>`;
       }
       if (id === 'qqq' || id === 'spy' || id === 'dia') {
@@ -384,6 +384,7 @@
     document.querySelectorAll('[data-central-widget-mount]').forEach(node => {
       window.GaemiGTPAnalysisWidgets?.mount?.(node.dataset.centralWidgetMount, node);
     });
+    window.GaemiGTPNewsWidget?.mount?.();
     if (window.lucide) window.lucide.createIcons();
     fitNewsCaption();
     if (activeIds.includes('qqq')) updateQqqCard();
