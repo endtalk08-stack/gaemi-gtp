@@ -1,0 +1,28 @@
+/* Center-only News surface. Existing quote, chat and sidebar modules stay untouched. */
+#mainContent.is-news-view > #mainHeroView,
+#mainContent.is-news-view > #centralWidgetDock,
+#mainContent.is-news-view > #chatArea,
+#mainContent.is-news-view > .gaemi-chat-bottom { display: none !important; }
+#mainContent > #gaemiCenterNewsFeed[hidden] { display: none !important; }
+#mainContent > #gaemiCenterNewsFeed {
+  display: block; flex: 1 1 auto; min-height: 0;
+  overflow: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  background: #f8fafc; color: #22252b;
+}
+.dark #mainContent > #gaemiCenterNewsFeed { background: #0f1013; color: #e6e7e9; }
+.gaemi-center-news-inner { max-width: 768px; margin: 0 auto; padding: 34px 25px 70px; }
+.gaemi-center-news-item { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 14px; margin-bottom: 32px; align-items: start; }
+.gaemi-center-news-time { font-size: 13px; font-variant-numeric: tabular-nums; color: #8e918f; line-height: 1.65; }
+.gaemi-center-news-copy { min-width: 0; }
+.gaemi-center-news-title { margin: 0; font-size: 15px; line-height: 1.65; font-weight: 600; overflow-wrap: anywhere; }
+.gaemi-center-news-description { margin: 8px 0 0; font-size: 14px; line-height: 1.8; color: #60636b; white-space: pre-line; overflow-wrap: anywhere; }
+.dark .gaemi-center-news-description { color: #b5b7bb; }
+.gaemi-center-news-empty { color: #8e918f; font-size: 14px; padding: 25px 0; }
+.gaemi-center-mode-nav button { border-radius: 9999px; padding: 6px 16px; font-size: 14px; color: #717680; cursor: pointer; }
+.dark .gaemi-center-mode-nav button { color: #999ba2; }
+.gaemi-center-mode-nav button[aria-current="page"] { background: #fff; color: #25282d; font-weight: 600; box-shadow: 0 1px 3px #0002; }
+.dark .gaemi-center-mode-nav button[aria-current="page"] { background: #41434a; color: #f5f5f6; }
+@media (max-width: 640px) {
+  .gaemi-center-news-inner { padding: 20px 14px 56px; }
+  .gaemi-center-news-item { grid-template-columns: 42px minmax(0,1fr); column-gap: 9px; margin-bottom: 25px; }
+}
