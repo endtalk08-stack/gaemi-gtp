@@ -1,15 +1,27 @@
-/* The industry widget reuses the exact map element from the left sidebar. */
+/* Let the full industry map determine the widget height; the parent panel owns scrolling. */
 .central-widget-card--industry {
   grid-column: 1 / -1;
-  padding: 0;
   min-width: 0;
-  max-height: min(70vh, 720px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+  overflow: visible;
+  padding: 0;
 }
 .central-widget-card--industry > [data-industry-widget-target] {
   min-width: 0;
+  height: auto;
+  overflow: visible;
 }
 .central-widget-card--industry #marketIndustryMap {
+  width: 100%;
   min-width: 0;
+  height: auto;
+  overflow: visible;
+}
+
+/* A right-panel industry widget must not be clipped by the generic 70vh widget slot. */
+.right-panel [data-portable-widget-slot="right"]:has(> [data-central-widget-id="industry"]) {
+  max-height: none !important;
+  overflow: visible !important;
 }
