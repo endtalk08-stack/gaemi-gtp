@@ -97,6 +97,11 @@
       const button = event.target.closest('[data-industry-move]');
       if (button) move(button.dataset.industryMove);
     });
+    const close = node('button', 'giw-move-button', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', '업종 위젯 삭제');
+    close.addEventListener('click', () => window.GaemiGTPWidgetDock?.remove?.('industry'));
+    moveControls.append(close);
     top.append(heading, moveControls);
     stateNode = node('p', 'giw-state', '업종 데이터를 불러오는 중입니다');
     rowsNode = node('div', 'giw-rows');
