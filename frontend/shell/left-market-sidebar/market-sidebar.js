@@ -116,6 +116,10 @@
 
     // Only US market data is requested; static sample rows have been removed.
     const list = sidebar.querySelector('#marketRankingList');
+    // Ranking rows and the portable industry map are separate; only the map node moves between panels.
+    const industryMapElement = sidebar.querySelector('#marketIndustryMap');
+    const industrySlot = sidebar.querySelector('#marketIndustryWidgetSlot');
+    const rankingSection = list?.parentElement;
     const title = sidebar.querySelector('#rightListTitle');
     const changeSortButton = sidebar.querySelector('#rightListMetric');
     const backendUrl = window.location.hostname.endsWith('github.io')
@@ -123,6 +127,17 @@
       ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
     const market = 'us';
     let tab = 'value';
+    const syncIndustryTabLayout = () => {
+      const mapInLeftSlot = Boolean(industrySlot && industryMapElement
+        && industrySlot.contains(industryMapElement));
+      if (industrySlot) industrySlot.hidden = tab !== 'industry' || !mapInLeftSlot;
+      if (rankingSection) {
+        rankingSection.hidden = tab === 'industry';
+        rankingSection.style.display = tab === 'industry' ? 'none' : '';
+      }
+    };
+    const industryViewActive = () => document.visibilityState === 'visible'
+      && Boolean(industryMapElement?.isConnected && industryMapElement.getClientRects().length);
     let requestId = 0;
     let changeSorted = false;
     let draggedRow = null;
@@ -243,7 +258,7 @@
     let nextEtfRateRefreshAt = 0;
     let etfRateRefreshInFlight = false;
     const refreshIndustryEtfRates = async () => {
-      if (tab !== 'industry' || !sidebarActive()
+      if (!industryViewActive()
           || etfRateRefreshInFlight || Date.now() < nextEtfRateRefreshAt) return;
       nextEtfRateRefreshAt = Date.now() + 20000;
       etfRateRefreshInFlight = true;
@@ -257,7 +272,7 @@
           ? data.items.filter((quote) => industryEtfSymbols.has(industrySymbol(quote?.symbol))) : [];
         if (data?.ok !== true || !etfItems.length) throw new Error('invalid_industry_etf_rates');
         // Partial responses update only valid ETFs. Keep the last rate for absent ETFs.
-        if (!sidebarActive() || tab !== 'industry') return;
+        if (!industryViewActive()) return;
         rememberIndustryEtfQuotes(etfItems, 'rest');
         industryRestQuotes = etfItems;
         if (industryMapData) {
@@ -282,7 +297,7 @@
       if (!Number.isFinite(value) || Math.abs(value) < 0.005) return { tone: 'is-flat' };
       return value > 0 ? { tone: 'is-up' } : { tone: 'is-down' };
     };
-    const renderIndustryMap = (data) => {
+    const renderIndustryMapFor = (data, list) => {
       const items = Array.isArray(data?.items) ? data.items : [];
       if (Array.isArray(data?.etf_quotes) && data.etf_quotes.length) {
         rememberIndustryEtfQuotes(data.etf_quotes, 'rest');
@@ -382,7 +397,7 @@
         const left = etfChange(a);
         const right = etfChange(b);
         return left === right ? 0 : right - left;
-      }).forEach(({ sector, stocks: ranked }) => {
+      }).forEach(({ sector, stocks: ranked }, index) => {
         const etf = sectorEtfs[sector.key];
         const etfQuote = industryQuoteFor(etf);
         const sectorPct = etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null;
@@ -394,6 +409,10 @@
         const heading = document.createElement('div');
         heading.className = 'industry-map-sector ' + sectorColor.tone
           + (sector.themeTone ? ' industry-map-sector-theme' : '');
+        if (index === 0) {
+          heading.dataset.widgetDragHandle = 'industry';
+          heading.setAttribute('aria-label', `${sector.name} 박스를 끌어 위젯 이동`);
+        }
         const label = document.createElement('span');
         label.className = 'industry-map-sector-name';
         label.textContent = String(sector.name || '업종');
@@ -467,6 +486,10 @@
         list.appendChild(row);
       });
     };
+    const renderIndustryMap = (data) => {
+      if (industryMapElement) renderIndustryMapFor(data, industryMapElement);
+      syncIndustryTabLayout();
+    };
     const loadIndustryMap = async (id) => {
       if (industryMapData && id === requestId) renderIndustryMap(industryMapData);
       if (industryMapData && Date.now() - industryMapFetchedAt < mapCacheTtl) return;
@@ -477,7 +500,7 @@
         } catch (_) {}
         return;
       }
-      list.classList?.add?.('industry-map-list');
+      if (industryMapElement) industryMapElement.classList?.add?.('industry-map-list');
       industryMapPromise = (async () => {
         // Industry membership and market-cap ranking come from the existing
         // DigitalOcean Kiwoom industry endpoint. Never derive this map from TOP20.
@@ -502,7 +525,7 @@
             sector?.stocks?.some(stock => !Number.isFinite(stock?.change_pct)))) {
           industryWarmupRetryScheduled = true;
           window.setTimeout(() => {
-            if (tab !== 'industry' || !sidebarActive()) return;
+            if (!industryViewActive()) return;
             industryMapFetchedAt = 0;
             void loadIndustryMap(requestId);
           }, 10000);
@@ -605,8 +628,7 @@
       }
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
-      if (tab !== 'industry') list.classList?.remove?.('industry-map-list');
-      if (tab !== 'value' && !(tab === 'industry' && industryMapData)) {
+      if (tab !== 'value') {
         const displayedRows = [...list.querySelectorAll(':scope > button[data-original-index]')];
         if (displayedRows.length) cachedRankingRows = displayedRows;
         list.replaceChildren();
@@ -615,6 +637,7 @@
         list.replaceChildren(...cachedRankingRows);
         applyChangeSort();
       }
+      syncIndustryTabLayout();
       if (tab === 'realtime') {
         // QQQ is a plugin-only live quote card, not a duplicate market-row.
         list.replaceChildren();
@@ -815,7 +838,7 @@
     let qqqReconnectDelay = 1000;
     const qqqSocketWanted = () =>
       document.visibilityState === 'visible'
-      && (qqqWidgetActive() || marketEtfWidgetActive() || (sidebarActive() && (tab === 'value' || tab === 'industry')) || quoteConsumersActive());
+      && (qqqWidgetActive() || marketEtfWidgetActive() || industryViewActive() || (sidebarActive() && (tab === 'value' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
       if (quote?.symbol === 'QQQ') {
         marketQqqQuote = quote;
@@ -968,7 +991,7 @@
           industryLastVerifiedQuotes.set(industrySymbol(quote.symbol), quote);
         }
       });
-      if (sidebarActive() && tab === 'industry' && industryMapData) {
+      if (industryViewActive() && industryMapData) {
         renderIndustryMap(industryMapData);
         void refreshIndustryEtfRates();
       }
@@ -1041,17 +1064,31 @@
         tab = nextTab;
         customOrder = readOrder();
         changeSorted = false;
+        syncIndustryTabLayout();
         void showUsRanking();
         syncQqqSocket();
       });
     });
     sidebar.dataset.marketControlsBound = 'true';
     window.GaemiGTPMarketSidebar.refreshLiveQuotes = refreshOnReturn;
+    window.GaemiGTPMarketSidebar.syncIndustryLayout = syncIndustryTabLayout;
+    window.GaemiGTPMarketSidebar.selectIndustryTab = () => {
+      const button = sidebar.querySelector('[data-info-tab-action="industry"]');
+      if (button && tab !== 'industry') button.click();
+      else syncIndustryTabLayout();
+    };
+    window.addEventListener('gaemi:widget-placement', syncIndustryTabLayout);
+    window.addEventListener('gaemi:widget-change', syncIndustryTabLayout);
+    syncIndustryTabLayout();
     // Closed panels and background tabs consume no ranking or quote reads.
     if (sidebarActive()) void showUsRanking();
     window.setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       syncQqqSocket();
+      if (industryViewActive()) {
+        void loadIndustryMap(requestId);
+        void refreshIndustryEtfRates();
+      }
       if (draggedRow) return;
       if (sidebarActive() && tab === 'value') void showUsRanking();
     }, 3000);

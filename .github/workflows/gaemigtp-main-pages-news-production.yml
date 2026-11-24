@@ -34,9 +34,20 @@ jobs:
           node-version: 22
       - name: Validate every local frontend asset and Pages Function route
         run: node scripts/pages/verify-pages-inputs.mjs
-      - name: Verify current production assets against the checked-out source
+      - name: Check out the production baseline for drift verification
         if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: production-baseline
+      - name: Verify current production assets against the production baseline
+        if: github.event_name == 'pull_request'
+        working-directory: production-baseline
         run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
+      - name: Verify portable widget lifecycle
+        run: |
+          npm install --prefix "$RUNNER_TEMP/widget-validation" jsdom@27.2.0 --no-audit --no-fund
+          NODE_PATH="$RUNNER_TEMP/widget-validation/node_modules" node --test tests/test_portable_widgets.cjs
       - name: Build Pages Functions from repository root
         run: npx --yes wrangler@4.167.0 pages functions build functions --project-directory . --outdir "$RUNNER_TEMP/pages-functions"
       - name: Preserve critical application checks

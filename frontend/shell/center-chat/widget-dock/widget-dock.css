@@ -356,3 +356,25 @@
 }
 .central-widget-card__top--news { min-height: 38px; padding: 0 2px 8px; }
 .central-widget-card__top--news .central-widget-card__name { font-size: 15px; font-weight: 600; }
+
+
+/* Drag the existing widget header/tile itself; no extra move control is rendered. */
+.gaemi-widget-dragging {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+[data-widget-drop-zone].is-widget-drop-target {
+  outline: 2px dashed var(--gtp-accent, #8e918f);
+  outline-offset: -3px;
+}
+[data-central-widget-id] {
+  min-width: 0;
+}
+
+.central-widget-card__kospi-title,
+.central-widget-card__top,
+.central-widget-card__news-caption-title {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}

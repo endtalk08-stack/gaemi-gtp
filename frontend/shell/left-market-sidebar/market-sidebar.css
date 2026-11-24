@@ -294,7 +294,7 @@
 
 
 /* Keep separate sector and stock cards within each industry row. */
-#marketRankingList.industry-map-list {
+.industry-map-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 3px;
@@ -467,6 +467,7 @@
   .industry-map-sector-etf,
   .industry-map-stock-symbol { font-size: 8px; }
   #marketRankingList.industry-map-list,
+  #marketIndustryMap.industry-map-list,
   .industry-map-row { gap: 2px; }
   .industry-map-sector { min-height: 44px; padding: 5px 3px; }
   .industry-map-sector-name { font-size: 14px; }
@@ -497,4 +498,52 @@
 @keyframes gtp-tile-flash-flat {
   from { background-color: #50545c; }
   to { background-color: #202228; }
+}
+
+
+/* The original industry map moves as one node; the left tab bar stays in place. */
+.market-industry-widget-slot {
+  min-width: 0;
+  padding: 0 16px 8px;
+}
+.market-industry-widget-slot[hidden] { display: none !important; }
+.market-industry-widget-slot #marketIndustryMap {
+  width: 100%;
+  min-width: 0;
+}
+.industry-map-sector[data-widget-drag-handle="industry"] {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.industry-map-sector[data-widget-drag-handle="industry"]:active { cursor: grabbing; }
+
+
+/* Keep every industry row the same compact height in every panel width.
+   The first three rows must not grow with their aspect ratio when moved to center/right. */
+#marketIndustryMap.industry-map-list .industry-map-row,
+#marketIndustryMap.industry-map-list .industry-map-row:nth-child(-n+3) {
+  aspect-ratio: auto !important;
+  min-height: 46px;
+}
+#marketIndustryMap.industry-map-list .industry-map-row:nth-child(-n+3) .industry-map-sector,
+#marketIndustryMap.industry-map-list .industry-map-row:nth-child(-n+3) .industry-map-stock {
+  height: auto !important;
+  min-height: 46px;
+}
+
+/* Preserve the original tile separation; remove only the extra widget surface. */
+#marketIndustryMap.industry-map-list {
+  padding: 0;
+  background: transparent;
+}
+.market-industry-widget-slot {
+  padding-bottom: 0;
+  background: transparent;
+}
+.central-widget-card[data-central-widget-id="industry"],
+.central-widget-card[data-central-widget-id="industry"] > [data-industry-widget-target] {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
