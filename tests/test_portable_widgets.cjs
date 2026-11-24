@@ -141,3 +141,14 @@ test('right panel displays all moved widgets before its full-height dashboard an
   assert.equal(dashboard.isConnected, true);
   dom.window.close();
 });
+
+
+test('news widget in the right panel uses the panel scroll instead of its old viewport height cap', () => {
+  const css = readFileSync('frontend/widgets/news/news-widget.css', 'utf8');
+  const rule = css.match(/#rightPanelContent > \\[data-portable-widget-slot="right"\\] \\.central-widget-card--news-feed \\.gnw-root\\s*\\{([^}]*)\\}/);
+  assert.ok(rule, 'right-panel-specific news widget rule exists');
+  assert.match(rule[1], /max-height:\\s*none/);
+  assert.match(rule[1], /overflow:\\s*visible/);
+  assert.match(rule[1], /scrollbar-gutter:\\s*auto/);
+  assert.match(css, /\\.gnw-root\\s*\\{[^}]*max-height:\\s*calc\\(100vh - 150px\\)/s, 'center/left widget layout keeps its original height rule');
+});
