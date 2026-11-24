@@ -8,7 +8,15 @@
   border-radius:0;
   background:transparent;
 }
-.gnw-root { width:100%; min-width:0; color:var(--gtp-text); font-family:var(--gtp-font-family); font-size:15px; }
+.gnw-root {
+  width:100%; min-width:0; min-height:0;
+  max-height:calc(100vh - 150px);
+  overflow-y:auto; overflow-x:hidden;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-gutter:stable;
+  color:var(--gtp-text); font-family:var(--gtp-font-family); font-size:15px;
+}
 .gnw-search {
   display:flex; align-items:center; gap:10px; height:46px; box-sizing:border-box; padding:0 14px;
   background:var(--gtp-surface); margin-bottom:8px; min-width:0;
