@@ -333,37 +333,15 @@
 }
 
 
-/* News widget reuses the existing TradingView news application, not a duplicate feed. */
+/* Native News widget panel; its detail/search/list styles live in widgets/news/news-widget.css. */
 .central-widget-card--news-feed {
   grid-column: 1 / -1;
-  position: relative;
   min-width: 0;
   min-height: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
-  overflow: hidden;
 }
-.central-widget-card__top--news {
-  min-height: 38px;
-  padding: 0 2px 8px;
-}
-.central-widget-card__top--news .central-widget-card__name {
-  font-size: 15px;
-  font-weight: 600;
-}
-.central-widget-card__news-frame {
-  display: block;
-  width: 100%;
-  height: min(76vh, 860px);
-  min-height: 520px;
-  border: 0;
-  background: var(--gtp-bg);
-}
-@media (max-width: 640px) {
-  .central-widget-card__news-frame {
-    height: calc(100dvh - 220px);
-    min-height: 480px;
-  }
-}
+.central-widget-card__top--news { min-height: 38px; padding: 0 2px 8px; }
+.central-widget-card__top--news .central-widget-card__name { font-size: 15px; font-weight: 600; }
