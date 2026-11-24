@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-kiwoom-us-top20-api.service","lines":100}
+{"operation":"run","path":"ops/do-gateway/check_quote_readonly_20261125.py","request_id":"quotecheck1125b","timeout":60}
