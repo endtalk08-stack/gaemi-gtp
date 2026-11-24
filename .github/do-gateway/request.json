@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/hash_live_etf_files_20261125.py","request_id":"hashliveetf1125","timeout":45}
+{"operation":"deploy","path":"backend/kiwoom_us_top20_api.py","target":"backend/kiwoom_us_top20_api.py"}
