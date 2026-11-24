@@ -318,6 +318,14 @@
   overflow: visible;
   box-sizing: border-box;
 }
+.central-widget-card--news-caption > .central-widget-card__close--overlay {
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .central-widget-card__news-caption-title {
   color: var(--gtp-text);
   font-family: var(--gtp-font-family);
