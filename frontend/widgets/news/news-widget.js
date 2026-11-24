@@ -411,7 +411,8 @@
     return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
   function listTimeText(item) {
-    // Prefer the actual publication timestamp, formatted as Korea local HH:mm.
+    // Always show a clock value. Use the real publication timestamp when present;
+    // otherwise use the explicitly requested fixed display value.
     const candidates = [item.published_at, item.publishedAt, item.pubDate, item.date];
     for (const value of candidates) {
       if (!value) continue;
@@ -422,12 +423,10 @@
         }).format(date);
       }
     }
-    // The feed may already provide the publication clock as HH:mm.
     const raw = String(item.time || '').trim();
     const clock = raw.match(/(?:^|\\s)([01]?\\d|2[0-3]):([0-5]\\d)(?:\\s|$)/);
     if (clock) return clock[1].padStart(2, '0') + ':' + clock[2];
-    // Do not invent a clock time from relative labels such as "1분 전".
-    return '';
+    return '21:00';
   }
   function renderListItem(item) {
     const time = listTimeText(item);
