@@ -1,11 +1,19 @@
-name: gaemigtp-main Pages production - centered News Chat
-# QQQ card and sourced reason verification: 2026-11-19
+name: gaemigtp-main Pages single deployment pipeline
+
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'functions/**'
+      - 'scripts/pages/**'
+      - '.github/workflows/gaemigtp-main-pages-news-production.yml'
   push:
     branches: [main]
     paths:
       - 'frontend/**'
       - 'functions/**'
+      - 'scripts/pages/**'
       - '.github/workflows/gaemigtp-main-pages-news-production.yml'
   workflow_dispatch:
 
@@ -13,16 +21,25 @@ permissions:
   contents: read
 
 concurrency:
-  group: gaemigtp-main-pages-news-production
-  cancel-in-progress: false
+  group: gaemigtp-main-pages-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  production:
-    if: github.ref == 'refs/heads/main'
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check news detachment and Pages inputs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate every local frontend asset and Pages Function route
+        run: node scripts/pages/verify-pages-inputs.mjs
+      - name: Verify current production assets against the checked-out source
+        if: github.event_name == 'pull_request'
+        run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
+      - name: Build Pages Functions from repository root
+        run: npx --yes wrangler@4.167.0 pages functions build functions --project-directory . --outdir "$RUNNER_TEMP/pages-functions"
+      - name: Preserve critical application checks
         run: |
           test -s frontend/index.html
           test -s functions/market/us-daily-chart.js
@@ -30,17 +47,18 @@ jobs:
           grep -Fq '오늘 미국 상승 테마 뭐야?' frontend/index.html
           grep -Fq '전일 대비 거래량 폭증한 미국 종목 알려줘' frontend/index.html
           grep -Fq '52주 신고가 신저가 종목 알려줘' frontend/index.html
-          grep -Eq 'market-sidebar\.js\?v=[^\"]+' frontend/index.html
+          grep -Eq 'market-sidebar\.js\?v=[^"]+' frontend/index.html
           grep -Fq 'aria-label="메인 화면"' frontend/index.html
           test "$(grep -Fc 'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2' frontend/index.html)" -eq 2
           grep -Fq 'News</span>' frontend/index.html
           grep -Fq '>Chat</button>' frontend/index.html
           node --check frontend/shell/right-panel/right-panel-tabs.js
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
+          node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          node --test tests/test_sidebar_issue_sync.cjs
           grep -Fq 'const renderIndustryMap = (data) =>' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq 'industry-map-sector' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq 'industry-map-stock' frontend/shell/left-market-sidebar/market-sidebar.js
-          test -s frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq 'grid-template-columns: minmax(0, 1fr)' frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq 'grid-template-columns: repeat(3, minmax(0, 1fr))' frontend/shell/left-market-sidebar/market-sidebar.css
           ! grep -Fq 'industry-map-stock-rank' frontend/shell/left-market-sidebar/market-sidebar.js
@@ -49,14 +67,31 @@ jobs:
           grep -Fq '.industry-map-sector.is-down' frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq '.industry-map-stock.is-up' frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq '.industry-map-stock.is-down' frontend/shell/left-market-sidebar/market-sidebar.css
-          node --check frontend/shell/center-chat/widget-dock/widget-dock.js
           grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq "window.addEventListener('gaemi:qqq-quote', onQqqQuote)" frontend/shell/center-chat/widget-dock/widget-dock.js
           ! grep -Fq 'data-panel-workspace-view="news"' frontend/shell/right-panel/right-panel-tabs.js
           ! grep -Fq 'renderTradingViewNewsPage' frontend/shell/right-panel/right-panel-tabs.js
           grep -Fq 'data-panel-workspace-view="disclosures"' frontend/shell/right-panel/right-panel-tabs.js
           grep -q 'right-panel-tabs.js?v=20261114-detach-right-news-v1' frontend/index.html
-      - name: Deploy to existing Pages project production
+
+  preview:
+    needs: validate
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare isolated Pages deployment workspace
+        run: |
+          deploy_dir="$RUNNER_TEMP/gaemigtp-pages-deploy"
+          rm -rf "$deploy_dir"
+          mkdir -p "$deploy_dir"
+          cp -a frontend functions "$deploy_dir/"
+          diff -qr frontend "$deploy_dir/frontend"
+          diff -qr functions "$deploy_dir/functions"
+      - name: Deploy the exact PR merge commit to Pages preview
         id: deploy
         uses: cloudflare/wrangler-action@v3
         env:
@@ -64,38 +99,92 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
-          command: pages deploy frontend --project-name gaemigtp-main --branch main
-      - name: Verify production HTML, assets and R2 endpoints
+          wranglerVersion: "4.167.0"
+          workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
+          command: pages deploy frontend --project-name gaemigtp-main --branch pr-${{ github.event.pull_request.number }} --commit-hash ${{ github.sha }}
+      - name: Detect preview Access protection and verify assets when readable
+        id: preview_check
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          set +e
+          status="$(curl -sSL --max-redirs 5 --max-time 20 -H 'Cache-Control: no-cache' "$DEPLOYMENT_URL/" -o "$RUNNER_TEMP/preview-index.html" -w '%{http_code}')"
+          curl_status=$?
+          set -e
+          if [ "$curl_status" -ne 0 ]; then
+            echo "::error::Could not retrieve the Pages preview response."
+            exit 1
+          fi
+          if grep -Eqi 'Cloudflare Access|cloudflareaccess\.com|cf-access' "$RUNNER_TEMP/preview-index.html"; then
+            echo "protected=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Preview deployed, but Cloudflare Access blocks anonymous asset/API verification."
+          elif [ "$status" = "200" ]; then
+            node scripts/pages/verify-pages-deployment.mjs "$DEPLOYMENT_URL"
+          else
+            echo "::error::Preview returned HTTP $status."
+            exit 1
+          fi
+      - name: Verify preview Pages Functions and existing R2 binding
+        if: steps.preview_check.outputs.protected != 'true'
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/market/qqq-reason" |
+            jq -e '.ok == true and (.items | type == "array")'
+          curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/stocks/us/instruments.json" |
+            jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
+          curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/market/us-daily-chart?symbol=NVDA" |
+            jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
+      - name: Publish preview URL and verification scope
+        if: always()
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          ACCESS_PROTECTED: ${{ steps.preview_check.outputs.protected }}
+        run: |
+          echo "[Open the PR preview]($DEPLOYMENT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ACCESS_PROTECTED" = "true" ]; then
+            echo "Cloudflare Access blocked anonymous verification. Sign in to inspect the preview; production will run full byte-for-byte verification after merge." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  production:
+    needs: validate
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: gaemigtp-main-pages-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare isolated Pages deployment workspace
+        run: |
+          deploy_dir="$RUNNER_TEMP/gaemigtp-pages-deploy"
+          rm -rf "$deploy_dir"
+          mkdir -p "$deploy_dir"
+          cp -a frontend functions "$deploy_dir/"
+          diff -qr frontend "$deploy_dir/frontend"
+          diff -qr functions "$deploy_dir/functions"
+      - name: Deploy the exact main commit to existing production Pages project
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        env:
+          npm_config_yes: "true"
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          wranglerVersion: "4.167.0"
+          workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
+          command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash ${{ github.sha }}
+      - name: Verify every production asset byte-for-byte
+        run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
+      - name: Verify production Pages Functions and existing R2 binding
         run: |
           site=https://gaemigtp-main.pages.dev
-
-          verify_asset() {
-            local path="$1" source="$2" output="$RUNNER_TEMP/production-${2##*/}"
-            local attempt
-            for attempt in {1..8}; do
-              if curl -fsS --max-time 12 -H 'Cache-Control: no-cache' "$site/$path" -o "$output" &&
-                cmp -s "$source" "$output"; then
-                echo "Verified $path"
-                return 0
-              fi
-              sleep 3
-            done
-            echo "::error::Production asset differs from the deployed commit: $path"
-            return 1
-          }
-
-          asset_path() {
-            grep -oE "shell/[^\" ]*/$1\\?v=[^\" ]+" frontend/index.html
-          }
-
-          verify_asset '' frontend/index.html
-          verify_asset "$(asset_path 'market-sidebar[.]css')" frontend/shell/left-market-sidebar/market-sidebar.css
-          verify_asset "$(asset_path 'market-sidebar[.]js')" frontend/shell/left-market-sidebar/market-sidebar.js
-          verify_asset "$(asset_path 'widget-dock[.]css')" frontend/shell/center-chat/widget-dock/widget-dock.css
-          verify_asset "$(asset_path 'widget-dock[.]js')" frontend/shell/center-chat/widget-dock/widget-dock.js
           curl -fsS --retry 3 --max-time 20 "$site/market/qqq-reason" |
             jq -e '.ok == true and (.items | type == "array")'
-          curl -fsS --retry 3 --max-time 20 "$site/stocks/us/instruments.json?v=20261120-top20-websocket-v1" |
+          curl -fsS --retry 3 --max-time 20 "$site/stocks/us/instruments.json" |
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
           curl -fsS --retry 3 --max-time 20 "$site/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
