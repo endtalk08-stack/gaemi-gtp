@@ -1,1 +1,1 @@
-{"operation":"logs","unit":"gaemigtp-kiwoom-us-top20-https.service","lines":90}
+{"operation":"run","path":"ops/do-gateway/audit_us_quote_socket_20261123.py","request_id":"usquoteread20261124b","timeout":90}
