@@ -429,7 +429,6 @@
           ${time ? `<time class="gnw-list-time">${escape(time)}</time>` : ''}
           <span class="gnw-title">${escape(item.title)}</span>
         </div>
-        <span class="gnw-source">${escape(item.source)}</span>
       </div>
       <p class="gnw-summary">${escape(item.summary)}</p>
     </button>`;
