@@ -485,7 +485,7 @@
     host.innerHTML=`
       <button type="button" class="gnw-back" data-gnw-back aria-label="뉴스 목록으로 돌아가기">←</button>
       <div class="gnw-detail-card">
-        <div class="gnw-meta"><span class="gnw-tag">${escape(item.category)}</span><time class="gnw-time">${escape(timeText(item))}</time></div>
+        <div class="gnw-meta"><time class="gnw-time">${escape(timeText(item))}</time></div>
         <h3 class="gnw-detail-title">${escape(item.title)}</h3>
         ${item.source ? `<div class="gnw-detail-source">${escape(item.source)}</div>` : ''}
         ${item.summary && !item.body ? `<p class="gnw-detail-summary">${escape(item.summary)}</p>` : ''}
