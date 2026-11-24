@@ -1,8 +1,9 @@
 /* Center-only News surface. Existing quote, chat and sidebar modules stay untouched. */
 #mainContent.is-news-view > #mainHeroView,
-#mainContent.is-news-view > #centralWidgetDock,
 #mainContent.is-news-view > #chatArea,
 #mainContent.is-news-view > .gaemi-chat-bottom { display: none !important; }
+/* News and Chat share the same independent plugin dock above their content. */
+#mainContent.is-news-view > #centralWidgetDock { display: block; }
 #mainContent > #gaemiCenterNewsFeed[hidden] { display: none !important; }
 #mainContent > #gaemiCenterNewsFeed {
   display: block; flex: 1 1 auto; min-height: 0;
