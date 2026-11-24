@@ -411,15 +411,20 @@
     return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
   function listTimeText(item) {
+    // Prefer the real publication timestamp and display a consistent Korean clock time.
+    if (item.published_at) {
+      const date = new Date(item.published_at);
+      if (!Number.isNaN(date.getTime())) {
+        return new Intl.DateTimeFormat('ko-KR', {
+          hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul'
+        }).format(date);
+      }
+    }
+    // If the provider only supplies an absolute clock string, keep it.
     const raw = String(item.time || '').trim();
-    const clock = raw.match(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?:\s|$)/);
+    const clock = raw.match(/(?:^|\\s)([01]?\\d|2[0-3]):([0-5]\\d)(?:\\s|$)/);
     if (clock) return clock[1].padStart(2, '0') + ':' + clock[2];
-    // Keep relative timestamps from the source when no absolute publish time exists.
-    if (raw && !item.published_at) return raw;
-    if (!item.published_at) return '';
-    const date = new Date(item.published_at);
-    if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Seoul'}).format(date);
+    return '';
   }
   function renderListItem(item) {
     const time = listTimeText(item);
@@ -429,7 +434,7 @@
           ${time ? `<time class="gnw-list-time">${escape(time)}</time>` : ''}
           <span class="gnw-title">${escape(item.title)}</span>
         </div>
-        <span class="gnw-source">${escape(item.source)}</span>
+
       </div>
       <p class="gnw-summary">${escape(item.summary)}</p>
     </button>`;
