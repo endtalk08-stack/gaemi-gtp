@@ -2,17 +2,9 @@
 (function () {
   'use strict';
   const CATEGORIES = ['전체','종목','업종·섹터','실적 발표','실적 전망','증권사 평가','계약·수주','제품·기술','정책·규제','연준·금리','경제지표'];
-  // Restore the three source-file design cards while live news data is not connected.
-  // These are NOT verified current reports; every card is explicitly labelled "샘플".
-  const SOURCE_SAMPLE_CARDS = [
-    { id:'sample-101', category:'연준·금리', source:'샘플', time:'', title:'연준 의장 긴급 기자회견… 시장 예상 뒤집어',
-      summary:'뉴스 본문을 연결하면 이곳에 기사 내용이 표시됩니다.', tickers:['SPY','TLT'] },
-    { id:'sample-4', category:'종목', source:'샘플', time:'', title:'테슬라, 신형 모델 Y 생산 일정 6개월 앞당긴다',
-      summary:'검색과 분류, 제목과 내용, 상세 화면을 확인하는 디자인 예시입니다.', tickers:['TSLA'] },
-    { id:'sample-103', category:'경제지표', source:'샘플', time:'', title:'미국 CPI 예상치 상회… 3.2% 기록',
-      summary:'실제 실시간 뉴스와 연결된 데이터가 아닙니다.', tickers:['SPY'] }
-  ];
-  let items = SOURCE_SAMPLE_CARDS;
+  // The UI is ready for the existing TradingView feed; real items are supplied separately.
+  let items = [];
+  const favoriteTickers = new Set();
   let query = '';
   let selected = '전체';
   let detailId = null;
@@ -26,7 +18,9 @@
     const category = String(raw.category || raw.cat || '종목');
     return {
       id: String(raw.id ?? raw.url ?? index), category,
-      title: raw.title.trim(), summary: String(raw.summary || raw.description || raw.body || ''),
+      title: raw.title.trim(),
+      summary: String(raw.summary || raw.description || (raw.body ? String(raw.body).slice(0,220) : '')),
+      body: String(raw.article_body || raw.content || raw.body || ''),
       time: String(raw.time || ''), published_at: String(raw.published_at || raw.publishedAt || ''),
       source: String(raw.source || raw.publisher || ''),
       url: typeof raw.url === 'string' && /^https:\/\//.test(raw.url) ? raw.url : '',
@@ -46,7 +40,7 @@
   function matches(item) {
     const c=selected === '전체' || item.category === selected;
     const q=query.trim().toLowerCase();
-    return c && (!q || [item.title,item.summary,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
+    return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
   function renderList(host) {
     const matchesAll=currentItems().filter(matches);
@@ -92,16 +86,30 @@
     const item=currentItems().find(x=>x.id===detailId);
     if(!item){detailId=null;renderList(host);return;}
     const chips=(arr)=>arr?.length ? arr.map(x=>`<span class="gnw-chip">${escape(x)}</span>`).join('') : '';
+    const paragraphs=String(item.body||'').split(/\\n\\s*\\n/).map(x=>x.trim()).filter(Boolean);
+    const bodyHtml=paragraphs.length
+      ? `<div class="gnw-article-body">${paragraphs.map(p=>`<p>${escape(p).replaceAll('\\n','<br>')}</p>`).join('')}</div>`
+      : '';
+    const stockRows=(item.tickers||[]).map(ticker=>{
+      const active=favoriteTickers.has(ticker);
+      return `<div class="gnw-stock-item">
+        <span class="gnw-stock-name">${escape(ticker)}</span>
+        <button type="button" class="gnw-favorite${active?' is-active':''}" data-gnw-favorite="${escape(ticker)}" aria-label="${escape(ticker)} 관심종목" aria-pressed="${active?'true':'false'}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        </button>
+      </div>`;
+    }).join('');
     host.innerHTML=`
       <button type="button" class="gnw-back" data-gnw-back aria-label="뉴스 목록으로 돌아가기">←</button>
       <div class="gnw-detail-card">
         <div class="gnw-meta"><span class="gnw-tag">${escape(item.category)}</span><time class="gnw-time">${escape(timeText(item))}</time></div>
         <h3 class="gnw-detail-title">${escape(item.title)}</h3>
-        <div class="gnw-detail-source">${escape(item.source)}</div>
-        ${item.summary ? `<p class="gnw-detail-summary">${escape(item.summary)}</p>` : ''}
+        ${item.source ? `<div class="gnw-detail-source">${escape(item.source)}</div>` : ''}
+        ${item.summary && !item.body ? `<p class="gnw-detail-summary">${escape(item.summary)}</p>` : ''}
       </div>
+      ${bodyHtml}
       ${item.issues?.length ? `<section class="gnw-detail-section"><h4>관련 이슈</h4><div class="gnw-chips">${chips(item.issues)}</div></section>` : ''}
-      ${item.tickers?.length ? `<section class="gnw-detail-section"><h4>관련 종목</h4><div class="gnw-chips">${chips(item.tickers)}</div></section>` : ''}
+      ${item.tickers?.length ? `<section class="gnw-detail-section"><h4>관련 종목</h4><div class="gnw-stock-list">${stockRows}</div></section>` : ''}
       ${item.industries?.length ? `<section class="gnw-detail-section"><h4>관련 산업·테마</h4><div class="gnw-chips">${chips(item.industries)}</div></section>` : ''}
       ${item.url ? `<a class="gnw-source-link" href="${escape(item.url)}" target="_blank" rel="noopener noreferrer">기사 원문 ↗</a>` : ''}
     `;
@@ -119,6 +127,15 @@
   document.addEventListener('click',e=>{
     const host=e.target.closest('[data-gnw-root]');
     if(!host)return;
+    const favorite=e.target.closest('[data-gnw-favorite]');
+    if(favorite){
+      const ticker=favorite.dataset.gnwFavorite;
+      if(favoriteTickers.has(ticker))favoriteTickers.delete(ticker);else favoriteTickers.add(ticker);
+      const active=favoriteTickers.has(ticker);
+      favorite.classList.toggle('is-active',active);
+      favorite.setAttribute('aria-pressed',active?'true':'false');
+      return;
+    }
     const cat=e.target.closest('[data-gnw-cat]');
     if(cat){ selected=cat.dataset.gnwCat;visible=5;render();return;}
     const open=e.target.closest('[data-gnw-open]');
