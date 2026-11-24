@@ -331,3 +331,17 @@
   .central-widget-card--news-caption { min-height: 58px; padding: 10px 27px; border-radius: 0; }
   .central-widget-card__news-caption-title { font-size: 15px; line-height: 1.4; }
 }
+
+
+/* Native News widget panel; its detail/search/list styles live in widgets/news/news-widget.css. */
+.central-widget-card--news-feed {
+  grid-column: 1 / -1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.central-widget-card__top--news { min-height: 38px; padding: 0 2px 8px; }
+.central-widget-card__top--news .central-widget-card__name { font-size: 15px; font-weight: 600; }
