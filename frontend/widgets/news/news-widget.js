@@ -429,7 +429,6 @@
           ${item.summary ? `<p class="gnw-summary">${escape(item.summary)}</p>` : ''}
           <time class="gnw-time">${escape(timeText(item))}</time>
         </button>`).join('')}
-        ${!rows.length ? '<div class="gnw-empty"><div class="gnw-empty-mark">⌕</div><div>표시할 뉴스 목록이 없습니다</div></div>' : ''}
       </div>
       ${matchesAll.length>visible ? '<button type="button" class="gnw-more" data-gnw-more>더보기</button>' : ''}
     `;
