@@ -621,6 +621,9 @@
     if (!dock || dock.dataset.bound === 'true') return;
     dock.dataset.bound = 'true';
     activeIds = readState(); render();
+    // The plugin sidebar can initialize before the dock restores its saved widgets.
+    // Re-sync its add/remove labels after the dock state is ready.
+    window.GaemiGTPPluginSidebar?.render?.();
     window.addEventListener('resize', fitNewsCaption);
     document.fonts?.ready?.then(fitNewsCaption);
     if (typeof ResizeObserver !== 'undefined') {
