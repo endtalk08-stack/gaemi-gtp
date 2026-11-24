@@ -4,6 +4,57 @@
 
   const STATE_KEY = 'gaemiGTP_central_widget_dock_v1';
   let activeIds = [];
+  const cards = new Map();
+  const placements = new Map();
+
+  function moveWidget(id, where) {
+    if (!activeIds.includes(id) || !['left', 'center', 'right'].includes(where)) return false;
+    if (id === 'industry') { window.GaemiGTPIndustryWidget?.move?.(where); return true; }
+    const card = cards.get(id);
+    let target = body();
+    if (where !== 'center') {
+      const host = document.getElementById(where === 'left' ? 'leftMarketSidebar' : 'rightPanel');
+      if (!host) return false;
+      target = host.querySelector('[data-portable-widget-slot]');
+      if (!target) {
+        target = document.createElement('div');
+        target.dataset.portableWidgetSlot = where;
+        target.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:8px;min-width:0;flex-shrink:0;max-height:70vh;overflow:auto';
+      host.appendChild(target);
+      }
+      document.body.classList.add(where === 'left' ? 'left-market-open' : 'right-panel-open');
+      window.GaemiGTPWorkspaceShellState?.apply?.();
+    }
+    if (!card || !target) return false;
+    target.appendChild(card);
+    placements.set(id, where);
+    card.querySelectorAll('[data-widget-move]').forEach(button => {
+      button.disabled = button.dataset.widgetMove === where;
+      button.setAttribute('aria-pressed', String(button.disabled));
+    });
+    root().dataset.count = String(body().children.length);
+    return true;
+  }
+
+  function addMoveControls(card, id) {
+    if (id === 'industry') return;
+    const controls = document.createElement('div');
+    card.style.height = 'auto';
+    card.style.minHeight = '112px';
+    controls.style.cssText = 'display:flex;gap:6px;padding:4px 28px 4px 6px;flex-wrap:wrap';
+    controls.setAttribute('aria-label', '위젯 위치');
+    for (const [where, label] of [['left', '왼쪽'], ['center', '중앙'], ['right', '오른쪽']]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.dataset.widgetMove = where;
+      button.style.cssText = 'font-size:11px;color:inherit;padding:2px 5px;border:1px solid #454851;border-radius:4px';
+      button.setAttribute('aria-label', catalog()[id].title + ' ' + label + '으로 이동');
+      button.addEventListener('click', () => moveWidget(id, where));
+      controls.appendChild(button);
+    }
+    card.prepend(controls);
+  }
   let captionHeadline = '';
   let chartSymbol = '';
   let chartRequest = 0;
@@ -147,7 +198,7 @@
   }
 
   function updateQqqCard() {
-    const card = body()?.querySelector('[data-central-widget-id="qqq"]');
+    const card = cards.get('qqq');
     if (!card) return;
     const priceNode = card.querySelector('[data-kospi-price]');
     const changeNode = card.querySelector('[data-kospi-change]');
@@ -170,7 +221,7 @@
   }
 
   function updateMarketEtfCard(symbol) {
-    const card = body()?.querySelector('[data-central-widget-id="' + symbol.toLowerCase() + '"]');
+    const card = cards.get(symbol.toLowerCase());
     if (!card) return;
     const state = marketEtfs[symbol];
     const quote = state.current;
@@ -285,7 +336,7 @@
   // The one-line alert widget keeps the same fixed height and text size as the search bar.
   function setNewsHeadline(value) {
     captionHeadline = typeof value === 'string' ? value.trim().slice(0, 500) : '';
-    const target = body()?.querySelector('[data-news-caption-title]');
+    const target = cards.get('news-caption')?.querySelector('[data-news-caption-title]');
     if (target) target.textContent = captionHeadline;
   }
 
@@ -293,7 +344,8 @@
     const dock = root();
     const bodyEl = body();
     if (!dock || !bodyEl) return;
-    bodyEl.innerHTML = activeIds.map(id => {
+    const staging = document.createElement('div');
+    staging.innerHTML = activeIds.filter(id => !cards.has(id)).map(id => {
       const meta = catalog()[id];
       if (id === 'industry') {
         return '<article class="central-widget-card central-widget-card--industry" data-central-widget-id="industry" aria-label="업종 위젯"><div data-industry-widget-target="center"></div></article>';
@@ -353,11 +405,24 @@
         <div class="central-widget-card__desc" data-central-widget-mount="${escapeHtml(id)}">${escapeHtml(meta.description)} · 데이터 준비 중</div>
       </article>`;
     }).join('');
+    for (const [id, card] of cards) {
+      if (!activeIds.includes(id)) { card.remove(); cards.delete(id); placements.delete(id); }
+    }
+    for (const card of Array.from(staging.children)) {
+      const id = card.dataset.centralWidgetId;
+      cards.set(id, card);
+      addMoveControls(card, id);
+      bodyEl.appendChild(card);
+      moveWidget(id, placements.get(id) || 'center');
+    }
     dock.dataset.count = String(activeIds.length);
     document.querySelectorAll('[data-central-widget-mount]').forEach(node => {
       window.GaemiGTPAnalysisWidgets?.mount?.(node.dataset.centralWidgetMount, node);
     });
-    window.GaemiGTPNewsWidget?.mount?.();
+    if (staging.querySelector('[data-gnw-root]') || cards.get('news-feed')?.dataset.newsMounted !== 'true') {
+      window.GaemiGTPNewsWidget?.mount?.();
+      if (cards.has('news-feed')) cards.get('news-feed').dataset.newsMounted = 'true';
+    }
     window.GaemiGTPIndustryWidget?.mount?.();
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('qqq')) updateQqqCard();
@@ -641,6 +706,6 @@
     // Each card X button calls the same remove() action directly.
   }
   document.addEventListener('DOMContentLoaded', initialize);
-  window.GaemiGTPWidgetDock = { initialize, add, remove, getActiveIds: () => [...activeIds], setNewsHeadline, isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason };
+  window.GaemiGTPWidgetDock = { initialize, add, remove, move: moveWidget, getActiveIds: () => [...activeIds], setNewsHeadline, isActive: id => activeIds.includes(id), setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason };
 }());
 
