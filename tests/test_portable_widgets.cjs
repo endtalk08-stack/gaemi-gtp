@@ -98,3 +98,46 @@ test('the existing semiconductor tile drags the same industry map into a panel',
   assert.equal(menu.isConnected, true);
   dom.window.close();
 });
+
+
+test('right panel displays all moved widgets before its full-height dashboard and restores saved positions', () => {
+  const html = readFileSync('frontend/index.html', 'utf8');
+  const dom = new JSDOM(html, { url: 'https://example.test', runScripts: 'outside-only' });
+  const w = dom.window;
+  w.setInterval = () => 0;
+  w.fetch = async () => ({ ok: false });
+  const right = w.document.getElementById('rightPanelContent');
+  const dashboard = right.firstElementChild;
+  const map = w.document.getElementById('marketIndustryMap');
+  const ids = ['qqq', 'spy', 'dia', 'night-futures', 'news-caption', 'news-feed', 'industry'];
+  w.localStorage.setItem('gaemiGTP_central_widget_dock_v1', JSON.stringify(ids));
+  w.localStorage.setItem('gaemiGTP_widget_placements_v1', JSON.stringify(Object.fromEntries(ids.map(id => [id, 'right']))));
+  w.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
+  w.eval(readFileSync('frontend/widgets/industry/industry-widget.js', 'utf8'));
+  w.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
+  const dock = w.GaemiGTPWidgetDock;
+  dock.initialize();
+  for (const id of ids) {
+    if (!dock.isActive(id)) dock.add(id);
+    assert.equal(dock.getPlacement(id), 'right');
+  }
+  const slot = right.querySelector('[data-portable-widget-slot="right"]');
+  assert.equal(right.firstElementChild, slot);
+  assert.equal(slot.nextElementSibling, dashboard);
+  assert.equal(slot.style.maxHeight, 'none');
+  assert.equal(slot.style.overflow, 'visible');
+  assert.deepEqual(Array.from(slot.children, card => card.dataset.centralWidgetId), ids);
+  assert.ok(slot.contains(map));
+  for (const id of ids) {
+    const card = slot.querySelector('[data-central-widget-id="' + id + '"]');
+    assert.equal(dock.move(id, 'center'), true);
+    assert.equal(dock.move(id, 'right'), true);
+    assert.equal(card.parentElement, slot);
+    assert.equal(right.firstElementChild, slot);
+  }
+  assert.equal(dashboard.isConnected, true);
+  for (const id of ids) dock.move(id, 'center');
+  assert.equal(slot.children.length, 0);
+  assert.equal(dashboard.isConnected, true);
+  dom.window.close();
+});
