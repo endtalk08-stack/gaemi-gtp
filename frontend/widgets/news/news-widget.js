@@ -376,7 +376,7 @@
   let query = '';
   let selected = '전체';
   let detailId = null;
-  let visible = 5;
+  let visible = Number.MAX_SAFE_INTEGER;
   const escape = value => String(value == null ? '' : value)
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
     .replaceAll('"','&quot;').replaceAll("'",'&#039;');
@@ -411,8 +411,6 @@
     return c && (!q || [item.title,item.summary,item.body,item.source,item.category,...(item.tickers||[])].join(' ').toLowerCase().includes(q));
   }
   function listTimeText(item) {
-    // Always show a clock value. Use the real publication timestamp when present;
-    // otherwise use the explicitly requested fixed display value.
     const candidates = [item.published_at, item.publishedAt, item.pubDate, item.date];
     for (const value of candidates) {
       if (!value) continue;
@@ -425,8 +423,7 @@
     }
     const raw = String(item.time || '').trim();
     const clock = raw.match(/(?:^|\\s)([01]?\\d|2[0-3]):([0-5]\\d)(?:\\s|$)/);
-    if (clock) return clock[1].padStart(2, '0') + ':' + clock[2];
-    return '21:00';
+    return clock ? clock[1].padStart(2, '0') + ':' + clock[2] : '21:00';
   }
   function renderListItem(item) {
     const time = listTimeText(item);
@@ -455,20 +452,17 @@
       <div class="gnw-list">
         ${rows.map(renderListItem).join('')}
       </div>
-      ${matchesAll.length>visible ? '<button type="button" class="gnw-more" data-gnw-more>더보기</button>' : ''}
     `;
     const search=host.querySelector('[data-gnw-search]');
     search?.addEventListener('input',e=>{
       query=e.target.value;
-      visible=5;
+      visible=Number.MAX_SAFE_INTEGER;
       const list=host.querySelector('.gnw-list');
       const filtered=currentItems().filter(matches);
       if(!list) return;
       // Do not remount the search input while the user is typing.
       const filteredRows=filtered.slice(0,visible);
       list.innerHTML=filteredRows.map(renderListItem).join('') || '<div class="gnw-empty"><div class="gnw-empty-mark">⌕</div><div>검색 결과가 없습니다</div></div>';
-      host.querySelector('[data-gnw-more]')?.remove();
-      if(filtered.length>visible) list.insertAdjacentHTML('afterend','<button type="button" class="gnw-more" data-gnw-more>더보기</button>');
     });
   }
   function renderDetail(host) {
@@ -512,7 +506,7 @@
   function mount() { render(); }
   function setItems(raw) {
     items=(Array.isArray(raw)?raw:[]).map(normalize).filter(Boolean).sort((a,b)=>(Date.parse(b.published_at)||0)-(Date.parse(a.published_at)||0));
-    detailId=null;selected='전체';query='';visible=5;render();
+    detailId=null;selected='전체';query='';visible=Number.MAX_SAFE_INTEGER;render();
   }
   document.addEventListener('click',e=>{
     const host=e.target.closest('[data-gnw-root]');
@@ -531,7 +525,6 @@
     const open=e.target.closest('[data-gnw-open]');
     if(open){detailId=open.dataset.gnwOpen;render();return;}
     if(e.target.closest('[data-gnw-back]')){detailId=null;render();return;}
-    if(e.target.closest('[data-gnw-more]')){visible+=5;render();return;}
   });
   window.GaemiGTPNewsWidget={mount,setItems};
 }());
