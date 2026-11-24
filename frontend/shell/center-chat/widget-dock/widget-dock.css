@@ -370,3 +370,11 @@
 [data-central-widget-id] {
   min-width: 0;
 }
+
+.central-widget-card__kospi-title,
+.central-widget-card__top,
+.central-widget-card__news-caption-title {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
