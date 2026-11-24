@@ -532,14 +532,18 @@
   min-height: 46px;
 }
 
-/* Remove the dark parent surface showing through between/under industry tiles only. */
+/* Preserve the original tile separation; remove only the extra widget surface. */
 #marketIndustryMap.industry-map-list {
-  gap: 0;
   padding: 0;
-}
-#marketIndustryMap.industry-map-list .industry-map-row {
-  gap: 0;
+  background: transparent;
 }
 .market-industry-widget-slot {
   padding-bottom: 0;
+  background: transparent;
+}
+.central-widget-card[data-central-widget-id="industry"],
+.central-widget-card[data-central-widget-id="industry"] > [data-industry-widget-target] {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
