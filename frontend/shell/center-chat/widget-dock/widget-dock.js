@@ -295,6 +295,9 @@
     if (!dock || !bodyEl) return;
     bodyEl.innerHTML = activeIds.map(id => {
       const meta = catalog()[id];
+      if (id === 'industry') {
+        return '<article class="central-widget-card central-widget-card--industry" data-central-widget-id="industry" aria-label="업종 위젯"><div data-industry-widget-target="center"></div></article>';
+      }
       if (id === 'news-feed') {
         return `<article class="central-widget-card central-widget-card--news-feed" data-central-widget-id="news-feed" aria-label="뉴스 위젯">
           <section class="gnw-root" data-gnw-root aria-label="뉴스 검색과 목록"></section>
@@ -355,6 +358,7 @@
       window.GaemiGTPAnalysisWidgets?.mount?.(node.dataset.centralWidgetMount, node);
     });
     window.GaemiGTPNewsWidget?.mount?.();
+    window.GaemiGTPIndustryWidget?.mount?.();
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('qqq')) updateQqqCard();
     for (const symbol of Object.keys(marketEtfs)) {
