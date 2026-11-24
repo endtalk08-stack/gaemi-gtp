@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/check_etf_marketcap_from_live_env_20261125.py","request_id":"etfmarketcaplive1125","timeout":90}
