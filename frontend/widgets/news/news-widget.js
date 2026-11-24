@@ -530,7 +530,19 @@
     const open=e.target.closest('[data-gnw-open]');
     if(open){detailId=open.dataset.gnwOpen;render();return;}
     if(e.target.closest('[data-gnw-back]')){detailId=null;render();return;}
-    if(e.target.closest('[data-gnw-more]')){visible+=5;render();return;}
+    if(e.target.closest('[data-gnw-more]')){
+      const more=e.target.closest('[data-gnw-more]');
+      const host=more.closest('[data-gnw-root]');
+      const list=host?.querySelector('.gnw-list');
+      if(!list)return;
+      const previousCount=visible;
+      const all=currentItems().filter(matches);
+      visible+=5;
+      const nextRows=all.slice(previousCount,visible);
+      if(nextRows.length) list.insertAdjacentHTML('beforeend',nextRows.map(renderListItem).join(''));
+      if(visible>=all.length) more.remove();
+      return;
+    }
   });
   window.GaemiGTPNewsWidget={mount,setItems};
 }());
