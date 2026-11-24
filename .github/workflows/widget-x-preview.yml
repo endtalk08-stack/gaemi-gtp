@@ -19,8 +19,7 @@ jobs:
       - name: Validate changed widget code
         run: |
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
-          grep -Fq "document.addEventListener('click'" frontend/shell/center-chat/widget-dock/widget-dock.js
-          grep -Fq "}, true);" frontend/shell/center-chat/widget-dock/widget-dock.js
+          test "$(grep -Fc 'onclick="window.GaemiGTPWidgetDock.remove' frontend/shell/center-chat/widget-dock/widget-dock.js)" -eq 5
           grep -Fq 'position: relative;' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'z-index: 5;' frontend/shell/center-chat/widget-dock/widget-dock.css
           grep -Fq 'pointer-events: auto;' frontend/shell/center-chat/widget-dock/widget-dock.css
@@ -54,6 +53,5 @@ jobs:
           NODE
           js="$(cat "$RUNNER_TEMP/widget-js-path.txt")"
           curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/$js" -o "$RUNNER_TEMP/widget-dock.js"
-          grep -Fq "document.addEventListener('click'" "$RUNNER_TEMP/widget-dock.js"
-          grep -Fq 'data-central-widget-remove' "$RUNNER_TEMP/widget-dock.js"
+          test "$(grep -Fc 'onclick="window.GaemiGTPWidgetDock.remove' "$RUNNER_TEMP/widget-dock.js")" -eq 5
           echo "Verified preview HTML and deployed X-click handler: $PREVIEW_URL/$js"
