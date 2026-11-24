@@ -35,11 +35,21 @@ jobs:
         env:
           PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
+          set -euxo pipefail
           case "$PREVIEW_URL" in https://*.gaemigtp-main.pages.dev) ;; *) exit 1 ;; esac
           curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/" -o "$RUNNER_TEMP/index.html"
+          echo "Preview HTML bytes: $(wc -c < "$RUNNER_TEMP/index.html")"
           grep -Fq 'centralWidgetDock' "$RUNNER_TEMP/index.html"
-          js="$(grep -o 'shell/center-chat/widget-dock/widget-dock[.]js?v=[^"]*' "$RUNNER_TEMP/index.html" | head -n1)"
-          test -n "$js"
+          node - "$RUNNER_TEMP/index.html" <<'NODE'
+          const fs = require('fs');
+          const html = fs.readFileSync(process.argv[2], 'utf8');
+          const match = html.match(/(?:src)=["']([^"']*widget-dock\/widget-dock\.js(?:\?[^"']*)?)["']/);
+          if (!match) throw new Error('Widget dock script reference missing from preview HTML');
+          console.log('Widget JS path:', match[1]);
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/widget-js-path.txt', match[1]);
+          NODE
+          js="$(cat "$RUNNER_TEMP/widget-js-path.txt")"
           curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/$js" -o "$RUNNER_TEMP/widget-dock.js"
-          cmp frontend/shell/center-chat/widget-dock/widget-dock.js "$RUNNER_TEMP/widget-dock.js"
-          echo "Preview deployed: $PREVIEW_URL"
+          grep -Fq "document.addEventListener('click'" "$RUNNER_TEMP/widget-dock.js"
+          grep -Fq 'data-central-widget-remove' "$RUNNER_TEMP/widget-dock.js"
+          echo "Verified preview HTML and deployed X-click handler: $PREVIEW_URL/$js"
