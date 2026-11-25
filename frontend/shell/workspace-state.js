@@ -29,7 +29,7 @@
       const panelOpen = document.body.classList.contains('right-panel-open');
       const state = {
         mode: document.body.classList.contains('analysis-mode') && heroView && heroView.classList.contains('hidden') ? 'analysis' : 'home',
-        centerView: document.getElementById('mainContent')?.classList.contains('is-news-view') ? 'news' : (document.body.classList.contains('analysis-mode') && heroView?.classList.contains('hidden') ? 'chat' : 'home'),
+        centerView: document.getElementById('mainContent')?.classList.contains('is-news-view') ? 'news' : (heroView?.classList.contains('hidden') ? 'chat' : 'home'),
         newsScrollTop: Number.isFinite(Number(stateNewsScrollTop)) ? Math.max(0, Number(stateNewsScrollTop)) : 0,
         stock: activeStock || '삼성전자',
         leftHomeOpen: document.body.classList.contains('left-home-open'),
