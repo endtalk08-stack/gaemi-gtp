@@ -86,9 +86,23 @@
 }
 
 
-/* In the right panel, let the panel itself scroll instead of nesting a viewport-limited news scroller. */
+/* The right panel owns vertical scrolling. Keep the news card at the slot's full
+   inner width and let its content determine natural height. */
+#rightPanelContent > [data-portable-widget-slot="right"] .central-widget-card--news-feed {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 #rightPanelContent > [data-portable-widget-slot="right"] .central-widget-card--news-feed .gnw-root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
   max-height: none;
   overflow: visible;
   scrollbar-gutter: auto;
+  box-sizing: border-box;
 }

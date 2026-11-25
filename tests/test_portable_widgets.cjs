@@ -154,15 +154,40 @@ test('news widget in the right panel uses the panel scroll instead of its old vi
 });
 
 
-test('right panel keeps vertical scrolling enabled when portable widgets are present', () => {
-  const css = readFileSync('frontend/pages/panel-workspace/panel-workspace.css', 'utf8');
-  const override = css.match(/#rightPanelContent:has\(#rightPanelTabView-(?:panel-workspace|dashboard):not\(\[hidden\]\)\):has\(> \[data-portable-widget-slot="right"\]:not\(:empty\)\),[\s\S]*?\{([^}]*)\}/);
-  assert.ok(override, 'portable-widget override has enough specificity to beat the legacy dashboard overflow rule');
+test('right panel constrains only vertical scrolling and keeps the moved news widget at full panel width', () => {
+  const panelCss = readFileSync('frontend/pages/panel-workspace/panel-workspace.css', 'utf8');
+  const override = panelCss.match(/#rightPanelContent:has\(#rightPanelTabView-dashboard\):has\(> \[data-portable-widget-slot="right"\] > \[data-central-widget-id\]\)\s*\{([^}]*)\}/);
+  assert.ok(override, 'right panel scroll override matches a real moved widget regardless of tab visibility');
+  assert.match(override[1], /display:\s*flex/);
+  assert.match(override[1], /flex-direction:\s*column/);
+  assert.match(override[1], /min-height:\s*0/);
   assert.match(override[1], /overflow-y:\s*auto\s*!important/);
   assert.match(override[1], /overflow-x:\s*hidden\s*!important/);
+  assert.match(override[1], /scrollbar-gutter:\s*stable/);
+
+  const slot = panelCss.match(/#rightPanelContent > \[data-portable-widget-slot="right"\]\s*\{([^}]*)\}/);
+  assert.ok(slot, 'right widget slot uses natural content height');
+  assert.match(slot[1], /flex:\s*0 0 auto/);
+  assert.match(slot[1], /width:\s*100%/);
+  assert.match(slot[1], /max-width:\s*100%/);
+  assert.match(slot[1], /max-height:\s*none/);
+  assert.match(slot[1], /overflow:\s*visible/);
+
+  const newsCss = readFileSync('frontend/widgets/news/news-widget.css', 'utf8');
+  const root = newsCss.match(/#rightPanelContent > \[data-portable-widget-slot="right"\] \.central-widget-card--news-feed \.gnw-root\s*\{([^}]*)\}/);
+  assert.ok(root, 'news content uses its natural height inside the panel slot');
+  assert.match(root[1], /width:\s*100%/);
+  assert.match(root[1], /max-height:\s*none/);
+  assert.match(root[1], /overflow:\s*visible/);
+  assert.match(newsCss, /\.gnw-root\s*\{[^}]*max-height:\s*calc\(100vh - 150px\)/s, 'center/left news widget keeps its original viewport behavior');
+
+  const shellCss = readFileSync('frontend/shell/right-panel/right-panel.css', 'utf8');
+  assert.match(shellCss, /flex:\s*0 0 var\(--right-panel-width\)/);
+  assert.match(shellCss, /width:\s*var\(--right-panel-width\)/, 'right panel outer width remains unchanged');
 
   const dashboardCss = readFileSync('frontend/pages/dashboard/dashboard.css', 'utf8');
-  assert.match(dashboardCss, /panel-workspace\/panel-workspace\.css\?v=20261125-portable-right-scroll/);
+  assert.match(dashboardCss, /panel-workspace\/panel-workspace\.css\?v=20261125-right-news-height-scroll-v2/);
   const html = readFileSync('frontend/index.html', 'utf8');
-  assert.match(html, /dashboard\.css\?v=20261125-portable-right-scroll/);
+  assert.match(html, /dashboard\.css\?v=20261125-right-news-height-scroll-v2/);
+  assert.match(html, /news-widget\.css\?v=20261125-right-panel-scroll-v2/);
 });
