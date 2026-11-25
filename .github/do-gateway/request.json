@@ -1,1 +1,6 @@
-{"operation":"status"}
+{
+  "operation": "run",
+  "path": "ops/do-gateway/check_sector_composition_20261126.py",
+  "request_id": "check_sector_composition_20261126",
+  "timeout": 60
+}
