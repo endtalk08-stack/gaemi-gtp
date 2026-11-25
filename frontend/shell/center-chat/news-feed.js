@@ -3,8 +3,9 @@
   'use strict';
   const main = document.getElementById('mainContent');
   const feed = document.getElementById('gaemiCenterNewsFeed');
+  const scrollArea = document.getElementById('gaemiCenterScrollArea');
   const list = document.getElementById('gaemiCenterNewsList');
-  if (!main || !feed || !list) return;
+  if (!main || !feed || !list || !scrollArea) return;
 
   function updateTabs(newsMode) {
     document.querySelectorAll('[data-center-mode]').forEach(function (button) {
@@ -41,10 +42,10 @@
   let pendingScrollTop = 0;
   function restoreScroll(value) {
     pendingScrollTop = Math.max(0, Number(value) || 0);
-    requestAnimationFrame(() => { feed.scrollTop = pendingScrollTop; });
+    requestAnimationFrame(() => { scrollArea.scrollTop = pendingScrollTop; });
   }
-  feed.addEventListener('scroll', function () {
-    window.GaemiGTPWorkspaceState?.setNewsScrollTop?.(feed.scrollTop);
+  scrollArea.addEventListener('scroll', function () {
+    window.GaemiGTPWorkspaceState?.setNewsScrollTop?.(scrollArea.scrollTop);
   }, { passive: true });
 
   function safeTime(value) {
@@ -55,7 +56,7 @@
   }
 
   function setItems(items) {
-    const nearTop = feed.scrollTop < 64;
+    const nearTop = scrollArea.scrollTop < 64;
     const rows = Array.isArray(items) ? items.slice() : [];
     rows.sort(function (a, b) {
       const ta = Date.parse(a?.published_at || a?.publishedAt || '') || 0;
@@ -91,9 +92,9 @@
     });
     document.getElementById('gaemiCenterNewsEmpty').hidden = list.childElementCount > 0;
     if (pendingScrollTop > 0) {
-      feed.scrollTop = pendingScrollTop;
+      scrollArea.scrollTop = pendingScrollTop;
       pendingScrollTop = 0;
-    } else if (nearTop) feed.scrollTop = 0;
+    } else if (nearTop) scrollArea.scrollTop = 0;
   }
 
   window.GaemiCenterNews = { showNews: showNews, showChat: showChat, setItems: setItems, restoreScroll: restoreScroll };
