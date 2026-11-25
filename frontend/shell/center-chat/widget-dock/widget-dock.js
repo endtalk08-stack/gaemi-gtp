@@ -120,13 +120,13 @@
     const origin = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
     if (!origin?.closest) return null;
     const explicit = origin.closest('[data-widget-drag-handle]');
-    if (explicit) return { id: explicit.dataset.widgetDragHandle, handle: explicit };
+    if (explicit) return { id: explicit.dataset.widgetDragHandle, handle: explicit, explicit: true };
 
     const card = origin.closest('[data-central-widget-id]');
     if (!card || origin.closest('button,a,input,textarea,select')) return null;
     const bounds = card.getBoundingClientRect();
     if (event.clientY > bounds.top + Math.min(34, bounds.height)) return null;
-    return { id: card.dataset.centralWidgetId, handle: card };
+    return { id: card.dataset.centralWidgetId, handle: card, explicit: false };
   }
 
   function clearWidgetDrag() {
@@ -139,6 +139,9 @@
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     const source = dragSource(event);
     if (!source || !catalog()[source.id]) return;
+    // On touch screens, ordinary finger movement must remain native scrolling.
+    // Widget dragging is available only from an explicit drag handle.
+    if (event.pointerType === 'touch' && !source.explicit) return;
     dragState = {
       id: source.id,
       handle: source.handle,
