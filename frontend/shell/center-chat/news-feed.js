@@ -29,12 +29,12 @@
   function showChat() {
     main.classList.remove('is-news-view');
     feed.hidden = true;
-    window.GaemiGTPWorkspaceState?.save?.();
     updateTabs(false);
     // Return only the center to Chat home. resetToHome() also closes both side
     // panels, so do not use it for switching between News and Chat.
     document.getElementById('mainHeroView')?.classList.remove('hidden');
     document.body.classList.remove('analysis-mode');
+    window.GaemiGTPWorkspaceState?.save?.();
     window.GaemiGTPWorkspaceShellState?.apply?.();
   }
 
