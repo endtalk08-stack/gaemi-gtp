@@ -48,7 +48,7 @@ test('widgets keep identity and live content while moving without move buttons',
   w.document.body.classList.add('left-plugin-open');
   dock.move('spy', 'left');
   assert.equal(w.document.body.classList.contains('right-panel-open'), false);
-  assert.equal(w.document.body.classList.contains('left-plugin-open'), false);
+  assert.equal(w.document.body.classList.contains('left-plugin-open'), true);
   dock.remove('qqq');
   assert.equal(card.isConnected, false);
   assert.equal(dock.move('qqq', 'right'), false);
@@ -150,7 +150,16 @@ test('news widget in the right panel uses the panel scroll instead of its old vi
   assert.match(rule[1], /max-height:\s*none/);
   assert.match(rule[1], /overflow:\s*visible/);
   assert.match(rule[1], /scrollbar-gutter:\s*auto/);
-  assert.match(css, /\.gnw-root\s*\{[^}]*max-height:\s*calc\(100vh - 150px\)/s, 'center/left widget layout keeps its original height rule');
+  assert.match(css, /\.gnw-root\s*\{[^}]*max-height:\s*calc\(100vh - 150px\)/s, 'center widget layout keeps its original height rule');
+  const leftSlot = css.match(/#leftMarketSidebar > \.flex-1\.overflow-y-auto > \[data-portable-widget-slot="left"\]\s*\{([^}]*)\}/);
+  assert.ok(leftSlot, 'left sidebar slot lets the outer sidebar own scrolling');
+  assert.match(leftSlot[1], /max-height:\s*none\s*!important/);
+  assert.match(leftSlot[1], /overflow:\s*visible\s*!important/);
+  const leftRoot = css.match(/#leftMarketSidebar > \.flex-1\.overflow-y-auto > \[data-portable-widget-slot="left"\] \.central-widget-card--news-feed \.gnw-root\s*\{([^}]*)\}/);
+  assert.ok(leftRoot, 'left sidebar news content uses natural height');
+  assert.match(leftRoot[1], /max-height:\s*none/);
+  assert.match(leftRoot[1], /overflow:\s*visible/);
+  assert.match(leftRoot[1], /scrollbar-gutter:\s*auto/);
 });
 
 
@@ -189,5 +198,57 @@ test('right panel constrains only vertical scrolling and keeps the moved news wi
   assert.match(dashboardCss, /panel-workspace\/panel-workspace\.css\?v=20261125-right-news-height-scroll-v2/);
   const html = readFileSync('frontend/index.html', 'utf8');
   assert.match(html, /dashboard\.css\?v=20261125-right-news-height-scroll-v2/);
-  assert.match(html, /news-widget\.css\?v=20261125-right-panel-scroll-v2/);
+  assert.match(html, /news-widget\.css\?v=20261125-left-sidebar-scroll-v1/);
+});
+
+
+test('left sidebar keeps all market tabs and restores moved widgets after refresh', () => {
+  const html = readFileSync('frontend/index.html', 'utf8');
+  const boot = (window) => {
+    window.setInterval = () => 0;
+    window.fetch = async () => ({ ok: false });
+    window.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
+    window.eval(readFileSync('frontend/widgets/industry/industry-widget.js', 'utf8'));
+    window.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
+    const dock = window.GaemiGTPWidgetDock;
+    dock.initialize();
+    return dock;
+  };
+
+  const firstDom = new JSDOM(html, { url: 'https://example.test', runScripts: 'outside-only' });
+  const first = firstDom.window;
+  const firstDock = boot(first);
+  assert.equal(firstDock.add('news-feed'), true);
+  assert.equal(firstDock.move('news-feed', 'left'), true);
+  const savedPlacements = first.localStorage.getItem('gaemiGTP_widget_placements_v1');
+  assert.equal(JSON.parse(savedPlacements)['news-feed'], 'left');
+  assert.deepEqual(JSON.parse(first.localStorage.getItem('gaemiGTP_central_widget_dock_v1')), ['news-feed']);
+  firstDom.window.close();
+
+  // Simulate a partial/legacy save where the active-ID key is missing but the
+  // moved widget's placement record survived.
+  const secondDom = new JSDOM(html, { url: 'https://example.test', runScripts: 'outside-only' });
+  const second = secondDom.window;
+  second.localStorage.setItem('gaemiGTP_widget_placements_v1', savedPlacements);
+  const secondDock = boot(second);
+
+  assert.deepEqual(Array.from(secondDock.getActiveIds()), ['news-feed']);
+  assert.equal(secondDock.getPlacement('news-feed'), 'left');
+  const widget = second.document.querySelector('[data-central-widget-id="news-feed"]');
+  assert.ok(widget);
+  assert.equal(widget.parentElement, second.document.querySelector('[data-portable-widget-slot="left"]'));
+  assert.equal(second.document.querySelectorAll('[data-central-widget-id="news-feed"]').length, 1);
+
+  const tabs = Array.from(second.document.querySelectorAll('#rightInfoTabs [data-info-tab-action]'))
+    .map(button => button.dataset.infoTabAction);
+  assert.deepEqual(tabs, ['realtime', 'industry', 'value']);
+  assert.ok(second.document.querySelector('#leftMarketSidebar #marketRankingList'));
+  assert.ok(second.document.querySelector('#leftMarketSidebar #marketIndustryWidgetSlot'));
+
+  const marketSidebar = readFileSync('frontend/shell/left-market-sidebar/market-sidebar.js', 'utf8');
+  assert.equal(marketSidebar.includes('시장 시세'), false);
+  assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
+  assert.match(html, /market-sidebar\.js\?v=20261125-market-title-clean-v1/);
+  assert.match(html, /widget-dock\.js\?v=20261125-widget-state-persist-v2/);
+  secondDom.window.close();
 });

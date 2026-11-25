@@ -617,14 +617,15 @@
       if (!list) return;
       const id = ++requestId;
       const titles = {
-        realtime: '시장 시세',
+        realtime: '',
         industry: '',
         value: '거래대금 TOP 20',
       };
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
       if (title?.parentElement) {
-        title.parentElement.hidden = tab === 'industry';
-        title.parentElement.style.display = tab === 'industry' ? 'none' : '';
+        const showListHeading = tab === 'value';
+        title.parentElement.hidden = !showListHeading;
+        title.parentElement.style.display = showListHeading ? '' : 'none';
       }
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
