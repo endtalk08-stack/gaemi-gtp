@@ -1,33 +1,56 @@
-/* Center-only News surface. Existing quote, chat and sidebar modules stay untouched. */
+/* Center News: one viewport-bounded scroll surface owns both the widget dock and feed. */
 #mainContent.is-news-view > #mainHeroView,
 #mainContent.is-news-view > #chatArea,
 #mainContent.is-news-view > .gaemi-chat-bottom { display: none !important; }
-/* News and Chat share the same independent plugin dock above their content. */
-#mainContent.is-news-view > #centralWidgetDock { display: block; order: 1; }
-/* The News feed precedes the dock in the HTML, so explicitly place the dock
-   immediately below the header instead of below the growing feed. */
-#mainContent.is-news-view > #gaemiCenterNewsFeed { order: 2; }
-#mainContent > #gaemiCenterNewsFeed[hidden] { display: none !important; }
-#mainContent > #gaemiCenterNewsFeed {
-  display: block; flex: 1 1 auto; min-height: 0;
-  overflow: auto; overscroll-behavior: contain; scrollbar-width: none; -ms-overflow-style: none;
-  background: #f8fafc; color: #22252b;
+#mainContent > .gaemi-center-scroll-area { display: contents; }
+#mainContent.is-news-view > .gaemi-center-scroll-area {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.dark #mainContent > #gaemiCenterNewsFeed { background: #0f1013; color: #e6e7e9; }
-#mainContent > #gaemiCenterNewsFeed::-webkit-scrollbar { display: none; width: 0; height: 0; }
-.gaemi-center-news-inner { width: 100%; max-width: 48rem; margin: 0 auto; padding: 24px 24px 32px; font-family: var(--gtp-font-family); }
-.gaemi-center-news-item { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 14px; margin-bottom: 32px; align-items: start; }
-.gaemi-center-news-time { font-size: var(--gtp-type-meta); font-weight: var(--gtp-weight-meta); font-variant-numeric: tabular-nums; color: var(--gtp-muted); line-height: 1.65; }
-.gaemi-center-news-copy { min-width: 0; }
-.gaemi-center-news-title { margin: 0; color: var(--gtp-text); font-size: var(--gtp-type-body); line-height: 1.65; font-weight: var(--gtp-weight-title); letter-spacing: -0.018em; overflow-wrap: anywhere; }
-.gaemi-center-news-description { margin: 8px 0 0; font-size: var(--gtp-type-body); font-weight: var(--gtp-weight-body); line-height: 1.65; letter-spacing: -0.018em; color: var(--gtp-text-2); white-space: pre-line; overflow-wrap: anywhere; }
-
-.gaemi-center-news-empty { color: var(--gtp-muted); font-size: var(--gtp-type-body); font-weight: var(--gtp-weight-body); line-height: 1.65; letter-spacing: -0.018em; padding: 0; }
-.gaemi-center-mode-nav button { border-radius: 9999px; padding: 6px 16px; font-size: 14px; color: #717680; cursor: pointer; }
-.dark .gaemi-center-mode-nav button { color: #999ba2; }
-.gaemi-center-mode-nav button[aria-current="page"] { background: #fff; color: #25282d; font-weight: 600; box-shadow: 0 1px 3px #0002; }
-.dark .gaemi-center-mode-nav button[aria-current="page"] { background: #41434a; color: #f5f5f6; }
-@media (max-width: 640px) {
-  .gaemi-center-news-inner { padding: 20px 16px 28px; }
-  .gaemi-center-news-item { grid-template-columns: 42px minmax(0,1fr); column-gap: 9px; margin-bottom: 25px; }
+#mainContent.is-news-view > .gaemi-center-scroll-area::-webkit-scrollbar { display:none; width:0; height:0; }
+#mainContent.is-news-view .gaemi-center-scroll-area > #centralWidgetDock {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+}
+#mainContent.is-news-view .gaemi-center-scroll-area > #gaemiCenterNewsFeed {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+  background: #f8fafc;
+  color: #22252b;
+}
+.dark #mainContent.is-news-view .gaemi-center-scroll-area > #gaemiCenterNewsFeed { background:#0f1013; color:#e6e7e9; }
+#mainContent > #gaemiCenterNewsFeed[hidden] { display:none !important; }
+.gaemi-center-news-inner { width:100%; max-width:48rem; margin:0 auto; padding:24px 24px 32px; font-family:var(--gtp-font-family); }
+.gaemi-center-news-item { display:grid; grid-template-columns:44px minmax(0,1fr); column-gap:14px; margin-bottom:32px; align-items:start; }
+.gaemi-center-news-time { font-size:var(--gtp-type-meta); font-weight:var(--gtp-weight-meta); font-variant-numeric:tabular-nums; color:var(--gtp-muted); line-height:1.65; }
+.gaemi-center-news-copy { min-width:0; }
+.gaemi-center-news-title { margin:0; color:var(--gtp-text); font-size:var(--gtp-type-body); line-height:1.65; font-weight:var(--gtp-weight-title); letter-spacing:-.018em; overflow-wrap:anywhere; }
+.gaemi-center-news-description { margin:8px 0 0; font-size:var(--gtp-type-body); font-weight:var(--gtp-weight-body); line-height:1.65; letter-spacing:-.018em; color:var(--gtp-text-2); white-space:pre-line; overflow-wrap:anywhere; }
+.gaemi-center-news-empty { color:var(--gtp-muted); font-size:var(--gtp-type-body); font-weight:var(--gtp-weight-body); line-height:1.65; letter-spacing:-.018em; padding:0; }
+.gaemi-center-mode-nav button { border-radius:9999px; padding:6px 16px; font-size:14px; color:#717680; cursor:pointer; }
+.dark .gaemi-center-mode-nav button { color:#999ba2; }
+.gaemi-center-mode-nav button[aria-current="page"] { background:#fff; color:#25282d; font-weight:600; box-shadow:0 1px 3px #0002; }
+.dark .gaemi-center-mode-nav button[aria-current="page"] { background:#41434a; color:#f5f5f6; }
+@media (max-width:640px) {
+  .gaemi-center-news-inner { padding:20px 16px 28px; }
+  .gaemi-center-news-item { grid-template-columns:42px minmax(0,1fr); column-gap:9px; margin-bottom:25px; }
 }
