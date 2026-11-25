@@ -11,7 +11,11 @@
       const raw = localStorage.getItem(KEY);
       if (!raw) return null;
       const state = JSON.parse(raw);
-      return state && typeof state === 'object' ? state : null;
+      if (state && typeof state === 'object') {
+        stateNewsScrollTop = Math.max(0, Number(state.newsScrollTop) || 0);
+        return state;
+      }
+      return null;
     } catch (e) {
       console.warn('[gaemiGTP] workspace state read warning:', e);
       return null;
