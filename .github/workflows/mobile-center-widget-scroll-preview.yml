@@ -43,7 +43,7 @@ jobs:
 
       - name: Verify deployed assets
         env:
-          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+          PREVIEW_URL: https://mobile-widget-scroll-preview.gaemigtp-main.pages.dev
         run: |
           case "$PREVIEW_URL" in
             https://*.gaemigtp-main.pages.dev) ;;
@@ -51,6 +51,9 @@ jobs:
           esac
           curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/" -o "$RUNNER_TEMP/index.html"
           grep -Fq 'news-feed.css?v=20261125-mobile-widget-scroll-v2' "$RUNNER_TEMP/index.html"
+          grep -Fq 'widget-dock.js?v=20261125-mobile-touch-scroll-v2' "$RUNNER_TEMP/index.html"
           curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/shell/center-chat/news-feed.css?v=20261125-mobile-widget-scroll-v2" -o "$RUNNER_TEMP/news-feed.css"
           grep -Fq 'touch-action: pan-y' "$RUNNER_TEMP/news-feed.css"
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/shell/center-chat/widget-dock/widget-dock.js?v=20261125-mobile-touch-scroll-v2" -o "$RUNNER_TEMP/widget-dock.js"
+          grep -Fq 'ordinary finger movement must remain native scrolling' "$RUNNER_TEMP/widget-dock.js"
           echo "Preview URL: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
