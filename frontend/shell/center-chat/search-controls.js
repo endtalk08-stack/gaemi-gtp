@@ -28,11 +28,17 @@
 
   function enterChatWorkspace() {
     document.getElementById('mainHeroView')?.classList.add('hidden');
+    document.getElementById('mainContent')?.classList.remove('is-news-view');
+    document.getElementById('gaemiCenterNewsFeed')?.setAttribute('hidden', '');
     document.body.classList.add('analysis-mode');
+    window.GaemiGTPWorkspaceState?.save?.();
   }
 
   function resetToHome() {
     document.getElementById('mainHeroView')?.classList.remove('hidden');
+    document.getElementById('mainContent')?.classList.remove('is-news-view');
+    document.getElementById('gaemiCenterNewsFeed')?.setAttribute('hidden', '');
+    window.GaemiGTPWorkspaceState?.save?.();
     document.body.classList.remove('analysis-mode', 'left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open', 'right-panel-open', 'right-panel-maximized');
     window.GaemiGTPWorkspaceShellState?.apply?.();
   }
