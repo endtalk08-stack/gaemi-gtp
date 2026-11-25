@@ -29,7 +29,7 @@ jobs:
         run: |
           grep -Fq 'flex: 1 1 0%' frontend/shell/center-chat/news-feed.css
           grep -Fq 'overflow-y: auto' frontend/shell/center-chat/news-feed.css
-          grep -Fq '-webkit-overflow-scrolling: touch' frontend/shell/center-chat/news-feed.css
+          grep -Fq -- '-webkit-overflow-scrolling: touch' frontend/shell/center-chat/news-feed.css
           grep -Fq 'touch-action: pan-y' frontend/shell/center-chat/news-feed.css
 
       - name: Deploy preview to existing Cloudflare Pages project
