@@ -1,0 +1,82 @@
+name: gaemigtp-main Pages preview # restore 11:52 industry map; percent-only tests aligned
+on:
+  push:
+    branches: [ops/center-content-single-scroll-20261125]
+    paths:
+      - .github/workflows/gaemigtp-main-pages-preview.yml
+      - frontend/index.html
+      - frontend/shell/center-chat/news-feed.css
+      - frontend/shell/center-chat/news-feed.js
+      - frontend/widgets/news/news-widget.css
+      - frontend/index.html
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gaemigtp-main-pages-preview
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/ops/gaemigtp-main-pages-preview'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Preview the exact candidate branch based on current main.
+          ref: ${{ github.sha }}
+      - name: Check center scroll structure
+        run: |
+          test -s frontend/index.html
+          node --check frontend/shell/center-chat/news-feed.js
+          node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          grep -Fq 'id="gaemiCenterScrollArea"' frontend/index.html
+          grep -Fq 'id="centralWidgetDock"' frontend/index.html
+          grep -Fq 'id="gaemiCenterNewsFeed"' frontend/index.html
+          grep -Fq 'overflow-y: auto' frontend/shell/center-chat/news-feed.css
+          grep -Fq 'scrollArea.addEventListener' frontend/shell/center-chat/news-feed.js
+          grep -Fq '.central-widget-card--news-feed .gnw-root' frontend/widgets/news/news-widget.css
+      - name: Deploy to existing Pages project preview
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch center-single-scroll-preview
+      - name: Verify deployed center assets
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          case "$PREVIEW_URL" in
+            https://*.gaemigtp-main.pages.dev) ;;
+            *) exit 1 ;;
+          esac
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/" -o "$RUNNER_TEMP/index.html"
+          grep -Fq 'news-feed.css?v=20261125-single-center-scroll-v1' "$RUNNER_TEMP/index.html"
+          grep -Fq 'news-feed.js?v=20261125-single-center-scroll-v1' "$RUNNER_TEMP/index.html"
+          grep -Fq 'news-widget.css?v=20261125-single-center-scroll-v1' "$RUNNER_TEMP/index.html"
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/shell/center-chat/news-feed.css?v=20261125-single-center-scroll-v1" -o "$RUNNER_TEMP/news-feed.css"
+          grep -Fq 'gaemi-center-scroll-area' "$RUNNER_TEMP/news-feed.css"
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/widgets/news/news-widget.css?v=20261125-single-center-scroll-v1" -o "$RUNNER_TEMP/news-widget.css"
+          grep -Fq 'overflow: visible' "$RUNNER_TEMP/news-widget.css"
+      - name: Publish preview link and Access status
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          {
+            printf '[Open the unique gaemigtp-main preview](%s)\n' "$PREVIEW_URL"
+            printf '[Open the stable preview address](https://github-pages-preview.gaemigtp-main.pages.dev)\n'
+            if [ "${PREVIEW_ACCESS_PROTECTED:-false}" = "true" ]; then
+              echo 'Cloudflare Access sign-in is required. Automated HTML/API checks are blocked by the existing account-member policy.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish preview link
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          {
+            printf '[Open the unique gaemigtp-main preview](%s)\n' "$PREVIEW_URL"
+            printf '[Open the stable preview address](https://center-single-scroll-preview.gaemigtp-main.pages.dev)\n'
+          } >> "$GITHUB_STEP_SUMMARY"
