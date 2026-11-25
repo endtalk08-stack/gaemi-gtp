@@ -36,10 +36,29 @@
 }
 
 
-/* Portable widgets are placed before the dashboard in rightPanelContent.
-   The dashboard's legacy overflow:hidden rule must not disable that panel scroll. */
-#rightPanelContent:has(#rightPanelTabView-panel-workspace:not([hidden])):has(> [data-portable-widget-slot="right"]:not(:empty)),
-#rightPanelContent:has(#rightPanelTabView-dashboard:not([hidden])):has(> [data-portable-widget-slot="right"]:not(:empty)) {
+/* A moved widget uses the right panel's own fixed-height scroll viewport.
+   The panel width stays owned by right-panel.css; only the vertical layout is constrained here. */
+#rightPanelContent:has(#rightPanelTabView-panel-workspace):has(> [data-portable-widget-slot="right"] > [data-central-widget-id]),
+#rightPanelContent:has(#rightPanelTabView-dashboard):has(> [data-portable-widget-slot="right"] > [data-central-widget-id]) {
+  display: flex !important;
+  flex: 1 1 0%;
+  flex-direction: column;
+  min-height: 0;
   overflow-x: hidden !important;
   overflow-y: auto !important;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  box-sizing: border-box;
+}
+
+#rightPanelContent > [data-portable-widget-slot="right"] {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  max-height: none;
+  overflow: visible;
+  box-sizing: border-box;
 }
