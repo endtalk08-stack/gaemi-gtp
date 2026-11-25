@@ -7,6 +7,7 @@ on:
       - .github/workflows/mobile-center-widget-scroll-preview.yml
       - frontend/index.html
       - frontend/shell/center-chat/news-feed.css
+      - frontend/shell/center-chat/widget-dock/widget-dock.js
   workflow_dispatch:
 
 permissions:
