@@ -131,3 +131,15 @@
   scrollbar-gutter: auto;
   box-sizing: border-box;
 }
+
+
+/* A single outer scroll surface is used in the center workspace. The news widget
+   keeps its own scroll only when placed in a sidebar/panel. */
+#centralWidgetDock .central-widget-card--news-feed .gnw-root {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  overscroll-behavior: auto;
+  -webkit-overflow-scrolling: auto;
+  scrollbar-gutter: auto;
+}
