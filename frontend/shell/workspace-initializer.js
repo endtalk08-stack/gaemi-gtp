@@ -1,7 +1,8 @@
 // gaemiGTP - workspace startup ownership
 (function () {
   function initialize() {
-    // 새 접속은 항상 검색 홈에서 시작하고, 저장된 shell 레이아웃만 복원한다.
+    // Sidebar controls stay locked until the saved workspace has been restored.
+    window.workspaceUIReady = false;
     const saved = window.GaemiGTPWorkspaceState?.read?.() || null;
     window.GaemiGTPWorkspaceState?.setRestoring?.(true);
 
@@ -24,8 +25,6 @@
       window.GaemiGTPApp?.restoreLastConversation?.();
     }
 
-    window.workspaceUIReady = true;
-
     const restoreWorkspace = () => {
       document.body.classList.toggle('right-panel-open', !!saved?.rightPanelOpen);
       document.body.classList.toggle('right-panel-maximized', !!(saved?.rightPanelOpen && saved?.rightPanelMaximized));
@@ -46,6 +45,7 @@
       requestAnimationFrame(() => {
         restoreWorkspace();
         window.GaemiGTPWorkspaceState?.setRestoring?.(false);
+        window.workspaceUIReady = true;
         window.GaemiGTPWorkspaceShellState?.save?.();
       });
     });
