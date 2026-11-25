@@ -7,11 +7,22 @@
 
     document.body.classList.remove('left-home-open','left-market-open','left-context-open','left-plugin-open','right-panel-open','right-panel-maximized','analysis-mode');
     document.getElementById('mainHeroView')?.classList.remove('hidden');
+    document.getElementById('mainContent')?.classList.remove('is-news-view');
+    document.getElementById('gaemiCenterNewsFeed')?.setAttribute('hidden', '');
 
     const state = window.GaemiGTPAppState;
     if (typeof saved?.stock === 'string' && saved.stock.trim()) state?.setActiveStock?.(saved.stock.trim());
     if (typeof saved?.appMode === 'string' && ['gaemi', 'info', 'pro'].includes(saved.appMode)) state?.setCurrentAppMode?.(saved.appMode);
     window.GaemiGTPCenterChatSearch?.selectAppMode?.(state?.getCurrentAppMode?.() || 'gaemi');
+
+    // Restore the exact center surface without changing the saved sidebar layout.
+    if (saved?.centerView === 'news') {
+      window.GaemiCenterNews?.showNews?.();
+      window.GaemiCenterNews?.restoreScroll?.(saved.newsScrollTop || 0);
+    } else if (saved?.centerView === 'chat') {
+      window.GaemiGTPCenterChatSearch?.enterChatWorkspace?.();
+      window.GaemiGTPApp?.restoreLastConversation?.();
+    }
 
     window.workspaceUIReady = true;
 
