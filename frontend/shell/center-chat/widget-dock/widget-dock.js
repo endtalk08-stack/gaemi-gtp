@@ -204,16 +204,17 @@
   function body() { return document.getElementById('centralWidgetDockBody'); }
 
   function readState() {
-    let savedIds = [];
+    let savedIds = null;
     try {
       const saved = localStorage.getItem(STATE_KEY);
-      const value = saved === null ? [] : JSON.parse(saved);
+      const value = saved === null ? null : JSON.parse(saved);
       if (Array.isArray(value)) savedIds = value;
     } catch (_) {}
-    // A saved placement is also proof that the widget was installed.
-    // Recover moved widgets if an older/partial save lost the active-ID list.
-    const placedIds = Object.keys(readPlacements());
-    return [...savedIds, ...placedIds]
+    // If the installed-ID record is missing or unreadable, recover from saved
+    // placements. A valid empty installed-ID list remains authoritative so a
+    // deliberately removed widget cannot be resurrected by an old placement.
+    const sourceIds = savedIds === null ? Object.keys(readPlacements()) : savedIds;
+    return sourceIds
       .map(id => (id === 'why-up' || id === 'kospi') ? 'qqq' : id)
       .filter((id, index, list) => id !== 'chart' && catalog()[id] && list.indexOf(id) === index);
   }
