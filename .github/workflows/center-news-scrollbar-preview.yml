@@ -1,0 +1,61 @@
+name: gaemigtp-main center news scrollbar preview
+
+on:
+  push:
+    branches: [ops/center-news-scrollbar-preview-20261125]
+    paths:
+      - .github/workflows/center-news-scrollbar-preview.yml
+      - frontend/index.html
+      - frontend/shell/center-chat/news-feed.css
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gaemigtp-main-center-news-scrollbar-preview
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/ops/center-news-scrollbar-preview-20261125'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Verify scrollbar-only change
+        run: |
+          test -s frontend/index.html
+          test -s frontend/shell/center-chat/news-feed.css
+          grep -Fq 'shell/center-chat/news-feed.css?' frontend/index.html
+          grep -Fq 'scrollbar-width: none' frontend/shell/center-chat/news-feed.css
+          grep -Fq '::-webkit-scrollbar' frontend/shell/center-chat/news-feed.css
+          grep -Fq 'overflow: auto' frontend/shell/center-chat/news-feed.css
+
+      - name: Deploy preview to existing Cloudflare Pages project
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch center-news-scrollbar-preview
+
+      - name: Verify deployed preview
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          case "$PREVIEW_URL" in
+            https://*.gaemigtp-main.pages.dev) ;;
+            *) echo "Unexpected preview URL: $PREVIEW_URL"; exit 1 ;;
+          esac
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 \
+            -H 'Cache-Control: no-cache' "$PREVIEW_URL/" -o "$RUNNER_TEMP/preview.html"
+          css_path="$(grep -o 'shell/center-chat/news-feed.css?v=[^"]*' frontend/index.html | head -n 1)"
+          test -n "$css_path"
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 \
+            -H 'Cache-Control: no-cache' "$PREVIEW_URL/$css_path" -o "$RUNNER_TEMP/news-feed.css"
+          grep -Fq 'scrollbar-width: none' "$RUNNER_TEMP/news-feed.css"
+          grep -Fq '::-webkit-scrollbar' "$RUNNER_TEMP/news-feed.css"
+          echo "Preview deployed and CSS verified: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
