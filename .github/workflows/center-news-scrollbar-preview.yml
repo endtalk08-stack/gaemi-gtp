@@ -52,10 +52,8 @@ jobs:
           esac
           curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 \
             -H 'Cache-Control: no-cache' "$PREVIEW_URL/" -o "$RUNNER_TEMP/preview.html"
-          css_path="$(grep -o 'shell/center-chat/news-feed.css?v=[^"]*' frontend/index.html | head -n 1)"
-          test -n "$css_path"
           curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 \
-            -H 'Cache-Control: no-cache' "$PREVIEW_URL/$css_path" -o "$RUNNER_TEMP/news-feed.css"
+            -H 'Cache-Control: no-cache' "$PREVIEW_URL/shell/center-chat/news-feed.css" -o "$RUNNER_TEMP/news-feed.css"
           grep -Fq 'scrollbar-width: none' "$RUNNER_TEMP/news-feed.css"
           grep -Fq '::-webkit-scrollbar' "$RUNNER_TEMP/news-feed.css"
           echo "Preview deployed and CSS verified: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
