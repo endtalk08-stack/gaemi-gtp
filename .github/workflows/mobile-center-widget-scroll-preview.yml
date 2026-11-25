@@ -50,7 +50,7 @@ jobs:
             *) echo "Unexpected preview URL: $PREVIEW_URL"; exit 1 ;;
           esac
           curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/" -o "$RUNNER_TEMP/index.html"
-          grep -Fq 'news-feed.css?v=20261125-mobile-widget-scroll-v1' "$RUNNER_TEMP/index.html"
-          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/shell/center-chat/news-feed.css?v=20261125-mobile-widget-scroll-v1" -o "$RUNNER_TEMP/news-feed.css"
+          grep -Fq 'news-feed.css?v=20261125-mobile-widget-scroll-v2' "$RUNNER_TEMP/index.html"
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/shell/center-chat/news-feed.css?v=20261125-mobile-widget-scroll-v2" -o "$RUNNER_TEMP/news-feed.css"
           grep -Fq 'touch-action: pan-y' "$RUNNER_TEMP/news-feed.css"
           echo "Preview URL: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
