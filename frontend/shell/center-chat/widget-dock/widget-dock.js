@@ -81,6 +81,7 @@
     target.appendChild(card);
     placements.set(id, where);
     savePlacements();
+    saveState();
     if (where === 'left' && id === 'industry') {
       window.GaemiGTPMarketSidebar?.selectIndustryTab?.();
     }
@@ -203,16 +204,18 @@
   function body() { return document.getElementById('centralWidgetDockBody'); }
 
   function readState() {
+    let savedIds = [];
     try {
       const saved = localStorage.getItem(STATE_KEY);
-      if (saved === null) return [];
-      const value = JSON.parse(saved);
-      if (!Array.isArray(value)) return [];
-      // 이전 버전의 코스피 위젯 ID를 새 명확한 ID로 한 번만 이관한다.
-      return value
-        .map(id => (id === 'why-up' || id === 'kospi') ? 'qqq' : id)
-        .filter((id, index, list) => id !== 'chart' && catalog()[id] && list.indexOf(id) === index);
-    } catch (_) { return []; }
+      const value = saved === null ? [] : JSON.parse(saved);
+      if (Array.isArray(value)) savedIds = value;
+    } catch (_) {}
+    // A saved placement is also proof that the widget was installed.
+    // Recover moved widgets if an older/partial save lost the active-ID list.
+    const placedIds = Object.keys(readPlacements());
+    return [...savedIds, ...placedIds]
+      .map(id => (id === 'why-up' || id === 'kospi') ? 'qqq' : id)
+      .filter((id, index, list) => id !== 'chart' && catalog()[id] && list.indexOf(id) === index);
   }
   function saveState() {
     try { localStorage.setItem(STATE_KEY, JSON.stringify(activeIds)); } catch (_) {}
@@ -792,6 +795,7 @@
     if (id === 'chart' || !catalog()[id] || activeIds.includes(id)) return false;
     activeIds.push(id);
     if (!placements.has(id)) placements.set(id, 'center');
+    savePlacements();
     saveState();
     if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
     if (id === 'spy' || id === 'dia') {
@@ -822,6 +826,10 @@
     if (!dock || dock.dataset.bound === 'true') return;
     dock.dataset.bound = 'true';
     initializeWidgetDragging();
+    window.addEventListener('pagehide', () => {
+      savePlacements();
+      saveState();
+    });
     Object.entries(readPlacements()).forEach(([id, where]) => placements.set(id, where));
     activeIds = readState(); render();
     // The plugin sidebar can initialize before the dock restores its saved widgets.
