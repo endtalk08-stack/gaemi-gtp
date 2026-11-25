@@ -1,0 +1,57 @@
+name: Center single-scroll preview
+
+on:
+  push:
+    branches: [ops/center-content-single-scroll-20261125]
+    paths:
+      - .github/workflows/center-content-single-scroll-preview.yml
+      - frontend/index.html
+      - frontend/shell/center-chat/news-feed.css
+      - frontend/shell/center-chat/news-feed.js
+      - frontend/widgets/news/news-widget.css
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: center-content-single-scroll-preview
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/ops/center-content-single-scroll-20261125'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Verify single-scroll structure
+        run: |
+          grep -Fq 'id="gaemiCenterScrollArea" class="gaemi-center-scroll-area"' frontend/index.html
+          grep -Fq 'id="centralWidgetDock"' frontend/index.html
+          grep -Fq 'id="gaemiCenterNewsFeed"' frontend/index.html
+          grep -Fq 'flex: 1 1 0%' frontend/shell/center-chat/news-feed.css
+          grep -Fq 'overflow-y: auto' frontend/shell/center-chat/news-feed.css
+          grep -Fq 'scrollArea.addEventListener' frontend/shell/center-chat/news-feed.js
+          grep -Fq '.central-widget-card--news-feed .gnw-root' frontend/widgets/news/news-widget.css
+
+      - name: Deploy preview to existing Pages project
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch center-single-scroll-preview
+
+      - name: Verify preview assets
+        run: |
+          URL="https://center-single-scroll-preview.gaemigtp-main.pages.dev"
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$URL/" -o "$RUNNER_TEMP/index.html"
+          grep -Fq 'news-feed.css?v=20261125-single-center-scroll-v1' "$RUNNER_TEMP/index.html"
+          grep -Fq 'news-feed.js?v=20261125-single-center-scroll-v1' "$RUNNER_TEMP/index.html"
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$URL/shell/center-chat/news-feed.css?v=20261125-single-center-scroll-v1" -o "$RUNNER_TEMP/news-feed.css"
+          grep -Fq 'gaemi-center-scroll-area' "$RUNNER_TEMP/news-feed.css"
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$URL/widgets/news/news-widget.css?v=20261125-single-center-scroll-v1" -o "$RUNNER_TEMP/news-widget.css"
+          grep -Fq 'overflow: visible' "$RUNNER_TEMP/news-widget.css"
+          echo "Preview URL: $URL" >> "$GITHUB_STEP_SUMMARY"
