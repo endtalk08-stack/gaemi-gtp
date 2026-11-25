@@ -61,6 +61,9 @@ test('open left market sidebar survives page reload and is rendered as open', as
   first.dom.window.close();
 
   const second = createWindow(saved);
+  // Simulate a resize/layout sync before DOMContentLoaded restoration begins.
+  second.window.GaemiGTPWorkspaceShellState.apply();
+  assert.deepEqual(JSON.parse(second.window.localStorage.getItem('gaemiGTP_workspace_state_v1')), saved);
   second.window.GaemiGTPWorkspaceInitializer.initialize();
   await waitForRestore(second.window);
   assert.equal(second.window.document.body.classList.contains('left-market-open'), true);
@@ -80,6 +83,9 @@ test('center News selection survives page reload without falling back to Chat ho
   first.dom.window.close();
 
   const second = createWindow(saved);
+  // Simulate a resize/layout sync before DOMContentLoaded restoration begins.
+  second.window.GaemiGTPWorkspaceShellState.apply();
+  assert.deepEqual(JSON.parse(second.window.localStorage.getItem('gaemiGTP_workspace_state_v1')), saved);
   second.window.GaemiGTPWorkspaceInitializer.initialize();
   await waitForRestore(second.window);
   assert.equal(second.window.document.getElementById('mainContent').classList.contains('is-news-view'), true);
