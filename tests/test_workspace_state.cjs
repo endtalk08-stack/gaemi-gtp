@@ -54,6 +54,7 @@ async function waitForRestore(window) {
 
 test('open left market sidebar survives page reload and is rendered as open', async () => {
   const first = createWindow();
+  first.window.workspaceUIReady = true; // Model a fully initialized page before the user changes state.
   first.window.document.body.classList.add('left-market-open');
   first.window.GaemiGTPWorkspaceShellState.save();
   const saved = JSON.parse(first.window.localStorage.getItem('gaemiGTP_workspace_state_v1'));
@@ -74,6 +75,7 @@ test('open left market sidebar survives page reload and is rendered as open', as
 
 test('center News selection survives page reload without falling back to Chat home', async () => {
   const first = createWindow();
+  first.window.workspaceUIReady = true; // Model a fully initialized page before the user changes state.
   first.window.document.getElementById('mainContent').classList.add('is-news-view');
   first.window.document.getElementById('mainHeroView').classList.add('hidden');
   first.window.document.body.classList.add('analysis-mode');
