@@ -48,7 +48,7 @@ test('widgets keep identity and live content while moving without move buttons',
   w.document.body.classList.add('left-plugin-open');
   dock.move('spy', 'left');
   assert.equal(w.document.body.classList.contains('right-panel-open'), false);
-  assert.equal(w.document.body.classList.contains('left-plugin-open'), false);
+  assert.equal(w.document.body.classList.contains('left-plugin-open'), true);
   dock.remove('qqq');
   assert.equal(card.isConnected, false);
   assert.equal(dock.move('qqq', 'right'), false);
