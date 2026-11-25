@@ -63,7 +63,7 @@
     if (!target) return false;
 
     if (where === 'left') {
-      document.body.classList.remove('left-home-open', 'left-context-open', 'left-plugin-open');
+      document.body.classList.remove('left-home-open', 'left-context-open');
       if (window.innerWidth < 1024) document.body.classList.remove('right-panel-open', 'right-panel-maximized');
       document.body.classList.add('left-market-open');
     } else if (where === 'right') {
