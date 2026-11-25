@@ -150,7 +150,16 @@ test('news widget in the right panel uses the panel scroll instead of its old vi
   assert.match(rule[1], /max-height:\s*none/);
   assert.match(rule[1], /overflow:\s*visible/);
   assert.match(rule[1], /scrollbar-gutter:\s*auto/);
-  assert.match(css, /\.gnw-root\s*\{[^}]*max-height:\s*calc\(100vh - 150px\)/s, 'center/left widget layout keeps its original height rule');
+  assert.match(css, /\.gnw-root\s*\{[^}]*max-height:\s*calc\(100vh - 150px\)/s, 'center widget layout keeps its original height rule');
+  const leftSlot = css.match(/#leftMarketSidebar > \.flex-1\.overflow-y-auto > \[data-portable-widget-slot="left"\]\s*\{([^}]*)\}/);
+  assert.ok(leftSlot, 'left sidebar slot lets the outer sidebar own scrolling');
+  assert.match(leftSlot[1], /max-height:\s*none\s*!important/);
+  assert.match(leftSlot[1], /overflow:\s*visible\s*!important/);
+  const leftRoot = css.match(/#leftMarketSidebar > \.flex-1\.overflow-y-auto > \[data-portable-widget-slot="left"\] \.central-widget-card--news-feed \.gnw-root\s*\{([^}]*)\}/);
+  assert.ok(leftRoot, 'left sidebar news content uses natural height');
+  assert.match(leftRoot[1], /max-height:\s*none/);
+  assert.match(leftRoot[1], /overflow:\s*visible/);
+  assert.match(leftRoot[1], /scrollbar-gutter:\s*auto/);
 });
 
 
