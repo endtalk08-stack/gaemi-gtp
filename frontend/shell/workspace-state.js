@@ -23,7 +23,10 @@
   }
 
   function save({ activeStock, currentAppMode } = {}) {
-    if (restoring) return;
+    // Before DOMContentLoaded restoration finishes, layout sync can run from
+    // an early resize event. Never let the initial closed DOM overwrite the
+    // user's saved workspace before the initializer has reapplied it.
+    if (restoring || window.workspaceUIReady !== true) return;
     try {
       const heroView = document.getElementById('mainHeroView');
       const panelOpen = document.body.classList.contains('right-panel-open');
