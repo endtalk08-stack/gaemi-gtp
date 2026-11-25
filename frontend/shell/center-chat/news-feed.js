@@ -19,6 +19,7 @@
     document.body.classList.add('analysis-mode');
     main.classList.add('is-news-view');
     feed.hidden = false;
+    window.GaemiGTPWorkspaceState?.save?.();
     updateTabs(true);
     // Hiding the hero changes which shared header controls must be visible.
     // Reuse the existing shell-state sync; do not manipulate panel buttons here.
@@ -28,6 +29,7 @@
   function showChat() {
     main.classList.remove('is-news-view');
     feed.hidden = true;
+    window.GaemiGTPWorkspaceState?.save?.();
     updateTabs(false);
     // Return only the center to Chat home. resetToHome() also closes both side
     // panels, so do not use it for switching between News and Chat.
@@ -35,6 +37,15 @@
     document.body.classList.remove('analysis-mode');
     window.GaemiGTPWorkspaceShellState?.apply?.();
   }
+
+  let pendingScrollTop = 0;
+  function restoreScroll(value) {
+    pendingScrollTop = Math.max(0, Number(value) || 0);
+    requestAnimationFrame(() => { feed.scrollTop = pendingScrollTop; });
+  }
+  feed.addEventListener('scroll', function () {
+    window.GaemiGTPWorkspaceState?.setNewsScrollTop?.(feed.scrollTop);
+  }, { passive: true });
 
   function safeTime(value) {
     if (typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)) return value;
@@ -79,8 +90,11 @@
       list.append(row);
     });
     document.getElementById('gaemiCenterNewsEmpty').hidden = list.childElementCount > 0;
-    if (nearTop) feed.scrollTop = 0;
+    if (pendingScrollTop > 0) {
+      feed.scrollTop = pendingScrollTop;
+      pendingScrollTop = 0;
+    } else if (nearTop) feed.scrollTop = 0;
   }
 
-  window.GaemiCenterNews = { showNews: showNews, showChat: showChat, setItems: setItems };
+  window.GaemiCenterNews = { showNews: showNews, showChat: showChat, setItems: setItems, restoreScroll: restoreScroll };
 }());
