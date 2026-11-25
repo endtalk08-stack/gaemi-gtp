@@ -122,6 +122,11 @@
     const explicit = origin.closest('[data-widget-drag-handle]');
     if (explicit) return { id: explicit.dataset.widgetDragHandle, handle: explicit };
 
+    // On touch screens, ordinary vertical gestures must scroll the center surface.
+    // Keep implicit card dragging for mouse; touch dragging remains available only
+    // through an explicit drag handle.
+    if (event.pointerType === 'touch') return null;
+
     const card = origin.closest('[data-central-widget-id]');
     if (!card || origin.closest('button,a,input,textarea,select')) return null;
     const bounds = card.getBoundingClientRect();
