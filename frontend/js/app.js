@@ -256,6 +256,11 @@ const BACKEND_URL = window.location.hostname.endsWith('github.io')
     });
     const { submitQuestion, appendChatReply } = aiChat;
 
+    function restoreLastConversation() {
+      const recentId = readModeRecents()[currentAppMode];
+      return recentId ? restoreRecentConversation(recentId) : false;
+    }
+
     function getChatState() {
       if (!activeChatSession) return null;
       return {
@@ -298,7 +303,7 @@ window.addEventListener('resize', () => {
   window.GaemiGTPWorkspaceShellState?.apply?.();
 });
 
-window.GaemiGTPApp = { requestStock, submitQuestion, appendChatReply, getChatState, linkRecentConversation, restoreRecentConversation, saveChatHistory, switchChatMode };
+window.GaemiGTPApp = { requestStock, submitQuestion, appendChatReply, getChatState, linkRecentConversation, restoreRecentConversation, restoreLastConversation, saveChatHistory, switchChatMode };
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
