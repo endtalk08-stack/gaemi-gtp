@@ -1,0 +1,55 @@
+name: Mobile center widget scroll preview
+
+on:
+  push:
+    branches: [ops/mobile-center-widget-scroll-20261125]
+    paths:
+      - .github/workflows/mobile-center-widget-scroll-preview.yml
+      - frontend/index.html
+      - frontend/shell/center-chat/news-feed.css
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-center-widget-scroll-preview
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/ops/mobile-center-widget-scroll-20261125'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Verify bounded touch-scroll CSS
+        run: |
+          grep -Fq 'flex: 1 1 0%' frontend/shell/center-chat/news-feed.css
+          grep -Fq 'overflow-y: auto' frontend/shell/center-chat/news-feed.css
+          grep -Fq '-webkit-overflow-scrolling: touch' frontend/shell/center-chat/news-feed.css
+          grep -Fq 'touch-action: pan-y' frontend/shell/center-chat/news-feed.css
+
+      - name: Deploy preview to existing Cloudflare Pages project
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch mobile-widget-scroll-preview
+
+      - name: Verify deployed assets
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          case "$PREVIEW_URL" in
+            https://*.gaemigtp-main.pages.dev) ;;
+            *) echo "Unexpected preview URL: $PREVIEW_URL"; exit 1 ;;
+          esac
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/" -o "$RUNNER_TEMP/index.html"
+          grep -Fq 'news-feed.css?v=20261125-mobile-widget-scroll-v1' "$RUNNER_TEMP/index.html"
+          curl -fLsS --compressed --retry 4 --retry-all-errors --retry-delay 2 --max-time 30 "$PREVIEW_URL/shell/center-chat/news-feed.css?v=20261125-mobile-widget-scroll-v1" -o "$RUNNER_TEMP/news-feed.css"
+          grep -Fq 'touch-action: pan-y' "$RUNNER_TEMP/news-feed.css"
+          echo "Preview URL: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
