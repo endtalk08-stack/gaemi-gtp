@@ -6,6 +6,7 @@ on:
     paths:
       - 'frontend/**'
       - 'functions/**'
+      - 'tests/**'
       - 'scripts/pages/**'
       - '.github/workflows/gaemigtp-main-pages-news-production.yml'
   push:
@@ -47,7 +48,7 @@ jobs:
       - name: Verify portable widget lifecycle
         run: |
           npm install --prefix "$RUNNER_TEMP/widget-validation" jsdom@27.2.0 --no-audit --no-fund
-          NODE_PATH="$RUNNER_TEMP/widget-validation/node_modules" node --test tests/test_portable_widgets.cjs
+          NODE_PATH="$RUNNER_TEMP/widget-validation/node_modules" node --test tests/test_portable_widgets.cjs tests/test_workspace_state.cjs
       - name: Build Pages Functions from repository root
         run: npx --yes wrangler@4.167.0 pages functions build functions --project-directory . --outdir "$RUNNER_TEMP/pages-functions"
       - name: Preserve critical application checks
