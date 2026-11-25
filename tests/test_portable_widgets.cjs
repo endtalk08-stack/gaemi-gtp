@@ -191,3 +191,55 @@ test('right panel constrains only vertical scrolling and keeps the moved news wi
   assert.match(html, /dashboard\.css\?v=20261125-right-news-height-scroll-v2/);
   assert.match(html, /news-widget\.css\?v=20261125-right-panel-scroll-v2/);
 });
+
+
+test('left sidebar keeps all market tabs and restores moved widgets after refresh', () => {
+  const html = readFileSync('frontend/index.html', 'utf8');
+  const boot = (window) => {
+    window.setInterval = () => 0;
+    window.fetch = async () => ({ ok: false });
+    window.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
+    window.eval(readFileSync('frontend/widgets/industry/industry-widget.js', 'utf8'));
+    window.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
+    const dock = window.GaemiGTPWidgetDock;
+    dock.initialize();
+    return dock;
+  };
+
+  const firstDom = new JSDOM(html, { url: 'https://example.test', runScripts: 'outside-only' });
+  const first = firstDom.window;
+  const firstDock = boot(first);
+  assert.equal(firstDock.add('news-feed'), true);
+  assert.equal(firstDock.move('news-feed', 'left'), true);
+  const savedPlacements = first.localStorage.getItem('gaemiGTP_widget_placements_v1');
+  assert.equal(JSON.parse(savedPlacements)['news-feed'], 'left');
+  assert.deepEqual(JSON.parse(first.localStorage.getItem('gaemiGTP_central_widget_dock_v1')), ['news-feed']);
+  firstDom.window.close();
+
+  // Simulate a partial/legacy save where the active-ID key is missing but the
+  // moved widget's placement record survived.
+  const secondDom = new JSDOM(html, { url: 'https://example.test', runScripts: 'outside-only' });
+  const second = secondDom.window;
+  second.localStorage.setItem('gaemiGTP_widget_placements_v1', savedPlacements);
+  const secondDock = boot(second);
+
+  assert.deepEqual(secondDock.getActiveIds(), ['news-feed']);
+  assert.equal(secondDock.getPlacement('news-feed'), 'left');
+  const widget = second.document.querySelector('[data-central-widget-id="news-feed"]');
+  assert.ok(widget);
+  assert.equal(widget.parentElement, second.document.querySelector('[data-portable-widget-slot="left"]'));
+  assert.equal(second.document.querySelectorAll('[data-central-widget-id="news-feed"]').length, 1);
+
+  const tabs = Array.from(second.document.querySelectorAll('#rightInfoTabs [data-info-tab-action]'))
+    .map(button => button.dataset.infoTabAction);
+  assert.deepEqual(tabs, ['realtime', 'industry', 'value']);
+  assert.ok(second.document.querySelector('#leftMarketSidebar #marketRankingList'));
+  assert.ok(second.document.querySelector('#leftMarketSidebar #marketIndustryWidgetSlot'));
+
+  const marketSidebar = readFileSync('frontend/shell/left-market-sidebar/market-sidebar.js', 'utf8');
+  assert.equal(marketSidebar.includes('시장 시세'), false);
+  assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
+  assert.match(html, /market-sidebar\\.js\\?v=20261125-market-title-clean-v1/);
+  assert.match(html, /widget-dock\\.js\\?v=20261125-widget-state-persist-v2/);
+  secondDom.window.close();
+});
