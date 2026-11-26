@@ -612,7 +612,7 @@ def _us_close_get(symbol, now=None, exchange=None):
         if official is not None:
             return official
     with _US_CLOSE_LOCK:
-        if time.monotonic() - _US_CLOSE_LAST_READ >= 3:
+        if not _US_CLOSE_CACHE.get("day") or time.monotonic() - _US_CLOSE_LAST_READ >= 3:
             _us_close_merge(_us_close_read_disk())
             _US_CLOSE_LAST_READ = time.monotonic()
         record_day = _US_CLOSE_CACHE.get("day")
