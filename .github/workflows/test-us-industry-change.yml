@@ -37,8 +37,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run US industry and quote regression tests
+      - name: Run official industry-map calculation tests
         run: |
-          python -m unittest discover -s tests -p "test_kiwoom_us_industries.py" -v
-          python -m unittest discover -s tests -p "test_us_quote_change.py" -v
-          python -m unittest discover -s tests -p "test_us_industry_change_preservation.py" -v
+          python -m unittest discover -s tests -p "test_kiwoom_us_industries.py" -k test_sector_map_uses -v
+          python -m unittest discover -s tests -p "test_kiwoom_us_industries.py" -k test_multiple_official_codes -v
+
+      - name: Run US quote verification tests
+        run: python -m unittest discover -s tests -p "test_us_quote_change.py" -v
+
+      - name: Run industry-change preservation regression
+        run: python -m unittest discover -s tests -p "test_us_industry_change_preservation.py" -v
