@@ -28,6 +28,16 @@ def main():
     for unit in ("gaemigtp-kiwoom-us-top20-api.service", "gaemigtp-kiwoom-us-top20-https.service"):
         print("UNIT_" + unit + "_ACTIVE=" + safe_cmd(["systemctl", "is-active", unit]), flush=True)
         props = safe_cmd(["systemctl", "show", unit, "-p", "MainPID", "-p", "ExecStart", "-p", "WorkingDirectory", "-p", "EnvironmentFiles"])
+        env_props = safe_cmd(["systemctl", "show", unit, "-p", "Environment", "-p", "UnsetEnvironment", "-p", "PassEnvironment"])
+        env_names = []
+        for part in env_props.splitlines():
+            if "=" in part:
+                key, value = part.split("=", 1)
+                if key == "Environment":
+                    env_names.extend(token.split("=", 1)[0] for token in value.split() if "=" in token)
+                elif key in ("UnsetEnvironment", "PassEnvironment"):
+                    env_names.extend(value.split())
+        print("UNIT_" + unit + "_ENV_KEYS=" + ",".join(sorted(set(env_names))), flush=True)
         print("UNIT_" + unit + "_PROPS=" + json.dumps(props), flush=True)
 
     pid_text = safe_cmd(["systemctl", "show", "gaemigtp-kiwoom-us-top20-api.service", "-p", "MainPID", "--value"])
