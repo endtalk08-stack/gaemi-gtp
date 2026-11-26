@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/test_nvda_independent_news_keywords_20261022.py",
-  "request_id": "news-audit-nvda-20261126",
+  "path": "ops/do-gateway/audit_deployed_top20_r2_readonly_20261110.py",
+  "request_id": "news-audit-service-20261126",
   "timeout": 120
 }
