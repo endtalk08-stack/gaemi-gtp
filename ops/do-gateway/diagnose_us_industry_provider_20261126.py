@@ -15,6 +15,9 @@ def safe_cmd(args):
 
 def main():
     print("DIAG_START=1", flush=True)
+    print("JOB_ENV_KEY_NAMES=" + ",".join(sorted(k for k in os.environ if "KEY" in k or "SECRET" in k or "KIWOOM" in k)), flush=True)
+    print("JOB_HAS_GAEMI_KIWOOM_APP_KEY=" + str(bool(os.environ.get("GAEMI_KIWOOM_APP_KEY"))), flush=True)
+    print("JOB_HAS_GAEMI_KIWOOM_APP_SECRET=" + str(bool(os.environ.get("GAEMI_KIWOOM_APP_SECRET"))), flush=True)
     env_path = pathlib.Path("/etc/gaemigtp/kiwoom.env")
     try:
         keys = sorted({line.split("=", 1)[0].strip() for line in env_path.read_text().splitlines()
