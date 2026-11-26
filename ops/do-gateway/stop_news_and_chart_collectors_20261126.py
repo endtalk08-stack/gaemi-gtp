@@ -10,7 +10,7 @@ UNITS = [
 for unit in UNITS:
     print("STOP_REQUEST=" + unit, flush=True)
     result = subprocess.run(
-        ["systemctl", "stop", unit],
+        ["sudo", "-n", "systemctl", "stop", unit],
         check=False, capture_output=True, text=True, timeout=20,
     )
     if result.stdout.strip():
@@ -22,7 +22,7 @@ for unit in UNITS:
         raise SystemExit("STOP_FAILED=" + unit)
 
 verify = subprocess.run(
-    ["systemctl", "show", *UNITS, "--property=Id,ActiveState,SubState", "--no-pager"],
+    ["sudo", "-n", "systemctl", "show", *UNITS, "--property=Id,ActiveState,SubState", "--no-pager"],
     check=False, capture_output=True, text=True, timeout=20,
 )
 print("=== VERIFY ===", flush=True)
