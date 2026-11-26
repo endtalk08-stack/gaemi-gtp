@@ -185,7 +185,7 @@ jobs:
           echo "[Open the Pages preview]($DEPLOYMENT_URL)" >> "$GITHUB_STEP_SUMMARY"
           if [ "$ACCESS_PROTECTED" = "true" ]; then
             echo "Preview deployed, but automated checks were blocked by Cloudflare Access." >> "$GITHUB_STEP_SUMMARY"
-            echo "\nBefore production, open the preview URL above and check the page, news panel, market widgets, and chart data. Then run this workflow manually with both production confirmation and the same-commit preview inspection confirmation enabled." >> "$GITHUB_STEP_SUMMARY"
+            printf '\nBefore production, open the preview URL above and check the page, news panel, market widgets, and chart data. Then run this workflow manually with both production confirmation and the same-commit preview inspection confirmation enabled.\n' >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Verified: frontend assets, Pages Functions, instrument metadata, and R2-backed NVDA daily chart." >> "$GITHUB_STEP_SUMMARY"
           fi
