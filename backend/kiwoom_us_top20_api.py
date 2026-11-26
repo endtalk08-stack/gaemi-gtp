@@ -12,7 +12,7 @@ import select
 import struct
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -468,11 +468,59 @@ _US_CLOSE_LAST_READ = 0.0
 _US_CLOSE_MAX_BYTES = 100000
 
 
+def _us_market_holidays(year):
+    """NYSE full-day holidays, including observed fixed-date holidays."""
+    def observed(month, day):
+        value = date(year, month, day)
+        if value.weekday() == 5:
+            return value - timedelta(days=1)
+        if value.weekday() == 6:
+            return value + timedelta(days=1)
+        return value
+
+    def nth_weekday(month, weekday, number):
+        first = date(year, month, 1)
+        return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (number - 1))
+
+    def last_weekday(month, weekday):
+        last = date(year, month + 1, 1) - timedelta(days=1) if month < 12 else date(year, 12, 31)
+        return last - timedelta(days=(last.weekday() - weekday) % 7)
+
+    # Gregorian Easter calculation; NYSE is closed on Good Friday.
+    a = year % 19
+    b, c = divmod(year, 100)
+    d, e = divmod(b, 4)
+    f, g = divmod(b + 8, 25)
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    easter_month = (h + l - 7 * m + 114) // 31
+    easter_day = ((h + l - 7 * m + 114) % 31) + 1
+    easter = date(year, easter_month, easter_day)
+
+    holidays = {
+        observed(1, 1), nth_weekday(1, 0, 3), nth_weekday(2, 0, 3),
+        easter - timedelta(days=2), last_weekday(5, 0),
+        observed(7, 4), nth_weekday(9, 0, 1),
+        nth_weekday(11, 3, 4), observed(12, 25),
+    }
+    if year >= 2022:
+        holidays.add(observed(6, 19))
+    return holidays
+
+
+def _is_us_market_holiday(day):
+    # Include adjacent years because New Year's Day can be observed on Dec 31.
+    return any(day in _us_market_holidays(year)
+               for year in range(day.year - 1, day.year + 2))
+
+
 def _us_close_phase(now=None):
     now = now or datetime.now(timezone.utc)
     local = now.astimezone(_US_CLOSE_NY)
     minute = local.hour * 60 + local.minute
-    if local.weekday() >= 5:
+    if local.weekday() >= 5 or _is_us_market_holiday(local.date()):
         return "none", local.date().isoformat()
     if 9 * 60 + 30 <= minute < 16 * 60:
         return "capture", local.date().isoformat()
