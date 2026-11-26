@@ -1,5 +1,5 @@
 {
   "operation": "logs",
-  "unit": "gaemigtp-tradingview-news.service",
-  "lines": 120
+  "unit": "gaemigtp-news.service",
+  "lines": 100
 }
