@@ -455,6 +455,7 @@ _QQQ_REST_RETRY_TTL = 15
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
+# Closed-session quote fallback preserves the latest completed-session baseline.
 # Last *verified regular-session trade*, not the official closing-auction price.
 # This record is shared by the two read-only US quote API processes and survives
 # a service restart. Only public prices/rates are stored, never credentials.
@@ -1131,6 +1132,21 @@ def read_top20(path=RANKING_FILE):
                     symbol, exchange, current_price,
                     snapshot_at=captured_at if captured_at is not None else False,
                 )
+            # The Kiwoom ranking file carries its own daily change. If the
+            # independent close lookup is temporarily unavailable, retain that
+            # source percentage only when the file belongs to the latest
+            # completed session (never carry it into a new regular session).
+            if current_pct is None and captured_at is not None and _us_close_phase()[0] != "capture":
+                captured_day = captured_at.astimezone(_US_CLOSE_NY).date()
+                if captured_day == _last_completed_us_session():
+                    source_pct = row.get("change_pct")
+                    if (type(source_pct) in (int, float) and math.isfinite(source_pct)
+                            and -100 < source_pct < 10000):
+                        current_pct = float(source_pct)
+                        previous_day = captured_day - timedelta(days=1)
+                        while previous_day.weekday() >= 5 or _is_us_market_holiday(previous_day):
+                            previous_day -= timedelta(days=1)
+                        close_date = previous_day.isoformat()
         item = {
             "rank": index,
             "symbol": symbol,
