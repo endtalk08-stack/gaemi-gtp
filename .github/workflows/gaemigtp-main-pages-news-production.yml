@@ -29,8 +29,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: gaemigtp-main-pages-\${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: \${{ github.event_name == 'pull_request' }}
+  group: gaemigtp-main-pages-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -46,7 +46,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v4
         with:
-          ref: \${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
           path: production-baseline
       - name: Verify current production assets against the production baseline
         if: github.event_name == 'pull_request'
@@ -103,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: \${{ github.sha }}
+          ref: ${{ github.sha }}
       - name: Prepare one immutable deployment artifact
         run: |
           deploy_dir="$RUNNER_TEMP/gaemigtp-pages-deploy"
@@ -115,8 +115,8 @@ jobs:
       - name: Upload the exact files that will be deployed
         uses: actions/upload-artifact@v4
         with:
-          name: gaemigtp-pages-\${{ github.run_id }}-\${{ github.run_attempt }}
-          path: \${{ runner.temp }}/gaemigtp-pages-deploy/
+          name: gaemigtp-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gaemigtp-pages-deploy/
           if-no-files-found: error
           retention-days: 2
       - name: Deploy the candidate to the existing Pages preview
@@ -125,18 +125,18 @@ jobs:
         env:
           npm_config_yes: "true"
         with:
-          apiToken: \${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
           wranglerVersion: "4.167.0"
-          workingDirectory: "\${{ runner.temp }}/gaemigtp-pages-deploy"
+          workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
           command: >-
             pages deploy frontend --project-name gaemigtp-main
-            --branch \${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'github-pages-preview' }}
-            --commit-hash \${{ github.sha }}
+            --branch ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'github-pages-preview' }}
+            --commit-hash ${{ github.sha }}
       - name: Detect preview Access protection and verify deployed assets
         id: preview_check
         env:
-          DEPLOYMENT_URL: \${{ steps.deploy.outputs.deployment-url }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
           set +e
           status="$(curl -sSL --max-redirs 5 --max-time 20 -H 'Cache-Control: no-cache' "$DEPLOYMENT_URL/" -o "$RUNNER_TEMP/preview-index.html" -w '%{http_code}')"
@@ -158,7 +158,7 @@ jobs:
           node scripts/pages/verify-pages-deployment.mjs "$DEPLOYMENT_URL"
       - name: Verify preview Pages Functions and existing R2 binding
         env:
-          DEPLOYMENT_URL: \${{ steps.deploy.outputs.deployment-url }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
           curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/market/qqq-reason" |
             jq -e '.ok == true and (.items | type == "array")'
@@ -169,7 +169,7 @@ jobs:
       - name: Publish preview URL and verification scope
         if: always()
         env:
-          DEPLOYMENT_URL: \${{ steps.deploy.outputs.deployment-url }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
           echo "[Open the Pages preview]($DEPLOYMENT_URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "Verified: frontend assets, Pages Functions, instrument metadata, and R2-backed NVDA daily chart." >> "$GITHUB_STEP_SUMMARY"
@@ -185,8 +185,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: gaemigtp-pages-\${{ github.run_id }}-\${{ github.run_attempt }}
-          path: \${{ runner.temp }}/gaemigtp-pages-deploy
+          name: gaemigtp-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gaemigtp-pages-deploy
       - name: Verify downloaded artifact structure
         run: |
           test -s "$RUNNER_TEMP/gaemigtp-pages-deploy/frontend/index.html"
@@ -197,11 +197,11 @@ jobs:
         env:
           npm_config_yes: "true"
         with:
-          apiToken: \${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
           wranglerVersion: "4.167.0"
-          workingDirectory: "\${{ runner.temp }}/gaemigtp-pages-deploy"
-          command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash \${{ github.sha }}
+          workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
+          command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash ${{ github.sha }}
       - name: Verify every production asset byte-for-byte
         run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
       - name: Verify production Pages Functions and existing R2 binding
