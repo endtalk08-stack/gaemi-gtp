@@ -9,8 +9,11 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
           params.set('menu', marketSelection.menu);
           params.set('symbol', marketSelection.symbol);
         }
-        const endpoint = window.location.hostname === 'gaemigtp-main.pages.dev'
-          ? window.location.origin : BACKEND_URL;
+        // Pages serves the UI and R2-backed Functions, but has no /analyze route.
+        // Send stock analysis to the Render backend on both production and preview
+        // Pages hosts; keep BACKEND_URL for the existing non-Pages environments.
+        const isPagesHost = window.location.hostname.endsWith('.pages.dev');
+        const endpoint = isPagesHost ? 'https://gaemi-gtp.onrender.com' : BACKEND_URL;
         const response = await fetch(`${endpoint}/analyze?${params}`, {
           signal, credentials: endpoint === window.location.origin ? 'same-origin' : 'omit',
           cache: 'no-store'
