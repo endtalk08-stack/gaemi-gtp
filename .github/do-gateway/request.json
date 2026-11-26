@@ -1,4 +1,6 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service"
+  "operation": "run",
+  "path": "ops/do-gateway/verify_us_close_recovery_live_20261126.py",
+  "request_id": "verify-us-apis-after-restart-20261126",
+  "timeout": 120
 }
