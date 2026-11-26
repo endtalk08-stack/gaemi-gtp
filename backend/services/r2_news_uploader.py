@@ -1,4 +1,4 @@
-"""Upload news-page JSON to Cloudflare R2 using S3 SigV4.
+"""Upload stock-news and market-data JSON to Cloudflare R2 using S3 SigV4.
 
 No third-party AWS SDK is required. Credentials are read from environment only.
 """
@@ -18,7 +18,6 @@ import xml.etree.ElementTree as ET
 
 ACCOUNT_ID = "6cf7450897a598809db421965a07304b"
 BUCKET = "gaemigtp-news-data"
-OBJECT_KEY = "news/latest.json"
 ENDPOINT = f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com"
 TIMEOUT_SECONDS = 20
 
@@ -96,8 +95,8 @@ def read_recovered_news_snapshot(*, object_key: str = "news/recovered/20261109.j
 
 
 def read_r2_json(object_key: str, *, max_bytes: int = 1_500_000):
-    """Read only allow-listed chart, instrument, and unified news JSON from R2."""
-    if (object_key not in ("stocks/us/instruments.json", "news/latest.json")
+    """Read only allow-listed chart and instrument JSON from R2."""
+    if (object_key != "stocks/us/instruments.json"
             and not re.fullmatch(r"charts/us/[A-Z][A-Z0-9.-]{0,14}/daily\\.json", object_key)):
         raise ValueError("invalid_r2_read_key")
     access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
@@ -142,16 +141,6 @@ def read_r2_json(object_key: str, *, max_bytes: int = 1_500_000):
     return data
 
 
-def read_latest_news_snapshot():
-    """Read and validate the current unified news snapshot before merging."""
-    data = read_r2_json("news/latest.json")
-    if data is None:
-        return None
-    if (data.get("ok") is not True or not isinstance(data.get("items"), list)
-            or any(not isinstance(item, dict) for item in data["items"])):
-        raise ValueError("invalid_existing_latest_news_snapshot")
-    return data
-
 
 def read_daily_chart(symbol: str):
     """Read one allow-listed daily chart from R2; no database fallback."""
@@ -187,9 +176,9 @@ def read_daily_chart(symbol: str):
 
 
 
-def upload_file(path: Path, *, object_key: str = OBJECT_KEY) -> bool:
-    # Keep the existing news page key unchanged. Stock feeds use separate objects.
-    if object_key not in (OBJECT_KEY, 'stocks/us/instruments.json') and not re.fullmatch(
+def upload_file(path: Path, *, object_key: str) -> bool:
+    # Unified news-page snapshots are retired; publish only scoped stock/news objects.
+    if object_key != 'stocks/us/instruments.json' and not re.fullmatch(
         r"(?:news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}|charts/us/[A-Z][A-Z0-9.-]{0,14}/daily|news/archive/[0-9]{8}/[0-9a-f]{64})\.json", object_key
     ):
         raise ValueError("invalid_r2_news_object_key")
