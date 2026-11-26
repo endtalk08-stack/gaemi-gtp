@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/probe_us_sector_etf_quotes_20261126.py",
-  "request_id": "usetfprobe1_20261126",
-  "timeout": 120
+  "path": "ops/do-gateway/probe_us_close_hold_file_20261126.py",
+  "request_id": "usholdprobe1_20261126",
+  "timeout": 60
 }
