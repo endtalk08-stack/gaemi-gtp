@@ -1,7 +1,7 @@
 """DigitalOcean stock-news worker: US trading-value and popular TOP20; Naver US news restored.
 
 No fixed-stock priority or domestic collection. Reuse existing Naver news, company feeds, and SEC.
-Keeps the existing once-per-US-exchange-day Groq scheduling and Neon storage.
+Publishes source-separated stock-news snapshots to R2; legacy Neon mode is opt-in only.
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ ROTATION_STATE_PATH = "/var/lib/gaemigtp-news/rotation.json"
 
 def news_storage_mode():
     """Explicit opt-in, so existing deployments keep their previous behavior."""
-    return os.environ.get("GAEMIGTP_NEWS_STORAGE", "neon").strip().lower()
+    return os.environ.get("GAEMIGTP_NEWS_STORAGE", "r2").strip().lower()
 
 
 def process_r2_stock(market, stock_name, symbol, state):
