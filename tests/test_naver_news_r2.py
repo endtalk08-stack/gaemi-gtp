@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+import backend.services.r2_news_uploader  # Ensure patch target is imported.
 from backend.services.naver_news_r2 import (
     build_naver_snapshot,
     publish_naver_news,
