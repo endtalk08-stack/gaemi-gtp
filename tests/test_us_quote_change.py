@@ -120,6 +120,12 @@ class VerifiedQuoteChangeTests(unittest.TestCase):
                 api._US_CLOSE_FILE = path
                 api._US_CLOSE_CACHE = {"day": "", "items": {}}
                 api._US_CLOSE_LAST_READ = 0.0
+                self.assertEqual(api._us_close_read_disk(), record)
+                api._us_close_merge(record)
+                self.assertEqual(api._US_CLOSE_CACHE["day"], "2026-11-25")
+                self.assertIn("NVDA", api._US_CLOSE_CACHE["items"])
+                api._US_CLOSE_CACHE = {"day": "", "items": {}}
+                api._US_CLOSE_LAST_READ = 0.0
                 for now in (
                     dt.datetime(2026, 11, 26, 10, 0, tzinfo=ZoneInfo("America/New_York")),
                     dt.datetime(2026, 11, 28, 12, 0, tzinfo=ZoneInfo("America/New_York")),
