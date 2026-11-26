@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/stop_news_and_chart_collectors_20261126.py",
-  "request_id": "stopnewsandchart20261126b",
-  "timeout": 120
+  "operation": "status"
 }
