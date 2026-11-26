@@ -593,11 +593,40 @@ def fetch_us_etf_marketcap(*, token=None, limit=20):
     }
 
 
+_ETF_EXCHANGE_CACHE_LOCK = threading.Lock()
+_ETF_EXCHANGE_CACHE = {}  # symbol -> exchange
+_ETF_EXCHANGE_CACHE_EXPIRES_AT = 0.0
+_ETF_EXCHANGE_CACHE_TTL = 24 * 60 * 60  # A listed ETF's exchange essentially never changes.
+
+
 def fetch_us_etf_exchanges(*, token=None, tickers=None):
-    """Verify requested ETF ticker/exchange pairs against Kiwoom usa10104."""
+    """Verify requested ETF ticker/exchange pairs against Kiwoom usa10104.
+
+    The scan pages through Kiwoom's entire exchange listing (up to 40 pages),
+    so one complete scan of all heatmap ETFs is cached for a day instead of
+    being repeated on every quote refresh (the 10-20 s industry-tab delay).
+    """
+    global _ETF_EXCHANGE_CACHE_EXPIRES_AT
     requested = ETF_TICKERS if tickers is None else ETF_TICKERS.intersection(tickers)
     if not requested:
         return {}
+    now = time.monotonic()
+    with _ETF_EXCHANGE_CACHE_LOCK:
+        if now < _ETF_EXCHANGE_CACHE_EXPIRES_AT and requested <= _ETF_EXCHANGE_CACHE.keys():
+            return {symbol: _ETF_EXCHANGE_CACHE[symbol] for symbol in requested}
+    symbols = _scan_us_etf_exchanges(token=token)
+    if symbols:
+        with _ETF_EXCHANGE_CACHE_LOCK:
+            _ETF_EXCHANGE_CACHE.update(symbols)
+            # Only a complete scan earns the long TTL; a cut-short scan retries soon.
+            complete = symbols.keys() >= ETF_TICKERS
+            _ETF_EXCHANGE_CACHE_EXPIRES_AT = now + (_ETF_EXCHANGE_CACHE_TTL if complete else 60)
+    return {symbol: symbols[symbol] for symbol in requested if symbol in symbols}
+
+
+def _scan_us_etf_exchanges(*, token=None):
+    """One walk of the usa10104 listing for every heatmap ETF."""
+    requested = ETF_TICKERS
     symbols = {}
     continuation = None
     for _ in range(40):

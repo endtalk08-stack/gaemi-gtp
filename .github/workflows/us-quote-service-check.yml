@@ -1,0 +1,66 @@
+name: US quote service checks
+
+# Guards the DigitalOcean quote service (TOP20 list, sector heatmap, SPY/DIA).
+# Runs on main and on the gateway deploy branch, so a change that would
+# bring back a fixed problem fails here before it reaches the server.
+on:
+  push:
+    branches: [main, ops/do-ssh-deploy-setup-20261017]
+    paths:
+      - 'backend/kiwoom_us_top20_api.py'
+      - 'backend/kiwoom_us_live_prices.py'
+      - 'backend/us_quote_change.py'
+      - 'backend/providers/kiwoom_us_industries.py'
+      - 'backend/providers/kiwoom_us_quotes.py'
+      - 'ops/systemd/gaemigtp-kiwoom-us-top20-*.service'
+      - 'tests/test_us_quote_close_fallbacks.py'
+      - 'tests/test_etf_industry_map.py'
+      - 'tests/test_us_quote_change.py'
+      - 'tests/test_us_quote_operating.py'
+      - '.github/workflows/us-quote-service-check.yml'
+  pull_request:
+    paths:
+      - 'backend/kiwoom_us_top20_api.py'
+      - 'backend/kiwoom_us_live_prices.py'
+      - 'backend/us_quote_change.py'
+      - 'backend/providers/kiwoom_us_industries.py'
+      - 'backend/providers/kiwoom_us_quotes.py'
+      - 'ops/systemd/gaemigtp-kiwoom-us-top20-*.service'
+      - 'tests/test_us_quote_close_fallbacks.py'
+      - 'tests/test_etf_industry_map.py'
+      - 'tests/test_us_quote_change.py'
+      - 'tests/test_us_quote_operating.py'
+      - '.github/workflows/us-quote-service-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test dependencies
+        run: python -m pip install --quiet requests pytest
+      - name: Compile quote service
+        run: |
+          python -m py_compile backend/kiwoom_us_top20_api.py backend/kiwoom_us_live_prices.py \
+            backend/us_quote_change.py backend/providers/kiwoom_us_industries.py \
+            backend/providers/kiwoom_us_quotes.py
+      - name: Both quote services may write the held last-close file
+        run: |
+          for unit in ops/systemd/gaemigtp-kiwoom-us-top20-api.service \
+                      ops/systemd/gaemigtp-kiwoom-us-top20-https.service; do
+            grep -qx 'ReadWritePaths=/var/lib/gaemigtp-news' "$unit" \
+              || { echo "$unit cannot write /var/lib/gaemigtp-news"; exit 1; }
+          done
+      - name: Quote service regression tests
+        run: |
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_us_quote_close_fallbacks.py tests/test_etf_industry_map.py \
+            tests/test_us_quote_change.py tests/test_us_quote_operating.py
