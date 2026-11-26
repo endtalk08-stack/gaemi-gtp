@@ -205,6 +205,12 @@ def _get_us_industry_etf_quotes():
                         if quote and 0 <= now_ms - quote["received_at_ms"] <= 120000}
         live = current_ticks()
 
+    # Start every needed last-session read at once; then share one wait budget.
+    for symbol in ETF_TICKERS.difference(live):
+        _last_session_close(symbol, (fallback.get(symbol) or {}).get("exchange")
+                            or _CLOSE_EXCHANGES.get(symbol), wait=0)
+    close_deadline = time.monotonic() + 10
+
     result = []
     for symbol in sorted(ETF_TICKERS):
         quote = live.get(symbol) or fallback.get(symbol) or {}
@@ -228,9 +234,16 @@ def _get_us_industry_etf_quotes():
             "stale": symbol not in live,
             "source": "kiwoom:websocket" if symbol in live else "kiwoom:rest",
         }
-        held = _us_close_get(symbol, exchange=quote.get("exchange") or _CLOSE_EXCHANGES.get(symbol))
+        exchange = quote.get("exchange") or _CLOSE_EXCHANGES.get(symbol)
+        held = _us_close_get(symbol, exchange=exchange)
+        if not held and item["change_pct"] is None:
+            # Outside the regular session every quote board shows the last
+            # completed session's official close change, not a blank.
+            held = _last_session_close(symbol, exchange,
+                                       wait=close_deadline - time.monotonic())
         if held:
             item.update({
+                "price": held.get("price"),
                 "change_pct": held["change_pct"],
                 "reference_close_date": held["reference_close_date"],
                 "received_at_ms": held["received_at_ms"],
@@ -240,6 +253,93 @@ def _get_us_industry_etf_quotes():
             })
         result.append(item)
     return result
+
+
+_LAST_SESSION_CLOSE_LOCK = threading.Lock()
+_LAST_SESSION_CLOSE = {}
+_LAST_SESSION_CLOSE_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="us-last-close")
+_LAST_SESSION_EXCHANGES = {"expires_at": 0.0, "data": {}}
+
+
+def _last_session_exchange(symbol):
+    """Kiwoom-verified ETF exchange when the live feed has not registered it yet."""
+    now = time.monotonic()
+    with _LAST_SESSION_CLOSE_LOCK:
+        cached = _LAST_SESSION_EXCHANGES
+        if now < cached["expires_at"]:
+            return cached["data"].get(symbol)
+    try:
+        from backend.providers.kiwoom_us_industries import fetch_us_etf_exchanges
+        data = {s: e for s, e in fetch_us_etf_exchanges().items() if e in ("ND", "NY", "NA")}
+    except Exception:
+        data = {}
+    with _LAST_SESSION_CLOSE_LOCK:
+        _LAST_SESSION_EXCHANGES["data"] = data or _LAST_SESSION_EXCHANGES["data"]
+        _LAST_SESSION_EXCHANGES["expires_at"] = now + (21600 if data else 300)
+        return _LAST_SESSION_EXCHANGES["data"].get(symbol)
+
+
+def _read_last_session_close(symbol, exchange, session_day):
+    try:
+        return _read_last_session_close_unsafe(symbol, exchange, session_day)
+    except Exception:
+        return None
+
+
+def _read_last_session_close_unsafe(symbol, exchange, session_day):
+    from backend.us_quote_change import _read_official_close
+    exchange = exchange if exchange in ("ND", "NY", "NA") else _last_session_exchange(symbol)
+    if exchange not in ("ND", "NY", "NA"):
+        return None
+    result = _read_official_close(symbol, exchange, session_day)
+    if not result:
+        return None
+    price, change_pct, previous_date = result
+    if (type(change_pct) not in (int, float) or not math.isfinite(change_pct)
+            or not -100 < change_pct < 10000):
+        return None
+    return {
+        "symbol": symbol, "exchange": exchange, "price": float(price),
+        "change_pct": float(change_pct),
+        "reference_close_date": previous_date,
+        "reference_close_session": previous_date,
+        "session_date": session_day.isoformat(),
+        # When this official record was read (the session is in session_date).
+        "received_at_ms": int(time.time() * 1000),
+        "stale": False, "source": "kiwoom:last-session-close",
+        "market_session": "last_session_close",
+    }
+
+
+def _last_session_close(symbol, exchange=None, now=None, wait=8.0):
+    """Official close vs preceding close for the latest completed NYSE session.
+
+    Used only outside the regular session. One background read per
+    symbol/session (Kiwoom dated close + preceding close); failures retry
+    after 60 seconds. Returns None while the first read is in flight.
+    """
+    now = now or datetime.now(timezone.utc)
+    phase, _ = _us_close_phase(now)
+    if phase == "capture" or not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol):
+        return None
+    session_day = _last_completed_us_session(now)
+    key = (symbol, session_day)
+    with _LAST_SESSION_CLOSE_LOCK:
+        entry = _LAST_SESSION_CLOSE.get(key)
+        if entry is None or (entry["future"].done() and entry["future"].result() is None
+                             and time.monotonic() >= entry["retry"]):
+            entry = {"future": _LAST_SESSION_CLOSE_POOL.submit(
+                         _read_last_session_close, symbol, exchange, session_day),
+                     "retry": time.monotonic() + 60}
+            _LAST_SESSION_CLOSE[key] = entry
+            for old in [k for k in _LAST_SESSION_CLOSE if k[1] != session_day]:
+                _LAST_SESSION_CLOSE.pop(old, None)
+        future = entry["future"]
+    try:
+        # A short wait lets the first request after a restart show the close.
+        return future.result(timeout=max(0.0, wait))
+    except Exception:
+        return None
 
 def _get_us_industry_map_with_stocks(view="legacy"):
     source = _get_us_industry_map(view)
@@ -348,8 +448,9 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                      list(_INDUSTRY_QUOTES.values()) + list(_TOP20_QUOTES.values())
                      if quote.get("reference_close_session") == session_key
                      and type(quote.get("change_pct")) in (int, float)}
+    # Keep the official usa23000 industry return on each sector row.
+    # The verified quote fallback below applies to constituent stocks only.
     for row in result["items"]:
-        row["change_pct"] = None
         for stock in row.get("stocks", []):
             symbol = str(stock.get("symbol") or "").upper().split(".")[0]
             quote = _us_close_get(symbol, exchange=stock.get("exchange")) or confirmed.get(symbol)
