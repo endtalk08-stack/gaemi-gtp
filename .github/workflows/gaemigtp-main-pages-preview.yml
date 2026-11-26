@@ -7,6 +7,7 @@ on:
       - frontend/index.html
       - frontend/shell/left-market-sidebar/market-sidebar.css
       - frontend/shell/left-market-sidebar/market-sidebar.js
+      - frontend/shell/center-chat/widget-dock/widget-dock.js
   workflow_dispatch:
 
 permissions:
