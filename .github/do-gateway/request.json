@@ -1,4 +1,6 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service"
+  "operation": "run",
+  "path": "ops/do-gateway/diagnose_live_top20_api_20261126.py",
+  "request_id": "verify-live-top20-fixed-20261126",
+  "timeout": 120
 }
