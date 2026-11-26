@@ -21,7 +21,7 @@ SYMBOL_PATTERN = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
 
 
 def enabled():
-    return (os.getenv("GAEMIGTP_NEWS_STORAGE", "neon").strip().lower() == "r2"
+    return (os.getenv("GAEMIGTP_NEWS_STORAGE", "r2").strip().lower() == "r2"
             and os.getenv("GAEMIGTP_NEWS_AI_PAUSED", "1").strip() == "0"
             and os.getenv("GAEMIGTP_NEWS_AI_R2_ENABLED", "0").strip() == "1")
 
