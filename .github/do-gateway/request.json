@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/diagnose_us_industry_provider_20261126.py",
-  "request_id": "usindenvdiag8_20261126",
-  "timeout": 180
+  "path": "ops/do-gateway/probe_us_sector_etf_quotes_20261126.py",
+  "request_id": "usetfprobe1_20261126",
+  "timeout": 120
 }
