@@ -657,12 +657,11 @@ def _validated_snapshot_change(symbol, exchange, price, *, now=None, snapshot_at
         baseline_at = now
     else:
         session_day = _last_completed_us_session(now)
-        if snapshot_at is not None:
-            captured = snapshot_at.astimezone(_US_CLOSE_NY)
-            if captured.date() != session_day:
-                return None, None
-            session_day = captured.date()
-        elif snapshot_at is False:
+        if snapshot_at is False:
+            return None, None
+        # A snapshot taken any time after a session's close (overnight,
+        # weekend, holiday, pre-market) still carries that session's price.
+        if snapshot_at is not None and _last_completed_us_session(snapshot_at) != session_day:
             return None, None
         baseline_at = datetime.combine(
             session_day,
@@ -1238,7 +1237,8 @@ def read_top20(path=RANKING_FILE):
             # source percentage only when the file belongs to the latest
             # completed session (never carry it into a new regular session).
             if current_pct is None and captured_at is not None and _us_close_phase()[0] != "capture":
-                captured_day = captured_at.astimezone(_US_CLOSE_NY).date()
+                # The session the snapshot belongs to, not its calendar date.
+                captured_day = _last_completed_us_session(captured_at)
                 if captured_day == _last_completed_us_session():
                     source_pct = row.get("change_pct")
                     if (type(source_pct) in (int, float) and math.isfinite(source_pct)
