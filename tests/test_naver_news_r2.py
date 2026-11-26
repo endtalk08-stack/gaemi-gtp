@@ -53,6 +53,7 @@ class NaverNewsR2Tests(unittest.TestCase):
             "url": "https://example.com/market",
             "published_at": "2026-11-26T01:00:00+00:00",
             "source": "Example",
+            "category": "시장동향",
         }]
         items = fetch_naver_news(["미국 증시"], section="market")
         self.assertEqual(items[0]["news_section"], "market")
@@ -67,6 +68,7 @@ class NaverNewsR2Tests(unittest.TestCase):
             "url": "https://example.com/stock",
             "published_at": "2026-11-26T01:00:00+00:00",
             "source": "Example",
+            "category": "종목",
         }]
         items = fetch_naver_news(["삼성전자"], section="stock")
         self.assertEqual(items[0]["news_section"], "stock")
