@@ -1,4 +1,4 @@
-name: gaemigtp-main Pages single deployment pipeline
+name: gaemigtp-main Pages deployment
 
 on:
   pull_request:
@@ -14,16 +14,23 @@ on:
     paths:
       - 'frontend/**'
       - 'functions/**'
+      - 'tests/**'
       - 'scripts/pages/**'
       - '.github/workflows/gaemigtp-main-pages-news-production.yml'
   workflow_dispatch:
+    inputs:
+      deploy_production:
+        description: 'Deploy to production after preview verification'
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: gaemigtp-main-pages-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: gaemigtp-main-pages-\${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: \${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -39,7 +46,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: \${{ github.event.pull_request.base.sha }}
           path: production-baseline
       - name: Verify current production assets against the production baseline
         if: github.event_name == 'pull_request'
@@ -88,14 +95,16 @@ jobs:
 
   preview:
     needs: validate
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - name: Prepare isolated Pages deployment workspace
+          ref: \${{ github.sha }}
+      - name: Prepare one immutable deployment artifact
         run: |
           deploy_dir="$RUNNER_TEMP/gaemigtp-pages-deploy"
           rm -rf "$deploy_dir"
@@ -103,21 +112,31 @@ jobs:
           cp -a frontend functions "$deploy_dir/"
           diff -qr frontend "$deploy_dir/frontend"
           diff -qr functions "$deploy_dir/functions"
-      - name: Deploy the exact PR merge commit to Pages preview
+      - name: Upload the exact files that will be deployed
+        uses: actions/upload-artifact@v4
+        with:
+          name: gaemigtp-pages-\${{ github.run_id }}-\${{ github.run_attempt }}
+          path: \${{ runner.temp }}/gaemigtp-pages-deploy/
+          if-no-files-found: error
+          retention-days: 2
+      - name: Deploy the candidate to the existing Pages preview
         id: deploy
         uses: cloudflare/wrangler-action@v3
         env:
           npm_config_yes: "true"
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          apiToken: \${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
           wranglerVersion: "4.167.0"
-          workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
-          command: pages deploy frontend --project-name gaemigtp-main --branch pr-${{ github.event.pull_request.number }} --commit-hash ${{ github.sha }}
-      - name: Detect preview Access protection and verify assets when readable
+          workingDirectory: "\${{ runner.temp }}/gaemigtp-pages-deploy"
+          command: >-
+            pages deploy frontend --project-name gaemigtp-main
+            --branch \${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'github-pages-preview' }}
+            --commit-hash \${{ github.sha }}
+      - name: Detect preview Access protection and verify deployed assets
         id: preview_check
         env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          DEPLOYMENT_URL: \${{ steps.deploy.outputs.deployment-url }}
         run: |
           set +e
           status="$(curl -sSL --max-redirs 5 --max-time 20 -H 'Cache-Control: no-cache' "$DEPLOYMENT_URL/" -o "$RUNNER_TEMP/preview-index.html" -w '%{http_code}')"
@@ -129,17 +148,17 @@ jobs:
           fi
           if grep -Eqi 'Cloudflare Access|cloudflareaccess\.com|cf-access' "$RUNNER_TEMP/preview-index.html"; then
             echo "protected=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::Preview deployed, but Cloudflare Access blocks anonymous asset/API verification."
-          elif [ "$status" = "200" ]; then
-            node scripts/pages/verify-pages-deployment.mjs "$DEPLOYMENT_URL"
-          else
+            echo "::error::Cloudflare Access blocks automated preview verification. Production deployment is blocked."
+            exit 1
+          fi
+          if [ "$status" != "200" ]; then
             echo "::error::Preview returned HTTP $status."
             exit 1
           fi
+          node scripts/pages/verify-pages-deployment.mjs "$DEPLOYMENT_URL"
       - name: Verify preview Pages Functions and existing R2 binding
-        if: steps.preview_check.outputs.protected != 'true'
         env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          DEPLOYMENT_URL: \${{ steps.deploy.outputs.deployment-url }}
         run: |
           curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/market/qqq-reason" |
             jq -e '.ok == true and (.items | type == "array")'
@@ -150,45 +169,39 @@ jobs:
       - name: Publish preview URL and verification scope
         if: always()
         env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
-          ACCESS_PROTECTED: ${{ steps.preview_check.outputs.protected }}
+          DEPLOYMENT_URL: \${{ steps.deploy.outputs.deployment-url }}
         run: |
-          echo "[Open the PR preview]($DEPLOYMENT_URL)" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$ACCESS_PROTECTED" = "true" ]; then
-            echo "Cloudflare Access blocked anonymous verification. Sign in to inspect the preview; production will run full byte-for-byte verification after merge." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "[Open the Pages preview]($DEPLOYMENT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified: frontend assets, Pages Functions, instrument metadata, and R2-backed NVDA daily chart." >> "$GITHUB_STEP_SUMMARY"
 
   production:
-    needs: validate
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: preview
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_production
     runs-on: ubuntu-latest
+    environment: production
     concurrency:
       group: gaemigtp-main-pages-production
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/download-artifact@v4
         with:
-          node-version: 22
-      - name: Prepare isolated Pages deployment workspace
+          name: gaemigtp-pages-\${{ github.run_id }}-\${{ github.run_attempt }}
+          path: \${{ runner.temp }}/gaemigtp-pages-deploy
+      - name: Verify downloaded artifact structure
         run: |
-          deploy_dir="$RUNNER_TEMP/gaemigtp-pages-deploy"
-          rm -rf "$deploy_dir"
-          mkdir -p "$deploy_dir"
-          cp -a frontend functions "$deploy_dir/"
-          diff -qr frontend "$deploy_dir/frontend"
-          diff -qr functions "$deploy_dir/functions"
-      - name: Deploy the exact main commit to existing production Pages project
+          test -s "$RUNNER_TEMP/gaemigtp-pages-deploy/frontend/index.html"
+          test -d "$RUNNER_TEMP/gaemigtp-pages-deploy/functions"
+      - name: Deploy the exact preview-tested artifact to production
         id: deploy
         uses: cloudflare/wrangler-action@v3
         env:
           npm_config_yes: "true"
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          apiToken: \${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
           accountId: 6cf7450897a598809db421965a07304b
           wranglerVersion: "4.167.0"
-          workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
-          command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash ${{ github.sha }}
+          workingDirectory: "\${{ runner.temp }}/gaemigtp-pages-deploy"
+          command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash \${{ github.sha }}
       - name: Verify every production asset byte-for-byte
         run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
       - name: Verify production Pages Functions and existing R2 binding
