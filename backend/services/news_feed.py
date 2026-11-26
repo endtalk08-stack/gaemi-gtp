@@ -2,6 +2,7 @@
 
 import datetime
 import html
+import os
 import re
 import threading
 import time
@@ -15,6 +16,9 @@ from backend.providers import naver_news, official_company_news, sec_filings, tr
 _CACHE = {}
 _CACHE_TTL = 120
 _CACHE_LOCK = threading.Lock()
+# TradingView collection is intentionally paused until its source-specific
+# adapter and publication path are explicitly re-enabled.
+TRADINGVIEW_NEWS_ENABLED = os.getenv("GAEMIGTP_TRADINGVIEW_NEWS_ENABLED", "0").strip() == "1"
 MAX_NEWS_AGE_DAYS = 7
 
 THEME_RULES = {
@@ -117,6 +121,8 @@ def _build_item(row, query="", category="전체"):
     return {
         "title": title,
         "description": description,
+        "provider": "naver",
+        "source_provider": "naver",
         "summary": description,
         "link": link,
         "url": link,
@@ -528,10 +534,12 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
                 min(max(4, int(limit)), 10),
                 MAX_NEWS_AGE_DAYS,
             )
-            # One cached API request shared across all US stocks; other providers stay intact.
-            jobs["tradingview"] = pool.submit(
-                tradingview_news.fetch_stock_news, ticker,
-            )
+            # TradingView is a separate provider and remains paused by default.
+            # Re-enable only after its source-specific storage path is validated.
+            if TRADINGVIEW_NEWS_ENABLED:
+                jobs["tradingview"] = pool.submit(
+                    tradingview_news.fetch_stock_news, ticker,
+                )
 
         provider_rows = {}
         provider_failures = set()
