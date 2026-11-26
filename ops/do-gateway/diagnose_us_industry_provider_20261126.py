@@ -41,6 +41,7 @@ def main():
             present = sorted(item.split(b"=", 1)[0].decode("ascii", "replace") for item in raw_env
                              if item.startswith((b"GAEMI_KIWOOM_", b"KIWOOM_")))
             print("API_KIWOOM_ENV_KEYS=" + ",".join(present), flush=True)
+            print("API_ENV_KEY_NAMES=" + ",".join(sorted(item.split(b"=", 1)[0].decode("ascii", "replace") for item in raw_env if b"=" in item)), flush=True)
             for item in raw_env:
                 if item.startswith((b"GAEMI_KIWOOM_APP_KEY=", b"GAEMI_KIWOOM_APP_SECRET=")):
                     k, v = item.split(b"=", 1)
