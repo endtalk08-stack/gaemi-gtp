@@ -1,3 +1,5 @@
 {
-  "operation": "status"
+  "operation": "deploy",
+  "path": "ops/do-gateway/payload_kiwoom_us_top20_api_20261126.py",
+  "target": "backend/kiwoom_us_top20_api.py"
 }
