@@ -586,13 +586,17 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
 
 
 
-def fetch_naver_news(queries, limit=200, per_query=20, *, raise_on_error=False):
+def fetch_naver_news(queries, limit=200, per_query=20, *, section="market", raise_on_error=False):
     """Collect a general Naver news list without mixing in SEC/official/TradingView.
 
     The caller owns the query set. This keeps the Naver API adapter and its
     authentication/request behavior unchanged while exposing a market-feed
     collection entry point for the R2 publisher.
     """
+    section = str(section or "market").strip().lower()
+    if section not in ("market", "stock"):
+        raise ValueError("invalid_naver_news_section")
+
     if isinstance(queries, str):
         queries = [queries]
     if not isinstance(queries, (list, tuple, set)):
@@ -608,9 +612,15 @@ def fetch_naver_news(queries, limit=200, per_query=20, *, raise_on_error=False):
     limit = max(1, min(int(limit), 1000))
     items = _fetch_queries(
         normalized_queries,
-        category="전체",
+        category="종목" if section == "stock" else "시장동향",
         per_query=per_query,
         raise_on_error=raise_on_error,
         unfiltered=False,
     )
-    return [_enrich_item(item) for item in items[:limit]]
+    enriched = []
+    for item in items[:limit]:
+        row = _enrich_item(item)
+        row["news_section"] = section
+        row["news_sections"] = [section]
+        enriched.append(row)
+    return enriched
