@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/audit_live_file_hashes_20261126.py",
+  "request_id": "livehashaudit1_20261126",
+  "timeout": 60
 }
