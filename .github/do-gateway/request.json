@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/verify_top20_all_pct_vs_yahoo_20261126.py",
-  "request_id": "verify-all-top20-yahoo-20261126",
+  "path": "ops/do-gateway/diagnose_live_top20_api_20261126.py",
+  "request_id": "diagnose-live-top20-api-20261126",
   "timeout": 120
 }
