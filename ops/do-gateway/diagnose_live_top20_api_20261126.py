@@ -29,6 +29,27 @@ for name, url in checks:
     except Exception as exc:
         print(name + " ERROR=" + type(exc).__name__ + ":" + str(exc), flush=True)
 
+for name, url in (
+    ("public_top20", "https://quotes.gaemigtp.com/market/trading-value?market=us"),
+    ("public_industries", "https://quotes.gaemigtp.com/market/us-industries?view=heatmap&include_stocks=1"),
+):
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "gaemiGTP-health-check"})
+        with urllib.request.urlopen(req, timeout=12) as response:
+            data = json.load(response)
+        items = data.get("items") or []
+        if name == "public_top20":
+            numeric = [x for x in items if type(x.get("change_pct")) in (int, float)]
+            print(name + " ok=" + str(data.get("ok")) + " count=" + str(len(items)) +
+                  " pct=" + str(len(numeric)), flush=True)
+        else:
+            stocks = [s for sector in items for s in (sector.get("stocks") or [])]
+            numeric = [s for s in stocks if type(s.get("change_pct")) in (int, float)]
+            print(name + " ok=" + str(data.get("ok")) + " sectors=" + str(len(items)) +
+                  " stocks=" + str(len(stocks)) + " pct=" + str(len(numeric)), flush=True)
+    except Exception as exc:
+        print(name + " ERROR=" + type(exc).__name__ + ":" + str(exc), flush=True)
+
 for path in (Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json"),
              Path("/var/lib/gaemigtp-news/us-regular-last-verified.json")):
     try:
