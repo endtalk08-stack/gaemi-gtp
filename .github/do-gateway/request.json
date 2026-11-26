@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/read-us-worker-config-20261023.py",
-  "request_id": "news-audit-config-20261126",
+  "path": "ops/do-gateway/inspect_news_worker_cadence_readonly_20261021.py",
+  "request_id": "news-audit-cadence-20261126",
   "timeout": 120
 }
