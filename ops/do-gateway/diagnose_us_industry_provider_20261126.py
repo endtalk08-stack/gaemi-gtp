@@ -15,6 +15,13 @@ def safe_cmd(args):
 
 def main():
     print("DIAG_START=1", flush=True)
+    env_path = pathlib.Path("/etc/gaemigtp/kiwoom.env")
+    try:
+        keys = sorted({line.split("=", 1)[0].strip() for line in env_path.read_text().splitlines()
+                       if "=" in line and line.strip() and not line.lstrip().startswith("#")})
+        print("KIWOOM_ENVFILE_KEYS=" + ",".join(keys), flush=True)
+    except Exception as exc:
+        print("KIWOOM_ENVFILE_READ_ERROR=" + type(exc).__name__, flush=True)
     for unit in ("gaemigtp-kiwoom-us-top20-api.service", "gaemigtp-kiwoom-us-top20-https.service"):
         print("UNIT_" + unit + "_ACTIVE=" + safe_cmd(["systemctl", "is-active", unit]), flush=True)
         props = safe_cmd(["systemctl", "show", unit, "-p", "MainPID", "-p", "ExecStart", "-p", "WorkingDirectory", "-p", "EnvironmentFiles"])
@@ -31,6 +38,9 @@ def main():
             print("API_CMDLINE=" + pathlib.Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\\0", b" ").decode("utf-8", "replace")[:500], flush=True)
             print("API_CWD=" + str(pathlib.Path(f"/proc/{pid}/cwd").resolve()), flush=True)
             raw_env = pathlib.Path(f"/proc/{pid}/environ").read_bytes().split(b"\\0")
+            present = sorted(item.split(b"=", 1)[0].decode("ascii", "replace") for item in raw_env
+                             if item.startswith((b"GAEMI_KIWOOM_", b"KIWOOM_")))
+            print("API_KIWOOM_ENV_KEYS=" + ",".join(present), flush=True)
             for item in raw_env:
                 if item.startswith((b"GAEMI_KIWOOM_APP_KEY=", b"GAEMI_KIWOOM_APP_SECRET=")):
                     k, v = item.split(b"=", 1)
