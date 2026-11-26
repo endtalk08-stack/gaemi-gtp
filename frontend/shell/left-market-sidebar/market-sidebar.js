@@ -371,25 +371,6 @@
           stocks: orderSelectedStocks(stocks)
         };
       });
-      // AI datacenter optical networking (CPO) theme -- no dedicated ETF is
-      // tracked for this, so the three hand-picked names are pulled directly
-      // out of whichever official GICS group Kiwoom already files them under
-      // (no new backend/Kiwoom subscription). Missing names are simply
-      // skipped rather than showing a broken tile.
-      const opticalNetworkingSymbols = ['COHR', 'CRDO', 'CIEN'];
-      const allIndustryStocks = [...byIndustry.values()]
-        .flatMap((source) => Array.isArray(source?.stocks) ? source.stocks : []);
-      const opticalNetworkingStocks = opticalNetworkingSymbols
-        .map((symbol) => allIndustryStocks.find((stock) => industrySymbol(stock?.symbol) === symbol))
-        .filter(Boolean);
-      const opticalNetworkingChangePct = (() => {
-        const changes = opticalNetworkingStocks.map((stock) => {
-          const live = industryQuoteFor(stock.symbol);
-          return Number.isFinite(live?.change_pct) ? live.change_pct
-            : Number.isFinite(stock.change_pct) ? stock.change_pct : null;
-        }).filter(Number.isFinite);
-        return changes.length ? changes.reduce((total, value) => total + value, 0) / changes.length : null;
-      })();
       const supplementalThemes = [
         {
           sector: { key: 'theme_semiconductors', name: '반도체', themeTone: 'semiconductor', hideChange: true },
@@ -406,25 +387,10 @@
           sector: { key: 'theme_bitcoin', name: '비트코인', themeTone: 'bitcoin', hideChange: true },
           stocks: orderSelectedStocks([...(byIndustry.get('bitcoin_related')?.stocks || [])]
             .sort((a, b) => (b.market_cap_usd || 0) - (a.market_cap_usd || 0)).slice(0, 3))
-        },
-        ...(opticalNetworkingStocks.length ? [{
-          sector: {
-            key: 'theme_photonics', name: '광통신', themeTone: 'photonics', hideChange: true,
-            change_pct: opticalNetworkingChangePct
-          },
-          stocks: orderSelectedStocks(opticalNetworkingStocks)
-        }] : [])
+        }
       ];
       const etfChange = ({ sector }) => {
-        const etf = sectorEtfs[sector.key];
-        if (etf === undefined) {
-          // No ETF is tracked for this theme at all (only 광통신 today) --
-          // use its pre-computed basket average instead of always sorting
-          // last. Sectors/themes that DO have an ETF keep the existing
-          // "missing live quote sorts last" behavior unchanged.
-          return Number.isFinite(sector.change_pct) ? sector.change_pct : -Infinity;
-        }
-        const quote = industryQuoteFor(etf);
+        const quote = industryQuoteFor(sectorEtfs[sector.key]);
         return Number.isFinite(quote?.change_pct) ? quote.change_pct : -Infinity;
       };
       [...visibleSectors, ...supplementalThemes].sort((a, b) => {
@@ -434,9 +400,7 @@
       }).forEach(({ sector, stocks: ranked }, index) => {
         const etf = sectorEtfs[sector.key];
         const etfQuote = industryQuoteFor(etf);
-        const sectorPct = etf === undefined
-          ? (Number.isFinite(sector.change_pct) ? sector.change_pct : null)
-          : (etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null);
+        const sectorPct = etfQuote && Number.isFinite(etfQuote.change_pct) ? etfQuote.change_pct : null;
         // Sector and stock tiles share the trading-value charcoal surface.
         // Direction is shown by the percentage text; only actual changes flash.
         const sectorColor = mapTileColor(sectorPct);

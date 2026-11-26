@@ -248,7 +248,7 @@ test('left sidebar keeps all market tabs and restores moved widgets after refres
   const marketSidebar = readFileSync('frontend/shell/left-market-sidebar/market-sidebar.js', 'utf8');
   assert.equal(marketSidebar.includes('시장 시세'), false);
   assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
-  assert.match(html, /market-sidebar\.js\?v=20261126-photonics-theme-v1/);
+  assert.match(html, /market-sidebar\.js\?v=20261125-market-title-clean-v1/);
   assert.match(html, /widget-dock\.js\?v=20261125-widget-state-persist-v2/);
   secondDom.window.close();
 });
