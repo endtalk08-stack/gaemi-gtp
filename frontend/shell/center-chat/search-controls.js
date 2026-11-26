@@ -2,6 +2,12 @@
 (function () {
   'use strict';
 
+  const STOCK_MARKET_SELECTIONS = Object.freeze({
+    '엔비디아': { market: 'us', menu: 'value', name: '엔비디아', symbol: 'NVDA', currency: 'USD', source: 'kiwoom' },
+    'nvidia': { market: 'us', menu: 'value', name: '엔비디아', symbol: 'NVDA', currency: 'USD', source: 'kiwoom' },
+    'nvda': { market: 'us', menu: 'value', name: '엔비디아', symbol: 'NVDA', currency: 'USD', source: 'kiwoom' }
+  });
+
   const STOCK_SEARCH_ALIASES = Object.freeze({
     '구글': '알파벳', 'google': '알파벳', 'alphabet': '알파벳',
     '스페이스엑스': '스페이스X', '스페이스x': '스페이스X', 'spacex': '스페이스X', 'spcx': '스페이스X',
@@ -75,7 +81,12 @@
     const query = String(value || '').trim();
     if (!query) return false;
     if (!isQuestionInput(query)) {
-      selectStock(query, { enterAnalysis });
+      const marketSelection = STOCK_MARKET_SELECTIONS[query.toLowerCase()] || null;
+      const stockName = marketSelection?.name || query;
+      selectStock(stockName, {
+        enterAnalysis: enterAnalysis || Boolean(marketSelection),
+        marketSelection
+      });
       return true;
     }
     enterChatWorkspace();
