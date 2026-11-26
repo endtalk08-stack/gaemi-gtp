@@ -24,6 +24,11 @@ on:
         required: true
         type: boolean
         default: false
+      confirm_access_protected_preview:
+        description: 'I manually inspected the Access-protected preview for this same commit'
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -95,6 +100,8 @@ jobs:
 
   preview:
     needs: validate
+    outputs:
+      access_protected: ${{ steps.preview_check.outputs.protected }}
     if: >-
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
@@ -148,14 +155,13 @@ jobs:
           fi
           if grep -Eqi 'Cloudflare Access|cloudflareaccess\.com|cf-access' "$RUNNER_TEMP/preview-index.html"; then
             echo "protected=true" >> "$GITHUB_OUTPUT"
-            echo "::error::Cloudflare Access blocks automated preview verification. Production deployment is blocked."
-            exit 1
-          fi
-          if [ "$status" != "200" ]; then
+            echo "::warning::Preview deployed, but Cloudflare Access blocks anonymous asset verification."
+          elif [ "$status" != "200" ]; then
             echo "::error::Preview returned HTTP $status."
             exit 1
+          else
+            node scripts/pages/verify-pages-deployment.mjs "$DEPLOYMENT_URL"
           fi
-          node scripts/pages/verify-pages-deployment.mjs "$DEPLOYMENT_URL"
       - name: Verify preview Pages Functions and existing R2 binding
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
@@ -170,13 +176,18 @@ jobs:
         if: always()
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          ACCESS_PROTECTED: ${{ steps.preview_check.outputs.protected }}
         run: |
           echo "[Open the Pages preview]($DEPLOYMENT_URL)" >> "$GITHUB_STEP_SUMMARY"
-          echo "Verified: frontend assets, Pages Functions, instrument metadata, and R2-backed NVDA daily chart." >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ACCESS_PROTECTED" = "true" ]; then
+            echo "Preview deployed. Cloudflare Access blocked automated asset, Functions, and R2 verification; inspect the preview manually before authorizing production." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Verified: frontend assets, Pages Functions, instrument metadata, and R2-backed NVDA daily chart." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   production:
     needs: preview
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_production
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_production && (needs.preview.outputs.access_protected != 'true' || inputs.confirm_access_protected_preview)
     runs-on: ubuntu-latest
     environment: production
     concurrency:
