@@ -216,7 +216,7 @@ def _get_us_industry_etf_quotes():
             if quote.get("price") and quote.get("exchange"):
                 try:
                     # Yahoo supplies only the previous regular close; current price is Kiwoom.
-                    percent, close_date = validated_change(
+                    percent, close_date = _validated_snapshot_change(
                         symbol, quote["exchange"], quote["price"])
                 except (ValueError, TypeError, ArithmeticError):
                     pass
@@ -364,7 +364,7 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                 if type(price) in (int, float) and 0 < price < 10000000 and exchange in ("ND", "NY", "NA"):
                     # The current price was already supplied by Kiwoom with the industry map.
                     # Yahoo only supplies the cached preceding regular close (no additional Kiwoom request).
-                    percent, close_date = validated_change(symbol, exchange, price)
+                    percent, close_date = _validated_snapshot_change(symbol, exchange, price)
                     stock["change_pct"] = percent
                     stock["reference_close_date"] = close_date
     result["sort"] = "marketcap"
@@ -527,6 +527,47 @@ def _us_close_phase(now=None):
     if 16 * 60 <= minute < 16 * 60 + 30:
         return "hold", local.date().isoformat()
     return "none", local.date().isoformat()
+
+
+def _last_completed_us_session(now=None):
+    """Return the latest completed NYSE session date in New York time."""
+    now = now or datetime.now(timezone.utc)
+    local = now.astimezone(_US_CLOSE_NY)
+    day = local.date()
+    if local.weekday() >= 5 or _is_us_market_holiday(day) or local.time() < datetime.min.time().replace(hour=16):
+        day -= timedelta(days=1)
+    while day.weekday() >= 5 or _is_us_market_holiday(day):
+        day -= timedelta(days=1)
+    return day
+
+
+def _validated_snapshot_change(symbol, exchange, price, *, now=None, snapshot_at=None):
+    """Validate a quote against the close preceding the session represented by its price.
+
+    Outside regular trading, prices from the latest completed session must be
+    compared with the *prior* session close, not today's already-published close.
+    """
+    from backend.us_quote_change import validated_change
+
+    now = now or datetime.now(timezone.utc)
+    phase, _ = _us_close_phase(now)
+    if phase == "capture":
+        baseline_at = now
+    else:
+        session_day = _last_completed_us_session(now)
+        if snapshot_at is not None:
+            captured = snapshot_at.astimezone(_US_CLOSE_NY)
+            if captured.date() != session_day:
+                return None, None
+            session_day = captured.date()
+        elif snapshot_at is False:
+            return None, None
+        baseline_at = datetime.combine(
+            session_day,
+            datetime.min.time().replace(hour=15, minute=59, second=59),
+            tzinfo=_US_CLOSE_NY,
+        )
+    return validated_change(symbol, exchange, price, now=baseline_at)
 
 
 def _us_close_read_disk():
@@ -877,7 +918,7 @@ def _get_qqq_rest_snapshot():
             from backend.us_quote_change import validated_change
             if isinstance(price, bool) or not isinstance(price, (int, float)) or not 0 < price < 10000000:
                 raise ValueError("qqq_rest_price_missing")
-            change, close_date = validated_change("QQQ", "ND", float(price))
+            change, close_date = _validated_snapshot_change("QQQ", "ND", float(price))
             quote = {
                 "symbol": "QQQ",
                 "price": float(price),
@@ -919,7 +960,7 @@ def _get_market_widget_quotes():
                     if type(price) not in (int, float) or not 0 < price < 10000000:
                         raise ValueError("market_widget_rest_quote_missing")
                     from backend.us_quote_change import validated_change
-                    change, close_date = validated_change(symbol, MARKET_WIDGET_ETF_EXCHANGES[symbol], float(price))
+                    change, close_date = _validated_snapshot_change(symbol, MARKET_WIDGET_ETF_EXCHANGES[symbol], float(price))
                     if change is not None and not -100 < change < 10000:
                         raise ValueError("market_widget_rest_quote_missing")
                 except Exception:
@@ -1039,6 +1080,13 @@ def read_top20(path=RANKING_FILE):
     if path.stat().st_size > 128000:
         raise ValueError("top20_file_too_large")
     data = json.loads(path.read_text(encoding="utf-8"))
+    captured_at = None
+    try:
+        captured_at = datetime.fromisoformat(str(data.get("captured_at") or "").replace("Z", "+00:00"))
+        if captured_at.tzinfo is None:
+            captured_at = captured_at.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        pass
     if not isinstance(data, dict) or any(data.get(k) != v for k, v in (
         ("schema_version", 1), ("source", "kiwoom"), ("market", "US"),
         ("rank_type", "trading_value"))):
@@ -1078,7 +1126,10 @@ def read_top20(path=RANKING_FILE):
             current_pct, close_date = None, None
             exchange = row.get("exchange")
             if type(current_price) in (int, float) and 0 < current_price < 10000000 and exchange in ("ND", "NY", "NA"):
-                current_pct, close_date = validated_change(symbol, exchange, current_price)
+                current_pct, close_date = _validated_snapshot_change(
+                    symbol, exchange, current_price,
+                    snapshot_at=captured_at if captured_at is not None else False,
+                )
         item = {
             "rank": index,
             "symbol": symbol,
