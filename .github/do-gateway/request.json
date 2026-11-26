@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-news.service",
-  "lines": 200
+  "operation": "run",
+  "path": "ops/do-gateway/test_nvda_independent_news_keywords_20261022.py",
+  "request_id": "news-audit-nvda-20261126",
+  "timeout": 120
 }
