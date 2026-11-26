@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/audit_top20_ranking_file_20261126.py",
-  "request_id": "audit-top20-ranking-file-20261126",
+  "path": "ops/do-gateway/verify_top20_percentages_now_20261126.py",
+  "request_id": "verify-top20-pcts-now-20261126",
   "timeout": 60
 }
