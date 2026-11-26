@@ -1,6 +1,6 @@
 {
   "operation": "run",
   "path": "ops/do-gateway/diagnose_market_etfs_20261126.py",
-  "request_id": "diag-market-etf-20261126",
+  "request_id": "diag-market-etf-cors-20261126",
   "timeout": 120
 }
