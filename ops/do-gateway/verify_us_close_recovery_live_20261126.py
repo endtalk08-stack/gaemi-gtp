@@ -1,4 +1,5 @@
-import json, ssl, urllib.request
+import json, ssl, sys, urllib.request
+sys.path.insert(0, "/opt/gaemigtp-news/app")
 from backend import kiwoom_us_top20_api as api
 
 ctx = ssl._create_unverified_context()
